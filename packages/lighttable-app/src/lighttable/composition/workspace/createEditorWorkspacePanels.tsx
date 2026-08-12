@@ -7,10 +7,9 @@ import {
   LensFxPanel
 } from '../../editor/panels/LensFxPanel';
 import { LayerStylesPanel } from '../../editor/panels/LayerStylesPanel';
-import { DocumentColorPanel } from '../../editor/panels/DocumentColorPanel';
 import { AgentActivityPanel } from '../../editor/panels/AgentActivityPanel';
 import { GenAiPanel } from '../../../genai/ui/GenAiPanel';
-import { AiHistoryPanel } from '../../../genai/ui/AiHistoryPanel';
+import { ProjectAssetBrowser } from '../../../genai/ui/ProjectAssetBrowser';
 import type { LayerStyleEditorController } from '../../application/styles/useLayerStyleEditorController';
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import {
@@ -30,11 +29,10 @@ export interface EditorWorkspacePanelBindings {
     document: ImageDocument | null;
     controller: LayerStyleEditorController;
   };
-  color: React.ComponentProps<typeof DocumentColorPanel>;
   text: React.ComponentProps<typeof TextPropertiesPanel> | null;
   agent: React.ComponentProps<typeof AgentActivityPanel>;
   genAi: React.ComponentProps<typeof GenAiPanel>;
-  aiHistory: React.ComponentProps<typeof AiHistoryPanel>;
+  aiHistory: React.ComponentProps<typeof ProjectAssetBrowser>;
 }
 
 /**
@@ -52,7 +50,6 @@ export const createEditorWorkspacePanels = ({
   lensFx,
   grade,
   effects,
-  color,
   text,
   agent,
   genAi,
@@ -66,10 +63,9 @@ export const createEditorWorkspacePanels = ({
     lensFx: <LensFxPanel key={lensFxKey} {...lensFx} />,
     grade: <GradePanel {...grade} />,
     effects: <LayerStylesPanel {...effects} />,
-    color: <DocumentColorPanel {...color} />,
     agent: <AgentActivityPanel {...agent} />,
     genAi: <GenAiPanel {...genAi} />,
-    aiHistory: <AiHistoryPanel {...aiHistory} />,
+    aiHistory: <ProjectAssetBrowser {...aiHistory} />,
     text: text
       ? <TextPropertiesPanel {...text} />
       : <aside className="lighttable-panel" aria-label="Text properties" />

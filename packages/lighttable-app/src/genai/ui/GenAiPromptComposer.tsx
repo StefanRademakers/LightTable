@@ -22,7 +22,7 @@ const findMention = (token: string, options: readonly GenAiAssetMentionOption[])
   ));
 };
 
-const renderMarkup = (
+export const renderPromptMarkup = (
   value: string,
   options: readonly GenAiAssetMentionOption[],
   previews: Readonly<Record<string, string>>
@@ -37,9 +37,7 @@ const renderMarkup = (
     if (option) {
       const preview = previews[option.asset.id];
       output += `<span class="genai-prompt-token" data-token="${escapeHtml(option.token)}" contenteditable="false">${preview ? `<img src="${escapeHtml(preview)}" alt="">` : ''}<strong>${escapeHtml(option.token)}</strong></span>`;
-    } else {
-      output += `<span class="genai-prompt-token genai-prompt-token--missing" data-token="${escapeHtml(token)}" contenteditable="false"><strong>${escapeHtml(token)}</strong></span>`;
-    }
+    } else output += escapeHtml(token);
     cursor = index + token.length;
   }
   return output + escapeHtml(line.slice(cursor));
@@ -113,7 +111,6 @@ const mentionSearch = (value: string, caret: number | null) => {
 };
 
 export const GenAiPromptComposer = ({ value, onChange, mentions, previews, requestPreview }: GenAiPromptComposerProps) => {
-  const composerRef = React.useRef<HTMLElement>(null);
   const editorRef = React.useRef<HTMLDivElement>(null);
   const focused = React.useRef(false);
   const [caret, setCaret] = React.useState<number | null>(0);
@@ -128,7 +125,7 @@ export const GenAiPromptComposer = ({ value, onChange, mentions, previews, reque
   const applyMarkup = React.useCallback((nextValue: string, offset?: number) => {
     const editor = editorRef.current;
     if (!editor) return;
-    editor.innerHTML = renderMarkup(nextValue, mentions, previews);
+    editor.innerHTML = renderPromptMarkup(nextValue, mentions, previews);
     if (offset !== undefined) restoreCaret(editor, offset);
   }, [mentions, previews]);
 
@@ -137,27 +134,30 @@ export const GenAiPromptComposer = ({ value, onChange, mentions, previews, reque
   }, [applyMarkup, value]);
 
   React.useEffect(() => {
-    const releaseFocusOnOutsidePointer = (event: PointerEvent) => {
-      const editor = editorRef.current;
-      if (!editor || document.activeElement !== editor) return;
-      if (!composerRef.current?.contains(event.target as Node)) editor.blur();
-    };
-    document.addEventListener('pointerdown', releaseFocusOnOutsidePointer, true);
-    return () => document.removeEventListener('pointerdown', releaseFocusOnOutsidePointer, true);
-  }, []);
-
-  React.useEffect(() => {
     for (const option of suggestions) requestPreview(option.asset.id);
   }, [requestPreview, suggestions]);
 
-  const commitDom = () => {
+  const readEditorValue = (): string | null => {
+    const editor = editorRef.current;
+    return editor ? serialize(editor).replaceAll('\u00a0', ' ') : null;
+  };
+
+  const syncEditingDom = () => {
     const editor = editorRef.current;
     if (!editor) return;
     const offset = selectionOffset(editor);
-    const next = serialize(editor).replaceAll('\u00a0', ' ');
+    const next = readEditorValue();
+    if (next === null) return;
     onChange(next);
     setCaret(offset);
     applyMarkup(next, offset ?? next.length);
+  };
+
+  const finishEditing = () => {
+    focused.current = false;
+    const next = readEditorValue();
+    if (next !== null) onChange(next);
+    setCaret(null);
   };
 
   const insertMention = (option: GenAiAssetMentionOption) => {
@@ -175,7 +175,7 @@ export const GenAiPromptComposer = ({ value, onChange, mentions, previews, reque
   };
 
   return (
-    <section ref={composerRef} className="genai-prompt-composer">
+    <section className="genai-prompt-composer">
       <div className="genai-prompt-composer__heading">
         <label htmlFor="lighttable-genai-prompt">Prompt</label>
         <span><strong>single</strong><i />set</span>
@@ -185,16 +185,38 @@ export const GenAiPromptComposer = ({ value, onChange, mentions, previews, reque
           contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true"
           data-placeholder="Describe the image. Type @ to reference a project asset."
           onFocus={() => { focused.current = true; setCaret(selectionOffset(editorRef.current!)); }}
-          onBlur={() => { focused.current = false; commitDom(); }}
-          onInput={commitDom}
+          onBlur={finishEditing}
+          onInput={syncEditingDom}
           onClick={() => setCaret(editorRef.current ? selectionOffset(editorRef.current) : null)}
           onKeyUp={() => setCaret(editorRef.current ? selectionOffset(editorRef.current) : null)}
           onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setCaret(null);
+              event.currentTarget.blur();
+              return;
+            }
+            if (event.key === 'Backspace' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+              const editor = editorRef.current;
+              const selection = window.getSelection();
+              const offset = editor ? selectionOffset(editor) : null;
+              if (editor && selection?.isCollapsed && offset !== null) {
+                const token = /@[A-Za-z0-9_-]+$/u.exec(value.slice(0, offset))?.[0];
+                if (token && findMention(token, mentions)) {
+                  event.preventDefault();
+                  const next = `${value.slice(0, offset - 1)}${value.slice(offset)}`;
+                  const nextCaret = offset - 1;
+                  onChange(next);
+                  setCaret(nextCaret);
+                  applyMarkup(next, nextCaret);
+                  return;
+                }
+              }
+            }
             if (!suggestions.length) return;
             if (event.key === 'ArrowDown') { event.preventDefault(); setActiveIndex((value) => (value + 1) % suggestions.length); }
             else if (event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex((value) => (value - 1 + suggestions.length) % suggestions.length); }
             else if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); insertMention(suggestions[activeIndex] ?? suggestions[0]!); }
-            else if (event.key === 'Escape') setCaret(null);
           }}
         />
         {suggestions.length ? (

@@ -137,6 +137,20 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
     const worker = new Worker(new URL('./slimSam.worker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = (event: MessageEvent<SlimSamWorkerResponse>) => {
       if (event.data.type === 'status') return;
+      if (event.data.type === 'metric') {
+        const trace = (globalThis as typeof globalThis & {
+          __LIGHTTABLE_SMART_SELECTION_TRACE__?: Array<{
+            event: string;
+            detail?: Record<string, unknown>;
+          }>;
+        }).__LIGHTTABLE_SMART_SELECTION_TRACE__;
+        trace?.push({ event: 'backend-metric', detail: {
+          phase: event.data.phase,
+          durationMs: event.data.durationMs,
+          backend: event.data.backend
+        } });
+        return;
+      }
       const pending = this.pending.get(event.data.requestId);
       if (!pending) return;
       this.pending.delete(event.data.requestId);

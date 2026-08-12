@@ -7,7 +7,7 @@ import {
   type ProgressInfo,
   type Tensor
 } from '@huggingface/transformers';
-import type { SlimSamWorkerRequest } from './slimSamProtocol';
+import type { SlimSamWorkerRequest, SlimSamWorkerResponse } from './slimSamProtocol';
 import { rankSubjectMask } from './smartSubjectRanking';
 
 const MODEL_ID = 'Xenova/slimsam-77-uniform';
@@ -60,6 +60,15 @@ const status = (requestId: number, message: string, progress?: number) => self.p
   type: 'status', requestId, status: 'preparing', message, progress
 });
 
+const metric = (
+  requestId: number,
+  phase: Extract<SlimSamWorkerResponse, { type: 'metric' }>['phase'],
+  startedAt: number
+) => self.postMessage({
+  type: 'metric', requestId, phase, durationMs: performance.now() - startedAt,
+  backend: backend ?? undefined
+});
+
 const loadRuntime = async (requestId: number): Promise<{ model: SamModel; processor: SamProcessorPort }> => {
   if (model && processor) return { model, processor };
   const attempts: Array<{ device: 'webgpu' | 'wasm'; dtype: 'fp16' | 'fp32' | 'q8' }> = [];
@@ -70,6 +79,7 @@ const loadRuntime = async (requestId: number): Promise<{ model: SamModel; proces
   attempts.push({ device: 'wasm', dtype: 'q8' }, { device: 'wasm', dtype: 'fp32' });
   let lastError: unknown = null;
   for (const attempt of attempts) {
+    const startedAt = performance.now();
     try {
       status(requestId, `Loading Object Selection on ${attempt.device === 'webgpu' ? 'WebGPU' : 'CPU'}…`);
       const progress_callback = (event: ProgressInfo) => status(
@@ -92,6 +102,7 @@ const loadRuntime = async (requestId: number): Promise<{ model: SamModel; proces
       model = createdModel;
       processor = createdProcessor;
       backend = attempt.device;
+      metric(requestId, 'model-load', startedAt);
       return { model, processor };
     } catch (reason) {
       lastError = reason;
@@ -115,9 +126,15 @@ const prepareSource = async (request: Extract<SlimSamWorkerRequest, { type: 'pre
   }
   const runtime = await loadRuntime(request.requestId);
   status(request.requestId, `Preparing image on ${backend === 'webgpu' ? 'WebGPU' : 'CPU'}…`);
+  const imageDecodeStartedAt = performance.now();
   const image = await RawImage.fromBlob(request.image);
+  metric(request.requestId, 'image-decode', imageDecodeStartedAt);
+  const preprocessStartedAt = performance.now();
   const inputs = await processImage(runtime.processor, image);
+  metric(request.requestId, 'image-preprocess', preprocessStartedAt);
+  const encodeStartedAt = performance.now();
   const embeddings = await runtime.model.get_image_embeddings({ pixel_values: inputs.pixel_values });
+  metric(request.requestId, 'image-encode', encodeStartedAt);
   inputs.pixel_values.dispose();
   disposePrepared();
   prepared = {
@@ -158,17 +175,23 @@ const decodePrompt = async (
   hardEdge: boolean
 ) => {
   if (!prepared) throw new Error('The prepared Object Selection source is no longer available.');
+  const preprocessStartedAt = performance.now();
   const inputs = await processImage(runtime.processor, prepared.image, prompts);
+  metric(0, 'prompt-preprocess', preprocessStartedAt);
   const { pixel_values, original_sizes, reshaped_input_sizes, ...promptInputs } = inputs;
   try {
+    const decodeStartedAt = performance.now();
     const outputs = await runtime.model({ ...promptInputs, ...prepared.embeddings });
+    metric(0, 'prompt-decode', decodeStartedAt);
     try {
+      const postprocessStartedAt = performance.now();
       const masks = await runtime.processor.post_process_masks(
         outputs.pred_masks,
         original_sizes,
         reshaped_input_sizes,
         { binarize: false }
       ) as Tensor[];
+      metric(0, 'mask-postprocess', postprocessStartedAt);
       try {
         const first = masks[0];
         if (!first) throw new Error('Object Selection produced no mask.');

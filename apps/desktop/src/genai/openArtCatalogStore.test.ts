@@ -25,7 +25,20 @@ describe('OpenArtCatalogStore', () => {
     expect((await store.load()).models).toEqual([model]);
     expect(await store.workflow(workflow.id)).toEqual(workflow);
     expect(JSON.parse(await readFile(filePath, 'utf8'))).toMatchObject({
-      format: 'lighttable-genai-catalog', version: 1, source: 'openart-mcp'
+      format: 'lighttable-genai-catalog', source: 'openart-mcp'
     });
+  });
+
+  it('does not retain an empty workflow that would hide every model control', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'lighttable-openart-catalog-'));
+    roots.push(root);
+    const store = new OpenArtCatalogStore(path.join(root, 'catalog.json'));
+    const empty = {
+      id: 'openart:nano-banana-pro:text2image' as GenAiWorkflowId,
+      providerId: 'openart' as GenAiProviderId,
+      modelId: 'nano-banana-pro' as GenAiModelId,
+      label: 'Text to image', mode: 'text2image', fields: []
+    } satisfies GenAiWorkflowDefinition;
+    await expect(store.saveWorkflow(empty)).rejects.toThrow('without fields');
   });
 });

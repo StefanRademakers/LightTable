@@ -38,6 +38,10 @@ export interface EditorMenuState {
   zoomMode: 'fit' | '100' | 'custom';
   showOriginal: boolean;
   showDifference: boolean;
+  documentColor?: {
+    bitDepth: 8 | 16 | 32;
+    profileState: 'assigned' | 'assumed';
+  } | null;
   blendModes: Array<{ id: BlendMode; label: string; selected: boolean; separatorBefore: boolean }>;
 }
 
@@ -87,6 +91,7 @@ export interface EditorMenuCommands {
   renameLayer: () => void;
   invertLayerColors: () => void;
   openImageSize: () => void;
+  assignSrgbProfile: () => void;
   beginAutoAlign: () => void;
   applyAutoAlign: () => void;
   cancelAutoAlign: () => void;
@@ -288,6 +293,24 @@ export const createEditorMenuOptions = (
         disabled: !state.hasMetadata || !state.copiedGradeName || state.saving
       },
       {
+        value: 'assign-profile',
+        label: 'Assign Profile',
+        separatorBefore: true,
+        disabled: !state.documentColor,
+        children: [{
+          value: 'assign-profile-srgb',
+          label: checkedLabel('sRGB', state.documentColor?.profileState === 'assigned'),
+          onClick: commands.assignSrgbProfile,
+          disabled: !state.documentColor || state.documentColor.profileState === 'assigned'
+        }]
+      },
+      {
+        value: 'convert-profile',
+        label: 'Convert to Profile...',
+        disabled: true,
+        disabledReason: 'Profile conversion is not available yet; imported pixels are currently normalized to sRGB.'
+      },
+      {
         value: 'settings',
         label: 'Preferences...',
         shortcut: labels.primaryShortcut('K'),
@@ -325,7 +348,7 @@ export const createEditorMenuOptions = (
       ]
     }, {
       value: 'ai-history',
-      label: 'Queue & History',
+      label: 'Assets',
       separatorBefore: true,
       onClick: commands.showAiHistoryPanel ?? commands.showGenAiPanel
     }];
@@ -379,6 +402,30 @@ export const createEditorMenuOptions = (
       shortcut: labels.primaryShortcut('Alt+I'),
       onClick: commands.openImageSize,
       disabled: !state.hasDocument || state.saving
+    }, {
+      value: 'image-mode',
+      label: 'Mode',
+      separatorBefore: true,
+      disabled: !state.documentColor,
+      children: [{
+        value: 'image-mode-rgb',
+        label: checkedLabel('RGB Color', Boolean(state.documentColor)),
+        disabled: true
+      }, {
+        value: 'image-mode-8-bit',
+        label: checkedLabel('8 Bits/Channel', state.documentColor?.bitDepth === 8),
+        disabled: true,
+        disabledReason: state.documentColor?.bitDepth === 8
+          ? 'Current document mode.'
+          : 'Bit-depth conversion is not available yet.'
+      }, {
+        value: 'image-mode-16-bit',
+        label: checkedLabel('16 Bits/Channel', state.documentColor?.bitDepth === 16),
+        disabled: true,
+        disabledReason: state.documentColor?.bitDepth === 16
+          ? 'Current document mode.'
+          : 'Bit-depth conversion is not available yet.'
+      }]
     }];
   }
 
@@ -658,7 +705,7 @@ export const createEditorMenuOptions = (
     },
     {
       value: 'show-ai-history-panel',
-      label: 'AI History panel',
+      label: 'Assets panel',
       onClick: commands.showAiHistoryPanel ?? commands.showGenAiPanel
     },
     {

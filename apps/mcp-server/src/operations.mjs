@@ -88,8 +88,6 @@ export const validateServiceConfig = (environment) => {
     .split(',').map((value) => value.trim()).filter(Boolean);
   if (!allowedHosts.length) throw new Error('LIGHTTABLE_ALLOWED_HOSTS may not be empty.');
   return {
-    port, host: environment.HOST ?? '0.0.0.0', publicUrl: publicUrl.href, insecure, demo, allowedHosts,
-    referencePath: environment.LIGHTTABLE_REFERENCE_PATH
-      ?? (environment.LIGHTTABLE_STATE_PATH ? `${environment.LIGHTTABLE_STATE_PATH}.references` : undefined)
+    port, host: environment.HOST ?? '0.0.0.0', publicUrl: publicUrl.href, insecure, demo, allowedHosts
   };
 };

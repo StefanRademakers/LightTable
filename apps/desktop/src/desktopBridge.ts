@@ -13,6 +13,7 @@ import type { ProjectFolderMappings, ProjectUserFolder, ProjectUserStorageLocati
 import type {
   GenAiAssetId,
   GenAiAssetReference,
+  GenAiProjectAssetCatalog,
   GenAiGenerationRequest,
   GenAiGenerationJob,
   GenAiGenerationSubmission,
@@ -204,9 +205,12 @@ export interface LightTableDesktopBridge {
   resumeGenAiJobTracking(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<GenAiGenerationJob>;
   revealGenAiResult(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<void>;
   deleteGenAiJob(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<void>;
-  listGenAiProjectAssets(projectId: string): Promise<readonly GenAiAssetReference[]>;
+  loadGenAiProjectAssetCatalog(projectId: string): Promise<GenAiProjectAssetCatalog>;
   loadGenAiProjectAssetPreview(projectId: string, assetId: GenAiAssetId): Promise<string | null>;
   loadGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<import('@lighttable/genai-core').GenAiAssetPayload | null>;
+  revealGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<void>;
+  renameGenAiProjectAsset(projectId: string, assetId: GenAiAssetId, name: string): Promise<GenAiAssetReference>;
+  deleteGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<void>;
   loadGenAiProjectSetup(projectId: string): Promise<import('@lighttable/genai-core').GenAiProjectSetup | null>;
   saveGenAiProjectSetup(projectId: string, setup: import('@lighttable/genai-core').GenAiProjectSetup): Promise<void>;
   onGenAiProviderStatus(listener: (snapshot: GenAiProviderSnapshot) => void): () => void;

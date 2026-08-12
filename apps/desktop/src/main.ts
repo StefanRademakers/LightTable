@@ -20,9 +20,13 @@ import {
   activateProjectAssetCatalog,
   deactivateProjectAssetCatalog,
   readProjectAsset,
+  readProjectAssetDirectories,
   readProjectAssetIndex,
   readProjectAssetPreview,
+  rebuildProjectAssetIndex,
   recordSavedProjectAsset,
+  renameProjectAsset,
+  resolveProjectAssetPath,
   scheduleSavedProjectAsset,
   subscribeProjectAssetCatalog
 } from './projectAssetService';
@@ -59,7 +63,6 @@ import { DesktopAgentAccessCredentialStore } from './agentAccessCredentialStore'
 import { AgentTunnelController, createAgentDeviceId } from './agentTunnel';
 import {
   HttpsAgentPairingClient,
-  HttpsAgentReferencePublisher,
   ProtectedAgentTunnelSessionStore,
   WebSocketAgentTunnelTransport
 } from './agentTunnelAdapters';
@@ -70,12 +73,14 @@ import { OpenArtConnectionController } from './genai/openArtConnectionController
 import { OpenArtCatalogStore } from './genai/openArtCatalogStore';
 import {
   recordProjectAssetRemoteLink,
+  replaceProjectAssetRemoteLinkId,
   resolveProjectAssetRemoteLinks
 } from './genai/projectAssetRemoteLinks';
 import { prepareProjectAssetReferences } from './genai/prepareProjectAssetReferences';
 import {
   deleteProjectGenerationJob,
   listProjectGenerationJobs,
+  replaceProjectGenerationAssetId,
   updateProjectGenerationJob,
   upsertProjectGenerationJob
 } from './genai/projectGenerationJobStore';
@@ -92,9 +97,6 @@ let packagedRendererServer: Server | null = null;
 let pendingUpdate: { readonly manifest: SignedUpdateManifest; readonly filePath: string } | null = null;
 let agentAccessBridge: AgentAccessBridge | null = null;
 let agentTunnel: AgentTunnelController | null = null;
-const agentReferencePublisher = new HttpsAgentReferencePublisher(
-  process.env.LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS === 'true'
-);
 let openArtConnection: OpenArtConnectionController | null = null;
 let activeProjectManifestPath: string | null = null;
 let agentRequestSequence = 0;
@@ -730,6 +732,7 @@ void app.whenReady().then(async () => {
         ...job, status: 'succeeded', updatedAt: Date.now(), results: [result]
       }));
       publishGenAiJob(project.summary.id, complete);
+      mainWindow?.webContents.send('lighttable:genai-project-assets-changed', project.summary.id);
     } catch (reason) {
       if (abortController.signal.aborted) return;
       const failed = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
@@ -771,10 +774,7 @@ void app.whenReady().then(async () => {
           if (!asset) return null;
           return { ...asset, mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream' };
         },
-        publish: async (asset) => {
-          if (!agentTunnel) throw new Error('The LightTable reference publisher is unavailable.');
-          return agentReferencePublisher.publish(agentTunnel.referencePublicationSession(), asset);
-        },
+        publish: (asset) => openArtConnection!.uploadReference(asset),
         record: (link) => recordProjectAssetRemoteLink(manifestPath, link)
       }
     );
@@ -895,9 +895,9 @@ void app.whenReady().then(async () => {
     publishGenAiJob(project.summary.id, { ...job, status: 'cancelled', updatedAt: Date.now(),
       error: 'Deleted from generation history.', results: [] });
   });
-  ipcMain.handle('lighttable:genai-project-assets', async (event, projectId: unknown) => {
+  ipcMain.handle('lighttable:genai-project-asset-catalog', async (event, projectId: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
-    if (typeof projectId !== 'string' || !activeProjectManifestPath) return [];
+    if (typeof projectId !== 'string' || !activeProjectManifestPath) return { sections: [], assets: [] };
     const project = await openProjectManifest(activeProjectManifestPath);
     if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
     const { index } = await readProjectAssetIndex(activeProjectManifestPath);
@@ -907,14 +907,61 @@ void app.whenReady().then(async () => {
       OPENART_PROVIDER_ID
     );
     const publishedIds = new Set(remoteLinks.map((link) => link.assetId));
-    return index.assets.map((asset) => ({
+    const projectDirectories = await readProjectAssetDirectories(activeProjectManifestPath);
+    const sectionMatches = [...projectDirectories].sort((left, right) => right.path.length - left.path.length);
+    const assets = index.assets.map((asset) => ({
       id: asset.id,
       projectId,
       label: asset.name,
       mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream',
+      relativePath: asset.path,
+      modifiedAt: asset.modifiedAt,
+      section: sectionMatches.find((section) => asset.path === section.path || asset.path.startsWith(`${section.path}/`))?.label
+        ?? (asset.path.includes('/') ? asset.path.split('/')[0] : 'Root'),
       ...(asset.thumbnail ? { previewId: asset.id } : {}),
       ...(publishedIds.has(asset.id) ? { publishedProviderIds: [OPENART_PROVIDER_ID] } : {})
     }));
+    return {
+      sections: projectDirectories.map((directory) => ({ id: directory.path, label: directory.label })),
+      assets
+    };
+  });
+  ipcMain.handle('lighttable:genai-project-asset-reveal', async (event, projectId: unknown, assetId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const { manifestPath } = await activeGenAiProject(projectId);
+    if (typeof assetId !== 'string') throw new Error('Invalid project asset.');
+    shell.showItemInFolder(await resolveProjectAssetPath(manifestPath, assetId));
+  });
+  ipcMain.handle('lighttable:genai-project-asset-rename', async (
+    event, projectId: unknown, assetId: unknown, requestedName: unknown
+  ) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const { project, manifestPath } = await activeGenAiProject(projectId);
+    if (typeof assetId !== 'string' || typeof requestedName !== 'string') throw new Error('Invalid rename request.');
+    const renamed = await renameProjectAsset({ manifestPath, assetId, name: requestedName });
+    await replaceProjectGenerationAssetId(manifestPath, renamed.previousId, renamed.next.id, renamed.next.name);
+    await replaceProjectAssetRemoteLinkId(manifestPath, renamed.previousId, renamed.next.id);
+    mainWindow?.webContents.send('lighttable:genai-project-assets-changed', project.summary.id);
+    return {
+      id: renamed.next.id,
+      projectId: project.summary.id,
+      label: renamed.next.name,
+      mediaType: desktopMediaTypeForFileName(renamed.next.name) ?? 'application/octet-stream',
+      relativePath: renamed.next.path,
+      modifiedAt: renamed.next.modifiedAt,
+      ...(renamed.next.thumbnail ? { previewId: renamed.next.id } : {})
+    };
+  });
+  ipcMain.handle('lighttable:genai-project-asset-delete', async (event, projectId: unknown, assetId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const { project, manifestPath } = await activeGenAiProject(projectId);
+    if (typeof assetId !== 'string') throw new Error('Invalid project asset.');
+    await shell.trashItem(await resolveProjectAssetPath(manifestPath, assetId));
+    const jobs = await listProjectGenerationJobs(manifestPath);
+    await Promise.all(jobs.filter((job) => job.results.some((result) => result.assetId === assetId))
+      .map((job) => deleteProjectGenerationJob(manifestPath, job.id)));
+    await rebuildProjectAssetIndex({ manifestPath });
+    mainWindow?.webContents.send('lighttable:genai-project-assets-changed', project.summary.id);
   });
   ipcMain.handle('lighttable:genai-project-asset-preview', async (
     event,

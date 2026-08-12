@@ -427,6 +427,7 @@ export interface LightTableEditorOverlayProps {
   genAiService?: import('../platform/LightTableHost').LightTableGenAiService;
   onGenAiGenerationSucceeded?: (job: GenAiGenerationJob) => void;
   onGenAiOpenResult?: (job: GenAiGenerationJob) => void;
+  onGenAiOpenAsset?: (asset: import('@lighttable/genai-core').GenAiAssetReference) => void;
   recoveryNotice?: string | null;
   onRecoveryResolved?: () => Promise<void> | void;
 }
@@ -485,7 +486,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   recoveryStore,
   recoveryPreferences,
   toolPreferences,
-  releaseService, genAiService, onGenAiGenerationSucceeded, onGenAiOpenResult, hostKind = 'web',
+  releaseService, genAiService, onGenAiGenerationSucceeded, onGenAiOpenResult, onGenAiOpenAsset, hostKind = 'web',
   recoveryNotice = null,
   onRecoveryResolved
 }) => {
@@ -513,16 +514,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
     return () => { active = false; unsubscribe(); };
   }, [genAiService]);
-  // GenAI setup belongs to the project/workspace, not to the currently visible
-  // document. Hiding a document must not tear down and rehydrate the panel.
-  const activeGenAiProjectId = activeProject?.id;
-  const genAiSetup = useGenAiSetupController(genAiService, openArtProvider, activeGenAiProjectId);
-  const genAiJobs = useGenAiJobsController(
-    genAiService,
-    activeGenAiProjectId,
-    onGenAiGenerationSucceeded,
-    openArtProvider.status
-  );
   const imageClipboard = providedImageClipboard ?? browserImageClipboard();
   const standaloneFontRegistryRef = useRef<DocumentFontRegistry | null>(null);
   if (!documentSession && !standaloneFontRegistryRef.current) {
@@ -720,6 +711,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
+  // Provider/model choices belong to the project, while Image Edit dimensions
+  // follow the active document identity and canvas size.
+  const activeGenAiProjectId = activeProject?.id;
+  const genAiDocumentContext = React.useMemo(() => imageDocument ? ({
+    id: String(workspaceDocumentId),
+    width: imageDocument.width,
+    height: imageDocument.height
+  }) : undefined, [imageDocument?.height, imageDocument?.width, workspaceDocumentId]);
+  const genAiSetup = useGenAiSetupController(
+    genAiService,
+    openArtProvider,
+    activeGenAiProjectId,
+    genAiDocumentContext
+  );
+  const genAiJobs = useGenAiJobsController(
+    genAiService,
+    activeGenAiProjectId,
+    onGenAiGenerationSucceeded,
+    openArtProvider.status
+  );
   const faceWarpDetectorRef = useRef<FaceWarpDetector | null>(null);
   const faceWarpDetectionGenerationRef = useRef(0);
   const [faceWarpBusy, setFaceWarpBusy] = useState(false);
@@ -4461,7 +4472,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       invert: invertCurrentSelection
     },
     image: {
-      openSize: editorDialogs.openImageSize
+      openSize: editorDialogs.openImageSize,
+      assignSrgbProfile: () => {
+        documentMutationController.change((document) => document.colorSettings.profileState === 'assigned'
+          ? document
+          : {
+              ...document,
+              colorSettings: { ...document.colorSettings, profileState: 'assigned' },
+              revision: document.revision + 1,
+              modifiedAt: Date.now()
+            });
+      }
     },
     layers: {
       panel: commandLayerPanelController,
@@ -5605,19 +5626,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 document: imageDocument,
                 controller: layerStyleEditor
               },
-              color: {
-                document: imageDocument,
-                onAssignSrgb: () => {
-                  documentMutationController.change((document) => document.colorSettings.profileState === 'assigned'
-                    ? document
-                    : {
-                        ...document,
-                        colorSettings: { ...document.colorSettings, profileState: 'assigned' },
-                        revision: document.revision + 1,
-                        modifiedAt: Date.now()
-                      });
-                }
-              },
               text: textPropertiesPanel,
               agent: { events: agentEvents,
                 onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } },
@@ -5652,17 +5660,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               },
               aiHistory: {
                 ...genAiJobs,
+                assets: genAiSetup.assets,
+                sections: genAiSetup.assetSections,
                 previews: genAiSetup.assetPreviews,
                 onRequestPreview: genAiSetup.requestAssetPreview,
                 onOpenResult: onGenAiOpenResult,
+                onOpenAsset: onGenAiOpenAsset,
+                onAddReference: (asset) => {
+                  genAiSetup.addAssetReference(asset.id);
+                  workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi);
+                },
                 onRecreate: (job) => {
                   genAiSetup.restoreRequest(job.request);
                   workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi);
                 },
-                onRevealResult: genAiService && activeGenAiProjectId ? (job) =>
-                  genAiService.revealResult(activeGenAiProjectId, job.id) : undefined,
                 onDeleteJob: genAiService && activeGenAiProjectId ? (job) =>
                   genAiService.deleteJob(activeGenAiProjectId, job.id) : undefined,
+                onRevealAsset: genAiService && activeGenAiProjectId ? (asset) =>
+                  genAiService.revealProjectAsset(activeGenAiProjectId, asset.id) : undefined,
+                onRenameAsset: genAiService && activeGenAiProjectId ? (asset, name) =>
+                  genAiService.renameProjectAsset(activeGenAiProjectId, asset.id, name) : undefined,
+                onDeleteAsset: genAiService && activeGenAiProjectId ? (asset) =>
+                  genAiService.deleteProjectAsset(activeGenAiProjectId, asset.id) : undefined,
               }
             })}
           />

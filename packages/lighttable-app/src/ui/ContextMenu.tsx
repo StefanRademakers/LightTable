@@ -21,6 +21,7 @@ interface ContextMenuProps<T extends string> {
   y: number;
   onClose: () => void;
   options: Array<ContextMenuOption<T>>;
+  placement?: 'auto' | 'above' | 'below';
 }
 
 export function ContextMenu<T extends string>({
@@ -28,7 +29,8 @@ export function ContextMenu<T extends string>({
   x,
   y,
   onClose,
-  options
+  options,
+  placement = 'auto'
 }: ContextMenuProps<T>) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const closeSubmenuTimeoutRef = useRef<number | null>(null);
@@ -126,12 +128,16 @@ export function ContextMenu<T extends string>({
     const viewportHeight = window.innerHeight;
 
     const left = Math.max(margin, Math.min(x, viewportWidth - rect.width - margin));
-    const preferredTop = y + rect.height + margin > viewportHeight ? y - rect.height : y;
+    const preferredTop = placement === 'above'
+      ? y - rect.height
+      : placement === 'below'
+        ? y
+        : y + rect.height + margin > viewportHeight ? y - rect.height : y;
     const top = Math.max(margin, Math.min(preferredTop, viewportHeight - rect.height - margin));
 
     setPosition({ left, top });
     setSubmenuDirection(left + rect.width + 232 > viewportWidth - margin ? 'left' : 'right');
-  }, [open, options.length, x, y]);
+  }, [open, options.length, placement, x, y]);
 
   if (!open || !options.length) return null;
 

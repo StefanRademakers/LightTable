@@ -1,5 +1,6 @@
 import React from 'react';
 import { lightTableIcon } from '../../assets/icons';
+import { PanelSection } from '../../ui/PanelSection';
 import { SwitchControl } from '../../ui/SwitchControl';
 
 interface EffectPanelProps {
@@ -25,32 +26,26 @@ export const EffectPanel: React.FC<EffectPanelProps> = ({
   onRemove,
   children
 }) => (
-  <section className={`lighttable-group lighttable-effect${enabled ? '' : ' lighttable-group--disabled'}`}>
-    <div className="lighttable-group__header">
-      <button
-        type="button"
-        className="lighttable-group__toggle"
-        onPointerDown={(event) => {
+  <PanelSection
+    label={label}
+    expanded={expanded}
+    onExpandedChange={onExpandedChange}
+    className={`lighttable-effect${enabled ? '' : ' lighttable-group--disabled'}`}
+    title={resetModifierActive ? `Reset ${label}` : label}
+    onTogglePointerDown={(event) => {
           if (event.button === 0 && (event.shiftKey || resetModifierActive)) {
             event.preventDefault();
             onReset();
           }
         }}
-        onClick={(event) => {
+    onToggleClick={(event) => {
           if (event.button === 0 && (event.shiftKey || resetModifierActive)) {
             event.preventDefault();
-            onReset();
             return;
           }
           onExpandedChange(!expanded);
         }}
-        aria-expanded={expanded}
-        title={resetModifierActive ? `Reset ${label}` : label}
-      >
-        <img src={lightTableIcon(expanded ? 'area_open.png' : 'area_closed.png')} alt="" aria-hidden="true" />
-        <strong>{label}</strong>
-      </button>
-      <div className="lighttable-group__actions">
+    actions={<>
         <button type="button" className="lighttable-group__reset" onClick={onReset} aria-label={`Reset ${label}`} title={`Reset ${label}`}>
           <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
         </button>
@@ -70,8 +65,8 @@ export const EffectPanel: React.FC<EffectPanelProps> = ({
           onCheckedChange={onEnabledChange}
           label={`${enabled ? 'Disable' : 'Enable'} ${label}`}
         />
-      </div>
-    </div>
-    {expanded ? <div className="lighttable-group__controls">{children}</div> : null}
-  </section>
+      </>}
+  >
+    {children}
+  </PanelSection>
 );

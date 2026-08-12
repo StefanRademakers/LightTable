@@ -6,8 +6,6 @@ export interface OpenArtResolvedReference {
   readonly mediaType: string;
 }
 
-const REFERENCE_FIELD_CANDIDATES = ['visualReferences', 'references', 'images', 'inputImages'] as const;
-
 /**
  * Builds the provider form payload only after the desktop host has published
  * local references to reachable HTTPS URLs. Local paths never enter this
@@ -18,7 +16,8 @@ export const buildOpenArtGenerationParams = (
   workflow: GenAiWorkflowDefinition,
   resolvedReferences: readonly OpenArtResolvedReference[]
 ): Readonly<Record<string, unknown>> => {
-  const params: Record<string, unknown> = { ...request.fields, prompt: request.providerPrompt };
+  const promptField = workflow.fields.find((field) => field.role === 'prompt')?.key ?? 'prompt';
+  const params: Record<string, unknown> = { ...request.fields, [promptField]: request.providerPrompt };
   if (!request.references.length) return params;
 
   const byAssetId = new Map(resolvedReferences.map((reference) => [reference.assetId, reference]));
@@ -38,9 +37,7 @@ export const buildOpenArtGenerationParams = (
     };
   });
 
-  const referenceField = REFERENCE_FIELD_CANDIDATES.find((key) =>
-    workflow.fields.some((field) => field.key === key && field.kind === 'asset')
-  );
+  const referenceField = workflow.fields.find((field) => field.role === 'references')?.key;
   if (!referenceField) {
     throw new Error(`${workflow.label} does not accept visual references.`);
   }

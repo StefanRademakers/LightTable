@@ -58,6 +58,24 @@ const labels = {
 };
 
 describe('createEditorMenuOptions', () => {
+  it('moves document color commands into Photoshop-compatible Edit and Image menus', () => {
+    const menuCommands = commands();
+    const colorState = state({ documentColor: { bitDepth: 16, profileState: 'assumed' } });
+    const edit = createEditorMenuOptions('edit', colorState, labels, menuCommands);
+    const assign = edit.find(({ value }) => value === 'assign-profile');
+    expect(assign?.children?.[0]).toMatchObject({ label: 'sRGB', disabled: false });
+    assign?.children?.[0]?.onClick?.();
+    expect(menuCommands.assignSrgbProfile).toHaveBeenCalledOnce();
+    expect(edit.find(({ value }) => value === 'convert-profile')).toMatchObject({
+      label: 'Convert to Profile...', disabled: true
+    });
+
+    const image = createEditorMenuOptions('image', colorState, labels, menuCommands);
+    expect(image.find(({ value }) => value === 'image-mode')?.children?.map(({ label }) => label)).toEqual([
+      'RGB Color ✓', '8 Bits/Channel', '16 Bits/Channel ✓'
+    ]);
+  });
+
   it('exposes AI providers with connection state and planned providers disabled', () => {
     const menuCommands = commands();
     const disconnected = createEditorMenuOptions('ai', state(), labels, menuCommands);

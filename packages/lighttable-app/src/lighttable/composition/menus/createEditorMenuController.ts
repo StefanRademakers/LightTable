@@ -56,6 +56,7 @@ export interface EditorMenuControllerOptions {
   };
   readonly image: {
     openSize(): void;
+    assignSrgbProfile?(): void;
   };
   readonly layers: {
     panel: LayerPanelController;
@@ -175,6 +176,7 @@ export const createEditorMenuController = ({
       renameLayer: layers.rename,
       invertLayerColors: layers.invertColors,
       openImageSize: image.openSize,
+      assignSrgbProfile: image.assignSrgbProfile ?? (() => undefined),
       beginAutoAlign: autoAlign.begin,
       applyAutoAlign: autoAlign.apply,
       cancelAutoAlign: autoAlign.cancel,

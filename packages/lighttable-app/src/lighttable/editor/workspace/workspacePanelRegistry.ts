@@ -5,7 +5,6 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   scopes: 'lighttable.scopes',
   grade: 'lighttable.inspector',
   effects: 'lighttable.layer-effects',
-  color: 'lighttable.document-color',
   text: 'lighttable.text-properties',
   lensFx: 'lighttable.lens-fx',
   layers: 'lighttable.layers',
@@ -46,7 +45,6 @@ export interface DefaultLightTableWorkspacePanelContent {
   scopes: ReactNode;
   grade: ReactNode;
   effects: ReactNode;
-  color: ReactNode;
   text: ReactNode;
   lensFx: ReactNode;
   layers: ReactNode;
@@ -146,18 +144,6 @@ export const createDefaultLightTableWorkspacePanels = (
     requiredForSavedLayout: true
   },
   {
-    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.color,
-    contentKey: 'color',
-    title: 'Color',
-    content: content.color,
-    defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-      direction: 'within'
-    },
-    initiallyInactive: true,
-    requiredForSavedLayout: true
-  },
-  {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
     contentKey: 'text',
     title: 'Text',
@@ -207,7 +193,7 @@ export const createDefaultLightTableWorkspacePanels = (
   {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
     contentKey: 'aiHistory',
-    title: 'AI History',
+    title: 'Assets',
     content: content.aiHistory,
     defaultPosition: {
       referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,

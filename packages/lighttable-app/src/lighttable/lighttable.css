@@ -2296,6 +2296,11 @@
   background: var(--lt-surface-inset);
 }
 
+.genai-panel__reference-well.is-drag-target {
+  border-color: var(--lt-accent);
+  background: var(--lt-selection-muted);
+}
+
 .genai-panel__reference-well header {
   display: flex;
   justify-content: space-between;
@@ -2306,6 +2311,12 @@
   margin: 28px 0 0;
   color: var(--lt-text-subtle);
   text-align: center;
+}
+
+.genai-panel__reference-well .genai-panel__reference-error {
+  margin: 10px 0 0;
+  color: var(--lt-danger);
+  text-align: left;
 }
 
 .genai-panel__reference-items {
@@ -2319,16 +2330,63 @@
   position: relative;
   width: 58px;
   height: 72px;
-  overflow: hidden;
   border: 1px solid var(--lt-border-strong);
   border-radius: 4px;
   background: var(--lt-surface-control);
 }
 
-.genai-panel__reference-item img {
+.genai-panel__reference-thumbnail {
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  border-radius: 3px;
   object-fit: cover;
+}
+
+.genai-panel__reference-remove {
+  position: absolute;
+  z-index: 3;
+  top: 3px;
+  right: 3px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 55%);
+  border-radius: 3px;
+  color: #fff;
+  background: rgb(12 16 20 / 88%);
+  font: 700 15px/1 var(--lt-font-ui);
+  cursor: pointer;
+}
+
+.genai-panel__reference-item:hover .genai-panel__reference-remove,
+.genai-panel__reference-item:focus-within .genai-panel__reference-remove {
+  display: flex;
+}
+
+.genai-panel__reference-preview {
+  position: fixed;
+  z-index: 10000;
+  display: block;
+  width: 220px;
+  max-width: min(220px, calc(100vw - 32px));
+  padding: 4px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: 5px;
+  background: var(--lt-surface-inset);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 45%);
+  pointer-events: none;
+}
+
+.genai-panel__reference-preview img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  border-radius: 2px;
+  object-fit: contain;
 }
 
 .genai-panel__reference-item strong {
@@ -2589,55 +2647,44 @@
 .genai-panel__featured-settings {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
-  gap: 10px;
+  gap: 8px;
   padding: 8px 12px 0;
   background: var(--lt-surface-panel);
 }
 
-.genai-panel__featured-settings label,
 .genai-panel__featured-setting {
   min-width: 0;
-  min-height: 62px;
-  display: grid;
-  place-items: center;
-  gap: 2px;
-  padding: 8px;
-  border-radius: 5px;
+  height: 27px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-control-radius);
   background: var(--lt-surface-inset);
 }
 
 .genai-panel__featured-setting > button {
   width: 100%;
   height: 100%;
-  display: grid;
-  place-items: center;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--lt-text-primary);
 }
 
-.genai-panel__featured-settings select {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  appearance: none;
-  background: transparent;
-  color: var(--lt-text-primary);
-  font: inherit;
-  font-weight: var(--lt-weight-semibold);
-  text-align: center;
-  text-align-last: center;
-}
-
 .genai-panel__setting-icon {
   color: var(--lt-text-secondary);
-  font-size: 16px;
+  font-size: var(--lt-type-body);
 }
 
 .genai-panel__footer {
-  min-height: 56px;
+  min-height: 43px;
   padding: 8px 12px;
   display: flex;
   align-items: center;
@@ -2658,7 +2705,7 @@
 }
 
 .genai-panel__output-count {
-  height: var(--lt-control-height);
+  height: 27px;
   display: grid;
   grid-template-columns: 28px 52px 28px;
   align-items: center;
@@ -2681,10 +2728,7 @@
   object-fit: cover;
 }
 
-.genai-history__history > h3 {
-  margin: 10px 0 6px;
-  font-size: var(--lt-type-body);
-}
+.genai-history { padding: 0; }
 
 .genai-history__grid {
   position: relative;
@@ -2713,9 +2757,26 @@
 }
 
 .genai-history__preview--pending {
-  padding: 10px;
+  align-content: center;
+  gap: 8px;
   background: var(--lt-surface-control);
 }
+
+.genai-history__preview--pending strong {
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-body);
+}
+
+.genai-history__spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--lt-border-strong);
+  border-top-color: var(--lt-accent);
+  border-radius: 50%;
+  animation: genai-history-spin 900ms linear infinite;
+}
+
+@keyframes genai-history-spin { to { transform: rotate(360deg); } }
 
 .genai-history__status {
   min-width: 0;

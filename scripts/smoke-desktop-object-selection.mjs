@@ -44,7 +44,7 @@ try {
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
 
-  const selectionMaster = page.getByRole('button', { name: /^Rectangular selection/ }).first();
+  const selectionMaster = page.getByRole('button', { name: /^Magic Wand/ }).first();
   await selectionMaster.dispatchEvent('mousedown');
   const objectButton = page.getByRole('button', { name: 'Object Selection' });
   await objectButton.waitFor({ state: 'visible' });
@@ -117,8 +117,9 @@ try {
   }
   await page.screenshot({ path: screenshotPath });
   const selectionTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__);
+  const smartSelectionTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__);
   const report = {
-    sourceFile, visibleCommitMs, selectionTrace, pageErrors,
+    sourceFile, visibleCommitMs, selectionTrace, smartSelectionTrace, pageErrors,
     consoleErrors: unexpectedConsoleErrors, runtimeWarnings: consoleErrors.length, screenshotPath
   };
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);

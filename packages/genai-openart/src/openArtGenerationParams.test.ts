@@ -28,8 +28,11 @@ const workflow = {
   label: 'Image to image',
   mode: 'image2image',
   fields: [{
-    key: 'visualReferences', label: 'Visual references', kind: 'asset', required: true,
+    key: 'visualReferences', role: 'references', label: 'Visual references', kind: 'asset', required: true,
     advanced: false, sourceSchema: { type: 'array' }
+  }, {
+    key: 'prompt', role: 'prompt', label: 'Prompt', kind: 'string', required: true,
+    advanced: false, sourceSchema: { type: 'string' }
   }]
 } satisfies GenAiWorkflowDefinition;
 
@@ -49,5 +52,19 @@ describe('buildOpenArtGenerationParams', () => {
   it('never silently submits a local-only reference', () => {
     expect(() => buildOpenArtGenerationParams(request, workflow, []))
       .toThrow('Reference @face has no reachable provider URL.');
+  });
+
+  it('maps neutral prompt and reference roles to provider-owned field keys', () => {
+    const providerWorkflow = {
+      ...workflow,
+      fields: workflow.fields.map((field) => field.role === 'prompt'
+        ? { ...field, key: 'text' }
+        : field.role === 'references'
+          ? { ...field, key: 'inputImages' }
+          : field)
+    } satisfies GenAiWorkflowDefinition;
+    expect(buildOpenArtGenerationParams(request, providerWorkflow, [{
+      assetId, url: 'https://assets.example/face.png', mediaType: 'image/png'
+    }])).toMatchObject({ text: 'Use @image1', inputImages: [{ url: 'https://assets.example/face.png' }] });
   });
 });

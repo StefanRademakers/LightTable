@@ -1,5 +1,4 @@
 import { checkServerIdentity, type TLSSocket } from 'node:tls';
-import http from 'node:http';
 import https from 'node:https';
 import { readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -15,72 +14,6 @@ import type {
 
 const fingerprint = (value: string): string => value.replaceAll(':', '').toLowerCase();
 const local = (url: URL): boolean => url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1';
-const MAX_REFERENCE_BYTES = 50 * 1024 * 1024;
-
-export interface PublishedAgentReference {
-  readonly url: string;
-  readonly mediaType: string;
-  readonly expiresAt: number;
-}
-
-export class HttpsAgentReferencePublisher {
-  constructor(private readonly allowInsecureLocalhost = false) {}
-
-  publish(session: AgentTunnelSession, input: {
-    readonly bytes: Uint8Array;
-    readonly name: string;
-    readonly mediaType: string;
-  }): Promise<PublishedAgentReference> {
-    if (input.bytes.byteLength < 1 || input.bytes.byteLength > MAX_REFERENCE_BYTES) {
-      return Promise.reject(new Error('A visual reference must contain 1 byte to 50 MiB.'));
-    }
-    const endpoint = new URL('/genai/references', session.serverUrl);
-    const insecure = this.allowInsecureLocalhost && local(endpoint);
-    if (endpoint.protocol !== 'https:' && !insecure) {
-      return Promise.reject(new Error('The LightTable reference relay must use HTTPS.'));
-    }
-    return new Promise((resolve, reject) => {
-      const transport = insecure ? http : https;
-      const request = transport.request(endpoint, {
-        method: 'PUT', rejectUnauthorized: !insecure,
-        headers: {
-          authorization: `Bearer ${session.sessionToken}`,
-          'content-type': input.mediaType,
-          'content-length': input.bytes.byteLength,
-          'x-lighttable-file-name': encodeURIComponent(input.name)
-        },
-        checkServerIdentity: (host, certificate) => {
-          const standard = checkServerIdentity(host, certificate);
-          if (standard) return standard;
-          if (!insecure && fingerprint(certificate.fingerprint256 ?? '') !== fingerprint(session.certificateSha256)) {
-            return new Error('The reference relay certificate does not match the paired server.');
-          }
-          return undefined;
-        }
-      }, (response) => {
-        const chunks: Buffer[] = []; let length = 0;
-        response.on('data', (chunk: Buffer) => {
-          length += chunk.byteLength;
-          if (length > 64 * 1024) request.destroy(new Error('Reference relay response is too large.'));
-          else chunks.push(chunk);
-        });
-        response.on('end', () => {
-          try {
-            const payload = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Partial<PublishedAgentReference>;
-            if (response.statusCode !== 201) throw new Error('The LightTable server could not publish this reference.');
-            if (typeof payload.url !== 'string' || !/^https:\/\//iu.test(payload.url)
-              || payload.mediaType !== input.mediaType || typeof payload.expiresAt !== 'number'
-              || payload.expiresAt <= Date.now()) throw new Error('The reference relay returned an invalid publication.');
-            resolve(payload as PublishedAgentReference);
-          } catch (reason) { reject(reason); }
-        });
-      });
-      request.once('error', reject);
-      request.end(Buffer.from(input.bytes));
-    });
-  }
-}
-
 export class HttpsAgentPairingClient implements AgentPairingClient {
   constructor(private readonly allowInsecureLocalhost = false) {}
 

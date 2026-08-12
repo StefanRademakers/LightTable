@@ -10,6 +10,9 @@ export interface JustifiedLayoutItem extends JustifiedLayoutInput {
   readonly height: number;
 }
 
+const usableAspectRatio = (aspectRatio: number): number =>
+  Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
+
 /** Pure media-row layout. The fixed footer is accounted for only vertically. */
 export const buildJustifiedLayout = (
   items: readonly JustifiedLayoutInput[],
@@ -23,7 +26,7 @@ export const buildJustifiedLayout = (
   let row: JustifiedLayoutInput[] = [];
   let estimatedWidth = 0;
   for (const item of items) {
-    const nextWidth = Math.max(0.1, item.aspectRatio) * targetRowHeight;
+    const nextWidth = usableAspectRatio(item.aspectRatio) * targetRowHeight;
     estimatedWidth += (row.length ? gap : 0) + nextWidth;
     row.push(item);
     if (estimatedWidth >= containerWidth) {
@@ -36,7 +39,7 @@ export const buildJustifiedLayout = (
   let y = 0;
   rows.forEach((itemsInRow, rowIndex) => {
     const gaps = gap * Math.max(0, itemsInRow.length - 1);
-    const ratioTotal = itemsInRow.reduce((sum, item) => sum + Math.max(0.1, item.aspectRatio), 0);
+    const ratioTotal = itemsInRow.reduce((sum, item) => sum + usableAspectRatio(item.aspectRatio), 0);
     const naturalWidth = ratioTotal * targetRowHeight + gaps;
     const justify = rowIndex < rows.length - 1 || naturalWidth > containerWidth;
     const height = justify ? Math.max(1, (containerWidth - gaps) / ratioTotal) : targetRowHeight;
@@ -44,7 +47,7 @@ export const buildJustifiedLayout = (
     itemsInRow.forEach((item, itemIndex) => {
       const width = justify && itemIndex === itemsInRow.length - 1
         ? Math.max(1, containerWidth - x)
-        : Math.max(1, height * Math.max(0.1, item.aspectRatio));
+        : Math.max(1, height * usableAspectRatio(item.aspectRatio));
       output.push({ ...item, x, y, width, height });
       x += width + gap;
     });

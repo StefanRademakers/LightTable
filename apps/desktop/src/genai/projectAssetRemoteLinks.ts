@@ -69,3 +69,17 @@ export const recordProjectAssetRemoteLink = async (
     bytes: Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8')
   });
 };
+
+export const replaceProjectAssetRemoteLinkId = async (
+  manifestPath: string, previousId: string, nextId: string
+): Promise<void> => {
+  const current = await load(manifestPath);
+  const next: RemoteLinkIndex = {
+    ...current,
+    links: current.links.map((link) => link.assetId === previousId ? { ...link, assetId: nextId } : link)
+  };
+  await atomicWriteFile({
+    targetPath: await indexPathFor(manifestPath),
+    bytes: Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf8')
+  });
+};

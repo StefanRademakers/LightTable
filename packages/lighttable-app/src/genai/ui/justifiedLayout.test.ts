@@ -22,4 +22,25 @@ describe('buildJustifiedLayout', () => {
     const layout = buildJustifiedLayout([{ key: 'wide', aspectRatio: 2 }], 800, 180, 3, 27);
     expect(layout.items[0]).toMatchObject({ width: 360, height: 180 });
   });
+
+  it.each([
+    ['cinema', 21 / 9],
+    ['landscape', 4 / 3],
+    ['portrait', 4 / 5],
+    ['vertical', 9 / 16],
+    ['extreme portrait', 1 / 20]
+  ])('preserves an arbitrary %s ratio', (_name, aspectRatio) => {
+    const layout = buildJustifiedLayout([{ key: 'media', aspectRatio }], 800, 180, 3, 27);
+    const item = layout.items[0]!;
+    expect(item.width / item.height).toBeCloseTo(aspectRatio, 5);
+  });
+
+  it('uses a square fallback only for invalid ratios', () => {
+    const layout = buildJustifiedLayout([
+      { key: 'zero', aspectRatio: 0 },
+      { key: 'nan', aspectRatio: Number.NaN }
+    ], 800, 180, 3, 27);
+    expect(layout.items[0]!.width / layout.items[0]!.height).toBeCloseTo(1, 5);
+    expect(layout.items[1]!.width / layout.items[1]!.height).toBeCloseTo(1, 5);
+  });
 });

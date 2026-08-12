@@ -39,4 +39,15 @@ describe('prepareProjectAssetReferences', () => {
       publish: vi.fn(), record: vi.fn()
     })).rejects.toThrow('no longer exists');
   });
+
+  it('identifies the local asset when secure publication is unavailable', async () => {
+    await expect(prepareProjectAssetReferences(['local' as GenAiAssetId], 'openart', {
+      resolve: async () => [],
+      read: async () => ({
+        name: 'character.png', mediaType: 'image/png', bytes: new Uint8Array([1])
+      }),
+      publish: async () => { throw new Error('Reference publishing is not connected.'); },
+      record: vi.fn()
+    })).rejects.toThrow('Could not publish the local reference "character.png". Reference publishing is not connected.');
+  });
 });

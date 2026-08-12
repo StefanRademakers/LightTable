@@ -87,3 +87,16 @@ export const deleteProjectGenerationJob = async (
   queues.set(key, next);
   try { await next; } finally { if (queues.get(key) === next) queues.delete(key); }
 };
+
+export const replaceProjectGenerationAssetId = async (
+  manifestPath: string, previousId: string, nextId: string, nextFileName: string
+): Promise<void> => {
+  const jobs = await listProjectGenerationJobs(manifestPath);
+  await Promise.all(jobs.filter((job) => job.results.some(({ assetId }) => assetId === previousId)).map((job) =>
+    upsertProjectGenerationJob(manifestPath, {
+      ...job,
+      results: job.results.map((result) => result.assetId === previousId
+        ? { ...result, assetId: nextId as typeof result.assetId, fileName: nextFileName, previewId: nextId }
+        : result)
+    })));
+};

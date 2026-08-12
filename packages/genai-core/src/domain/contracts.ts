@@ -36,8 +36,22 @@ export type GenAiFieldKind =
   | 'asset'
   | 'unknown';
 
+/**
+ * Provider-independent meaning used by LightTable's shared generation UI.
+ * Provider adapters assign these roles while retaining the original field key
+ * for validation and submission.
+ */
+export type GenAiFieldRole =
+  | 'prompt'
+  | 'references'
+  | 'aspect-ratio'
+  | 'output-size'
+  | 'quality'
+  | 'output-count';
+
 export interface GenAiFieldDefinition {
   readonly key: string;
+  readonly role?: GenAiFieldRole;
   readonly label: string;
   readonly kind: GenAiFieldKind;
   readonly required: boolean;
@@ -67,15 +81,41 @@ export interface GenAiAssetReference {
   readonly projectId: string;
   readonly label: string;
   readonly mediaType: string;
+  /** Portable project-relative path used for grouping and file operations. */
+  readonly relativePath?: string;
+  /** Human-facing project folder section, resolved by the desktop host. */
+  readonly section?: string;
   readonly previewId?: string;
+  /** Last file modification time supplied by the project host. */
+  readonly modifiedAt?: string;
   /** Providers for which the desktop host has a reachable, non-local media URL. */
   readonly publishedProviderIds?: readonly GenAiProviderId[];
+}
+
+export interface GenAiProjectAssetSection {
+  /** Stable portable project-relative directory path. */
+  readonly id: string;
+  readonly label: string;
+}
+
+/** Provider-independent view of the files and visible directories in a project. */
+export interface GenAiProjectAssetCatalog {
+  readonly sections: readonly GenAiProjectAssetSection[];
+  readonly assets: readonly GenAiAssetReference[];
 }
 
 export interface GenAiPromptBinding {
   readonly token: string;
   readonly assetId: GenAiAssetId;
   readonly providerLabel?: string;
+}
+
+/** Provider-independent output intent retained with a durable generation job. */
+export interface GenAiRequestedOutput {
+  readonly aspectRatio?: string;
+  readonly size?: string;
+  readonly quality?: string;
+  readonly count?: number;
 }
 
 export interface GenAiGenerationRequest {
@@ -87,6 +127,7 @@ export interface GenAiGenerationRequest {
   /** Provider-position prompt after stable asset tokens are resolved. */
   readonly providerPrompt: string;
   readonly promptBindings: readonly GenAiPromptBinding[];
+  readonly output?: GenAiRequestedOutput;
   readonly fields: Readonly<Record<string, unknown>>;
   readonly references: readonly GenAiAssetReference[];
 }
@@ -193,9 +234,12 @@ export interface GenAiHostPort {
   resumeTracking(projectId: string, jobId: GenAiJobId): Promise<GenAiGenerationJob>;
   revealResult(projectId: string, jobId: GenAiJobId): Promise<void>;
   deleteJob(projectId: string, jobId: GenAiJobId): Promise<void>;
-  listProjectAssets(projectId: string): Promise<readonly GenAiAssetReference[]>;
+  loadProjectAssetCatalog(projectId: string): Promise<GenAiProjectAssetCatalog>;
   loadProjectAssetPreview(projectId: string, assetId: GenAiAssetId): Promise<string | null>;
   loadProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<GenAiAssetPayload | null>;
+  revealProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<void>;
+  renameProjectAsset(projectId: string, assetId: GenAiAssetId, name: string): Promise<GenAiAssetReference>;
+  deleteProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<void>;
   loadProjectSetup(projectId: string): Promise<GenAiProjectSetup | null>;
   saveProjectSetup(projectId: string, setup: GenAiProjectSetup): Promise<void>;
 }

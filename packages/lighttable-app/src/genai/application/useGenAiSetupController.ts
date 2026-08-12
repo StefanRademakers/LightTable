@@ -12,10 +12,16 @@ import {
   type GenAiModelId,
   type GenAiModelSummary,
   type GenAiProjectSetup,
+  type GenAiProjectAssetSection,
   type GenAiProviderSnapshot,
   type GenAiWorkflowDefinition
 } from '@lighttable/genai-core';
 import type { LightTableGenAiService } from '../../platform/LightTableHost';
+import {
+  genAiDocumentContextKey,
+  matchGenAiValuesToDocument,
+  type GenAiDocumentContext
+} from './genAiDocumentDefaults';
 
 export interface GenAiSetupSnapshot {
   readonly models: readonly GenAiModelSummary[];
@@ -29,9 +35,11 @@ export interface GenAiSetupSnapshot {
   readonly setModel: (modelId: GenAiModelId) => void;
   readonly setMode: (mode: string) => void;
   readonly assets: readonly GenAiAssetReference[];
+  readonly assetSections: readonly GenAiProjectAssetSection[];
   readonly mentionOptions: readonly GenAiAssetMentionOption[];
   readonly assetPreviews: Readonly<Record<string, string>>;
   readonly requestAssetPreview: (assetId: GenAiAssetId) => void;
+  readonly addAssetReference: (assetId: GenAiAssetId) => void;
   readonly generating: boolean;
   readonly generationError?: string;
   readonly referenceIssue?: string;
@@ -48,7 +56,8 @@ const DEFAULT_IMAGE_MODEL_ID = 'nano-banana-pro';
 export const useGenAiSetupController = (
   service: LightTableGenAiService | undefined,
   provider: GenAiProviderSnapshot,
-  projectId?: string
+  projectId?: string,
+  documentContext?: GenAiDocumentContext
 ): GenAiSetupSnapshot => {
   const [models, setModels] = React.useState<readonly GenAiModelSummary[]>([]);
   const [selectedModelId, setSelectedModelId] = React.useState<GenAiModelId>();
@@ -58,6 +67,7 @@ export const useGenAiSetupController = (
   const [error, setError] = React.useState<string>();
   const [values, setValues] = React.useState<Readonly<Record<string, unknown>>>({});
   const [assets, setAssets] = React.useState<readonly GenAiAssetReference[]>([]);
+  const [assetSections, setAssetSections] = React.useState<readonly GenAiProjectAssetSection[]>([]);
   const [assetPreviews, setAssetPreviews] = React.useState<Readonly<Record<string, string>>>({});
   const [generating, setGenerating] = React.useState(false);
   const [generationError, setGenerationError] = React.useState<string>();
@@ -68,6 +78,9 @@ export const useGenAiSetupController = (
   const previewRequests = React.useRef(new Set<string>());
   const pendingRestore = React.useRef<GenAiGenerationRequest | undefined>(undefined);
   const workflowCache = React.useRef(new Map<string, GenAiWorkflowDefinition>());
+  const documentContextKey = genAiDocumentContextKey(documentContext);
+  const documentContextRef = React.useRef(documentContext);
+  documentContextRef.current = documentContext;
 
   React.useEffect(() => {
     setPersistedSetup(null);
@@ -156,20 +169,31 @@ export const useGenAiSetupController = (
       setWorkflow(nextWorkflow);
       const defaults = Object.fromEntries(nextWorkflow.fields.map((field) => [field.key, field.defaultValue]));
       const restored = pendingRestore.current;
+      let nextValues: Readonly<Record<string, unknown>>;
       if (restored?.modelId === nextWorkflow.modelId && restored.workflowId === nextWorkflow.id) {
         pendingRestore.current = undefined;
-        setValues({ ...defaults, ...restored.fields, prompt: restored.prompt });
+        nextValues = { ...defaults, ...restored.fields, prompt: restored.prompt };
       } else if (persistedSetup?.modelId === nextWorkflow.modelId && persistedSetup.mode === nextWorkflow.mode) {
-        setValues({ ...defaults, ...persistedSetup.values });
+        nextValues = { ...defaults, ...persistedSetup.values };
       } else {
-        setValues(defaults);
+        nextValues = defaults;
       }
+      const activeDocument = documentContextRef.current;
+      setValues(activeDocument
+        ? matchGenAiValuesToDocument(nextWorkflow, nextValues, activeDocument)
+        : nextValues);
       setLoading(false);
     }).catch((reason) => {
       if (current) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
     });
     return () => { current = false; };
   }, [persistedSetup, provider.id, provider.status, selectedMode, selectedModelId, service]);
+
+  React.useEffect(() => {
+    if (!workflow || workflow.mode !== selectedMode || selectedMode !== 'image2image'
+      || !documentContext || !documentContextKey) return;
+    setValues((current) => matchGenAiValuesToDocument(workflow, current, documentContext));
+  }, [documentContext, documentContextKey, selectedMode, workflow]);
 
   React.useEffect(() => {
     if (!service || !projectId || !setupHydrated || !workflow || !selectedModelId
@@ -187,22 +211,22 @@ export const useGenAiSetupController = (
 
   React.useEffect(() => {
     previewRequests.current.clear(); setAssetPreviews({});
-    if (!service || !projectId || provider.status !== 'connected') { setAssets([]); return; }
+    if (!service || !projectId) { setAssets([]); setAssetSections([]); return; }
     let current = true;
-    const refresh = () => void service.listProjectAssets(projectId).then((next) => {
-      if (current) setAssets(next);
+    const refresh = () => void service.loadProjectAssetCatalog(projectId).then((next) => {
+      if (current) { setAssets(next.assets); setAssetSections(next.sections); }
     }).catch((reason) => {
         if (!current) return;
         const message = reason instanceof Error ? reason.message : String(reason);
         // During Vite HMR the renderer can briefly be newer than Electron's
         // main/preload process. Asset discovery resumes after the normal main restart.
         if (!message.includes('No handler registered')) setGenerationError(message);
-        setAssets([]);
+        setAssets([]); setAssetSections([]);
       });
     refresh();
     const unsubscribe = service.subscribeProjectAssets(projectId, refresh);
     return () => { current = false; unsubscribe(); };
-  }, [projectId, provider.status, service]);
+  }, [projectId, service]);
 
   const requestAssetPreview = React.useCallback((assetId: GenAiAssetId) => {
     if (!service || !projectId || previewRequests.current.has(assetId)) return;
@@ -213,19 +237,39 @@ export const useGenAiSetupController = (
   }, [projectId, service]);
 
   const mentionOptions = React.useMemo(() => createGenAiAssetMentionOptions(assets), [assets]);
+  const addAssetReference = React.useCallback((assetId: GenAiAssetId) => {
+    const option = mentionOptions.find(({ asset }) => asset.id === assetId);
+    if (!option) return;
+    setValues((current) => {
+      const currentPrompt = String(current.prompt ?? '');
+      const referenceField = workflow?.fields.find(({ role }) => role === 'references');
+      const currentReferences = referenceField && Array.isArray(current[referenceField.key])
+        ? current[referenceField.key] as GenAiAssetReference[] : [];
+      const references = currentReferences.some(({ id }) => id === assetId)
+        ? currentReferences : [...currentReferences, option.asset];
+      const hasToken = new RegExp(`(^|\\s)${option.token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'iu').test(currentPrompt);
+      return { ...current,
+        ...(referenceField ? { [referenceField.key]: references } : {}),
+        prompt: hasToken ? currentPrompt
+          : `${currentPrompt}${currentPrompt && !/\s$/u.test(currentPrompt) ? ' ' : ''}${option.token}` };
+    });
+  }, [mentionOptions, workflow]);
   const prompt = String(values.prompt ?? '');
+  const referenceField = workflow?.fields.find(({ role }) => role === 'references');
+  const selectedReferences = React.useMemo(() => referenceField && Array.isArray(values[referenceField.key])
+    ? values[referenceField.key] as GenAiAssetReference[] : [], [referenceField, values]);
   const resolvedMentions = React.useMemo(
-    () => resolveGenAiPromptMentions(prompt, mentionOptions),
-    [mentionOptions, prompt]
+    () => resolveGenAiPromptMentions(prompt, mentionOptions, selectedReferences),
+    [mentionOptions, prompt, selectedReferences]
   );
   const validationValues = React.useMemo(() => {
     if (!workflow) return values;
     const next = { ...values };
     for (const field of workflow.fields) {
-      if (field.kind === 'asset') next[field.key] = resolvedMentions.references;
+      if (field.kind === 'asset') next[field.key] = selectedReferences;
     }
     return next;
-  }, [resolvedMentions.references, values, workflow]);
+  }, [selectedReferences, values, workflow]);
   const validationIssues = workflow ? validateGenAiWorkflowValues(workflow, validationValues) : [];
   const tooManyReferences = workflow?.fields.some((field) => field.kind === 'asset'
     && typeof field.sourceSchema.maxItems === 'number'
@@ -258,6 +302,14 @@ export const useGenAiSetupController = (
     if (!service || !projectId || !workflow || !selectedModelId || !canGenerate) return;
     setGenerating(true); setGenerationError(undefined); setSubmission(undefined);
     try {
+      const outputValue = (role: 'aspect-ratio' | 'output-size' | 'quality' | 'output-count') => {
+        const field = workflow.fields.find((candidate) => candidate.role === role);
+        return field ? values[field.key] : undefined;
+      };
+      const aspectRatio = outputValue('aspect-ratio');
+      const outputSize = outputValue('output-size');
+      const quality = outputValue('quality');
+      const outputCount = outputValue('output-count');
       const next = await service.submitGeneration(projectId, {
         providerId: provider.id,
         modelId: selectedModelId,
@@ -265,13 +317,19 @@ export const useGenAiSetupController = (
         prompt,
         providerPrompt: resolvedMentions.providerPrompt,
         promptBindings: resolvedMentions.bindings,
+        output: {
+          ...(typeof aspectRatio === 'string' ? { aspectRatio } : {}),
+          ...(typeof outputSize === 'string' ? { size: outputSize } : {}),
+          ...(typeof quality === 'string' ? { quality } : {}),
+          ...(typeof outputCount === 'number' ? { count: outputCount } : {})
+        },
         fields: values,
         references: resolvedMentions.references
       });
       setSubmission(next);
       if (next.result) {
-        const nextAssets = await service.listProjectAssets(projectId);
-        setAssets(nextAssets);
+        const nextCatalog = await service.loadProjectAssetCatalog(projectId);
+        setAssets(nextCatalog.assets); setAssetSections(nextCatalog.sections);
         const preview = await service.loadProjectAssetPreview(projectId, next.result.assetId);
         if (preview) setAssetPreviews((current) => ({ ...current, [next.result!.assetId]: preview }));
       }
@@ -284,7 +342,7 @@ export const useGenAiSetupController = (
 
   return {
     models, selectedModelId, selectedMode, workflow, loading, error, values, setValue, setModel,
-    setMode: setSelectedMode, assets, mentionOptions, assetPreviews, requestAssetPreview,
+    setMode: setSelectedMode, assets, assetSections, mentionOptions, assetPreviews, requestAssetPreview, addAssetReference,
     generating, generationError, referenceIssue, costEstimate, submission, canGenerate, generate, restoreRequest
   };
 };

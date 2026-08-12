@@ -17,7 +17,9 @@ describe('OpenArt discovery normalization', () => {
       model: 'nano-banana-pro', mode: 'text2image',
       jsonSchema: { type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' } } }
     }, 'nano-banana-pro', 'text2image');
-    expect(workflow).toMatchObject({ mode: 'text2image', fields: [{ key: 'prompt', required: true }] });
+    expect(workflow).toMatchObject({ mode: 'text2image', fields: [
+      { key: 'prompt', role: 'prompt', required: true }
+    ] });
   });
 
   it('preserves GPT Image 2 quality as a reusable enum field', () => {
@@ -32,7 +34,7 @@ describe('OpenArt discovery normalization', () => {
       modelId: 'gpt-image-2',
       fields: [
         { key: 'prompt', kind: 'string' },
-        { key: 'quality', kind: 'enum', defaultValue: 'medium', options: [
+        { key: 'quality', role: 'quality', kind: 'enum', defaultValue: 'medium', options: [
           { value: 'low' }, { value: 'medium' }, { value: 'high' }, { value: 'auto' }
         ] }
       ]
@@ -53,16 +55,60 @@ describe('OpenArt discovery normalization', () => {
       'image2image'
     );
     expect(workflow.fields).toMatchObject([
-      { key: 'prompt', kind: 'string', required: true },
-      { key: 'imageCount', kind: 'integer', minimum: 1, maximum: 4, defaultValue: 1 },
-      { key: 'aspectRatio', kind: 'enum', defaultValue: '1:1' },
-      { key: 'resolution', kind: 'enum', defaultValue: '1K' },
+      { key: 'prompt', role: 'prompt', kind: 'string', required: true },
+      { key: 'imageCount', role: 'output-count', kind: 'integer', minimum: 1, maximum: 4, defaultValue: 1 },
+      { key: 'aspectRatio', role: 'aspect-ratio', kind: 'enum', defaultValue: '1:1' },
+      { key: 'resolution', role: 'output-size', kind: 'enum', defaultValue: '1K' },
       { key: 'autoEnhancePrompt', kind: 'boolean', defaultValue: false },
-      { key: 'visualReferences', kind: 'asset', required: true },
+      { key: 'visualReferences', role: 'references', kind: 'asset', required: true },
       { key: 'seed', kind: 'integer' },
       { key: 'providerFutureField', kind: 'unknown', sourceSchema: {
         oneOf: [{ type: 'string' }, { type: 'number' }]
       } }
     ]);
   });
+
+  it('prefers the normalized schemaCore contract over nested reference schemas', () => {
+    const workflow = normalizeOpenArtWorkflow({
+      model: 'nano-banana-pro',
+      mode: 'image2image',
+      schemaCore: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string' },
+          aspectRatio: { type: 'string', enum: ['1:1', '16:9'] },
+          resolution: { type: 'string', enum: ['1K', '2K', '4K'] }
+        },
+        $defs: { image: { type: 'object', properties: { url: { type: 'string' } } } }
+      },
+      defaults: { aspectRatio: '1:1', resolution: '1K' }
+    }, 'nano-banana-pro', 'image2image');
+
+    expect(workflow.fields.map(({ key }) => key)).toEqual([
+      'prompt', 'aspectRatio', 'resolution'
+    ]);
+  });
+
+  it('reads MCP text when structured content contains no workflow schema', () => {
+    const workflow = normalizeOpenArtWorkflow({
+      structuredContent: { result: {} },
+      content: [{ type: 'text', text: JSON.stringify({
+        model: 'gpt-image-2', mode: 'text2image',
+        schemaCore: { type: 'object', properties: {
+          resolutionTier: { type: 'string', enum: ['1K', '2K'] }
+        } }
+      }) }]
+    }, 'gpt-image-2', 'text2image');
+    expect(workflow.fields).toMatchObject([
+      { key: 'resolutionTier', role: 'output-size' }
+    ]);
+  });
+
+  it('rejects empty provider forms instead of poisoning the workflow cache', () => {
+    expect(() => normalizeOpenArtWorkflow({
+      model: 'nano-banana-pro', mode: 'text2image',
+      schemaCore: { type: 'object', properties: {} }
+    }, 'nano-banana-pro', 'text2image')).toThrow('without usable fields');
+  });
+
 });

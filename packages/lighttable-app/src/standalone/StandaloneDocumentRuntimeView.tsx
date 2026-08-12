@@ -143,6 +143,12 @@ export function StandaloneDocumentRuntimeView({
   const handleOpenGeneratedResult = useCallback((job: GenAiGenerationJob) => {
     void importGeneratedResult(job, true);
   }, [importGeneratedResult]);
+  const handleOpenGenAiAsset = useCallback(async (asset: import('@lighttable/genai-core').GenAiAssetReference) => {
+    if (!activeProject || !host.genAi) return;
+    const payload = await host.genAi.loadProjectAsset(activeProject.id, asset.id);
+    if (!payload) return;
+    onOpen(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
+  }, [activeProject, host.genAi, onOpen]);
 
   return (
     <DocumentRuntimeErrorBoundary
@@ -178,6 +184,7 @@ export function StandaloneDocumentRuntimeView({
         genAiService={host.genAi}
         onGenAiGenerationSucceeded={handleGeneratedResult}
         onGenAiOpenResult={handleOpenGeneratedResult}
+        onGenAiOpenAsset={handleOpenGenAiAsset}
         hostKind={host.kind}
         recoveryNotice={document.runtime.recovery
           ? `${document.runtime.recovery.crashLoop ? 'Safe mode: ' : ''}Recovered copy of ${document.runtime.recovery.originalName}. Save creates a new file.`

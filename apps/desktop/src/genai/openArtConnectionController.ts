@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type {
   GenAiCostEstimate,
+  GenAiAssetPayload,
   GenAiGenerationRequest,
   GenAiGenerationSubmission,
   GenAiJobId,
@@ -23,6 +24,7 @@ import {
   normalizeOpenArtWorkflow,
   normalizeOpenArtCost,
   buildOpenArtGenerationParams,
+  openArtBootstrapWorkflow,
   type OpenArtResolvedReference
 } from '@lighttable/genai-openart';
 import type { OpenArtConnectionHost } from '@lighttable/genai-openart';
@@ -41,6 +43,7 @@ export class OpenArtConnectionController {
   private operation: Promise<GenAiProviderSnapshot> | null = null;
   private connectGeneration = 0;
   private readonly workflows = new Map<string, GenAiWorkflowDefinition>();
+  private readonly workflowRefreshes = new Map<string, Promise<GenAiWorkflowDefinition>>();
   private models: readonly GenAiModelSummary[] | null = null;
   private readonly catalogStore?: OpenArtCatalogStore;
   private costEstimateSupported = true;
@@ -153,14 +156,12 @@ export class OpenArtConnectionController {
 
   async loadWorkflow(modelId: GenAiModelId, mode: string): Promise<GenAiWorkflowDefinition> {
     const workflowId = `${OPENART_PROVIDER_ID}:${modelId}:${mode}`;
-    const memoryWorkflow = this.workflows.get(workflowId);
-    if (memoryWorkflow) return memoryWorkflow;
-    const diskWorkflow = await this.catalogStore?.workflow(workflowId);
-    if (diskWorkflow) {
-      this.workflows.set(diskWorkflow.id, diskWorkflow);
-      return diskWorkflow;
-    }
-    try {
+    const memory = this.workflows.get(workflowId);
+    if (memory?.fields.length) return memory;
+    const cached = await this.catalogStore?.workflow(workflowId);
+    const bootstrap = openArtBootstrapWorkflow(modelId, mode);
+    const fallback = cached?.fields.length ? cached : bootstrap;
+    const refresh = this.workflowRefreshes.get(workflowId) ?? (async () => {
       const result = await this.connection.callTool('openart_model_form_get', { model: modelId, mode });
       const workflow = normalizeOpenArtWorkflow(
         mcpToolPayload(result as Parameters<typeof mcpToolPayload>[0]), modelId, mode
@@ -168,11 +169,17 @@ export class OpenArtConnectionController {
       this.workflows.set(workflow.id, workflow);
       await this.catalogStore?.saveWorkflow(workflow);
       return workflow;
-    } catch (reason) {
-      const cached = this.workflows.get(workflowId) ?? await this.catalogStore?.workflow(workflowId);
-      if (cached) { this.workflows.set(cached.id, cached); return cached; }
-      throw reason;
+    })().finally(() => this.workflowRefreshes.delete(workflowId));
+    this.workflowRefreshes.set(workflowId, refresh);
+
+    // Known valid capability data renders immediately. Live discovery refreshes
+    // memory/disk in the background and becomes authoritative on the next form
+    // request; remote latency never blanks the generation panel.
+    if (fallback) {
+      void refresh.catch(() => undefined);
+      return fallback;
     }
+    return refresh;
   }
 
   async estimateCost(
@@ -193,6 +200,62 @@ export class OpenArtConnectionController {
       }
       return null;
     }
+  }
+
+  async uploadReference(asset: GenAiAssetPayload): Promise<{
+    readonly url: string;
+    readonly mediaType: string;
+    readonly expiresAt?: number;
+    readonly providerAssetId?: string;
+  }> {
+    const catalog = asToolCatalog(await this.connection.listTools());
+    const signTool = catalog.find((tool) => tool.name === 'openart_upload_sign');
+    if (!signTool) {
+      throw new Error(
+        'OpenArt does not expose signed reference uploads to this desktop client. '
+        + 'The host-only upload picker cannot publish local LightTable assets.'
+      );
+    }
+    const signResult = mcpToolPayload(await this.connection.callTool(signTool.name, buildToolArguments(
+      signTool,
+      {
+        filename: asset.name,
+        mediaType: 'image',
+        contentType: asset.mediaType,
+        fileSize: asset.bytes.byteLength
+      }
+    )) as Parameters<typeof mcpToolPayload>[0]);
+    const uploadUrl = findNamedString(signResult, ['uploadUrl', 'uploadURL', 'signedUrl', 'signedURL']);
+    if (!uploadUrl || !/^https:\/\//iu.test(uploadUrl)) {
+      throw new Error('OpenArt returned no secure signed upload URL.');
+    }
+    const headers = findNamedRecord(signResult, ['requiredHeaders', 'headers']) ?? {};
+    if (!Object.keys(headers).some((key) => key.toLowerCase() === 'content-type')) {
+      headers['Content-Type'] = asset.mediaType;
+    }
+    const response = await fetch(uploadUrl, { method: 'PUT', headers, body: Buffer.from(asset.bytes) });
+    if (!response.ok) throw new Error(`OpenArt reference upload failed (${response.status}).`);
+
+    const metadataTool = catalog.find((tool) => tool.name === 'openart_upload_metadata_get');
+    if (!metadataTool) throw new Error('OpenArt exposes upload signing but no upload metadata capability.');
+    const uploadId = findNamedString(signResult, ['uploadId', 'id']);
+    const accessUrl = findNamedString(signResult, ['accessURL', 'accessUrl', 'mediaUrl', 'mediaURL']);
+    const metadataResult = mcpToolPayload(await this.connection.callTool(metadataTool.name, buildToolArguments(
+      metadataTool,
+      { mediaUrl: accessUrl, uploadId, mediaType: 'image', label: asset.name }
+    )) as Parameters<typeof mcpToolPayload>[0]);
+    const visualReference = findNamedValue(metadataResult, ['visualReference']);
+    const url = findNamedString(visualReference, ['url', 'mediaUrl', 'mediaURL', 'accessUrl', 'accessURL'])
+      ?? findNamedString(metadataResult, ['mediaUrl', 'mediaURL', 'accessUrl', 'accessURL']);
+    if (!url || !/^https:\/\//iu.test(url) || url === uploadUrl) {
+      throw new Error('OpenArt returned no durable visual reference after upload.');
+    }
+    return {
+      url,
+      mediaType: findNamedString(metadataResult, ['contentType', 'mediaType', 'mimeType']) ?? asset.mediaType,
+      providerAssetId: findNamedString(metadataResult, ['uploadId', 'assetId', 'id']) ?? uploadId ?? undefined,
+      expiresAt: findExpiry(metadataResult)
+    };
   }
 
   async submitGeneration(
@@ -244,6 +307,87 @@ export class OpenArtConnectionController {
     for (const listener of this.listeners) listener(snapshot);
   }
 }
+
+interface OpenArtToolDescription {
+  readonly name: string;
+  readonly inputSchema?: {
+    readonly properties?: Readonly<Record<string, unknown>>;
+    readonly required?: readonly string[];
+  };
+}
+
+const asToolCatalog = (value: unknown): readonly OpenArtToolDescription[] => {
+  if (!value || typeof value !== 'object') return [];
+  const tools = (value as { tools?: unknown }).tools;
+  return Array.isArray(tools)
+    ? tools.filter((tool): tool is OpenArtToolDescription => Boolean(
+      tool && typeof tool === 'object' && typeof (tool as { name?: unknown }).name === 'string'
+    ))
+    : [];
+};
+
+const argumentAliases: Readonly<Record<string, readonly string[]>> = {
+  filename: ['filename', 'fileName', 'name'],
+  mediaType: ['mediaType', 'type'],
+  contentType: ['contentType', 'mimeType'],
+  fileSize: ['fileSize', 'size', 'byteLength'],
+  mediaUrl: ['mediaUrl', 'mediaURL', 'accessUrl', 'accessURL', 'url'],
+  uploadId: ['uploadId', 'id'],
+  label: ['label', 'filename', 'name']
+};
+
+const buildToolArguments = (
+  tool: OpenArtToolDescription,
+  semanticValues: Readonly<Record<string, unknown>>
+): Readonly<Record<string, unknown>> => {
+  const properties = tool.inputSchema?.properties ?? {};
+  const args: Record<string, unknown> = {};
+  for (const [semanticName, value] of Object.entries(semanticValues)) {
+    if (value === undefined || value === null) continue;
+    const field = (argumentAliases[semanticName] ?? [semanticName]).find((candidate) => candidate in properties);
+    if (field) args[field] = value;
+  }
+  const missing = (tool.inputSchema?.required ?? []).filter((field) => !(field in args));
+  if (missing.length) {
+    throw new Error(`${tool.name} requires unsupported discovered field(s): ${missing.join(', ')}.`);
+  }
+  return args;
+};
+
+const findNamedValue = (value: unknown, names: readonly string[], depth = 0): unknown => {
+  if (!value || typeof value !== 'object' || depth > 7) return undefined;
+  const record = value as Record<string, unknown>;
+  for (const name of names) if (record[name] !== undefined) return record[name];
+  for (const nested of Object.values(record)) {
+    const found = findNamedValue(nested, names, depth + 1);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+};
+
+const findNamedString = (value: unknown, names: readonly string[]): string | null => {
+  const found = findNamedValue(value, names);
+  return typeof found === 'string' && found.trim() ? found : null;
+};
+
+const findNamedRecord = (value: unknown, names: readonly string[]): Record<string, string> | null => {
+  const found = findNamedValue(value, names);
+  if (!found || typeof found !== 'object' || Array.isArray(found)) return null;
+  const entries = Object.entries(found).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+  return entries.length ? Object.fromEntries(entries) : null;
+};
+
+const findExpiry = (value: unknown): number | undefined => {
+  const candidate = findNamedValue(value, ['expiresAt', 'expires_at', 'expiration']);
+  if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+    return candidate < 10_000_000_000 ? candidate * 1_000 : candidate;
+  }
+  if (typeof candidate === 'string') {
+    const parsed = Date.parse(candidate);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
 
 const abortableDelay = (durationMs: number, signal?: AbortSignal): Promise<void> => new Promise((resolve, reject) => {
   if (signal?.aborted) { reject(signal.reason); return; }

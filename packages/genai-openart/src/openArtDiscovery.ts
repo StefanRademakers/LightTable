@@ -1,6 +1,8 @@
 import {
   normalizeGenAiJsonSchema,
   type GenAiCostEstimate,
+  type GenAiFieldDefinition,
+  type GenAiFieldRole,
   type GenAiModelId,
   type GenAiModelSummary,
   type GenAiProviderId,
@@ -8,6 +10,25 @@ import {
   type GenAiWorkflowId
 } from '@lighttable/genai-core';
 const OPENART_ID = 'openart';
+
+const OPENART_FIELD_ROLES: Readonly<Record<string, GenAiFieldRole>> = {
+  prompt: 'prompt',
+  visualReferences: 'references',
+  references: 'references',
+  images: 'references',
+  inputImages: 'references',
+  aspectRatio: 'aspect-ratio',
+  resolution: 'output-size',
+  resolutionTier: 'output-size',
+  quality: 'quality',
+  imageCount: 'output-count'
+};
+
+const mapOpenArtFieldRoles = (fields: readonly GenAiFieldDefinition[]): readonly GenAiFieldDefinition[] =>
+  fields.map((field) => {
+    const role = OPENART_FIELD_ROLES[field.key];
+    return role ? { ...field, role } : field;
+  });
 
 const object = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -34,14 +55,6 @@ const parseJsonObjects = (value: unknown): unknown[] => {
   };
   visit(value);
   return results;
-};
-
-const findObjectSchema = (value: unknown): Record<string, unknown> | null => {
-  for (const candidate of parseJsonObjects(value)) {
-    const record = object(candidate);
-    if (record?.type === 'object' && object(record.properties)) return record;
-  }
-  return null;
 };
 
 const findDefaults = (value: unknown): Record<string, unknown> => {
@@ -105,21 +118,33 @@ export const normalizeOpenArtWorkflow = (
   requestedModel: string,
   requestedMode: string
 ): GenAiWorkflowDefinition => {
-  const root = object(payload);
-  const envelope = object(root?.result) ?? object(root?.data) ?? root;
-  const form = object(envelope?.form) ?? envelope;
-  const schema = object(form?.jsonSchema) ?? object(form?.schema) ?? findObjectSchema(payload);
-  if (!form || !schema) throw new Error('OpenArt returned an invalid model form.');
+  let best: {
+    readonly form: Record<string, unknown>;
+    readonly fields: readonly GenAiFieldDefinition[];
+  } | null = null;
+  for (const candidate of parseJsonObjects(payload)) {
+    const root = object(candidate);
+    const envelope = object(root?.result) ?? object(root?.data) ?? root;
+    const possibleForm = object(envelope?.form) ?? envelope;
+    const possibleSchema = object(possibleForm?.schemaCore)
+      ?? object(possibleForm?.jsonSchema)
+      ?? object(possibleForm?.schema);
+    if (!possibleForm || !possibleSchema) continue;
+    const defaults = object(possibleForm.defaults) ?? findDefaults(payload);
+    const fields = mapOpenArtFieldRoles(normalizeGenAiJsonSchema(possibleSchema, defaults));
+    if (fields.length > (best?.fields.length ?? 0)) best = { form: possibleForm, fields };
+  }
+  if (!best?.fields.length) throw new Error('OpenArt returned a model form without usable fields.');
+  const { form, fields } = best;
   const model = typeof form.model === 'string' ? form.model : requestedModel;
   const mode = typeof form.mode === 'string' ? form.mode : requestedMode;
-  const defaults = object(form.defaults) ?? findDefaults(payload);
   return {
     id: `${OPENART_ID}:${model}:${mode}` as GenAiWorkflowId,
     providerId: OPENART_ID as GenAiProviderId,
     modelId: model as GenAiModelId,
     label: mode === 'text2image' ? 'Text to image' : mode,
     mode,
-    fields: normalizeGenAiJsonSchema(schema, defaults)
+    fields
   };
 };
 

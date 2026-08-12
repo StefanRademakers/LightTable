@@ -237,6 +237,11 @@ export class OpenArtConnection {
     return this.client.callTool({ name, arguments: { ...args } });
   }
 
+  async listTools(): Promise<unknown> {
+    if (!this.client) throw new Error('Connect OpenArt before loading its capabilities.');
+    return this.client.listTools();
+  }
+
   private createClient(sdk: McpModule, provider: OAuthClientProvider) {
     const client = new sdk.Client({ name: 'LightTable', version: this.options.appVersion });
     const transport = new sdk.StreamableHTTPClientTransport(new URL(this.options.endpoint), {

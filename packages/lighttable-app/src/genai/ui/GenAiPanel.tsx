@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import type {
   GenAiAssetId,
   GenAiAssetMentionOption,
@@ -15,6 +16,7 @@ import { FormInput } from '../../ui/FormInput';
 import { SegmentedControl } from '../../ui/SegmentedControl';
 import { SwitchControl } from '../../ui/SwitchControl';
 import { GenAiPromptComposer } from './GenAiPromptComposer';
+import { containsProjectAssetDrag, readProjectAssetDrag } from './projectAssetDrag';
 
 export type GenAiPanelProviderStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'expired';
 
@@ -72,8 +74,22 @@ const tokenAppears = (prompt: string, token: string): boolean => new RegExp(
   `(^|\\s)${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|[.,!?;:])`, 'i'
 ).test(prompt);
 
+const removeTokenFromPrompt = (prompt: string, token: string): string => prompt
+  .replace(new RegExp(
+    `(^|\\s)${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|[.,!?;:])`,
+    'giu'
+  ), '$1')
+  .replace(/[ \t]{2,}/gu, ' ')
+  .replace(/[ \t]+\n/gu, '\n')
+  .trimStart();
+
 const isOpenArtReady = (asset: GenAiAssetReference): boolean =>
   asset.publishedProviderIds?.some((providerId) => providerId === 'openart') ?? false;
+
+export const isReferencePublicationError = (message: string | undefined): boolean => Boolean(
+  message && (message.includes('Could not publish the local reference')
+    || message.includes('Reference publishing is not connected'))
+);
 
 const QUALITY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   low: 'Fastest and cheapest',
@@ -81,22 +97,24 @@ const QUALITY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   high: 'Best visual fidelity'
 };
 
-const GenAiQualityControl = ({ field, value, update }: {
+const GenAiFeaturedSelect = ({ field, value, icon, update }: {
   field: GenAiWorkflowDefinition['fields'][number];
   value: unknown;
+  icon: string;
   update: (value: string) => void;
 }) => {
   const [menu, setMenu] = React.useState<{ readonly x: number; readonly y: number }>();
   const selected = String(value ?? field.defaultValue ?? '');
   const selectedLabel = field.options?.find((option) => option.value === selected)?.label ?? selected;
   return <div className="genai-panel__featured-setting">
-    <button type="button" aria-haspopup="menu" aria-expanded={Boolean(menu)} onClick={(event) => {
+    <button type="button" aria-label={field.label} aria-haspopup="menu" aria-expanded={Boolean(menu)} onClick={(event) => {
       const bounds = event.currentTarget.getBoundingClientRect();
-      setMenu({ x: bounds.left, y: bounds.bottom + 2 });
+      setMenu({ x: bounds.left, y: bounds.top - 2 });
     }}>
-      <span className="genai-panel__setting-icon">Q</span><strong>{selectedLabel}</strong>
+      <span className="genai-panel__setting-icon">{icon}</span><strong>{selectedLabel}</strong>
     </button>
-    <ContextMenu open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} onClose={() => setMenu(undefined)}
+    <ContextMenu open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} placement="above"
+      onClose={() => setMenu(undefined)}
       options={(field.options ?? []).map((option) => ({
         value: option.value,
         label: option.label,
@@ -114,29 +132,68 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
     selectedModelId, onModelChange, selectedMode, onModeChange, loading = false, setupError, values = {}, onFieldChange,
     mentionOptions = [], assetPreviews = {}, onRequestAssetPreview = () => undefined,
     generating = false, generationError, referenceIssue, costEstimate, submission, canGenerate = false, onGenerate } = props;
-  const prompt = String(values.prompt ?? '');
+  const promptField = workflow?.fields.find(({ role }) => role === 'prompt');
+  const promptKey = promptField?.key ?? 'prompt';
+  const prompt = String(values[promptKey] ?? '');
   const model = models.find(({ id }) => id === workflow?.modelId);
-  const basicFields = workflow?.fields.filter((field) => field.key !== 'prompt' && field.kind !== 'asset'
+  const basicFields = workflow?.fields.filter((field) => field.role !== 'prompt' && field.role !== 'references'
+    && field.kind !== 'asset'
     && genAiFieldPlacement(field) === 'basic') ?? [];
-  const advancedFields = workflow?.fields.filter((field) => field.key !== 'prompt' && field.kind !== 'asset'
+  const advancedFields = workflow?.fields.filter((field) => field.role !== 'prompt' && field.role !== 'references'
+    && field.kind !== 'asset'
     && genAiFieldPlacement(field) === 'advanced') ?? [];
-  const aspectField = workflow?.fields.find(({ key }) => key === 'aspectRatio');
-  const resolutionField = workflow?.fields.find(({ key }) => key === 'resolution');
-  const qualityField = workflow?.fields.find(({ key }) => key === 'quality');
-  const countField = workflow?.fields.find(({ key }) => key === 'imageCount');
+  const aspectField = workflow?.fields.find(({ role }) => role === 'aspect-ratio');
+  const resolutionField = workflow?.fields.find(({ role }) => role === 'output-size');
+  const qualityField = workflow?.fields.find(({ role }) => role === 'quality');
+  const countField = workflow?.fields.find(({ role }) => role === 'output-count');
   const hasFeaturedSettings = Boolean(aspectField || resolutionField || qualityField);
-  const references = mentionOptions.filter(({ token }) => tokenAppears(prompt, token));
-  const count = Number(values.imageCount ?? countField?.defaultValue ?? 1);
+  const referenceField = workflow?.fields.find(({ role }) => role === 'references');
+  const selectedReferences = referenceField && Array.isArray(values[referenceField.key])
+    ? values[referenceField.key] as GenAiAssetReference[] : [];
+  const referencePublicationError = isReferencePublicationError(generationError) ? generationError : undefined;
+  const generalGenerationError = referencePublicationError ? undefined : generationError;
+  const references = selectedReferences.map((asset) => ({
+    asset,
+    token: mentionOptions.find((option) => option.asset.id === asset.id)?.token ?? `@${asset.label.replace(/\.[^.]+$/u, '')}`
+  }));
+  const countKey = countField?.key ?? 'imageCount';
+  const count = Number(values[countKey] ?? countField?.defaultValue ?? 1);
   const mode = (selectedMode ?? workflow?.mode) === 'image2image' ? 'image2image' : 'text2image';
   const [referencePickerOpen, setReferencePickerOpen] = React.useState(false);
+  const [referenceDragActive, setReferenceDragActive] = React.useState(false);
+  const [referencePreview, setReferencePreview] = React.useState<{
+    readonly assetId: GenAiAssetId;
+    readonly source: string;
+    readonly x: number;
+    readonly y: number;
+  }>();
+
+  React.useEffect(() => {
+    if (referencePreview && !references.some(({ asset }) => asset.id === referencePreview.assetId)) {
+      setReferencePreview(undefined);
+    }
+  }, [referencePreview, references]);
 
   const insertReference = React.useCallback((option: GenAiAssetMentionOption) => {
+    if (referenceField && !selectedReferences.some(({ id }) => id === option.asset.id)) {
+      onFieldChange?.(referenceField.key, [...selectedReferences, option.asset]);
+    }
     if (!tokenAppears(prompt, option.token)) {
-      onFieldChange?.('prompt', `${prompt}${prompt && !/\s$/u.test(prompt) ? ' ' : ''}${option.token} `);
+      onFieldChange?.(promptKey, `${prompt}${prompt && !/\s$/u.test(prompt) ? ' ' : ''}${option.token} `);
     }
     onRequestAssetPreview(option.asset.id);
     setReferencePickerOpen(false);
-  }, [onFieldChange, onRequestAssetPreview, prompt]);
+  }, [onFieldChange, onRequestAssetPreview, prompt, promptKey, referenceField, selectedReferences]);
+
+  const updatePrompt = React.useCallback((nextPrompt: string) => {
+    onFieldChange?.(promptKey, nextPrompt);
+    if (!referenceField) return;
+    const mentionedAssets = mentionOptions
+      .filter(({ token }) => tokenAppears(nextPrompt, token))
+      .map(({ asset }) => asset)
+      .filter((asset) => !selectedReferences.some(({ id }) => id === asset.id));
+    if (mentionedAssets.length) onFieldChange?.(referenceField.key, [...selectedReferences, ...mentionedAssets]);
+  }, [mentionOptions, onFieldChange, promptKey, referenceField, selectedReferences]);
 
   React.useEffect(() => {
     for (const { asset } of references) onRequestAssetPreview(asset.id);
@@ -170,14 +227,61 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               aria-label="Generation model" onChange={(event) => onModelChange?.(event.currentTarget.value as GenAiModelSummary['id'])}>
               {models.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
             </select>
-            <section className="genai-panel__reference-well" aria-label="Visual references">
+            <section className={`genai-panel__reference-well${referenceDragActive ? ' is-drag-target' : ''}`}
+              aria-label="Visual references"
+              onDragEnter={(event) => {
+                if (!containsProjectAssetDrag(event.dataTransfer)) return;
+                event.preventDefault();
+                setReferenceDragActive(true);
+              }}
+              onDragOver={(event) => {
+                if (!containsProjectAssetDrag(event.dataTransfer)) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+                setReferenceDragActive(true);
+              }}
+              onDragLeave={(event) => {
+                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                setReferenceDragActive(false);
+              }}
+              onDrop={(event) => {
+                const assetId = readProjectAssetDrag(event.dataTransfer);
+                if (!assetId) return;
+                event.preventDefault();
+                setReferenceDragActive(false);
+                const option = mentionOptions.find(({ asset }) => asset.id === assetId);
+                if (option) insertReference(option);
+              }}>
               <header><strong>▧ &nbsp; Visual references</strong><span>{references.length}/10</span></header>
               {references.length ? <div className="genai-panel__reference-items">{references.map(({ token, asset }) => {
                 return <div className="genai-panel__reference-item" key={asset.id}
+                  onPointerEnter={(event) => {
+                    const source = assetPreviews[asset.id];
+                    if (!source) return;
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    setReferencePreview({ assetId: asset.id, source, x: bounds.right + 8, y: Math.max(8, bounds.top - 72) });
+                  }}
+                  onPointerLeave={() => setReferencePreview(undefined)}
                   title={isOpenArtReady(asset) ? `${token} · OpenArt ready` : `${token} · Publishes securely when generated`}>
-                  {assetPreviews[asset.id] ? <img src={assetPreviews[asset.id]} alt="" /> : null}<strong>{token}</strong>
+                  {assetPreviews[asset.id]
+                    ? <img className="genai-panel__reference-thumbnail" src={assetPreviews[asset.id]} alt="" />
+                    : null}
+                  <button type="button" className="genai-panel__reference-remove"
+                    aria-label={`Remove ${token}`} title={`Remove ${token}`}
+                    onClick={() => {
+                      setReferencePreview(undefined);
+                      if (referenceField) onFieldChange?.(referenceField.key, selectedReferences.filter(({ id }) => id !== asset.id));
+                      onFieldChange?.(promptKey, removeTokenFromPrompt(prompt, token));
+                    }}>×</button>
+                  <strong>{token}</strong>
                 </div>;
               })}</div> : null}
+              {referencePreview && typeof document !== 'undefined' ? createPortal(
+                <span className="genai-panel__reference-preview" aria-hidden="true"
+                  style={{ left: referencePreview.x, top: referencePreview.y }}>
+                  <img src={referencePreview.source} alt="" />
+                </span>, document.body
+              ) : null}
               <button type="button" className="genai-panel__reference-add" aria-expanded={referencePickerOpen}
                 onClick={() => {
                   const open = !referencePickerOpen;
@@ -196,8 +300,11 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                   <span><strong>{option.asset.label}</strong><small>{option.token} · {isOpenArtReady(option.asset) ? 'OpenArt ready' : 'Publishes on generate'}</small></span>
                 </button>)}
               </div> : null}
+              {referencePublicationError ? <p className="genai-panel__reference-error" role="alert">
+                {referencePublicationError}
+              </p> : null}
             </section>
-            <GenAiPromptComposer value={prompt} onChange={(value) => onFieldChange?.('prompt', value)}
+            <GenAiPromptComposer value={prompt} onChange={updatePrompt}
               mentions={mentionOptions} previews={assetPreviews} requestPreview={onRequestAssetPreview} />
             {basicFields.length ? <section className="genai-panel__settings" aria-label="Generation settings">
               {basicFields.map((field) => <label className="genai-panel__field" key={field.key}><span>{field.label}</span>
@@ -212,7 +319,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               ))}</div>
             </details> : null}
             {!projectName ? <p className="genai-panel__notice">Open a project to retain output history.</p> : null}
-            {generationError ? <p className="genai-panel__error" role="alert">{generationError}</p> : null}
+            {generalGenerationError ? <p className="genai-panel__error" role="alert">{generalGenerationError}</p> : null}
             {referenceIssue ? <p className="genai-panel__notice" role="status">{referenceIssue}</p> : null}
             {submission ? <div className="genai-panel__result" role="status">
               {submission.result && assetPreviews[submission.result.assetId]
@@ -221,29 +328,21 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
             </div> : null}
           </div>
           {hasFeaturedSettings ? <div className="genai-panel__featured-settings">
-              {aspectField ? <label><span className="genai-panel__setting-icon">▭</span>
-                <select value={String(values.aspectRatio ?? aspectField.defaultValue ?? '')}
-                  aria-label={aspectField.label}
-                  onChange={(event) => onFieldChange?.('aspectRatio', event.currentTarget.value)}>
-                  {aspectField.options?.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-                </select></label> : null}
-              {resolutionField ? <label><span className="genai-panel__setting-icon">▱</span>
-                <select value={String(values.resolution ?? resolutionField.defaultValue ?? '')}
-                  aria-label={resolutionField.label}
-                  onChange={(event) => onFieldChange?.('resolution', event.currentTarget.value)}>
-                  {resolutionField.options?.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-                </select></label> : null}
-              {qualityField ? <GenAiQualityControl field={qualityField} value={values.quality}
-                update={(value) => onFieldChange?.('quality', value)} /> : null}
+              {aspectField ? <GenAiFeaturedSelect field={aspectField} value={values[aspectField.key]} icon="▭"
+                update={(value) => onFieldChange?.(aspectField.key, value)} /> : null}
+              {resolutionField ? <GenAiFeaturedSelect field={resolutionField} value={values[resolutionField.key]} icon="▱"
+                update={(value) => onFieldChange?.(resolutionField.key, value)} /> : null}
+              {qualityField ? <GenAiFeaturedSelect field={qualityField} value={values[qualityField.key]} icon="Q"
+                update={(value) => onFieldChange?.(qualityField.key, value)} /> : null}
             </div> : null}
           <footer className="genai-panel__footer">
             {costEstimate ? <span className="genai-panel__cost" title="Estimated provider cost">
               ≈ {costEstimate.label}
             </span> : null}
             <div className="genai-panel__output-count" aria-label="Output count">
-              <button type="button" onClick={() => onFieldChange?.('imageCount', Math.max(countField?.minimum ?? 1, count - 1))}>−</button>
+              <button type="button" onClick={() => onFieldChange?.(countKey, Math.max(countField?.minimum ?? 1, count - 1))}>−</button>
               <strong>{count}/{countField?.maximum ?? 4}</strong>
-              <button type="button" onClick={() => onFieldChange?.('imageCount', Math.min(countField?.maximum ?? 4, count + 1))}>+</button>
+              <button type="button" onClick={() => onFieldChange?.(countKey, Math.min(countField?.maximum ?? 4, count + 1))}>+</button>
             </div>
             <ActionButton type="submit" disabled={!canGenerate || !onGenerate}>
               {generating ? 'Generating…' : 'Generate'}

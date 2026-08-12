@@ -127,12 +127,18 @@ const bridge: LightTableDesktopBridge = {
     ipcRenderer.invoke('lighttable:genai-result-reveal', projectId, jobId),
   deleteGenAiJob: (projectId, jobId) =>
     ipcRenderer.invoke('lighttable:genai-job-delete', projectId, jobId),
-  listGenAiProjectAssets: (projectId) =>
-    ipcRenderer.invoke('lighttable:genai-project-assets', projectId),
+  loadGenAiProjectAssetCatalog: (projectId) =>
+    ipcRenderer.invoke('lighttable:genai-project-asset-catalog', projectId),
   loadGenAiProjectAssetPreview: (projectId, assetId) =>
     ipcRenderer.invoke('lighttable:genai-project-asset-preview', projectId, assetId),
   loadGenAiProjectAsset: (projectId, assetId) =>
     ipcRenderer.invoke('lighttable:genai-project-asset-load', projectId, assetId),
+  revealGenAiProjectAsset: (projectId, assetId) =>
+    ipcRenderer.invoke('lighttable:genai-project-asset-reveal', projectId, assetId),
+  renameGenAiProjectAsset: (projectId, assetId, name) =>
+    ipcRenderer.invoke('lighttable:genai-project-asset-rename', projectId, assetId, name),
+  deleteGenAiProjectAsset: (projectId, assetId) =>
+    ipcRenderer.invoke('lighttable:genai-project-asset-delete', projectId, assetId),
   loadGenAiProjectSetup: (projectId) => ipcRenderer.invoke('lighttable:genai-project-setup-load', projectId),
   saveGenAiProjectSetup: (projectId, setup) => ipcRenderer.invoke('lighttable:genai-project-setup-save', projectId, setup),
   onGenAiProviderStatus: (listener) => {

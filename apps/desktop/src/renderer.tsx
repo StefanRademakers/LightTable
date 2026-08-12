@@ -12,6 +12,7 @@ import {
 } from '@lighttable/app';
 import './renderer.css';
 import type { DesktopFilePayload } from './desktopBridge';
+import { normalizeDesktopGenAiError } from './genai/desktopGenAiError';
 
 const removeHorizontalWheelBridge = window.lightTableDesktop.onHorizontalWheel((input) => {
   window.dispatchEvent(new CustomEvent('lighttable:desktop-horizontal-wheel', {
@@ -90,18 +91,29 @@ const desktopHost: LightTableHost = {
       window.lightTableDesktop.loadGenAiWorkflow(providerId, modelId, mode),
     estimateCost: (providerId, modelId, mode, fields) =>
       window.lightTableDesktop.estimateGenAiCost(providerId, modelId, mode, fields),
-    submitGeneration: (projectId, request) =>
-      window.lightTableDesktop.submitGenAiGeneration(projectId, request),
+    submitGeneration: async (projectId, request) => {
+      try {
+        return await window.lightTableDesktop.submitGenAiGeneration(projectId, request);
+      } catch (reason) {
+        throw normalizeDesktopGenAiError(reason);
+      }
+    },
     listJobs: (projectId) => window.lightTableDesktop.listGenAiJobs(projectId),
     stopTracking: (projectId, jobId) => window.lightTableDesktop.stopGenAiJobTracking(projectId, jobId),
     resumeTracking: (projectId, jobId) => window.lightTableDesktop.resumeGenAiJobTracking(projectId, jobId),
     revealResult: (projectId, jobId) => window.lightTableDesktop.revealGenAiResult(projectId, jobId),
     deleteJob: (projectId, jobId) => window.lightTableDesktop.deleteGenAiJob(projectId, jobId),
-    listProjectAssets: (projectId) => window.lightTableDesktop.listGenAiProjectAssets(projectId),
+    loadProjectAssetCatalog: (projectId) => window.lightTableDesktop.loadGenAiProjectAssetCatalog(projectId),
     loadProjectAssetPreview: (projectId, assetId) =>
       window.lightTableDesktop.loadGenAiProjectAssetPreview(projectId, assetId),
     loadProjectAsset: (projectId, assetId) =>
       window.lightTableDesktop.loadGenAiProjectAsset(projectId, assetId),
+    revealProjectAsset: (projectId, assetId) =>
+      window.lightTableDesktop.revealGenAiProjectAsset(projectId, assetId),
+    renameProjectAsset: (projectId, assetId, name) =>
+      window.lightTableDesktop.renameGenAiProjectAsset(projectId, assetId, name),
+    deleteProjectAsset: (projectId, assetId) =>
+      window.lightTableDesktop.deleteGenAiProjectAsset(projectId, assetId),
     loadProjectSetup: (projectId) => window.lightTableDesktop.loadGenAiProjectSetup(projectId),
     saveProjectSetup: (projectId, setup) => window.lightTableDesktop.saveGenAiProjectSetup(projectId, setup),
     subscribe: (listener) => window.lightTableDesktop.onGenAiProviderStatus(listener),

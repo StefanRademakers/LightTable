@@ -38,6 +38,14 @@ export type SlimSamWorkerResponse =
       readonly progress?: number;
     }
   | {
+      readonly type: 'metric';
+      readonly requestId: number;
+      readonly phase: 'model-load' | 'image-decode' | 'image-preprocess' | 'image-encode'
+        | 'prompt-preprocess' | 'prompt-decode' | 'mask-postprocess';
+      readonly durationMs: number;
+      readonly backend?: 'webgpu' | 'wasm';
+    }
+  | {
       readonly type: 'prepared';
       readonly requestId: number;
       readonly sourceId: string;

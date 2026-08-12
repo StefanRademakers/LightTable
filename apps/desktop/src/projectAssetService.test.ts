@@ -6,6 +6,7 @@ import { createProjectOnDisk } from './projectService';
 import {
   LIGHTTABLE_PROJECT_ASSET_INDEX_FORMAT,
   readProjectAsset,
+  readProjectAssetDirectories,
   rebuildProjectAssetIndex,
   recordSavedProjectAsset,
   type ProjectAssetIndex
@@ -112,5 +113,19 @@ describe('project asset save indexing', () => {
       thumbnailPng: async () => new Uint8Array([137, 80, 78, 71])
     });
     expect(index.assets.map((entry) => entry.path)).toEqual(['My Custom References/reference.jpg']);
+  });
+
+  it('catalogs real project directories independently from indexed assets or providers', async () => {
+    const { project } = await fixture();
+    await mkdir(path.join(project.rootPath, 'ExtraFolder'));
+    const directories = await readProjectAssetDirectories(project.manifestPath);
+    expect(directories.map(({ label }) => label)).toEqual([
+      'AI History',
+      'Characters',
+      'Environments',
+      'ExtraFolder',
+      'Props',
+      'Sets'
+    ]);
   });
 });

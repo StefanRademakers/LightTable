@@ -97,6 +97,10 @@ export const projectEditorMenuState = ({
     zoomMode,
     showOriginal,
     showDifference,
+    documentColor: document ? {
+      bitDepth: document.colorSettings.bitDepth,
+      profileState: document.colorSettings.profileState
+    } : null,
     blendModes: BLEND_MODES.map((mode) => ({
       ...mode,
       selected: layer?.blendMode === mode.id,

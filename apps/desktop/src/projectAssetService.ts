@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { watch, type FSWatcher } from 'node:fs';
-import { open, readFile, readdir, stat, unlink, type FileHandle } from 'node:fs/promises';
+import { open, readFile, readdir, rename, stat, unlink, type FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteFile } from './atomicFileWriter';
 import { openProjectManifest, resolveProjectStoragePath } from './projectService';
@@ -25,6 +25,11 @@ export interface ProjectAssetIndex {
   readonly assets: readonly ProjectAssetIndexEntry[];
 }
 
+export interface ProjectAssetDirectory {
+  readonly path: string;
+  readonly label: string;
+}
+
 const saveQueues = new Map<string, Promise<void>>();
 const PROJECT_ASSET_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.psd', '.psb', '.pdf'
@@ -41,6 +46,54 @@ const assetId = (relativePath: string): string => createHash('sha256')
   .update(relativePath.toLocaleLowerCase('en-US'))
   .digest('hex')
   .slice(0, 24);
+
+const WINDOWS_RESERVED_FILE_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu;
+export const validateProjectAssetFileName = (value: string, currentName: string): string => {
+  const requested = value.trim();
+  if (!requested || requested.length > 255 || /[<>:"/\\|?*\u0000-\u001f]/u.test(requested)
+    || /[. ]$/u.test(requested) || WINDOWS_RESERVED_FILE_NAME.test(requested)) {
+    throw new Error('Enter a valid file name.');
+  }
+  const currentExtension = path.extname(currentName);
+  const requestedExtension = path.extname(requested);
+  const baseName = requestedExtension ? requested.slice(0, -requestedExtension.length) : requested;
+  if (!baseName) throw new Error('Enter a valid file name.');
+  if (requestedExtension && requestedExtension.toLocaleLowerCase('en-US') !== currentExtension.toLocaleLowerCase('en-US')) {
+    throw new Error(`Keep the ${currentExtension} file extension.`);
+  }
+  return requestedExtension ? requested : `${requested}${currentExtension}`;
+};
+
+const resolveIndexedAssetPath = async (manifestPath: string, requestedId: string) => {
+  if (!/^[a-f0-9]{24}$/.test(requestedId)) throw new Error('Invalid project asset identifier.');
+  const { rootPath, index } = await readProjectAssetIndex(manifestPath);
+  const entry = index.assets.find(({ id }) => id === requestedId);
+  if (!entry) throw new Error('The project asset is no longer available.');
+  const filePath = path.resolve(rootPath, ...entry.path.split('/'));
+  const root = path.resolve(rootPath);
+  if (filePath === root || !filePath.startsWith(`${root}${path.sep}`)) throw new Error('Invalid project asset location.');
+  return { rootPath, entry, filePath };
+};
+
+export const renameProjectAsset = async (request: {
+  readonly manifestPath: string; readonly assetId: string; readonly name: string;
+}): Promise<{ readonly previousId: string; readonly next: ProjectAssetIndexEntry }> => {
+  const current = await resolveIndexedAssetPath(request.manifestPath, request.assetId);
+  const name = validateProjectAssetFileName(request.name, current.entry.name);
+  const destination = path.join(path.dirname(current.filePath), name);
+  if (destination.toLocaleLowerCase('en-US') !== current.filePath.toLocaleLowerCase('en-US') && await pathExists(destination)) {
+    throw new Error(`A file named "${name}" already exists.`);
+  }
+  await rename(current.filePath, destination);
+  const index = await rebuildProjectAssetIndex({ manifestPath: request.manifestPath });
+  const relativePath = normalizedProjectRelativePath(current.rootPath, destination);
+  const next = relativePath ? index.assets.find(({ id }) => id === assetId(relativePath)) : undefined;
+  if (!next) throw new Error('The file was renamed but could not be reindexed.');
+  return { previousId: current.entry.id, next };
+};
+
+export const resolveProjectAssetPath = async (manifestPath: string, requestedId: string): Promise<string> =>
+  (await resolveIndexedAssetPath(manifestPath, requestedId)).filePath;
 
 const emptyIndex = (): ProjectAssetIndex => ({
   format: LIGHTTABLE_PROJECT_ASSET_INDEX_FORMAT,
@@ -76,6 +129,69 @@ export const readProjectAssetIndex = async (manifestPath: string): Promise<{
     'assets-v1.json'
   );
   return { rootPath: summary.rootPath, index: await loadIndex(indexPath) };
+};
+
+const portableRelativeDirectory = (rootPath: string, directoryPath: string): string | null => {
+  const relative = path.relative(rootPath, directoryPath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null;
+  return relative.split(path.sep).join('/');
+};
+
+/** Lists real, user-visible project directories. This never depends on an AI provider. */
+export const readProjectAssetDirectories = async (manifestPath: string): Promise<readonly ProjectAssetDirectory[]> => {
+  const { manifest, summary } = await openProjectManifest(manifestPath);
+  const rootPath = summary.rootPath;
+  const hiddenRoots = new Set([
+    manifest.folders.trash,
+    manifest.folders.aiInput,
+    manifest.folders.cache,
+    manifest.folders.thumbnails,
+    manifest.folders.indexes,
+    manifest.folders.temp
+  ].map((entry) => entry.toLocaleLowerCase('en-US')));
+  const configuredLabels = new Map<string, string>([
+    [manifest.folders.aiHistory, 'AI History'],
+    [manifest.folders.characters, 'Characters'],
+    [manifest.folders.environments, 'Environments'],
+    [manifest.folders.props, 'Props'],
+    [manifest.folders.sets, 'Sets'],
+    ...manifest.userFolders.map((folder) => [folder.path, folder.name] as const)
+  ].map(([entryPath, label]) => [entryPath.toLocaleLowerCase('en-US'), label]));
+  const directories: ProjectAssetDirectory[] = [];
+  const visit = async (directoryPath: string): Promise<void> => {
+    let entries;
+    try { entries = await readdir(directoryPath, { withFileTypes: true }); }
+    catch (reason) {
+      if (reason && typeof reason === 'object' && 'code' in reason && reason.code === 'ENOENT') return;
+      throw reason;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name === '.lighttable') continue;
+      const candidate = path.join(directoryPath, entry.name);
+      const relativePath = portableRelativeDirectory(rootPath, candidate);
+      if (!relativePath) continue;
+      const identity = relativePath.toLocaleLowerCase('en-US');
+      if ([...hiddenRoots].some((hidden) => identity === hidden || identity.startsWith(`${hidden}/`))) continue;
+      const isAiRendersContainer = identity === manifest.folders.aiRenders.toLocaleLowerCase('en-US');
+      if (!isAiRendersContainer) {
+        directories.push({
+          path: relativePath,
+          label: configuredLabels.get(identity) ?? relativePath
+        });
+      }
+      await visit(candidate);
+    }
+  };
+  await visit(rootPath);
+  for (const [identity, label] of configuredLabels) {
+    if (directories.some((directory) => directory.path.toLocaleLowerCase('en-US') === identity)) continue;
+    const configuredPath = [manifest.folders.aiHistory, manifest.folders.characters, manifest.folders.environments,
+      manifest.folders.props, manifest.folders.sets, ...manifest.userFolders.map((folder) => folder.path)]
+      .find((entry) => entry.toLocaleLowerCase('en-US') === identity);
+    if (configuredPath) directories.push({ path: configuredPath, label });
+  }
+  return directories.sort((left, right) => left.label === 'AI History' ? -1
+    : right.label === 'AI History' ? 1 : left.label.localeCompare(right.label));
 };
 
 export const readProjectAssetPreview = async (

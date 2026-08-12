@@ -31,7 +31,8 @@ export const createGenAiAssetMentionOptions = (
 
 export const resolveGenAiPromptMentions = (
   prompt: string,
-  options: readonly GenAiAssetMentionOption[]
+  options: readonly GenAiAssetMentionOption[],
+  selectedReferences: readonly GenAiAssetReference[] = []
 ): {
   readonly bindings: readonly GenAiPromptBinding[];
   readonly references: readonly GenAiAssetReference[];
@@ -40,9 +41,9 @@ export const resolveGenAiPromptMentions = (
 } => {
   const byToken = new Map(options.map((option) => [option.token.toLocaleLowerCase('en-US'), option]));
   const bindings: GenAiPromptBinding[] = [];
-  const references: GenAiAssetReference[] = [];
+  const references: GenAiAssetReference[] = [...selectedReferences];
   const missing = new Set<string>();
-  const providerLabels = new Map<string, string>();
+  const providerLabels = new Map<string, string>(references.map((asset, index) => [asset.id, `@image${index + 1}`]));
   const providerPrompt = prompt.replace(/@[a-zA-Z0-9_-]+/g, (token) => {
     const option = byToken.get(token.toLocaleLowerCase('en-US'));
     if (!option) {
@@ -51,11 +52,11 @@ export const resolveGenAiPromptMentions = (
     }
     let providerLabel = providerLabels.get(option.asset.id);
     if (!providerLabel) {
-      providerLabel = `@image${providerLabels.size + 1}`;
+      providerLabel = `@image${references.length + 1}`;
       providerLabels.set(option.asset.id, providerLabel);
       references.push(option.asset);
-      bindings.push({ token: option.token, assetId: option.asset.id, providerLabel });
     }
+    bindings.push({ token: option.token, assetId: option.asset.id, providerLabel });
     return providerLabel;
   });
   return { bindings, references, missingTokens: [...missing], providerPrompt };
