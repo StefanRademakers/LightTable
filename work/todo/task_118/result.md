@@ -392,7 +392,7 @@
 ## Remaining detector boundary
 
 - A repeat run on `D:\face.jpg` confirms the outstanding failure is upstream
-  observation quality, not mesh/render drift: MediaPipe reports only 18.7Â° yaw
+  observation quality, not mesh/render drift: MediaPipe reports only 18.7° yaw
   and returns an internally coherent near-frontal mesh over a profile image.
   The overlay therefore exposes the detector's wrong geometry faithfully.
 - Valid three-quarter and strong-yaw inputs overlap the simple coverage and
@@ -409,7 +409,7 @@
   captured action descriptor, but Adobe does not publish a stable typed
   Face-Aware Liquify descriptor suitable for inventing an unattended oracle.
 - `architecture/validation/FACE_WARP_PHOTOSHOP_PARITY_PROTOCOL.md` therefore
-  fixes the source corpus, isolated Â±50 Face Width / Eye Size / Nose Width /
+  fixes the source corpus, isolated ±50 Face Width / Eye Size / Nose Width /
   Smile edits, lossless captures, feature-local metrics, high-zoom review and
   offline reopen requirement. It explicitly forbids substituting ordinary
   Liquify or approving by full-image RMSE alone.
@@ -426,6 +426,10 @@
   `Tom_Hanks_54745.png` fixture passed the same matrix. Visual review of the
   frontal contact sheet found local, correctly directed edits without holes,
   folds, boundary seams or background drag.
+- The corpus runner now targets the active raster source explicitly and rejects
+  a case when its exported pixels equal the identity render. A fresh frontal
+  run passed this stricter contract: all eight operation hashes differ from
+  identity and every reopened artifact remains pixel exact.
 - `scripts/compare-face-warp-parity.mjs` validates dimensions and produces
   absolute-difference PNGs, RMSE/maximum channel differences and a three-column
   LightTable/Photoshop/difference sheet. Its eight-case identical-reference

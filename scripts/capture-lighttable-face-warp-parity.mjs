@@ -63,12 +63,18 @@ try {
   await page.getByRole('button', { name: 'Detect faces' }).click();
   await page.getByRole('button', { name: 'Redetect faces' }).waitFor({ state: 'visible', timeout: 60_000 });
   await page.getByLabel('Show mesh').uncheck();
+  const document = await driver.queryDocument(documentId);
   const layers = await driver.queryLayers(documentId);
-  const layerId = layers?.find((layer) => layer.kind === 'raster')?.id ?? layers?.[0]?.id;
+  const layerId = document?.activeLayerId;
   if (!layerId) throw new Error('The detected face has no source layer.');
+  const activeLayer = layers?.find((layer) => layer.id === layerId);
+  if (activeLayer?.type !== 'raster') {
+    throw new Error(`Face Warp detection did not leave a raster source active (received ${activeLayer?.type ?? 'missing'}).`);
+  }
 
   const identity = await exportArtifact(driver, documentId, 'file.exportPng');
   await writeFile(path.join(output, 'lighttable-identity.png'), identity.bytes);
+  const identityHash = hash(identity.bytes);
   const results = [];
   for (const entry of cases) {
     await driver.execute(documentId, 'faceWarp.applyOperation', {
@@ -77,6 +83,9 @@ try {
     const png = await exportArtifact(driver, documentId, 'file.exportPng');
     const pngName = `lighttable-${entry.name}.png`;
     await writeFile(path.join(output, pngName), png.bytes);
+    if (hash(png.bytes) === identityHash) {
+      throw new Error(`${entry.name} did not change the exported pixels.`);
+    }
 
     const native = await exportArtifact(driver, documentId, 'file.exportNative');
     const nativeInput = await driver.registerInputArtifact(native.bytes, `roundtrip-${entry.name}.lighttable`, native.mediaType);
@@ -100,7 +109,7 @@ try {
     throw new Error(`Runtime errors occurred: ${JSON.stringify({ pageErrors, consoleErrors })}`);
   }
   await writeFile(path.join(output, 'manifest.json'), `${JSON.stringify({
-    sourceFile, identity: 'lighttable-identity.png', cases: results,
+    sourceFile, identity: 'lighttable-identity.png', identitySha256: identityHash, cases: results,
     photoshopFilesExpected: results.map(({ name }) => `photoshop-${name}.png`),
     pageErrors, consoleErrors
   }, null, 2)}\n`);
