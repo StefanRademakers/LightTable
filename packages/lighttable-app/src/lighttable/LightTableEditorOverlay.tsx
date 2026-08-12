@@ -210,6 +210,7 @@ import {
   readFaceWarpNodeSettings,
   setFaceWarpNodeSettings,
   type FaceWarpFace,
+  type FaceWarpNodeSettings,
   type FaceWarpProtectedFeature,
   type FaceWarpParameters
 } from './effects/faceWarp/faceWarpTypes';
@@ -708,6 +709,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const faceWarpDetectorRef = useRef<FaceWarpDetector | null>(null);
   const faceWarpDetectionGenerationRef = useRef(0);
   const [faceWarpBusy, setFaceWarpBusy] = useState(false);
+  const [pendingFaceWarpDetection, setPendingFaceWarpDetection] = useState<{
+    readonly documentId: string;
+    readonly layerId: LayerId;
+    readonly sourceTransform: string;
+    readonly settings: FaceWarpNodeSettings;
+  } | null>(null);
   const [faceWarpMeshVisible, setFaceWarpMeshVisible] = useState(false);
   const [faceWarpSelectedFaceId, setFaceWarpSelectedFaceId] = useState<string | null>(null);
   const [faceWarpSemanticTarget, setFaceWarpSemanticTarget] =
@@ -1204,9 +1211,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     ? readFaceWarpNodeSettings(activeFaceWarpInstance)
     : null;
   const activeFaceWarpFaces = activeFaceWarpSettings?.faces ?? [];
-  const effectiveFaceWarpFaceId = activeFaceWarpFaces.some(({ id }) => id === faceWarpSelectedFaceId)
+  const pendingFaceWarpDetectionForActiveLayer = pendingFaceWarpDetection
+    && pendingFaceWarpDetection.documentId === imageDocument?.id
+    && pendingFaceWarpDetection.layerId === activeFaceWarpLayer?.id
+    ? pendingFaceWarpDetection
+    : null;
+  const visibleFaceWarpFaces = pendingFaceWarpDetectionForActiveLayer?.settings.faces
+    ?? activeFaceWarpFaces;
+  const effectiveFaceWarpFaceId = visibleFaceWarpFaces.some(({ id }) => id === faceWarpSelectedFaceId)
     ? faceWarpSelectedFaceId
-    : activeFaceWarpFaces[0]?.id ?? null;
+    : visibleFaceWarpFaces[0]?.id ?? null;
   const updateFaceWarpParameters = useCallback((change: Partial<FaceWarpParameters>) => {
     const faceId = faceWarpSelectedFaceId
       ?? (() => {
@@ -1257,6 +1271,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return;
     }
     setFaceWarpBusy(true);
+    setPendingFaceWarpDetection(null);
     setError(null);
     const generation = ++faceWarpDetectionGenerationRef.current;
     const sourceDocumentId = document.id;
@@ -1312,7 +1327,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (faces.length === 0) {
         throw new Error(rejectedReasons[0] ?? 'No editable face was detected in the active layer.');
       }
-      const settings = {
+      const settings: FaceWarpNodeSettings = {
         version: 2 as const,
         opacity: 1,
         sourceRevision: layer.pixelRevision,
@@ -1326,30 +1341,62 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         },
         faces
       };
-      documentMutationController.change((currentDocument) => {
-        const currentLayer = findRasterLayer(currentDocument, layer.id);
-        if (!currentLayer || layerIsLocked(currentLayer)) return currentDocument;
-        let stack = currentLayer.adjustmentStack
-          ? structuredClone(currentLayer.adjustmentStack)
-          : { id: `stack-${crypto.randomUUID()}`, revision: 0, modules: [] };
-        const existing = findFaceWarpModuleInstance(stack);
-        stack = existing
-          ? setFaceWarpNodeSettings(stack, settings)
-          : addFaceWarpNodeToStack(stack, createFaceWarpModuleInstance(
-            `module-${crypto.randomUUID()}`,
-            settings
-          ));
-        return setRasterLayerAdjustmentStack(currentDocument, layer.id, stack);
+      setPendingFaceWarpDetection({
+        documentId: sourceDocumentId,
+        layerId: layer.id,
+        sourceTransform,
+        settings
       });
       setFaceWarpSelectedFaceId(faces[0]!.id);
       setFaceWarpMeshVisible(true);
-      setGradeStatus(`${faces.length} face${faces.length === 1 ? '' : 's'} detected.`);
+      setGradeStatus(`${faces.length} face${faces.length === 1 ? '' : 's'} detected. Check the mesh before accepting.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       if (generation === faceWarpDetectionGenerationRef.current) setFaceWarpBusy(false);
     }
-  }, [documentMutationController, imageDocumentRef]);
+  }, [imageDocumentRef]);
+
+  const acceptPendingFaceWarpDetection = useCallback(() => {
+    const pending = pendingFaceWarpDetection;
+    if (!pending) return;
+    const currentDocument = imageDocumentRef.current;
+    const currentLayer = currentDocument ? findRasterLayer(currentDocument, pending.layerId) : null;
+    if (currentDocument?.id !== pending.documentId
+      || !currentLayer
+      || layerIsLocked(currentLayer)
+      || currentLayer.pixelRevision !== pending.settings.sourceRevision
+      || JSON.stringify(currentLayer.transform) !== pending.sourceTransform) {
+      setPendingFaceWarpDetection(null);
+      setError('The layer changed while the face mesh was being reviewed. Detect faces again.');
+      return;
+    }
+    documentMutationController.change((document) => {
+      const layer = findRasterLayer(document, pending.layerId);
+      if (!layer || layerIsLocked(layer)) return document;
+      let stack = layer.adjustmentStack
+        ? structuredClone(layer.adjustmentStack)
+        : { id: `stack-${crypto.randomUUID()}`, revision: 0, modules: [] };
+      const existing = findFaceWarpModuleInstance(stack);
+      stack = existing
+        ? setFaceWarpNodeSettings(stack, pending.settings)
+        : addFaceWarpNodeToStack(stack, createFaceWarpModuleInstance(
+          `module-${crypto.randomUUID()}`,
+          pending.settings
+        ));
+      return setRasterLayerAdjustmentStack(document, layer.id, stack);
+    });
+    setPendingFaceWarpDetection(null);
+    setGradeStatus(`${pending.settings.faces.length} face${pending.settings.faces.length === 1 ? '' : 's'} accepted.`);
+  }, [documentMutationController, imageDocumentRef, pendingFaceWarpDetection]);
+
+  const cancelPendingFaceWarpDetection = useCallback(() => {
+    faceWarpDetectionGenerationRef.current += 1;
+    setPendingFaceWarpDetection(null);
+    setFaceWarpSelectedFaceId(activeFaceWarpFaces[0]?.id ?? null);
+    setFaceWarpMeshVisible(activeFaceWarpFaces.length > 0);
+    setGradeStatus('Face detection cancelled.');
+  }, [activeFaceWarpFaces]);
 
   const resetSelectedFaceWarp = useCallback(() => {
     const faceId = effectiveFaceWarpFaceId;
@@ -1386,27 +1433,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       editorSession.activeTool !== 'face-warp'
       || !faceWarpMeshVisible
       || !activeFaceWarpLayer
-      || activeFaceWarpFaces.length === 0
+      || visibleFaceWarpFaces.length === 0
     ) {
       renderer.setFaceWarpEditingOverlay(null);
       return;
     }
     renderer.setFaceWarpEditingOverlay(buildFaceWarpMeshOverlay(
-      activeFaceWarpFaces,
+      visibleFaceWarpFaces,
       activeFaceWarpLayer.transform,
-      activeFaceWarpSettings?.topology.triangleIndices ?? [],
+      pendingFaceWarpDetectionForActiveLayer?.settings.topology.triangleIndices
+        ?? activeFaceWarpSettings?.topology.triangleIndices
+        ?? [],
       effectiveFaceWarpFaceId
     ));
   }, [
-    activeFaceWarpFaces,
+    visibleFaceWarpFaces,
     activeFaceWarpLayer,
     activeFaceWarpSettings,
     editorSession.activeTool,
     effectiveFaceWarpFaceId,
-    faceWarpMeshVisible
+    faceWarpMeshVisible,
+    pendingFaceWarpDetectionForActiveLayer
   ]);
 
   const beginFaceWarpGesture = (pointerId: number, documentPoint: { x: number; y: number }) => {
+    if (pendingFaceWarpDetectionForActiveLayer) return false;
     const pendingRefinement = faceWarpRefinementRef.current;
     if (pendingRefinement) {
       window.cancelAnimationFrame(pendingRefinement.frame);
@@ -4869,15 +4920,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     } : {})
   } : null;
   const faceWarpToolOptions = {
-    faces: activeFaceWarpFaces,
+    faces: visibleFaceWarpFaces,
     selectedFaceId: effectiveFaceWarpFaceId,
     busy: faceWarpBusy,
+    reviewPending: pendingFaceWarpDetectionForActiveLayer !== null,
     meshVisible: faceWarpMeshVisible,
     brushSize: editorSession.brush.size,
     brushStrength: editorSession.brush.opacity,
     semanticTarget: faceWarpSemanticTarget,
     protectedFeature: faceWarpProtectedFeature,
     onDetect: () => { void detectFacesForActiveLayer(); },
+    onAcceptDetection: acceptPendingFaceWarpDetection,
+    onCancelDetection: cancelPendingFaceWarpDetection,
     onSelectFace: setFaceWarpSelectedFaceId,
     onMeshVisibleChange: changeFaceWarpMeshVisible,
     onBrushChange: ({ size, strength }: { size?: number; strength?: number }) => {

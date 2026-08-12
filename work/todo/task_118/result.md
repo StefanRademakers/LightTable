@@ -107,6 +107,30 @@
 - Checkerboard GPU parity/identity measurements and hardware performance data.
 - Multi-resolution front/three-quarter/profile visual corpus and Photoshop
   comparison. The task remains open until those gates pass.
+
+## Explicit detector review gate (2026-08-12)
+
+- Detection no longer writes an `lt.face-warp` effect or history command
+  immediately. The detector result is held as ephemeral editor state and the
+  exact GPU mesh is shown over the active layer first.
+- The reused tool-options controls expose only **Accept mesh** and **Cancel**
+  during review. Sculpt and semantic controls remain unavailable until the
+  result is accepted. Cancelling a redetection preserves the previously
+  authored effect; accepting is the sole document mutation.
+- The repeatable real-Electron smoke now asserts that undo depth is unchanged
+  while the mesh awaits approval. Both `D:\pukkels-lighttable.png` and the
+  adverse profile `D:\face.jpg` pass this lifecycle contract on the RTX 5090,
+  with no page or WebGPU validation errors.
+- Visual inspection of the captured adverse preview confirms that MediaPipe
+  can still place a technically valid but anatomically wrong near-frontal mesh
+  over a profile face. Gate 6's former low-confidence claim was therefore
+  reopened instead of being hidden behind the manual review step.
+- An isolated OpenSeeFace research spike was run from ignored reference/temp
+  files. Its independent confidence separated this adverse image from the
+  current small valid corpus, but the margin on a valid three-quarter face is
+  too small and four images are not a defensible production threshold. It is
+  not shipped, does not become a second render topology, and needs a licensed,
+  representative validation corpus before adoption as a detector oracle.
 ## Detector quality gate
 
 - Detector output is no longer persisted with a fabricated confidence of `1`.

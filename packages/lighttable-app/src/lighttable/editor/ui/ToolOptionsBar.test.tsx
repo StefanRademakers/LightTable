@@ -69,9 +69,10 @@ const renderOptions = (
     onSelectedShapeChange: vi.fn(),
     onWarpReset: vi.fn(),
     faceWarp: {
-      faces: [], selectedFaceId: null, busy: false, meshVisible: false,
+      faces: [], selectedFaceId: null, busy: false, reviewPending: false, meshVisible: false,
       brushSize: 100, brushStrength: 0.35, semanticTarget: 'both', protectedFeature: 'eyes',
-      onDetect: vi.fn(), onSelectFace: vi.fn(), onMeshVisibleChange: vi.fn(),
+      onDetect: vi.fn(), onAcceptDetection: vi.fn(), onCancelDetection: vi.fn(),
+      onSelectFace: vi.fn(), onMeshVisibleChange: vi.fn(),
       onBrushChange: vi.fn(), onSemanticTargetChange: vi.fn(),
       onProtectedFeatureChange: vi.fn(), onProtectionChange: vi.fn(),
       onParametersChange: vi.fn(), onInteractionStart: vi.fn(),

@@ -15,12 +15,15 @@ export interface FaceWarpToolOptionsProps {
   readonly faces: readonly FaceWarpFace[];
   readonly selectedFaceId: string | null;
   readonly busy: boolean;
+  readonly reviewPending: boolean;
   readonly meshVisible: boolean;
   readonly brushSize: number;
   readonly brushStrength: number;
   readonly semanticTarget: FaceWarpSemanticTarget;
   readonly protectedFeature: FaceWarpProtectedFeature;
   readonly onDetect: () => void;
+  readonly onAcceptDetection: () => void;
+  readonly onCancelDetection: () => void;
   readonly onSelectFace: (faceId: string) => void;
   readonly onMeshVisibleChange: (visible: boolean) => void;
   readonly onBrushChange: (change: { size?: number; strength?: number }) => void;
@@ -56,12 +59,15 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
   faces,
   selectedFaceId,
   busy,
+  reviewPending,
   meshVisible,
   brushSize,
   brushStrength,
   semanticTarget,
   protectedFeature,
   onDetect,
+  onAcceptDetection,
+  onCancelDetection,
   onSelectFace,
   onMeshVisibleChange,
   onBrushChange,
@@ -82,15 +88,19 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
       : selected.featureOverrides?.[semanticTarget]?.[key] ?? selected.parameters[key]
     : 0;
   return <>
-    <ActionButton disabled={busy} onClick={onDetect}>
+    {reviewPending ? <>
+      <span className="lighttable-tool-options__hint">Check that the mesh follows the face.</span>
+      <ActionButton onClick={onAcceptDetection}>Accept mesh</ActionButton>
+      <ActionButton size="compact" onClick={onCancelDetection}>Cancel</ActionButton>
+    </> : <ActionButton disabled={busy} onClick={onDetect}>
       {busy ? 'Detecting faces…' : faces.length > 0 ? 'Redetect faces' : 'Detect faces'}
-    </ActionButton>
-    {faces.length > 0 ? <SegmentedControl value={mode} onChange={setMode}
+    </ActionButton>}
+    {faces.length > 0 && !reviewPending ? <SegmentedControl value={mode} onChange={setMode}
       ariaLabel="Face Warp editing mode" options={[
         { value: 'sculpt', label: 'Sculpt' },
         { value: 'adjust', label: 'Adjust' }
       ]} /> : null}
-    {faces.length > 0 ? <label className="lighttable-tool-options__field">
+    {faces.length > 0 && !reviewPending ? <label className="lighttable-tool-options__field">
       <span>Face</span>
       <select value={selected?.id ?? ''} onChange={(event) => onSelectFace(event.currentTarget.value)}>
         {faces.map((face, index) => <option key={face.id} value={face.id}>Face {index + 1}</option>)}
@@ -98,11 +108,11 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
     </label> : null}
     <label className="lighttable-tool-options__toggle">
       <input type="checkbox" checked={meshVisible}
-        disabled={faces.length === 0}
+        disabled={faces.length === 0 || reviewPending}
         onChange={(event) => onMeshVisibleChange(event.currentTarget.checked)} />
       Show mesh
     </label>
-    {selected && mode === 'sculpt' ? <>
+    {selected && !reviewPending && mode === 'sculpt' ? <>
       <AdjustmentSlider label="Brush" value={brushSize} min={8} max={1200}
         resetValue={120} format={(current) => `${Math.round(current)} px`}
         onReset={() => onBrushChange({ size: 120 })}
@@ -113,7 +123,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
         onChange={(strength) => onBrushChange({ strength: strength / 100 })} />
       <span className="lighttable-tool-options__hint">Drag to sculpt · Shift-drag to relax · Alt-drag to restore</span>
     </> : null}
-    {selected && mode === 'adjust' ? <>
+    {selected && !reviewPending && mode === 'adjust' ? <>
       <label className="lighttable-tool-options__field">
         <span>Target</span>
         <select value={semanticTarget}
@@ -167,6 +177,6 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
         onChange={(smile) => onParametersChange({ smile })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
     </> : null}
-    {selected ? <ActionButton size="compact" onClick={onReset}>Reset face</ActionButton> : null}
+    {selected && !reviewPending ? <ActionButton size="compact" onClick={onReset}>Reset face</ActionButton> : null}
   </>;
 };

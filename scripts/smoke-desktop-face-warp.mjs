@@ -212,7 +212,17 @@ try {
   });
 
   const coldDetectionStartedAt = performance.now();
+  const documentBeforeDetection = await driver.queryDocument(documentId);
   await page.getByRole('button', { name: 'Detect faces' }).click();
+  await page.getByRole('button', { name: 'Accept mesh' })
+    .waitFor({ state: 'visible', timeout: 60_000 });
+  const pendingDocument = await driver.queryDocument(documentId);
+  if (!documentBeforeDetection || !pendingDocument
+    || pendingDocument.history.undoDepth !== documentBeforeDetection.history.undoDepth) {
+    throw new Error('Face Warp detection wrote document history before mesh approval.');
+  }
+  await canvas.screenshot({ path: path.join(output, '00-pending-mesh.png') });
+  await page.getByRole('button', { name: 'Accept mesh' }).click();
   await page.getByRole('button', { name: 'Redetect faces' })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const brushControl = page.locator('label.lighttable-adjustment').filter({ hasText: /^Brush/ })
@@ -235,6 +245,9 @@ try {
   await page.getByRole('button', { name: 'Redetect faces' }).click();
   await page.getByRole('button', { name: 'Detecting faces…' })
     .waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByRole('button', { name: 'Accept mesh' })
+    .waitFor({ state: 'visible', timeout: 60_000 });
+  await page.getByRole('button', { name: 'Accept mesh' }).click();
   await page.getByRole('button', { name: 'Redetect faces' })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const warmDetectionMs = performance.now() - warmDetectionStartedAt;

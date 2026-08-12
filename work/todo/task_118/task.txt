@@ -192,7 +192,7 @@ Gate 6:
 
 - [x] No far-side mesh is drawn over the visible nose/cheek surface.
 - [x] Profile edits remain local and do not pull the entire image.
-- [x] Low-confidence cases fail clearly and safely instead of inventing a mesh.
+- [ ] Low-confidence cases fail clearly and safely instead of inventing a mesh.
 
 ## Phase 7 — Overlay, UX and document integration
 
@@ -201,6 +201,8 @@ Gate 6:
 - [x] Reuse existing toolbar controls and LightTable UI primitives.
 - [x] Expose only understandable controls; advanced solver values stay internal.
 - [x] Add Redetect, Show mesh, Reset face and face selection coherently.
+- [x] Keep newly detected meshes in ephemeral editor review state and require
+      explicit visual acceptance before they enter document/history state.
 - [x] Keep detection lazy and cancellable; slider/brush edits never redetect.
 - [x] Add deterministic serialization, autosave/recovery and normal save/reopen.
 - [x] Define PSD/export behaviour: semantic preservation where possible,
