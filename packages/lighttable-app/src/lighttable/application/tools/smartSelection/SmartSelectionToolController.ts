@@ -12,7 +12,7 @@ import type {
   SmartSelectionCandidate,
   SmartSelectionSource
 } from './SmartSelectionBackend';
-import { SlimSamSmartSelectionBackend } from './SlimSamSmartSelectionBackend';
+import { BalancedSmartSelectionBackend } from './BalancedSmartSelectionBackend';
 import { SmartSelectionRequestGate } from './SmartSelectionRequestGate';
 import {
   createSmartSelectionSource,
@@ -81,7 +81,7 @@ export class SmartSelectionToolController {
 
   constructor(
     private readonly callbacks: SmartSelectionToolCallbacks,
-    backend: SmartSelectionBackend = new SlimSamSmartSelectionBackend()
+    backend: SmartSelectionBackend = new BalancedSmartSelectionBackend()
   ) {
     this.gate = new SmartSelectionRequestGate(backend);
   }
@@ -167,15 +167,24 @@ export class SmartSelectionToolController {
     bounds: { x: number; y: number; width: number; height: number },
     mode: SelectionCombineMode
   ) {
-    if (!await this.prepare() || !this.source) return false;
-    const prepared = await this.gate.prepare(this.source);
-    if (!prepared) return false;
-    const candidates = await this.gate.prompt(prepared, { points: [], box: bounds }, {
-      hardEdge: this.callbacks.getOptions().hardEdge
-    });
-    const candidate = candidates ? bestCandidate(candidates) : null;
-    if (!candidate) return false;
-    return this.commitCandidate(candidate, mode);
+    try {
+      if (!await this.prepare() || !this.source) return false;
+      const prepared = await this.gate.prepare(this.source);
+      if (!prepared) return false;
+      traceSmartSelection('box-requested', bounds);
+      const candidates = await this.gate.prompt(prepared, { points: [], box: bounds }, {
+        hardEdge: this.callbacks.getOptions().hardEdge
+      });
+      const candidate = candidates ? bestCandidate(candidates) : null;
+      traceSmartSelection('box-resolved', { candidates: candidates?.length ?? 0 });
+      if (!candidate) return false;
+      return this.commitCandidate(candidate, mode);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Unknown box-prompt failure.';
+      traceSmartSelection('box-error', { message });
+      this.callbacks.setStatus(`Object Selection box is unavailable: ${message}`);
+      return false;
+    }
   }
 
   async selectSubject(mode: SelectionCombineMode = 'replace') {
@@ -210,6 +219,7 @@ export class SmartSelectionToolController {
 
   beginRegion(pointerId: number, point: SelectionPoint, mode: SelectionCombineMode) {
     const selectionMode = this.callbacks.getOptions().mode;
+    traceSmartSelection('region-begin', { pointerId, selectionMode, x: point.x, y: point.y });
     if (selectionMode === 'object-finder' || this.region) return false;
     this.clearPreview();
     this.region = {
@@ -242,6 +252,7 @@ export class SmartSelectionToolController {
     const y = Math.min(...ys);
     const width = Math.max(...xs) - x;
     const height = Math.max(...ys) - y;
+    traceSmartSelection('region-finish', { pointerId, x, y, width, height });
     if (width < 1 || height < 1) return false;
     void this.commitBox({ x, y, width, height }, region.mode);
     return true;

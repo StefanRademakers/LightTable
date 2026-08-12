@@ -5,6 +5,7 @@ export type SlimSamWorkerRequest =
       readonly sourceId: string;
       readonly revision: number;
       readonly image: Blob;
+      readonly profile?: 'slimsam' | 'sam2-small';
     }
   | {
       readonly type: 'points';

@@ -4,13 +4,15 @@ import {
   AutoProcessor,
   RawImage,
   SamModel,
+  Sam2Model,
   type ProgressInfo,
   type Tensor
 } from '@huggingface/transformers';
 import type { SlimSamWorkerRequest, SlimSamWorkerResponse } from './slimSamProtocol';
 import { rankSubjectMask } from './smartSubjectRanking';
+import { SAM2_SMALL_PROFILE, SLIMSAM_PROFILE } from './smartSelectionModels';
 
-const MODEL_ID = 'Xenova/slimsam-77-uniform';
+type ModelProfile = 'slimsam' | 'sam2-small';
 
 interface SamInputs {
   readonly pixel_values: Tensor;
@@ -28,10 +30,19 @@ interface PreparedState {
   readonly image: RawImage;
   readonly width: number;
   readonly height: number;
-  readonly embeddings: {
-    readonly image_embeddings: Tensor;
-    readonly image_positional_embeddings: Tensor;
-  };
+  readonly embeddings: Record<string, Tensor>;
+}
+
+interface SamOutputPort {
+  readonly pred_masks: Tensor;
+  readonly iou_scores: Tensor;
+  readonly object_score_logits?: Tensor;
+}
+
+interface SamModelPort {
+  get_image_embeddings(inputs: { pixel_values: Tensor }): Promise<Record<string, Tensor>>;
+  _call(inputs: Record<string, unknown>): Promise<SamOutputPort>;
+  dispose(): Promise<void>;
 }
 
 type SamProcessorPort = ((image: RawImage, prompts?: Record<string, unknown>) => Promise<SamInputs>) & {
@@ -43,16 +54,16 @@ type SamProcessorPort = ((image: RawImage, prompts?: Record<string, unknown>) =>
   ): Promise<Tensor[]>;
 };
 
-let model: SamModel | null = null;
+let model: SamModelPort | null = null;
 let processor: SamProcessorPort | null = null;
 let backend: 'webgpu' | 'wasm' | null = null;
+let activeProfile: ModelProfile | null = null;
 let prepared: PreparedState | null = null;
 let latestPromptRequestId = 0;
 let operationChain: Promise<void> = Promise.resolve();
 
 const disposePrepared = () => {
-  prepared?.embeddings.image_embeddings.dispose();
-  prepared?.embeddings.image_positional_embeddings.dispose();
+  for (const embedding of Object.values(prepared?.embeddings ?? {})) embedding.dispose();
   prepared = null;
 };
 
@@ -69,14 +80,21 @@ const metric = (
   backend: backend ?? undefined
 });
 
-const loadRuntime = async (requestId: number): Promise<{ model: SamModel; processor: SamProcessorPort }> => {
+const loadRuntime = async (requestId: number, profile: ModelProfile): Promise<{ model: SamModelPort; processor: SamProcessorPort }> => {
   if (model && processor) return { model, processor };
   const attempts: Array<{ device: 'webgpu' | 'wasm'; dtype: 'fp16' | 'fp32' | 'q8' }> = [];
-  if ('gpu' in navigator) attempts.push(
-    { device: 'webgpu', dtype: 'fp16' },
-    { device: 'webgpu', dtype: 'fp32' }
-  );
-  attempts.push({ device: 'wasm', dtype: 'q8' }, { device: 'wasm', dtype: 'fp32' });
+  if (profile === 'sam2-small') {
+    if ('gpu' in navigator) attempts.push({ device: 'webgpu', dtype: 'fp16' });
+  } else {
+    if ('gpu' in navigator) attempts.push(
+      { device: 'webgpu', dtype: 'fp16' },
+      { device: 'webgpu', dtype: 'fp32' }
+    );
+    attempts.push({ device: 'wasm', dtype: 'q8' }, { device: 'wasm', dtype: 'fp32' });
+  }
+  if (attempts.length === 0) {
+    throw new Error('SAM 2.1 Small FP16 requires WebGPU; the balanced backend will use its SlimSAM fallback.');
+  }
   let lastError: unknown = null;
   for (const attempt of attempts) {
     const startedAt = performance.now();
@@ -89,19 +107,25 @@ const loadRuntime = async (requestId: number): Promise<{ model: SamModel; proces
           ? Math.max(0, Math.min(100, event.progress))
           : undefined
       );
+      const selected = profile === 'sam2-small' ? SAM2_SMALL_PROFILE : SLIMSAM_PROFILE;
+      const Model = profile === 'sam2-small' ? Sam2Model : SamModel;
       const [rawModel, rawProcessor] = await Promise.all([
-        SamModel.from_pretrained(MODEL_ID, {
+        Model.from_pretrained(selected.modelId, {
+          revision: selected.artifactRevision,
           device: attempt.device,
-          dtype: attempt.dtype,
+          dtype: profile === 'sam2-small' ? 'fp16' : attempt.dtype,
           progress_callback
         }),
-        AutoProcessor.from_pretrained(MODEL_ID, { progress_callback })
+        AutoProcessor.from_pretrained(selected.modelId, {
+          revision: selected.artifactRevision, progress_callback
+        })
       ]);
-      const createdModel = rawModel as unknown as SamModel;
+      const createdModel = rawModel as unknown as SamModelPort;
       const createdProcessor = rawProcessor as unknown as SamProcessorPort;
       model = createdModel;
       processor = createdProcessor;
       backend = attempt.device;
+      activeProfile = profile;
       metric(requestId, 'model-load', startedAt);
       return { model, processor };
     } catch (reason) {
@@ -124,7 +148,9 @@ const prepareSource = async (request: Extract<SlimSamWorkerRequest, { type: 'pre
   if (prepared?.sourceId === request.sourceId && prepared.revision === request.revision) {
     return prepared;
   }
-  const runtime = await loadRuntime(request.requestId);
+  const profile = request.profile ?? 'slimsam';
+  if (activeProfile && activeProfile !== profile) throw new Error('The selection worker model profile cannot change while active.');
+  const runtime = await loadRuntime(request.requestId, profile);
   status(request.requestId, `Preparing image on ${backend === 'webgpu' ? 'WebGPU' : 'CPU'}…`);
   const imageDecodeStartedAt = performance.now();
   const image = await RawImage.fromBlob(request.image);
@@ -170,7 +196,7 @@ interface DecodedCandidate {
 }
 
 const decodePrompt = async (
-  runtime: { model: SamModel; processor: SamProcessorPort },
+  runtime: { model: SamModelPort; processor: SamProcessorPort },
   prompts: Record<string, unknown>,
   hardEdge: boolean
 ) => {
@@ -181,7 +207,7 @@ const decodePrompt = async (
   const { pixel_values, original_sizes, reshaped_input_sizes, ...promptInputs } = inputs;
   try {
     const decodeStartedAt = performance.now();
-    const outputs = await runtime.model({ ...promptInputs, ...prepared.embeddings });
+    const outputs = await runtime.model._call({ ...promptInputs, ...prepared.embeddings });
     metric(0, 'prompt-decode', decodeStartedAt);
     try {
       const postprocessStartedAt = performance.now();
@@ -216,6 +242,7 @@ const decodePrompt = async (
     } finally {
       outputs.pred_masks.dispose();
       outputs.iou_scores.dispose();
+      outputs.object_score_logits?.dispose();
     }
   } finally {
     pixel_values.dispose();
@@ -231,7 +258,8 @@ const select = async (
   if (!prepared || prepared.sourceId !== request.sourceId) {
     throw new Error('The prepared Object Selection source is no longer available.');
   }
-  const runtime = await loadRuntime(request.requestId);
+  if (!activeProfile) throw new Error('The selection model was not prepared.');
+  const runtime = await loadRuntime(request.requestId, activeProfile);
   let width = prepared.width;
   let height = prepared.height;
   let results: DecodedCandidate[];
@@ -260,7 +288,7 @@ const select = async (
           input_labels: [[request.labels]],
           ...(request.box ? { input_boxes: [[request.box]] } : {})
         }
-      : { input_boxes: [[[request.box[0], request.box[1], request.box[2], request.box[3]]]] };
+      : { input_boxes: [[request.box]] };
     const decoded = await decodePrompt(runtime, prompts, request.hardEdge);
     width = decoded.width;
     height = decoded.height;
@@ -289,6 +317,7 @@ self.onmessage = (event: MessageEvent<SlimSamWorkerRequest>) => {
       model = null;
       processor = null;
       backend = null;
+      activeProfile = null;
       return;
     }
     if (request.type === 'prepare') {

@@ -28,11 +28,11 @@ technical requirements remain authoritative in
   - Acceptance: focused contract/controller tests pass without a SlimSAM UX
     regression.
 
-- [ ] Phase 3 - Integrate SAM 2.1 Hiera Small FP16 experimentally
-  - [ ] Add the encoder/decoder behind the existing worker/backend boundary.
-  - [ ] Centralize repository revision, graph names and preprocessing metadata.
-  - [ ] Verify point and box coordinates, padding, unpadding and mask rescaling.
-  - [ ] Keep SlimSAM as a temporary internal fallback.
+- [x] Phase 3 - Integrate SAM 2.1 Hiera Small FP16 experimentally
+  - [x] Add the encoder/decoder behind the existing worker/backend boundary.
+  - [x] Centralize repository revision, graph names and preprocessing metadata.
+  - [x] Verify point and box coordinates, padding, unpadding and mask rescaling.
+  - [x] Keep SlimSAM as a temporary internal fallback.
   - Acceptance: one image encode produces correctly aligned masks independent of
     zoom and device-pixel ratio, with explicit cleanup on close/switch.
 

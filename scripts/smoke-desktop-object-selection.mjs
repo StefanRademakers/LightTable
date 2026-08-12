@@ -6,6 +6,7 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\face.jpg');
+const interactionMode = process.argv.includes('--rectangle') ? 'rectangle' : 'object-finder';
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'object-selection-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'object-selection-committed.png');
@@ -49,7 +50,18 @@ try {
   const objectButton = page.getByRole('button', { name: 'Object Selection' });
   await objectButton.waitFor({ state: 'visible' });
   await objectButton.click();
-  await page.getByLabel('Object Selection settings').waitFor({ state: 'visible' });
+  const objectSelectionSettings = page.locator('[aria-label="Object Selection settings"]:visible');
+  await objectSelectionSettings.waitFor({ state: 'visible' });
+  if (interactionMode === 'rectangle') {
+    const modeSelect = objectSelectionSettings.getByLabel('Object Selection mode');
+    await modeSelect.selectOption('rectangle');
+    await modeSelect.evaluate((select) => {
+      if (!(select instanceof HTMLSelectElement) || select.value !== 'rectangle') {
+        throw new Error('The visible Object Selection mode control did not enter Rectangle mode.');
+      }
+    });
+    await page.waitForTimeout(250);
+  }
 
   const canvas = page.locator('.lighttable-viewport__canvas');
   await page.evaluate(() => {
@@ -61,7 +73,10 @@ try {
     const target = document.querySelector('.lighttable-viewport__canvas');
     if (!(target instanceof HTMLCanvasElement)) return undefined;
     const bounds = target.getBoundingClientRect();
-    for (const [xRatio, yRatio] of [[0.62, 0.42], [0.5, 0.5], [0.4, 0.45]]) {
+    // Fit-view always keeps the document center at the viewport center. Prefer
+    // that invariant over guessing from the full viewport dimensions, which
+    // include black pasteboard around portrait/square documents.
+    for (const [xRatio, yRatio] of [[0.68, 0.4], [0.72, 0.5], [0.3, 0.3]]) {
       const x = bounds.left + bounds.width * xRatio;
       const y = bounds.top + bounds.height * yRatio;
       if (document.elementFromPoint(x, y) === target) return { x, y };
@@ -71,11 +86,21 @@ try {
   if (!clickPoint) throw new Error('No unobstructed canvas point is available.');
 
   const startedAt = performance.now();
-  await page.mouse.click(clickPoint.x, clickPoint.y);
+  if (interactionMode === 'rectangle') {
+    await page.mouse.move(clickPoint.x - 24, clickPoint.y - 24);
+    await page.mouse.down();
+    await page.mouse.move(clickPoint.x + 24, clickPoint.y + 24, { steps: 8 });
+    await page.mouse.up();
+  } else {
+    await page.mouse.click(clickPoint.x, clickPoint.y);
+  }
   try {
     await page.waitForFunction(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__?.some((entry) => (
       entry.operationCount === 1 && entry.sourceKind === 'raster-mask' && entry.visible && entry.maskActive
-    )), undefined, { timeout: 45_000 });
+    )) || globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__?.some((entry) => entry.event === 'box-error'), undefined, { timeout: 45_000 });
+    const boxError = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
+      ?.find((entry) => entry.event === 'box-error'));
+    if (boxError) throw new Error(`Object Selection box failed: ${JSON.stringify(boxError)}`);
   } catch {
     const trace = await page.evaluate(() => ({
       overlay: globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__,
@@ -119,7 +144,7 @@ try {
   const selectionTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__);
   const smartSelectionTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__);
   const report = {
-    sourceFile, visibleCommitMs, selectionTrace, smartSelectionTrace, pageErrors,
+    sourceFile, interactionMode, visibleCommitMs, selectionTrace, smartSelectionTrace, pageErrors,
     consoleErrors: unexpectedConsoleErrors, runtimeWarnings: consoleErrors.length, screenshotPath
   };
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);

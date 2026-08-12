@@ -7,6 +7,7 @@ import type {
   SmartSelectionSource
 } from './SmartSelectionBackend';
 import type { SlimSamWorkerRequest, SlimSamWorkerResponse } from './slimSamProtocol';
+import { SLIMSAM_PROFILE } from './smartSelectionModels';
 
 interface PendingRequest {
   readonly resolve: (message: SlimSamWorkerResponse) => void;
@@ -14,10 +15,7 @@ interface PendingRequest {
 }
 
 export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
-  readonly identity = {
-    modelId: 'Xenova/slimsam-77-uniform', artifactRevision: 'main',
-    precision: 'auto', preprocessingRevision: 'sam-v1'
-  } as const;
+  readonly identity = SLIMSAM_PROFILE;
   readonly capabilities = {
     positivePoints: true, negativePoints: true, boxes: true,
     previousMask: false, automaticSubject: true
@@ -32,7 +30,7 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
     if (existing) return existing;
     const promise = this.request({
       type: 'prepare', requestId: 0, sourceId: source.key,
-      revision: source.documentRevision, image: source.image
+      revision: source.documentRevision, image: source.image, profile: 'slimsam'
     }, signal).then((message) => {
       if (message.type !== 'prepared') throw new Error('Smart selection returned no prepared source.');
       return {
