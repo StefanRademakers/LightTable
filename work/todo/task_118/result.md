@@ -514,6 +514,15 @@
   visible, inspectable manual Photoshop entry until a stable semantic Adobe
   descriptor exists. The Photoshop comparison and visual-quality gates remain
   open deliberately.
+- The comparator also rejects cases when `photoshop-identity.png` is absent;
+  a raw cross-application pixel comparison is not accepted as deformation
+  evidence. Focused Node coverage now proves missing, unchanged and genuinely
+  changed Photoshop references take the correct three paths.
+- Mirror-consistency was measured outside the production runtime before being
+  considered as an automatic profile-quality gate. Normalized direct landmark
+  error was `0.238` for the adverse profile fixture, versus `0.312` and `0.296`
+  for accepted front and three-quarter fixtures. It has no separating power on
+  this corpus and was deliberately not shipped as another guessed heuristic.
 
 ## Focused tool UX and detector-memory truthfulness
 

@@ -48,3 +48,14 @@ test('compares deformation deltas when Photoshop changed pixels', async () => {
   assert.ok(report.cases[0].photoshopEffectRms > 0);
   assert.ok(report.cases[0].deltaRmse > 0);
 });
+
+test('rejects Photoshop cases without an identity baseline', async () => {
+  const directory = await fixture(Buffer.from([35, 30, 40, 255]));
+  const { rm } = await import('node:fs/promises');
+  await rm(path.join(directory, 'photoshop-identity.png'));
+  await assert.rejects(execFileAsync(process.execPath, [comparator, directory]));
+  const report = JSON.parse(await readFile(path.join(directory, 'comparison-report.json'), 'utf8'));
+  assert.equal(report.compared, 0);
+  assert.equal(report.invalidPhotoshop, 1);
+  assert.match(report.cases[0].reason, /identity export is missing/i);
+});

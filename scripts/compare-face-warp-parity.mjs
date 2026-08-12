@@ -18,10 +18,14 @@ const normalize = async (file) => sharp(file).ensureAlpha().raw().toBuffer({ res
 const sameDimensions = (left, right) => left.info.width === right.info.width && left.info.height === right.info.height;
 
 let identities = null;
+let identityError = null;
 try {
+  const lightTableIdentityPath = path.join(directory, manifest.identity ?? 'lighttable-identity.png');
+  const photoshopIdentityPath = path.join(directory, 'photoshop-identity.png');
+  await Promise.all([access(lightTableIdentityPath), access(photoshopIdentityPath)]);
   const [lightTable, photoshop] = await Promise.all([
-    normalize(path.join(directory, manifest.identity ?? 'lighttable-identity.png')),
-    normalize(path.join(directory, 'photoshop-identity.png'))
+    normalize(lightTableIdentityPath),
+    normalize(photoshopIdentityPath)
   ]);
   if (!sameDimensions(lightTable, photoshop)) throw new Error('LightTable and Photoshop identity dimensions differ.');
   let squaredError = 0;
@@ -37,6 +41,7 @@ try {
   };
 } catch (error) {
   if (error?.code !== 'ENOENT') throw error;
+  identityError = error;
 }
 
 for (const entry of manifest.cases) {
@@ -47,6 +52,16 @@ for (const entry of manifest.cases) {
     await access(photoshopPath);
   } catch {
     cases.push({ name: entry.name, status: 'awaiting-photoshop', lightTable: entry.png, photoshop: photoshopName });
+    continue;
+  }
+  if (!identities) {
+    cases.push({
+      name: entry.name,
+      status: 'invalid-photoshop-reference',
+      lightTable: entry.png,
+      photoshop: photoshopName,
+      reason: `The Photoshop identity export is missing; deformation delta cannot be measured (${identityError?.code ?? 'unavailable'}).`
+    });
     continue;
   }
   const [photoshop, lightTable] = await Promise.all([normalize(photoshopPath), normalize(lightTablePath)]);
