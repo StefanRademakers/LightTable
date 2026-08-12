@@ -421,6 +421,13 @@
   exactly one undo entry and undo restores the exact pre-edit canvas hash. This
   proves the compact UI reaches the same canonical history/render path as
   sculpting; it is not merely a presentational control.
+- Adobe documents reopening Face-Aware Liquify by first converting the layer
+  to a Smart Object, entering the separate Liquify window and committing it.
+  LightTable keeps Face Warp as an ordinary persistent layer effect: the mesh,
+  semantic values, constraints and protection survive native save/reopen and
+  remain directly editable alongside the document. That is a concrete
+  non-modal workflow advantage, independent of whether the final deformation
+  pixels have reached Photoshop parity.
 
 ## Focused tool UX and detector-memory truthfulness
 

@@ -1,6 +1,6 @@
 # Task 118 — Professional Face Warp: HQ implementation and USP path
 
-Status: IN PROGRESS — NOT READY FOR NORMAL TOOLBAR USE
+Status: IN PROGRESS — IMPLEMENTATION STABLE, EXTERNAL HQ EVIDENCE STILL REQUIRED
 
 ## Objective
 
@@ -252,7 +252,7 @@ HQ acceptance gate:
 
 USP acceptance gate:
 
-- [ ] Face Warp offers a demonstrably better non-destructive workflow than a
+- [x] Face Warp offers a demonstrably better non-destructive workflow than a
       modal one-shot Liquify operation.
 - [x] The same saved semantic operation can be reproduced from UI and command
       API/MCP without different rendering behaviour.
