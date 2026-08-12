@@ -201,7 +201,10 @@ import {
   relaxFaceWarpBrush,
   restoreFaceWarpBrush
 } from './effects/faceWarp/faceWarpDeformer';
-import { assessFaceWarpDetection } from './effects/faceWarp/faceWarpDetectionQuality';
+import {
+  assessFaceWarpDetection,
+  matchFaceWarpObservations
+} from './effects/faceWarp/faceWarpDetectionQuality';
 import {
   addFaceWarpNodeToStack,
   createDefaultFaceWarpParameters,
@@ -1308,14 +1311,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
       if (detection.meshes.length === 0) throw new Error('No face was detected in the active layer.');
       const rejectedReasons: string[] = [];
+      const matchedObservations = matchFaceWarpObservations(detection.meshes, detection.observations);
       const faces: FaceWarpFace[] = detection.meshes.flatMap((mesh, index) => {
+        const observation = matchedObservations[index];
+        if (!observation) {
+          rejectedReasons.push(
+            'The face could not be confirmed by the independent detector. Try a clearer or larger face.'
+          );
+          return [];
+        }
         const quality = assessFaceWarpDetection(
-          mesh, detection.poseMatrices[index], preview.width, preview.height
+          mesh, detection.poseMatrices[index], preview.width, preview.height, observation
         );
         console.info('[Face Warp] Detection quality', JSON.stringify({
           face: index + 1,
           accepted: quality.accepted,
           confidence: quality.confidence,
+          detectorScore: observation?.score ?? null,
           ...quality.diagnostics
         }));
         if (!quality.accepted) {

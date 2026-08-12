@@ -183,5 +183,13 @@ export const LIGHTTABLE_PRODUCT_DISCLOSURES = [
     "license": "Apache-2.0",
     "description": "Bundled locally and loaded lazily when face detection is requested.",
     "platform": "all"
+  },
+  {
+    "category": "AI and automation",
+    "name": "MediaPipe BlazeFace short-range detector model",
+    "version": "Loaded on demand",
+    "license": "Apache-2.0",
+    "description": "Bundled locally and loaded only during explicit Face Warp detection as an independent quality observation.",
+    "platform": "all"
   }
 ] as const;

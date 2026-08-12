@@ -1,4 +1,4 @@
-import type { FaceWarpDetectionResponse } from './faceWarpDetectorProtocol';
+import type { FaceWarpDetectionResponse, FaceWarpDetectorObservation } from './faceWarpDetectorProtocol';
 import type { FaceWarpPoint } from './faceWarpTypes';
 
 export interface FaceWarpDetectionInput {
@@ -10,6 +10,7 @@ export interface FaceWarpDetectionInput {
 export interface FaceWarpDetectionResult {
   readonly meshes: readonly (readonly FaceWarpPoint[])[];
   readonly poseMatrices: readonly (readonly number[])[];
+  readonly observations: readonly FaceWarpDetectorObservation[];
   readonly detectorMemory: {
     readonly beforeBytes: number | null;
     readonly afterBytes: number | null;
@@ -57,6 +58,7 @@ export class FaceWarpDetector {
       if (response.type === 'result') pending.resolve({
         meshes: response.meshes,
         poseMatrices: response.poseMatrices,
+        observations: response.observations,
         detectorMemory: response.detectorMemory
       });
       else pending.reject(new Error(response.message));

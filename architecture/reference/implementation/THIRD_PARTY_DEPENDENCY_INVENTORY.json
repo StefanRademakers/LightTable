@@ -72,6 +72,13 @@
       "source": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
       "loading": "Bundled locally and loaded lazily when face detection is requested.",
       "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
+    },
+    {
+      "name": "MediaPipe BlazeFace short-range detector model",
+      "license": "Apache-2.0",
+      "source": "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+      "loading": "Bundled locally and loaded only during explicit Face Warp detection as an independent quality observation.",
+      "sha256": "b4578f35940bf5a1a655214a1cce5cab13eba73c1297cd78e1a04c2380b0152f"
     }
   ],
   "npm": [

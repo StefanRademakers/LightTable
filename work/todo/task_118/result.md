@@ -150,6 +150,29 @@
   reason instead of inventing editable geometry.
 - Focused unit coverage includes valid, edge, incomplete, non-finite,
   degenerate, invalid-pose and mostly off-canvas results.
+
+## Independent observation quality gate (2026-08-12)
+
+- MediaPipe's landmark result does not expose a usable per-face presence score
+  in the JavaScript API. Raising the shared detector threshold rejected valid
+  faces as well and was removed rather than retained as an unmeasured guess.
+- Explicit Detect/Redetect now also runs the bundled BlazeFace short-range
+  detector in the same lazy worker. Its six independent keypoints are matched
+  uniquely to landmark meshes and compared after normalization by detector
+  bounds. Rendering and ordinary editing never run this second inference.
+- Detector score by itself was not discriminative: the adverse profile scored
+  0.791 while a valid three-quarter portrait scored 0.785. Normalized landmark
+  agreement did separate the current representative fixtures: 0.0369 frontal,
+  0.0478 valid three-quarter and 0.0907 anatomically invalid profile. The
+  conservative rejection threshold is 0.07; this small corpus is recorded as a
+  known calibration limit rather than presented as universal confidence.
+- Missing independent observations fail closed. A rejected review exposes a
+  clear corrective message, no Accept action, and leaves document revision and
+  undo depth unchanged. The real Electron rejection smoke proves that contract
+  on `D:\face.jpg`; the full accepted edit smoke remains green on both the
+  frontal and valid three-quarter fixtures.
+- The additional 229,746-byte model is pinned by SHA-256 and disclosed with its
+  source/license. It costs no startup or idle memory before Face Warp detection.
 ## Release visibility
 
 - Face Warp remains fully registered for persisted documents, development and

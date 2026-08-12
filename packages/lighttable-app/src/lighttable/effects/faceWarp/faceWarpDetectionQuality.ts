@@ -1,5 +1,6 @@
 import { MEDIAPIPE_FACE_VERTEX_COUNT } from './canonicalFaceTopology';
 import type { FaceWarpPoint } from './faceWarpTypes';
+import type { FaceWarpDetectorObservation } from './faceWarpDetectorProtocol';
 import { facePoseYawDegrees } from './faceWarpPose';
 
 export interface FaceWarpDetectionQuality {
@@ -11,6 +12,46 @@ export interface FaceWarpDetectionQuality {
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
+const OBSERVATION_MESH_VERTICES = [33, 263, 1, 13, 234, 454] as const;
+
+export const faceWarpObservationAgreement = (
+  mesh: readonly FaceWarpPoint[],
+  observation: FaceWarpDetectorObservation | undefined
+): number | null => {
+  if (!observation || observation.keypoints.length < OBSERVATION_MESH_VERTICES.length
+    || observation.bounds.width <= 0 || observation.bounds.height <= 0) return null;
+  let squaredDistance = 0;
+  for (let index = 0; index < OBSERVATION_MESH_VERTICES.length; index += 1) {
+    const meshPoint = mesh[OBSERVATION_MESH_VERTICES[index]];
+    const detectorPoint = observation.keypoints[index];
+    if (!meshPoint || !detectorPoint) return null;
+    squaredDistance += (meshPoint.x - detectorPoint.x) ** 2 + (meshPoint.y - detectorPoint.y) ** 2;
+  }
+  const scale = Math.max(1, Math.hypot(observation.bounds.width, observation.bounds.height));
+  return Math.sqrt(squaredDistance / OBSERVATION_MESH_VERTICES.length) / scale;
+};
+
+export const matchFaceWarpObservations = (
+  meshes: readonly (readonly FaceWarpPoint[])[],
+  observations: readonly FaceWarpDetectorObservation[]
+): readonly (FaceWarpDetectorObservation | undefined)[] => {
+  const available = new Set(observations.map((_, index) => index));
+  return meshes.map((mesh) => {
+    let bestIndex: number | null = null;
+    let bestAgreement = Number.POSITIVE_INFINITY;
+    for (const index of available) {
+      const agreement = faceWarpObservationAgreement(mesh, observations[index]);
+      if (agreement !== null && agreement < bestAgreement) {
+        bestAgreement = agreement;
+        bestIndex = index;
+      }
+    }
+    if (bestIndex === null) return undefined;
+    available.delete(bestIndex);
+    return observations[bestIndex];
+  });
+};
+
 /**
  * Validates detector geometry before it becomes persistent document state.
  * MediaPipe Tasks does not expose its face-presence score in the JS result, so
@@ -21,7 +62,8 @@ export const assessFaceWarpDetection = (
   mesh: readonly FaceWarpPoint[],
   poseMatrix: readonly number[] | undefined,
   imageWidth: number,
-  imageHeight: number
+  imageHeight: number,
+  observation?: FaceWarpDetectorObservation
 ): FaceWarpDetectionQuality => {
   if (mesh.length < MEDIAPIPE_FACE_VERTEX_COUNT) {
     return { accepted: false, confidence: 0, reason: 'The detected face mesh is incomplete.' };
@@ -65,6 +107,16 @@ export const assessFaceWarpDetection = (
     };
   }
 
+  const observationAgreement = faceWarpObservationAgreement(surface, observation);
+  if (observationAgreement !== null && observationAgreement > 0.07) {
+    return {
+      accepted: false,
+      confidence: 0,
+      reason: 'Independent face observations disagree with the editable mesh. Try a clearer or less profile-oriented face.',
+      diagnostics: { yaw, insideRatio, observationAgreement }
+    };
+  }
+
   const coverage = Math.sqrt((width / imageWidth) * (height / imageHeight));
   const coverageScore = clamp01((coverage - 0.025) / 0.175);
   const observationScore = clamp01((insideRatio - 0.55) / 0.4);
@@ -78,5 +130,12 @@ export const assessFaceWarpDetection = (
   const noseX = point(1).x;
   const eyeSpan = Math.max(1e-6, Math.abs(rightEyeX - leftEyeX));
   const noseEyeAsymmetry = Math.abs((noseX - leftEyeX) - (rightEyeX - noseX)) / eyeSpan;
-  return { accepted: true, confidence, diagnostics: { yaw, insideRatio, noseEyeAsymmetry } };
+  return {
+    accepted: true,
+    confidence,
+    diagnostics: {
+      yaw, insideRatio, noseEyeAsymmetry,
+      ...(observationAgreement === null ? {} : { observationAgreement })
+    }
+  };
 };

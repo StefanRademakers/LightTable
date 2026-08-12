@@ -114,6 +114,7 @@
     "smoke:desktop:project-preferences": "node scripts/smoke-desktop-project-preferences.mjs",
     "fixture:face-warp:checkerboard": "node scripts/create-face-warp-checkerboard-fixture.mjs",
     "smoke:desktop:face-warp": "node scripts/smoke-desktop-face-warp.mjs",
+    "smoke:desktop:face-warp:rejection": "node scripts/smoke-desktop-face-warp-rejection.mjs",
     "test:face-warp:parity:capture": "node scripts/capture-lighttable-face-warp-parity.mjs",
     "test:face-warp:parity:compare": "node scripts/compare-face-warp-parity.mjs",
     "smoke:desktop:magic-wand:build": "npm run package:desktop:verify && npm run smoke:desktop:magic-wand --",
