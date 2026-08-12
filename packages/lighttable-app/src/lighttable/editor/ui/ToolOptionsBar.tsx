@@ -102,6 +102,10 @@ export interface ToolOptionsProps {
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onSmartSelectionChange: (change: Partial<EditorSession['smartSelection']>) => void;
   onSelectSubject: () => void;
+  onSmartSelectionUndo: () => void;
+  onSmartSelectionReset: () => void;
+  onSmartSelectionApply: () => void;
+  onSmartSelectionCancel: () => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
@@ -300,6 +304,10 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onMagicWandChange,
   onSmartSelectionChange,
   onSelectSubject,
+  onSmartSelectionUndo,
+  onSmartSelectionReset,
+  onSmartSelectionApply,
+  onSmartSelectionCancel,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
   onZoomFit,
@@ -510,6 +518,22 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           <ActionButton size="compact" onClick={onSelectSubject}
             title="Select the most likely subject">
             Select Subject
+          </ActionButton>
+          <ActionButton size="compact" onClick={onSmartSelectionUndo}
+            title="Remove the latest Object Selection prompt">
+            Undo prompt
+          </ActionButton>
+          <ActionButton size="compact" onClick={onSmartSelectionReset}
+            title="Remove all Object Selection prompts">
+            Reset
+          </ActionButton>
+          <ActionButton size="compact" onClick={onSmartSelectionApply}
+            title="Apply the refined mask to the current selection">
+            Apply
+          </ActionButton>
+          <ActionButton size="compact" onClick={onSmartSelectionCancel}
+            title="Discard the temporary Object Selection mask">
+            Cancel
           </ActionButton>
         </div>
       ) : null}

@@ -54,10 +54,12 @@ const harness = () => {
 };
 
 describe('SmartSelectionToolController', () => {
-  it('reuses one prepared source and commits the preview as a normal selection mask', async () => {
+  it('reuses one prepared source and applies the refined preview through the normal selection path', async () => {
     const { backend, controller, rasterMask, renderer } = harness();
     await controller.prepare();
-    await controller.commitPoint({ x: 3, y: 2 }, 'add');
+    controller.refinePoint({ x: 3, y: 2 }, 'positive');
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+    await controller.apply('add');
     expect(renderer.exportPng).toHaveBeenCalledTimes(1);
     expect(backend.prepare).toHaveBeenCalledTimes(1);
     expect(rasterMask).toHaveBeenCalledWith(mask, 'add');
@@ -83,12 +85,14 @@ describe('SmartSelectionToolController', () => {
   });
 
   it('turns rectangle interaction into a box prompt rather than a geometric selection', async () => {
-    const { backend, controller, options, rasterMask, setDraft } = harness();
+    const { backend, controller, options, rasterMask, renderer, setDraft } = harness();
     options.mode = 'rectangle';
     expect(controller.beginRegion(7, { x: 1, y: 1 }, 'replace')).toBe(true);
     controller.moveRegion(7, { x: 6, y: 5 });
     controller.finishRegion(7);
-    await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(mask, 'replace'));
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+    await expect(controller.apply('replace')).resolves.toBe(true);
+    expect(rasterMask).toHaveBeenCalledWith(mask, 'replace');
     expect(backend.selectPrompt).toHaveBeenCalledWith(
       expect.anything(),
       { points: [], box: { x: 1, y: 1, width: 5, height: 4 } },
@@ -97,14 +101,53 @@ describe('SmartSelectionToolController', () => {
     expect(setDraft).toHaveBeenLastCalledWith(null);
   });
 
-  it('commits Select Subject through the same raster selection path', async () => {
-    const { backend, controller, rasterMask } = harness();
+  it('previews Select Subject and only commits it after Apply', async () => {
+    const { backend, controller, rasterMask, renderer } = harness();
     await expect(controller.selectSubject()).resolves.toBe(true);
     expect(backend.selectSubject).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ hardEdge: false })
     );
+    expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask);
+    controller.clearHoverPreview();
+    expect(renderer.setSmartSelectionPreview).toHaveBeenLastCalledWith(mask);
+    expect(rasterMask).not.toHaveBeenCalled();
+    await expect(controller.apply('replace')).resolves.toBe(true);
     expect(rasterMask).toHaveBeenCalledWith(mask, 'replace');
+  });
+
+  it('combines positive and negative clicks in one cached refinement session', async () => {
+    const { backend, controller, renderer } = harness();
+    controller.refinePoint({ x: 2, y: 2 }, 'positive');
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+    controller.refinePoint({ x: 6, y: 4 }, 'negative');
+    await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledTimes(2));
+    expect(backend.selectPrompt).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { points: [
+        { point: { x: 2, y: 2 }, label: 'positive' },
+        { point: { x: 6, y: 4 }, label: 'negative' }
+      ], box: undefined },
+      expect.anything()
+    );
+    expect(backend.prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it('undoes the newest prompt and reset invalidates an in-flight stale candidate', async () => {
+    const { backend, controller, renderer } = harness();
+    let finishSecond!: (value: SmartSelectionCandidate[]) => void;
+    controller.refinePoint({ x: 2, y: 2 }, 'positive');
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+    vi.mocked(backend.selectPrompt).mockImplementationOnce(() => new Promise((resolve) => {
+      finishSecond = resolve;
+    }));
+    controller.refinePoint({ x: 6, y: 4 }, 'negative');
+    await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledTimes(2));
+    expect(controller.undoPrompt()).toBe(true);
+    controller.resetPrompts();
+    finishSecond([{ id: 'stale', score: 1, mask }]);
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenLastCalledWith(null));
+    expect(vi.mocked(renderer.setSmartSelectionPreview).mock.calls.at(-1)).toEqual([null]);
   });
 
   it('keeps the GPU candidate preview visible until the persistent mask commit succeeds', async () => {
@@ -114,7 +157,9 @@ describe('SmartSelectionToolController', () => {
       finishCommit = resolve;
     }));
 
-    const commit = controller.commitPoint({ x: 3, y: 2 }, 'replace');
+    controller.refinePoint({ x: 3, y: 2 }, 'positive');
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+    const commit = controller.apply('replace');
     await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledOnce());
     expect(renderer.setSmartSelectionPreview).not.toHaveBeenCalledWith(null);
 
@@ -127,24 +172,49 @@ describe('SmartSelectionToolController', () => {
     const { controller, rasterMask, renderer } = harness();
     rasterMask.mockResolvedValueOnce(false);
 
-    await expect(controller.commitPoint({ x: 3, y: 2 }, 'replace')).resolves.toBe(false);
+    controller.refinePoint({ x: 3, y: 2 }, 'positive');
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+    await expect(controller.apply('replace')).resolves.toBe(false);
     expect(renderer.setSmartSelectionPreview).not.toHaveBeenCalledWith(null);
   });
 
-  it('does not let a hover request supersede an in-flight click commit', async () => {
-    const { backend, controller, rasterMask } = harness();
+  it('does not let hover inference supersede an explicit prompt refinement', async () => {
+    const { backend, controller, rasterMask, renderer } = harness();
     let finishPoint!: (value: SmartSelectionCandidate[]) => void;
     vi.mocked(backend.selectPrompt).mockImplementationOnce(() => new Promise((resolve) => {
       finishPoint = resolve;
     }));
 
-    const commit = controller.commitPoint({ x: 3, y: 2 }, 'replace');
+    controller.refinePoint({ x: 3, y: 2 }, 'positive');
     await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledOnce());
     controller.hover({ x: 4, y: 3 });
     expect(backend.selectPrompt).toHaveBeenCalledOnce();
     finishPoint([{ id: 'candidate', score: 0.9, mask }]);
-    await expect(commit).resolves.toBe(true);
-    expect(rasterMask).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+    expect(rasterMask).not.toHaveBeenCalled();
+  });
+
+  it('drops a late hover result after an explicit click starts refinement', async () => {
+    const { backend, controller, renderer } = harness();
+    let finishHover!: (value: SmartSelectionCandidate[]) => void;
+    vi.mocked(backend.selectPrompt)
+      .mockImplementationOnce(() => new Promise((resolve) => { finishHover = resolve; }))
+      .mockResolvedValueOnce([{ id: 'explicit', score: 0.9, mask }]);
+    controller.hover({ x: 1, y: 1 });
+    await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledOnce());
+    controller.refinePoint({ x: 3, y: 2 }, 'positive');
+    finishHover([{ id: 'stale-hover', score: 1, mask }]);
+    await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+    expect(vi.mocked(renderer.setSmartSelectionPreview).mock.calls).toHaveLength(1);
+  });
+
+  it('keeps an explicit refinement visible when the pointer leaves the canvas', async () => {
+    const { controller, renderer } = harness();
+    controller.refinePoint({ x: 3, y: 2 }, 'positive');
+    await vi.waitFor(() => expect(renderer.setSmartSelectionPreview).toHaveBeenCalledWith(mask));
+    controller.clearHoverPreview();
+    expect(renderer.setSmartSelectionPreview).toHaveBeenLastCalledWith(mask);
   });
 
   it('keeps one hover inference active and decodes only the newest pending point', async () => {

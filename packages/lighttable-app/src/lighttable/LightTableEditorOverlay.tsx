@@ -1983,7 +1983,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     imageDocument?.activeLayerId,
     imageDocument?.id,
     imageDocument?.revision,
-    rendererSnapshot.generation,
     rendererSnapshot.status,
     smartSelectionController,
     thumbnailDocumentReadyId
@@ -5160,6 +5159,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }));
       }}
       onSelectSubject={() => { void smartSelectionController.selectSubject(); }}
+      onSmartSelectionUndo={() => { smartSelectionController.undoPrompt(); }}
+      onSmartSelectionReset={() => { smartSelectionController.resetPrompts(); }}
+      onSmartSelectionApply={() => {
+        void smartSelectionController.apply(editorSessionRef.current.selectionCombineMode);
+      }}
+      onSmartSelectionCancel={() => { smartSelectionController.cancel(); }}
       onZoomPreset={setExactZoom}
       onZoomFit={fitZoom}
       onToolChange={activatePersistentTool}
@@ -5330,6 +5335,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               }));
             },
             onSelectSubject: () => { void smartSelectionController.selectSubject(); },
+            onSmartSelectionUndo: () => { smartSelectionController.undoPrompt(); },
+            onSmartSelectionReset: () => { smartSelectionController.resetPrompts(); },
+            onSmartSelectionApply: () => {
+              void smartSelectionController.apply(editorSessionRef.current.selectionCombineMode);
+            },
+            onSmartSelectionCancel: () => { smartSelectionController.cancel(); },
             onZoomPreset: setExactZoom,
             onZoomFit: fitZoom,
             onToolChange: activatePersistentTool,
@@ -5398,7 +5409,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     onPointerCancel: viewportInteraction.onPointerCancel,
                     onPointerLeave: () => {
                       if (editorSessionRef.current.activeTool === 'select-object') {
-                        smartSelectionController.clearPreview();
+                        smartSelectionController.clearHoverPreview();
                       }
                       if (
                         !paintSessionController.active

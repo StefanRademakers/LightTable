@@ -81,6 +81,10 @@ export interface LightTableEditorShellProps {
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onSmartSelectionChange: (change: Partial<EditorSession['smartSelection']>) => void;
   onSelectSubject: () => void;
+  onSmartSelectionUndo: () => void;
+  onSmartSelectionReset: () => void;
+  onSmartSelectionApply: () => void;
+  onSmartSelectionCancel: () => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
@@ -175,6 +179,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onMagicWandChange,
   onSmartSelectionChange,
   onSelectSubject,
+  onSmartSelectionUndo,
+  onSmartSelectionReset,
+  onSmartSelectionApply,
+  onSmartSelectionCancel,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
   onZoomFit,
@@ -276,6 +284,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onMagicWandChange={onMagicWandChange}
         onSmartSelectionChange={onSmartSelectionChange}
         onSelectSubject={onSelectSubject}
+        onSmartSelectionUndo={onSmartSelectionUndo}
+        onSmartSelectionReset={onSmartSelectionReset}
+        onSmartSelectionApply={onSmartSelectionApply}
+        onSmartSelectionCancel={onSmartSelectionCancel}
         onTransformAutoSelectLayerChange={onTransformAutoSelectLayerChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}

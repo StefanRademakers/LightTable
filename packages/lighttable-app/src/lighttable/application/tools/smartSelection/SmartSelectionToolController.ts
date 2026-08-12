@@ -10,6 +10,7 @@ import type { SelectionSessionController } from '../selection/useSelectionSessio
 import type {
   SmartSelectionBackend,
   SmartSelectionCandidate,
+  SmartSelectionPointPrompt,
   SmartSelectionSource
 } from './SmartSelectionBackend';
 import { BalancedSmartSelectionBackend } from './BalancedSmartSelectionBackend';
@@ -31,6 +32,13 @@ export interface SmartSelectionToolCallbacks {
   readonly selection: SelectionSessionController;
   readonly setStatus: (message: string | null) => void;
   readonly setDraft: (shape: SelectionShape | null) => void;
+  readonly onSessionChange?: (state: SmartSelectionSessionState) => void;
+}
+
+export interface SmartSelectionSessionState {
+  readonly promptCount: number;
+  readonly hasCandidate: boolean;
+  readonly refining: boolean;
 }
 
 const candidateAtPoint = (
@@ -50,6 +58,30 @@ const bestCandidate = (candidates: readonly SmartSelectionCandidate[]) =>
     null
   );
 
+const maskCoverageSummary = (mask: RasterSelectionMask) => {
+  let empty = 0;
+  let soft = 0;
+  let opaque = 0;
+  let selectedTotal = 0;
+  let selectedCount = 0;
+  for (const value of mask.data) {
+    if (value <= 2) empty += 1;
+    else if (value >= 253) opaque += 1;
+    else soft += 1;
+    if (value >= 128) {
+      selectedTotal += value;
+      selectedCount += 1;
+    }
+  }
+  const pixels = Math.max(1, mask.data.length);
+  return {
+    emptyRatio: empty / pixels,
+    softRatio: soft / pixels,
+    opaqueRatio: opaque / pixels,
+    selectedMean: selectedCount ? selectedTotal / selectedCount / 255 : 0
+  };
+};
+
 const traceSmartSelection = (event: string, detail?: Record<string, unknown>) => {
   const target = (
     globalThis as typeof globalThis & {
@@ -68,13 +100,19 @@ export class SmartSelectionToolController {
   private source: SmartSelectionSource | null = null;
   private preparing: { key: string; promise: Promise<boolean> } | null = null;
   private preview: SmartSelectionCandidate | null = null;
+  private previewIsExplicit = false;
+  private promptPoints: SmartSelectionPointPrompt[] = [];
+  private promptBox: { x: number; y: number; width: number; height: number } | undefined;
   private pendingHoverPoint: SelectionPoint | null = null;
   private hoverInferenceActive = false;
-  private committing = false;
+  private refinementActive = false;
+  private refinementPending = false;
+  private promptRevision = 0;
+  private refinementCompletion: Promise<void> | null = null;
+  private resolveRefinement: (() => void) | null = null;
   private region: {
     pointerId: number;
     kind: 'rectangle' | 'free';
-    mode: SelectionCombineMode;
     points: SelectionPoint[];
   } | null = null;
   private disposed = false;
@@ -136,7 +174,8 @@ export class SmartSelectionToolController {
   }
 
   hover(point: SelectionPoint) {
-    if (this.committing || this.callbacks.getOptions().mode !== 'object-finder') return;
+    if (this.promptPoints.length > 0 || this.promptBox
+      || this.callbacks.getOptions().mode !== 'object-finder') return;
     if (candidateAtPoint(this.preview, point)) {
       this.pendingHoverPoint = null;
       return;
@@ -145,49 +184,26 @@ export class SmartSelectionToolController {
     void this.drainHoverInference();
   }
 
-  async commitPoint(point: SelectionPoint, mode: SelectionCombineMode) {
-    traceSmartSelection('point-requested', { x: point.x, y: point.y, mode });
+  refinePoint(point: SelectionPoint, label: 'positive' | 'negative' = 'positive') {
+    traceSmartSelection('point-requested', { x: point.x, y: point.y, label });
     this.pendingHoverPoint = null;
-    this.committing = true;
-    try {
-      const candidate = candidateAtPoint(this.preview, point)
-        ? this.preview
-        : await this.resolvePoint(point, true);
-      if (!candidate) {
-        traceSmartSelection('point-no-candidate');
-        return false;
-      }
-      return await this.commitCandidate(candidate, mode);
-    } finally {
-      this.committing = false;
-    }
+    this.promptPoints.push({ point, label });
+    this.promptRevision += 1;
+    this.publishSession();
+    this.scheduleRefinement();
+    return true;
   }
 
-  async commitBox(
-    bounds: { x: number; y: number; width: number; height: number },
-    mode: SelectionCombineMode
-  ) {
-    try {
-      if (!await this.prepare() || !this.source) return false;
-      const prepared = await this.gate.prepare(this.source);
-      if (!prepared) return false;
-      traceSmartSelection('box-requested', bounds);
-      const candidates = await this.gate.prompt(prepared, { points: [], box: bounds }, {
-        hardEdge: this.callbacks.getOptions().hardEdge
-      });
-      const candidate = candidates ? bestCandidate(candidates) : null;
-      traceSmartSelection('box-resolved', { candidates: candidates?.length ?? 0 });
-      if (!candidate) return false;
-      return this.commitCandidate(candidate, mode);
-    } catch (reason) {
-      const message = reason instanceof Error ? reason.message : 'Unknown box-prompt failure.';
-      traceSmartSelection('box-error', { message });
-      this.callbacks.setStatus(`Object Selection box is unavailable: ${message}`);
-      return false;
-    }
+  refineBox(bounds: { x: number; y: number; width: number; height: number }) {
+    traceSmartSelection('box-requested', bounds);
+    this.promptBox = bounds;
+    this.promptRevision += 1;
+    this.publishSession();
+    this.scheduleRefinement();
+    return true;
   }
 
-  async selectSubject(mode: SelectionCombineMode = 'replace') {
+  async selectSubject() {
     try {
       if (!await this.prepare() || !this.source) return false;
       const prepared = await this.gate.prepare(this.source);
@@ -201,10 +217,9 @@ export class SmartSelectionToolController {
         this.callbacks.setStatus('No subject was found.');
         return false;
       }
-      if (!await this.commitCandidate(candidate, mode)) {
-        this.callbacks.setStatus('The object selection could not be applied.');
-        return false;
-      }
+      this.promptPoints = [];
+      this.promptBox = undefined;
+      this.publishCandidate(candidate, true);
       this.callbacks.setStatus(null);
       return true;
     } catch (reason) {
@@ -217,15 +232,14 @@ export class SmartSelectionToolController {
 
   owns(pointerId: number) { return this.region?.pointerId === pointerId; }
 
-  beginRegion(pointerId: number, point: SelectionPoint, mode: SelectionCombineMode) {
+  beginRegion(pointerId: number, point: SelectionPoint, _mode: SelectionCombineMode) {
     const selectionMode = this.callbacks.getOptions().mode;
     traceSmartSelection('region-begin', { pointerId, selectionMode, x: point.x, y: point.y });
     if (selectionMode === 'object-finder' || this.region) return false;
-    this.clearPreview();
+    this.resetPrompts();
     this.region = {
       pointerId,
       kind: selectionMode === 'rectangle' ? 'rectangle' : 'free',
-      mode,
       points: [point, point]
     };
     this.publishRegionDraft();
@@ -254,7 +268,7 @@ export class SmartSelectionToolController {
     const height = Math.max(...ys) - y;
     traceSmartSelection('region-finish', { pointerId, x, y, width, height });
     if (width < 1 || height < 1) return false;
-    void this.commitBox({ x, y, width, height }, region.mode);
+    this.refineBox({ x, y, width, height });
     return true;
   }
 
@@ -271,13 +285,63 @@ export class SmartSelectionToolController {
     this.gate.invalidate();
     this.region = null;
     this.callbacks.setDraft(null);
-    this.clearPreview();
+    this.cancel();
   }
 
   clearPreview() {
     this.pendingHoverPoint = null;
     this.preview = null;
+    this.previewIsExplicit = false;
     this.callbacks.getRenderer()?.setSmartSelectionPreview(null);
+    this.publishSession();
+  }
+
+  clearHoverPreview() {
+    this.pendingHoverPoint = null;
+    if (this.previewIsExplicit || this.promptPoints.length > 0 || this.promptBox) return;
+    this.clearPreview();
+  }
+
+  undoPrompt() {
+    if (this.promptPoints.length > 0) this.promptPoints.pop();
+    else if (this.promptBox) this.promptBox = undefined;
+    else return false;
+    this.promptRevision += 1;
+    if (this.promptPoints.length === 0 && !this.promptBox) this.clearPreview();
+    else this.scheduleRefinement();
+    this.publishSession();
+    return true;
+  }
+
+  resetPrompts() {
+    this.promptRevision += 1;
+    this.promptPoints = [];
+    this.promptBox = undefined;
+    this.refinementPending = false;
+    this.clearPreview();
+  }
+
+  cancel() {
+    this.resetPrompts();
+    this.callbacks.setDraft(null);
+    this.callbacks.setStatus(null);
+  }
+
+  async apply(mode: SelectionCombineMode) {
+    traceSmartSelection('apply-requested', {
+      mode,
+      hasCandidate: Boolean(this.preview),
+      refining: Boolean(this.refinementCompletion)
+    });
+    if (this.refinementCompletion) await this.refinementCompletion;
+    if (!this.preview) return false;
+    const applied = await this.commitCandidate(this.preview, mode);
+    if (applied) {
+      this.promptPoints = [];
+      this.promptBox = undefined;
+      this.publishSession();
+    }
+    return applied;
   }
 
   dispose() {
@@ -286,7 +350,8 @@ export class SmartSelectionToolController {
     this.gate.dispose();
   }
 
-  private async resolvePoint(point: SelectionPoint, commit: boolean) {
+  private async resolvePoint(point: SelectionPoint) {
+    const promptRevision = this.promptRevision;
     try {
       if (!await this.prepare() || !this.source) return null;
       const prepared = await this.gate.prepare(this.source);
@@ -298,11 +363,9 @@ export class SmartSelectionToolController {
       });
       const candidate = candidates ? bestCandidate(candidates) : null;
       traceSmartSelection('point-resolved', { candidates: candidates?.length ?? 0 });
-      if (!candidate) return null;
-      if (!commit) {
-        this.preview = candidate;
-        this.callbacks.getRenderer()?.setSmartSelectionPreview(candidate.mask);
-      }
+      if (!candidate || promptRevision !== this.promptRevision
+        || this.promptPoints.length > 0 || this.promptBox) return null;
+      this.publishCandidate(candidate);
       return candidate;
     } catch (reason) {
       this.callbacks.setStatus(reason instanceof Error
@@ -317,20 +380,89 @@ export class SmartSelectionToolController {
     if (this.hoverInferenceActive) return;
     this.hoverInferenceActive = true;
     try {
-      while (!this.disposed && !this.committing && this.pendingHoverPoint) {
+      while (!this.disposed && !this.refinementActive && this.pendingHoverPoint) {
         const point = this.pendingHoverPoint;
         this.pendingHoverPoint = null;
-        await this.resolvePoint(point, false);
+        await this.resolvePoint(point);
         if (this.pendingHoverPoint && candidateAtPoint(this.preview, this.pendingHoverPoint)) {
           this.pendingHoverPoint = null;
         }
       }
     } finally {
       this.hoverInferenceActive = false;
-      if (!this.disposed && !this.committing && this.pendingHoverPoint) {
+      if (!this.disposed && !this.refinementActive && this.pendingHoverPoint) {
         void this.drainHoverInference();
       }
     }
+  }
+
+  private scheduleRefinement() {
+    this.refinementPending = true;
+    if (!this.refinementCompletion) {
+      this.refinementCompletion = new Promise<void>((resolve) => {
+        this.resolveRefinement = resolve;
+      });
+    }
+    if (!this.refinementActive) void this.drainRefinement();
+  }
+
+  /** One decode in flight; intermediate prompt histories collapse to the newest state. */
+  private async drainRefinement() {
+    if (this.refinementActive) return;
+    this.refinementActive = true;
+    this.publishSession();
+    try {
+      while (!this.disposed && this.refinementPending) {
+        this.refinementPending = false;
+        if (!await this.prepare() || !this.source) continue;
+        const prepared = await this.gate.prepare(this.source);
+        if (!prepared) continue;
+        const points = this.promptPoints.map(({ point, label }) => ({ point: { ...point }, label }));
+        const box = this.promptBox ? { ...this.promptBox } : undefined;
+        const revision = this.promptRevision;
+        try {
+          const candidates = await this.gate.prompt(prepared, { points, box }, {
+            hardEdge: this.callbacks.getOptions().hardEdge
+          });
+          const candidate = candidates ? bestCandidate(candidates) : null;
+          if (candidate && revision === this.promptRevision) this.publishCandidate(candidate, true);
+        } catch (reason) {
+          const message = reason instanceof Error ? reason.message : 'Unknown prompt failure.';
+          traceSmartSelection('refine-error', { message });
+          this.callbacks.setStatus(`Object Selection is unavailable: ${message}`);
+        }
+      }
+    } finally {
+      this.refinementActive = false;
+      this.publishSession();
+      if (this.refinementPending && !this.disposed) {
+        void this.drainRefinement();
+      } else {
+        this.resolveRefinement?.();
+        this.resolveRefinement = null;
+        this.refinementCompletion = null;
+      }
+    }
+  }
+
+  private publishCandidate(candidate: SmartSelectionCandidate, explicit = false) {
+    this.preview = candidate;
+    this.previewIsExplicit = explicit;
+    this.callbacks.getRenderer()?.setSmartSelectionPreview(candidate.mask);
+    traceSmartSelection('candidate-published', {
+      candidate: candidate.id,
+      score: candidate.score,
+      ...maskCoverageSummary(candidate.mask)
+    });
+    this.publishSession();
+  }
+
+  private publishSession() {
+    this.callbacks.onSessionChange?.({
+      promptCount: this.promptPoints.length + (this.promptBox ? 1 : 0),
+      hasCandidate: Boolean(this.preview),
+      refining: this.refinementActive || this.refinementPending
+    });
   }
 
   /** Keeps GPU feedback continuous until the authoritative selection mask is live. */

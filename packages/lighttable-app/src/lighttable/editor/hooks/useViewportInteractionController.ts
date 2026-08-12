@@ -126,7 +126,7 @@ interface ViewportInteractionOptions {
   selection: SelectionSessionController;
   smartSelection: {
     hover(point: { x: number; y: number }): void;
-    commitPoint(point: { x: number; y: number }, mode: EditorSession['selectionCombineMode']): void;
+    refinePoint(point: { x: number; y: number }, label: 'positive' | 'negative'): void;
     owns(pointerId: number): boolean;
     beginRegion(pointerId: number, point: { x: number; y: number }, mode: EditorSession['selectionCombineMode']): boolean;
     moveRegion(pointerId: number, point: { x: number; y: number }): boolean;
@@ -693,18 +693,13 @@ export const useViewportInteractionController = ({
         && point
         && activeTool === 'select-object'
       ) {
-        const selectionCombineMode = resolveSelectionCombineMode(
-          editorSession.selectionCombineMode,
-          event.shiftKey,
-          event.altKey
-        );
         if (editorSession.smartSelection.mode === 'object-finder') {
-          smartSelection.commitPoint(point, selectionCombineMode);
+          smartSelection.refinePoint(point, event.altKey ? 'negative' : 'positive');
           event.preventDefault();
         } else if (smartSelection.beginRegion(
           event.pointerId,
           point,
-          selectionCombineMode
+          editorSession.selectionCombineMode
         )) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();
