@@ -388,3 +388,22 @@
 - The current task therefore keeps the deterministic mesh path complete and
   does not add an implicit inpainting dependency, network call or hidden model
   cost to ordinary Face Warp edits.
+
+## Focused tool UX and detector-memory truthfulness
+
+- The previously overlong one-row toolbar is split with the existing canonical
+  `SegmentedControl` into `Sculpt` and `Adjust`. Face selection, mesh visibility
+  and Reset remain stable; Sculpt contains only Brush, Strength and the gesture
+  hint, while Adjust contains side targeting, protection and semantic sliders.
+  Both modes still write the same canonical Face Warp state and reuse existing
+  buttons, selects, checkbox and `AdjustmentSlider` components.
+- A real 1600 px desktop capture confirms the complete Sculpt surface fits
+  without hiding its primary controls behind horizontal overflow. The same
+  fixture still passes identity, edit, history and settle assertions after the
+  UI change. The focused ToolOptions dependency run is 415/415 green.
+- Worker-local heap sampling is now emitted independently from renderer heap
+  telemetry. Current Electron/Chromium workers return `null` for this optional
+  API, so the report records `{beforeBytes:null, afterBytes:null,
+  deltaBytes:null}` rather than attributing renderer memory to MediaPipe. This
+  closes the instrumentation requirement while preserving the platform limit
+  as explicit evidence.

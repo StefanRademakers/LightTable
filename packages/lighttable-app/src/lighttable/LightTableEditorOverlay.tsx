@@ -1308,6 +1308,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           poseMatrix: detection.poseMatrices[index]
         }];
       });
+      console.info('[Face Warp] Detector memory', JSON.stringify(detection.detectorMemory));
       if (faces.length === 0) {
         throw new Error(rejectedReasons[0] ?? 'No editable face was detected in the active layer.');
       }

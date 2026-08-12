@@ -7,6 +7,14 @@ import type { FaceWarpDetectionRequest, FaceWarpDetectionResponse } from './face
 
 let landmarkerPromise: Promise<FaceLandmarker> | null = null;
 
+const workerHeapBytes = (): number | null => {
+  const memory = (performance as Performance & {
+    readonly memory?: { readonly usedJSHeapSize?: number };
+  }).memory;
+  const value = memory?.usedJSHeapSize;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+};
+
 const landmarker = () => landmarkerPromise ??= FaceLandmarker.createFromOptions(
   { wasmLoaderPath: wasmLoaderUrl, wasmBinaryPath: wasmBinaryUrl },
   {
@@ -24,8 +32,10 @@ const landmarker = () => landmarkerPromise ??= FaceLandmarker.createFromOptions(
 self.onmessage = async (event: MessageEvent<FaceWarpDetectionRequest>) => {
   const request = event.data;
   try {
+    const beforeBytes = workerHeapBytes();
     const detector = await landmarker();
     const result = detector.detect(request.image);
+    const afterBytes = workerHeapBytes();
     request.image.close();
     const meshes = result.faceLandmarks.map((landmarks) => landmarks.map((point) => ({
       x: point.x * request.sourceWidth,
@@ -34,7 +44,12 @@ self.onmessage = async (event: MessageEvent<FaceWarpDetectionRequest>) => {
     })));
     const poseMatrices = result.facialTransformationMatrixes.map(({ data }) => [...data]);
     self.postMessage({
-      type: 'result', requestId: request.requestId, meshes, poseMatrices
+      type: 'result', requestId: request.requestId, meshes, poseMatrices,
+      detectorMemory: {
+        beforeBytes,
+        afterBytes,
+        deltaBytes: beforeBytes === null || afterBytes === null ? null : afterBytes - beforeBytes
+      }
     } satisfies FaceWarpDetectionResponse);
   } catch (error) {
     request.image.close();

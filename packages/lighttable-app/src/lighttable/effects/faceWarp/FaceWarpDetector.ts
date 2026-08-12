@@ -10,6 +10,11 @@ export interface FaceWarpDetectionInput {
 export interface FaceWarpDetectionResult {
   readonly meshes: readonly (readonly FaceWarpPoint[])[];
   readonly poseMatrices: readonly (readonly number[])[];
+  readonly detectorMemory: {
+    readonly beforeBytes: number | null;
+    readonly afterBytes: number | null;
+    readonly deltaBytes: number | null;
+  };
 }
 
 export class FaceWarpDetector {
@@ -51,7 +56,8 @@ export class FaceWarpDetector {
       this.pending.delete(response.requestId);
       if (response.type === 'result') pending.resolve({
         meshes: response.meshes,
-        poseMatrices: response.poseMatrices
+        poseMatrices: response.poseMatrices,
+        detectorMemory: response.detectorMemory
       });
       else pending.reject(new Error(response.message));
     };

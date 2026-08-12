@@ -136,6 +136,7 @@ let page;
 const pageErrors = [];
 const consoleErrors = [];
 const faceWarpDiagnostics = [];
+const faceWarpDetectorMemory = [];
 try {
   page = await app.firstWindow({ timeout: 30_000 });
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
@@ -143,6 +144,9 @@ try {
     if (message.type() === 'error') consoleErrors.push(message.text());
     if (message.text().includes('[Face Warp] Detection quality')) {
       faceWarpDiagnostics.push(message.text());
+    }
+    if (message.text().includes('[Face Warp] Detector memory')) {
+      faceWarpDetectorMemory.push(message.text());
     }
   });
   const open = await waitForDesktopLauncher({
@@ -401,7 +405,8 @@ try {
     },
     pageErrors,
     consoleErrors,
-    faceWarpDiagnostics
+    faceWarpDiagnostics,
+    faceWarpDetectorMemory
   };
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
   process.stdout.write(`Face Warp desktop smoke passed: ${path.join(output, 'report.json')}\n`);
@@ -411,7 +416,8 @@ try {
     body: page ? await page.locator('body').innerText().catch(() => '') : '',
     pageErrors,
     consoleErrors,
-    faceWarpDiagnostics
+    faceWarpDiagnostics,
+    faceWarpDetectorMemory
   };
   await writeFile(path.join(output, 'failure.json'), `${JSON.stringify(diagnostics, null, 2)}\n`);
   throw error;

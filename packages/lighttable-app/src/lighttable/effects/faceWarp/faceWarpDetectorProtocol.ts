@@ -15,5 +15,10 @@ export type FaceWarpDetectionResponse =
       readonly requestId: number;
       readonly meshes: readonly (readonly FaceWarpPoint[])[];
       readonly poseMatrices: readonly (readonly number[])[];
+      readonly detectorMemory: {
+        readonly beforeBytes: number | null;
+        readonly afterBytes: number | null;
+        readonly deltaBytes: number | null;
+      };
     }
   | { readonly type: 'error'; readonly requestId: number; readonly message: string };

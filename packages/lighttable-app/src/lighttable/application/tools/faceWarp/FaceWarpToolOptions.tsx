@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ActionButton } from '../../../../ui/ActionButton';
+import { SegmentedControl } from '../../../../ui/SegmentedControl';
 import { AdjustmentSlider } from '../../../AdjustmentSlider';
 import type {
   FaceWarpFace,
@@ -72,6 +73,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
   onInteractionEnd,
   onReset
 }) => {
+  const [mode, setMode] = useState<'sculpt' | 'adjust'>('sculpt');
   const selected = faces.find((face) => face.id === selectedFaceId) ?? faces[0] ?? null;
   const featureValue = (key: 'eyeSize' | 'smile') => selected
     ? semanticTarget === 'both'
@@ -82,6 +84,11 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
     <ActionButton disabled={busy} onClick={onDetect}>
       {busy ? 'Detecting faces…' : faces.length > 0 ? 'Redetect faces' : 'Detect faces'}
     </ActionButton>
+    {faces.length > 0 ? <SegmentedControl value={mode} onChange={setMode}
+      ariaLabel="Face Warp editing mode" options={[
+        { value: 'sculpt', label: 'Sculpt' },
+        { value: 'adjust', label: 'Adjust' }
+      ]} /> : null}
     {faces.length > 0 ? <label className="lighttable-tool-options__field">
       <span>Face</span>
       <select value={selected?.id ?? ''} onChange={(event) => onSelectFace(event.currentTarget.value)}>
@@ -94,7 +101,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
         onChange={(event) => onMeshVisibleChange(event.currentTarget.checked)} />
       Show mesh
     </label>
-    {selected ? <>
+    {selected && mode === 'sculpt' ? <>
       <AdjustmentSlider label="Brush" value={brushSize} min={8} max={1200}
         resetValue={120} format={(current) => `${Math.round(current)} px`}
         onReset={() => onBrushChange({ size: 120 })}
@@ -104,6 +111,8 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
         onReset={() => onBrushChange({ strength: 0.35 })}
         onChange={(strength) => onBrushChange({ strength: strength / 100 })} />
       <span className="lighttable-tool-options__hint">Drag to sculpt · Shift-drag to relax · Alt-drag to restore</span>
+    </> : null}
+    {selected && mode === 'adjust' ? <>
       <label className="lighttable-tool-options__field">
         <span>Target</span>
         <select value={semanticTarget}
@@ -142,7 +151,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
       <SemanticSlider label="Smile" value={featureValue('smile')}
         onChange={(smile) => onParametersChange({ smile })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} />
-      <ActionButton size="compact" onClick={onReset}>Reset face</ActionButton>
     </> : null}
+    {selected ? <ActionButton size="compact" onClick={onReset}>Reset face</ActionButton> : null}
   </>;
 };
