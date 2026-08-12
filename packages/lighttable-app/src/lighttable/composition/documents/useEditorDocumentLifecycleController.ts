@@ -56,6 +56,7 @@ export interface EditorDocumentLifecycleControllerOptions {
   readonly publishGpuMemory: (bytes: number) => void;
   readonly publishTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void;
   readonly publishCompositeRendered?: () => void;
+  readonly publishInitialThumbnail?: (renderer: DocumentRendererPort) => Promise<void>;
   readonly publishError: (message: string) => void;
   readonly publishScopeError: (message: string) => void;
   readonly publishFeatureError: (featureId: string, message: string) => void;
@@ -105,6 +106,7 @@ export const useEditorDocumentLifecycleController = ({
   publishGpuMemory,
   publishTextRenderPresentation,
   publishCompositeRendered,
+  publishInitialThumbnail,
   publishError,
   publishScopeError,
   publishFeatureError,
@@ -154,7 +156,14 @@ export const useEditorDocumentLifecycleController = ({
       signal: task.signal,
       isCanceled: () => !isCurrent() || !task.isCurrent()
     });
-  }, [loadSource, source]);
+    if (
+      isCurrent()
+      && task.isCurrent()
+      && !rendererLifecycle.getSnapshot().active
+    ) {
+      void publishInitialThumbnail?.(_renderer);
+    }
+  }, [loadSource, publishInitialThumbnail, rendererLifecycle, source]);
 
   const createRequest = useEditorDocumentOpenRequestFactory({
     canvases,

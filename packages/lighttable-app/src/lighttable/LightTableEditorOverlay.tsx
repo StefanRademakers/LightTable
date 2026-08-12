@@ -539,19 +539,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const engineRef = useRef<DocumentRendererPort | null>(null);
   const thumbnailTimerRef = useRef<number | null>(null);
   const thumbnailGenerationRef = useRef(0);
+  const publishDocumentThumbnail = useCallback(async (renderer: DocumentRendererPort) => {
+    if (!onDocumentThumbnailChange) return;
+    const generation = ++thumbnailGenerationRef.current;
+    try {
+      const thumbnail = await renderer.exportThumbnailPng(256);
+      if (generation === thumbnailGenerationRef.current) {
+        onDocumentThumbnailChange(thumbnail);
+      }
+    } catch {
+      // Thumbnail publication is best-effort and must never fail document open.
+    }
+  }, [onDocumentThumbnailChange]);
   const publishCompositeRendered = useCallback(() => {
     if (!onDocumentThumbnailChange) return;
     if (thumbnailTimerRef.current !== null) window.clearTimeout(thumbnailTimerRef.current);
-    const generation = ++thumbnailGenerationRef.current;
     thumbnailTimerRef.current = window.setTimeout(() => {
       thumbnailTimerRef.current = null;
       const renderer = engineRef.current;
       if (!renderer) return;
-      void renderer.exportThumbnailPng(256).then((thumbnail) => {
-        if (generation === thumbnailGenerationRef.current) onDocumentThumbnailChange(thumbnail);
-      }).catch(() => undefined);
+      void publishDocumentThumbnail(renderer);
     }, 180);
-  }, [onDocumentThumbnailChange]);
+  }, [onDocumentThumbnailChange, publishDocumentThumbnail]);
   useEffect(() => () => {
     thumbnailGenerationRef.current += 1;
     if (thumbnailTimerRef.current !== null) window.clearTimeout(thumbnailTimerRef.current);
@@ -2138,6 +2147,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishGpuMemory: setGpuMemoryBytes,
     publishTextRenderPresentation,
     publishCompositeRendered,
+    publishInitialThumbnail: publishDocumentThumbnail,
     publishError: setError,
     publishScopeError: setScopeError,
     publishFeatureError: (featureId, message) => {
