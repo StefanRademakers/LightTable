@@ -227,11 +227,11 @@ Gate 7:
       resolutions without committing third-party portrait pixels.
 - [x] Create checkerboard, eye/lip separation, extreme slider and collar tests.
 - [ ] Compare representative edits with Photoshop Face-Aware Liquify.
-- [ ] Test on Windows discrete GPU and an integrated/Apple-class GPU path.
+- [x] Test on Windows discrete GPU and an integrated/Apple-class GPU path.
 
 HQ acceptance gate:
 
-- [ ] Ordinary edits feel realtime on representative non-flagship hardware.
+- [x] Ordinary edits feel realtime on representative non-flagship hardware.
 - [x] No visible renderer/overlay divergence at high zoom.
 - [x] No crash, black screen, command-buffer error, spring-back or history race in the focused desktop smoke.
 - [ ] Visual quality is good enough that the tool is useful without apology.

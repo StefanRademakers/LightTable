@@ -482,3 +482,19 @@
   adapter in that mode, so it cannot substitute for the still-required test on
   actual integrated/Apple-class hardware. Fallback reports use a separate
   output directory and can no longer overwrite native-GPU evidence.
+
+## Integrated GPU qualification
+
+- The repeatable desktop smoke accepts an explicit `low-power` GPU mode using
+  Chromium's low-power adapter selection. The report records the adapter
+  identity, so a passing run cannot be mistaken for integrated-GPU evidence
+  without proving which device actually rendered it.
+- This Windows machine exposes both an RTX 5090 and Intel integrated graphics.
+  The low-power Face Warp smoke selected `intel / xe-lpg` and passed detection,
+  identity, local sculpt, repeated edits, one-command undo, exact settle,
+  semantic edit/undo and renderer validation without page or GPU errors.
+- On Intel Xe-LPG, ordinary preview frames measured 14.1 ms p50 / 16.8 ms p95
+  and pointer-up exact refinement measured 18.7 ms. Together with the existing
+  discrete NVIDIA runs this closes the Windows discrete plus integrated-GPU
+  gate and supports the non-flagship interaction gate. Apple hardware remains
+  untested and must not be claimed by release material.

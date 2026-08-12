@@ -11,7 +11,8 @@ const root = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\pukkels-lighttable.png');
 const brushSize = Number(process.argv[3] ?? 120);
 const gpuMode = process.argv[4] ?? 'native';
-if (!['native', 'swiftshader'].includes(gpuMode)) {
+const expectedGpuVendor = process.env.LIGHTTABLE_EXPECT_GPU_VENDOR?.trim().toLowerCase() ?? '';
+if (!['native', 'low-power', 'swiftshader'].includes(gpuMode)) {
   throw new Error(`Invalid Face Warp GPU mode: ${gpuMode}`);
 }
 if (!Number.isFinite(brushSize) || brushSize < 8 || brushSize > 1200) {
@@ -33,7 +34,9 @@ const app = await electron.launch({
   executablePath: launch.executablePath,
   args: gpuMode === 'swiftshader'
     ? [...launch.args, '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
-    : launch.args,
+    : gpuMode === 'low-power'
+      ? [...launch.args, '--force_low_power_gpu']
+      : launch.args,
   cwd: root,
   env: {
     ...environment,
@@ -162,6 +165,18 @@ try {
   await open.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
+  const gpuAdapter = await page.evaluate(async () => {
+    const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) return null;
+    const info = adapter.info;
+    return {
+      vendor: info?.vendor ?? '', architecture: info?.architecture ?? '',
+      device: info?.device ?? '', description: info?.description ?? ''
+    };
+  });
+  if (expectedGpuVendor && !gpuAdapter?.vendor.toLowerCase().includes(expectedGpuVendor)) {
+    throw new Error(`Face Warp expected GPU vendor '${expectedGpuVendor}' but selected '${gpuAdapter?.vendor || 'unknown'}'.`);
+  }
   const driver = await attachLightTableAutomation(page, 'face-warp-smoke');
   const workspace = await driver.queryWorkspace();
   const documentId = workspace?.activeDocumentId;
@@ -406,6 +421,8 @@ try {
   const report = {
     sourceFile,
     gpuMode,
+    expectedGpuVendor: expectedGpuVendor || null,
+    gpuAdapter,
     brushSize,
     appliedBrushSize,
     beforeHash: digest(beforeBytes),
