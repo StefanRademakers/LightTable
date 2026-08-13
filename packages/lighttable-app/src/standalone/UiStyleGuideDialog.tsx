@@ -95,20 +95,18 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
             </header>
             <div className="lighttable-ui-guide__samples">
               {category === 'typography' ? <>
-                <Sample title="Headings">
+                <Sample title="Typography scale">
                   <div className="lighttable-ui-guide__type-stack">
-                    <h1>Document title</h1>
-                    <h2>Panel title</h2>
-                    <h3>Section heading</h3>
-                    <h4>Control group heading</h4>
+                    <p className="lighttable-ui-guide__type-large">Large · 14 px · titles and headings</p>
+                    <p className="lighttable-ui-guide__type-regular">Regular · 12 px · controls and body text</p>
+                    <p className="lighttable-ui-guide__type-small">Small · 10 px · metadata and compact notes</p>
                   </div>
                 </Sample>
                 <Sample title="Documentation text">
                   <div className="lighttable-ui-guide__type-stack">
-                    <p className="lighttable-ui-guide__body-large">Primary explanatory text for a feature or workflow.</p>
-                    <p>Normal body text for labels, instructions and supporting information.</p>
-                    <p className="muted">Muted helper text for secondary context.</p>
-                    <small>Caption text for units, metadata and compact notes.</small>
+                    <p className="lighttable-ui-guide__type-large">Primary explanatory text for a feature or workflow.</p>
+                    <p className="lighttable-ui-guide__type-regular">Normal body text for labels, instructions and supporting information.</p>
+                    <p className="lighttable-ui-guide__type-small muted">Muted helper text for secondary context.</p>
                     <p className="lighttable-preferences__error">Error text explains the problem and the next action.</p>
                   </div>
                 </Sample>

@@ -59,14 +59,9 @@
   /* Typography roles */
   --lt-font-ui: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --lt-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --lt-type-micro: 9px;
-  --lt-type-caption: 10px;
-  --lt-type-label: 11px;
-  --lt-type-body: 12px;
-  --lt-type-heading: 13px;
-  --lt-type-body-large: 14px;
-  --lt-type-title-small: 16px;
-  --lt-type-title: 18px;
+  --lt-type-small: 10px;
+  --lt-type-regular: 12px;
+  --lt-type-large: 14px;
   --lt-weight-medium: 600;
   --lt-weight-semibold: 650;
   --lt-weight-bold: 700;
@@ -101,7 +96,6 @@
   --lt-radius-lg: 8px;
   --lt-radius-dialog: 12px;
   --lt-radius-pill: 999px;
-  --lt-control-text-size: 12px;
   --lt-control-chevron-right: 8px;
   --lt-control-border: rgb(226 231 232 / 24%);
   --lt-control-text: rgb(226 231 232 / 86%);
@@ -154,7 +148,6 @@
   --color-tab-active: var(--lt-accent);
   --danger-color: var(--lt-danger);
   --ui-control-radius: var(--lt-control-radius);
-  --ui-control-text-size: var(--lt-control-text-size);
 
   /* Older debug-panel names now resolve deterministically in every host. */
   --surface-primary: var(--lt-surface-panel);

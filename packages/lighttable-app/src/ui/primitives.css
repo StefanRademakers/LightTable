@@ -14,7 +14,7 @@ select {
   background-repeat: no-repeat !important;
   background-position: right var(--lt-control-chevron-right) center !important;
   font-family: var(--lt-font-ui) !important;
-  font-size: var(--lt-control-text-size) !important;
+  font-size: var(--lt-type-regular) !important;
   line-height: 1 !important;
 }
 
@@ -23,7 +23,7 @@ select {
   height: var(--lt-control-height) !important;
   min-height: var(--lt-control-height) !important;
   font-family: var(--lt-font-ui) !important;
-  font-size: var(--lt-control-text-size) !important;
+  font-size: var(--lt-type-regular) !important;
   line-height: 1 !important;
 }
 
@@ -47,7 +47,7 @@ select option:checked {
   border-radius: var(--ui-control-radius);
   background: var(--lt-surface-control);
   color: var(--lt-control-text);
-  font-size: var(--ui-control-text-size);
+  font-size: var(--lt-type-regular);
   line-height: 1;
   cursor: pointer;
 }
@@ -80,7 +80,7 @@ select option:checked {
   border-radius: var(--lt-radius-lg);
   background: var(--lt-surface-control);
   color: var(--color-text);
-  font-size: var(--ui-control-text-size);
+  font-size: var(--lt-type-regular);
   line-height: 1;
 }
 
@@ -130,7 +130,7 @@ select option:checked {
 
 .modal__title {
   margin: 0;
-  font-size: var(--lt-type-title);
+  font-size: var(--lt-type-large);
   font-weight: var(--lt-weight-medium);
 }
 
@@ -225,7 +225,7 @@ select option:checked {
   padding: 3px 7px;
   gap: 4px;
   border-radius: var(--lt-radius-sm);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .gradient-field {
@@ -382,7 +382,7 @@ select option:checked {
   border-radius: 0;
   background: transparent;
   color: var(--lt-control-text);
-  font-size: var(--ui-control-text-size);
+  font-size: var(--lt-type-regular);
 }
 
 .segmented-control__button + .segmented-control__button::before {
@@ -483,7 +483,7 @@ select option:checked {
   min-height: var(--lt-control-height);
   padding: 0 8px;
   border-radius: 0;
-  font-size: var(--lt-control-text-size);
+  font-size: var(--lt-type-regular);
 }
 
 .context-menu--select .context-menu__item:has(.context-menu__item-label > small) {
@@ -525,7 +525,7 @@ select option:checked {
 .context-menu__item-label > small {
   margin-top: 2px;
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .context-menu .context-menu__item:focus-visible .context-menu__item-label > small {
@@ -627,7 +627,7 @@ select option:checked {
   display: grid;
   gap: 5px;
   color: var(--color-text-muted);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-new-document-dialog__fields input {
@@ -650,7 +650,7 @@ select option:checked {
 
 .lighttable-launcher__recent-section h2 {
   margin: 0 0 12px;
-  font-size: var(--lt-type-body-large);
+  font-size: var(--lt-type-large);
 }
 
 .lighttable-launcher__guide-action {
@@ -677,7 +677,7 @@ select option:checked {
 }
 
 .lighttable-launcher__local-first strong { color: var(--color-text); }
-.lighttable-launcher__local-first label { grid-column: 2; font-size: 11px; }
+.lighttable-launcher__local-first label { grid-column: 2; font-size: var(--lt-type-small); }
 
 .lighttable-new-document-dialog__fields select {
   width: 100%;
@@ -691,7 +691,7 @@ select option:checked {
   display: block;
   margin-bottom: 5px;
   color: var(--color-text-muted);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-launcher__project-bar {
@@ -801,7 +801,7 @@ select option:checked {
 }
 
 .lighttable-launcher__recovery-heading h2 {
-  font-size: var(--lt-type-body-large);
+  font-size: var(--lt-type-large);
 }
 
 /* Dialog selects use the same compact control language as editor panels. */
@@ -812,13 +812,13 @@ select.form-input {
   border: 1px solid var(--lt-border-strong);
   border-radius: var(--lt-radius-sm);
   color: var(--lt-text-secondary);
-  font-size: var(--ui-control-text-size) !important;
+  font-size: var(--lt-type-regular) !important;
 }
 
 .lighttable-launcher__recovery-heading p,
 .lighttable-launcher__recovery-card p {
   color: var(--color-text-muted);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-launcher__recoveries {
@@ -967,7 +967,7 @@ select.form-input {
   margin-top: -12px;
   margin-bottom: 8px;
   color: var(--color-text-muted);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-file-drop {
@@ -989,7 +989,7 @@ select.form-input {
   color: var(--color-text);
   background: var(--lt-surface-panel);
   box-shadow: var(--lt-shadow-dialog);
-  font-size: var(--lt-type-body-large);
+  font-size: var(--lt-type-large);
   font-weight: var(--lt-weight-medium);
 }
 
@@ -1010,7 +1010,7 @@ select.form-input {
 .lighttable-file-drop__error {
   margin: 0 !important;
   color: var(--lt-danger) !important;
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
 }
 
 .lighttable-document-failure {
@@ -1133,7 +1133,7 @@ select.form-input {
 .lighttable-preferences__navigation button:focus-visible { color: var(--color-text); background: var(--lt-surface-control-hover); }
 .lighttable-preferences__navigation button.is-active { color: var(--color-text); background: var(--lt-surface-control); font-weight: 600; }
 .lighttable-preferences__content { min-width: 0; padding: 24px; overflow: auto; }
-.lighttable-preferences__content h4 { margin: 0; font-size: var(--lt-type-heading); }
+.lighttable-preferences__content h4 { margin: 0; font-size: var(--lt-type-large); }
 .lighttable-preferences__section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--lt-border-subtle); }
 .lighttable-preferences__section-heading p { margin: 6px 0 0; color: var(--color-text-muted); line-height: 1.45; }
 .lighttable-preferences__fields { display: grid; gap: 18px; margin-top: 20px; }
@@ -1159,7 +1159,7 @@ select.form-input {
   color: var(--color-text-muted);
   background: transparent;
   font: inherit;
-  font-size: 20px;
+  font-size: var(--lt-type-large);
   line-height: 1;
   place-items: center;
 }
@@ -1168,12 +1168,12 @@ select.form-input {
 .lighttable-preferences__location { min-height: 34px; padding: 8px 10px; overflow: hidden; border: 1px solid var(--lt-border-subtle); border-radius: var(--lt-radius-md); color: var(--color-text-muted); background: var(--lt-surface-panel-subtle); text-overflow: ellipsis; white-space: nowrap; }
 .lighttable-preferences__location-row { display: flex; min-width: 0; gap: 7px; }
 .lighttable-preferences__location-row .lighttable-preferences__location { min-width: 0; flex: 1; }
-.lighttable-preferences__note { margin: 18px 0 0; color: var(--color-text-muted); font-size: var(--lt-type-caption); line-height: 1.45; }
+.lighttable-preferences__note { margin: 18px 0 0; color: var(--color-text-muted); font-size: var(--lt-type-small); line-height: 1.45; }
 .lighttable-preferences__error { color: var(--lt-danger); }
 .lighttable-preferences__page-title { padding-bottom: 14px; border-bottom: 1px solid var(--lt-border-subtle); }
 .lighttable-preferences__option-list { display: grid; margin-top: 6px; }
 .lighttable-preferences__option { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--lt-border-subtle); }
-.lighttable-preferences__option strong { font-size: var(--lt-type-body); }
+.lighttable-preferences__option strong { font-size: var(--lt-type-regular); }
 .lighttable-preferences__option p { margin: 5px 0 0; color: var(--color-text-muted); line-height: 1.45; }
 .lighttable-preferences__option .switch-control { flex: 0 0 auto; margin-top: 1px; }
 .lighttable-preferences .lighttable-agent-settings__body { padding: 18px 0 0; }
@@ -1182,7 +1182,7 @@ select.form-input {
 .lighttable-ui-guide__content .lighttable-preferences__page-title p { margin: 6px 0 0; color: var(--color-text-muted); }
 .lighttable-ui-guide__samples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
 .lighttable-ui-guide__sample { min-width: 0; padding: 16px; border: 1px solid var(--lt-border-subtle); background: var(--lt-surface-panel-subtle); }
-.lighttable-ui-guide__sample h5 { margin: 0 0 14px; font-size: var(--lt-type-body); }
+.lighttable-ui-guide__sample h5 { margin: 0 0 14px; font-size: var(--lt-type-regular); }
 .lighttable-ui-guide__sample-content { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 10px; }
 .lighttable-ui-guide__sample-content > .lighttable-style-field,
 .lighttable-ui-guide__sample-content > .lighttable-style-angle,
@@ -1190,11 +1190,9 @@ select.form-input {
 .lighttable-ui-guide__sample-content > span { color: var(--color-text-muted); font-size: var(--lt-type-small); }
 .lighttable-ui-guide__type-stack { display: grid; gap: 10px; width: 100%; }
 .lighttable-ui-guide__type-stack > * { margin: 0; }
-.lighttable-ui-guide__type-stack h1 { font-size: var(--lt-type-title); }
-.lighttable-ui-guide__type-stack h2 { font-size: var(--lt-type-heading); }
-.lighttable-ui-guide__type-stack h3,
-.lighttable-ui-guide__type-stack h4 { font-size: var(--lt-type-body); }
-.lighttable-ui-guide__body-large { font-size: var(--lt-type-body-large); }
+.lighttable-ui-guide__type-small { font-size: var(--lt-type-small); }
+.lighttable-ui-guide__type-regular { font-size: var(--lt-type-regular); }
+.lighttable-ui-guide__type-large { font-size: var(--lt-type-large); }
 .lighttable-ui-guide__field-stack { display: grid; gap: 12px; width: 100%; }
 .lighttable-ui-guide__field-stack label,
 .lighttable-ui-guide__dialog-field { display: grid; gap: 6px; color: var(--color-text-muted); }
@@ -1266,7 +1264,7 @@ select.form-input {
   display: grid;
   gap: 4px;
   color: var(--color-text-muted);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   text-align: center;
 }
 .lighttable-color-picker-prototype__fields .form-input {

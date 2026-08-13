@@ -25,7 +25,7 @@
   background: var(--lt-surface-app);
   color: var(--lt-text-primary);
   font-family: var(--lt-font-ui);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   line-height: var(--lt-leading-ui);
   border: 0;
   border-radius: 0;
@@ -262,7 +262,7 @@
 
 .lighttable-tool-options__identity strong {
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   font-weight: var(--lt-weight-semibold);
 }
 
@@ -275,7 +275,7 @@
   align-items: center;
   gap: 7px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   white-space: nowrap;
   user-select: none;
 }
@@ -287,7 +287,7 @@
 
 .lighttable-tool-options__hint {
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   white-space: nowrap;
 }
 
@@ -298,7 +298,7 @@
   align-items: center;
   gap: 8px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   white-space: nowrap;
   user-select: none;
 }
@@ -350,7 +350,7 @@
   background: var(--lt-surface-control);
   box-shadow: var(--lt-shadow-floating);
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-font-picker__menu input {
@@ -496,7 +496,7 @@
   display: grid;
   gap: 7px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-point-text input {
@@ -535,7 +535,7 @@
   align-items: center;
   gap: 7px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   white-space: nowrap;
 }
 
@@ -570,7 +570,7 @@
   background: transparent;
   color: var(--lt-text-secondary);
   font: inherit;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   white-space: nowrap;
 }
 
@@ -588,7 +588,7 @@
 
 .lighttable-tool-options__content .lighttable-adjustment__header {
   margin-bottom: 0;
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-tool-options__content .lighttable-adjustment__header output {
@@ -622,7 +622,7 @@
   border-left: 1px solid var(--lt-border-subtle);
   background: transparent;
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -651,7 +651,7 @@
   background: transparent;
   color: var(--lt-text-secondary);
   font: inherit;
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   line-height: 36px;
   cursor: default;
 }
@@ -694,7 +694,7 @@
   border-bottom: 1px solid var(--lt-border);
   color: var(--color-text-muted);
   background: var(--lt-surface-panel);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable__body {
@@ -746,7 +746,7 @@
   --dv-active-sash-color: var(--lt-accent);
   --dv-drag-over-background-color: var(--lt-accent-drop);
   --dv-drag-over-border-color: var(--lt-accent);
-  --dv-tabs-and-actions-container-font-size: calc(var(--lt-type-label) - 2px);
+  --dv-tabs-and-actions-container-font-size: var(--lt-type-small);
 }
 
 /* Dockview injects full-pane ::before focus frames for keyboard-oriented pane
@@ -1016,7 +1016,7 @@
   color: inherit;
   background: transparent;
   font: inherit;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1031,7 +1031,7 @@
   border-radius: var(--lt-radius-sm);
   color: var(--lt-text-muted);
   background: transparent;
-  font-size: var(--lt-type-title-small);
+  font-size: var(--lt-type-large);
   line-height: 1;
 }
 
@@ -1262,7 +1262,7 @@
   right: -1px;
   width: 15px;
   height: 15px;
-  font-size: var(--lt-type-heading);
+  font-size: var(--lt-type-large);
   line-height: 15px;
 }
 
@@ -1492,7 +1492,7 @@
 
 .lighttable-selection__dimensions text {
   fill: var(--lt-text-primary);
-  font-size: 10px;
+  font-size: var(--lt-type-small);
   font-weight: var(--lt-weight-semibold);
   font-variant-numeric: tabular-nums;
 }
@@ -1572,7 +1572,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1583,7 +1583,7 @@
 
 .lighttable-toolbar__meta {
   color: var(--lt-text-subtle);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   white-space: nowrap;
 }
 
@@ -1641,13 +1641,13 @@
 }
 
 .lighttable-psd-report__header h2 {
-  font-size: var(--lt-type-title-small);
+  font-size: var(--lt-type-large);
 }
 
 .lighttable-psd-report__header p {
   margin-top: 4px;
   color: var(--text-secondary);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
 }
 
 .lighttable-psd-report__metrics {
@@ -1657,7 +1657,7 @@
   padding: 10px 18px;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--panel-border);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-psd-report__summary {
@@ -1673,13 +1673,13 @@
   border: 1px solid var(--panel-border);
   border-radius: var(--lt-radius-sm);
   color: var(--text-secondary);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-psd-report__summary strong {
   display: block;
   color: var(--lt-text-primary);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
 }
 
 .lighttable-psd-report__filters {
@@ -1701,7 +1701,7 @@
 .lighttable-psd-report__font-manager p,
 .lighttable-psd-report__font-row small {
   color: var(--text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-psd-report__font-row {
@@ -1738,7 +1738,7 @@
 
 .lighttable-psd-report__entry strong {
   overflow-wrap: anywhere;
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
 }
 
 .lighttable-psd-report__entry small,
@@ -1746,7 +1746,7 @@
 .lighttable-psd-report__empty,
 .lighttable-psd-report__warnings {
   color: var(--text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-psd-report__entry p {
@@ -1760,7 +1760,7 @@
   text-transform: uppercase;
   border: 1px solid currentColor;
   border-radius: var(--lt-radius-sm);
-  font-size: var(--lt-type-micro);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-psd-report__support--exact { color: var(--lt-success); }
@@ -1827,7 +1827,7 @@
   padding-bottom: 8px;
   background: var(--panel-bg);
   color: var(--text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-format-support__row strong small {
@@ -1839,7 +1839,7 @@
 .lighttable-format-support__entry p {
   margin: 0 0 9px;
   color: var(--text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-format-support__level--supported { color: var(--lt-success); }
@@ -1856,7 +1856,7 @@
   padding: 12px 18px;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--panel-border);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
 }
 
 .lighttable-third-party-licenses__groups {
@@ -1872,7 +1872,7 @@
   margin: 0;
   padding: 12px 0 7px;
   background: var(--lt-surface-panel);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
 }
 
 .lighttable-third-party-licenses__row {
@@ -1893,7 +1893,7 @@
 .lighttable-third-party-licenses__row p,
 .lighttable-third-party-licenses__row span {
   color: var(--text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-third-party-licenses__row span:last-child {
@@ -1933,7 +1933,7 @@
 .lighttable-document-color__values dt,
 .lighttable-document-color__values dd {
   margin: 0;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-document-color__values dt,
@@ -1949,7 +1949,7 @@
 
 .lighttable-document-color__notice {
   margin: 0;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   line-height: 1.4;
 }
 
@@ -1992,7 +1992,7 @@
   justify-content: space-between;
   gap: 10px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   user-select: none;
 }
 
@@ -2035,7 +2035,7 @@
   border-radius: var(--lt-radius-md);
   color: var(--lt-danger);
   background: rgba(91, 23, 23, 0.24);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-scope {
@@ -2077,7 +2077,7 @@
 }
 
 .lighttable-scope__toggle strong {
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   font-weight: var(--lt-weight-semibold);
 }
 
@@ -2116,7 +2116,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   margin: 5px 4px 3px 35px;
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   font-weight: var(--lt-weight-bold);
   text-align: center;
 }
@@ -2137,7 +2137,7 @@
   justify-content: space-between;
   padding: 1px 5px 1px 0;
   color: var(--lt-text-subtle);
-  font-size: var(--lt-type-micro);
+  font-size: var(--lt-type-small);
   line-height: 1;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -2188,7 +2188,7 @@
   min-width: 0;
   min-height: 26px;
   padding: 4px;
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-vectorscope {
@@ -2219,7 +2219,9 @@
 
 .lighttable-vectorscope__graticule text {
   fill: rgba(208, 216, 223, 0.7);
-  font-size: 3.6px;
+  /* SVG user-space scales this back to the same visual size; keep its source
+     tied to the single small typography token. */
+  font-size: calc(var(--lt-type-small) * 0.36);
   font-weight: var(--lt-weight-semibold);
 }
 
@@ -2386,7 +2388,7 @@
   left: 2px;
   overflow: hidden;
   color: #fff;
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   text-overflow: ellipsis;
   text-shadow: 0 1px 2px #000;
   white-space: nowrap;
@@ -2396,7 +2398,7 @@
 .genai-panel__status,
 .genai-panel__footer > span {
   color: var(--lt-text-subtle);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .genai-prompt-composer__heading {
@@ -2623,7 +2625,7 @@
   gap: 5px;
   margin-top: 12px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .genai-panel__result img {
@@ -2674,7 +2676,7 @@
 
 .genai-panel__setting-icon {
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
 }
 
 .genai-panel__footer {
@@ -2693,12 +2695,12 @@
   height: var(--lt-control-height);
   min-height: var(--lt-control-height);
   padding-block: 0;
-  font-size: var(--lt-control-text-size);
+  font-size: var(--lt-type-regular);
 }
 
 .genai-panel__cost {
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   white-space: nowrap;
 }
 
@@ -2762,7 +2764,7 @@
 
 .genai-history__preview--pending strong {
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
 }
 
 .genai-history__spinner {
@@ -2785,7 +2787,7 @@
 
 .genai-history__status strong {
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
 }
 
 .genai-history__status small {
@@ -2804,7 +2806,7 @@
   padding: 0 6px;
   border-top: 1px solid var(--lt-border);
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .genai-history__footer strong {
@@ -2821,7 +2823,7 @@
 }
 
 .lighttable-agent-activity__title {
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   font-weight: 600;
 }
 
@@ -2839,7 +2841,7 @@
 .lighttable-agent-activity__hint {
   margin: 6px 0;
   color: var(--text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-layers-panel {
@@ -2855,7 +2857,7 @@
   display: grid;
   place-items: center;
   color: var(--lt-text-disabled);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-channels-panel {
@@ -2874,7 +2876,7 @@
   display: grid;
   place-items: center;
   color: var(--lt-text-disabled);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-channels-panel__list {
@@ -2917,7 +2919,7 @@
   display: grid;
   place-items: center;
   color: var(--lt-text-secondary);
-  font-size: 9px;
+  font-size: var(--lt-type-small);
   text-align: center;
 }
 
@@ -2980,7 +2982,7 @@
 .lighttable-channels-panel__section-label {
   margin: 8px 7px 2px;
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   text-transform: uppercase;
 }
 
@@ -3026,7 +3028,7 @@
   align-items: center;
   gap: 3px;
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-layers__locks button {
@@ -3078,14 +3080,14 @@
 
 .lighttable-layers__opacity-controls .lighttable-adjustment__header > span {
   grid-column: 1;
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   white-space: nowrap;
 }
 
 .lighttable-layers__opacity-controls .lighttable-adjustment__header output {
   grid-column: 3;
   min-width: 0;
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   line-height: 1;
 }
 
@@ -3151,7 +3153,7 @@
 .lighttable-layers__footer .lighttable-layers__fx-button {
   margin-right: auto;
   font-family: Georgia, serif;
-  font-size: var(--lt-type-body-large);
+  font-size: var(--lt-type-large);
   font-style: italic;
   font-weight: var(--lt-weight-bold);
 }
@@ -3362,7 +3364,7 @@
   border-radius: var(--lt-radius-xs);
   background: var(--lt-surface-inset);
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   font-weight: var(--lt-weight-bold);
   cursor: pointer;
 }
@@ -3411,7 +3413,7 @@
 }
 .lighttable-layer__text-icon {
   color: var(--lt-text-primary);
-  font-size: 18px;
+  font-size: var(--lt-type-large);
   font-weight: 600;
   line-height: 1;
 }
@@ -3419,7 +3421,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--lt-text-tertiary);
-  font-size: 9px;
+  font-size: var(--lt-type-small);
   letter-spacing: 0.02em;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -3439,7 +3441,7 @@
   color: var(--lt-warning);
   background: transparent;
   font: inherit;
-  font-size: 9px;
+  font-size: var(--lt-type-small);
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -3460,7 +3462,7 @@
   color: var(--lt-text-secondary);
   background: transparent;
   font: inherit;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   cursor: default;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3488,7 +3490,7 @@
   margin-left: 2px;
   color: var(--lt-info);
   font-family: Georgia, serif;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   font-style: italic;
   font-weight: var(--lt-weight-bold);
 }
@@ -3534,7 +3536,7 @@
   grid-template-columns: 25px minmax(0, 1fr);
   align-items: center;
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-layer-effect--summary {
@@ -3585,7 +3587,7 @@
   color: var(--lt-text-secondary);
   background: var(--lt-surface-control);
   font: inherit;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-layers__blend-mode:disabled {
@@ -3605,7 +3607,7 @@
   border-radius: var(--lt-radius-sm);
   color: var(--lt-text-secondary);
   background: var(--lt-surface-control);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   cursor: pointer;
 }
 
@@ -3641,7 +3643,7 @@
   place-items: center;
   padding: 18px;
   color: var(--lt-text-subtle);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   text-align: center;
 }
 
@@ -3740,11 +3742,11 @@
   gap: 8px;
 }
 
-.lighttable-style-editor > header strong { font-size: var(--lt-type-heading); }
+.lighttable-style-editor > header strong { font-size: var(--lt-type-large); }
 .lighttable-style-editor > header span {
   overflow: hidden;
   color: var(--lt-text-subtle);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3760,7 +3762,7 @@
   color: var(--lt-text-secondary);
   background: var(--lt-surface-control);
   font: inherit;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   cursor: pointer;
 }
 
@@ -3769,7 +3771,7 @@
   padding: 0;
   border-color: transparent;
   background: transparent;
-  font-size: 20px;
+  font-size: var(--lt-type-large);
 }
 
 .lighttable-style-editor__body {
@@ -3792,7 +3794,7 @@
   align-items: center;
   gap: 7px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-style-stack-toggle {
@@ -3822,7 +3824,7 @@
   color: var(--lt-text-muted);
   background: transparent;
   font: inherit;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-style-editor__effect-list > div:hover { background: var(--lt-surface-control-hover); }
@@ -3840,7 +3842,7 @@
   color: inherit;
   background: transparent;
   font: inherit;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   text-align: left;
   cursor: pointer;
 }
@@ -3860,7 +3862,7 @@
   width: 28px;
   padding: 0;
   color: var(--lt-text-secondary);
-  font-size: 17px;
+  font-size: var(--lt-type-large);
   font-weight: var(--lt-weight-bold);
   text-align: center;
 }
@@ -3887,7 +3889,7 @@
   color: var(--lt-text-secondary);
   background: var(--lt-surface-control);
   font: inherit;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-style-editor__body > main {
@@ -3909,7 +3911,7 @@
   background: var(--lt-surface-panel);
 }
 
-.lighttable-style-editor__effect-heading h3 { margin: 0; font-size: var(--lt-type-heading); }
+.lighttable-style-editor__effect-heading h3 { margin: 0; font-size: var(--lt-type-large); }
 .lighttable-style-editor__effect-heading button { color: var(--lt-danger); }
 .lighttable-style-editor__effect-heading > div {
   display: flex;
@@ -3938,7 +3940,7 @@
 .lighttable-style-section h4 {
   margin: 0;
   color: var(--lt-text-primary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-style-advanced {
@@ -3951,7 +3953,7 @@
   align-items: center;
   padding: 0 12px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   font-weight: var(--lt-weight-bold);
   cursor: pointer;
   user-select: none;
@@ -3961,7 +3963,7 @@
   width: 14px;
   content: '›';
   color: var(--lt-text-subtle);
-  font-size: 16px;
+  font-size: var(--lt-type-large);
   transform: rotate(0deg);
   transition: transform 100ms ease;
 }
@@ -3985,7 +3987,7 @@
   display: flex;
   align-items: center;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-style-shadow-appearance {
@@ -4072,7 +4074,7 @@
   align-items: center;
   gap: 8px;
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-style-notice {
@@ -4080,7 +4082,7 @@
   border-left: 2px solid #59779f;
   color: var(--lt-text-muted);
   background: var(--lt-surface-info);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   line-height: 1.45;
 }
 
@@ -4119,7 +4121,7 @@
 .lighttable-style-contour__point:active { cursor: grabbing; }
 .lighttable-style-contour small {
   color: var(--lt-text-disabled);
-  font-size: var(--lt-type-micro);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-style-gradient {
@@ -4168,7 +4170,7 @@
 .lighttable-style-gradient__toolbar strong {
   margin-right: auto;
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-style-gradient__toolbar button {
@@ -4185,7 +4187,7 @@
 
 .lighttable-style-gradient__hint {
   color: var(--lt-text-disabled);
-  font-size: var(--lt-type-micro);
+  font-size: var(--lt-type-small);
   line-height: 1.35;
 }
 
@@ -4195,7 +4197,7 @@
   align-items: center;
   gap: 6px 8px;
   color: var(--lt-text-secondary);
-  font-size: 12px;
+  font-size: var(--lt-type-regular);
 }
 
 .lighttable-tool-options__vector-style { position: relative; }
@@ -4229,7 +4231,7 @@
   border: 0;
   background: transparent;
   color: var(--lt-text-secondary);
-  font-size: 17px;
+  font-size: var(--lt-type-large);
 }
 .lighttable-tool-options__gradient-options { margin-top: 12px; }
 
@@ -4238,7 +4240,7 @@
   min-height: 100%;
   place-items: center;
   color: var(--lt-text-subtle);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-style-editor > footer {
@@ -4290,7 +4292,7 @@
   min-width: 0;
   flex: 1 1 auto;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-heading);
+  font-size: var(--lt-type-large);
   font-weight: var(--lt-weight-semibold);
 }
 
@@ -4337,7 +4339,7 @@
 
 .lighttable-group__toggle strong {
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-heading);
+  font-size: var(--lt-type-large);
   font-weight: var(--lt-weight-semibold);
 }
 
@@ -4464,7 +4466,7 @@
   gap: 7px;
   margin: 0 0 2px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   user-select: none;
 }
 
@@ -4492,7 +4494,7 @@
   min-width: 0;
   min-height: 25px;
   padding: 4px 3px;
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-color-grading__three-way > .lighttable-color-grading__wheel-block {
@@ -4531,7 +4533,7 @@
   gap: 8px;
   margin-bottom: 5px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   cursor: default;
   user-select: none;
 }
@@ -4542,7 +4544,7 @@
 
 .lighttable-grading-wheel__label span {
   color: var(--lt-text-subtle);
-  font-size: var(--lt-type-micro);
+  font-size: var(--lt-type-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -4640,7 +4642,7 @@
 
 .lighttable-color-grading__split .lighttable-adjustment__header {
   gap: 4px;
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-color-grading__split .lighttable-adjustment__header output {
@@ -4678,7 +4680,7 @@
   min-width: 0;
   min-height: 27px;
   padding: 5px 4px;
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-curves-editor__toolbar > button {
@@ -4787,7 +4789,7 @@
 }
 
 .lighttable-subgroup__toggle strong {
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   font-weight: var(--lt-weight-semibold);
 }
 
@@ -4812,7 +4814,7 @@
   gap: 10px;
   margin-bottom: 4px;
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   cursor: default;
   user-select: none;
 }
@@ -4936,7 +4938,7 @@
 .lighttable-control-label,
 .lighttable-lens-blur__focus-header,
 .lighttable-lens-blur__status {
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   color: var(--lt-text-muted);
   user-select: none;
 }
@@ -4974,7 +4976,7 @@
   align-items: center;
   gap: 10px;
   color: var(--lt-text-muted);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   user-select: none;
 }
 
@@ -5113,7 +5115,7 @@
 
 .lighttable-debug-panel__diagnostics legend {
   padding: 0 5px;
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   font-weight: var(--lt-weight-medium);
 }
 
@@ -5121,13 +5123,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   user-select: none;
 }
 
 .lighttable-debug-panel__diagnostics small {
   color: var(--lighttable-muted);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-debug-panel__preview {
@@ -5137,7 +5139,7 @@
   padding: 8px;
   background: var(--lt-surface-inset);
   color: var(--lt-text-secondary);
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   white-space: pre-wrap;
 }
 
@@ -5154,7 +5156,7 @@
 .lighttable-debug-panel__summary {
   overflow: hidden;
   color: var(--text-secondary, var(--lt-text-muted));
-  font-size: var(--lt-type-label);
+  font-size: var(--lt-type-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5213,7 +5215,7 @@
   gap: 7px;
   margin-bottom: 4px;
   color: var(--lt-text-subtle);
-  font-size: var(--lt-type-caption);
+  font-size: var(--lt-type-small);
   text-transform: uppercase;
   user-select: text;
 }
@@ -5239,7 +5241,7 @@
 .lighttable-debug-panel__empty {
   padding: 18px 10px;
   color: var(--lt-text-subtle);
-  font-size: var(--lt-type-body);
+  font-size: var(--lt-type-regular);
   text-align: center;
 }
 .lighttable-about {
@@ -5265,7 +5267,7 @@
   padding-top: 20px;
   border-top: 1px solid var(--lt-border-subtle);
 }
-.lighttable-about__section h3 { margin: 0; font-size: var(--lt-type-heading); }
+.lighttable-about__section h3 { margin: 0; font-size: var(--lt-type-large); }
 .lighttable-about__section-heading p { margin: 5px 0 0; color: var(--lt-text-muted); }
 .lighttable-about__body dl,
 .lighttable-about__body dl div {
