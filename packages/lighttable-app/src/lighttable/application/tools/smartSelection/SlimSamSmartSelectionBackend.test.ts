@@ -26,11 +26,11 @@ describe('SlimSamSmartSelectionBackend', () => {
         { point: { x: 30, y: 40 }, label: 'negative' }
       ],
       box: { x: 4, y: 6, width: 50, height: 60 }
-    }, { hardEdge: false });
+    }, { refineEdges: false, refinementQuality: 'fast' });
 
     expect(posted[0]).toMatchObject({
       type: 'points', sourceId: 'source', points: [[12, 20], [30, 40]],
-      labels: [1, 0], box: [4, 6, 54, 66], hardEdge: false
+      labels: [1, 0], box: [4, 6, 54, 66], refineEdges: false, refinementQuality: 'fast'
     });
     backend.dispose();
     await expect(pending).rejects.toThrow('Smart selection was canceled.');

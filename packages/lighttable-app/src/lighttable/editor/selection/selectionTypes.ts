@@ -38,7 +38,8 @@ export interface MagicWandOptions {
 export interface SmartSelectionOptions {
   mode: 'object-finder' | 'rectangle' | 'lasso';
   sampleAllLayers: boolean;
-  hardEdge: boolean;
+  refineEdges: boolean;
+  refinementQuality: 'fast' | 'standard' | 'high';
 }
 
 /** Immutable document-sized alpha produced by a raster selection source. */
@@ -59,7 +60,8 @@ export const createDefaultMagicWandOptions = (): MagicWandOptions => ({
 export const createDefaultSmartSelectionOptions = (): SmartSelectionOptions => ({
   mode: 'object-finder',
   sampleAllLayers: false,
-  hardEdge: false
+  refineEdges: true,
+  refinementQuality: 'standard'
 });
 
 export interface SelectionOperation {

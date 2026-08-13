@@ -14,20 +14,23 @@ export type SlimSamWorkerRequest =
       readonly points: readonly (readonly [number, number])[];
       readonly labels: readonly (0 | 1)[];
       readonly box?: readonly [number, number, number, number];
-      readonly hardEdge: boolean;
+      readonly refineEdges: boolean;
+      readonly refinementQuality: 'fast' | 'standard' | 'high';
     }
   | {
       readonly type: 'box';
       readonly requestId: number;
       readonly sourceId: string;
       readonly box: readonly [number, number, number, number];
-      readonly hardEdge: boolean;
+      readonly refineEdges: boolean;
+      readonly refinementQuality: 'fast' | 'standard' | 'high';
     }
   | {
       readonly type: 'subject';
       readonly requestId: number;
       readonly sourceId: string;
-      readonly hardEdge: boolean;
+      readonly refineEdges: boolean;
+      readonly refinementQuality: 'fast' | 'standard' | 'high';
     }
   | { readonly type: 'dispose-source'; readonly sourceId: string }
   | { readonly type: 'dispose' };
@@ -44,7 +47,8 @@ export type SlimSamWorkerResponse =
       readonly type: 'metric';
       readonly requestId: number;
       readonly phase: 'model-load' | 'image-decode' | 'image-preprocess' | 'image-encode'
-        | 'prompt-preprocess' | 'prompt-decode' | 'mask-postprocess';
+        | 'prompt-preprocess' | 'prompt-decode' | 'mask-postprocess'
+        | 'matte-model-load' | 'matte-inference';
       readonly durationMs: number;
       readonly backend?: 'webgpu' | 'wasm';
     }

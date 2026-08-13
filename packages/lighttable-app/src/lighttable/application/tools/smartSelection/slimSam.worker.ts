@@ -5,6 +5,7 @@ import {
   RawImage,
   SamModel,
   Sam2Model,
+  VitMatteForImageMatting,
   type ProgressInfo,
   type Tensor
 } from '@huggingface/transformers';
@@ -12,6 +13,12 @@ import type { SlimSamWorkerRequest, SlimSamWorkerResponse } from './slimSamProto
 import { rankSubjectMask } from './smartSubjectRanking';
 import { SAM2_SMALL_PROFILE, SLIMSAM_PROFILE } from './smartSelectionModels';
 import { selectionMaskFromLogits } from './smartSelectionMask';
+import { refineMatteFromLogits, type MatteRefinementQuality } from './matteRefinement';
+import {
+  refineMatteWithNeuralRuntime,
+  type NeuralMatteModelPort,
+  type NeuralMatteProcessorPort
+} from './neuralMatteRefinement';
 
 type ModelProfile = 'slimsam' | 'sam2-small';
 
@@ -62,6 +69,13 @@ let activeProfile: ModelProfile | null = null;
 let prepared: PreparedState | null = null;
 let latestPromptRequestId = 0;
 let operationChain: Promise<void> = Promise.resolve();
+let matteModel: NeuralMatteModelPort | null = null;
+let matteProcessor: NeuralMatteProcessorPort | null = null;
+
+const VITMATTE_MODEL = {
+  id: 'Xenova/vitmatte-small-distinctions-646',
+  revision: '358d428c452e5e0cd52955011a8b51944731d28e'
+} as const;
 
 const disposePrepared = () => {
   for (const embedding of Object.values(prepared?.embeddings ?? {})) embedding.dispose();
@@ -145,6 +159,42 @@ const processImage = async (
   prompts?: Record<string, unknown>
 ) => await activeProcessor(image, prompts);
 
+const loadMatteRuntime = async (requestId: number) => {
+  if (matteModel && matteProcessor) return { model: matteModel, processor: matteProcessor };
+  const startedAt = performance.now();
+  status(requestId, 'Loading local edge-refinement model…');
+  try {
+    const progress_callback = (event: ProgressInfo) => status(
+      requestId,
+      'file' in event ? `Loading ${event.file}` : 'Loading local edge-refinement model…',
+      'progress' in event && typeof event.progress === 'number'
+        ? Math.max(0, Math.min(100, event.progress)) : undefined
+    );
+    const device = 'gpu' in navigator ? 'webgpu' : 'wasm';
+    const [createdModel, createdProcessor] = await Promise.all([
+      VitMatteForImageMatting.from_pretrained(VITMATTE_MODEL.id, {
+        revision: VITMATTE_MODEL.revision,
+        device,
+        dtype: device === 'webgpu' ? 'fp32' : 'q8',
+        progress_callback
+      }),
+      AutoProcessor.from_pretrained(VITMATTE_MODEL.id, {
+        revision: VITMATTE_MODEL.revision,
+        progress_callback
+      })
+    ]);
+    matteModel = createdModel as unknown as NeuralMatteModelPort;
+    matteProcessor = createdProcessor as unknown as NeuralMatteProcessorPort;
+    metric(requestId, 'matte-model-load', startedAt);
+    return { model: matteModel, processor: matteProcessor };
+  } catch (reason) {
+    matteModel = null;
+    matteProcessor = null;
+    const detail = reason instanceof Error ? reason.message : String(reason);
+    throw new Error(`The local edge-refinement model is unavailable (${detail}). Choose Fast quality or retry the model download.`);
+  }
+};
+
 const prepareSource = async (request: Extract<SlimSamWorkerRequest, { type: 'prepare' }>) => {
   if (prepared?.sourceId === request.sourceId && prepared.revision === request.revision) {
     return prepared;
@@ -182,8 +232,7 @@ interface DecodedCandidate {
 
 const decodePrompt = async (
   runtime: { model: SamModelPort; processor: SamProcessorPort },
-  prompts: Record<string, unknown>,
-  hardEdge: boolean
+  prompts: Record<string, unknown>
 ) => {
   if (!prepared) throw new Error('The prepared Object Selection source is no longer available.');
   const preprocessStartedAt = performance.now();
@@ -211,15 +260,15 @@ const decodePrompt = async (
         const pixels = width * height;
         const scores = Array.from(outputs.iou_scores.data as ArrayLike<number>);
         const channels = Math.min(scores.length, Math.floor(first.data.length / pixels));
-        const ranked = Array.from({ length: channels }, (_, index) => index)
+        const rankedChannels = Array.from({ length: channels }, (_, channel) => channel)
           .sort((left, right) => (scores[right] ?? 0) - (scores[left] ?? 0));
         return {
           width,
           height,
-          candidates: ranked.map((channel): DecodedCandidate => ({
+          candidates: rankedChannels.map((channel): DecodedCandidate => ({
             score: scores[channel] ?? 0,
             data: selectionMaskFromLogits(
-              first.data as ArrayLike<number>, channel * pixels, width, height, hardEdge
+              first.data as ArrayLike<number>, channel * pixels, width, height, true
             )
           }))
         };
@@ -237,6 +286,44 @@ const decodePrompt = async (
     inputs.input_labels?.dispose();
     inputs.input_boxes?.dispose();
   }
+};
+
+const binaryMaskAsLogits = (mask: Uint8Array) => {
+  const logits = new Float32Array(mask.length);
+  for (let index = 0; index < mask.length; index += 1) {
+    logits[index] = mask[index] >= 128 ? 8 : -8;
+  }
+  return logits;
+};
+
+/**
+ * Refinement is deliberately applied only after prompt candidates have been ranked.
+ * Select Subject evaluates nine prompts; refining inside decodePrompt would run the
+ * expensive matte model up to 27 times and make the interaction appear stalled.
+ */
+const refineWinningCandidate = async (
+  requestId: number,
+  candidate: DecodedCandidate,
+  width: number,
+  height: number,
+  quality: MatteRefinementQuality
+): Promise<DecodedCandidate> => {
+  if (!prepared) throw new Error('The prepared Object Selection source is no longer available.');
+  const logits = binaryMaskAsLogits(candidate.data);
+  if (quality === 'fast') {
+    return {
+      ...candidate,
+      data: refineMatteFromLogits(logits, 0, width, height, prepared.image, quality)
+    };
+  }
+  const matteRuntime = await loadMatteRuntime(requestId);
+  if (requestId !== latestPromptRequestId) return candidate;
+  const matteStartedAt = performance.now();
+  const data = await refineMatteWithNeuralRuntime(
+    matteRuntime, logits, 0, width, height, prepared.image, quality
+  );
+  metric(requestId, 'matte-inference', matteStartedAt);
+  return { ...candidate, data };
 };
 
 const select = async (
@@ -257,7 +344,7 @@ const select = async (
       for (const x of positions) {
         const decoded = await decodePrompt(runtime, {
           input_points: [[[x * prepared.width, y * prepared.height]]]
-        }, request.hardEdge);
+        });
         width = decoded.width;
         height = decoded.height;
         proposals.push(...decoded.candidates);
@@ -276,10 +363,19 @@ const select = async (
           ...(request.box ? { input_boxes: [[request.box]] } : {})
         }
       : { input_boxes: [[request.box]] };
-    const decoded = await decodePrompt(runtime, prompts, request.hardEdge);
+    const decoded = await decodePrompt(runtime, prompts);
     width = decoded.width;
     height = decoded.height;
     results = decoded.candidates;
+  }
+  if (request.refineEdges && results[0]) {
+    results[0] = await refineWinningCandidate(
+      request.requestId, results[0], width, height, request.refinementQuality
+    );
+  }
+  if (request.requestId !== latestPromptRequestId) {
+    self.postMessage({ type: 'superseded', requestId: request.requestId });
+    return;
   }
   const transfers = results.map((result) => result.data.buffer);
   self.postMessage({
@@ -298,11 +394,14 @@ self.onmessage = (event: MessageEvent<SlimSamWorkerRequest>) => {
       if (prepared?.sourceId === request.sourceId) disposePrepared();
       return;
     }
-    if (request.type === 'dispose') {
+  if (request.type === 'dispose') {
       disposePrepared();
-      await model?.dispose();
-      model = null;
-      processor = null;
+    await model?.dispose();
+    await (matteModel as { dispose?: () => Promise<void> } | null)?.dispose?.();
+    model = null;
+    processor = null;
+    matteModel = null;
+    matteProcessor = null;
       backend = null;
       activeProfile = null;
       return;

@@ -64,7 +64,7 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
       return this.select(source, {
         type: 'box', requestId: 0, sourceId: source.id,
         box: [bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height],
-        hardEdge: options.hardEdge
+        refineEdges: options.refineEdges, refinementQuality: options.refinementQuality
       }, options.signal);
     }
     if (prompt.points.length === 0) throw new Error('Object Selection requires a point or box prompt.');
@@ -75,13 +75,14 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
       box: prompt.box
         ? [prompt.box.x, prompt.box.y, prompt.box.x + prompt.box.width, prompt.box.y + prompt.box.height]
         : undefined,
-      hardEdge: options.hardEdge
+      refineEdges: options.refineEdges, refinementQuality: options.refinementQuality
     }, options.signal);
   }
 
   selectSubject(source: PreparedSmartSelectionSource, options: SmartSelectionRequestOptions) {
     return this.select(source, {
-      type: 'subject', requestId: 0, sourceId: source.id, hardEdge: options.hardEdge
+      type: 'subject', requestId: 0, sourceId: source.id,
+      refineEdges: options.refineEdges, refinementQuality: options.refinementQuality
     }, options.signal);
   }
 

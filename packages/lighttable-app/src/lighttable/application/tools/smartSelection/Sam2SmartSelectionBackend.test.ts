@@ -20,9 +20,10 @@ describe('Sam2SmartSelectionBackend', () => {
       documentRevision: 1, width: 100, height: 80 }, {
       points: [{ point: { x: 10, y: 12 }, label: 'negative' }],
       box: { x: 4, y: 6, width: 50, height: 60 }
-    }, { hardEdge: true });
+    }, { refineEdges: true, refinementQuality: 'standard' });
     expect(posted[0]).toMatchObject({ type: 'points', sourceId: 'prepared',
-      points: [[10, 12]], labels: [0], box: [4, 6, 54, 66], hardEdge: true });
+      points: [[10, 12]], labels: [0], box: [4, 6, 54, 66],
+      refineEdges: true, refinementQuality: 'standard' });
     backend.dispose();
     await expect(pending).rejects.toThrow('Smart selection was canceled.');
   });

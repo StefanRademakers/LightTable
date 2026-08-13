@@ -1,0 +1,24 @@
+sam21 matte refinement
+
+Completion record (2026-08-13)
+
+- [x] Added a replaceable matte-refinement boundary after SAM candidate ranking.
+- [x] Added adaptive foreground/background trimaps and padded ROI-only processing.
+- [x] Added Fast RGB-guided local refinement for immediate, offline feedback.
+- [x] Added Standard/High neural RGB + trimap matting with a pinned ViTMatte model.
+- [x] Preserved certain foreground/background exactly; only the unknown band receives soft alpha.
+- [x] Exposed Refine edges and Fast/Standard/High through the existing tool-option controls.
+- [x] Kept New/Add/Subtract/Intersect and the existing selection/layer-mask route intact.
+- [x] Ensured Select Subject refines only the final ranked candidate, not all nine probes.
+- [x] Added newest-request supersession after asynchronous matting and tensor disposal tests.
+- [x] Verified app typecheck, 23 focused tests, production web/worker bundle, and real local
+      ViTMatte inference (128x128 ROI: 65 ms CPU smoke, 3,954 soft-alpha pixels).
+
+Quality scope
+
+This task implements automatic quality improvement only, as requested. Manual foreground,
+background and unknown-band refine brushes, foreground decontamination and a dedicated
+Remove Background dialog remain separate UX work; they are intentionally not simulated by
+custom controls here. The current output remains the regular grayscale selection mask and
+therefore follows LightTable's existing non-destructive layer-mask command when that workflow
+applies it.

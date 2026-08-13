@@ -61,10 +61,10 @@ describe('SmartSelectionRequestGate', () => {
     const ready = (await gate.prepare(source('source', 1)))!;
     const stale = gate.prompt(ready, {
       points: [{ point: { x: 0, y: 0 }, label: 'positive' }]
-    }, { hardEdge: false });
+    }, { refineEdges: true, refinementQuality: 'standard' });
     await expect(gate.prompt(ready, {
       points: [{ point: { x: 1, y: 1 }, label: 'positive' }]
-    }, { hardEdge: false })).resolves.toEqual([candidate]);
+    }, { refineEdges: true, refinementQuality: 'standard' })).resolves.toEqual([candidate]);
     resolveFirst([candidate]);
     await expect(stale).resolves.toBeNull();
   });

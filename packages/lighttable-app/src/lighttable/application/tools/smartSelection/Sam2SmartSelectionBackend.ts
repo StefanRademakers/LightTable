@@ -50,13 +50,14 @@ export class Sam2SmartSelectionBackend implements SmartSelectionBackend {
       ? [bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height] as const
       : undefined;
     const message = await this.request(prompt.points.length === 0 && box
-      ? { type: 'box', requestId: 0, sourceId: source.id, box, hardEdge: options.hardEdge }
+      ? { type: 'box', requestId: 0, sourceId: source.id, box,
+          refineEdges: options.refineEdges, refinementQuality: options.refinementQuality }
       : {
           type: 'points', requestId: 0, sourceId: source.id,
           points: prompt.points.map(({ point }) => [point.x, point.y]),
           labels: prompt.points.map(({ label }) => label === 'positive' ? 1 : 0),
           box,
-          hardEdge: options.hardEdge
+          refineEdges: options.refineEdges, refinementQuality: options.refinementQuality
         }, options.signal);
     if (message.type === 'superseded') return [];
     if (message.type !== 'candidates' || message.sourceId !== source.id) throw new Error('SAM 2 returned candidates for a different source.');

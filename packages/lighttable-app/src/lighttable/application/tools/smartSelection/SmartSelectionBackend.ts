@@ -23,7 +23,8 @@ export interface SmartSelectionCandidate {
 }
 
 export interface SmartSelectionRequestOptions {
-  readonly hardEdge: boolean;
+  readonly refineEdges: boolean;
+  readonly refinementQuality: 'fast' | 'standard' | 'high';
   readonly signal?: AbortSignal;
 }
 

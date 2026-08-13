@@ -194,7 +194,8 @@ export class SmartSelectionToolController {
       if (!prepared) return false;
       this.callbacks.setStatus('Finding subject…');
       const candidates = await this.gate.subject(prepared, {
-        hardEdge: this.callbacks.getOptions().hardEdge
+        refineEdges: this.callbacks.getOptions().refineEdges,
+        refinementQuality: this.callbacks.getOptions().refinementQuality
       });
       this.publishBackendIdentity();
       const candidate = candidates ? bestCandidate(candidates) : null;
@@ -297,7 +298,8 @@ export class SmartSelectionToolController {
       const candidates = await this.gate.prompt(prepared, {
         points: [{ point, label: 'positive' }]
       }, {
-        hardEdge: this.callbacks.getOptions().hardEdge
+        refineEdges: this.callbacks.getOptions().refineEdges,
+        refinementQuality: this.callbacks.getOptions().refinementQuality
       });
       const candidate = candidates ? bestCandidate(candidates) : null;
       traceSmartSelection('point-resolved', { candidates: candidates?.length ?? 0 });
@@ -345,7 +347,8 @@ export class SmartSelectionToolController {
       const prepared = await this.gate.prepare(this.source);
       if (!prepared) return false;
       const candidates = await this.gate.prompt(prepared, prompt, {
-        hardEdge: this.callbacks.getOptions().hardEdge
+        refineEdges: this.callbacks.getOptions().refineEdges,
+        refinementQuality: this.callbacks.getOptions().refinementQuality
       });
       const candidate = candidates ? bestCandidate(candidates) : null;
       if (!candidate) {

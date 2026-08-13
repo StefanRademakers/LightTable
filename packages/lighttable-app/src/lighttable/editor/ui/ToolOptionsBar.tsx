@@ -504,10 +504,21 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             Sample All Layers
           </label>
           <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={smartSelection.hardEdge}
-              onChange={(event) => onSmartSelectionChange({ hardEdge: event.currentTarget.checked })} />
-            Hard Edge
+            <input type="checkbox" checked={smartSelection.refineEdges}
+              onChange={(event) => onSmartSelectionChange({ refineEdges: event.currentTarget.checked })} />
+            Refine edges
           </label>
+          {smartSelection.refineEdges ? (
+            <ToolOptionSelect label="Quality" value={smartSelection.refinementQuality}
+              aria-label="Edge refinement quality"
+              onChange={(event) => onSmartSelectionChange({
+                refinementQuality: event.currentTarget.value as EditorSession['smartSelection']['refinementQuality']
+              })}>
+              <option value="fast">Fast</option>
+              <option value="standard">Standard</option>
+              <option value="high">High</option>
+            </ToolOptionSelect>
+          ) : null}
           {smartSelectionBackendIdentity ? (
             <span className="lighttable-tool-options__hint"
               title={`${smartSelectionBackendIdentity.modelId} @ ${smartSelectionBackendIdentity.artifactRevision}`}>
