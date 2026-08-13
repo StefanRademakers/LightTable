@@ -94,6 +94,7 @@
 
   /* Controls */
   --lt-control-radius: 6px;
+  --lt-control-height: 28px;
   --lt-radius-xs: 2px;
   --lt-radius-sm: 3px;
   --lt-radius-md: 4px;
@@ -101,6 +102,7 @@
   --lt-radius-dialog: 12px;
   --lt-radius-pill: 999px;
   --lt-control-text-size: 12px;
+  --lt-control-chevron-right: 8px;
   --lt-control-border: rgb(226 231 232 / 24%);
   --lt-control-text: rgb(226 231 232 / 86%);
   --lt-tool-options-separator: var(--lt-border-strong);

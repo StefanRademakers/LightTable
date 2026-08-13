@@ -88,6 +88,14 @@
   outline: none;
 }
 
+.lighttable select:open,
+.lighttable-launcher select:open,
+.lighttable-tool-options-menu-layout select:open,
+.lighttable-tool-options__gradient-popover select:open,
+.modal-backdrop select:open {
+  border-color: var(--lt-accent-strong);
+}
+
 .lighttable :is(input:not([type]), input[type='text'], input[type='number'], input[type='search'],
   input[type='email'], input[type='url'], input[type='password'], input[type='tel'], textarea):focus,
 .lighttable-launcher :is(input:not([type]), input[type='text'], input[type='number'], input[type='search'],
