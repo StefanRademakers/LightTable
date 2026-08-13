@@ -5,7 +5,7 @@ import type {
   GenAiWorkflowDefinition,
   GenAiWorkflowId
 } from '@lighttable/genai-core';
-import { matchGenAiValuesToDocument } from './genAiDocumentDefaults';
+import { applyGenAiImageCreateDefaults, matchGenAiValuesToDocument } from './genAiDocumentDefaults';
 
 const workflow = {
   id: 'openart:test:image2image' as GenAiWorkflowId,
@@ -37,7 +37,26 @@ describe('GenAI document defaults', () => {
       .toMatchObject({ ratio: '16:9', size: '4K' });
   });
 
-  it('does not alter image-create values', () => {
+  it('uses 16:9 and 2K as new image-create defaults when the provider supports them', () => {
+    const create = { ...workflow, mode: 'text2image' } as GenAiWorkflowDefinition;
+    expect(applyGenAiImageCreateDefaults(create, { ratio: '1:1', size: '1K' }))
+      .toEqual({ ratio: '16:9', size: '2K' });
+  });
+
+  it('keeps UI defaults authoritative over provider-advertised defaults', () => {
+    const create = {
+      ...workflow, mode: 'text2image',
+      fields: workflow.fields.map((field) => field.role === 'aspect-ratio'
+        ? { ...field, options: [{ value: '1:1', label: 'Square' }] }
+        : field.role === 'output-size'
+          ? { ...field, options: [{ value: '1K', label: 'Small' }] }
+          : field)
+    } as GenAiWorkflowDefinition;
+    expect(applyGenAiImageCreateDefaults(create, { ratio: '1:1', size: '1K' }))
+      .toEqual({ ratio: '16:9', size: '2K' });
+  });
+
+  it('keeps document matching out of image-create mode', () => {
     const create = { ...workflow, mode: 'text2image' } as GenAiWorkflowDefinition;
     expect(matchGenAiValuesToDocument(create, { ratio: '1:1' }, { id: 'a', width: 1920, height: 1080 }))
       .toEqual({ ratio: '1:1' });

@@ -78,3 +78,26 @@ export const matchGenAiValuesToDocument = (
   }
   return next;
 };
+
+/**
+ * Applies LightTable's product defaults to a newly opened image-create form.
+ * The UI owns these semantic choices. Provider adapters translate them to
+ * provider-specific parameters; provider schemas do not redefine the UX.
+ */
+export const applyGenAiImageCreateDefaults = (
+  workflow: GenAiWorkflowDefinition,
+  current: Readonly<Record<string, unknown>>
+): Readonly<Record<string, unknown>> => {
+  if (workflow.mode !== 'text2image') return current;
+  let next = current;
+  for (const field of workflow.fields) {
+    const preferredValue = field.role === 'aspect-ratio'
+      ? '16:9'
+      : field.role === 'output-size'
+        ? '2K'
+        : undefined;
+    if (!preferredValue) continue;
+    if (next[field.key] !== preferredValue) next = { ...next, [field.key]: preferredValue };
+  }
+  return next;
+};

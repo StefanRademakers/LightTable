@@ -18,6 +18,7 @@ import {
 } from '@lighttable/genai-core';
 import type { LightTableGenAiService } from '../../platform/LightTableHost';
 import {
+  applyGenAiImageCreateDefaults,
   genAiDocumentContextKey,
   matchGenAiValuesToDocument,
   type GenAiDocumentContext
@@ -167,16 +168,16 @@ export const useGenAiSetupController = (
       if (!current) return;
       workflowCache.current.set(cacheKey, nextWorkflow);
       setWorkflow(nextWorkflow);
-      const defaults = Object.fromEntries(nextWorkflow.fields.map((field) => [field.key, field.defaultValue]));
+      const providerDefaults = Object.fromEntries(nextWorkflow.fields.map((field) => [field.key, field.defaultValue]));
       const restored = pendingRestore.current;
       let nextValues: Readonly<Record<string, unknown>>;
       if (restored?.modelId === nextWorkflow.modelId && restored.workflowId === nextWorkflow.id) {
         pendingRestore.current = undefined;
-        nextValues = { ...defaults, ...restored.fields, prompt: restored.prompt };
+        nextValues = { ...providerDefaults, ...restored.fields, prompt: restored.prompt };
       } else if (persistedSetup?.modelId === nextWorkflow.modelId && persistedSetup.mode === nextWorkflow.mode) {
-        nextValues = { ...defaults, ...persistedSetup.values };
+        nextValues = { ...providerDefaults, ...persistedSetup.values };
       } else {
-        nextValues = defaults;
+        nextValues = applyGenAiImageCreateDefaults(nextWorkflow, providerDefaults);
       }
       const activeDocument = documentContextRef.current;
       setValues(activeDocument
