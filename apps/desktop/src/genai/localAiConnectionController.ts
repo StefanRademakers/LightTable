@@ -14,6 +14,10 @@ import {
   type LocalAiOperation
 } from '@lighttable/genai-local';
 import type { DesktopGenAiProviderController } from './providerRegistry';
+import type {
+  LightTableLocalAiConnectionSettings,
+  LightTableLocalAiConnectionTest
+} from '@lighttable/app';
 
 export interface LocalAiProviderConfiguration {
   readonly baseUrl: string;
@@ -36,13 +40,49 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
     status: 'disconnected'
   };
   private capabilitiesValue: LocalAiCapabilitiesV1 | null = null;
+  private settings: LightTableLocalAiConnectionSettings = {
+    mode: 'managed', host: '127.0.0.1', port: 7862
+  };
 
   constructor(
-    private readonly configuration: LocalAiProviderConfiguration | LocalAiProviderSessionSource,
+    private readonly managedSession: LocalAiProviderConfiguration | LocalAiProviderSessionSource,
     private readonly requestFetch?: typeof globalThis.fetch
   ) {}
 
   snapshot(): GenAiProviderSnapshot { return this.snapshotValue; }
+
+  async configure(settings: LightTableLocalAiConnectionSettings): Promise<void> {
+    const normalized = normalizeConnectionSettings(settings);
+    if (sameSettings(this.settings, normalized)) return;
+    if (this.snapshotValue.status === 'connected' || this.client) await this.disconnect();
+    this.settings = normalized;
+  }
+
+  async testConnection(settings: LightTableLocalAiConnectionSettings): Promise<LightTableLocalAiConnectionTest> {
+    const normalized = normalizeConnectionSettings(settings);
+    let managedConfiguration: LocalAiProviderConfiguration | undefined;
+    try {
+      const configuration = normalized.mode === 'managed'
+        ? managedConfiguration = isSessionSource(this.managedSession)
+          ? await this.managedSession.start()
+          : this.managedSession
+        : externalConfiguration(normalized);
+      const client = new LocalAiProviderClient({
+        ...configuration,
+        ...(this.requestFetch ? { fetch: this.requestFetch } : {})
+      });
+      const [health, capabilities] = await Promise.all([client.health(), client.capabilities()]);
+      if (!['ready', 'busy', 'loading-model'].includes(health.status)) {
+        throw new Error(health.message ?? `Local AI service is ${health.status}.`);
+      }
+      return { ok: true, message: `Connected to ${capabilities.provider.name}.` };
+    } catch (reason) {
+      return { ok: false, message: reason instanceof Error ? reason.message : String(reason) };
+    } finally {
+      if (normalized.mode === 'managed' && managedConfiguration && !this.client
+        && isSessionSource(this.managedSession)) await this.managedSession.stop();
+    }
+  }
 
   subscribe(listener: (snapshot: GenAiProviderSnapshot) => void): () => void {
     this.listeners.add(listener);
@@ -52,9 +92,9 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
   async connect(): Promise<GenAiProviderSnapshot> {
     this.publish({ ...this.snapshotValue, status: 'connecting', message: 'Connecting to local AI service…' });
     try {
-      const configuration = isSessionSource(this.configuration)
-        ? await this.configuration.start()
-        : this.configuration;
+      const configuration = this.settings.mode === 'managed'
+        ? isSessionSource(this.managedSession) ? await this.managedSession.start() : this.managedSession
+        : externalConfiguration(this.settings);
       this.client = new LocalAiProviderClient({
         ...configuration,
         ...(this.requestFetch ? { fetch: this.requestFetch } : {})
@@ -83,7 +123,7 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
   async disconnect(): Promise<GenAiProviderSnapshot> {
     this.capabilitiesValue = null;
     this.client = null;
-    if (isSessionSource(this.configuration)) await this.configuration.stop();
+    if (this.settings.mode === 'managed' && isSessionSource(this.managedSession)) await this.managedSession.stop();
     this.publish({ id: LOCAL_AI_PROVIDER_ID, label: this.snapshotValue.label, status: 'disconnected' });
     return this.snapshotValue;
   }
@@ -129,3 +169,23 @@ const operationForMode = (mode: string): LocalAiOperation => {
 const isSessionSource = (
   value: LocalAiProviderConfiguration | LocalAiProviderSessionSource
 ): value is LocalAiProviderSessionSource => 'start' in value && 'stop' in value;
+
+const normalizeConnectionSettings = (
+  settings: LightTableLocalAiConnectionSettings
+): LightTableLocalAiConnectionSettings => {
+  const host = settings.host.trim().toLowerCase();
+  if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host)) {
+    throw new Error('Free Local AI only accepts loopback hosts.');
+  }
+  if (!Number.isInteger(settings.port) || settings.port < 1 || settings.port > 65_535) {
+    throw new Error('Free Local AI port must be between 1 and 65535.');
+  }
+  return { mode: settings.mode === 'external' ? 'external' : 'managed', host, port: settings.port };
+};
+
+const externalConfiguration = (settings: LightTableLocalAiConnectionSettings): LocalAiProviderConfiguration => ({
+  baseUrl: `http://${settings.host === '::1' ? '[::1]' : settings.host}:${settings.port}`
+});
+
+const sameSettings = (left: LightTableLocalAiConnectionSettings, right: LightTableLocalAiConnectionSettings) =>
+  left.mode === right.mode && left.host === right.host && left.port === right.port;

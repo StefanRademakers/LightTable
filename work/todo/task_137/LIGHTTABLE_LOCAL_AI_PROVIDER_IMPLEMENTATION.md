@@ -831,7 +831,7 @@ Test Windows CUDA en macOS Metal afzonderlijk. Ga niet uit van pixel-identieke o
 
 - [x] `AiProviderRegistry` implementeren.
 - [ ] provider CRUD in Preferences.
-- [ ] configureerbare host/poort en testknop.
+- [x] configureerbare host/poort en testknop.
 - [x] standaardprovider per Create/Edit.
 - [x] GenAI-modeldropdown vanuit capabilities vullen.
 - [x] prompt, resolutie, count en references mappen.

@@ -21,7 +21,8 @@ describe('application preferences', () => {
         folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, characters: 'Cast' },
         createFolders: ['characters', 'sets'],
         userFolders: [{ name: 'Refs', path: 'Production/Refs' }]
-      }
+      },
+      genAi: DEFAULT_APPLICATION_PREFERENCES.genAi
     })).toEqual({
       version: 1,
       autosave: { enabled: false, intervalMs: 120_000 },
@@ -30,7 +31,8 @@ describe('application preferences', () => {
         folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, characters: 'Cast' },
         createFolders: ['characters', 'sets'],
         userFolders: [{ name: 'Refs', path: 'Production/Refs' }]
-      }
+      },
+      genAi: DEFAULT_APPLICATION_PREFERENCES.genAi
     });
   });
 
@@ -46,7 +48,8 @@ describe('application preferences', () => {
         folders: DEFAULT_PROJECT_FOLDER_MAPPINGS,
         createFolders: PROJECT_USER_STORAGE_LOCATIONS,
         userFolders: []
-      }
+      },
+      genAi: DEFAULT_APPLICATION_PREFERENCES.genAi
     });
   });
 

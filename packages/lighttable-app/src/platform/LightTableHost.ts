@@ -214,9 +214,22 @@ export interface LightTableLocalAiModelStatus {
   readonly error?: string;
 }
 
+export interface LightTableLocalAiConnectionSettings {
+  readonly mode: 'managed' | 'external';
+  readonly host: string;
+  readonly port: number;
+}
+
+export interface LightTableLocalAiConnectionTest {
+  readonly ok: boolean;
+  readonly message: string;
+}
+
 export interface LightTableLocalAiService {
   status(): Promise<LightTableLocalAiModelStatus>;
   install(): Promise<LightTableLocalAiModelStatus>;
+  configure(settings: LightTableLocalAiConnectionSettings): Promise<void>;
+  testConnection(settings: LightTableLocalAiConnectionSettings): Promise<LightTableLocalAiConnectionTest>;
   subscribe(listener: (status: LightTableLocalAiModelStatus) => void): () => void;
 }
 

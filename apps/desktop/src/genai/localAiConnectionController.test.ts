@@ -51,4 +51,29 @@ describe('LocalAiConnectionController', () => {
     expect(stops).toBe(1);
     expect(() => controller.clientInstance()).toThrow('not connected');
   });
+
+  it('tests and connects to a configured external loopback service without starting the managed process', async () => {
+    let starts = 0;
+    const controller = new LocalAiConnectionController({
+      async start() { starts += 1; return { baseUrl: 'http://127.0.0.1:7000' }; },
+      async stop() {}
+    }, async (input) => {
+      expect(new URL(String(input)).port).toBe('7862');
+      const pathname = new URL(String(input)).pathname;
+      return json(pathname.endsWith('/health')
+        ? { status: 'ready', protocolVersion: '1.0', providerVersion: '0.1.0', modelLoaded: true }
+        : capabilities);
+    });
+    const settings = { mode: 'external' as const, host: 'localhost', port: 7862 };
+    expect(await controller.testConnection(settings)).toEqual({ ok: true, message: 'Connected to Local runtime.' });
+    await controller.configure(settings);
+    expect((await controller.connect()).status).toBe('connected');
+    expect(starts).toBe(0);
+  });
+
+  it('rejects non-loopback external hosts', async () => {
+    const controller = new LocalAiConnectionController({ baseUrl: 'http://127.0.0.1:7862' });
+    await expect(controller.configure({ mode: 'external', host: 'example.com', port: 7862 }))
+      .rejects.toThrow('only accepts loopback hosts');
+  });
 });

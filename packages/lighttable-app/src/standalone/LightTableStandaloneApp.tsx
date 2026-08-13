@@ -250,6 +250,9 @@ export function LightTableStandaloneApp({
   const [preferences, setPreferences] = useState(() => typeof localStorage === 'undefined'
     ? DEFAULT_APPLICATION_PREFERENCES
     : loadApplicationPreferences());
+  useEffect(() => {
+    void host.localAi?.configure(preferences.genAi.local).catch(() => undefined);
+  }, [host.localAi, preferences.genAi.local]);
   const [guidedSample, setGuidedSample] = useState<GuidedSampleSession | null>(null);
   const [telemetryEnabled, setTelemetryEnabled] = useState(() => host.funnel?.enabled() ?? false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);

@@ -85,6 +85,8 @@ const desktopHost: LightTableHost = {
   localAi: {
     status: () => window.lightTableDesktop.localAiModelStatus(),
     install: () => window.lightTableDesktop.installLocalAiModel(),
+    configure: (settings) => window.lightTableDesktop.configureLocalAi(settings),
+    testConnection: (settings) => window.lightTableDesktop.testLocalAiConnection(settings),
     subscribe: (listener) => window.lightTableDesktop.onLocalAiModelStatus(listener)
   },
   genAi: {

@@ -8,6 +8,10 @@ import type {
   LightTableAgentClientScope,
   LightTableAgentTunnelStatus
 } from '@lighttable/app';
+import type {
+  LightTableLocalAiConnectionSettings,
+  LightTableLocalAiConnectionTest
+} from '@lighttable/app';
 import type { LightTableRecoveryLocation } from '@lighttable/app';
 import type { ProjectFolderMappings, ProjectUserFolder, ProjectUserStorageLocation } from '@lighttable/app/project-manifest';
 import type {
@@ -219,6 +223,8 @@ export interface LightTableDesktopBridge {
   onGenAiProviderStatus(listener: (snapshot: GenAiProviderSnapshot) => void): () => void;
   localAiModelStatus(): Promise<LocalAiModelStatus>;
   installLocalAiModel(): Promise<LocalAiModelStatus>;
+  configureLocalAi(settings: LightTableLocalAiConnectionSettings): Promise<void>;
+  testLocalAiConnection(settings: LightTableLocalAiConnectionSettings): Promise<LightTableLocalAiConnectionTest>;
   onLocalAiModelStatus(listener: (status: LocalAiModelStatus) => void): () => void;
   onGenAiProjectAssetsChanged(listener: (projectId: string) => void): () => void;
   onGenAiJobChanged(listener: (event: {

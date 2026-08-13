@@ -30,6 +30,12 @@ export interface ApplicationPreferences {
     /** Shared composer defaults; provider adapters own request translation. */
     readonly createProviderId: string;
     readonly editProviderId: string;
+    readonly local: {
+      /** Managed starts LightTable's private child process; external connects to an existing loopback service. */
+      readonly mode: 'managed' | 'external';
+      readonly host: string;
+      readonly port: number;
+    };
   };
 }
 
@@ -50,7 +56,8 @@ export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
   },
   genAi: {
     createProviderId: 'openart',
-    editProviderId: 'openart'
+    editProviderId: 'openart',
+    local: { mode: 'managed', host: '127.0.0.1', port: 7862 }
   }
 };
 
@@ -125,7 +132,17 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
       editProviderId: typeof candidate.genAi?.editProviderId === 'string'
         && candidate.genAi.editProviderId.trim()
         ? candidate.genAi.editProviderId.trim()
-        : DEFAULT_APPLICATION_PREFERENCES.genAi.editProviderId
+        : DEFAULT_APPLICATION_PREFERENCES.genAi.editProviderId,
+      local: {
+        mode: candidate.genAi?.local?.mode === 'external' ? 'external' : 'managed',
+        host: typeof candidate.genAi?.local?.host === 'string' && candidate.genAi.local.host.trim()
+          ? candidate.genAi.local.host.trim()
+          : DEFAULT_APPLICATION_PREFERENCES.genAi.local.host,
+        port: Number.isInteger(candidate.genAi?.local?.port)
+          && Number(candidate.genAi?.local?.port) > 0 && Number(candidate.genAi?.local?.port) <= 65_535
+          ? Number(candidate.genAi?.local?.port)
+          : DEFAULT_APPLICATION_PREFERENCES.genAi.local.port
+      }
     }
   };
 };

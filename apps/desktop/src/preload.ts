@@ -153,6 +153,8 @@ const bridge: LightTableDesktopBridge = {
   },
   localAiModelStatus: () => ipcRenderer.invoke('lighttable:local-ai-model-status'),
   installLocalAiModel: () => ipcRenderer.invoke('lighttable:local-ai-model-install'),
+  configureLocalAi: (settings) => ipcRenderer.invoke('lighttable:local-ai-configure', settings),
+  testLocalAiConnection: (settings) => ipcRenderer.invoke('lighttable:local-ai-test-connection', settings),
   onLocalAiModelStatus: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
     ipcRenderer.on('lighttable:local-ai-model-changed', handler);

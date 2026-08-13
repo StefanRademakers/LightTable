@@ -682,6 +682,18 @@ void app.whenReady().then(async () => {
     if (!localAiModelManager) throw new Error('Local AI model manager is unavailable.');
     return localAiModelManager.install();
   });
+  ipcMain.handle('lighttable:local-ai-configure', async (event, settings: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!localAiConnection) throw new Error('Local AI connection is unavailable.');
+    await localAiConnection.configure(settings as import('@lighttable/app').LightTableLocalAiConnectionSettings);
+  });
+  ipcMain.handle('lighttable:local-ai-test-connection', (event, settings: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!localAiConnection) throw new Error('Local AI connection is unavailable.');
+    return localAiConnection.testConnection(
+      settings as import('@lighttable/app').LightTableLocalAiConnectionSettings
+    );
+  });
   ipcMain.handle('lighttable:genai-provider-connect', (event, providerId: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     if (typeof providerId !== 'string' || !genAiProviderRegistry) throw new Error('Unsupported GenAI provider.');

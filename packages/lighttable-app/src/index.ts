@@ -143,6 +143,8 @@ export type {
   LightTableAgentTunnelState,
   LightTableAgentClientScope,
   LightTableAgentClient,
+  LightTableLocalAiConnectionSettings,
+  LightTableLocalAiConnectionTest,
   LightTableUpdateResult,
   LightTableSaveRequest
 } from './platform/LightTableHost';

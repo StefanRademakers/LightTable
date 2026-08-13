@@ -72,6 +72,8 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
   const [newProjectFolderName, setNewProjectFolderName] = useState('');
   const [genAiProviders, setGenAiProviders] = useState<readonly GenAiProviderSnapshot[]>([]);
   const [localAiModel, setLocalAiModel] = useState<LightTableLocalAiModelStatus | null>(null);
+  const [localAiTestMessage, setLocalAiTestMessage] = useState<string | null>(null);
+  const [localAiTesting, setLocalAiTesting] = useState(false);
   const updateUserFolders = (userFolders: readonly ProjectUserFolder[]) => setDraft({
     ...draft,
     projects: { ...draft.projects, userFolders }
@@ -83,6 +85,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
     setPage('file-handling');
     setSaveError(null);
     setNewProjectFolderName('');
+    setLocalAiTestMessage(null);
     let active = true;
     void host.recoveryLocation?.current().then((value) => { if (active) setLocation(value); });
     void host.genAi?.getProviderSnapshots().then((value) => {
@@ -129,7 +132,8 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
           void (location && host.recoveryLocation
             ? host.recoveryLocation.apply(location)
             : Promise.resolve(location)
-          ).then(() => onSave({ ...draft, projects: {
+          ).then(() => host.localAi?.configure(draft.genAi.local))
+            .then(() => onSave({ ...draft, projects: {
             folders, createFolders: draft.projects.createFolders, userFolders
           } })).catch((reason) => {
             setSaveError(reason instanceof Error ? reason.message : String(reason));
@@ -363,6 +367,51 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                       )}
                     </div>
                   ))}
+                </div>
+                <div className="lighttable-preferences__fields">
+                  <label>
+                    <span>Free Local AI service</span>
+                    <select className="form-input" value={draft.genAi.local.mode}
+                      onChange={(event) => setDraft({ ...draft, genAi: { ...draft.genAi, local: {
+                        ...draft.genAi.local,
+                        mode: event.currentTarget.value === 'external' ? 'external' : 'managed'
+                      } } })}>
+                      <option value="managed">Managed by LightTable</option>
+                      <option value="external">External loopback service</option>
+                    </select>
+                  </label>
+                  {draft.genAi.local.mode === 'external' ? (
+                    <>
+                      <label>
+                        <span>Host</span>
+                        <FormInput value={draft.genAi.local.host}
+                          onChange={(event) => setDraft({ ...draft, genAi: { ...draft.genAi, local: {
+                            ...draft.genAi.local, host: event.currentTarget.value
+                          } } })} />
+                      </label>
+                      <label>
+                        <span>Port</span>
+                        <FormInput type="number" min={1} max={65_535} value={draft.genAi.local.port}
+                          onChange={(event) => setDraft({ ...draft, genAi: { ...draft.genAi, local: {
+                            ...draft.genAi.local, port: Number(event.currentTarget.value)
+                          } } })} />
+                      </label>
+                    </>
+                  ) : null}
+                  <div className="lighttable-preferences__location-row">
+                    <ActionButton type="button" disabled={!host.localAi || localAiTesting}
+                      onClick={() => {
+                        setLocalAiTesting(true); setLocalAiTestMessage(null);
+                        void host.localAi?.testConnection(draft.genAi.local).then((result) => {
+                          setLocalAiTestMessage(result.message);
+                        }).catch((reason) => {
+                          setLocalAiTestMessage(reason instanceof Error ? reason.message : String(reason));
+                        }).finally(() => setLocalAiTesting(false));
+                      }}>
+                      {localAiTesting ? 'Testing…' : 'Test connection'}
+                    </ActionButton>
+                    {localAiTestMessage ? <span>{localAiTestMessage}</span> : null}
+                  </div>
                 </div>
                 <p className="lighttable-preferences__note">
                   Free Local AI runs as a private loopback service. It does not use OpenArt, Agent Access, or LightTable MCP.
