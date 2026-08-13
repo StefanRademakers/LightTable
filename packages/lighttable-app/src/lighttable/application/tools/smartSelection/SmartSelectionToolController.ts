@@ -11,6 +11,7 @@ import type {
   SmartSelectionBackend,
   SmartSelectionBackendIdentity,
   SmartSelectionCandidate,
+  SmartSelectionPreparationState,
   SmartSelectionPrompt,
   SmartSelectionSource
 } from './SmartSelectionBackend';
@@ -34,6 +35,7 @@ export interface SmartSelectionToolCallbacks {
   readonly setStatus: (message: string | null) => void;
   readonly setDraft: (shape: SelectionShape | null) => void;
   readonly onBackendIdentityChange?: (identity: SmartSelectionBackendIdentity) => void;
+  readonly onPreparationChange?: (state: SmartSelectionPreparationState) => void;
 }
 
 const candidateAtPoint = (
@@ -106,6 +108,7 @@ export class SmartSelectionToolController {
     mode: SelectionCombineMode;
   } | null = null;
   private disposed = false;
+  private readonly unsubscribeBackendStatus: (() => void) | null;
 
   constructor(
     private readonly callbacks: SmartSelectionToolCallbacks,
@@ -113,6 +116,15 @@ export class SmartSelectionToolController {
   ) {
     this.backend = backend;
     this.gate = new SmartSelectionRequestGate(backend);
+    this.unsubscribeBackendStatus = backend.subscribeStatus?.((status) => {
+      if (this.disposed) return;
+      this.callbacks.setStatus(status.message);
+      if (!this.source) this.callbacks.onPreparationChange?.({
+        phase: 'preparing',
+        message: status.message,
+        ...(status.progress === undefined ? {} : { progress: status.progress })
+      });
+    }) ?? null;
   }
 
   async prepare() {
@@ -132,10 +144,16 @@ export class SmartSelectionToolController {
       document.revision,
       options.sampleAllLayers ? 'composite' : document.activeLayerId
     ].join(':');
-    if (this.source?.key === expectedKey) return true;
+    if (this.source?.key === expectedKey) {
+      this.callbacks.onPreparationChange?.({ phase: 'ready' });
+      return true;
+    }
     if (this.preparing?.key === expectedKey) return this.preparing.promise;
     const promise = (async () => {
-      this.callbacks.setStatus('Preparing Object Selection…');
+      this.callbacks.setStatus('Loading Object Selection model…');
+      this.callbacks.onPreparationChange?.({
+        phase: 'preparing', message: 'Loading Object Selection model…'
+      });
       const source = await createSmartSelectionSource(document, renderer, options.sampleAllLayers);
       const current = this.callbacks.getDocument();
       const currentOptions = this.callbacks.getOptions();
@@ -152,11 +170,16 @@ export class SmartSelectionToolController {
       this.source = source;
       traceSmartSelection('prepared', { source: source.key });
       this.callbacks.setStatus(null);
+      this.callbacks.onPreparationChange?.({ phase: 'ready' });
       return true;
     })().catch((reason: unknown) => {
-      if (!this.disposed) this.callbacks.setStatus(reason instanceof Error
-        ? `Object Selection is unavailable: ${reason.message}`
-        : 'Object Selection is unavailable.');
+      if (!this.disposed) {
+        const message = reason instanceof Error
+          ? `Object Selection is unavailable: ${reason.message}`
+          : 'Object Selection is unavailable.';
+        this.callbacks.setStatus(message);
+        this.callbacks.onPreparationChange?.({ phase: 'error', message });
+      }
       return false;
     }).finally(() => {
       if (this.preparing?.key === expectedKey) this.preparing = null;
@@ -179,8 +202,14 @@ export class SmartSelectionToolController {
     traceSmartSelection('point-requested', { x: point.x, y: point.y, mode });
     this.pendingHoverPoint = null;
     if (candidateAtPoint(this.preview, point)) {
-      this.gate.supersede();
-      void this.commitCandidate(this.preview!, mode);
+      if (this.callbacks.getOptions().refineEdges) {
+        // Hover deliberately skips matte refinement. A click is authoritative
+        // and repeats the prompt with the configured final quality.
+        void this.selectPrompt({ points: [{ point, label: 'positive' }] }, mode);
+      } else {
+        this.gate.supersede();
+        void this.commitCandidate(this.preview!, mode);
+      }
       return true;
     }
     void this.selectPrompt({ points: [{ point, label: 'positive' }] }, mode);
@@ -271,6 +300,7 @@ export class SmartSelectionToolController {
     this.callbacks.setDraft(null);
     this.clearPreview();
     this.callbacks.setStatus(null);
+    this.callbacks.onPreparationChange?.({ phase: 'idle' });
   }
 
   clearPreview() {
@@ -286,6 +316,7 @@ export class SmartSelectionToolController {
 
   dispose() {
     this.disposed = true;
+    this.unsubscribeBackendStatus?.();
     this.clearPreview();
     this.gate.dispose();
   }
@@ -298,7 +329,8 @@ export class SmartSelectionToolController {
       const candidates = await this.gate.prompt(prepared, {
         points: [{ point, label: 'positive' }]
       }, {
-        refineEdges: this.callbacks.getOptions().refineEdges,
+        // Object Finder remains responsive; final refinement happens on click.
+        refineEdges: false,
         refinementQuality: this.callbacks.getOptions().refinementQuality
       });
       const candidate = candidates ? bestCandidate(candidates) : null;

@@ -61,13 +61,18 @@ describe('SmartSelectionToolController', () => {
     expect(renderer.setSmartSelectionPreview).toHaveBeenLastCalledWith(null);
   });
 
-  it('commits the authoritative hover candidate without running the same point twice', async () => {
+  it('repeats a fast hover prompt at final refinement quality before committing', async () => {
     const { backend, controller, rasterMask } = harness();
     controller.hover({ x: 3, y: 2 });
     await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledOnce());
     controller.selectPoint({ x: 3, y: 2 }, 'replace');
     await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(mask, 'replace'));
-    expect(backend.selectPrompt).toHaveBeenCalledOnce();
+    expect(backend.selectPrompt).toHaveBeenCalledTimes(2);
+    expect(backend.selectPrompt).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { points: [{ point: { x: 3, y: 2 }, label: 'positive' }] },
+      expect.objectContaining({ refineEdges: true })
+    );
   });
 
   it('turns a rectangle gesture into a box prompt and commits on release', async () => {

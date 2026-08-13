@@ -1,6 +1,6 @@
 import type {
   PreparedSmartSelectionSource, SmartSelectionBackend, SmartSelectionCandidate,
-  SmartSelectionPrompt, SmartSelectionRequestOptions, SmartSelectionSource
+  SmartSelectionBackendStatus, SmartSelectionPrompt, SmartSelectionRequestOptions, SmartSelectionSource
 } from './SmartSelectionBackend';
 import type { Sam2WorkerRequest, Sam2WorkerResponse } from './sam2Protocol';
 import { SAM2_SMALL_PROFILE } from './smartSelectionModels';
@@ -14,12 +14,13 @@ export class Sam2SmartSelectionBackend implements SmartSelectionBackend {
   readonly identity = SAM2_SMALL_PROFILE;
   readonly capabilities = {
     positivePoints: true, negativePoints: true, boxes: true,
-    previousMask: false, automaticSubject: false
+    previousMask: false, automaticSubject: true
   } as const;
   private worker: Worker | null = null;
   private requestId = 0;
   private readonly pending = new Map<number, PendingRequest>();
   private readonly preparedByKey = new Map<string, Promise<PreparedSmartSelectionSource>>();
+  private readonly statusListeners = new Set<(status: SmartSelectionBackendStatus) => void>();
 
   async prepare(source: SmartSelectionSource, signal?: AbortSignal) {
     const cacheKey = [source.key, this.identity.modelId, this.identity.artifactRevision,
@@ -66,6 +67,28 @@ export class Sam2SmartSelectionBackend implements SmartSelectionBackend {
       mask: { width: message.width, height: message.height, data: new Uint8Array(data) } }));
   }
 
+  async selectSubject(source: PreparedSmartSelectionSource,
+    options: SmartSelectionRequestOptions): Promise<SmartSelectionCandidate[]> {
+    const message = await this.request({
+      type: 'subject', requestId: 0, sourceId: source.id,
+      refineEdges: options.refineEdges, refinementQuality: options.refinementQuality
+    }, options.signal);
+    if (message.type === 'superseded') return [];
+    if (message.type !== 'candidates' || message.sourceId !== source.id) {
+      throw new Error('SAM 2 returned subject candidates for a different source.');
+    }
+    return message.masks.map((data, index) => ({
+      id: `${source.id}:subject:${index}`,
+      score: message.scores[index] ?? 0,
+      mask: { width: message.width, height: message.height, data: new Uint8Array(data) }
+    }));
+  }
+
+  subscribeStatus(listener: (status: SmartSelectionBackendStatus) => void) {
+    this.statusListeners.add(listener);
+    return () => this.statusListeners.delete(listener);
+  }
+
   disposePreparedSource(source: PreparedSmartSelectionSource) { this.disposeSourceId(source.id); }
   dispose() {
     this.worker?.postMessage({ type: 'dispose' } satisfies Sam2WorkerRequest);
@@ -95,7 +118,14 @@ export class Sam2SmartSelectionBackend implements SmartSelectionBackend {
     if (this.worker) return this.worker;
     const worker = new Worker(new URL('./slimSam.worker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = (event: MessageEvent<Sam2WorkerResponse>) => {
-      if (event.data.type === 'status') return;
+      if (event.data.type === 'status') {
+        if (!event.data.message) return;
+        for (const listener of this.statusListeners) listener({
+          message: event.data.message,
+          ...(event.data.progress === undefined ? {} : { progress: event.data.progress })
+        });
+        return;
+      }
       if (event.data.type === 'metric') {
         const trace = (globalThis as typeof globalThis & { __LIGHTTABLE_SMART_SELECTION_TRACE__?: Array<{ event: string; detail?: Record<string, unknown> }> }).__LIGHTTABLE_SMART_SELECTION_TRACE__;
         trace?.push({ event: 'backend-metric', detail: { modelId: this.identity.modelId,

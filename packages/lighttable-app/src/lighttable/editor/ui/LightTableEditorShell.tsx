@@ -11,7 +11,10 @@ import type { EditorScreenMode } from '../workspace/editorScreenMode';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
 import type { TextPaint } from '@lighttable/text-core';
 import type { FaceWarpToolOptionsProps } from '../../application/tools/faceWarp/FaceWarpToolOptions';
-import type { SmartSelectionBackendIdentity } from '../../application/tools/smartSelection/SmartSelectionBackend';
+import type {
+  SmartSelectionBackendIdentity,
+  SmartSelectionPreparationState
+} from '../../application/tools/smartSelection/SmartSelectionBackend';
 
 export interface LightTableEditorShellProps {
   screenMode: EditorScreenMode;
@@ -46,6 +49,7 @@ export interface LightTableEditorShellProps {
   magicWand: EditorSession['magicWand'];
   smartSelection: EditorSession['smartSelection'];
   smartSelectionBackendIdentity?: SmartSelectionBackendIdentity | null;
+  smartSelectionPreparation?: SmartSelectionPreparationState;
   transformAutoSelectLayer: boolean;
   zoomPercent: number;
   gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
@@ -82,6 +86,7 @@ export interface LightTableEditorShellProps {
   onSelectionSmoothChange: (smooth: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onSmartSelectionChange: (change: Partial<EditorSession['smartSelection']>) => void;
+  onSmartSelectionSelectSubject?: () => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
@@ -140,6 +145,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   magicWand,
   smartSelection,
   smartSelectionBackendIdentity,
+  smartSelectionPreparation,
   transformAutoSelectLayer,
   zoomPercent,
   gradientEditorRequest,
@@ -176,6 +182,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onSelectionSmoothChange,
   onMagicWandChange,
   onSmartSelectionChange,
+  onSmartSelectionSelectSubject,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
   onZoomFit,
@@ -241,6 +248,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         magicWand={magicWand}
         smartSelection={smartSelection}
         smartSelectionBackendIdentity={smartSelectionBackendIdentity}
+        smartSelectionPreparation={smartSelectionPreparation}
         transformAutoSelectLayer={transformAutoSelectLayer}
         zoomPercent={zoomPercent}
         gradientEditorRequest={gradientEditorRequest}
@@ -277,6 +285,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onSelectionSmoothChange={onSelectionSmoothChange}
         onMagicWandChange={onMagicWandChange}
         onSmartSelectionChange={onSmartSelectionChange}
+        onSmartSelectionSelectSubject={onSmartSelectionSelectSubject}
         onTransformAutoSelectLayerChange={onTransformAutoSelectLayerChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}

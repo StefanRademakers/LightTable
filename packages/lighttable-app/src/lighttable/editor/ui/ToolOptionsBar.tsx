@@ -19,7 +19,10 @@ import type { SelectionCombineMode } from '../selection/selectionTypes';
 import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
-import type { SmartSelectionBackendIdentity } from '../../application/tools/smartSelection/SmartSelectionBackend';
+import type {
+  SmartSelectionBackendIdentity,
+  SmartSelectionPreparationState
+} from '../../application/tools/smartSelection/SmartSelectionBackend';
 import { MixedNumberInput } from './MixedNumberInput';
 import { ToolOptionColor, ToolOptionNumber, ToolOptionSelect } from './ToolOptionControls';
 import { GradientAssetEditor } from './LayerStyleGradientEditor';
@@ -67,6 +70,7 @@ export interface ToolOptionsProps {
   magicWand: EditorSession['magicWand'];
   smartSelection: EditorSession['smartSelection'];
   smartSelectionBackendIdentity?: SmartSelectionBackendIdentity | null;
+  smartSelectionPreparation?: SmartSelectionPreparationState;
   transformAutoSelectLayer: boolean;
   zoomPercent: number;
   gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
@@ -103,6 +107,7 @@ export interface ToolOptionsProps {
   onSelectionSmoothChange: (smooth: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onSmartSelectionChange: (change: Partial<EditorSession['smartSelection']>) => void;
+  onSmartSelectionSelectSubject?: () => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
@@ -265,6 +270,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   magicWand,
   smartSelection,
   smartSelectionBackendIdentity,
+  smartSelectionPreparation = { phase: 'idle' },
   transformAutoSelectLayer,
   zoomPercent,
   gradientEditorRequest,
@@ -301,6 +307,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onSelectionSmoothChange,
   onMagicWandChange,
   onSmartSelectionChange,
+  onSmartSelectionSelectSubject,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
   onZoomFit,
@@ -484,6 +491,18 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {activeTool === 'select-object' ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Object Selection settings">
+          {smartSelectionPreparation.phase === 'preparing' ? (
+            <span className="lighttable-tool-options__hint" role="status">
+              {smartSelectionPreparation.message}
+              {smartSelectionPreparation.progress === undefined
+                ? ''
+                : ` ${Math.round(smartSelectionPreparation.progress)}%`}
+            </span>
+          ) : smartSelectionPreparation.phase === 'error' ? (
+            <span className="lighttable-tool-options__hint" role="status">
+              {smartSelectionPreparation.message}
+            </span>
+          ) : <>
           <ToolOptionSelect
             label="Mode"
             value={smartSelection.mode}
@@ -519,6 +538,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               <option value="high">High</option>
             </ToolOptionSelect>
           ) : null}
+          <ActionButton onClick={onSmartSelectionSelectSubject}>Select Subject</ActionButton>
           {smartSelectionBackendIdentity ? (
             <span className="lighttable-tool-options__hint"
               title={`${smartSelectionBackendIdentity.modelId} @ ${smartSelectionBackendIdentity.artifactRevision}`}>
@@ -527,9 +547,10 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 : smartSelectionBackendIdentity.modelId.includes('slimsam')
                   ? 'SlimSAM'
                   : smartSelectionBackendIdentity.modelId.split('/').at(-1)}
-              {' · '}{smartSelectionBackendIdentity.precision.toUpperCase()}
+              {' \u00b7 '}{smartSelectionBackendIdentity.precision.toUpperCase()}
             </span>
           ) : null}
+          </>}
         </div>
       ) : null}
       {activeTool === 'gradient' ? (

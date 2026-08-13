@@ -43,6 +43,17 @@ export interface SmartSelectionBackendCapabilities {
   readonly automaticSubject: boolean;
 }
 
+export interface SmartSelectionBackendStatus {
+  readonly message: string;
+  readonly progress?: number;
+}
+
+export type SmartSelectionPreparationState =
+  | { readonly phase: 'idle' }
+  | { readonly phase: 'preparing'; readonly message: string; readonly progress?: number }
+  | { readonly phase: 'ready' }
+  | { readonly phase: 'error'; readonly message: string };
+
 export interface SmartSelectionPointPrompt {
   readonly point: SelectionPoint;
   readonly label: 'positive' | 'negative';
@@ -75,6 +86,7 @@ export interface SmartSelectionBackend {
     source: PreparedSmartSelectionSource,
     options: SmartSelectionRequestOptions
   ): Promise<SmartSelectionCandidate[]>;
+  subscribeStatus?(listener: (status: SmartSelectionBackendStatus) => void): () => void;
   disposePreparedSource(source: PreparedSmartSelectionSource): void;
   dispose(): void;
 }

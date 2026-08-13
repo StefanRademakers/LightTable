@@ -91,6 +91,7 @@ const renderOptions = (
     onSelectionSmoothChange: vi.fn(),
     onMagicWandChange: vi.fn(),
     onSmartSelectionChange: vi.fn(),
+    onSmartSelectionSelectSubject: vi.fn(),
     onTransformAutoSelectLayerChange: vi.fn(),
     onZoomPreset: vi.fn(),
     onZoomFit: vi.fn(),
@@ -140,9 +141,9 @@ describe('Object Selection tool options', () => {
     expect(markup).toContain('aria-label="Object Selection settings"');
     expect(markup).toContain('Object Finder');
     expect(markup).toContain('Sample All Layers');
-    expect(markup).toContain('Hard Edge');
+    expect(markup).toContain('Refine edges');
     expect(markup).toContain('SAM 2.1 Small');
-    expect(markup).not.toContain('Select Subject');
+    expect(markup).toContain('Select Subject');
     expect(markup).not.toContain('Undo prompt');
     expect(markup).not.toContain('>Apply<');
   });

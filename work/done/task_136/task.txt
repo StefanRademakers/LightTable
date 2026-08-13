@@ -1,0 +1,7 @@
+The object selection with sam2.1 is quite slow, the blue mask, feels fluggisch.
+Can we improve without loosing the final quality. And sometimes it is hard to select a total person for example.
+
+And the model is lazy loaded, but while loading it does not show anything, it feels like its broken at the start
+(but that's the warm up time i guess?) But some feedback would be nice (message loading object selection model, controls still hidden and when model is loaded -> show controls?) 
+
+But overall speed improvements would be very welcome, without sacrificing the final mask quality.

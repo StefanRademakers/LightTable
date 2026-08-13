@@ -1,6 +1,7 @@
 import type {
   PreparedSmartSelectionSource,
   SmartSelectionBackend,
+  SmartSelectionBackendStatus,
   SmartSelectionCandidate,
   SmartSelectionPrompt,
   SmartSelectionRequestOptions,
@@ -24,6 +25,7 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
   private requestId = 0;
   private readonly pending = new Map<number, PendingRequest>();
   private readonly preparedByKey = new Map<string, Promise<PreparedSmartSelectionSource>>();
+  private readonly statusListeners = new Set<(status: SmartSelectionBackendStatus) => void>();
 
   async prepare(source: SmartSelectionSource, signal?: AbortSignal) {
     const existing = this.preparedByKey.get(source.key);
@@ -84,6 +86,11 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
       type: 'subject', requestId: 0, sourceId: source.id,
       refineEdges: options.refineEdges, refinementQuality: options.refinementQuality
     }, options.signal);
+  }
+
+  subscribeStatus(listener: (status: SmartSelectionBackendStatus) => void) {
+    this.statusListeners.add(listener);
+    return () => this.statusListeners.delete(listener);
   }
 
   disposePreparedSource(source: PreparedSmartSelectionSource) {
@@ -150,7 +157,14 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
     if (this.worker) return this.worker;
     const worker = new Worker(new URL('./slimSam.worker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = (event: MessageEvent<SlimSamWorkerResponse>) => {
-      if (event.data.type === 'status') return;
+      if (event.data.type === 'status') {
+        if (!event.data.message) return;
+        for (const listener of this.statusListeners) listener({
+          message: event.data.message,
+          ...(event.data.progress === undefined ? {} : { progress: event.data.progress })
+        });
+        return;
+      }
       if (event.data.type === 'metric') {
         const trace = (globalThis as typeof globalThis & {
           __LIGHTTABLE_SMART_SELECTION_TRACE__?: Array<{

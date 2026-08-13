@@ -232,7 +232,8 @@ interface DecodedCandidate {
 
 const decodePrompt = async (
   runtime: { model: SamModelPort; processor: SamProcessorPort },
-  prompts: Record<string, unknown>
+  prompts: Record<string, unknown>,
+  maximumCandidates = 3
 ) => {
   if (!prepared) throw new Error('The prepared Object Selection source is no longer available.');
   const preprocessStartedAt = performance.now();
@@ -265,7 +266,7 @@ const decodePrompt = async (
         return {
           width,
           height,
-          candidates: rankedChannels.map((channel): DecodedCandidate => ({
+          candidates: rankedChannels.slice(0, maximumCandidates).map((channel): DecodedCandidate => ({
             score: scores[channel] ?? 0,
             data: selectionMaskFromLogits(
               first.data as ArrayLike<number>, channel * pixels, width, height, true
@@ -363,7 +364,10 @@ const select = async (
           ...(request.box ? { input_boxes: [[request.box]] } : {})
         }
       : { input_boxes: [[request.box]] };
-    const decoded = await decodePrompt(runtime, prompts);
+    // Normal pointer/box interaction only consumes the best candidate. Keeping
+    // the mask document-sized preserves quality while avoiding two redundant
+    // full-resolution JS conversions and worker transfers per pointer update.
+    const decoded = await decodePrompt(runtime, prompts, 1);
     width = decoded.width;
     height = decoded.height;
     results = decoded.candidates;
