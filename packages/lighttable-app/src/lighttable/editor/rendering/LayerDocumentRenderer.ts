@@ -559,9 +559,9 @@ export class LayerDocumentRenderer {
 
   bakeSelectionIntoLayerMask(layerId: LayerId) {
     const target = this.maskTextureFor(layerId);
-    return target
-      ? this.runtime.selectionRasterizer.copySelectionToMask(target)
-      : false;
+    if (!target) return false;
+    this.runtime.pixelEditHistory.captureAll(layerId, 'mask');
+    return this.runtime.selectionRasterizer.copySelectionToMask(target);
   }
 
   applyGeneratedLayerMask(
@@ -570,7 +570,12 @@ export class LayerDocumentRenderer {
     mode: 'replace' | 'intersect'
   ) {
     const target = this.maskTextureFor(layerId);
-    return target ? this.runtime.selectionRasterizer.applyLayerMask(target, mask, mode) : false;
+    if (!target) return false;
+    // Generated masks are a single semantic operation, but their pixels live
+    // only on the GPU. Capture the current mask before uploading the result so
+    // finishPixelEdit() can publish one atomic, recoverable undo step.
+    this.runtime.pixelEditHistory.captureAll(layerId, 'mask');
+    return this.runtime.selectionRasterizer.applyLayerMask(target, mask, mode);
   }
 
   loadLayerMaskAsSelection(layerId: LayerId) {
