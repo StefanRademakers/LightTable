@@ -95,6 +95,50 @@ export const readRgba8Texture = async (
   }
 };
 
+export const readR8Texture = async (
+  device: GPUDevice,
+  texture: GPUTexture,
+  width: number,
+  height: number,
+  label = 'LightTable R8 texture readback'
+) => {
+  const bytesPerRow = alignGpuBytesPerRow(width);
+  const readBuffer = device.createBuffer({
+    label,
+    size: bytesPerRow * height,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+  });
+
+  try {
+    const encoder = device.createCommandEncoder({ label });
+    encoder.copyTextureToBuffer(
+      { texture },
+      { buffer: readBuffer, bytesPerRow, rowsPerImage: height },
+      [width, height]
+    );
+    device.queue.submit([encoder.finish()]);
+    const mapped = new Uint8Array(await mapGpuBufferCopy(readBuffer));
+    return stripTextureRowPadding(mapped, width, height, 1, bytesPerRow);
+  } finally {
+    if (readBuffer.mapState === 'mapped') readBuffer.unmap();
+    readBuffer.destroy();
+  }
+};
+
+/** Expands the canonical r8 selection channel to a portable white-is-selected PNG. */
+export const selectionMaskToRgba8 = (mask: Uint8Array) => {
+  const pixels = new Uint8ClampedArray(mask.length * 4);
+  for (let index = 0; index < mask.length; index += 1) {
+    const value = mask[index]!;
+    const target = index * 4;
+    pixels[target] = value;
+    pixels[target + 1] = value;
+    pixels[target + 2] = value;
+    pixels[target + 3] = 255;
+  }
+  return pixels;
+};
+
 export const readRgba8TexturePixel = async (
   device: GPUDevice,
   texture: GPUTexture,

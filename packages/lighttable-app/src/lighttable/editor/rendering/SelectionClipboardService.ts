@@ -1,7 +1,12 @@
 import type { ImageDocument, LayerId, Rect } from '../document/documentTypes';
 import { findRasterLayer } from '../document/layerTree';
 import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
-import { encodeRgba8Png, readRgba8Texture } from '../../gpu/gpuReadback';
+import {
+  encodeRgba8Png,
+  readR8Texture,
+  readRgba8Texture,
+  selectionMaskToRgba8
+} from '../../gpu/gpuReadback';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { LayerTextureCodec } from './LayerTextureCodec';
 import type { SelectionTextureStore } from './SelectionTextureStore';
@@ -210,6 +215,26 @@ export class SelectionClipboardService {
       selectedDisplay.destroy();
       croppedTexture.destroy();
     }
+  }
+
+  /**
+   * Exports the canonical selection at document dimensions. Inpainting needs
+   * exact document-space registration, so this intentionally does not crop.
+   */
+  async exportSelectionMask() {
+    const { device, textures } = this.options;
+    if (!textures.active || !textures.mask) {
+      throw new Error('A selection is required for mask export.');
+    }
+    const { width, height } = this.options.dimensions();
+    const mask = await readR8Texture(
+      device,
+      textures.mask,
+      width,
+      height,
+      'LightTable selection mask readback'
+    );
+    return encodeRgba8Png(selectionMaskToRgba8(mask), width, height);
   }
 
   async pasteExternalImage(

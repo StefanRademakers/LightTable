@@ -698,6 +698,10 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionClipboard.exportDisplaySelection(displayTexture, bounds);
   }
 
+  async exportSelectionMask() {
+    return this.runtime.selectionClipboard.exportSelectionMask();
+  }
+
   async pasteClipboardImage(
     layerId: LayerId,
     blob: Blob,

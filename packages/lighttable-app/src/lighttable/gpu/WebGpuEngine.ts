@@ -1157,6 +1157,14 @@ export class WebGpuEngine {
     return this.documentRenderer.exportDisplaySelection(this.imageResources.finalTexture, bounds);
   }
 
+  async exportSelectionMask() {
+    if (!this.documentRenderer) {
+      throw new Error('The LightTable layer renderer is unavailable.');
+    }
+    await this.device.queue.onSubmittedWorkDone();
+    return this.documentRenderer.exportSelectionMask();
+  }
+
   async pasteClipboardImage(
     layerId: LayerId,
     blob: Blob,
