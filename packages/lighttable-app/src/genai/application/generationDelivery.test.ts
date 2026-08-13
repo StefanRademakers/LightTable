@@ -42,6 +42,7 @@ describe('GenAiEditorDeliveryTracker', () => {
   it('classifies edit workflows without depending on OpenArt vocabulary', () => {
     expect(isImageEditGeneration(withWorkflow('openart:model:image2image'))).toBe(true);
     expect(isImageEditGeneration(withWorkflow('lighttable-local:model:image.edit'))).toBe(true);
+    expect(isImageEditGeneration(withWorkflow('lighttable-local:model:image.inpaint'))).toBe(true);
     expect(isImageEditGeneration(withWorkflow('lighttable-local:model:image.create'))).toBe(false);
   });
 });

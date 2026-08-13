@@ -61,7 +61,8 @@ export const buildLocalAiRequest = (
   request: GenAiGenerationRequest,
   resolved: readonly LocalAiResolvedInput[]
 ): { readonly request: LocalAiImageJobRequestV1; readonly inputs: readonly LocalAiBinaryInput[] } => {
-  const operation = request.workflowId.endsWith(':image.create') ? 'image.create' : 'image.edit';
+  const operation = request.operation
+    ?? (request.workflowId.endsWith(':image.create') ? 'image.create' : 'image.edit');
   const dimensions = outputDimensions(request.output?.aspectRatio, request.output?.size);
   const inputById = new Map(resolved.map((entry) => [entry.reference.id, entry]));
   const ordered = request.references.map((reference) => {
@@ -69,11 +70,18 @@ export const buildLocalAiRequest = (
     if (!entry) throw new Error(`Local AI input ${reference.label} is unavailable.`);
     return entry;
   });
-  if (operation === 'image.edit' && !ordered.length) {
-    throw new Error('Local Image Edit requires a base image.');
+  if (operation !== 'image.create' && !ordered.length) {
+    throw new Error('Local image editing requires a base image.');
   }
-  const base = operation === 'image.edit' ? ordered[0] : undefined;
-  const visualReferences = base ? ordered.slice(1) : ordered;
+  const selection = request.selection ? inputById.get(request.selection.assetId) : undefined;
+  if (request.selection && !selection) throw new Error('The local AI selection mask is unavailable.');
+  const base = operation === 'image.create'
+    ? undefined
+    : request.baseImageAssetId
+      ? inputById.get(request.baseImageAssetId)
+      : ordered.find((entry) => entry.reference.id !== request.selection?.assetId);
+  if (operation !== 'image.create' && !base) throw new Error('The local AI base image is unavailable.');
+  const visualReferences = ordered.filter((entry) => entry !== base && entry !== selection);
   const inputs: LocalAiBinaryInput[] = [];
   const binary = (entry: LocalAiResolvedInput, field: string): LocalAiBinaryInput => ({
     field,
@@ -82,12 +90,13 @@ export const buildLocalAiRequest = (
     bytes: entry.payload.bytes
   });
   if (base) inputs.push(binary(base, 'base-image'));
+  if (selection) inputs.push(binary(selection, 'selection-mask'));
   visualReferences.forEach((entry, index) => inputs.push(binary(entry, `reference-${index}`)));
 
   return {
     request: {
       operation,
-      intent: operation === 'image.create' ? 'general-create' : 'general-edit',
+      intent: request.intent ?? (operation === 'image.create' ? 'general-create' : 'general-edit'),
       modelId: request.modelId,
       prompt: request.providerPrompt || request.prompt,
       output: {
@@ -97,6 +106,16 @@ export const buildLocalAiRequest = (
         includeAlpha: false
       },
       ...(base ? { baseImage: { field: 'base-image', mimeType: base.payload.mediaType } } : {}),
+      ...(selection && request.selection ? {
+        selection: {
+          mask: { field: 'selection-mask', mimeType: selection.payload.mediaType },
+          format: request.selection.format,
+          interpretation: request.selection.interpretation,
+          ...(request.selection.featherRadiusPx === undefined
+            ? {}
+            : { featherRadiusPx: request.selection.featherRadiusPx })
+        }
+      } : {}),
       ...(visualReferences.length ? {
         references: visualReferences.map((entry, index) => ({
           id: entry.reference.id,

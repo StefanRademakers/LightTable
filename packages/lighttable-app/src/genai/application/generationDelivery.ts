@@ -7,7 +7,9 @@ import type { GenAiGenerationJob } from '@lighttable/genai-core';
  */
 export const isImageEditGeneration = (job: GenAiGenerationJob): boolean => {
   const workflowId = String(job.request.workflowId).toLocaleLowerCase('en-US');
-  return workflowId.includes('image2image') || workflowId.includes('image.edit');
+  return job.request.operation === 'image.edit' || job.request.operation === 'image.inpaint'
+    || workflowId.includes('image2image') || workflowId.includes('image.edit')
+    || workflowId.includes('image.inpaint');
 };
 
 /**

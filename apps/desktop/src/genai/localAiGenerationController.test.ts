@@ -37,6 +37,34 @@ describe('LocalAiGenerationController', () => {
     expect(built.inputs.map(({ field }) => field)).toEqual(['base-image', 'reference-0']);
   });
 
+  it('maps an explicit base and document-aligned selection to inpainting fields', () => {
+    const base = asset('base'); const mask = asset('mask'); const style = asset('style');
+    const generation = {
+      ...request('lighttable-local:model:image.inpaint', [style, mask, base]),
+      operation: 'image.inpaint' as const,
+      intent: 'remove-object' as const,
+      baseImageAssetId: base.id,
+      selection: {
+        assetId: mask.id,
+        format: 'grayscale' as const,
+        interpretation: 'white-is-selected' as const
+      }
+    };
+    const resolved = [style, mask, base].map((reference) => ({
+      reference, payload: { name: reference.label, mediaType: 'image/png', bytes: new Uint8Array([1]) }
+    }));
+    const built = buildLocalAiRequest(generation, resolved);
+    expect(built.request).toMatchObject({
+      operation: 'image.inpaint', intent: 'remove-object',
+      baseImage: { field: 'base-image' },
+      selection: { mask: { field: 'selection-mask' }, interpretation: 'white-is-selected' }
+    });
+    expect(built.request.references?.map(({ id }) => id)).toEqual(['style']);
+    expect(built.inputs.map(({ field }) => field)).toEqual([
+      'base-image', 'selection-mask', 'reference-0'
+    ]);
+  });
+
   it('downloads every completed result through the private provider client', async () => {
     const result = { jobId: 'job', images: [{ id: 'image', url: '/result.png', mimeType: 'image/png', width: 1, height: 1, hasAlpha: false }], generation: { providerId: 'local', providerVersion: '1', modelId: 'model' } };
     const client = { result: vi.fn().mockResolvedValue(result), downloadResult: vi.fn().mockResolvedValue(new Uint8Array([7])) };

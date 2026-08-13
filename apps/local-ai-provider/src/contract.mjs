@@ -6,17 +6,13 @@ export const PROVIDER_VERSION = '0.1.0';
 export const capabilities = Object.freeze({
   protocol: { name: PROTOCOL_NAME, version: PROTOCOL_VERSION },
   provider: { id: PROVIDER_ID, name: 'Free Local AI', version: PROVIDER_VERSION },
-  operations: ['image.create', 'image.edit'],
+  operations: ['image.create', 'image.edit', 'image.inpaint'],
   input: {
     supportsBaseImage: true,
     supportsReferences: true,
     maxReferences: 10,
-    // Selection-mask/inpainting support must only be advertised once the
-    // public job contract and native backend both consume the mask. Keeping
-    // this capability truthful prevents shared GenAI UI from exposing a
-    // workflow that this provider cannot execute yet.
-    supportsSelectionMask: false,
-    selectionMaskFormats: [],
+    supportsSelectionMask: true,
+    selectionMaskFormats: ['grayscale'],
     supportedMimeTypes: ['image/png', 'image/jpeg', 'image/webp']
   },
   output: { supportedMimeTypes: ['image/png'], supportsAlpha: false, maxImagesPerJob: 4 },
@@ -25,7 +21,7 @@ export const capabilities = Object.freeze({
     id: 'flux-2-klein-4b',
     name: 'FLUX.2 Klein 4B',
     description: 'Local Apache-2.0 image generation and editing model.',
-    operations: ['image.create', 'image.edit'],
+    operations: ['image.create', 'image.edit', 'image.inpaint'],
     settings: {
       aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'],
       outputSizes: ['1K', '2K'],
@@ -52,8 +48,13 @@ export const validateRequest = (value) => {
   if (value.modelId !== 'flux-2-klein-4b') {
     throw Object.assign(new Error(`Model ${value.modelId} is not installed.`), { code: 'MODEL_NOT_INSTALLED' });
   }
-  if (value.operation === 'image.edit' && !isRecord(value.baseImage)) {
-    throw Object.assign(new Error('image.edit requires baseImage.'), { code: 'INVALID_REQUEST' });
+  if (value.operation !== 'image.create' && !isRecord(value.baseImage)) {
+    throw Object.assign(new Error(`${value.operation} requires baseImage.`), { code: 'INVALID_REQUEST' });
+  }
+  if (value.operation === 'image.inpaint'
+    && (!isRecord(value.selection) || !isRecord(value.selection.mask)
+      || value.selection.format !== 'grayscale' || value.selection.interpretation !== 'white-is-selected')) {
+    throw Object.assign(new Error('image.inpaint requires a white-is-selected grayscale mask.'), { code: 'INVALID_REQUEST' });
   }
   return value;
 };

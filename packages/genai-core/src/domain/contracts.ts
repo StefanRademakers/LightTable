@@ -118,10 +118,27 @@ export interface GenAiRequestedOutput {
   readonly count?: number;
 }
 
+export type GenAiImageOperation = 'image.create' | 'image.edit' | 'image.inpaint';
+export type GenAiGenerationIntent = 'general-create' | 'general-edit' | 'remove-object'
+  | 'generative-fill' | 'replace-object' | 'replace-background' | 'expand-canvas'
+  | 'create-variation' | `custom:${string}`;
+
+export interface GenAiSelectionInput {
+  readonly assetId: GenAiAssetId;
+  readonly format: 'alpha' | 'grayscale';
+  readonly interpretation: 'alpha-is-selected' | 'white-is-selected';
+  readonly featherRadiusPx?: number;
+}
+
 export interface GenAiGenerationRequest {
   readonly providerId: GenAiProviderId;
   readonly modelId: GenAiModelId;
   readonly workflowId: GenAiWorkflowId;
+  /** Explicit editor semantics. Adapters translate these to provider vocabulary. */
+  readonly operation?: GenAiImageOperation;
+  readonly intent?: GenAiGenerationIntent;
+  readonly baseImageAssetId?: GenAiAssetId;
+  readonly selection?: GenAiSelectionInput;
   /** Human-readable prompt retained exactly as edited. */
   readonly prompt: string;
   /** Provider-position prompt after stable asset tokens are resolved. */

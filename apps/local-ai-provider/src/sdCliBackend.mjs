@@ -54,7 +54,7 @@ export class StableDiffusionCppBackend {
       args.push('--ref-image', base.path);
     } else if (request.operation === 'image.inpaint') {
       const base = files.get(request.baseImage.field);
-      const selection = files.get(request.selectionMask.field);
+      const selection = files.get(request.selection.mask.field);
       if (!base) throw Object.assign(new Error('Base image multipart field is missing.'), { code: 'INVALID_REQUEST' });
       if (!selection) throw Object.assign(new Error('Selection mask multipart field is missing.'), { code: 'INVALID_REQUEST' });
       args.push('--init-img', base.path, '--mask', selection.path);
