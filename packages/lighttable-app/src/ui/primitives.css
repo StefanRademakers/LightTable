@@ -464,6 +464,34 @@ select option:checked {
   background: var(--lt-accent-selected);
 }
 
+.context-menu__item--selected,
+.context-menu .context-menu__item--selected:hover,
+.context-menu .context-menu__item--selected:focus-visible {
+  color: #fff;
+  background: var(--lt-accent-strong);
+}
+
+.context-menu--select {
+  padding: 0;
+  border-color: var(--lt-accent-strong);
+  border-radius: var(--lt-control-radius);
+  background: var(--lt-surface-control);
+}
+
+.context-menu--select .context-menu__item {
+  height: var(--lt-control-height);
+  min-height: var(--lt-control-height);
+  padding: 0 8px;
+  border-radius: 0;
+  font-size: var(--lt-control-text-size);
+}
+
+.context-menu--select .context-menu__item:has(.context-menu__item-label > small) {
+  height: auto;
+  min-height: 42px;
+  padding-block: 5px;
+}
+
 .context-menu__item:disabled,
 .context-menu__item--disabled {
   color: var(--lt-text-disabled);

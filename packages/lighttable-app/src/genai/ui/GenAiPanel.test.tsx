@@ -64,6 +64,15 @@ describe('GenAiPanel visual references', () => {
     expect(markup).not.toContain('Loading image model');
   });
 
+  it('does not spend composer space on unavailable provider choices', () => {
+    const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
+      projectName="Project" models={[model]} workflow={workflow('text2image')} selectedModelId={modelId}
+      selectedMode="text2image" values={{ prompt: 'Test' }} />);
+    expect(markup).not.toContain('ComfyUI');
+    expect(markup).not.toContain('Higgsfield');
+    expect(markup).not.toContain('genai-panel__provider-row');
+  });
+
   it('offers a remove action for referenced assets', () => {
     const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
       projectName="Project" models={[model]} workflow={workflow('image2image')} selectedModelId={modelId}

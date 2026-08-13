@@ -11,6 +11,7 @@ export interface ContextMenuOption<T extends string> {
   disabledReason?: string;
   icon?: ReactNode;
   status?: 'connected' | 'disconnected';
+  selected?: boolean;
   separatorBefore?: boolean;
   children?: Array<ContextMenuOption<T>>;
 }
@@ -22,6 +23,8 @@ interface ContextMenuProps<T extends string> {
   onClose: () => void;
   options: Array<ContextMenuOption<T>>;
   placement?: 'auto' | 'above' | 'below';
+  className?: string;
+  width?: number;
 }
 
 export function ContextMenu<T extends string>({
@@ -30,7 +33,9 @@ export function ContextMenu<T extends string>({
   y,
   onClose,
   options,
-  placement = 'auto'
+  placement = 'auto',
+  className,
+  width
 }: ContextMenuProps<T>) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const closeSubmenuTimeoutRef = useRef<number | null>(null);
@@ -73,7 +78,9 @@ export function ContextMenu<T extends string>({
         ? document.activeElement
         : null;
       const frame = window.requestAnimationFrame(() => {
-        menuRef.current?.querySelector<HTMLElement>(':scope > .context-menu__item-wrap > .context-menu__item')?.focus();
+        const menu = menuRef.current;
+        (menu?.querySelector<HTMLElement>(':scope > .context-menu__item-wrap > .context-menu__item[aria-checked="true"]')
+          ?? menu?.querySelector<HTMLElement>(':scope > .context-menu__item-wrap > .context-menu__item'))?.focus();
       });
       return () => window.cancelAnimationFrame(frame);
     }
@@ -165,6 +172,7 @@ export function ContextMenu<T extends string>({
       }}
       className={[
         'context-menu',
+        !isSubmenu ? className ?? '' : '',
         isSubmenu ? 'context-menu--submenu' : '',
         isSubmenu && submenuDirection === 'left' ? 'context-menu--submenu-left' : '',
         isSubmenu && submenuDirection === 'right' ? 'context-menu--submenu-right' : ''
@@ -172,7 +180,9 @@ export function ContextMenu<T extends string>({
       role="menu"
       data-editor-native-tab-navigation
       aria-label={isSubmenu ? 'Submenu' : 'Context menu'}
-      style={isSubmenu ? { top: `${-8 + submenuOffset}px` } : { left: position.left, top: position.top }}
+      style={isSubmenu
+        ? { top: `${-8 + submenuOffset}px` }
+        : { left: position.left, top: position.top, ...(width ? { width, minWidth: width } : {}) }}
       onMouseEnter={() => {
         if (!isSubmenu) return;
         clearCloseSubmenuTimeout();
@@ -247,11 +257,13 @@ export function ContextMenu<T extends string>({
               type="button"
               className={[
                 'context-menu__item',
+                option.selected ? 'context-menu__item--selected' : '',
                 hasChildren ? 'context-menu__item--has-children' : '',
                 option.disabled ? 'context-menu__item--disabled' : ''
               ].filter(Boolean).join(' ')}
-              role="menuitem"
+              role={option.selected === undefined ? 'menuitem' : 'menuitemradio'}
               aria-disabled={option.disabled || undefined}
+              aria-checked={option.selected || undefined}
               aria-haspopup={hasChildren ? 'menu' : undefined}
               aria-expanded={hasChildren ? submenuOpen : undefined}
               title={option.disabled ? option.disabledReason ?? 'Unavailable in the current context.' : undefined}

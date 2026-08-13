@@ -103,17 +103,19 @@ const GenAiFeaturedSelect = ({ field, value, icon, update }: {
   icon: string;
   update: (value: string) => void;
 }) => {
-  const [menu, setMenu] = React.useState<{ readonly x: number; readonly y: number }>();
+  const [menu, setMenu] = React.useState<{ readonly x: number; readonly y: number; readonly width: number }>();
   const selected = String(value ?? field.defaultValue ?? '');
   const selectedLabel = field.options?.find((option) => option.value === selected)?.label ?? selected;
-  return <div className="genai-panel__featured-setting">
+  return <div className={`genai-panel__featured-setting${menu ? ' is-open' : ''}`}>
     <button type="button" aria-label={field.label} aria-haspopup="menu" aria-expanded={Boolean(menu)} onClick={(event) => {
-      const bounds = event.currentTarget.getBoundingClientRect();
-      setMenu({ x: bounds.left, y: bounds.top - 2 });
+      const bounds = event.currentTarget.parentElement?.getBoundingClientRect()
+        ?? event.currentTarget.getBoundingClientRect();
+      setMenu({ x: bounds.left, y: bounds.top - 2, width: bounds.width });
     }}>
       <span className="genai-panel__setting-icon">{icon}</span><strong>{selectedLabel}</strong>
     </button>
     <ContextMenu open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} placement="above"
+      className="context-menu--select" width={menu?.width}
       onClose={() => setMenu(undefined)}
       options={(field.options ?? []).map((option) => ({
         value: option.value,
@@ -121,7 +123,7 @@ const GenAiFeaturedSelect = ({ field, value, icon, update }: {
         ...(QUALITY_DESCRIPTIONS[option.value.toLocaleLowerCase('en-US')]
           ? { description: QUALITY_DESCRIPTIONS[option.value.toLocaleLowerCase('en-US')] }
           : {}),
-        icon: option.value === selected ? '✓' : undefined,
+        selected: option.value === selected,
         onClick: () => update(option.value)
       }))} />
   </div>;
@@ -215,14 +217,6 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                 { value: 'image2image', label: 'Image Edit', disabled: !model?.capabilities.includes('image2image') },
                 { value: 'text2image', label: 'Image Create', disabled: !model?.capabilities.includes('text2image') }
               ]} />
-            <div className="genai-panel__provider-row">
-              <div className="segmented-control" aria-label="Provider">
-                <button type="button" className="segmented-control__button" disabled>ComfyUI</button>
-                <button type="button" className="segmented-control__button" disabled>Higgsfield</button>
-                <button type="button" className="segmented-control__button segmented-control__button--active">OpenArt</button>
-              </div>
-              <span className="genai-panel__provider-light" title="OpenArt connected" />
-            </div>
             <select className="form-input genai-panel__workflow" value={selectedModelId ?? workflow.modelId}
               aria-label="Generation model" onChange={(event) => onModelChange?.(event.currentTarget.value as GenAiModelSummary['id'])}>
               {models.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
