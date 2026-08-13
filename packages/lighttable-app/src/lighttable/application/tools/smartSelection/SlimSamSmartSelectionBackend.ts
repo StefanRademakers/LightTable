@@ -158,6 +158,7 @@ export class SlimSamSmartSelectionBackend implements SmartSelectionBackend {
           }>;
         }).__LIGHTTABLE_SMART_SELECTION_TRACE__;
         trace?.push({ event: 'backend-metric', detail: {
+          modelId: this.identity.modelId,
           phase: event.data.phase,
           durationMs: event.data.durationMs,
           backend: event.data.backend

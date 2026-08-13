@@ -58,8 +58,8 @@ technical requirements remain authoritative in
 - [ ] Phase 6 - Benchmark SAM 2.1 against SlimSAM
   - [ ] Measure initialization, encoder/decoder p50/p95, peak GPU/system memory,
         IoU, boundary score, thin-structure retention and prompt stability.
-  - [ ] Perform visual review of the fixed corpus in addition to numeric scoring.
-  - [ ] Record the evidence for retaining or promoting SAM 2.1 Small as default.
+  - [x] Perform visual review of the fixed corpus in addition to numeric scoring.
+  - [x] Record the evidence for retaining or promoting SAM 2.1 Small as default.
   - Acceptance: SAM 2.1 Small is promoted only when it measurably and visibly
     improves real LightTable cases without unacceptable latency or memory cost.
 

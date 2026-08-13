@@ -35,6 +35,10 @@ import { brushPresetChange, resolveBrushPreset } from './editor/tools/brush/brus
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { SampledBrushSourceController } from './application/tools/paint/sampledBrush';
 import { SmartSelectionToolController } from './application/tools/smartSelection/SmartSelectionToolController';
+import {
+  configuredSmartSelectionBackendProfile,
+  createSmartSelectionBackend
+} from './application/tools/smartSelection/smartSelectionBackendFactory';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
@@ -1951,7 +1955,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selection: selectionSessionController,
     setStatus: setGradeStatus,
     setDraft: setSelectionDraft
-  });
+  }, createSmartSelectionBackend(configuredSmartSelectionBackendProfile()));
   const smartSelectionController = smartSelectionControllerRef.current;
   const smartSelectionDisposeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {

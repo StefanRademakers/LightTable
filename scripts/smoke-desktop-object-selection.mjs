@@ -13,8 +13,10 @@ const optionValue = (name, fallback) => {
   return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
 };
 const caseName = optionValue('--case', path.parse(sourceFile).name).replace(/[^a-z0-9_-]+/gi, '-');
+const backendProfile = optionValue('--backend', 'balanced');
 const clickXRatio = Number(optionValue('--x', '0.68'));
 const clickYRatio = Number(optionValue('--y', '0.4'));
+const inferenceTimeoutMs = Number(optionValue('--inference-timeout', '45000'));
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'object-selection-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, `${caseName}-committed.png`);
@@ -22,6 +24,12 @@ const reportPath = path.join(outputDirectory, `${caseName}-report.json`);
 
 if (![clickXRatio, clickYRatio].every((value) => Number.isFinite(value) && value >= 0 && value <= 1)) {
   throw new Error('Object Selection smoke --x and --y must be numbers between 0 and 1.');
+}
+if (!Number.isFinite(inferenceTimeoutMs) || inferenceTimeoutMs < 1_000) {
+  throw new Error('Object Selection smoke --inference-timeout must be at least 1000 ms.');
+}
+if (!['balanced', 'sam2-small', 'slimsam'].includes(backendProfile)) {
+  throw new Error('Object Selection smoke --backend must be balanced, sam2-small or slimsam.');
 }
 
 await access(sourceFile);
@@ -42,8 +50,23 @@ const app = await electron.launch({
 });
 
 let failure;
+let failureEvidence;
 try {
-  const page = await app.firstWindow({ timeout: 30_000 });
+  let page = await app.firstWindow({ timeout: 30_000 });
+  await page.waitForTimeout(500);
+  page = app.windows().find((candidate) => candidate.url().startsWith('http://localhost:')) ?? page;
+  if (backendProfile !== 'balanced') {
+    await app.evaluate(async ({ BrowserWindow }, profile) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed());
+      if (!window) throw new Error('No LightTable window is available for backend selection.');
+      const target = new URL(window.webContents.getURL());
+      target.searchParams.set('lighttable-smart-selection-backend', profile);
+      await window.loadURL(target.toString());
+    }, backendProfile);
+    await page.waitForURL((url) => url.searchParams.get('lighttable-smart-selection-backend') === backendProfile, {
+      timeout: 30_000
+    });
+  }
   const pageErrors = [];
   const consoleErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
@@ -107,7 +130,7 @@ try {
     await page.mouse.click(clickPoint.x, clickPoint.y);
     if (refineNegative) {
       await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
-        ?.some((entry) => entry.event === 'candidate-published'), undefined, { timeout: 45_000 });
+        ?.some((entry) => entry.event === 'candidate-published'), undefined, { timeout: inferenceTimeoutMs });
       await canvas.dispatchEvent('pointerdown', {
         pointerId: 72, pointerType: 'mouse', button: 0, buttons: 1,
         clientX: clickPoint.x - 90, clientY: clickPoint.y, altKey: true
@@ -122,7 +145,7 @@ try {
   }
   try {
     await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
-      ?.some((entry) => entry.event === 'candidate-published'), undefined, { timeout: 45_000 });
+      ?.some((entry) => entry.event === 'candidate-published'), undefined, { timeout: inferenceTimeoutMs });
     const applyButton = objectSelectionSettings.getByRole('button', { name: 'Apply', exact: true });
     await applyButton.click();
     await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
@@ -139,6 +162,7 @@ try {
       smartSelection: globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
     }));
     const status = await page.locator('body').innerText();
+    failureEvidence = { trace, status };
     throw new Error(`Object Selection did not publish an active raster selection: ${JSON.stringify({ trace, status })}`);
   }
   let visibleCommitMs;
@@ -175,6 +199,16 @@ try {
   await page.screenshot({ path: screenshotPath });
   const selectionTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__);
   const smartSelectionTrace = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__);
+  const observedModelIds = [...new Set((smartSelectionTrace ?? [])
+    .filter((entry) => entry.event === 'backend-metric')
+    .map((entry) => entry.detail?.modelId)
+    .filter(Boolean))];
+  const expectedModelId = backendProfile === 'sam2-small'
+    ? 'onnx-community/sam2.1-hiera-small-ONNX'
+    : backendProfile === 'slimsam' ? 'Xenova/slimsam-77-uniform' : undefined;
+  if (expectedModelId && !observedModelIds.includes(expectedModelId)) {
+    throw new Error(`Requested ${backendProfile}, but observed metrics from ${JSON.stringify(observedModelIds)}.`);
+  }
   const publishedCandidates = smartSelectionTrace
     ?.filter((entry) => entry.event === 'candidate-published') ?? [];
   const finalCoverage = publishedCandidates.at(-1)?.detail;
@@ -184,7 +218,8 @@ try {
     );
   }
   const report = {
-    caseName, sourceFile, interactionMode, refineNegative, clickXRatio, clickYRatio,
+    caseName, sourceFile, backendProfile, observedModelIds,
+    interactionMode, refineNegative, clickXRatio, clickYRatio,
     visibleCommitMs, finalCoverage, selectionTrace, smartSelectionTrace, pageErrors,
     consoleErrors: unexpectedConsoleErrors, runtimeWarnings: consoleErrors.length, screenshotPath
   };
@@ -195,6 +230,18 @@ try {
   );
 } catch (error) {
   failure = error;
+  await writeFile(reportPath, `${JSON.stringify({
+    caseName,
+    sourceFile,
+    backendProfile,
+    interactionMode,
+    refineNegative,
+    clickXRatio,
+    clickYRatio,
+    passed: false,
+    error: error instanceof Error ? error.message : String(error),
+    evidence: failureEvidence
+  }, null, 2)}\n`);
   process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
 } finally {
   await app.close();
