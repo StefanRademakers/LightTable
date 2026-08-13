@@ -29,17 +29,16 @@ describe('TextInputBridge', () => {
   it('maps native deletion keys even when React omits beforeinput', () => {
     const key = (value: string, overrides: Partial<{
       ctrlKey: boolean; metaKey: boolean; altKey: boolean
-    }> = {}) => textInputDeleteCommandFromKey({
+    }> = {}, platform = 'Win32') => textInputDeleteCommandFromKey({
       key: value, ctrlKey: false, metaKey: false, altKey: false, ...overrides
-    });
+    }, platform);
     expect(key('Backspace')).toEqual({ kind: 'delete', direction: 'backward', unit: 'grapheme' });
     expect(key('Delete', { ctrlKey: true }))
       .toEqual({ kind: 'delete', direction: 'forward', unit: 'word' });
     expect(key('Backspace', { altKey: true })).toBeNull();
     expect(key('A')).toBeNull();
-    expect(textInputDeleteCommandFromKey({
-      key: 'Backspace', ctrlKey: false, metaKey: false, altKey: true
-    }, 'MacIntel')).toEqual({ kind: 'delete', direction: 'backward', unit: 'word' });
+    expect(key('Backspace', { altKey: true }, 'MacIntel'))
+      .toEqual({ kind: 'delete', direction: 'backward', unit: 'word' });
   });
 
   it('uses native Windows and macOS text navigation conventions', () => {

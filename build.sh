@@ -3,14 +3,88 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "[LightTable] Node.js was not found in PATH."
+fail() {
+  echo "[LightTable] $*" >&2
   exit 1
-fi
+}
 
-if ! command -v npm >/dev/null 2>&1; then
-  echo "[LightTable] npm was not found in PATH."
-  exit 1
+require_value() {
+  local name="$1"
+  [ -n "${!name:-}" ] || fail "macOS notarization requires $name."
+}
+
+signature_details() {
+  codesign --display --verbose=4 "$1" 2>&1
+}
+
+signature_field() {
+  local details="$1"
+  local field="$2"
+  printf '%s\n' "$details" | sed -n "s/^${field}=//p" | head -n 1
+}
+
+validate_signature_target() {
+  local target="$1"
+  local expected_kind="$2"
+  local expected_team="$3"
+  local details signature team
+
+  details="$(signature_details "$target")" || fail "Could not inspect the signature for: $target"
+  signature="$(signature_field "$details" "Signature")"
+  team="$(signature_field "$details" "TeamIdentifier")"
+
+  [ -n "$team" ] || fail "No TeamIdentifier was reported for: $target"
+
+  if [ "$expected_kind" = "adhoc" ]; then
+    [ "$signature" = "adhoc" ] || fail "Mixed macOS signing: expected an ad-hoc signature for $target, found '$signature'."
+    [ "$team" = "not set" ] || fail "Mixed macOS signing: expected TeamIdentifier=not set for $target, found '$team'."
+  else
+    [ "$signature" != "adhoc" ] \
+      || fail "Mixed macOS signing: expected a Developer ID signature for $target, found ad-hoc."
+    [ "$team" = "$expected_team" ] || fail "Mixed macOS signing: expected TeamIdentifier=$expected_team for $target, found '$team'."
+  fi
+}
+
+validate_macos_app() {
+  local app_path="$1"
+  local expected_kind="$2"
+  local expected_team="${3:-}"
+  local frameworks_path="$app_path/Contents/Frameworks"
+  local electron_framework="$frameworks_path/Electron Framework.framework/Versions/A/Electron Framework"
+  local target
+
+  [ -d "$app_path" ] || fail "Expected packaged macOS app was not found: $app_path"
+  [ -f "$electron_framework" ] || fail "Electron Framework executable was not found: $electron_framework"
+
+  echo "[LightTable] Validating macOS code signing: $app_path"
+  codesign --verify --deep --strict --verbose=2 "$app_path" \
+    || fail "macOS code-signing verification failed for: $app_path"
+
+  # Validate the main bundle and the framework binary explicitly. The latter
+  # is the dyld-loaded image that exposed mixed Team IDs in private test ZIPs.
+  validate_signature_target "$app_path" "$expected_kind" "$expected_team"
+  validate_signature_target "$electron_framework" "$expected_kind" "$expected_team"
+
+  # A deep validity check alone permits consistently valid but differently
+  # identified nested code. Check every helper/framework/dylib as well so a
+  # mixed Team ID can never reach the release ZIP.
+  while IFS= read -r -d '' target; do
+    validate_signature_target "$target" "$expected_kind" "$expected_team"
+  done < <(find "$frameworks_path" \
+    \( -type d \( -name '*.app' -o -name '*.framework' -o -name '*.xpc' \) \
+       -o -type f -name '*.dylib' \) \
+    -print0)
+}
+
+command -v node >/dev/null 2>&1 || fail "Node.js was not found in PATH."
+
+command -v npm >/dev/null 2>&1 || fail "npm was not found in PATH."
+
+if [ "$(uname -s)" = "Darwin" ] && [ "${LIGHTTABLE_MAC_NOTARIZE:-false}" = "true" ]; then
+  require_value LIGHTTABLE_MAC_SIGN_IDENTITY
+  require_value APPLE_ID
+  require_value APPLE_APP_PASSWORD
+  require_value APPLE_TEAM_ID
 fi
 
 if [ ! -d "node_modules" ]; then
@@ -21,20 +95,72 @@ fi
 echo "[LightTable] Running boundary checks, typechecking, tests and builds..."
 LIGHTTABLE_PACKAGE_OUT=out-verify npm run verify
 
-desktop_arch="$(uname -m)"
-case "$desktop_arch" in
-  x86_64) desktop_arch="x64" ;;
-  arm64|aarch64) desktop_arch="arm64" ;;
-  *)
-    echo "[LightTable] Unsupported macOS architecture: $desktop_arch"
-    exit 1
-    ;;
-esac
-
 if [ "$(uname -s)" = "Darwin" ]; then
-  echo "[LightTable] Creating macOS test release ZIP (${desktop_arch})..."
-  LIGHTTABLE_PACKAGE_OUT=out-verify npm run make -w @lighttable/desktop -- \
-    --skip-package --platform darwin --arch "$desktop_arch" --targets zip
+  command -v codesign >/dev/null 2>&1 || fail "codesign was not found."
+  command -v ditto >/dev/null 2>&1 || fail "ditto was not found."
+
+  desktop_arch="$(uname -m)"
+  case "$desktop_arch" in
+    x86_64) desktop_arch="x64" ;;
+    arm64|aarch64) desktop_arch="arm64" ;;
+    *) fail "Unsupported macOS architecture: $desktop_arch" ;;
+  esac
+
+  app_path="apps/desktop/out-verify/LightTable-darwin-${desktop_arch}/LightTable.app"
+  release_dir="apps/desktop/out-verify/release/darwin/${desktop_arch}"
+  release_version="$(node -p "require('./apps/desktop/package.json').version")"
+  mac_zip="$release_dir/LightTable-${release_version}-darwin-${desktop_arch}.zip"
+
+  if [ -n "${LIGHTTABLE_MAC_SIGN_IDENTITY:-}" ]; then
+    signing_kind="developer-id"
+    app_details="$(signature_details "$app_path")" || fail "Could not inspect the packaged app signature."
+    signing_team="$(signature_field "$app_details" "TeamIdentifier")"
+    [ -n "$signing_team" ] && [ "$signing_team" != "not set" ] \
+      || fail "Developer ID build has no TeamIdentifier."
+    if [ -n "${APPLE_TEAM_ID:-}" ] && [ "$signing_team" != "$APPLE_TEAM_ID" ]; then
+      fail "Packaged app TeamIdentifier '$signing_team' does not match APPLE_TEAM_ID '$APPLE_TEAM_ID'."
+    fi
+  else
+    signing_kind="adhoc"
+    signing_team=""
+  fi
+
+  validate_macos_app "$app_path" "$signing_kind" "$signing_team"
+
+  mkdir -p "$release_dir"
+  zip_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/lighttable-release.XXXXXX")"
+  extract_dir="$(mktemp -d "${TMPDIR:-/tmp}/lighttable-verify.XXXXXX")"
+  cleanup_release_temp() {
+    local temp_path
+    for temp_path in "$zip_tmp_dir" "$extract_dir"; do
+      case "$(basename "$temp_path")" in
+        lighttable-release.*|lighttable-verify.*)
+          [ -d "$temp_path" ] && rm -rf -- "$temp_path"
+          ;;
+        *)
+          echo "[LightTable] Refusing to remove unexpected temporary path: $temp_path" >&2
+          ;;
+      esac
+    done
+  }
+  trap cleanup_release_temp EXIT
+
+  staged_zip="$zip_tmp_dir/$(basename "$mac_zip")"
+  echo "[LightTable] Creating macOS release ZIP from the validated package (${desktop_arch})..."
+  ditto -c -k --sequesterRsrc --keepParent "$app_path" "$staged_zip" \
+    || fail "Could not create the macOS release ZIP."
+  ditto -x -k "$staged_zip" "$extract_dir" \
+    || fail "Could not extract the macOS release ZIP for verification."
+  validate_macos_app "$extract_dir/LightTable.app" "$signing_kind" "$signing_team"
+  mv -f "$staged_zip" "$mac_zip"
+
+  if [ "$signing_kind" = "adhoc" ]; then
+    signing_summary="ad-hoc private test build (not notarized)"
+  elif [ "${LIGHTTABLE_MAC_NOTARIZE:-false}" = "true" ]; then
+    signing_summary="Developer ID signed and notarized"
+  else
+    signing_summary="Developer ID signed (not notarized)"
+  fi
 fi
 
 echo
@@ -42,14 +168,6 @@ echo "[LightTable] Build completed successfully."
 echo "[LightTable] Web: apps/web/dist"
 if [ "$(uname -s)" = "Darwin" ]; then
   echo "[LightTable] Desktop verification package: apps/desktop/out-verify/LightTable-darwin-${desktop_arch}"
-  mac_zip="$(find apps/desktop/out-verify/make/zip/darwin/${desktop_arch} -maxdepth 1 -name 'LightTable-*.zip' -print -quit 2>/dev/null || true)"
-  if [ -z "$mac_zip" ]; then
-    echo "[LightTable] Expected macOS ZIP was not created."
-    exit 1
-  fi
+  echo "[LightTable] Signing: $signing_summary"
   echo "[LightTable] macOS test release: $mac_zip"
-  if [ -z "${LIGHTTABLE_MAC_SIGN_IDENTITY:-}" ]; then
-    echo "[LightTable] Signing: ad-hoc test signature (not notarized)"
-    echo "[LightTable] Testers must approve the app once in System Settings > Privacy & Security."
-  fi
 fi
