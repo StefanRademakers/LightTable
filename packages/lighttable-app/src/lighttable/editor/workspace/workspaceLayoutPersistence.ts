@@ -1,10 +1,14 @@
 import type { SerializedDockview } from 'dockview-react';
 
 export const LIGHTTABLE_WORKSPACE_LAYOUT_VERSION = 1;
-export const LIGHTTABLE_WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v6';
+export const LIGHTTABLE_WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v7';
 export const LIGHTTABLE_WORKSPACE_LEGACY_KEYS = ['lighttable.workspace.layout.v5'] as const;
 
-export type LightTableWorkspacePreset = 'default' | 'custom';
+export type LightTableWorkspacePreset =
+  | 'default'
+  | 'photo-edit'
+  | 'ai-generation'
+  | 'custom';
 
 export interface PersistedLightTableWorkspace {
   readonly version: typeof LIGHTTABLE_WORKSPACE_LAYOUT_VERSION;
@@ -33,7 +37,10 @@ const parseCurrent = (raw: string): PersistedLightTableWorkspace | null => {
   const parsed: unknown = JSON.parse(raw);
   if (!isRecord(parsed)
     || parsed.version !== LIGHTTABLE_WORKSPACE_LAYOUT_VERSION
-    || (parsed.preset !== 'default' && parsed.preset !== 'custom')
+    || (parsed.preset !== 'default'
+      && parsed.preset !== 'photo-edit'
+      && parsed.preset !== 'ai-generation'
+      && parsed.preset !== 'custom')
     || !isRecord(parsed.layout)) return null;
   return {
     version: LIGHTTABLE_WORKSPACE_LAYOUT_VERSION,

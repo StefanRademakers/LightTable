@@ -19,6 +19,7 @@ import {
 import type { LightTableGenAiService } from '../../platform/LightTableHost';
 import {
   applyGenAiImageCreateDefaults,
+  applyGenAiOutputSizeDefault,
   genAiDocumentContextKey,
   matchGenAiValuesToDocument,
   type GenAiDocumentContext
@@ -40,7 +41,10 @@ export interface GenAiSetupSnapshot {
   readonly mentionOptions: readonly GenAiAssetMentionOption[];
   readonly assetPreviews: Readonly<Record<string, string>>;
   readonly requestAssetPreview: (assetId: GenAiAssetId) => void;
+  readonly refreshAssets: () => Promise<void>;
   readonly addAssetReference: (assetId: GenAiAssetId) => void;
+  readonly importAssetReference: (file: File) => Promise<GenAiAssetReference | undefined>;
+  readonly removeAssetReference: (assetId: GenAiAssetId) => void;
   readonly generating: boolean;
   readonly generationError?: string;
   readonly referenceIssue?: string;
@@ -82,6 +86,10 @@ export const useGenAiSetupController = (
   const documentContextKey = genAiDocumentContextKey(documentContext);
   const documentContextRef = React.useRef(documentContext);
   documentContextRef.current = documentContext;
+  const valuesRef = React.useRef(values);
+  valuesRef.current = values;
+  const workflowRef = React.useRef(workflow);
+  workflowRef.current = workflow;
 
   React.useEffect(() => {
     setPersistedSetup(null);
@@ -177,8 +185,25 @@ export const useGenAiSetupController = (
       } else if (persistedSetup?.modelId === nextWorkflow.modelId && persistedSetup.mode === nextWorkflow.mode) {
         nextValues = { ...providerDefaults, ...persistedSetup.values };
       } else {
-        nextValues = applyGenAiImageCreateDefaults(nextWorkflow, providerDefaults);
+        nextValues = applyGenAiImageCreateDefaults(
+          nextWorkflow,
+          applyGenAiOutputSizeDefault(nextWorkflow, providerDefaults)
+        );
       }
+      const previousWorkflow = workflowRef.current;
+      const previousValues = valuesRef.current;
+      const previousPromptField = previousWorkflow?.fields.find(({ role }) => role === 'prompt');
+      const previousReferenceField = previousWorkflow?.fields.find(({ role }) => role === 'references');
+      const nextPromptField = nextWorkflow.fields.find(({ role }) => role === 'prompt');
+      const nextReferenceField = nextWorkflow.fields.find(({ role }) => role === 'references');
+      const previousPrompt = previousPromptField ? previousValues[previousPromptField.key] : previousValues.prompt;
+      const previousReferences = previousReferenceField ? previousValues[previousReferenceField.key] : undefined;
+      nextValues = {
+        ...nextValues,
+        ...(nextPromptField && typeof previousPrompt === 'string' ? { [nextPromptField.key]: previousPrompt } : {}),
+        ...(nextReferenceField && Array.isArray(previousReferences)
+          ? { [nextReferenceField.key]: previousReferences } : {})
+      };
       const activeDocument = documentContextRef.current;
       setValues(activeDocument
         ? matchGenAiValuesToDocument(nextWorkflow, nextValues, activeDocument)
@@ -237,6 +262,16 @@ export const useGenAiSetupController = (
     }).catch(() => undefined);
   }, [projectId, service]);
 
+  const refreshAssets = React.useCallback(async () => {
+    if (!service || !projectId) return;
+    setGenerationError(undefined);
+    try {
+      await service.refreshProjectAssets(projectId);
+    } catch (reason) {
+      setGenerationError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, [projectId, service]);
+
   const mentionOptions = React.useMemo(() => createGenAiAssetMentionOptions(assets), [assets]);
   const addAssetReference = React.useCallback((assetId: GenAiAssetId) => {
     const option = mentionOptions.find(({ asset }) => asset.id === assetId);
@@ -255,6 +290,65 @@ export const useGenAiSetupController = (
           : `${currentPrompt}${currentPrompt && !/\s$/u.test(currentPrompt) ? ' ' : ''}${option.token}` };
     });
   }, [mentionOptions, workflow]);
+  const importAssetReference = React.useCallback(async (file: File) => {
+    if (!service) {
+      setGenerationError('Local reference images are unavailable in this host.');
+      return undefined;
+    }
+    try {
+      setGenerationError(undefined);
+      const imported = projectId
+        ? await service.importProjectAsset(projectId, {
+          name: file.name,
+          mediaType: file.type,
+          bytes: new Uint8Array(await file.arrayBuffer())
+        })
+        : {
+          id: `session-${crypto.randomUUID()}` as GenAiAssetId,
+          projectId: '',
+          label: file.name,
+          mediaType: file.type,
+          previewId: `session-${file.name}`
+        } satisfies GenAiAssetReference;
+      setAssets((current) => current.some(({ id }) => id === imported.id) ? current : [...current, imported]);
+      if (!projectId) {
+        const preview = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => typeof reader.result === 'string'
+            ? resolve(reader.result)
+            : reject(new Error('The local reference preview could not be decoded.'));
+          reader.onerror = () => reject(reader.error ?? new Error('The local reference preview could not be read.'));
+          reader.readAsDataURL(file);
+        });
+        setAssetPreviews((current) => ({ ...current, [imported.id]: preview }));
+      }
+      const referenceField = workflow?.fields.find(({ role }) => role === 'references');
+      if (referenceField) setValues((current) => {
+        const references = Array.isArray(current[referenceField.key])
+          ? current[referenceField.key] as GenAiAssetReference[] : [];
+        return references.some(({ id }) => id === imported.id) ? current
+          : { ...current, [referenceField.key]: [...references, imported] };
+      });
+      previewRequests.current.delete(imported.id);
+      return imported;
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      setGenerationError(message.includes("No handler registered for 'lighttable:genai-project-asset-import'")
+        ? 'Restart the LightTable desktop process once to enable local reference imports.'
+        : message);
+      return undefined;
+    }
+  }, [projectId, service, workflow]);
+  const removeAssetReference = React.useCallback((assetId: GenAiAssetId) => {
+    const referenceField = workflow?.fields.find(({ role }) => role === 'references');
+    if (!referenceField) return;
+    setValues((current) => ({
+      ...current,
+      [referenceField.key]: Array.isArray(current[referenceField.key])
+        ? (current[referenceField.key] as GenAiAssetReference[]).filter(({ id }) => id !== assetId)
+        : []
+    }));
+  }, [workflow]);
   const prompt = String(values.prompt ?? '');
   const referenceField = workflow?.fields.find(({ role }) => role === 'references');
   const selectedReferences = React.useMemo(() => referenceField && Array.isArray(values[referenceField.key])
@@ -344,6 +438,7 @@ export const useGenAiSetupController = (
   return {
     models, selectedModelId, selectedMode, workflow, loading, error, values, setValue, setModel,
     setMode: setSelectedMode, assets, assetSections, mentionOptions, assetPreviews, requestAssetPreview, addAssetReference,
+    importAssetReference, removeAssetReference, refreshAssets,
     generating, generationError, referenceIssue, costEstimate, submission, canGenerate, generate, restoreRequest
   };
 };

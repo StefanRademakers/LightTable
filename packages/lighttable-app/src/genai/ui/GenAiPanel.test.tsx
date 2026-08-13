@@ -50,8 +50,9 @@ describe('GenAiPanel visual references', () => {
         selectedMode={mode} values={{ prompt: 'Use @Portrait', visualReferences: [asset] }}
         mentionOptions={createGenAiAssetMentionOptions([asset])} />);
       expect(markup).toContain('aria-label="Visual references"');
-      expect(markup).toContain('Add project image');
+      expect(markup).not.toContain('Add project image');
       expect(markup).toContain('@Portrait');
+      expect(markup).toContain('Add base image');
     });
   }
 
@@ -62,6 +63,13 @@ describe('GenAiPanel visual references', () => {
     expect(markup).toContain('class="genai-panel__form"');
     expect(markup).toContain('class="genai-prompt-composer"');
     expect(markup).not.toContain('Loading image model');
+  });
+
+  it('explains every supported way to add an empty visual reference', () => {
+    const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
+      projectName="Project" models={[model]} workflow={workflow('text2image')} selectedModelId={modelId}
+      selectedMode="text2image" values={{ prompt: '', visualReferences: [] }} />);
+    expect(markup).toContain('Drag open tabs or assets here, or paste images.');
   });
 
   it('does not spend composer space on unavailable provider choices', () => {
@@ -90,6 +98,24 @@ describe('GenAiPanel visual references', () => {
       mentionOptions={createGenAiAssetMentionOptions([asset])} />);
     expect(markup).toContain('aria-label="Remove @Portrait"');
     expect(markup).toContain('1/10');
+  });
+
+  it('renders the base-image checkbox after the visual-reference well', () => {
+    const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
+      projectName="Project" models={[model]} workflow={workflow('image2image')} selectedModelId={modelId}
+      selectedMode="image2image" baseImageSelected values={{ prompt: 'Retouch', visualReferences: [asset] }}
+      mentionOptions={createGenAiAssetMentionOptions([asset])} />);
+    expect(markup).toContain('type="checkbox" checked=""');
+    expect(markup.indexOf('genai-panel__base-image')).toBeGreaterThan(markup.indexOf('genai-panel__reference-well'));
+  });
+
+  it('also exposes the optional base image in Image Create', () => {
+    const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
+      projectName="Project" models={[model]} workflow={workflow('text2image')} selectedModelId={modelId}
+      selectedMode="text2image" baseImageSelected={false} values={{ prompt: 'Create', visualReferences: [asset] }}
+      mentionOptions={createGenAiAssetMentionOptions([asset])} />);
+    expect(markup).toContain('Add base image');
+    expect(markup).not.toContain('type="checkbox" checked=""');
   });
 
   it('keeps Nano Banana aspect ratio and resolution in the fixed bottom settings row', () => {

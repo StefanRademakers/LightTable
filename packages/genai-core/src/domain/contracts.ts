@@ -235,8 +235,10 @@ export interface GenAiHostPort {
   revealResult(projectId: string, jobId: GenAiJobId): Promise<void>;
   deleteJob(projectId: string, jobId: GenAiJobId): Promise<void>;
   loadProjectAssetCatalog(projectId: string): Promise<GenAiProjectAssetCatalog>;
+  refreshProjectAssets(projectId: string): Promise<void>;
   loadProjectAssetPreview(projectId: string, assetId: GenAiAssetId): Promise<string | null>;
   loadProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<GenAiAssetPayload | null>;
+  importProjectAsset(projectId: string, asset: GenAiAssetPayload): Promise<GenAiAssetReference>;
   revealProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<void>;
   renameProjectAsset(projectId: string, assetId: GenAiAssetId, name: string): Promise<GenAiAssetReference>;
   deleteProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<void>;

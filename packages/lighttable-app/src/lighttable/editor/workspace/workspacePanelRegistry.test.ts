@@ -28,12 +28,12 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.debug,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
     ]);
     expect(panels.map((panel) => panel.content)).toEqual([
       content.layers,
@@ -41,12 +41,12 @@ describe('workspacePanelRegistry', () => {
       content.scopes,
       content.grade,
       content.lensFx,
+      content.aiHistory,
       content.effects,
-      content.text,
-      content.debug,
-      content.agent,
       content.genAi,
-      content.aiHistory
+      content.agent,
+      content.text,
+      content.debug
     ]);
     expect(panels.map((panel) => panel.contentKey)).toEqual([
       'layers',
@@ -54,12 +54,12 @@ describe('workspacePanelRegistry', () => {
       'scopes',
       'grade',
       'lensFx',
+      'aiHistory',
       'effects',
-      'text',
-      'debug',
-      'agent',
       'genAi',
-      'aiHistory'
+      'agent',
+      'text',
+      'debug'
     ]);
     expect(panels.find(({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.grade)?.title)
       .toBe('Grade');
@@ -73,11 +73,11 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
     ]);
   });
 

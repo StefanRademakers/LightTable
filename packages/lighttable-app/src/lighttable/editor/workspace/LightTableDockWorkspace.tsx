@@ -10,6 +10,7 @@ import React, {
   useRef,
   useState
 } from 'react';
+import { writeLightTableDocumentDrag } from './documentTabDrag';
 import {
   DockviewDefaultTab,
   DockviewReact,
@@ -29,6 +30,10 @@ import {
   readWorkspaceLayout,
   type LightTableWorkspacePreset
 } from './workspaceLayoutPersistence';
+import {
+  panelsForWorkspacePreset,
+  type SelectableLightTableWorkspacePreset
+} from './workspacePresets';
 
 const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 // Increment only when the intended fresh-workspace composition changes. A
@@ -129,6 +134,7 @@ interface LightTableDockWorkspaceProps {
 
 export interface LightTableDockWorkspaceHandle {
   resetLayout: () => void;
+  applyPreset: (preset: SelectableLightTableWorkspacePreset) => void;
   showPanel: (panelId: string) => void;
 }
 
@@ -339,6 +345,8 @@ const DocumentHost: React.FC<{
               className={`lighttable-document-tab${active ? ' lighttable-document-tab--active' : ''}`}
               role="tab"
               aria-selected={active}
+              draggable
+              onDragStart={(event) => writeLightTableDocumentDrag(event.dataTransfer, document.id, document.title)}
               onMouseEnter={(event) => {
                 const bounds = event.currentTarget.getBoundingClientRect();
                 const preview = event.currentTarget.querySelector<HTMLElement>('.lighttable-document-tab__preview');
@@ -620,11 +628,38 @@ export const LightTableDockWorkspace = forwardRef<
     window.queueMicrotask(() => { resettingLayoutRef.current = false; });
   }, [accessoryWidthConstraintsEnabled, saveLayout]);
 
+  const applyPreset = useCallback((preset: SelectableLightTableWorkspacePreset) => {
+    const api = apiRef.current;
+    if (!api) return;
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    resettingLayoutRef.current = true;
+    workspacePresetRef.current = preset;
+    clearWorkspaceLayout(localStorage);
+    try {
+      api.clear();
+      createDefaultLayout(
+        api,
+        panelsForWorkspacePreset(panelsRef.current, preset),
+        accessoryWidthConstraintsEnabled
+      );
+      persistWorkspaceLayout(localStorage, api.toJSON(), preset);
+    } finally {
+      window.queueMicrotask(() => { resettingLayoutRef.current = false; });
+    }
+  }, [accessoryWidthConstraintsEnabled]);
+
   const showPanel = useCallback((panelId: string) => {
     apiRef.current?.getPanel(panelId)?.api.setActive();
   }, []);
 
-  useImperativeHandle(ref, () => ({ resetLayout, showPanel }), [resetLayout, showPanel]);
+  useImperativeHandle(
+    ref,
+    () => ({ resetLayout, applyPreset, showPanel }),
+    [applyPreset, resetLayout, showPanel]
+  );
 
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);

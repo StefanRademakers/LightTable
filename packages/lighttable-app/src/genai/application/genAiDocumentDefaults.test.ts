@@ -5,7 +5,11 @@ import type {
   GenAiWorkflowDefinition,
   GenAiWorkflowId
 } from '@lighttable/genai-core';
-import { applyGenAiImageCreateDefaults, matchGenAiValuesToDocument } from './genAiDocumentDefaults';
+import {
+  applyGenAiImageCreateDefaults,
+  applyGenAiOutputSizeDefault,
+  matchGenAiValuesToDocument
+} from './genAiDocumentDefaults';
 
 const workflow = {
   id: 'openart:test:image2image' as GenAiWorkflowId,
@@ -35,6 +39,16 @@ describe('GenAI document defaults', () => {
       .toMatchObject({ ratio: '9:16', size: '2K' });
     expect(matchGenAiValuesToDocument(workflow, {}, { id: 'c', width: 8000, height: 4000 }))
       .toMatchObject({ ratio: '16:9', size: '4K' });
+  });
+
+  it('never automatically drops a small edit document to 1K when 2K is available', () => {
+    expect(matchGenAiValuesToDocument(workflow, {}, { id: 'small', width: 512, height: 512 }))
+      .toMatchObject({ ratio: '1:1', size: '2K' });
+  });
+
+  it('replaces provider-advertised 1K defaults with the supported 2K tier', () => {
+    expect(applyGenAiOutputSizeDefault(workflow, { size: '1K' }))
+      .toMatchObject({ size: '2K' });
   });
 
   it('uses 16:9 and 2K as new image-create defaults when the provider supports them', () => {

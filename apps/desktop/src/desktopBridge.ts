@@ -206,8 +206,10 @@ export interface LightTableDesktopBridge {
   revealGenAiResult(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<void>;
   deleteGenAiJob(projectId: string, jobId: import('@lighttable/genai-core').GenAiJobId): Promise<void>;
   loadGenAiProjectAssetCatalog(projectId: string): Promise<GenAiProjectAssetCatalog>;
+  refreshGenAiProjectAssets(projectId: string): Promise<void>;
   loadGenAiProjectAssetPreview(projectId: string, assetId: GenAiAssetId): Promise<string | null>;
   loadGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<import('@lighttable/genai-core').GenAiAssetPayload | null>;
+  importGenAiProjectAsset(projectId: string, asset: import('@lighttable/genai-core').GenAiAssetPayload): Promise<GenAiAssetReference>;
   revealGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<void>;
   renameGenAiProjectAsset(projectId: string, assetId: GenAiAssetId, name: string): Promise<GenAiAssetReference>;
   deleteGenAiProjectAsset(projectId: string, assetId: GenAiAssetId): Promise<void>;

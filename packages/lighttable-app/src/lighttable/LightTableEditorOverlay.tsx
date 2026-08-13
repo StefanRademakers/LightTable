@@ -730,6 +730,40 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activeGenAiProjectId,
     genAiDocumentContext
   );
+  const [genAiBaseImageSelected, setGenAiBaseImageSelected] = useState(false);
+  const [genAiBaseImageAssetId, setGenAiBaseImageAssetId] =
+    useState<import('@lighttable/genai-core').GenAiAssetId>();
+  const genAiBaseImageScopeRef = useRef<string | undefined>(undefined);
+  const genAiBaseImageImportPendingRef = useRef(false);
+  const importGenAiReferenceFile = React.useCallback(async (file: File) => {
+    const imported = await genAiSetup.importAssetReference(file);
+    if (imported) genAiSetup.requestAssetPreview(imported.id);
+    return imported;
+  }, [genAiSetup.importAssetReference, genAiSetup.requestAssetPreview]);
+  const importGenAiDocumentReference = React.useCallback(async (documentId: string) => {
+    if (!commandPorts) return undefined;
+    const artifact = await commandPorts.exportPngArtifact(documentId as DocumentSessionId);
+    return importGenAiReferenceFile(artifact);
+  }, [commandPorts, importGenAiReferenceFile]);
+  const genAiBaseImageScope = `${activeGenAiProjectId ?? 'session'}:${String(workspaceDocumentId)}`;
+  React.useEffect(() => {
+    const previousScope = genAiBaseImageScopeRef.current;
+    genAiBaseImageScopeRef.current = genAiBaseImageScope;
+    if (!previousScope || previousScope === genAiBaseImageScope || !genAiBaseImageAssetId) return;
+    genAiSetup.removeAssetReference(genAiBaseImageAssetId);
+    setGenAiBaseImageAssetId(undefined);
+  }, [genAiBaseImageAssetId, genAiBaseImageScope, genAiSetup.removeAssetReference]);
+  React.useEffect(() => {
+    if (!active || !genAiBaseImageSelected
+      || genAiBaseImageAssetId || genAiBaseImageImportPendingRef.current) return;
+    let current = true;
+    genAiBaseImageImportPendingRef.current = true;
+    void importGenAiDocumentReference(String(workspaceDocumentId)).then((asset) => {
+      if (current && asset) setGenAiBaseImageAssetId(asset.id);
+    }).finally(() => { genAiBaseImageImportPendingRef.current = false; });
+    return () => { current = false; };
+  }, [active, genAiBaseImageSelected,
+    genAiBaseImageAssetId, importGenAiDocumentReference, workspaceDocumentId]);
   const genAiJobs = useGenAiJobsController(
     genAiService,
     activeGenAiProjectId,
@@ -4545,6 +4579,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       openStyleGuide: onOpenStyleGuide,
       toggleScreenMode,
       resetLayout: () => workspaceRef.current?.resetLayout(),
+      applyPhotoEditWorkspace: () => workspaceRef.current?.applyPreset('photo-edit'),
+      applyAiGenerationWorkspace: () => workspaceRef.current?.applyPreset('ai-generation'),
       startGuidedSample: onStartGuidedSample,
       openSettings: onOpenSettings
     }
@@ -5641,6 +5677,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               agent: { events: agentEvents,
                 onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } },
               genAi: {
+                interactionActive: active,
                 providerName: openArtProvider.label,
                 status: openArtProvider.status,
                 message: openArtProvider.message,
@@ -5650,7 +5687,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 selectedModelId: genAiSetup.selectedModelId,
                 onModelChange: genAiSetup.setModel,
                 selectedMode: genAiSetup.selectedMode,
-                onModeChange: genAiSetup.setMode,
+                onModeChange: (mode) => {
+                  setGenAiBaseImageSelected(mode === 'image2image');
+                  genAiSetup.setMode(mode);
+                },
                 loading: genAiSetup.loading,
                 setupError: genAiSetup.error,
                 values: genAiSetup.values,
@@ -5665,6 +5705,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 submission: genAiSetup.submission,
                 canGenerate: genAiSetup.canGenerate,
                 onGenerate: () => { void genAiSetup.generate(); },
+                baseImageSelected: genAiBaseImageSelected,
+                baseImageAssetId: genAiBaseImageAssetId,
+                onBaseImageSelectedChange: (selected) => {
+                  setGenAiBaseImageSelected(selected);
+                  if (!selected && genAiBaseImageAssetId) {
+                    genAiSetup.removeAssetReference(genAiBaseImageAssetId);
+                    setGenAiBaseImageAssetId(undefined);
+                  }
+                },
+                onImportReferenceFile: (file) => importGenAiReferenceFile(file),
+                onImportDocumentReference: (documentId) => importGenAiDocumentReference(documentId),
                 onConnect: genAiService ? () => {
                   void genAiService.connectProvider(openArtProviderId).then(setOpenArtProvider);
                 } : undefined
@@ -5675,6 +5726,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 sections: genAiSetup.assetSections,
                 previews: genAiSetup.assetPreviews,
                 onRequestPreview: genAiSetup.requestAssetPreview,
+                onRefreshAssets: genAiSetup.refreshAssets,
                 onOpenResult: onGenAiOpenResult,
                 onOpenAsset: onGenAiOpenAsset,
                 onAddReference: (asset) => {

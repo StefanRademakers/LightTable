@@ -132,10 +132,46 @@ export const createDefaultLightTableWorkspacePanels = (
     requiredForSavedLayout: true
   },
   {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
+    contentKey: 'aiHistory',
+    title: 'Assets',
+    content: content.aiHistory,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      direction: 'within'
+    },
+    initiallyInactive: true,
+    requiredForSavedLayout: true
+  },
+  {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
     contentKey: 'effects',
     title: 'Effects',
     content: content.effects,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      direction: 'within'
+    },
+    initiallyInactive: true,
+    requiredForSavedLayout: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
+    contentKey: 'genAi',
+    title: 'GenAI',
+    content: content.genAi,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      direction: 'within'
+    },
+    initiallyInactive: true,
+    requiredForSavedLayout: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
+    contentKey: 'agent',
+    title: 'Agent',
+    content: content.agent,
     defaultPosition: {
       referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
       direction: 'within'
@@ -165,41 +201,5 @@ export const createDefaultLightTableWorkspacePanels = (
       direction: 'within'
     },
     initiallyInactive: true
-  },
-  {
-    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
-    contentKey: 'agent',
-    title: 'Agent',
-    content: content.agent,
-    defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-      direction: 'within'
-    },
-    initiallyInactive: true,
-    requiredForSavedLayout: true
-  },
-  {
-    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
-    contentKey: 'genAi',
-    title: 'GenAI',
-    content: content.genAi,
-    defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-      direction: 'within'
-    },
-    initiallyInactive: true,
-    requiredForSavedLayout: true
-  },
-  {
-    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
-    contentKey: 'aiHistory',
-    title: 'Assets',
-    content: content.aiHistory,
-    defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
-      direction: 'within'
-    },
-    initiallyInactive: true,
-    requiredForSavedLayout: true
   }
 ];

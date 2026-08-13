@@ -49,7 +49,7 @@ export const openArtBootstrapWorkflow = (
     enumField('aspectRatio', 'aspect-ratio', 'Aspect ratio', aspectRatios, modelId === 'gpt-image-2' ? '4:3' : '1:1'),
     modelId === 'gpt-image-2'
       ? enumField('resolutionTier', 'output-size', 'Size', ['1k', '2k', '4k'], '2k')
-      : enumField('resolution', 'output-size', 'Size', ['1K', '2K', '4K'], '1K')
+      : enumField('resolution', 'output-size', 'Size', ['1K', '2K', '4K'], '2K')
   ];
   if (modelId === 'gpt-image-2') {
     fields.push(enumField('quality', 'quality', 'Quality', ['low', 'medium', 'high', 'auto'], 'medium'));

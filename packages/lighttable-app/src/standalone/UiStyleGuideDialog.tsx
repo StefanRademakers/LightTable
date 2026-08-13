@@ -5,6 +5,7 @@ import { FormInput } from '../ui/FormInput';
 import { GradientField, type GradientFieldValue } from '../ui/GradientField';
 import { NumericExpressionInput } from '../ui/NumericExpressionInput';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { SearchField } from '../ui/SearchField';
 import { SquareIconButton } from '../ui/SquareIconButton';
 import { SwitchControl } from '../ui/SwitchControl';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
@@ -67,6 +68,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
   const [gradientExpanded, setGradientExpanded] = useState(false);
   const [slider, setSlider] = useState(30);
   const [angle, setAngle] = useState(315);
+  const [search, setSearch] = useState('');
 
   if (!open) return null;
 
@@ -130,9 +132,21 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                 </Sample>
               </> : null}
               {category === 'inputs' ? <>
+                <Sample title="Standard control height · 28 px">
+                  <FormInput aria-label="Aligned text field" defaultValue="Text" />
+                  <NumericExpressionInput value={number} min={0} max={1000}
+                    aria-label="Aligned numeric field" onValueChange={setNumber} />
+                  <SegmentedControl value={segment} onChange={setSegment} ariaLabel="Aligned segmented control"
+                    options={[{ value: 'new', label: 'New' }, { value: 'add', label: 'Add' },
+                      { value: 'subtract', label: 'Subtract' }]} />
+                </Sample>
                 <Sample title="Text fields">
                   <FormInput aria-label="Text example" defaultValue="Layer name" />
                   <FormInput aria-label="Disabled text example" defaultValue="Unavailable" disabled />
+                </Sample>
+                <Sample title="Search field">
+                  <SearchField aria-label="Search example" placeholder="Search" value={search}
+                    onChange={(event) => setSearch(event.currentTarget.value)} />
                 </Sample>
                 <Sample title="Numeric expression">
                   <NumericExpressionInput value={number} min={0} max={1000}
@@ -159,13 +173,13 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                 </Sample>
               </> : null}
               {category === 'paint' ? <>
-                <Sample title="Color swatch">
+                <Sample title="Color swatch · 28 px">
                   <PanelColorSwatch label="Shadow color" value={color} onChange={setColor} />
                 </Sample>
-                <Sample title="Color picker prototype">
+                <Sample title="Color picker · 28 px fields">
                   <UiColorPickerPrototype value={color} onChange={setColor} />
                 </Sample>
-                <Sample title="Gradient field">
+                <Sample title="Gradient field · 28 px">
                   <GradientField value={DEMO_GRADIENT} ariaLabel="Edit gradient"
                     expanded={gradientExpanded} onClick={() => setGradientExpanded((value) => !value)} />
                 </Sample>

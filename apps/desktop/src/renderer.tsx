@@ -104,10 +104,13 @@ const desktopHost: LightTableHost = {
     revealResult: (projectId, jobId) => window.lightTableDesktop.revealGenAiResult(projectId, jobId),
     deleteJob: (projectId, jobId) => window.lightTableDesktop.deleteGenAiJob(projectId, jobId),
     loadProjectAssetCatalog: (projectId) => window.lightTableDesktop.loadGenAiProjectAssetCatalog(projectId),
+    refreshProjectAssets: (projectId) => window.lightTableDesktop.refreshGenAiProjectAssets(projectId),
     loadProjectAssetPreview: (projectId, assetId) =>
       window.lightTableDesktop.loadGenAiProjectAssetPreview(projectId, assetId),
     loadProjectAsset: (projectId, assetId) =>
       window.lightTableDesktop.loadGenAiProjectAsset(projectId, assetId),
+    importProjectAsset: (projectId, asset) =>
+      window.lightTableDesktop.importGenAiProjectAsset(projectId, asset),
     revealProjectAsset: (projectId, assetId) =>
       window.lightTableDesktop.revealGenAiProjectAsset(projectId, assetId),
     renameProjectAsset: (projectId, assetId, name) =>

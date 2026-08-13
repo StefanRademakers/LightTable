@@ -1,8 +1,8 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ProjectAssetBrowser, requestedGenerationAspectRatio } from './ProjectAssetBrowser';
-import type { GenAiGenerationJob } from '@lighttable/genai-core';
+import { ProjectAssetBrowser, projectAssetMatchesQuery, requestedGenerationAspectRatio } from './ProjectAssetBrowser';
+import type { GenAiAssetReference, GenAiGenerationJob } from '@lighttable/genai-core';
 
 describe('ProjectAssetBrowser', () => {
   it('renders the project directory catalog even when folders contain no indexed assets', () => {
@@ -30,5 +30,26 @@ describe('ProjectAssetBrowser', () => {
       }
     } as unknown as GenAiGenerationJob;
     expect(requestedGenerationAspectRatio(job)).toBeCloseTo(16 / 9, 5);
+  });
+
+  it('renders the fixed project asset search control', () => {
+    const markup = renderToStaticMarkup(<ProjectAssetBrowser jobs={[]} assets={[]} />);
+    expect(markup).toContain('project-asset-browser__header');
+    expect(markup).toContain('Search project assets');
+    expect(markup).toContain('Search assets');
+  });
+
+  it('matches asset names, paths and generation metadata without case or accent sensitivity', () => {
+    const asset = {
+      id: 'asset-1', projectId: 'project-1', label: 'Caf\u00e9 Portrait.png', mediaType: 'image/png',
+      relativePath: 'Characters/Portraits/Cafe.png', section: 'Characters'
+    } as unknown as GenAiAssetReference;
+    const job = {
+      request: { prompt: 'Golden hour portrait', modelId: 'nano-banana-pro', providerId: 'openart' }
+    } as unknown as GenAiGenerationJob;
+    expect(projectAssetMatchesQuery(asset, 'CAFE')).toBe(true);
+    expect(projectAssetMatchesQuery(asset, 'portraits')).toBe(true);
+    expect(projectAssetMatchesQuery(asset, 'golden hour', job)).toBe(true);
+    expect(projectAssetMatchesQuery(asset, 'environment')).toBe(false);
   });
 });

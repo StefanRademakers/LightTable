@@ -2541,57 +2541,12 @@
   object-fit: cover;
 }
 
-.genai-panel__reference-add {
-  width: 100%;
-  min-height: 54px;
-  border: 1px dashed var(--lt-border-strong);
-  border-radius: var(--lt-control-radius);
-  background: transparent;
-  color: var(--lt-text-secondary);
-}
-
-.genai-panel__reference-add:hover {
-  border-color: var(--lt-accent);
-  color: var(--lt-text-primary);
-}
-
-.genai-panel__reference-picker {
-  max-height: 220px;
-  overflow-y: auto;
-  padding: 4px;
-  border: 1px solid var(--lt-border-strong);
-  background: var(--lt-surface-inset);
-}
-
-.genai-panel__reference-picker > button {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
+.genai-panel__base-image {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px;
-  border: 0;
-  border-radius: var(--lt-control-radius);
-  background: transparent;
-  color: var(--lt-text-primary);
-  text-align: left;
-}
-
-.genai-panel__reference-picker > button:hover,
-.genai-panel__reference-picker > button[aria-selected="true"] {
-  background: var(--lt-surface-control-hover);
-}
-
-.genai-panel__reference-picker strong,
-.genai-panel__reference-picker small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.genai-panel__reference-picker small {
-  color: var(--lt-text-subtle);
+  gap: 6px;
+  margin: -4px 0 12px;
+  color: var(--lt-text-secondary);
 }
 
 .genai-panel__settings {
@@ -2728,11 +2683,26 @@
   object-fit: cover;
 }
 
-.genai-history { padding: 0; }
+.genai-history {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
+}
+
+.project-asset-browser__header {
+  flex: 0 0 auto;
+  padding: 8px;
+  border-bottom: 1px solid var(--lt-border);
+  background: var(--lt-surface-panel);
+  z-index: 1;
+}
 
 .genai-history__grid {
   position: relative;
   width: 100%;
+  contain: layout paint;
 }
 
 .genai-history__card {

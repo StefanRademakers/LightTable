@@ -48,13 +48,38 @@ const coveringSizeOption = (
   field: GenAiFieldDefinition,
   context: GenAiDocumentContext
 ): string | undefined => {
-  const target = Math.max(context.width, context.height);
   const options = field.options
     ?.map((option) => ({ option, pixels: optionPixels(option.value) ?? optionPixels(option.label) }))
     .filter((entry): entry is typeof entry & { pixels: number } => entry.pixels !== undefined)
     .sort((left, right) => left.pixels - right.pixels);
   if (!options?.length) return undefined;
+  const twoK = options.find(({ pixels }) => pixels === 2 * 1024);
+  // 1K costs the same as 2K for the supported GenAI providers. Keep 1K as an
+  // explicit user choice, but never select it as an automatic document default.
+  const target = Math.max(context.width, context.height, twoK?.pixels ?? 0);
   return (options.find(({ pixels }) => pixels >= target) ?? options.at(-1))?.option.value;
+};
+
+/**
+ * Applies the provider-independent minimum output default used by LightTable.
+ * Provider schemas may advertise 1K as their own default; the UI deliberately
+ * starts at 2K when that tier exists because it has the same generation cost.
+ */
+export const applyGenAiOutputSizeDefault = (
+  workflow: GenAiWorkflowDefinition,
+  current: Readonly<Record<string, unknown>>
+): Readonly<Record<string, unknown>> => {
+  let next = current;
+  for (const field of workflow.fields) {
+    if (field.role !== 'output-size') continue;
+    const preferred = field.options?.find((option) =>
+      (optionPixels(option.value) ?? optionPixels(option.label)) === 2 * 1024
+    )?.value;
+    if (preferred !== undefined && next[field.key] !== preferred) {
+      next = { ...next, [field.key]: preferred };
+    }
+  }
+  return next;
 };
 
 /**

@@ -54,6 +54,33 @@ describe('buildOpenArtGenerationParams', () => {
       .toThrow('Reference @face has no reachable provider URL.');
   });
 
+  it('sends every reference selected in the widget even without prompt mentions', () => {
+    const secondAssetId = 'asset-beach' as GenAiAssetId;
+    const widgetOnlyRequest = {
+      ...request,
+      prompt: 'Make the guy hug the girls on the beach',
+      providerPrompt: 'Make the guy hug the girls on the beach',
+      promptBindings: [],
+      references: [
+        request.references[0],
+        { id: secondAssetId, projectId: 'project', label: 'beach.png', mediaType: 'image/png' }
+      ]
+    } satisfies GenAiGenerationRequest;
+
+    expect(buildOpenArtGenerationParams(widgetOnlyRequest, workflow, [{
+      assetId, url: 'https://assets.example/face.png', mediaType: 'image/png'
+    }, {
+      assetId: secondAssetId, url: 'https://assets.example/beach.png', mediaType: 'image/png'
+    }])).toMatchObject({
+      prompt: 'Make the guy hug the girls on the beach',
+      visualReferences: [{
+        type: 'image', id: 'image1', label: 'image1', url: 'https://assets.example/face.png'
+      }, {
+        type: 'image', id: 'image2', label: 'image2', url: 'https://assets.example/beach.png'
+      }]
+    });
+  });
+
   it('maps neutral prompt and reference roles to provider-owned field keys', () => {
     const providerWorkflow = {
       ...workflow,

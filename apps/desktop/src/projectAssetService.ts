@@ -142,8 +142,8 @@ export const readProjectAssetDirectories = async (manifestPath: string): Promise
   const { manifest, summary } = await openProjectManifest(manifestPath);
   const rootPath = summary.rootPath;
   const hiddenRoots = new Set([
-    manifest.folders.trash,
     manifest.folders.aiInput,
+    manifest.folders.trash,
     manifest.folders.cache,
     manifest.folders.thumbnails,
     manifest.folders.indexes,

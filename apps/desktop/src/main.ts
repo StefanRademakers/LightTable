@@ -907,7 +907,11 @@ void app.whenReady().then(async () => {
       OPENART_PROVIDER_ID
     );
     const publishedIds = new Set(remoteLinks.map((link) => link.assetId));
-    const projectDirectories = await readProjectAssetDirectories(activeProjectManifestPath);
+    const projectDirectories = [...await readProjectAssetDirectories(activeProjectManifestPath)];
+    const aiInputPath = project.manifest.folders.aiInput;
+    const hasAiInputAssets = index.assets.some((asset) =>
+      asset.path === aiInputPath || asset.path.startsWith(`${aiInputPath}/`));
+    if (hasAiInputAssets) projectDirectories.push({ path: aiInputPath, label: 'AI Input' });
     const sectionMatches = [...projectDirectories].sort((left, right) => right.path.length - left.path.length);
     const assets = index.assets.map((asset) => ({
       id: asset.id,
@@ -925,6 +929,12 @@ void app.whenReady().then(async () => {
       sections: projectDirectories.map((directory) => ({ id: directory.path, label: directory.label })),
       assets
     };
+  });
+  ipcMain.handle('lighttable:genai-project-assets-refresh', async (event, projectId: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const { project, manifestPath } = await activeGenAiProject(projectId);
+    await rebuildProjectAssetIndex({ manifestPath });
+    mainWindow?.webContents.send('lighttable:genai-project-assets-changed', project.summary.id);
   });
   ipcMain.handle('lighttable:genai-project-asset-reveal', async (event, projectId: unknown, assetId: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
@@ -990,6 +1000,45 @@ void app.whenReady().then(async () => {
       mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream',
       bytes: asset.bytes
     } : null;
+  });
+  ipcMain.handle('lighttable:genai-project-asset-import', async (event, projectId: unknown, input: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const { project, manifestPath } = await activeGenAiProject(projectId);
+    if (!input || typeof input !== 'object') throw new Error('Invalid project asset import.');
+    const asset = input as { name?: unknown; mediaType?: unknown; bytes?: unknown };
+    if (typeof asset.name !== 'string' || typeof asset.mediaType !== 'string'
+      || !(asset.bytes instanceof Uint8Array) || asset.bytes.byteLength === 0) {
+      throw new Error('Invalid project asset import.');
+    }
+    const extensionByMediaType: Readonly<Record<string, string>> = {
+      'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/tiff': '.tiff'
+    };
+    const extension = extensionByMediaType[asset.mediaType.toLocaleLowerCase('en-US')];
+    if (!extension) throw new Error('Only PNG, JPEG, WebP and TIFF references are supported.');
+    const rawBase = path.basename(asset.name, path.extname(asset.name)).trim()
+      .replace(/[<>:"/\\|?*\u0000-\u001f]/gu, '-').replace(/[. ]+$/gu, '').slice(0, 120) || 'reference';
+    const { manifest, summary } = await openProjectManifest(manifestPath);
+    const directory = resolveProjectStoragePath(summary.rootPath, manifest, 'aiInput');
+    await mkdir(directory, { recursive: true });
+    const fileName = `${rawBase}-${Date.now()}-${randomUUID().slice(0, 8)}${extension}`;
+    const filePath = path.join(directory, fileName);
+    await writeFile(filePath, asset.bytes, { flag: 'wx' });
+    await recordSavedProjectAsset({ manifestPath, filePath });
+    const { index } = await readProjectAssetIndex(manifestPath);
+    const relativePath = path.relative(summary.rootPath, filePath).split(path.sep).join('/');
+    const indexed = index.assets.find((candidate) => candidate.path === relativePath);
+    if (!indexed) throw new Error('The imported reference could not be indexed.');
+    mainWindow?.webContents.send('lighttable:genai-project-assets-changed', project.summary.id);
+    return {
+      id: indexed.id,
+      projectId: project.summary.id,
+      label: indexed.name,
+      mediaType: desktopMediaTypeForFileName(indexed.name) ?? asset.mediaType,
+      relativePath: indexed.path,
+      modifiedAt: indexed.modifiedAt,
+      section: 'AI Input',
+      ...(indexed.thumbnail ? { previewId: indexed.id } : {})
+    };
   });
   ipcMain.handle('lighttable:genai-project-setup-load', async (event, projectId: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));

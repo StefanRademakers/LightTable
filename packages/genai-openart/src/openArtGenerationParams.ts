@@ -21,10 +21,24 @@ export const buildOpenArtGenerationParams = (
   if (!request.references.length) return params;
 
   const byAssetId = new Map(resolvedReferences.map((reference) => [reference.assetId, reference]));
-  const providerReferences = request.promptBindings.map((binding) => {
-    const reference = byAssetId.get(binding.assetId);
-    if (!reference) throw new Error(`Reference ${binding.token} has no reachable provider URL.`);
-    const label = (binding.providerLabel ?? binding.token).replace(/^@/u, '');
+  const bindingByAssetId = new Map(request.promptBindings.map((binding) => [binding.assetId, binding]));
+
+  /**
+   * ARCHITECTURAL INVARIANT — DO NOT derive this list from promptBindings.
+   *
+   * `request.references` is the authoritative state of the Visual References
+   * widget. Every asset selected there must be published and sent to OpenArt,
+   * even when the prompt never mentions its @token. `promptBindings` is only
+   * optional naming metadata used to assign the provider-facing image alias;
+   * it must never add, remove, or filter visual references.
+   */
+  const providerReferences = request.references.map((asset, index) => {
+    const reference = byAssetId.get(asset.id);
+    const binding = bindingByAssetId.get(asset.id);
+    if (!reference) {
+      throw new Error(`Reference ${binding?.token ?? asset.label} has no reachable provider URL.`);
+    }
+    const label = (binding?.providerLabel ?? `@image${index + 1}`).replace(/^@/u, '');
     return {
       type: reference.mediaType.startsWith('video/')
         ? 'video'

@@ -92,7 +92,9 @@ describe('createEditorMenuController', () => {
         showDebugPanel: vi.fn(),
         showGenAiPanel: vi.fn(),
         toggleScreenMode: vi.fn(),
-        resetLayout: vi.fn()
+        resetLayout: vi.fn(),
+        applyPhotoEditWorkspace: vi.fn(),
+        applyAiGenerationWorkspace: vi.fn()
       }
     });
 
@@ -158,7 +160,8 @@ describe('createEditorMenuController', () => {
         setShowOriginal: vi.fn(), setShowDifference: vi.fn()
       },
       workspace: {
-        showDebugPanel: vi.fn(), showGenAiPanel: vi.fn(), toggleScreenMode: vi.fn(), resetLayout: vi.fn()
+        showDebugPanel: vi.fn(), showGenAiPanel: vi.fn(), toggleScreenMode: vi.fn(), resetLayout: vi.fn(),
+        applyPhotoEditWorkspace: vi.fn(), applyAiGenerationWorkspace: vi.fn()
       }
     });
 

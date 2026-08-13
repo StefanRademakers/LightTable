@@ -12,6 +12,7 @@ describe('OpenArt workflow bootstrap', () => {
       ['resolution', 'output-size'],
       ['visualReferences', 'references']
     ]);
+    expect(workflow?.fields.find(({ role }) => role === 'output-size')?.defaultValue).toBe('2K');
   });
 
   it('surfaces GPT Image 2 provider keys behind shared UI roles', () => {

@@ -122,6 +122,8 @@ export interface EditorMenuCommands {
   disconnectOpenArtProvider?: () => void;
   openStyleGuide?: () => void;
   resetWorkspaceLayout: () => void;
+  applyPhotoEditWorkspace: () => void;
+  applyAiGenerationWorkspace: () => void;
   openAbout?: () => void;
   openThirdPartyLicenses?: () => void;
   openCommandHelp?: () => void;
@@ -698,9 +700,23 @@ export const createEditorMenuOptions = (
       ]
     },
     {
+      value: 'workspace',
+      label: 'Workspace',
+      separatorBefore: true,
+      children: [
+        { value: 'workspace-photo-edit', label: 'Photo Edit', onClick: commands.applyPhotoEditWorkspace },
+        { value: 'workspace-ai-generation', label: 'AI Generation', onClick: commands.applyAiGenerationWorkspace },
+        {
+          value: 'reset-workspace-layout',
+          label: 'Reset workspace layout',
+          separatorBefore: true,
+          onClick: commands.resetWorkspaceLayout
+        }
+      ]
+    },
+    {
       value: 'show-genai-panel',
       label: 'GenAI panel',
-      separatorBefore: true,
       onClick: commands.showGenAiPanel
     },
     {
@@ -724,11 +740,6 @@ export const createEditorMenuOptions = (
       shortcut: 'F',
       separatorBefore: true,
       onClick: commands.toggleScreenMode
-    },
-    {
-      value: 'reset-workspace-layout',
-      label: 'Reset workspace layout',
-      onClick: commands.resetWorkspaceLayout
     }
   ];
 };

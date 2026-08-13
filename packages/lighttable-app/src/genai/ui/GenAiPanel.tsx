@@ -17,10 +17,15 @@ import { SegmentedControl } from '../../ui/SegmentedControl';
 import { SwitchControl } from '../../ui/SwitchControl';
 import { GenAiPromptComposer } from './GenAiPromptComposer';
 import { containsProjectAssetDrag, readProjectAssetDrag } from './projectAssetDrag';
+import {
+  containsLightTableDocumentDrag,
+  readLightTableDocumentDrag
+} from '../../lighttable/editor/workspace/documentTabDrag';
 
 export type GenAiPanelProviderStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'expired';
 
 export interface GenAiPanelProps {
+  readonly interactionActive?: boolean;
   readonly providerName: string;
   readonly status: GenAiPanelProviderStatus;
   readonly onConnect?: () => void;
@@ -47,6 +52,11 @@ export interface GenAiPanelProps {
   readonly submission?: GenAiGenerationSubmission;
   readonly canGenerate?: boolean;
   readonly onGenerate?: () => void;
+  readonly baseImageSelected?: boolean;
+  readonly baseImageAssetId?: GenAiAssetId;
+  readonly onBaseImageSelectedChange?: (selected: boolean) => void;
+  readonly onImportReferenceFile?: (file: File) => void | Promise<unknown>;
+  readonly onImportDocumentReference?: (documentId: string) => void | Promise<unknown>;
 }
 
 const statusLabel: Record<GenAiPanelProviderStatus, string> = {
@@ -130,10 +140,12 @@ const GenAiFeaturedSelect = ({ field, value, icon, update }: {
 };
 
 export const GenAiPanel = (props: GenAiPanelProps) => {
-  const { providerName, status, onConnect, message, projectName, models = [], workflow,
+  const { interactionActive = true, providerName, status, onConnect, message, projectName, models = [], workflow,
     selectedModelId, onModelChange, selectedMode, onModeChange, loading = false, setupError, values = {}, onFieldChange,
     mentionOptions = [], assetPreviews = {}, onRequestAssetPreview = () => undefined,
-    generating = false, generationError, referenceIssue, costEstimate, submission, canGenerate = false, onGenerate } = props;
+    generating = false, generationError, referenceIssue, costEstimate, submission, canGenerate = false, onGenerate,
+    baseImageSelected = false, baseImageAssetId, onBaseImageSelectedChange,
+    onImportReferenceFile, onImportDocumentReference } = props;
   const promptField = workflow?.fields.find(({ role }) => role === 'prompt');
   const promptKey = promptField?.key ?? 'prompt';
   const prompt = String(values[promptKey] ?? '');
@@ -161,8 +173,8 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
   const countKey = countField?.key ?? 'imageCount';
   const count = Number(values[countKey] ?? countField?.defaultValue ?? 1);
   const mode = (selectedMode ?? workflow?.mode) === 'image2image' ? 'image2image' : 'text2image';
-  const [referencePickerOpen, setReferencePickerOpen] = React.useState(false);
   const [referenceDragActive, setReferenceDragActive] = React.useState(false);
+  const referenceHover = React.useRef(false);
   const [referencePreview, setReferencePreview] = React.useState<{
     readonly assetId: GenAiAssetId;
     readonly source: string;
@@ -184,8 +196,25 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
       onFieldChange?.(promptKey, `${prompt}${prompt && !/\s$/u.test(prompt) ? ' ' : ''}${option.token} `);
     }
     onRequestAssetPreview(option.asset.id);
-    setReferencePickerOpen(false);
   }, [onFieldChange, onRequestAssetPreview, prompt, promptKey, referenceField, selectedReferences]);
+
+  React.useEffect(() => {
+    if (!interactionActive || !onImportReferenceFile) return;
+    const paste = (event: ClipboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!referenceHover.current && !target?.closest('.genai-prompt-composer')) return;
+      const imageItem = Array.from(event.clipboardData?.items ?? [])
+        .find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+      const image = imageItem?.getAsFile();
+      if (!image) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const extension = image.type.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png';
+      void onImportReferenceFile(new File([image], `clipboard-${Date.now()}.${extension}`, { type: image.type }));
+    };
+    window.addEventListener('paste', paste, true);
+    return () => window.removeEventListener('paste', paste, true);
+  }, [interactionActive, onImportReferenceFile]);
 
   const updatePrompt = React.useCallback((nextPrompt: string) => {
     onFieldChange?.(promptKey, nextPrompt);
@@ -223,13 +252,17 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
             </select>
             <section className={`genai-panel__reference-well${referenceDragActive ? ' is-drag-target' : ''}`}
               aria-label="Visual references"
+              onPointerEnter={() => { referenceHover.current = true; }}
+              onPointerLeave={() => { referenceHover.current = false; }}
               onDragEnter={(event) => {
-                if (!containsProjectAssetDrag(event.dataTransfer)) return;
+                if (!containsProjectAssetDrag(event.dataTransfer)
+                  && !containsLightTableDocumentDrag(event.dataTransfer)) return;
                 event.preventDefault();
                 setReferenceDragActive(true);
               }}
               onDragOver={(event) => {
-                if (!containsProjectAssetDrag(event.dataTransfer)) return;
+                if (!containsProjectAssetDrag(event.dataTransfer)
+                  && !containsLightTableDocumentDrag(event.dataTransfer)) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'copy';
                 setReferenceDragActive(true);
@@ -240,11 +273,14 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               }}
               onDrop={(event) => {
                 const assetId = readProjectAssetDrag(event.dataTransfer);
-                if (!assetId) return;
+                const documentId = readLightTableDocumentDrag(event.dataTransfer);
+                if (!assetId && !documentId) return;
                 event.preventDefault();
                 setReferenceDragActive(false);
-                const option = mentionOptions.find(({ asset }) => asset.id === assetId);
-                if (option) insertReference(option);
+                if (assetId) {
+                  const option = mentionOptions.find(({ asset }) => asset.id === assetId);
+                  if (option) insertReference(option);
+                } else if (documentId) void onImportDocumentReference?.(documentId);
               }}>
               <header><strong>▧ &nbsp; Visual references</strong><span>{references.length}/10</span></header>
               {references.length ? <div className="genai-panel__reference-items">{references.map(({ token, asset }) => {
@@ -266,38 +302,28 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                       setReferencePreview(undefined);
                       if (referenceField) onFieldChange?.(referenceField.key, selectedReferences.filter(({ id }) => id !== asset.id));
                       onFieldChange?.(promptKey, removeTokenFromPrompt(prompt, token));
+                      if (asset.id === baseImageAssetId) onBaseImageSelectedChange?.(false);
                     }}>×</button>
                   <strong>{token}</strong>
                 </div>;
-              })}</div> : null}
+              })}</div> : <p className="genai-panel__reference-empty">
+                Drag open tabs or assets here, or paste images.
+              </p>}
               {referencePreview && typeof document !== 'undefined' ? createPortal(
                 <span className="genai-panel__reference-preview" aria-hidden="true"
                   style={{ left: referencePreview.x, top: referencePreview.y }}>
                   <img src={referencePreview.source} alt="" />
                 </span>, document.body
               ) : null}
-              <button type="button" className="genai-panel__reference-add" aria-expanded={referencePickerOpen}
-                onClick={() => {
-                  const open = !referencePickerOpen;
-                  setReferencePickerOpen(open);
-                  if (open) for (const option of mentionOptions.slice(0, 30)) onRequestAssetPreview(option.asset.id);
-                }}>
-                {mentionOptions.length ? 'Add project image' : 'No indexed project images'}
-              </button>
-              {referencePickerOpen ? <div className="genai-panel__reference-picker" role="listbox" aria-label="Project images">
-                {mentionOptions.slice(0, 30).map((option) => <button type="button" role="option"
-                  aria-selected={tokenAppears(prompt, option.token)} key={option.asset.id}
-                  onClick={() => insertReference(option)}>
-                  <span className="genai-prompt-composer__thumb">
-                    {assetPreviews[option.asset.id] ? <img src={assetPreviews[option.asset.id]} alt="" /> : null}
-                  </span>
-                  <span><strong>{option.asset.label}</strong><small>{option.token} · {isOpenArtReady(option.asset) ? 'OpenArt ready' : 'Publishes on generate'}</small></span>
-                </button>)}
-              </div> : null}
               {referencePublicationError ? <p className="genai-panel__reference-error" role="alert">
                 {referencePublicationError}
               </p> : null}
             </section>
+            <label className="genai-panel__base-image">
+              <input type="checkbox" checked={baseImageSelected}
+                onChange={(event) => onBaseImageSelectedChange?.(event.currentTarget.checked)} />
+              <span>Add base image</span>
+            </label>
             <GenAiPromptComposer value={prompt} onChange={updatePrompt}
               mentions={mentionOptions} previews={assetPreviews} requestPreview={onRequestAssetPreview} />
             {basicFields.length ? <section className="genai-panel__settings" aria-label="Generation settings">

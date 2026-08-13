@@ -6,6 +6,8 @@ import { TextInputDialog } from '../../ui/TextInputDialog';
 import { PanelSection } from '../../ui/PanelSection';
 import { buildJustifiedLayout } from './justifiedLayout';
 import { writeProjectAssetDrag } from './projectAssetDrag';
+import { lightTableIcon } from '../../assets/icons';
+import { SearchField } from '../../ui/SearchField';
 
 export interface ProjectAssetBrowserProps {
   readonly jobs: readonly GenAiGenerationJob[];
@@ -24,6 +26,7 @@ export interface ProjectAssetBrowserProps {
   readonly onRenameAsset?: (asset: GenAiAssetReference, name: string) => Promise<GenAiAssetReference> | void;
   readonly onDeleteAsset?: (asset: GenAiAssetReference) => Promise<void> | void;
   readonly onDeleteJob?: (job: GenAiGenerationJob) => Promise<void> | void;
+  readonly onRefreshAssets?: () => Promise<void> | void;
 }
 
 interface MenuState { readonly x: number; readonly y: number; readonly asset?: GenAiAssetReference; readonly job?: GenAiGenerationJob }
@@ -34,6 +37,36 @@ const TARGET_ROW_HEIGHT = 180;
 const sectionName = (asset: GenAiAssetReference): string => asset.section?.trim()
   || (asset.relativePath?.includes('/') ? asset.relativePath.split('/')[0] : 'Root');
 const withoutExtension = (name: string): string => name.replace(/\.[^.]+$/u, '');
+const normalizeSearchText = (value: string): string => value.normalize('NFKD')
+  .replace(/[\u0300-\u036f]/gu, '').toLocaleLowerCase().trim();
+
+export const projectAssetMatchesQuery = (
+  asset: GenAiAssetReference,
+  query: string,
+  job?: GenAiGenerationJob
+): boolean => {
+  const needle = normalizeSearchText(query);
+  if (!needle) return true;
+  return normalizeSearchText([
+    asset.label,
+    asset.relativePath,
+    asset.section,
+    job?.request.prompt,
+    job?.request.modelId,
+    job?.request.providerId
+  ].filter(Boolean).join(' ')).includes(needle);
+};
+
+const generationJobMatchesQuery = (job: GenAiGenerationJob, query: string): boolean => {
+  const needle = normalizeSearchText(query);
+  if (!needle) return true;
+  return normalizeSearchText([
+    job.request.prompt,
+    job.request.modelId,
+    job.request.providerId,
+    job.status
+  ].join(' ')).includes(needle);
+};
 
 export const requestedGenerationAspectRatio = (job: GenAiGenerationJob): number => {
   const ratioEntry = job.request.output?.aspectRatio ?? Object.entries(job.request.fields).find(([key, value]) =>
@@ -67,13 +100,36 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
   const [element, setElement] = React.useState<HTMLDivElement | null>(null);
   const [width, setWidth] = React.useState(0);
   const [ratios, setRatios] = React.useState<Record<string, number>>({});
+  const requestedPreviews = React.useRef(new Set<GenAiAssetId>());
   React.useLayoutEffect(() => {
     if (!element) return;
-    const measure = () => setWidth(element.clientWidth);
-    measure(); const observer = new ResizeObserver(measure); observer.observe(element);
-    return () => observer.disconnect();
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const nextWidth = Math.round(element.clientWidth);
+        setWidth((current) => current === nextWidth ? current : nextWidth);
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
   }, [element]);
-  React.useEffect(() => { assets.forEach((asset) => onRequestPreview?.(asset.id)); }, [assets, onRequestPreview]);
+  React.useEffect(() => {
+    const visibleIds = new Set(assets.map(({ id }) => id));
+    for (const requestedId of requestedPreviews.current) {
+      if (!visibleIds.has(requestedId)) requestedPreviews.current.delete(requestedId);
+    }
+    assets.forEach((asset) => {
+      if (previews[asset.id] || requestedPreviews.current.has(asset.id)) return;
+      requestedPreviews.current.add(asset.id);
+      onRequestPreview?.(asset.id);
+    });
+  }, [assets, onRequestPreview, previews]);
   const tiles: GalleryTile[] = [
     ...pendingJobs.map((job): GalleryTile => ({
       key: `pending:${job.id}`, kind: 'pending', job, aspectRatio: requestedGenerationAspectRatio(job)
@@ -110,7 +166,12 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
         <div className="genai-history__preview" style={{ height: item.height }}>
           {preview ? <img className="genai-history__thumbnail" src={preview} alt="" draggable={false} onLoad={(event) => {
             const image = event.currentTarget;
-            if (image.naturalHeight) setRatios((current) => ({ ...current, [asset.id]: image.naturalWidth / image.naturalHeight }));
+            if (image.naturalHeight) {
+              const nextRatio = image.naturalWidth / image.naturalHeight;
+              setRatios((current) => Math.abs((current[asset.id] ?? 0) - nextRatio) < 0.0001
+                ? current
+                : { ...current, [asset.id]: nextRatio });
+            }
           }} /> : <span>Image</span>}
         </div>
         <div className="genai-history__footer" title={asset.label}><span aria-hidden="true">▧</span><strong>{asset.label}</strong></div>
@@ -121,21 +182,52 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
 
 export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = false, error, previews = {}, onRequestPreview,
   onOpenResult, onOpenAsset, onRecreate, onAddReference, onRevealAsset, onRenameAsset, onDeleteAsset,
-  onDeleteJob }: ProjectAssetBrowserProps) => {
+  onDeleteJob, onRefreshAssets }: ProjectAssetBrowserProps) => {
   const [openSections, setOpenSections] = React.useState<ReadonlySet<string>>(new Set(['AI History']));
   const [menu, setMenu] = React.useState<MenuState>();
   const [renameAsset, setRenameAsset] = React.useState<GenAiAssetReference>();
   const [deleteTarget, setDeleteTarget] = React.useState<{ asset?: GenAiAssetReference; job?: GenAiGenerationJob }>();
   const [actionError, setActionError] = React.useState<string>();
-  const jobByAssetId = new Map(jobs.flatMap((job) => job.results.map((result) => [result.assetId, job] as const)));
-  const groups = new Map<string, GenAiAssetReference[]>();
-  assets.forEach((asset) => { const name = sectionName(asset); groups.set(name, [...(groups.get(name) ?? []), asset]); });
-  const orderedSections = [...new Set([...sections.map(({ label }) => label), ...groups.keys()])]
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const searchInput = React.useRef<HTMLInputElement>(null);
+  const normalizedQuery = normalizeSearchText(searchQuery);
+  const searching = normalizedQuery.length > 0;
+  const jobByAssetId = React.useMemo(() => new Map(
+    jobs.flatMap((job) => job.results.map((result) => [result.assetId, job] as const))
+  ), [jobs]);
+  const allGroups = React.useMemo(() => {
+    const next = new Map<string, GenAiAssetReference[]>();
+    assets.forEach((asset) => {
+      const name = sectionName(asset);
+      next.set(name, [...(next.get(name) ?? []), asset]);
+    });
+    return next;
+  }, [assets]);
+  const groups = React.useMemo(() => {
+    if (!searching) return allGroups;
+    const next = new Map<string, GenAiAssetReference[]>();
+    allGroups.forEach((sectionAssets, name) => {
+      const sectionMatches = normalizeSearchText(name).includes(normalizedQuery);
+      const matches = sectionMatches ? sectionAssets : sectionAssets.filter((asset) =>
+        projectAssetMatchesQuery(asset, normalizedQuery, jobByAssetId.get(asset.id))
+      );
+      if (matches.length) next.set(name, matches);
+    });
+    return next;
+  }, [allGroups, jobByAssetId, normalizedQuery, searching]);
+  let orderedSections = [...new Set([...sections.map(({ label }) => label), ...allGroups.keys()])]
     .sort((left, right) => left === 'AI History' ? -1 : right === 'AI History' ? 1 : left.localeCompare(right));
   const visibleAssetIds = new Set(assets.map(({ id }) => id));
-  const pendingJobs = jobs.filter((job) => !['failed', 'cancelled'].includes(job.status)
+  const allPendingJobs = jobs.filter((job) => !['failed', 'cancelled'].includes(job.status)
     && (!job.results.length || job.results.every(({ assetId }) => !visibleAssetIds.has(assetId))));
-  if ((pendingJobs.length || jobs.some((job) => job.results.length)) && !groups.has('AI History')) orderedSections.unshift('AI History');
+  const pendingJobs = searching
+    ? allPendingJobs.filter((job) => generationJobMatchesQuery(job, normalizedQuery))
+    : allPendingJobs;
+  if ((allPendingJobs.length || jobs.some((job) => job.results.length)) && !orderedSections.includes('AI History')) {
+    orderedSections.unshift('AI History');
+  }
+  if (searching) orderedSections = orderedSections.filter((name) => groups.has(name)
+    || (name === 'AI History' && pendingJobs.length > 0));
 
   const run = async (action: () => Promise<unknown> | void) => {
     setActionError(undefined);
@@ -161,11 +253,23 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
   ] : [];
 
   return <aside className="lighttable-panel" aria-label="Project assets">
+    <header className="project-asset-browser__header">
+      <SearchField ref={searchInput} aria-label="Search project assets" placeholder="Search assets"
+        value={searchQuery} onChange={(event) => setSearchQuery(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return;
+          event.stopPropagation();
+          if (searchQuery) setSearchQuery(''); else event.currentTarget.blur();
+        }} onClear={() => {
+          setSearchQuery('');
+          requestAnimationFrame(() => searchInput.current?.focus());
+        }} />
+    </header>
     <div className="lighttable-panel__controls genai-history">
       {error || actionError ? <div className="lighttable-panel__error">{actionError ?? error}</div> : null}
       {loading && !assets.length ? <div className="lighttable-panel__empty">Loading project assets…</div> : null}
       {orderedSections.map((name) => {
-        const expanded = openSections.has(name);
+        const expanded = searching || openSections.has(name);
         const sectionAssets = groups.get(name) ?? [];
         const displayedAssets = name === 'AI History' ? [...sectionAssets].sort((left, right) => {
           const leftJob = jobByAssetId.get(left.id); const rightJob = jobByAssetId.get(right.id);
@@ -173,7 +277,12 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
           const rightTime = rightJob?.updatedAt ?? (Date.parse(right.modifiedAt ?? '') || 0);
           return rightTime - leftTime || left.label.localeCompare(right.label);
         }) : sectionAssets;
-        return <PanelSection key={name} label={name} expanded={expanded} onExpandedChange={(nextExpanded) => setOpenSections((current) => {
+        return <PanelSection key={name} label={name} expanded={expanded} actions={onRefreshAssets ? <button
+          type="button" className="lighttable-group__reset" aria-label={`Rescan ${name}`}
+          title="Rescan project folders" onClick={() => void run(onRefreshAssets)}>
+          <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
+        </button> : undefined} onExpandedChange={(nextExpanded) => setOpenSections((current) => {
+          if (searching) return current;
           const next = new Set(current); if (nextExpanded) next.add(name); else next.delete(name); return next;
         })}>
           {displayedAssets.length || (name === 'AI History' && pendingJobs.length)
@@ -185,7 +294,9 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
             : <p className="lighttable-panel__empty">No images in this folder.</p>}
         </PanelSection>;
       })}
-      {!orderedSections.length && !loading ? <div className="lighttable-panel__empty">Project images will appear here.</div> : null}
+      {!orderedSections.length && !loading ? <div className="lighttable-panel__empty">
+        {searching ? `No assets match “${searchQuery.trim()}”.` : 'Project images will appear here.'}
+      </div> : null}
     </div>
     <ContextMenu open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} onClose={() => setMenu(undefined)} options={menuOptions} />
     <TextInputDialog open={Boolean(renameAsset)} compact title="Rename file" initialValue={renameAsset ? withoutExtension(renameAsset.label) : ''}

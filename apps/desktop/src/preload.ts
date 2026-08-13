@@ -129,10 +129,14 @@ const bridge: LightTableDesktopBridge = {
     ipcRenderer.invoke('lighttable:genai-job-delete', projectId, jobId),
   loadGenAiProjectAssetCatalog: (projectId) =>
     ipcRenderer.invoke('lighttable:genai-project-asset-catalog', projectId),
+  refreshGenAiProjectAssets: (projectId) =>
+    ipcRenderer.invoke('lighttable:genai-project-assets-refresh', projectId),
   loadGenAiProjectAssetPreview: (projectId, assetId) =>
     ipcRenderer.invoke('lighttable:genai-project-asset-preview', projectId, assetId),
   loadGenAiProjectAsset: (projectId, assetId) =>
     ipcRenderer.invoke('lighttable:genai-project-asset-load', projectId, assetId),
+  importGenAiProjectAsset: (projectId, asset) =>
+    ipcRenderer.invoke('lighttable:genai-project-asset-import', projectId, asset),
   revealGenAiProjectAsset: (projectId, assetId) =>
     ipcRenderer.invoke('lighttable:genai-project-asset-reveal', projectId, assetId),
   renameGenAiProjectAsset: (projectId, assetId, name) =>
