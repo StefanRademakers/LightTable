@@ -7,6 +7,6 @@
     "start": "node src/cli.mjs",
     "models:install": "node src/installModels.mjs",
     "smoke:real": "node scripts/smoke-real.mjs",
-    "test": "node --test test/server.test.mjs"
+    "test": "node --test test/server.test.mjs test/sdCliBackend.test.mjs"
   }
 }

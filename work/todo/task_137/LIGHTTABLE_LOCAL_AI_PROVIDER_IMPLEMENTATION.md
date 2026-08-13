@@ -848,7 +848,7 @@ Test Windows CUDA en macOS Metal afzonderlijk. Ga niet uit van pixel-identieke o
 - [x] model manifest/download/validatie.
 - [x] process lifecycle en session-token.
 - [x] create en edit end-to-end.
-- [ ] memory- en cancellationtests.
+- [x] memory- en cancellationtests.
 - [ ] na werkende baseline: FP8/quantization vergelijken.
 
 **Exit:** een normale Windows-gebruiker kan Free Local AI installeren en vanuit het GenAI-panel genereren en editen.

@@ -36,13 +36,14 @@ const collect = async (request) => {
 };
 
 export class LocalAiProviderServer {
-  constructor({ backend, host = '127.0.0.1', port = 7862, token, workDirectory } = {}) {
+  constructor({ backend, host = '127.0.0.1', port = 7862, token, workDirectory, maxRetainedJobs = 32 } = {}) {
     if (!backend) throw new Error('Local AI provider requires an inference backend.');
     this.backend = backend;
     this.host = host;
     this.port = port;
     this.token = token;
     this.workDirectory = path.resolve(workDirectory ?? path.join(tmpdir(), 'lighttable-local-ai'));
+    this.maxRetainedJobs = Math.max(1, Math.trunc(maxRetainedJobs));
     this.jobs = new Map();
     this.queue = [];
     this.running = false;
@@ -101,7 +102,14 @@ export class LocalAiProviderServer {
           job.status = 'cancelled';
           job.phase = 'cancelled';
           this.queue = this.queue.filter((candidate) => candidate !== job);
-        } else if (job.status === 'running' || job.status === 'loading-model') job.controller.abort();
+          await this.#discardJobFiles(job);
+        } else if (job.status === 'running' || job.status === 'loading-model') {
+          // Cancellation is authoritative at the provider boundary. A native
+          // backend that exits late must never publish a stale success result.
+          job.status = 'cancelled';
+          job.phase = 'cancelled';
+          job.controller.abort();
+        }
         return json(response, 200, jobView(job));
       }
       if (match[2] === 'result' && request.method === 'GET') {
@@ -169,11 +177,15 @@ export class LocalAiProviderServer {
           const generated = await this.backend.run({
             jobId: job.id, request: job.request, files: job.files, signal: job.controller.signal,
             onProgress: (progress, phase) => {
+              if (job.controller.signal.aborted) return;
               job.progress = progress;
               job.phase = phase;
               job.status = phase === 'loading-model' ? 'loading-model' : 'running';
             }
           });
+          if (job.controller.signal.aborted) {
+            throw Object.assign(new Error('Job cancelled.'), { code: 'JOB_CANCELLED' });
+          }
           for (let index = 0; index < generated.length; index += 1) {
             const output = generated[index];
             const id = `image-${index + 1}`;
@@ -201,8 +213,27 @@ export class LocalAiProviderServer {
           job.status = failure.code === 'JOB_CANCELLED' ? 'cancelled' : 'failed';
           job.phase = job.status;
           job.error = failure;
+          await this.#discardJobFiles(job);
         }
+        await this.#pruneTerminalJobs();
       }
     } finally { this.running = false; }
+  }
+
+  async #discardJobFiles(job) {
+    job.outputs = [];
+    job.result = undefined;
+    await rm(job.jobDirectory, { recursive: true, force: true });
+  }
+
+  async #pruneTerminalJobs() {
+    const terminal = [...this.jobs.values()].filter((job) =>
+      ['completed', 'cancelled', 'failed'].includes(job.status));
+    const excess = terminal.length - this.maxRetainedJobs;
+    if (excess <= 0) return;
+    for (const job of terminal.slice(0, excess)) {
+      this.jobs.delete(job.id);
+      await this.#discardJobFiles(job);
+    }
   }
 }

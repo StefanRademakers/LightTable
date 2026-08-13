@@ -1,14 +1,18 @@
 import { afterEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, readdir } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { FakeInferenceBackend } from '../src/fakeBackend.mjs';
 import { LocalAiProviderServer } from '../src/server.mjs';
 
 const servers = [];
 afterEach(async () => { while (servers.length) await servers.pop().close(); });
-const start = async (backend = new FakeInferenceBackend()) => {
-  const server = await new LocalAiProviderServer({ backend, port: 0, token: 'test-token' }).listen();
+const start = async (backend = new FakeInferenceBackend(), options = {}) => {
+  const workDirectory = options.workDirectory ?? await mkdtemp(path.join(os.tmpdir(), 'lighttable-local-ai-test-'));
+  const server = await new LocalAiProviderServer({ backend, port: 0, token: 'test-token', workDirectory, ...options }).listen();
   servers.push(server);
-  return { server, base: `http://127.0.0.1:${server.port}`, headers: { Authorization: 'Bearer test-token' } };
+  return { server, workDirectory, base: `http://127.0.0.1:${server.port}`, headers: { Authorization: 'Bearer test-token' } };
 };
 const submit = async ({ base, headers }, request) => {
   const body = new FormData();
@@ -49,11 +53,38 @@ describe('LightTable local AI provider', () => {
   });
 
   it('cancels the active job without accepting a successful result', async () => {
-    const runtime = await start();
+    let release;
+    const backend = {
+      async ready() { return true; },
+      async run() {
+        await new Promise((resolve) => { release = resolve; });
+        return [{ bytes: Buffer.from('late result'), mimeType: 'image/png', width: 1, height: 1 }];
+      }
+    };
+    const runtime = await start(backend);
     const job = await (await submit(runtime, request)).json();
-    await fetch(`${runtime.base}/api/v1/jobs/${job.jobId}/cancel`, { method: 'POST', headers: runtime.headers });
+    while (!release) await new Promise((resolve) => setTimeout(resolve, 1));
+    const cancelled = await fetch(`${runtime.base}/api/v1/jobs/${job.jobId}/cancel`, { method: 'POST', headers: runtime.headers }).then((response) => response.json());
+    assert.equal(cancelled.status, 'cancelled');
+    release();
     await new Promise((resolve) => setTimeout(resolve, 20));
     const status = await fetch(`${runtime.base}/api/v1/jobs/${job.jobId}`, { headers: runtime.headers }).then((response) => response.json());
     assert.equal(status.status, 'cancelled');
+    assert.equal((await fetch(`${runtime.base}/api/v1/jobs/${job.jobId}/result`, { headers: runtime.headers })).status, 409);
+    assert.deepEqual(await readdir(runtime.workDirectory), []);
+  });
+
+  it('bounds retained terminal jobs and their output directories', async () => {
+    const runtime = await start(new FakeInferenceBackend(), { maxRetainedJobs: 3 });
+    for (let index = 0; index < 8; index += 1) {
+      const job = await (await submit(runtime, { ...request, prompt: `memory-${index}` })).json();
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        const status = await fetch(`${runtime.base}/api/v1/jobs/${job.jobId}`, { headers: runtime.headers }).then((response) => response.json());
+        if (status.status === 'completed') break;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+    }
+    assert.equal(runtime.server.jobs.size, 3);
+    assert.equal((await readdir(runtime.workDirectory)).length, 3);
   });
 });
