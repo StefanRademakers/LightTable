@@ -151,6 +151,13 @@ const bridge: LightTableDesktopBridge = {
     ipcRenderer.on('lighttable:genai-provider-changed', handler);
     return () => ipcRenderer.removeListener('lighttable:genai-provider-changed', handler);
   },
+  localAiModelStatus: () => ipcRenderer.invoke('lighttable:local-ai-model-status'),
+  installLocalAiModel: () => ipcRenderer.invoke('lighttable:local-ai-model-install'),
+  onLocalAiModelStatus: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
+    ipcRenderer.on('lighttable:local-ai-model-changed', handler);
+    return () => ipcRenderer.removeListener('lighttable:local-ai-model-changed', handler);
+  },
   onGenAiProjectAssetsChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, projectId: string) => listener(projectId);
     ipcRenderer.on('lighttable:genai-project-assets-changed', handler);

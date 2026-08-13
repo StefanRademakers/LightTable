@@ -1,0 +1,12 @@
+{
+  "name": "@lighttable/local-ai-provider",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "models:install": "node src/installModels.mjs",
+    "smoke:real": "node scripts/smoke-real.mjs",
+    "test": "node --test test/server.test.mjs"
+  }
+}

@@ -201,6 +201,25 @@ export interface LightTableGenAiService extends GenAiHostPort {
   ): () => void;
 }
 
+/** Desktop-only installation boundary for the optional local inference runtime. */
+export interface LightTableLocalAiModelStatus {
+  readonly modelId: string;
+  readonly displayName: string;
+  readonly directory: string;
+  readonly ready: boolean;
+  readonly installing: boolean;
+  readonly installedBytes: number;
+  readonly totalBytes: number;
+  readonly currentFile?: string;
+  readonly error?: string;
+}
+
+export interface LightTableLocalAiService {
+  status(): Promise<LightTableLocalAiModelStatus>;
+  install(): Promise<LightTableLocalAiModelStatus>;
+  subscribe(listener: (status: LightTableLocalAiModelStatus) => void): () => void;
+}
+
 export interface LightTableHost {
   readonly kind: 'web' | 'electron' | 'storybuilder';
   readonly media?: LightTableMediaBrowser;
@@ -212,6 +231,7 @@ export interface LightTableHost {
   readonly projects?: LightTableProjectService;
   readonly agentAccess?: LightTableAgentAccessService;
   readonly genAi?: LightTableGenAiService;
+  readonly localAi?: LightTableLocalAiService;
   readonly funnel?: LightTableFunnelTelemetry;
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;

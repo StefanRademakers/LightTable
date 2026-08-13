@@ -1,0 +1,22 @@
+{
+  "name": "@lighttable/genai-local",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "files": ["src", "protocol-v1.schema.json"],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lighttable/genai-core": "0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

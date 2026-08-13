@@ -25,6 +25,7 @@ import type {
 } from '../lighttable/application/commands/lightTableCommandService';
 import type { ApplicationPreferences } from './applicationPreferences';
 import type { GenAiGenerationJob } from '@lighttable/genai-core';
+import { isImageEditGeneration } from '../genai/application/generationDelivery';
 
 export interface WorkspaceDocumentTab {
   readonly id: DocumentSessionId;
@@ -123,7 +124,7 @@ export function StandaloneDocumentRuntimeView({
     const payload = await host.genAi.loadProjectAsset(activeProject.id, result.assetId);
     if (!payload) return;
     const file = new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType });
-    const imageEdit = String(job.request.workflowId).toLocaleLowerCase('en-US').includes('image2image');
+    const imageEdit = isImageEditGeneration(job);
     if (forceOpen || !imageEdit) {
       onOpen(file);
       return;
@@ -180,6 +181,7 @@ export function StandaloneDocumentRuntimeView({
         recoveryStore={host.recovery}
         recoveryPreferences={preferences.autosave}
         toolPreferences={preferences.tools}
+        genAiPreferences={preferences.genAi}
         releaseService={host.release}
         genAiService={host.genAi}
         onGenAiGenerationSucceeded={handleGeneratedResult}

@@ -55,7 +55,6 @@ export interface GenAiSetupSnapshot {
   readonly restoreRequest: (request: GenAiGenerationRequest) => void;
 }
 
-const ENABLED_IMAGE_MODEL_IDS = new Set(['nano-banana-pro', 'gpt-image-2']);
 const DEFAULT_IMAGE_MODEL_ID = 'nano-banana-pro';
 
 export const useGenAiSetupController = (
@@ -118,13 +117,13 @@ export const useGenAiSetupController = (
     let current = true;
     setLoading(true); setError(undefined);
     void service.listModels(provider.id).then((nextModels) => {
-      const enabledModels = nextModels.filter(({ id, capabilities }) =>
-        ENABLED_IMAGE_MODEL_IDS.has(id) && capabilities.some((mode) => mode === 'text2image' || mode === 'image2image')
+      const enabledModels = nextModels.filter(({ capabilities }) =>
+        capabilities.some((mode) => mode === 'text2image' || mode === 'image2image')
       );
       const model = enabledModels.find(({ id }) => id === persistedSetup?.modelId)
         ?? enabledModels.find(({ id }) => id === DEFAULT_IMAGE_MODEL_ID)
         ?? enabledModels[0];
-      if (!model) throw new Error('No enabled image model is available in the current OpenArt catalog.');
+      if (!model) throw new Error(`${provider.label} exposes no supported image model.`);
       const mode = persistedSetup?.modelId === model.id && model.capabilities.includes(persistedSetup.mode)
         ? persistedSetup.mode
         : model.capabilities.includes('text2image') ? 'text2image' : model.capabilities[0];

@@ -10,6 +10,7 @@ coverage/
 /tmp/
 .test-data/
 .referenceCode/
+.local-ai/
 .tools/
 /target/
 *.tsbuildinfo

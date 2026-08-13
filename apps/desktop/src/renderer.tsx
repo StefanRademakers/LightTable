@@ -82,6 +82,11 @@ const invokeAgentDriver = async (
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
+  localAi: {
+    status: () => window.lightTableDesktop.localAiModelStatus(),
+    install: () => window.lightTableDesktop.installLocalAiModel(),
+    subscribe: (listener) => window.lightTableDesktop.onLocalAiModelStatus(listener)
+  },
   genAi: {
     getProviderSnapshots: () => window.lightTableDesktop.genAiProviderSnapshots(),
     connectProvider: (providerId) => window.lightTableDesktop.connectGenAiProvider(providerId),

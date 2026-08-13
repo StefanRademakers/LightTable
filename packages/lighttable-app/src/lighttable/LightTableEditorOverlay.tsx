@@ -433,6 +433,10 @@ export interface LightTableEditorOverlayProps {
     readonly zoomWithScrollWheel: boolean;
     readonly openMaskEditingOnDoubleClick: boolean;
   };
+  genAiPreferences?: {
+    readonly createProviderId: string;
+    readonly editProviderId: string;
+  };
   releaseService?: import('../platform/LightTableHost').LightTableReleaseService; hostKind?: import('../platform/LightTableHost').LightTableHost['kind'];
   genAiService?: import('../platform/LightTableHost').LightTableGenAiService;
   onGenAiGenerationSucceeded?: (job: GenAiGenerationJob) => void;
@@ -496,34 +500,58 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   recoveryStore,
   recoveryPreferences,
   toolPreferences,
+  genAiPreferences,
   releaseService, genAiService, onGenAiGenerationSucceeded, onGenAiOpenResult, onGenAiOpenAsset, hostKind = 'web',
   recoveryNotice = null,
   onRecoveryResolved
 }) => {
   const openArtProviderId = 'openart' as import('@lighttable/genai-core').GenAiProviderId;
-  const [openArtProvider, setOpenArtProvider] = React.useState<import('@lighttable/genai-core').GenAiProviderSnapshot>({
-    id: openArtProviderId,
-    label: 'OpenArt',
+  const editGenAiProviderId = (genAiPreferences?.editProviderId || openArtProviderId) as
+    import('@lighttable/genai-core').GenAiProviderId;
+  const createGenAiProviderId = (genAiPreferences?.createProviderId || openArtProviderId) as
+    import('@lighttable/genai-core').GenAiProviderId;
+  // The setup controller starts in text2image mode, so the first provider must be
+  // the configured Create provider. Mode changes below deliberately switch to
+  // the corresponding Edit/Create provider before loading its workflow.
+  const [selectedGenAiProviderId, setSelectedGenAiProviderId] = React.useState(createGenAiProviderId);
+  React.useEffect(() => {
+    setSelectedGenAiProviderId((currentProviderId) => currentProviderId === editGenAiProviderId
+      ? editGenAiProviderId : createGenAiProviderId);
+  }, [createGenAiProviderId, editGenAiProviderId]);
+  const [genAiProviderSnapshots, setGenAiProviderSnapshots] = React.useState<
+    readonly import('@lighttable/genai-core').GenAiProviderSnapshot[]
+  >([]);
+  const fallbackGenAiProvider: import('@lighttable/genai-core').GenAiProviderSnapshot = {
+    id: selectedGenAiProviderId,
+    label: selectedGenAiProviderId === 'lighttable-local' ? 'Free Local AI' : 'OpenArt',
     status: 'disconnected'
-  });
+  };
+  const genAiProvider = genAiProviderSnapshots.find(({ id }) => id === selectedGenAiProviderId)
+    ?? fallbackGenAiProvider;
+  const openArtProvider = genAiProviderSnapshots.find(({ id }) => id === openArtProviderId)
+    ?? { id: openArtProviderId, label: 'OpenArt', status: 'disconnected' as const };
+  const updateGenAiProviderSnapshot = React.useCallback((snapshot: import('@lighttable/genai-core').GenAiProviderSnapshot) => {
+    setGenAiProviderSnapshots((current) => [
+      ...current.filter(({ id }) => id !== snapshot.id), snapshot
+    ]);
+  }, []);
   React.useEffect(() => {
     if (!genAiService) return;
     let active = true;
     void genAiService.getProviderSnapshots().then((snapshots) => {
-      const snapshot = snapshots.find((entry) => entry.id === openArtProviderId);
-      if (active && snapshot) setOpenArtProvider(snapshot);
+      if (active) setGenAiProviderSnapshots(snapshots);
     }).catch((reason) => {
-      if (active) setOpenArtProvider((current) => ({
-        ...current,
+      if (active) updateGenAiProviderSnapshot({
+        ...fallbackGenAiProvider,
         status: 'error',
         message: reason instanceof Error ? reason.message : String(reason)
-      }));
+      });
     });
     const unsubscribe = genAiService.subscribe((snapshot) => {
-      if (active && snapshot.id === openArtProviderId) setOpenArtProvider(snapshot);
+      if (active) updateGenAiProviderSnapshot(snapshot);
     });
     return () => { active = false; unsubscribe(); };
-  }, [genAiService]);
+  }, [genAiService, selectedGenAiProviderId, updateGenAiProviderSnapshot]);
   const imageClipboard = providedImageClipboard ?? browserImageClipboard();
   const standaloneFontRegistryRef = useRef<DocumentFontRegistry | null>(null);
   if (!documentSession && !standaloneFontRegistryRef.current) {
@@ -731,7 +759,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }) : undefined, [imageDocument?.height, imageDocument?.width, workspaceDocumentId]);
   const genAiSetup = useGenAiSetupController(
     genAiService,
-    openArtProvider,
+    genAiProvider,
     activeGenAiProjectId,
     genAiDocumentContext
   );
@@ -773,7 +801,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     genAiService,
     activeGenAiProjectId,
     onGenAiGenerationSucceeded,
-    openArtProvider.status
+    genAiProvider.status
   );
   const faceWarpDetectorRef = useRef<FaceWarpDetector | null>(null);
   const faceWarpDetectionGenerationRef = useRef(0);
@@ -4588,12 +4616,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       connectOpenArtProvider: () => {
         workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi);
         if (genAiService) {
-          void genAiService.connectProvider(openArtProviderId).then(setOpenArtProvider);
+          void genAiService.connectProvider(openArtProviderId).then(updateGenAiProviderSnapshot);
         }
       },
       disconnectOpenArtProvider: () => {
         if (genAiService) {
-          void genAiService.disconnectProvider(openArtProviderId).then(setOpenArtProvider);
+          void genAiService.disconnectProvider(openArtProviderId).then(updateGenAiProviderSnapshot);
         }
       },
       openStyleGuide: onOpenStyleGuide,
@@ -5714,9 +5742,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } },
               genAi: {
                 interactionActive: active,
-                providerName: openArtProvider.label,
-                status: openArtProvider.status,
-                message: openArtProvider.message,
+                providerName: genAiProvider.label,
+                status: genAiProvider.status,
+                message: genAiProvider.message,
                 projectName: activeProject?.name,
                 models: genAiSetup.models,
                 workflow: genAiSetup.workflow,
@@ -5725,6 +5753,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 selectedMode: genAiSetup.selectedMode,
                 onModeChange: (mode) => {
                   setGenAiBaseImageSelected(mode === 'image2image');
+                  setSelectedGenAiProviderId(mode === 'image2image'
+                    ? editGenAiProviderId : createGenAiProviderId);
                   genAiSetup.setMode(mode);
                 },
                 loading: genAiSetup.loading,
@@ -5753,7 +5783,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 onImportReferenceFile: (file) => importGenAiReferenceFile(file),
                 onImportDocumentReference: (documentId) => importGenAiDocumentReference(documentId),
                 onConnect: genAiService ? () => {
-                  void genAiService.connectProvider(openArtProviderId).then(setOpenArtProvider);
+                  void genAiService.connectProvider(selectedGenAiProviderId).then(updateGenAiProviderSnapshot);
                 } : undefined
               },
               aiHistory: {

@@ -1,0 +1,124 @@
+import type {
+  GenAiAssetPayload,
+  GenAiAssetReference,
+  GenAiGenerationRequest
+} from '@lighttable/genai-core';
+import type {
+  LocalAiBinaryInput,
+  LocalAiImageJobRequestV1,
+  LocalAiJobResultV1,
+  LocalAiJobStatusV1
+} from '@lighttable/genai-local';
+import { LocalAiConnectionController } from './localAiConnectionController';
+
+export interface LocalAiResolvedInput {
+  readonly reference: GenAiAssetReference;
+  readonly payload: GenAiAssetPayload;
+}
+
+/**
+ * Provider-specific request conversion for the standalone local service.
+ *
+ * This class deliberately knows nothing about projects, React, Agent Access or
+ * MCP. The desktop generation coordinator resolves durable assets before
+ * calling it and stores returned bytes afterwards.
+ */
+export class LocalAiGenerationController {
+  constructor(private readonly connection: LocalAiConnectionController) {}
+
+  async submit(
+    request: GenAiGenerationRequest,
+    resolved: readonly LocalAiResolvedInput[]
+  ): Promise<LocalAiJobStatusV1> {
+    const { request: localRequest, inputs } = buildLocalAiRequest(request, resolved);
+    return this.connection.clientInstance().submit(localRequest, inputs);
+  }
+
+  status(providerJobId: string): Promise<LocalAiJobStatusV1> {
+    return this.connection.clientInstance().status(providerJobId);
+  }
+
+  async result(providerJobId: string): Promise<{
+    readonly metadata: LocalAiJobResultV1;
+    readonly images: readonly { readonly bytes: Uint8Array; readonly mediaType: string; readonly width: number; readonly height: number }[];
+  }> {
+    const metadata = await this.connection.clientInstance().result(providerJobId);
+    const images = await Promise.all(metadata.images.map(async (image, index) => ({
+      bytes: await this.connection.clientInstance().downloadResult(metadata, index),
+      mediaType: image.mimeType,
+      width: image.width,
+      height: image.height
+    })));
+    return { metadata, images };
+  }
+
+  cancel(providerJobId: string): Promise<LocalAiJobStatusV1> {
+    return this.connection.clientInstance().cancel(providerJobId);
+  }
+}
+
+export const buildLocalAiRequest = (
+  request: GenAiGenerationRequest,
+  resolved: readonly LocalAiResolvedInput[]
+): { readonly request: LocalAiImageJobRequestV1; readonly inputs: readonly LocalAiBinaryInput[] } => {
+  const operation = request.workflowId.endsWith(':image.create') ? 'image.create' : 'image.edit';
+  const dimensions = outputDimensions(request.output?.aspectRatio, request.output?.size);
+  const inputById = new Map(resolved.map((entry) => [entry.reference.id, entry]));
+  const ordered = request.references.map((reference) => {
+    const entry = inputById.get(reference.id);
+    if (!entry) throw new Error(`Local AI input ${reference.label} is unavailable.`);
+    return entry;
+  });
+  if (operation === 'image.edit' && !ordered.length) {
+    throw new Error('Local Image Edit requires a base image.');
+  }
+  const base = operation === 'image.edit' ? ordered[0] : undefined;
+  const visualReferences = base ? ordered.slice(1) : ordered;
+  const inputs: LocalAiBinaryInput[] = [];
+  const binary = (entry: LocalAiResolvedInput, field: string): LocalAiBinaryInput => ({
+    field,
+    name: entry.payload.name,
+    mediaType: entry.payload.mediaType,
+    bytes: entry.payload.bytes
+  });
+  if (base) inputs.push(binary(base, 'base-image'));
+  visualReferences.forEach((entry, index) => inputs.push(binary(entry, `reference-${index}`)));
+
+  return {
+    request: {
+      operation,
+      intent: operation === 'image.create' ? 'general-create' : 'general-edit',
+      modelId: request.modelId,
+      prompt: request.providerPrompt || request.prompt,
+      output: {
+        ...dimensions,
+        count: request.output?.count ?? 1,
+        mimeType: 'image/png',
+        includeAlpha: false
+      },
+      ...(base ? { baseImage: { field: 'base-image', mimeType: base.payload.mediaType } } : {}),
+      ...(visualReferences.length ? {
+        references: visualReferences.map((entry, index) => ({
+          id: entry.reference.id,
+          image: { field: `reference-${index}`, mimeType: entry.payload.mediaType },
+          role: 'visual' as const
+        }))
+      } : {}),
+      modelSettings: request.fields
+    },
+    inputs
+  };
+};
+
+const outputDimensions = (ratio = '1:1', size = '2K'): { readonly width: number; readonly height: number } => {
+  const [rawWidth, rawHeight] = ratio.split(':').map(Number);
+  const ratioWidth = rawWidth && rawWidth > 0 ? rawWidth : 1;
+  const ratioHeight = rawHeight && rawHeight > 0 ? rawHeight : 1;
+  const longEdge = size.toLocaleUpperCase('en-US') === '1K' ? 1024 : 2048;
+  const scale = longEdge / Math.max(ratioWidth, ratioHeight);
+  const multiple = 16;
+  return {
+    width: Math.max(256, Math.round((ratioWidth * scale) / multiple) * multiple),
+    height: Math.max(256, Math.round((ratioHeight * scale) / multiple) * multiple)
+  };
+};

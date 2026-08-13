@@ -23,6 +23,7 @@ import type {
   GenAiProviderSnapshot,
   GenAiWorkflowDefinition
 } from '@lighttable/genai-core';
+import type { LocalAiModelStatus } from './genai/localAiModelManager';
 
 export interface DesktopFilePayload {
   name: string;
@@ -216,6 +217,9 @@ export interface LightTableDesktopBridge {
   loadGenAiProjectSetup(projectId: string): Promise<import('@lighttable/genai-core').GenAiProjectSetup | null>;
   saveGenAiProjectSetup(projectId: string, setup: import('@lighttable/genai-core').GenAiProjectSetup): Promise<void>;
   onGenAiProviderStatus(listener: (snapshot: GenAiProviderSnapshot) => void): () => void;
+  localAiModelStatus(): Promise<LocalAiModelStatus>;
+  installLocalAiModel(): Promise<LocalAiModelStatus>;
+  onLocalAiModelStatus(listener: (status: LocalAiModelStatus) => void): () => void;
   onGenAiProjectAssetsChanged(listener: (projectId: string) => void): () => void;
   onGenAiJobChanged(listener: (event: {
     readonly projectId: string;

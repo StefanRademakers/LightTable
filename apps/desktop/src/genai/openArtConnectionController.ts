@@ -29,10 +29,12 @@ import {
 } from '@lighttable/genai-openart';
 import type { OpenArtConnectionHost } from '@lighttable/genai-openart';
 import type { OpenArtCatalogStore } from './openArtCatalogStore';
+import type { DesktopGenAiProviderController } from './providerRegistry';
 
 const providerId = OPENART_PROVIDER_ID as GenAiProviderId;
 
-export class OpenArtConnectionController {
+export class OpenArtConnectionController implements DesktopGenAiProviderController {
+  readonly providerId = providerId;
   private snapshotValue: GenAiProviderSnapshot = {
     id: providerId,
     label: 'OpenArt',

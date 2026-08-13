@@ -26,6 +26,11 @@ export interface ApplicationPreferences {
     readonly createFolders: readonly ProjectUserStorageLocation[];
     readonly userFolders: readonly ProjectUserFolder[];
   };
+  readonly genAi: {
+    /** Shared composer defaults; provider adapters own request translation. */
+    readonly createProviderId: string;
+    readonly editProviderId: string;
+  };
 }
 
 export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
@@ -42,6 +47,10 @@ export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
     folders: DEFAULT_PROJECT_FOLDER_MAPPINGS,
     createFolders: PROJECT_USER_STORAGE_LOCATIONS,
     userFolders: []
+  },
+  genAi: {
+    createProviderId: 'openart',
+    editProviderId: 'openart'
   }
 };
 
@@ -107,6 +116,16 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
       folders: projectFolders,
       createFolders,
       userFolders: normalizeProjectUserFolders(candidate.projects?.userFolders ?? []) ?? []
+    },
+    genAi: {
+      createProviderId: typeof candidate.genAi?.createProviderId === 'string'
+        && candidate.genAi.createProviderId.trim()
+        ? candidate.genAi.createProviderId.trim()
+        : DEFAULT_APPLICATION_PREFERENCES.genAi.createProviderId,
+      editProviderId: typeof candidate.genAi?.editProviderId === 'string'
+        && candidate.genAi.editProviderId.trim()
+        ? candidate.genAi.editProviderId.trim()
+        : DEFAULT_APPLICATION_PREFERENCES.genAi.editProviderId
     }
   };
 };

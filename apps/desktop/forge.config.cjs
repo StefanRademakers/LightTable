@@ -3,6 +3,13 @@ const { MakerZIP } = require('@electron-forge/maker-zip');
 const { MakerRpm } = require('@electron-forge/maker-rpm');
 const { MakerDeb } = require('@electron-forge/maker-deb');
 const { VitePlugin } = require('@electron-forge/plugin-vite');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const localAiProviderPath = path.resolve(__dirname, '../local-ai-provider');
+const localAiRuntimePath = path.resolve(__dirname, '../../.referenceCode/local-ai-runtime');
+const localAiResources = [localAiProviderPath];
+if (fs.existsSync(localAiRuntimePath)) localAiResources.push(localAiRuntimePath);
 
 const macNotarize = process.env.LIGHTTABLE_MAC_NOTARIZE === 'true'
   ? (() => {
@@ -41,6 +48,11 @@ module.exports = {
     appBundleId: 'com.mediavibe.lighttable',
     appCategoryType: 'public.app-category.graphics-design',
     appCopyright: 'Copyright (c) Mediavibe Holding B.V.',
+    // The provider service is an independent loopback process, not renderer or
+    // MCP code. Models remain replaceable user data and are installed outside
+    // the application bundle; the small native runtime is included when a
+    // platform build has staged it in .referenceCode/local-ai-runtime.
+    extraResource: localAiResources,
     osxSign: macSign,
     osxNotarize: macNotarize
   },
