@@ -922,6 +922,16 @@ export class WebGpuEngine {
     return changed;
   }
 
+  applyGeneratedLayerMask(
+    layerId: LayerId,
+    mask: import('../editor/selection/selectionTypes').RasterSelectionMask,
+    mode: 'replace' | 'intersect'
+  ) {
+    const changed = this.documentRenderer?.applyGeneratedLayerMask(layerId, mask, mode) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
   private async setSelectionNow(shape: SelectionShape, mode: SelectionMode) {
     this.device.pushErrorScope('validation');
     const changed = this.documentRenderer?.setSelection(shape, mode) ?? false;
@@ -1190,6 +1200,15 @@ export class WebGpuEngine {
     return this.documentRenderer.exportPsdDocumentAssets(
       document,
       (encoder, source, layer) => this.encodeLayerProcessing(encoder, source, layer)
+    );
+  }
+
+  exportLayerForBackgroundRemoval(document: ImageDocument, layer: RasterLayer) {
+    if (!this.documentRenderer) throw new Error('The LightTable layer renderer is unavailable.');
+    return this.documentRenderer.exportLayerForBackgroundRemoval(
+      document,
+      layer,
+      (encoder, source, owner) => this.encodeLayerProcessing(encoder, source, owner)
     );
   }
 

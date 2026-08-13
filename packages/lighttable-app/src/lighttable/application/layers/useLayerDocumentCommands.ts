@@ -30,6 +30,7 @@ import type { ReversiblePixelEdit } from '../../editor/history/ReversiblePixelEd
 import type { DocumentAssetBlob } from '../../editor/persistence/layeredDocumentFormat';
 import type { PaintChannel } from '../../editor/session/editorSession';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
+import type { RasterSelectionMask } from '../../editor/selection/selectionTypes';
 import { selectionOperationsSupportBounds } from '../../editor/tools/transform/selectionTransform';
 import {
   adjustmentStackForOwner,
@@ -74,6 +75,11 @@ export interface LayerCommandRendererPort {
   ): boolean;
   invertLayerColors(layerId: LayerId, channel?: PaintChannel): boolean;
   bakeSelectionIntoLayerMask(layerId: LayerId): boolean;
+  applyGeneratedLayerMask(
+    layerId: LayerId,
+    mask: RasterSelectionMask,
+    mode: 'replace' | 'intersect'
+  ): boolean;
   copySelectedLayerContent(document: ImageDocument, layerId: LayerId): boolean;
   exportSelectionClipboard(bounds: Rect): Promise<Blob>;
   exportMergedSelection(bounds: Rect): Promise<Blob>;
@@ -113,6 +119,10 @@ export interface LayerDocumentCommandDependencies {
 
 export interface LayerDocumentCommands {
   addActiveLayerMask(useSelection: boolean): boolean;
+  applyBackgroundRemovalMask(
+    mask: RasterSelectionMask,
+    mode: 'replace' | 'intersect' | 'new-layer'
+  ): boolean;
   duplicateActiveLayer(): boolean;
   createAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
@@ -251,6 +261,87 @@ export const createLayerDocumentCommands = (
     dependenciesRef.current.pushDocumentHistory(current, next);
     dependenciesRef.current.setActiveChannel('pixels');
     return true;
+  };
+
+  const applyBackgroundRemovalMask = (
+    mask: RasterSelectionMask,
+    mode: 'replace' | 'intersect' | 'new-layer'
+  ) => {
+    const dependencies = dependenciesRef.current;
+    const before = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    const sourceId = before?.activeLayerId;
+    const source = before && sourceId ? findRasterLayer(before, sourceId) : null;
+    if (!before || !renderer || !sourceId || !source) return false;
+    if (layerIsLocked(source, 'pixels')) {
+      dependencies.setError('Unlock the active raster layer before removing its background.');
+      return false;
+    }
+    if (mask.width !== before.width || mask.height !== before.height) {
+      dependencies.setError('The generated background mask does not match this document.');
+      return false;
+    }
+
+    let prepared = before;
+    let targetId = sourceId;
+    if (mode === 'new-layer') {
+      prepared = duplicateLayer(before, sourceId);
+      targetId = prepared.activeLayerId ?? sourceId;
+      if (prepared === before || targetId === sourceId) return false;
+    }
+    const target = findDocumentLayer(prepared, targetId);
+    if (!target?.mask) prepared = addLayerMask(prepared, targetId);
+    if (!findDocumentLayer(prepared, targetId)?.mask) return false;
+
+    try {
+      dependencies.applyDocumentSnapshot(prepared);
+      if (mode === 'new-layer') renderer.duplicateLayerPixels(sourceId, targetId);
+      renderer.beginLayerPixelEdit(targetId, 'mask');
+      if (!renderer.applyGeneratedLayerMask(
+        targetId,
+        mask,
+        mode === 'intersect' && source.mask ? 'intersect' : 'replace'
+      )) {
+        throw new Error('The generated background mask could not be uploaded to the GPU.');
+      }
+      const pixelEdit = renderer.finishPixelEdit();
+      if (!pixelEdit) throw new Error('Background removal could not create a recoverable undo step.');
+      const after = markLayerMaskPixelsChanged(prepared, targetId, fullDocumentBounds(before));
+      dependencies.applyDocumentSnapshot(after);
+      dependencies.pushHistoryEntry({
+        byteSize: pixelEdit.byteSize,
+        layerIds: [targetId],
+        undo: () => {
+          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
+            throw new Error('Background removal undo is no longer available.');
+          }
+          dependenciesRef.current.applyDocumentSnapshot(before);
+        },
+        redo: () => {
+          dependenciesRef.current.applyDocumentSnapshot(prepared);
+          if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
+            throw new Error('Background removal redo is no longer available.');
+          }
+          dependenciesRef.current.applyDocumentSnapshot(after);
+        },
+        dispose: pixelEdit.destroy
+      });
+      dependencies.setActiveChannel('mask');
+      dependencies.setError(null);
+      dependencies.setStatus(
+        mode === 'new-layer'
+          ? `Created ${source.name} with a removable background mask`
+          : `Removed the background from ${source.name}`
+      );
+      return true;
+    } catch (reason) {
+      renderer.cancelPixelEdit();
+      dependencies.applyDocumentSnapshot(before);
+      dependencies.setError(
+        reason instanceof Error ? reason.message : 'The generated background mask could not be applied.'
+      );
+      return false;
+    }
   };
 
   const createProcessingLayer = (owner: 'grade' | 'lens-fx') => {
@@ -816,6 +907,7 @@ export const createLayerDocumentCommands = (
 
   return {
     addActiveLayerMask,
+    applyBackgroundRemovalMask,
     duplicateActiveLayer,
     createAdjustmentLayer: createGradeAdjustmentLayer,
     createLensFxLayer,

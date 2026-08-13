@@ -205,6 +205,25 @@ describe('createEditorMenuOptions', () => {
       .toMatchObject({ label: 'Invert selection', shortcut: 'Ctrl+Shift+I' });
   });
 
+  it('routes Select and Layer background removal through one command', () => {
+    const menuCommands = commands();
+    const selectAction = createEditorMenuOptions('select', state(), labels, menuCommands)
+      .find((option) => option.value === 'remove-background');
+    const layerAction = createEditorMenuOptions('layer', state(), labels, menuCommands)
+      .find((option) => option.value === 'remove-background');
+
+    expect(selectAction).toMatchObject({ label: 'Remove Background', disabled: false });
+    expect(layerAction).toMatchObject({ label: 'Remove Background', disabled: false });
+    selectAction?.onClick?.();
+    layerAction?.onClick?.();
+    expect(menuCommands.removeBackground).toHaveBeenCalledTimes(2);
+
+    const lockedAction = createEditorMenuOptions(
+      'layer', state({ layer: { ...state().layer!, locked: true } }), labels, commands()
+    ).find((option) => option.value === 'remove-background');
+    expect(lockedAction?.disabled).toBe(true);
+  });
+
   it('keeps every copy command above its corresponding paste command', () => {
     const options = createEditorMenuOptions(
       'edit',

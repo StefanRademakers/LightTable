@@ -276,6 +276,34 @@ export class LayerDocumentRenderer {
     );
   }
 
+  async exportLayerForBackgroundRemoval(
+    document: ImageDocument,
+    layer: RasterLayer,
+    encodeAdjustment?: EncodeAdjustment
+  ) {
+    const isolated: RasterLayer = {
+      ...layer,
+      visible: true,
+      opacity: 1,
+      fillOpacity: 1,
+      blendMode: 'normal',
+      clipping: false,
+      mask: null,
+      styleStack: { ...layer.styleStack, enabled: false }
+    };
+    const encoder = this.device.createCommandEncoder({
+      label: `LightTable background removal source: ${layer.name}`
+    });
+    const source = this.encodeComposite(
+      encoder,
+      { ...document, layers: [isolated], activeLayerId: isolated.id },
+      encodeAdjustment
+    );
+    this.device.queue.submit([encoder.finish()]);
+    this.releaseSubmittedResources();
+    return this.runtime.textureCodec.encode(source, false, document.width, document.height);
+  }
+
   vectorPathsForTextLayer(layerId: LayerId, signal?: AbortSignal) {
     return this.runtime.textLayerCoordinator.vectorPathsForLayer(layerId, signal);
   }
@@ -534,6 +562,15 @@ export class LayerDocumentRenderer {
     return target
       ? this.runtime.selectionRasterizer.copySelectionToMask(target)
       : false;
+  }
+
+  applyGeneratedLayerMask(
+    layerId: LayerId,
+    mask: import('../selection/selectionTypes').RasterSelectionMask,
+    mode: 'replace' | 'intersect'
+  ) {
+    const target = this.maskTextureFor(layerId);
+    return target ? this.runtime.selectionRasterizer.applyLayerMask(target, mask, mode) : false;
   }
 
   loadLayerMaskAsSelection(layerId: LayerId) {

@@ -43,6 +43,7 @@ import {
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
+import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
@@ -102,6 +103,7 @@ import {
 import { lightTableDepthAnalysis } from './analysis/depth/DepthAnalysisClient';
 import { sampleMedianDepth } from './analysis/depth/normalization';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
+import { BackgroundRemovalDialog } from './editor/ui/BackgroundRemovalDialog';
 import { createResizePlan, resizeImageDocumentSemantics, type ImageSizeRequest } from './application/imageSize/imageSizeModel';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import {
@@ -3643,6 +3645,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       publishAdjustmentPresentation(cloneAdjustments(next));
     }
   });
+  const backgroundRemovalController = useBackgroundRemovalController({
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    applyMask: layerDocumentCommands.applyBackgroundRemovalMask,
+    setStatus: setGradeStatus,
+    setError
+  });
   rasterizeShapeRef.current = (transaction) => {
     const renderer = engineRef.current;
     const siblings = siblingLayers(transaction.previewDocument, transaction.layerId);
@@ -4512,7 +4521,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selection: {
       selectAll: selectAllContent,
       clear: clearCurrentSelection,
-      invert: invertCurrentSelection
+      invert: invertCurrentSelection,
+      removeBackground: backgroundRemovalController.request
     },
     image: {
       openSize: editorDialogs.openImageSize,
@@ -4604,6 +4614,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onOpenFontReport={() => editorDialogs.openPsdReport()}
       onConvertTextToShape={requestTextToShape}
+      onRemoveBackground={backgroundRemovalController.request}
       onSelectionChange={handleLayerSelectionChange}
       onMaskIsolationChange={(layerId) => {
         setIsolatedMaskLayerId(layerId);
@@ -5382,6 +5393,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onToolChange: activatePersistentTool,
             onClose: () => setToolOptionsMenu(null)
           } : null}
+          />
+          <BackgroundRemovalDialog
+            state={backgroundRemovalController.state}
+            onCancel={backgroundRemovalController.cancel}
+            onChoose={(mode) => void backgroundRemovalController.removeBackgroundFromActiveLayer(mode)}
           />
         </>
       )}

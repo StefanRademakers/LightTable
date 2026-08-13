@@ -50,6 +50,7 @@ compiled into `wasm-vips`. Any `UNKNOWN` inventory entry blocks a release.
 | Transformers.js | 3.8.1 | Apache-2.0 | Lazy depth-estimation worker |
 | Depth Anything V2 Small ONNX | remote model repository | Apache-2.0 | Downloaded only when depth estimation is requested; model id is `onnx-community/depth-anything-v2-small-ONNX` |
 | SlimSAM 77 Uniform ONNX | remote model repository | Apache-2.0 | Optional, lazy Object Selection prototype; model id is `Xenova/slimsam-77-uniform` and no model is loaded at application startup |
+| BEN2 Base ONNX FP16 | revision `c552aa82688edce09f0ac9d2e31ad53d9d629010`; SHA-256 `dfdc25f...85cedf1` | MIT | Lazy, worker-hosted Remove Background model; downloaded only on first use and retained by the Transformers.js browser cache |
 | MediaPipe Tasks Vision | 1.0.1 | Apache-2.0 | Lazy on-device face-landmark worker; module WASM is selected explicitly for web and Electron workers |
 | MediaPipe Face Landmarker | SHA-256 `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff` | Apache-2.0 | Bundled local face-landmark model; loaded only when Detect faces is requested |
 | MediaPipe BlazeFace short-range detector | SHA-256 `b4578f35940bf5a1a655214a1cce5cab13eba73c1297cd78e1a04c2380b0152f` | Apache-2.0 | Bundled local independent face observation; loaded only when Face Warp detection is requested |

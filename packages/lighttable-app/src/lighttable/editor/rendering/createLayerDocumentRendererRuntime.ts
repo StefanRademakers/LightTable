@@ -47,6 +47,7 @@ import type { TextRenderPresentationSnapshot } from '../../application/rendering
 export type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 
 export interface LayerDocumentRendererRuntime {
+  textureCodec: LayerTextureCodec;
   layerResources: LayerRuntimeStore;
   layerStyleRenderer: LayerStyleRenderer;
   vectorLayerRenderer: VectorLayerRenderer;
@@ -502,6 +503,7 @@ export const createLayerDocumentRendererRuntime = (
   });
 
   return {
+    textureCodec,
     layerResources,
     layerStyleRenderer,
     vectorLayerRenderer,

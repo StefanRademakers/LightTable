@@ -1,5 +1,27 @@
 # LightTable Background Removal — BEN2 Base ONNX
 
+## Implementatiestatus (13 augustus 2026)
+
+De eerste LightTable-productimplementatie is afgerond:
+
+- [x] één centrale `Remove Background`-command voor Select, Layer en het laag-contextmenu;
+- [x] generieke `BackgroundRemovalModel`-boundary met BEN2 als productieadapter en BiRefNet Lite als benchmarkadapter;
+- [x] BEN2-revision en FP16-artifactdigest vastgelegd in het modelprofiel;
+- [x] model lazy-loaded bij de eerste opdracht; geen modelwerk tijdens app-startup;
+- [x] WebGPU FP16 als voorkeursbackend en WASM q8 als expliciete lokale fallback;
+- [x] decode, modeldownload, inferentie en full-resolution matte-refinement in een dedicated worker;
+- [x] maximaal één actuele opdracht per controller, cancel door worker-disposal en stale-result-rejectie op document-, revision- en layer-id;
+- [x] geïsoleerde GPU-export van de actieve rasterlaag inclusief eigen adjustments, zonder omliggende lagen of layer styles;
+- [x] zachte output-alpha gecombineerd met bestaande source-alpha;
+- [x] niet-destructieve editable layer-mask output met Replace, Intersect en New masked layer;
+- [x] precies één undo-entry voor de uiteindelijke documentmutatie;
+- [x] gepinde model/licentie opgenomen in de gegenereerde third-party inventory;
+- [x] unit- en regressietests voor matte-refinement, maskmodi, rollback, undo en gedeelde menucommand;
+
+De UX toont bewust geen model- of technische instellingen. Het model blijft warm in zijn worker voor snelle vervolgruns en wordt bij cancel of het sluiten van de editor expliciet vrijgegeven. Alleen het definitieve masker raakt de documentstate; progress-events veroorzaken geen compositor- of React-documentupdates.
+
+De platformbrede BEN2-versus-BiRefNet kwaliteitsbenchmark uit het onderzoeksdeel hieronder blijft een releasekwalificatie, niet een tweede productpad of voorwaarde om de command te gebruiken. Een alternatieve adapter mag pas productiestatus krijgen nadat revision, artifactdigest en dezelfde kwaliteits-/memorytests zijn vastgelegd.
+
 ## Besluit
 
 Voor een zelfstandige, volledig automatische **Remove Background**-functie in LightTable is **BEN2 Base ONNX** momenteel de beste eerste productiekandidaat.

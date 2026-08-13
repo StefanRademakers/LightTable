@@ -67,6 +67,13 @@
       "loading": "Downloaded lazily when Object Selection is first requested."
     },
     {
+      "name": "BEN2 Base ONNX FP16",
+      "license": "MIT",
+      "source": "https://huggingface.co/onnx-community/BEN2-ONNX/tree/c552aa82688edce09f0ac9d2e31ad53d9d629010",
+      "loading": "Downloaded lazily when Remove Background is first requested; revision and FP16 artifact digest are pinned.",
+      "sha256": "dfdc25f421f32a0d1268e0f2ff2153d340e8f1d52d3dd16f5dc33c1ce85cedf1"
+    },
+    {
       "name": "MediaPipe Face Landmarker model",
       "license": "Apache-2.0",
       "source": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",

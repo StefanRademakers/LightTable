@@ -31,6 +31,7 @@ export interface LayersWorkspacePanelProps {
   onEditText?: (layerId: LayerId) => void;
   onOpenFontReport?: (layerId: LayerId) => void;
   onConvertTextToShape: (layerId: LayerId) => void;
+  onRemoveBackground: () => void;
 }
 
 /**
@@ -53,7 +54,8 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   editingTextLayerId,
   onEditText,
   onOpenFontReport,
-  onConvertTextToShape
+  onConvertTextToShape,
+  onRemoveBackground
 }) => {
   if (!document) {
     return (
@@ -103,6 +105,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onDuplicate={controller.duplicateActive}
         onRasterizeText={controller.rasterizeActiveText}
         onConvertTextToShape={onConvertTextToShape}
+        onRemoveBackground={onRemoveBackground}
         onMergeDown={controller.mergeDown}
         onMergeSelected={controller.mergeSelected}
         onFlattenGroup={controller.flattenGroup}

@@ -178,6 +178,14 @@ export const LIGHTTABLE_PRODUCT_DISCLOSURES = [
   },
   {
     "category": "AI and automation",
+    "name": "BEN2 Base ONNX FP16",
+    "version": "Loaded on demand",
+    "license": "MIT",
+    "description": "Downloaded lazily when Remove Background is first requested; revision and FP16 artifact digest are pinned.",
+    "platform": "all"
+  },
+  {
+    "category": "AI and automation",
     "name": "MediaPipe Face Landmarker model",
     "version": "Loaded on demand",
     "license": "Apache-2.0",

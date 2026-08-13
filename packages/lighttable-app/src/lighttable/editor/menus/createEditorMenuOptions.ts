@@ -83,6 +83,7 @@ export interface EditorMenuCommands {
   clearSelection: () => void;
   invertSelection: () => void;
   featherSelection: () => void;
+  removeBackground: () => void;
   createRasterLayer: () => void;
   duplicateLayer: () => void;
   rasterizeText: () => void;
@@ -393,6 +394,13 @@ export const createEditorMenuOptions = (
         separatorBefore: true,
         onClick: commands.featherSelection,
         disabled: !state.hasSelection || state.saving
+      },
+      {
+        value: 'remove-background',
+        label: 'Remove Background',
+        separatorBefore: true,
+        onClick: commands.removeBackground,
+        disabled: !layer || layer.type !== 'raster' || layer.locked || state.saving
       }
     ];
   }
@@ -475,6 +483,12 @@ export const createEditorMenuOptions = (
         separatorBefore: true,
         onClick: commands.invertLayerColors,
         disabled: !layer || layer.type !== 'raster' || layer.locked
+      },
+      {
+        value: 'remove-background',
+        label: 'Remove Background',
+        onClick: commands.removeBackground,
+        disabled: !layer || layer.type !== 'raster' || layer.locked || state.saving
       },
       ...(state.autoAlignPreview ? [
         {

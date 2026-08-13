@@ -465,6 +465,86 @@ export class SelectionRasterizer {
     return true;
   }
 
+  /** Writes an inference alpha directly into a document-owned layer mask.
+   * This deliberately leaves the user's live selection untouched. */
+  applyLayerMask(
+    target: GPUTexture,
+    mask: RasterSelectionMask,
+    mode: 'replace' | 'intersect'
+  ) {
+    const { device } = this.options;
+    const dimensions = this.options.dimensions();
+    if (mask.width !== dimensions.width || mask.height !== dimensions.height
+      || mask.data.byteLength !== mask.width * mask.height) return false;
+
+    const usage = GPUTextureUsage.TEXTURE_BINDING
+      | GPUTextureUsage.RENDER_ATTACHMENT
+      | GPUTextureUsage.COPY_DST;
+    const create = (label: string) => device.createTexture({
+      label,
+      size: [mask.width, mask.height],
+      format: 'r8unorm',
+      usage
+    });
+    const incoming = create('LightTable generated layer mask');
+    device.queue.writeTexture(
+      { texture: incoming }, mask.data,
+      { bytesPerRow: mask.width, rowsPerImage: mask.height },
+      { width: mask.width, height: mask.height }
+    );
+    if (mode === 'replace') {
+      this.copyRedChannel(
+        incoming,
+        target,
+        this.options.pipelines().selectionToMask,
+        'LightTable replace generated layer mask'
+      );
+      void device.queue.onSubmittedWorkDone().then(() => incoming.destroy());
+      return true;
+    }
+
+    const current = create('LightTable current layer mask work texture');
+    const result = create('LightTable intersected layer mask work texture');
+    this.copyRedChannel(
+      target,
+      current,
+      this.options.pipelines().maskToSelection,
+      'LightTable read current layer mask'
+    );
+    const settings = device.createBuffer({
+      label: 'LightTable generated layer mask combine settings',
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    device.queue.writeBuffer(settings, 0, new Float32Array([2, 0, 0, 0]));
+    const pipeline = this.options.pipelines().selectionCombine;
+    const bindGroup = device.createBindGroup({
+      label: 'LightTable generated layer mask combine bindings',
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: current.createView() },
+        { binding: 1, resource: incoming.createView() },
+        { binding: 2, resource: { buffer: settings } }
+      ]
+    });
+    const encoder = device.createCommandEncoder({ label: 'LightTable intersect generated layer mask' });
+    this.options.drawFullscreen(
+      encoder, pipeline, bindGroup, result.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    device.queue.submit([encoder.finish()]);
+    this.copyRedChannel(
+      result,
+      target,
+      this.options.pipelines().selectionToMask,
+      'LightTable store intersected layer mask'
+    );
+    void device.queue.onSubmittedWorkDone().then(() => {
+      incoming.destroy(); current.destroy(); result.destroy(); settings.destroy();
+    });
+    return true;
+  }
+
   loadMask(source: GPUTexture) {
     this.options.ensureTargets();
     const { textures } = this.options;

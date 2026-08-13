@@ -44,6 +44,7 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   rasterizeText: vi.fn(() => true),
   invertLayerColors: vi.fn(() => true),
   bakeSelectionIntoLayerMask: vi.fn(() => true),
+  applyGeneratedLayerMask: vi.fn(() => true),
   copySelectedLayerContent: vi.fn(() => true),
   exportSelectionClipboard: vi.fn(async () => new Blob(['selection'], { type: 'image/png' })),
   exportMergedSelection: vi.fn(async () => new Blob(['merged'], { type: 'image/png' })),
@@ -173,6 +174,56 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers[0]?.mask).toBeNull();
     state.historyEntries[0].redo();
     expect(state.document().layers[0]?.mask?.pixelRevision).toBe(1);
+  });
+
+  it('applies a generated background matte as one editable mask transaction', () => {
+    const state = setup(createImageDocument('Remove background', 32, 24, 'asset'));
+    const layerId = state.document().activeLayerId!;
+    const mask = { width: 32, height: 24, data: new Uint8Array(32 * 24).fill(192) };
+
+    expect(state.commands.applyBackgroundRemovalMask(mask, 'replace')).toBe(true);
+
+    expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(layerId, 'mask');
+    expect(state.renderer.applyGeneratedLayerMask).toHaveBeenCalledWith(layerId, mask, 'replace');
+    expect(state.document().layers[0]?.mask?.pixelRevision).toBe(1);
+    expect(state.historyEntries).toHaveLength(1);
+    expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('mask');
+    state.historyEntries[0]!.undo();
+    expect(state.document().layers[0]?.mask).toBeNull();
+    state.historyEntries[0]!.redo();
+    expect(state.document().layers[0]?.mask?.pixelRevision).toBe(1);
+  });
+
+  it('can intersect an existing mask or create a separate masked layer', () => {
+    const intersect = setup(createImageDocument('Intersect', 8, 8, 'asset'));
+    intersect.commands.addActiveLayerMask(false);
+    const mask = { width: 8, height: 8, data: new Uint8Array(64).fill(255) };
+    expect(intersect.commands.applyBackgroundRemovalMask(mask, 'intersect')).toBe(true);
+    expect(intersect.renderer.applyGeneratedLayerMask).toHaveBeenLastCalledWith(
+      intersect.document().activeLayerId, mask, 'intersect'
+    );
+
+    const duplicate = setup(createImageDocument('Duplicate', 8, 8, 'asset'));
+    const originalId = duplicate.document().activeLayerId!;
+    expect(duplicate.commands.applyBackgroundRemovalMask(mask, 'new-layer')).toBe(true);
+    expect(duplicate.document().layers).toHaveLength(2);
+    expect(duplicate.document().activeLayerId).not.toBe(originalId);
+    expect(duplicate.renderer.duplicateLayerPixels).toHaveBeenCalledWith(
+      originalId, duplicate.document().activeLayerId
+    );
+  });
+
+  it('does not publish a partial mask command when the GPU upload fails', () => {
+    const state = setup(createImageDocument('Failure', 8, 8, 'asset'));
+    vi.mocked(state.renderer.applyGeneratedLayerMask).mockReturnValue(false);
+
+    expect(state.commands.applyBackgroundRemovalMask({
+      width: 8, height: 8, data: new Uint8Array(64)
+    }, 'replace')).toBe(false);
+
+    expect(state.document().layers[0]?.mask).toBeNull();
+    expect(state.historyEntries).toHaveLength(0);
+    expect(state.renderer.cancelPixelEdit).toHaveBeenCalledOnce();
   });
 
   it('copies selected layer pixels to the system image clipboard', async () => {
