@@ -126,7 +126,7 @@ export const readR8Texture = async (
 };
 
 /** Expands the canonical r8 selection channel to a portable white-is-selected PNG. */
-export const selectionMaskToRgba8 = (mask: Uint8Array) => {
+export const selectionMaskToRgba8 = (mask: Uint8Array | Uint8ClampedArray) => {
   const pixels = new Uint8ClampedArray(mask.length * 4);
   for (let index = 0; index < mask.length; index += 1) {
     const value = mask[index]!;

@@ -83,6 +83,7 @@ export interface EditorMenuCommands {
   clearSelection: () => void;
   invertSelection: () => void;
   featherSelection: () => void;
+  removeObject: () => void;
   removeBackground: () => void;
   createRasterLayer: () => void;
   duplicateLayer: () => void;
@@ -396,9 +397,15 @@ export const createEditorMenuOptions = (
         disabled: !state.hasSelection || state.saving
       },
       {
+        value: 'remove-object',
+        label: 'Remove Object',
+        separatorBefore: true,
+        onClick: commands.removeObject,
+        disabled: !state.hasSelection || state.saving
+      },
+      {
         value: 'remove-background',
         label: 'Remove Background',
-        separatorBefore: true,
         onClick: commands.removeBackground,
         disabled: !layer || layer.type !== 'raster' || layer.locked || state.saving
       }

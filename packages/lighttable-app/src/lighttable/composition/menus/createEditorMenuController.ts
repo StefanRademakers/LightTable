@@ -53,6 +53,7 @@ export interface EditorMenuControllerOptions {
     selectAll(): void;
     clear(): void;
     invert(): void;
+    removeObject(): void;
     removeBackground(): void;
   };
   readonly image: {
@@ -171,6 +172,7 @@ export const createEditorMenuController = ({
       clearSelection: selection.clear,
       invertSelection: selection.invert,
       featherSelection: dialogs.openFeather,
+      removeObject: selection.removeObject,
       removeBackground: selection.removeBackground,
       createRasterLayer: layers.panel.createRasterLayer,
       duplicateLayer: layers.duplicate,

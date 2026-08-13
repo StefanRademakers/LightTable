@@ -61,7 +61,7 @@ describe('createEditorMenuController', () => {
         selectAll: vi.fn(),
         clear: vi.fn(),
         invert: vi.fn(),
-        removeBackground: vi.fn()
+        removeObject: vi.fn(), removeBackground: vi.fn()
       },
       image: { openSize: vi.fn() },
       layers: {
@@ -147,7 +147,7 @@ describe('createEditorMenuController', () => {
         copySelectedContent: vi.fn(), copyMergedContent: vi.fn(),
         pasteSelectedContent: vi.fn(), pasteGrade: vi.fn(), copyGrade: vi.fn()
       },
-      selection: { selectAll: vi.fn(), clear: vi.fn(), invert: vi.fn(), removeBackground: vi.fn() },
+      selection: { selectAll: vi.fn(), clear: vi.fn(), invert: vi.fn(), removeObject: vi.fn(), removeBackground: vi.fn() },
       image: { openSize: vi.fn() },
       layers: {
         panel: {} as LayerPanelController,

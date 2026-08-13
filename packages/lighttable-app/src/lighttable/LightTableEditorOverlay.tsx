@@ -167,6 +167,7 @@ import { nextEditorScreenMode, type EditorScreenMode } from './editor/workspace/
 import { LIGHTTABLE_WORKSPACE_PANEL_IDS } from './editor/workspace/workspacePanelRegistry';
 import { useGenAiSetupController } from '../genai/application/useGenAiSetupController';
 import { useGenAiJobsController } from '../genai/application/useGenAiJobsController';
+import { executeRemoveObject } from '../genai/application/removeObjectCommand';
 import type { GenAiGenerationJob } from '@lighttable/genai-core';
 
 import {
@@ -994,6 +995,36 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const initialSourceName = initialSourceBlob instanceof File && initialSourceBlob.name
     ? initialSourceBlob.name
     : fileNameBase;
+  const removeObjectPendingRef = useRef(false);
+  const removeSelectedObject = React.useCallback(() => {
+    if (removeObjectPendingRef.current) return;
+    const renderer = engineRef.current;
+    const document = imageDocumentRef.current;
+    if (!genAiService || !activeGenAiProjectId || !renderer || !document) {
+      setError('Open a project and a ready document before using Remove Object.');
+      return;
+    }
+    removeObjectPendingRef.current = true;
+    setError(null);
+    setGradeStatus('Removing the selected object...');
+    void executeRemoveObject({
+      service: genAiService,
+      projectId: activeGenAiProjectId,
+      renderer,
+      preferredProviderIds: [editGenAiProviderId, selectedGenAiProviderId],
+      documentName: initialSourceName,
+      documentWidth: document.width,
+      documentHeight: document.height
+    }).then(() => {
+      setGradeStatus('Remove Object submitted.');
+    }).catch((reason) => {
+      setGradeStatus(null);
+      setError(reason instanceof Error ? reason.message : 'Remove Object could not be submitted.');
+    }).finally(() => {
+      removeObjectPendingRef.current = false;
+    });
+  }, [activeGenAiProjectId, editGenAiProviderId, genAiService, imageDocumentRef,
+    initialSourceName, selectedGenAiProviderId]);
 
   const fitScale = useMemo(() => {
     if (!metadata) return 1;
@@ -4560,6 +4591,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectAll: selectAllContent,
       clear: clearCurrentSelection,
       invert: invertCurrentSelection,
+      removeObject: removeSelectedObject,
       removeBackground: backgroundRemovalController.request
     },
     image: {
