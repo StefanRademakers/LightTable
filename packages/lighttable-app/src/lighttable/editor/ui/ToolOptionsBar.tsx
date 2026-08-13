@@ -19,6 +19,7 @@ import type { SelectionCombineMode } from '../selection/selectionTypes';
 import { ZOOM_PRESETS_PERCENT } from '../tools/zoom/zoomLevels';
 import type { DocumentFontAsset } from '../document/documentTypes';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
+import type { SmartSelectionBackendIdentity } from '../../application/tools/smartSelection/SmartSelectionBackend';
 import { MixedNumberInput } from './MixedNumberInput';
 import { ToolOptionColor, ToolOptionNumber, ToolOptionSelect } from './ToolOptionControls';
 import { GradientAssetEditor } from './LayerStyleGradientEditor';
@@ -65,6 +66,7 @@ export interface ToolOptionsProps {
   selectionSmooth: number;
   magicWand: EditorSession['magicWand'];
   smartSelection: EditorSession['smartSelection'];
+  smartSelectionBackendIdentity?: SmartSelectionBackendIdentity | null;
   transformAutoSelectLayer: boolean;
   zoomPercent: number;
   gradientEditorRequest?: { readonly revision: number; readonly endpoint: 'start' | 'end' } | null;
@@ -101,11 +103,6 @@ export interface ToolOptionsProps {
   onSelectionSmoothChange: (smooth: number) => void;
   onMagicWandChange: (change: Partial<EditorSession['magicWand']>) => void;
   onSmartSelectionChange: (change: Partial<EditorSession['smartSelection']>) => void;
-  onSelectSubject: () => void;
-  onSmartSelectionUndo: () => void;
-  onSmartSelectionReset: () => void;
-  onSmartSelectionApply: () => void;
-  onSmartSelectionCancel: () => void;
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
@@ -267,6 +264,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectionSmooth,
   magicWand,
   smartSelection,
+  smartSelectionBackendIdentity,
   transformAutoSelectLayer,
   zoomPercent,
   gradientEditorRequest,
@@ -303,11 +301,6 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onSelectionSmoothChange,
   onMagicWandChange,
   onSmartSelectionChange,
-  onSelectSubject,
-  onSmartSelectionUndo,
-  onSmartSelectionReset,
-  onSmartSelectionApply,
-  onSmartSelectionCancel,
   onTransformAutoSelectLayerChange,
   onZoomPreset,
   onZoomFit,
@@ -515,26 +508,17 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               onChange={(event) => onSmartSelectionChange({ hardEdge: event.currentTarget.checked })} />
             Hard Edge
           </label>
-          <ActionButton size="compact" onClick={onSelectSubject}
-            title="Select the most likely subject">
-            Select Subject
-          </ActionButton>
-          <ActionButton size="compact" onClick={onSmartSelectionUndo}
-            title="Remove the latest Object Selection prompt">
-            Undo prompt
-          </ActionButton>
-          <ActionButton size="compact" onClick={onSmartSelectionReset}
-            title="Remove all Object Selection prompts">
-            Reset
-          </ActionButton>
-          <ActionButton size="compact" onClick={onSmartSelectionApply}
-            title="Apply the refined mask to the current selection">
-            Apply
-          </ActionButton>
-          <ActionButton size="compact" onClick={onSmartSelectionCancel}
-            title="Discard the temporary Object Selection mask">
-            Cancel
-          </ActionButton>
+          {smartSelectionBackendIdentity ? (
+            <span className="lighttable-tool-options__hint"
+              title={`${smartSelectionBackendIdentity.modelId} @ ${smartSelectionBackendIdentity.artifactRevision}`}>
+              {smartSelectionBackendIdentity.modelId.includes('sam2.1-hiera-small')
+                ? 'SAM 2.1 Small'
+                : smartSelectionBackendIdentity.modelId.includes('slimsam')
+                  ? 'SlimSAM'
+                  : smartSelectionBackendIdentity.modelId.split('/').at(-1)}
+              {' · '}{smartSelectionBackendIdentity.precision.toUpperCase()}
+            </span>
+          ) : null}
         </div>
       ) : null}
       {activeTool === 'gradient' ? (

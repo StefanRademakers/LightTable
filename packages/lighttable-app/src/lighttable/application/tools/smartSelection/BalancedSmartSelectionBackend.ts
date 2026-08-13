@@ -13,7 +13,6 @@ interface PreparedRoute {
 
 /** Balanced profile: SAM 2.1 Small prompts with a lazy SlimSAM compatibility fallback. */
 export class BalancedSmartSelectionBackend implements SmartSelectionBackend {
-  readonly identity;
   readonly capabilities = {
     positivePoints: true, negativePoints: true, boxes: true,
     previousMask: false, automaticSubject: true
@@ -22,8 +21,9 @@ export class BalancedSmartSelectionBackend implements SmartSelectionBackend {
   private readonly fallback = new SlimSamSmartSelectionBackend();
   private readonly routes = new Map<string, PreparedRoute>();
   private primaryUnavailable = false;
+  private activeBackend: SmartSelectionBackend = this.primary;
 
-  constructor() { this.identity = this.primary.identity; }
+  get identity() { return this.activeBackend.identity; }
 
   async prepare(source: SmartSelectionSource, signal?: AbortSignal) {
     let backend: SmartSelectionBackend = this.primaryUnavailable ? this.fallback : this.primary;
@@ -36,6 +36,7 @@ export class BalancedSmartSelectionBackend implements SmartSelectionBackend {
       backend = this.fallback;
       prepared = await backend.prepare(source, signal);
     }
+    this.activeBackend = backend;
     const routed = { ...prepared, id: `${backend === this.primary ? 'sam2' : 'slimsam'}|${prepared.id}` };
     this.routes.set(routed.id, { backend, source, prepared });
     return routed;
@@ -44,11 +45,13 @@ export class BalancedSmartSelectionBackend implements SmartSelectionBackend {
   selectPrompt(source: PreparedSmartSelectionSource, prompt: SmartSelectionPrompt,
     options: SmartSelectionRequestOptions) {
     const route = this.route(source);
+    this.activeBackend = route.backend;
     return route.backend.selectPrompt(route.prepared, prompt, options);
   }
 
   async selectSubject(source: PreparedSmartSelectionSource, options: SmartSelectionRequestOptions) {
     const route = this.route(source);
+    this.activeBackend = this.fallback;
     if (route.backend === this.fallback) return this.fallback.selectSubject(route.prepared, options);
     const prepared = await this.fallback.prepare(route.source, options.signal);
     return this.fallback.selectSubject(prepared, options);

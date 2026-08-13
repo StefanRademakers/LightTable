@@ -50,6 +50,11 @@ export class SmartSelectionRequestGate {
     return generation === this.generation && this.prepared?.id === source.id ? candidates : null;
   }
 
+  /** Invalidates an in-flight decode while retaining the prepared image embedding. */
+  supersede() {
+    this.generation += 1;
+  }
+
   invalidate() {
     this.generation += 1;
     if (this.prepared) this.backend.disposePreparedSource(this.prepared);

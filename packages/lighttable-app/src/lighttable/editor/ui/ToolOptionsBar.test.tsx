@@ -44,6 +44,12 @@ const renderOptions = (
     selectionSmooth: 0,
     magicWand: session.magicWand,
     smartSelection: session.smartSelection,
+    smartSelectionBackendIdentity: activeTool === 'select-object' ? {
+      modelId: 'onnx-community/sam2.1-hiera-small-ONNX',
+      artifactRevision: 'test',
+      precision: 'fp16',
+      preprocessingRevision: 'test'
+    } : null,
     transformAutoSelectLayer: session.transformAutoSelectLayer,
     zoomPercent: 100,
     onBrushChange: vi.fn(),
@@ -85,11 +91,6 @@ const renderOptions = (
     onSelectionSmoothChange: vi.fn(),
     onMagicWandChange: vi.fn(),
     onSmartSelectionChange: vi.fn(),
-    onSelectSubject: vi.fn(),
-    onSmartSelectionUndo: vi.fn(),
-    onSmartSelectionReset: vi.fn(),
-    onSmartSelectionApply: vi.fn(),
-    onSmartSelectionCancel: vi.fn(),
     onTransformAutoSelectLayerChange: vi.fn(),
     onZoomPreset: vi.fn(),
     onZoomFit: vi.fn(),
@@ -134,14 +135,16 @@ describe('brush tool options', () => {
 });
 
 describe('Object Selection tool options', () => {
-  it('uses the familiar W-tool controls and exposes a working subject action', () => {
+  it('uses one selection interaction model and identifies the active inference model', () => {
     const markup = renderOptions('select-object');
     expect(markup).toContain('aria-label="Object Selection settings"');
     expect(markup).toContain('Object Finder');
     expect(markup).toContain('Sample All Layers');
     expect(markup).toContain('Hard Edge');
-    expect(markup).toContain('Select Subject');
-    expect(markup).not.toContain('disabled=""');
+    expect(markup).toContain('SAM 2.1 Small');
+    expect(markup).not.toContain('Select Subject');
+    expect(markup).not.toContain('Undo prompt');
+    expect(markup).not.toContain('>Apply<');
   });
 });
 

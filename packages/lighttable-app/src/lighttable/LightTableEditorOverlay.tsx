@@ -35,6 +35,7 @@ import { brushPresetChange, resolveBrushPreset } from './editor/tools/brush/brus
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { SampledBrushSourceController } from './application/tools/paint/sampledBrush';
 import { SmartSelectionToolController } from './application/tools/smartSelection/SmartSelectionToolController';
+import type { SmartSelectionBackendIdentity } from './application/tools/smartSelection/SmartSelectionBackend';
 import {
   configuredSmartSelectionBackendProfile,
   createSmartSelectionBackend
@@ -1947,6 +1948,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishSnapFeedback: (matches, bounds) => setSelectionSnapFeedback({ matches, bounds })
   }, selectionGestureRef.current);
   const smartSelectionControllerRef = useRef<SmartSelectionToolController | null>(null);
+  const smartSelectionBackendRef = useRef<ReturnType<typeof createSmartSelectionBackend> | null>(null);
+  smartSelectionBackendRef.current ??= createSmartSelectionBackend(configuredSmartSelectionBackendProfile());
+  const [smartSelectionBackendIdentity, setSmartSelectionBackendIdentity] =
+    useState<SmartSelectionBackendIdentity>(smartSelectionBackendRef.current.identity);
   smartSelectionControllerRef.current ??= new SmartSelectionToolController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
@@ -1954,8 +1959,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getOptions: () => editorSessionRef.current.smartSelection,
     selection: selectionSessionController,
     setStatus: setGradeStatus,
-    setDraft: setSelectionDraft
-  }, createSmartSelectionBackend(configuredSmartSelectionBackendProfile()));
+    setDraft: setSelectionDraft,
+    onBackendIdentityChange: setSmartSelectionBackendIdentity
+  }, smartSelectionBackendRef.current);
   const smartSelectionController = smartSelectionControllerRef.current;
   const smartSelectionDisposeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -5087,6 +5093,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectionSmooth={editorSession.selectionSmooth}
       magicWand={editorSession.magicWand}
       smartSelection={editorSession.smartSelection}
+      smartSelectionBackendIdentity={import.meta.env.DEV ? smartSelectionBackendIdentity : null}
       zoomPercent={activeScale * 100}
       gradientEditorRequest={gradientEditorRequest}
       onBrushChange={updateBrush}
@@ -5162,13 +5169,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           smartSelection: { ...current.smartSelection, ...change }
         }));
       }}
-      onSelectSubject={() => { void smartSelectionController.selectSubject(); }}
-      onSmartSelectionUndo={() => { smartSelectionController.undoPrompt(); }}
-      onSmartSelectionReset={() => { smartSelectionController.resetPrompts(); }}
-      onSmartSelectionApply={() => {
-        void smartSelectionController.apply(editorSessionRef.current.selectionCombineMode);
-      }}
-      onSmartSelectionCancel={() => { smartSelectionController.cancel(); }}
       onZoomPreset={setExactZoom}
       onZoomFit={fitZoom}
       onToolChange={activatePersistentTool}
@@ -5260,6 +5260,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             toneBrush: editorSession.toneBrush,
             magicWand: editorSession.magicWand,
             smartSelection: editorSession.smartSelection,
+            smartSelectionBackendIdentity: import.meta.env.DEV
+              ? smartSelectionBackendIdentity
+              : null,
             zoomPercent: activeScale * 100,
             onBrushChange: updateBrush,
             onSampledBrushChange: (change) => setEditorSession((current) => ({
@@ -5338,13 +5341,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 smartSelection: { ...current.smartSelection, ...change }
               }));
             },
-            onSelectSubject: () => { void smartSelectionController.selectSubject(); },
-            onSmartSelectionUndo: () => { smartSelectionController.undoPrompt(); },
-            onSmartSelectionReset: () => { smartSelectionController.resetPrompts(); },
-            onSmartSelectionApply: () => {
-              void smartSelectionController.apply(editorSessionRef.current.selectionCombineMode);
-            },
-            onSmartSelectionCancel: () => { smartSelectionController.cancel(); },
             onZoomPreset: setExactZoom,
             onZoomFit: fitZoom,
             onToolChange: activatePersistentTool,
