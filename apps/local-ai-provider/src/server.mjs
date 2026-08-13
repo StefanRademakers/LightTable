@@ -74,6 +74,13 @@ export class LocalAiProviderServer {
   async #route(request, response) {
     try {
       const url = new URL(request.url ?? '/', `http://${this.host}:${this.port}`);
+      // Documentation is safe to open in the system browser. Keep health,
+      // capabilities, job submission and result files behind the private token.
+      if (request.method === 'GET' && url.pathname === '/api/help') return json(response, 200, {
+        protocol: `${capabilities.protocol.name}/${PROTOCOL_VERSION}`,
+        endpoints: ['GET /api/v1/health', 'GET /api/v1/capabilities', 'POST /api/v1/jobs',
+          'GET /api/v1/jobs/:id', 'GET /api/v1/jobs/:id/result', 'POST /api/v1/jobs/:id/cancel']
+      });
       if (!this.#authorized(request)) return json(response, 401, { error: { code: 'UNAUTHORIZED', message: 'Invalid provider token.' } });
       if (request.method === 'GET' && url.pathname === '/api/v1/health') {
         return json(response, 200, {
@@ -85,11 +92,6 @@ export class LocalAiProviderServer {
         });
       }
       if (request.method === 'GET' && url.pathname === '/api/v1/capabilities') return json(response, 200, capabilities);
-      if (request.method === 'GET' && url.pathname === '/api/help') return json(response, 200, {
-        protocol: `${capabilities.protocol.name}/${PROTOCOL_VERSION}`,
-        endpoints: ['GET /api/v1/health', 'GET /api/v1/capabilities', 'POST /api/v1/jobs',
-          'GET /api/v1/jobs/:id', 'GET /api/v1/jobs/:id/result', 'POST /api/v1/jobs/:id/cancel']
-      });
       if (request.method === 'POST' && url.pathname === '/api/v1/jobs') return await this.#submit(request, response);
 
       const match = /^\/api\/v1\/jobs\/([^/]+)(?:\/(result|cancel|files\/([^/]+)))?$/u.exec(url.pathname);

@@ -52,6 +52,14 @@ describe('LightTable local AI provider', () => {
     assert.equal((await fetch(`${runtime.base}/api/v1/health`)).status, 401);
   });
 
+  it('serves API help to the system browser without exposing protected endpoints', async () => {
+    const runtime = await start();
+    const response = await fetch(`${runtime.base}/api/help`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).protocol, 'lighttable-ai-provider/1.0');
+    assert.equal((await fetch(`${runtime.base}/api/v1/capabilities`)).status, 401);
+  });
+
   it('cancels the active job without accepting a successful result', async () => {
     let release;
     const backend = {

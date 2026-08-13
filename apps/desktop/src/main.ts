@@ -730,10 +730,20 @@ void app.whenReady().then(async () => {
         genAiProviderRegistry.register(connection);
       }
       if (config.id === LOCAL_AI_PROVIDER_ID && config.localProcess?.autoStart) {
-        await connection.configureProvider({ ...config, transport: {
-          ...config.transport, baseUrl: 'http://127.0.0.1:7862'
-        } });
+        // A managed provider owns a private dynamic port and token. Do not run it
+        // through configureProvider(): that path represents an external/static HTTP
+        // transport and would discard the live managed endpoint on every refresh.
         await connection.configure({ mode: 'managed', host: '127.0.0.1', port: 7862 });
+        // `autoStart` is a lifecycle promise, not merely transport configuration.
+        // Start the private managed process here so commands such as Remove Object
+        // can discover image.inpaint without requiring a separate UI connect step.
+        // This provider is independent from Agent Access and the LightTable MCP server.
+        const snapshot = connection.snapshot().status === 'connected'
+          ? connection.snapshot()
+          : await connection.connect();
+        if (snapshot.status !== 'connected') {
+          throw new Error(snapshot.message ?? 'The local AI provider could not be started.');
+        }
       } else {
         await connection.configureProvider(config);
       }
@@ -748,6 +758,9 @@ void app.whenReady().then(async () => {
         providerId: config.id as import('@lighttable/genai-core').GenAiProviderId,
         label: config.displayName
       });
+    if (config.id === LOCAL_AI_PROVIDER_ID && config.localProcess?.autoStart) {
+      return tester.testConnection({ mode: 'managed', host: '127.0.0.1', port: 7862 });
+    }
     return tester.testProvider(config);
   });
   ipcMain.handle('lighttable:ai-provider-help', async (event, value: unknown) => {
@@ -759,7 +772,10 @@ void app.whenReady().then(async () => {
       && !['127.0.0.1', 'localhost', '::1', '[::1]'].includes(base.hostname.toLowerCase())) {
       throw new Error('Remote provider access is not enabled.');
     }
-    await shell.openExternal(new URL('/api/help', base).toString());
+    const connection = httpAiConnections.get(config.id);
+    await shell.openExternal(connection?.snapshot().status === 'connected'
+      ? connection.apiHelpUrl()
+      : new URL('/api/help', base).toString());
   });
   ipcMain.handle('lighttable:genai-provider-connect', (event, providerId: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));

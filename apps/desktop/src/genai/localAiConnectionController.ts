@@ -38,6 +38,7 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
   private readonly listeners = new Set<(snapshot: GenAiProviderSnapshot) => void>();
   private snapshotValue: GenAiProviderSnapshot;
   private capabilitiesValue: LocalAiCapabilitiesV1 | null = null;
+  private activeConfiguration: LocalAiProviderConfiguration | null = null;
   private settings: LightTableLocalAiConnectionSettings = {
     mode: 'managed', host: '127.0.0.1', port: 7862
   };
@@ -140,6 +141,7 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
         throw new Error(health.message ?? `Local AI service is ${health.status}.`);
       }
       this.capabilitiesValue = capabilities;
+      this.activeConfiguration = configuration;
       this.publish({
         id: this.providerId,
         label: capabilities.provider.name,
@@ -158,6 +160,7 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
 
   async disconnect(): Promise<GenAiProviderSnapshot> {
     this.capabilitiesValue = null;
+    this.activeConfiguration = null;
     this.client = null;
     if (!this.transportOverride && this.settings.mode === 'managed' && isSessionSource(this.managedSession)) {
       await this.managedSession.stop();
@@ -182,6 +185,13 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
   clientInstance(): LocalAiProviderClient {
     if (!this.client) throw new Error('The local AI provider is not connected.');
     return this.client;
+  }
+
+  apiHelpUrl(): string {
+    const configuration = this.activeConfiguration ?? this.transportOverride
+      ?? (this.settings.mode === 'external' ? externalConfiguration(this.settings) : null);
+    if (!configuration) throw new Error('Connect the local AI provider before opening API help.');
+    return new URL('/api/help', configuration.baseUrl).toString();
   }
 
   private async capabilities(): Promise<LocalAiCapabilitiesV1> {
