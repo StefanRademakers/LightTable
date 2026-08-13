@@ -251,8 +251,8 @@ export function LightTableStandaloneApp({
     ? DEFAULT_APPLICATION_PREFERENCES
     : loadApplicationPreferences());
   useEffect(() => {
-    void host.localAi?.configure(preferences.genAi.local).catch(() => undefined);
-  }, [host.localAi, preferences.genAi.local]);
+    void host.localAi?.configureProviders(preferences.genAi.providers).catch(() => undefined);
+  }, [host.localAi, preferences.genAi.providers]);
   const [guidedSample, setGuidedSample] = useState<GuidedSampleSession | null>(null);
   const [telemetryEnabled, setTelemetryEnabled] = useState(() => host.funnel?.enabled() ?? false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);

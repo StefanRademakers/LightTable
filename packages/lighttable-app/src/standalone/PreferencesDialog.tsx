@@ -1,12 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { LightTableHost, LightTableLocalAiModelStatus } from '../platform/LightTableHost';
+import type {
+  LightTableAiProviderConfig,
+  LightTableHost,
+  LightTableLocalAiModelStatus
+} from '../platform/LightTableHost';
 import { ActionButton } from '../ui/ActionButton';
 import { FormInput } from '../ui/FormInput';
 import { SwitchControl } from '../ui/SwitchControl';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import { AgentAccessSettingsPanel } from './AgentAccessSettingsDialog';
 import {
+  BUILT_IN_LOCAL_AI_PROVIDER_ID,
+  DEFAULT_LOCAL_AI_PROVIDER,
   normalizeProjectPreferenceFolders,
   type ApplicationPreferences
 } from './applicationPreferences';
@@ -72,12 +78,32 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
   const [newProjectFolderName, setNewProjectFolderName] = useState('');
   const [genAiProviders, setGenAiProviders] = useState<readonly GenAiProviderSnapshot[]>([]);
   const [localAiModel, setLocalAiModel] = useState<LightTableLocalAiModelStatus | null>(null);
-  const [localAiTestMessage, setLocalAiTestMessage] = useState<string | null>(null);
-  const [localAiTesting, setLocalAiTesting] = useState(false);
+  const [providerTest, setProviderTest] = useState<{ readonly id: string; readonly busy: boolean; readonly message?: string } | null>(null);
   const updateUserFolders = (userFolders: readonly ProjectUserFolder[]) => setDraft({
     ...draft,
     projects: { ...draft.projects, userFolders }
   });
+  const updateProvider = (providerId: string, update: (provider: LightTableAiProviderConfig) => LightTableAiProviderConfig) => {
+    setDraft((current) => ({ ...current, genAi: {
+      ...current.genAi,
+      providers: current.genAi.providers.map((provider) => provider.id === providerId ? update(provider) : provider)
+    } }));
+  };
+  const removeProvider = (providerId: string) => setDraft((current) => ({ ...current, genAi: {
+    ...current.genAi,
+    createProviderId: current.genAi.createProviderId === providerId ? 'openart' : current.genAi.createProviderId,
+    editProviderId: current.genAi.editProviderId === providerId ? 'openart' : current.genAi.editProviderId,
+    providers: current.genAi.providers.filter((provider) => provider.id !== providerId)
+  } }));
+  const configuredProviderOptions = [
+    ...genAiProviders.filter(({ id }) => id === 'openart'),
+    ...draft.genAi.providers.filter(({ enabled }) => enabled).map((provider) => ({
+      id: provider.id as GenAiProviderSnapshot['id'],
+      label: provider.displayName,
+      status: genAiProviders.find(({ id }) => id === provider.id)?.status ?? 'disconnected' as const,
+      message: genAiProviders.find(({ id }) => id === provider.id)?.message
+    }))
+  ];
 
   useEffect(() => {
     if (!open) return;
@@ -85,7 +111,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
     setPage('file-handling');
     setSaveError(null);
     setNewProjectFolderName('');
-    setLocalAiTestMessage(null);
+    setProviderTest(null);
     let active = true;
     void host.recoveryLocation?.current().then((value) => { if (active) setLocation(value); });
     void host.genAi?.getProviderSnapshots().then((value) => {
@@ -132,7 +158,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
           void (location && host.recoveryLocation
             ? host.recoveryLocation.apply(location)
             : Promise.resolve(location)
-          ).then(() => host.localAi?.configure(draft.genAi.local))
+          ).then(() => host.localAi?.configureProviders(draft.genAi.providers))
             .then(() => onSave({ ...draft, projects: {
             folders, createFolders: draft.projects.createFolders, userFolders
           } })).catch((reason) => {
@@ -323,7 +349,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                       onChange={(event) => setDraft({ ...draft, genAi: {
                         ...draft.genAi, createProviderId: event.currentTarget.value
                       } })}>
-                      {genAiProviders.map((provider) => (
+                      {configuredProviderOptions.map((provider) => (
                         <option key={provider.id} value={provider.id}>{provider.label}</option>
                       ))}
                     </select>
@@ -334,87 +360,91 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                       onChange={(event) => setDraft({ ...draft, genAi: {
                         ...draft.genAi, editProviderId: event.currentTarget.value
                       } })}>
-                      {genAiProviders.map((provider) => (
+                      {configuredProviderOptions.map((provider) => (
                         <option key={provider.id} value={provider.id}>{provider.label}</option>
                       ))}
                     </select>
                   </label>
                 </div>
                 <div className="lighttable-preferences__option-list">
-                  {genAiProviders.map((provider) => (
-                    <div className="lighttable-preferences__option" key={provider.id}>
-                      <div>
-                        <strong>{provider.label}</strong>
-                        <p>{provider.id === 'lighttable-local'
-                          ? localModelMessage(localAiModel)
-                          : provider.message ?? (provider.status === 'connected' ? 'Connected' : 'Not connected')}</p>
+                  {draft.genAi.providers.map((provider) => {
+                    const builtIn = provider.id === BUILT_IN_LOCAL_AI_PROVIDER_ID;
+                    const test = providerTest?.id === provider.id ? providerTest : null;
+                    const runtime = genAiProviders.find(({ id }) => id === provider.id);
+                    return <div className="lighttable-preferences__option" key={`config-${provider.id}`}>
+                      <div className="lighttable-preferences__fields">
+                        <label><span>Name</span><FormInput value={provider.displayName}
+                          onChange={(event) => updateProvider(provider.id, (current) => ({
+                            ...current, displayName: event.currentTarget.value
+                          }))} /></label>
+                        <label><span>Base URL</span><FormInput value={provider.transport.baseUrl}
+                          onChange={(event) => updateProvider(provider.id, (current) => ({
+                            ...current, transport: { ...current.transport, baseUrl: event.currentTarget.value }
+                          }))} /></label>
+                        <label><span>API token</span><FormInput type="password" autoComplete="off" placeholder="Optional"
+                          value={provider.transport.apiToken ?? ''}
+                          onChange={(event) => updateProvider(provider.id, (current) => ({
+                            ...current, transport: { ...current.transport, apiToken: event.currentTarget.value || undefined }
+                          }))} /></label>
+                        <div className="lighttable-preferences__location-row">
+                          <SwitchControl checked={provider.enabled} label={`Enable ${provider.displayName}`}
+                            onCheckedChange={(enabled) => updateProvider(provider.id, (current) => ({ ...current, enabled }))} />
+                          <span>Enabled</span>
+                          {builtIn ? <><SwitchControl checked={provider.localProcess?.autoStart === true}
+                            label="Auto start local service" onCheckedChange={(autoStart) => updateProvider(provider.id,
+                              (current) => ({ ...current, localProcess: { autoStart } }))} /><span>Auto start</span></> : null}
+                          <SwitchControl checked={provider.transport.allowRemote === true} label="Allow remote endpoint"
+                            onCheckedChange={(allowRemote) => updateProvider(provider.id, (current) => ({
+                              ...current, transport: { ...current.transport, allowRemote }
+                            }))} /><span>Allow remote</span>
+                        </div>
+                        <div className="lighttable-preferences__location-row">
+                          {builtIn && !localAiModel?.ready ? (
+                            <ActionButton type="button" disabled={!host.localAi || localAiModel?.installing}
+                              onClick={() => void host.localAi?.install()}>
+                              {localAiModel?.installing ? 'Installing…' : 'Install model'}
+                            </ActionButton>
+                          ) : (
+                            <ActionButton type="button" disabled={!host.genAi || !provider.enabled
+                              || runtime?.status === 'connecting'} onClick={() => void (runtime?.status === 'connected'
+                                ? host.genAi!.disconnectProvider(provider.id as GenAiProviderSnapshot['id'])
+                                : host.genAi!.connectProvider(provider.id as GenAiProviderSnapshot['id']))}>
+                              {runtime?.status === 'connected' ? 'Disconnect'
+                                : runtime?.status === 'connecting' ? 'Connecting…' : 'Connect'}
+                            </ActionButton>
+                          )}
+                          <ActionButton type="button" disabled={!host.localAi || test?.busy === true} onClick={() => {
+                            setProviderTest({ id: provider.id, busy: true });
+                            void host.localAi?.testProvider(provider).then((result) => setProviderTest({
+                              id: provider.id, busy: false, message: result.message
+                            })).catch((reason) => setProviderTest({ id: provider.id, busy: false,
+                              message: reason instanceof Error ? reason.message : String(reason) }));
+                          }}>{test?.busy ? 'Testing…' : 'Test'}</ActionButton>
+                          <ActionButton type="button" disabled={!host.localAi} onClick={() => void host.localAi
+                            ?.configureProviders(draft.genAi.providers)
+                            .then(() => host.genAi?.connectProvider(provider.id as GenAiProviderSnapshot['id']))}>Refresh capabilities</ActionButton>
+                          <ActionButton type="button" disabled={!host.localAi}
+                            onClick={() => void host.localAi?.openProviderHelp(provider)}>Open API help</ActionButton>
+                          {!builtIn ? <ActionButton type="button"
+                            onClick={() => removeProvider(provider.id)}>Remove</ActionButton> : null}
+                        </div>
+                        <p>{builtIn ? localModelMessage(localAiModel)
+                          : runtime?.message ?? (runtime?.status === 'connected' ? 'Connected' : 'Not connected')}</p>
+                        {test?.message ? <p>{test.message}</p> : null}
                       </div>
-                      {provider.id === 'lighttable-local' && !localAiModel?.ready ? (
-                        <ActionButton type="button" disabled={!host.localAi || localAiModel?.installing}
-                          onClick={() => void host.localAi?.install().then((status) => {
-                            if (status.ready) return host.genAi?.connectProvider(provider.id);
-                            return undefined;
-                          })}>
-                          {localAiModel?.installing ? 'Installing…' : 'Install model'}
-                        </ActionButton>
-                      ) : (
-                      <ActionButton type="button" disabled={!host.genAi || provider.status === 'connecting'}
-                        onClick={() => void (provider.status === 'connected'
-                          ? host.genAi!.disconnectProvider(provider.id)
-                          : host.genAi!.connectProvider(provider.id))}>
-                        {provider.status === 'connected' ? 'Disconnect' : provider.status === 'connecting' ? 'Connecting…' : 'Connect'}
-                      </ActionButton>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="lighttable-preferences__fields">
-                  <label>
-                    <span>Free Local AI service</span>
-                    <select className="form-input" value={draft.genAi.local.mode}
-                      onChange={(event) => setDraft({ ...draft, genAi: { ...draft.genAi, local: {
-                        ...draft.genAi.local,
-                        mode: event.currentTarget.value === 'external' ? 'external' : 'managed'
-                      } } })}>
-                      <option value="managed">Managed by LightTable</option>
-                      <option value="external">External loopback service</option>
-                    </select>
-                  </label>
-                  {draft.genAi.local.mode === 'external' ? (
-                    <>
-                      <label>
-                        <span>Host</span>
-                        <FormInput value={draft.genAi.local.host}
-                          onChange={(event) => setDraft({ ...draft, genAi: { ...draft.genAi, local: {
-                            ...draft.genAi.local, host: event.currentTarget.value
-                          } } })} />
-                      </label>
-                      <label>
-                        <span>Port</span>
-                        <FormInput type="number" min={1} max={65_535} value={draft.genAi.local.port}
-                          onChange={(event) => setDraft({ ...draft, genAi: { ...draft.genAi, local: {
-                            ...draft.genAi.local, port: Number(event.currentTarget.value)
-                          } } })} />
-                      </label>
-                    </>
-                  ) : null}
-                  <div className="lighttable-preferences__location-row">
-                    <ActionButton type="button" disabled={!host.localAi || localAiTesting}
-                      onClick={() => {
-                        setLocalAiTesting(true); setLocalAiTestMessage(null);
-                        void host.localAi?.testConnection(draft.genAi.local).then((result) => {
-                          setLocalAiTestMessage(result.message);
-                        }).catch((reason) => {
-                          setLocalAiTestMessage(reason instanceof Error ? reason.message : String(reason));
-                        }).finally(() => setLocalAiTesting(false));
-                      }}>
-                      {localAiTesting ? 'Testing…' : 'Test connection'}
-                    </ActionButton>
-                    {localAiTestMessage ? <span>{localAiTestMessage}</span> : null}
-                  </div>
+                    </div>;
+                  })}
+                  <ActionButton type="button" onClick={() => {
+                    const id = `local-http-${Date.now().toString(36)}`;
+                    setDraft((current) => ({ ...current, genAi: { ...current.genAi, providers: [
+                      ...current.genAi.providers,
+                      { ...DEFAULT_LOCAL_AI_PROVIDER, id, displayName: 'Local AI Provider',
+                        transport: { ...DEFAULT_LOCAL_AI_PROVIDER.transport }, localProcess: undefined }
+                    ] } }));
+                  }}>Add provider</ActionButton>
                 </div>
                 <p className="lighttable-preferences__note">
-                  Free Local AI runs as a private loopback service. It does not use OpenArt, Agent Access, or LightTable MCP.
+                  Providers implement LightTable's small HTTP AI protocol. Loopback is the safe default; enable remote access only for a trusted HTTPS endpoint. This integration is independent from OpenArt, Agent Access and LightTable MCP.
                 </p>
               </section>
             ) : (

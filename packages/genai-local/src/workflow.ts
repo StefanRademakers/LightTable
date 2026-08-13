@@ -27,10 +27,13 @@ const settingStrings = (model: LocalAiModelCapabilityV1, key: string, fallback: 
   return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : fallback;
 };
 
-export const localAiModels = (capabilities: LocalAiCapabilitiesV1): readonly GenAiModelSummary[] =>
+export const localAiModels = (
+  capabilities: LocalAiCapabilitiesV1,
+  providerId: GenAiProviderId = LOCAL_AI_PROVIDER_ID
+): readonly GenAiModelSummary[] =>
   capabilities.models.map((model) => ({
     id: model.id as GenAiModelId,
-    providerId: LOCAL_AI_PROVIDER_ID,
+    providerId,
     label: model.name,
     ...(model.description ? { description: model.description } : {}),
     // The local HTTP protocol deliberately uses transport-level operation
@@ -43,7 +46,8 @@ export const localAiModels = (capabilities: LocalAiCapabilitiesV1): readonly Gen
 
 export const localAiWorkflow = (
   model: LocalAiModelCapabilityV1,
-  operation: LocalAiOperation
+  operation: LocalAiOperation,
+  providerId: GenAiProviderId = LOCAL_AI_PROVIDER_ID
 ): GenAiWorkflowDefinition => {
   if (!model.operations.includes(operation)) throw new Error(`${model.name} does not support ${operation}.`);
   const aspectRatios = settingStrings(model, 'aspectRatios', ['1:1', '16:9', '9:16', '4:3', '3:4']);
@@ -71,8 +75,8 @@ export const localAiWorkflow = (
     }
   ];
   return {
-    id: `${LOCAL_AI_PROVIDER_ID}:${model.id}:${operation}` as GenAiWorkflowId,
-    providerId: LOCAL_AI_PROVIDER_ID,
+    id: `${providerId}:${model.id}:${operation}` as GenAiWorkflowId,
+    providerId,
     modelId: model.id as GenAiModelId,
     label: model.name,
     mode: operation === 'image.create' ? 'text2image' : 'image2image',

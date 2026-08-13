@@ -42,6 +42,14 @@ export class GenAiProviderRegistry {
     }));
   }
 
+  unregister(providerId: GenAiProviderId): void {
+    this.subscriptions.get(providerId)?.();
+    this.subscriptions.delete(providerId);
+    this.providers.delete(providerId);
+  }
+
+  has(providerId: GenAiProviderId): boolean { return this.providers.has(providerId); }
+
   snapshots(): readonly GenAiProviderSnapshot[] {
     return [...this.providers.values()].map((provider) => provider.snapshot());
   }

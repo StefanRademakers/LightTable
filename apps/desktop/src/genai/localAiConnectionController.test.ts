@@ -76,4 +76,31 @@ describe('LocalAiConnectionController', () => {
     await expect(controller.configure({ mode: 'external', host: 'example.com', port: 7862 }))
       .rejects.toThrow('only accepts loopback hosts');
   });
+
+  it('keeps provider identity stable while discovering runtime capabilities', async () => {
+    const controller = new LocalAiConnectionController({ baseUrl: 'http://localhost:9000' }, async (input) => {
+      const pathname = new URL(String(input)).pathname;
+      return json(pathname.endsWith('/health')
+        ? { status: 'ready', protocolVersion: '1.0', providerVersion: '0.1.0', modelLoaded: true }
+        : capabilities);
+    }, { providerId: 'studio-box' as never, label: 'Studio box' });
+    await controller.configureProvider({
+      id: 'studio-box', displayName: 'Studio box', enabled: true,
+      transport: { type: 'http', baseUrl: 'http://localhost:9000', timeoutMs: 30_000 }
+    });
+    expect((await controller.connect()).id).toBe('studio-box');
+    expect((await controller.listModels())[0]?.providerId).toBe('studio-box');
+  });
+
+  it('requires explicit opt-in before testing a remote provider', async () => {
+    const controller = new LocalAiConnectionController({ baseUrl: 'http://127.0.0.1:7862' });
+    const result = await controller.testProvider({
+      id: 'remote', displayName: 'Remote', enabled: true,
+      transport: { type: 'http', baseUrl: 'https://ai.example.test', timeoutMs: 30_000 }
+    });
+    expect(result).toEqual({
+      ok: false,
+      message: 'Enable remote access before sending images to a non-loopback provider.'
+    });
+  });
 });

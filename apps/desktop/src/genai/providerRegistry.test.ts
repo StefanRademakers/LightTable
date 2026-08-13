@@ -41,4 +41,20 @@ describe('GenAiProviderRegistry', () => {
     await local.connect();
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ id: 'lighttable-local', status: 'connected' }));
   });
+
+  it('can remove and re-register a provider without retaining its old subscription', async () => {
+    const registry = new GenAiProviderRegistry();
+    const first = controller('local-http');
+    const replacement = controller('local-http');
+    const listener = vi.fn();
+    registry.subscribe(listener);
+    registry.register(first);
+    registry.unregister(first.providerId);
+    await first.connect();
+    expect(listener).not.toHaveBeenCalled();
+    registry.register(replacement);
+    await replacement.connect();
+    expect(listener).toHaveBeenCalledOnce();
+    expect(registry.provider(replacement.providerId)).toBe(replacement);
+  });
 });

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_APPLICATION_PREFERENCES,
+  BUILT_IN_LOCAL_AI_PROVIDER_ID,
   LIGHTTABLE_PREFERENCES_STORAGE_KEY,
   loadApplicationPreferences,
+  normalizeAiProviderConfigs,
   parseApplicationPreferences,
   saveApplicationPreferences
 } from './applicationPreferences';
@@ -102,5 +104,39 @@ describe('application preferences', () => {
     });
     expect(JSON.parse(writes[LIGHTTABLE_PREFERENCES_STORAGE_KEY]!))
       .toEqual(DEFAULT_APPLICATION_PREFERENCES);
+  });
+
+  it('normalizes independent HTTP providers without carrying the pre-alpha local shape', () => {
+    const providers = normalizeAiProviderConfigs([
+      {
+        id: 'studio-box', displayName: 'Studio box', enabled: true,
+        transport: { type: 'http', baseUrl: 'http://localhost:9000/', timeoutMs: 400 }
+      },
+      {
+        id: 'remote-lab', displayName: 'Remote lab', enabled: false,
+        transport: { type: 'http', baseUrl: 'https://ai.example.test/api', timeoutMs: 999_999,
+          allowRemote: true }
+      }
+    ]);
+    expect(providers.map(({ id }) => id)).toEqual([
+      BUILT_IN_LOCAL_AI_PROVIDER_ID, 'studio-box', 'remote-lab'
+    ]);
+    expect(providers[1]?.transport).toMatchObject({ baseUrl: 'http://localhost:9000', timeoutMs: 1_000 });
+    expect(providers[2]?.transport).toMatchObject({ timeoutMs: 300_000, allowRemote: true });
+  });
+
+  it('rejects invalid provider URLs and remote auto-start configurations', () => {
+    const providers = normalizeAiProviderConfigs([
+      {
+        id: BUILT_IN_LOCAL_AI_PROVIDER_ID, displayName: 'Unsafe managed runtime', enabled: true,
+        transport: { type: 'http', baseUrl: 'https://example.test', timeoutMs: 30_000 },
+        localProcess: { autoStart: true }
+      },
+      {
+        id: 'credentials-in-url', displayName: 'Invalid', enabled: true,
+        transport: { type: 'http', baseUrl: 'https://user:secret@example.test', timeoutMs: 30_000 }
+      }
+    ]);
+    expect(providers).toEqual([DEFAULT_APPLICATION_PREFERENCES.genAi.providers[0]]);
   });
 });

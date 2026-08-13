@@ -7,6 +7,7 @@ import {
   PROJECT_USER_STORAGE_LOCATIONS,
   type ProjectUserStorageLocation
 } from '../lighttable/application/projects/projectManifest';
+import type { LightTableAiProviderConfig } from '../platform/LightTableHost';
 
 export const LIGHTTABLE_PREFERENCES_STORAGE_KEY = 'lighttable:preferences';
 
@@ -30,14 +31,19 @@ export interface ApplicationPreferences {
     /** Shared composer defaults; provider adapters own request translation. */
     readonly createProviderId: string;
     readonly editProviderId: string;
-    readonly local: {
-      /** Managed starts LightTable's private child process; external connects to an existing loopback service. */
-      readonly mode: 'managed' | 'external';
-      readonly host: string;
-      readonly port: number;
-    };
+    readonly providers: readonly LightTableAiProviderConfig[];
   };
 }
+
+export const BUILT_IN_LOCAL_AI_PROVIDER_ID = 'lighttable-local';
+
+export const DEFAULT_LOCAL_AI_PROVIDER: LightTableAiProviderConfig = {
+  id: BUILT_IN_LOCAL_AI_PROVIDER_ID,
+  displayName: 'Free Local AI',
+  enabled: true,
+  transport: { type: 'http', baseUrl: 'http://127.0.0.1:7862', timeoutMs: 30_000 },
+  localProcess: { autoStart: true }
+};
 
 export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
   version: 1,
@@ -57,7 +63,7 @@ export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
   genAi: {
     createProviderId: 'openart',
     editProviderId: 'openart',
-    local: { mode: 'managed', host: '127.0.0.1', port: 7862 }
+    providers: [DEFAULT_LOCAL_AI_PROVIDER]
   }
 };
 
@@ -109,6 +115,7 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
       ? PROJECT_USER_STORAGE_LOCATIONS.filter((location) => requestedCreateFolders.includes(location))
       : null;
   if (!createFolders) return DEFAULT_APPLICATION_PREFERENCES;
+  const providers = normalizeAiProviderConfigs(candidate.genAi?.providers);
   return {
     version: 1,
     autosave: {
@@ -133,18 +140,56 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
         && candidate.genAi.editProviderId.trim()
         ? candidate.genAi.editProviderId.trim()
         : DEFAULT_APPLICATION_PREFERENCES.genAi.editProviderId,
-      local: {
-        mode: candidate.genAi?.local?.mode === 'external' ? 'external' : 'managed',
-        host: typeof candidate.genAi?.local?.host === 'string' && candidate.genAi.local.host.trim()
-          ? candidate.genAi.local.host.trim()
-          : DEFAULT_APPLICATION_PREFERENCES.genAi.local.host,
-        port: Number.isInteger(candidate.genAi?.local?.port)
-          && Number(candidate.genAi?.local?.port) > 0 && Number(candidate.genAi?.local?.port) <= 65_535
-          ? Number(candidate.genAi?.local?.port)
-          : DEFAULT_APPLICATION_PREFERENCES.genAi.local.port
-      }
+      providers
     }
   };
+};
+
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+
+export const normalizeAiProviderConfigs = (value: unknown): readonly LightTableAiProviderConfig[] => {
+  if (value === undefined) return [DEFAULT_LOCAL_AI_PROVIDER];
+  if (!Array.isArray(value)) return [DEFAULT_LOCAL_AI_PROVIDER];
+  const seen = new Set<string>();
+  const normalized: LightTableAiProviderConfig[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const candidate = entry as Partial<LightTableAiProviderConfig>;
+    const id = typeof candidate.id === 'string' ? candidate.id.trim() : '';
+    const displayName = typeof candidate.displayName === 'string' ? candidate.displayName.trim() : '';
+    const transport = candidate.transport;
+    if (!id || !displayName || seen.has(id) || !transport || transport.type !== 'http') continue;
+    let url: URL;
+    try { url = new URL(transport.baseUrl); } catch { continue; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+    if (url.username || url.password || url.search || url.hash) continue;
+    const timeoutMs = Number.isFinite(transport.timeoutMs)
+      ? Math.min(300_000, Math.max(1_000, Math.round(transport.timeoutMs))) : 30_000;
+    const autoStart = id === BUILT_IN_LOCAL_AI_PROVIDER_ID && candidate.localProcess?.autoStart === true;
+    if (autoStart && !LOOPBACK_HOSTS.has(url.hostname.toLowerCase())) continue;
+    seen.add(id);
+    normalized.push({
+      id,
+      displayName,
+      enabled: candidate.enabled !== false,
+      transport: {
+        type: 'http',
+        baseUrl: url.toString().replace(/\/$/u, ''),
+        ...(typeof transport.apiToken === 'string' && transport.apiToken ? { apiToken: transport.apiToken } : {}),
+        timeoutMs,
+        ...(transport.allowRemote === true ? { allowRemote: true } : {})
+      },
+      ...(id === BUILT_IN_LOCAL_AI_PROVIDER_ID ? { localProcess: { autoStart } } : {}),
+      ...(candidate.defaults ? { defaults: {
+        ...(typeof candidate.defaults.createModelId === 'string' && candidate.defaults.createModelId
+          ? { createModelId: candidate.defaults.createModelId } : {}),
+        ...(typeof candidate.defaults.editModelId === 'string' && candidate.defaults.editModelId
+          ? { editModelId: candidate.defaults.editModelId } : {})
+      } } : {})
+    });
+  }
+  if (!seen.has(BUILT_IN_LOCAL_AI_PROVIDER_ID)) normalized.unshift(DEFAULT_LOCAL_AI_PROVIDER);
+  return normalized;
 };
 
 export const loadApplicationPreferences = (

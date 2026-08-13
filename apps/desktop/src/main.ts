@@ -109,6 +109,8 @@ let localAiProcessManager: LocalAiProcessManager | null = null;
 let localAiConnection: LocalAiConnectionController | null = null;
 let localAiGeneration: LocalAiGenerationController | null = null;
 let localAiModelManager: LocalAiModelManager | null = null;
+const httpAiConnections = new Map<string, LocalAiConnectionController>();
+const httpAiGenerations = new Map<string, LocalAiGenerationController>();
 let activeProjectManifestPath: string | null = null;
 let agentRequestSequence = 0;
 const pendingAgentRequests = new Map<string, {
@@ -605,6 +607,8 @@ void app.whenReady().then(async () => {
   localAiConnection = new LocalAiConnectionController(localAiProcessManager);
   localAiGeneration = new LocalAiGenerationController(localAiConnection);
   genAiProviderRegistry.register(localAiConnection);
+  httpAiConnections.set(localAiConnection.providerId, localAiConnection);
+  httpAiGenerations.set(localAiConnection.providerId, localAiGeneration);
   genAiProviderRegistry.subscribe((snapshot) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('lighttable:genai-provider-changed', snapshot);
@@ -693,6 +697,69 @@ void app.whenReady().then(async () => {
     return localAiConnection.testConnection(
       settings as import('@lighttable/app').LightTableLocalAiConnectionSettings
     );
+  });
+  ipcMain.handle('lighttable:ai-provider-configure', async (event, value: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!Array.isArray(value) || !genAiProviderRegistry || !localAiProcessManager || !localAiConnection) {
+      throw new Error('Invalid AI provider configuration.');
+    }
+    const configs = value as readonly import('@lighttable/app').LightTableAiProviderConfig[];
+    const desired = new Set(configs.filter(({ enabled }) => enabled).map(({ id }) => id));
+    for (const [providerId, connection] of httpAiConnections) {
+      if (desired.has(providerId)) continue;
+      await connection.disconnect();
+      genAiProviderRegistry.unregister(providerId as import('@lighttable/genai-core').GenAiProviderId);
+      if (providerId !== LOCAL_AI_PROVIDER_ID) {
+        httpAiConnections.delete(providerId);
+        httpAiGenerations.delete(providerId);
+      }
+    }
+    for (const config of configs) {
+      if (!config.enabled) continue;
+      let connection = httpAiConnections.get(config.id);
+      if (!connection) {
+        connection = new LocalAiConnectionController(
+          { baseUrl: config.transport.baseUrl }, undefined,
+          { providerId: config.id as import('@lighttable/genai-core').GenAiProviderId, label: config.displayName }
+        );
+        httpAiConnections.set(config.id, connection);
+        httpAiGenerations.set(config.id, new LocalAiGenerationController(connection));
+        genAiProviderRegistry.register(connection);
+      }
+      if (!genAiProviderRegistry.has(config.id as import('@lighttable/genai-core').GenAiProviderId)) {
+        genAiProviderRegistry.register(connection);
+      }
+      if (config.id === LOCAL_AI_PROVIDER_ID && config.localProcess?.autoStart) {
+        await connection.configureProvider({ ...config, transport: {
+          ...config.transport, baseUrl: 'http://127.0.0.1:7862'
+        } });
+        await connection.configure({ mode: 'managed', host: '127.0.0.1', port: 7862 });
+      } else {
+        await connection.configureProvider(config);
+      }
+    }
+  });
+  ipcMain.handle('lighttable:ai-provider-test', (event, value: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!value || typeof value !== 'object') throw new Error('Invalid AI provider configuration.');
+    const config = value as import('@lighttable/app').LightTableAiProviderConfig;
+    const tester = httpAiConnections.get(config.id)
+      ?? new LocalAiConnectionController({ baseUrl: config.transport.baseUrl }, undefined, {
+        providerId: config.id as import('@lighttable/genai-core').GenAiProviderId,
+        label: config.displayName
+      });
+    return tester.testProvider(config);
+  });
+  ipcMain.handle('lighttable:ai-provider-help', async (event, value: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!value || typeof value !== 'object') throw new Error('Invalid AI provider configuration.');
+    const config = value as import('@lighttable/app').LightTableAiProviderConfig;
+    const base = new URL(config.transport.baseUrl);
+    if (!config.transport.allowRemote
+      && !['127.0.0.1', 'localhost', '::1', '[::1]'].includes(base.hostname.toLowerCase())) {
+      throw new Error('Remote provider access is not enabled.');
+    }
+    await shell.openExternal(new URL('/api/help', base).toString());
   });
   ipcMain.handle('lighttable:genai-provider-connect', (event, providerId: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
@@ -814,16 +881,18 @@ void app.whenReady().then(async () => {
     manifestPath: string,
     project: Awaited<ReturnType<typeof openProjectManifest>>,
     jobId: import('@lighttable/genai-core').GenAiJobId,
-    providerJobId: string
+    providerJobId: string,
+    providerId: string
   ) => {
-    if (!localAiGeneration) throw new Error('The local AI generation controller is unavailable.');
+    const generation = httpAiGenerations.get(providerId);
+    if (!generation) throw new Error('The local AI generation controller is unavailable.');
     const completionKey = `${manifestPath}\0${jobId}`;
     if (completingGenAiJobs.has(completionKey)) return;
     completingGenAiJobs.add(completionKey);
     const abortController = new AbortController();
     genAiJobAbortControllers.set(completionKey, abortController);
     try {
-      let status = await localAiGeneration.status(providerJobId);
+      let status = await generation.status(providerJobId);
       while (!['completed', 'cancelled', 'failed'].includes(status.status)) {
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(resolve, 125);
@@ -832,12 +901,12 @@ void app.whenReady().then(async () => {
             reject(abortController.signal.reason);
           }, { once: true });
         });
-        status = await localAiGeneration.status(providerJobId);
+        status = await generation.status(providerJobId);
       }
       if (status.status === 'cancelled') throw new Error('Local AI generation was cancelled.');
       if (status.status === 'failed') throw new Error(status.error?.message ?? 'Local AI generation failed.');
 
-      const completed = await localAiGeneration.result(providerJobId);
+      const completed = await generation.result(providerJobId);
       const historyDirectory = resolveProjectStoragePath(project.summary.rootPath, project.manifest, 'aiHistory');
       await mkdir(historyDirectory, { recursive: true });
       const safeProviderId = providerJobId.replace(/[^A-Za-z0-9_-]/gu, '-').slice(0, 96) || String(jobId);
@@ -934,9 +1003,9 @@ void app.whenReady().then(async () => {
         submission = await openArtConnection.submitGeneration(generationRequest, remoteReferences.map((link) => ({
           assetId: link.assetId, url: link.url, mediaType: link.mediaType
         })), jobId);
-      } else if (generationRequest.providerId === LOCAL_AI_PROVIDER_ID) {
-        if (!localAiGeneration) throw new Error('Free Local AI is unavailable.');
-        const localStatus = await localAiGeneration.submit(
+      } else if (httpAiGenerations.has(generationRequest.providerId)) {
+        const generation = httpAiGenerations.get(generationRequest.providerId)!;
+        const localStatus = await generation.submit(
           generationRequest,
           await resolveLocalAiInputs(manifestPath, generationRequest)
         );
@@ -956,8 +1025,9 @@ void app.whenReady().then(async () => {
       ...job, status: 'running', providerJobId: submission.providerJobId, updatedAt: Date.now()
     }));
     publishGenAiJob(project.summary.id, running);
-    if (generationRequest.providerId === LOCAL_AI_PROVIDER_ID) {
-      void finishLocalAiGeneration(manifestPath, project, jobId, submission.providerJobId);
+    if (httpAiGenerations.has(generationRequest.providerId)) {
+      void finishLocalAiGeneration(manifestPath, project, jobId, submission.providerJobId,
+        generationRequest.providerId);
     } else {
       void finishOpenArtGeneration(manifestPath, project, jobId, submission.providerJobId);
     }
@@ -972,8 +1042,9 @@ void app.whenReady().then(async () => {
     for (const job of jobs) {
       const recovery = generationRecoveryAction(job);
       if (recovery === 'resume-known-job' && job.providerJobId) {
-        if (job.request.providerId === LOCAL_AI_PROVIDER_ID) {
-          void finishLocalAiGeneration(activeProjectManifestPath, project, job.id, job.providerJobId);
+        if (httpAiGenerations.has(job.request.providerId)) {
+          void finishLocalAiGeneration(activeProjectManifestPath, project, job.id, job.providerJobId,
+            job.request.providerId);
         } else {
           void finishOpenArtGeneration(activeProjectManifestPath, project, job.id, job.providerJobId);
         }
@@ -1024,8 +1095,9 @@ void app.whenReady().then(async () => {
       ...job, status: 'running', updatedAt: Date.now(), error: undefined
     }));
     publishGenAiJob(project.summary.id, running);
-    if (current.request.providerId === LOCAL_AI_PROVIDER_ID) {
-      void finishLocalAiGeneration(manifestPath, project, running.id, current.providerJobId);
+    if (httpAiGenerations.has(current.request.providerId)) {
+      void finishLocalAiGeneration(manifestPath, project, running.id, current.providerJobId,
+        current.request.providerId);
     } else {
       void finishOpenArtGeneration(manifestPath, project, running.id, current.providerJobId);
     }

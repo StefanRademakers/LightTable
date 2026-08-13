@@ -3,6 +3,7 @@ import type {
   GenAiModelId,
   GenAiModelSummary,
   GenAiProviderSnapshot,
+  GenAiProviderId,
   GenAiWorkflowDefinition
 } from '@lighttable/genai-core';
 import {
@@ -16,7 +17,8 @@ import {
 import type { DesktopGenAiProviderController } from './providerRegistry';
 import type {
   LightTableLocalAiConnectionSettings,
-  LightTableLocalAiConnectionTest
+  LightTableLocalAiConnectionTest,
+  LightTableAiProviderConfig
 } from '@lighttable/app';
 
 export interface LocalAiProviderConfiguration {
@@ -31,31 +33,65 @@ export interface LocalAiProviderSessionSource {
 }
 
 export class LocalAiConnectionController implements DesktopGenAiProviderController {
-  readonly providerId = LOCAL_AI_PROVIDER_ID;
+  readonly providerId: GenAiProviderId;
   private client: LocalAiProviderClient | null = null;
   private readonly listeners = new Set<(snapshot: GenAiProviderSnapshot) => void>();
-  private snapshotValue: GenAiProviderSnapshot = {
-    id: LOCAL_AI_PROVIDER_ID,
-    label: 'Free Local AI',
-    status: 'disconnected'
-  };
+  private snapshotValue: GenAiProviderSnapshot;
   private capabilitiesValue: LocalAiCapabilitiesV1 | null = null;
   private settings: LightTableLocalAiConnectionSettings = {
     mode: 'managed', host: '127.0.0.1', port: 7862
   };
+  private transportOverride: LocalAiProviderConfiguration | null = null;
 
   constructor(
     private readonly managedSession: LocalAiProviderConfiguration | LocalAiProviderSessionSource,
-    private readonly requestFetch?: typeof globalThis.fetch
-  ) {}
+    private readonly requestFetch?: typeof globalThis.fetch,
+    identity: { readonly providerId?: GenAiProviderId; readonly label?: string } = {}
+  ) {
+    this.providerId = identity.providerId ?? LOCAL_AI_PROVIDER_ID;
+    this.snapshotValue = {
+      id: this.providerId,
+      label: identity.label ?? 'Free Local AI',
+      status: 'disconnected'
+    };
+  }
 
   snapshot(): GenAiProviderSnapshot { return this.snapshotValue; }
 
   async configure(settings: LightTableLocalAiConnectionSettings): Promise<void> {
     const normalized = normalizeConnectionSettings(settings);
-    if (sameSettings(this.settings, normalized)) return;
+    if (sameSettings(this.settings, normalized) && !this.transportOverride) return;
     if (this.snapshotValue.status === 'connected' || this.client) await this.disconnect();
     this.settings = normalized;
+    this.transportOverride = null;
+  }
+
+  async configureProvider(config: LightTableAiProviderConfig): Promise<void> {
+    if (config.id !== this.providerId) throw new Error('Provider configuration identity mismatch.');
+    if (this.snapshotValue.status === 'connected' || this.client) await this.disconnect();
+    this.transportOverride = {
+      baseUrl: normalizeProviderBaseUrl(config.transport.baseUrl,
+        config.localProcess?.autoStart === true, config.transport.allowRemote === true),
+      ...(config.transport.apiToken ? { apiToken: config.transport.apiToken } : {}),
+      timeoutMs: config.transport.timeoutMs
+    };
+    this.snapshotValue = { id: this.providerId, label: config.displayName, status: 'disconnected' };
+  }
+
+  async testProvider(config: LightTableAiProviderConfig): Promise<LightTableLocalAiConnectionTest> {
+    try {
+      const client = new LocalAiProviderClient({
+        baseUrl: normalizeProviderBaseUrl(config.transport.baseUrl,
+          config.localProcess?.autoStart === true, config.transport.allowRemote === true),
+        ...(config.transport.apiToken ? { apiToken: config.transport.apiToken } : {}),
+        timeoutMs: config.transport.timeoutMs,
+        ...(this.requestFetch ? { fetch: this.requestFetch } : {})
+      });
+      const capabilities = await client.capabilities();
+      return { ok: true, message: `Connected to ${capabilities.provider.name}.` };
+    } catch (reason) {
+      return { ok: false, message: reason instanceof Error ? reason.message : String(reason) };
+    }
   }
 
   async testConnection(settings: LightTableLocalAiConnectionSettings): Promise<LightTableLocalAiConnectionTest> {
@@ -92,9 +128,9 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
   async connect(): Promise<GenAiProviderSnapshot> {
     this.publish({ ...this.snapshotValue, status: 'connecting', message: 'Connecting to local AI service…' });
     try {
-      const configuration = this.settings.mode === 'managed'
+      const configuration = this.transportOverride ?? (this.settings.mode === 'managed'
         ? isSessionSource(this.managedSession) ? await this.managedSession.start() : this.managedSession
-        : externalConfiguration(this.settings);
+        : externalConfiguration(this.settings));
       this.client = new LocalAiProviderClient({
         ...configuration,
         ...(this.requestFetch ? { fetch: this.requestFetch } : {})
@@ -105,7 +141,7 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
       }
       this.capabilitiesValue = capabilities;
       this.publish({
-        id: LOCAL_AI_PROVIDER_ID,
+        id: this.providerId,
         label: capabilities.provider.name,
         status: 'connected',
         connectedAt: Date.now()
@@ -123,20 +159,22 @@ export class LocalAiConnectionController implements DesktopGenAiProviderControll
   async disconnect(): Promise<GenAiProviderSnapshot> {
     this.capabilitiesValue = null;
     this.client = null;
-    if (this.settings.mode === 'managed' && isSessionSource(this.managedSession)) await this.managedSession.stop();
-    this.publish({ id: LOCAL_AI_PROVIDER_ID, label: this.snapshotValue.label, status: 'disconnected' });
+    if (!this.transportOverride && this.settings.mode === 'managed' && isSessionSource(this.managedSession)) {
+      await this.managedSession.stop();
+    }
+    this.publish({ id: this.providerId, label: this.snapshotValue.label, status: 'disconnected' });
     return this.snapshotValue;
   }
 
   async listModels(): Promise<readonly GenAiModelSummary[]> {
-    return localAiModels(await this.capabilities());
+    return localAiModels(await this.capabilities(), this.providerId);
   }
 
   async loadWorkflow(modelId: GenAiModelId, mode: string): Promise<GenAiWorkflowDefinition> {
     const capabilities = await this.capabilities();
     const model = capabilities.models.find(({ id }) => id === modelId);
     if (!model) throw new Error(`Local AI model ${modelId} is unavailable.`);
-    return localAiWorkflow(model, operationForMode(mode));
+    return localAiWorkflow(model, operationForMode(mode), this.providerId);
   }
 
   async estimateCost(): Promise<GenAiCostEstimate | null> { return null; }
@@ -189,3 +227,17 @@ const externalConfiguration = (settings: LightTableLocalAiConnectionSettings): L
 
 const sameSettings = (left: LightTableLocalAiConnectionSettings, right: LightTableLocalAiConnectionSettings) =>
   left.mode === right.mode && left.host === right.host && left.port === right.port;
+
+const normalizeProviderBaseUrl = (value: string, requiresLoopback: boolean, allowRemote: boolean): string => {
+  const url = new URL(value);
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+    throw new Error('Provider URL must be a plain HTTP(S) base URL.');
+  }
+  if (requiresLoopback && !['127.0.0.1', 'localhost', '::1', '[::1]'].includes(url.hostname.toLowerCase())) {
+    throw new Error('Auto-start providers must use a loopback address.');
+  }
+  if (!allowRemote && !['127.0.0.1', 'localhost', '::1', '[::1]'].includes(url.hostname.toLowerCase())) {
+    throw new Error('Enable remote access before sending images to a non-loopback provider.');
+  }
+  return url.toString().replace(/\/$/u, '');
+};

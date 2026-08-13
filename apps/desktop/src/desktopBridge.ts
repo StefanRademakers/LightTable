@@ -225,6 +225,9 @@ export interface LightTableDesktopBridge {
   installLocalAiModel(): Promise<LocalAiModelStatus>;
   configureLocalAi(settings: LightTableLocalAiConnectionSettings): Promise<void>;
   testLocalAiConnection(settings: LightTableLocalAiConnectionSettings): Promise<LightTableLocalAiConnectionTest>;
+  configureAiProviders(providers: readonly import('@lighttable/app').LightTableAiProviderConfig[]): Promise<void>;
+  testAiProvider(provider: import('@lighttable/app').LightTableAiProviderConfig): Promise<LightTableLocalAiConnectionTest>;
+  openAiProviderHelp(provider: import('@lighttable/app').LightTableAiProviderConfig): Promise<void>;
   onLocalAiModelStatus(listener: (status: LocalAiModelStatus) => void): () => void;
   onGenAiProjectAssetsChanged(listener: (projectId: string) => void): () => void;
   onGenAiJobChanged(listener: (event: {

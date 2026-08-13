@@ -143,6 +143,7 @@ export type {
   LightTableAgentTunnelState,
   LightTableAgentClientScope,
   LightTableAgentClient,
+  LightTableAiProviderConfig,
   LightTableLocalAiConnectionSettings,
   LightTableLocalAiConnectionTest,
   LightTableUpdateResult,

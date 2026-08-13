@@ -220,6 +220,22 @@ export interface LightTableLocalAiConnectionSettings {
   readonly port: number;
 }
 
+/** Persisted user configuration for providers implementing LightTable's HTTP AI protocol. */
+export interface LightTableAiProviderConfig {
+  readonly id: string;
+  readonly displayName: string;
+  readonly enabled: boolean;
+  readonly transport: {
+    readonly type: 'http';
+    readonly baseUrl: string;
+    readonly apiToken?: string;
+    readonly timeoutMs: number;
+    readonly allowRemote?: boolean;
+  };
+  readonly localProcess?: { readonly autoStart: boolean };
+  readonly defaults?: { readonly createModelId?: string; readonly editModelId?: string };
+}
+
 export interface LightTableLocalAiConnectionTest {
   readonly ok: boolean;
   readonly message: string;
@@ -230,6 +246,9 @@ export interface LightTableLocalAiService {
   install(): Promise<LightTableLocalAiModelStatus>;
   configure(settings: LightTableLocalAiConnectionSettings): Promise<void>;
   testConnection(settings: LightTableLocalAiConnectionSettings): Promise<LightTableLocalAiConnectionTest>;
+  configureProviders(providers: readonly LightTableAiProviderConfig[]): Promise<void>;
+  testProvider(provider: LightTableAiProviderConfig): Promise<LightTableLocalAiConnectionTest>;
+  openProviderHelp(provider: LightTableAiProviderConfig): Promise<void>;
   subscribe(listener: (status: LightTableLocalAiModelStatus) => void): () => void;
 }
 
