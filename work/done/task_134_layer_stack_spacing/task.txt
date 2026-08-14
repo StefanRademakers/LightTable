@@ -1,0 +1,1 @@
+Image 1 is de layer stack nu... heeft nog vertical padding, mag strakker zoals in image 2.

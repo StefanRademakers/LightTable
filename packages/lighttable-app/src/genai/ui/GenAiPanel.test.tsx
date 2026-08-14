@@ -65,6 +65,24 @@ describe('GenAiPanel visual references', () => {
     expect(markup).not.toContain('Loading image model');
   });
 
+  it('keeps the composer mounted and disables generation when a discovered model has no usable form', () => {
+    const incompleteModel = {
+      ...model, id: 'seedream-incomplete' as GenAiModelId, label: 'Seedream'
+    };
+    const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
+      projectName="Project" models={[model, incompleteModel]} workflow={workflow('text2image')}
+      selectedModelId={incompleteModel.id} selectedMode="text2image"
+      setupError="OpenArt returned a model form without usable fields."
+      values={{ prompt: 'Keep this editable', visualReferences: [asset] }}
+      mentionOptions={createGenAiAssetMentionOptions([asset])} canGenerate={false}
+      onGenerate={() => undefined} />);
+    expect(markup).toContain('class="genai-panel__form"');
+    expect(markup).toContain('Seedream');
+    expect(markup).toContain('class="genai-prompt-composer"');
+    expect(markup).toContain('OpenArt returned a model form without usable fields.');
+    expect(markup).toContain('disabled="">Generate');
+  });
+
   it('explains every supported way to add an empty visual reference', () => {
     const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
       projectName="Project" models={[model]} workflow={workflow('text2image')} selectedModelId={modelId}

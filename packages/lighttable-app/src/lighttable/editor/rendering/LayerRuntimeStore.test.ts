@@ -51,6 +51,8 @@ describe('LayerRuntimeStore', () => {
     raster.mask = {
       id: 'raster-mask-a',
       enabled: true,
+      linked: true,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
       density: 1,
       feather: 0,
       revision: 0,
@@ -58,17 +60,17 @@ describe('LayerRuntimeStore', () => {
       dirtyBounds: null
     };
     const group = createGroupLayer('group');
-    group.mask = { ...raster.mask, id: 'group-mask-a' };
+    group.mask = { ...raster.mask!, id: 'group-mask-a' };
     const vector = createVectorLayer([], 'shape');
-    vector.mask = { ...raster.mask, id: 'vector-mask-a' };
+    vector.mask = { ...raster.mask!, id: 'vector-mask-a' };
 
     store.sync([raster, group, vector]);
     const firstRasterMask = store.maskTexture(raster.id);
     const firstGroupMask = store.maskTexture(group.id);
     const firstVectorMask = store.maskTexture(vector.id);
-    raster.mask = { ...raster.mask, id: 'raster-mask-b' };
-    group.mask = { ...group.mask, id: 'group-mask-b' };
-    vector.mask = { ...vector.mask, id: 'vector-mask-b' };
+    raster.mask = { ...raster.mask!, id: 'raster-mask-b' };
+    group.mask = { ...group.mask!, id: 'group-mask-b' };
+    vector.mask = { ...vector.mask!, id: 'vector-mask-b' };
     store.sync([raster, group, vector]);
 
     expect(firstRasterMask?.destroy).toHaveBeenCalledOnce();
@@ -104,6 +106,8 @@ describe('LayerRuntimeStore', () => {
     raster.mask = {
       id: 'mask',
       enabled: true,
+      linked: true,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
       density: 1,
       feather: 0,
       revision: 0,
@@ -145,7 +149,8 @@ describe('LayerRuntimeStore', () => {
     raster.width = 12;
     raster.height = 7;
     raster.mask = {
-      id: 'mask', enabled: true, density: 1, feather: 0,
+      id: 'mask', enabled: true, linked: true,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, density: 1, feather: 0,
       revision: 0, pixelRevision: 0, dirtyBounds: null
     };
     store.sync([raster]);
@@ -214,6 +219,8 @@ describe('LayerRuntimeStore', () => {
     text.mask = {
       id: 'text-mask',
       enabled: true,
+      linked: true,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
       density: 1,
       feather: 0,
       revision: 0,

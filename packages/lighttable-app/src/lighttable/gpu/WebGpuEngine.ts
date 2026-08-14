@@ -851,7 +851,7 @@ export class WebGpuEngine {
       opacity,
       flow,
       erase,
-      sourceToDocument ?? (channel === 'mask' && layer ? layer.transform : undefined),
+      sourceToDocument ?? (channel === 'mask' && layer ? layer.mask?.transform : undefined),
       channel === 'pixels' && Boolean(layer?.locks.transparency),
       tip,
       engine,
@@ -1196,6 +1196,10 @@ export class WebGpuEngine {
 
   async measureLayerContent(layer: RasterLayer) {
     return this.documentRenderer?.measureLayerContent(layer) ?? null;
+  }
+
+  async measureLayerMaskContent(layer: RasterLayer) {
+    return this.documentRenderer?.measureLayerMaskContent(layer) ?? null;
   }
 
   exportLayerAssets(document: ImageDocument) {

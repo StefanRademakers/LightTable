@@ -48,6 +48,7 @@ export class LayerPresentationPicker {
       readonly layerId: LayerId;
       sourceOffset: number | null;
       readonly maskOffsets: number[];
+      maskRejected: boolean;
       cpuOpaque: boolean;
     };
     const samples: CandidateSample[] = [];
@@ -68,6 +69,7 @@ export class LayerPresentationPicker {
         layerId,
         sourceOffset: null,
         maskOffsets: [],
+        maskRejected: false,
         cpuOpaque: knownOpaqueLayerIds.has(layerId)
       };
       samples.push(candidate);
@@ -147,14 +149,22 @@ export class LayerPresentationPicker {
           || maskedNode.mask.density < 1
           || maskedNode.mask.feather > 0) continue;
         const mask = this.options.layers.maskTexture(maskedNode.id);
-        const maskX = Math.floor(point.x);
-        const maskY = Math.floor(point.y);
-        if (mask && maskX >= 0 && maskY >= 0
+        if (!mask) continue;
+        const documentToMask = invertMatrix(maskedNode.mask.transform);
+        const maskPoint = documentToMask ? transformPoint(documentToMask, point) : null;
+        const maskX = maskPoint ? Math.floor(maskPoint.x) : -1;
+        const maskY = maskPoint ? Math.floor(maskPoint.y) : -1;
+        if (maskPoint && maskX >= 0 && maskY >= 0
           && maskX < document.width && maskY < document.height) {
           copies.push({
             texture: mask, x: maskX, y: maskY,
             alphaByteOffset: 0, role: 'mask', candidate
           });
+        } else {
+          // A transformed mask is transparent outside its own document-sized
+          // surface. Record that explicitly: an empty `maskOffsets` array would
+          // otherwise pass `every()` and make the layer selectable there.
+          candidate.maskRejected = true;
         }
       }
     }
@@ -175,7 +185,7 @@ export class LayerPresentationPicker {
     };
     if (!copies.length) {
       return resolveTopHit(new Map(samples.map(
-        ({ layerId, cpuOpaque }) => [layerId, cpuOpaque]
+        ({ layerId, cpuOpaque, maskRejected }) => [layerId, cpuOpaque && !maskRejected]
       )));
     }
 
@@ -209,7 +219,7 @@ export class LayerPresentationPicker {
       const readView = new DataView(readback.getMappedRange());
       const intrinsicHits = new Map<LayerId, boolean>();
       for (const candidate of samples) {
-        const masksPainted = candidate.maskOffsets.every(
+        const masksPainted = !candidate.maskRejected && candidate.maskOffsets.every(
           (copyIndex) => readView.getUint8(copyIndex * stride) !== 0
         );
         const sourcePainted = candidate.cpuOpaque || (

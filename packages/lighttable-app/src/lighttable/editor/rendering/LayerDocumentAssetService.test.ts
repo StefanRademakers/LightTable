@@ -55,6 +55,8 @@ describe('LayerDocumentAssetService', () => {
     layer.mask = {
       id: 'mask-1',
       enabled: true,
+      linked: true,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
       density: 1,
       feather: 0,
       revision: 0,

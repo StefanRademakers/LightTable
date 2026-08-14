@@ -615,7 +615,7 @@ export class LayerDocumentRenderer {
     });
     this.device.queue.submit([encoder.finish()]);
     this.releaseSubmittedResources();
-    return this.runtime.selectionRasterizer.loadColorChannel(source, 'composite');
+    return this.runtime.selectionRasterizer.loadTransparency(source);
   }
 
   applyMagicWandToTexture(
@@ -716,6 +716,10 @@ export class LayerDocumentRenderer {
 
   async measureLayerContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
     return this.runtime.selectionContentAnalyzer.measure(layer, false);
+  }
+
+  async measureLayerMaskContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
+    return this.runtime.selectionContentAnalyzer.measureMask(layer);
   }
 
   pasteSelectionClipboard(layerId: LayerId) {

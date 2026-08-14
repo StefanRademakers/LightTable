@@ -190,7 +190,7 @@ describe('editor keymap', () => {
     )).toBe('swap-colors');
   });
 
-  it('nudges selection outlines and selected pixels by one or ten pixels', () => {
+  it('nudges selection outlines and active transforms by one or ten pixels', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 'ArrowLeft', code: 'ArrowLeft' }),
@@ -199,8 +199,13 @@ describe('editor keymap', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
       input({ key: 'ArrowDown', code: 'ArrowDown', shiftKey: true }),
-      context({ activeTool: 'transform', hasSelection: true, transforming: true })
+      context({ activeTool: 'transform', hasSelection: false, transforming: true })
     )).toEqual({ type: 'nudge', x: 0, y: 10 });
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'ArrowRight', code: 'ArrowRight' }),
+      context({ activeTool: 'transform', hasSelection: false, transforming: false })
+    )).toBeNull();
   });
 
   it('supports Fill shortcuts with a transient preserve-transparency modifier', () => {

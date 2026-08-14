@@ -44,6 +44,7 @@ export interface DocumentViewportSurfaceProps {
   onContextMenu: React.MouseEventHandler<HTMLDivElement>;
   onTransformChange: (matrix: AffineMatrix) => void;
   onTransformProjectiveChange: (quad: TransformQuad) => void;
+  onTransformCommitGesture: () => void;
   onTransformDuplicateChange: (duplicate: boolean) => void;
   onTransformPick: (point: { x: number; y: number }) => void;
   transformSnapTargets?: readonly SnapFeature[];
@@ -94,6 +95,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onContextMenu,
   onTransformChange,
   onTransformProjectiveChange,
+  onTransformCommitGesture,
   onTransformDuplicateChange,
   onTransformPick,
   transformSnapTargets,
@@ -168,6 +170,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
           height={viewportSize.height}
           onChange={onTransformChange}
           onProjectiveChange={onTransformProjectiveChange}
+          onCommitGesture={onTransformCommitGesture}
           onDuplicateChange={onTransformDuplicateChange}
           onPickLayer={onTransformPick}
           snapTargets={transformSnapTargets}

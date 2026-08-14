@@ -76,6 +76,7 @@
   --lt-accent-selected-subtle: #202a39;
   --lt-accent-drop: rgb(66 116 196 / 28%);
   --lt-focus-ring: #73a5f4;
+  --lt-clipping-hover: #f0a45d;
 
   /* Feedback */
   --lt-danger: #ff9a9a;

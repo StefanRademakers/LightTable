@@ -559,33 +559,46 @@ export class SelectionRasterizer {
     return true;
   }
 
+  /** Loads intrinsic pixel transparency. This must never derive coverage from
+   * RGB or composite luminance: opaque black and opaque white are equally
+   * selected, while only source alpha controls partial coverage. */
+  loadTransparency(source: GPUTexture) {
+    return this.loadTextureChannel(source, 4, 'LightTable load layer alpha as selection');
+  }
+
   loadColorChannel(source: GPUTexture, channel: CompositeSelectionChannel) {
+    return this.loadTextureChannel(
+      source,
+      channel === 'red' ? 0 : channel === 'green' ? 1 : channel === 'blue' ? 2 : 3,
+      'LightTable load composite channel as selection'
+    );
+  }
+
+  private loadTextureChannel(source: GPUTexture, channel: number, label: string) {
     this.options.ensureTargets();
     const { textures, device } = this.options;
     if (!textures.mask) return false;
     const pipeline = this.options.pipelines().channelToSelection;
     const settings = device.createBuffer({
-      label: 'LightTable composite channel selection settings',
+      label: `${label} settings`,
       size: 16,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     device.queue.writeBuffer(settings, 0, new Uint32Array([
-      channel === 'red' ? 0 : channel === 'green' ? 1 : channel === 'blue' ? 2 : 3,
+      channel,
       0,
       0,
       0
     ]));
     const bindGroup = device.createBindGroup({
-      label: 'LightTable composite channel selection bindings',
+      label: `${label} bindings`,
       layout: pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: source.createView() },
         { binding: 1, resource: { buffer: settings } }
       ]
     });
-    const encoder = device.createCommandEncoder({
-      label: 'LightTable load composite channel as selection'
-    });
+    const encoder = device.createCommandEncoder({ label });
     this.options.drawFullscreen(
       encoder,
       pipeline,

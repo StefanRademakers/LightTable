@@ -32,7 +32,9 @@ import {
   setLayerBlendMode,
   setLayerFillOpacity,
   setLayerLock,
+  setLayerMaskLinked,
   setLayerMaskProperties,
+  setLayerMaskTransform,
   setLayerTransform,
   setRasterLayerAdjustmentStack
 } from '../document/documentCommands';
@@ -1168,7 +1170,11 @@ describe('LightTable layered PNG format', () => {
   it('round-trips an editable raster mask independently from preserved Photoshop vector-mask semantics', async () => {
     const source = createImageDocument('Independent masks', 2, 2, 'source');
     const layerId = source.layers[0].id;
-    const masked = addLayerMask(source, layerId);
+    const masked = setLayerMaskTransform(
+      setLayerMaskLinked(addLayerMask(source, layerId), layerId, false),
+      layerId,
+      translationMatrix(7, -5)
+    );
     const document = {
       ...masked,
       layers: masked.layers.map((layer) => layer.id !== layerId ? layer : ({
@@ -1206,7 +1212,10 @@ describe('LightTable layered PNG format', () => {
     const parsed = await parseLayeredDocumentFile(file);
     const reopened = parsed?.document.layers[0];
 
-    expect(reopened?.mask).not.toBeNull();
+    expect(reopened?.mask).toMatchObject({
+      linked: false,
+      transform: translationMatrix(7, -5)
+    });
     expect(reopened?.photoshop?.preserved.vectorMask).toEqual({
       paths: [{ operation: 'combine', knots: [] }]
     });

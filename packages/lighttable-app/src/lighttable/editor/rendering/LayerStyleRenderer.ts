@@ -15,6 +15,7 @@ import {
   layerStyleUniform
 } from '../styles/layerStyleGpu';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
+import { identityAffineMatrix, invertMatrix } from '../tools/transform/affine';
 import type { PatternAssetStore } from './PatternAssetStore';
 import type { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
 import { LayerStylePipelineProvider } from './LayerStylePipelineProvider';
@@ -178,9 +179,11 @@ export class LayerStyleRenderer {
     const gradientGeometry = sourceDocumentBounds(inverse, sourceSize);
     const styleTextures = this.textures.ensureWorkTextures();
 
+    const maskInverse = invertMatrix(layer.mask?.transform ?? identityAffineMatrix())
+      ?? identityAffineMatrix();
     const shapeSettings = device.createBuffer({
       label: `LightTable Layer Style shape: ${layer.name}`,
-      size: 64,
+      size: 96,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     device.queue.writeBuffer(shapeSettings, 0, new Float32Array([
@@ -191,7 +194,9 @@ export class LayerStyleRenderer {
       inverse.a, inverse.c, inverse.tx, 0,
       inverse.b, inverse.d, inverse.ty, 0,
       sourceSize.width, sourceSize.height,
-      width, height
+      width, height,
+      maskInverse.a, maskInverse.c, maskInverse.tx, 0,
+      maskInverse.b, maskInverse.d, maskInverse.ty, 0
     ]));
     submittedResources.retainBuffer(shapeSettings);
     const shapeBindGroup = device.createBindGroup({

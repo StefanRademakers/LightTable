@@ -316,6 +316,10 @@ export const layerIsLocked = (
 export interface RasterMask {
   id: string;
   enabled: boolean;
+  /** When linked, layer transforms apply the same document-space delta to this mask. */
+  linked: boolean;
+  /** Maps the document-space mask surface into its current document position. */
+  transform: AffineMatrix;
   /** Photoshop-compatible mask strength. 1 preserves the authored mask; 0 reveals the layer. */
   density: number;
   /** Feather radius in document pixels. */

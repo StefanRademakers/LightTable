@@ -20,6 +20,18 @@ export interface SnappedTransformTranslation<T> {
   matches: readonly SnapMatch[];
 }
 
+const isTranslationOnly = (matrix: AffineMatrix, epsilon = 1e-6) =>
+  Math.abs(matrix.a - 1) <= epsilon
+  && Math.abs(matrix.b) <= epsilon
+  && Math.abs(matrix.c) <= epsilon
+  && Math.abs(matrix.d - 1) <= epsilon;
+
+const pixelAlignTranslation = (matrix: AffineMatrix): AffineMatrix => (
+  isTranslationOnly(matrix)
+    ? { ...matrix, tx: Math.round(matrix.tx), ty: Math.round(matrix.ty) }
+    : matrix
+);
+
 /**
  * Resolves a body drag from its immutable drag-start geometry. Keeping this
  * outside React prevents pointer-event frequency from changing the result.
@@ -41,8 +53,13 @@ export const snapAffineTranslation = (
     enabled,
     bypass
   });
+  const resolved = multiplyMatrices(translationMatrix(snap.offsetX, snap.offsetY), proposed);
   return {
-    value: multiplyMatrices(translationMatrix(snap.offsetX, snap.offsetY), proposed),
+    // A translation-only transform must land on document pixels. Otherwise a
+    // raster layer is presented through the linear compositor at fractional
+    // coordinates and appears progressively softer despite unchanged source
+    // pixels. Scale, rotation and shear deliberately retain subpixel freedom.
+    value: pixelAlignTranslation(resolved),
     matches: snap.matches
   };
 };

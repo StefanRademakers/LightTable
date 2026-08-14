@@ -92,6 +92,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onLoadMaskSelection={controller.loadMaskSelection}
         onLoadTransparencySelection={controller.loadTransparencySelection}
         onToggleMask={controller.toggleMask}
+        onMaskLinked={controller.setMaskLinked}
         onRemoveMask={controller.removeMask}
         onLockChange={controller.setLock}
         onCreate={controller.createRasterLayer}

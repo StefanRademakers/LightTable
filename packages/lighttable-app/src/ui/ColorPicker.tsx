@@ -36,19 +36,38 @@ export const colorPickerHsvToRgb = (hsv: HsvColor, a = 1): ColorPickerColor => {
   return { r: r + m, g: g + m, b: b + m, a };
 };
 
+/**
+ * Hue is not encoded in achromatic RGB colours. Keep the user's last hue in
+ * that case so choosing a hue before adding saturation remains possible.
+ */
+export const colorPickerHsvFromValue = (color: ColorPickerColor, previous?: HsvColor): HsvColor => {
+  const next = colorPickerRgbToHsv(color);
+  return next.s <= 1e-6 || next.v <= 1e-6
+    ? { ...next, h: previous?.h ?? next.h }
+    : next;
+};
+
 export const ColorPicker: React.FC<{ value: ColorPickerColor; onChange: (value: ColorPickerColor) => void }> = ({ value, onChange }) => {
-  const hsv = colorPickerRgbToHsv(value);
+  const [hsv, setHsv] = React.useState(() => colorPickerHsvFromValue(value));
   const [hex, setHex] = React.useState(colorPickerHex(value));
   const [rgb, setRgb] = React.useState([byte(value.r), byte(value.g), byte(value.b)].map(String));
   const [sampling, setSampling] = React.useState(false);
-  React.useEffect(() => { setHex(colorPickerHex(value)); setRgb([byte(value.r), byte(value.g), byte(value.b)].map(String)); }, [value]);
+  React.useEffect(() => {
+    setHsv((current) => colorPickerHsvFromValue(value, current));
+    setHex(colorPickerHex(value));
+    setRgb([byte(value.r), byte(value.g), byte(value.b)].map(String));
+  }, [value]);
+  const commitHsv = (next: HsvColor) => {
+    setHsv(next);
+    onChange(colorPickerHsvToRgb(next, value.a));
+  };
   const updateSv = (element: HTMLElement, x: number, y: number) => {
     const bounds = element.getBoundingClientRect();
-    onChange(colorPickerHsvToRgb({ h: hsv.h, s: clamp((x - bounds.left) / bounds.width), v: 1 - clamp((y - bounds.top) / bounds.height) }, value.a));
+    commitHsv({ h: hsv.h, s: clamp((x - bounds.left) / bounds.width), v: 1 - clamp((y - bounds.top) / bounds.height) });
   };
   const updateHue = (element: HTMLElement, x: number) => {
     const bounds = element.getBoundingClientRect();
-    onChange(colorPickerHsvToRgb({ ...hsv, h: clamp((x - bounds.left) / bounds.width) * 360 }, value.a));
+    commitHsv({ ...hsv, h: clamp((x - bounds.left) / bounds.width) * 360 });
   };
   return <div className="lighttable-color-picker-prototype" role="dialog" aria-label="Color picker">
     <div className="lighttable-color-picker-prototype__sv" role="slider" aria-label="Saturation and brightness"

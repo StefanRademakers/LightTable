@@ -6,20 +6,14 @@ export const LAYER_TREE_GEOMETRY = Object.freeze({
   rowMinHeight: 28,
   rowGap: 2,
   rowPaddingInline: 5,
-  rowPaddingBlock: 3,
+  rowPaddingBlock: 0,
   indent: 16,
-  clippingOffset: 14,
   disclosureWidth: 14,
   thumbnailSlot: 42,
   thumbnailContentMax: 40,
   statusWidth: 46
 });
 
-export const layerRowInset = (depth: number, clipped: boolean): number =>
-  LAYER_TREE_GEOMETRY.rowPaddingInline
-  + Math.max(0, Math.floor(depth)) * LAYER_TREE_GEOMETRY.indent
-  + (clipped ? LAYER_TREE_GEOMETRY.clippingOffset : 0);
-
-export const layerClippingMarkInset = (depth: number): number =>
+export const layerRowInset = (depth: number): number =>
   LAYER_TREE_GEOMETRY.rowPaddingInline
   + Math.max(0, Math.floor(depth)) * LAYER_TREE_GEOMETRY.indent;

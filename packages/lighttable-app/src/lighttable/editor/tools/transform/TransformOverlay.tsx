@@ -23,6 +23,7 @@ interface TransformOverlayProps {
   height: number;
   onChange: (matrix: AffineMatrix) => void;
   onProjectiveChange: (quad: TransformQuad) => void;
+  onCommitGesture: () => void;
   onDuplicateChange: (duplicate: boolean) => void;
   onPickLayer?: (point: TransformPoint) => void;
   snapTargets?: readonly SnapFeature[];
@@ -41,6 +42,7 @@ interface DragState {
   angle: number;
   projectiveQuad: TransformQuad | null;
   projectiveCorner: number | null;
+  changed: boolean;
 }
 
 const midpoint = (first: TransformPoint, second: TransformPoint): TransformPoint => ({
@@ -82,6 +84,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   height,
   onChange,
   onProjectiveChange,
+  onCommitGesture,
   onDuplicateChange,
   onPickLayer,
   snapTargets = [],
@@ -170,7 +173,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         { ...geometry.corners[2] },
         { ...geometry.corners[3] }
       ],
-      projectiveCorner
+      projectiveCorner,
+      changed: false
     };
     onSnapMatches?.([]);
     svg.setPointerCapture(event.pointerId);
@@ -186,6 +190,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       const next = drag.projectiveQuad.map((point, index) => (
         index === drag.projectiveCorner ? current : { ...point }
       )) as unknown as TransformQuad;
+      drag.changed = true;
       onProjectiveChange(next);
     } else if (state.projectiveQuad && drag.handle === 'body' && drag.projectiveQuad) {
       const dx = current.x - drag.start.x;
@@ -199,6 +204,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         event.ctrlKey || event.metaKey
       );
       onSnapMatches?.(snapped.matches);
+      drag.changed = true;
       onProjectiveChange(snapped.value);
     } else if (drag.handle === 'body') {
       const snapped = snapAffineTranslation(
@@ -211,12 +217,14 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         event.ctrlKey || event.metaKey
       );
       onSnapMatches?.(snapped.matches);
+      drag.changed = true;
       onChange(snapped.value);
     } else if (drag.handle === 'rotate' && !state.projectiveQuad) {
       onSnapMatches?.([]);
       const angle = Math.atan2(current.y - drag.pivot.y, current.x - drag.pivot.x);
       let delta = angle - drag.angle;
       if (event.shiftKey) delta = Math.round(delta / (Math.PI / 12)) * (Math.PI / 12);
+      drag.changed = true;
       onChange(multiplyMatrices(aroundPoint(rotationMatrix(delta), drag.pivot), drag.matrix));
     } else if (!state.projectiveQuad) {
       onSnapMatches?.([]);
@@ -241,6 +249,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
               b: Math.max(-10, Math.min(10, (local.y - drag.handlePoint.y) / Math.max(1e-6, Math.abs(denominatorX)))),
               c: 0, d: 1, tx: 0, ty: 0
             };
+        drag.changed = true;
         onChange(multiplyMatrices(
           drag.matrix,
           aroundPoint(shear, drag.anchor)
@@ -260,6 +269,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       }
       scaleX = Math.abs(scaleX) < 0.01 ? Math.sign(scaleX || 1) * 0.01 : scaleX;
       scaleY = Math.abs(scaleY) < 0.01 ? Math.sign(scaleY || 1) * 0.01 : scaleY;
+      drag.changed = true;
       onChange(multiplyMatrices(
         drag.matrix,
         aroundPoint(scaleMatrix(scaleX, scaleY), drag.anchor)
@@ -272,7 +282,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   const end = (event: React.PointerEvent<SVGSVGElement>) => {
     const drag = dragRef.current;
     if (drag?.pointerId !== event.pointerId) return;
-    if (drag.handle === 'body' && onPickLayer) {
+    const commitGesture = drag.changed;
+    if (!commitGesture && drag.handle === 'body' && onPickLayer) {
       const point = toDocument(event);
       const movedPixels = Math.hypot(point.x - drag.start.x, point.y - drag.start.y) * scale;
       if (movedPixels <= 3) onPickLayer(point);
@@ -282,6 +293,10 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     event.currentTarget.releasePointerCapture(event.pointerId);
     event.preventDefault();
     event.stopPropagation();
+    // A transform-tool drag is one editor command. Preview updates stay out of
+    // history; releasing the pointer publishes exactly one undo entry through
+    // the central transform-session transaction.
+    if (commitGesture) onCommitGesture();
   };
 
   const screenCorners = geometry.corners.map(toScreen);

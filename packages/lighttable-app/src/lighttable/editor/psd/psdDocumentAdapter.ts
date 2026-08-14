@@ -510,6 +510,8 @@ export const importPsdDocument = (
         mask: node.mask ? {
           id: node.mask.id,
           enabled: node.mask.enabled,
+          linked: true,
+          transform: identityAffineMatrix(),
           density: node.mask.density,
           feather: node.mask.feather,
           revision: 0,
@@ -534,6 +536,8 @@ export const importPsdDocument = (
         mask: node.mask ? {
           id: node.mask.id,
           enabled: node.mask.enabled,
+          linked: true,
+          transform: identityAffineMatrix(),
           density: node.mask.density,
           feather: node.mask.feather,
           revision: 0,
@@ -570,6 +574,8 @@ export const importPsdDocument = (
           mask: node.mask ? {
             id: node.mask.id,
             enabled: node.mask.enabled,
+            linked: true,
+            transform: identityAffineMatrix(),
             density: node.mask.density,
             feather: node.mask.feather,
             revision: 0,
@@ -640,6 +646,8 @@ export const importPsdDocument = (
           mask: node.mask ? {
             id: node.mask.id,
             enabled: node.mask.enabled,
+            linked: true,
+            transform: identityAffineMatrix(),
             density: node.mask.density,
             feather: node.mask.feather,
             revision: 0,
@@ -748,6 +756,8 @@ export const importPsdDocument = (
       mask: node.mask ? {
         id: node.mask.id,
         enabled: node.mask.enabled,
+        linked: true,
+        transform: identityAffineMatrix(),
         density: node.mask.density,
         feather: node.mask.feather,
         revision: 0,

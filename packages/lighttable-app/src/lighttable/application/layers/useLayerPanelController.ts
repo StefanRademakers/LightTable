@@ -21,6 +21,7 @@ import {
   setLayerBlendMode,
   setLayerClipping,
   setLayerFillOpacity,
+  setLayerMaskLinked,
   setLayerMaskEnabled,
   setLayerOpacity,
   setVectorLayerAntiAlias,
@@ -90,6 +91,7 @@ export interface LayerPanelController {
   loadMaskSelection(layerId: LayerId): void;
   loadTransparencySelection(layerId: LayerId): void;
   toggleMask(): void;
+  setMaskLinked(layerId: LayerId, linked: boolean): void;
   removeMask(layerId?: LayerId): void;
   moveActive(direction: 'up' | 'down'): void;
   setLock(layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean): void;
@@ -202,6 +204,8 @@ export const createLayerPanelController = (
       dependencies.mutateDocument((current) =>
         setLayerMaskEnabled(current, layer.id, !layer.mask!.enabled));
     },
+    setMaskLinked: (layerId, linked) =>
+      mutate((current) => setLayerMaskLinked(current, layerId, linked)),
     removeMask: (requestedLayerId) => {
       const dependencies = resolveDependencies();
       const layerId = requestedLayerId ?? dependencies.getDocument()?.activeLayerId;

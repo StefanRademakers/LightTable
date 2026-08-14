@@ -286,6 +286,8 @@ struct LayerSettings {
   maskDensity: f32,
   maskFeather: f32,
   maskPadding: vec2f,
+  maskInverseRow0: vec4f,
+  maskInverseRow1: vec4f,
 }
 
 @group(0) @binding(0) var backgroundTexture: texture_2d<f32>;
@@ -331,9 +333,18 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   );
   let sourceUv = clamp(sourcePixel / settings.sourceSize, vec2f(0.0), vec2f(1.0));
   let sampledForeground = textureSample(foregroundTexture, sourceSampler, sourceUv) * sourceInside;
-  // Layer masks are authored in document space. The raster source transform
-  // must never rotate, scale or translate their coverage.
-  let mask = select(1.0, evaluatedMask(input.uv), settings.maskEnabled > 0.5);
+  let maskPixel = vec2f(
+    dot(settings.maskInverseRow0.xyz, vec3f(destinationPixel, 1.0)),
+    dot(settings.maskInverseRow1.xyz, vec3f(destinationPixel, 1.0))
+  );
+  let maskInside = select(
+    0.0,
+    1.0,
+    all(maskPixel >= vec2f(0.0)) && all(maskPixel < settings.canvasSize)
+  );
+  let maskUv = clamp(maskPixel / settings.canvasSize, vec2f(0.0), vec2f(1.0));
+  let transformedMask = evaluatedMask(maskUv) * maskInside;
+  let mask = select(1.0, transformedMask, settings.maskEnabled > 0.5);
   let clipping = select(
     1.0,
     clamp(textureSample(clippingTexture, sourceSampler, input.uv).a, 0.0, 1.0),
@@ -359,6 +370,8 @@ struct LayerStyleShapeSettings {
   inverseRow1: vec4f,
   sourceSize: vec2f,
   canvasSize: vec2f,
+  maskInverseRow0: vec4f,
+  maskInverseRow1: vec4f,
 }
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
@@ -396,9 +409,16 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     && all(sourcePixel < settings.sourceSize);
   let sourceUv = clamp(sourcePixel / settings.sourceSize, vec2f(0.0), vec2f(1.0));
   let sampled = textureSample(sourceTexture, sourceSampler, sourceUv);
+  let maskPixel = vec2f(
+    dot(settings.maskInverseRow0.xyz, vec3f(destinationPixel, 1.0)),
+    dot(settings.maskInverseRow1.xyz, vec3f(destinationPixel, 1.0))
+  );
+  let maskInside = all(maskPixel >= vec2f(0.0))
+    && all(maskPixel < settings.canvasSize);
+  let maskUv = clamp(maskPixel / settings.canvasSize, vec2f(0.0), vec2f(1.0));
   let mask = select(
     1.0,
-    evaluatedMask(input.uv),
+    evaluatedMask(maskUv) * select(0.0, 1.0, maskInside),
     settings.header.x > 0.5
   );
   let coverage = select(0.0, mask, sourceInside);
@@ -1941,7 +1961,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
-/** Extracts one RGB channel into a scalar selection texture. */
+/** Extracts an RGBA channel or composite luminance into a scalar selection texture. */
 export const COLOR_CHANNEL_COPY_WGSL = /* wgsl */ `
 struct ChannelSettings {
   channel: u32,
@@ -1957,13 +1977,15 @@ struct ChannelSettings {
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let dimensions = vec2i(textureDimensions(sourceTexture));
   let pixel = clamp(vec2i(input.position.xy), vec2i(0), dimensions - vec2i(1));
-  let color = textureLoad(sourceTexture, pixel, 0).rgb;
+  let source = textureLoad(sourceTexture, pixel, 0);
+  let color = source.rgb;
   var value = color.r;
   if (settings.channel == 1u) { value = color.g; }
   if (settings.channel == 2u) { value = color.b; }
   if (settings.channel == 3u) {
     value = dot(color, vec3f(0.2126, 0.7152, 0.0722));
   }
+  if (settings.channel == 4u) { value = source.a; }
   value = clamp(value, 0.0, 1.0);
   return vec4f(value, value, value, 1.0);
 }

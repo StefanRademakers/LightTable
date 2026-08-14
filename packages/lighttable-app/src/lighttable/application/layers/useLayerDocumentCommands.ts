@@ -783,7 +783,10 @@ export const createLayerDocumentCommands = (
           height: clipboardImage.placement.height
         }
       : fullDocumentBounds(before);
-    after = markLayerPixelsChanged(after, pastedLayerId, dirtyBounds);
+    // Publish the empty layer first so the renderer can allocate its texture.
+    // Do not publish the pixel revision until the clipboard write succeeds:
+    // layer thumbnails key their GPU readback cache by pixelRevision and would
+    // otherwise permanently cache the still-empty destination texture.
     dependencies.applyDocumentSnapshot(after);
     const pasted = sameDocumentCopy
       ? renderer.pasteSelectionClipboard(pastedLayerId)
@@ -804,6 +807,8 @@ export const createLayerDocumentCommands = (
       );
       return false;
     }
+    after = markLayerPixelsChanged(after, pastedLayerId, dirtyBounds);
+    dependencies.applyDocumentSnapshot(after);
     dependencies.pushDocumentHistory(before, after);
     dependencies.setActiveChannel('pixels');
     dependencies.setSelectionClipboardAvailable(true);
@@ -884,11 +889,12 @@ export const createLayerDocumentCommands = (
     let after = createRasterLayer(before, `${sourceLayer.name} copy`, sourceId);
     const copiedLayerId = after.activeLayerId;
     if (!copiedLayerId) return false;
-    after = markLayerPixelsChanged(
-      after,
-      copiedLayerId,
-      selectionOperationsSupportBounds([...selection], fullDocumentBounds(before))
+    const dirtyBounds = selectionOperationsSupportBounds(
+      [...selection],
+      fullDocumentBounds(before)
     );
+    // As with regular paste, allocate the destination before the GPU copy and
+    // publish its pixel revision only after the texture contains the pixels.
     dependenciesRef.current.applyDocumentSnapshot(after);
     if (!renderer.pasteSelectionClipboard(copiedLayerId)) {
       dependenciesRef.current.applyDocumentSnapshot(before);
@@ -897,6 +903,8 @@ export const createLayerDocumentCommands = (
       );
       return false;
     }
+    after = markLayerPixelsChanged(after, copiedLayerId, dirtyBounds);
+    dependenciesRef.current.applyDocumentSnapshot(after);
     dependenciesRef.current.pushDocumentHistory(before, after);
     dependenciesRef.current.setSelectionClipboardAvailable(true);
     dependenciesRef.current.setActiveChannel('pixels');

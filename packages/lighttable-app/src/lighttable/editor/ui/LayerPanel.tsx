@@ -19,7 +19,7 @@ import type {
   LayerThumbnailSet
 } from '../layers/layerThumbnailTypes';
 import { layerThumbnailDimensions } from '../layers/layerThumbnailTypes';
-import { layerClippingMarkInset, layerRowInset } from '../layers/layerTreeGeometry';
+import { layerRowInset } from '../layers/layerTreeGeometry';
 import {
   adjustmentStackHasOwner,
   adjustmentStackOwnerIsEnabled
@@ -59,6 +59,7 @@ interface LayerPanelProps {
   onLoadMaskSelection: (layerId: LayerId) => void;
   onLoadTransparencySelection: (layerId: LayerId) => void;
   onToggleMask: () => void;
+  onMaskLinked: (layerId: LayerId, linked: boolean) => void;
   onRemoveMask: (layerId: LayerId) => void;
   onLockChange: (layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean) => void;
   onCreate: () => void;
@@ -155,6 +156,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onLoadMaskSelection,
   onLoadTransparencySelection,
   onToggleMask,
+  onMaskLinked,
   onRemoveMask,
   onLockChange,
   onCreate,
@@ -186,6 +188,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
+  const [clippingBoundaryHoverLayerId, setClippingBoundaryHoverLayerId] = React.useState<LayerId | null>(null);
   const [draggedLayerId, setDraggedLayerId] = React.useState<LayerId | null>(null);
   const [trashDropActive, setTrashDropActive] = React.useState(false);
   const [dropTarget, setDropTarget] = React.useState<{
@@ -539,19 +542,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               draggedLayerId === layer.id ? 'lighttable-layer--dragging' : '',
               dropTarget?.layerId === layer.id ? `lighttable-layer--drop-${dropTarget.placement}` : ''
             ].filter(Boolean).join(' ')}
-            style={{ paddingLeft: `${layerRowInset(depth, layer.clipping)}px` }}
-            onPointerDown={(event) => {
-              if (!event.altKey || !canToggleClipping) return;
-              const bounds = event.currentTarget.getBoundingClientRect();
-              // Photoshop exposes clipping on the boundary between a layer
-              // and the sibling below it. Keep the target forgiving without
-              // hijacking normal row selection or layer dragging.
-              if (bounds.bottom - event.clientY > 9) return;
-              event.preventDefault();
-              event.stopPropagation();
-              clippingGestureLayerRef.current = layer.id;
-              onClipping(layer.id, !layer.clipping);
-            }}
+            style={{ paddingLeft: `${layerRowInset(depth)}px` }}
             onClick={(event) => {
               if (clippingGestureLayerRef.current === layer.id) {
                 clippingGestureLayerRef.current = null;
@@ -644,31 +635,48 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               setDropTarget(null);
             }}
           >
-            {layer.clipping ? (
-              <span
-                className="lighttable-layer__clipping-mark"
-                style={{ left: `${layerClippingMarkInset(depth)}px` }}
-                title={`Clipped to ${clippingBase?.name ?? 'layer below'}`}
-                aria-label={`Clipped to ${clippingBase?.name ?? 'layer below'}`}
-              >
-                <img src={lightTableIcon('clipping_mask.png')} alt="" aria-hidden="true" />
-              </span>
-            ) : null}
             {canToggleClipping ? (
               <button
                 type="button"
-                className="lighttable-layer__clipping-boundary"
+                className={`lighttable-layer__clipping-boundary${
+                  clippingBoundaryHoverLayerId === layer.id
+                    ? ' lighttable-layer__clipping-boundary--active'
+                    : ''
+                }`}
                 title={`${layer.clipping ? 'Release' : 'Create'} clipping mask: Alt/Option-click`}
                 aria-label={`${layer.clipping ? 'Release' : 'Create'} clipping mask with Alt or Option click`}
+                style={clippingBoundaryHoverLayerId === layer.id ? {
+                  cursor: `url("${lightTableIcon('clipping_mask.png')}") 12 12, copy`
+                } : undefined}
+                onPointerEnter={(event) => {
+                  if (event.altKey) setClippingBoundaryHoverLayerId(layer.id);
+                }}
+                onPointerMove={(event) => {
+                  setClippingBoundaryHoverLayerId(event.altKey ? layer.id : null);
+                }}
+                onPointerLeave={() => {
+                  setClippingBoundaryHoverLayerId((current) => current === layer.id ? null : current);
+                }}
                 onPointerDown={(event) => {
                   if (!event.altKey) return;
                   event.preventDefault();
                   event.stopPropagation();
+                  setClippingBoundaryHoverLayerId(null);
                   clippingGestureLayerRef.current = layer.id;
                   onClipping(layer.id, !layer.clipping);
                 }}
               />
             ) : null}
+            <button
+              type="button"
+              className="lighttable-layer__visibility"
+              onClick={(event) => {
+                event.stopPropagation();
+                onVisibility(selectionFor(layer.id), !layer.visible);
+              }}
+              aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
+              title={layer.visible ? 'Hide layer' : 'Show layer'}
+            ><img src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')} alt="" /></button>
             {layer.type === 'group' || hasStyles ? (
               <button
                 type="button"
@@ -711,17 +719,16 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   alt=""
                 />
               </button>
-            ) : <span className="lighttable-layer__disclosure-spacer" />}
-            <button
-              type="button"
-              className="lighttable-layer__visibility"
-              onClick={(event) => {
-                event.stopPropagation();
-                onVisibility(selectionFor(layer.id), !layer.visible);
-              }}
-              aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
-              title={layer.visible ? 'Hide layer' : 'Show layer'}
-            ><img src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')} alt="" /></button>
+            ) : null}
+            {layer.clipping ? (
+              <span
+                className="lighttable-layer__clipping-mark"
+                title={`Clipped to ${clippingBase?.name ?? 'layer below'}`}
+                aria-label={`Clipped to ${clippingBase?.name ?? 'layer below'}`}
+              >
+                <img src={lightTableIcon('clipping_mask.png')} alt="" aria-hidden="true" />
+              </span>
+            ) : null}
             <span className="lighttable-layer__thumbnail-slot">
               <button
                 type="button"
@@ -736,15 +743,17 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     : ''
                 ].filter(Boolean).join(' ')}
                 onClick={(event) => {
-                  event.stopPropagation();
                   if (layer.type === 'raster' && (event.ctrlKey || event.metaKey)) {
                     event.preventDefault();
+                    event.stopPropagation();
                     onMaskIsolationChange(null);
                     onLoadTransparencySelection(layer.id);
                     return;
                   }
+                  // Ordinary clicks, including Shift-click range selection, are
+                  // handled by the layer row. Keeping one selection path makes
+                  // thumbnail and layer-name interaction behave identically.
                   onMaskIsolationChange(null);
-                  selectLayer(event, layer.id);
                 }}
                 onDoubleClick={(event) => {
                   if (layer.type !== 'text' || layer.text.source.kind !== 'flow') return;
@@ -778,7 +787,23 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               </button>
             </span>
             {layer.mask ? (
-              <span className="lighttable-layer__thumbnail-slot">
+              <>
+                <button
+                  type="button"
+                  className={`lighttable-layer__mask-link${layer.mask.linked ? ' lighttable-layer__mask-link--linked' : ''}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onMaskLinked(layer.id, !layer.mask!.linked);
+                  }}
+                  title={layer.mask.linked ? 'Unlink layer and mask' : 'Link layer and mask'}
+                  aria-label={layer.mask.linked ? 'Unlink layer and mask' : 'Link layer and mask'}
+                >
+                  {layer.mask.linked ? (
+                    <img src={lightTableIcon('link_vertical.png')} alt="" aria-hidden="true" />
+                  ) : null}
+                </button>
+                <span className="lighttable-layer__thumbnail-slot">
                 <button
                   type="button"
                   draggable
@@ -838,7 +863,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     />
                   ) : 'M'}
                 </button>
-              </span>
+                </span>
+              </>
             ) : null}
             <input
               id={`lighttable-layer-name-${layer.id}`}

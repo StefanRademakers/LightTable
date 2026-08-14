@@ -282,6 +282,11 @@ describe('useLayerDocumentCommands', () => {
     expect(state.renderer.pasteClipboardImage).toHaveBeenCalledOnce();
     expect(state.renderer.pasteSelectionClipboard).not.toHaveBeenCalled();
     expect(state.document().layers).toHaveLength(2);
+    const snapshots = vi.mocked(state.dependencies.applyDocumentSnapshot).mock.calls;
+    const preparedLayer = snapshots[0]?.[0].layers.at(-1);
+    const committedLayer = snapshots[1]?.[0].layers.at(-1);
+    expect(preparedLayer?.type === 'raster' ? preparedLayer.pixelRevision : null).toBe(0);
+    expect(committedLayer?.type === 'raster' ? committedLayer.pixelRevision : null).toBe(1);
   });
 
   it('places an external clipboard image at the active selection origin', async () => {
@@ -660,6 +665,11 @@ describe('useLayerDocumentCommands', () => {
       state.document().activeLayerId
     );
     expect(state.document().layers).toHaveLength(2);
+    const snapshots = vi.mocked(state.dependencies.applyDocumentSnapshot).mock.calls;
+    const preparedLayer = snapshots[0]?.[0].layers.at(-1);
+    const committedLayer = snapshots[1]?.[0].layers.at(-1);
+    expect(preparedLayer?.type === 'raster' ? preparedLayer.pixelRevision : null).toBe(0);
+    expect(committedLayer?.type === 'raster' ? committedLayer.pixelRevision : null).toBe(1);
     expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
     expect(state.dependencies.setSelectionClipboardAvailable).toHaveBeenCalledWith(true);
   });

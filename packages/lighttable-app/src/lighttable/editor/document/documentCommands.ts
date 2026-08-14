@@ -49,7 +49,7 @@ import {
 import type { BlendMode } from './blendModes';
 import type { AffineMatrix } from '../rendering/renderContract';
 import { identityAffineMatrix, isFiniteAffineMatrix } from '../rendering/renderContract';
-import { multiplyMatrices } from '../geometry/affine';
+import { invertMatrix, multiplyMatrices } from '../geometry/affine';
 import type { TranslationAlignmentResult } from '../autoAlign/alignmentTypes';
 import { alignedTargetTransform } from '../autoAlign/alignmentMath';
 import {
@@ -719,9 +719,21 @@ export const setLayerTransform = (document: ImageDocument, layerId: LayerId, tra
       && layer.transform.tx === transform.tx
       && layer.transform.ty === transform.ty
     ) return layer;
+    const previousInverse = invertMatrix(layer.transform);
+    const mask = layer.mask?.linked && previousInverse
+      ? {
+          ...layer.mask,
+          transform: multiplyMatrices(
+            multiplyMatrices(transform, previousInverse),
+            layer.mask.transform
+          ),
+          revision: layer.mask.revision + 1
+        }
+      : layer.mask;
     return {
       ...layer,
       transform: { ...transform },
+      mask,
       geometryRevision: layer.geometryRevision + 1,
       revision: layer.revision + 1,
       modifiedAt: Date.now()
@@ -778,6 +790,8 @@ export const addLayerMask = (document: ImageDocument, layerId: LayerId) =>
     mask: {
       id: `mask-${crypto.randomUUID()}`,
       enabled: true,
+      linked: true,
+      transform: identityAffineMatrix(),
       density: 1,
       feather: 0,
       revision: 0,
@@ -787,6 +801,29 @@ export const addLayerMask = (document: ImageDocument, layerId: LayerId) =>
     revision: layer.revision + 1,
     modifiedAt: Date.now()
   }));
+
+export const setLayerMaskLinked = (document: ImageDocument, layerId: LayerId, linked: boolean) =>
+  updateLayer(document, layerId, (layer) => !layer.mask || layer.mask.linked === linked ? layer : ({
+    ...layer,
+    mask: { ...layer.mask, linked, revision: layer.mask.revision + 1 },
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  }));
+
+export const setLayerMaskTransform = (
+  document: ImageDocument,
+  layerId: LayerId,
+  transform: AffineMatrix
+) => updateLayer(document, layerId, (layer) => (
+  !layer.mask || !isFiniteAffineMatrix(transform) || affineMatrixEquals(layer.mask.transform, transform)
+    ? layer
+    : {
+        ...layer,
+        mask: { ...layer.mask, transform: { ...transform }, revision: layer.mask.revision + 1 },
+        revision: layer.revision + 1,
+        modifiedAt: Date.now()
+      }
+));
 
 export const removeLayerMask = (document: ImageDocument, layerId: LayerId) =>
   updateLayer(document, layerId, (layer) => !layer.mask ? layer : ({

@@ -190,7 +190,8 @@ export class LayerCompositor {
         Boolean(settings.clippingTexture),
         { a: 1, b: 0, c: 0, d: 1, tx: -sourceBounds.x, ty: -sourceBounds.y },
         { width: sourceBounds.width, height: sourceBounds.height },
-        settings.mask ?? null
+        settings.mask ?? null,
+        invertMatrix(settings.mask?.transform ?? identityAffineMatrix()) ?? identityAffineMatrix()
       );
       const bindGroup = this.options.device.createBindGroup({
         layout: this.options.compositePipeline.getBindGroupLayout(0),
@@ -378,7 +379,8 @@ export class LayerCompositor {
           Boolean(clippingTexture),
           inverse ?? identityAffineMatrix(),
           source.dimensions,
-          node.mask
+          node.mask,
+          invertMatrix(node.mask?.transform ?? identityAffineMatrix()) ?? identityAffineMatrix()
         );
         const bindGroup = this.options.device.createBindGroup({
           layout: this.options.compositePipeline.getBindGroupLayout(0),
@@ -441,6 +443,18 @@ export class LayerCompositor {
             geometryPreview ?? renderContract.transform
           );
       const inverse = invertMatrix(sourceToDocument);
+      const maskToDocument = (() => {
+        const authored = layer.mask?.transform ?? identityAffineMatrix();
+        if (!layer.mask?.linked || !activeTransform || transformUsesPreview) return authored;
+        const layerInverse = invertMatrix(layer.transform);
+        return layerInverse
+          ? multiplyMatrices(
+              multiplyMatrices(activeTransform.matrix, layerInverse),
+              authored
+            )
+          : authored;
+      })();
+      const maskInverse = invertMatrix(maskToDocument) ?? identityAffineMatrix();
 
       if (layerStyleStackIsActive(layer.styleStack) && inverse) {
         const styleBounds = transformUsesPreview
@@ -492,7 +506,8 @@ export class LayerCompositor {
         Boolean(clippingTexture),
         inverse ?? identityAffineMatrix(),
         foregroundDimensions,
-        layer.mask
+        layer.mask,
+        maskInverse
       );
       const bindGroup = this.options.device.createBindGroup({
         layout: this.options.compositePipeline.getBindGroupLayout(0),
@@ -615,7 +630,8 @@ export class LayerCompositor {
         Boolean(clippingTexture),
         inverse,
         dimensions,
-        layer.mask
+        layer.mask,
+        invertMatrix(layer.mask?.transform ?? identityAffineMatrix()) ?? identityAffineMatrix()
       );
       const bindGroup = this.options.device.createBindGroup({
         layout: this.options.compositePipeline.getBindGroupLayout(0),
@@ -749,12 +765,13 @@ export class LayerCompositor {
     clippingEnabled: boolean,
     inverse: AffineMatrix,
     sourceSize: { width: number; height: number },
-    mask: RasterMask | null
+    mask: RasterMask | null,
+    maskInverse: AffineMatrix
   ) {
     const { width, height } = this.options.dimensions();
     const settingsBuffer = this.options.device.createBuffer({
       label,
-      size: 80,
+      size: 112,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     this.options.device.queue.writeBuffer(
@@ -772,7 +789,9 @@ export class LayerCompositor {
         mask?.density ?? 1,
         mask?.feather ?? 0,
         this.blendProfile,
-        this.blendQuantization
+        this.blendQuantization,
+        maskInverse.a, maskInverse.c, maskInverse.tx, 0,
+        maskInverse.b, maskInverse.d, maskInverse.ty, 0
       ])
     );
     this.options.submittedResources.retainBuffer(settingsBuffer);

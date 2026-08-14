@@ -1,0 +1,1 @@
+Na een copy paste actie van een deel naar een nieuwe laag, update de thumbnail op die laag niet en kan ook een hele tijd duren voordat er wat zichtbaar is... pas na opnieuw mergen met andere laag enzo. controleren waarom bij paste niet zichtbaar.

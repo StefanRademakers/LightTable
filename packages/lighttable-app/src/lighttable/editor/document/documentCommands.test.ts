@@ -39,6 +39,8 @@ import {
   setLayerLock,
   setLayerLocked,
   setLayerMaskProperties,
+  setLayerMaskLinked,
+  setLayerMaskTransform,
   setLayerOpacity,
   setLayerTransform,
   setLayerVisibility,
@@ -276,6 +278,48 @@ describe('LightTable document commands', () => {
     const mask = findDocumentLayer(updated, layerId)?.mask;
 
     expect(mask).toMatchObject({ density: 0.35, feather: 12.5, revision: 1 });
+  });
+
+  it('moves a linked mask by the same document-space delta as its layer', () => {
+    const source = createImageDocument('Linked mask', 100, 50, 'asset');
+    const layerId = source.activeLayerId!;
+    const masked = addLayerMask(source, layerId);
+    const moved = setLayerTransform(masked, layerId, translationMatrix(12, -7));
+    const layer = findDocumentLayer(moved, layerId);
+
+    expect(layer?.transform).toEqual(translationMatrix(12, -7));
+    expect(layer?.mask).toMatchObject({
+      linked: true,
+      transform: translationMatrix(12, -7),
+      revision: 1
+    });
+  });
+
+  it('leaves an unlinked mask stationary when its layer moves', () => {
+    const source = createImageDocument('Unlinked mask', 100, 50, 'asset');
+    const layerId = source.activeLayerId!;
+    const masked = setLayerMaskLinked(addLayerMask(source, layerId), layerId, false);
+    const moved = setLayerTransform(masked, layerId, translationMatrix(12, -7));
+    const layer = findDocumentLayer(moved, layerId);
+
+    expect(layer?.transform).toEqual(translationMatrix(12, -7));
+    expect(layer?.mask?.linked).toBe(false);
+    expect(layer?.mask?.transform).toEqual(translationMatrix(0, 0));
+  });
+
+  it('transforms an unlinked mask without changing layer geometry', () => {
+    const source = createImageDocument('Mask only', 100, 50, 'asset');
+    const layerId = source.activeLayerId!;
+    const masked = setLayerMaskLinked(addLayerMask(source, layerId), layerId, false);
+    const moved = setLayerMaskTransform(masked, layerId, translationMatrix(-4, 9));
+    const layer = findDocumentLayer(moved, layerId);
+
+    expect(layer?.transform).toEqual(translationMatrix(0, 0));
+    expect(layer?.mask).toMatchObject({
+      linked: false,
+      transform: translationMatrix(-4, 9),
+      revision: 2
+    });
   });
 
   it('keeps bottom-to-top ordering and stable ids', () => {

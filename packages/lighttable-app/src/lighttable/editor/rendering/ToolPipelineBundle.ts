@@ -253,7 +253,7 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     selectionDisplayCopy: fullscreenPipeline('LightTable selected display copy', SELECTION_DISPLAY_COPY_WGSL, 'rgba8unorm'),
     selectionToMask: fullscreenPipeline('LightTable selection to layer mask', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
     maskToSelection: fullscreenPipeline('LightTable layer mask to selection', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
-    channelToSelection: fullscreenPipeline('LightTable composite channel to selection', COLOR_CHANNEL_COPY_WGSL, 'r8unorm'),
+    channelToSelection: fullscreenPipeline('LightTable source channel to selection', COLOR_CHANNEL_COPY_WGSL, 'r8unorm'),
     transform: fullscreenPipeline('LightTable layer transform preview', LAYER_TRANSFORM_WGSL),
     selectionTransform: fullscreenPipeline('LightTable selection transform preview', SELECTION_TRANSFORM_WGSL, 'r8unorm'),
     magicWandSample: computePipeline('LightTable Magic Wand reference sample', MAGIC_WAND_SAMPLE_WGSL),

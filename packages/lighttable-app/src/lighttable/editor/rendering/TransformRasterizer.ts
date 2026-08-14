@@ -9,6 +9,14 @@ import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { ToolPipelineBundle } from './ToolPipelineBundle';
 import type { TransformSessionStore } from './TransformSessionStore';
 
+const isIntegerTranslation = (matrix: AffineMatrix, epsilon = 1e-5) =>
+  Math.abs(matrix.a - 1) <= epsilon
+  && Math.abs(matrix.b) <= epsilon
+  && Math.abs(matrix.c) <= epsilon
+  && Math.abs(matrix.d - 1) <= epsilon
+  && Math.abs(matrix.tx - Math.round(matrix.tx)) <= epsilon
+  && Math.abs(matrix.ty - Math.round(matrix.ty)) <= epsilon;
+
 interface TransformRasterizerOptions {
   device: GPUDevice;
   sampler: GPUSampler;
@@ -83,7 +91,7 @@ export class TransformRasterizer {
       : null;
     const settingsBuffer = this.options.device.createBuffer({
       label: 'LightTable transform settings',
-      size: 64,
+      size: 80,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     const encoder = this.options.device.createCommandEncoder({
@@ -136,7 +144,7 @@ export class TransformRasterizer {
       inverse.a, inverse.c, inverse.tx, 0,
       inverse.b, inverse.d, inverse.ty, 0,
       0, 0, 1, 0
-    ], true);
+    ], true, isIntegerTranslation(matrix));
   }
 
   updateProjective(source: TransformQuad, destination: TransformQuad) {
@@ -164,7 +172,7 @@ export class TransformRasterizer {
     const previewTexture = this.options.createTexture('LightTable transform preview');
     const settingsBuffer = this.options.device.createBuffer({
       label: 'LightTable transform settings',
-      size: 64,
+      size: 80,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     const encoder = this.options.device.createCommandEncoder({
@@ -190,14 +198,19 @@ export class TransformRasterizer {
     return this.update(session.matrix);
   }
 
-  private renderPreview(inverseRows: readonly number[], selectionActive: boolean) {
+  private renderPreview(
+    inverseRows: readonly number[],
+    selectionActive: boolean,
+    exactPixelTranslation = false
+  ) {
     const session = this.options.sessions.current;
     if (!session?.sourceTexture || !session.previewTexture || !session.settingsBuffer) return false;
     const { width, height } = this.options.dimensions();
     const { device, sampler, selectionTextures } = this.options;
     device.queue.writeBuffer(session.settingsBuffer, 0, new Float32Array([
       ...inverseRows,
-      width, height, selectionActive ? 1 : 0, session.duplicateSelection ? 1 : 0
+      width, height, selectionActive ? 1 : 0, session.duplicateSelection ? 1 : 0,
+      exactPixelTranslation ? 1 : 0, 0, 0, 0
     ]));
     const selectionSource = session.selectionTexture ?? selectionTextures.mask;
     if (selectionActive && !selectionSource) return false;

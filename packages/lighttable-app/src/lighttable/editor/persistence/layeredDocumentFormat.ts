@@ -66,6 +66,16 @@ interface CommonLayerManifestEntry {
   photoshop: PhotoshopLayerMetadata | null;
 }
 
+interface RasterMaskManifestEntry {
+  id: string;
+  enabled: boolean;
+  linked: boolean;
+  transform: AffineMatrix;
+  density: number;
+  feather: number;
+  asset: BinaryAssetReference;
+}
+
 interface RasterLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'raster';
   width: number;
@@ -74,20 +84,20 @@ interface RasterLayerManifestEntry extends CommonLayerManifestEntry {
   offsetY: number;
   adjustmentStack: AdjustmentStack | null;
   pixel: BinaryAssetReference;
-  mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
+  mask: RasterMaskManifestEntry | null;
 }
 
 interface GroupLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'group';
   compositing: 'pass-through' | 'isolated';
-  mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
+  mask: RasterMaskManifestEntry | null;
   children: LayerManifestEntry[];
 }
 
 interface AdjustmentLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'adjustment';
   adjustmentStack: AdjustmentStack;
-  mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
+  mask: RasterMaskManifestEntry | null;
 }
 
 interface VectorLayerManifestEntry extends CommonLayerManifestEntry {
@@ -95,13 +105,13 @@ interface VectorLayerManifestEntry extends CommonLayerManifestEntry {
   role: 'artwork' | 'gradient-fill';
   antiAlias: boolean;
   elements: VectorElement[];
-  mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
+  mask: RasterMaskManifestEntry | null;
 }
 
 interface TextLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'text';
   text: TextLayerData;
-  mask: ({ id: string; enabled: boolean; density: number; feather: number; asset: BinaryAssetReference }) | null;
+  mask: RasterMaskManifestEntry | null;
 }
 
 type LayerManifestEntry =
@@ -273,6 +283,8 @@ export const buildLayeredDocumentFile = (
         mask = {
           id: layer.mask.id,
           enabled: layer.mask.enabled,
+          linked: layer.mask.linked,
+          transform: { ...layer.mask.transform },
           density: layer.mask.density,
           feather: layer.mask.feather,
           asset: { offset, length: asset.mask.size }
@@ -295,6 +307,8 @@ export const buildLayeredDocumentFile = (
         mask = {
           id: layer.mask.id,
           enabled: layer.mask.enabled,
+          linked: layer.mask.linked,
+          transform: { ...layer.mask.transform },
           density: layer.mask.density,
           feather: layer.mask.feather,
           asset: { offset, length: asset.mask.size }
@@ -316,6 +330,8 @@ export const buildLayeredDocumentFile = (
         mask = {
           id: layer.mask.id,
           enabled: layer.mask.enabled,
+          linked: layer.mask.linked,
+          transform: { ...layer.mask.transform },
           density: layer.mask.density,
           feather: layer.mask.feather,
           asset: { offset, length: asset.mask.size }
@@ -339,6 +355,8 @@ export const buildLayeredDocumentFile = (
         mask = {
           id: layer.mask.id,
           enabled: layer.mask.enabled,
+          linked: layer.mask.linked,
+          transform: { ...layer.mask.transform },
           density: layer.mask.density,
           feather: layer.mask.feather,
           asset: { offset, length: asset.mask.size }
@@ -365,6 +383,8 @@ export const buildLayeredDocumentFile = (
       mask = {
         id: layer.mask.id,
         enabled: layer.mask.enabled,
+        linked: layer.mask.linked,
+        transform: { ...layer.mask.transform },
         density: layer.mask.density,
         feather: layer.mask.feather,
         asset: { offset, length: asset.mask.size }
@@ -820,6 +840,8 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         !isRecord(entry.mask)
         || typeof entry.mask.id !== 'string'
         || typeof entry.mask.enabled !== 'boolean'
+        || typeof entry.mask.linked !== 'boolean'
+        || !isFiniteAffineMatrix(parseLayerTransform(entry.mask.transform))
         || typeof entry.mask.density !== 'number'
         || !Number.isFinite(entry.mask.density)
         || entry.mask.density < 0
@@ -834,6 +856,8 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         mask: {
           id: entry.mask.id,
           enabled: entry.mask.enabled,
+          linked: entry.mask.linked,
+          transform: parseLayerTransform(entry.mask.transform),
           density: entry.mask.density,
           feather: entry.mask.feather,
           revision: 0,

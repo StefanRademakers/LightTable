@@ -6,6 +6,7 @@ struct TransformSettings {
   canvasSize: vec2f,
   selectionActive: f32,
   duplicateSelection: f32,
+  samplingMode: vec4f,
 }
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
@@ -27,21 +28,34 @@ fn insideCanvas(point: vec2f) -> bool {
   return all(point >= vec2f(0.0)) && all(point < settings.canvasSize);
 }
 
+fn sourceSample(point: vec2f) -> vec4f {
+  if (settings.samplingMode.x > 0.5) {
+    let maximum = vec2i(settings.canvasSize) - vec2i(1);
+    return textureLoad(sourceTexture, clamp(vec2i(floor(point)), vec2i(0), maximum), 0);
+  }
+  return textureSample(sourceTexture, sourceSampler, clamp(point / settings.canvasSize, vec2f(0.0), vec2f(1.0)));
+}
+
+fn selectionSample(point: vec2f) -> f32 {
+  if (settings.samplingMode.x > 0.5) {
+    let maximum = vec2i(settings.canvasSize) - vec2i(1);
+    return textureLoad(selectionTexture, clamp(vec2i(floor(point)), vec2i(0), maximum), 0).r;
+  }
+  return textureSample(selectionTexture, sourceSampler, clamp(point / settings.canvasSize, vec2f(0.0), vec2f(1.0))).r;
+}
+
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let destinationPixel = input.uv * settings.canvasSize;
-  let destinationUv = destinationPixel / settings.canvasSize;
   let sourcePixel = inversePoint(destinationPixel);
-  let sourceUv = sourcePixel / settings.canvasSize;
-  let safeSourceUv = clamp(sourceUv, vec2f(0.0), vec2f(1.0));
   let sourceInside = select(0.0, 1.0, insideCanvas(sourcePixel));
 
   let selectionAtDestination = select(
     1.0,
-    textureSample(selectionTexture, sourceSampler, destinationUv).r,
+    selectionSample(destinationPixel),
     settings.selectionActive > 0.5
   );
-  let original = textureSample(sourceTexture, sourceSampler, destinationUv);
+  let original = sourceSample(destinationPixel);
   let cutBase = original * (1.0 - selectionAtDestination);
   let base = select(
     vec4f(0.0),
@@ -50,10 +64,10 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   );
   let sourceSelection = select(
     1.0,
-    textureSample(selectionTexture, sourceSampler, safeSourceUv).r,
+    selectionSample(sourcePixel),
     settings.selectionActive > 0.5
   );
-  let moved = textureSample(sourceTexture, sourceSampler, safeSourceUv)
+  let moved = sourceSample(sourcePixel)
     * sourceSelection
     * sourceInside;
 
@@ -69,6 +83,7 @@ struct TransformSettings {
   canvasSize: vec2f,
   selectionActive: f32,
   padding: f32,
+  samplingMode: vec4f,
 }
 
 @group(0) @binding(0) var selectionTexture: texture_2d<f32>;
@@ -90,6 +105,14 @@ fn main(input: VertexOutput) -> @location(0) f32 {
     1.0,
     all(sourcePixel >= vec2f(0.0)) && all(sourcePixel < settings.canvasSize)
   );
+  if (settings.samplingMode.x > 0.5) {
+    let maximum = vec2i(settings.canvasSize) - vec2i(1);
+    return textureLoad(
+      selectionTexture,
+      clamp(vec2i(floor(sourcePixel)), vec2i(0), maximum),
+      0
+    ).r * sourceInside;
+  }
   let safeSourceUv = clamp(sourcePixel / settings.canvasSize, vec2f(0.0), vec2f(1.0));
   return textureSample(selectionTexture, sourceSampler, safeSourceUv).r * sourceInside;
 }

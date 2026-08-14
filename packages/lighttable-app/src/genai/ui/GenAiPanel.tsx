@@ -149,7 +149,12 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
   const promptField = workflow?.fields.find(({ role }) => role === 'prompt');
   const promptKey = promptField?.key ?? 'prompt';
   const prompt = String(values[promptKey] ?? '');
-  const model = models.find(({ id }) => id === workflow?.modelId);
+  // Model selection is UI state; the workflow is provider-adapter state and may
+  // temporarily remain on the last usable schema when a newly selected model
+  // exposes an incomplete form. Never let that adapter failure replace the
+  // complete composer UI.
+  const model = models.find(({ id }) => id === selectedModelId)
+    ?? models.find(({ id }) => id === workflow?.modelId);
   const basicFields = workflow?.fields.filter((field) => field.role !== 'prompt' && field.role !== 'references'
     && field.kind !== 'asset'
     && genAiFieldPlacement(field) === 'basic') ?? [];
@@ -162,8 +167,9 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
   const countField = workflow?.fields.find(({ role }) => role === 'output-count');
   const hasFeaturedSettings = Boolean(aspectField || resolutionField || qualityField);
   const referenceField = workflow?.fields.find(({ role }) => role === 'references');
-  const selectedReferences = referenceField && Array.isArray(values[referenceField.key])
-    ? values[referenceField.key] as GenAiAssetReference[] : [];
+  const referenceKey = referenceField?.key ?? 'visualReferences';
+  const selectedReferences = Array.isArray(values[referenceKey])
+    ? values[referenceKey] as GenAiAssetReference[] : [];
   const referencePublicationError = isReferencePublicationError(generationError) ? generationError : undefined;
   const generalGenerationError = referencePublicationError ? undefined : generationError;
   const references = selectedReferences.map((asset) => ({
@@ -189,14 +195,14 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
   }, [referencePreview, references]);
 
   const insertReference = React.useCallback((option: GenAiAssetMentionOption) => {
-    if (referenceField && !selectedReferences.some(({ id }) => id === option.asset.id)) {
-      onFieldChange?.(referenceField.key, [...selectedReferences, option.asset]);
+    if (!selectedReferences.some(({ id }) => id === option.asset.id)) {
+      onFieldChange?.(referenceKey, [...selectedReferences, option.asset]);
     }
     if (!tokenAppears(prompt, option.token)) {
       onFieldChange?.(promptKey, `${prompt}${prompt && !/\s$/u.test(prompt) ? ' ' : ''}${option.token} `);
     }
     onRequestAssetPreview(option.asset.id);
-  }, [onFieldChange, onRequestAssetPreview, prompt, promptKey, referenceField, selectedReferences]);
+  }, [onFieldChange, onRequestAssetPreview, prompt, promptKey, referenceKey, selectedReferences]);
 
   React.useEffect(() => {
     if (!interactionActive || !onImportReferenceFile) return;
@@ -218,13 +224,12 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
 
   const updatePrompt = React.useCallback((nextPrompt: string) => {
     onFieldChange?.(promptKey, nextPrompt);
-    if (!referenceField) return;
     const mentionedAssets = mentionOptions
       .filter(({ token }) => tokenAppears(nextPrompt, token))
       .map(({ asset }) => asset)
       .filter((asset) => !selectedReferences.some(({ id }) => id === asset.id));
-    if (mentionedAssets.length) onFieldChange?.(referenceField.key, [...selectedReferences, ...mentionedAssets]);
-  }, [mentionOptions, onFieldChange, promptKey, referenceField, selectedReferences]);
+    if (mentionedAssets.length) onFieldChange?.(referenceKey, [...selectedReferences, ...mentionedAssets]);
+  }, [mentionOptions, onFieldChange, promptKey, referenceKey, selectedReferences]);
 
   React.useEffect(() => {
     for (const { asset } of references) onRequestAssetPreview(asset.id);
@@ -238,18 +243,18 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
         {status === 'expired' ? 'Reconnect' : 'Connect'}
       </ActionButton>
     </div></div> : loading && !workflow ? <div className="lighttable-panel__empty">Loading image model…</div>
-      : setupError ? <div className="lighttable-panel__empty"><p role="alert">{setupError}</p></div>
-        : workflow ? <form className="genai-panel__form" onSubmit={(event) => { event.preventDefault(); onGenerate?.(); }}>
+      : workflow || setupError ? <form className="genai-panel__form" onSubmit={(event) => { event.preventDefault(); onGenerate?.(); }}>
           <div className="genai-panel__body">
             <SegmentedControl className="genai-panel__mode-switch" ariaLabel="Image generation mode"
               value={mode} onChange={onModeChange ?? (() => undefined)} options={[
                 { value: 'image2image', label: 'Image Edit', disabled: !model?.capabilities.includes('image2image') },
                 { value: 'text2image', label: 'Image Create', disabled: !model?.capabilities.includes('text2image') }
               ]} />
-            <select className="form-input genai-panel__workflow" value={selectedModelId ?? workflow.modelId}
+            <select className="form-input genai-panel__workflow" value={selectedModelId ?? workflow?.modelId ?? ''}
               aria-label="Generation model" onChange={(event) => onModelChange?.(event.currentTarget.value as GenAiModelSummary['id'])}>
               {models.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
             </select>
+            {setupError ? <p className="genai-panel__error" role="alert">{setupError}</p> : null}
             <section className={`genai-panel__reference-well${referenceDragActive ? ' is-drag-target' : ''}`}
               aria-label="Visual references"
               onPointerEnter={() => { referenceHover.current = true; }}
@@ -300,7 +305,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                     aria-label={`Remove ${token}`} title={`Remove ${token}`}
                     onClick={() => {
                       setReferencePreview(undefined);
-                      if (referenceField) onFieldChange?.(referenceField.key, selectedReferences.filter(({ id }) => id !== asset.id));
+                      onFieldChange?.(referenceKey, selectedReferences.filter(({ id }) => id !== asset.id));
                       onFieldChange?.(promptKey, removeTokenFromPrompt(prompt, token));
                       if (asset.id === baseImageAssetId) onBaseImageSelectedChange?.(false);
                     }}>×</button>

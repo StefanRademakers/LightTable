@@ -23,6 +23,34 @@ describe('transform body snapping', () => {
     expect(result.matches).toHaveLength(1);
   });
 
+  it('pixel-aligns a translation-only raster move', () => {
+    const result = snapAffineTranslation(
+      square,
+      identityMatrix(),
+      { x: 12.37, y: -4.62 },
+      [],
+      1,
+      true,
+      false
+    );
+    expect(result.value.tx).toBe(12);
+    expect(result.value.ty).toBe(-5);
+  });
+
+  it('preserves subpixel positioning once the transform includes scaling', () => {
+    const result = snapAffineTranslation(
+      square,
+      { a: 1.25, b: 0, c: 0, d: 1.25, tx: 0, ty: 0 },
+      { x: 12.37, y: -4.62 },
+      [],
+      1,
+      true,
+      false
+    );
+    expect(result.value.tx).toBeCloseTo(12.37);
+    expect(result.value.ty).toBeCloseTo(-4.62);
+  });
+
   it('lets Control bypass the same projective snap target', () => {
     const snapped = snapProjectiveTranslation(
       square,

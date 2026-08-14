@@ -1291,6 +1291,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const previewAdjustmentSnapshot = documentProjectionController.previewAdjustmentSnapshot;
 
   const finishOpenHistoryTransactions = useCallback(() => {
+    // Undo/redo must first retire the renderer's active transform preview.
+    // Otherwise GPU history restores the backing pixels while the stale preview
+    // remains composited on top, making committed transforms appear not to undo.
+    commitTransformRef.current();
     commitPointTextRef.current();
     commitParagraphTextRef.current();
     finishTextEditingRef.current();
@@ -3995,6 +3999,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activeTool: editorSession.activeTool,
     activeDocument: imageDocument,
     activeLayerId: imageDocument?.activeLayerId ?? null,
+    activeChannel: editorSession.activeChannel,
     selectedLayerIds,
     selection: editorSession.selection,
     getDocument: () => imageDocumentRef.current,
@@ -5565,6 +5570,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     },
                     onTransformChange: updateTransformMatrix,
                     onTransformProjectiveChange: updateTransformProjective,
+                    onTransformCommitGesture: transformSession.commit,
                     onTransformDuplicateChange: transformSession.setDuplicate,
                     onTransformPick: pickTransformAtPoint,
                     transformSnapTargets,

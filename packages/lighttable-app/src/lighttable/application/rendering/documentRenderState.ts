@@ -33,6 +33,8 @@ const masksEqual = (left: RasterMask | null, right: RasterMask | null) =>
     && right
     && left.id === right.id
     && left.enabled === right.enabled
+    && left.linked === right.linked
+    && transformsEqual(left.transform, right.transform)
     && left.density === right.density
     && left.feather === right.feather
     && left.pixelRevision === right.pixelRevision

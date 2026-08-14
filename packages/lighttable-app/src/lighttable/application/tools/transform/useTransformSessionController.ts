@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   layerIsLocked,
   type ImageDocument,
-  type LayerId
+  type LayerId,
+  type RasterLayer
 } from '../../../editor/document/documentTypes';
+import type { PaintChannel } from '../../../editor/session/editorSession';
+import type { SelectionCoverageBounds } from '../../../editor/selection/selectionCoverage';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { SelectionOperation } from '../../../editor/selection/selectionTypes';
 import type {
@@ -15,9 +18,18 @@ import {
   TransformController,
   type TransformRendererPort
 } from './transformController';
-import { duplicateLayer, setLayerTransform } from '../../../editor/document/documentCommands';
+import {
+  duplicateLayer,
+  setLayerMaskTransform,
+  setLayerTransform
+} from '../../../editor/document/documentCommands';
 import { findDocumentLayer } from '../../../editor/document/layerTree';
-import { matrixApproximatelyEqual, multiplyMatrices, identityMatrix } from '../../../editor/tools/transform/affine';
+import {
+  matrixApproximatelyEqual,
+  multiplyMatrices,
+  identityMatrix,
+  transformedBounds
+} from '../../../editor/tools/transform/affine';
 import { layerDocumentSnapBounds } from '../snapping/layerSnapGeometry';
 import { unionSnapRects } from '../snapping/snapEngine';
 import {
@@ -28,6 +40,7 @@ import {
 export interface TransformEditorRendererPort extends TransformRendererPort {
   setDocument(document: ImageDocument): void;
   applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo'): boolean;
+  measureLayerMaskContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null>;
 }
 
 export interface TransformHistoryEntry {
@@ -42,6 +55,7 @@ export interface TransformSessionDependencies {
   activeTool: string;
   activeDocument: ImageDocument | null;
   activeLayerId: LayerId | null;
+  activeChannel: PaintChannel;
   selectedLayerIds?: readonly LayerId[];
   selection: SelectionOperation[];
   getDocument(): ImageDocument | null;
@@ -91,10 +105,19 @@ export const useTransformSessionController = (
     before: ImageDocument;
     layerIds: readonly LayerId[];
     requestedSelectionKey: string;
+    matrix: AffineMatrix;
+  } | null>(null);
+  const maskRef = useRef<{
+    before: ImageDocument;
+    layerId: LayerId;
+    layerTransform: AffineMatrix;
+    maskTransform: AffineMatrix;
+    linked: boolean;
+    matrix: AffineMatrix;
   } | null>(null);
 
   const isActive = useCallback(
-    () => Boolean(controllerRef.current?.state || groupRef.current),
+    () => Boolean(controllerRef.current?.state || groupRef.current || maskRef.current),
     []
   );
 
@@ -146,14 +169,38 @@ export const useTransformSessionController = (
   }, []);
 
   const finish = useCallback((commit: boolean) => {
+    const mask = maskRef.current;
+    if (mask) {
+      maskRef.current = null;
+      const current = dependenciesRef.current;
+      const after = current.getDocument();
+      const unchanged = matrixApproximatelyEqual(mask.matrix, identityMatrix());
+      setState(null);
+      if (!after || after.id !== mask.before.id) return;
+      if (!commit) {
+        current.applyDocumentSnapshot(mask.before);
+        return;
+      }
+      if (unchanged) {
+        current.applyDocumentSnapshot(mask.before);
+        return;
+      }
+      if (after !== mask.before) current.pushDocumentHistory(mask.before, after);
+      return;
+    }
     const group = groupRef.current;
     if (group) {
       groupRef.current = null;
       const current = dependenciesRef.current;
       const after = current.getDocument();
+      const unchanged = matrixApproximatelyEqual(group.matrix, identityMatrix());
       setState(null);
       if (!after || after.id !== group.before.id) return;
       if (!commit) {
+        current.applyDocumentSnapshot(group.before);
+        return;
+      }
+      if (unchanged) {
         current.applyDocumentSnapshot(group.before);
         return;
       }
@@ -183,6 +230,11 @@ export const useTransformSessionController = (
   }, [applyFinishedTransform]);
 
   const reset = useCallback(() => {
+    const mask = maskRef.current;
+    if (mask && dependenciesRef.current.getDocument()?.id === mask.before.id) {
+      dependenciesRef.current.applyDocumentSnapshot(mask.before);
+    }
+    maskRef.current = null;
     const group = groupRef.current;
     if (group && dependenciesRef.current.getDocument()?.id === group.before.id) {
       dependenciesRef.current.applyDocumentSnapshot(group.before);
@@ -206,6 +258,42 @@ export const useTransformSessionController = (
       current.setError('Select a raster layer before transforming.');
       return;
     }
+    const activeLayer = findDocumentLayer(document, document.activeLayerId);
+    if (current.activeChannel === 'mask') {
+      if (!activeLayer || activeLayer.type !== 'raster' || !activeLayer.mask
+        || layerIsLocked(activeLayer, 'position')) {
+        current.setError(null);
+        setState(null);
+        return;
+      }
+      const measured = await renderer.measureLayerMaskContent(activeLayer);
+      if (document.id !== dependenciesRef.current.getDocument()?.id) return;
+      if (!measured) {
+        current.setError('The active layer mask has no measurable content.');
+        return;
+      }
+      maskRef.current = {
+        before: document,
+        layerId: activeLayer.id,
+        layerTransform: { ...activeLayer.transform },
+        maskTransform: { ...activeLayer.mask.transform },
+        linked: activeLayer.mask.linked,
+        matrix: identityMatrix()
+      };
+      setState({
+        layerId: activeLayer.id,
+        sourceBounds: transformedBounds(activeLayer.mask.transform, measured.coreBounds),
+        supportBounds: transformedBounds(activeLayer.mask.transform, measured.supportBounds),
+        sourceContentBounds: { ...measured.coreBounds },
+        sourceMatrix: { ...activeLayer.mask.transform },
+        matrix: identityMatrix(),
+        projectiveQuad: null,
+        sourceKind: 'layer',
+        previewKind: 'semantic'
+      });
+      current.setError(null);
+      return;
+    }
     const requestedSelectionKey = [...new Set(current.selectedLayerIds ?? [])].join('\u0000');
     const groupIds = topLevelTransformLayerIds(document, current.selectedLayerIds ?? [])
       .filter((layerId) => {
@@ -222,7 +310,12 @@ export const useTransformSessionController = (
         current.setError('The selected layers have no measurable content yet.');
         return;
       }
-      groupRef.current = { before: document, layerIds: groupIds, requestedSelectionKey };
+      groupRef.current = {
+        before: document,
+        layerIds: groupIds,
+        requestedSelectionKey,
+        matrix: identityMatrix()
+      };
       setState({
         layerId: document.activeLayerId!,
         sourceBounds: bounds,
@@ -258,8 +351,28 @@ export const useTransformSessionController = (
   }, []);
 
   const update = useCallback((matrix: AffineMatrix) => {
+    const mask = maskRef.current;
+    if (mask) {
+      const current = dependenciesRef.current;
+      mask.matrix = { ...matrix };
+      const after = mask.linked
+        ? setLayerTransform(
+            mask.before,
+            mask.layerId,
+            multiplyMatrices(matrix, mask.layerTransform)
+          )
+        : setLayerMaskTransform(
+            mask.before,
+            mask.layerId,
+            multiplyMatrices(matrix, mask.maskTransform)
+          );
+      current.applyDocumentSnapshot(after);
+      setState((active) => active ? { ...active, matrix: { ...matrix } } : active);
+      return;
+    }
     const group = groupRef.current;
     if (group) {
+      group.matrix = { ...matrix };
       dependenciesRef.current.applyDocumentSnapshot(
         transformLayerGroupInDocumentSpace(group.before, group.layerIds, matrix)
       );
@@ -271,11 +384,37 @@ export const useTransformSessionController = (
   }, []);
 
   const updateProjective = useCallback((quad: TransformQuad) => {
+    if (maskRef.current) return;
     const next = controllerRef.current?.updateProjective(quad);
     if (next) setState(next);
   }, []);
 
   const nudge = useCallback((x: number, y: number) => {
+    if (maskRef.current) {
+      setState((current) => {
+        if (!current) return current;
+        const matrix = multiplyMatrices(
+          { a: 1, b: 0, c: 0, d: 1, tx: x, ty: y },
+          current.matrix
+        );
+        const mask = maskRef.current!;
+        mask.matrix = { ...matrix };
+        const nextDocument = mask.linked
+          ? setLayerTransform(
+              mask.before,
+              mask.layerId,
+              multiplyMatrices(matrix, mask.layerTransform)
+            )
+          : setLayerMaskTransform(
+              mask.before,
+              mask.layerId,
+              multiplyMatrices(matrix, mask.maskTransform)
+            );
+        dependenciesRef.current.applyDocumentSnapshot(nextDocument);
+        return { ...current, matrix };
+      });
+      return;
+    }
     if (groupRef.current) {
       setState((current) => {
         if (!current) return current;
@@ -284,6 +423,7 @@ export const useTransformSessionController = (
           current.matrix
         );
         const group = groupRef.current!;
+        group.matrix = { ...matrix };
         dependenciesRef.current.applyDocumentSnapshot(
           transformLayerGroupInDocumentSpace(group.before, group.layerIds, matrix)
         );
@@ -337,6 +477,11 @@ export const useTransformSessionController = (
   useEffect(() => {
     const controller = controllerRef.current;
     const activeGroup = groupRef.current;
+    const activeMask = maskRef.current;
+    if (activeMask && activeMask.before.id !== dependencies.activeDocument?.id) {
+      maskRef.current = null;
+      setState(null);
+    }
     if (activeGroup && activeGroup.before.id !== dependencies.activeDocument?.id) {
       groupRef.current = null;
       setState(null);
@@ -354,7 +499,7 @@ export const useTransformSessionController = (
     const activeController = controllerRef.current;
     if (dependencies.activeTool !== 'transform') {
       activeController?.invalidatePendingLaunch();
-      if (activeController?.state || groupRef.current) finish(true);
+      if (activeController?.state || groupRef.current || maskRef.current) finish(true);
       return;
     }
     const activeGroupKey = groupRef.current?.requestedSelectionKey ?? null;
@@ -366,18 +511,23 @@ export const useTransformSessionController = (
       return;
     }
     if (
-      (activeController?.state || groupRef.current)
+      (activeController?.state || groupRef.current || maskRef.current)
       && state?.layerId !== dependencies.activeLayerId
     ) {
       finish(true);
       return;
     }
-    if (activeController?.state || groupRef.current) return;
+    if (maskRef.current && dependencies.activeChannel !== 'mask') {
+      finish(true);
+      return;
+    }
+    if (activeController?.state || groupRef.current || maskRef.current) return;
     void begin();
   }, [
     begin,
     dependencies.activeDocument?.id,
     dependencies.activeLayerId,
+    dependencies.activeChannel,
     dependencies.activeTool,
     finish,
     selectedLayerKey,
@@ -393,6 +543,11 @@ export const useTransformSessionController = (
       dependenciesRef.current.applyDocumentSnapshot(group.before);
     }
     groupRef.current = null;
+    const mask = maskRef.current;
+    if (mask && dependenciesRef.current.getDocument()?.id === mask.before.id) {
+      dependenciesRef.current.applyDocumentSnapshot(mask.before);
+    }
+    maskRef.current = null;
     controllerRef.current = null;
     controllerDocumentIdRef.current = null;
   }, []);

@@ -172,10 +172,10 @@ const nudgeBindings: readonly EditorKeyBinding[] = ([
   ['arrowup', 0, -1],
   ['arrowdown', 0, 1]
 ] as const).flatMap(([key, x, y]) => [false, true].map((large) => ({
-  id: `selection.nudge.${key}.${large ? 'large' : 'small'}`,
+  id: `editor.nudge.${key}.${large ? 'large' : 'small'}`,
   chord: { key, primary: false, alt: false, shift: large },
-  when: (context: EditorKeyboardContext) => context.hasSelection && (
-    context.transforming || context.activeTool.startsWith('select-')
+  when: (context: EditorKeyboardContext) => context.transforming || (
+    context.hasSelection && context.activeTool.startsWith('select-')
   ),
   resolve: (): EditorKeyboardCommand => ({
     type: 'nudge',
