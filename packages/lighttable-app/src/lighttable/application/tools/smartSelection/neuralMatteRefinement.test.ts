@@ -21,6 +21,23 @@ describe('neural matte refinement', () => {
     expect(result[0]).toBe(99);
   });
 
+  it('ignores processor padding instead of stretching it across the selection ROI', () => {
+    const coarse = new Uint8Array(6);
+    const trimap = new Uint8Array(6).fill(128);
+    // Two columns of real alpha followed by two padded columns. If the padded
+    // tensor were stretched over the ROI, the right-hand document pixels would
+    // incorrectly become opaque.
+    const paddedAlpha = new Float32Array([
+      0, 1, 0, 0,
+      0, 1, 0, 0
+    ]);
+    const result = compositeNeuralAlpha(
+      coarse, trimap, { x: 0, y: 0, width: 3, height: 2 },
+      paddedAlpha, 4, 2, 3, 2, 2
+    );
+    expect([...result]).toEqual([0, 128, 255, 0, 128, 255]);
+  });
+
   it('runs the model on an object ROI and disposes every inference tensor', async () => {
     const width = 24;
     const height = 20;
@@ -33,7 +50,11 @@ describe('neural matte refinement', () => {
       expect(roi.width).toBeLessThanOrEqual(width);
       expect(roi.height).toBeLessThanOrEqual(height);
       expect(trimap.channels).toBe(1);
-      return { pixel_values: { dispose: inputDispose } };
+      return {
+        pixel_values: { dispose: inputDispose },
+        original_sizes: [[roi.height, roi.width]],
+        reshaped_input_sizes: [[roi.height, roi.width]]
+      };
     });
     const model = { _call: vi.fn(async () => ({
       alphas: { dims: [1, 1, 4, 4], data: new Float32Array(16).fill(0.6), dispose: alphaDispose }
