@@ -90,6 +90,7 @@ export interface LightTableEditorShellProps {
   onTransformAutoSelectLayerChange: (enabled: boolean) => void;
   onZoomPreset: (percent: number) => void;
   onZoomFit: () => void;
+  onZoomActual: () => void;
   onToolChange: (tool: ToolId) => void;
   onForegroundColorChange: (color: string) => void;
   onBackgroundColorChange: (color: string) => void;
@@ -186,6 +187,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onTransformAutoSelectLayerChange,
   onZoomPreset,
   onZoomFit,
+  onZoomActual,
   onToolChange,
   onForegroundColorChange,
   onBackgroundColorChange,
@@ -318,6 +320,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
           foregroundColor={brush.color}
           backgroundColor={brush.backgroundColor}
           onToolChange={onToolChange}
+          onZoomActual={onZoomActual}
           onForegroundColorChange={onForegroundColorChange}
           onBackgroundColorChange={onBackgroundColorChange}
           onSwapColors={onSwapColors}

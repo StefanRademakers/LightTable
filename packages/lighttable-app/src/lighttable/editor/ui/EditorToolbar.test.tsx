@@ -10,6 +10,7 @@ const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 
     foregroundColor="#000000"
     backgroundColor="#ffffff"
     onToolChange={vi.fn()}
+    onZoomActual={vi.fn()}
     onForegroundColorChange={vi.fn()}
     onBackgroundColorChange={vi.fn()}
     onSwapColors={vi.fn()}

@@ -21,6 +21,7 @@ interface EditorToolbarProps {
   foregroundColor: string;
   backgroundColor: string;
   onToolChange: (tool: ToolId) => void;
+  onZoomActual: () => void;
   onForegroundColorChange: (color: string) => void;
   onBackgroundColorChange: (color: string) => void;
   onSwapColors: () => void;
@@ -35,6 +36,7 @@ interface ToolButtonProps {
   onMouseDown?: () => void;
   onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
   onClick: () => void;
+  onDoubleClick?: React.MouseEventHandler<HTMLButtonElement>;
 }
 
 export const ToolButton: React.FC<ToolButtonProps> = ({
@@ -44,7 +46,8 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   popupOpen,
   onMouseDown,
   onKeyDown,
-  onClick
+  onClick,
+  onDoubleClick
 }) => (
   <button
     type="button"
@@ -52,6 +55,7 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
     onMouseDown={onMouseDown}
     onKeyDown={onKeyDown}
     onClick={onClick}
+    onDoubleClick={onDoubleClick}
     aria-pressed={active}
     aria-haspopup={popupOpen === undefined ? undefined : 'true'}
     aria-expanded={popupOpen}
@@ -247,6 +251,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   foregroundColor,
   backgroundColor,
   onToolChange,
+  onZoomActual,
   onForegroundColorChange,
   onBackgroundColorChange,
   onSwapColors,
@@ -286,6 +291,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               tool={tool}
               active={activeTool === tool.id}
               onClick={() => onToolChange(tool.id)}
+              onDoubleClick={tool.id === 'zoom' ? onZoomActual : undefined}
             />
           );
         }

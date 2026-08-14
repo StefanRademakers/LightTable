@@ -5297,6 +5297,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onZoomPreset={setExactZoom}
       onZoomFit={fitZoom}
+      onZoomActual={actualZoom}
       onToolChange={activatePersistentTool}
       onForegroundColorChange={(color) => updateBrush({ color })}
       onBackgroundColorChange={(backgroundColor) => updateBrush({ backgroundColor })}
