@@ -217,6 +217,12 @@ export class SmartSelectionToolController {
   }
 
   async selectSubject(mode: SelectionCombineMode = 'replace') {
+    // Subject detection is an authoritative selection request, just like an
+    // explicit point/box prompt. Keep hover inference from superseding it or
+    // publishing a candidate from a different request while it is running.
+    this.selectionInferenceCount += 1;
+    this.pendingHoverPoint = null;
+    this.gate.supersede();
     try {
       if (!await this.prepare() || !this.source) return false;
       const prepared = await this.gate.prepare(this.source);
@@ -240,6 +246,9 @@ export class SmartSelectionToolController {
         ? `Select Subject is unavailable: ${reason.message}`
         : 'Select Subject is unavailable.');
       return false;
+    } finally {
+      this.selectionInferenceCount = Math.max(0, this.selectionInferenceCount - 1);
+      if (!this.disposed && this.pendingHoverPoint) void this.drainHoverInference();
     }
   }
 
@@ -420,6 +429,10 @@ export class SmartSelectionToolController {
     candidate: SmartSelectionCandidate,
     mode: SelectionCombineMode
   ) {
+    if (!this.sourceIsCurrent(candidate.mask)) {
+      traceSmartSelection('commit-rejected', { reason: 'stale-source' });
+      return false;
+    }
     this.preview = candidate;
     this.callbacks.getRenderer()?.setSmartSelectionPreview(candidate.mask);
     if (!await this.callbacks.selection.rasterMask(candidate.mask, mode)) {
@@ -429,6 +442,22 @@ export class SmartSelectionToolController {
     traceSmartSelection('committed');
     this.clearPreview();
     return true;
+  }
+
+  private sourceIsCurrent(mask: RasterSelectionMask) {
+    const document = this.callbacks.getDocument();
+    const source = this.source;
+    if (!document || !source) return false;
+    const options = this.callbacks.getOptions();
+    const currentKey = [
+      document.id,
+      document.revision,
+      options.sampleAllLayers ? 'composite' : document.activeLayerId
+    ].join(':');
+    return source.key === currentKey
+      && source.documentRevision === document.revision
+      && mask.width === document.width
+      && mask.height === document.height;
   }
 
   private publishRegionDraft() {

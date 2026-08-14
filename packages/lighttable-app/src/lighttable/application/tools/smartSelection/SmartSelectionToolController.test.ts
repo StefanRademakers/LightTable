@@ -45,7 +45,7 @@ const harness = () => {
     setStatus: vi.fn(),
     setDraft
   }, backend);
-  return { backend, controller, options, rasterMask, renderer, setDraft };
+  return { backend, controller, document, options, rasterMask, renderer, setDraft };
 };
 
 describe('SmartSelectionToolController', () => {
@@ -127,6 +127,51 @@ describe('SmartSelectionToolController', () => {
       { points: [{ point: { x: 5, y: 4 }, label: 'positive' }] },
       expect.anything()
     );
+  });
+
+  it('keeps Select Subject authoritative while hover inference is in flight', async () => {
+    const { backend, controller, rasterMask } = harness();
+    const hoverMask = { width: 8, height: 6, data: new Uint8Array(48).fill(64) };
+    const subjectMask = { width: 8, height: 6, data: new Uint8Array(48).fill(255) };
+    let finishHover!: (value: SmartSelectionCandidate[]) => void;
+    let finishSubject!: (value: SmartSelectionCandidate[]) => void;
+    vi.mocked(backend.selectPrompt).mockImplementationOnce(
+      () => new Promise((resolve) => { finishHover = resolve; })
+    );
+    vi.mocked(backend.selectSubject!).mockImplementationOnce(
+      () => new Promise((resolve) => { finishSubject = resolve; })
+    );
+
+    controller.hover({ x: 1, y: 1 });
+    await vi.waitFor(() => expect(backend.selectPrompt).toHaveBeenCalledOnce());
+    const selecting = controller.selectSubject('replace');
+    await vi.waitFor(() => expect(backend.selectSubject).toHaveBeenCalledOnce());
+
+    controller.hover({ x: 6, y: 4 });
+    finishHover([{ id: 'stale-hover', score: 1, mask: hoverMask }]);
+    finishSubject([{ id: 'subject', score: 1, mask: subjectMask }]);
+
+    await expect(selecting).resolves.toBe(true);
+    expect(rasterMask).toHaveBeenCalledOnce();
+    expect(rasterMask).toHaveBeenCalledWith(subjectMask, 'replace');
+  });
+
+  it('rejects a subject mask if the document changes before commit', async () => {
+    const { backend, controller, document, rasterMask } = harness();
+    let finishSubject!: (value: SmartSelectionCandidate[]) => void;
+    vi.mocked(backend.selectSubject!).mockImplementationOnce(
+      () => new Promise((resolve) => { finishSubject = resolve; })
+    );
+
+    const selecting = controller.selectSubject('replace');
+    await vi.waitFor(() => expect(backend.selectSubject).toHaveBeenCalledOnce());
+    // Simulate an editor mutation after inference started. The prepared source
+    // may no longer be mapped to the current document revision.
+    document.revision += 1;
+    finishSubject([{ id: 'stale-subject', score: 1, mask }]);
+
+    await expect(selecting).resolves.toBe(false);
+    expect(rasterMask).not.toHaveBeenCalled();
   });
 
   it.each(['replace', 'add', 'subtract', 'intersect'] as const)(
