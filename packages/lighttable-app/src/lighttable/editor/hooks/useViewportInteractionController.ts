@@ -358,7 +358,6 @@ export const useViewportInteractionController = ({
     );
     if (
       !point
-      || !editorSession.selectionPixelSnap
       || !isSelectionTool(editorSession.activeTool)
       || editorSession.activeTool === 'select-free'
       || editorSession.activeTool === 'select-polygonal'
@@ -771,7 +770,15 @@ export const useViewportInteractionController = ({
           stripSize,
           activeTool === 'select-free' ? editorSession.selectionSmooth : 0,
           48 / Math.max(activeScale, 0.0001),
-          event.ctrlKey || event.metaKey
+          event.ctrlKey || event.metaKey,
+          activeTool === 'select-rectangle' || activeTool === 'select-ellipse'
+            ? {
+                style: editorSession.selectionMarqueeStyle,
+                width: editorSession.selectionMarqueeWidth,
+                height: editorSession.selectionMarqueeHeight,
+                featherRadius: editorSession.selectionFeather
+              }
+            : undefined
         )) {
           event.currentTarget.setPointerCapture(event.pointerId);
           event.preventDefault();

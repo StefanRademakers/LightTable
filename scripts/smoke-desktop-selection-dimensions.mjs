@@ -37,14 +37,27 @@ try {
   if (!bounds) throw new Error('Viewport bounds are unavailable.');
 
   await page.keyboard.press('Shift+m');
-  await page.getByRole('button', { name: 'Elliptical selection (Shift+M)' })
+  await page.locator('.lighttable-tool-options__identity')
+    .filter({ hasText: 'Elliptical selection' })
     .waitFor({ state: 'visible' });
+  const marqueeSettings = page.locator('[aria-label="Marquee selection settings"]');
+  await marqueeSettings.waitFor({ state: 'visible' });
+  if (await page.getByText('Snap to pixels', { exact: true }).count()) {
+    throw new Error('The always-on marquee pixel snap control is still visible.');
+  }
+  await marqueeSettings.locator('label').filter({ hasText: 'Feather' }).locator('input').fill('6');
+  await page.getByLabel('Marquee selection style').selectOption('fixed');
+  await marqueeSettings.locator('label').filter({ hasText: 'Width' }).locator('input').fill('40');
+  await marqueeSettings.locator('label').filter({ hasText: 'Height' }).locator('input').fill('25');
   await page.mouse.move(bounds.x + bounds.width * 0.25, bounds.y + bounds.height * 0.25);
   await page.mouse.down();
   await page.mouse.move(bounds.x + bounds.width * 0.55, bounds.y + bounds.height * 0.55, { steps: 5 });
   const ellipseMetrics = await page.locator('.lighttable-selection__dimensions').textContent() ?? '';
   for (const label of ['W:', 'H:', 'X:', 'Y:']) {
     if (!ellipseMetrics.includes(label)) throw new Error(`Ellipse dimensions omit ${label}`);
+  }
+  if (!ellipseMetrics.includes('W: 40') || !ellipseMetrics.includes('H: 25')) {
+    throw new Error(`Fixed ellipse dimensions are incorrect: ${ellipseMetrics}`);
   }
   await page.screenshot({ path: screenshotPath });
   await page.mouse.up();

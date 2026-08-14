@@ -9,7 +9,12 @@ import { selectionKindForTool } from '../toolCapabilities';
 import { StrokeSmoother } from '../brush/strokeSmoother';
 
 export type SelectionGestureFinish =
-  | { kind: 'apply'; mode: SelectionCombineMode; shape: SelectionShape }
+  | {
+      kind: 'apply';
+      mode: SelectionCombineMode;
+      shape: SelectionShape;
+      featherRadius: number;
+    }
   | { kind: 'clear' }
   | { kind: 'none' };
 
@@ -28,8 +33,44 @@ export interface SelectionStripOptions {
   size: number;
 }
 
+export interface SelectionMarqueeOptions {
+  style: 'free' | 'ratio' | 'fixed';
+  width: number;
+  height: number;
+  featherRadius: number;
+}
+
 const finiteExtent = (value: number) => Math.max(0, Number.isFinite(value) ? value : 0);
 const finiteStripSize = (value: number) => Math.max(1, Math.round(Number.isFinite(value) ? value : 1));
+const positiveMarqueeValue = (value: number) => Math.max(0.01, Number.isFinite(value) ? value : 1);
+
+export const constrainSelectionMarqueePoint = (
+  start: SelectionPoint,
+  point: SelectionPoint,
+  options: SelectionMarqueeOptions
+): SelectionPoint => {
+  const snap = (candidate: SelectionPoint): SelectionPoint => ({
+    x: Math.round(candidate.x),
+    y: Math.round(candidate.y)
+  });
+  if (options.style === 'free') return snap(point);
+  const width = positiveMarqueeValue(options.width);
+  const height = positiveMarqueeValue(options.height);
+  const directionX = point.x < start.x ? -1 : 1;
+  const directionY = point.y < start.y ? -1 : 1;
+  if (options.style === 'fixed') {
+    return snap({
+      x: start.x + directionX * width,
+      y: start.y + directionY * height
+    });
+  }
+  const ratio = width / height;
+  const deltaX = Math.abs(point.x - start.x);
+  const deltaY = Math.abs(point.y - start.y);
+  return snap(deltaX >= deltaY * ratio
+    ? { x: point.x, y: start.y + directionY * deltaX / ratio }
+    : { x: start.x + directionX * deltaY * ratio, y: point.y });
+};
 
 /** Builds a full-width row or full-height column around the pointer position. */
 export const selectionStripShape = (
@@ -71,6 +112,7 @@ export class SelectionGestureController {
   private activeDraft: SelectionShape | null = null;
   private activeMode: SelectionCombineMode = 'replace';
   private activeStrip: { tool: StripSelectionTool; options: SelectionStripOptions } | null = null;
+  private activeMarquee: SelectionMarqueeOptions | null = null;
   private freeSmoother: StrokeSmoother<SelectionPoint & { pressure: number }> | null = null;
 
   get pointerId(): number | null {
@@ -92,9 +134,12 @@ export class SelectionGestureController {
     mode: SelectionCombineMode,
     stripOptions?: SelectionStripOptions,
     smooth = 0,
-    smoothingScale = 48
+    smoothingScale = 48,
+    marqueeOptions?: SelectionMarqueeOptions
   ): SelectionShape {
-    const start = clonePoint(point);
+    const start = marqueeOptions
+      ? { x: Math.round(point.x), y: Math.round(point.y) }
+      : clonePoint(point);
     this.activePointerId = pointerId;
     this.activeMode = mode;
     const stripTool = tool === 'select-horizontal' || tool === 'select-vertical'
@@ -102,6 +147,10 @@ export class SelectionGestureController {
       : null;
     this.activeStrip = stripTool && stripOptions
       ? { tool: stripTool, options: { ...stripOptions } }
+      : null;
+    this.activeMarquee = (tool === 'select-rectangle' || tool === 'select-ellipse')
+      && marqueeOptions
+      ? { ...marqueeOptions }
       : null;
     this.freeSmoother = tool === 'select-free'
       ? new StrokeSmoother(smooth, smoothingScale)
@@ -111,7 +160,14 @@ export class SelectionGestureController {
       ? selectionStripShape(this.activeStrip.tool, start, this.activeStrip.options)
       : {
           kind: selectionKindForTool(tool),
-          points: tool === 'select-free' ? [start] : [start, clonePoint(start)]
+          points: tool === 'select-free'
+            ? [start]
+            : [
+                start,
+                this.activeMarquee
+                  ? constrainSelectionMarqueePoint(start, start, this.activeMarquee)
+                  : clonePoint(start)
+              ]
         };
     return cloneShape(this.activeDraft);
   }
@@ -151,9 +207,15 @@ export class SelectionGestureController {
         points: [...this.activeDraft.points, ...appended]
       };
     } else {
+      const start = this.activeDraft.points[0];
       this.activeDraft = {
         ...this.activeDraft,
-        points: [this.activeDraft.points[0], nextPoint]
+        points: [
+          start,
+          this.activeMarquee
+            ? constrainSelectionMarqueePoint(start, nextPoint, this.activeMarquee)
+            : nextPoint
+        ]
       };
     }
     return cloneShape(this.activeDraft);
@@ -173,12 +235,17 @@ export class SelectionGestureController {
     }
     const shape = this.activeDraft;
     const mode = this.activeMode;
+    const featherRadius = Math.max(
+      0,
+      Math.min(250, this.activeMarquee?.featherRadius ?? 0)
+    );
     this.reset();
     if (shape && selectionShapeIsValid(shape)) {
       return {
         kind: 'apply',
         mode,
-        shape: cloneShape(shape)
+        shape: cloneShape(shape),
+        featherRadius
       };
     }
     return mode === 'replace' ? { kind: 'clear' } : { kind: 'none' };
@@ -196,6 +263,7 @@ export class SelectionGestureController {
     this.activeDraft = null;
     this.activeMode = 'replace';
     this.activeStrip = null;
+    this.activeMarquee = null;
     this.freeSmoother = null;
   }
 }

@@ -15,6 +15,7 @@ describe('SelectionGestureController', () => {
     expect(controller.finish(7)).toEqual({
       kind: 'apply',
       mode: 'add',
+      featherRadius: 0,
       shape: {
         kind: 'rectangle',
         points: [{ x: 10, y: 20 }, { x: 40, y: 50 }]
@@ -133,5 +134,48 @@ describe('SelectionGestureController', () => {
       points: [{ x: 12, y: 0 }, { x: 13, y: 80 }]
     });
     expect(controller.finish(21)).toEqual(expect.objectContaining({ kind: 'apply', mode: 'add' }));
+  });
+
+  it('captures ratio geometry and feather for one rectangle gesture', () => {
+    const controller = new SelectionGestureController();
+    controller.begin(
+      22,
+      'select-rectangle',
+      { x: 10, y: 10 },
+      'replace',
+      undefined,
+      0,
+      48,
+      { style: 'ratio', width: 16, height: 9, featherRadius: 12 }
+    );
+    expect(controller.move(22, { x: 42, y: 20 })).toEqual({
+      kind: 'rectangle',
+      points: [{ x: 10, y: 10 }, { x: 42, y: 28 }]
+    });
+    expect(controller.finish(22)).toMatchObject({
+      kind: 'apply',
+      featherRadius: 12
+    });
+  });
+
+  it('creates fixed-size ellipse geometry in the pointer direction', () => {
+    const controller = new SelectionGestureController();
+    expect(controller.begin(
+      23,
+      'select-ellipse',
+      { x: 50, y: 50 },
+      'replace',
+      undefined,
+      0,
+      48,
+      { style: 'fixed', width: 20, height: 12, featherRadius: 0 }
+    )).toEqual({
+      kind: 'ellipse',
+      points: [{ x: 50, y: 50 }, { x: 70, y: 62 }]
+    });
+    expect(controller.move(23, { x: 40, y: 30 })).toEqual({
+      kind: 'ellipse',
+      points: [{ x: 50, y: 50 }, { x: 30, y: 38 }]
+    });
   });
 });

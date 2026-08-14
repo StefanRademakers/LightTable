@@ -98,6 +98,12 @@ with a selection bakes that selection into the mask. Ctrl-click on
 Windows/Linux or Cmd-click on macOS reloads the mask coverage as a selection;
 a normal thumbnail click only selects the mask as the active edit target.
 
+Rectangle and ellipse marquee settings are document-session state: pixel
+snapping is unconditional, while feather and free/ratio/fixed geometry are
+captured at pointer-down. Feather affects only the newly rasterized marquee
+before its boolean combine and never rewrites an existing selection merely
+because the option changed.
+
 Selection visualization is presentation-only and must stay cheap while
 panning/zooming. Consolidate outlines and handles onto shared GPU vector overlay
 primitives. Animated ants may submit a bounded overlay frame, but their phase

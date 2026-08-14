@@ -259,6 +259,10 @@ export interface EditorSession {
   vectorSelection: VectorEditorSelection;
   selectionCombineMode: SelectionCombineMode;
   selectionPixelSnap: boolean;
+  selectionFeather: number;
+  selectionMarqueeStyle: 'free' | 'ratio' | 'fixed';
+  selectionMarqueeWidth: number;
+  selectionMarqueeHeight: number;
   selectionRowHeight: number;
   selectionColumnWidth: number;
   selectionSmooth: number;
@@ -286,6 +290,10 @@ export const createEditorSession = (): EditorSession => ({
   vectorSelection: createVectorEditorSelection(),
   selectionCombineMode: 'replace',
   selectionPixelSnap: true,
+  selectionFeather: 0,
+  selectionMarqueeStyle: 'free',
+  selectionMarqueeWidth: 1,
+  selectionMarqueeHeight: 1,
   selectionRowHeight: 1,
   selectionColumnWidth: 1,
   selectionSmooth: 0,

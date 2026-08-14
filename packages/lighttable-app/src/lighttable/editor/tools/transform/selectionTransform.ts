@@ -86,11 +86,17 @@ export const selectionOperationsSupportBounds = (
   fallback: Rect
 ): Rect => {
   const core = selectionOperationsBounds(operations, fallback);
-  const featherSupport = operations.reduce((sum, operation) => (
+  const globalFeatherSupport = operations.reduce((sum, operation) => (
     operation.mode === 'feather'
       ? sum + Math.max(0, operation.amount ?? 0)
       : sum
   ), 0);
+  const localFeatherSupport = operations.reduce((maximum, operation) => (
+    operation.mode !== 'feather' && operation.mode !== 'transform'
+      ? Math.max(maximum, Math.max(0, operation.amount ?? 0))
+      : maximum
+  ), 0);
+  const featherSupport = globalFeatherSupport + localFeatherSupport;
   if (featherSupport <= 0) return core;
   // The authored feather radius controls the Gaussian shape, not a crop
   // threshold. At exactly one radius the finite kernel still has measurable

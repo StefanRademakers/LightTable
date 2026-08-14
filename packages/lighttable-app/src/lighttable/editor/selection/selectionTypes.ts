@@ -84,7 +84,7 @@ export interface SelectionOperation {
         mask: RasterSelectionMask;
         documentRevision: number;
       };
-  /** Document-space feather radius. Only used by the feather operation. */
+  /** Document-space feather radius for a feather command or one geometric source. */
   amount?: number;
   /** Replayable affine edit for raster-backed and geometric selections alike. */
   transform?: {

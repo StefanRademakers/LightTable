@@ -1,0 +1,9 @@
+Marque selectionoptions tweak.
+[x] snap to pixels blijft standaard aan, maar control wordt hidden. we snappen voortaan altijd (laat optie maar leven maar niet zichtbaar)
+
+nieuwe layout:
+[bestaand segment control] Feather: [0 px] (past ie alleen toe op nieuwe te draggen selecties) style: free|ratio|fixed (dropdown) width: [] height: [] (indien appropriate)
+
+Image is puur een mocup...
+
+Zelfde properties voorL: Eliptical Selection

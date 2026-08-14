@@ -82,4 +82,17 @@ describe('LightTable selection transforms', () => {
       { x: 0, y: 0, width: 100, height: 80 }
     )).toEqual({ x: 0, y: 0, width: 86, height: 71 });
   });
+
+  it('expands support for a feather captured on one marquee source', () => {
+    expect(selectionOperationsSupportBounds([{
+      mode: 'replace',
+      amount: 6,
+      shape: {
+        kind: 'ellipse',
+        points: [{ x: 20, y: 20 }, { x: 40, y: 50 }]
+      }
+    }], { x: 0, y: 0, width: 100, height: 80 })).toEqual({
+      x: 7, y: 7, width: 46, height: 56
+    });
+  });
 });

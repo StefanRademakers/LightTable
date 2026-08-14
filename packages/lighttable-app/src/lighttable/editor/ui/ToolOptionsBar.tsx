@@ -64,6 +64,10 @@ export interface ToolOptionsProps {
   selectedShapeKind?: 'rectangle' | 'ellipse' | 'line' | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: SelectionCombineMode;
+  selectionFeather: number;
+  selectionMarqueeStyle: EditorSession['selectionMarqueeStyle'];
+  selectionMarqueeWidth: number;
+  selectionMarqueeHeight: number;
   selectionRowHeight: number;
   selectionColumnWidth: number;
   selectionSmooth: number;
@@ -102,6 +106,10 @@ export interface ToolOptionsProps {
   faceWarp: FaceWarpToolOptionsProps;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: SelectionCombineMode) => void;
+  onSelectionFeatherChange: (radius: number) => void;
+  onSelectionMarqueeStyleChange: (style: EditorSession['selectionMarqueeStyle']) => void;
+  onSelectionMarqueeWidthChange: (width: number) => void;
+  onSelectionMarqueeHeightChange: (height: number) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
   onSelectionSmoothChange: (smooth: number) => void;
@@ -262,8 +270,11 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectedVectorStyle,
   selectedShape,
   selectedShapeKind,
-  selectionPixelSnap,
   selectionCombineMode,
+  selectionFeather,
+  selectionMarqueeStyle,
+  selectionMarqueeWidth,
+  selectionMarqueeHeight,
   selectionRowHeight,
   selectionColumnWidth,
   selectionSmooth,
@@ -300,8 +311,11 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onSelectedShapeChange,
   onWarpReset,
   faceWarp,
-  onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
+  onSelectionFeatherChange,
+  onSelectionMarqueeStyleChange,
+  onSelectionMarqueeWidthChange,
+  onSelectionMarqueeHeightChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
   onSelectionSmoothChange,
@@ -403,14 +417,57 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         </div>
       ) : null}
       {activeTool === 'select-rectangle' || activeTool === 'select-ellipse' ? (
-        <label className="lighttable-tool-options__toggle">
-          <input
-            type="checkbox"
-            checked={selectionPixelSnap}
-            onChange={(event) => onSelectionPixelSnapChange(event.currentTarget.checked)}
+        <div className="lighttable-tool-options__vector-style" aria-label="Marquee selection settings">
+          <ToolOptionNumber
+            label="Feather"
+            unit="px"
+            value={selectionFeather}
+            min={0}
+            max={250}
+            step={1}
+            onChange={(value) => onSelectionFeatherChange(
+              Math.max(0, Math.min(250, Number.isFinite(value) ? value : 0))
+            )}
           />
-          Snap to pixels
-        </label>
+          <ToolOptionSelect
+            label="Style"
+            value={selectionMarqueeStyle}
+            aria-label="Marquee selection style"
+            onChange={(event) => onSelectionMarqueeStyleChange(
+              event.currentTarget.value as EditorSession['selectionMarqueeStyle']
+            )}
+          >
+            <option value="free">Free</option>
+            <option value="ratio">Ratio</option>
+            <option value="fixed">Fixed</option>
+          </ToolOptionSelect>
+          {selectionMarqueeStyle !== 'free' ? <>
+            <ToolOptionNumber
+              label="Width"
+              unit={selectionMarqueeStyle === 'fixed' ? 'px' : undefined}
+              value={selectionMarqueeWidth}
+              min={selectionMarqueeStyle === 'fixed' ? 1 : 0.01}
+              max={10000}
+              step={selectionMarqueeStyle === 'fixed' ? 1 : 0.01}
+              onChange={(value) => onSelectionMarqueeWidthChange(Math.max(
+                selectionMarqueeStyle === 'fixed' ? 1 : 0.01,
+                Number.isFinite(value) ? value : 1
+              ))}
+            />
+            <ToolOptionNumber
+              label="Height"
+              unit={selectionMarqueeStyle === 'fixed' ? 'px' : undefined}
+              value={selectionMarqueeHeight}
+              min={selectionMarqueeStyle === 'fixed' ? 1 : 0.01}
+              max={10000}
+              step={selectionMarqueeStyle === 'fixed' ? 1 : 0.01}
+              onChange={(value) => onSelectionMarqueeHeightChange(Math.max(
+                selectionMarqueeStyle === 'fixed' ? 1 : 0.01,
+                Number.isFinite(value) ? value : 1
+              ))}
+            />
+          </> : null}
+        </div>
       ) : null}
       {activeTool === 'select-horizontal' || activeTool === 'select-vertical' ? (
         <label className="lighttable-tool-options__weight-field">

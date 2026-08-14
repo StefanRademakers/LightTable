@@ -22,7 +22,8 @@ import {
   type GeometricSelectionToolId
 } from '../../../editor/selection/selectionTypes';
 import {
-  SelectionGestureController
+  SelectionGestureController,
+  type SelectionMarqueeOptions
 } from '../../../editor/tools/selection/selectionGestureController';
 import {
   PolygonalSelectionGestureController
@@ -44,7 +45,7 @@ export interface SelectionHistoryEntry {
 
 export interface SelectionRendererPort {
   replaceSelection(operations: SelectionOperation[]): Promise<boolean>;
-  setSelection(shape: SelectionShape, mode: SelectionMode): Promise<boolean>;
+  setSelection(shape: SelectionShape, mode: SelectionMode, featherRadius?: number): Promise<boolean>;
   clearSelection(): void;
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): Promise<boolean>;
   applyMagicWand(operation: SelectionOperation): Promise<boolean>;
@@ -80,7 +81,8 @@ export interface SelectionSessionController {
     stripSize?: number,
     smooth?: number,
     smoothingScale?: number,
-    snapBypass?: boolean
+    snapBypass?: boolean,
+    marqueeOptions?: SelectionMarqueeOptions
   ): boolean;
   move(pointerId: number, point: SelectionPoint, snapBypass?: boolean): boolean;
   moveMany(pointerId: number, points: readonly SelectionPoint[], snapBypass?: boolean): boolean;
@@ -332,12 +334,16 @@ export const createSelectionSessionController = (
     }
     const operation: SelectionOperation = {
       mode: result.mode,
-      shape: result.shape
+      shape: result.shape,
+      ...(result.featherRadius > 0 ? { amount: result.featherRadius } : {})
     };
     const after = result.mode === 'replace'
       ? [operation]
       : [...before, operation];
-    void renderer.setSelection(result.shape, result.mode)
+    const applySelection = result.featherRadius > 0
+      ? renderer.setSelection(result.shape, result.mode, result.featherRadius)
+      : renderer.setSelection(result.shape, result.mode);
+    void applySelection
       .then((applied) => {
         if (!applied || !isCurrent(document, renderer)) return;
         const latest = resolveDependencies();
@@ -453,7 +459,17 @@ export const createSelectionSessionController = (
       return polygonGesture.draft ?? gesture.draft;
     },
     owns: (pointerId) => gesture.owns(pointerId) || translation?.pointerId === pointerId,
-    begin: (pointerId, tool, point, mode, stripSize, smooth, smoothingScale, snapBypass = false) => {
+    begin: (
+      pointerId,
+      tool,
+      point,
+      mode,
+      stripSize,
+      smooth,
+      smoothingScale,
+      snapBypass = false,
+      marqueeOptions
+    ) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       const renderer = dependencies.getRenderer();
@@ -493,7 +509,7 @@ export const createSelectionSessionController = (
         documentWidth: document.width,
         documentHeight: document.height,
         size: stripSize ?? 1
-      }, smooth, smoothingScale);
+      }, smooth, smoothingScale, marqueeOptions);
       dependencies.publishDraft(draft);
       dependencies.publishSnapFeedback?.(snap.matches, snap.matches.length ? {
         x: snappedPoint.x, y: snappedPoint.y, width: 0, height: 0

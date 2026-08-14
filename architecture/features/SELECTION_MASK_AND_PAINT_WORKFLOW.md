@@ -28,6 +28,11 @@ Rectangle, ellipse, freehand, polygon, single-row and single-column selections
 share new, add, subtract and intersect operations. Coordinates may leave the
 canvas while authoring; final sampling clips at the render boundary. Feather
 is part of the selection operation, not a destructive blur of layer pixels.
+Rectangle and ellipse tool settings capture free, ratio or fixed geometry plus
+a bounded feather radius when a gesture starts. Pixel snapping is always on
+for those marquee coordinates. A marquee feather is rasterized into that new
+shape before add/subtract/intersect combines it with existing coverage; changing
+the tool setting never retroactively feathers the current selection.
 
 Selection ants use the GPU overlay renderer. Their bounded 500 ms phase change
 may submit an overlay presentation frame, but must execute zero document

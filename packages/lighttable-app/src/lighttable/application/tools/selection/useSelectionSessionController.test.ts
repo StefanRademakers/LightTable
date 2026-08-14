@@ -76,6 +76,36 @@ describe('selection session controller', () => {
     expect(state.draft).toBeNull();
   });
 
+  it('feathers only the newly rasterized marquee before combining it', async () => {
+    const state = setup();
+    expect(state.controller.begin(
+      17,
+      'select-ellipse',
+      { x: 10, y: 10 },
+      'add',
+      undefined,
+      0,
+      48,
+      false,
+      { style: 'fixed', width: 30, height: 20, featherRadius: 8 }
+    )).toBe(true);
+    expect(state.controller.finish(17)).toBe(true);
+    await Promise.resolve();
+    expect(state.renderer.setSelection).toHaveBeenCalledWith({
+      kind: 'ellipse',
+      points: [{ x: 10, y: 10 }, { x: 40, y: 30 }]
+    }, 'add', 8);
+    expect(state.selection).toEqual([{
+      mode: 'add',
+      amount: 8,
+      shape: {
+        kind: 'ellipse',
+        points: [{ x: 10, y: 10 }, { x: 40, y: 30 }]
+      }
+    }]);
+    expect(state.history).toHaveLength(1);
+  });
+
   it('publishes one draft for a coalesced free-selection batch', () => {
     const state = setup();
     expect(state.controller.begin(9, 'select-free', { x: 0, y: 0 }, 'replace')).toBe(true);

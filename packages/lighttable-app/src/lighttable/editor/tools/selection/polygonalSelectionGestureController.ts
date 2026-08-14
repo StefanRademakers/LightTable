@@ -103,7 +103,7 @@ export class PolygonalSelectionGestureController {
     const mode = this.mode;
     this.reset();
     return selectionShapeIsValid(shape)
-      ? { kind: 'apply', mode, shape }
+      ? { kind: 'apply', mode, shape, featherRadius: 0 }
       : mode === 'replace'
         ? { kind: 'clear' }
         : { kind: 'none' };

@@ -35,6 +35,7 @@ describe('PolygonalSelectionGestureController', () => {
       result: {
         kind: 'apply',
         mode: 'add',
+        featherRadius: 0,
         shape: {
           kind: 'polygon',
           points: [

@@ -5210,6 +5210,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       selectionPixelSnap={editorSession.selectionPixelSnap}
       transformAutoSelectLayer={editorSession.transformAutoSelectLayer}
       selectionCombineMode={editorSession.selectionCombineMode}
+      selectionFeather={editorSession.selectionFeather}
+      selectionMarqueeStyle={editorSession.selectionMarqueeStyle}
+      selectionMarqueeWidth={editorSession.selectionMarqueeWidth}
+      selectionMarqueeHeight={editorSession.selectionMarqueeHeight}
       selectionRowHeight={editorSession.selectionRowHeight}
       selectionColumnWidth={editorSession.selectionColumnWidth}
       selectionSmooth={editorSession.selectionSmooth}
@@ -5270,6 +5274,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onSelectionCombineModeChange={(selectionCombineMode) => {
         setEditorSession((current) => ({ ...current, selectionCombineMode }));
+      }}
+      onSelectionFeatherChange={(selectionFeather) => {
+        setEditorSession((current) => ({ ...current, selectionFeather }));
+      }}
+      onSelectionMarqueeStyleChange={(selectionMarqueeStyle) => {
+        setEditorSession((current) => ({ ...current, selectionMarqueeStyle }));
+      }}
+      onSelectionMarqueeWidthChange={(selectionMarqueeWidth) => {
+        setEditorSession((current) => ({ ...current, selectionMarqueeWidth }));
+      }}
+      onSelectionMarqueeHeightChange={(selectionMarqueeHeight) => {
+        setEditorSession((current) => ({ ...current, selectionMarqueeHeight }));
       }}
       onSelectionRowHeightChange={(selectionRowHeight) => {
         setEditorSession((current) => ({ ...current, selectionRowHeight }));
@@ -5381,6 +5397,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             selectionPixelSnap: editorSession.selectionPixelSnap,
             transformAutoSelectLayer: editorSession.transformAutoSelectLayer,
             selectionCombineMode: editorSession.selectionCombineMode,
+            selectionFeather: editorSession.selectionFeather,
+            selectionMarqueeStyle: editorSession.selectionMarqueeStyle,
+            selectionMarqueeWidth: editorSession.selectionMarqueeWidth,
+            selectionMarqueeHeight: editorSession.selectionMarqueeHeight,
             selectionRowHeight: editorSession.selectionRowHeight,
             selectionColumnWidth: editorSession.selectionColumnWidth,
             selectionSmooth: editorSession.selectionSmooth,
@@ -5447,6 +5467,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onSelectionCombineModeChange: (selectionCombineMode) => {
               setEditorSession((current) => ({ ...current, selectionCombineMode }));
+            },
+            onSelectionFeatherChange: (selectionFeather) => {
+              setEditorSession((current) => ({ ...current, selectionFeather }));
+            },
+            onSelectionMarqueeStyleChange: (selectionMarqueeStyle) => {
+              setEditorSession((current) => ({ ...current, selectionMarqueeStyle }));
+            },
+            onSelectionMarqueeWidthChange: (selectionMarqueeWidth) => {
+              setEditorSession((current) => ({ ...current, selectionMarqueeWidth }));
+            },
+            onSelectionMarqueeHeightChange: (selectionMarqueeHeight) => {
+              setEditorSession((current) => ({ ...current, selectionMarqueeHeight }));
             },
             onSelectionRowHeightChange: (selectionRowHeight) => {
               setEditorSession((current) => ({ ...current, selectionRowHeight }));

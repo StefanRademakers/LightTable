@@ -43,6 +43,10 @@ export interface LightTableEditorShellProps {
   selectedShapeKind: 'rectangle' | 'ellipse' | 'line' | null;
   selectionPixelSnap: boolean;
   selectionCombineMode: EditorSession['selectionCombineMode'];
+  selectionFeather: number;
+  selectionMarqueeStyle: EditorSession['selectionMarqueeStyle'];
+  selectionMarqueeWidth: number;
+  selectionMarqueeHeight: number;
   selectionRowHeight: number;
   selectionColumnWidth: number;
   selectionSmooth: number;
@@ -81,6 +85,10 @@ export interface LightTableEditorShellProps {
   faceWarp: FaceWarpToolOptionsProps;
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: EditorSession['selectionCombineMode']) => void;
+  onSelectionFeatherChange: (radius: number) => void;
+  onSelectionMarqueeStyleChange: (style: EditorSession['selectionMarqueeStyle']) => void;
+  onSelectionMarqueeWidthChange: (width: number) => void;
+  onSelectionMarqueeHeightChange: (height: number) => void;
   onSelectionRowHeightChange: (height: number) => void;
   onSelectionColumnWidthChange: (width: number) => void;
   onSelectionSmoothChange: (smooth: number) => void;
@@ -140,6 +148,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectedShapeKind,
   selectionPixelSnap,
   selectionCombineMode,
+  selectionFeather,
+  selectionMarqueeStyle,
+  selectionMarqueeWidth,
+  selectionMarqueeHeight,
   selectionRowHeight,
   selectionColumnWidth,
   selectionSmooth,
@@ -178,6 +190,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   faceWarp,
   onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
+  onSelectionFeatherChange,
+  onSelectionMarqueeStyleChange,
+  onSelectionMarqueeWidthChange,
+  onSelectionMarqueeHeightChange,
   onSelectionRowHeightChange,
   onSelectionColumnWidthChange,
   onSelectionSmoothChange,
@@ -244,6 +260,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectedShapeKind={selectedShapeKind}
         selectionPixelSnap={selectionPixelSnap}
         selectionCombineMode={selectionCombineMode}
+        selectionFeather={selectionFeather}
+        selectionMarqueeStyle={selectionMarqueeStyle}
+        selectionMarqueeWidth={selectionMarqueeWidth}
+        selectionMarqueeHeight={selectionMarqueeHeight}
         selectionRowHeight={selectionRowHeight}
         selectionColumnWidth={selectionColumnWidth}
         selectionSmooth={selectionSmooth}
@@ -282,6 +302,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         faceWarp={faceWarp}
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}
         onSelectionCombineModeChange={onSelectionCombineModeChange}
+        onSelectionFeatherChange={onSelectionFeatherChange}
+        onSelectionMarqueeStyleChange={onSelectionMarqueeStyleChange}
+        onSelectionMarqueeWidthChange={onSelectionMarqueeWidthChange}
+        onSelectionMarqueeHeightChange={onSelectionMarqueeHeightChange}
         onSelectionRowHeightChange={onSelectionRowHeightChange}
         onSelectionColumnWidthChange={onSelectionColumnWidthChange}
         onSelectionSmoothChange={onSelectionSmoothChange}

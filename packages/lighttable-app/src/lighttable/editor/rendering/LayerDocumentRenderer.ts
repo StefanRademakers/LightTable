@@ -657,8 +657,8 @@ export class LayerDocumentRenderer {
     return applied;
   }
 
-  setSelection(shape: SelectionShape, requestedMode: SelectionMode) {
-    return this.runtime.selectionRasterizer.set(shape, requestedMode);
+  setSelection(shape: SelectionShape, requestedMode: SelectionMode, featherRadius = 0) {
+    return this.runtime.selectionRasterizer.set(shape, requestedMode, featherRadius);
   }
 
   featherSelection(radius: number) {

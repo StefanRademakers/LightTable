@@ -10,7 +10,8 @@ const renderOptions = (
   rowHeight = 1,
   columnWidth = 1,
   textProperties?: TextPropertyPresentation,
-  selectedVectorStyle?: ToolOptionsProps['selectedVectorStyle']
+  selectedVectorStyle?: ToolOptionsProps['selectedVectorStyle'],
+  marqueeStyle: ToolOptionsProps['selectionMarqueeStyle'] = 'free'
 ) => {
   const session = createEditorSession();
   const props: ToolOptionsProps = {
@@ -39,6 +40,10 @@ const renderOptions = (
     selectedShapeKind: null,
     selectionPixelSnap: session.selectionPixelSnap,
     selectionCombineMode: session.selectionCombineMode,
+    selectionFeather: session.selectionFeather,
+    selectionMarqueeStyle: marqueeStyle,
+    selectionMarqueeWidth: session.selectionMarqueeWidth,
+    selectionMarqueeHeight: session.selectionMarqueeHeight,
     selectionRowHeight: rowHeight,
     selectionColumnWidth: columnWidth,
     selectionSmooth: 0,
@@ -86,6 +91,10 @@ const renderOptions = (
     },
     onSelectionPixelSnapChange: vi.fn(),
     onSelectionCombineModeChange: vi.fn(),
+    onSelectionFeatherChange: vi.fn(),
+    onSelectionMarqueeStyleChange: vi.fn(),
+    onSelectionMarqueeWidthChange: vi.fn(),
+    onSelectionMarqueeHeightChange: vi.fn(),
     onSelectionRowHeightChange: vi.fn(),
     onSelectionColumnWidthChange: vi.fn(),
     onSelectionSmoothChange: vi.fn(),
@@ -304,6 +313,23 @@ describe('tone brush tool options', () => {
 });
 
 describe('selection strip tool options', () => {
+  it('uses shared marquee controls for rectangle and ellipse without exposing pixel snap', () => {
+    for (const tool of ['select-rectangle', 'select-ellipse'] as const) {
+      const markup = renderOptions(tool);
+      expect(markup).toContain('aria-label="Marquee selection settings"');
+      expect(markup).toContain('<span>Feather</span>');
+      expect(markup).toContain('aria-label="Marquee selection style"');
+      expect(markup).toContain('<option value="free" selected="">Free</option>');
+      expect(markup).not.toContain('Snap to pixels');
+      expect(markup).not.toContain('<span>Width</span>');
+      expect(markup).not.toContain('<span>Height</span>');
+    }
+
+    const ratio = renderOptions('select-rectangle', 1, 1, undefined, undefined, 'ratio');
+    expect(ratio).toContain('<span>Width</span>');
+    expect(ratio).toContain('<span>Height</span>');
+  });
+
   it('surfaces every Magic Wand parameter through shared compact controls', () => {
     const markup = renderOptions('select-magic-wand');
     expect(markup).toContain('aria-label="Magic Wand settings"');

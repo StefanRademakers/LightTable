@@ -9,6 +9,11 @@ import type { LayerId } from '../document/documentTypes';
 describe('LightTable editor session', () => {
   it('starts row and column selections at one document pixel', () => {
     const session = createEditorSession();
+    expect(session.selectionPixelSnap).toBe(true);
+    expect(session.selectionFeather).toBe(0);
+    expect(session.selectionMarqueeStyle).toBe('free');
+    expect(session.selectionMarqueeWidth).toBe(1);
+    expect(session.selectionMarqueeHeight).toBe(1);
     expect(session.selectionRowHeight).toBe(1);
     expect(session.selectionColumnWidth).toBe(1);
     expect(session.selectionSmooth).toBe(0);
