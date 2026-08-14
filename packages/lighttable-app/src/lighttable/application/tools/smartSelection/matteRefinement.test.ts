@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildAdaptiveTrimap, refineMatteFromLogits } from './matteRefinement';
+import {
+  buildAdaptiveTrimap,
+  constrainMatteContourExpansion,
+  refineMatteFromLogits
+} from './matteRefinement';
 
 const rgba = (width: number, height: number, colorAt: (x: number, y: number) => readonly number[]) => {
   const data = new Uint8Array(width * height * 4);
@@ -80,5 +84,20 @@ describe('matte refinement', () => {
     expect(alpha[row + 10]).toBe(255);
     expect(alpha[row + 55]).toBe(0);
     expect(alpha[row + 31]).toBeGreaterThan(alpha[row + 34]);
+  });
+
+  it('limits hard neural contour expansion while preserving soft exterior alpha', () => {
+    const width = 15;
+    const height = 5;
+    const logits = new Float32Array(width * height).fill(-8);
+    for (let y = 1; y < 4; y += 1) for (let x = 6; x < 9; x += 1) {
+      logits[y * width + x] = 8;
+    }
+    const result = constrainMatteContourExpansion(
+      new Uint8Array(width * height).fill(220), logits, 0, width, height, 2
+    );
+    expect(result[2 * width + 4]).toBe(220);
+    expect(result[2 * width + 3]).toBe(127);
+    expect(result[2 * width + 12]).toBe(127);
   });
 });

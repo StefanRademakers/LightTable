@@ -1,6 +1,7 @@
 import { RawImage, type Tensor } from '@huggingface/transformers';
 import {
   buildAdaptiveTrimap,
+  constrainMatteContourExpansion,
   refineMatteFromLogits,
   type MatteRefinementImage,
   type MatteRefinementQuality,
@@ -105,8 +106,15 @@ export const refineMatteWithNeuralRuntime = async (
       const alphaWidth = alphas.dims.at(-1) ?? roi.width;
       const [reshapedHeight = alphaHeight, reshapedWidth = alphaWidth]
         = inputs.reshaped_input_sizes?.[0] ?? [];
-      return compositeNeuralAlpha(coarse, trimap.data, roi, alphas.data as ArrayLike<number>,
-        alphaWidth, alphaHeight, width, reshapedWidth, reshapedHeight);
+      const composited = compositeNeuralAlpha(
+        coarse, trimap.data, roi, alphas.data as ArrayLike<number>,
+        alphaWidth, alphaHeight, width, reshapedWidth, reshapedHeight
+      );
+      // ViTMatte needs broad context for translucent hair, but that context
+      // must not become an equally broad hard-selection expansion.
+      return constrainMatteContourExpansion(
+        composited, logits, offset, width, height, quality === 'high' ? 3 : 2
+      );
     } finally {
       alphas.dispose();
     }

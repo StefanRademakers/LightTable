@@ -87,6 +87,32 @@ const erode = (source: Uint8Array, width: number, height: number, radius: number
   return current;
 };
 
+/**
+ * Keeps neural matting from turning a wide trimap context band into a visibly
+ * dilated selection. The model may retain sub-50% coverage for soft detail
+ * outside this guard; only the contour used by marching ants is constrained.
+ */
+export const constrainMatteContourExpansion = (
+  refined: Uint8Array,
+  logits: ArrayLike<number>,
+  offset: number,
+  width: number,
+  height: number,
+  maximumExpansionPx: number
+) => {
+  if (maximumExpansionPx < 0 || refined.length !== width * height) return refined;
+  const binary = new Uint8Array(width * height);
+  for (let index = 0; index < binary.length; index += 1) {
+    binary[index] = foregroundAt(logits, offset, index) ? 1 : 0;
+  }
+  const allowedForeground = dilate(binary, width, height, maximumExpansionPx);
+  const output = refined.slice();
+  for (let index = 0; index < output.length; index += 1) {
+    if (!allowedForeground[index] && output[index] >= 128) output[index] = 127;
+  }
+  return output;
+};
+
 export const buildAdaptiveTrimap = (
   logits: ArrayLike<number>, offset: number, width: number, height: number,
   quality: MatteRefinementQuality

@@ -114,10 +114,11 @@ const loadRuntime = async (requestId: number, profile: ModelProfile): Promise<{ 
   for (const attempt of attempts) {
     const startedAt = performance.now();
     try {
-      status(requestId, `Loading Object Selection on ${attempt.device === 'webgpu' ? 'WebGPU' : 'CPU'}…`);
+      const modelLabel = profile === 'sam2-small' ? 'SAM 2.1' : 'SlimSAM';
+      status(requestId, `Loading ${modelLabel} on ${attempt.device === 'webgpu' ? 'WebGPU' : 'CPU'}…`);
       const progress_callback = (event: ProgressInfo) => status(
         requestId,
-        'file' in event ? `Loading ${event.file}` : 'Loading Object Selection…',
+        'file' in event ? `Loading ${modelLabel}: ${event.file}` : `Loading ${modelLabel}…`,
         'progress' in event && typeof event.progress === 'number'
           ? Math.max(0, Math.min(100, event.progress))
           : undefined
@@ -162,11 +163,13 @@ const processImage = async (
 const loadMatteRuntime = async (requestId: number) => {
   if (matteModel && matteProcessor) return { model: matteModel, processor: matteProcessor };
   const startedAt = performance.now();
-  status(requestId, 'Loading local edge-refinement model…');
+  status(requestId, 'Loading ViTMatte edge refinement…');
   try {
     const progress_callback = (event: ProgressInfo) => status(
       requestId,
-      'file' in event ? `Loading ${event.file}` : 'Loading local edge-refinement model…',
+      'file' in event
+        ? `Loading ViTMatte edge refinement: ${event.file}`
+        : 'Loading ViTMatte edge refinement…',
       'progress' in event && typeof event.progress === 'number'
         ? Math.max(0, Math.min(100, event.progress)) : undefined
     );
