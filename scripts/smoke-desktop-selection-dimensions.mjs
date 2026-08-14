@@ -9,6 +9,7 @@ const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dis
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'selection-dimensions-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const screenshotPath = path.join(outputDirectory, 'ellipse-dimensions.png');
+const lassoScreenshotPath = path.join(outputDirectory, 'lasso-settings.png');
 
 await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
 const launchEnvironment = { ...process.env };
@@ -62,8 +63,38 @@ try {
   await page.screenshot({ path: screenshotPath });
   await page.mouse.up();
 
+  await page.keyboard.press('l');
+  await page.locator('.lighttable-tool-options__identity')
+    .filter({ hasText: 'Free selection' })
+    .waitFor({ state: 'visible' });
+  const lassoSettings = page.locator('[aria-label="Lasso selection settings"]');
+  await lassoSettings.waitFor({ state: 'visible' });
+  await lassoSettings.getByText('Smooth', { exact: true }).waitFor({ state: 'visible' });
+  await lassoSettings.locator('label').filter({ hasText: 'Feather' }).locator('input').fill('4');
+  await lassoSettings.locator('label').filter({ hasText: 'Anti-alias' }).locator('input').check();
+  await page.mouse.move(bounds.x + bounds.width * 0.65, bounds.y + bounds.height * 0.65);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.78, bounds.y + bounds.height * 0.65);
+  await page.mouse.move(bounds.x + bounds.width * 0.72, bounds.y + bounds.height * 0.78);
+  await page.mouse.move(bounds.x + bounds.width * 0.65, bounds.y + bounds.height * 0.65);
+  await page.mouse.up();
+  await page.screenshot({ path: lassoScreenshotPath });
+
+  await page.keyboard.press('Shift+l');
+  await page.locator('.lighttable-tool-options__identity')
+    .filter({ hasText: 'Polygonal selection' })
+    .waitFor({ state: 'visible' });
+  const polygonSettings = page.locator('[aria-label="Lasso selection settings"]');
+  await polygonSettings.locator('label').filter({ hasText: 'Feather' }).waitFor({ state: 'visible' });
+  await polygonSettings.locator('label').filter({ hasText: 'Anti-alias' }).waitFor({ state: 'visible' });
+  if (await polygonSettings.getByText('Smooth', { exact: true }).count()) {
+    throw new Error('Polygonal selection exposes freehand smoothing.');
+  }
+
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
-  process.stdout.write(`Selection dimensions smoke passed. Screenshot: ${screenshotPath}\n`);
+  process.stdout.write(
+    `Selection dimensions smoke passed. Screenshots: ${screenshotPath}, ${lassoScreenshotPath}\n`
+  );
 } finally {
   await app.close().catch(() => {});
 }

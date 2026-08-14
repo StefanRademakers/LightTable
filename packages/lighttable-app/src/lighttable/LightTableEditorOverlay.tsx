@@ -5211,6 +5211,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       transformAutoSelectLayer={editorSession.transformAutoSelectLayer}
       selectionCombineMode={editorSession.selectionCombineMode}
       selectionFeather={editorSession.selectionFeather}
+      selectionAntiAlias={editorSession.selectionAntiAlias}
       selectionMarqueeStyle={editorSession.selectionMarqueeStyle}
       selectionMarqueeWidth={editorSession.selectionMarqueeWidth}
       selectionMarqueeHeight={editorSession.selectionMarqueeHeight}
@@ -5277,6 +5278,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onSelectionFeatherChange={(selectionFeather) => {
         setEditorSession((current) => ({ ...current, selectionFeather }));
+      }}
+      onSelectionAntiAliasChange={(selectionAntiAlias) => {
+        setEditorSession((current) => ({ ...current, selectionAntiAlias }));
       }}
       onSelectionMarqueeStyleChange={(selectionMarqueeStyle) => {
         setEditorSession((current) => ({ ...current, selectionMarqueeStyle }));
@@ -5398,6 +5402,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             transformAutoSelectLayer: editorSession.transformAutoSelectLayer,
             selectionCombineMode: editorSession.selectionCombineMode,
             selectionFeather: editorSession.selectionFeather,
+            selectionAntiAlias: editorSession.selectionAntiAlias,
             selectionMarqueeStyle: editorSession.selectionMarqueeStyle,
             selectionMarqueeWidth: editorSession.selectionMarqueeWidth,
             selectionMarqueeHeight: editorSession.selectionMarqueeHeight,
@@ -5470,6 +5475,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             },
             onSelectionFeatherChange: (selectionFeather) => {
               setEditorSession((current) => ({ ...current, selectionFeather }));
+            },
+            onSelectionAntiAliasChange: (selectionAntiAlias) => {
+              setEditorSession((current) => ({ ...current, selectionAntiAlias }));
             },
             onSelectionMarqueeStyleChange: (selectionMarqueeStyle) => {
               setEditorSession((current) => ({ ...current, selectionMarqueeStyle }));

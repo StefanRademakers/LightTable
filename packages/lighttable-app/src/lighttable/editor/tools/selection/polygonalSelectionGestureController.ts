@@ -4,7 +4,10 @@ import {
   type SelectionPoint,
   type SelectionShape
 } from '../../selection/selectionTypes';
-import type { SelectionGestureFinish } from './selectionGestureController';
+import type {
+  SelectionGestureFinish,
+  SelectionGestureRasterOptions
+} from './selectionGestureController';
 
 export type PolygonalSelectionClick =
   | { kind: 'draft'; shape: SelectionShape }
@@ -32,6 +35,10 @@ export class PolygonalSelectionGestureController {
   private previewPoint: SelectionPoint | null = null;
   private lastClick: { point: SelectionPoint; timestamp: number } | null = null;
   private mode: SelectionCombineMode = 'replace';
+  private rasterOptions: SelectionGestureRasterOptions = {
+    featherRadius: 0,
+    antiAlias: false
+  };
 
   get active(): boolean {
     return this.vertices.length > 0;
@@ -49,7 +56,8 @@ export class PolygonalSelectionGestureController {
     mode: SelectionCombineMode,
     closeDistance: number,
     forceClose = false,
-    timestamp = Date.now()
+    timestamp = Date.now(),
+    rasterOptions?: SelectionGestureRasterOptions
   ): PolygonalSelectionClick {
     if (!this.vertices.length) {
       const start = clonePoint(point);
@@ -57,6 +65,10 @@ export class PolygonalSelectionGestureController {
       this.previewPoint = clonePoint(start);
       this.lastClick = { point: clonePoint(point), timestamp };
       this.mode = mode;
+      this.rasterOptions = rasterOptions ? { ...rasterOptions } : {
+        featherRadius: 0,
+        antiAlias: false
+      };
       return { kind: 'draft', shape: this.draft! };
     }
 
@@ -101,9 +113,16 @@ export class PolygonalSelectionGestureController {
       points: this.vertices.map(clonePoint)
     };
     const mode = this.mode;
+    const rasterOptions = { ...this.rasterOptions };
     this.reset();
     return selectionShapeIsValid(shape)
-      ? { kind: 'apply', mode, shape, featherRadius: 0 }
+      ? {
+          kind: 'apply',
+          mode,
+          shape,
+          featherRadius: Math.max(0, Math.min(250, rasterOptions.featherRadius)),
+          antiAlias: rasterOptions.antiAlias
+        }
       : mode === 'replace'
         ? { kind: 'clear' }
         : { kind: 'none' };
@@ -120,5 +139,6 @@ export class PolygonalSelectionGestureController {
     this.previewPoint = null;
     this.lastClick = null;
     this.mode = 'replace';
+    this.rasterOptions = { featherRadius: 0, antiAlias: false };
   }
 }

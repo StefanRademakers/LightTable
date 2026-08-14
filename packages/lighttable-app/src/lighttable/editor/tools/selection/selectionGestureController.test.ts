@@ -16,6 +16,7 @@ describe('SelectionGestureController', () => {
       kind: 'apply',
       mode: 'add',
       featherRadius: 0,
+      antiAlias: false,
       shape: {
         kind: 'rectangle',
         points: [{ x: 10, y: 20 }, { x: 40, y: 50 }]
@@ -158,7 +159,7 @@ describe('SelectionGestureController', () => {
     });
   });
 
-  it('creates fixed-size ellipse geometry in the pointer direction', () => {
+  it('drags a fixed-size ellipse from the cursor without quadrant flipping', () => {
     const controller = new SelectionGestureController();
     expect(controller.begin(
       23,
@@ -175,7 +176,32 @@ describe('SelectionGestureController', () => {
     });
     expect(controller.move(23, { x: 40, y: 30 })).toEqual({
       kind: 'ellipse',
-      points: [{ x: 50, y: 50 }, { x: 30, y: 38 }]
+      points: [{ x: 40, y: 30 }, { x: 60, y: 42 }]
+    });
+    expect(controller.move(23, { x: 55, y: 65 })).toEqual({
+      kind: 'ellipse',
+      points: [{ x: 55, y: 65 }, { x: 75, y: 77 }]
+    });
+  });
+
+  it('captures lasso feather and anti-alias independently of later settings', () => {
+    const controller = new SelectionGestureController();
+    controller.begin(
+      24,
+      'select-free',
+      { x: 0, y: 0 },
+      'replace',
+      undefined,
+      0,
+      48,
+      undefined,
+      { featherRadius: 7, antiAlias: true }
+    );
+    controller.moveMany(24, [{ x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]);
+    expect(controller.finish(24)).toMatchObject({
+      kind: 'apply',
+      featherRadius: 7,
+      antiAlias: true
     });
   });
 });

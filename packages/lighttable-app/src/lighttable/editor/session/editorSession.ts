@@ -260,6 +260,7 @@ export interface EditorSession {
   selectionCombineMode: SelectionCombineMode;
   selectionPixelSnap: boolean;
   selectionFeather: number;
+  selectionAntiAlias: boolean;
   selectionMarqueeStyle: 'free' | 'ratio' | 'fixed';
   selectionMarqueeWidth: number;
   selectionMarqueeHeight: number;
@@ -291,6 +292,7 @@ export const createEditorSession = (): EditorSession => ({
   selectionCombineMode: 'replace',
   selectionPixelSnap: true,
   selectionFeather: 0,
+  selectionAntiAlias: true,
   selectionMarqueeStyle: 'free',
   selectionMarqueeWidth: 1,
   selectionMarqueeHeight: 1,

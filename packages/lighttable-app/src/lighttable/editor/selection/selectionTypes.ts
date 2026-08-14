@@ -86,6 +86,8 @@ export interface SelectionOperation {
       };
   /** Document-space feather radius for a feather command or one geometric source. */
   amount?: number;
+  /** Supersamples this geometric source before it is combined. */
+  antiAlias?: boolean;
   /** Replayable affine edit for raster-backed and geometric selections alike. */
   transform?: {
     a: number;

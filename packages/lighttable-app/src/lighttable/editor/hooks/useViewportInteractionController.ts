@@ -739,7 +739,11 @@ export const useViewportInteractionController = ({
           8 / Math.max(activeScale, 0.0001),
           selectionCombineMode,
           event.detail >= 2,
-          event.timeStamp
+          event.timeStamp,
+          {
+            featherRadius: editorSession.selectionFeather,
+            antiAlias: editorSession.selectionAntiAlias
+          }
         )) {
           event.preventDefault();
         }
@@ -777,6 +781,12 @@ export const useViewportInteractionController = ({
                 width: editorSession.selectionMarqueeWidth,
                 height: editorSession.selectionMarqueeHeight,
                 featherRadius: editorSession.selectionFeather
+              }
+            : undefined,
+          activeTool === 'select-free'
+            ? {
+                featherRadius: editorSession.selectionFeather,
+                antiAlias: editorSession.selectionAntiAlias
               }
             : undefined
         )) {

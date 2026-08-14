@@ -103,6 +103,12 @@ snapping is unconditional, while feather and free/ratio/fixed geometry are
 captured at pointer-down. Feather affects only the newly rasterized marquee
 before its boolean combine and never rewrites an existing selection merely
 because the option changed.
+Fixed-size marquee frames remain right/down from the pixel-snapped cursor and
+move as a whole during the drag; crossing the pointer-down position never flips
+the authored rectangle or ellipse into another quadrant.
+Freehand and polygonal selections follow the same capture rule for feather and
+anti-alias; freehand smoothing remains specific to sampled pointer input and
+does not invent curved geometry for a polygonal lasso.
 
 Selection visualization is presentation-only and must stay cheap while
 panning/zooming. Consolidate outlines and handles onto shared GPU vector overlay

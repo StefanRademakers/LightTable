@@ -1723,6 +1723,7 @@ struct SelectionSettings {
   kind: f32,
   pointCount: f32,
   bounds: vec4f,
+  options: vec4f,
 }
 
 @group(0) @binding(0) var<uniform> settings: SelectionSettings;
@@ -1743,9 +1744,7 @@ fn insideFreeSelection(pixel: vec2f) -> bool {
   return inside;
 }
 
-@fragment
-fn main(input: VertexOutput) -> @location(0) f32 {
-  let pixel = input.uv * settings.canvasSize;
+fn insideSelection(pixel: vec2f) -> bool {
   let minimum = min(settings.bounds.xy, settings.bounds.zw);
   let maximum = max(settings.bounds.xy, settings.bounds.zw);
   var inside = false;
@@ -1759,7 +1758,26 @@ fn main(input: VertexOutput) -> @location(0) f32 {
   } else if (settings.pointCount >= 3.0) {
     inside = insideFreeSelection(pixel);
   }
-  return select(0.0, 1.0, inside);
+  return inside;
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) f32 {
+  let pixel = input.uv * settings.canvasSize;
+  if (settings.options.x < 0.5) {
+    return select(0.0, 1.0, insideSelection(pixel));
+  }
+  let offsets = array<vec2f, 4>(
+    vec2f(-0.25, -0.25),
+    vec2f(0.25, -0.25),
+    vec2f(-0.25, 0.25),
+    vec2f(0.25, 0.25)
+  );
+  var coverage = 0.0;
+  for (var index = 0u; index < 4u; index += 1u) {
+    coverage += select(0.0, 1.0, insideSelection(pixel + offsets[index]));
+  }
+  return coverage * 0.25;
 }
 `;
 

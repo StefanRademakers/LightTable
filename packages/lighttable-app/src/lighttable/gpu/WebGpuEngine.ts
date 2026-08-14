@@ -932,9 +932,19 @@ export class WebGpuEngine {
     return changed;
   }
 
-  private async setSelectionNow(shape: SelectionShape, mode: SelectionMode, featherRadius = 0) {
+  private async setSelectionNow(
+    shape: SelectionShape,
+    mode: SelectionMode,
+    featherRadius = 0,
+    antiAlias = false
+  ) {
     this.device.pushErrorScope('validation');
-    const changed = this.documentRenderer?.setSelection(shape, mode, featherRadius) ?? false;
+    const changed = this.documentRenderer?.setSelection(
+      shape,
+      mode,
+      featherRadius,
+      antiAlias
+    ) ?? false;
     const validationError = await this.device.popErrorScope();
     if (validationError) {
       this.callbacks.onDeviceLost?.(`LightTable selection validation failed: ${validationError.message}`);
@@ -943,8 +953,18 @@ export class WebGpuEngine {
     return changed;
   }
 
-  setSelection(shape: SelectionShape, mode: SelectionMode, featherRadius = 0) {
-    const task = this.selectionQueue.then(() => this.setSelectionNow(shape, mode, featherRadius));
+  setSelection(
+    shape: SelectionShape,
+    mode: SelectionMode,
+    featherRadius = 0,
+    antiAlias = false
+  ) {
+    const task = this.selectionQueue.then(() => this.setSelectionNow(
+      shape,
+      mode,
+      featherRadius,
+      antiAlias
+    ));
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
   }
@@ -1121,8 +1141,13 @@ export class WebGpuEngine {
           if (!operation.transform || !this.documentRenderer?.transformSelection(operation.transform)) {
             return false;
           }
-        } else if (!await ((operation.amount ?? 0) > 0
-          ? this.setSelectionNow(operation.shape, operation.mode, operation.amount ?? 0)
+        } else if (!await ((operation.amount ?? 0) > 0 || operation.antiAlias
+          ? this.setSelectionNow(
+              operation.shape,
+              operation.mode,
+              operation.amount ?? 0,
+              operation.antiAlias ?? false
+            )
           : this.setSelectionNow(operation.shape, operation.mode))) {
           return false;
         }

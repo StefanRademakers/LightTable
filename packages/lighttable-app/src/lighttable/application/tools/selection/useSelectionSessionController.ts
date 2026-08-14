@@ -23,6 +23,7 @@ import {
 } from '../../../editor/selection/selectionTypes';
 import {
   SelectionGestureController,
+  type SelectionGestureRasterOptions,
   type SelectionMarqueeOptions
 } from '../../../editor/tools/selection/selectionGestureController';
 import {
@@ -45,7 +46,12 @@ export interface SelectionHistoryEntry {
 
 export interface SelectionRendererPort {
   replaceSelection(operations: SelectionOperation[]): Promise<boolean>;
-  setSelection(shape: SelectionShape, mode: SelectionMode, featherRadius?: number): Promise<boolean>;
+  setSelection(
+    shape: SelectionShape,
+    mode: SelectionMode,
+    featherRadius?: number,
+    antiAlias?: boolean
+  ): Promise<boolean>;
   clearSelection(): void;
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }): Promise<boolean>;
   applyMagicWand(operation: SelectionOperation): Promise<boolean>;
@@ -82,7 +88,8 @@ export interface SelectionSessionController {
     smooth?: number,
     smoothingScale?: number,
     snapBypass?: boolean,
-    marqueeOptions?: SelectionMarqueeOptions
+    marqueeOptions?: SelectionMarqueeOptions,
+    rasterOptions?: SelectionGestureRasterOptions
   ): boolean;
   move(pointerId: number, point: SelectionPoint, snapBypass?: boolean): boolean;
   moveMany(pointerId: number, points: readonly SelectionPoint[], snapBypass?: boolean): boolean;
@@ -93,7 +100,8 @@ export interface SelectionSessionController {
     closeDistance: number,
     mode: SelectionCombineMode,
     forceClose?: boolean,
-    timestamp?: number
+    timestamp?: number,
+    rasterOptions?: SelectionGestureRasterOptions
   ): boolean;
   polygonMove(point: SelectionPoint): boolean;
   finishPolygon(): boolean;
@@ -116,6 +124,7 @@ export const cloneSelectionOperations = (
 ): SelectionOperation[] => operations.map((operation) => ({
   mode: operation.mode,
   amount: operation.amount,
+  antiAlias: operation.antiAlias,
   transform: operation.transform ? { ...operation.transform } : undefined,
   source: operation.source?.kind === 'magic-wand'
     ? {
@@ -335,14 +344,22 @@ export const createSelectionSessionController = (
     const operation: SelectionOperation = {
       mode: result.mode,
       shape: result.shape,
-      ...(result.featherRadius > 0 ? { amount: result.featherRadius } : {})
+      ...(result.featherRadius > 0 ? { amount: result.featherRadius } : {}),
+      ...(result.antiAlias ? { antiAlias: true } : {})
     };
     const after = result.mode === 'replace'
       ? [operation]
       : [...before, operation];
-    const applySelection = result.featherRadius > 0
-      ? renderer.setSelection(result.shape, result.mode, result.featherRadius)
-      : renderer.setSelection(result.shape, result.mode);
+    const applySelection = result.antiAlias
+      ? renderer.setSelection(
+          result.shape,
+          result.mode,
+          result.featherRadius,
+          true
+        )
+      : result.featherRadius > 0
+        ? renderer.setSelection(result.shape, result.mode, result.featherRadius)
+        : renderer.setSelection(result.shape, result.mode);
     void applySelection
       .then((applied) => {
         if (!applied || !isCurrent(document, renderer)) return;
@@ -468,7 +485,8 @@ export const createSelectionSessionController = (
       smooth,
       smoothingScale,
       snapBypass = false,
-      marqueeOptions
+      marqueeOptions,
+      rasterOptions
     ) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
@@ -509,7 +527,7 @@ export const createSelectionSessionController = (
         documentWidth: document.width,
         documentHeight: document.height,
         size: stripSize ?? 1
-      }, smooth, smoothingScale, marqueeOptions);
+      }, smooth, smoothingScale, marqueeOptions, rasterOptions);
       dependencies.publishDraft(draft);
       dependencies.publishSnapFeedback?.(snap.matches, snap.matches.length ? {
         x: snappedPoint.x, y: snappedPoint.y, width: 0, height: 0
@@ -556,7 +574,14 @@ export const createSelectionSessionController = (
       dependencies.publishSelection(dependencies.getSelection(), null);
       return true;
     },
-    polygonClick: (point, closeDistance, mode, forceClose = false, timestamp = Date.now()) => {
+    polygonClick: (
+      point,
+      closeDistance,
+      mode,
+      forceClose = false,
+      timestamp = Date.now(),
+      rasterOptions
+    ) => {
       const dependencies = resolveDependencies();
       if (!dependencies.getDocument() || !dependencies.getRenderer()) return false;
       const result = polygonGesture.click(
@@ -564,7 +589,8 @@ export const createSelectionSessionController = (
         mode,
         closeDistance,
         forceClose,
-        timestamp
+        timestamp,
+        rasterOptions
       );
       if (result.kind === 'finish') return applyGestureResult(result.result);
       dependencies.publishDraft(result.shape);

@@ -41,6 +41,7 @@ const renderOptions = (
     selectionPixelSnap: session.selectionPixelSnap,
     selectionCombineMode: session.selectionCombineMode,
     selectionFeather: session.selectionFeather,
+    selectionAntiAlias: session.selectionAntiAlias,
     selectionMarqueeStyle: marqueeStyle,
     selectionMarqueeWidth: session.selectionMarqueeWidth,
     selectionMarqueeHeight: session.selectionMarqueeHeight,
@@ -92,6 +93,7 @@ const renderOptions = (
     onSelectionPixelSnapChange: vi.fn(),
     onSelectionCombineModeChange: vi.fn(),
     onSelectionFeatherChange: vi.fn(),
+    onSelectionAntiAliasChange: vi.fn(),
     onSelectionMarqueeStyleChange: vi.fn(),
     onSelectionMarqueeWidthChange: vi.fn(),
     onSelectionMarqueeHeightChange: vi.fn(),
@@ -361,8 +363,19 @@ describe('selection strip tool options', () => {
   it('exposes the extended smoothing range for free selections', () => {
     const markup = renderOptions('select-free');
     expect(markup).toContain('Free selection');
+    expect(markup).toContain('aria-label="Lasso selection settings"');
     expect(markup).toContain('Smooth');
     expect(markup).toContain('max="200"');
+    expect(markup).toContain('<span>Feather</span>');
+    expect(markup).toContain('checked=""/>Anti-alias');
+  });
+
+  it('shares feather and anti-alias with polygonal selections without fake smoothing', () => {
+    const markup = renderOptions('select-polygonal');
+    expect(markup).toContain('aria-label="Lasso selection settings"');
+    expect(markup).toContain('<span>Feather</span>');
+    expect(markup).toContain('checked=""/>Anti-alias');
+    expect(markup).not.toContain('Smooth');
   });
 });
 

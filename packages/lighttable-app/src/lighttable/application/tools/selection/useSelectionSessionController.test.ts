@@ -106,6 +106,43 @@ describe('selection session controller', () => {
     expect(state.history).toHaveLength(1);
   });
 
+  it('commits captured lasso feather and anti-alias as one replayable source', async () => {
+    const state = setup();
+    expect(state.controller.begin(
+      18,
+      'select-free',
+      { x: 0, y: 0 },
+      'replace',
+      undefined,
+      0,
+      48,
+      false,
+      undefined,
+      { featherRadius: 5, antiAlias: true }
+    )).toBe(true);
+    state.controller.moveMany(18, [
+      { x: 20, y: 0 },
+      { x: 20, y: 20 },
+      { x: 0, y: 20 }
+    ]);
+    expect(state.controller.finish(18)).toBe(true);
+    await Promise.resolve();
+    expect(state.renderer.setSelection).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'free' }),
+      'replace',
+      5,
+      true
+    );
+    expect(state.selection).toHaveLength(1);
+    expect(state.selection[0]).toMatchObject({
+      mode: 'replace',
+      amount: 5,
+      antiAlias: true,
+      shape: { kind: 'free' }
+    });
+    expect(state.history).toHaveLength(1);
+  });
+
   it('publishes one draft for a coalesced free-selection batch', () => {
     const state = setup();
     expect(state.controller.begin(9, 'select-free', { x: 0, y: 0 }, 'replace')).toBe(true);

@@ -1,0 +1,4 @@
+Free selection:
+zie mockup image... feather alleen toepassen op nieuw te draggen regio.
+
+Polygonal selection -> zelfde settings.

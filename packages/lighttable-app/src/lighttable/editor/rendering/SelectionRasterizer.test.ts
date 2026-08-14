@@ -14,8 +14,16 @@ describe('selectionShapeBuffers', () => {
     }, 1920, 1080);
     expect(Array.from(result!.points)).toEqual([12, 18, 90, 72]);
     expect(Array.from(result!.settings)).toEqual([
-      1920, 1080, 0, 2, 12, 18, 90, 72
+      1920, 1080, 0, 2, 12, 18, 90, 72, 0, 0, 0, 0
     ]);
+  });
+
+  it('enables geometric supersampling in the GPU contract', () => {
+    const result = selectionShapeBuffers({
+      kind: 'free',
+      points: [{ x: 1, y: 1 }, { x: 8, y: 1 }, { x: 4, y: 7 }]
+    }, 10, 10, true);
+    expect(Array.from(result!.settings).slice(8)).toEqual([1, 0, 0, 0]);
   });
 
   it('rejects incomplete polygon paths', () => {

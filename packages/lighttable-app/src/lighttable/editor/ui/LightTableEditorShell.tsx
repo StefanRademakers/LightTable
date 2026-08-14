@@ -44,6 +44,7 @@ export interface LightTableEditorShellProps {
   selectionPixelSnap: boolean;
   selectionCombineMode: EditorSession['selectionCombineMode'];
   selectionFeather: number;
+  selectionAntiAlias: boolean;
   selectionMarqueeStyle: EditorSession['selectionMarqueeStyle'];
   selectionMarqueeWidth: number;
   selectionMarqueeHeight: number;
@@ -86,6 +87,7 @@ export interface LightTableEditorShellProps {
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: EditorSession['selectionCombineMode']) => void;
   onSelectionFeatherChange: (radius: number) => void;
+  onSelectionAntiAliasChange: (enabled: boolean) => void;
   onSelectionMarqueeStyleChange: (style: EditorSession['selectionMarqueeStyle']) => void;
   onSelectionMarqueeWidthChange: (width: number) => void;
   onSelectionMarqueeHeightChange: (height: number) => void;
@@ -149,6 +151,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   selectionPixelSnap,
   selectionCombineMode,
   selectionFeather,
+  selectionAntiAlias,
   selectionMarqueeStyle,
   selectionMarqueeWidth,
   selectionMarqueeHeight,
@@ -191,6 +194,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
   onSelectionPixelSnapChange,
   onSelectionCombineModeChange,
   onSelectionFeatherChange,
+  onSelectionAntiAliasChange,
   onSelectionMarqueeStyleChange,
   onSelectionMarqueeWidthChange,
   onSelectionMarqueeHeightChange,
@@ -261,6 +265,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         selectionPixelSnap={selectionPixelSnap}
         selectionCombineMode={selectionCombineMode}
         selectionFeather={selectionFeather}
+        selectionAntiAlias={selectionAntiAlias}
         selectionMarqueeStyle={selectionMarqueeStyle}
         selectionMarqueeWidth={selectionMarqueeWidth}
         selectionMarqueeHeight={selectionMarqueeHeight}
@@ -303,6 +308,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onSelectionPixelSnapChange={onSelectionPixelSnapChange}
         onSelectionCombineModeChange={onSelectionCombineModeChange}
         onSelectionFeatherChange={onSelectionFeatherChange}
+        onSelectionAntiAliasChange={onSelectionAntiAliasChange}
         onSelectionMarqueeStyleChange={onSelectionMarqueeStyleChange}
         onSelectionMarqueeWidthChange={onSelectionMarqueeWidthChange}
         onSelectionMarqueeHeightChange={onSelectionMarqueeHeightChange}

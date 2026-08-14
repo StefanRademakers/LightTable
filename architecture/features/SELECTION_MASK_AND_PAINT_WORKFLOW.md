@@ -33,6 +33,10 @@ a bounded feather radius when a gesture starts. Pixel snapping is always on
 for those marquee coordinates. A marquee feather is rasterized into that new
 shape before add/subtract/intersect combines it with existing coverage; changing
 the tool setting never retroactively feathers the current selection.
+Freehand and polygonal lasso gestures capture their feather and anti-alias
+settings at the first pointer sample or vertex. Freehand additionally captures
+its input-smoothing value. Anti-aliasing supersamples only the new geometric
+source before the same boolean combine; it does not soften retained coverage.
 
 Selection ants use the GPU overlay renderer. Their bounded 500 ms phase change
 may submit an overlay presentation frame, but must execute zero document

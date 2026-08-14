@@ -36,6 +36,7 @@ describe('PolygonalSelectionGestureController', () => {
         kind: 'apply',
         mode: 'add',
         featherRadius: 0,
+        antiAlias: false,
         shape: {
           kind: 'polygon',
           points: [
@@ -96,5 +97,24 @@ describe('PolygonalSelectionGestureController', () => {
       false,
       1400
     ).kind).toBe('draft');
+  });
+
+  it('captures feather and anti-alias when the first vertex is placed', () => {
+    const controller = new PolygonalSelectionGestureController();
+    controller.click(
+      { x: 0, y: 0 },
+      replace,
+      2,
+      false,
+      10,
+      { featherRadius: 9, antiAlias: true }
+    );
+    controller.click({ x: 20, y: 0 }, replace, 2, false, 20);
+    controller.click({ x: 20, y: 20 }, replace, 2, false, 30);
+    expect(controller.finish()).toMatchObject({
+      kind: 'apply',
+      featherRadius: 9,
+      antiAlias: true
+    });
   });
 });

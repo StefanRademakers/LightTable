@@ -44,6 +44,7 @@ import {
   isSampledBrushTool
 } from '../tools/paint/sampledBrushTypes';
 import { isToneBrushTool } from '../tools/paint/toneBrushTypes';
+import { SelectionToolOptions } from './SelectionToolOptions';
 
 export interface ToolOptionsProps {
   activeTool: ToolId;
@@ -65,6 +66,7 @@ export interface ToolOptionsProps {
   selectionPixelSnap: boolean;
   selectionCombineMode: SelectionCombineMode;
   selectionFeather: number;
+  selectionAntiAlias: boolean;
   selectionMarqueeStyle: EditorSession['selectionMarqueeStyle'];
   selectionMarqueeWidth: number;
   selectionMarqueeHeight: number;
@@ -107,6 +109,7 @@ export interface ToolOptionsProps {
   onSelectionPixelSnapChange: (enabled: boolean) => void;
   onSelectionCombineModeChange: (mode: SelectionCombineMode) => void;
   onSelectionFeatherChange: (radius: number) => void;
+  onSelectionAntiAliasChange: (enabled: boolean) => void;
   onSelectionMarqueeStyleChange: (style: EditorSession['selectionMarqueeStyle']) => void;
   onSelectionMarqueeWidthChange: (width: number) => void;
   onSelectionMarqueeHeightChange: (height: number) => void;
@@ -272,6 +275,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   selectedShapeKind,
   selectionCombineMode,
   selectionFeather,
+  selectionAntiAlias,
   selectionMarqueeStyle,
   selectionMarqueeWidth,
   selectionMarqueeHeight,
@@ -313,6 +317,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   faceWarp,
   onSelectionCombineModeChange,
   onSelectionFeatherChange,
+  onSelectionAntiAliasChange,
   onSelectionMarqueeStyleChange,
   onSelectionMarqueeWidthChange,
   onSelectionMarqueeHeightChange,
@@ -416,91 +421,25 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           </label>
         </div>
       ) : null}
-      {activeTool === 'select-rectangle' || activeTool === 'select-ellipse' ? (
-        <div className="lighttable-tool-options__vector-style" aria-label="Marquee selection settings">
-          <ToolOptionNumber
-            label="Feather"
-            unit="px"
-            value={selectionFeather}
-            min={0}
-            max={250}
-            step={1}
-            onChange={(value) => onSelectionFeatherChange(
-              Math.max(0, Math.min(250, Number.isFinite(value) ? value : 0))
-            )}
-          />
-          <ToolOptionSelect
-            label="Style"
-            value={selectionMarqueeStyle}
-            aria-label="Marquee selection style"
-            onChange={(event) => onSelectionMarqueeStyleChange(
-              event.currentTarget.value as EditorSession['selectionMarqueeStyle']
-            )}
-          >
-            <option value="free">Free</option>
-            <option value="ratio">Ratio</option>
-            <option value="fixed">Fixed</option>
-          </ToolOptionSelect>
-          {selectionMarqueeStyle !== 'free' ? <>
-            <ToolOptionNumber
-              label="Width"
-              unit={selectionMarqueeStyle === 'fixed' ? 'px' : undefined}
-              value={selectionMarqueeWidth}
-              min={selectionMarqueeStyle === 'fixed' ? 1 : 0.01}
-              max={10000}
-              step={selectionMarqueeStyle === 'fixed' ? 1 : 0.01}
-              onChange={(value) => onSelectionMarqueeWidthChange(Math.max(
-                selectionMarqueeStyle === 'fixed' ? 1 : 0.01,
-                Number.isFinite(value) ? value : 1
-              ))}
-            />
-            <ToolOptionNumber
-              label="Height"
-              unit={selectionMarqueeStyle === 'fixed' ? 'px' : undefined}
-              value={selectionMarqueeHeight}
-              min={selectionMarqueeStyle === 'fixed' ? 1 : 0.01}
-              max={10000}
-              step={selectionMarqueeStyle === 'fixed' ? 1 : 0.01}
-              onChange={(value) => onSelectionMarqueeHeightChange(Math.max(
-                selectionMarqueeStyle === 'fixed' ? 1 : 0.01,
-                Number.isFinite(value) ? value : 1
-              ))}
-            />
-          </> : null}
-        </div>
-      ) : null}
-      {activeTool === 'select-horizontal' || activeTool === 'select-vertical' ? (
-        <label className="lighttable-tool-options__weight-field">
-          <span>{activeTool === 'select-horizontal' ? 'Height' : 'Width'}</span>
-          <input
-            type="number"
-            min={1}
-            max={10000}
-            step={1}
-            value={activeTool === 'select-horizontal'
-              ? selectionRowHeight
-              : selectionColumnWidth}
-            onChange={(event) => {
-              const size = Math.max(1, Math.round(Number(event.currentTarget.value) || 1));
-              if (activeTool === 'select-horizontal') onSelectionRowHeightChange(size);
-              else onSelectionColumnWidthChange(size);
-            }}
-          />
-          <span>px</span>
-        </label>
-      ) : null}
-      {activeTool === 'select-free' ? (
-        <AdjustmentSlider
-          label="Smooth"
-          value={selectionSmooth * 100}
-          min={0}
-          max={MAX_STROKE_SMOOTH * 100}
-          resetValue={0}
-          format={(value) => `${Math.round(value)}%`}
-          onReset={() => onSelectionSmoothChange(0)}
-          onChange={(value) => onSelectionSmoothChange(value / 100)}
-        />
-      ) : null}
+      <SelectionToolOptions
+        activeTool={activeTool}
+        feather={selectionFeather}
+        antiAlias={selectionAntiAlias}
+        marqueeStyle={selectionMarqueeStyle}
+        marqueeWidth={selectionMarqueeWidth}
+        marqueeHeight={selectionMarqueeHeight}
+        rowHeight={selectionRowHeight}
+        columnWidth={selectionColumnWidth}
+        smooth={selectionSmooth}
+        onFeatherChange={onSelectionFeatherChange}
+        onAntiAliasChange={onSelectionAntiAliasChange}
+        onMarqueeStyleChange={onSelectionMarqueeStyleChange}
+        onMarqueeWidthChange={onSelectionMarqueeWidthChange}
+        onMarqueeHeightChange={onSelectionMarqueeHeightChange}
+        onRowHeightChange={onSelectionRowHeightChange}
+        onColumnWidthChange={onSelectionColumnWidthChange}
+        onSmoothChange={onSelectionSmoothChange}
+      />
       {activeTool === 'select-magic-wand' ? (
         <div className="lighttable-tool-options__vector-style" aria-label="Magic Wand settings">
           <ToolOptionSelect

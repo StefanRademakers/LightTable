@@ -11,6 +11,7 @@ describe('LightTable editor session', () => {
     const session = createEditorSession();
     expect(session.selectionPixelSnap).toBe(true);
     expect(session.selectionFeather).toBe(0);
+    expect(session.selectionAntiAlias).toBe(true);
     expect(session.selectionMarqueeStyle).toBe('free');
     expect(session.selectionMarqueeWidth).toBe(1);
     expect(session.selectionMarqueeHeight).toBe(1);

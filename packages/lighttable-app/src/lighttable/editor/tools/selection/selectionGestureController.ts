@@ -14,6 +14,7 @@ export type SelectionGestureFinish =
       mode: SelectionCombineMode;
       shape: SelectionShape;
       featherRadius: number;
+      antiAlias: boolean;
     }
   | { kind: 'clear' }
   | { kind: 'none' };
@@ -38,6 +39,11 @@ export interface SelectionMarqueeOptions {
   width: number;
   height: number;
   featherRadius: number;
+}
+
+export interface SelectionGestureRasterOptions {
+  featherRadius: number;
+  antiAlias: boolean;
 }
 
 const finiteExtent = (value: number) => Math.max(0, Number.isFinite(value) ? value : 0);
@@ -113,6 +119,7 @@ export class SelectionGestureController {
   private activeMode: SelectionCombineMode = 'replace';
   private activeStrip: { tool: StripSelectionTool; options: SelectionStripOptions } | null = null;
   private activeMarquee: SelectionMarqueeOptions | null = null;
+  private activeRasterOptions: SelectionGestureRasterOptions | null = null;
   private freeSmoother: StrokeSmoother<SelectionPoint & { pressure: number }> | null = null;
 
   get pointerId(): number | null {
@@ -135,7 +142,8 @@ export class SelectionGestureController {
     stripOptions?: SelectionStripOptions,
     smooth = 0,
     smoothingScale = 48,
-    marqueeOptions?: SelectionMarqueeOptions
+    marqueeOptions?: SelectionMarqueeOptions,
+    rasterOptions?: SelectionGestureRasterOptions
   ): SelectionShape {
     const start = marqueeOptions
       ? { x: Math.round(point.x), y: Math.round(point.y) }
@@ -152,6 +160,9 @@ export class SelectionGestureController {
       && marqueeOptions
       ? { ...marqueeOptions }
       : null;
+    this.activeRasterOptions = this.activeMarquee
+      ? { featherRadius: this.activeMarquee.featherRadius, antiAlias: false }
+      : rasterOptions ? { ...rasterOptions } : null;
     this.freeSmoother = tool === 'select-free'
       ? new StrokeSmoother(smooth, smoothingScale)
       : null;
@@ -208,6 +219,20 @@ export class SelectionGestureController {
       };
     } else {
       const start = this.activeDraft.points[0];
+      if (this.activeMarquee?.style === 'fixed') {
+        const fixedStart = {
+          x: Math.round(nextPoint.x),
+          y: Math.round(nextPoint.y)
+        };
+        this.activeDraft = {
+          ...this.activeDraft,
+          points: [
+            fixedStart,
+            constrainSelectionMarqueePoint(fixedStart, fixedStart, this.activeMarquee)
+          ]
+        };
+        return cloneShape(this.activeDraft);
+      }
       this.activeDraft = {
         ...this.activeDraft,
         points: [
@@ -237,15 +262,17 @@ export class SelectionGestureController {
     const mode = this.activeMode;
     const featherRadius = Math.max(
       0,
-      Math.min(250, this.activeMarquee?.featherRadius ?? 0)
+      Math.min(250, this.activeRasterOptions?.featherRadius ?? 0)
     );
+    const antiAlias = this.activeRasterOptions?.antiAlias ?? false;
     this.reset();
     if (shape && selectionShapeIsValid(shape)) {
       return {
         kind: 'apply',
         mode,
         shape: cloneShape(shape),
-        featherRadius
+        featherRadius,
+        antiAlias
       };
     }
     return mode === 'replace' ? { kind: 'clear' } : { kind: 'none' };
@@ -264,6 +291,7 @@ export class SelectionGestureController {
     this.activeMode = 'replace';
     this.activeStrip = null;
     this.activeMarquee = null;
+    this.activeRasterOptions = null;
     this.freeSmoother = null;
   }
 }

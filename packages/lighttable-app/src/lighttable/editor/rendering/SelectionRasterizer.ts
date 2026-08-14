@@ -28,7 +28,8 @@ export interface SelectionShapeBuffers {
 export const selectionShapeBuffers = (
   shape: SelectionShape,
   width: number,
-  height: number
+  height: number,
+  antiAlias = false
 ): SelectionShapeBuffers | null => {
   const minimumPoints = shape.kind === 'free' || shape.kind === 'polygon' ? 3 : 2;
   if (shape.points.length < minimumPoints) return null;
@@ -46,7 +47,11 @@ export const selectionShapeBuffers = (
       first.x,
       first.y,
       last.x,
-      last.y
+      last.y,
+      antiAlias ? 1 : 0,
+      0,
+      0,
+      0
     ])
   };
 };
@@ -776,12 +781,17 @@ export class SelectionRasterizer {
     }
   }
 
-  set(shape: SelectionShape, requestedMode: SelectionMode, featherRadius = 0) {
+  set(
+    shape: SelectionShape,
+    requestedMode: SelectionMode,
+    featherRadius = 0,
+    antiAlias = false
+  ) {
     this.options.ensureTargets();
     const { textures, device } = this.options;
     if (!textures.mask || !textures.result || !textures.shape) return false;
     const { width, height } = this.options.dimensions();
-    const shapeData = selectionShapeBuffers(shape, width, height);
+    const shapeData = selectionShapeBuffers(shape, width, height, antiAlias);
     const mode = effectiveSelectionMode(textures.active, requestedMode);
     if (!shapeData || !mode) return false;
     const pipelines = this.options.pipelines();
