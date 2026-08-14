@@ -817,6 +817,16 @@
   background: var(--lt-scrollbar-track);
 }
 
+.lighttable-dock-workspace-shell {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
 .lighttable-dock-workspace,
 .lighttable-dock-workspace > .dv-dockview {
   width: 100%;
@@ -1560,12 +1570,41 @@
   flex: 0 0 auto;
   min-height: 32px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr) auto minmax(0, 1fr) 28px;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 4px 10px;
   border-top: 1px solid var(--lt-border);
   background: var(--lt-surface-statusbar);
+}
+
+.lighttable-toolbar__dock-toggle {
+  width: 28px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--lt-control-radius);
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lighttable-toolbar__dock-toggle:hover:not(:disabled) {
+  background: var(--lt-surface-control-hover);
+}
+
+.lighttable-toolbar__dock-toggle:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lighttable-toolbar__dock-toggle img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .lighttable-toolbar__status {

@@ -3,28 +3,22 @@ import {
   DocumentViewportSurface,
   type DocumentViewportSurfaceProps
 } from '../../editor/ui/DocumentViewportSurface';
-import {
-  EditorStatusBar,
-  type EditorStatusBarProps
-} from '../../editor/ui/EditorStatusBar';
 
 export interface EditorDocumentSurfaceProps {
   viewport: DocumentViewportSurfaceProps;
-  status: EditorStatusBarProps;
 }
 
 /**
  * The complete visual surface for one document tab.
  *
- * Document-session orchestration stays outside; canvas interaction and status
- * presentation stay together so every workspace document gets the same host.
+ * Document-session orchestration and workspace chrome stay outside. This
+ * surface owns only the active document viewport so workspace-wide chrome can
+ * span docked columns without unmounting document state.
  */
 export const EditorDocumentSurface: React.FC<EditorDocumentSurfaceProps> = ({
-  viewport,
-  status
+  viewport
 }) => (
   <section className="lighttable__main">
     <DocumentViewportSurface {...viewport} />
-    <EditorStatusBar {...status} />
   </section>
 );

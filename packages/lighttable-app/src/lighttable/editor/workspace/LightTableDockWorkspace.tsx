@@ -34,6 +34,10 @@ import {
   panelsForWorkspacePreset,
   type SelectableLightTableWorkspacePreset
 } from './workspacePresets';
+import {
+  EditorStatusBar,
+  type EditorStatusBarProps
+} from '../ui/EditorStatusBar';
 
 const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 // Increment only when the intended fresh-workspace composition changes. A
@@ -126,11 +130,26 @@ interface LightTableDockWorkspaceProps {
   documents: LightTableWorkspaceDocument[];
   activeDocumentId: string;
   panels: LightTableWorkspacePanelRegistration[];
+  status: EditorStatusBarProps;
   accessoryWidthConstraintsEnabled: boolean;
   onResizeInteractionChange?: (active: boolean) => void;
   onActiveDocumentChange?: (documentId: string) => void;
   onDocumentSurfaceReady?: () => void;
 }
+
+type DockColumnSide = 'left' | 'right';
+
+interface DockColumnState {
+  available: boolean;
+  visible: boolean;
+}
+
+type DockColumnStates = Record<DockColumnSide, DockColumnState>;
+
+const EMPTY_DOCK_COLUMN_STATES: DockColumnStates = {
+  left: { available: false, visible: false },
+  right: { available: false, visible: false }
+};
 
 export interface LightTableDockWorkspaceHandle {
   resetLayout: () => void;
@@ -408,6 +427,7 @@ export const LightTableDockWorkspace = forwardRef<
   documents,
   activeDocumentId,
   panels,
+  status,
   accessoryWidthConstraintsEnabled,
   onResizeInteractionChange,
   onActiveDocumentChange,
@@ -423,6 +443,15 @@ export const LightTableDockWorkspace = forwardRef<
   const resettingLayoutRef = useRef(false);
   const canvasOnlyMaximizedRef = useRef(false);
   const lastLayoutChangeAtRef = useRef(0);
+  const dockColumnGroupIdsRef = useRef<Record<DockColumnSide, string[]>>({
+    left: [],
+    right: []
+  });
+  const tabRestoreVisibilityRef = useRef<Record<DockColumnSide, boolean>>({
+    left: true,
+    right: true
+  });
+  const dockColumnSyncFrameRef = useRef<number | null>(null);
   const panelsRef = useRef(panels);
   panelsRef.current = panels;
   const panelLayoutSignature = panels
@@ -444,6 +473,98 @@ export const LightTableDockWorkspace = forwardRef<
     ].join(':'))
     .join('|');
   const [ready, setReady] = useState(false);
+  const [dockColumns, setDockColumns] = useState<DockColumnStates>(EMPTY_DOCK_COLUMN_STATES);
+
+  const refreshDockColumns = useCallback((api = apiRef.current) => {
+    if (!api) return;
+    const documentGroup = api.getPanel(DOCUMENT_HOST_PANEL_ID)?.group;
+    const documentBounds = documentGroup?.api.boundingBox;
+    if (!documentGroup || !documentBounds) return;
+
+    const storedIds = dockColumnGroupIdsRef.current;
+    const nextIds: Record<DockColumnSide, string[]> = {
+      left: storedIds.left.filter((id) => Boolean(api.getGroup(id))),
+      right: storedIds.right.filter((id) => Boolean(api.getGroup(id)))
+    };
+    const documentLeft = documentBounds.left;
+    const documentRight = documentBounds.left + documentBounds.width;
+    const tolerance = 1;
+
+    api.groups.forEach((group) => {
+      if (group.id === documentGroup.id || !group.api.isVisible) return;
+      const location = group.api.location;
+      if (location.type !== 'grid' && location.type !== 'edge') return;
+      const bounds = group.api.boundingBox;
+      if (!bounds) return;
+      const groupRight = bounds.left + bounds.width;
+      const side: DockColumnSide | null = groupRight <= documentLeft + tolerance
+        ? 'left'
+        : bounds.left >= documentRight - tolerance
+          ? 'right'
+          : null;
+      if (side && !nextIds[side].includes(group.id)) nextIds[side].push(group.id);
+    });
+
+    dockColumnGroupIdsRef.current = nextIds;
+    const nextState: DockColumnStates = {
+      left: {
+        available: nextIds.left.length > 0,
+        visible: nextIds.left.some((id) => api.getGroup(id)?.api.isVisible)
+      },
+      right: {
+        available: nextIds.right.length > 0,
+        visible: nextIds.right.some((id) => api.getGroup(id)?.api.isVisible)
+      }
+    };
+    setDockColumns((current) => (
+      current.left.available === nextState.left.available
+      && current.left.visible === nextState.left.visible
+      && current.right.available === nextState.right.available
+      && current.right.visible === nextState.right.visible
+        ? current
+        : nextState
+    ));
+  }, []);
+
+  const scheduleDockColumnRefresh = useCallback((api = apiRef.current) => {
+    if (!api) return;
+    if (dockColumnSyncFrameRef.current !== null) {
+      window.cancelAnimationFrame(dockColumnSyncFrameRef.current);
+    }
+    dockColumnSyncFrameRef.current = window.requestAnimationFrame(() => {
+      dockColumnSyncFrameRef.current = null;
+      refreshDockColumns(api);
+    });
+  }, [refreshDockColumns]);
+
+  const applyDockColumnVisibility = useCallback((
+    visibility: Partial<Record<DockColumnSide, boolean>>
+  ) => {
+    const api = apiRef.current;
+    if (!api) return;
+    if (
+      dockColumnGroupIdsRef.current.left.length === 0
+      && dockColumnGroupIdsRef.current.right.length === 0
+    ) refreshDockColumns(api);
+
+    resettingLayoutRef.current = true;
+    (Object.entries(visibility) as [DockColumnSide, boolean][]).forEach(([side, visible]) => {
+      dockColumnGroupIdsRef.current[side].forEach((groupId) => {
+        api.getGroup(groupId)?.api.setVisible(visible);
+      });
+    });
+    setDockColumns((current) => ({
+      left: visibility.left === undefined
+        ? current.left
+        : { ...current.left, visible: current.left.available && visibility.left },
+      right: visibility.right === undefined
+        ? current.right
+        : { ...current.right, visible: current.right.available && visibility.right }
+    }));
+    window.queueMicrotask(() => {
+      resettingLayoutRef.current = false;
+    });
+  }, [refreshDockColumns]);
 
   const saveLayout = useCallback(() => {
     lastLayoutChangeAtRef.current = performance.now();
@@ -482,6 +603,7 @@ export const LightTableDockWorkspace = forwardRef<
     }
     layoutListenerRef.current?.dispose();
     layoutListenerRef.current = event.api.onDidLayoutChange(() => {
+      scheduleDockColumnRefresh(event.api);
       if (resettingLayoutRef.current) return;
       workspacePresetRef.current = 'custom';
       saveLayout();
@@ -609,8 +731,9 @@ export const LightTableDockWorkspace = forwardRef<
         );
       });
     });
+    scheduleDockColumnRefresh(event.api);
     setReady(true);
-  }, [accessoryWidthConstraintsEnabled, saveLayout]);
+  }, [accessoryWidthConstraintsEnabled, saveLayout, scheduleDockColumnRefresh]);
 
   const resetLayout = useCallback(() => {
     const api = apiRef.current;
@@ -621,12 +744,15 @@ export const LightTableDockWorkspace = forwardRef<
     }
     resettingLayoutRef.current = true;
     workspacePresetRef.current = 'default';
+    dockColumnGroupIdsRef.current = { left: [], right: [] };
+    setDockColumns(EMPTY_DOCK_COLUMN_STATES);
     clearWorkspaceLayout(localStorage);
     api.clear();
     createDefaultLayout(api, panelsRef.current, accessoryWidthConstraintsEnabled);
+    scheduleDockColumnRefresh(api);
     saveLayout();
     window.queueMicrotask(() => { resettingLayoutRef.current = false; });
-  }, [accessoryWidthConstraintsEnabled, saveLayout]);
+  }, [accessoryWidthConstraintsEnabled, saveLayout, scheduleDockColumnRefresh]);
 
   const applyPreset = useCallback((preset: SelectableLightTableWorkspacePreset) => {
     const api = apiRef.current;
@@ -637,6 +763,8 @@ export const LightTableDockWorkspace = forwardRef<
     }
     resettingLayoutRef.current = true;
     workspacePresetRef.current = preset;
+    dockColumnGroupIdsRef.current = { left: [], right: [] };
+    setDockColumns(EMPTY_DOCK_COLUMN_STATES);
     clearWorkspaceLayout(localStorage);
     try {
       api.clear();
@@ -645,11 +773,16 @@ export const LightTableDockWorkspace = forwardRef<
         panelsForWorkspacePreset(panelsRef.current, preset),
         accessoryWidthConstraintsEnabled
       );
+      scheduleDockColumnRefresh(api);
       persistWorkspaceLayout(localStorage, api.toJSON(), preset);
     } finally {
       window.queueMicrotask(() => { resettingLayoutRef.current = false; });
     }
-  }, [accessoryWidthConstraintsEnabled]);
+  }, [accessoryWidthConstraintsEnabled, scheduleDockColumnRefresh]);
+
+  const toggleDockColumn = useCallback((side: DockColumnSide) => {
+    applyDockColumnVisibility({ [side]: !dockColumns[side].visible });
+  }, [applyDockColumnVisibility, dockColumns]);
 
   const showPanel = useCallback((panelId: string) => {
     apiRef.current?.getPanel(panelId)?.api.setActive();
@@ -663,6 +796,10 @@ export const LightTableDockWorkspace = forwardRef<
 
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    if (dockColumnSyncFrameRef.current !== null) {
+      window.cancelAnimationFrame(dockColumnSyncFrameRef.current);
+      dockColumnSyncFrameRef.current = null;
+    }
     layoutListenerRef.current?.dispose();
     layoutListenerRef.current = null;
     dropListenerRef.current?.dispose();
@@ -684,7 +821,45 @@ export const LightTableDockWorkspace = forwardRef<
       documentHost.group.header.hidden = true;
       documentHost.group.locked = false;
     }
-  }, [accessoryWidthConstraintsEnabled, panelLayoutSignature, ready]);
+    scheduleDockColumnRefresh(api);
+  }, [accessoryWidthConstraintsEnabled, panelLayoutSignature, ready, scheduleDockColumnRefresh]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'Tab'
+        || event.altKey
+        || event.ctrlKey
+        || event.metaKey
+        || event.shiftKey
+      ) return;
+      const target = event.target;
+      if (
+        target instanceof Element
+        && target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
+      ) return;
+      if (!dockColumns.left.available && !dockColumns.right.available) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      const anyVisible = dockColumns.left.visible || dockColumns.right.visible;
+      if (anyVisible) {
+        tabRestoreVisibilityRef.current = {
+          left: dockColumns.left.visible,
+          right: dockColumns.right.visible
+        };
+        applyDockColumnVisibility({ left: false, right: false });
+        return;
+      }
+      applyDockColumnVisibility({
+        left: tabRestoreVisibilityRef.current.left,
+        right: tabRestoreVisibilityRef.current.right
+      });
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [applyDockColumnVisibility, dockColumns]);
 
   useLayoutEffect(() => {
     if (!ready) return;
@@ -821,24 +996,35 @@ export const LightTableDockWorkspace = forwardRef<
 
   return (
     <WorkspaceContentContext.Provider value={content}>
-      <div
-        ref={workspaceElementRef}
-        className={`lighttable-dock-workspace dockview-theme-dark${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}${accessoryWidthConstraintsEnabled ? ' lighttable-dock-workspace--accessory-width-constrained' : ''}`}
-      >
-        <DockviewReact
-          components={components}
-          tabComponents={tabComponents}
-          onReady={onReady}
-          dndEdges={{
-            activationSize: { value: SIDE_DOCK_ACTIVATION_DISTANCE, type: 'pixels' },
-            size: { value: SIDE_DOCK_ACTIVATION_DISTANCE, type: 'pixels' }
-          }}
-          floatingGroupBounds="boundedWithinViewport"
-          // Reuse the empty area to the right of the tabs as the floating
-          // window handle. This keeps the header to a single row: dragging a
-          // tab redocks that panel, while the empty tabbar moves the float
-          // (Shift+drag redocks the complete floating group).
-          floatingGroupDragHandle="tabbar"
+      <div className="lighttable-dock-workspace-shell">
+        <div
+          ref={workspaceElementRef}
+          className={`lighttable-dock-workspace dockview-theme-dark${canvasOnly ? ' lighttable-dock-workspace--canvas-only' : ''}${accessoryWidthConstraintsEnabled ? ' lighttable-dock-workspace--accessory-width-constrained' : ''}`}
+        >
+          <DockviewReact
+            components={components}
+            tabComponents={tabComponents}
+            onReady={onReady}
+            dndEdges={{
+              activationSize: { value: SIDE_DOCK_ACTIVATION_DISTANCE, type: 'pixels' },
+              size: { value: SIDE_DOCK_ACTIVATION_DISTANCE, type: 'pixels' }
+            }}
+            floatingGroupBounds="boundedWithinViewport"
+            // Reuse the empty area to the right of the tabs as the floating
+            // window handle. This keeps the header to a single row: dragging a
+            // tab redocks that panel, while the empty tabbar moves the float
+            // (Shift+drag redocks the complete floating group).
+            floatingGroupDragHandle="tabbar"
+          />
+        </div>
+        <EditorStatusBar
+          {...status}
+          leftDockAvailable={dockColumns.left.available}
+          leftDockVisible={dockColumns.left.visible}
+          rightDockAvailable={dockColumns.right.available}
+          rightDockVisible={dockColumns.right.visible}
+          onToggleLeftDock={() => toggleDockColumn('left')}
+          onToggleRightDock={() => toggleDockColumn('right')}
         />
       </div>
     </WorkspaceContentContext.Provider>

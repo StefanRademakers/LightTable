@@ -5485,6 +5485,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           <LightTableDockWorkspace
             ref={workspaceRef}
             canvasOnly={screenMode === 'canvas-only'}
+            status={{
+              status: error ?? gradeStatus ?? fontDiagnosticStatus,
+              error: Boolean(error),
+              meta: statusBar.meta,
+              metaTitle: statusBar.title,
+              reportAvailable: statusBar.reportAvailable || fontDiagnostics.length > 0,
+              onOpenReport: editorDialogs.openPsdReport
+            }}
             documents={(workspaceDocuments ?? [{
               id: workspaceDocumentId,
               title: sourceName
@@ -5568,14 +5576,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     guidesLocked: editorSession.snap.guidesLocked,
                     onGuideDraft: setGuideDraft,
                     onGuideCommit: commitDocumentGuides
-                  }}
-                  status={{
-                    status: error ?? gradeStatus ?? fontDiagnosticStatus,
-                    error: Boolean(error),
-                    meta: statusBar.meta,
-                    metaTitle: statusBar.title,
-                    reportAvailable: statusBar.reportAvailable || fontDiagnostics.length > 0,
-                    onOpenReport: editorDialogs.openPsdReport
                   }}
                 />
               ) : null
