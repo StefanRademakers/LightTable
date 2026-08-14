@@ -30,7 +30,25 @@ export interface ProjectAssetDirectory {
   readonly label: string;
 }
 
-const saveQueues = new Map<string, Promise<void>>();
+const saveQueues = new Map<string, Promise<unknown>>();
+
+/**
+ * Serializes every read-modify-write of one project's derived asset index.
+ * Imports can arrive concurrently (for example an inpaint base image and mask),
+ * so atomic file replacement alone is insufficient: two writers could both read
+ * the old index and the last writer would silently drop the other's entry.
+ */
+const enqueueAssetIndexMutation = async <T>(manifestPath: string, operation: () => Promise<T>): Promise<T> => {
+  const key = path.resolve(manifestPath).toLocaleLowerCase('en-US');
+  const previous = saveQueues.get(key) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(operation);
+  saveQueues.set(key, next);
+  try {
+    return await next;
+  } finally {
+    if (saveQueues.get(key) === next) saveQueues.delete(key);
+  }
+};
 const PROJECT_ASSET_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.psd', '.psb', '.pdf'
 ]);
@@ -358,7 +376,7 @@ const writeIndex = async (indexPath: string, assets: readonly ProjectAssetIndexE
   });
 };
 
-export const recordSavedProjectAsset = async (request: {
+const recordSavedProjectAssetUnqueued = async (request: {
   readonly manifestPath: string;
   readonly filePath: string;
   readonly thumbnailPng?: (filePath: string) => Promise<Uint8Array>;
@@ -386,22 +404,21 @@ export const recordSavedProjectAsset = async (request: {
   return true;
 };
 
+export const recordSavedProjectAsset = (request: {
+  readonly manifestPath: string;
+  readonly filePath: string;
+  readonly thumbnailPng?: (filePath: string) => Promise<Uint8Array>;
+}): Promise<boolean> => enqueueAssetIndexMutation(
+  request.manifestPath,
+  () => recordSavedProjectAssetUnqueued(request)
+);
+
 export const scheduleSavedProjectAsset = (request: {
   readonly manifestPath: string;
   readonly filePath: string;
 }): void => {
-  const key = path.resolve(request.manifestPath).toLocaleLowerCase('en-US');
-  const previous = saveQueues.get(key) ?? Promise.resolve();
-  const next = previous
-    .catch(() => undefined)
-    .then(async () => {
-      await recordSavedProjectAsset(request);
-    });
-  saveQueues.set(key, next);
-  void next.catch((reason) => {
+  void recordSavedProjectAsset(request).catch((reason) => {
     console.warn('[LightTable project] Saved the document, but thumbnail indexing failed.', reason);
-  }).finally(() => {
-    if (saveQueues.get(key) === next) saveQueues.delete(key);
   });
 };
 
@@ -435,7 +452,7 @@ const scanAssetFiles = async (
   return assets;
 };
 
-export const rebuildProjectAssetIndex = async (request: {
+const rebuildProjectAssetIndexUnqueued = async (request: {
   readonly manifestPath: string;
   readonly thumbnailPng?: (filePath: string) => Promise<Uint8Array>;
 }): Promise<ProjectAssetIndex> => {
@@ -481,6 +498,14 @@ export const rebuildProjectAssetIndex = async (request: {
   await writeIndex(indexPath, assets);
   return loadIndex(indexPath);
 };
+
+export const rebuildProjectAssetIndex = (request: {
+  readonly manifestPath: string;
+  readonly thumbnailPng?: (filePath: string) => Promise<Uint8Array>;
+}): Promise<ProjectAssetIndex> => enqueueAssetIndexMutation(
+  request.manifestPath,
+  () => rebuildProjectAssetIndexUnqueued(request)
+);
 
 class ProjectAssetCatalogController {
   private watcher: FSWatcher | null = null;
@@ -535,22 +560,14 @@ class ProjectAssetCatalogController {
   private async rebuild(reason: string): Promise<void> {
     const manifestPath = this.manifestPath;
     if (!manifestPath) return;
-    const key = path.resolve(manifestPath).toLocaleLowerCase('en-US');
-    const previous = saveQueues.get(key) ?? Promise.resolve();
-    const next = previous.catch(() => undefined).then(async () => {
+    try {
       if (this.manifestPath !== manifestPath) return;
       await rebuildProjectAssetIndex({ manifestPath });
       if (this.manifestPath === manifestPath) {
         for (const listener of this.listeners) listener(manifestPath);
       }
-    });
-    saveQueues.set(key, next);
-    try {
-      await next;
     } catch (error) {
       console.warn(`[LightTable project] Could not complete ${reason}.`, error);
-    } finally {
-      if (saveQueues.get(key) === next) saveQueues.delete(key);
     }
   }
 }

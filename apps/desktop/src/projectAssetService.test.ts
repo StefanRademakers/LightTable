@@ -61,6 +61,36 @@ describe('project asset save indexing', () => {
     expect(index.assets[0]?.bytes).toBe(5);
   });
 
+  it('preserves concurrently imported base and mask assets in the shared index', async () => {
+    const { project, filePath: basePath } = await fixture();
+    const maskPath = path.join(project.rootPath, 'Characters', 'selection-mask.png');
+    await writeFile(maskPath, new Uint8Array([4, 5, 6]));
+
+    await Promise.all([
+      recordSavedProjectAsset({
+        manifestPath: project.manifestPath,
+        filePath: basePath,
+        thumbnailPng: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          return new Uint8Array([137, 80, 78, 71, 1]);
+        }
+      }),
+      recordSavedProjectAsset({
+        manifestPath: project.manifestPath,
+        filePath: maskPath,
+        thumbnailPng: async () => new Uint8Array([137, 80, 78, 71, 2])
+      })
+    ]);
+
+    const index = await readIndex(project.rootPath);
+    expect(index.assets.map(({ path: assetPath }) => assetPath)).toEqual([
+      'Characters/hero-lighttable.png',
+      'Characters/selection-mask.png'
+    ]);
+    await expect(readProjectAsset(project.manifestPath, index.assets[0]!.id)).resolves.not.toBeNull();
+    await expect(readProjectAsset(project.manifestPath, index.assets[1]!.id)).resolves.not.toBeNull();
+  });
+
   it('does not index saves outside the active project', async () => {
     const { project } = await fixture();
     const externalFile = path.join(path.dirname(project.rootPath), 'external.png');
