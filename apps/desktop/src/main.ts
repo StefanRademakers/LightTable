@@ -91,6 +91,12 @@ import {
 } from './genai/projectGenerationJobStore';
 import { loadProjectGenAiSetup, saveProjectGenAiSetup } from './genai/projectGenAiSetupStore';
 import { generationRecoveryAction } from './genai/generationRecovery';
+import {
+  generationTrackingTimedOut,
+  generationTrackingTimeRemaining,
+  generationTrackingTimeoutError,
+  isGenerationTrackingTimeout
+} from './genai/generationTrackingPolicy';
 import { OPENART_PROVIDER_ID } from '@lighttable/genai-openart';
 import { LOCAL_AI_PROVIDER_ID } from '@lighttable/genai-local';
 
@@ -829,21 +835,48 @@ void app.whenReady().then(async () => {
       mainWindow.webContents.send('lighttable:genai-job-changed', { projectId, job });
     }
   };
+  const failTimedOutGenAiJob = async (
+    manifestPath: string,
+    projectId: string,
+    job: import('@lighttable/genai-core').GenAiGenerationJob
+  ): Promise<boolean> => {
+    if (!generationTrackingTimedOut(job)) return false;
+    const failed = await updateProjectGenerationJob(manifestPath, job.id, (current) => ({
+      ...current,
+      status: 'failed',
+      updatedAt: Date.now(),
+      error: generationTrackingTimeoutError().message
+    }));
+    publishGenAiJob(projectId, failed);
+    return true;
+  };
+  const startGenAiTrackingDeadline = (
+    job: import('@lighttable/genai-core').GenAiGenerationJob,
+    controller: AbortController
+  ): ReturnType<typeof setTimeout> => {
+    const timeout = setTimeout(() => controller.abort(generationTrackingTimeoutError()),
+      Math.max(1, generationTrackingTimeRemaining(job)));
+    timeout.unref();
+    return timeout;
+  };
   const finishOpenArtGeneration = async (
     manifestPath: string,
     project: Awaited<ReturnType<typeof openProjectManifest>>,
     jobId: import('@lighttable/genai-core').GenAiJobId,
     providerJobId: string
   ): Promise<void> => {
-    if (!openArtConnection || openArtConnection.snapshot().status !== 'connected') return;
     const completionKey = `${manifestPath}\0${jobId}`;
     if (completingGenAiJobs.has(completionKey)) return;
+    const job = (await listProjectGenerationJobs(manifestPath)).find(({ id }) => id === jobId);
+    if (!job || await failTimedOutGenAiJob(manifestPath, project.summary.id, job)) return;
+    if (!openArtConnection || openArtConnection.snapshot().status !== 'connected') return;
     completingGenAiJobs.add(completionKey);
     const abortController = new AbortController();
     genAiJobAbortControllers.set(completionKey, abortController);
+    const trackingTimeout = startGenAiTrackingDeadline(job, abortController);
     try {
       const remote = await openArtConnection.waitForGeneration(providerJobId, abortController.signal);
-      const response = await fetch(remote.url);
+      const response = await fetch(remote.url, { signal: abortController.signal });
       if (!response.ok) throw new Error(`OpenArt output download failed (${response.status}).`);
       const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLocaleLowerCase('en-US') ?? remote.mediaType;
       if (!['image/png', 'image/jpeg', 'image/webp'].includes(contentType)) {
@@ -852,6 +885,7 @@ void app.whenReady().then(async () => {
       const declaredLength = Number(response.headers.get('content-length') ?? 0);
       if (declaredLength > 256 * 1024 * 1024) throw new Error('OpenArt output exceeds the 256 MiB safety limit.');
       const bytes = new Uint8Array(await response.arrayBuffer());
+      abortController.signal.throwIfAborted();
       if (!bytes.length || bytes.byteLength > 256 * 1024 * 1024) throw new Error('OpenArt returned an invalid output file.');
       const extension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/webp' ? 'webp' : 'png';
       const safeProviderId = providerJobId.replace(/[^A-Za-z0-9_-]/gu, '-').slice(0, 96) || String(jobId);
@@ -874,19 +908,23 @@ void app.whenReady().then(async () => {
         fileName,
         ...(indexed.thumbnail ? { previewId: indexed.id } : {})
       };
+      abortController.signal.throwIfAborted();
       const complete = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
         ...job, status: 'succeeded', updatedAt: Date.now(), results: [result]
       }));
       publishGenAiJob(project.summary.id, complete);
       mainWindow?.webContents.send('lighttable:genai-project-assets-changed', project.summary.id);
     } catch (reason) {
-      if (abortController.signal.aborted) return;
+      if (abortController.signal.aborted && !isGenerationTrackingTimeout(abortController.signal.reason)) return;
+      const failure = isGenerationTrackingTimeout(abortController.signal.reason)
+        ? abortController.signal.reason : reason;
       const failed = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
         ...job, status: 'failed', updatedAt: Date.now(),
-        error: reason instanceof Error ? reason.message : String(reason)
+        error: failure instanceof Error ? failure.message : String(failure)
       }));
       publishGenAiJob(project.summary.id, failed);
     } finally {
+      clearTimeout(trackingTimeout);
       if (genAiJobAbortControllers.get(completionKey) === abortController) {
         genAiJobAbortControllers.delete(completionKey);
       }
@@ -904,9 +942,12 @@ void app.whenReady().then(async () => {
     if (!generation) throw new Error('The local AI generation controller is unavailable.');
     const completionKey = `${manifestPath}\0${jobId}`;
     if (completingGenAiJobs.has(completionKey)) return;
+    const job = (await listProjectGenerationJobs(manifestPath)).find(({ id }) => id === jobId);
+    if (!job || await failTimedOutGenAiJob(manifestPath, project.summary.id, job)) return;
     completingGenAiJobs.add(completionKey);
     const abortController = new AbortController();
     genAiJobAbortControllers.set(completionKey, abortController);
+    const trackingTimeout = startGenAiTrackingDeadline(job, abortController);
     try {
       let status = await generation.status(providerJobId);
       while (!['completed', 'cancelled', 'failed'].includes(status.status)) {
@@ -923,11 +964,13 @@ void app.whenReady().then(async () => {
       if (status.status === 'failed') throw new Error(status.error?.message ?? 'Local AI generation failed.');
 
       const completed = await generation.result(providerJobId);
+      abortController.signal.throwIfAborted();
       const historyDirectory = resolveProjectStoragePath(project.summary.rootPath, project.manifest, 'aiHistory');
       await mkdir(historyDirectory, { recursive: true });
       const safeProviderId = providerJobId.replace(/[^A-Za-z0-9_-]/gu, '-').slice(0, 96) || String(jobId);
       const results: import('@lighttable/genai-core').GenAiGenerationResult[] = [];
       for (const [index, image] of completed.images.entries()) {
+        abortController.signal.throwIfAborted();
         if (!image.bytes.length || image.bytes.byteLength > 256 * 1024 * 1024) {
           throw new Error('Local AI returned an invalid output file.');
         }
@@ -948,19 +991,23 @@ void app.whenReady().then(async () => {
           ...(indexed.thumbnail ? { previewId: indexed.id } : {})
         });
       }
+      abortController.signal.throwIfAborted();
       const saved = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
         ...job, status: 'succeeded', updatedAt: Date.now(), results
       }));
       publishGenAiJob(project.summary.id, saved);
       mainWindow?.webContents.send('lighttable:genai-project-assets-changed', project.summary.id);
     } catch (reason) {
-      if (abortController.signal.aborted) return;
+      if (abortController.signal.aborted && !isGenerationTrackingTimeout(abortController.signal.reason)) return;
+      const failure = isGenerationTrackingTimeout(abortController.signal.reason)
+        ? abortController.signal.reason : reason;
       const failed = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
         ...job, status: 'failed', updatedAt: Date.now(),
-        error: reason instanceof Error ? reason.message : String(reason)
+        error: failure instanceof Error ? failure.message : String(failure)
       }));
       publishGenAiJob(project.summary.id, failed);
     } finally {
+      clearTimeout(trackingTimeout);
       if (genAiJobAbortControllers.get(completionKey) === abortController) {
         genAiJobAbortControllers.delete(completionKey);
       }
@@ -1056,6 +1103,7 @@ void app.whenReady().then(async () => {
     if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
     let jobs = await listProjectGenerationJobs(activeProjectManifestPath);
     for (const job of jobs) {
+      if (await failTimedOutGenAiJob(activeProjectManifestPath, project.summary.id, job)) continue;
       const recovery = generationRecoveryAction(job);
       if (recovery === 'resume-known-job' && job.providerJobId) {
         if (httpAiGenerations.has(job.request.providerId)) {
@@ -1140,8 +1188,28 @@ void app.whenReady().then(async () => {
   });
   ipcMain.handle('lighttable:genai-job-delete', async (event, projectId: unknown, jobId: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
-    const { project, manifestPath, job, filePath } = await genAiResultPath(projectId, jobId);
-    await shell.trashItem(filePath);
+    if (typeof jobId !== 'string') throw new Error('Invalid GenAI job.');
+    const { project, manifestPath } = await activeGenAiProject(projectId);
+    const job = (await listProjectGenerationJobs(manifestPath)).find(({ id }) => id === jobId);
+    if (!job) throw new Error('This generation is no longer available.');
+
+    // Deleting history is valid before a provider has produced a file. Stop
+    // local tracking first; this does not claim to cancel the paid remote job.
+    genAiJobAbortControllers.get(`${manifestPath}\0${job.id}`)?.abort(
+      new DOMException('Generation removed from local history.', 'AbortError')
+    );
+    if (job.results.length) {
+      const { rootPath, index } = await readProjectAssetIndex(manifestPath);
+      const root = path.resolve(rootPath);
+      const filePaths = [...new Set(job.results.flatMap(({ assetId }) => {
+        const asset = index.assets.find(({ id }) => id === assetId);
+        if (!asset) return [];
+        const filePath = path.resolve(rootPath, ...asset.path.split('/'));
+        if (!filePath.startsWith(`${root}${path.sep}`)) throw new Error('Invalid generated file location.');
+        return [filePath];
+      }))];
+      for (const filePath of filePaths) await shell.trashItem(filePath);
+    }
     await deleteProjectGenerationJob(manifestPath, job.id);
     publishGenAiJob(project.summary.id, { ...job, status: 'cancelled', updatedAt: Date.now(),
       error: 'Deleted from generation history.', results: [] });

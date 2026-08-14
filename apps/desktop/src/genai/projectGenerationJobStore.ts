@@ -7,6 +7,18 @@ import { openProjectManifest, resolveProjectStoragePath } from '../projectServic
 const FORMAT = 'lighttable-genai-jobs';
 const VERSION = 1;
 const queues = new Map<string, Promise<void>>();
+const deletedJobKeys = new Set<string>();
+const MAX_DELETED_JOB_KEYS = 2_048;
+
+const manifestKey = (manifestPath: string): string => path.resolve(manifestPath).toLocaleLowerCase('en-US');
+const deletedJobKey = (manifestPath: string, jobId: GenAiJobId): string => `${manifestKey(manifestPath)}\0${jobId}`;
+const rememberDeletedJob = (manifestPath: string, jobId: GenAiJobId): void => {
+  deletedJobKeys.add(deletedJobKey(manifestPath, jobId));
+  if (deletedJobKeys.size > MAX_DELETED_JOB_KEYS) {
+    const oldest = deletedJobKeys.values().next().value;
+    if (oldest) deletedJobKeys.delete(oldest);
+  }
+};
 
 interface StoredJobs {
   readonly format: typeof FORMAT;
@@ -43,9 +55,11 @@ export const upsertProjectGenerationJob = async (
   manifestPath: string,
   job: GenAiGenerationJob
 ): Promise<void> => {
-  const key = path.resolve(manifestPath).toLocaleLowerCase('en-US');
+  if (deletedJobKeys.has(deletedJobKey(manifestPath, job.id))) return;
+  const key = manifestKey(manifestPath);
   const previous = queues.get(key) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(async () => {
+    if (deletedJobKeys.has(deletedJobKey(manifestPath, job.id))) return;
     const journal = await readJournal(manifestPath);
     const jobs = journal.jobs.filter(({ id }) => id !== job.id).concat(job).slice(-500);
     await atomicWriteFile({
@@ -73,7 +87,8 @@ export const deleteProjectGenerationJob = async (
   manifestPath: string,
   jobId: GenAiJobId
 ): Promise<void> => {
-  const key = path.resolve(manifestPath).toLocaleLowerCase('en-US');
+  rememberDeletedJob(manifestPath, jobId);
+  const key = manifestKey(manifestPath);
   const previous = queues.get(key) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(async () => {
     const journal = await readJournal(manifestPath);

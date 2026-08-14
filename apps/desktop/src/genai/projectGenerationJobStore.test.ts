@@ -12,6 +12,7 @@ import type {
 } from '@lighttable/genai-core';
 import { createProjectOnDisk } from '../projectService';
 import {
+  deleteProjectGenerationJob,
   listProjectGenerationJobs,
   updateProjectGenerationJob,
   upsertProjectGenerationJob
@@ -63,5 +64,29 @@ describe('project generation job store', () => {
       { id: 'older', status: 'succeeded', results: [{ fileName: 'result.png' }] },
       { id: 'newer', status: 'running' }
     ]);
+  });
+
+  it('deletes a running job that has no saved result', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'lighttable-genai-jobs-'));
+    temporaryRoots.push(root);
+    const project = await createProjectOnDisk({ name: 'GenAI Delete', parentPath: root });
+    await upsertProjectGenerationJob(project.manifestPath, job('unfinished', 10));
+
+    await deleteProjectGenerationJob(project.manifestPath, 'unfinished' as GenAiJobId);
+
+    await expect(listProjectGenerationJobs(project.manifestPath)).resolves.toEqual([]);
+  });
+
+  it('does not resurrect a deleted job through a late provider update', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'lighttable-genai-jobs-'));
+    temporaryRoots.push(root);
+    const project = await createProjectOnDisk({ name: 'GenAI Late Update', parentPath: root });
+    const running = job('late-result', 10);
+    await upsertProjectGenerationJob(project.manifestPath, running);
+    await deleteProjectGenerationJob(project.manifestPath, running.id);
+
+    await upsertProjectGenerationJob(project.manifestPath, { ...running, status: 'succeeded', updatedAt: 20 });
+
+    await expect(listProjectGenerationJobs(project.manifestPath)).resolves.toEqual([]);
   });
 });
