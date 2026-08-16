@@ -15,6 +15,7 @@ const sourcePath = path.resolve(argument(
 ));
 const manifestText = await readFile(path.join(root, 'photoshop-manifest.json'), 'utf8');
 const manifest = JSON.parse(manifestText.replace(/^\uFEFF/u, ''));
+const adjustment = manifest[0]?.adjustment ?? 'exposure';
 const source = await sharp(sourcePath).removeAlpha().raw().toBuffer({ resolveWithObject: true });
 
 const decodeSrgb = (value) => value <= 0.04045
@@ -36,7 +37,7 @@ const evaluate = (input, settings, space) => {
   const adjusted = Math.max(0, exposed) ** (1 / Math.max(settings.gamma, 0.01));
   return clamp(space === 'linear' ? encodeSrgb(adjusted) : adjusted);
 };
-const candidates = ['linear', 'encoded', 'photoshop-22'];
+const candidates = adjustment === 'exposure' ? ['linear', 'encoded', 'photoshop-22'] : [];
 const report = [];
 const lightTableDirectory = path.join(root, 'lighttable');
 for (const entry of manifest.filter(({ status }) => status === 'captured')) {
@@ -121,15 +122,17 @@ const renderedSummary = meanRenderedRmse === null ? null : {
     && passingRenderedCases / renderedCases.length >= 0.95
 };
 await writeFile(path.join(root, 'analysis.json'), `${JSON.stringify({
-  schema: 1, adjustment: 'exposure', photoshopVersion: '27.11.0', source: sourcePath,
+  schema: 1, adjustment, photoshopVersion: '27.11.0', source: sourcePath,
   parameterCoverage: 'neutral, small, mid, 80 percent and endpoint extremes', summary,
   renderedSummary, cases: report
 }, null, 2)}\n`);
 process.stdout.write(`${JSON.stringify({ summary, renderedSummary, cases: report.map(({ id, metrics, rendered }) => ({
   id,
-  linearRmse: Number(metrics.linear.rmse.toFixed(6)),
-  encodedRmse: Number(metrics.encoded.rmse.toFixed(6)),
-  photoshop22Rmse: Number(metrics['photoshop-22'].rmse.toFixed(6)),
+  ...(metrics.linear ? {
+    linearRmse: Number(metrics.linear.rmse.toFixed(6)),
+    encodedRmse: Number(metrics.encoded.rmse.toFixed(6)),
+    photoshop22Rmse: Number(metrics['photoshop-22'].rmse.toFixed(6))
+  } : {}),
   renderedRmse: rendered ? Number(rendered.rmse.toFixed(6)) : null
 })) }, null, 2)}\n`);
 if (renderedSummary && !renderedSummary.passed95PercentGate) process.exitCode = 1;

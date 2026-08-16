@@ -320,8 +320,18 @@ describe('LightTable WGSL modules', () => {
   it('keeps Photoshop Exposure on its measured 2.2 bridge without changing Grade', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('let photoshopLinear = pow(max(encoded, vec3f(0.0)), vec3f(2.2))');
     expect(CREATIVE_GRADE_WGSL).toContain('vec3f(1.0 / (2.2 * gamma))');
-    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedToLinearChannel(correctedEncoded.r)');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(correctedEncoded)');
     expect(BASIC_CORRECTION_WGSL).toContain('rgb *= exp2(adjustments.exposureEV)');
+  });
+
+  it('evaluates Photoshop Brightness/Contrast in the encoded document profile', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('samplePhotoshopBrightnessContrastLut(encoded.r)');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopLinearSrgbToEncodedDocument(rgb)');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopValue(170u) > 0.5');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb');
+    expect(CREATIVE_GRADE_WGSL).toContain('let pivot = 127.0 / 255.0');
+    expect(CREATIVE_GRADE_WGSL).toContain('1.0 / max(1.0 - contrast / 100.0');
+    expect(CREATIVE_GRADE_WGSL).toContain('if (brightness < 0.0)');
   });
 
   it('transforms layer pixels and masks through their independent document transforms', () => {

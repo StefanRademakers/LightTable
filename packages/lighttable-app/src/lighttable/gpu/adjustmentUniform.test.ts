@@ -3,7 +3,9 @@ import { createDefaultAdjustments } from '../types';
 import {
   ADJUSTMENT_UNIFORM_FLOATS,
   buildAdjustmentUniform,
-  LINEAR_COMPOSITE_FLAG_INDEX
+  LINEAR_COMPOSITE_FLAG_INDEX,
+  PHOTOSHOP_BLEND_PROFILE_OFFSET,
+  PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET
 } from './adjustmentUniform';
 
 describe('LightTable adjustment uniform packing', () => {
@@ -72,6 +74,17 @@ describe('LightTable adjustment uniform packing', () => {
     expect(packed[137]).toBe(2.25);
     expect(packed[138]).toBe(-0.125);
     expect(packed[139]).toBeCloseTo(1.8);
+  });
+
+  it('packs the measured Brightness/Contrast curve and document profile', () => {
+    const settings = createDefaultAdjustments();
+    settings.photoshopAdjustment.brightness = 30;
+    settings.photoshopAdjustment.contrast = 80;
+    const packed = buildAdjustmentUniform(
+      settings, 100, 50, true, null, 'adobe-rgb-1998'
+    );
+    expect(packed[PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET + 32]).toBeGreaterThan(0.5);
+    expect(packed[PHOTOSHOP_BLEND_PROFILE_OFFSET]).toBe(1);
   });
 
   it('packs Levels channel and the built-in Color Lookup preset', () => {

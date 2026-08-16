@@ -1,5 +1,6 @@
 import { buildCurveLut, cloneCurves, CURVE_CHANNELS, CURVE_LUT_SIZE, type CurvesAdjustments } from '../curves';
 import type { BasicAdjustments } from '../types';
+import type { DocumentBlendProfile } from '../editor/document/documentTypes';
 import { buildAdjustmentUniform, type ColorLookupUniform } from './adjustmentUniform';
 
 export interface AdjustmentGpuPayloadTargets {
@@ -53,14 +54,16 @@ export class AdjustmentGpuPayloadWriter {
     width: number,
     height: number,
     inputIsLinearComposite: boolean,
-    colorLookup: ColorLookupUniform | null = null
+    colorLookup: ColorLookupUniform | null = null,
+    photoshopBlendProfile: DocumentBlendProfile = 'srgb'
   ): AdjustmentGpuPayloadChange {
     const uniform = buildAdjustmentUniform(
       adjustments,
       width,
       height,
       inputIsLinearComposite,
-      colorLookup
+      colorLookup,
+      photoshopBlendProfile
     );
     const uniformChanged = !floatArraysEqual(this.lastUniform, uniform);
     if (uniformChanged) {

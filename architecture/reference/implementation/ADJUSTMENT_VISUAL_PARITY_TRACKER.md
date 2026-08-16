@@ -47,3 +47,44 @@ The old grayscale response had a mean curve RMSE of 1.093 percent and a worst
 case of 5.162 percent at Exposure +5. The measured 2.2 response reduces those
 figures to 0.104 and 0.374 percent respectively. All three end-to-end corpora
 pass the 95-percent gate, including the 80- and 100-percent parameter cases.
+
+## Brightness / Contrast
+
+Status: accepted.
+
+Photoshop 27.11's current Brightness / Contrast is not its legacy affine
+operation. Adobe describes it as a proportional, nonlinear adjustment with
+protected endpoints; the black-box corpus confirms that Brightness is applied
+before Contrast and that Contrast interpolates toward a protected S-curve. The
+exact modern transfer function is not public, so LightTable uses a generated,
+measured 65-knot transfer family across the full Brightness range, with measured
+Contrast endpoints and continuous interpolation between control values. The
+runtime remains full-float: the calibration does not quantize rendered pixels.
+
+Legacy behavior is implemented analytically from the oracle: encoded-channel
+brightness offset, contrast around `127 / 255`, and Photoshop's measured
+sign-dependent operation order. Contrast +100 uses its measured hard threshold.
+
+Both modes operate in the PSD document blend profile before returning to
+LightTable's canonical linear-premultiplied sRGB compositor space. This profile
+route is supplied as document context to the adjustment node; Grade remains
+unchanged. The GPU cost is one CPU-built 65-point LUT per slider update and two
+uniform reads per channel, with no extra pass, texture, or readback.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Grayscale ramp | untagged / 8-bit | 26 | 0.147% | 0.505% | 99.853% |
+| `D:\people.jpg` | untagged / 8-bit | 9 | 0.214% | 0.489% | 99.786% |
+| `D:\pool.jpg` | untagged / 8-bit | 9 | 0.269% | 0.789% | 99.731% |
+| `D:\people.jpg` | Adobe RGB (1998) / 16-bit | 9 | 1.629% | 3.490% | 98.371% |
+
+Every case passes the 5-percent per-case gate. The Adobe RGB corpus includes a
+0.243-percent neutral roundtrip baseline, so its residual also covers existing
+profile-conversion and 16-bit interchange differences rather than only the
+adjustment response. Do not compensate for that residual inside this node.
+
+Calibration can be regenerated with
+`npm run generate:photoshop-brightness-contrast-lut`. The reference description
+is Adobe's [Brightness / Contrast documentation](https://helpx.adobe.com/uk/photoshop/using/apply-brightness-contrast-adjustment.html);
+the oracle, rather than an invented smoothing curve, is the implementation
+authority.

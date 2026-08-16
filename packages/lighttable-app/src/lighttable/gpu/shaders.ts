@@ -296,7 +296,7 @@ struct Adjustments {
   gradientMapControls: vec4f,
   gradientMapColors: array<vec4f, 8>,
   gradientMapOpacity: array<vec4f, 8>,
-  photoshop: array<vec4f, 32>,
+  photoshop: array<vec4f, 48>,
 }
 
 @group(0) @binding(0) var correctedTexture: texture_2d<f32>;
@@ -616,6 +616,54 @@ fn photoshopEncodedToLinearChannel(value: f32) -> f32 {
   return pow((value + 0.055) / 1.055, 2.4);
 }
 
+fn photoshopLinearSrgbToEncodedDocument(rgb: vec3f) -> vec3f {
+  if (photoshopValue(170u) > 0.5) {
+    let adobe = vec3f(
+      0.71516271 * rgb.r + 0.28483729 * rgb.g,
+      rgb.g,
+      0.04117054 * rgb.g + 0.95882946 * rgb.b
+    );
+    return pow(max(adobe, vec3f(0.0)), vec3f(256.0 / 563.0));
+  }
+  return vec3f(
+    photoshopLinearToEncodedChannel(rgb.r),
+    photoshopLinearToEncodedChannel(rgb.g),
+    photoshopLinearToEncodedChannel(rgb.b)
+  );
+}
+
+fn photoshopEncodedDocumentToLinearSrgb(encoded: vec3f) -> vec3f {
+  if (photoshopValue(170u) > 0.5) {
+    let adobe = pow(max(encoded, vec3f(0.0)), vec3f(563.0 / 256.0));
+    return vec3f(
+      1.39835574 * adobe.r - 0.39835574 * adobe.g,
+      adobe.g,
+      -0.0429288 * adobe.g + 1.0429288 * adobe.b
+    );
+  }
+  return vec3f(
+    photoshopEncodedToLinearChannel(encoded.r),
+    photoshopEncodedToLinearChannel(encoded.g),
+    photoshopEncodedToLinearChannel(encoded.b)
+  );
+}
+
+fn samplePhotoshopBrightnessContrastLut(value: f32) -> f32 {
+  let code = clamp(value, 0.0, 1.0) * 255.0;
+  var left = 63u;
+  var fraction = (code - 252.0) / 3.0;
+  if (code < 252.0) {
+    let position = code / 4.0;
+    left = u32(floor(position));
+    fraction = position - f32(left);
+  }
+  return mix(
+    photoshopValue(105u + left),
+    photoshopValue(106u + left),
+    fraction
+  );
+}
+
 fn sampleExternalColorLookup(source: vec3f) -> vec3f {
   let encoded = vec3f(
     photoshopLinearToEncodedChannel(source.r),
@@ -663,14 +711,34 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
   if (kind == 0u) { return source; }
   var rgb = source;
   if (kind == 1u) {
-    let brightness = photoshopValue(1u) / 255.0;
-    let contrast = photoshopValue(2u);
-    let factor = select(
-      (100.0 + contrast) / max(100.0 - contrast, 0.001),
-      (259.0 * (contrast + 255.0)) / max(255.0 * (259.0 - contrast), 0.001),
-      photoshopValue(3u) > 0.5
+    let encoded = photoshopLinearSrgbToEncodedDocument(rgb);
+    var adjusted = vec3f(
+      samplePhotoshopBrightnessContrastLut(encoded.r),
+      samplePhotoshopBrightnessContrastLut(encoded.g),
+      samplePhotoshopBrightnessContrastLut(encoded.b)
     );
-    return (rgb + vec3f(brightness) - vec3f(0.5)) * factor + vec3f(0.5);
+    if (photoshopValue(3u) > 0.5) {
+      let brightness = photoshopValue(1u) / 255.0;
+      let contrast = clamp(photoshopValue(2u), -100.0, 100.0);
+      let pivot = 127.0 / 255.0;
+      let contrastInput = select(encoded, encoded + vec3f(brightness), brightness >= 0.0);
+      if (contrast >= 100.0) {
+        adjusted = select(
+          vec3f(0.0),
+          vec3f(1.0),
+          contrastInput >= vec3f(126.5 / 255.0)
+        );
+      } else {
+        let factor = select(
+          1.0 + contrast / 100.0,
+          1.0 / max(1.0 - contrast / 100.0, 0.0001),
+          contrast >= 0.0
+        );
+        adjusted = (contrastInput - vec3f(pivot)) * factor + vec3f(pivot);
+      }
+      if (brightness < 0.0) { adjusted = adjusted + vec3f(brightness); }
+    }
+    return photoshopEncodedDocumentToLinearSrgb(clamp(adjusted, vec3f(0.0), vec3f(1.0)));
   }
   if (kind == 2u) {
     let black = photoshopValue(4u) / 255.0;
@@ -691,20 +759,12 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     // sRGB document. Exposure and Offset operate inside that bridge; Gamma
     // Correction operates on the encoded result. Keeping this node-specific
     // avoids changing LightTable's linear-light Grade pipeline.
-    let encoded = vec3f(
-      photoshopLinearToEncodedChannel(rgb.r),
-      photoshopLinearToEncodedChannel(rgb.g),
-      photoshopLinearToEncodedChannel(rgb.b)
-    );
+    let encoded = photoshopLinearSrgbToEncodedDocument(rgb);
     let photoshopLinear = pow(max(encoded, vec3f(0.0)), vec3f(2.2));
     let exposed = photoshopLinear * exp2(photoshopValue(9u)) + vec3f(photoshopValue(10u));
     let gamma = max(photoshopValue(11u), 0.01);
     let correctedEncoded = pow(max(exposed, vec3f(0.0)), vec3f(1.0 / (2.2 * gamma)));
-    return vec3f(
-      photoshopEncodedToLinearChannel(correctedEncoded.r),
-      photoshopEncodedToLinearChannel(correctedEncoded.g),
-      photoshopEncodedToLinearChannel(correctedEncoded.b)
-    );
+    return photoshopEncodedDocumentToLinearSrgb(correctedEncoded);
   }
   if (kind == 4u) {
     var lab = linearRgbToOklab(rgb);

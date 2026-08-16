@@ -13,6 +13,7 @@ const limitArgument = process.argv.find((value) => value.startsWith('--limit='))
 const limit = limitArgument ? Number(limitArgument.slice('--limit='.length)) : Number.POSITIVE_INFINITY;
 const manifest = JSON.parse(manifestText.replace(/^\uFEFF/u, ''))
   .filter(({ status }) => status === 'captured').slice(0, limit);
+const adjustment = manifest[0]?.adjustment ?? path.basename(root);
 const output = path.join(root, 'lighttable');
 const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
 const userData = path.join(root, 'runtime', `lighttable-${process.pid}`);
@@ -69,5 +70,5 @@ try {
 }
 await writeFile(path.join(root, 'lighttable-manifest.json'), `${JSON.stringify(results, null, 2)}\n`);
 const failures = results.filter(({ status }) => status !== 'captured');
-if (failures.length) throw new Error(`LightTable Exposure capture failed; see ${path.join(root, 'lighttable-manifest.json')}.`);
-process.stdout.write(`LightTable Exposure oracle: ${path.join(root, 'lighttable-manifest.json')}\n`);
+if (failures.length) throw new Error(`LightTable ${adjustment} capture failed; see ${path.join(root, 'lighttable-manifest.json')}.`);
+process.stdout.write(`LightTable ${adjustment} oracle: ${path.join(root, 'lighttable-manifest.json')}\n`);

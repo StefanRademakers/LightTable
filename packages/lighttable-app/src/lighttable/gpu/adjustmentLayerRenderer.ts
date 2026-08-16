@@ -1,5 +1,6 @@
 import type {
   AdjustmentLayer,
+  DocumentBlendProfile,
   RasterLayer
 } from '../editor/document/documentTypes';
 import { evaluateAdjustmentStack, type AdjustmentEvaluation } from '../processing/adjustmentEvaluator';
@@ -51,6 +52,7 @@ export interface AdjustmentLayerRendererDependencies {
   blurVerticalBindGroup: GPUBindGroup;
   width: number;
   height: number;
+  blendProfile: DocumentBlendProfile;
 }
 
 /**
@@ -94,7 +96,8 @@ export class AdjustmentLayerRenderer {
       dependencies.width,
       dependencies.height,
       true,
-      runtime.colorLookupUniform
+      runtime.colorLookupUniform,
+      dependencies.blendProfile
     );
 
     const basicBindGroup = this.device.createBindGroup({

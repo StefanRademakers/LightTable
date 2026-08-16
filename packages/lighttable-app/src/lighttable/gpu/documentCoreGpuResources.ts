@@ -1,4 +1,5 @@
 import type { BasicAdjustments } from '../types';
+import type { DocumentBlendProfile } from '../editor/document/documentTypes';
 import { CURVE_LUT_SIZE } from '../curves';
 import { ADJUSTMENT_UNIFORM_FLOATS } from './adjustmentUniform';
 import { AdjustmentGpuPayloadWriter } from './AdjustmentGpuPayloadWriter';
@@ -101,13 +102,16 @@ export class DocumentCoreGpuResources {
     adjustments: BasicAdjustments,
     width: number,
     height: number,
-    inputIsLinearComposite: boolean
+    inputIsLinearComposite: boolean,
+    photoshopBlendProfile: DocumentBlendProfile = 'srgb'
   ) {
     return this.adjustmentPayloadWriter.sync(
       adjustments,
       width,
       height,
-      inputIsLinearComposite
+      inputIsLinearComposite,
+      null,
+      photoshopBlendProfile
     );
   }
 

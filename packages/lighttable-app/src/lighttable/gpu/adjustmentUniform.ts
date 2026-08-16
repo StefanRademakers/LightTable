@@ -1,8 +1,15 @@
 import { curveActiveMask } from '../curves';
+import type { DocumentBlendProfile } from '../editor/document/documentTypes';
 import type { BasicAdjustments } from '../types';
+import {
+  buildPhotoshopBrightnessContrastLut,
+  PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_SIZE
+} from './photoshopBrightnessContrastLut';
 
-export const ADJUSTMENT_UNIFORM_FLOATS = 256;
+export const ADJUSTMENT_UNIFORM_FLOATS = 320;
 export const LINEAR_COMPOSITE_FLAG_INDEX = 18;
+export const PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET = 233;
+export const PHOTOSHOP_BLEND_PROFILE_OFFSET = 298;
 
 export interface ColorLookupUniform {
   readonly enabled: boolean;
@@ -19,7 +26,8 @@ export const buildAdjustmentUniform = (
   sourceWidth: number,
   sourceHeight: number,
   inputIsLinearComposite: boolean,
-  colorLookup: ColorLookupUniform | null = null
+  colorLookup: ColorLookupUniform | null = null,
+  photoshopBlendProfile: DocumentBlendProfile = 'srgb'
 ) => {
   const gradientMap = value.gradientMap;
   const colorStops = [...(gradientMap?.colorStops ?? [])]
@@ -127,6 +135,17 @@ export const buildAdjustmentUniform = (
     ['rgb', 'red', 'green', 'blue'].indexOf(photoshop.levelsChannel),
     ['none', 'film-stock', 'moonlight', 'teal-orange'].indexOf(photoshop.colorLookupPreset)
   ], 128);
+  if (photoshop.kind === 'brightness-contrast') {
+    const transfer = buildPhotoshopBrightnessContrastLut(
+      photoshop.brightness,
+      photoshop.contrast
+    );
+    if (transfer.length !== PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_SIZE) {
+      throw new Error('Photoshop Brightness/Contrast LUT has an invalid size.');
+    }
+    packed.set(transfer, PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET);
+  }
+  packed[PHOTOSHOP_BLEND_PROFILE_OFFSET] = photoshopBlendProfile === 'adobe-rgb-1998' ? 1 : 0;
   packed.set([
     ...(colorLookup?.domainMin ?? [0, 0, 0]),
     ...(colorLookup?.domainMax ?? [1, 1, 1])

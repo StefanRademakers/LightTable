@@ -1536,7 +1536,8 @@ export class WebGpuEngine {
       blurHorizontalBindGroup: this.imageResources.blurHorizontalBindGroup,
       blurVerticalBindGroup: this.imageResources.blurVerticalBindGroup,
       width,
-      height
+      height,
+      blendProfile: this.imageDocument?.colorSettings.blendProfile ?? 'srgb'
     });
     this.imageResources.blitOriginalBindGroup = this.device.createBindGroup({
       layout: this.blitPipeline.getBindGroupLayout(0),
@@ -2033,7 +2034,8 @@ export class WebGpuEngine {
       this.adjustmentState.current,
       this.metadata?.width ?? 1,
       this.metadata?.height ?? 1,
-      Boolean(this.imageDocument)
+      Boolean(this.imageDocument),
+      this.imageDocument?.colorSettings.blendProfile ?? 'srgb'
     );
   }
 
