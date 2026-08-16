@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useState } from 'react';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
 import { SwitchControl } from '../../../ui/SwitchControl';
@@ -136,7 +137,7 @@ const GroupHeader = ({
   toggleVisibility
 }: GroupHeaderProps) => (
   <div className="lighttable-group__header">
-    <button
+    <ButtonBase
       type="button"
       className="lighttable-group__toggle"
       onPointerDown={(event) => {
@@ -162,9 +163,9 @@ const GroupHeader = ({
         aria-hidden="true"
       />
       <strong>{label}</strong>
-    </button>
+    </ButtonBase>
     <div className="lighttable-group__actions">
-      <button
+      <ButtonBase
         type="button"
         className="lighttable-group__reset"
         onClick={reset}
@@ -172,7 +173,7 @@ const GroupHeader = ({
         title={`Reset ${label} adjustments`}
       >
         <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-      </button>
+      </ButtonBase>
       <SwitchControl
         checked={visible}
         onCheckedChange={toggleVisibility}
@@ -549,7 +550,7 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
     return (
       <section className={`lighttable-group${gradientMap.enabled ? '' : ' lighttable-group--disabled'}`}>
         <div className="lighttable-group__header">
-          <button
+          <ButtonBase
             type="button"
             className="lighttable-group__toggle"
             onClick={() => setGradientMapExpanded((current) => !current)}
@@ -561,9 +562,9 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
               aria-hidden="true"
             />
             <strong>Gradient Map</strong>
-          </button>
+          </ButtonBase>
           <div className="lighttable-group__actions">
-            <button
+            <ButtonBase
               type="button"
               className="lighttable-group__reset"
               onClick={commands.resetGradientMap}
@@ -571,7 +572,7 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
               title="Reset Gradient Map"
             >
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
+            </ButtonBase>
             <SwitchControl
               checked={gradientMap.enabled}
               onCheckedChange={(enabled) => commands.updateGradientMap({ ...gradientMap, enabled })}
@@ -610,7 +611,7 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
             <strong>Grade - All</strong>
           </div>
           <div className="lighttable-group__actions">
-            <button
+            <ButtonBase
               type="button"
               className="lighttable-group__reset"
               onClick={commands.resetAll}
@@ -618,7 +619,7 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
               title="Reset all corrections"
             >
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
+            </ButtonBase>
             <SwitchControl
               checked={!model.showOriginal}
               onCheckedChange={commands.toggleOriginal}

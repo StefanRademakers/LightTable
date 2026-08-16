@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import type {
   LayerStyleColor,
@@ -232,7 +233,7 @@ export const GradientAssetEditor: React.FC<{
         </div>
       ) : null}
       <div className="lighttable-style-gradient__track">
-        <button type="button"
+        <ButtonBase type="button"
           className="lighttable-style-gradient__hit-region lighttable-style-gradient__hit-region--opacity"
           aria-label="Add opacity stop"
           onMouseEnter={() => setHint('Click above the gradient to add an opacity stop.')}
@@ -246,7 +247,7 @@ export const GradientAssetEditor: React.FC<{
         {opacityStops.slice(0, -1).map((stop, index) => {
           const next = opacityStops[index + 1]!;
           const position = gradientMidpointPosition(stop.position, next.position, stop.midpoint);
-          return <button type="button" key={`opacity-midpoint-${stop.id}`}
+          return <ButtonBase type="button" key={`opacity-midpoint-${stop.id}`}
             className="lighttable-style-gradient__midpoint lighttable-style-gradient__midpoint--opacity"
             style={{ left: `${position * 100}%` }}
             aria-label={`Opacity midpoint ${Math.round(stop.midpoint * 100)}%`}
@@ -260,7 +261,7 @@ export const GradientAssetEditor: React.FC<{
         {colorStops.slice(0, -1).map((stop, index) => {
           const next = colorStops[index + 1]!;
           const position = gradientMidpointPosition(stop.position, next.position, stop.midpoint);
-          return <button type="button" key={`color-midpoint-${stop.id}`}
+          return <ButtonBase type="button" key={`color-midpoint-${stop.id}`}
             className="lighttable-style-gradient__midpoint lighttable-style-gradient__midpoint--color"
             style={{ left: `${position * 100}%` }}
             aria-label={`Color midpoint ${Math.round(stop.midpoint * 100)}%`}
@@ -272,7 +273,7 @@ export const GradientAssetEditor: React.FC<{
             )} />;
         })}
         {opacityStops.map((stop) => (
-          <button
+          <ButtonBase
             type="button"
             key={stop.id}
             className={`lighttable-style-gradient__stop lighttable-style-gradient__stop--opacity${
@@ -294,7 +295,7 @@ export const GradientAssetEditor: React.FC<{
           />
         ))}
         {colorStops.map((stop) => (
-          <button
+          <ButtonBase
             type="button"
             key={stop.id}
             className={`lighttable-style-gradient__stop lighttable-style-gradient__stop--color${
@@ -319,7 +320,7 @@ export const GradientAssetEditor: React.FC<{
           />
         ))}
         </div>
-        <button type="button"
+        <ButtonBase type="button"
           className="lighttable-style-gradient__hit-region lighttable-style-gradient__hit-region--color"
           aria-label="Add color stop"
           onMouseEnter={() => setHint('Click below the gradient to add a color stop.')}

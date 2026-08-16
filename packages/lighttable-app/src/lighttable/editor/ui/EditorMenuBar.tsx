@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import { useEffect, useRef, useState } from 'react';
 import {
   ContextMenu,
@@ -75,7 +76,7 @@ export const EditorMenuBar = ({
         aria-label="LightTable menu"
       >
         {MENU_ITEMS.map(({ id, label }, index) => (
-          <button
+          <ButtonBase
             key={id}
             ref={(node) => { buttonRefs.current[index] = node; }}
             type="button"
@@ -110,16 +111,16 @@ export const EditorMenuBar = ({
             }}
           >
             {label}
-          </button>
+          </ButtonBase>
         ))}
         {projectName ? (
-          <button type="button" className="lighttable__project-name"
+          <ButtonBase type="button" className="lighttable__project-name"
             title={`Open project folder: ${projectName}`}
             aria-label={`Open project folder for ${projectName}`}
             onClick={onRevealProject}>
             <img src={lightTableIcon('folder.png')} alt="" aria-hidden />
             <span>{projectName}</span>
-          </button>
+          </ButtonBase>
         ) : null}
       </div>
       <ContextMenu

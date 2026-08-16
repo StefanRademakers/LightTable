@@ -780,11 +780,11 @@ export const createEditorMenuOptions = (
       label: 'Debug panel',
       onClick: commands.showDebugPanel
     },
-    {
+    ...(commands.openStyleGuide ? [{
       value: 'ui-style-guide',
       label: 'UI Style Guide...',
       onClick: commands.openStyleGuide
-    },
+    }] : []),
     {
       value: 'toggle-screen-mode',
       label: 'Toggle screen mode',

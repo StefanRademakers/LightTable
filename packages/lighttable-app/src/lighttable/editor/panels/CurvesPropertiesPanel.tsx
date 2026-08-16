@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useState } from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { CurvesEditor } from '../../CurvesEditor';
@@ -16,7 +17,7 @@ export const CurvesPropertiesPanel = ({ model, commands }: GradePanelProps) => {
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label"><strong>Curves</strong></div>
           <div className="lighttable-group__actions">
-            <button
+            <ButtonBase
               type="button"
               className="lighttable-group__reset"
               onClick={() => commands.resetGroup('curves')}
@@ -24,7 +25,7 @@ export const CurvesPropertiesPanel = ({ model, commands }: GradePanelProps) => {
               title="Reset Curves"
             >
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
+            </ButtonBase>
           </div>
         </div>
       </section>

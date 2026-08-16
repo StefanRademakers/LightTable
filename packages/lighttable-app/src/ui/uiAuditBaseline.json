@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "nativeCandidates": {
+    "button": {},
+    "select": {},
+    "range": {
+      "lighttable/editor/panels/LevelsPropertiesPanel.tsx": 1
+    },
+    "number": {
+      "lighttable/editor/ui/MixedNumberInput.tsx": 1,
+      "lighttable/editor/ui/SelectionToolOptions.tsx": 1,
+      "lighttable/editor/ui/ToolOptionControls.tsx": 1,
+      "standalone/AgentAccessSettingsDialog.tsx": 1
+    }
+  },
+  "maxDeepSelectors": 8,
+  "externalOverrides": [
+    "form-input|lighttable/lighttable.css|form-input",
+    "form-select|lighttable/lighttable.css|form-input",
+    "color-swatch|lighttable/lighttable.css|color-swatch-field",
+    "color-picker|lighttable/lighttable.css|lighttable-color-picker-prototype",
+    "panel-section|lighttable/lighttable.css|lighttable-group"
+  ]
+}

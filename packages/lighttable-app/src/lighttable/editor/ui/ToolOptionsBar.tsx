@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { navigateFontPicker } from './fontPickerKeyboard';
 import { createPortal } from 'react-dom';
@@ -31,6 +32,7 @@ import { AnchoredGradientPopover } from './AnchoredGradientPopover';
 import { VectorStyleToolOptions } from './VectorStyleToolOptions';
 import { GradientField } from '../../../ui/GradientField';
 import { ActionButton } from '../../../ui/ActionButton';
+import { FormSelect } from '../../../ui/FormSelect';
 import type { TextPaint } from '@lighttable/text-core';
 import {
   BRUSH_PRESETS,
@@ -216,13 +218,13 @@ const TextFontPicker: React.FC<{
 
   return <div className="lighttable-tool-options__field lighttable-tool-options__font-field">
     <span>Font</span>
-    <button ref={anchorRef} type="button" className="lighttable-font-picker__trigger"
+    <ButtonBase ref={anchorRef} type="button" className="lighttable-font-picker__trigger"
       disabled={disabled} aria-haspopup="listbox" aria-expanded={open}
       title={placeholder ?? value}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={() => { setQuery(''); setOpen((current) => !current); }}>
       <span>{placeholder ?? value}</span><span aria-hidden="true">▾</span>
-    </button>
+    </ButtonBase>
     {open ? createPortal(
       <div className="lighttable-font-picker__menu" style={position}
         data-editor-native-tab-navigation
@@ -239,13 +241,13 @@ const TextFontPicker: React.FC<{
         <div className="lighttable-font-picker__options" role="listbox" aria-label="Fonts">
           {groups.map((group) => <React.Fragment key={group.label}>
             <div className="lighttable-font-picker__group">{group.label}</div>
-            {group.families.map((family) => <button key={`${group.label}:${family}`}
+            {group.families.map((family) => <ButtonBase key={`${group.label}:${family}`}
               type="button" role="option" aria-selected={family === value}
               className={family === value ? 'lighttable-font-picker__option lighttable-font-picker__option--selected'
                 : 'lighttable-font-picker__option'}
               onClick={() => { onChange(family); setOpen(false); anchorRef.current?.focus(); }}>
               {family}
-            </button>)}
+            </ButtonBase>)}
           </React.Fragment>)}
           {groups.length === 0 ? <div className="lighttable-font-picker__empty">No matching fonts</div> : null}
         </div>
@@ -559,8 +561,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             <AnchoredGradientPopover anchor={gradientButtonRef} ariaLabel="Gradient editor">
               <div className="lighttable-tool-options__gradient-header">
                 <strong>Gradient</strong>
-                <button type="button" aria-label="Close gradient"
-                  onClick={() => setGradientEditorOpen(false)}>×</button>
+                <ButtonBase type="button" aria-label="Close gradient"
+                  onClick={() => setGradientEditorOpen(false)}>×</ButtonBase>
               </div>
               <GradientAssetEditor
                 key={gradientEditorRequest?.revision ?? 'toolbar'}
@@ -607,19 +609,19 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {shapeGeometryActive ? (
         <>
-        <button ref={shapeGeometryAnchorRef} type="button"
+        <ButtonBase ref={shapeGeometryAnchorRef} type="button"
           className="lighttable-tool-options__dropdown-trigger"
           aria-label="Geometry" aria-haspopup="dialog" aria-expanded={shapeGeometryOpen}
           onClick={() => setShapeGeometryOpen((open) => !open)}>
           <span>Geometry</span><span className="paint-field__arrow" aria-hidden="true" />
-        </button>
+        </ButtonBase>
         {shapeGeometryOpen ? <AnchoredGradientPopover anchor={shapeGeometryAnchorRef}
           ariaLabel="Geometry options" className="lighttable-tool-options__geometry-popover"
           onClose={() => setShapeGeometryOpen(false)}>
           <div className="lighttable-tool-options__gradient-header">
             <strong>Geometry</strong>
-            <button type="button" aria-label="Close geometry"
-              onClick={() => setShapeGeometryOpen(false)}>×</button>
+            <ButtonBase type="button" aria-label="Close geometry"
+              onClick={() => setShapeGeometryOpen(false)}>×</ButtonBase>
           </div>
         <div className="lighttable-tool-options__shape-geometry-options" aria-label="Shape geometry">
           <ToolOptionSelect label="Mode" value={shape.mode}
@@ -683,21 +685,21 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 value={presentedShape.lineRotationDegrees}
                 onChange={(lineRotationDegrees) => changeShape({ lineRotationDegrees })} />
               <div className="lighttable-tool-options__line-ends" role="group" aria-label="Arrowheads">
-                <button type="button" aria-label="Start arrowhead"
+                <ButtonBase type="button" aria-label="Start arrowhead"
                   aria-pressed={presentedShape.lineStartArrow}
                   onClick={() => changeShape({ lineStartArrow: !presentedShape.lineStartArrow })}>
                   <img src={lightTableIcon('arrow-left.png')} alt="" aria-hidden />
-                </button>
-                <button type="button" aria-label="No arrowheads"
+                </ButtonBase>
+                <ButtonBase type="button" aria-label="No arrowheads"
                   aria-pressed={!presentedShape.lineStartArrow && !presentedShape.lineEndArrow}
                   onClick={() => changeShape({ lineStartArrow: false, lineEndArrow: false })}>
                   <img src={lightTableIcon('horizontal-line.png')} alt="" aria-hidden />
-                </button>
-                <button type="button" aria-label="End arrowhead"
+                </ButtonBase>
+                <ButtonBase type="button" aria-label="End arrowhead"
                   aria-pressed={presentedShape.lineEndArrow}
                   onClick={() => changeShape({ lineEndArrow: !presentedShape.lineEndArrow })}>
                   <img src={lightTableIcon('arrow-right.png')} alt="" aria-hidden />
-                </button>
+                </ButtonBase>
               </div>
               <ToolOptionNumber label="Arrow W" unit="px" min={0} max={10000} step={1}
                 value={presentedShape.lineArrowWidth}
@@ -714,7 +716,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       {activeTool === 'zoom' ? (
         <div className="lighttable-tool-options__zoom-presets" aria-label="Zoom presets">
           {ZOOM_PRESETS_PERCENT.map((percent) => (
-            <button
+            <ButtonBase
               key={percent}
               type="button"
               className={
@@ -725,15 +727,15 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               onClick={() => onZoomPreset(percent)}
             >
               {percent}%
-            </button>
+            </ButtonBase>
           ))}
-          <button
+          <ButtonBase
             type="button"
             className="lighttable-tool-options__preset"
             onClick={onZoomFit}
           >
             Fit screen
-          </button>
+          </ButtonBase>
         </div>
       ) : null}
       {activeTool === 'warp' ? (
@@ -857,8 +859,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               onPointerUpCapture={() => onTextPropertyCommit?.()}>
               <div className="lighttable-tool-options__gradient-header">
                 <strong>Text fill gradient</strong>
-                <button type="button" aria-label="Close text fill gradient"
-                  onClick={() => setTextGradientEditorOpen(false)}>×</button>
+                <ButtonBase type="button" aria-label="Close text fill gradient"
+                  onClick={() => setTextGradientEditorOpen(false)}>×</ButtonBase>
               </div>
               <GradientAssetEditor value={presentedTextGradient.asset}
                 onChange={(asset) => onTextFillPaintChange({ ...presentedTextGradient, asset })} />
@@ -900,9 +902,9 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           ) : null}
           <label className="lighttable-tool-options__field">
             <span>Antialias</span>
-            <select defaultValue={text.antiAlias} disabled aria-label="Text antialias mode">
+            <FormSelect defaultValue={text.antiAlias} disabled aria-label="Text antialias mode">
               <option value="smooth">Smooth</option>
-            </select>
+            </FormSelect>
           </label>
           <ToolOptionSelect
             label="Align"

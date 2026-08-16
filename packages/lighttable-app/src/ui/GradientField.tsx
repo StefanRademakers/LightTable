@@ -74,6 +74,7 @@ export interface GradientFieldProps {
 export const GradientField = React.forwardRef<HTMLButtonElement, GradientFieldProps>(
   ({ value, ariaLabel, title = ariaLabel, expanded = false, size = 'regular', onClick }, ref) => (
     <button ref={ref} type="button" className={`gradient-field gradient-field--${size}`}
+      data-suite-control="gradient-field" data-suite-variant={size}
       aria-label={ariaLabel} aria-haspopup="dialog" aria-expanded={expanded}
       title={title} onClick={onClick}>
       <span className="gradient-field__ramp"

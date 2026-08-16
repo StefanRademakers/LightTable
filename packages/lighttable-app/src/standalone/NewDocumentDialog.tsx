@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { LightTableImageClipboard } from '../platform/LightTableImageClipboard';
 import { ActionButton } from '../ui/ActionButton';
 import { FormInput } from '../ui/FormInput';
+import { FormSelect } from '../ui/FormSelect';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import type { LightTableCreateDocumentOptions } from '../lighttable/application/commands/lightTableCommandService';
@@ -160,26 +161,26 @@ export function NewDocumentDialog({
           </label>
           <label>
             <span>Bit depth</span>
-            <select className="form-input" value={bitDepth}
+            <FormSelect value={bitDepth}
               onChange={(event) => setBitDepth(Number(event.currentTarget.value) as 8 | 16)}>
               <option value="8">8 bit</option><option value="16">16 bit</option>
-            </select>
+            </FormSelect>
           </label>
           <label>
             <span>Blend compatibility</span>
-            <select className="form-input" value={profile}
+            <FormSelect value={profile}
               title={documentBlendProfileDescription(profile)}
               onChange={(event) => setProfile(event.currentTarget.value as typeof profile)}>
               <option value="srgb">{documentBlendProfileDisplayName('srgb')}</option>
               <option value="adobe-rgb-1998">{documentBlendProfileDisplayName('adobe-rgb-1998')}</option>
-            </select>
+            </FormSelect>
           </label>
           <label>
             <span>Background</span>
-            <select className="form-input" value={backgroundKind}
+            <FormSelect value={backgroundKind}
               onChange={(event) => setBackgroundKind(event.currentTarget.value as typeof backgroundKind)}>
               <option value="transparent">Transparent</option><option value="solid">Solid color</option>
-            </select>
+            </FormSelect>
           </label>
           {backgroundKind === 'solid' ? (
             <label className="lighttable-new-document-dialog__wide-field">

@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../ui/ButtonBase';
 import React from 'react';
 import type { GenAiAssetId, GenAiAssetMentionOption } from '@lighttable/genai-core';
 
@@ -222,14 +223,14 @@ export const GenAiPromptComposer = ({ value, onChange, mentions, previews, reque
         {suggestions.length ? (
           <div className="genai-prompt-composer__suggestions" role="listbox" aria-label="Project assets">
             {suggestions.map((option, index) => (
-              <button type="button" role="option" aria-selected={index === activeIndex}
+              <ButtonBase type="button" role="option" aria-selected={index === activeIndex}
                 className={`genai-prompt-composer__suggestion${index === activeIndex ? ' is-active' : ''}`}
                 key={option.asset.id} onMouseDown={(event) => { event.preventDefault(); insertMention(option); }}>
                 <span className="genai-prompt-composer__thumb">
                   {previews[option.asset.id] ? <img src={previews[option.asset.id]} alt="" /> : null}
                 </span>
                 <span><strong>{option.asset.label}</strong><small>{option.token}</small></span>
-              </button>
+              </ButtonBase>
             ))}
           </div>
         ) : null}

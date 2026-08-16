@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { DocumentFontAsset } from '../document/documentTypes';
@@ -64,12 +65,12 @@ export const FontAssetPicker: React.FC<{
   }, [open]);
 
   return <>
-    <button ref={anchorRef} type="button" className="lighttable-font-picker__trigger"
+    <ButtonBase ref={anchorRef} type="button" className="lighttable-font-picker__trigger"
       aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={open}
       title={selected ? label(selected) : 'Choose font'}
       onClick={() => { setQuery(''); setOpen((current) => !current); }}>
       <span>{selected ? label(selected) : 'Choose font'}</span><span aria-hidden="true">▾</span>
-    </button>
+    </ButtonBase>
     {open ? createPortal(<div className="lighttable-font-picker__menu" style={position}
       data-editor-native-tab-navigation onKeyDown={(event) => {
         if (event.key === 'Escape') {
@@ -82,14 +83,14 @@ export const FontAssetPicker: React.FC<{
       <div className="lighttable-font-picker__options" role="listbox" aria-label="Fonts">
         {groups.map((group) => <React.Fragment key={group.label}>
           <div className="lighttable-font-picker__group">{group.label}</div>
-          {group.fonts.map((font) => <button key={font.assetId} type="button" role="option"
+          {group.fonts.map((font) => <ButtonBase key={font.assetId} type="button" role="option"
             aria-selected={font.assetId === value}
             className={font.assetId === value
               ? 'lighttable-font-picker__option lighttable-font-picker__option--selected'
               : 'lighttable-font-picker__option'}
             onClick={() => { onChange(font.assetId); setOpen(false); anchorRef.current?.focus(); }}>
             {label(font)}
-          </button>)}
+          </ButtonBase>)}
         </React.Fragment>)}
         {groups.length === 0
           ? <div className="lighttable-font-picker__empty">No matching fonts</div> : null}

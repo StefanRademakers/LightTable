@@ -54,6 +54,7 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
       <div
         ref={dialogRef}
         className={`modal text-input-dialog${compact ? ' text-input-dialog--compact' : ''}`}
+        data-suite-control="text-input-dialog"
         role="dialog"
         aria-modal="true"
         aria-label={title}

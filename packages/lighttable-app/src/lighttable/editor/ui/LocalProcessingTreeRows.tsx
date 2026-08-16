@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import type { AttachedAdjustment, LayerId, LayerNode } from '../document/documentTypes';
@@ -77,14 +78,14 @@ export const LocalProcessingTreeRows: React.FC<{
     onContextMenu={(event) => onContextMenu(event, item.id)}
     onDragStart={(event) => onDragStart(event, item.id)}
   >
-    <button
+    <ButtonBase
       type="button"
       className="lighttable-layer-effect__visibility"
       onClick={() => onEnabled(layerId, item.id, !item.enabled)}
       title={`${item.enabled ? 'Disable' : 'Enable'} local ${item.label}`}
       aria-label={`${item.enabled ? 'Disable' : 'Enable'} local ${item.label}`}
-    ><img src={lightTableIcon(item.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></button>
-    <button type="button" onClick={() => onActivate(item.id)} aria-pressed={selectedOwner === item.id}>
+    ><img src={lightTableIcon(item.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
+    <ButtonBase type="button" onClick={() => onActivate(item.id)} aria-pressed={selectedOwner === item.id}>
       <img
         className="lighttable-layer-effect__processing-icon"
         src={lightTableIcon(item.id === 'lens-fx' ? 'lens_fx.png' : 'layer_adjustment.png')}
@@ -92,7 +93,7 @@ export const LocalProcessingTreeRows: React.FC<{
         aria-hidden="true"
       />
       {item.label}
-    </button>
+    </ButtonBase>
   </div>
 ));
 
@@ -117,14 +118,14 @@ export const AttachedAdjustmentTreeRows: React.FC<{
         onContextMenu={(event) => onContextMenu(event, item.id)}
         onDragStart={(event) => onDragStart(event, item.id, item.name)}
       >
-        <button
+        <ButtonBase
           type="button"
           className="lighttable-layer-effect__visibility"
           onClick={() => onEnabled(layerId, item.id, !item.enabled)}
           title={`${item.enabled ? 'Disable' : 'Enable'} attached ${item.name}`}
           aria-label={`${item.enabled ? 'Disable' : 'Enable'} attached ${item.name}`}
-        ><img src={lightTableIcon(item.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></button>
-        <button type="button" onClick={() => onActivate(item.id)} aria-pressed={selectedId === item.id}>
+        ><img src={lightTableIcon(item.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
+        <ButtonBase type="button" onClick={() => onActivate(item.id)} aria-pressed={selectedId === item.id}>
           <img
             className="lighttable-layer-effect__processing-icon"
             src={lightTableIcon(definition.iconName)}
@@ -132,7 +133,7 @@ export const AttachedAdjustmentTreeRows: React.FC<{
             aria-hidden="true"
           />
           {item.name}
-        </button>
+        </ButtonBase>
       </div>
     );
   })

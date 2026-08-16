@@ -178,6 +178,7 @@ export function ContextMenu<T extends string>({
         isSubmenu && submenuDirection === 'right' ? 'context-menu--submenu-right' : ''
       ].filter(Boolean).join(' ')}
       role="menu"
+      data-suite-control="context-menu"
       data-editor-native-tab-navigation
       aria-label={isSubmenu ? 'Submenu' : 'Context menu'}
       style={isSubmenu

@@ -32,6 +32,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   return createPortal(
     <div className="modal-backdrop modal-backdrop--confirm">
       <div ref={dialogRef} className="modal text-input-dialog" role="dialog" aria-modal="true" aria-label={title}
+        data-suite-control="confirm-dialog"
         tabIndex={-1} data-editor-native-tab-navigation onKeyDown={onDialogKeyDown} onClick={(event) => event.stopPropagation()}>
         <div className="modal__header">
           <h3 className="modal__title">{title}</h3>

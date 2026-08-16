@@ -516,6 +516,8 @@ describe('LightTable WGSL modules', () => {
     expect(HUE_DISTRIBUTION_ANALYSIS_WGSL).toContain('smoothstep(0.012, 0.055, chroma)');
     expect(HUE_DISTRIBUTION_ANALYSIS_WGSL).toContain('let isDisplayEncoded');
     expect(HUE_DISTRIBUTION_DISPLAY_WGSL).toContain('fn smoothedCount');
+    expect(HUE_DISTRIBUTION_DISPLAY_WGSL).toContain('fn interpolatedCount');
+    expect(HUE_DISTRIBUTION_DISPLAY_WGSL).toContain('fwidth(edgeDistance)');
     expect(HUE_DISTRIBUTION_DISPLAY_WGSL).toContain('var trace =');
     expect(HUE_DISTRIBUTION_DISPLAY_WGSL).not.toContain('let trace =');
   });

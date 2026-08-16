@@ -9,12 +9,20 @@ const isolationHeaders = {
   'Permissions-Policy': 'cross-origin-isolated=(self)'
 };
 
+const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS === '1';
+
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false')
+  },
   // Keep the Electron renderer on the same first-party source/HMR graph as
   // the web host. CSS edits in @lighttable/app then update without restarting
   // Electron or recreating the active document.
   resolve: {
     alias: {
+      '@lighttable/app/ui-devtools': fileURLToPath(
+        new URL('../../packages/lighttable-app/src/ui-devtools.ts', import.meta.url)
+      ),
       '@lighttable/app': fileURLToPath(
         new URL('../../packages/lighttable-app/src/index.ts', import.meta.url)
       ),

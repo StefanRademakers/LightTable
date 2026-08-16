@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionButton } from '../../../ui/ActionButton';
 import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
+import { FormSelect } from '../../../ui/FormSelect';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import type { DocumentGuide } from '../document/documentTypes';
 
@@ -33,10 +34,10 @@ export const NewGuideDialog = ({ open, onCancel, onCommit }: Props) => {
         }}>
         <div className="modal__header"><h3 className="modal__title">New Guide</h3></div>
         <label className="lighttable-guide-dialog__row"><span>Orientation</span>
-          <select className="form-input" value={orientation}
+          <FormSelect value={orientation}
             onChange={(event) => setOrientation(event.currentTarget.value as DocumentGuide['orientation'])}>
             <option value="vertical">Vertical</option><option value="horizontal">Horizontal</option>
-          </select>
+          </FormSelect>
         </label>
         <label className="lighttable-guide-dialog__row"><span>Position</span>
           <NumericExpressionInput kind="float" value={position} step={1}

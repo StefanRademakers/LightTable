@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useEffect, useRef } from 'react';
 
 interface PointTextCreationDialogProps {
@@ -71,8 +72,8 @@ export const PointTextCreationDialog: React.FC<PointTextCreationDialogProps> = (
           />
         </label>
         <div>
-          <button type="button" onClick={onCancel}>Cancel</button>
-          <button type="submit" disabled={!value.length}>Create</button>
+          <ButtonBase type="button" onClick={onCancel}>Cancel</ButtonBase>
+          <ButtonBase type="submit" disabled={!value.length}>Create</ButtonBase>
         </div>
       </form>
     </div>

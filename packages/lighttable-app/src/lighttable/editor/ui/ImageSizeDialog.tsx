@@ -5,6 +5,7 @@ import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
 import { SwitchControl } from '../../../ui/SwitchControl';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
+import { FormSelect } from '../../../ui/FormSelect';
 import type { ImageDocument } from '../document/documentTypes';
 import {
   MAX_IMAGE_SIZE_DIMENSION,
@@ -136,28 +137,28 @@ export const ImageSizeDialog = ({
         <div className="image-size-dialog__body">
           <label className="image-size-dialog__row">
             <span>Fit To</span>
-            <select className="form-input" value={preset} onChange={(event) => {
+            <FormSelect value={preset} onChange={(event) => {
               if (event.currentTarget.value === 'original') restoreOriginal();
               else setPreset('custom');
-            }}><option value="original">Original Size</option><option value="custom">Custom</option></select>
+            }}><option value="original">Original Size</option><option value="custom">Custom</option></FormSelect>
           </label>
           <div className="image-size-dialog__dimensions">
             <label><span>Width</span><NumericExpressionInput min={0.001} step={1} disabled={!resample}
               kind={widthUnit === 'pixels' ? 'integer' : 'float'} value={widthValue}
               formatValue={(value) => displayedNumber(value, widthUnit)}
               onValueChange={(value) => changeDimension('width', value)} /></label>
-            <select aria-label="Width unit" className="form-input" value={widthUnit}
+            <FormSelect aria-label="Width unit" value={widthUnit}
               onChange={(event) => setWidthUnit(event.currentTarget.value as ImageSizeUnit)}>
               {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
-            </select>
+            </FormSelect>
             <label><span>Height</span><NumericExpressionInput min={0.001} step={1} disabled={!resample}
               kind={heightUnit === 'pixels' ? 'integer' : 'float'} value={heightValue}
               formatValue={(value) => displayedNumber(value, heightUnit)}
               onValueChange={(value) => changeDimension('height', value)} /></label>
-            <select aria-label="Height unit" className="form-input" value={heightUnit}
+            <FormSelect aria-label="Height unit" value={heightUnit}
               onChange={(event) => setHeightUnit(event.currentTarget.value as ImageSizeUnit)}>
               {SIZE_UNITS.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
-            </select>
+            </FormSelect>
           </div>
           <div className="image-size-dialog__link-row">
             <span>Constrain proportions</span>
@@ -172,19 +173,19 @@ export const ImageSizeDialog = ({
                 const next = resolutionToPpi(value, resolutionUnit);
                 if (Number.isFinite(next)) { setResolutionPpi(next); setPreset('custom'); }
               }} />
-            <select className="form-input" value={resolutionUnit}
+            <FormSelect value={resolutionUnit}
               onChange={(event) => setResolutionUnit(event.currentTarget.value as ResolutionUnit)}>
               <option value="pixels-per-inch">Pixels/Inch</option>
               <option value="pixels-per-centimeter">Pixels/Centimeter</option>
-            </select>
+            </FormSelect>
           </label>
           <div className="image-size-dialog__row image-size-dialog__resample-row">
             <span>Resample</span>
             <SwitchControl checked={resample} onCheckedChange={setResample} label="Resample image pixels" />
-            <select aria-label="Resampling method" className="form-input" value={method} disabled={!resample}
+            <FormSelect aria-label="Resampling method" value={method} disabled={!resample}
               onChange={(event) => setMethod(event.currentTarget.value as ResampleMethod)}>
               {RESAMPLE_METHODS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
+            </FormSelect>
           </div>
           {method === 'preserve-details-2' && resample ? (
             <div className="image-size-dialog__noise">

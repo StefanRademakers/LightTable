@@ -1,0 +1,200 @@
+name: Build distributions
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: distributions-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify source
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify repository boundary
+        run: npm run verify:boundary
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Audit shared UI boundary
+        run: npm run audit:ui-boundary
+
+  web:
+    name: Build web application
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web application
+        run: npm run build:web
+
+      - name: Upload web distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighttable-web
+          path: apps/web/dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: Build Windows installer
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build installer
+        run: npm run make:desktop
+
+      - name: Upload Windows distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighttable-windows-x64
+          path: |
+            apps/desktop/out/make/**/*.exe
+            apps/desktop/out/make/**/*.nupkg
+            apps/desktop/out/make/**/RELEASES
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    name: Build macOS application
+    needs: verify
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      MAC_CERTIFICATE_P12_BASE64: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+      MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+      MAC_SIGN_IDENTITY: ${{ secrets.MAC_SIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure macOS signing
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            for value in \
+              "$MAC_CERTIFICATE_P12_BASE64" \
+              "$MAC_CERTIFICATE_PASSWORD" \
+              "$MAC_SIGN_IDENTITY" \
+              "$APPLE_ID" \
+              "$APPLE_APP_PASSWORD" \
+              "$APPLE_TEAM_ID"; do
+              if [[ -z "$value" ]]; then
+                echo "A tagged macOS release requires the complete Apple signing secret set." >&2
+                exit 1
+              fi
+            done
+          fi
+
+          if [[ -z "$MAC_CERTIFICATE_P12_BASE64" ]]; then
+            echo "No Apple certificate configured; Forge will create an ad-hoc signed test build."
+            exit 0
+          fi
+
+          certificate_path="$RUNNER_TEMP/lighttable-signing.p12"
+          keychain_path="$RUNNER_TEMP/lighttable-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+
+          printf '%s' "$MAC_CERTIFICATE_P12_BASE64" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" -P "$MAC_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain_path"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain_path"
+          security list-keychain -d user -s "$keychain_path" login.keychain-db
+
+          echo "LIGHTTABLE_MAC_SIGN_IDENTITY=$MAC_SIGN_IDENTITY" >> "$GITHUB_ENV"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "LIGHTTABLE_MAC_NOTARIZE=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build macOS archive
+        run: npm run make:desktop
+
+      - name: Verify macOS signature
+        if: env.MAC_CERTIFICATE_P12_BASE64 != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$(find apps/desktop/out -type d -name 'LightTable.app' -print -quit)"
+          if [[ -z "$app_path" ]]; then
+            echo "Packaged LightTable.app was not found." >&2
+            exit 1
+          fi
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+
+      - name: Upload macOS distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighttable-macos-${{ runner.arch }}
+          path: apps/desktop/out/make/**/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove temporary signing keychain
+        if: always() && env.MAC_CERTIFICATE_P12_BASE64 != ''
+        shell: bash
+        run: security delete-keychain "$RUNNER_TEMP/lighttable-signing.keychain-db" || true

@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../ui/ButtonBase';
 import React from 'react';
 import { createPortal } from 'react-dom';
 import type {
@@ -13,6 +14,7 @@ import { genAiFieldPlacement } from '@lighttable/genai-core';
 import { ActionButton } from '../../ui/ActionButton';
 import { ContextMenu } from '../../ui/ContextMenu';
 import { FormInput } from '../../ui/FormInput';
+import { FormSelect } from '../../ui/FormSelect';
 import { SegmentedControl } from '../../ui/SegmentedControl';
 import { SwitchControl } from '../../ui/SwitchControl';
 import { GenAiPromptComposer } from './GenAiPromptComposer';
@@ -69,9 +71,9 @@ const FieldControl = ({ field, value, update }: {
 }) => {
   if (field.kind === 'boolean') return <SwitchControl label={field.label} checked={value === true} onCheckedChange={update} />;
   if (field.kind === 'enum') return (
-    <select className="form-input" value={String(value ?? '')} onChange={(event) => update(event.currentTarget.value)}>
+    <FormSelect value={String(value ?? '')} onChange={(event) => update(event.currentTarget.value)}>
       {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
+    </FormSelect>
   );
   return <FormInput type={field.kind === 'number' || field.kind === 'integer' ? 'number' : 'text'}
     required={field.required} value={String(value ?? '')} min={field.minimum} max={field.maximum}
@@ -117,13 +119,13 @@ const GenAiFeaturedSelect = ({ field, value, icon, update }: {
   const selected = String(value ?? field.defaultValue ?? '');
   const selectedLabel = field.options?.find((option) => option.value === selected)?.label ?? selected;
   return <div className={`genai-panel__featured-setting${menu ? ' is-open' : ''}`}>
-    <button type="button" aria-label={field.label} aria-haspopup="menu" aria-expanded={Boolean(menu)} onClick={(event) => {
+    <ButtonBase type="button" aria-label={field.label} aria-haspopup="menu" aria-expanded={Boolean(menu)} onClick={(event) => {
       const bounds = event.currentTarget.parentElement?.getBoundingClientRect()
         ?? event.currentTarget.getBoundingClientRect();
       setMenu({ x: bounds.left, y: bounds.top - 2, width: bounds.width });
     }}>
       <span className="genai-panel__setting-icon">{icon}</span><strong>{selectedLabel}</strong>
-    </button>
+    </ButtonBase>
     <ContextMenu open={Boolean(menu)} x={menu?.x ?? 0} y={menu?.y ?? 0} placement="above"
       className="context-menu--select" width={menu?.width}
       onClose={() => setMenu(undefined)}
@@ -250,10 +252,10 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                 { value: 'image2image', label: 'Image Edit', disabled: !model?.capabilities.includes('image2image') },
                 { value: 'text2image', label: 'Image Create', disabled: !model?.capabilities.includes('text2image') }
               ]} />
-            <select className="form-input genai-panel__workflow" value={selectedModelId ?? workflow?.modelId ?? ''}
+            <FormSelect className="genai-panel__workflow" value={selectedModelId ?? workflow?.modelId ?? ''}
               aria-label="Generation model" onChange={(event) => onModelChange?.(event.currentTarget.value as GenAiModelSummary['id'])}>
               {models.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
-            </select>
+            </FormSelect>
             {setupError ? <p className="genai-panel__error" role="alert">{setupError}</p> : null}
             <section className={`genai-panel__reference-well${referenceDragActive ? ' is-drag-target' : ''}`}
               aria-label="Visual references"
@@ -301,14 +303,14 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                   {assetPreviews[asset.id]
                     ? <img className="genai-panel__reference-thumbnail" src={assetPreviews[asset.id]} alt="" />
                     : null}
-                  <button type="button" className="genai-panel__reference-remove"
+                  <ButtonBase type="button" className="genai-panel__reference-remove"
                     aria-label={`Remove ${token}`} title={`Remove ${token}`}
                     onClick={() => {
                       setReferencePreview(undefined);
                       onFieldChange?.(referenceKey, selectedReferences.filter(({ id }) => id !== asset.id));
                       onFieldChange?.(promptKey, removeTokenFromPrompt(prompt, token));
                       if (asset.id === baseImageAssetId) onBaseImageSelectedChange?.(false);
-                    }}>×</button>
+                    }}>×</ButtonBase>
                   <strong>{token}</strong>
                 </div>;
               })}</div> : <p className="genai-panel__reference-empty">
@@ -365,11 +367,12 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
               ≈ {costEstimate.label}
             </span> : null}
             <div className="genai-panel__output-count" aria-label="Output count">
-              <button type="button" onClick={() => onFieldChange?.(countKey, Math.max(countField?.minimum ?? 1, count - 1))}>−</button>
+              <ButtonBase type="button" onClick={() => onFieldChange?.(countKey, Math.max(countField?.minimum ?? 1, count - 1))}>−</ButtonBase>
               <strong>{count}/{countField?.maximum ?? 4}</strong>
-              <button type="button" onClick={() => onFieldChange?.(countKey, Math.min(countField?.maximum ?? 4, count + 1))}>+</button>
+              <ButtonBase type="button" onClick={() => onFieldChange?.(countKey, Math.min(countField?.maximum ?? 4, count + 1))}>+</ButtonBase>
             </div>
-            <ActionButton type="submit" disabled={!canGenerate || !onGenerate}>
+            <ActionButton type="submit" size="control" layout="fill"
+              disabled={!canGenerate || !onGenerate}>
               {generating ? 'Generating…' : 'Generate'}
             </ActionButton>
           </footer>

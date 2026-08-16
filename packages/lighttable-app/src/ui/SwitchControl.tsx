@@ -31,6 +31,7 @@ export const SwitchControl = forwardRef<HTMLButtonElement, SwitchControlProps>(
         title={label}
         disabled={disabled}
         className={rootClassName}
+        data-suite-control="switch-control"
         onClick={(event) => {
           props.onClick?.(event);
           if (!event.defaultPrevented) onCheckedChange(!checked);

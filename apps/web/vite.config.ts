@@ -9,13 +9,21 @@ const isolationHeaders = {
   'Permissions-Policy': 'cross-origin-isolated=(self)'
 };
 
+const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS === '1';
+
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false')
+  },
   plugins: [react()],
   // Resolve the workspace package as first-party source. Besides preserving
   // Vite-owned workers and asset globs, this keeps package CSS in the HMR graph
   // instead of hiding it behind npm's node_modules junction.
   resolve: {
     alias: {
+      '@lighttable/app/ui-devtools': fileURLToPath(
+        new URL('../../packages/lighttable-app/src/ui-devtools.ts', import.meta.url)
+      ),
       '@lighttable/app': fileURLToPath(
         new URL('../../packages/lighttable-app/src/index.ts', import.meta.url)
       ),

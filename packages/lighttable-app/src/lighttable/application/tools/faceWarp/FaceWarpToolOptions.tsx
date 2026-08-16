@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActionButton } from '../../../../ui/ActionButton';
 import { SegmentedControl } from '../../../../ui/SegmentedControl';
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
+import { FormSelect } from '../../../../ui/FormSelect';
 import type {
   FaceWarpFace,
   FaceWarpFeatureSide,
@@ -106,9 +107,9 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
       ]} /> : null}
     {faces.length > 0 && !reviewPending ? <label className="lighttable-tool-options__field">
       <span>Face</span>
-      <select value={selected?.id ?? ''} onChange={(event) => onSelectFace(event.currentTarget.value)}>
+      <FormSelect value={selected?.id ?? ''} onChange={(event) => onSelectFace(event.currentTarget.value)}>
         {faces.map((face, index) => <option key={face.id} value={face.id}>Face {index + 1}</option>)}
-      </select>
+      </FormSelect>
     </label> : null}
     <label className="lighttable-tool-options__toggle">
       <input type="checkbox" checked={meshVisible}
@@ -130,16 +131,16 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
     {selected && !reviewPending && mode === 'adjust' ? <>
       <label className="lighttable-tool-options__field">
         <span>Target</span>
-        <select value={semanticTarget}
+        <FormSelect value={semanticTarget}
           onChange={(event) => onSemanticTargetChange(event.currentTarget.value as FaceWarpSemanticTarget)}>
           <option value="both">Both sides</option>
           <option value="left">Left side</option>
           <option value="right">Right side</option>
-        </select>
+        </FormSelect>
       </label>
       <label className="lighttable-tool-options__field">
         <span>Protect</span>
-        <select value={protectedFeature}
+        <FormSelect value={protectedFeature}
           onChange={(event) => onProtectedFeatureChange(
             event.currentTarget.value as FaceWarpProtectedFeature
           )}>
@@ -147,7 +148,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
           <option value="lips">Lips</option>
           <option value="nose">Nose</option>
           <option value="face-outline">Face outline</option>
-        </select>
+        </FormSelect>
       </label>
       <label className="lighttable-tool-options__toggle">
         <input type="checkbox" checked={selected.protection?.[protectedFeature] === true}
@@ -156,7 +157,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
       </label>
       <label className="lighttable-tool-options__field">
         <span>Feature</span>
-        <select value={semanticFeature}
+        <FormSelect value={semanticFeature}
           onChange={(event) => setSemanticFeature(
             event.currentTarget.value as typeof semanticFeature
           )}>
@@ -164,7 +165,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
           <option value="eyes">Eye size</option>
           <option value="nose">Nose width</option>
           <option value="smile">Smile</option>
-        </select>
+        </FormSelect>
       </label>
       {semanticFeature === 'face' ? <SemanticSlider layout={adjustmentLayout} label="Amount"
         value={selected.parameters.faceWidth}

@@ -100,6 +100,7 @@ export const AnchoredViewportMenu: React.FC<{
       ref={menuRef}
       className={className}
       role="menu"
+      data-suite-control="anchored-menu"
       aria-label={ariaLabel}
       data-placement={position.placement}
       data-editor-floating-control

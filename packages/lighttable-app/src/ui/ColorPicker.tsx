@@ -107,7 +107,8 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
     const bounds = element.getBoundingClientRect();
     commitHsv({ h: hsv.h, s: clamp((x - bounds.left) / bounds.width), v: 1 - clamp((y - bounds.top) / bounds.height) });
   };
-  return <div className="lighttable-color-picker-prototype" role="dialog" aria-label="Color picker">
+  return <div className="lighttable-color-picker-prototype" role="dialog" aria-label="Color picker"
+    data-suite-control="color-picker">
     <div className="lighttable-color-picker-prototype__sv" role="slider" aria-label="Saturation and brightness"
       aria-valuetext={`${Math.round(hsv.s * 100)}% saturation, ${Math.round(hsv.v * 100)}% brightness`}
       tabIndex={0} style={{ '--lighttable-picker-hue': `hsl(${hsv.h} 100% 50%)` } as React.CSSProperties}

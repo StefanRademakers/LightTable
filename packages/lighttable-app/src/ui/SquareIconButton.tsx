@@ -19,7 +19,8 @@ export const SquareIconButton = forwardRef<HTMLButtonElement, SquareIconButtonPr
   ].filter(Boolean).join(' ');
 
   return (
-    <button ref={ref} type={type} className={rootClassName} {...props}>
+    <button ref={ref} type={type} className={rootClassName} {...props}
+      data-suite-control="square-icon-button">
       {icon}
     </button>
   );

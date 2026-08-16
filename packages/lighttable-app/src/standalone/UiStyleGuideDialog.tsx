@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { lightTableIcon } from '../assets/icons';
 import { ActionButton } from '../ui/ActionButton';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
 import { FormInput } from '../ui/FormInput';
+import { FormSelect } from '../ui/FormSelect';
 import { GradientField, type GradientFieldValue } from '../ui/GradientField';
 import { NonePaintField } from '../ui/NonePaintField';
 import { NumericExpressionInput } from '../ui/NumericExpressionInput';
@@ -12,7 +13,9 @@ import { SearchField } from '../ui/SearchField';
 import { SquareIconButton } from '../ui/SquareIconButton';
 import { SwitchControl } from '../ui/SwitchControl';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
+import type { UiInspectionTarget } from '../ui/uiInspection';
 import { UiColorPickerPrototype } from './UiColorPickerPrototype';
+import { UiCoverageSpecimen } from './UiCoverageSpecimen';
 import {
   ADJUSTMENT_DIALOG_SPECIMENS,
   photoshopShortcutForCurrentPlatform
@@ -48,6 +51,7 @@ export const UI_STYLE_GUIDE_CATEGORIES = [
   { id: 'lists', label: 'Lists & navigation' },
   { id: 'containers', label: 'Containers' },
   { id: 'layout', label: 'Layout & geometry' },
+  { id: 'coverage', label: 'Coverage & usage' },
   { id: 'feedback', label: 'Feedback' },
   { id: 'adjustments', label: 'Adjustment dialogs' },
   { id: 'dialogs', label: 'Dialogs' }
@@ -80,10 +84,17 @@ const Sample = ({ title, wide = false, children }: React.PropsWithChildren<{
 export interface UiStyleGuideDialogProps {
   readonly open: boolean;
   readonly onClose: () => void;
+  readonly inspection?: UiInspectionTarget | null;
+  readonly onShowInApp?: (controlId: string | null, auditId?: string) => void;
 }
 
 /** Live catalog of canonical controls; samples intentionally use production components. */
-export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, onClose }) => {
+export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
+  open,
+  onClose,
+  inspection = null,
+  onShowInApp
+}) => {
   const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLDivElement>(open, onClose);
   const [category, setCategory] = useState<StyleGuideCategory>('actions');
   const [enabled, setEnabled] = useState(true);
@@ -98,6 +109,10 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
   const [noneExpanded, setNoneExpanded] = useState(false);
   const [angle, setAngle] = useState(315);
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (open && inspection) setCategory('coverage');
+  }, [inspection, open]);
 
   if (!open) return null;
 
@@ -178,6 +193,11 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                   <ActionButton size="control" disabled>Disabled</ActionButton>
                   <ActionButton size="control" className="admin-table__danger">Destructive</ActionButton>
                 </Sample>
+                <Sample title="Layout participation is explicit">
+                  <div className="lighttable-ui-guide__fill-frame">
+                    <ActionButton size="control" layout="fill">Fill available width</ActionButton>
+                  </div>
+                </Sample>
               </> : null}
               {category === 'fields' ? <>
                 <Sample title="Standard control height · 28 px">
@@ -189,6 +209,14 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                 <Sample title="Text fields">
                   <FormInput aria-label="Text example" defaultValue="Layer name" />
                   <FormInput aria-label="Disabled text example" defaultValue="Unavailable" disabled />
+                </Sample>
+                <Sample title="Dropdown field">
+                  <FormSelect aria-label="Standard dropdown" value={select}
+                    onChange={(event) => setSelect(event.currentTarget.value)}>
+                    <option value="normal">Normal</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                  </FormSelect>
                 </Sample>
                 <Sample title="Search field">
                   <SearchField aria-label="Search example" placeholder="Search" value={search}
@@ -322,6 +350,9 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                   <UiLayoutGeometrySpecimens />
                 </Sample>
               </> : null}
+              {category === 'coverage' ? <Sample title="Canonical controls and customness signals" wide>
+                <UiCoverageSpecimen inspection={inspection} onShowInApp={onShowInApp} />
+              </Sample> : null}
               {category === 'feedback' ? <>
                 <Sample title="Notices">
                   <div className="lighttable-ui-guide__feedback-stack">

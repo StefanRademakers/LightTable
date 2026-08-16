@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { SwitchControl } from '../../../ui/SwitchControl';
@@ -36,9 +37,9 @@ export const GradientMapPropertiesPanel = ({ model, commands }: GradePanelProps)
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label"><strong>Gradient Map</strong></div>
           <div className="lighttable-group__actions">
-            <button type="button" className="lighttable-group__reset" onClick={commands.resetGradientMap} aria-label="Reset Gradient Map" title="Reset Gradient Map">
+            <ButtonBase type="button" className="lighttable-group__reset" onClick={commands.resetGradientMap} aria-label="Reset Gradient Map" title="Reset Gradient Map">
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
+            </ButtonBase>
           </div>
         </div>
       </section>

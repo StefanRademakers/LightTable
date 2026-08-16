@@ -26,6 +26,78 @@ need native buttons and selects internally. They become a design-system risk
 when a feature owns visual geometry, states or keyboard language that should
 belong to a shared family.
 
+The live inventory introduced on 16 August 2026 makes this snapshot
+repeatable. At that checkpoint it registered 23 canonical controls and 190
+production JSX instances. The packaged Style Guide runtime found 77 visible
+interactive elements without a canonical compound-control owner in the
+exercised document context, four canonical controls with remaining external
+CSS ownership and eight selectors at depth four or greater. These are triage
+inputs, not 77 asserted visual defects. The checked-in per-file baseline
+prevents new raw-control growth while existing cases are migrated deliberately.
+
+The first normalization pass later that day registers 25 catalog entries and
+354 product instances. All 137 formerly raw product buttons now route through
+`ButtonBase`, and all 27 formerly raw product selects route through
+`FormSelect`. The source audit consequently reports zero raw buttons and zero
+raw selects and rejects their reintroduction. `ButtonBase` intentionally stays
+provisional: it preserves existing feature surfaces while reducing the next
+review to one classified queue that can be promoted to Action, Icon, Menu item,
+Tab, or List-row variants. The Style Guide opens on the eleven controls that
+still need attention; fourteen approved controls and the full inventory remain
+available as secondary views.
+
+## Suite-level direction
+
+The target is a creative-suite UI library, not a LightTable screen-component
+package. Its visual and interaction language must serve photo, motion/video,
+layout/PDF and future sibling tools. LightTable remains the first real consumer
+and stress test, but document commands, Layers state, renderers and product
+workspaces do not enter the shared component package.
+
+The provisional package boundary is:
+
+```text
+@mediavibe/suite-ui
+  foundations and tokens
+  controls
+  patterns
+  layout contracts
+  React bindings
+
+@mediavibe/suite-ui-devtools
+  visual Style Guide
+  runtime inspector
+  usage and customness audit
+```
+
+The names are provisional; the ownership boundary is not. Component visuals
+and internal geometry stay with the component. Containers own flow, available
+space, clipping and placement. Product examples may consume the package but
+may not repair a specimen with descendant CSS.
+
+The canonical Style Guide should ultimately be a standalone development app
+owned beside the suite packages, so every sibling product evaluates the same
+catalog, matrices and audit data. Product applications may retain a thin
+embedded entry point such as LightTable's **View > UI Style Guide...**, but it
+must mount or link to that same catalog and add only a product usage adapter.
+It may not fork specimens or component CSS. Internal/dev builds can expose the
+full inspector; a public build may hide the catalog while retaining the exact
+same production controls.
+
+This produces one source with two useful surfaces:
+
+- standalone: suite-wide authoring, visual regression and package review;
+- embedded: active-product runtime counts, unregistered-control discovery and
+  navigation from a real control back to its canonical specimen.
+
+Canonical runtime metadata joins both debugging directions: the app can
+identify the exact public control and variant under the pointer, while the
+Style Guide can count and later highlight mounted instances of a manifest
+entry. The current milestone implements identity, live counting and
+unregistered-control detection. Pointer-to-guide navigation and persistent
+cross-surface highlighting are the next devtools layer and must consume the
+same metadata rather than introduce another registry.
+
 ## Canonical taxonomy
 
 | Family | Canonical production controls | Required catalog coverage |
@@ -189,6 +261,10 @@ application shell or domain model.
   and duplicated menu/list rows.
 - Exceptions name their semantic family and explain why an existing variant is
   insufficient.
+- New canonical controls require a manifest entry and stable
+  `data-suite-control` identity. New raw-control locations, increased raw
+  counts, deep-selector growth and external canonical-root overrides fail the
+  UI audit; regenerating inventory is not an exception path.
 - Layout regressions are component-contract failures, not feature-polish debt.
 - `npm run audit:ui-boundary` prevents UI-owned modules from importing the
   editor domain and prevents any feature stylesheet from selecting a UI-owned

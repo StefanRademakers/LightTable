@@ -1086,9 +1086,35 @@ export class WebGpuEngine {
   }
 
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {
-    const task = this.selectionQueue.then(() => (
-      this.documentRenderer?.transformSelection(matrix) ?? false
-    ));
+    const renderer = this.documentRenderer;
+    const documentId = this.imageDocument?.id ?? null;
+    const task = this.selectionQueue.then(async () => {
+      // Pointer moves are queued, while zoom/document transitions can replace
+      // the renderer before a queued move is encoded. Never submit work against
+      // a stale selection texture store.
+      if (
+        this.destroyed
+        || !renderer
+        || this.documentRenderer !== renderer
+        || (this.imageDocument?.id ?? null) !== documentId
+      ) return false;
+      this.device.pushErrorScope('validation');
+      let scopeOpen = true;
+      try {
+        const changed = renderer.transformSelection(matrix);
+        const validationError = await this.device.popErrorScope();
+        scopeOpen = false;
+        if (validationError) {
+          this.callbacks.onDeviceLost?.(
+            `LightTable selection transform validation failed: ${validationError.message}`
+          );
+          return false;
+        }
+        return changed;
+      } finally {
+        if (scopeOpen) await this.device.popErrorScope().catch(() => null);
+      }
+    });
     this.selectionQueue = task.then(() => undefined, () => undefined);
     return task;
   }

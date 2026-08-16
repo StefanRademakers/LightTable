@@ -25,7 +25,8 @@ export const PanelSection = ({
   onToggleClick,
   children
 }: PanelSectionProps) => (
-  <section className={`lighttable-group${className ? ` ${className}` : ''}`}>
+  <section className={`lighttable-group${className ? ` ${className}` : ''}`}
+    data-suite-control="panel-section">
     <div className="lighttable-group__header">
       <button
         type="button"

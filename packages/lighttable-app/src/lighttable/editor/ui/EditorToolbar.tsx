@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { ColorSwatchField } from '../../../ui/ColorSwatchField';
 import { lightTableIcon } from '../../../assets/icons';
@@ -49,7 +50,7 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   onClick,
   onDoubleClick
 }) => (
-  <button
+  <ButtonBase
     type="button"
     className={`lighttable-toolbox__button${detailed ? ' lighttable-toolbox__button--detailed' : ''}${active ? ' lighttable-toolbox__button--active' : ''}`}
     onMouseDown={onMouseDown}
@@ -67,7 +68,7 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
       <span className="lighttable-toolbox__button-label">{tool.label}</span>
       <span className="lighttable-toolbox__button-shortcut" aria-hidden="true">{tool.shortcutLabel ?? ''}</span>
     </> : null}
-  </button>
+  </ButtonBase>
 );
 
 interface ToolFamilySlotProps {
@@ -154,7 +155,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
           showFlyout();
         }}
       />
-      <button
+      <ButtonBase
         type="button"
         className="lighttable-toolbox__group-menu-button"
         aria-label={`Show ${label.toLowerCase()}`}
@@ -164,7 +165,7 @@ const ToolFamilySlot: React.FC<ToolFamilySlotProps> = ({
         title={`Show ${label.toLowerCase()}`}
         onMouseDown={showFlyout}
         onClick={showFlyout}
-      ><span aria-hidden="true" /></button>
+      ><span aria-hidden="true" /></ButtonBase>
       {flyoutVisible ? (
         <div
           id={flyoutId}
@@ -309,7 +310,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           />
         );
       })}
-      <button
+      <ButtonBase
         type="button"
         className={`lighttable-toolbox__button lighttable-toolbox__expand-all${expanded ? ' lighttable-toolbox__button--active' : ''}`}
         aria-expanded={expanded}
@@ -318,9 +319,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         onClick={() => setExpanded((current) => !current)}
       >
         <img src={lightTableIcon('more_horizontal.png')} alt="" aria-hidden="true" />
-      </button>
+      </ButtonBase>
       <div className="lighttable-toolbox__colors" aria-label="Foreground and background colors">
-        <button
+        <ButtonBase
           type="button"
           className="lighttable-toolbox__reset-colors"
           onClick={onResetColors}
@@ -329,8 +330,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <span />
           <span />
-        </button>
-        <button
+        </ButtonBase>
+        <ButtonBase
           type="button"
           className="lighttable-toolbox__swap-colors"
           onClick={onSwapColors}
@@ -338,7 +339,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           aria-label="Swap foreground and background colors"
         >
           ↔
-        </button>
+        </ButtonBase>
         <ColorSwatchField className="lighttable-toolbox__color lighttable-toolbox__color--background"
           size="chip" value={backgroundColor} onChange={onBackgroundColorChange}
           ariaLabel="Background color" />

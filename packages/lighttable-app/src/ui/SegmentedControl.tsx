@@ -36,7 +36,8 @@ export function SegmentedControl<T extends string>({
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={rootClass} role="radiogroup" aria-label={ariaLabel}>
+    <div className={rootClass} role="radiogroup" aria-label={ariaLabel}
+      data-suite-control="segmented-control">
       {options.map((option) => {
         const active = option.value === value;
         const buttonClass = [

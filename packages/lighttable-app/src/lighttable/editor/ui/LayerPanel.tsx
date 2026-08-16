@@ -1,8 +1,10 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { ContextMenu, type ContextMenuOption } from '../../../ui/ContextMenu';
 import { AnchoredViewportMenu } from '../../../ui/AnchoredViewportMenu';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
+import { FormSelect } from '../../../ui/FormSelect';
 import {
   layerSupportsContentCompositing,
   layerSupportsLayerStyles
@@ -37,7 +39,6 @@ import {
 } from './LocalProcessingTreeRows';
 import type { PropertiesInspectorTarget } from '../../application/properties/propertiesInspectorTarget';
 import {
-  ADJUSTMENT_LAYER_DEFINITIONS,
   adjustmentLayerMenuDefinitionGroups,
   adjustmentLayerDefinition,
   type AdjustmentLayerKind
@@ -488,21 +489,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const handleLayerTreeKeyDown = useLayerTreeKeyboardNavigation({ rows, selectionFor, setSelected: setSelectedLayerIds, selectionAnchor: selectionAnchorRef, activate: (layerId) => { onSelect(layerId); onChannelChange('pixels'); onInspectLayer(layerId, 'pixels'); }, toggleVisibility: onVisibility, beginRename: (layerId) => { setRenamingLayerId(layerId); requestAnimationFrame(() => globalThis.document.getElementById(`lighttable-layer-name-${layerId}`)?.focus()); }, editText: onEditText, openContextMenu: (x, y) => setMoreMenu({ open: true, x, y, source: 'context' }) });
 
   const moreMenuOptions: Array<ContextMenuOption<string>> = [
-    { value: 'new-layer', label: 'New layer', onClick: onCreate },
-    { value: 'new-adjustment', label: 'New Grade layer', onClick: onCreateAdjustment },
-    { value: 'new-lens-fx', label: 'New Lens Fx layer', onClick: onCreateLensFx },
-    ...ADJUSTMENT_LAYER_DEFINITIONS
-      .filter(({ family, creationVisible }) => family === 'photoshop' && creationVisible !== false)
-      .map((definition) => ({
-        value: `new-${definition.id}-adjustment`,
-        label: `New ${definition.name} adjustment layer`,
-        onClick: () => onCreateAdjustmentKind(definition.id)
-      })),
-    { value: 'new-group', label: 'New group', onClick: onCreateGroup },
+    ...(moreMenu.source === 'footer' ? [
+      { value: 'new-layer', label: 'New layer', onClick: onCreate },
+      { value: 'new-group', label: 'New group', onClick: onCreateGroup }
+    ] : []),
     {
       value: 'duplicate-layer',
       label: 'Duplicate Layer',
-      separatorBefore: true,
+      separatorBefore: moreMenu.source === 'footer',
       disabled: !canDuplicateActiveLayer,
       onClick: onDuplicate
     },
@@ -652,7 +646,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       {activeLayer ? (
         <>
           <div className="lighttable-layers__blend-lock-row">
-            <select
+            <FormSelect
               className="lighttable-layers__blend-mode"
               aria-label="Layer blend mode"
               value={activeLayer.type === 'group' ? 'pass-through' : activeLayer.blendMode}
@@ -669,7 +663,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               {activeLayer.type === 'group'
                 ? <option value="pass-through">Pass Through</option>
                 : BLEND_MODES.map((mode) => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
-            </select>
+            </FormSelect>
             <div className="lighttable-layers__locks" aria-label="Layer locks">
             {([
               ['transparency', 'lock_transparent_pixels.png', 'Lock transparent pixels'],
@@ -677,7 +671,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               ['position', 'lock_position.png', 'Lock position'],
               ['all', 'lock_closed.png', 'Lock all']
             ] as const).map(([lock, icon, label]) => (
-              <button
+              <ButtonBase
                 key={lock}
                 type="button"
                 className={activeLayer.locks[lock] ? 'lighttable-layers__lock-toggle--active' : ''}
@@ -688,7 +682,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 aria-label={activeLayer.locks[lock] ? label.replace('Lock', 'Unlock') : label}
               >
                 <img src={lightTableIcon(icon)} alt="" aria-hidden="true" />
-              </button>
+              </ButtonBase>
             ))}
             </div>
           </div>
@@ -856,7 +850,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             }}
           >
             {canToggleClipping ? (
-              <button
+              <ButtonBase
                 type="button"
                 className={`lighttable-layer__clipping-boundary${
                   clippingBoundaryHoverLayerId === layer.id
@@ -887,7 +881,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 }}
               />
             ) : null}
-            <button
+            <ButtonBase
               type="button"
               className="lighttable-layer__visibility"
               onClick={(event) => {
@@ -896,9 +890,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               }}
               aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
               title={layer.visible ? 'Hide layer' : 'Show layer'}
-            ><img src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')} alt="" /></button>
+            ><img src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
             {layer.type === 'group' ? (
-              <button
+              <ButtonBase
                 type="button"
                 className="lighttable-layer__disclosure"
                 onClick={(event) => {
@@ -917,7 +911,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   src={lightTableIcon(collapsedGroups.has(layer.id) ? 'area_closed.png' : 'area_open.png')}
                   alt=""
                 />
-              </button>
+              </ButtonBase>
             ) : null}
             {layer.clipping ? (
               <span
@@ -929,7 +923,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               </span>
             ) : null}
             <span className="lighttable-layer__thumbnail-slot">
-              <button
+              <ButtonBase
                 type="button"
                 style={thumbnailDimensions}
                 className={[
@@ -983,11 +977,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 ) : layer.type === 'text' ? (
                   <span className="lighttable-layer__text-icon" aria-hidden="true">T</span>
                 ) : null}
-              </button>
+              </ButtonBase>
             </span>
             {layer.mask ? (
               <>
-                <button
+                <ButtonBase
                   type="button"
                   className={`lighttable-layer__mask-link${layer.mask.linked ? ' lighttable-layer__mask-link--linked' : ''}`}
                   onClick={(event) => {
@@ -1001,9 +995,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   {layer.mask.linked ? (
                     <img src={lightTableIcon('link_vertical.png')} alt="" aria-hidden="true" />
                   ) : null}
-                </button>
+                </ButtonBase>
                 <span className="lighttable-layer__thumbnail-slot">
-                <button
+                <ButtonBase
                   type="button"
                   draggable
                   style={thumbnailDimensions}
@@ -1061,7 +1055,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       alt=""
                     />
                   ) : null}
-                </button>
+                </ButtonBase>
                 </span>
               </>
             ) : null}
@@ -1151,7 +1145,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               {layer.locks.all ? <img className="lighttable-layer__lock" src={lightTableIcon('lock_closed.png')} alt="Locked" /> : null}
             </span>
             {layer.type !== 'group' && hasExpandableChildren ? (
-              <button
+              <ButtonBase
                 type="button"
                 className={`lighttable-layer__disclosure lighttable-layer__disclosure--trailing${
                   childrenExpanded ? '' : ' lighttable-layer__disclosure--collapsed'
@@ -1171,7 +1165,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 title={childrenExpanded ? 'Collapse processing and effects' : 'Expand processing and effects'}
               >
                 <img src={lightTableIcon('chevron_layer.png')} alt="" />
-              </button>
+              </ButtonBase>
             ) : null}
           </div>
           {childrenExpanded ? (
@@ -1269,18 +1263,18 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         'Effects'
                       );
                     }}>
-                    <button
+                    <ButtonBase
                       type="button"
                       className="lighttable-layer-effect__visibility"
                       onClick={() => onStyleStackEnabled(layer.id, !layer.styleStack.enabled)}
                       title={layer.styleStack.enabled ? 'Hide all layer effects' : 'Show all layer effects'}
                       aria-label={layer.styleStack.enabled ? 'Hide all layer effects' : 'Show all layer effects'}
-                    ><img src={lightTableIcon(layer.styleStack.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></button>
-                    <button type="button" onClick={() => {
+                    ><img src={lightTableIcon(layer.styleStack.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
+                    <ButtonBase type="button" onClick={() => {
                       onSelect(layer.id);
                       onChannelChange('pixels');
                       onEditStyles(layer.id);
-                    }}>Effects</button>
+                    }}>Effects</ButtonBase>
                   </div>
                   {[...visibleStyleEffects].reverse().map((effect) => (
                     <div className={`lighttable-layer-effect${
@@ -1311,18 +1305,18 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                           effect.name
                         );
                       }}>
-                      <button
+                      <ButtonBase
                         type="button"
                         className="lighttable-layer-effect__visibility"
                         onClick={() => onStyleEnabled(layer.id, effect.id, !effect.enabled)}
                         title={effect.enabled ? `Hide ${effect.name}` : `Show ${effect.name}`}
                         aria-label={effect.enabled ? `Hide ${effect.name}` : `Show ${effect.name}`}
-                      ><img src={lightTableIcon(effect.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></button>
-                      <button type="button" onClick={() => {
+                      ><img src={lightTableIcon(effect.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
+                      <ButtonBase type="button" onClick={() => {
                         onSelect(layer.id);
                         onChannelChange('pixels');
                         onEditStyles(layer.id, effect.id);
-                      }}>{effect.name}</button>
+                      }}>{effect.name}</ButtonBase>
                     </div>
                   ))}
                 </>
@@ -1334,7 +1328,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         })}
       </div>
       <footer className="lighttable-layers__footer">
-        <button
+        <ButtonBase
           type="button"
           className="lighttable-layers__fx-button"
           onClick={() => {
@@ -1343,8 +1337,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           disabled={!canEditActiveLayerStyles}
           title={canEditActiveLayerStyles ? 'Open layer effects' : 'Select a layer that supports effects'}
           aria-label="Add layer style"
-        >fx</button>
-        <button
+        >fx</ButtonBase>
+        <ButtonBase
           type="button"
           onClick={() => {
             if (selectedIds.length) onGroupSelection(selectedIds);
@@ -1353,8 +1347,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           disabled={selectedIds.length > 0 && !canGroupSelection}
           title={selectedIds.length ? 'Group selected layers' : 'New group'}
           aria-label={selectedIds.length ? 'Group selected layers' : 'New group'}
-        ><img src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></button>
-        <button
+        ><img src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></ButtonBase>
+        <ButtonBase
           type="button"
           onClick={onAddMask}
           disabled={
@@ -1364,11 +1358,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           }
           title="Add layer mask"
           aria-label="Add layer mask"
-        ><img src={lightTableIcon('add_mask.png')} alt="" aria-hidden="true" /></button>
+        ><img src={lightTableIcon('add_mask.png')} alt="" aria-hidden="true" /></ButtonBase>
         <div
           className="lighttable-layers__create-menu"
         >
-          <button
+          <ButtonBase
             ref={createLayerMenuTriggerRef}
             type="button"
             className="lighttable-layers__create-menu-trigger"
@@ -1377,7 +1371,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             aria-label="New fill or processing layer"
             aria-haspopup="menu"
             aria-expanded={createLayerMenuOpen}
-          ><img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /></button>
+          ><img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /></ButtonBase>
           {createLayerMenuOpen ? (
             <AnchoredViewportMenu
               anchor={createLayerMenuTriggerRef}
@@ -1395,7 +1389,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   role="none"
                   key={option.id}
                 >
-                  <button
+                  <ButtonBase
                     className="lighttable-layers__create-layer"
                     type="button"
                     role="menuitem"
@@ -1408,9 +1402,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   >
                     <img src={lightTableIcon(option.iconName)} alt="" aria-hidden="true" />
                     <span>{option.menuLabel}</span>
-                  </button>
+                  </ButtonBase>
                   {option.id !== 'gradient-fill' ? (
-                    <button
+                    <ButtonBase
                       className="lighttable-layers__create-attached"
                       type="button"
                       role="menuitem"
@@ -1433,20 +1427,20 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       }}
                       title={`Attach ${option.menuLabel} to selected layer`}
                       aria-label={`Attach ${option.menuLabel} to selected layer`}
-                    ><img src={lightTableIcon('link_vertical.png')} alt="" aria-hidden="true" /></button>
+                    ><img src={lightTableIcon('link_vertical.png')} alt="" aria-hidden="true" /></ButtonBase>
                   ) : null}
                 </div>
               ))}
             </AnchoredViewportMenu>
           ) : null}
         </div>
-        <button
+        <ButtonBase
           type="button"
           onClick={onCreate}
           title="New raster layer"
           aria-label="New raster layer"
-        ><img src={lightTableIcon('add_layer.png')} alt="" aria-hidden="true" /></button>
-        <button
+        ><img src={lightTableIcon('add_layer.png')} alt="" aria-hidden="true" /></ButtonBase>
+        <ButtonBase
           type="button"
           className={trashDropActive ? 'lighttable-layers__trash--drop-active' : undefined}
           onClick={() => deleteTreeTarget(selectedDeleteTarget())}
@@ -1507,8 +1501,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           }}
           title="Delete selected layer item"
           aria-label="Delete selected layer item"
-        ><img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></button>
-        <button
+        ><img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></ButtonBase>
+        <ButtonBase
           type="button"
           onClick={(event) => {
             const bounds = event.currentTarget.getBoundingClientRect();
@@ -1522,7 +1516,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           }}
           title="Layers menu"
           aria-label="Layers menu"
-        ><img src={lightTableIcon('more_menu.png')} alt="" aria-hidden="true" /></button>
+        ><img src={lightTableIcon('more_menu.png')} alt="" aria-hidden="true" /></ButtonBase>
       </footer>
       <ContextMenu
         open={moreMenu.open}

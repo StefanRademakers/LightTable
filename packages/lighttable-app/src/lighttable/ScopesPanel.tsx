@@ -1,3 +1,4 @@
+import { ButtonBase } from '../ui/ButtonBase';
 import React from 'react';
 import { SegmentedControl, type SegmentedControlOption } from '../ui/SegmentedControl';
 import { SwitchControl } from '../ui/SwitchControl';
@@ -44,7 +45,7 @@ interface ScopeSectionProps {
 const ScopeSection: React.FC<ScopeSectionProps> = ({ title, visible, onVisibleChange, children }) => (
   <section className={`lighttable-scope${visible ? '' : ' lighttable-scope--collapsed'}`}>
     <div className="lighttable-scope__header">
-      <button
+      <ButtonBase
         type="button"
         className="lighttable-scope__toggle"
         onClick={() => onVisibleChange(!visible)}
@@ -52,7 +53,7 @@ const ScopeSection: React.FC<ScopeSectionProps> = ({ title, visible, onVisibleCh
       >
         <img src={lightTableIcon(visible ? 'area_open.png' : 'area_closed.png')} alt="" aria-hidden="true" />
         <strong>{title}</strong>
-      </button>
+      </ButtonBase>
       <SwitchControl
         checked={visible}
         onCheckedChange={onVisibleChange}

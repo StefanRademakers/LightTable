@@ -2,6 +2,7 @@ import React from 'react';
 import { AdjustmentSlider } from './AdjustmentSlider';
 import { ColorSwatchField } from './ColorSwatchField';
 import { ActionButton } from './ActionButton';
+import { FormSelect } from './FormSelect';
 
 export interface PanelColor {
   readonly r: number;
@@ -30,14 +31,14 @@ export const PanelSelectField: React.FC<{
   labelWidth?: string;
   onChange: (value: string) => void;
 }> = ({ label, value, options, labelWidth, onChange }) => (
-  <label className="lighttable-style-field"
+  <label className="lighttable-style-field" data-suite-control="panel-select"
     style={labelWidth ? { '--lt-property-label-width': labelWidth } as React.CSSProperties : undefined}>
     <span>{label}</span>
-    <select value={value} onChange={(event) => onChange(event.currentTarget.value)}>
+    <FormSelect value={value} onChange={(event) => onChange(event.currentTarget.value)}>
       {options.map((option) => (
         <option key={option.value} value={option.value}>{option.label}</option>
       ))}
-    </select>
+    </FormSelect>
   </label>
 );
 
@@ -66,6 +67,7 @@ export const PanelFileField: React.FC<{
   };
   return (
     <div className="lighttable-style-field lighttable-file-field" title={title}
+      data-suite-control="panel-file"
       onDragEnter={(event) => { event.preventDefault(); event.stopPropagation(); }}
       onDragOver={(event) => {
         event.preventDefault();
@@ -94,7 +96,7 @@ export const PanelCheckboxField: React.FC<{
   checked: boolean;
   onChange: (checked: boolean) => void;
 }> = ({ label, checked, onChange }) => (
-  <label className="lighttable-style-toggle">
+  <label className="lighttable-style-toggle" data-suite-control="panel-checkbox">
     <input type="checkbox" checked={checked}
       onChange={(event) => onChange(event.currentTarget.checked)} />
     <span>{label}</span>
@@ -207,7 +209,7 @@ export const PanelAngleControl: React.FC<{
     if (Math.hypot(x, y) >= 1) previewValue(Math.atan2(-y, x) * 180 / Math.PI);
   };
 
-  return <div className="lighttable-style-angle">
+  return <div className="lighttable-style-angle" data-suite-control="panel-angle">
     <span className="lighttable-style-angle__controls">
       <div ref={dialRef} className="lighttable-style-angle__dial" role="slider" tabIndex={0}
         aria-label={label} aria-valuemin={0} aria-valuemax={359}
@@ -254,7 +256,8 @@ export const PanelAngleControl: React.FC<{
 export const PanelAdvancedDisclosure: React.FC<React.PropsWithChildren<{
   edge?: 'contained' | 'panel-bleed';
 }>> = ({ children, edge = 'contained' }) => (
-  <details className={`lighttable-style-advanced lighttable-style-advanced--${edge}`}>
+  <details className={`lighttable-style-advanced lighttable-style-advanced--${edge}`}
+    data-suite-control="advanced-disclosure">
     <summary>Advanced</summary>
     <div className="lighttable-style-advanced__content">{children}</div>
   </details>

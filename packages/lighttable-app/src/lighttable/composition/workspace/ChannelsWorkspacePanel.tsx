@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useMemo } from 'react';
 import type {
   ImageDocument,
@@ -84,7 +85,7 @@ export const ChannelsWorkspacePanel: React.FC<ChannelsWorkspacePanelProps> = ({
             ? !isolatedCompositeChannel && !isolatedMaskLayerId
             : isolatedCompositeChannel === channel.id && !isolatedMaskLayerId;
           return (
-            <button
+            <ButtonBase
               className={`lighttable-channel-row${active ? ' lighttable-channel-row--active' : ''}`}
               key={channel.id}
               onClick={(event) => {
@@ -106,7 +107,7 @@ export const ChannelsWorkspacePanel: React.FC<ChannelsWorkspacePanelProps> = ({
                 aria-hidden="true"
               />
               <span className="lighttable-channel-row__label">{channel.label}</span>
-            </button>
+            </ButtonBase>
           );
         })}
         {masks.length ? (
@@ -116,7 +117,7 @@ export const ChannelsWorkspacePanel: React.FC<ChannelsWorkspacePanelProps> = ({
           const preview = thumbnails.get(mask.id)?.mask;
           const active = isolatedMaskLayerId === mask.id;
           return (
-            <button
+            <ButtonBase
               className={`lighttable-channel-row${active ? ' lighttable-channel-row--active' : ''}`}
               key={mask.id}
               onClick={(event) => {
@@ -137,7 +138,7 @@ export const ChannelsWorkspacePanel: React.FC<ChannelsWorkspacePanelProps> = ({
                 {preview ? <img alt="" src={preview.url} /> : null}
               </span>
               <span className="lighttable-channel-row__label">{mask.name} Mask</span>
-            </button>
+            </ButtonBase>
           );
         })}
       </div>

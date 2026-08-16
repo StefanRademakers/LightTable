@@ -150,7 +150,8 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
   };
 
   return (
-    <span className={`color-swatch-field color-swatch-field--${size}${className ? ` ${className}` : ''}`}>
+    <span className={`color-swatch-field color-swatch-field--${size}${className ? ` ${className}` : ''}`}
+      data-suite-control="color-swatch" data-suite-variant={`${size}:${accessory}`}>
       <button ref={triggerRef} type="button" className="color-swatch-field__well"
         style={{ backgroundColor: value }} disabled={disabled} aria-label={ariaLabel}
         aria-haspopup="dialog" aria-expanded={presentedOpen} onClick={togglePicker} />

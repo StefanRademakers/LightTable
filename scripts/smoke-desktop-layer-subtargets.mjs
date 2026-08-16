@@ -49,6 +49,23 @@ try {
   const layer = (await driver.queryLayers(documentId))?.[0];
   if (!layer) throw new Error('The generated document has no raster layer.');
 
+  const layerRow = page.locator(`[data-layer-id="${layer.id}"]`);
+  await layerRow.click({ button: 'right' });
+  const contextMenu = page.getByRole('menu');
+  await contextMenu.waitFor({ state: 'visible' });
+  const layerContextItems = await contextMenu.getByRole('menuitem').allTextContents();
+  const misplacedCreationItems = layerContextItems.filter((label) =>
+    /^New (?:Grade|Lens Fx|.+ adjustment) layer$/i.test(label)
+    || label === 'New layer'
+    || label === 'New group'
+  );
+  if (misplacedCreationItems.length) {
+    throw new Error(`Layer context menu contains creation catalog items: ${JSON.stringify(misplacedCreationItems)}`);
+  }
+  await page.screenshot({ path: path.join(output, 'layer-context-menu.png') });
+  await page.keyboard.press('Escape');
+  await contextMenu.waitFor({ state: 'detached' });
+
   const exposure = page.getByRole('slider', { name: 'Exposure', exact: true });
   await exposure.waitFor({ state: 'visible' });
   await exposure.focus();
@@ -102,6 +119,7 @@ try {
     layerId: layer.id,
     contextRemoval: ['grade', 'drop-shadow'],
     trashRemoval: ['grade', 'drop-shadow'],
+    layerContextItems,
     parentLayerPreserved: true,
     pageErrors
   }, null, 2)}\n`);

@@ -14,7 +14,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
 ) {
   const rootClassName = className ? `lighttable-search-field ${className}` : 'lighttable-search-field';
   const hasValue = String(value ?? '').length > 0;
-  return <div className={rootClassName}>
+  return <div className={rootClassName} data-suite-control="search-field">
     <img src={lightTableIcon('search.png')} alt="" aria-hidden="true" />
     <input ref={ref} type="search" value={value} {...props} />
     {hasValue && onClear ? <button type="button" className="lighttable-search-field__clear"

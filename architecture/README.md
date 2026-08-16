@@ -63,6 +63,7 @@ the task genuinely spans every system.
 - [Product UX inspiration and capability gaps](PRODUCT_UX_INSPIRATION_AND_GAPS.md)
 - [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
 - [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
+- [Build and distribution](contracts/BUILD_AND_DISTRIBUTION.md)
 - [Accessibility, keyboard and focus](ACCESSIBILITY_KEYBOARD_AND_FOCUS.md)
 - [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
 - [Privacy and support diagnostics](PRIVACY_AND_SUPPORT_DIAGNOSTICS.md)

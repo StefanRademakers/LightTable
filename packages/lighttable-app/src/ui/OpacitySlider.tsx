@@ -8,7 +8,7 @@ export const OpacitySlider: React.FC<{
   label?: string;
   ariaLabel?: string;
 }> = ({ value, color, onChange, label = 'Opacity', ariaLabel = 'Color opacity' }) => (
-  <div className="opacity-slider">
+  <div className="opacity-slider" data-suite-control="opacity-slider">
     <AdjustmentSlider label={label} ariaLabel={ariaLabel} layout="inline"
       value={value * 100} min={0} max={100} resetValue={100}
       format={(current) => `${Math.round(current)}%`}

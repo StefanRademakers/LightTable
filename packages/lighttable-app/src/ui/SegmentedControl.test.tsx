@@ -19,6 +19,7 @@ describe('SegmentedControl', () => {
 
     expect(markup).toContain('segmented-control segmented-control--low-attention');
     expect(markup).toContain('role="radiogroup"');
+    expect(markup).toContain('data-suite-control="segmented-control"');
     expect(markup).toContain('aria-checked="true"');
   });
 

@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useMemo, useState } from 'react';
 import {
   formatLightTableDebugLog,
@@ -9,6 +10,7 @@ import type { TextRenderPresentationSnapshot } from '../../application/rendering
 import type { SupportDiagnosticArtifact, SupportDiagnosticOptions } from '../../application/diagnostics/supportDiagnosticBundle';
 import type { WebGpuSupportTier } from '../../gpu/webGpuSupportTier';
 import { useLocalBetaDiagnostics } from '../hooks/useLocalBetaDiagnostics';
+import { FormSelect } from '../../../ui/FormSelect';
 
 interface DebugPanelProps {
   messages: readonly LightTableDebugMessage[];
@@ -198,13 +200,13 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           Include document filename
         </label>
         <div className="lighttable-debug-panel__actions">
-          <button type="button" onClick={() => void collectSupportArtifact()} disabled={supportState === 'collecting'}>
+          <ButtonBase type="button" onClick={() => void collectSupportArtifact()} disabled={supportState === 'collecting'}>
             {supportState === 'collecting' ? 'Collecting...' : 'Preview'}
-          </button>
-          <button type="button" onClick={() => void copySupportSummary()}>Copy summary</button>
-          <button type="button" onClick={() => void exportSupportBundle()} disabled={!onExportSupportDiagnostics || supportState === 'collecting'}>
+          </ButtonBase>
+          <ButtonBase type="button" onClick={() => void copySupportSummary()}>Copy summary</ButtonBase>
+          <ButtonBase type="button" onClick={() => void exportSupportBundle()} disabled={!onExportSupportDiagnostics || supportState === 'collecting'}>
             Export bundle
-          </button>
+          </ButtonBase>
         </div>
         {supportState === 'exported' ? <small role="status">Diagnostic bundle exported.</small> : null}
         {supportState === 'failed' ? <small role="alert">Diagnostic collection or export failed.</small> : null}
@@ -238,8 +240,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           {dockResizeActive ? ' Currently paused.' : ''}
         </small>
         <div className="lighttable-debug-panel__actions">
-          <button type="button" onClick={onCaptureRenderTelemetry}>Capture render stats</button>
-          <button type="button" onClick={onResetRenderTelemetry}>Reset render stats</button>
+          <ButtonBase type="button" onClick={onCaptureRenderTelemetry}>Capture render stats</ButtonBase>
+          <ButtonBase type="button" onClick={onResetRenderTelemetry}>Reset render stats</ButtonBase>
         </div>
       </fieldset>
       <fieldset className="lighttable-debug-panel__diagnostics">
@@ -269,29 +271,29 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           </details>
         ) : null}
         <div className="lighttable-debug-panel__actions">
-          <button
+          <ButtonBase
             type="button"
             onClick={onProbeTextEngine}
             disabled={textEngineStatus === 'loading'}
           >
             {textEngineStatus === 'loading' ? 'Loading text engine...' : 'Probe text engine'}
-          </button>
-          <button
+          </ButtonBase>
+          <ButtonBase
             type="button"
             onClick={onRunTextCorpus}
             disabled={textEngineStatus === 'loading' || !textCorpusAvailable}
             title={textCorpusAvailable ? undefined : 'Corpus fixtures are development-only.'}
           >
             Run typography corpus
-          </button>
-          <button
+          </ButtonBase>
+          <ButtonBase
             type="button"
             onClick={onRunTextRendererBakeoff}
             disabled={textRendererStatus === 'loading' || !textCorpusAvailable}
             title={textCorpusAvailable ? undefined : 'Renderer fixtures are development-only.'}
           >
             {textRendererStatus === 'loading' ? 'Running renderer bakeoff...' : 'Run renderer bakeoff'}
-          </button>
+          </ButtonBase>
         </div>
         {textRendererPhase ? <small role="status">Renderer: {textRendererPhase}</small> : null}
         <label>
@@ -370,14 +372,14 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
             <summary>GPU renderer bakeoff report</summary>
             <label>
               Renderer view
-              <select
+              <FormSelect
                 value={rendererView}
                 onChange={(event) => setRendererView(event.currentTarget.value as typeof rendererView)}
               >
                 <option value="coverage-atlas">Coverage atlas</option>
                 <option value="hb-gpu">hb-gpu</option>
                 <option value="side-by-side">Side by side</option>
-              </select>
+              </FormSelect>
             </label>
             <dl>
               <dt>Coverage atlas</dt><dd>{textRendererReport.decision.coverageAtlas}</dd>
@@ -400,10 +402,10 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
           {messages.length} messages · {summary.warnings} warnings · {summary.errors} errors
         </span>
         <div className="lighttable-debug-panel__actions">
-          <button type="button" onClick={onClear} disabled={!messages.length}>Clear</button>
-          <button type="button" onClick={() => void copyAll()} disabled={!messages.length}>
+          <ButtonBase type="button" onClick={onClear} disabled={!messages.length}>Clear</ButtonBase>
+          <ButtonBase type="button" onClick={() => void copyAll()} disabled={!messages.length}>
             {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy all'}
-          </button>
+          </ButtonBase>
         </div>
       </header>
       <div className="lighttable-debug-panel__messages" role="log" aria-live="polite">

@@ -5,8 +5,21 @@ import ReactDOM from 'react-dom/client';
 import { LightTableStandaloneApp } from '@lighttable/app';
 import './web.css';
 
+const uiDevtoolsEnabled = import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS === 'true';
+const UiInspectorHost = uiDevtoolsEnabled
+  ? React.lazy(() => import('@lighttable/app/ui-devtools').then((module) => ({
+      default: module.UiInspectorHost
+    })))
+  : null;
+const openUiStyleGuide = uiDevtoolsEnabled
+  ? () => { void import('@lighttable/app/ui-devtools').then((module) => module.requestUiStyleGuide()); }
+  : undefined;
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <LightTableStandaloneApp />
+    <LightTableStandaloneApp onOpenStyleGuide={openUiStyleGuide} />
+    {UiInspectorHost ? (
+      <React.Suspense fallback={null}><UiInspectorHost /></React.Suspense>
+    ) : null}
   </React.StrictMode>
 );

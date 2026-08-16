@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../ui/ButtonBase';
 import React from 'react';
 import type { GenAiAssetId, GenAiAssetReference, GenAiGenerationJob, GenAiProjectAssetSection } from '@lighttable/genai-core';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
@@ -277,11 +278,11 @@ export const ProjectAssetBrowser = ({ jobs, assets, sections = [], loading = fal
           const rightTime = rightJob?.updatedAt ?? (Date.parse(right.modifiedAt ?? '') || 0);
           return rightTime - leftTime || left.label.localeCompare(right.label);
         }) : sectionAssets;
-        return <PanelSection key={name} label={name} expanded={expanded} actions={onRefreshAssets ? <button
+        return <PanelSection key={name} label={name} expanded={expanded} actions={onRefreshAssets ? <ButtonBase
           type="button" className="lighttable-group__reset" aria-label={`Rescan ${name}`}
           title="Rescan project folders" onClick={() => void run(onRefreshAssets)}>
           <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-        </button> : undefined} onExpandedChange={(nextExpanded) => setOpenSections((current) => {
+        </ButtonBase> : undefined} onExpandedChange={(nextExpanded) => setOpenSections((current) => {
           if (searching) return current;
           const next = new Set(current); if (nextExpanded) next.add(name); else next.delete(name); return next;
         })}>

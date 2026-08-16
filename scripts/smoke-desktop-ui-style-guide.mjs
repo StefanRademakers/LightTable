@@ -54,6 +54,8 @@ try {
       '.lighttable-ui-guide__toolbar-group', '.lighttable-ui-guide__popover-specimen'],
     'Layout & geometry': ['.lighttable-ui-guide__spacing-scale',
       '.lighttable-ui-guide__property-widths', '.lighttable-ui-guide__workspace-geometry'],
+    'Coverage & usage': ['.lighttable-ui-coverage__summary',
+      '.lighttable-ui-coverage__table', '.lighttable-ui-coverage__candidates'],
     Feedback: ['.lighttable-style-notice', '.lighttable-ui-guide__feedback--success',
       '.lighttable-ui-guide__feedback--error', '.lighttable-panel__empty'],
     'Adjustment dialogs': ['.lighttable-adjustment-dialog', '.lighttable-curves-editor',
@@ -89,7 +91,7 @@ try {
       }
     }
     if (category === 'Fields') {
-      await dialog.locator('select').focus();
+      await dialog.locator('select').first().focus();
       await dialog.screenshot({ path: path.join(output, 'fields-select-focus.png') });
       const field = dialog.locator('.form-input').first();
       const restingBorderColor = await field.evaluate((element) => getComputedStyle(element).borderColor);
@@ -174,6 +176,17 @@ try {
         throw new Error(`Layout geometry drifted: ${JSON.stringify(layoutGeometry)}`);
       }
     }
+    if (category === 'Coverage & usage') {
+      await dialog.getByRole('radio', { name: 'Non-standard', exact: true }).click();
+      await dialog.locator('.lighttable-ui-coverage__entry').filter({ hasText: 'Button Base' })
+        .waitFor({ state: 'visible' });
+      const openCandidateGroups = await dialog.locator(
+        '.lighttable-ui-coverage__candidates details[open]'
+      ).count();
+      if (openCandidateGroups < 1) {
+        throw new Error('Non-standard view did not expose its live/source candidates.');
+      }
+    }
     if (category === 'Adjustment dialogs') {
       const adjustmentNames = await dialog.locator('.lighttable-ui-guide__sample > h5').allTextContents();
       if (adjustmentNames.length !== 18
@@ -190,10 +203,48 @@ try {
     }
     const categorySlug = category.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-|-$/g, '');
     await dialog.screenshot({ path: path.join(output, `${categorySlug}.png`) });
+    if (category === 'Coverage & usage') {
+      const unidentified = dialog.locator('.lighttable-ui-coverage__runtime-candidate');
+      if (await unidentified.count() < 1) {
+        throw new Error('Non-standard view did not group any unidentified live controls.');
+      }
+      await unidentified.first().getByRole('button', { name: 'Show in app', exact: true }).click();
+      await dialog.waitFor({ state: 'detached' });
+      const unidentifiedHud = page.getByRole('complementary', { name: 'UI control inspector' });
+      await unidentifiedHud.waitFor({ state: 'visible' });
+      if (await page.locator('[data-suite-inspector-current="true"]').count() !== 1) {
+        throw new Error('Unidentified control did not resolve back to one live DOM surface.');
+      }
+      await page.screenshot({ path: path.join(output, 'unidentified-control-in-app.png') });
+      await unidentifiedHud.getByRole('button', { name: 'Style Guide', exact: true }).click();
+      await dialog.waitFor({ state: 'visible' });
+    }
   }
   await dialog.locator(':scope > .lighttable-preferences__footer')
     .getByRole('button', { name: 'Close', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
+
+  const inspectTarget = page.locator('[data-suite-control="button-base"]:visible').first();
+  await inspectTarget.click({ modifiers: ['Control', 'Shift', 'Alt'] });
+  await dialog.waitFor({ state: 'visible' });
+  await dialog.getByRole('heading', { name: 'Coverage & usage', exact: true }).waitFor();
+  const inspection = dialog.getByRole('complementary', { name: 'Inspected application control' });
+  await inspection.getByText(/button-base/).waitFor();
+  await dialog.locator('.lighttable-ui-coverage__entry.is-inspected').waitFor();
+  await dialog.screenshot({ path: path.join(output, 'two-way-inspector-guide.png') });
+  await inspection.getByRole('button', { name: 'Show in app', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  const inspectorHud = page.getByRole('complementary', { name: 'UI control inspector' });
+  await inspectorHud.waitFor({ state: 'visible' });
+  const highlightedCount = await page.locator('[data-suite-inspector-match="true"]').count();
+  if (highlightedCount < 1) throw new Error('Style Guide did not highlight any live Button Base instances.');
+  await page.screenshot({ path: path.join(output, 'two-way-inspector.png') });
+  await inspectorHud.getByRole('button', { name: 'Exit', exact: true }).click();
+  await inspectorHud.waitFor({ state: 'detached' });
+  if (await page.locator('[data-suite-inspector-match], [data-suite-inspector-current]').count()) {
+    throw new Error('UI inspector left runtime marker attributes behind after exit.');
+  }
+
   await page.getByRole('menuitem', { name: 'Help', exact: true }).click();
   await page.getByRole('menuitem', { name: 'About LightTable...', exact: true }).click();
   const about = page.getByRole('dialog', { name: 'About LightTable' });
@@ -218,7 +269,7 @@ try {
   if (pageErrors.length) throw new Error(`Renderer errors: ${JSON.stringify(pageErrors)}`);
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify({
     sourceFile, fieldFocusPresentation, paintFieldGeometry, actionGeometry, sliderGeometry, layoutGeometry,
-    aboutGeometry, pageErrors
+    aboutGeometry, highlightedCount, pageErrors
   }, null, 2)}\n`);
   console.log(`UI Style Guide smoke passed. Output: ${output}`);
 } finally {

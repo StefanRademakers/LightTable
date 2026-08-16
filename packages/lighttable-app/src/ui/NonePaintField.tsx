@@ -21,6 +21,7 @@ export const NonePaintField = React.forwardRef<HTMLButtonElement, NonePaintField
   }, ref) => (
     <button ref={ref} type="button"
       className={`none-paint-field none-paint-field--${size}`}
+      data-suite-control="none-paint" data-suite-variant={size}
       aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={expanded}
       title={title} disabled={disabled} onClick={onClick}>
       <span className="none-paint-field__preview" aria-hidden="true" />

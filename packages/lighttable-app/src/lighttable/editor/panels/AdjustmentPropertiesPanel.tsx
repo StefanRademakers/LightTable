@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
@@ -42,7 +43,7 @@ export const AdjustmentPropertiesPanel = ({
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label"><strong>{title}</strong></div>
           <div className="lighttable-group__actions">
-            <button
+            <ButtonBase
               type="button"
               className="lighttable-group__reset"
               onClick={() => commands.resetGroup(group)}
@@ -50,7 +51,7 @@ export const AdjustmentPropertiesPanel = ({
               title={`Reset ${title}`}
             >
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
+            </ButtonBase>
           </div>
         </div>
       </section>

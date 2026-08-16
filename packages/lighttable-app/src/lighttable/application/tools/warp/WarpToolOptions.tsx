@@ -1,5 +1,7 @@
+import { ButtonBase } from '../../../../ui/ButtonBase';
 import React from 'react';
 import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
+import { FormSelect } from '../../../../ui/FormSelect';
 import type { EditorSession } from '../../../editor/session/editorSession';
 import type { WarpBrushMode } from '../../../effects/warp/warpTypes';
 import { MAX_STROKE_SMOOTH } from '../../../editor/tools/brush/strokeSmoother';
@@ -26,7 +28,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
   <>
     <label className="lighttable-tool-options__field">
       <span>Mode</span>
-      <select
+      <FormSelect
         value={warp.mode}
         onChange={(event) => onChange({ mode: event.currentTarget.value as WarpBrushMode })}
       >
@@ -35,7 +37,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
         <option value="twirl-ccw">Twirl counter-clockwise</option>
         <option value="pinch">Pinch</option>
         <option value="bloat">Bloat</option>
-      </select>
+      </FormSelect>
     </label>
     <label className="lighttable-tool-options__toggle">
       <input
@@ -133,12 +135,12 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       />
       Pressure strength
     </label>
-    <button
+    <ButtonBase
       type="button"
       className="lighttable-tool-options__preset"
       onClick={onReset}
     >
       Reset Warp
-    </button>
+    </ButtonBase>
   </>
 );

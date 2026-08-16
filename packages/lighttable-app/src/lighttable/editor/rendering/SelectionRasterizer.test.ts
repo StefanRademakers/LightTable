@@ -3,7 +3,8 @@ import {
   effectiveSelectionMode,
   selectionFeatherPlan,
   selectionFeatherScale,
-  selectionShapeBuffers
+  selectionShapeBuffers,
+  selectionTransformUniform
 } from './SelectionRasterizer';
 
 describe('selectionShapeBuffers', () => {
@@ -87,5 +88,18 @@ describe('effectiveSelectionMode', () => {
 
   it('keeps the requested mode for an active selection', () => {
     expect(effectiveSelectionMode(true, 'intersect')).toBe('intersect');
+  });
+});
+
+describe('selectionTransformUniform', () => {
+  it('matches the shader 80-byte TransformSettings layout', () => {
+    const uniform = selectionTransformUniform({
+      a: 1, b: 2, c: 3, d: 4, tx: 5, ty: 6
+    }, 1920, 1080);
+    expect(uniform.byteLength).toBe(80);
+    expect(Array.from(uniform.slice(12))).toEqual([
+      1920, 1080, 1, 0,
+      0, 0, 0, 0
+    ]);
   });
 });

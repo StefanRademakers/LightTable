@@ -8,6 +8,8 @@ interface HistogramProps {
 
 export type HistogramChannel = 'rgb' | 'red' | 'green' | 'blue';
 
+const HISTOGRAM_TOP_INSET = 7;
+
 const smoothBins = (values: Uint32Array): number[] => {
   const weights = [1, 2, 3, 2, 1];
   return Array.from(values, (_, index) => {
@@ -62,7 +64,9 @@ export const Histogram: React.FC<HistogramProps> = ({ histogram, channel = 'rgb'
       const normalized = Math.min(1, value / displayPeak);
       // A mild power curve keeps low-volume detail visible without the broad,
       // almost-flat plateau caused by the previous logarithmic scale.
-      return rect.height - Math.pow(normalized, 0.72) * (rect.height - 5);
+      return rect.height - Math.pow(normalized, 0.72) * (
+        rect.height - HISTOGRAM_TOP_INSET
+      );
     };
     const traceChannel = (values: number[]) => {
       context.beginPath();

@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
@@ -56,7 +57,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
   onWorkspacePresetChange
 }) => (
   <footer className="lighttable-toolbar">
-    <button
+    <ButtonBase
       className="lighttable-toolbar__dock-toggle"
       type="button"
       disabled={!leftDockAvailable}
@@ -69,7 +70,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
         src={lightTableIcon(`column_left_${leftDockVisible ? 'active' : 'inactive'}.png`)}
         alt=""
       />
-    </button>
+    </ButtonBase>
     <SegmentedControl
       className="lighttable-toolbar__workspace-switches"
       variant="low-attention"
@@ -105,7 +106,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
       {meta}
     </div>
     <div aria-hidden="true" />
-    <button
+    <ButtonBase
       className="lighttable-toolbar__dock-toggle"
       type="button"
       disabled={!rightDockAvailable}
@@ -118,6 +119,6 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
         src={lightTableIcon(`column_right_${rightDockVisible ? 'active' : 'inactive'}.png`)}
         alt=""
       />
-    </button>
+    </ButtonBase>
   </footer>
 );

@@ -1,3 +1,0 @@
-New grading workspace (image 1) & quick switches (image 2) tussen de belangrijkste workspaces
-
-genai.png | add_adjustment_layer.png | photo.png

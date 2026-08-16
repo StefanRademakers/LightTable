@@ -151,7 +151,8 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
     ? TRACK_BACKGROUNDS[track]
     : `linear-gradient(to right, var(--lt-range-track-fill) 0%, var(--lt-range-track-fill) ${percentage}%, var(--lt-range-track) ${percentage}%, var(--lt-range-track) 100%)`);
   return (
-    <label className={`lighttable-adjustment lighttable-adjustment--${layout} lighttable-adjustment--density-${density}${disabled ? ' lighttable-adjustment--disabled' : ''}`}>
+    <label className={`lighttable-adjustment lighttable-adjustment--${layout} lighttable-adjustment--density-${density}${disabled ? ' lighttable-adjustment--disabled' : ''}`}
+      data-suite-control="adjustment-slider" data-suite-variant={`${layout}:${density}`}>
       {layout !== 'bare' ? <span
         className="lighttable-adjustment__header"
         title={resetModifierActive ? `Reset ${label}` : label}

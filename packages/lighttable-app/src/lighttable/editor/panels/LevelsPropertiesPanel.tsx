@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
 import { lightTableIcon } from '../../../assets/icons';
@@ -137,10 +138,10 @@ export const LevelsPropertiesPanel = ({
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label"><strong>Levels</strong></div>
           <div className="lighttable-group__actions">
-            <button type="button" className="lighttable-group__reset"
+            <ButtonBase type="button" className="lighttable-group__reset"
               onClick={commands.resetPhotoshopAdjustment} aria-label="Reset Levels" title="Reset Levels">
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
+            </ButtonBase>
           </div>
         </div>
       </section>

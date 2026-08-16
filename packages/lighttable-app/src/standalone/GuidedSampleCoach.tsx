@@ -1,3 +1,4 @@
+import { ButtonBase } from '../ui/ButtonBase';
 import React, { useState } from 'react';
 import type { DocumentSessionId } from '../lighttable/application/documents/documentSession';
 import type { LightTableCommandService } from '../lighttable/application/commands/lightTableCommandService';
@@ -158,7 +159,7 @@ export const GuidedSampleCoach: React.FC<{
     <aside className="lighttable-guide" aria-label="Guided sample" aria-live="polite">
       <div className="lighttable-guide__heading">
         <span>Guided sample</span>
-        <button type="button" aria-label="Dismiss guided sample" onClick={() => { record('guide.dismissed'); onDismiss(); }}>×</button>
+        <ButtonBase type="button" aria-label="Dismiss guided sample" onClick={() => { record('guide.dismissed'); onDismiss(); }}>×</ButtonBase>
       </div>
       <strong>{ready ? title : 'Preparing the sample document...'}</strong>
       <p>{ready ? detail : 'The guide will continue when the real editor and renderer are ready.'}</p>
@@ -166,9 +167,9 @@ export const GuidedSampleCoach: React.FC<{
         {['shape', 'undo', 'redo', 'png', 'psd', 'complete'].map((step) => <i key={step} data-active={step === session.step} />)}
       </div>
       {error ? <p className="lighttable-guide__error" role="alert">{error}</p> : null}
-      <button className="action-button" type="button" disabled={!ready || busy} onClick={() => void run()}>
+      <ButtonBase className="action-button" type="button" disabled={!ready || busy} onClick={() => void run()}>
         {busy ? 'Working...' : session.step === 'complete' ? 'Finish' : title}
-      </button>
+      </ButtonBase>
     </aside>
   );
 };

@@ -38,5 +38,10 @@ describe('shared panel controls', () => {
     expect(markup).toContain('aria-label="Angle"');
     expect(markup).toContain('<summary>Advanced</summary>');
     expect(markup).toContain('Compatibility');
+    expect(markup).toContain('data-suite-control="panel-select"');
+    expect(markup).toContain('data-suite-control="panel-file"');
+    expect(markup).toContain('data-suite-control="panel-checkbox"');
+    expect(markup).toContain('data-suite-control="panel-angle"');
+    expect(markup).toContain('data-suite-control="advanced-disclosure"');
   });
 });

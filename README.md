@@ -23,7 +23,7 @@ state, S3 details or application routes.
   set. Color Lookup can load a 3D `.cube` file, retain its exact bytes as a
   LightTable document asset and embed it in supported PSD interchange.
 - Shared UI lives under `packages/lighttable-app/src/ui`. Production screens
-  and **View > UI Style Guide...** render the same components; contextual
+  and, in an explicit UI-devtools build, **View > UI Style Guide...** render the same components; contextual
   geometry is an explicit variant rather than CSS inherited from a container.
 
 ## Development

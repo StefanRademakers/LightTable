@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
@@ -15,9 +16,9 @@ export const GrainPropertiesPanel = ({ model, commands }: LensFxPanelProps) => {
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label"><strong>Grain</strong></div>
           <div className="lighttable-group__actions">
-            <button type="button" className="lighttable-group__reset" onClick={commands.grain.reset} aria-label="Reset Grain" title="Reset Grain">
+            <ButtonBase type="button" className="lighttable-group__reset" onClick={commands.grain.reset} aria-label="Reset Grain" title="Reset Grain">
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
+            </ButtonBase>
           </div>
         </div>
       </section>

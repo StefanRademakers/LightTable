@@ -1,3 +1,4 @@
+import { ButtonBase } from '../ui/ButtonBase';
 import React, { useMemo, useRef } from 'react';
 import { SegmentedControl, type SegmentedControlOption } from '../ui/SegmentedControl';
 import { lightTableIcon } from '../assets/icons';
@@ -141,9 +142,9 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
           onChange={onChannelChange}
           ariaLabel="Custom Curve channel"
         />
-        <button type="button" onClick={() => onReset(channel)} disabled={disabled} title={`Reset ${channel} curve`}>
+        <ButtonBase type="button" onClick={() => onReset(channel)} disabled={disabled} title={`Reset ${channel} curve`}>
           <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-        </button>
+        </ButtonBase>
       </div>
       <svg
         className="lighttable-curves-editor__graph"

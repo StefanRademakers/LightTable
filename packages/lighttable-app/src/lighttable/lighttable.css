@@ -41,7 +41,6 @@
 .lighttable-launcher,
 .lighttable-tool-options-menu-layout,
 .lighttable-tool-options__gradient-popover,
-.context-menu,
 .modal-backdrop {
   user-select: none;
   -webkit-user-select: none;
@@ -73,7 +72,6 @@
 
 .lighttable :is(button, [role='button']):focus-visible,
 .lighttable-launcher :is(button, [role='button']):focus-visible,
-.context-menu :is(button, [role='button']):focus-visible,
 .modal-backdrop :is(button, [role='button']):focus-visible,
 .lighttable-psd-report__backdrop :is(button, [role='button']):focus-visible {
   outline: none;
@@ -110,7 +108,6 @@
 @media (prefers-reduced-motion: reduce) {
   .lighttable *,
   .lighttable-launcher *,
-  .context-menu *,
   .modal-backdrop * {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
@@ -122,7 +119,6 @@
 @media (forced-colors: active) {
   .lighttable :focus-visible,
   .lighttable-launcher :focus-visible,
-  .context-menu :focus-visible,
   .modal-backdrop :focus-visible {
     outline-color: Highlight;
   }
@@ -2676,14 +2672,6 @@
   background: var(--lt-surface-panel);
 }
 
-.genai-panel__footer > .action-button {
-  flex: 1 1 auto;
-  height: var(--lt-control-height);
-  min-height: var(--lt-control-height);
-  padding-block: 0;
-  font-size: var(--lt-type-regular);
-}
-
 .genai-panel__cost {
   color: var(--lt-text-secondary);
   font-size: var(--lt-type-small);
@@ -4086,10 +4074,6 @@
   margin-top: 12px;
 }
 
-.lighttable-style-gradient__opacity-control .opacity-slider {
-  width: 100%;
-}
-
 .lighttable-style-gradient__track {
   position: relative;
   height: 68px;
@@ -5172,10 +5156,6 @@
 .lighttable-lens-blur__visualization-point--focus { left: var(--focus-distance); width: 5px; height: 5px; background: var(--color-tab-active); }
 .lighttable-lens-blur__visualization-point--high { left: 84%; }
 
-
-.lighttable-lens-blur__actions .action-button {
-  flex: 1;
-}
 
 @media (max-width: 900px) {
   .lighttable__body {

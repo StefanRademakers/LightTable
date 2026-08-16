@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React, {
   createContext,
   forwardRef,
@@ -386,7 +387,7 @@ const DocumentHost: React.FC<{
                   <img src={document.thumbnailUrl} alt="" />
                 </div>
               ) : null}
-              <button
+              <ButtonBase
                 type="button"
                 className="lighttable-document-tab__title"
                 title={document.title}
@@ -394,9 +395,9 @@ const DocumentHost: React.FC<{
               >
                 {document.title}
                 {document.dirty ? <span aria-label="Unsaved changes"> *</span> : null}
-              </button>
+              </ButtonBase>
               {document.onClose ? (
-                <button
+                <ButtonBase
                   type="button"
                   className="lighttable-document-tab__close"
                   aria-label={`Close ${document.title}`}
@@ -404,7 +405,7 @@ const DocumentHost: React.FC<{
                   onClick={document.onClose}
                 >
                   ×
-                </button>
+                </ButtonBase>
               ) : null}
             </div>
           );

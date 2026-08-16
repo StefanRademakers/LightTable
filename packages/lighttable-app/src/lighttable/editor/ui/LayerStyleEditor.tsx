@@ -1,6 +1,8 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { SwitchControl } from '../../../ui/SwitchControl';
+import { FormSelect } from '../../../ui/FormSelect';
 import { EffectPanel } from '../../effects/EffectPanel';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
 import {
@@ -703,7 +705,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
           <div className="lighttable-group__header">
             <div className="lighttable-master-group__label"><strong>All</strong></div>
             <div className="lighttable-group__actions">
-              <button
+              <ButtonBase
                 type="button"
                 className="lighttable-group__reset"
                 onClick={resetAllEffects}
@@ -711,7 +713,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
                 title="Reset all layer effects"
               >
                 <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-              </button>
+              </ButtonBase>
               <SwitchControl
                 checked={draft.enabled}
                 onCheckedChange={(enabled) => updateDraft((current) => ({
@@ -749,10 +751,10 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
             </EffectPanel>
           ))}
           <div className="lighttable-style-editor__add">
-            <select value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
+            <FormSelect value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
               {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
-            </select>
-            <button type="button" onClick={addStyle}>Add</button>
+            </FormSelect>
+            <ButtonBase type="button" onClick={addStyle}>Add</ButtonBase>
           </div>
         </div>
       </div>
@@ -771,7 +773,7 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
           <strong>Layer Style</strong>
           <span>{layerName}</span>
         </div>
-        <button type="button" onClick={onCancel} aria-label="Close Layer Style editor">×</button>
+        <ButtonBase type="button" onClick={onCancel} aria-label="Close Layer Style editor">×</ButtonBase>
       </header>
       <div className="lighttable-style-editor__body">
         <aside>
@@ -805,24 +807,24 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
                     }));
                   }}
                 />
-                <button type="button" onClick={() => setSelectedId(effect.id)}>
+                <ButtonBase type="button" onClick={() => setSelectedId(effect.id)}>
                   {effect.name}
-                </button>
-                <button
+                </ButtonBase>
+                <ButtonBase
                   type="button"
                   className="lighttable-style-editor__effect-remove"
                   aria-label={`Remove ${effect.name}`}
                   title={`Remove ${effect.name}`}
                   onClick={() => removeEffect(effect.id)}
-                >×</button>
+                >×</ButtonBase>
               </div>
             ))}
           </div>
           <div className="lighttable-style-editor__add">
-            <select value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
+            <FormSelect value={newKind} onChange={(event) => setNewKind(event.currentTarget.value as LayerStyleKind)}>
               {STYLE_KINDS.map((kind) => <option key={kind} value={kind}>{layerStyleKindLabels[kind]}</option>)}
-            </select>
-            <button type="button" onClick={addStyle}>Add</button>
+            </FormSelect>
+            <ButtonBase type="button" onClick={addStyle}>Add</ButtonBase>
           </div>
         </aside>
         <main>
@@ -831,12 +833,12 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
               <div className="lighttable-style-editor__effect-heading">
                 <h3>{selected.name}</h3>
                 <div>
-                  <button type="button" onClick={() => moveSelected(1)}
+                  <ButtonBase type="button" onClick={() => moveSelected(1)}
                     disabled={draft.effects.at(-1)?.id === selectedId}
-                    title="Move effect up">↑</button>
-                  <button type="button" onClick={() => moveSelected(-1)}
+                    title="Move effect up">↑</ButtonBase>
+                  <ButtonBase type="button" onClick={() => moveSelected(-1)}
                     disabled={draft.effects[0]?.id === selectedId}
-                    title="Move effect down">↓</button>
+                    title="Move effect down">↓</ButtonBase>
                 </div>
               </div>
               <EffectControls effect={selected} patch={patchSelected} />
@@ -858,8 +860,8 @@ export const LayerStyleEditor: React.FC<LayerStyleEditorProps> = ({
               revision: current.revision + 1
             }))} />
         </div>
-        <button type="button" onClick={onCancel}>Cancel</button>
-        <button type="button" className="lighttable-style-editor__primary" onClick={onCommit}>OK</button>
+        <ButtonBase type="button" onClick={onCancel}>Cancel</ButtonBase>
+        <ButtonBase type="button" className="lighttable-style-editor__primary" onClick={onCommit}>OK</ButtonBase>
       </footer>
     </div>
   );

@@ -1,8 +1,10 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React, { useState } from 'react';
 import { ActionButton } from '../../../ui/ActionButton';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
+import { FormSelect } from '../../../ui/FormSelect';
 import { EffectPanel } from '../../effects/EffectPanel';
 import {
   DEFAULT_CHROMATIC_ABERRATION_SETTINGS
@@ -224,7 +226,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
           <div className="lighttable-lens-blur__select-controls">
             <label className="lighttable-lens-blur__select-row">
               <span>Render quality</span>
-              <select
+              <FormSelect
                 aria-label="Lens Blur render quality"
                 value={lensBlur.quality}
                 disabled={!lensBlur.enabled || analyzing}
@@ -233,11 +235,11 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
                 {LENS_BLUR_QUALITY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
-              </select>
+              </FormSelect>
             </label>
             <label className="lighttable-lens-blur__select-row">
               <span>Bokeh shape</span>
-              <select
+              <FormSelect
                 aria-label="Lens Blur bokeh shape"
                 value={lensBlur.bokehShape}
                 disabled={!lensBlur.enabled || analyzing}
@@ -246,7 +248,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
                 {BOKEH_SHAPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
-              </select>
+              </FormSelect>
             </label>
           </div>
           <div
@@ -275,6 +277,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
           />
           <div className="lighttable-lens-blur__actions">
             <ActionButton
+              layout="fill"
               className={model.focusPickerActive ? 'action-button--active' : ''}
               onClick={commands.lensBlur.toggleFocusPicker}
               disabled={!lensBlur.enabled || !model.depthResult || analyzing}
@@ -362,7 +365,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
             />
           ))}
           <div className="lighttable-subgroup">
-            <button
+            <ButtonBase
               type="button"
               className="lighttable-subgroup__toggle"
               onClick={() => setGrainAdvancedExpanded((current) => !current)}
@@ -374,7 +377,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
                 aria-hidden="true"
               />
               <strong>Advanced</strong>
-            </button>
+            </ButtonBase>
             {grainAdvancedExpanded ? (
               <div className="lighttable-subgroup__controls">
                 {GRAIN_ADVANCED_SLIDERS.map((slider) => (

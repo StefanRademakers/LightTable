@@ -1,5 +1,6 @@
 import React from 'react';
 import { ColorSwatchField } from '../../../ui/ColorSwatchField';
+import { FormSelect } from '../../../ui/FormSelect';
 
 export interface ToolOptionSelectProps
   extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'children'> {
@@ -14,7 +15,7 @@ export const ToolOptionSelect: React.FC<ToolOptionSelectProps> = ({
 }) => (
   <label className="lighttable-tool-options__field">
     <span>{label}</span>
-    <select {...selectProps}>{children}</select>
+    <FormSelect {...selectProps}>{children}</FormSelect>
   </label>
 );
 

@@ -286,6 +286,16 @@ fn smoothedCount(index: i32) -> f32 {
   );
 }
 
+fn interpolatedCount(binPosition: f32) -> f32 {
+  let lower = i32(floor(binPosition));
+  let fraction = fract(binPosition);
+  // Interpolate the already-filtered bins so a wide or Retina canvas does not
+  // expose the 256 analysis buckets as a stair-stepped silhouette. The cubic
+  // blend keeps the tangent calm at bin centres without another analysis pass.
+  let blend = fraction * fraction * (3.0 - 2.0 * fraction);
+  return mix(smoothedCount(lower), smoothedCount(lower + 1), blend);
+}
+
 fn hueToRgb(hue: f32) -> vec3f {
   let shifted = fract(hue + vec3f(0.0, 2.0 / 3.0, 1.0 / 3.0));
   return clamp(abs(shifted * 6.0 - vec3f(3.0)) - vec3f(1.0), vec3f(0.0), vec3f(1.0));
@@ -294,8 +304,7 @@ fn hueToRgb(hue: f32) -> vec3f {
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let hue = clamp(input.uv.x, 0.0, 0.999999);
-  let index = i32(hue * 256.0);
-  let count = smoothedCount(index);
+  let count = interpolatedCount(hue * 256.0);
   let peak = max(f32(maximum.value), 1.0);
   let brightness = clamp(settings.values.x, 0.1, 4.0);
   let normalized = clamp(count / peak, 0.0, 1.0);
@@ -305,12 +314,19 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   let fromBottom = 1.0 - input.uv.y;
   let background = vec3f(0.018, 0.023, 0.03);
   let hueColor = mix(vec3f(0.42), hueToRgb(hue), 0.86);
-  let inside = 1.0 - step(height, fromBottom);
-  let topLine = 1.0 - smoothstep(0.0, 0.018, abs(fromBottom - height));
+  let edgeDistance = fromBottom - height;
+  // Fragment derivatives express the edge footprint in physical render
+  // pixels. This produces the same crisp hairline on 1x and Retina canvases,
+  // rather than scaling a thick normalized-UV border with panel height.
+  let edgePixel = max(fwidth(edgeDistance), 0.00001);
+  let inside = 1.0 - smoothstep(-edgePixel, edgePixel, edgeDistance);
+  let topLine = 1.0 - smoothstep(edgePixel * 0.45, edgePixel * 1.35, abs(edgeDistance));
   let verticalFade = mix(0.42, 1.0, clamp(fromBottom / max(height, 0.0001), 0.0, 1.0));
   var trace = hueColor * inside * verticalFade * brightness;
   trace += mix(hueColor, vec3f(1.0), 0.18) * topLine * 0.72;
-  let baseline = (1.0 - smoothstep(0.0, 0.018, fromBottom)) * 0.28;
+  // Preserve the thin full-spectrum hue band at the baseline.
+  let baselinePixel = max(fwidth(fromBottom), 0.00001);
+  let baseline = (1.0 - smoothstep(baselinePixel * 0.35, baselinePixel * 1.65, fromBottom)) * 0.28;
   return vec4f(background + trace + hueColor * baseline, 1.0);
 }
 `;

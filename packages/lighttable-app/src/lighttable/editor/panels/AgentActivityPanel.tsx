@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import type { AutomationTaskEvent } from '../../application/commands/automationTaskEventStore';
 
@@ -22,7 +23,7 @@ export const AgentActivityPanel: React.FC<AgentActivityPanelProps> = ({ events, 
           {event.progress !== null && <progress max={1} value={event.progress} aria-label="Agent progress" />}
           {event.operationId && <div className="lighttable-agent-activity__hint">Current: {event.operationId}</div>}
           {event.status === 'running' || event.status === 'progress'
-            ? <button type="button" className="lighttable-button" onClick={() => onCancel(event.taskId)}>Cancel</button>
+            ? <ButtonBase type="button" className="lighttable-button" onClick={() => onCancel(event.taskId)}>Cancel</ButtonBase>
             : event.status === 'completed'
               ? <div className="lighttable-agent-activity__hint">History: Undo {event.message ?? 'agent operation'}</div>
               : null}

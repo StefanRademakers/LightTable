@@ -79,6 +79,20 @@ export interface SelectionFeatherPlan {
   workingRadius: number;
 }
 
+export const selectionTransformUniform = (
+  inverse: { a: number; b: number; c: number; d: number; tx: number; ty: number },
+  width: number,
+  height: number
+) => new Float32Array([
+  inverse.a, inverse.c, inverse.tx, 0,
+  inverse.b, inverse.d, inverse.ty, 0,
+  0, 0, 1, 0,
+  width, height, 1, 0,
+  // samplingMode is a padded vec4 in WGSL. Selection moves use linear
+  // sampling so feathered and anti-aliased edges remain continuous.
+  0, 0, 0, 0
+]);
+
 /**
  * Describes the symmetric working space used by both Gaussian passes. Wide
  * feathers are downsampled before either axis is blurred; mixing a full-size
@@ -902,15 +916,10 @@ export class SelectionRasterizer {
     const { width, height } = this.options.dimensions();
     const settings = device.createBuffer({
       label: 'LightTable selection transform settings',
-      size: 64,
+      size: 80,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
-    device.queue.writeBuffer(settings, 0, new Float32Array([
-      inverse.a, inverse.c, inverse.tx, 0,
-      inverse.b, inverse.d, inverse.ty, 0,
-      0, 0, 1, 0,
-      width, height, 1, 0
-    ]));
+    device.queue.writeBuffer(settings, 0, selectionTransformUniform(inverse, width, height));
     const pipeline = this.options.pipelines().selectionTransform;
     const bindGroup = device.createBindGroup({
       label: 'LightTable selection transform bindings',

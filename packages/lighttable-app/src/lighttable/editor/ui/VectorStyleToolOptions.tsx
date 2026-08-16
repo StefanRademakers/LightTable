@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
 import type { VectorPaint } from '@lighttable/vector-core';
@@ -104,8 +105,8 @@ const VectorPaintOption: React.FC<{
       onClose={() => setOpen(false)}>
       <div className="lighttable-tool-options__gradient-header">
         <strong>{label} paint</strong>
-        <button type="button" aria-label={`Close ${label.toLowerCase()} paint`}
-          onClick={() => setOpen(false)}>×</button>
+        <ButtonBase type="button" aria-label={`Close ${label.toLowerCase()} paint`}
+          onClick={() => setOpen(false)}>×</ButtonBase>
       </div>
       <SegmentedControl className="lighttable-tool-options__paint-types"
         ariaLabel={`${label} paint type`} value={type} onChange={setType}
@@ -135,16 +136,16 @@ const VectorLineStyleOption: React.FC<{
   const [open, setOpen] = React.useState(false);
   const anchor = React.useRef<HTMLButtonElement>(null);
   return <>
-    <button ref={anchor} type="button" className="lighttable-tool-options__dropdown-trigger"
+    <ButtonBase ref={anchor} type="button" className="lighttable-tool-options__dropdown-trigger"
       aria-label="Line Style" aria-haspopup="dialog" aria-expanded={open}
       disabled={!style.strokeEnabled} onClick={() => setOpen((current) => !current)}>
       <span>Line Style</span><span className="paint-field__arrow" aria-hidden="true" />
-    </button>
+    </ButtonBase>
     {open ? <AnchoredGradientPopover anchor={anchor} ariaLabel="Line style options"
       className="lighttable-tool-options__line-style-popover" onClose={() => setOpen(false)}>
       <div className="lighttable-tool-options__gradient-header">
         <strong>Line Style</strong>
-        <button type="button" aria-label="Close line style" onClick={() => setOpen(false)}>×</button>
+        <ButtonBase type="button" aria-label="Close line style" onClick={() => setOpen(false)}>×</ButtonBase>
       </div>
       <div className="lighttable-tool-options__line-style-options">
         <ToolOptionSelect label="Style" value={style.strokeStyle ?? 'solid'}

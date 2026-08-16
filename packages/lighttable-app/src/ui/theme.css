@@ -39,6 +39,8 @@
   --lt-surface-plot: #05070a;
   --lt-surface-overlay: rgb(0 0 0 / 62%);
   --lt-surface-info: #18202a;
+  --lt-surface-floating: var(--lt-surface-panel);
+  --lt-shadow-floating: 0 8px 24px rgb(0 0 0 / 38%);
 
   /* Borders and separators */
   --lt-border-subtle: #252a30;

@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
@@ -167,9 +168,9 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label"><strong>{titleFor(kind)}</strong></div>
           <div className="lighttable-group__actions">
-            <button type="button" className="lighttable-group__reset" onClick={commands.resetPhotoshopAdjustment} aria-label={`Reset ${titleFor(kind)}`} title={`Reset ${titleFor(kind)}`}>
+            <ButtonBase type="button" className="lighttable-group__reset" onClick={commands.resetPhotoshopAdjustment} aria-label={`Reset ${titleFor(kind)}`} title={`Reset ${titleFor(kind)}`}>
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </button>
+            </ButtonBase>
           </div>
         </div>
       </section>

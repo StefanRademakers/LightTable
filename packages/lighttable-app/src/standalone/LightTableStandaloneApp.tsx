@@ -1,3 +1,4 @@
+import { ButtonBase } from '../ui/ButtonBase';
 import {
   useCallback,
   useEffect,
@@ -46,7 +47,6 @@ import {
   type GuidedSampleSession
 } from './GuidedSampleCoach';
 import { PreferencesDialog } from './PreferencesDialog';
-import { UiStyleGuideDialog } from './UiStyleGuideDialog';
 import {
   DEFAULT_APPLICATION_PREFERENCES,
   loadApplicationPreferences,
@@ -55,6 +55,8 @@ import {
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
+  /** Optional host contribution; omitted builds contain no UI inspection runtime. */
+  onOpenStyleGuide?: () => void;
 }
 
 export const recentFilesForLauncher = (
@@ -103,22 +105,22 @@ const RecentFileCard = ({
 
   return (
     <article className={`lighttable-launcher__recent${recent.available ? '' : ' lighttable-launcher__recent--missing'}`}>
-      <button type="button" disabled={opening} onClick={() => onOpen(recent.id)}>
+      <ButtonBase type="button" disabled={opening} onClick={() => onOpen(recent.id)}>
         <span ref={previewRef} className="lighttable-launcher__recent-preview">
           {thumbnail
             ? <img src={thumbnail} alt="" />
             : <span>{recent.available ? 'No preview' : 'File missing'}</span>}
         </span>
         <span className="lighttable-launcher__recent-name" title={recent.name}>{recent.name}</span>
-      </button>
+      </ButtonBase>
       {!recent.available && onRemove ? (
-        <button
+        <ButtonBase
           className="lighttable-launcher__recent-remove"
           type="button"
           aria-label={`Remove missing recent file ${recent.name}`}
           title="Remove missing recent file"
           onClick={() => onRemove(recent.id)}
-        >Remove</button>
+        >Remove</ButtonBase>
       ) : null}
     </article>
   );
@@ -195,7 +197,8 @@ export const planRecoveryWorkspace = (
  * remain isolated and intact while another tab is active.
  */
 export function LightTableStandaloneApp({
-  host = createBrowserHost()
+  host = createBrowserHost(),
+  onOpenStyleGuide
 }: LightTableStandaloneAppProps) {
   useReleaseSelectFocusAfterChange();
   const {
@@ -246,7 +249,6 @@ export function LightTableStandaloneApp({
   const [aboutOpen, setAboutOpen] = useState(false);
   const [thirdPartyLicensesOpen, setThirdPartyLicensesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [styleGuideOpen, setStyleGuideOpen] = useState(false);
   const [preferences, setPreferences] = useState(() => typeof localStorage === 'undefined'
     ? DEFAULT_APPLICATION_PREFERENCES
     : loadApplicationPreferences());
@@ -684,13 +686,13 @@ export function LightTableStandaloneApp({
                 </div>
                 <div className="lighttable-launcher__recovery-actions">
                   {recoverableRecords.length > 1 ? (
-                    <button className="action-button" type="button" disabled={opening} onClick={() => void recoverAll()}>
+                    <ButtonBase className="action-button" type="button" disabled={opening} onClick={() => void recoverAll()}>
                       Open all
-                    </button>
+                    </ButtonBase>
                   ) : null}
-                  <button className="action-button" type="button" onClick={() => setRecoveriesDeferred(true)}>
+                  <ButtonBase className="action-button" type="button" onClick={() => setRecoveriesDeferred(true)}>
                     Later
-                  </button>
+                  </ButtonBase>
                 </div>
               </div>
               <div className="lighttable-launcher__recoveries">
@@ -723,15 +725,15 @@ export function LightTableStandaloneApp({
                           </p>
                         ) : null}
                         <div className="lighttable-launcher__recovery-actions">
-                          <button className="action-button" type="button" disabled={opening} onClick={() => void openRecovery(record)}>
+                          <ButtonBase className="action-button" type="button" disabled={opening} onClick={() => void openRecovery(record)}>
                             {crashLoop ? 'Retry recovered copy' : 'Open recovered copy'}
-                          </button>
-                          <button className="action-button" type="button" onClick={() => void previewRecovery(record)}>
+                          </ButtonBase>
+                          <ButtonBase className="action-button" type="button" onClick={() => void previewRecovery(record)}>
                             Preview
-                          </button>
-                          <button className="action-button" type="button" onClick={() => void discardRecovery(record)}>
+                          </ButtonBase>
+                          <ButtonBase className="action-button" type="button" onClick={() => void discardRecovery(record)}>
                             Discard
-                          </button>
+                          </ButtonBase>
                         </div>
                       </div>
                     </article>
@@ -759,14 +761,14 @@ export function LightTableStandaloneApp({
                 {imagePickerFormatNames('automatic')}
               </span>
               {host.openFile ? (
-                <button
+                <ButtonBase
                   className="action-button lighttable-launcher__open"
                   type="button"
                   disabled={opening}
                   onClick={() => void requestHostDocument()}
                 >
                   {opening ? 'Opening…' : 'Open file'}
-                </button>
+                </ButtonBase>
               ) : (
                 <label className="action-button lighttable-launcher__open">
                   Open file
@@ -792,26 +794,26 @@ export function LightTableStandaloneApp({
             <section className="lighttable-launcher__card lighttable-launcher__new-card">
               <h1>New document</h1>
               <p>Create an empty image document.</p>
-              <button className="action-button lighttable-launcher__primary-action" type="button" onClick={requestNewDocument}>
+              <ButtonBase className="action-button lighttable-launcher__primary-action" type="button" onClick={requestNewDocument}>
                 New document
-              </button>
-              <button className="lighttable-launcher__guide-action" type="button" disabled={creating}
+              </ButtonBase>
+              <ButtonBase className="lighttable-launcher__guide-action" type="button" disabled={creating}
                 onClick={() => void startGuidedSample()}>
                 {creating ? 'Preparing...' : 'Try a guided layered edit'}
-              </button>
+              </ButtonBase>
             </section>
           </div>
 
           {host.projects ? (
             <section className="lighttable-launcher__project-bar" aria-label="Project workspace">
               <strong>{activeProject ? `Project: ${activeProject.name}` : 'Standalone workspace'}</strong>
-              <button className="action-button" type="button" onClick={requestNewProject}>New project</button>
-              <button className="action-button" type="button" onClick={() => void openProject()}>Open project</button>
+              <ButtonBase className="action-button" type="button" onClick={requestNewProject}>New project</ButtonBase>
+              <ButtonBase className="action-button" type="button" onClick={() => void openProject()}>Open project</ButtonBase>
               {activeProject ? (
-                <button className="action-button" type="button" onClick={() => {
+                <ButtonBase className="action-button" type="button" onClick={() => {
                   void host.projects?.close();
                   setActiveProject(null);
-                }}>Close project</button>
+                }}>Close project</ButtonBase>
               ) : null}
             </section>
           ) : null}
@@ -821,11 +823,11 @@ export function LightTableStandaloneApp({
               <h2>Recent projects</h2>
               <div className="lighttable-launcher__utility-actions">
                 {recentProjects.slice(0, 8).map((project) => (
-                  <button className="action-button" type="button" key={project.recentId}
+                  <ButtonBase className="action-button" type="button" key={project.recentId}
                     disabled={!project.available} title={project.manifestPath}
                     onClick={() => void openRecentProject(project.recentId)}>
                     {project.name}
-                  </button>
+                  </ButtonBase>
                 ))}
               </div>
             </section>
@@ -862,9 +864,9 @@ export function LightTableStandaloneApp({
             </section>
           ) : null}
           <div className="lighttable-launcher__utility-actions">
-            <button className="action-button" type="button" onClick={() => setSettingsOpen(true)}>Preferences</button>
-            <button className="action-button" type="button" onClick={() => setThirdPartyLicensesOpen(true)}>Third-party Licenses</button>
-            <button className="action-button" type="button" onClick={() => setAboutOpen(true)}>About LightTable</button>
+            <ButtonBase className="action-button" type="button" onClick={() => setSettingsOpen(true)}>Preferences</ButtonBase>
+            <ButtonBase className="action-button" type="button" onClick={() => setThirdPartyLicensesOpen(true)}>Third-party Licenses</ButtonBase>
+            <ButtonBase className="action-button" type="button" onClick={() => setAboutOpen(true)}>About LightTable</ButtonBase>
           </div>
         </div>
         <NewDocumentDialog
@@ -896,7 +898,6 @@ export function LightTableStandaloneApp({
             setPreferences(next);
             setSettingsOpen(false);
           }} />
-        <UiStyleGuideDialog open={styleGuideOpen} onClose={() => setStyleGuideOpen(false)} />
       </main>
     );
   }
@@ -911,24 +912,24 @@ export function LightTableStandaloneApp({
         </div>
       ) : null}
       {fileDrop.error ? (
-        <button
+        <ButtonBase
           className="lighttable-file-drop__notice"
           type="button"
           role="alert"
           onClick={fileDrop.clearError}
         >
           {fileDrop.error}
-        </button>
+        </ButtonBase>
       ) : null}
       {projectError && !newProjectOpen ? (
-        <button
+        <ButtonBase
           className="lighttable-file-drop__notice"
           type="button"
           role="alert"
           onClick={() => setProjectError(null)}
         >
           {projectError}
-        </button>
+        </ButtonBase>
       ) : null}
       {documents.map((document) => (
         <StandaloneDocumentRuntimeView
@@ -963,7 +964,7 @@ export function LightTableStandaloneApp({
           onRequestNew={requestNewDocument}
           onStartGuidedSample={() => void startGuidedSample()}
           onOpenSettings={() => setSettingsOpen(true)}
-          onOpenStyleGuide={() => setStyleGuideOpen(true)}
+          onOpenStyleGuide={onOpenStyleGuide}
           preferences={preferences}
           onOpen={openDocument}
           onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
@@ -988,7 +989,6 @@ export function LightTableStandaloneApp({
           setPreferences(next);
           setSettingsOpen(false);
         }} />
-      <UiStyleGuideDialog open={styleGuideOpen} onClose={() => setStyleGuideOpen(false)} />
       {guidedSample ? (
         <GuidedSampleCoach
           session={guidedSample}

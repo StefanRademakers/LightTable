@@ -1,3 +1,4 @@
+import { ButtonBase } from '../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../assets/icons';
 import { PanelSection } from '../../ui/PanelSection';
@@ -46,11 +47,11 @@ export const EffectPanel: React.FC<EffectPanelProps> = ({
           onExpandedChange(!expanded);
         }}
     actions={<>
-        <button type="button" className="lighttable-group__reset" onClick={onReset} aria-label={`Reset ${label}`} title={`Reset ${label}`}>
+        <ButtonBase type="button" className="lighttable-group__reset" onClick={onReset} aria-label={`Reset ${label}`} title={`Reset ${label}`}>
           <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-        </button>
+        </ButtonBase>
         {onRemove ? (
-          <button
+          <ButtonBase
             type="button"
             className="lighttable-group__remove"
             onClick={onRemove}
@@ -58,7 +59,7 @@ export const EffectPanel: React.FC<EffectPanelProps> = ({
             title={`Remove ${label}`}
           >
             <img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" />
-          </button>
+          </ButtonBase>
         ) : null}
         <SwitchControl
           checked={enabled}

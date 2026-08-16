@@ -14,6 +14,16 @@ import './renderer.css';
 import type { DesktopFilePayload } from './desktopBridge';
 import { normalizeDesktopGenAiError } from './genai/desktopGenAiError';
 
+const uiDevtoolsEnabled = import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS === 'true';
+const UiInspectorHost = uiDevtoolsEnabled
+  ? React.lazy(() => import('@lighttable/app/ui-devtools').then((module) => ({
+      default: module.UiInspectorHost
+    })))
+  : null;
+const openUiStyleGuide = uiDevtoolsEnabled
+  ? () => { void import('@lighttable/app/ui-devtools').then((module) => module.requestUiStyleGuide()); }
+  : undefined;
+
 const removeHorizontalWheelBridge = window.lightTableDesktop.onHorizontalWheel((input) => {
   window.dispatchEvent(new CustomEvent('lighttable:desktop-horizontal-wheel', {
     detail: input
@@ -282,6 +292,9 @@ const desktopHost: LightTableHost = {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <LightTableStandaloneApp host={desktopHost} />
+    <LightTableStandaloneApp host={desktopHost} onOpenStyleGuide={openUiStyleGuide} />
+    {UiInspectorHost ? (
+      <React.Suspense fallback={null}><UiInspectorHost /></React.Suspense>
+    ) : null}
   </React.StrictMode>
 );

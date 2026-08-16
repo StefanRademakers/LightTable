@@ -4,6 +4,31 @@ LightTable owns its entire UI, CSS, icons and interaction language. Hosts mount
 the product and provide capabilities; StoryBuilder is not a design-system or
 asset dependency. The same shared UI runs in web and Electron.
 
+## High-level UI governance decision
+
+The UI is treated as a product feature and a future reusable suite library, not
+as styling added independently by feature screens. Buttons, selectors, sliders,
+fields, lists, paint controls and containers should compose a small set of
+canonical production primitives. A feature-specific implementation is allowed
+only when its interaction really differs; visual similarity alone is a reason
+to reuse an existing primitive.
+
+The Style Guide is the living visual catalog for those real production
+components. Stable metadata connects each rendered control to its canonical
+identity, usage count and source locations. This supports a bidirectional
+workflow: inspect a control in the running application to find its definition
+and status, or select a catalog entry to reveal its mounted instances in the
+application. Unregistered interactive elements are shown separately as cleanup
+candidates, so established good controls remain distinguishable from accidental
+one-off implementations.
+
+Inspection is optional development tooling, not application architecture. It
+reads DOM metadata and draws temporary overlays but has no access to documents,
+layers, tools, rendering or editor state. Normal web and desktop builds omit
+the inspector runtime and its UX entirely; an explicit UI-devtools build adds
+the catalog and two-way inspection host. This keeps UI governance strict without
+making the production application depend on the governance tools.
+
 ## Workspace
 
 The workspace supports multiple open documents and exactly one active
@@ -127,16 +152,85 @@ domain-specific ramp and draggable stops; its buttons, colors and numeric
 controls compose `ActionButton`, `PanelColorField` and `PanelNumberSlider`.
 A gradient feature must not add private range, button or swatch styling.
 
-The live catalog is available from **View > UI Style Guide...**. It uses the
+In a UI-devtools build, the live catalog is available from **View > UI Style
+Guide...**. It uses the
 production components themselves and groups them into Foundations, Actions,
 Fields, Selection, Sliders, Paint & color, Gradients, Lists & navigation,
-Containers, Layout & geometry, Feedback, Adjustment dialogs and Dialogs. Actions execute commands;
+Containers, Layout & geometry, Coverage & usage, Feedback, Adjustment dialogs
+and Dialogs. Actions execute commands;
 persistent choices such as checkboxes, switches and segmented controls belong
 to Selection. Every new shared control or canonical dialog
 composition must be added there. The catalog is also a visual regression target:
 it documents heading/body/help/error hierarchy, control states, keyboard focus,
 and the standard dialog order of header, content, then right-aligned secondary
 and primary actions.
+
+### Canonical identity and customness audit
+
+Every catalogued production primitive carries a stable
+`data-suite-control="<manifest-id>"` marker on its owning DOM root. Explicit
+geometry or visual variants additionally publish `data-suite-variant` where
+that helps inspection. These attributes are development metadata and semantic
+identity; feature code must not forge them onto a private lookalike. Canonical
+IDs, families, public symbols, CSS roots and current extraction state live in
+`src/ui/uiComponentManifest.json`.
+
+`npm run generate:ui-inventory` scans product source and regenerates the
+deterministic `generatedUiUsageInventory.json`. The Style Guide's **Coverage &
+usage** page combines that static inventory with a runtime DOM scan outside the
+guide. It reports production usages, mounted canonical instances, source
+contexts, external CSS overrides and visible interactive elements without a
+canonical compound-control owner. A compound control may own its native
+internal buttons or inputs; a panel, dialog or layout container never hides
+unregistered descendants from the scan.
+
+`npm run audit:ui-boundary` verifies manifest runtime metadata, checks that the
+generated inventory is current and applies `uiAuditBaseline.json`. Existing raw
+elements and deep selectors remain visible debt. Their per-file counts may
+decrease, but a new source location, a higher count, a new external canonical-
+root override or deep-selector growth fails the audit. Regenerating inventory
+cannot waive that failure; changing the baseline requires explicit design-
+system review.
+
+Usage count alone never makes a specialized control wrong. The strong
+customness signal is low reuse combined with local styling, raw native markup,
+new deep cascade or visual similarity to an existing canonical family.
+
+Inspection is bidirectional and remains outside application state. On Windows,
+Ctrl+Shift+Alt-clicking a visible interactive element opens **Coverage & usage**
+at its canonical identity; macOS uses Cmd+Shift+Option-click. Registered
+controls resolve through `data-suite-*` metadata, while a private interactive
+element is explicitly reported as unregistered. **Show in app** closes the
+catalog, outlines the current live instance and provides previous/next
+navigation across the other mounted instances. The inspector host observes the
+DOM and applies temporary overlay attributes only: it must never import or
+mutate document, layer, tool, panel or editor state. Opening the catalog from a
+product menu uses the same generic DOM event so the host remains replaceable.
+
+### Optional devtools build boundary
+
+The Style Guide, coverage scanner and bidirectional inspector are host-provided
+development tools. `@lighttable/app` exposes them only through the separate
+`@lighttable/app/ui-devtools` entry point. The base `LightTableStandaloneApp`
+does not import, mount or initialize that entry point and merely accepts an
+optional `onOpenStyleGuide` contribution. Without that contribution the View
+menu does not expose the Style Guide command.
+
+Normal desktop and web builds leave `LIGHTTABLE_UI_DEVTOOLS` unset and must not
+contain the inspector runtime. Use `npm run dev:desktop:ui-devtools`,
+`npm run dev:web:ui-devtools`, `npm run package:desktop:ui-devtools` or
+`npm run build:web:ui-devtools` only when inspection is wanted. The build
+boundary verifier checks both directions: inspector signatures must be absent
+from normal bundles and present in devtools bundles. The desktop base smoke test
+also verifies at runtime that neither the View command nor the modifier-click
+gesture exists. Product, document, renderer and editor-domain code must never
+import the devtools entry point.
+
+The current modal is LightTable's embedded host, not the long-term owner of the
+catalog. Package extraction creates one standalone suite Style Guide next to
+the shared controls. LightTable and future products keep only thin embedded
+inspection adapters that consume that catalog and contribute runtime usage
+data; they never maintain product-local copies of specimens.
 
 `SegmentedControl` has a `low-attention` variant for persistent secondary
 navigation such as workspace switches in the status bar. It keeps the selected
@@ -151,7 +245,7 @@ pass must rationalize those roles and then audit existing screens against the
 catalog; feature-local font-size or font-weight fixes are not an acceptable
 substitute.
 
-The app-wide inventory, convergence rules and possible package boundary are
+The app-wide inventory, convergence rules and package boundary are
 recorded in `architecture/research/LIGHTTABLE_UI_SYSTEM_AUDIT.md`. Extraction to
 a separate UI package is deliberately gated on removing editor-domain imports
 from primitives and co-locating their tokens, CSS and tests. A package boundary

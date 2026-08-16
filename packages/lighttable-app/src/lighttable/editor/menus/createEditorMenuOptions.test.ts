@@ -45,6 +45,7 @@ const state = (change: Partial<EditorMenuState> = {}): EditorMenuState => ({
 
 const commands = (): EditorMenuCommands => new Proxy({} as EditorMenuCommands, {
   get: (target, property: keyof EditorMenuCommands) => {
+    if (Object.prototype.hasOwnProperty.call(target, property)) return target[property];
     if (property === 'recentFiles' || property === 'recentProjects') return target[property] ?? [];
     if (property === 'activeProject') return target[property] ?? null;
     if (property === 'projectsAvailable') return target[property] ?? false;
@@ -378,6 +379,13 @@ describe('createEditorMenuOptions', () => {
       .toMatchObject({ label: 'UI Style Guide...' });
     options.find((option) => option.value === 'ui-style-guide')?.onClick?.();
     expect(menuCommands.openStyleGuide).toHaveBeenCalledOnce();
+  });
+
+  it('omits the optional UI devtools contribution from the base View menu', () => {
+    const menuCommands = commands();
+    menuCommands.openStyleGuide = undefined;
+    const options = createEditorMenuOptions('view', state(), labels, menuCommands);
+    expect(options.some((option) => option.value === 'ui-style-guide')).toBe(false);
   });
 
   it('exposes concise third-party license information from Help', () => {

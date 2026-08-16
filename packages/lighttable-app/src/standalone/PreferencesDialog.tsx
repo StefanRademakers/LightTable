@@ -1,3 +1,4 @@
+import { ButtonBase } from '../ui/ButtonBase';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type {
@@ -7,6 +8,7 @@ import type {
 } from '../platform/LightTableHost';
 import { ActionButton } from '../ui/ActionButton';
 import { FormInput } from '../ui/FormInput';
+import { FormSelect } from '../ui/FormSelect';
 import { SwitchControl } from '../ui/SwitchControl';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import { AgentAccessSettingsPanel } from './AgentAccessSettingsDialog';
@@ -171,21 +173,21 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
         </div>
         <div className="lighttable-preferences__layout">
           <nav className="lighttable-preferences__navigation" aria-label="Preference categories">
-            <button type="button" className={page === 'file-handling' ? 'is-active' : undefined}
+            <ButtonBase type="button" className={page === 'file-handling' ? 'is-active' : undefined}
               aria-current={page === 'file-handling' ? 'page' : undefined}
-              onClick={() => setPage('file-handling')}>File Handling</button>
-            <button type="button" className={page === 'projects' ? 'is-active' : undefined}
+              onClick={() => setPage('file-handling')}>File Handling</ButtonBase>
+            <ButtonBase type="button" className={page === 'projects' ? 'is-active' : undefined}
               aria-current={page === 'projects' ? 'page' : undefined}
-              onClick={() => setPage('projects')}>Projects</button>
-            <button type="button" className={page === 'tools' ? 'is-active' : undefined}
+              onClick={() => setPage('projects')}>Projects</ButtonBase>
+            <ButtonBase type="button" className={page === 'tools' ? 'is-active' : undefined}
               aria-current={page === 'tools' ? 'page' : undefined}
-              onClick={() => setPage('tools')}>Tools</button>
-            <button type="button" className={page === 'ai-providers' ? 'is-active' : undefined}
+              onClick={() => setPage('tools')}>Tools</ButtonBase>
+            <ButtonBase type="button" className={page === 'ai-providers' ? 'is-active' : undefined}
               aria-current={page === 'ai-providers' ? 'page' : undefined}
-              onClick={() => setPage('ai-providers')}>AI Providers</button>
-            <button type="button" className={page === 'agent-access' ? 'is-active' : undefined}
+              onClick={() => setPage('ai-providers')}>AI Providers</ButtonBase>
+            <ButtonBase type="button" className={page === 'agent-access' ? 'is-active' : undefined}
               aria-current={page === 'agent-access' ? 'page' : undefined}
-              onClick={() => setPage('agent-access')}>Agent Access</button>
+              onClick={() => setPage('agent-access')}>Agent Access</ButtonBase>
           </nav>
           <div className="lighttable-preferences__content">
             {page === 'file-handling' ? (
@@ -204,7 +206,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                 <div className="lighttable-preferences__fields" aria-disabled={!draft.autosave.enabled}>
                   <label>
                     <span>Save recovery copy</span>
-                    <select className="form-input" disabled={!draft.autosave.enabled}
+                    <FormSelect disabled={!draft.autosave.enabled}
                       value={draft.autosave.intervalMs}
                       onChange={(event) => setDraft({ ...draft, autosave: {
                         ...draft.autosave, intervalMs: Number(event.currentTarget.value)
@@ -212,7 +214,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                       {[30_000, 60_000, 120_000, 300_000, 600_000].map((value) => (
                         <option key={value} value={value}>Every {intervalLabel(value)}</option>
                       ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <label>
                     <span>Location</span>
@@ -270,21 +272,21 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                     .map((entry) => entry.kind === 'standard' ? (
                       <div className="lighttable-preferences__project-folder" key={entry.location}>
                         <div className="lighttable-preferences__project-folder-name">{entry.label}</div>
-                        <button className="lighttable-preferences__project-folder-remove" type="button"
+                        <ButtonBase className="lighttable-preferences__project-folder-remove" type="button"
                           aria-label={`Do not create ${entry.label} in new projects`}
                           title="Do not create this folder in new projects"
                           onClick={() => setDraft({ ...draft, projects: {
                             ...draft.projects,
                             createFolders: draft.projects.createFolders.filter((folder) => folder !== entry.location)
-                          } })}>×</button>
+                          } })}>×</ButtonBase>
                       </div>
                     ) : (
                       <div className="lighttable-preferences__project-folder" key={`custom-${entry.index}`}>
                         <div className="lighttable-preferences__project-folder-name">{entry.folder.name}</div>
-                        <button className="lighttable-preferences__project-folder-remove" type="button"
+                        <ButtonBase className="lighttable-preferences__project-folder-remove" type="button"
                           aria-label={`Do not create ${entry.folder.name} in new projects`}
                           title="Do not create this folder in new projects"
-                          onClick={() => updateUserFolders(draft.projects.userFolders.filter((_, index) => index !== entry.index))}>×</button>
+                          onClick={() => updateUserFolders(draft.projects.userFolders.filter((_, index) => index !== entry.index))}>×</ButtonBase>
                       </div>
                     ))}
                   <div className="lighttable-preferences__project-folder-add">
@@ -345,25 +347,25 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                 <div className="lighttable-preferences__fields">
                   <label>
                     <span>Image Create</span>
-                    <select className="form-input" value={draft.genAi.createProviderId}
+                    <FormSelect value={draft.genAi.createProviderId}
                       onChange={(event) => setDraft({ ...draft, genAi: {
                         ...draft.genAi, createProviderId: event.currentTarget.value
                       } })}>
                       {configuredProviderOptions.map((provider) => (
                         <option key={provider.id} value={provider.id}>{provider.label}</option>
                       ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <label>
                     <span>Image Edit</span>
-                    <select className="form-input" value={draft.genAi.editProviderId}
+                    <FormSelect value={draft.genAi.editProviderId}
                       onChange={(event) => setDraft({ ...draft, genAi: {
                         ...draft.genAi, editProviderId: event.currentTarget.value
                       } })}>
                       {configuredProviderOptions.map((provider) => (
                         <option key={provider.id} value={provider.id}>{provider.label}</option>
                       ))}
-                    </select>
+                    </FormSelect>
                   </label>
                 </div>
                 <div className="lighttable-preferences__option-list">

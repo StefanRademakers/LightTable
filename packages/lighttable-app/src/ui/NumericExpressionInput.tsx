@@ -69,6 +69,7 @@ export const NumericExpressionInput = forwardRef<HTMLInputElement, NumericExpres
     return (
       <FormInput
         {...props}
+        data-suite-control="numeric-expression"
         ref={inputRef}
         type="text"
         inputMode="decimal"
