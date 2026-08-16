@@ -150,8 +150,10 @@ try {
     await page.mouse.up();
   };
   const selectFamilyTool = async (name) => {
-    await page.getByRole('button', { name: 'Show selection tools' }).click();
-    const button = page.getByRole('toolbar', { name: 'Selection tools' })
+    const lasso = name.startsWith('Free selection') || name.startsWith('Polygonal selection');
+    const family = lasso ? 'Lasso tools' : 'Marquee tools';
+    await page.getByRole('button', { name: `Show ${family.toLowerCase()}` }).click();
+    const button = page.getByRole('toolbar', { name: family })
       .getByRole('button', { name, exact: true });
     await button.click();
   };
@@ -250,7 +252,7 @@ try {
   await settleFrame();
   await page.keyboard.press('Control+d');
 
-  await selectFamilyTool('Elliptical selection (Shift+M)');
+  await selectFamilyTool('Elliptical selection (M)');
   await measure('selection-ellipse', () => drag(point(0.16, 0.18), point(0.31, 0.33)));
   await page.keyboard.press('Control+d');
 
@@ -258,7 +260,7 @@ try {
   await measure('selection-free', () => drag(point(0.15, 0.18), point(0.30, 0.31), 28));
   await page.keyboard.press('Control+d');
 
-  await selectFamilyTool('Polygonal selection (Shift+L)');
+  await selectFamilyTool('Polygonal selection (L)');
   await measure('selection-polygonal', async () => {
     const a = point(0.15, 0.18); const b = point(0.30, 0.18); const c = point(0.24, 0.32);
     await page.mouse.click(a.x, a.y);
@@ -268,11 +270,11 @@ try {
   });
   await page.keyboard.press('Control+d');
 
-  await selectFamilyTool('Horizontal selection');
+  await selectFamilyTool('Horizontal selection (M)');
   await measure('selection-horizontal', () => page.mouse.click(point(0.20, 0.23).x, point(0.20, 0.23).y));
   await page.keyboard.press('Control+d');
 
-  await selectFamilyTool('Vertical selection');
+  await selectFamilyTool('Vertical selection (M)');
   await measure('selection-vertical', () => page.mouse.click(point(0.22, 0.23).x, point(0.22, 0.23).y));
   await page.keyboard.press('Control+d');
 

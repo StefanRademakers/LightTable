@@ -147,7 +147,7 @@ try {
   const resetTelemetry = async () => {
     await openDebug();
     await page.getByRole('button', { name: 'Reset render stats' }).click();
-    await page.getByRole('tab', { name: 'Grade', exact: true }).click();
+    await page.getByRole('tab', { name: 'Properties', exact: true }).click();
   };
   const captureTelemetry = async () => {
     await openDebug();

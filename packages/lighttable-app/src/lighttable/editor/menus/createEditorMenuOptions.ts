@@ -125,6 +125,7 @@ export interface EditorMenuCommands {
   openStyleGuide?: () => void;
   resetWorkspaceLayout: () => void;
   applyPhotoEditWorkspace: () => void;
+  applyGradingWorkspace: () => void;
   applyAiGenerationWorkspace: () => void;
   openAbout?: () => void;
   openThirdPartyLicenses?: () => void;
@@ -726,6 +727,7 @@ export const createEditorMenuOptions = (
       separatorBefore: true,
       children: [
         { value: 'workspace-photo-edit', label: 'Photo Edit', onClick: commands.applyPhotoEditWorkspace },
+        { value: 'workspace-grading', label: 'Grading', onClick: commands.applyGradingWorkspace },
         { value: 'workspace-ai-generation', label: 'AI Generation', onClick: commands.applyAiGenerationWorkspace },
         {
           value: 'reset-workspace-layout',

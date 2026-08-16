@@ -18,6 +18,8 @@ export interface VectorDocumentEditingOverlay extends VectorEditingOverlay {
 
 export interface VectorDocumentEditingSceneOverlay {
   paths: readonly VectorDocumentEditingOverlay[];
+  /** Non-printing locator for selected geometry that has neither fill nor stroke. */
+  unpaintedElementOutlines: readonly VectorDocumentEditingOverlay[];
   selectionFrame: VectorSelectionFrame | null;
   gradientHandles: readonly VectorEditingOverlay[];
 }
@@ -114,6 +116,35 @@ export const buildVectorDocumentEditingOverlays = (
     };
   });
 
+const unpaintedElementOutlines = (
+  document: Pick<ImageDocument, 'layers' | 'revision'>,
+  selection: VectorEditorSelection
+): VectorDocumentEditingOverlay[] => vectorElementsTopmostFirst(document)
+  .filter(({ layerId, elementId, element }) => {
+    const selected = selection.elements.some(
+      (reference) => reference.layerId === layerId && reference.elementId === elementId
+    );
+    const explicitlyEdited = selection.paths.some(
+      (reference) => samePath(reference, layerId, elementId)
+    ) || selection.anchors.some(
+      (reference) => samePath(reference, layerId, elementId)
+    );
+    return selected && !explicitlyEdited && !element.style.fill && !element.style.stroke;
+  })
+  .map(({ layerId, elementId, documentPath }) => {
+    const overlay = buildVectorEditingOverlay(documentPath, {
+      sceneRevision: document.revision
+    });
+    return {
+      layerId,
+      ...overlay,
+      pathId: elementId,
+      resourceKey: `unpainted:${elementId}:${overlay.resourceKey}`,
+      anchors: [],
+      handles: []
+    };
+  });
+
 /**
  * Builds the complete transient vector-editing scene.
  *
@@ -134,6 +165,7 @@ export const buildVectorDocumentEditingSceneOverlay = (
     .join(',');
   return {
     paths,
+    unpaintedElementOutlines: unpaintedElementOutlines(document, selection),
     gradientHandles: gradientHandleOverlays(document, selection),
     selectionFrame: bounds
       ? buildVectorSelectionFrame(bounds, {

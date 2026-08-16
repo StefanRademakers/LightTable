@@ -8,10 +8,7 @@ describe('workspacePanelRegistry', () => {
   it('registers built-in panels in dependency-safe layout order', () => {
     const content = {
       scopes: 'scopes',
-      grade: 'grade',
-      effects: 'effects',
-      text: 'text',
-      lensFx: 'lensFx',
+      properties: 'properties',
       layers: 'layers',
       channels: 'channels',
       debug: 'debug',
@@ -26,43 +23,34 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.channels,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
     ]);
     expect(panels.map((panel) => panel.content)).toEqual([
       content.layers,
       content.channels,
       content.scopes,
-      content.grade,
-      content.lensFx,
+      content.properties,
       content.aiHistory,
-      content.effects,
       content.genAi,
       content.agent,
-      content.text,
       content.debug
     ]);
     expect(panels.map((panel) => panel.contentKey)).toEqual([
       'layers',
       'channels',
       'scopes',
-      'grade',
-      'lensFx',
+      'properties',
       'aiHistory',
-      'effects',
       'genAi',
       'agent',
-      'text',
       'debug'
     ]);
-    expect(panels.find(({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.grade)?.title)
-      .toBe('Grade');
+    expect(panels.find(({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.properties)?.title)
+      .toBe('Properties');
     expect(
       panels
         .filter((panel) => panel.requiredForSavedLayout)
@@ -71,23 +59,17 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.channels,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent
     ]);
   });
 
   it('tabs Scopes into the floating Layers group while keeping Layers active', () => {
     const panels = createDefaultLightTableWorkspacePanels({
       scopes: null,
-      grade: null,
-      effects: null,
-      text: null,
-      lensFx: null,
+      properties: null,
       layers: null,
       channels: null,
       debug: null,
@@ -108,13 +90,10 @@ describe('workspacePanelRegistry', () => {
     });
   });
 
-  it('groups Lens Fx, Effects, Text and Debug with Grade while keeping Grade active by default', () => {
+  it('groups auxiliary panels with contextual Properties while keeping Properties active', () => {
     const panels = createDefaultLightTableWorkspacePanels({
       scopes: null,
-      grade: null,
-      effects: null,
-      text: null,
-      lensFx: null,
+      properties: null,
       layers: null,
       channels: null,
       debug: null,
@@ -125,48 +104,22 @@ describe('workspacePanelRegistry', () => {
     const debugPanel = panels.find(
       (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
     );
-    const textPanel = panels.find(
-      (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.text
-    );
-    const effectsPanel = panels.find(
-      (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.effects
-    );
-
     expect(debugPanel).toMatchObject({
       initiallyInactive: true,
       defaultPosition: {
-        referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+        referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
         direction: 'within'
       }
     });
     expect(debugPanel?.requiredForSavedLayout).toBeUndefined();
-    expect(textPanel).toMatchObject({
-      title: 'Text',
-      initiallyInactive: true,
-      requiredForSavedLayout: true,
-      defaultPosition: {
-        referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-        direction: 'within'
-      }
-    });
-    expect(effectsPanel).toMatchObject({
-      title: 'Effects',
-      initiallyInactive: true,
-      requiredForSavedLayout: true,
-      defaultPosition: {
-        referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-        direction: 'within'
-      }
-    });
+    expect(panels.some(({ title }) => title === 'Text' || title === 'Effects' || title === 'Lens Fx'))
+      .toBe(false);
   });
 
   it('starts Layers as a compact floating panel over the document', () => {
     const panels = createDefaultLightTableWorkspacePanels({
       scopes: null,
-      grade: null,
-      effects: null,
-      text: null,
-      lensFx: null,
+      properties: null,
       layers: null,
       channels: null,
       debug: null,

@@ -431,7 +431,7 @@ try {
     submitP95Ms: Number(textInput?.[1] ?? 0),
     gpuP95Ms: Number(textInput?.[2] ?? 0)
   };
-  await window.getByRole('tab', { name: 'Text', exact: true }).click();
+  await window.getByRole('tab', { name: 'Properties', exact: true }).click();
 
   await window.mouse.move(end.x, end.y);
   await window.mouse.down();

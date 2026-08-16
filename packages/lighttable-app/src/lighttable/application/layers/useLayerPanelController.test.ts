@@ -10,6 +10,7 @@ import {
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
 import {
   adjustmentStackForOwner,
   adjustmentStackOwnerIsEnabled,
@@ -53,6 +54,8 @@ const setup = (initialDocument: ImageDocument) => {
     requestFlattenGroup: vi.fn(),
     requestFlattenImage: vi.fn(),
     editStyles: vi.fn(),
+    finishStyleEditing: vi.fn(),
+    finishProcessingEditing: vi.fn(),
     finishTextEditing: vi.fn()
   };
   const controller = createLayerPanelController(() => dependencies);
@@ -244,6 +247,45 @@ describe('createLayerPanelController', () => {
       && adjustmentStackOwnerIsEnabled(bypassed.adjustmentStack, 'grade')
       && !adjustmentStackOwnerIsEnabled(bypassed.adjustmentStack, 'lens-fx')
     ).toBe(true);
+  });
+
+  it('removes local Grade without deleting attached Lens Fx', () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const local = createDefaultAdjustments();
+    local.contrast = 42;
+    local.effects.lensBlur.enabled = true;
+    const document = setRasterLayerAdjustmentStack(
+      base,
+      base.activeLayerId!,
+      createAdjustmentStackFromBasicAdjustments(local)
+    );
+    const harness = setup(document);
+    const layerId = document.activeLayerId!;
+
+    harness.controller.removeLocalProcessing(layerId, 'grade');
+    const layer = findDocumentLayer(harness.document(), layerId);
+
+    expect(layer?.type === 'raster' && layer.adjustmentStack
+      ? adjustmentStackForOwner(layer.adjustmentStack, 'grade').modules
+      : null).toEqual([]);
+    expect(layer?.type === 'raster' && layer.adjustmentStack
+      ? adjustmentStackForOwner(layer.adjustmentStack, 'lens-fx').modules.length
+      : 0).toBeGreaterThan(0);
+    expect(harness.dependencies.finishProcessingEditing).toHaveBeenCalledOnce();
+  });
+
+  it('removes one Layer Effect without clearing its siblings', () => {
+    const base = createImageDocument('test', 100, 100, 'asset');
+    const layerId = base.activeLayerId!;
+    const styled = addLayerStyle(addLayerStyle(base, layerId, 'drop-shadow'), layerId, 'stroke');
+    const effects = findDocumentLayer(styled, layerId)!.styleStack.effects;
+    const harness = setup(styled);
+
+    harness.controller.removeStyle(layerId, effects[0].id);
+
+    expect(findDocumentLayer(harness.document(), layerId)?.styleStack.effects)
+      .toEqual([effects[1]]);
+    expect(harness.dependencies.finishStyleEditing).toHaveBeenCalledOnce();
   });
 
   it('removes the active mask and returns painting to pixels', () => {

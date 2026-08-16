@@ -98,6 +98,7 @@ export interface EditorMenuControllerOptions {
     toggleScreenMode(): void;
     resetLayout(): void;
     applyPhotoEditWorkspace(): void;
+    applyGradingWorkspace(): void;
     applyAiGenerationWorkspace(): void;
     startGuidedSample?(): void;
     openSettings?(): void;
@@ -276,6 +277,7 @@ export const createEditorMenuController = ({
       toggleScreenMode: workspace.toggleScreenMode,
       resetWorkspaceLayout: workspace.resetLayout,
       applyPhotoEditWorkspace: workspace.applyPhotoEditWorkspace,
+      applyGradingWorkspace: workspace.applyGradingWorkspace,
       applyAiGenerationWorkspace: workspace.applyAiGenerationWorkspace,
       startGuidedSample: workspace.startGuidedSample,
       openSettings: workspace.openSettings,

@@ -67,8 +67,9 @@ try {
   if (!target) throw new Error('No layer with an enabled Layer Style was found.');
   report.target = { id: target.id, name: target.name, type: target.type };
   const escapedId = target.id.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-  await page.locator(`[data-layer-id="${escapedId}"]`).click();
-  await page.getByRole('tab', { name: 'Effects', exact: true }).click();
+  const targetRow = page.locator(`[data-layer-id="${escapedId}"]`);
+  await targetRow.click();
+  await targetRow.getByRole('button', { name: 'Effects', exact: true }).click();
   const effectToggle = page.locator('.lighttable-group__toggle[title="Drop Shadow"]');
   await effectToggle.waitFor({ state: 'visible' });
   if (await effectToggle.getAttribute('aria-expanded') !== 'true') await effectToggle.click();
@@ -94,7 +95,7 @@ try {
 
   await page.getByRole('tab', { name: 'Debug', exact: true }).click();
   await page.getByRole('button', { name: 'Reset render stats' }).click();
-  await page.getByRole('tab', { name: 'Effects', exact: true }).click();
+  await page.getByRole('tab', { name: 'Properties', exact: true }).click();
   const range = await slider.evaluate((node) => ({
     minimum: Number(node.min), maximum: Number(node.max), initialValue: Number(node.value)
   }));

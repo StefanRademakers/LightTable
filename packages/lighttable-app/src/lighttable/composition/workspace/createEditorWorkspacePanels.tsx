@@ -7,11 +7,13 @@ import {
   LensFxPanel
 } from '../../editor/panels/LensFxPanel';
 import { LayerStylesPanel } from '../../editor/panels/LayerStylesPanel';
+import { PropertiesPanel } from '../../editor/panels/PropertiesPanel';
 import { AgentActivityPanel } from '../../editor/panels/AgentActivityPanel';
 import { GenAiPanel } from '../../../genai/ui/GenAiPanel';
 import { ProjectAssetBrowser } from '../../../genai/ui/ProjectAssetBrowser';
 import type { LayerStyleEditorController } from '../../application/styles/useLayerStyleEditorController';
 import type { ImageDocument } from '../../editor/document/documentTypes';
+import type { PropertiesInspectorView } from '../../application/properties/propertiesInspectorTarget';
 import {
   createDefaultLightTableWorkspacePanels,
   type LightTableWorkspacePanelRegistration
@@ -22,6 +24,7 @@ export interface EditorWorkspacePanelBindings {
   layers: React.ReactNode;
   channels: React.ReactNode;
   debug: React.ComponentProps<typeof DebugPanel>;
+  propertiesView: PropertiesInspectorView;
   lensFxKey: string;
   lensFx: React.ComponentProps<typeof LensFxPanel>;
   grade: React.ComponentProps<typeof GradePanel>;
@@ -46,6 +49,7 @@ export const createEditorWorkspacePanels = ({
   layers,
   channels,
   debug,
+  propertiesView,
   lensFxKey,
   lensFx,
   grade,
@@ -60,13 +64,18 @@ export const createEditorWorkspacePanels = ({
     layers,
     channels,
     debug: <DebugPanel {...debug} />,
-    lensFx: <LensFxPanel key={lensFxKey} {...lensFx} />,
-    grade: <GradePanel {...grade} />,
-    effects: <LayerStylesPanel {...effects} />,
+    properties: (
+      <PropertiesPanel
+        view={propertiesView}
+        grade={<GradePanel {...grade} />}
+        lensFx={<LensFxPanel key={lensFxKey} {...lensFx} />}
+        effects={<LayerStylesPanel {...effects} />}
+        text={text
+          ? <TextPropertiesPanel {...text} />
+          : <aside className="lighttable-panel" aria-label="Text properties" />}
+      />
+    ),
     agent: <AgentActivityPanel {...agent} />,
     genAi: <GenAiPanel {...genAi} />,
-    aiHistory: <ProjectAssetBrowser {...aiHistory} />,
-    text: text
-      ? <TextPropertiesPanel {...text} />
-      : <aside className="lighttable-panel" aria-label="Text properties" />
+    aiHistory: <ProjectAssetBrowser {...aiHistory} />
   });

@@ -28,7 +28,6 @@ export const resolveEditorDocumentCanvases = (
   if (
     !viewport
     || !hueDistribution
-    || !colorMixerHueDistribution
     || !parade
     || !vectorscope
   ) {
@@ -38,7 +37,7 @@ export const resolveEditorDocumentCanvases = (
     viewport,
     scopes: {
       hueDistribution,
-      colorMixerHueDistribution,
+      ...(colorMixerHueDistribution ? { colorMixerHueDistribution } : {}),
       parade,
       vectorscope
     }

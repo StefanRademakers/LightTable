@@ -99,6 +99,24 @@ export const adjustmentStackForOwner = (
   )
 });
 
+/** Removes one authored processing owner while preserving every other module family. */
+export const removeAdjustmentStackOwner = (
+  stack: AdjustmentStack,
+  owner: AdjustmentStackOwner,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): AdjustmentStack => {
+  const cloned = cloneAdjustmentStack(stack);
+  const modules = cloned.modules.filter((module) =>
+    !adjustmentModuleBelongsToOwner(module.type, owner, registry)
+  );
+  if (modules.length === stack.modules.length) return stack;
+  return {
+    ...cloned,
+    revision: stack.revision + 1,
+    modules
+  };
+};
+
 export const adjustmentStackOwnerHasAuthoredSettings = (
   adjustments: BasicAdjustments,
   owner: AdjustmentStackOwner,

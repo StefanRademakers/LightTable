@@ -16,21 +16,30 @@ owns the panel/group layout mechanics and serialized layout graph;
 `workspacePanelRegistry.ts` owns which LightTable panels exist and their fresh
 workspace placement. LightTable owns panel content, constraints, tokens and
 interaction policy. Neither Dockview state nor DOM nodes are document content.
-Grade, Lens Fx, Layers, Scopes, Debug and future media/AI/3D panels use this
-same registry/host contract. Floating panels must remain recoverable on
+Properties, Layers, Scopes, Debug and future media/AI/3D panels use this same
+registry/host contract. Properties is a contextual shell: Grade, Lens Fx,
+Text and Layer Effects remain independently owned editors, and exactly one is
+mounted for the current Layers-tree target. Floating panels must remain recoverable on
 window/display changes.
 
 The built-in fresh-workspace profile currently creates:
 
 - a floating `Layers` group within the document host at roughly 260 x 370;
 - `Channels` and `Scopes` as initially inactive tabs in that group;
-- a 250-pixel `Grade` group docked to the right of the document host;
-- `Lens Fx` and `Debug` as initially inactive tabs in the Grade group.
+- a 250-pixel `Properties` group docked to the right of the document host;
+- `Assets`, `GenAI`, `Agent` and `Debug` as tabs in the Properties group.
 
 A valid persisted Dockview layout takes precedence over these fresh-workspace
 positions. This is workspace preference only: switching documents must not
 replace it, and opening a saved image document must not deserialize Dockview
 nodes into the scene model.
+
+The status bar exposes direct, keyboard-focusable switches for the three
+primary workspace presets. `Photo edit` uses the canonical fresh layout;
+`Gen AI` docks GenAI/Agent left and activates Assets right; `Grading` activates
+Scopes in a left column while retaining contextual Properties on the right and Layers as a
+floating group. Applying a preset persists its Dockview graph. A manual dock
+change marks that graph `custom` and clears the active preset indication.
 
 ## Design tokens and controls
 
@@ -59,10 +68,20 @@ multi-selected, then active target. Multi-selection uses the selected surface;
 the active target adds the accent border and active surface. Keyboard focus
 adds the shared focus ring without changing selection. Pixel and mask targets
 use the accent inside their bounded thumbnail. A disclosure exists only for a
-group or for a layer with present effects. Mask cells and effect children exist
-only when their canonical data exists; disabled-but-present items remain shown
-with their visibility state. Dormant default effects are never synthesized in
-the tree.
+group or for a layer with present attached processing or Layer Effects. An
+attached local Grade is shown as an indented Grade-icon + `Grade` child beneath its
+owning raster layer; it is not compressed into the row's status column, which
+remains available for Layer Effects and other layer state. Mask cells and
+processing/effect children exist only when their canonical data exists;
+disabled-but-present items remain shown with their visibility state. Dormant
+default effects are never synthesized in the tree. Drawable-layer disclosures
+for attached processing and Layer Effects sit at the trailing edge of the row;
+group hierarchy disclosures remain before the group thumbnail.
+
+New adjustment layers, including Grade Layers, start with an enabled, linked,
+full-white raster mask. The adjustment and mask thumbnails are both visible in
+the new layer row immediately; removing that mask remains an explicit user
+action. Layer-local attached Grade does not synthesize a separate layer mask.
 
 ### Canonical property controls
 
@@ -84,7 +103,7 @@ Grade and Lens Fx share `AdjustmentSlider` and `SwitchControl`; Text and vector
 Shape/Gradient properties share `ToolOptionControls`; Layer Styles now compose
 the same panel controls. Common controls stay visible first. Compatibility
 controls remain editable under **Advanced** and are never discarded. Layer
-Styles are a regular dock tab, not a modal property language.
+Styles are an editor inside contextual Properties, not a modal property language.
 
 `GradientField` is the canonical compact gradient preview/dropdown trigger in
 toolbars and property rows. The shared gradient editor owns only the
@@ -101,6 +120,12 @@ composition must be added there. The catalog is also a visual regression target:
 it documents heading/body/help/error hierarchy, control states, keyboard focus,
 and the standard dialog order of header, content, then right-aligned secondary
 and primary actions.
+
+`SegmentedControl` has a `low-attention` variant for persistent secondary
+navigation such as workspace switches in the status bar. It keeps the selected
+option fully opaque and renders inactive options at half opacity without an
+accent fill; selection-mode and other primary segmented controls retain the
+standard treatment.
 
 The first combined catalog review exposed a remaining typography-system gap:
 panel titles, section headings and control-group headings are not yet distinct
@@ -143,7 +168,7 @@ valid Dockview layouts, not four competing workspace defaults:
 - a fixed top menu, tool-specific property bar and document tabs;
 - a narrow left tool rail and canvas-centered editing surface;
 - Layers, Channels and Scopes hosted by the same dock/tab/floating system;
-- Grade, Lens Fx and Debug accessory panels built from shared sections,
+- contextual Properties hosting the separate Grade, Lens Fx, Text and Effects editors,
   switches, sliders and tokens;
 - vector/path overlays drawn over the document without modifying its pixels.
 

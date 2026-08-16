@@ -118,7 +118,8 @@ try {
     })}`);
   }
   await fileMenu.click();
-  await page.getByText('Export Photoshop PSD...', { exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Export', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Photoshop PSD...', exact: true }).click();
   const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {
     try {

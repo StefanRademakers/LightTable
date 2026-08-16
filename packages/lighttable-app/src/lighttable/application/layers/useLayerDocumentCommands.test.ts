@@ -434,7 +434,15 @@ describe('useLayerDocumentCommands', () => {
 
     expect(state.commands.createAdjustmentLayer()).toBe(true);
 
-    expect(state.document().layers.at(-1)?.type).toBe('adjustment');
+    const grade = state.document().layers.at(-1);
+    expect(grade?.type).toBe('adjustment');
+    expect(grade?.mask).toMatchObject({
+      enabled: true,
+      linked: true,
+      density: 1,
+      feather: 0,
+      pixelRevision: 0
+    });
     // A new Grade Layer is an explicit, neutral owner. It must not silently
     // steal an unrelated panel value from the previously selected raster layer.
     expect(state.panelAdjustments().exposureEV).toBe(0);

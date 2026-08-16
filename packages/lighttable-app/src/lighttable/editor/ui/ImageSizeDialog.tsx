@@ -4,6 +4,7 @@ import { ActionButton } from '../../../ui/ActionButton';
 import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
 import { SwitchControl } from '../../../ui/SwitchControl';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
+import { AdjustmentSlider } from '../../AdjustmentSlider';
 import type { ImageDocument } from '../document/documentTypes';
 import {
   MAX_IMAGE_SIZE_DIMENSION,
@@ -186,8 +187,11 @@ export const ImageSizeDialog = ({
             </select>
           </div>
           {method === 'preserve-details-2' && resample ? (
-            <label className="image-size-dialog__noise"><span>Reduce Noise</span><input type="range" min="0" max="100" value={noiseReduction}
-              onChange={(event) => setNoiseReduction(event.currentTarget.valueAsNumber)} /><output>{noiseReduction}%</output></label>
+            <div className="image-size-dialog__noise">
+              <AdjustmentSlider label="Reduce Noise" value={noiseReduction} min={0} max={100}
+                layout="inline" format={(value) => `${Math.round(value)}%`}
+                onChange={setNoiseReduction} onReset={() => setNoiseReduction(0)} />
+            </div>
           ) : null}
           <label className="image-size-dialog__check"><input type="checkbox" checked={scaleStyles}
             onChange={(event) => setScaleStyles(event.currentTarget.checked)} /> Scale Styles</label>

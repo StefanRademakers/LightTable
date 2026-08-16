@@ -66,19 +66,20 @@ export interface GradientFieldProps {
   readonly ariaLabel: string;
   readonly title?: string;
   readonly expanded?: boolean;
+  readonly size?: 'regular' | 'compact';
   readonly onClick: () => void;
 }
 
 /** Canonical compact paint-field trigger for every LightTable gradient editor. */
 export const GradientField = React.forwardRef<HTMLButtonElement, GradientFieldProps>(
-  ({ value, ariaLabel, title = ariaLabel, expanded = false, onClick }, ref) => (
-    <button ref={ref} type="button" className="gradient-field"
+  ({ value, ariaLabel, title = ariaLabel, expanded = false, size = 'regular', onClick }, ref) => (
+    <button ref={ref} type="button" className={`gradient-field gradient-field--${size}`}
       aria-label={ariaLabel} aria-haspopup="dialog" aria-expanded={expanded}
       title={title} onClick={onClick}>
       <span className="gradient-field__ramp"
         style={{ '--ui-gradient-field': gradientFieldBackground(value) } as React.CSSProperties}
         aria-hidden="true" />
-      <span className="gradient-field__arrow" aria-hidden="true" />
+      <span className="paint-field__arrow" aria-hidden="true" />
     </button>
   )
 );

@@ -99,6 +99,43 @@ describe('vector document editing overlays', () => {
     expect(overlays).toEqual([]);
   });
 
+  it('builds an anchorless locator outline for selected geometry without paint', () => {
+    const document = createImageDocument('document', 100, 100, 'asset');
+    const shape = createVectorLiveShape('shape', {
+      kind: 'ellipse', width: 30, height: 20
+    });
+    shape.style.fill = null;
+    shape.style.stroke = null;
+    const layer = createVectorLayer([shape]);
+    document.layers = [layer];
+    const selection = createVectorEditorSelection();
+    selection.elements = [{ layerId: layer.id, elementId: shape.id }];
+
+    const scene = buildVectorDocumentEditingSceneOverlay(document, selection);
+    expect(scene.paths).toEqual([]);
+    expect(scene.unpaintedElementOutlines).toHaveLength(1);
+    expect(scene.unpaintedElementOutlines[0]).toMatchObject({
+      layerId: layer.id, pathId: shape.id, anchors: [], handles: []
+    });
+    expect(scene.unpaintedElementOutlines[0]?.cubics.length).toBeGreaterThan(0);
+  });
+
+  it('uses the solid editing path instead of duplicating an unpainted outline', () => {
+    const document = createImageDocument('document', 100, 100, 'asset');
+    const path = createVectorPath('path');
+    path.style.fill = null;
+    path.style.stroke = null;
+    const layer = createVectorLayer([path]);
+    document.layers = [layer];
+    const selection = createVectorEditorSelection();
+    selection.elements = [{ layerId: layer.id, elementId: path.id }];
+    selection.paths = [{ layerId: layer.id, pathId: path.id }];
+
+    const scene = buildVectorDocumentEditingSceneOverlay(document, selection);
+    expect(scene.paths).toHaveLength(1);
+    expect(scene.unpaintedElementOutlines).toEqual([]);
+  });
+
   it('keeps an explicitly selected path visible when its element is also selected', () => {
     const document = createImageDocument('document', 100, 100, 'asset');
     const shape = createVectorLiveShape('shape', {
@@ -146,6 +183,7 @@ describe('vector document editing overlays', () => {
 
     const scene = buildVectorDocumentEditingSceneOverlay(document, selection);
     expect(scene.paths).toEqual([]);
+    expect(scene.unpaintedElementOutlines).toEqual([]);
     expect(scene.selectionFrame).toMatchObject({
       bounds: { x: 10, y: 15, width: 50, height: 40 },
       pivot: { x: 35, y: 35 }

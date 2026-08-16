@@ -96,6 +96,7 @@ import {
   BRUSH_CURSOR_THEME,
   GRADIENT_GIZMO_THEME,
   SELECTION_OUTLINE_THEME,
+  UNPAINTED_ELEMENT_OUTLINE_THEME,
   VectorEditingOverlayBackend,
   type VectorEditingOverlayTheme,
   type VectorEditingOverlayTarget
@@ -252,6 +253,7 @@ export class WebGpuEngine {
   private isolatedMaskTexture: GPUTexture | null = null;
   private isolatedMaskBindGroup: GPUBindGroup | null = null;
   private isolatedMaskNearestBindGroup: GPUBindGroup | null = null;
+  private isolatedMaskPresentationBuffer: GPUBuffer | null = null;
   private isolatedCompositeChannel: CompositeColorChannel | null = null;
   private lensBlurDepthVisualization = false;
   private warpDebugVisualization: WarpDebugView = 'result';
@@ -2210,17 +2212,42 @@ export class WebGpuEngine {
     if (this.renderDirty.viewportRequired) {
       const canvasView = this.context.getCurrentTexture().createView();
       const useNearestSampling = this.viewportPresentation.sampling === 'nearest';
-      const maskTexture = this.isolatedMaskLayerId
-        ? this.documentRenderer.maskPresentationTexture(this.isolatedMaskLayerId)
+      const maskPresentation = this.isolatedMaskLayerId
+        ? this.documentRenderer.maskPresentation(this.isolatedMaskLayerId)
         : null;
-      if (maskTexture && maskTexture !== this.isolatedMaskTexture) {
+      const maskTexture = maskPresentation?.texture ?? null;
+      if (maskPresentation && !this.isolatedMaskPresentationBuffer) {
+        this.isolatedMaskPresentationBuffer = this.device.createBuffer({
+          label: 'LightTable isolated mask presentation',
+          size: 48,
+          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+      }
+      if (maskPresentation && this.isolatedMaskPresentationBuffer) {
+        const inverse = maskPresentation.inverseTransform;
+        this.device.queue.writeBuffer(
+          this.isolatedMaskPresentationBuffer,
+          0,
+          new Float32Array([
+            inverse.a, inverse.c, inverse.tx, 0,
+            inverse.b, inverse.d, inverse.ty, 0,
+            maskPresentation.canvasWidth, maskPresentation.canvasHeight, 0, 0
+          ])
+        );
+      }
+      if (
+        maskTexture
+        && this.isolatedMaskPresentationBuffer
+        && maskTexture !== this.isolatedMaskTexture
+      ) {
         this.isolatedMaskTexture = maskTexture;
         this.isolatedMaskBindGroup = this.device.createBindGroup({
           layout: this.maskBlitPipeline.getBindGroupLayout(0),
           entries: [
             { binding: 0, resource: maskTexture.createView() },
             { binding: 1, resource: this.coreResources.sampler },
-            { binding: 2, resource: { buffer: this.coreResources.viewBuffer } }
+            { binding: 2, resource: { buffer: this.coreResources.viewBuffer } },
+            { binding: 3, resource: { buffer: this.isolatedMaskPresentationBuffer } }
           ]
         });
         this.isolatedMaskNearestBindGroup = this.device.createBindGroup({
@@ -2228,7 +2255,8 @@ export class WebGpuEngine {
           entries: [
             { binding: 0, resource: maskTexture.createView() },
             { binding: 1, resource: this.coreResources.nearestSampler },
-            { binding: 2, resource: { buffer: this.coreResources.viewBuffer } }
+            { binding: 2, resource: { buffer: this.coreResources.viewBuffer } },
+            { binding: 3, resource: { buffer: this.isolatedMaskPresentationBuffer } }
           ]
         });
       } else if (!maskTexture) {
@@ -2548,6 +2576,8 @@ export class WebGpuEngine {
     this.isolatedMaskTexture = null;
     this.isolatedMaskBindGroup = null;
     this.isolatedMaskNearestBindGroup = null;
+    this.isolatedMaskPresentationBuffer?.destroy();
+    this.isolatedMaskPresentationBuffer = null;
     this.viewportPresentation.dispose();
     this.device.removeEventListener('uncapturederror', this.deviceErrorListener);
     this.unsubscribeDeviceLost();
@@ -2608,6 +2638,7 @@ export class WebGpuEngine {
       : null;
     if (
       !overlayScene.paths.length
+      && !overlayScene.unpaintedElementOutlines.length
       && !overlayScene.gradientHandles.length
       && !overlayScene.selectionFrame
       && !selectionShape
@@ -2645,6 +2676,14 @@ export class WebGpuEngine {
       dashOffsetPx: this.selectionAntsAnimator.phasePx
     };
     this.vectorEditingOverlayBackend ??= new VectorEditingOverlayBackend(this.device);
+    for (let index = overlayScene.unpaintedElementOutlines.length - 1; index >= 0; index -= 1) {
+      this.vectorEditingOverlayBackend.encode(
+        encoder,
+        overlayScene.unpaintedElementOutlines[index]!,
+        target,
+        UNPAINTED_ELEMENT_OUTLINE_THEME
+      );
+    }
     // Queries return topmost-first. Encode bottom-to-top so the topmost path's
     // handles remain the final visible editing affordance.
     for (let index = overlayScene.paths.length - 1; index >= 0; index -= 1) {

@@ -70,15 +70,17 @@ try {
   await rememberedMaster.click();
   await family.waitFor({ state: 'visible' });
   await page.screenshot({ path: screenshotPath });
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Shift+p');
+  await page.keyboard.press('Shift+p');
   await page.keyboard.press('Shift+p');
   if (await master.getAttribute('aria-label') !== 'Pen (P)') {
     throw new Error('Shift+P did not cycle back to the Pen tool.');
   }
-  const penSettings = page.getByLabel('Pen settings');
-  await penSettings.waitFor({ state: 'visible' });
-  for (const label of ['Auto Add/Delete', 'Rubber Band']) {
-    const control = penSettings.getByText(label, { exact: true });
-    await control.waitFor({ state: 'visible' });
+  if (await page.getByLabel('Pen settings').count()
+    || await page.getByText('Auto Add/Delete', { exact: true }).count()
+    || await page.getByText('Rubber Band', { exact: true }).count()) {
+    throw new Error('Implicit Pen behavior leaked into the property bar.');
   }
   const viewport = page.locator('.lighttable-viewport');
   const bounds = await viewport.boundingBox();

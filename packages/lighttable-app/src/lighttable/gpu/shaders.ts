@@ -822,6 +822,11 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+// The preferred canvas format is an unorm swapchain format (not *-srgb), so
+// presentation colors are supplied as normalized display-sRGB values. Keep
+// this exactly aligned with --lt-surface-workspace (#161718).
+const VIEWPORT_PASTEBOARD_BACKGROUND = 'vec3f(0.086274510, 0.090196078, 0.094117647)';
+
 export const VIEWPORT_BLIT_WGSL = /* wgsl */ `
 struct ViewUniforms {
   viewportWidth: f32,
@@ -845,7 +850,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   let checkerIndex = vec2u(floor(pixel / max(view.checkerSize, 2.0)));
   let checker = select(0.115, 0.17, ((checkerIndex.x + checkerIndex.y) & 1u) == 0u);
   let canvasBackground = vec3f(checker);
-  let pasteboardBackground = vec3f(0.031, 0.039, 0.047);
+  let pasteboardBackground = ${VIEWPORT_PASTEBOARD_BACKGROUND};
   if (any(imageUv < vec2f(0.0)) || any(imageUv > vec2f(1.0))) {
     return vec4f(pasteboardBackground, 1.0);
   }
@@ -881,19 +886,38 @@ struct ViewUniforms {
   padding: f32,
 }
 
+struct MaskPresentationUniforms {
+  inverseRow0: vec4f,
+  inverseRow1: vec4f,
+  canvasSize: vec2f,
+  padding: vec2f,
+}
+
 @group(0) @binding(0) var maskTexture: texture_2d<f32>;
 @group(0) @binding(1) var imageSampler: sampler;
 @group(0) @binding(2) var<uniform> view: ViewUniforms;
+@group(0) @binding(3) var<uniform> maskPresentation: MaskPresentationUniforms;
 
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let pixel = input.uv * vec2f(view.viewportWidth, view.viewportHeight);
   let imageUv = (pixel - vec2f(view.rectX, view.rectY)) / vec2f(view.rectWidth, view.rectHeight);
-  let pasteboardBackground = vec3f(0.031, 0.039, 0.047);
+  let pasteboardBackground = ${VIEWPORT_PASTEBOARD_BACKGROUND};
   if (any(imageUv < vec2f(0.0)) || any(imageUv > vec2f(1.0))) {
     return vec4f(pasteboardBackground, 1.0);
   }
-  let coverage = textureSampleLevel(maskTexture, imageSampler, imageUv, 0.0).r;
+  let destinationPixel = imageUv * maskPresentation.canvasSize;
+  let maskPixel = vec2f(
+    dot(maskPresentation.inverseRow0.xyz, vec3f(destinationPixel, 1.0)),
+    dot(maskPresentation.inverseRow1.xyz, vec3f(destinationPixel, 1.0))
+  );
+  let maskInside = all(maskPixel >= vec2f(0.0)) && all(maskPixel < maskPresentation.canvasSize);
+  let maskUv = clamp(maskPixel / maskPresentation.canvasSize, vec2f(0.0), vec2f(1.0));
+  let coverage = select(
+    0.0,
+    textureSampleLevel(maskTexture, imageSampler, maskUv, 0.0).r,
+    maskInside
+  );
   return vec4f(vec3f(coverage), 1.0);
 }
 `;
@@ -930,7 +954,7 @@ struct ChannelUniforms {
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let pixel = input.uv * vec2f(view.viewportWidth, view.viewportHeight);
   let imageUv = (pixel - vec2f(view.rectX, view.rectY)) / vec2f(view.rectWidth, view.rectHeight);
-  let pasteboardBackground = vec3f(0.031, 0.039, 0.047);
+  let pasteboardBackground = ${VIEWPORT_PASTEBOARD_BACKGROUND};
   if (any(imageUv < vec2f(0.0)) || any(imageUv > vec2f(1.0))) {
     return vec4f(pasteboardBackground, 1.0);
   }
@@ -968,7 +992,7 @@ struct ViewUniforms {
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let pixel = input.uv * vec2f(view.viewportWidth, view.viewportHeight);
   let imageUv = (pixel - vec2f(view.rectX, view.rectY)) / vec2f(view.rectWidth, view.rectHeight);
-  let pasteboardBackground = vec3f(0.031, 0.039, 0.047);
+  let pasteboardBackground = ${VIEWPORT_PASTEBOARD_BACKGROUND};
   if (any(imageUv < vec2f(0.0)) || any(imageUv > vec2f(1.0))) {
     return vec4f(pasteboardBackground, 1.0);
   }

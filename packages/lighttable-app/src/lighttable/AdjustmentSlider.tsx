@@ -12,6 +12,7 @@ const TRACK_BACKGROUNDS: Record<AdjustmentSliderTrack, string> = {
 
 interface AdjustmentSliderProps {
   label: string;
+  ariaLabel?: string;
   value: number;
   min: number;
   max: number;
@@ -20,6 +21,8 @@ interface AdjustmentSliderProps {
   resetValue?: number;
   track?: AdjustmentSliderTrack;
   trackBackground?: string;
+  layout?: 'stacked' | 'inline' | 'bare';
+  showResetMarker?: boolean;
   disabled?: boolean;
   resetModifierActive?: boolean;
   onChange: (value: number) => void;
@@ -36,6 +39,7 @@ const INTERACTION_PUBLISH_INTERVAL_MS = 33;
 
 export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   label,
+  ariaLabel,
   value,
   min,
   max,
@@ -44,6 +48,8 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   resetValue = 0,
   track,
   trackBackground: customTrackBackground,
+  layout = 'stacked',
+  showResetMarker = true,
   disabled = false,
   resetModifierActive = false,
   onChange,
@@ -143,8 +149,8 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
     ? TRACK_BACKGROUNDS[track]
     : `linear-gradient(to right, var(--lt-range-track-fill) 0%, var(--lt-range-track-fill) ${percentage}%, var(--lt-range-track) ${percentage}%, var(--lt-range-track) 100%)`);
   return (
-    <label className={`lighttable-adjustment${disabled ? ' lighttable-adjustment--disabled' : ''}`}>
-      <span
+    <label className={`lighttable-adjustment lighttable-adjustment--${layout}${disabled ? ' lighttable-adjustment--disabled' : ''}`}>
+      {layout !== 'bare' ? <span
         className="lighttable-adjustment__header"
         title={resetModifierActive ? `Reset ${label}` : label}
         onPointerDown={(event) => {
@@ -172,14 +178,16 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
       >
         <span>{label}</span>
         <output>{format(displayValue)}</output>
-      </span>
+      </span> : null}
       <span className="lighttable-adjustment__track-wrap">
         <span
           className="lighttable-adjustment__track-axis"
           style={{ ['--lighttable-slider-track' as string]: trackBackground }}
           aria-hidden="true"
         >
-          <span className="lighttable-adjustment__neutral" style={{ left: `${neutral}%` }} />
+          {showResetMarker ? (
+            <span className="lighttable-adjustment__neutral" style={{ left: `${neutral}%` }} />
+          ) : null}
         </span>
         <input
           type="range"
@@ -254,7 +262,7 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
             setDisplayValue(next);
             scheduleValuePublish();
           }}
-          aria-label={label}
+          aria-label={ariaLabel ?? label}
         />
       </span>
     </label>

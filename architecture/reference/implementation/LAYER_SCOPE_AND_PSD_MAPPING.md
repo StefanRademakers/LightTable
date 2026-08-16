@@ -37,6 +37,14 @@ Related documents:
 A Smart Object is not an Adjustment Layer. A Smart Filter is not a Layer
 Style. LightTable Lens Fx are not automatically Photoshop Layer Styles.
 
+LightTable does not require a user-facing "Convert to Smart Object" step before
+non-destructive processing. Every eligible drawable layer is processing-capable
+by default and may own an attached adjustment/filter stack. Baking,
+rasterization or destructive application must therefore be an explicit
+command, not an implicit consequence of adding Grade. This removes Photoshop's
+legacy workflow ceremony without claiming that every LightTable layer already
+implements linked/embedded Smart Object source semantics.
+
 ## 2. Required processing scopes
 
 ### Source interpretation
@@ -305,7 +313,8 @@ Grade - Document Grade
 - `Add adjustment` adds a module only to this layer.
 - Current Grade controls may initially appear as one compound
   `LightTable Grade` module.
-- A badge in the Layers panel indicates a non-default local grade.
+- A disclosure and indented Grade-icon + `Grade` child in the Layers panel indicate a
+  present local grade; its eye toggles that local processing owner.
 
 ### Adjustment Layer selected
 
@@ -424,7 +433,8 @@ layer.
 - [ ] Make the current complete-document grade render through the registry
       without visual change.
 - [ ] Add grade state to one drawable layer and render it before compositing.
-- [ ] Add contextual Grade panel targeting and layer badges.
+- [ ] Add contextual Grade panel targeting; local Grade ownership is already
+  projected as an expandable Grade processing child.
 - [ ] Add Adjustment Layers with masks and opacity.
 - [ ] Add clipping using isolated target output.
 - [ ] Add isolated groups, then verified pass-through groups.

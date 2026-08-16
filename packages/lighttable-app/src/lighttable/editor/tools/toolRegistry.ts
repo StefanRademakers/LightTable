@@ -123,34 +123,6 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     role: 'vector'
   },
   {
-    id: 'text-point',
-    label: 'Type tool',
-    shortcutLabel: 'T',
-    shortcutKey: 't',
-    iconName: 'tool_text.png',
-    role: 'text'
-  },
-  {
-    id: 'text-paragraph',
-    label: 'Paragraph text',
-    iconName: 'tool_text.png',
-    role: 'text'
-  },
-  {
-    id: 'text-vertical',
-    label: 'Vertical type tool',
-    shortcutLabel: 'T',
-    iconName: 'tool_text_vertical.png',
-    role: 'text'
-  },
-  {
-    id: 'text-path',
-    label: 'Path text',
-    shortcutLabel: 'T',
-    iconName: 'tool_text_on_path.png',
-    role: 'text'
-  },
-  {
     id: 'vector-select',
     label: 'Path selection',
     shortcutLabel: 'A',
@@ -193,6 +165,34 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     shortcutLabel: 'U',
     iconName: 'tool_shape_line.png',
     role: 'vector'
+  },
+  {
+    id: 'text-point',
+    label: 'Type tool',
+    shortcutLabel: 'T',
+    shortcutKey: 't',
+    iconName: 'tool_text.png',
+    role: 'text'
+  },
+  {
+    id: 'text-paragraph',
+    label: 'Paragraph text',
+    iconName: 'tool_text.png',
+    role: 'text'
+  },
+  {
+    id: 'text-vertical',
+    label: 'Vertical type tool',
+    shortcutLabel: 'T',
+    iconName: 'tool_text_vertical.png',
+    role: 'text'
+  },
+  {
+    id: 'text-path',
+    label: 'Path text',
+    shortcutLabel: 'T',
+    iconName: 'tool_text_on_path.png',
+    role: 'text'
   },
   {
     id: 'gradient',

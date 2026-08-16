@@ -258,15 +258,19 @@ describe('LightTable WGSL modules', () => {
   });
 
   it('keeps transform texture sampling in uniform control flow', () => {
-    expect(LAYER_TRANSFORM_WGSL).not.toContain('if (');
-    expect(SELECTION_TRANSFORM_WGSL).not.toContain('if (');
+    expect(LAYER_TRANSFORM_WGSL).toContain('if (settings.samplingMode.x > 0.5)');
+    expect(SELECTION_TRANSFORM_WGSL).toContain('if (settings.samplingMode.x > 0.5)');
+    expect(LAYER_TRANSFORM_WGSL).not.toContain('if (sourceInside');
+    expect(SELECTION_TRANSFORM_WGSL).not.toContain('if (sourceInside');
     expect(LAYER_TRANSFORM_WGSL).toContain('* sourceInside');
     expect(SELECTION_TRANSFORM_WGSL).toContain('* sourceInside');
   });
 
   it('keeps transparency checks inside the document and the outer pasteboard solid', () => {
     expect(VIEWPORT_BLIT_WGSL).toContain('let canvasBackground = vec3f(checker)');
-    expect(VIEWPORT_BLIT_WGSL).toContain('let pasteboardBackground = vec3f(');
+    expect(VIEWPORT_BLIT_WGSL).toContain(
+      'let pasteboardBackground = vec3f(0.086274510, 0.090196078, 0.094117647)'
+    );
     expect(VIEWPORT_BLIT_WGSL).toContain('return vec4f(pasteboardBackground, 1.0)');
     expect(VIEWPORT_BLIT_WGSL).toContain('mix(canvasBackground, image.rgb, image.a)');
   });
@@ -306,21 +310,34 @@ describe('LightTable WGSL modules', () => {
     );
   });
 
-  it('transforms layer pixels while keeping masks in document space', () => {
+  it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('let sourceInside = select(');
     expect(LAYER_COMPOSITE_WGSL).toContain('textureSample(foregroundTexture, sourceSampler, sourceUv) * sourceInside');
-    expect(LAYER_COMPOSITE_WGSL).toContain('let mask = select(1.0, evaluatedMask(input.uv)');
+    expect(LAYER_COMPOSITE_WGSL).toContain('maskInverseRow0: vec4f');
+    expect(LAYER_COMPOSITE_WGSL).toContain('maskInverseRow1: vec4f');
+    expect(LAYER_COMPOSITE_WGSL).toContain('let transformedMask = evaluatedMask(maskUv) * maskInside');
+    expect(LAYER_COMPOSITE_WGSL).toContain('let mask = select(1.0, transformedMask');
     expect(LAYER_COMPOSITE_WGSL).not.toContain('evaluatedMask(sourceUv)');
     expect(LAYER_COMPOSITE_WGSL).toContain('settings.maskFeather > 0.01');
     expect(LAYER_COMPOSITE_WGSL).toContain('settings.maskDensity');
   });
 
+  it('presents an isolated mask through its document-space transform', () => {
+    expect(MASK_VIEWPORT_BLIT_WGSL).toContain(
+      '@group(0) @binding(3) var<uniform> maskPresentation: MaskPresentationUniforms'
+    );
+    expect(MASK_VIEWPORT_BLIT_WGSL).toContain('maskPresentation.inverseRow0.xyz');
+    expect(MASK_VIEWPORT_BLIT_WGSL).toContain('maskPresentation.inverseRow1.xyz');
+    expect(MASK_VIEWPORT_BLIT_WGSL).toContain('maskPixel / maskPresentation.canvasSize');
+  });
+
   it('materializes the Layer Style shape without a synthetic background blend', () => {
     expect(() => new WgslReflect(`${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_SHAPE_WGSL}`)).not.toThrow();
     expect(LAYER_STYLE_SHAPE_WGSL).toContain('return sampled * coverage');
-    expect(LAYER_STYLE_SHAPE_WGSL).toContain('evaluatedMask(input.uv)');
+    expect(LAYER_STYLE_SHAPE_WGSL).toContain('maskInverseRow0: vec4f');
+    expect(LAYER_STYLE_SHAPE_WGSL).toContain('evaluatedMask(maskUv)');
     expect(LAYER_STYLE_SHAPE_WGSL).not.toContain('evaluatedMask(sourceUv)');
     expect(LAYER_STYLE_SHAPE_WGSL).not.toContain('backgroundTexture');
     expect(LAYER_STYLE_EFFECT_WGSL).toContain('return clamp(value / (4.0 + f32(sampleCount) * 4.0), 0.0, 1.0)');

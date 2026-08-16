@@ -48,6 +48,16 @@ pointer delta instead of resizing the preview; releasing Space resumes sizing
 from the translated origin. This gesture-local Space behavior takes precedence
 over temporary viewport panning and still commits one history command.
 
+The Pen and shape property bar exposes geometry and paint, but not element
+opacity: opacity is owned by the layer controls. Pen Auto Add/Delete remains an
+implicit default and is not shown in the property bar. The Pen rubber band is
+always enabled and presentation-only; it also stays hidden until it becomes a
+real preference. A selected vector element with neither fill nor stroke gets a
+static dashed blue GPU locator outline without anchors. Explicit path/direct
+editing keeps the solid blue outline and its normal anchors and handles. These
+locators never alter document paint or history, and an unfilled path interior
+does not participate in hit testing.
+
 The Brush tool uses `B`; brackets step size and Shift+brackets step hardness.
 Digit input changes opacity while Shift+digit changes flow. `D` resets and `X`
 swaps the shared foreground/background colours. Holding Alt temporarily samples
@@ -73,6 +83,10 @@ interpolation are canonical tool settings, and the shared stop editor edits the
 same gradient asset used by imported shapes, text and effects. The drag preview
 and final GPU render remain vector-backed and one completed drag produces one
 history command.
+
+Interpolation remains preserved in the canonical gradient model for imported
+and saved content, but the Gradient Tool does not expose a Method control until
+its vector and pixel renderers implement visibly distinct interpolation modes.
 
 Gradient stop interaction is centralized in that shared editor so consumers
 cannot drift into separate stop models. Color and opacity stops drag directly

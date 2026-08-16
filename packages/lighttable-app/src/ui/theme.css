@@ -12,7 +12,7 @@
   /* Application and workspace surfaces */
   --lt-surface-app: #101215;
   --lt-surface-menubar: #3a3c3e;
-  --lt-surface-workspace: #080a0c;
+  --lt-surface-workspace: #161718;
   --lt-surface-statusbar: #14171b;
   --lt-surface-panel: #313539;
   --lt-surface-panel-subtle: #171a1f;
@@ -101,13 +101,13 @@
   --lt-control-border: rgb(226 231 232 / 24%);
   --lt-control-text: rgb(226 231 232 / 86%);
   --lt-tool-options-separator: var(--lt-border-strong);
-  --lt-toolbox-width: 44px;
+  --lt-toolbox-width: 38px;
   --lt-range-track: #444141;
   --lt-range-track-fill: #606264;
   --lt-range-thumb: #919294;
   --lt-range-thumb-hover: #b5b8bb;
-  --lt-range-track-height: 4px;
-  --lt-range-thumb-size: 14px;
+  --lt-range-track-height: 14px;
+  --lt-range-thumb-size: 18px;
   --lt-switch-track-off: #242629;
   --lt-switch-track-off-hover: #242629;
   --lt-switch-track-on: #455773;

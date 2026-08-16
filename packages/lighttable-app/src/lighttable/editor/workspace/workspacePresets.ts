@@ -3,7 +3,7 @@ import {
   type LightTableWorkspacePanelRegistration
 } from './workspacePanelRegistry';
 
-export type SelectableLightTableWorkspacePreset = 'photo-edit' | 'ai-generation';
+export type SelectableLightTableWorkspacePreset = 'photo-edit' | 'grading' | 'ai-generation';
 
 const positioned = (
   panel: LightTableWorkspacePanelRegistration,
@@ -23,20 +23,33 @@ export const panelsForWorkspacePreset = (
 ): LightTableWorkspacePanelRegistration[] => panels.map((panel) => {
   if (preset === 'photo-edit') return panel;
 
+  if (preset === 'grading') {
+    switch (panel.id) {
+      case LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes:
+        return {
+          ...positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost, 'left', false),
+          initialWidth: 300
+        };
+      case LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi:
+        return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes, 'within', true);
+      case LIGHTTABLE_WORKSPACE_PANEL_IDS.agent:
+        return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes, 'within', true);
+      default:
+        return panel;
+    }
+  }
+
   switch (panel.id) {
     case LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi:
       return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost, 'left', false);
     case LIGHTTABLE_WORKSPACE_PANEL_IDS.agent:
       return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi, 'within', true);
-    case LIGHTTABLE_WORKSPACE_PANEL_IDS.grade:
+    case LIGHTTABLE_WORKSPACE_PANEL_IDS.properties:
       return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost, 'right', true);
-    case LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx:
-    case LIGHTTABLE_WORKSPACE_PANEL_IDS.effects:
-    case LIGHTTABLE_WORKSPACE_PANEL_IDS.text:
     case LIGHTTABLE_WORKSPACE_PANEL_IDS.debug:
-      return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.grade, 'within', true);
+      return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.properties, 'within', true);
     case LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory:
-      return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.grade, 'within', false);
+      return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.properties, 'within', false);
     default:
       return panel;
   }

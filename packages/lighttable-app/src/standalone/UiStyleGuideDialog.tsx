@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { lightTableIcon } from '../assets/icons';
 import { ActionButton } from '../ui/ActionButton';
+import { ColorSwatchField } from '../ui/ColorSwatchField';
 import { FormInput } from '../ui/FormInput';
 import { GradientField, type GradientFieldValue } from '../ui/GradientField';
+import { NonePaintField } from '../ui/NonePaintField';
 import { NumericExpressionInput } from '../ui/NumericExpressionInput';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { SearchField } from '../ui/SearchField';
@@ -12,10 +15,13 @@ import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import { UiColorPickerPrototype } from './UiColorPickerPrototype';
 import { GenAiPanel } from '../genai/ui/GenAiPanel';
 import {
+  ADJUSTMENT_DIALOG_SPECIMENS,
+  photoshopShortcutForCurrentPlatform
+} from './AdjustmentDialogSpecimens';
+import {
   PanelAdvancedDisclosure,
   PanelAngleControl,
   PanelCheckboxField,
-  PanelColorSwatch,
   PanelNumberSlider,
   PanelSelectField,
   type PanelColor
@@ -27,6 +33,7 @@ export const UI_STYLE_GUIDE_CATEGORIES = [
   { id: 'inputs', label: 'Inputs' },
   { id: 'paint', label: 'Paint' },
   { id: 'panels', label: 'Panel controls' },
+  { id: 'adjustments', label: 'Adjustment dialogs' },
   { id: 'dialogs', label: 'Dialogs' }
 ] as const;
 
@@ -62,10 +69,14 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
   const [category, setCategory] = useState<StyleGuideCategory>('actions');
   const [enabled, setEnabled] = useState(true);
   const [segment, setSegment] = useState<'new' | 'add' | 'subtract'>('new');
+  const [lowAttentionSegment, setLowAttentionSegment] = useState<'ai' | 'grading' | 'photo'>('photo');
   const [number, setNumber] = useState(50);
   const [select, setSelect] = useState('normal');
   const [color, setColor] = useState<PanelColor>({ r: 0.12, g: 0.48, b: 0.95, a: 1 });
+  const [colorOpacity, setColorOpacity] = useState(0.72);
+  const [compactColor, setCompactColor] = useState('#1f7af2');
   const [gradientExpanded, setGradientExpanded] = useState(false);
+  const [noneExpanded, setNoneExpanded] = useState(false);
   const [slider, setSlider] = useState(30);
   const [angle, setAngle] = useState(315);
   const [search, setSearch] = useState('');
@@ -171,17 +182,48 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                     options={[{ value: 'new', label: 'New' }, { value: 'add', label: 'Add' },
                       { value: 'subtract', label: 'Subtract' }]} />
                 </Sample>
+                <Sample title="Low-attention segmented control">
+                  <SegmentedControl variant="low-attention" value={lowAttentionSegment}
+                    onChange={setLowAttentionSegment} ariaLabel="Low-attention navigation"
+                    options={[
+                      { value: 'ai', label: 'Gen AI',
+                        icon: <img src={lightTableIcon('genai.png')} alt="" aria-hidden="true" /> },
+                      { value: 'grading', label: 'Grading',
+                        icon: <img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /> },
+                      { value: 'photo', label: 'Photo edit',
+                        icon: <img src={lightTableIcon('photo.png')} alt="" aria-hidden="true" /> }
+                    ]} />
+                </Sample>
               </> : null}
               {category === 'paint' ? <>
-                <Sample title="Color swatch · 28 px">
-                  <PanelColorSwatch label="Shadow color" value={color} onChange={setColor} />
+                <Sample title="Paint fields · 104 × 28 px">
+                  <div className="lighttable-ui-guide__control-table">
+                    <div className="lighttable-ui-guide__control-row">
+                      <span>Color swatch</span>
+                      <ColorSwatchField value={compactColor} ariaLabel="Color swatch"
+                        onChange={setCompactColor} />
+                    </div>
+                    <div className="lighttable-ui-guide__control-row">
+                      <span>Color dropdown</span>
+                      <ColorSwatchField value={compactColor} accessory="chevron"
+                        ariaLabel="Color dropdown" onChange={setCompactColor} />
+                    </div>
+                    <div className="lighttable-ui-guide__control-row">
+                      <span>Gradient fill</span>
+                      <GradientField value={DEMO_GRADIENT} ariaLabel="Gradient fill"
+                        expanded={gradientExpanded}
+                        onClick={() => setGradientExpanded((value) => !value)} />
+                    </div>
+                    <div className="lighttable-ui-guide__control-row">
+                      <span>None</span>
+                      <NonePaintField ariaLabel="No paint" expanded={noneExpanded}
+                        onClick={() => setNoneExpanded((value) => !value)} />
+                    </div>
+                  </div>
                 </Sample>
                 <Sample title="Color picker · 28 px fields">
-                  <UiColorPickerPrototype value={color} onChange={setColor} />
-                </Sample>
-                <Sample title="Gradient field · 28 px">
-                  <GradientField value={DEMO_GRADIENT} ariaLabel="Edit gradient"
-                    expanded={gradientExpanded} onClick={() => setGradientExpanded((value) => !value)} />
+                  <UiColorPickerPrototype value={color} onChange={setColor}
+                    opacity={colorOpacity} onOpacityChange={setColorOpacity} />
                 </Sample>
               </> : null}
               {category === 'panels' ? <>
@@ -205,6 +247,15 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                       suffix="%" onChange={setSlider} />
                   </PanelAdvancedDisclosure>
                 </Sample>
+              </> : null}
+              {category === 'adjustments' ? <>
+                {ADJUSTMENT_DIALOG_SPECIMENS.map((specimen) => (
+                  <Sample title={`${specimen.name}${'shortcut' in specimen
+                    ? ` - ${photoshopShortcutForCurrentPlatform(specimen.shortcut)}`
+                    : ''}`} key={specimen.name}>
+                    {React.createElement(specimen.Component)}
+                  </Sample>
+                ))}
               </> : null}
               {category === 'dialogs' ? <>
                 <Sample title="Confirmation dialog">

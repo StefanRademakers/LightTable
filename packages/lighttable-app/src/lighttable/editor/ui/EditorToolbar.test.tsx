@@ -84,15 +84,15 @@ describe('EditorToolbar', () => {
     expect(activeMarkup).not.toContain('aria-label="Path selection (A)"');
   });
 
-  it('orders the drawing families as Pen, Type, Path Selection and Shapes', () => {
+  it('keeps vector families together before Type', () => {
     const markup = renderToolbar('brush');
     const pen = markup.indexOf('aria-label="Pen (P)"');
     const type = markup.indexOf('aria-label="Type tool (T)"');
     const path = markup.indexOf('aria-label="Path selection (A)"');
     const shape = markup.indexOf('aria-label="Rectangle (U)"');
-    expect(pen).toBeLessThan(type);
-    expect(type).toBeLessThan(path);
+    expect(pen).toBeLessThan(path);
     expect(path).toBeLessThan(shape);
+    expect(shape).toBeLessThan(type);
   });
 
   it('exposes one Type Tool for click-created point and drag-created paragraph text', () => {

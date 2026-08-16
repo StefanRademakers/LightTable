@@ -160,11 +160,31 @@ export class LayerDocumentRenderer {
   }
 
   /**
-   * Borrows the live document-owned mask texture for presentation. Callers
-   * must never destroy it; its lifetime remains owned by the layer runtime.
+   * Borrows the live document-owned mask texture and its document-space
+   * sampling contract for mask-only presentation. Callers must never destroy
+   * the texture; its lifetime remains owned by the layer runtime.
+   *
+   * A layer mask has its own transform. Returning only the raw texture here
+   * makes an Alt/Option-click mask view jump back to its untransformed canvas,
+   * even though normal compositing samples it in document space. Keep this
+   * contract aligned with the compositor instead of baking a second texture.
    */
-  maskPresentationTexture(layerId: LayerId) {
-    return this.maskTextureFor(layerId);
+  maskPresentation(layerId: LayerId) {
+    const texture = this.maskTextureFor(layerId);
+    const layer = this.document ? findDocumentLayer(this.document, layerId) : null;
+    if (!texture || !this.document || layer?.type !== 'raster' || !layer.mask) {
+      return null;
+    }
+    const inverseTransform = invertMatrix(layer.mask.transform);
+    if (!inverseTransform) {
+      return null;
+    }
+    return {
+      texture,
+      inverseTransform,
+      canvasWidth: this.document.width,
+      canvasHeight: this.document.height
+    };
   }
 
   resolveRasterRenderContract(layer: RasterLayer): RasterRenderContract | null {

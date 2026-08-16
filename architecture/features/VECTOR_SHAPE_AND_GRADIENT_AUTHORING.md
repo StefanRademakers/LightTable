@@ -11,6 +11,8 @@ Both use the same `VectorStyle`:
 - fill is absent, solid linear-light RGBA, or a shared gradient paint;
 - stroke is absent or owns paint, width, independent opacity, alignment, cap,
   join, miter limit, dash pattern and dash offset;
+- the authored dashed and dotted presets scale their dash lengths, gaps and
+  phase with stroke width, so thick strokes cannot visually collapse to solid;
 - element opacity multiplies both fill and stroke;
 - layer and element transforms remain separate and may place content outside
   the document canvas.

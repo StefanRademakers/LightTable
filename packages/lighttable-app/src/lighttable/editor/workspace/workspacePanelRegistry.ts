@@ -3,10 +3,7 @@ import type { ReactNode } from 'react';
 export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   documentHost: 'lighttable.document-host',
   scopes: 'lighttable.scopes',
-  grade: 'lighttable.inspector',
-  effects: 'lighttable.layer-effects',
-  text: 'lighttable.text-properties',
-  lensFx: 'lighttable.lens-fx',
+  properties: 'lighttable.inspector',
   layers: 'lighttable.layers',
   channels: 'lighttable.channels',
   debug: 'lighttable.debug',
@@ -43,10 +40,7 @@ export interface LightTableWorkspacePanelRegistration {
 
 export interface DefaultLightTableWorkspacePanelContent {
   scopes: ReactNode;
-  grade: ReactNode;
-  effects: ReactNode;
-  text: ReactNode;
-  lensFx: ReactNode;
+  properties: ReactNode;
   layers: ReactNode;
   channels: ReactNode;
   debug: ReactNode;
@@ -108,10 +102,10 @@ export const createDefaultLightTableWorkspacePanels = (
     requiredForSavedLayout: true
   },
   {
-    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-    contentKey: 'grade',
-    title: 'Grade',
-    content: content.grade,
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
+    contentKey: 'properties',
+    title: 'Properties',
+    content: content.properties,
     defaultPosition: {
       referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
       direction: 'right'
@@ -120,36 +114,12 @@ export const createDefaultLightTableWorkspacePanels = (
     requiredForSavedLayout: true
   },
   {
-    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.lensFx,
-    contentKey: 'lensFx',
-    title: 'Lens Fx',
-    content: content.lensFx,
-    defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-      direction: 'within'
-    },
-    initiallyInactive: true,
-    requiredForSavedLayout: true
-  },
-  {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
     contentKey: 'aiHistory',
     title: 'Assets',
     content: content.aiHistory,
     defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-      direction: 'within'
-    },
-    initiallyInactive: true,
-    requiredForSavedLayout: true
-  },
-  {
-    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.effects,
-    contentKey: 'effects',
-    title: 'Effects',
-    content: content.effects,
-    defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
       direction: 'within'
     },
     initiallyInactive: true,
@@ -161,7 +131,7 @@ export const createDefaultLightTableWorkspacePanels = (
     title: 'GenAI',
     content: content.genAi,
     defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
       direction: 'within'
     },
     initiallyInactive: true,
@@ -173,19 +143,7 @@ export const createDefaultLightTableWorkspacePanels = (
     title: 'Agent',
     content: content.agent,
     defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
-      direction: 'within'
-    },
-    initiallyInactive: true,
-    requiredForSavedLayout: true
-  },
-  {
-    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.text,
-    contentKey: 'text',
-    title: 'Text',
-    content: content.text,
-    defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
       direction: 'within'
     },
     initiallyInactive: true,
@@ -197,7 +155,7 @@ export const createDefaultLightTableWorkspacePanels = (
     title: 'Debug',
     content: content.debug,
     defaultPosition: {
-      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.grade,
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
       direction: 'within'
     },
     initiallyInactive: true

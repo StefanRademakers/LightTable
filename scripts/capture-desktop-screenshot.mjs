@@ -569,11 +569,11 @@ try {
 
   if (openLayerEffects) {
     await window.getByRole('button', { name: 'Add layer style' }).click();
-    const effectsTab = window.getByRole('tab', { name: 'Effects', exact: true });
-    await effectsTab.waitFor({ state: 'visible', timeout: 15_000 });
+    const propertiesTab = window.getByRole('tab', { name: 'Properties', exact: true });
+    await propertiesTab.waitFor({ state: 'visible', timeout: 15_000 });
     await window.waitForFunction(() => {
       const tab = [...document.querySelectorAll('[role="tab"]')]
-        .find((candidate) => candidate.textContent?.trim() === 'Effects');
+        .find((candidate) => candidate.textContent?.trim() === 'Properties');
       return tab?.getAttribute('aria-selected') === 'true'
         || tab?.classList.contains('dv-active-tab');
     }, undefined, { timeout: 15_000 });
@@ -581,7 +581,7 @@ try {
       .waitFor({ state: 'visible', timeout: 15_000 });
     diagnostics.layerEffectsPanel = await window.evaluate(() => {
       const tab = [...document.querySelectorAll('[role="tab"]')]
-        .find((candidate) => candidate.textContent?.trim() === 'Effects');
+        .find((candidate) => candidate.textContent?.trim() === 'Properties');
       const region = document.querySelector('[role="region"][aria-label="Layer Style"]');
       const bounds = region?.getBoundingClientRect();
       return {
@@ -783,8 +783,8 @@ try {
     await debugTab.click();
     diagnostics.debugPanel = await window.getByRole('region', { name: 'LightTable debug log' })
       .textContent() ?? '';
-    const textTab = window.getByRole('tab', { name: 'Text', exact: true });
-    if (await textTab.count()) await textTab.click();
+    const propertiesTab = window.getByRole('tab', { name: 'Properties', exact: true });
+    if (await propertiesTab.count()) await propertiesTab.click();
   }
 
   const flowLayers = diagnostics.layers.filter(({ statuses }) => statuses.includes('Flow'));

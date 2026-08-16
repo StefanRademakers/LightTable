@@ -117,7 +117,7 @@ export class WebGpuScopeEngine {
   private readonly device: GPUDevice;
   private readonly canvases: ScopeCanvases;
   private readonly hueDistributionContext: GPUCanvasContext;
-  private readonly colorMixerHueDistributionContext: GPUCanvasContext | null;
+  private colorMixerHueDistributionContext: GPUCanvasContext | null;
   private readonly paradeContext: GPUCanvasContext;
   private readonly vectorscopeContext: GPUCanvasContext;
   private readonly canvasFormat: GPUTextureFormat;
@@ -226,6 +226,28 @@ export class WebGpuScopeEngine {
       throw new Error(`LightTable scopes are unavailable: ${error.message}`);
     }
     return engine;
+  }
+
+  /** Attaches the contextual Color Mixer surface without rebuilding scope analysis resources. */
+  attachColorMixerHueDistribution(canvas: HTMLCanvasElement): boolean {
+    if (this.destroyed || this.canvases.colorMixerHueDistribution === canvas) return false;
+    const context = canvas.getContext('webgpu');
+    if (!context) {
+      this.onError?.('The browser could not create the Color Mixer scope canvas.');
+      return false;
+    }
+    context.configure({
+      device: this.device,
+      format: this.canvasFormat,
+      alphaMode: 'opaque',
+      colorSpace: 'srgb'
+    });
+    this.canvases.colorMixerHueDistribution = canvas;
+    this.colorMixerHueDistributionContext = context;
+    this.analysisDirty = true;
+    this.displayDirty = true;
+    this.resize();
+    return true;
   }
 
   private createResources() {

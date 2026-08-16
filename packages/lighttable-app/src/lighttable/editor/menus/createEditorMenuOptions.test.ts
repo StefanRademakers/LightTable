@@ -109,6 +109,17 @@ describe('createEditorMenuOptions', () => {
     expect(menuCommands.showGenAiPanel).toHaveBeenCalledOnce();
   });
 
+  it('offers all three primary workspaces from the View menu', () => {
+    const menuCommands = commands();
+    const workspace = createEditorMenuOptions('view', state(), labels, menuCommands)
+      .find(({ value }) => value === 'workspace');
+
+    expect(workspace?.children?.slice(0, 3).map(({ label }) => label))
+      .toEqual(['Photo Edit', 'Grading', 'AI Generation']);
+    workspace?.children?.[1]?.onClick?.();
+    expect(menuCommands.applyGradingWorkspace).toHaveBeenCalledOnce();
+  });
+
   it('keeps the compact file workflow declarative', () => {
     const options = createEditorMenuOptions(
       'file',

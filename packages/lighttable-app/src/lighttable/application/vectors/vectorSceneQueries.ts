@@ -144,7 +144,10 @@ export const hitTestVectorElementDocument = (
   options: PathHitTestOptions
 ): VectorDocumentElementHit | null => {
   for (const resolved of vectorElementsTopmostFirst(document)) {
-    const target = hitTestVectorPath(resolved.documentPath, options);
+    const target = hitTestVectorPath(resolved.documentPath, {
+      ...options,
+      includeFill: options.includeFill !== false && Boolean(resolved.documentPath.style.fill)
+    });
     if (target) return { ...resolved, target };
   }
   return null;
@@ -180,7 +183,10 @@ export const hitTestVectorDocument = (
   options: PathHitTestOptions
 ): VectorDocumentHit | null => {
   for (const resolved of vectorPathsTopmostFirst(document)) {
-    const target = hitTestVectorPath(resolved.documentPath, options);
+    const target = hitTestVectorPath(resolved.documentPath, {
+      ...options,
+      includeFill: options.includeFill !== false && Boolean(resolved.documentPath.style.fill)
+    });
     if (target) return { ...resolved, target };
   }
   return null;

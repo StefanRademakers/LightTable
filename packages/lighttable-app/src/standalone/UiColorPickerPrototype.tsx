@@ -14,4 +14,7 @@ export { colorPickerHex, colorPickerHsvToRgb, colorPickerRgbToHsv };
 export const UiColorPickerPrototype: React.FC<{
   readonly value: UiColorPickerColor;
   readonly onChange: (color: UiColorPickerColor) => void;
-}> = ({ value, onChange }) => <ColorPicker value={value} onChange={onChange} />;
+  readonly opacity?: number;
+  readonly onOpacityChange?: (opacity: number) => void;
+}> = ({ value, onChange, opacity, onOpacityChange }) => <ColorPicker
+  value={value} onChange={onChange} opacity={opacity} onOpacityChange={onOpacityChange} />;

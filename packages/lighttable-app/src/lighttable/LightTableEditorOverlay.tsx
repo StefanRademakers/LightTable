@@ -91,6 +91,11 @@ import { primaryShortcutLabel } from './application/input/editorShortcutPresenta
 import { LayersWorkspacePanel } from './composition/workspace/LayersWorkspacePanel';
 import { ChannelsWorkspacePanel } from './composition/workspace/ChannelsWorkspacePanel';
 import { createEditorWorkspacePanels } from './composition/workspace/createEditorWorkspacePanels';
+import {
+  propertiesInspectorView,
+  reconcilePropertiesTarget,
+  type PropertiesInspectorTarget
+} from './application/properties/propertiesInspectorTarget';
 import { EditorDocumentSurface } from './composition/workspace/EditorDocumentSurface';
 import { EditorOverlayLayer } from './composition/workspace/EditorOverlayLayer';
 import { type DocumentRendererPort } from './infrastructure/rendering/webGpuDocumentRenderer';
@@ -750,6 +755,34 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
+  const attachColorMixerHueCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
+    colorMixerHueCanvasRef.current = canvas;
+    if (!canvas) return;
+    const renderer = engineRef.current;
+    const hueDistribution = hueDistributionCanvasRef.current;
+    const parade = paradeCanvasRef.current;
+    const vectorscope = vectorscopeCanvasRef.current;
+    if (!renderer || !hueDistribution || !parade || !vectorscope) return;
+    void renderer.initializeScopes({
+      hueDistribution,
+      colorMixerHueDistribution: canvas,
+      parade,
+      vectorscope
+    });
+  }, []);
+  const [propertiesTarget, setPropertiesTarget] = useState<PropertiesInspectorTarget>({
+    kind: 'none'
+  });
+  const showProperties = useCallback((target: PropertiesInspectorTarget) => {
+    setPropertiesTarget(target);
+    requestAnimationFrame(() => {
+      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties);
+    });
+  }, []);
+  useEffect(() => {
+    setPropertiesTarget((current) => reconcilePropertiesTarget(imageDocument, current));
+  }, [imageDocument?.activeLayerId, imageDocument?.id, imageDocument?.revision]);
+  const propertiesView = propertiesInspectorView(imageDocument, propertiesTarget);
   // Provider/model choices belong to the project, while Image Edit dimensions
   // follow the active document identity and canvas size.
   const activeGenAiProjectId = activeProject?.id;
@@ -3143,7 +3176,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       layerPanelController.select(layerId);
       activatePersistentTool('text-point');
       textEditingController.begin(layerId, offset, affinity ?? 'downstream');
-      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
+      showProperties({ kind: 'layer', layerId });
     },
     setStatus: setGradeStatus,
     setError
@@ -3824,11 +3857,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const openLayerStyleEditor = useCallback((layerId: LayerId, effectId?: LayerStyleId) => {
     layerStyleEditor.open(layerId, effectId);
+    setPropertiesTarget(effectId
+      ? { kind: 'style', layerId, effectId }
+      : { kind: 'style-stack', layerId });
     // Activating after React publishes the contextual request prevents the
     // persistent Dockview renderer from restoring the previously active tab
     // during the same event batch.
     requestAnimationFrame(() => {
-      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.effects);
+      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties);
     });
   }, [layerStyleEditor.open]);
   const layerPanelController = useLayerPanelController({
@@ -3864,6 +3900,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       editorDialogs.requestFlatten({ kind: 'group', groupId }),
     requestFlattenImage: () => editorDialogs.requestFlatten({ kind: 'image' }),
     editStyles: openLayerStyleEditor,
+    finishStyleEditing: layerStyleEditor.commit,
+    finishProcessingEditing: () => {
+      endAdjustmentTransaction();
+      endDocumentTransaction();
+    },
     prepareActiveLayerChange: (layerId) => {
       if (textEditingController.getSnapshot().layerId !== layerId) {
         textEditingController.finish();
@@ -4665,6 +4706,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       toggleScreenMode,
       resetLayout: () => workspaceRef.current?.resetLayout(),
       applyPhotoEditWorkspace: () => workspaceRef.current?.applyPreset('photo-edit'),
+      applyGradingWorkspace: () => workspaceRef.current?.applyPreset('grading'),
       applyAiGenerationWorkspace: () => workspaceRef.current?.applyPreset('ai-generation'),
       startGuidedSample: onStartGuidedSample,
       openSettings: onOpenSettings
@@ -4691,6 +4733,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onConvertTextToShape={requestTextToShape}
       onRemoveBackground={backgroundRemovalController.request}
       onSelectionChange={handleLayerSelectionChange}
+      inspectorTarget={propertiesTarget}
+      onInspectLayer={(layerId, channel) => {
+        showProperties(channel === 'mask'
+          ? { kind: 'mask', layerId }
+          : { kind: 'layer', layerId });
+      }}
+      onInspectProcessing={(layerId, owner) => {
+        showProperties({ kind: 'processing', layerId, owner });
+      }}
       onMaskIsolationChange={(layerId) => {
         setIsolatedMaskLayerId(layerId);
         if (layerId) setIsolatedCompositeChannel(null);
@@ -5178,9 +5229,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   useEffect(() => {
     if (activeTextPropertyLayer?.type === 'text') {
-      workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
+      showProperties({ kind: 'layer', layerId: activeTextPropertyLayer.id });
     }
-  }, [activeTextPropertyLayer?.id, activeTextPropertyLayer?.type]);
+  }, [activeTextPropertyLayer?.id, activeTextPropertyLayer?.type, showProperties]);
   return (
     <LightTableEditorShell
       screenMode={screenMode}
@@ -5355,7 +5406,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               pointTextController.cancel();
               activatePersistentTool('text-point');
               requestExistingFlowTextEditing(layerId);
-              workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.text);
+              showProperties({ kind: 'layer', layerId });
             },
             onPreviewTextFont: missingFontReplacementActions.preview,
             onCancelTextFontPreview: missingFontReplacementActions.cancelPreview,
@@ -5722,6 +5773,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 textRenderTelemetry: textRenderPresentation,
                 onDevelopmentTextFixtureChange: changeDevelopmentTextFixture
               },
+              propertiesView,
               lensFxKey: sourceIdentity || sourceName,
               lensFx: {
                 model: {
@@ -5784,7 +5836,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetModifierActive: shiftPressed,
                   showOriginal,
                   colorMixerScopeContainerRef,
-                  colorMixerHueCanvasRef
+                  colorMixerHueCanvasRef: attachColorMixerHueCanvas
                 },
                   commands: {
                   resetAll,

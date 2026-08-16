@@ -93,6 +93,41 @@ describe('vector scene queries', () => {
     expect(vectorPathsTopmostFirst(document)).toEqual([]);
   });
 
+  it('does not let an unfilled path steal clicks through its invisible interior', () => {
+    const document = createImageDocument('unpainted hit', 100, 100, 'asset');
+    const path = square('unpainted', 20);
+    path.style.fill = null;
+    path.style.stroke = null;
+    const layer = createVectorLayer([path]);
+    document.layers = [layer];
+
+    expect(hitTestVectorDocument(document, {
+      documentPoint: { x: 10, y: 10 }, radius: 0.5, includeFill: true
+    })).toBeNull();
+    expect(hitTestVectorDocument(document, {
+      documentPoint: { x: 10, y: 0 }, radius: 0.5, includeFill: true
+    })?.pathId).toBe(path.id);
+  });
+
+  it('does not let an unfilled live shape steal clicks through its invisible interior', () => {
+    const document = createImageDocument('unpainted shape hit', 100, 100, 'asset');
+    const shape = createVectorLiveShape('shape', {
+      kind: 'rectangle', width: 20, height: 20,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    shape.style.fill = null;
+    shape.style.stroke = null;
+    const layer = createVectorLayer([shape]);
+    document.layers = [layer];
+
+    expect(hitTestVectorElementDocument(document, {
+      documentPoint: { x: 10, y: 10 }, radius: 0.5, includeFill: true
+    })).toBeNull();
+    expect(hitTestVectorElementDocument(document, {
+      documentPoint: { x: 10, y: 0 }, radius: 0.5, includeFill: true
+    })?.elementId).toBe(shape.id);
+  });
+
   it('computes exact rotated cubic bounds instead of rotating an AABB', () => {
     const document = createImageDocument('bounds', 100, 100, 'asset');
     const path = square('rotated', 10);

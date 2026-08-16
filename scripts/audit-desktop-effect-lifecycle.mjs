@@ -95,7 +95,9 @@ try {
     }).observe({ type: 'longtask', buffered: true });
   });
 
-  await page.getByRole('tab', { name: 'Lens Fx' }).click();
+  await page.locator('.lighttable-layer--active').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Edit Local Lens Fx', exact: true }).click();
+  await page.getByRole('tab', { name: 'Properties', exact: true }).waitFor({ state: 'visible' });
   const viewport = page.locator('.lighttable-viewport');
   const settle = async (previousBytes, expectDirection) => {
     const startedAt = performance.now();

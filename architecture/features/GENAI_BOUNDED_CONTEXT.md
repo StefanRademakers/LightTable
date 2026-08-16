@@ -1,5 +1,8 @@
 # GenAI bounded context
 
+Status: **implemented provider boundary with project-backed generation**,
+updated 2026-08-14.
+
 ## Decision
 
 LightTable implements generation as an optional bounded context. The editor,
@@ -21,10 +24,14 @@ panel or job model.
   provider response normalization
           ^
           |
+@lighttable/genai-local
+  local provider protocol and model/job contracts
+          ^
+          |
 @lighttable/desktop
   OAuth/PKCE and loopback callback
   Electron safeStorage
-  provider transport and filesystem output
+  provider transport, local process and filesystem output
   narrow IPC handlers
           ^
           |
@@ -113,15 +120,25 @@ Runtime schema discovery remains authoritative when available. Cached catalog
 data includes provider, source version and validation timestamp so stale or
 unknown fields can be diagnosed without silently discarding them.
 
-## Initial vertical slice
+## Current implementation
 
-The first slice surfaces one native GenAI panel and one real OpenArt connection
-state. It intentionally contains no model-specific form code. Catalog and
-generation functionality are added only after the panel and secure host bridge
-are independently testable.
+The native GenAI panel discovers provider models and workflow schemas, supports
+Image Create/Edit, base images, pasted/dropped/local visual references and
+provider-defined fields without hard-coding each model form. Desktop owns
+OpenArt authentication, reference publication, project asset/job persistence,
+result delivery and the managed local-provider process. Local workflows support
+create/edit/inpaint; Remove Object submits a full-frame base plus selection mask
+through the same provider-neutral boundary.
+
+Generation is currently hard-gated by an active project because submission,
+jobs, outputs and recreate history use the project stores. Form/model discovery,
+reference preparation, provider authentication and local provider lifecycle can
+operate standalone. This coupling is audited in
+[Project-mode feature gating](PROJECT_MODE_FEATURE_GATING.md) and remains an
+explicit product decision.
 
 ## Boundary enforcement
 
-When the two packages are created, `scripts/verify-boundary.mjs` must scan both
-source roots and reject the forbidden dependencies above. No exception is to
-be added to renderer or editor-facade allowlists for GenAI.
+`scripts/verify-boundary.mjs` scans the GenAI package roots and rejects the
+forbidden dependencies above. No exception is to be added to renderer or
+editor-facade allowlists for GenAI.

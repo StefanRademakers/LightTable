@@ -15,6 +15,7 @@ import type {
 } from '../../editor/session/editorSession';
 import { LayerPanel } from '../../editor/ui/LayerPanel';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
+import type { PropertiesInspectorTarget } from '../../application/properties/propertiesInspectorTarget';
 
 export interface LayersWorkspacePanelProps {
   document: ImageDocument | null;
@@ -32,6 +33,9 @@ export interface LayersWorkspacePanelProps {
   onOpenFontReport?: (layerId: LayerId) => void;
   onConvertTextToShape: (layerId: LayerId) => void;
   onRemoveBackground: () => void;
+  inspectorTarget: PropertiesInspectorTarget;
+  onInspectLayer: (layerId: LayerId, channel: PaintChannel) => void;
+  onInspectProcessing: (layerId: LayerId, owner: 'grade' | 'lens-fx') => void;
 }
 
 /**
@@ -55,7 +59,10 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   onEditText,
   onOpenFontReport,
   onConvertTextToShape,
-  onRemoveBackground
+  onRemoveBackground,
+  inspectorTarget,
+  onInspectLayer,
+  onInspectProcessing
 }) => {
   if (!document) {
     return (
@@ -115,12 +122,17 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onStyleStackEnabled={controller.setStyleStackEnabled}
         onLocalGradeEnabled={controller.setLocalGradeEnabled}
         onLocalLensFxEnabled={controller.setLocalLensFxEnabled}
+        onRemoveLocalProcessing={controller.removeLocalProcessing}
         onStyleEnabled={controller.setStyleEnabled}
+        onRemoveStyle={controller.removeStyle}
         onClearStyles={controller.clearStyles}
         onSelectionChange={onSelectionChange}
         editingTextLayerId={editingTextLayerId}
         onEditText={onEditText}
         onOpenFontReport={onOpenFontReport}
+        inspectorTarget={inspectorTarget}
+        onInspectLayer={onInspectLayer}
+        onInspectProcessing={onInspectProcessing}
       />
     </div>
   );

@@ -1,5 +1,8 @@
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
+import { SegmentedControl } from '../../../ui/SegmentedControl';
+import type { LightTableWorkspacePreset } from '../workspace/workspaceLayoutPersistence';
+import type { SelectableLightTableWorkspacePreset } from '../workspace/workspacePresets';
 
 export interface EditorStatusBarProps {
   status: string;
@@ -14,7 +17,27 @@ export interface EditorStatusBarProps {
   rightDockVisible?: boolean;
   onToggleLeftDock?: () => void;
   onToggleRightDock?: () => void;
+  workspacePreset?: LightTableWorkspacePreset;
+  onWorkspacePresetChange?: (preset: SelectableLightTableWorkspacePreset) => void;
 }
+
+const WORKSPACE_SWITCHES: readonly {
+  preset: SelectableLightTableWorkspacePreset;
+  label: string;
+  icon: string;
+}[] = [
+  { preset: 'ai-generation', label: 'Gen AI', icon: 'genai.png' },
+  { preset: 'grading', label: 'Grading', icon: 'add_adjustment_layer.png' },
+  { preset: 'photo-edit', label: 'Photo edit', icon: 'photo.png' }
+];
+
+const selectedWorkspacePreset = (
+  preset: LightTableWorkspacePreset
+): SelectableLightTableWorkspacePreset | '' => (
+  WORKSPACE_SWITCHES.some((item) => item.preset === preset)
+    ? preset as SelectableLightTableWorkspacePreset
+    : ''
+);
 
 export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
   status,
@@ -28,7 +51,9 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
   rightDockAvailable = false,
   rightDockVisible = false,
   onToggleLeftDock,
-  onToggleRightDock
+  onToggleRightDock,
+  workspacePreset = 'default',
+  onWorkspacePresetChange
 }) => (
   <footer className="lighttable-toolbar">
     <button
@@ -45,6 +70,20 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = ({
         alt=""
       />
     </button>
+    <SegmentedControl
+      className="lighttable-toolbar__workspace-switches"
+      variant="low-attention"
+      ariaLabel="Workspaces"
+      value={selectedWorkspacePreset(workspacePreset)}
+      onChange={(preset) => onWorkspacePresetChange?.(preset)}
+      options={WORKSPACE_SWITCHES.map(({ preset, label, icon }) => ({
+        value: preset,
+        label,
+        icon: <img src={lightTableIcon(icon)} alt="" aria-hidden="true" />,
+        ariaLabel: `Switch to ${label} workspace`,
+        title: `${label} workspace`
+      }))}
+    />
     <div
       className={`lighttable-toolbar__status${error ? ' lighttable-toolbar__status--error' : ''}`}
       title={status || undefined}

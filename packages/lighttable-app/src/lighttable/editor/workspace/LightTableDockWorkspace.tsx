@@ -474,6 +474,7 @@ export const LightTableDockWorkspace = forwardRef<
     .join('|');
   const [ready, setReady] = useState(false);
   const [dockColumns, setDockColumns] = useState<DockColumnStates>(EMPTY_DOCK_COLUMN_STATES);
+  const [workspacePreset, setWorkspacePreset] = useState<LightTableWorkspacePreset>('default');
 
   const refreshDockColumns = useCallback((api = apiRef.current) => {
     if (!api) return;
@@ -593,6 +594,7 @@ export const LightTableDockWorkspace = forwardRef<
     apiRef.current = event.api;
     const saved = readWorkspaceLayout(localStorage);
     workspacePresetRef.current = saved?.preset ?? 'default';
+    setWorkspacePreset(workspacePresetRef.current);
     if (!restoreLayout(
       event.api,
       panelsRef.current,
@@ -606,6 +608,7 @@ export const LightTableDockWorkspace = forwardRef<
       scheduleDockColumnRefresh(event.api);
       if (resettingLayoutRef.current) return;
       workspacePresetRef.current = 'custom';
+      setWorkspacePreset('custom');
       saveLayout();
     });
     dropListenerRef.current?.dispose();
@@ -744,6 +747,7 @@ export const LightTableDockWorkspace = forwardRef<
     }
     resettingLayoutRef.current = true;
     workspacePresetRef.current = 'default';
+    setWorkspacePreset('default');
     dockColumnGroupIdsRef.current = { left: [], right: [] };
     setDockColumns(EMPTY_DOCK_COLUMN_STATES);
     clearWorkspaceLayout(localStorage);
@@ -763,6 +767,7 @@ export const LightTableDockWorkspace = forwardRef<
     }
     resettingLayoutRef.current = true;
     workspacePresetRef.current = preset;
+    setWorkspacePreset(preset);
     dockColumnGroupIdsRef.current = { left: [], right: [] };
     setDockColumns(EMPTY_DOCK_COLUMN_STATES);
     clearWorkspaceLayout(localStorage);
@@ -1025,6 +1030,8 @@ export const LightTableDockWorkspace = forwardRef<
           rightDockVisible={dockColumns.right.visible}
           onToggleLeftDock={() => toggleDockColumn('left')}
           onToggleRightDock={() => toggleDockColumn('right')}
+          workspacePreset={workspacePreset === 'default' ? 'photo-edit' : workspacePreset}
+          onWorkspacePresetChange={applyPreset}
         />
       </div>
     </WorkspaceContentContext.Provider>

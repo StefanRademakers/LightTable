@@ -87,13 +87,15 @@ try {
       visited.push(label);
     }
     for (const familyLabel of familyLabels) {
-      await page.getByRole('button', { name: familyLabel, exact: true }).click();
-      const flyout = page.locator('.lighttable-toolbox__flyout:visible');
+      const familyButton = page.getByRole('button', { name: familyLabel, exact: true });
+      const family = familyButton.locator('..');
+      await familyButton.click();
+      const flyout = family.locator('.lighttable-toolbox__flyout:visible');
       const labels = await flyout.getByRole('button').evaluateAll((buttons) =>
         buttons.map((button) => button.getAttribute('aria-label')).filter(Boolean));
       for (const label of labels) {
-        await page.getByRole('button', { name: familyLabel, exact: true }).click();
-        await page.locator('.lighttable-toolbox__flyout:visible')
+        await familyButton.click();
+        await family.locator('.lighttable-toolbox__flyout:visible')
           .getByRole('button', { name: label, exact: true }).click();
         visited.push(label);
       }
@@ -139,14 +141,19 @@ try {
     maximumLongTaskMs: Math.max(...samples.map(({ longestTaskMs }) => longestTaskMs))
   };
   const failures = [];
+  const ignoredConsoleWarnings = consoleErrors.filter((message) => message.includes('onnxruntime')
+    && (message.includes("can't constant fold")
+      || message.includes('were not assigned to the preferred execution providers')
+      || message.includes('Rerunning with verbose output on a non-minimal build')));
+  const unexpectedConsoleErrors = consoleErrors.filter((message) => !ignoredConsoleWarnings.includes(message));
   if (assessment.heapGrowthBytes > 64 * 1024 * 1024) failures.push('post-GC heap grew over 64 MiB');
   if (assessment.domGrowth > 64) failures.push('DOM grew over 64 nodes');
   if (assessment.listenerGrowth > 64) failures.push('listeners grew over 64');
   if (pageErrors.length) failures.push(`${pageErrors.length} page error(s)`);
-  if (consoleErrors.length) failures.push(`${consoleErrors.length} console error(s)`);
+  if (unexpectedConsoleErrors.length) failures.push(`${unexpectedConsoleErrors.length} console error(s)`);
   await writeFile(reportPath, `${JSON.stringify({
     schemaVersion: 1, fixture, iterations, samples, assessment, pageErrors,
-    consoleErrors, failures
+    consoleErrors: unexpectedConsoleErrors, ignoredConsoleWarnings, failures
   }, null, 2)}\n`, 'utf8');
   if (failures.length) throw new Error(`Tool-switch audit failed: ${failures.join(', ')}.`);
   process.stdout.write(`Tool-switch audit passed (${samples[0].visited.length} tools, ${iterations} rounds). Report: ${reportPath}\n`);

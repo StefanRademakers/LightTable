@@ -1,6 +1,6 @@
 # LightTable MCP v1 integration
 
-Status: **implemented vertical slice**, 2026-08-06.
+Status: **implemented semantic integration**, updated 2026-08-14.
 
 ## Decision
 
@@ -75,11 +75,17 @@ Read operations:
 
 Write operations:
 
-- create/rename/show/hide raster layers and set fill opacity;
-- enable/bypass layer styles and individual effects;
-- set zoom;
-- undo/redo;
+- create documents through the dedicated creation tool;
+- create/place/rename/show/hide raster layers and set fill opacity;
+- query, create and edit point/paragraph text and layout/style runs;
+- query, create, update and remove editable vector elements, shapes, fills,
+  strokes and gradients;
+- query, add, update, remove, move and enable/bypass Layer Style effects;
+- set zoom and undo/redo;
 - execute bounded brush, selection and layer-translate gestures;
+- execute up to 64 supported semantic edits as one atomic publication and one
+  named undo entry, including references to earlier operation results;
+- observe reconnect-safe async task events and cancel supported tasks;
 - import a generated public HTTPS PNG/JPEG/WebP/AVIF, maximum 32 MiB;
 - export native LightTable, PNG and PSD artifacts.
 
@@ -88,10 +94,31 @@ link-local destinations and revalidate redirects. Artifacts are opaque,
 in-process and bounded to 32 entries / 512 MiB; binary content crosses only
 the explicitly enabled host bridge.
 
-Text, vector shape construction, gradient authoring, arbitrary effect setting
-edits and document creation are **not yet semantic MCP commands**. They must be
-added to the shared application command service first. Adding DOM selectors or
-a parallel MCP-only scene format is forbidden.
+The server also contains a complete editable social-design workflow that uses
+the same public commands to create a document, placed artwork, gradient vector,
+point/paragraph text and a drop shadow, then verifies undo/redo and exports GPU
+preview, native and PSD artifacts. Remaining gaps include broad semantic
+coverage for transforms, masks, selections, adjustments and many interactive
+tools. Those must be added to the shared application command service first;
+DOM selectors or a parallel MCP-only scene format remain forbidden.
+
+### Exposure-list ownership
+
+The current runtime has related but non-identical capability projections:
+
+- `LightTableCommandId` is the complete application command union;
+- `AuthenticatedLightTableMcpAdapter` has a tested transport-neutral allowlist,
+  but the production Agent Access bridge does not currently instantiate it;
+- `apps/mcp-server` has a generic command enum plus bespoke document, text,
+  vector, style, import, preview and design tools.
+
+The Electron main bridge authenticates and bounds requests, then invokes the
+renderer-owned automation driver through narrow IPC. This is still one command,
+document, history and renderer authority, but the exposure metadata can drift.
+Currently the adapter includes resize and Face Warp but omits PSD export, while
+the MCP generic list includes PSD export but omits resize/Face Warp; document
+creation is a bespoke MCP tool. Consolidate or generate these projections
+before treating the surface as a stable third-party plugin ABI.
 
 ## Hetzner deployment example
 
@@ -163,17 +190,15 @@ rotation/replay rejection, redirect validation, SSRF guards, read/edit scope
 separation, protected-resource discovery, Streamable HTTP tool discovery and
 typed tool execution.
 
-## Next semantic slices
+## Next semantic expansion
 
-Implement in this order, each through the shared command service:
+The original document/asset/text/vector/style/batch/task slices are now
+implemented. Expand only through the shared command service, prioritizing:
 
-1. create document with explicit width/height/profile/background;
-2. upload asset then place it as an editable layer in an existing document;
-3. create/edit point and paragraph text with font substitution reporting;
-4. create/edit vector shapes, fills, strokes and gradients;
-5. add/update/remove canonical Layer Style effects;
-6. batch transactions with one undo entry and an atomic revision precondition;
-7. persistent task/event delivery for long agent jobs.
-
-These additions turn the proven transport into the layered-design agent model
-without compromising LightTable's single-authority architecture.
+1. layer transforms, reparenting and alignment with explicit coordinate space;
+2. selections, masks and their editable properties;
+3. Grade/Lens Fx and adjustment-layer semantics;
+4. remaining tool operations that can be expressed deterministically;
+5. richer structural and visual inspection for reference-image reconstruction;
+6. version negotiation, ID-lifetime and permission contracts suitable for a
+   future plugin ABI.

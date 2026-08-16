@@ -46,7 +46,7 @@ describe('vector style presentation', () => {
       strokeCap: 'square',
       strokeJoin: 'bevel',
       strokeMiterLimit: 7,
-      strokeStyle: 'dashed',
+      strokeStyle: 'dotted',
       opacity: 1
     });
     const style = patchVectorStyle(element.style, {
@@ -60,10 +60,10 @@ describe('vector style presentation', () => {
       cap: 'square',
       join: 'bevel',
       miterLimit: 7,
-      dash: [2, 4],
-      dashOffset: 1
+      dash: [16 / 3, 32 / 3],
+      dashOffset: 8 / 3
     });
-    expect(patchVectorStyle(style, { strokeStyle: 'dotted' }).stroke?.dash).toEqual([1, 2]);
+    expect(patchVectorStyle(style, { strokeStyle: 'dotted' }).stroke?.dash).toEqual([8, 16]);
   });
 
   it('round-trips explicit no-fill and no-stroke states without losing remembered colors', () => {
@@ -164,5 +164,24 @@ describe('vector style presentation', () => {
     expect(style.opacity).toBe(0.5);
     expect(style.fill).not.toBe(fill);
     expect(style.stroke?.paint).not.toBe(stroke);
+  });
+
+  it('scales dashed and dotted presets with thick strokes', () => {
+    const settings = createEditorSession().vectorStyle;
+    expect(vectorStyleFromToolSettings({
+      ...settings, strokeEnabled: true, strokeWidth: 12, strokeStyle: 'dashed'
+    }).stroke?.dash).toEqual([48, 36]);
+    expect(vectorStyleFromToolSettings({
+      ...settings, strokeEnabled: true, strokeWidth: 12, strokeStyle: 'dotted'
+    }).stroke?.dash).toEqual([12, 24]);
+
+    const shape = createVectorLiveShape('scaled-dash', {
+      kind: 'ellipse', width: 100, height: 80
+    });
+    const dashed = patchVectorStyle(shape.style, {
+      strokeEnabled: true, strokeWidth: 8, strokeStyle: 'dashed'
+    });
+    expect(dashed.stroke?.dash).toEqual([32, 24]);
+    expect(patchVectorStyle(dashed, { strokeWidth: 20 }).stroke?.dash).toEqual([80, 60]);
   });
 });

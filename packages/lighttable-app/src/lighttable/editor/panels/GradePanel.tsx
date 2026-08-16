@@ -55,7 +55,7 @@ export interface GradePanelModel {
   readonly resetModifierActive: boolean;
   readonly showOriginal: boolean;
   readonly colorMixerScopeContainerRef: React.RefObject<HTMLDivElement | null>;
-  readonly colorMixerHueCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+  readonly colorMixerHueCanvasRef: React.RefCallback<HTMLCanvasElement>;
 }
 
 export interface GradePanelCommands {
@@ -596,7 +596,7 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
   };
 
   return (
-    <aside className="lighttable-panel">
+    <aside className="lighttable-panel lighttable-grade-panel">
       <section className="lighttable-group lighttable-master-group">
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label">

@@ -7,6 +7,7 @@ import {
   cloneAdjustmentStack,
   createAdjustmentStackFromBasicAdjustments,
   materializeBasicAdjustments,
+  removeAdjustmentStackOwner,
   setAdjustmentStackOwnerEnabled
 } from './adjustmentStack';
 
@@ -142,5 +143,21 @@ describe('LightTable adjustment stacks', () => {
     expect(adjustmentStackOwnerIsEnabled(lensBypassed, 'lens-fx')).toBe(false);
     expect(materializeBasicAdjustments(lensBypassed).exposureEV).toBe(1.5);
     expect(materializeBasicAdjustments(lensBypassed).effects.lensDistortion.enabled).toBe(false);
+  });
+
+  it('removes one local owner without deleting unrelated processing modules', () => {
+    const settings = createDefaultAdjustments();
+    settings.exposureEV = 1.5;
+    settings.effects.lensBlur.enabled = true;
+    const full = adjustmentStackForScope(
+      createAdjustmentStackFromBasicAdjustments(settings, undefined, sequentialIds()),
+      'layer'
+    );
+
+    const withoutGrade = removeAdjustmentStackOwner(full, 'grade');
+
+    expect(adjustmentStackForOwner(withoutGrade, 'grade').modules).toHaveLength(0);
+    expect(adjustmentStackForOwner(withoutGrade, 'lens-fx').modules.length).toBeGreaterThan(0);
+    expect(withoutGrade.revision).toBe(full.revision + 1);
   });
 });

@@ -21,14 +21,15 @@ import type {
 import { layerThumbnailDimensions } from '../layers/layerThumbnailTypes';
 import { layerRowInset } from '../layers/layerTreeGeometry';
 import {
-  adjustmentStackHasOwner,
-  adjustmentStackOwnerIsEnabled
+  adjustmentStackHasOwner
 } from '../../processing/adjustmentStack';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { layerStyleTreeEffects } from './layerStyleTreePresentation';
 import { buildDocumentCapabilityFindings } from '../compatibility/documentCapabilityFindings';
 import { LayerCompatibilityBadge } from './LayerCompatibilityBadge';
 import { layerCompatibilityPresentation } from './layerCompatibilityPresentation';
+import { LocalProcessingTreeRows, localProcessingTreeItems } from './LocalProcessingTreeRows';
+import type { PropertiesInspectorTarget } from '../../application/properties/propertiesInspectorTarget';
 
 interface LayerPanelProps {
   document: ImageDocument;
@@ -82,18 +83,43 @@ interface LayerPanelProps {
   onStyleStackEnabled: (layerId: LayerId, enabled: boolean) => void;
   onLocalGradeEnabled: (layerId: LayerId, enabled: boolean) => void;
   onLocalLensFxEnabled: (layerId: LayerId, enabled: boolean) => void;
+  onRemoveLocalProcessing: (layerId: LayerId, owner: 'grade' | 'lens-fx') => void;
   onStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => void;
+  onRemoveStyle: (layerId: LayerId, effectId: LayerStyleId) => void;
   onClearStyles: (layerId: LayerId) => void;
   onSelectionChange?: (layerIds: LayerId[]) => void;
   editingTextLayerId?: LayerId | null;
   onEditText?: (layerId: LayerId) => void;
   onOpenFontReport?: (layerId: LayerId) => void;
+  inspectorTarget: PropertiesInspectorTarget;
+  onInspectLayer: (layerId: LayerId, channel: PaintChannel) => void;
+  onInspectProcessing: (layerId: LayerId, owner: 'grade' | 'lens-fx') => void;
 }
 
 interface VisualLayerRow {
   layer: LayerNode;
   depth: number;
 }
+
+type LayerSubtarget = Extract<PropertiesInspectorTarget,
+  { kind: 'processing' | 'style-stack' | 'style' }>;
+
+export const LAYER_SUBTARGET_DRAG_TYPE = 'application/x-lighttable-layer-subtarget';
+
+const parseLayerSubtarget = (value: string): LayerSubtarget | null => {
+  try {
+    const target = JSON.parse(value) as Partial<LayerSubtarget>;
+    if (typeof target.layerId !== 'string') return null;
+    if (target.kind === 'processing' && (target.owner === 'grade' || target.owner === 'lens-fx')) {
+      return target as LayerSubtarget;
+    }
+    if (target.kind === 'style-stack') return target as LayerSubtarget;
+    if (target.kind === 'style' && typeof target.effectId === 'string') return target as LayerSubtarget;
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 export const LAYER_CREATION_OPTIONS = [
   { id: 'grade', label: 'New Grade layer', iconName: 'add_adjustment_layer.png' },
@@ -179,12 +205,17 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onStyleStackEnabled,
   onLocalGradeEnabled,
   onLocalLensFxEnabled,
+  onRemoveLocalProcessing,
   onStyleEnabled,
+  onRemoveStyle,
   onClearStyles,
   onSelectionChange,
   editingTextLayerId = null,
   onEditText,
-  onOpenFontReport
+  onOpenFontReport,
+  inspectorTarget,
+  onInspectLayer,
+  onInspectProcessing
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
@@ -208,6 +239,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     y: number;
     source: 'footer' | 'context';
   }>({ open: false, x: 0, y: 0, source: 'footer' });
+  const [subtargetMenu, setSubtargetMenu] = React.useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    target: LayerSubtarget | null;
+  }>({ open: false, x: 0, y: 0, target: null });
   const selectionAnchorRef = React.useRef<LayerId | null>(document.activeLayerId);
   const thumbnailDimensions = layerThumbnailDimensions(document.width, document.height);
   const capabilityFindings = React.useMemo(() => buildDocumentCapabilityFindings(
@@ -292,6 +329,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         : layerId;
       if (nextActiveId) onSelect(nextActiveId);
       onChannelChange(channel);
+      if (nextActiveId) onInspectLayer(nextActiveId, channel);
       return;
     } else {
       setSelectedLayerIds(new Set([layerId]));
@@ -299,8 +337,98 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     }
     onSelect(layerId);
     onChannelChange(channel);
+    onInspectLayer(layerId, channel);
   };
-  const handleLayerTreeKeyDown = useLayerTreeKeyboardNavigation({ rows, selectionFor, setSelected: setSelectedLayerIds, selectionAnchor: selectionAnchorRef, activate: (layerId) => { onSelect(layerId); onChannelChange('pixels'); }, toggleVisibility: onVisibility, beginRename: (layerId) => { setRenamingLayerId(layerId); requestAnimationFrame(() => globalThis.document.getElementById(`lighttable-layer-name-${layerId}`)?.focus()); }, editText: onEditText, openContextMenu: (x, y) => setMoreMenu({ open: true, x, y, source: 'context' }) });
+
+  const restoreParentTarget = (layerId: LayerId) => {
+    onSelect(layerId);
+    onChannelChange('pixels');
+    onInspectLayer(layerId, 'pixels');
+  };
+
+  const deleteTreeTarget = (target: PropertiesInspectorTarget) => {
+    if (target.kind === 'mask') {
+      onRemoveMask(target.layerId);
+      restoreParentTarget(target.layerId);
+      return;
+    }
+    if (target.kind === 'processing') {
+      onRemoveLocalProcessing(target.layerId, target.owner);
+      restoreParentTarget(target.layerId);
+      return;
+    }
+    if (target.kind === 'style') {
+      onRemoveStyle(target.layerId, target.effectId);
+      restoreParentTarget(target.layerId);
+      return;
+    }
+    if (target.kind === 'style-stack') {
+      onClearStyles(target.layerId);
+      restoreParentTarget(target.layerId);
+      return;
+    }
+    onDelete(selectedIds);
+  };
+
+  const selectedDeleteTarget = (): PropertiesInspectorTarget => {
+    if (
+      inspectorTarget.kind !== 'none'
+      && inspectorTarget.kind !== 'layer'
+      && inspectorTarget.layerId === document.activeLayerId
+    ) return inspectorTarget;
+    return document.activeLayerId
+      ? { kind: 'layer', layerId: document.activeLayerId }
+      : { kind: 'none' };
+  };
+
+  const openSubtargetMenu = (
+    event: React.MouseEvent,
+    target: LayerSubtarget
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMoreMenu((current) => ({ ...current, open: false }));
+    setSubtargetMenu({
+      open: true,
+      x: event.clientX,
+      y: event.clientY,
+      target
+    });
+  };
+
+  const beginSubtargetDrag = (
+    event: React.DragEvent,
+    target: LayerSubtarget,
+    label: string
+  ) => {
+    event.stopPropagation();
+    draggedLayerIdRef.current = null;
+    setDraggedLayerId(null);
+    setDropTarget(null);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(LAYER_SUBTARGET_DRAG_TYPE, JSON.stringify(target));
+    event.dataTransfer.setData('text/plain', label);
+  };
+
+  const selectedStyleTarget = subtargetMenu.target?.kind === 'style'
+    ? subtargetMenu.target
+    : null;
+  const selectedStyleName = selectedStyleTarget
+    ? findLayerNode(document.layers, selectedStyleTarget.layerId)?.node.styleStack.effects
+      .find((effect) => effect.id === selectedStyleTarget.effectId)?.name
+    : null;
+  const subtargetMenuOptions: Array<ContextMenuOption<string>> = subtargetMenu.target
+    ? [{
+        value: 'remove-subtarget',
+        label: subtargetMenu.target.kind === 'processing'
+          ? `Remove Local ${subtargetMenu.target.owner === 'grade' ? 'Grade' : 'Lens Fx'}`
+          : subtargetMenu.target.kind === 'style-stack'
+            ? 'Clear Layer Effects'
+            : `Delete ${selectedStyleName ?? 'Layer Effect'}`,
+        onClick: () => deleteTreeTarget(subtargetMenu.target!)
+      }]
+    : [];
+  const handleLayerTreeKeyDown = useLayerTreeKeyboardNavigation({ rows, selectionFor, setSelected: setSelectedLayerIds, selectionAnchor: selectionAnchorRef, activate: (layerId) => { onSelect(layerId); onChannelChange('pixels'); onInspectLayer(layerId, 'pixels'); }, toggleVisibility: onVisibility, beginRename: (layerId) => { setRenamingLayerId(layerId); requestAnimationFrame(() => globalThis.document.getElementById(`lighttable-layer-name-${layerId}`)?.focus()); }, editText: onEditText, openContextMenu: (x, y) => setMoreMenu({ open: true, x, y, source: 'context' }) });
 
   const moreMenuOptions: Array<ContextMenuOption<string>> = [
     { value: 'new-layer', label: 'New layer', onClick: onCreate },
@@ -378,6 +506,16 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         if (activeLayer && layerSupportsLayerStyles(activeLayer)) onEditStyles(activeLayer.id);
       }
     },
+    ...(activeLayer?.type === 'raster' ? [{
+      value: 'local-grade',
+      label: 'Edit Local Grade',
+      separatorBefore: true,
+      onClick: () => onInspectProcessing(activeLayer.id, 'grade')
+    }, {
+      value: 'local-lens-fx',
+      label: 'Edit Local Lens Fx',
+      onClick: () => onInspectProcessing(activeLayer.id, 'lens-fx')
+    }] : []),
     {
       value: 'clear-layer-style',
       label: 'Clear Layer Style',
@@ -516,9 +654,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         {rows.map(({ layer, depth }) => {
           const icon = layerTypeIcon(layer);
           const previews = thumbnails.get(layer.id);
+          const localProcessingItems = localProcessingTreeItems(layer);
           const visibleStyleEffects = layerStyleTreeEffects(layer.styleStack);
           const hasStyles = visibleStyleEffects.length > 0;
-          const stylesExpanded = hasStyles && !collapsedStyles.has(layer.id);
+          const hasExpandableChildren = localProcessingItems.length > 0 || hasStyles;
+          const childrenExpanded = hasExpandableChildren && !collapsedStyles.has(layer.id);
           const siblings = siblingLayers(document, layer.id);
           const siblingIndex = siblings.findIndex((sibling) => sibling.id === layer.id);
           const clippingBase = siblingIndex > 0 ? siblings[siblingIndex - 1] : null;
@@ -568,6 +708,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 onSelect(layer.id);
                 onChannelChange('pixels');
               }
+              onInspectLayer(layer.id, 'pixels');
+              setSubtargetMenu((current) => ({ ...current, open: false }));
               setMoreMenu({
                 open: true,
                 x: event.clientX,
@@ -677,45 +819,24 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
               title={layer.visible ? 'Hide layer' : 'Show layer'}
             ><img src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')} alt="" /></button>
-            {layer.type === 'group' || hasStyles ? (
+            {layer.type === 'group' ? (
               <button
                 type="button"
                 className="lighttable-layer__disclosure"
                 onClick={(event) => {
                   event.stopPropagation();
-                  if (layer.type === 'group') {
-                    setCollapsedGroups((current) => {
-                      const next = new Set(current);
-                      if (next.has(layer.id)) next.delete(layer.id);
-                      else next.add(layer.id);
-                      return next;
-                    });
-                  } else {
-                    setCollapsedStyles((current) => {
-                      const next = new Set(current);
-                      if (next.has(layer.id)) next.delete(layer.id);
-                      else next.add(layer.id);
-                      return next;
-                    });
-                  }
+                  setCollapsedGroups((current) => {
+                    const next = new Set(current);
+                    if (next.has(layer.id)) next.delete(layer.id);
+                    else next.add(layer.id);
+                    return next;
+                  });
                 }}
-                aria-label={
-                  layer.type === 'group'
-                    ? collapsedGroups.has(layer.id) ? `Expand ${layer.name}` : `Collapse ${layer.name}`
-                    : stylesExpanded ? `Collapse effects for ${layer.name}` : `Expand effects for ${layer.name}`
-                }
-                title={
-                  layer.type === 'group'
-                    ? collapsedGroups.has(layer.id) ? 'Expand group' : 'Collapse group'
-                    : stylesExpanded ? 'Collapse effects' : 'Expand effects'
-                }
+                aria-label={collapsedGroups.has(layer.id) ? `Expand ${layer.name}` : `Collapse ${layer.name}`}
+                title={collapsedGroups.has(layer.id) ? 'Expand group' : 'Collapse group'}
               >
                 <img
-                  src={
-                    layer.type === 'group'
-                      ? lightTableIcon(collapsedGroups.has(layer.id) ? 'area_closed.png' : 'area_open.png')
-                      : lightTableIcon(stylesExpanded ? 'area_open.png' : 'area_closed.png')
-                  }
+                  src={lightTableIcon(collapsedGroups.has(layer.id) ? 'area_closed.png' : 'area_open.png')}
                   alt=""
                 />
               </button>
@@ -861,7 +982,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       height={previews.mask.height}
                       alt=""
                     />
-                  ) : 'M'}
+                  ) : null}
                 </button>
                 </span>
               </>
@@ -948,89 +1069,153 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <LayerCompatibilityBadge finding={capabilityFinding}
                   onOpen={() => onOpenFontReport?.(layer.id)} />
               ) : null}
-              {layer.type === 'raster'
-                && layer.adjustmentStack
-                && adjustmentStackHasOwner(layer.adjustmentStack, 'grade') ? (
-                <button
-                  type="button"
-                  className="lighttable-layer__local-grade"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onLocalGradeEnabled(
-                      layer.id,
-                      !adjustmentStackOwnerIsEnabled(layer.adjustmentStack!, 'grade')
-                    );
-                  }}
-                  title={`${adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'grade') ? 'Disable' : 'Enable'} local grade`}
-                  aria-label={`${adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'grade') ? 'Disable' : 'Enable'} local grade`}
-                >
-                  <img
-                    src={lightTableIcon(
-                      adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'grade')
-                        ? 'layer_adjustment.png'
-                        : 'layer_adjustment_off.png'
-                    )}
-                    alt=""
-                  />
-                </button>
-              ) : null}
-              {layer.type === 'raster'
-                && layer.adjustmentStack
-                && adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx') ? (
-                <button
-                  type="button"
-                  className="lighttable-layer__local-grade"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onLocalLensFxEnabled(
-                      layer.id,
-                      !adjustmentStackOwnerIsEnabled(layer.adjustmentStack!, 'lens-fx')
-                    );
-                  }}
-                  title={`${adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'lens-fx') ? 'Disable' : 'Enable'} local Lens Fx`}
-                  aria-label={`${adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'lens-fx') ? 'Disable' : 'Enable'} local Lens Fx`}
-                >
-                  <img
-                    src={lightTableIcon(
-                      adjustmentStackOwnerIsEnabled(layer.adjustmentStack, 'lens-fx')
-                        ? 'lens_fx.png'
-                        : 'lens_fx_off.png'
-                    )}
-                    alt=""
-                  />
-                </button>
-              ) : null}
               {hasStyles ? <span className="lighttable-layer__fx-mark" aria-label="Layer effects">fx</span> : null}
               {layer.locks.all ? <img className="lighttable-layer__lock" src={lightTableIcon('lock_closed.png')} alt="Locked" /> : null}
             </span>
+            {layer.type !== 'group' && hasExpandableChildren ? (
+              <button
+                type="button"
+                className={`lighttable-layer__disclosure lighttable-layer__disclosure--trailing${
+                  childrenExpanded ? '' : ' lighttable-layer__disclosure--collapsed'
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setCollapsedStyles((current) => {
+                    const next = new Set(current);
+                    if (next.has(layer.id)) next.delete(layer.id);
+                    else next.add(layer.id);
+                    return next;
+                  });
+                }}
+                aria-label={childrenExpanded
+                  ? `Collapse processing and effects for ${layer.name}`
+                  : `Expand processing and effects for ${layer.name}`}
+                title={childrenExpanded ? 'Collapse processing and effects' : 'Expand processing and effects'}
+              >
+                <img src={lightTableIcon('chevron_layer.png')} alt="" />
+              </button>
+            ) : null}
           </div>
-          {stylesExpanded ? (
+          {childrenExpanded ? (
             <div
               className="lighttable-layer-effects"
               style={{ paddingLeft: `${31 + depth * 16}px` }}
             >
-              <div className="lighttable-layer-effect lighttable-layer-effect--summary">
-                <button
-                  type="button"
-                  className="lighttable-layer-effect__visibility"
-                  onClick={() => onStyleStackEnabled(layer.id, !layer.styleStack.enabled)}
-                  title={layer.styleStack.enabled ? 'Hide all layer effects' : 'Show all layer effects'}
-                  aria-label={layer.styleStack.enabled ? 'Hide all layer effects' : 'Show all layer effects'}
-                ><img src={lightTableIcon(layer.styleStack.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></button>
-                <button type="button" onClick={() => onEditStyles(layer.id)}>Effects</button>
-              </div>
-              {[...visibleStyleEffects].reverse().map((effect) => (
-                <div className="lighttable-layer-effect" key={effect.id}>
-                  <button
-                    type="button"
-                    className="lighttable-layer-effect__visibility"
-                    onClick={() => onStyleEnabled(layer.id, effect.id, !effect.enabled)}
-                    title={effect.enabled ? `Hide ${effect.name}` : `Show ${effect.name}`}
-                    aria-label={effect.enabled ? `Hide ${effect.name}` : `Show ${effect.name}`}
-                  ><img src={lightTableIcon(effect.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></button>
-                  <button type="button" onClick={() => onEditStyles(layer.id, effect.id)}>{effect.name}</button>
-                </div>
-              ))}
+              <LocalProcessingTreeRows
+                layerId={layer.id}
+                items={localProcessingItems}
+                selectedOwner={inspectorTarget.kind === 'processing'
+                  && inspectorTarget.layerId === layer.id
+                  ? inspectorTarget.owner
+                  : undefined}
+                onEnabled={(layerId, owner, enabled) => {
+                  if (owner === 'grade') onLocalGradeEnabled(layerId, enabled);
+                  else onLocalLensFxEnabled(layerId, enabled);
+                }}
+                onActivate={(owner) => {
+                    onSelect(layer.id);
+                    onChannelChange('pixels');
+                    onInspectProcessing(layer.id, owner);
+                }}
+                onContextMenu={(event, owner) => {
+                  onSelect(layer.id);
+                  onChannelChange('pixels');
+                  onInspectProcessing(layer.id, owner);
+                  openSubtargetMenu(event, { kind: 'processing', layerId: layer.id, owner });
+                }}
+                onDragStart={(event, owner) => {
+                  onSelect(layer.id);
+                  onChannelChange('pixels');
+                  onInspectProcessing(layer.id, owner);
+                  beginSubtargetDrag(
+                    event,
+                    { kind: 'processing', layerId: layer.id, owner },
+                    owner === 'grade' ? 'Grade' : 'Lens Fx'
+                  );
+                }}
+              />
+              {hasStyles ? (
+                <>
+                  <div className={`lighttable-layer-effect lighttable-layer-effect--summary${
+                    inspectorTarget.kind === 'style-stack' && inspectorTarget.layerId === layer.id
+                      ? ' lighttable-layer-effect--selected'
+                      : ''
+                  }`}
+                    draggable
+                    onContextMenu={(event) => {
+                      onSelect(layer.id);
+                      onChannelChange('pixels');
+                      onEditStyles(layer.id);
+                      openSubtargetMenu(event, { kind: 'style-stack', layerId: layer.id });
+                    }}
+                    onDragStart={(event) => {
+                      onSelect(layer.id);
+                      onChannelChange('pixels');
+                      onEditStyles(layer.id);
+                      beginSubtargetDrag(
+                        event,
+                        { kind: 'style-stack', layerId: layer.id },
+                        'Effects'
+                      );
+                    }}>
+                    <button
+                      type="button"
+                      className="lighttable-layer-effect__visibility"
+                      onClick={() => onStyleStackEnabled(layer.id, !layer.styleStack.enabled)}
+                      title={layer.styleStack.enabled ? 'Hide all layer effects' : 'Show all layer effects'}
+                      aria-label={layer.styleStack.enabled ? 'Hide all layer effects' : 'Show all layer effects'}
+                    ><img src={lightTableIcon(layer.styleStack.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></button>
+                    <button type="button" onClick={() => {
+                      onSelect(layer.id);
+                      onChannelChange('pixels');
+                      onEditStyles(layer.id);
+                    }}>Effects</button>
+                  </div>
+                  {[...visibleStyleEffects].reverse().map((effect) => (
+                    <div className={`lighttable-layer-effect${
+                      inspectorTarget.kind === 'style'
+                        && inspectorTarget.layerId === layer.id
+                        && inspectorTarget.effectId === effect.id
+                        ? ' lighttable-layer-effect--selected'
+                        : ''
+                    }`} key={effect.id}
+                      draggable
+                      onContextMenu={(event) => {
+                        onSelect(layer.id);
+                        onChannelChange('pixels');
+                        onEditStyles(layer.id, effect.id);
+                        openSubtargetMenu(event, {
+                          kind: 'style',
+                          layerId: layer.id,
+                          effectId: effect.id
+                        });
+                      }}
+                      onDragStart={(event) => {
+                        onSelect(layer.id);
+                        onChannelChange('pixels');
+                        onEditStyles(layer.id, effect.id);
+                        beginSubtargetDrag(
+                          event,
+                          { kind: 'style', layerId: layer.id, effectId: effect.id },
+                          effect.name
+                        );
+                      }}>
+                      <button
+                        type="button"
+                        className="lighttable-layer-effect__visibility"
+                        onClick={() => onStyleEnabled(layer.id, effect.id, !effect.enabled)}
+                        title={effect.enabled ? `Hide ${effect.name}` : `Show ${effect.name}`}
+                        aria-label={effect.enabled ? `Hide ${effect.name}` : `Show ${effect.name}`}
+                      ><img src={lightTableIcon(effect.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></button>
+                      <button type="button" onClick={() => {
+                        onSelect(layer.id);
+                        onChannelChange('pixels');
+                        onEditStyles(layer.id, effect.id);
+                      }}>{effect.name}</button>
+                    </div>
+                  ))}
+                </>
+              ) : null}
             </div>
           ) : null}
           </React.Fragment>
@@ -1124,13 +1309,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         <button
           type="button"
           className={trashDropActive ? 'lighttable-layers__trash--drop-active' : undefined}
-          onClick={() => onDelete(selectedIds)}
+          onClick={() => deleteTreeTarget(selectedDeleteTarget())}
           disabled={!activeLayer}
           onDragEnter={(event) => {
             const types = Array.from(event.dataTransfer.types);
             if (
               !types.includes('application/x-lighttable-layer-id')
               && !types.includes('application/x-lighttable-layer-mask-id')
+              && !types.includes(LAYER_SUBTARGET_DRAG_TYPE)
             ) return;
             event.preventDefault();
             setTrashDropActive(true);
@@ -1140,6 +1326,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             if (
               !types.includes('application/x-lighttable-layer-id')
               && !types.includes('application/x-lighttable-layer-mask-id')
+              && !types.includes(LAYER_SUBTARGET_DRAG_TYPE)
             ) return;
             event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
@@ -1156,14 +1343,21 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               'application/x-lighttable-layer-mask-id'
             ) as LayerId;
             if (maskLayerId) {
-              onRemoveMask(maskLayerId);
+              deleteTreeTarget({ kind: 'mask', layerId: maskLayerId });
             } else {
-              const sourceLayerId = (
-                draggedLayerIdRef.current
-                ?? event.dataTransfer.getData('application/x-lighttable-layer-id')
-              ) as LayerId;
-              if (sourceLayerId) {
-                onDelete(selectedLayerIds.has(sourceLayerId) ? selectedIds : [sourceLayerId]);
+              const subtarget = parseLayerSubtarget(
+                event.dataTransfer.getData(LAYER_SUBTARGET_DRAG_TYPE)
+              );
+              if (subtarget) {
+                deleteTreeTarget(subtarget);
+              } else {
+                const sourceLayerId = (
+                  draggedLayerIdRef.current
+                  ?? event.dataTransfer.getData('application/x-lighttable-layer-id')
+                ) as LayerId;
+                if (sourceLayerId) {
+                  onDelete(selectedLayerIds.has(sourceLayerId) ? selectedIds : [sourceLayerId]);
+                }
               }
             }
             draggedLayerIdRef.current = null;
@@ -1171,13 +1365,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             setDropTarget(null);
             setTrashDropActive(false);
           }}
-          title="Delete layer or mask"
-          aria-label="Delete layer or mask"
+          title="Delete selected layer item"
+          aria-label="Delete selected layer item"
         ><img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></button>
         <button
           type="button"
           onClick={(event) => {
             const bounds = event.currentTarget.getBoundingClientRect();
+            setSubtargetMenu((current) => ({ ...current, open: false }));
             setMoreMenu({
               open: true,
               x: bounds.right,
@@ -1195,6 +1390,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         y={moreMenu.y}
         onClose={() => setMoreMenu((current) => ({ ...current, open: false }))}
         options={moreMenuOptions}
+      />
+      <ContextMenu
+        open={subtargetMenu.open}
+        x={subtargetMenu.x}
+        y={subtargetMenu.y}
+        onClose={() => setSubtargetMenu((current) => ({ ...current, open: false }))}
+        options={subtargetMenuOptions}
       />
     </section>
   );

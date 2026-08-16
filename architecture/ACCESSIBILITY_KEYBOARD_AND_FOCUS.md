@@ -30,7 +30,7 @@ paths.
 | Application menu and context menus | `menubar`, `menu` and `menuitem` semantics; arrows, Home/End, submenu left/right, Escape and opener restoration. |
 | Toolbar and tool-family flyouts | Named buttons; active/expanded state; Arrow Down opens a family; arrows and Home/End move within it. |
 | Options bar and font picker | Native labelled controls; the custom font list supports arrows and Home/End without invoking canvas shortcuts. |
-| Dock tabs and Grade, Lens Fx, Text and Effects panels | Existing tab/button/input semantics and visible keyboard focus are preserved by the shared focus rule. |
+| Dock tabs and contextual Properties editors | Grade, Lens Fx, Text and Effects retain their existing button/input semantics and visible keyboard focus while Properties routes the selected Layers-tree target. |
 | Layers | A labelled `tree` with roving `treeitem` focus, selected/expanded/level state; arrows and Home/End navigate, Space toggles visibility, F2 renames, Enter edits flow text, Shift+F10 opens the context menu. |
 | Dialogs and reports | `dialog`/`alertdialog` names, initial focus, focus containment, Escape close where safe, and opener restoration use the shared dialog hook. |
 | Canvas | The canvas is a visual authoring surface governed by named tools and commands. Layer content remains discoverable through Layers; direct screen-reader spatial editing is not claimed. |

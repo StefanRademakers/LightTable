@@ -1,11 +1,14 @@
 import React from 'react';
 import { lightTableIcon } from '../assets/icons';
+import { AdjustmentSlider } from '../lighttable/AdjustmentSlider';
 import { FormInput } from './FormInput';
+import { OpacitySlider } from './OpacitySlider';
 import { SquareIconButton } from './SquareIconButton';
 import { sampleScreenColor } from './colorSampling';
 
 export interface ColorPickerColor { readonly r: number; readonly g: number; readonly b: number; readonly a: number }
 interface HsvColor { readonly h: number; readonly s: number; readonly v: number }
+interface HslColor { readonly h: number; readonly s: number; readonly l: number }
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const byte = (value: number) => Math.round(clamp(value) * 255);
 export const colorPickerHex = (color: ColorPickerColor) => `#${[color.r, color.g, color.b]
@@ -35,6 +38,26 @@ export const colorPickerHsvToRgb = (hsv: HsvColor, a = 1): ColorPickerColor => {
     : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
   return { r: r + m, g: g + m, b: b + m, a };
 };
+export const colorPickerRgbToHsl = (color: ColorPickerColor): HslColor => {
+  const maximum = Math.max(color.r, color.g, color.b);
+  const minimum = Math.min(color.r, color.g, color.b);
+  const delta = maximum - minimum;
+  const l = (maximum + minimum) / 2;
+  const h = colorPickerRgbToHsv(color).h;
+  return { h, s: delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1)), l };
+};
+export const colorPickerHslToRgb = (hsl: HslColor, a = 1): ColorPickerColor => {
+  const h = ((hsl.h % 360) + 360) % 360;
+  const s = clamp(hsl.s);
+  const l = clamp(hsl.l);
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0]
+    : h < 180 ? [0, c, x] : h < 240 ? [0, x, c]
+      : h < 300 ? [x, 0, c] : [c, 0, x];
+  return { r: r + m, g: g + m, b: b + m, a };
+};
 
 /**
  * Hue is not encoded in achromatic RGB colours. Keep the user's last hue in
@@ -47,7 +70,20 @@ export const colorPickerHsvFromValue = (color: ColorPickerColor, previous?: HsvC
     : next;
 };
 
-export const ColorPicker: React.FC<{ value: ColorPickerColor; onChange: (value: ColorPickerColor) => void }> = ({ value, onChange }) => {
+export interface ColorPickerProps {
+  readonly value: ColorPickerColor;
+  readonly onChange: (value: ColorPickerColor) => void;
+  /** Optional paint opacity, kept separate from the RGB color value. */
+  readonly opacity?: number;
+  readonly onOpacityChange?: (opacity: number) => void;
+}
+
+export const ColorPicker: React.FC<ColorPickerProps> = ({
+  value,
+  onChange,
+  opacity,
+  onOpacityChange
+}) => {
   const [hsv, setHsv] = React.useState(() => colorPickerHsvFromValue(value));
   const [hex, setHex] = React.useState(colorPickerHex(value));
   const [rgb, setRgb] = React.useState([byte(value.r), byte(value.g), byte(value.b)].map(String));
@@ -61,13 +97,15 @@ export const ColorPicker: React.FC<{ value: ColorPickerColor; onChange: (value: 
     setHsv(next);
     onChange(colorPickerHsvToRgb(next, value.a));
   };
+  const hsl = { ...colorPickerRgbToHsl(colorPickerHsvToRgb(hsv)), h: hsv.h };
+  const commitHsl = (next: HslColor) => {
+    const rgbColor = colorPickerHslToRgb(next, value.a);
+    setHsv(colorPickerHsvFromValue(rgbColor, { h: next.h, s: 0, v: 0 }));
+    onChange(rgbColor);
+  };
   const updateSv = (element: HTMLElement, x: number, y: number) => {
     const bounds = element.getBoundingClientRect();
     commitHsv({ h: hsv.h, s: clamp((x - bounds.left) / bounds.width), v: 1 - clamp((y - bounds.top) / bounds.height) });
-  };
-  const updateHue = (element: HTMLElement, x: number) => {
-    const bounds = element.getBoundingClientRect();
-    commitHsv({ ...hsv, h: clamp((x - bounds.left) / bounds.width) * 360 });
   };
   return <div className="lighttable-color-picker-prototype" role="dialog" aria-label="Color picker">
     <div className="lighttable-color-picker-prototype__sv" role="slider" aria-label="Saturation and brightness"
@@ -77,12 +115,28 @@ export const ColorPicker: React.FC<{ value: ColorPickerColor; onChange: (value: 
       onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updateSv(event.currentTarget, event.clientX, event.clientY); }}>
       <span className="lighttable-color-picker-prototype__sv-marker" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
     </div>
-    <div className="lighttable-color-picker-prototype__hue" role="slider" aria-label="Hue"
-      aria-valuemin={0} aria-valuemax={360} aria-valuenow={Math.round(hsv.h)} tabIndex={0}
-      onPointerDown={(event) => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); updateHue(event.currentTarget, event.clientX); }}
-      onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updateHue(event.currentTarget, event.clientX); }}>
-      <span className="lighttable-color-picker-prototype__hue-marker" style={{ left: `${hsv.h / 360 * 100}%` }} />
+    <div className="lighttable-color-picker-prototype__hsl">
+      <AdjustmentSlider label="Hue" layout="bare" value={hsl.h} min={0} max={360}
+        format={(current) => `${Math.round(current)}°`} showResetMarker={false}
+        trackBackground="linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)"
+        onChange={(hue) => commitHsl({ ...hsl, h: hue })}
+        onReset={() => commitHsl({ ...hsl, h: 0 })} />
+      <AdjustmentSlider label="Saturation" layout="bare" value={hsl.s * 100} min={0} max={100}
+        format={(current) => `${Math.round(current)}%`} showResetMarker={false}
+        trackBackground={`linear-gradient(to right, hsl(${hsl.h} 0% ${hsl.l * 100}%), hsl(${hsl.h} 100% ${hsl.l * 100}%))`}
+        onChange={(saturation) => commitHsl({ ...hsl, s: saturation / 100 })}
+        onReset={() => commitHsl({ ...hsl, s: 0 })} />
+      <AdjustmentSlider label="Luminosity" layout="bare" value={hsl.l * 100} min={0} max={100}
+        format={(current) => `${Math.round(current)}%`} showResetMarker={false}
+        trackBackground={`linear-gradient(to right, #000 0%, hsl(${hsl.h} 100% 50%) 50%, #fff 100%)`}
+        onChange={(luminosity) => commitHsl({ ...hsl, l: luminosity / 100 })}
+        onReset={() => commitHsl({ ...hsl, l: 0.5 })} />
     </div>
+    {opacity !== undefined && onOpacityChange ? (
+      <OpacitySlider value={opacity}
+        color={`rgb(${byte(value.r)} ${byte(value.g)} ${byte(value.b)})`}
+        onChange={onOpacityChange} />
+    ) : null}
     <div className="lighttable-color-picker-prototype__fields">
       <SquareIconButton className="lighttable-color-picker-prototype__sampler" icon={<img src={lightTableIcon('tool_sample_color.png')} alt="" />}
         aria-label="Sample color from screen" disabled={sampling} onClick={() => { setSampling(true); void sampleScreenColor().then((sampled) => {

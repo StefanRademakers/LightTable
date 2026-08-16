@@ -89,11 +89,15 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
 
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
-      if (menuRef.current?.contains(event.target as Node)) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-editor-floating-control]')) return;
+      if (menuRef.current?.contains(target as Node)) return;
       onClose();
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key !== 'Escape') return;
+      if (document.querySelector('[data-editor-floating-control]')) return;
+      onClose();
     };
     document.addEventListener('pointerdown', closeOutside, true);
     document.addEventListener('keydown', closeOnEscape, true);
@@ -107,6 +111,7 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
     <div
       ref={menuRef}
       className="lighttable-tool-options-menu-layout"
+      data-editor-floating-surface
       style={{ left: position.x, top: position.y }}
       role="dialog"
       aria-label="Tool settings"

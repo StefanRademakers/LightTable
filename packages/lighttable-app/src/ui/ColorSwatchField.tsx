@@ -7,8 +7,20 @@ import { sampleScreenColor } from './colorSampling';
 export { sampleScreenColor } from './colorSampling';
 
 const POPOVER_GAP = 6;
+type PopoverAnchorRect = Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>;
+
+export const colorPickerPopoverAnchor = (
+  trigger: PopoverAnchorRect,
+  containingSurface?: Pick<DOMRect, 'left' | 'right'> | null
+): PopoverAnchorRect => containingSurface ? {
+  left: containingSurface.left,
+  right: containingSurface.right,
+  top: trigger.top,
+  bottom: trigger.bottom
+} : trigger;
+
 export const colorPickerPopoverPosition = (
-  trigger: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
+  trigger: PopoverAnchorRect,
   size: { width: number; height: number },
   viewport: { width: number; height: number }
 ) => {
@@ -26,6 +38,10 @@ export interface ColorSwatchFieldProps {
   readonly value: string;
   readonly ariaLabel: string;
   readonly size?: 'regular' | 'compact' | 'chip';
+  readonly accessory?: 'sampler' | 'chevron';
+  /** Lets a composite paint control own the popover while reusing this trigger. */
+  readonly expanded?: boolean;
+  readonly onActivate?: () => void;
   readonly className?: string;
   readonly disabled?: boolean;
   readonly onChange: (value: string) => void;
@@ -39,6 +55,9 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
   value,
   ariaLabel,
   size = 'regular',
+  accessory = 'sampler',
+  expanded,
+  onActivate,
   className,
   disabled = false,
   onChange,
@@ -48,6 +67,7 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
 }) => {
   const [sampling, setSampling] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const presentedOpen = expanded ?? open;
   const [position, setPosition] = React.useState({ left: 0, top: 0 });
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const popoverRef = React.useRef<HTMLDivElement | null>(null);
@@ -64,10 +84,18 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
 
   React.useLayoutEffect(() => {
     if (!open || !triggerRef.current || !popoverRef.current) return;
-    const update = () => setPosition(colorPickerPopoverPosition(
-      triggerRef.current!.getBoundingClientRect(), popoverRef.current!.getBoundingClientRect(),
-      { width: window.innerWidth, height: window.innerHeight }
-    ));
+    const update = () => {
+      const trigger = triggerRef.current!;
+      const containingSurface = trigger.closest<HTMLElement>('[data-editor-floating-surface]');
+      setPosition(colorPickerPopoverPosition(
+        colorPickerPopoverAnchor(
+          trigger.getBoundingClientRect(),
+          containingSurface?.getBoundingClientRect()
+        ),
+        popoverRef.current!.getBoundingClientRect(),
+        { width: window.innerWidth, height: window.innerHeight }
+      ));
+    };
     update();
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
@@ -107,25 +135,35 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
     onInteractionCommit?.();
   };
 
+  const togglePicker = () => {
+    if (disabled) return;
+    if (onActivate) {
+      onActivate();
+      return;
+    }
+    if (presentedOpen) close(true);
+    else {
+      openingValueRef.current = value;
+      onInteractionStart?.();
+      setOpen(true);
+    }
+  };
+
   return (
     <span className={`color-swatch-field color-swatch-field--${size}${className ? ` ${className}` : ''}`}>
       <button ref={triggerRef} type="button" className="color-swatch-field__well"
         style={{ backgroundColor: value }} disabled={disabled} aria-label={ariaLabel}
-        aria-haspopup="dialog" aria-expanded={open} onClick={() => {
-          if (open) close(true);
-          else {
-            openingValueRef.current = value;
-            onInteractionStart?.();
-            setOpen(true);
-          }
-        }} />
-      {size !== 'chip' ? <button type="button" className="color-swatch-field__sampler"
+        aria-haspopup="dialog" aria-expanded={presentedOpen} onClick={togglePicker} />
+      {size !== 'chip' && accessory === 'sampler' ? <button type="button" className="color-swatch-field__sampler"
         disabled={disabled || sampling} aria-label={`Sample ${ariaLabel.toLowerCase()}`}
         title={`Sample ${ariaLabel.toLowerCase()}`} onClick={() => void sample()}>
         <img src={lightTableIcon('tool_sample_color.png')} alt="" aria-hidden="true" />
-      </button> : null}
-      {open ? createPortal(
-        <div ref={popoverRef} className="color-swatch-field__popover" style={position}>
+      </button> : size !== 'chip' ? <button type="button" className="paint-field__arrow"
+        disabled={disabled} aria-label={`Open ${ariaLabel.toLowerCase()}`}
+        aria-haspopup="dialog" aria-expanded={presentedOpen} onClick={togglePicker} /> : null}
+      {open && !onActivate ? createPortal(
+        <div ref={popoverRef} className="color-swatch-field__popover"
+          data-editor-floating-control style={position}>
           <ColorPicker value={colorPickerParseHex(value) ?? { r: 0, g: 0, b: 0, a: 1 }}
             onChange={(color) => onChange(colorPickerHex(color).toLowerCase())} />
         </div>, document.body

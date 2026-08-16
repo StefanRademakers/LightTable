@@ -98,14 +98,22 @@ try {
     throw new Error(`A thumbnail escaped its layer row: ${JSON.stringify(thumbnailBoxes)}`);
   }
 
-  await page.keyboard.press('g');
-  await captureHistory('tool-activated');
   const gradientButton = page.getByRole('button', { name: 'Gradient (G)', exact: true });
+  await page.keyboard.press('g');
+  if (!await gradientButton.isVisible()) await page.keyboard.press('Shift+g');
   await gradientButton.waitFor({ state: 'visible' });
+  await captureHistory('tool-activated');
+  const viewport = page.locator('.lighttable-viewport');
+  const addPointCursor = await viewport.evaluate((element) => getComputedStyle(element).cursor);
+  if (!addPointCursor.includes('url(')) {
+    throw new Error(`Gradient Tool is missing its add-point cursor: ${addPointCursor}`);
+  }
   const iconSource = await gradientButton.locator('img').getAttribute('src');
-  await page.getByRole('button', { name: 'Show gradient and fill tools' }).click();
-  const bucketIconSource = await page.getByRole('toolbar', { name: 'Gradient and fill tools' })
-    .getByRole('button', { name: 'Paint bucket', exact: true }).locator('img').getAttribute('src');
+  await page.keyboard.press('Shift+g');
+  const bucketIconSource = await page.getByRole('button', { name: 'Paint bucket (G)', exact: true })
+    .locator('img').getAttribute('src');
+  await page.keyboard.press('Shift+g');
+  await gradientButton.waitFor({ state: 'visible' });
   if (!iconSource || iconSource === bucketIconSource) {
     throw new Error('Gradient and Paint Bucket still use the same icon.');
   }
@@ -119,14 +127,48 @@ try {
   await page.screenshot({ path: editorScreenshotPath });
   const ramp = editor.locator('.lighttable-style-gradient__preview');
   const colorStops = editor.locator('.lighttable-style-gradient__stop--color');
+  const opacityStops = editor.locator('.lighttable-style-gradient__stop--opacity');
+  const colorHitRegion = editor.getByRole('button', { name: 'Add color stop' });
+  const opacityHitRegion = editor.getByRole('button', { name: 'Add opacity stop' });
   if (await colorStops.count() !== 2) throw new Error('The default gradient needs two color stops.');
+  const rampCursor = await ramp.evaluate((element) => getComputedStyle(element).cursor);
+  const colorHitCursor = await colorHitRegion.evaluate((element) => getComputedStyle(element).cursor);
+  const opacityHitCursor = await opacityHitRegion.evaluate((element) => getComputedStyle(element).cursor);
+  const stopCursor = await colorStops.first()
+    .evaluate((element) => getComputedStyle(element).cursor);
+  await page.keyboard.down('Control');
+  await editor.locator('.lighttable-style-gradient--remove-stop').waitFor({ state: 'visible' });
+  const removePointCursor = await colorStops.first()
+    .evaluate((element) => getComputedStyle(element).cursor);
+  await page.keyboard.up('Control');
+  if (rampCursor !== 'default' || colorHitCursor !== addPointCursor
+    || opacityHitCursor !== addPointCursor || stopCursor !== 'grab'
+    || removePointCursor === addPointCursor
+    || !removePointCursor.includes('url(')) {
+    throw new Error(`Gradient editor cursors are missing: ${JSON.stringify({
+      rampCursor, colorHitCursor, opacityHitCursor, stopCursor, removePointCursor
+    })}`);
+  }
   const rampBounds = await ramp.boundingBox();
   if (!rampBounds) throw new Error('The gradient ramp is unavailable.');
-  await page.mouse.dblclick(
-    rampBounds.x + rampBounds.width * 0.68,
-    rampBounds.y + rampBounds.height * 0.5
+  const colorHitBounds = await colorHitRegion.boundingBox();
+  if (!colorHitBounds) throw new Error('The color-stop hit region is unavailable.');
+  await page.mouse.click(colorHitBounds.x + colorHitBounds.width * 0.68,
+    colorHitBounds.y + colorHitBounds.height / 2);
+  if (await colorStops.count() !== 3) throw new Error('The lower hit region did not add a color stop.');
+  await colorHitRegion.hover();
+  await editor.getByText('Click below the gradient to add a color stop.', { exact: true })
+    .waitFor({ state: 'visible' });
+  const opacityHitBounds = await opacityHitRegion.boundingBox();
+  if (!opacityHitBounds) throw new Error('The opacity-stop hit region is unavailable.');
+  await page.mouse.click(opacityHitBounds.x + opacityHitBounds.width * 0.62,
+    opacityHitBounds.y + opacityHitBounds.height / 2);
+  if (await opacityStops.count() !== 3) throw new Error('The upper hit region did not add an opacity stop.');
+  const addedOpacityStop = editor.locator(
+    '.lighttable-style-gradient__stop--opacity.lighttable-style-gradient__stop--active'
   );
-  if (await colorStops.count() !== 3) throw new Error('Double-click did not add a color stop.');
+  await addedOpacityStop.click({ button: 'right' });
+  if (await opacityStops.count() !== 2) throw new Error('Right-click did not remove the opacity stop.');
   const addedStop = editor.locator('.lighttable-style-gradient__stop--color.lighttable-style-gradient__stop--active');
   const addedBounds = await addedStop.boundingBox();
   if (!addedBounds) throw new Error('The added gradient stop is unavailable.');
@@ -144,7 +186,6 @@ try {
   await page.getByRole('button', { name: 'Close gradient' }).click();
   await captureHistory('gradient-editor-closed');
 
-  const viewport = page.locator('.lighttable-viewport');
   const bounds = await viewport.boundingBox();
   if (!bounds) throw new Error('Viewport bounds are unavailable.');
   await page.keyboard.down('Alt');
@@ -201,8 +242,8 @@ try {
   await page.mouse.click(displayedEnd.x, displayedEnd.y);
   const endpointEditor = page.getByRole('dialog', { name: 'Gradient editor' });
   await endpointEditor.waitFor({ state: 'visible' });
-  if (await viewport.evaluate((element) => getComputedStyle(element).cursor) !== 'default') {
-    throw new Error('The Gradient tool still presents an imprecise hand cursor.');
+  if (await viewport.evaluate((element) => getComputedStyle(element).cursor) !== addPointCursor) {
+    throw new Error('The Gradient tool lost its precise add-point cursor.');
   }
   await page.getByRole('button', { name: 'Close gradient' }).click();
 
@@ -291,8 +332,8 @@ try {
   }
 
   await page.keyboard.press('Shift+g');
-  await page.getByRole('button', { name: 'Paint bucket', exact: true }).waitFor({ state: 'visible' });
-  await page.keyboard.press('g');
+  await page.getByRole('button', { name: 'Paint bucket (G)', exact: true }).waitFor({ state: 'visible' });
+  await page.keyboard.press('Shift+g');
   await gradientButton.waitFor({ state: 'visible' });
   await page.keyboard.press('Control+z');
   const editUndone = await driver.queryDocument(documentId);
@@ -372,6 +413,12 @@ try {
     sourceFile,
     iconSource,
     bucketIconSource,
+    addPointCursor,
+    rampCursor,
+    colorHitCursor,
+    opacityHitCursor,
+    stopCursor,
+    removePointCursor,
     thumbnailBoxes,
     createdLayerId: activeLayer.id,
     screenshotPath,

@@ -1,12 +1,16 @@
 import type { SerializedDockview } from 'dockview-react';
 
-export const LIGHTTABLE_WORKSPACE_LAYOUT_VERSION = 1;
-export const LIGHTTABLE_WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v7';
-export const LIGHTTABLE_WORKSPACE_LEGACY_KEYS = ['lighttable.workspace.layout.v5'] as const;
+export const LIGHTTABLE_WORKSPACE_LAYOUT_VERSION = 2;
+export const LIGHTTABLE_WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v8';
+export const LIGHTTABLE_WORKSPACE_LEGACY_KEYS = [
+  'lighttable.workspace.layout.v5',
+  'lighttable.workspace.layout.v7'
+] as const;
 
 export type LightTableWorkspacePreset =
   | 'default'
   | 'photo-edit'
+  | 'grading'
   | 'ai-generation'
   | 'custom';
 
@@ -39,6 +43,7 @@ const parseCurrent = (raw: string): PersistedLightTableWorkspace | null => {
     || parsed.version !== LIGHTTABLE_WORKSPACE_LAYOUT_VERSION
     || (parsed.preset !== 'default'
       && parsed.preset !== 'photo-edit'
+      && parsed.preset !== 'grading'
       && parsed.preset !== 'ai-generation'
       && parsed.preset !== 'custom')
     || !isRecord(parsed.layout)) return null;
@@ -77,18 +82,9 @@ export const readWorkspaceLayout = (storage: StorageLike): PersistedLightTableWo
   for (const legacyKey of LIGHTTABLE_WORKSPACE_LEGACY_KEYS) {
     const legacy = storage.getItem(legacyKey);
     if (!legacy) continue;
-    try {
-      const layout = sanitizeWorkspaceLayout(JSON.parse(legacy) as SerializedDockview);
-      persistWorkspaceLayout(storage, layout, 'custom');
-      storage.removeItem(legacyKey);
-      return {
-        version: LIGHTTABLE_WORKSPACE_LAYOUT_VERSION,
-        preset: 'custom',
-        layout
-      };
-    } catch {
-      storage.removeItem(legacyKey);
-    }
+    // The contextual Properties panel deliberately replaces three old tabs.
+    // Old Dockview graphs do not have a meaningful one-to-one migration.
+    storage.removeItem(legacyKey);
   }
   return null;
 };

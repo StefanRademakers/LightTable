@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+export type SegmentedControlVariant = 'default' | 'low-attention';
+
 export interface SegmentedControlOption<T extends string> {
   value: T;
   label?: string;
@@ -16,6 +18,7 @@ interface SegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   ariaLabel?: string;
   className?: string;
+  variant?: SegmentedControlVariant;
 }
 
 export function SegmentedControl<T extends string>({
@@ -23,9 +26,14 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   ariaLabel,
-  className
+  className,
+  variant = 'default'
 }: SegmentedControlProps<T>) {
-  const rootClass = className ? `segmented-control ${className}` : 'segmented-control';
+  const rootClass = [
+    'segmented-control',
+    variant === 'low-attention' ? 'segmented-control--low-attention' : '',
+    className ?? ''
+  ].filter(Boolean).join(' ');
 
   return (
     <div className={rootClass} role="radiogroup" aria-label={ariaLabel}>

@@ -95,6 +95,16 @@ const DEFAULT_THEME: VectorEditingOverlayTheme = {
   handleWidthPx: 1
 };
 
+/** Static, low-attention locator for selected geometry with no visible paint. */
+export const UNPAINTED_ELEMENT_OUTLINE_THEME: VectorEditingOverlayTheme = {
+  pathColor: [0.22, 0.64, 1, 0.78],
+  handleColor: [0.22, 0.64, 1, 0.78],
+  pathWidthPx: 1,
+  handleWidthPx: 1,
+  dashLengthPx: 5,
+  gapLengthPx: 4
+};
+
 /** High-contrast, screen-space presentation for an editable gradient axis. */
 export const GRADIENT_GIZMO_THEME: VectorEditingOverlayTheme = {
   pathColor: [0.96, 0.97, 1, 1],

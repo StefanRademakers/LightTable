@@ -26,6 +26,7 @@ import {
   setLayerOpacity,
   setVectorLayerAntiAlias,
   setRasterLayerAdjustmentStackEnabled,
+  removeRasterLayerAdjustmentStackOwner,
   setLayersLock,
   setLayersVisibility,
   ungroupLayers
@@ -38,6 +39,7 @@ import type { PaintChannel } from '../../editor/session/editorSession';
 import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
 import {
   clearLayerStyles,
+  removeLayerStyle,
   setLayerStyleEnabled,
   setLayerStyleStackEnabled
 } from '../../editor/styles/layerStyleCommands';
@@ -66,6 +68,8 @@ export interface LayerPanelControllerDependencies {
   requestFlattenGroup(groupId: LayerId): void;
   requestFlattenImage(): void;
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
+  finishStyleEditing?(): void;
+  finishProcessingEditing?(): void;
   prepareActiveLayerChange?(layerId: LayerId): void;
   finishTextEditing?(): void;
 }
@@ -113,7 +117,9 @@ export interface LayerPanelController {
   setStyleStackEnabled(layerId: LayerId, enabled: boolean): void;
   setLocalGradeEnabled(layerId: LayerId, enabled: boolean): void;
   setLocalLensFxEnabled(layerId: LayerId, enabled: boolean): void;
+  removeLocalProcessing(layerId: LayerId, owner: 'grade' | 'lens-fx'): void;
   setStyleEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void;
+  removeStyle(layerId: LayerId, effectId: LayerStyleId): void;
   clearStyles(layerId: LayerId): void;
 }
 
@@ -282,11 +288,22 @@ export const createLayerPanelController = (
     setLocalLensFxEnabled: (layerId, enabled) =>
       mutate((current) =>
         setRasterLayerAdjustmentStackEnabled(current, layerId, enabled, 'lens-fx')),
+    removeLocalProcessing: (layerId, owner) => {
+      resolveDependencies().finishProcessingEditing?.();
+      mutate((current) =>
+        removeRasterLayerAdjustmentStackOwner(current, layerId, owner));
+    },
     setStyleEnabled: (layerId, effectId, enabled) =>
       mutate((current) =>
         setLayerStyleEnabled(current, layerId, effectId, enabled)),
-    clearStyles: (layerId) =>
-      mutate((current) => clearLayerStyles(current, layerId))
+    removeStyle: (layerId, effectId) => {
+      resolveDependencies().finishStyleEditing?.();
+      mutate((current) => removeLayerStyle(current, layerId, effectId));
+    },
+    clearStyles: (layerId) => {
+      resolveDependencies().finishStyleEditing?.();
+      mutate((current) => clearLayerStyles(current, layerId));
+    }
   };
 };
 

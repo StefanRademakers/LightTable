@@ -12,16 +12,23 @@ const ref = (
 const canvas = (name: string) => ({ name } as unknown as HTMLCanvasElement);
 
 describe('resolveEditorDocumentCanvases', () => {
-  it('refuses to start a document generation until every surface exists', () => {
+  it('starts without the optional contextual color-mixer surface', () => {
+    const viewport = canvas('viewport');
+    const hue = canvas('hue');
+    const parade = canvas('parade');
+    const vectorscope = canvas('vectorscope');
     const refs: EditorDocumentScopeCanvasRefs = {
-      viewport: ref(canvas('viewport')),
-      hueDistribution: ref(canvas('hue')),
+      viewport: ref(viewport),
+      hueDistribution: ref(hue),
       colorMixerHueDistribution: ref(null),
-      parade: ref(canvas('parade')),
-      vectorscope: ref(canvas('vectorscope'))
+      parade: ref(parade),
+      vectorscope: ref(vectorscope)
     };
 
-    expect(resolveEditorDocumentCanvases(refs)).toBeNull();
+    expect(resolveEditorDocumentCanvases(refs)).toEqual({
+      viewport,
+      scopes: { hueDistribution: hue, parade, vectorscope }
+    });
   });
 
   it('projects viewport and scope surfaces into their renderer contracts', () => {

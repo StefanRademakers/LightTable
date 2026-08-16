@@ -267,7 +267,7 @@ elders → gewone Pen.
 
 Met Auto Add/Delete uitgeschakeld blijft Pen een pure tekentool. Dat is onder andere nodig om een nieuw path over een bestaand path heen te kunnen starten zonder per ongeluk punten toe te voegen of te verwijderen.
 
-Mijn advies is om deze optie standaard aan te zetten, zoals Photoshop-gebruikers verwachten, maar hem prominent beschikbaar te houden.
+In LightTable staat deze optie standaard aan, maar is ze niet zichtbaar in de bovenste property bar. De Rubber Band is altijd actief en eveneens verborgen; beide kunnen later naar een echte preference verhuizen zonder de compacte werkbalk te belasten.
 
 9. Shape tools en path components
 

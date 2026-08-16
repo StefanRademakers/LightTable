@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   GradientAssetEditor,
+  gradientMidpointPosition,
+  gradientMidpointValue,
   gradientStopPosition,
   removableGradientStops
 } from './LayerStyleGradientEditor';
@@ -14,6 +16,13 @@ describe('GradientAssetEditor stop interactions', () => {
     expect(gradientStopPosition(350, 100, 200)).toBe(1);
   });
 
+  it('keeps a midpoint relative to its adjacent stops', () => {
+    expect(gradientMidpointPosition(0.2, 0.8, 0.25)).toBeCloseTo(0.35);
+    expect(gradientMidpointValue(0.35, 0.2, 0.8)).toBeCloseTo(0.25);
+    expect(gradientMidpointValue(0, 0.2, 0.8)).toBe(0.05);
+    expect(gradientMidpointValue(1, 0.2, 0.8)).toBe(0.95);
+  });
+
   it('deletes a selected stop without allowing fewer than two stops', () => {
     const stops = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
     expect(removableGradientStops(stops, 'b')).toEqual([{ id: 'a' }, { id: 'c' }]);
@@ -21,7 +30,7 @@ describe('GradientAssetEditor stop interactions', () => {
     expect(removableGradientStops(minimum, 'a')).toBe(minimum);
   });
 
-  it('composes canonical panel controls instead of feature-local form controls', () => {
+  it('keeps only canonical opacity/color controls and direct stop hit regions', () => {
     const markup = renderToStaticMarkup(React.createElement(GradientAssetEditor, { value: {
       id: 'gradient', name: 'Gradient', type: 'solid', smoothness: 1,
       colorStops: [
@@ -34,8 +43,19 @@ describe('GradientAssetEditor stop interactions', () => {
       ],
       roughness: 0, seed: 0
     }, onChange: vi.fn() }));
-    expect(markup).toContain('action-button action-button--compact');
     expect(markup).toContain('class="lighttable-style-field"');
-    expect(markup.match(/class="lighttable-adjustment"/g)).toHaveLength(5);
+    expect(markup).toContain('class="opacity-slider"');
+    expect(markup).toContain('aria-label="Gradient stop opacity"');
+    expect(markup).toContain('lighttable-adjustment--inline');
+    expect(markup).not.toContain('Gradient stop opacity percentage');
+    expect(markup).toContain('aria-label="Add opacity stop"');
+    expect(markup).toContain('aria-label="Add color stop"');
+    expect(markup).not.toContain('action-button action-button--compact');
+    expect(markup).not.toContain('>Color stops<');
+    expect(markup).not.toContain('>Opacity stops<');
+    expect(markup).toContain('aria-label="Color midpoint 50%"');
+    expect(markup).toContain('aria-label="Opacity midpoint 50%"');
+    expect(markup).not.toContain('>Location<');
+    expect(markup).not.toContain('>Midpoint<');
   });
 });

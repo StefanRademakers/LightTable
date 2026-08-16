@@ -31,9 +31,13 @@ StoryBuilder with HMR. StoryBuilder's normal `npm run dev` remains the legacy
 rollback route until the functional comparison is signed off.
 
 The canonical product and engineering contracts live in [`architecture/`](architecture/README.md).
-Start there when changing a system boundary or transferring the project to a
-new engineer or AI agent. Material under `docs/` is historical research and
-handoff context; it is not the source of architectural truth.
+After a fresh AI session or context collapse, start with
+[`architecture/AGENT_ONBOARDING.md`](architecture/AGENT_ONBOARDING.md), run
+`npm run context:agent`, and use
+[`architecture/QUICKSTART.md`](architecture/QUICKSTART.md) for the technical
+system model; then load only the contracts routed by the change.
+Material under `docs/` is historical research and handoff context; it is not
+the source of architectural truth.
 
 The web and desktop applications use the same `@lighttable/app` package.
 Electron is a native file-dialog and filesystem host only; it does not contain

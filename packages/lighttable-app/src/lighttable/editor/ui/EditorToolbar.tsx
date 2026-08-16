@@ -280,7 +280,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   }, [expanded]);
 
   return (
-    <nav ref={toolbarRef} className="lighttable-toolbox" aria-label="Image tools">
+    <nav ref={toolbarRef} className="lighttable-toolbox" aria-label="Image tools"
+      data-editor-floating-surface>
       <div className="lighttable-toolbox__content">
       {toolbarToolDefinitions(import.meta.env.DEV).map((tool) => {
         const family = toolFamilyFor(tool);

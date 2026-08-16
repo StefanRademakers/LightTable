@@ -1049,7 +1049,7 @@ export const useViewportInteractionController = ({
       }
       if (effectiveTool === 'vector-pen') {
         onPenRubberBandChangeRef.current(
-          point && editorSession.pen.rubberBand ? vector.penRubberBand(point) : null
+          point ? vector.penRubberBand(point) : null
         );
       } else {
         onPenRubberBandChangeRef.current(null);

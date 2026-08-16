@@ -83,8 +83,8 @@ try {
   await page.getByRole('button', { name: 'Show text tools' }).click();
   const family = page.getByRole('toolbar', { name: 'Text tools' });
   const familyTypeButton = family.getByRole('button', { name: 'Type tool (T)', exact: true });
-  const pathTextButton = family.getByRole('button', { name: 'Path text', exact: true });
-  const verticalTypeButton = family.getByRole('button', { name: 'Vertical type tool (Shift+T)', exact: true });
+  const pathTextButton = family.getByRole('button', { name: 'Path text (T)', exact: true });
+  const verticalTypeButton = family.getByRole('button', { name: 'Vertical type tool (T)', exact: true });
   await familyTypeButton.waitFor({ state: 'visible' });
   await pathTextButton.waitFor({ state: 'visible' });
   await verticalTypeButton.waitFor({ state: 'visible' });
@@ -100,12 +100,18 @@ try {
   }
   await page.locator('.lighttable-tool-options__identity').click();
   await page.keyboard.press('Shift+t');
-  if (await page.getByRole('button', { name: 'Vertical type tool (Shift+T)', exact: true })
-    .getAttribute('aria-pressed') !== 'true') {
+  if (await page.locator('.lighttable-toolbox__button[aria-pressed="true"]')
+    .getAttribute('aria-label') !== 'Vertical type tool (T)') {
     throw new Error('Shift+T did not activate Vertical Type.');
   }
   await page.keyboard.press('Shift+t');
-  if (await typeButton.getAttribute('aria-pressed') !== 'true') {
+  if (await page.locator('.lighttable-toolbox__button[aria-pressed="true"]')
+    .getAttribute('aria-label') !== 'Path text (T)') {
+    throw new Error('Shift+T did not cycle to Path Text.');
+  }
+  await page.keyboard.press('Shift+t');
+  if (await page.locator('.lighttable-toolbox__button[aria-pressed="true"]')
+    .getAttribute('aria-label') !== 'Type tool (T)') {
     throw new Error('Shift+T did not cycle back to horizontal Type.');
   }
   const authoringSize = page.locator('.lighttable-tool-options').getByLabel('Size');
@@ -179,7 +185,6 @@ try {
   await page.keyboard.press('Control+t');
   const transformOverlay = page.getByLabel('Transform controls');
   await transformOverlay.waitFor({ state: 'visible', timeout: 30_000 });
-  await page.getByLabel('Free Transform properties').waitFor({ state: 'visible' });
   await page.screenshot({ path: transformScreenshotPath });
   const firstHandle = transformOverlay.locator('rect').first();
   const handleBox = await firstHandle.boundingBox();
@@ -264,7 +269,7 @@ try {
   if (performanceTelemetry.status !== 'available' || performanceTelemetry.samples < 1) {
     throw new Error(`Type Tool latency sample is invalid: ${JSON.stringify(performanceTelemetry)}`);
   }
-  await page.getByRole('tab', { name: 'Text', exact: true }).click();
+  await page.getByRole('tab', { name: 'Properties', exact: true }).click();
   await page.screenshot({ path: screenshotPath });
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
   await writeFile(reportPath, `${JSON.stringify({ sourceFile, before, after, transformed, repeated, duplicated, performanceTelemetry, pageErrors, screenshotPath, transformScreenshotPath, verticalScreenshotPath }, null, 2)}\n`);

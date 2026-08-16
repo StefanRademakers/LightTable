@@ -40,11 +40,15 @@ try {
     Actions: ['.action-button', '.square-icon-button'],
     Inputs: ['.form-input', '.lighttable-style-field', '.lighttable-style-toggle',
       '.switch-control', '.segmented-control'],
-    Paint: ['.color-swatch-field', '.lighttable-color-picker-prototype', '.gradient-field'],
+    Paint: ['.color-swatch-field', '.lighttable-color-picker-prototype', '.gradient-field',
+      '.none-paint-field', '.opacity-slider .lighttable-adjustment'],
     'Panel controls': ['.lighttable-adjustment', '.lighttable-style-angle', '.lighttable-style-advanced'],
+    'Adjustment dialogs': ['.lighttable-adjustment-dialog', '.lighttable-curves-editor',
+      '.lighttable-adjustment-visual', '.lighttable-adjustment-color-range'],
     Dialogs: ['.lighttable-ui-guide__dialog-specimen', '.modal__header', '.modal__footer']
   };
   let fieldFocusPresentation = null;
+  let paintFieldGeometry = null;
   for (const [category, selectors] of Object.entries(categories)) {
     await dialog.getByRole('button', { name: category, exact: true }).click();
     for (const selector of selectors) {
@@ -70,6 +74,41 @@ try {
         || fieldFocusPresentation.borderWidth !== '1px'
         || fieldFocusPresentation.focusBorderColor === fieldFocusPresentation.restingBorderColor) {
         throw new Error(`Text field focus does not reuse its border: ${JSON.stringify(fieldFocusPresentation)}`);
+      }
+    }
+    if (category === 'Paint') {
+      paintFieldGeometry = await dialog.locator('.lighttable-ui-guide__control-table').evaluate((table) => {
+        const fields = [...table.querySelectorAll(
+          '.color-swatch-field, .gradient-field, .none-paint-field'
+        )].map((element) => {
+          const bounds = element.getBoundingClientRect();
+          return { className: element.className, width: bounds.width, height: bounds.height };
+        });
+        const rows = [...table.querySelectorAll('.lighttable-ui-guide__control-row')]
+          .map((row) => getComputedStyle(row).gridTemplateColumns);
+        return { fields, rows };
+      });
+      if (paintFieldGeometry.fields.some(({ width, height }) => width !== 104 || height !== 28)
+        || paintFieldGeometry.fields.length !== 4 || paintFieldGeometry.rows.length !== 4) {
+        throw new Error(`Paint fields are not aligned: ${JSON.stringify(paintFieldGeometry)}`);
+      }
+      await dialog.getByRole('button', { name: 'Open color dropdown', exact: true }).click();
+      await page.locator('.color-swatch-field__popover').waitFor({ state: 'visible' });
+      await page.keyboard.press('Escape');
+      await page.locator('.color-swatch-field__popover').waitFor({ state: 'detached' });
+    }
+    if (category === 'Adjustment dialogs') {
+      const adjustmentNames = await dialog.locator('.lighttable-ui-guide__sample > h5').allTextContents();
+      if (adjustmentNames.length !== 18
+        || !adjustmentNames.includes('Curves - Ctrl+M')
+        || !adjustmentNames.includes('Levels - Ctrl+L')
+        || !adjustmentNames.includes('Hue/Saturation - Ctrl+U')
+        || !adjustmentNames.includes('Color Balance - Ctrl+B')
+        || !adjustmentNames.includes('Black & White - Shift+Ctrl+Alt+B')
+        || !adjustmentNames.includes('Invert - Ctrl+I')
+        || !adjustmentNames.includes('Gradient Map')
+        || !adjustmentNames.includes('Grain')) {
+        throw new Error(`Adjustment dialog catalog is incomplete: ${JSON.stringify(adjustmentNames)}`);
       }
     }
     await dialog.screenshot({ path: path.join(output, `${category.toLowerCase()}.png`) });
@@ -100,7 +139,7 @@ try {
   await about.waitFor({ state: 'detached' });
   if (pageErrors.length) throw new Error(`Renderer errors: ${JSON.stringify(pageErrors)}`);
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify({
-    sourceFile, fieldFocusPresentation, aboutGeometry, pageErrors
+    sourceFile, fieldFocusPresentation, paintFieldGeometry, aboutGeometry, pageErrors
   }, null, 2)}\n`);
   console.log(`UI Style Guide smoke passed. Output: ${output}`);
 } finally {

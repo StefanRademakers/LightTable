@@ -254,8 +254,8 @@ const exerciseDocument = async (window, iteration, actions) => {
     await window.evaluate(() => new Promise((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(resolve));
     }));
-    const gradeTab = window.getByRole('tab', { name: 'Grade', exact: true });
-    if (await gradeTab.count()) await gradeTab.click();
+    const propertiesTab = window.getByRole('tab', { name: 'Properties', exact: true });
+    if (await propertiesTab.count()) await propertiesTab.click();
   }
 
   if (actionSet.has('zoom')) {
@@ -266,7 +266,7 @@ const exerciseDocument = async (window, iteration, actions) => {
   }
 
   if (actionSet.has('panels')) {
-    for (const tabName of ['Lens Fx', 'Debug', 'Grade']) {
+    for (const tabName of ['Debug', 'Properties']) {
       const tab = window.getByRole('tab', { name: tabName, exact: true });
       if (await tab.count()) await tab.click();
     }

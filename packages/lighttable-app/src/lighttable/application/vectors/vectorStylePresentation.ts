@@ -45,6 +45,26 @@ const cloneVectorPaint = (paint: NonNullable<VectorStyle['fill']>) => 'kind' in 
   ? cloneGradientPaint(paint)
   : { ...paint, color: [...paint.color] as [number, number, number, number] };
 
+const safeStrokeWidth = (width: number) => Math.max(0.1, width);
+
+/** Preset dash lengths are multiples of stroke width, not fixed document pixels. */
+export const vectorStrokeDashForStyle = (
+  style: NonNullable<VectorToolStyleSettings['strokeStyle']>,
+  width: number
+): number[] => {
+  const unit = safeStrokeWidth(width);
+  return style === 'dashed' ? [4 * unit, 3 * unit]
+    : style === 'dotted' ? [unit, 2 * unit]
+      : [];
+};
+
+const vectorStrokeStyle = (stroke: NonNullable<VectorStyle['stroke']>) => {
+  if (!stroke.dash.length) return 'solid' as const;
+  return stroke.dash[0]! <= safeStrokeWidth(stroke.width) * 1.5
+    ? 'dotted' as const
+    : 'dashed' as const;
+};
+
 /** Canonical projection used for every newly authored Pen/live-shape element. */
 export const vectorStyleFromToolSettings = (settings: VectorToolStyleSettings): VectorStyle => ({
   fill: settings.fillEnabled
@@ -57,13 +77,12 @@ export const vectorStyleFromToolSettings = (settings: VectorToolStyleSettings): 
       ? cloneVectorPaint(settings.strokePaint)
       : { type: 'solid', color: cssHexToLinearRgba(settings.strokeColor) },
     opacity: Math.max(0, Math.min(1, settings.strokeOpacity ?? 1)),
-    width: Math.max(0.1, settings.strokeWidth),
+    width: safeStrokeWidth(settings.strokeWidth),
     alignment: settings.strokeAlignment,
     cap: settings.strokeCap ?? 'round',
     join: settings.strokeJoin ?? 'round',
     miterLimit: Math.max(1, settings.strokeMiterLimit ?? 4),
-    dash: settings.strokeStyle === 'dashed' ? [4, 3]
-      : settings.strokeStyle === 'dotted' ? [1, 2] : [],
+    dash: vectorStrokeDashForStyle(settings.strokeStyle ?? 'solid', settings.strokeWidth),
     dashOffset: 0
   } : null,
   opacity: Math.max(0, Math.min(1, settings.opacity ?? 1))
@@ -92,8 +111,7 @@ export const vectorElementStyleSettings = (
   strokeCap: element.style.stroke?.cap ?? 'round',
   strokeJoin: element.style.stroke?.join ?? 'round',
   strokeMiterLimit: element.style.stroke?.miterLimit ?? 4,
-  strokeStyle: !element.style.stroke?.dash.length
-    ? 'solid' : element.style.stroke.dash[0]! <= 1 ? 'dotted' : 'dashed',
+  strokeStyle: element.style.stroke ? vectorStrokeStyle(element.style.stroke) : 'solid',
   opacity: element.style.opacity
 });
 
@@ -103,6 +121,14 @@ export const patchVectorStyle = (
 ): VectorStyle => {
   const wantsStroke = style.stroke !== null || change.strokeEnabled === true
     || change.strokeColor !== undefined || change.strokePaint !== undefined;
+  const previousStrokeWidth = safeStrokeWidth(style.stroke?.width ?? 3);
+  const nextStrokeWidth = safeStrokeWidth(change.strokeWidth ?? previousStrokeWidth);
+  const strokeWidthScale = nextStrokeWidth / previousStrokeWidth;
+  const nextDash = change.strokeStyle !== undefined
+    ? vectorStrokeDashForStyle(change.strokeStyle, nextStrokeWidth)
+    : change.strokeWidth !== undefined && style.stroke?.dash.length
+      ? style.stroke.dash.map((value) => value * strokeWidthScale)
+      : [...(style.stroke?.dash ?? [])];
   return {
     ...style,
     opacity: change.opacity ?? style.opacity,
@@ -129,16 +155,15 @@ export const patchVectorStyle = (
           ? { type: 'solid', color: cssHexToLinearRgba(change.strokeColor) }
           : style.stroke?.paint ?? { type: 'solid', color: [1, 1, 1, 1] },
       opacity: change.strokeOpacity ?? style.stroke?.opacity ?? 1,
-      width: change.strokeWidth ?? style.stroke?.width ?? 3,
+      width: nextStrokeWidth,
       alignment: change.strokeAlignment ?? style.stroke?.alignment ?? 'center',
       cap: change.strokeCap ?? style.stroke?.cap ?? 'round',
       join: change.strokeJoin ?? style.stroke?.join ?? 'round',
       miterLimit: change.strokeMiterLimit ?? style.stroke?.miterLimit ?? 4,
-      dash: change.strokeStyle === 'solid' ? []
-        : change.strokeStyle === 'dotted' ? [1, 2]
-          : change.strokeStyle === 'dashed' ? [4, 3]
-            : [...(style.stroke?.dash ?? [])],
-      dashOffset: style.stroke?.dashOffset ?? 0
+      dash: nextDash,
+      dashOffset: change.strokeWidth !== undefined
+        ? (style.stroke?.dashOffset ?? 0) * strokeWidthScale
+        : style.stroke?.dashOffset ?? 0
     }
   };
 };

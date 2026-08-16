@@ -263,7 +263,6 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   toneBrush,
   gradient,
   shape,
-  pen,
   warp,
   vectorStyle,
   text,
@@ -294,7 +293,6 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onToneBrushChange,
   onGradientChange,
   onShapeChange,
-  onPenChange,
   onWarpChange,
   onVectorStyleChange,
   onTextChange,
@@ -345,6 +343,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
     || (activeTool !== 'gradient' && Boolean(selectedShapeKind));
   const rectangleGeometryActive = selectedShapeKind
     ? selectedShapeKind === 'rectangle' : activeTool === 'shape-rectangle';
+  const [shapeGeometryOpen, setShapeGeometryOpen] = React.useState(false);
+  const shapeGeometryAnchorRef = React.useRef<HTMLButtonElement>(null);
   const [gradientEditorOpen, setGradientEditorOpen] = React.useState(false);
   const gradientButtonRef = React.useRef<HTMLButtonElement>(null);
   React.useEffect(() => {
@@ -406,20 +406,6 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             onChange={(event) => onTransformAutoSelectLayerChange(event.currentTarget.checked)} />
           <span>Auto select layer</span>
         </label>
-      ) : null}
-      {activeTool === 'vector-pen' ? (
-        <div className="lighttable-tool-options__vector-style" aria-label="Pen settings">
-          <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={pen.autoAddDelete}
-              onChange={(event) => onPenChange({ autoAddDelete: event.currentTarget.checked })} />
-            <span>Auto Add/Delete</span>
-          </label>
-          <label className="lighttable-tool-options__toggle">
-            <input type="checkbox" checked={pen.rubberBand}
-              onChange={(event) => onPenChange({ rubberBand: event.currentTarget.checked })} />
-            <span>Rubber Band</span>
-          </label>
-        </div>
       ) : null}
       <SelectionToolOptions
         activeTool={activeTool}
@@ -615,21 +601,25 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               } })} />
             <span>Dither</span>
           </label>
-          <ToolOptionSelect label="Method" value={gradient.paint.interpolation}
-            aria-label="Gradient interpolation"
-            onChange={(event) => onGradientChange({ paint: {
-              ...gradient.paint,
-              interpolation: event.currentTarget.value as GradientPaintInstance['interpolation']
-            } })}>
-            <option value="perceptual">Perceptual</option>
-            <option value="linear">Linear</option>
-            <option value="classic">Classic</option>
-            <option value="smooth">Smooth</option>
-          </ToolOptionSelect>
         </div>
       ) : null}
       {shapeGeometryActive ? (
-        <div className="lighttable-tool-options__vector-style" aria-label="Shape geometry">
+        <>
+        <button ref={shapeGeometryAnchorRef} type="button"
+          className="lighttable-tool-options__dropdown-trigger"
+          aria-label="Geometry" aria-haspopup="dialog" aria-expanded={shapeGeometryOpen}
+          onClick={() => setShapeGeometryOpen((open) => !open)}>
+          <span>Geometry</span><span className="paint-field__arrow" aria-hidden="true" />
+        </button>
+        {shapeGeometryOpen ? <AnchoredGradientPopover anchor={shapeGeometryAnchorRef}
+          ariaLabel="Geometry options" className="lighttable-tool-options__geometry-popover"
+          onClose={() => setShapeGeometryOpen(false)}>
+          <div className="lighttable-tool-options__gradient-header">
+            <strong>Geometry</strong>
+            <button type="button" aria-label="Close geometry"
+              onClick={() => setShapeGeometryOpen(false)}>×</button>
+          </div>
+        <div className="lighttable-tool-options__shape-geometry-options" aria-label="Shape geometry">
           <ToolOptionSelect label="Mode" value={shape.mode}
             aria-label="Shape application mode"
             onChange={(event) => onShapeChange({
@@ -716,6 +706,8 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             </>
           ) : null}
         </div>
+        </AnchoredGradientPopover> : null}
+        </>
       ) : null}
       {activeTool === 'zoom' ? (
         <div className="lighttable-tool-options__zoom-presets" aria-label="Zoom presets">
@@ -845,7 +837,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
               onBlur={onTextPropertyCommit}
               onCancel={onTextPropertyCancel}
               status={presentedTextGradient ? (
-                <GradientField ref={textGradientButtonRef}
+                <GradientField ref={textGradientButtonRef} size="compact"
                   value={presentedTextGradient.asset}
                   ariaLabel="Edit text fill gradient" title="Edit text fill gradient"
                   expanded={textGradientEditorOpen}

@@ -32,6 +32,7 @@ import {
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
 import {
   setAdjustmentStackOwnerEnabled,
+  removeAdjustmentStackOwner,
   type AdjustmentStackOwner,
   type AdjustmentStack
 } from '../../processing/adjustmentStack';
@@ -73,6 +74,18 @@ const affineMatrixEquals = (left: AffineMatrix, right: AffineMatrix) => (
   left.a === right.a && left.b === right.b && left.c === right.c
   && left.d === right.d && left.tx === right.tx && left.ty === right.ty
 );
+
+const createDefaultRasterMask = (): RasterMask => ({
+  id: `mask-${crypto.randomUUID()}`,
+  enabled: true,
+  linked: true,
+  transform: identityAffineMatrix(),
+  density: 1,
+  feather: 0,
+  revision: 0,
+  pixelRevision: 0,
+  dirtyBounds: null
+});
 
 const moveLayerNodePreservingWorld = (
   nodes: readonly LayerNode[],
@@ -269,7 +282,10 @@ export const createAdjustmentLayer = (
   name = 'Grade',
   aboveLayerId = document.activeLayerId ?? undefined
 ): ImageDocument => {
-  const layer = createAdjustmentLayerNode(adjustmentStack, name);
+  const layer = {
+    ...createAdjustmentLayerNode(adjustmentStack, name),
+    mask: createDefaultRasterMask()
+  };
   const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
   const parentId = anchor?.parentId ?? null;
   const insertionIndex = anchor
@@ -572,6 +588,22 @@ export const setRasterLayerAdjustmentStackEnabled = (
   };
 });
 
+export const removeRasterLayerAdjustmentStackOwner = (
+  document: ImageDocument,
+  layerId: LayerId,
+  owner: AdjustmentStackOwner
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster' || !layer.adjustmentStack) return layer;
+  const adjustmentStack = removeAdjustmentStackOwner(layer.adjustmentStack, owner);
+  if (adjustmentStack === layer.adjustmentStack) return layer;
+  return {
+    ...layer,
+    adjustmentStack: adjustmentStack.modules.length ? adjustmentStack : null,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
 export const renameLayer = (document: ImageDocument, layerId: LayerId, name: string) =>
   updateLayer(document, layerId, (layer) => {
     const trimmed = name.trim();
@@ -787,17 +819,7 @@ export const applyTranslationAlignment = (
 export const addLayerMask = (document: ImageDocument, layerId: LayerId) =>
   updateLayer(document, layerId, (layer) => layer.mask ? layer : ({
     ...layer,
-    mask: {
-      id: `mask-${crypto.randomUUID()}`,
-      enabled: true,
-      linked: true,
-      transform: identityAffineMatrix(),
-      density: 1,
-      feather: 0,
-      revision: 0,
-      pixelRevision: 0,
-      dirtyBounds: null
-    },
+    mask: createDefaultRasterMask(),
     revision: layer.revision + 1,
     modifiedAt: Date.now()
   }));

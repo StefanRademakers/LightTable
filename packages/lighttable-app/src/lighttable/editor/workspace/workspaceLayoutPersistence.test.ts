@@ -30,7 +30,13 @@ describe('workspace layout persistence', () => {
   it('roundtrips a versioned layout and selected preset', () => {
     const storage = memoryStorage();
     persistWorkspaceLayout(storage, layout(), 'custom');
-    expect(readWorkspaceLayout(storage)).toMatchObject({ version: 1, preset: 'custom' });
+    expect(readWorkspaceLayout(storage)).toMatchObject({ version: 2, preset: 'custom' });
+  });
+
+  it('roundtrips the grading preset', () => {
+    const storage = memoryStorage();
+    persistWorkspaceLayout(storage, layout(), 'grading');
+    expect(readWorkspaceLayout(storage)?.preset).toBe('grading');
   });
 
   it('drops runtime and document data from serialized panel params', () => {
@@ -52,12 +58,12 @@ describe('workspace layout persistence', () => {
     expect(readWorkspaceLayout(storage)).toBeNull();
   });
 
-  it('migrates the prior raw layout and supports a complete reset', () => {
+  it('discards the incompatible prior panel layout and supports a complete reset', () => {
     const storage = memoryStorage();
     storage.setItem('lighttable.workspace.layout.v5', JSON.stringify(layout()));
-    expect(readWorkspaceLayout(storage)?.preset).toBe('custom');
+    expect(readWorkspaceLayout(storage)).toBeNull();
     expect(storage.getItem('lighttable.workspace.layout.v5')).toBeNull();
-    expect(storage.getItem(LIGHTTABLE_WORKSPACE_STORAGE_KEY)).not.toBeNull();
+    expect(storage.getItem(LIGHTTABLE_WORKSPACE_STORAGE_KEY)).toBeNull();
     clearWorkspaceLayout(storage);
     expect(storage.values.size).toBe(0);
   });

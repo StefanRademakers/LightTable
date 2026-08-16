@@ -37,7 +37,15 @@ export class DocumentScopeRuntime {
   ) {}
 
   async initialize(canvases: DocumentRendererScopeCanvases): Promise<void> {
-    if (this.destroyed || this.engine) return;
+    if (this.destroyed) return;
+    if (this.engine) {
+      if (canvases.colorMixerHueDistribution) {
+        if (this.engine.attachColorMixerHueDistribution(canvases.colorMixerHueDistribution)) {
+          this.onReady();
+        }
+      }
+      return;
+    }
     if (this.initialization) return this.initialization;
     this.initialization = this.create(canvases);
     try {

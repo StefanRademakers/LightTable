@@ -20,48 +20,60 @@ Files under `reference/` explain research or implementation history but are not
 canonical contracts. Files under `obsolete/` are retained only when their
 history still has value. Keep temporary task notes out of this directory.
 
-## Reading order
+## Onboarding route
 
-1. [Product and principles](PRODUCT_AND_PRINCIPLES.md)
-2. [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md)
-3. [Product, market and engineering assessment](LIGHTTABLE_PRODUCT_AND_MARKET_ASSESSMENT_2026-08-06.md)
-4. [System map](SYSTEM_MAP.md)
-5. [Document and scene model](DOCUMENT_AND_SCENE_MODEL.md)
-6. [Rendering and processing](RENDERING_AND_PROCESSING.md)
-7. [Vector system](VECTOR_SYSTEM.md)
-8. [Performance contract](PERFORMANCE_CONTRACT.md)
-9. [Supported hardware and release soak](SUPPORTED_HARDWARE_AND_SOAK_GATE.md)
-10. [Hosts, I/O and portability](HOSTS_IO_AND_PORTABILITY.md)
-11. [Photoshop interchange](PHOTOSHOP_INTERCHANGE.md)
-12. [Photoshop parity and missing features](PHOTOSHOP_PARITY_AND_MISSING_FEATURES.md)
-13. [PSD/PSB export scope](PSD_PSB_EXPORT_SCOPE.md)
-14. [Photoshop layer-effects roundtrip corpus](PSD_LAYER_EFFECTS_ROUNDTRIP_CORPUS.md)
-15. [PSD visual side-by-side review](PSD_VISUAL_SIDE_BY_SIDE.md)
-16. [Photoshop blend-mode color profile corpus](PSD_BLEND_MODE_COLOR_PROFILE_CORPUS.md)
-17. [Photoshop color and blend parity](PHOTOSHOP_COLOR_AND_BLEND_PARITY.md)
-18. [PDF open and export audit](PDF_OPEN_AND_EXPORT_AUDIT.md)
-19. [Layered interchange release matrix](LAYERED_INTERCHANGE_RELEASE_MATRIX.md)
-20. [Missing-font recovery](features/MISSING_FONT_RECOVERY.md)
-21. [Unsupported-feature recovery](features/UNSUPPORTED_FEATURE_RECOVERY.md)
-22. [Vector shape and gradient authoring](features/VECTOR_SHAPE_AND_GRADIENT_AUTHORING.md)
-23. [Selection, mask and paint workflow](features/SELECTION_MASK_AND_PAINT_WORKFLOW.md)
-24. [Resources, workspaces and recent documents](features/RESOURCES_WORKSPACES_AND_RECENTS.md)
-25. [Project-mode feature gating](features/PROJECT_MODE_FEATURE_GATING.md)
-26. [First-run onboarding](features/FIRST_RUN_ONBOARDING.md)
-27. [Product UX inspiration and capability gaps](PRODUCT_UX_INSPIRATION_AND_GAPS.md)
-28. [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
-29. [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
-30. [Accessibility, keyboard and focus](ACCESSIBILITY_KEYBOARD_AND_FOCUS.md)
-31. [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
-32. [Privacy and support diagnostics](PRIVACY_AND_SUPPORT_DIAGNOSTICS.md)
-33. [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
-34. [Repeatable quality and parity tests](tests/README.md)
-35. [Current code quality and latency audit](CODE_QUALITY_AUDIT_2026-08-06.md)
-36. [Embedded desktop Agent Access](integrations/EMBEDDED_AGENT_ACCESS.md)
-37. [Outbound Agent server pairing](integrations/OUTBOUND_AGENT_PAIRING.md)
-38. [LightTable MCP v1 integration](integrations/LIGHTTABLE_MCP_V1.md)
-39. [Architecture documentation audit and handoff](ARCHITECTURE_DOCUMENTATION_AUDIT_2026-08-06.md)
-40. [Change rules](CHANGE_RULES.md)
+After a fresh session or context collapse, start with
+[AI coding-agent onboarding](AGENT_ONBOARDING.md) and run
+`npm run context:agent`. It separates live repository state from durable
+architecture and routes each change to a small contract set.
+
+Then use [Architecture quickstart](QUICKSTART.md) for the product and system
+model and [Current state and roadmap](CURRENT_STATE_AND_ROADMAP.md) for the
+current/partial/target boundary. Do not read the catalog below linearly unless
+the task genuinely spans every system.
+
+## Contract catalog
+
+- [Product and principles](PRODUCT_AND_PRINCIPLES.md)
+- [Product, market and engineering assessment](LIGHTTABLE_PRODUCT_AND_MARKET_ASSESSMENT_2026-08-06.md)
+- [System map](SYSTEM_MAP.md)
+- [Document and scene model](DOCUMENT_AND_SCENE_MODEL.md)
+- [Rendering and processing](RENDERING_AND_PROCESSING.md)
+- [Vector system](VECTOR_SYSTEM.md)
+- [Performance contract](PERFORMANCE_CONTRACT.md)
+- [Supported hardware and release soak](SUPPORTED_HARDWARE_AND_SOAK_GATE.md)
+- [Hosts, I/O and portability](HOSTS_IO_AND_PORTABILITY.md)
+- [Photoshop interchange](PHOTOSHOP_INTERCHANGE.md)
+- [Photoshop parity and missing features](PHOTOSHOP_PARITY_AND_MISSING_FEATURES.md)
+- [PSD/PSB export scope](PSD_PSB_EXPORT_SCOPE.md)
+- [Photoshop layer-effects roundtrip corpus](PSD_LAYER_EFFECTS_ROUNDTRIP_CORPUS.md)
+- [PSD visual side-by-side review](PSD_VISUAL_SIDE_BY_SIDE.md)
+- [Photoshop blend-mode color profile corpus](PSD_BLEND_MODE_COLOR_PROFILE_CORPUS.md)
+- [Photoshop color and blend parity](PHOTOSHOP_COLOR_AND_BLEND_PARITY.md)
+- [Photoshop adjustment layers: UX, reuse and parity plan](PHOTOSHOP_ADJUSTMENT_LAYERS.md)
+- [PDF open and export audit](PDF_OPEN_AND_EXPORT_AUDIT.md)
+- [Layered interchange release matrix](LAYERED_INTERCHANGE_RELEASE_MATRIX.md)
+- [Missing-font recovery](features/MISSING_FONT_RECOVERY.md)
+- [Unsupported-feature recovery](features/UNSUPPORTED_FEATURE_RECOVERY.md)
+- [Vector shape and gradient authoring](features/VECTOR_SHAPE_AND_GRADIENT_AUTHORING.md)
+- [Selection, mask and paint workflow](features/SELECTION_MASK_AND_PAINT_WORKFLOW.md)
+- [Resources, workspaces and recent documents](features/RESOURCES_WORKSPACES_AND_RECENTS.md)
+- [Project-mode feature gating](features/PROJECT_MODE_FEATURE_GATING.md)
+- [First-run onboarding](features/FIRST_RUN_ONBOARDING.md)
+- [Product UX inspiration and capability gaps](PRODUCT_UX_INSPIRATION_AND_GAPS.md)
+- [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)
+- [UI, workspace and design system](UI_WORKSPACE_AND_DESIGN_SYSTEM.md)
+- [Accessibility, keyboard and focus](ACCESSIBILITY_KEYBOARD_AND_FOCUS.md)
+- [Reliability and verification](RELIABILITY_AND_VERIFICATION.md)
+- [Privacy and support diagnostics](PRIVACY_AND_SUPPORT_DIAGNOSTICS.md)
+- [Repeatable complete-app quality gate](COMPLETE_APP_QUALITY_GATE.md)
+- [Repeatable quality and parity tests](tests/README.md)
+- [Current code quality and latency audit](CODE_QUALITY_AUDIT_2026-08-06.md)
+- [Embedded desktop Agent Access](integrations/EMBEDDED_AGENT_ACCESS.md)
+- [Outbound Agent server pairing](integrations/OUTBOUND_AGENT_PAIRING.md)
+- [LightTable MCP v1 integration](integrations/LIGHTTABLE_MCP_V1.md)
+- [Architecture documentation audit and handoff](ARCHITECTURE_DOCUMENTATION_AUDIT_2026-08-06.md)
+- [Change rules](CHANGE_RULES.md)
 
 ## Directory roles
 

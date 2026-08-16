@@ -24,10 +24,26 @@ milestone changes those boundaries; feature task details belong in
 - PSD export release candidate for the verified 8-bit RGB semantic subset,
   plus strict Photoshop Layer Style and 48-case color/blend comparison gates.
 - Bounded first-page PDF open and fail-closed one-page flattened/hybrid export.
-- A remote MCP v1 vertical slice over the shared semantic command service;
-  transport and editor command semantics remain separate.
+- A versioned semantic command service with stable document/resource IDs,
+  optimistic revisions, atomic batches, bounded artifacts, async task events
+  and document-space gestures.
+- Embedded opt-in Agent Access plus outbound TLS/WSS pairing and a remote MCP
+  adapter; transport, permissions and editor command semantics remain separate.
+- MCP construction/query support for editable text, vectors, gradients and
+  Layer Styles, including complete layered-design transactions and real GPU
+  preview/export artifacts.
+- Provider-neutral GenAI packages, OpenArt integration, a managed local-AI
+  protocol/provider process and project-backed job/asset/history persistence.
+- Local editor inference for depth, smart selection, matte refinement,
+  background removal and Face Warp with explicit lazy/bundled model ownership.
+- Project workspaces with indexed assets and durable AI history while normal
+  document editing, recovery, selection intelligence and Agent Access remain
+  available standalone.
 - Application-owned open/save/export and structured PSD import reporting.
 - Declarative cross-platform keymap and gesture-level undo boundaries.
+- One contextual Properties shell tracks explicit layer, mask, local processing
+  and Layer Style targets, and routes Grade, Lens Fx, Text and Effects to
+  independently owned editors.
 
 ## Partial or incomplete
 
@@ -53,6 +69,12 @@ milestone changes those boundaries; feature task details belong in
 - Panel/docking state and shared design tokens need continued stabilization.
 - Integrated-GPU/Mac responsiveness remains a release criterion, especially
   active selections, scopes, paint and panel resizing.
+- GenAI generation and Remove Object are currently harder project-gated than
+  their semantics require; the product must either state that requirement
+  clearly or introduce a standalone generation workspace/output sink.
+- Product licensing has policy and fail-closed rehearsal boundaries but no
+  checkout, signed activation receipt verification, device lifecycle or
+  entitlement UI/service yet.
 
 ## Next architecture milestones
 
@@ -74,8 +96,9 @@ in `PRODUCT_UX_INSPIRATION_AND_GAPS.md`; Photoshop-specific evidence remains in
    primitives and complete stroke quality.
 7. Evolve warp and shared field-processing infrastructure with preview/final
    quality and dirty-region support.
-8. Extend semantic commands for document/text/vector/style creation so UI and
-   MCP remain consumers of one undoable application boundary.
+8. Extend the established semantic command surface into transforms, masks,
+   selections, adjustments and remaining tool semantics so UI, plugins and MCP
+   remain consumers of one undoable application boundary.
 9. Define the pre-1.0 LightTable file-format contract, precision/export policy
    and migration policy only when the model is solid enough to freeze.
 

@@ -5,10 +5,11 @@ import type {
   LayerStyleGradientStop,
   LayerStyleOpacityStop
 } from '../styles/layerStyleTypes';
-import { ActionButton } from '../../../ui/ActionButton';
-import { PanelColorSwatch, PanelNumberSlider } from './PanelControls';
+import { OpacitySlider } from '../../../ui/OpacitySlider';
+import { PanelColorSwatch } from './PanelControls';
 
 const MAX_STOPS = 8;
+const DEFAULT_HINT = 'Hover over a control for instructions.';
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 const stopId = () => `stop-${crypto.randomUUID()}`;
 const channelHex = (value: number) =>
@@ -17,6 +18,20 @@ const colorHex = (color: LayerStyleColor) =>
   `#${channelHex(color.r)}${channelHex(color.g)}${channelHex(color.b)}`;
 export const gradientStopPosition = (clientX: number, left: number, width: number) =>
   clamp01((clientX - left) / Math.max(1, width));
+
+export const gradientMidpointPosition = (
+  leftPosition: number,
+  rightPosition: number,
+  midpoint: number
+) => leftPosition + (rightPosition - leftPosition) * clamp01(midpoint);
+
+export const gradientMidpointValue = (
+  position: number,
+  leftPosition: number,
+  rightPosition: number
+) => Math.max(0.05, Math.min(0.95,
+  (position - leftPosition) / Math.max(1e-6, rightPosition - leftPosition)
+));
 
 export const removableGradientStops = <T extends { id: string }>(
   stops: T[],
@@ -63,6 +78,25 @@ export const GradientAssetEditor: React.FC<{
   const [selectedOpacityId, setSelectedOpacityId] = React.useState<string | null>(
     opacityStops[0]?.id ?? null
   );
+  const [hint, setHint] = React.useState(DEFAULT_HINT);
+  const [controlPressed, setControlPressed] = React.useState(false);
+  React.useEffect(() => {
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Control') setControlPressed(true);
+    };
+    const keyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Control') setControlPressed(false);
+    };
+    const reset = () => setControlPressed(false);
+    window.addEventListener('keydown', keyDown);
+    window.addEventListener('keyup', keyUp);
+    window.addEventListener('blur', reset);
+    return () => {
+      window.removeEventListener('keydown', keyDown);
+      window.removeEventListener('keyup', keyUp);
+      window.removeEventListener('blur', reset);
+    };
+  }, []);
   const selectedColor = colorStops.find((stop) => stop.id === selectedColorId) ?? colorStops[0];
   const selectedOpacity = opacityStops.find((stop) => stop.id === selectedOpacityId) ?? opacityStops[0];
   const preview = colorStops.length > 0
@@ -90,9 +124,8 @@ export const GradientAssetEditor: React.FC<{
     publish({ colorStops: [...value.colorStops, stop] });
     setSelectedColorId(stop.id);
   };
-  const addOpacity = () => {
+  const addOpacity = (position = 0.5) => {
     if (value.opacityStops.length >= MAX_STOPS) return;
-    const position = 0.5;
     const stop = {
       id: stopId(),
       position,
@@ -155,18 +188,89 @@ export const GradientAssetEditor: React.FC<{
       }
     }
   });
+  const draggableMidpointProps = (
+    leftId: string,
+    leftPosition: number,
+    rightPosition: number,
+    update: (id: string, patch: { midpoint: number }) => void
+  ) => {
+    const move = (event: React.PointerEvent<HTMLButtonElement>) => update(leftId, {
+      midpoint: gradientMidpointValue(pointerPosition(event), leftPosition, rightPosition)
+    });
+    return {
+      onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        move(event);
+      },
+      onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) move(event);
+      },
+      onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      },
+      onDoubleClick: (event: React.MouseEvent<HTMLButtonElement>) => event.stopPropagation()
+    };
+  };
 
   return (
-    <div className="lighttable-style-gradient">
-      <div
-        className="lighttable-style-gradient__preview"
-        style={{ background: preview }}
-        title="Double-click to add a color stop"
-        onDoubleClick={(event) => {
-          const bounds = event.currentTarget.getBoundingClientRect();
-          addColor(gradientStopPosition(event.clientX, bounds.left, bounds.width));
-        }}
-      >
+    <div className={`lighttable-style-gradient${controlPressed
+      ? ' lighttable-style-gradient--remove-stop' : ''}`}
+      onMouseLeave={() => setHint(DEFAULT_HINT)}>
+      {selectedOpacity ? (
+        <div className="lighttable-style-gradient__opacity-control"
+          onMouseEnter={() => setHint('Adjust the opacity of the selected opacity stop.')}
+          onFocus={() => setHint('Adjust the opacity of the selected opacity stop.')}>
+          <OpacitySlider label="Opacity" ariaLabel="Gradient stop opacity"
+            value={selectedOpacity.opacity}
+            color={colorHex(sampleColor(value.colorStops, selectedOpacity.position))}
+            onChange={(opacity) => updateOpacity(selectedOpacity.id, { opacity })} />
+        </div>
+      ) : null}
+      <div className="lighttable-style-gradient__track">
+        <button type="button"
+          className="lighttable-style-gradient__hit-region lighttable-style-gradient__hit-region--opacity"
+          aria-label="Add opacity stop"
+          onMouseEnter={() => setHint('Click above the gradient to add an opacity stop.')}
+          onFocus={() => setHint('Press Enter to add an opacity stop in the center.')}
+          onClick={(event) => {
+            const bounds = event.currentTarget.getBoundingClientRect();
+            addOpacity(event.detail === 0 ? 0.5
+              : gradientStopPosition(event.clientX, bounds.left, bounds.width));
+          }} />
+        <div className="lighttable-style-gradient__preview" style={{ background: preview }}>
+        {opacityStops.slice(0, -1).map((stop, index) => {
+          const next = opacityStops[index + 1]!;
+          const position = gradientMidpointPosition(stop.position, next.position, stop.midpoint);
+          return <button type="button" key={`opacity-midpoint-${stop.id}`}
+            className="lighttable-style-gradient__midpoint lighttable-style-gradient__midpoint--opacity"
+            style={{ left: `${position * 100}%` }}
+            aria-label={`Opacity midpoint ${Math.round(stop.midpoint * 100)}%`}
+            title={`Opacity midpoint ${Math.round(stop.midpoint * 100)}%`}
+            onMouseEnter={() => setHint('Drag to move the opacity midpoint between its stops.')}
+            onFocus={() => setHint('Drag to move the opacity midpoint between its stops.')}
+            {...draggableMidpointProps(
+              stop.id, stop.position, next.position, updateOpacity
+            )} />;
+        })}
+        {colorStops.slice(0, -1).map((stop, index) => {
+          const next = colorStops[index + 1]!;
+          const position = gradientMidpointPosition(stop.position, next.position, stop.midpoint);
+          return <button type="button" key={`color-midpoint-${stop.id}`}
+            className="lighttable-style-gradient__midpoint lighttable-style-gradient__midpoint--color"
+            style={{ left: `${position * 100}%` }}
+            aria-label={`Color midpoint ${Math.round(stop.midpoint * 100)}%`}
+            title={`Color midpoint ${Math.round(stop.midpoint * 100)}%`}
+            onMouseEnter={() => setHint('Drag to move the color midpoint between its stops.')}
+            onFocus={() => setHint('Drag to move the color midpoint between its stops.')}
+            {...draggableMidpointProps(
+              stop.id, stop.position, next.position, updateColor
+            )} />;
+        })}
         {opacityStops.map((stop) => (
           <button
             type="button"
@@ -176,6 +280,8 @@ export const GradientAssetEditor: React.FC<{
             }`}
             style={{ left: `${stop.position * 100}%`, opacity: Math.max(0.22, stop.opacity) }}
             onClick={() => setSelectedOpacityId(stop.id)}
+            onMouseEnter={() => setHint('Drag this opacity stop to move it · Right-click to delete it.')}
+            onFocus={() => setHint('Right-click or press Delete to remove this opacity stop.')}
             aria-label={`Opacity stop ${Math.round(stop.position * 100)}%`}
             title="Drag to move · Right-click to delete"
             {...draggableStopProps(
@@ -194,8 +300,13 @@ export const GradientAssetEditor: React.FC<{
             className={`lighttable-style-gradient__stop lighttable-style-gradient__stop--color${
               stop.id === selectedColor?.id ? ' lighttable-style-gradient__stop--active' : ''
             }`}
-            style={{ left: `${stop.position * 100}%`, background: colorHex(stop.color) }}
+            style={{
+              left: `${stop.position * 100}%`,
+              '--gradient-stop-color': colorHex(stop.color)
+            } as React.CSSProperties}
             onClick={() => setSelectedColorId(stop.id)}
+            onMouseEnter={() => setHint('Drag this color stop to move it · Right-click to delete it.')}
+            onFocus={() => setHint('Right-click or press Delete to remove this color stop.')}
             aria-label={`Color stop ${Math.round(stop.position * 100)}%`}
             title="Drag to move · Right-click to delete"
             {...draggableStopProps(
@@ -207,56 +318,30 @@ export const GradientAssetEditor: React.FC<{
             )}
           />
         ))}
+        </div>
+        <button type="button"
+          className="lighttable-style-gradient__hit-region lighttable-style-gradient__hit-region--color"
+          aria-label="Add color stop"
+          onMouseEnter={() => setHint('Click below the gradient to add a color stop.')}
+          onFocus={() => setHint('Press Enter to add a color stop in the center.')}
+          onClick={(event) => {
+            const bounds = event.currentTarget.getBoundingClientRect();
+            addColor(event.detail === 0 ? 0.5
+              : gradientStopPosition(event.clientX, bounds.left, bounds.width));
+          }} />
       </div>
 
-      <div className="lighttable-style-gradient__toolbar">
-        <strong>Color stops</strong>
-        <ActionButton size="compact" onClick={() => addColor()}
-          disabled={colorStops.length >= MAX_STOPS}>Add</ActionButton>
-        <ActionButton size="compact" disabled={!selectedColor || colorStops.length <= 2}
-          onClick={() => {
-            if (!selectedColor || colorStops.length <= 2) return;
-            removeColor(selectedColor.id);
-          }}>Remove</ActionButton>
-      </div>
       {selectedColor ? (
-        <div className="lighttable-style-gradient__controls">
+        <div className="lighttable-style-gradient__color-control"
+          onMouseEnter={() => setHint('Choose the color of the selected color stop.')}
+          onFocus={() => setHint('Choose the color of the selected color stop.')}>
           <PanelColorSwatch label="Color" value={selectedColor.color}
             onChange={(color) => updateColor(selectedColor.id, { color })} />
-          <PanelNumberSlider label="Location" value={selectedColor.position * 100}
-            min={0} max={100} step={0.1} suffix="%" resetValue={0}
-            onChange={(position) => updateColor(selectedColor.id, { position: position / 100 })} />
-          <PanelNumberSlider label="Midpoint" value={selectedColor.midpoint * 100}
-            min={5} max={95} suffix="%" resetValue={50}
-            onChange={(midpoint) => updateColor(selectedColor.id, { midpoint: midpoint / 100 })} />
         </div>
       ) : null}
 
-      <div className="lighttable-style-gradient__toolbar">
-        <strong>Opacity stops</strong>
-        <ActionButton size="compact" onClick={addOpacity}
-          disabled={opacityStops.length >= MAX_STOPS}>Add</ActionButton>
-        <ActionButton size="compact" disabled={!selectedOpacity || opacityStops.length <= 2}
-          onClick={() => {
-            if (!selectedOpacity || opacityStops.length <= 2) return;
-            removeOpacity(selectedOpacity.id);
-          }}>Remove</ActionButton>
-      </div>
-      {selectedOpacity ? (
-        <div className="lighttable-style-gradient__controls">
-          <PanelNumberSlider label="Opacity" value={selectedOpacity.opacity * 100}
-            min={0} max={100} suffix="%" resetValue={100}
-            onChange={(opacity) => updateOpacity(selectedOpacity.id, { opacity: opacity / 100 })} />
-          <PanelNumberSlider label="Location" value={selectedOpacity.position * 100}
-            min={0} max={100} step={0.1} suffix="%" resetValue={0}
-            onChange={(position) => updateOpacity(selectedOpacity.id, { position: position / 100 })} />
-          <PanelNumberSlider label="Midpoint" value={selectedOpacity.midpoint * 100}
-            min={5} max={95} suffix="%" resetValue={50}
-            onChange={(midpoint) => updateOpacity(selectedOpacity.id, { midpoint: midpoint / 100 })} />
-        </div>
-      ) : null}
-      <small className="lighttable-style-gradient__hint">
-        Drag stops to position them · Double-click the ramp to add · Right-click a stop to delete
+      <small className="lighttable-style-gradient__hint" aria-live="polite">
+        {hint}
       </small>
     </div>
   );

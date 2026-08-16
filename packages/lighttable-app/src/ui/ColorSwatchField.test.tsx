@@ -1,7 +1,12 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ColorSwatchField, colorPickerPopoverPosition, sampleScreenColor } from './ColorSwatchField';
+import {
+  ColorSwatchField,
+  colorPickerPopoverAnchor,
+  colorPickerPopoverPosition,
+  sampleScreenColor
+} from './ColorSwatchField';
 
 const originalEyeDropper = Object.getOwnPropertyDescriptor(globalThis, 'EyeDropper');
 
@@ -23,11 +28,37 @@ describe('ColorSwatchField', () => {
     expect(markup).toContain('tool_sample_color');
   });
 
+  it('can reuse the picker with a dropdown chevron instead of the sampler', () => {
+    const markup = renderToStaticMarkup(
+      <ColorSwatchField value="#123456" accessory="chevron"
+        ariaLabel="Fill color" onChange={vi.fn()} />
+    );
+
+    expect(markup).toContain('class="paint-field__arrow"');
+    expect(markup).toContain('aria-label="Open fill color"');
+    expect(markup).not.toContain('color-swatch-field__sampler');
+    expect(markup).not.toContain('tool_sample_color');
+  });
+
   it('keeps the picker inside the viewport and away from the trigger where possible', () => {
     expect(colorPickerPopoverPosition(
       { left: 760, right: 780, top: 580, bottom: 600 } as DOMRect,
       { width: 320, height: 300 }, { width: 800, height: 600 }
     )).toEqual({ left: 434, top: 294 });
+  });
+
+  it('places a context-menu picker outside its containing floating surface', () => {
+    expect(colorPickerPopoverAnchor(
+      { left: 910, right: 980, top: 110, bottom: 130 } as DOMRect,
+      { left: 744, right: 994 } as DOMRect
+    )).toEqual({ left: 744, right: 994, top: 110, bottom: 130 });
+    expect(colorPickerPopoverPosition(
+      colorPickerPopoverAnchor(
+        { left: 910, right: 980, top: 110, bottom: 130 } as DOMRect,
+        { left: 744, right: 994 } as DOMRect
+      ),
+      { width: 320, height: 300 }, { width: 1040, height: 700 }
+    )).toEqual({ left: 418, top: 110 });
   });
 
   it('normalizes a sampled color for the same value callback', async () => {

@@ -49,8 +49,9 @@ try {
   await picker.waitFor({ state: 'visible' });
   const triggerBounds = await foreground.boundingBox();
   const pickerBounds = await picker.boundingBox();
+  const toolbarBounds = await page.locator('.lighttable-toolbox').boundingBox();
   const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
-  if (!triggerBounds || !pickerBounds || !viewport) throw new Error('Color picker geometry is unavailable.');
+  if (!triggerBounds || !pickerBounds || !toolbarBounds || !viewport) throw new Error('Color picker geometry is unavailable.');
   if (pickerBounds.x < 0 || pickerBounds.y < 0
     || pickerBounds.x + pickerBounds.width > viewport.width
     || pickerBounds.y + pickerBounds.height > viewport.height) {
@@ -58,6 +59,12 @@ try {
   }
   if (rectanglesOverlap(triggerBounds, pickerBounds)) {
     throw new Error(`The color picker covered its trigger despite available space: ${JSON.stringify({ triggerBounds, pickerBounds })}`);
+  }
+  if (pickerBounds.x < toolbarBounds.x + toolbarBounds.width + 5) {
+    throw new Error(`The color picker overlaps the toolbar: ${JSON.stringify({ toolbarBounds, pickerBounds })}`);
+  }
+  for (const name of ['Hue', 'Saturation', 'Luminosity']) {
+    await picker.getByRole('slider', { name, exact: true }).waitFor({ state: 'visible' });
   }
 
   const originalForeground = normalizedColor(await foreground.evaluate((element) => element.style.backgroundColor));
@@ -87,7 +94,7 @@ try {
   await gradientColor.click();
   await picker.waitFor({ state: 'visible' });
   await picker.getByRole('textbox', { name: 'Hex color' }).fill('#00cc66');
-  await gradientEditor.getByText('Color stops', { exact: true }).click();
+  await gradientEditor.getByText('Gradient', { exact: true }).click();
   await picker.waitFor({ state: 'hidden' });
   const committedGradient = normalizedColor(await gradientColor.evaluate((element) => element.style.backgroundColor));
   if (committedGradient === beforeGradient) throw new Error('The gradient-stop swatch did not commit a custom color.');
@@ -123,6 +130,7 @@ try {
     committedGradient,
     triggerBounds,
     pickerBounds,
+    toolbarBounds,
     gradientTriggerBounds,
     gradientPickerBounds,
     screenshotPath,

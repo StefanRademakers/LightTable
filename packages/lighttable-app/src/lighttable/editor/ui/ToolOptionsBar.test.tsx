@@ -161,38 +161,38 @@ describe('Object Selection tool options', () => {
 });
 
 describe('vector style tool options', () => {
-  it('surfaces Pen Auto Add/Delete and GPU Rubber Band controls', () => {
+  it('keeps implicit Pen behavior out of the property bar', () => {
     const markup = renderOptions('vector-pen');
-    expect(markup).toContain('aria-label="Pen settings"');
-    expect(markup).toContain('Auto Add/Delete');
-    expect(markup).toContain('Rubber Band');
+    expect(markup).not.toContain('aria-label="Pen settings"');
+    expect(markup).not.toContain('Auto Add/Delete');
+    expect(markup).not.toContain('Rubber Band');
   });
 
-  it('surfaces shared exact geometry controls for rectangle and ellipse tools', () => {
+  it('keeps shared exact geometry controls behind a compact Geometry dropdown', () => {
     const rectangle = renderOptions('shape-rectangle');
-    expect(rectangle).toContain('aria-label="Shape geometry"');
-    expect(rectangle).toContain('aria-label="Shape geometry mode"');
-    expect(rectangle).toContain('From center');
-    expect(rectangle).toContain('Snap pixels');
-    expect(rectangle).toContain('Link corners');
-    expect(rectangle).toContain('Radius');
+    expect(rectangle).toContain('aria-label="Geometry"');
+    expect(rectangle).toContain('aria-haspopup="dialog" aria-expanded="false"');
+    expect(rectangle).not.toContain('aria-label="Shape geometry mode"');
+    expect(rectangle).not.toContain('From center');
+    expect(rectangle).not.toContain('Snap pixels');
+    expect(rectangle).not.toContain('Link corners');
+    expect(rectangle).not.toContain('Radius');
 
     const ellipse = renderOptions('shape-ellipse');
-    expect(ellipse).toContain('aria-label="Shape geometry"');
+    expect(ellipse).toContain('aria-label="Geometry"');
     expect(ellipse).not.toContain('Link corners');
   });
 
-  it('surfaces exact line geometry, style and independent arrowhead controls', () => {
+  it('keeps line geometry and stroke geometry behind their compact dropdowns', () => {
     const markup = renderOptions('shape-line');
-    expect(markup).toContain('aria-label="Shape geometry"');
-    expect(markup).toContain('aria-label="Stroke style"');
-    expect(markup).toContain('aria-label="Arrowheads"');
-    expect(markup).toContain('aria-label="Start arrowhead"');
-    expect(markup).toContain('aria-label="No arrowheads"');
-    expect(markup).toContain('aria-label="End arrowhead"');
-    expect(markup).toContain('Angle');
-    expect(markup).toContain('Arrow W');
-    expect(markup).toContain('Arrow L');
+    expect(markup).toContain('aria-label="Geometry"');
+    expect(markup).toContain('aria-label="Line Style"');
+    expect(markup).toContain('<span>Weight</span>');
+    expect(markup).not.toContain('aria-label="Stroke style"');
+    expect(markup).not.toContain('aria-label="Arrowheads"');
+    expect(markup).not.toContain('Angle');
+    expect(markup).not.toContain('Arrow W');
+    expect(markup).not.toContain('Arrow L');
   });
 
   it('keeps the Gradient Tool strip compact and separate from shape geometry', () => {
@@ -202,7 +202,8 @@ describe('vector style tool options', () => {
     expect(markup).toContain('value="fill-layer"');
     expect(markup).toContain('value="pixels"');
     expect(markup).toContain('aria-label="Gradient type"');
-    expect(markup).toContain('aria-label="Gradient interpolation"');
+    expect(markup).not.toContain('aria-label="Gradient interpolation"');
+    expect(markup).not.toContain('>Method<');
     expect(markup).not.toContain('aria-label="Gradient blend mode"');
     expect(markup).not.toContain('aria-label="Use gradient transparency"');
     expect(markup).not.toContain('aria-label="Shape geometry"');
@@ -232,8 +233,8 @@ describe('vector style tool options', () => {
       strokeEnabled: false, strokeColor: '#ffffff', strokeWidth: 3,
       strokeAlignment: 'center'
     });
-    expect(markup).toContain('aria-label="Edit fill gradient"');
-    expect(markup).toContain('class="gradient-field"');
+    expect(markup).toContain('aria-label="Fill paint"');
+    expect(markup).toContain('class="gradient-field gradient-field--compact"');
     expect(markup).not.toContain('>Gradient</button>');
   });
 
@@ -248,6 +249,7 @@ describe('vector style tool options', () => {
       expect(markup).toContain('aria-label="Vector style"');
       expect(markup).toContain('background-color:#123456');
       expect(markup).toContain('background-color:#abcdef');
+      expect(markup).toContain('aria-label="Line Style"');
       expect(markup).toContain('value="7"');
     }
   });
@@ -259,37 +261,36 @@ describe('vector style tool options', () => {
     expect(markup).toContain(`background-color:${defaults.strokeColor}`);
   });
 
-  it('uses the shared checkbox control for imported no-fill and no-stroke states', () => {
+  it('presents imported no-fill and no-stroke states with the shared None control', () => {
     const markup = renderOptions('vector-select', 1, 1, undefined, {
       fillEnabled: false, fillColor: '#000000',
       strokeEnabled: false, strokeColor: '#ffffff', strokeWidth: 3,
       strokeAlignment: 'center'
     });
 
-    expect(markup).toContain('type="checkbox"');
-    expect(markup).toContain('aria-label="Fill: enabled"');
-    expect(markup).toContain('aria-label="Line: enabled"');
-    expect(markup).not.toContain('paint-toggle');
-    expect(markup).not.toContain('>\/</button>');
-    expect(markup).not.toContain('type="color" value="#000000" disabled=""');
-    expect(markup).not.toContain('type="color" value="#ffffff" disabled=""');
+    expect(markup).toContain('aria-label="Fill paint"');
+    expect(markup).toContain('aria-label="Line paint"');
+    expect(markup).toContain('class="none-paint-field none-paint-field--compact"');
+    expect(markup).toMatch(/<button[^>]+aria-label="Line Style"[^>]+disabled=""/);
+    expect(markup).not.toContain('aria-label="Fill: enabled"');
+    expect(markup).not.toContain('aria-label="Line: enabled"');
   });
 
-  it('surfaces native inside, center and outside stroke alignment', () => {
+  it('routes native stroke geometry through the Line Style dropdown', () => {
     const markup = renderOptions('vector-select', 1, 1, undefined, {
       fillEnabled: true, fillColor: '#000000',
       strokeEnabled: true, strokeColor: '#ffffff', strokeWidth: 12,
       strokeAlignment: 'inside'
     });
 
-    expect(markup).toContain('aria-label="Stroke alignment"');
-    expect(markup).toContain('<option value="inside" selected="">Inside</option>');
-    expect(markup).toContain('<option value="center">Center</option>');
-    expect(markup).toContain('<option value="outside">Outside</option>');
-    expect(markup).toContain('aria-label="Stroke cap"');
-    expect(markup).toContain('aria-label="Stroke join"');
-    expect(markup).toContain('aria-label="Edit stroke gradient"');
-    expect(markup).toContain('<span>Opacity</span>');
+    expect(markup).toContain('aria-label="Line Style"');
+    expect(markup).not.toContain('aria-label="Stroke alignment"');
+    expect(markup).not.toContain('aria-label="Stroke cap"');
+    expect(markup).not.toContain('aria-label="Stroke join"');
+    expect(markup).toContain('aria-label="Line paint"');
+    expect(markup).toContain('aria-label="Open line paint"');
+    expect(markup).not.toContain('<span>Line opacity</span>');
+    expect(markup).not.toContain('<span>Opacity</span>');
   });
 });
 

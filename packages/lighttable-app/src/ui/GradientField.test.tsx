@@ -20,9 +20,17 @@ describe('GradientField', () => {
     const markup = renderToStaticMarkup(
       <GradientField value={gradient} ariaLabel="Edit gradient" expanded onClick={vi.fn()} />
     );
-    expect(markup).toContain('class="gradient-field"');
+    expect(markup).toContain('class="gradient-field gradient-field--regular"');
     expect(markup).toContain('aria-haspopup="dialog"');
     expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain('class="paint-field__arrow"');
     expect(markup).not.toContain('>Gradient<');
+  });
+
+  it('offers the same compact field variant used by color swatches', () => {
+    const markup = renderToStaticMarkup(
+      <GradientField value={gradient} size="compact" ariaLabel="Edit gradient" onClick={vi.fn()} />
+    );
+    expect(markup).toContain('class="gradient-field gradient-field--compact"');
   });
 });

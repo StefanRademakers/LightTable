@@ -28,12 +28,19 @@ export const LayerStylesPanel: React.FC<LayerStylesPanelProps> = ({ document, co
   const activeLayer = document?.activeLayerId
     ? findDocumentLayer(document, document.activeLayerId)
     : null;
+  const request = controller.request;
+  const requestedLayer = document && request
+    ? findDocumentLayer(document, request.layerId)
+    : null;
   const supportedLayer = activeLayer && layerSupportsLayerStyles(activeLayer)
     ? activeLayer
     : null;
 
-  const request = controller.request;
-  const target = supportedLayer;
+  // A child effect click carries an explicit owner. Prefer it over a possibly
+  // one-render-stale active layer while the Layers selection is publishing.
+  const target = requestedLayer && layerSupportsLayerStyles(requestedLayer)
+    ? requestedLayer
+    : supportedLayer;
   const layerCount = document ? walkLayerTree(document.layers).length : 0;
   // Large PSDs can spend around 100 ms evaluating one styled correction frame.
   // Keep the inspector native-rate while handing only the newest snapshot to
