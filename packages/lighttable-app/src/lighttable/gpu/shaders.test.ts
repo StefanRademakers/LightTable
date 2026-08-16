@@ -317,6 +317,13 @@ describe('LightTable WGSL modules', () => {
     );
   });
 
+  it('keeps Photoshop Exposure on its measured 2.2 bridge without changing Grade', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('let photoshopLinear = pow(max(encoded, vec3f(0.0)), vec3f(2.2))');
+    expect(CREATIVE_GRADE_WGSL).toContain('vec3f(1.0 / (2.2 * gamma))');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedToLinearChannel(correctedEncoded.r)');
+    expect(BASIC_CORRECTION_WGSL).toContain('rgb *= exp2(adjustments.exposureEV)');
+  });
+
   it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');

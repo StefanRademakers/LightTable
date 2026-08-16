@@ -10,6 +10,8 @@ if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
   throw "Adjustment oracle source is missing: $sourcePath"
 }
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
+$psdPath = Join-Path ([IO.Directory]::GetParent($outputPath).FullName) 'psd'
+New-Item -ItemType Directory -Path $psdPath -Force | Out-Null
 
 function JsString([string]$value) {
   return '"' + $value.Replace('\', '/').Replace('"', '\"') + '"'
@@ -49,6 +51,7 @@ try {
   $photoshop.DisplayDialogs = 3
   foreach ($case in $cases) {
     $target = Join-Path $outputPath "$($case.id).png"
+    $psdTarget = Join-Path $psdPath "$($case.id).psd"
     $script = @"
 var c2t = charIDToTypeID, s2t = stringIDToTypeID;
 var previousRulerUnits = app.preferences.rulerUnits;
@@ -68,6 +71,8 @@ try {
   make.putObject(s2t('using'), s2t('adjustmentLayer'), adjustmentLayer);
   executeAction(c2t('Mk  '), make, DialogModes.NO);
 
+  var psd = new PhotoshopSaveOptions(); psd.layers = true; psd.maximizeCompatibility = true;
+  doc.saveAs(new File($(JsString $psdTarget)), psd, true, Extension.LOWERCASE);
   var png = new PNGSaveOptions(); png.interlaced = false;
   doc.saveAs(new File($(JsString $target)), png, true, Extension.LOWERCASE);
   doc.close(SaveOptions.DONOTSAVECHANGES);
@@ -83,7 +88,7 @@ try {
       [void]$photoshop.DoJavaScript($script)
       $results += [pscustomobject]@{
         id=$case.id; status='captured'; exposure=$case.exposure;
-        offset=$case.offset; gamma=$case.gamma; file=$target
+        offset=$case.offset; gamma=$case.gamma; file=$target; psd=$psdTarget
       }
     } catch {
       try { if ($photoshop.Documents.Count -gt 0) { $photoshop.ActiveDocument.Close(2) } } catch {}

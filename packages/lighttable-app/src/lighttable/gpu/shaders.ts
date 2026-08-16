@@ -606,21 +606,21 @@ fn preservePhotoshopLuminance(source: vec3f, adjusted: vec3f) -> vec3f {
   return adjusted * sourceY / adjustedY;
 }
 
-fn colorLookupLinearToEncodedChannel(value: f32) -> f32 {
+fn photoshopLinearToEncodedChannel(value: f32) -> f32 {
   if (value <= 0.0031308) { return value * 12.92; }
   return 1.055 * pow(value, 1.0 / 2.4) - 0.055;
 }
 
-fn colorLookupEncodedToLinearChannel(value: f32) -> f32 {
+fn photoshopEncodedToLinearChannel(value: f32) -> f32 {
   if (value <= 0.04045) { return value / 12.92; }
   return pow((value + 0.055) / 1.055, 2.4);
 }
 
 fn sampleExternalColorLookup(source: vec3f) -> vec3f {
   let encoded = vec3f(
-    colorLookupLinearToEncodedChannel(source.r),
-    colorLookupLinearToEncodedChannel(source.g),
-    colorLookupLinearToEncodedChannel(source.b)
+    photoshopLinearToEncodedChannel(source.r),
+    photoshopLinearToEncodedChannel(source.g),
+    photoshopLinearToEncodedChannel(source.b)
   );
   let domainMin = vec3f(photoshopValue(99u), photoshopValue(100u), photoshopValue(101u));
   let domainMax = vec3f(photoshopValue(102u), photoshopValue(103u), photoshopValue(104u));
@@ -652,9 +652,9 @@ fn sampleExternalColorLookup(source: vec3f) -> vec3f {
   );
   let mapped = mix(mix(z0y0, z0y1, fraction.y), mix(z1y0, z1y1, fraction.y), fraction.z);
   return vec3f(
-    colorLookupEncodedToLinearChannel(mapped.r),
-    colorLookupEncodedToLinearChannel(mapped.g),
-    colorLookupEncodedToLinearChannel(mapped.b)
+    photoshopEncodedToLinearChannel(mapped.r),
+    photoshopEncodedToLinearChannel(mapped.g),
+    photoshopEncodedToLinearChannel(mapped.b)
   );
 }
 
@@ -687,8 +687,24 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     return adjusted;
   }
   if (kind == 3u) {
-    let exposed = rgb * exp2(photoshopValue(9u)) + vec3f(photoshopValue(10u));
-    return pow(max(exposed, vec3f(0.0)), vec3f(1.0 / max(photoshopValue(11u), 0.01)));
+    // Photoshop Exposure uses a power-2.2 encoded-light bridge even in an
+    // sRGB document. Exposure and Offset operate inside that bridge; Gamma
+    // Correction operates on the encoded result. Keeping this node-specific
+    // avoids changing LightTable's linear-light Grade pipeline.
+    let encoded = vec3f(
+      photoshopLinearToEncodedChannel(rgb.r),
+      photoshopLinearToEncodedChannel(rgb.g),
+      photoshopLinearToEncodedChannel(rgb.b)
+    );
+    let photoshopLinear = pow(max(encoded, vec3f(0.0)), vec3f(2.2));
+    let exposed = photoshopLinear * exp2(photoshopValue(9u)) + vec3f(photoshopValue(10u));
+    let gamma = max(photoshopValue(11u), 0.01);
+    let correctedEncoded = pow(max(exposed, vec3f(0.0)), vec3f(1.0 / (2.2 * gamma)));
+    return vec3f(
+      photoshopEncodedToLinearChannel(correctedEncoded.r),
+      photoshopEncodedToLinearChannel(correctedEncoded.g),
+      photoshopEncodedToLinearChannel(correctedEncoded.b)
+    );
   }
   if (kind == 4u) {
     var lab = linearRgbToOklab(rgb);
