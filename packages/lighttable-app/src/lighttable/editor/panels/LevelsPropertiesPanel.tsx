@@ -7,8 +7,8 @@ import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
 import type { GradePanelProps } from './GradePanel';
 import { PanelSelectField } from '../../../ui/PanelControls';
 
-type LevelsInput = PhotoshopAdjustmentSettings['levelsInput'];
-type LevelsOutput = PhotoshopAdjustmentSettings['levelsOutput'];
+type LevelsInput = PhotoshopAdjustmentSettings['levels']['rgb']['input'];
+type LevelsOutput = PhotoshopAdjustmentSettings['levels']['rgb']['output'];
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(maximum, Math.max(minimum, value));
@@ -103,33 +103,41 @@ export const LevelsPropertiesPanel = ({
   const disabled = !model.metadata;
   const update = (next: PhotoshopAdjustmentSettings) =>
     commands.updatePhotoshopAdjustment(next);
+  const selected = settings.levels[settings.levelsChannel];
+  const updateSelected = (next: { input?: LevelsInput; output?: LevelsOutput }) => update({
+    ...settings,
+    levels: {
+      ...settings.levels,
+      [settings.levelsChannel]: { ...selected, ...next }
+    }
+  });
   const updateInput = (index: number, rawValue: number) => {
-    const [black, gamma, white] = settings.levelsInput;
+    const [black, gamma, white] = selected.input;
     let next: LevelsInput;
     if (index === 0) next = [clamp(rawValue, 0, white - 1), gamma, white];
     else if (index === 1) next = [black, clamp(rawValue, 0.1, 9.99), white];
     else next = [black, gamma, clamp(rawValue, black + 1, 255)];
-    update({ ...settings, levelsInput: next });
+    updateSelected({ input: next });
   };
   const updateInputHandle = (index: number, rawValue: number) => {
     if (index !== 1) return updateInput(index, rawValue);
     updateInput(1, levelsGammaFromPosition(
       rawValue,
-      settings.levelsInput[0],
-      settings.levelsInput[2]
+      selected.input[0],
+      selected.input[2]
     ));
   };
   const updateOutput = (index: number, rawValue: number) => {
-    const [black, white] = settings.levelsOutput;
+    const [black, white] = selected.output;
     const next: LevelsOutput = index === 0
       ? [clamp(rawValue, 0, white), white]
       : [black, clamp(rawValue, black, 255)];
-    update({ ...settings, levelsOutput: next });
+    updateSelected({ output: next });
   };
   const inputHandleValues = [
-    settings.levelsInput[0],
-    levelsGammaPosition(settings.levelsInput),
-    settings.levelsInput[2]
+    selected.input[0],
+    levelsGammaPosition(selected.input),
+    selected.input[2]
   ];
 
   return (
@@ -173,19 +181,19 @@ export const LevelsPropertiesPanel = ({
             />
             <div className="lighttable-levels__input-values">
               <NumericExpressionInput aria-label="Black input value"
-                value={settings.levelsInput[0]} min={0} max={settings.levelsInput[2] - 1}
+                value={selected.input[0]} min={0} max={selected.input[2] - 1}
                 kind="integer" onValueChange={(value) => updateInput(0, value)} disabled={disabled} />
               <NumericExpressionInput aria-label="Gamma value"
-                value={settings.levelsInput[1]} min={0.1} max={9.99} step={0.01}
+                value={selected.input[1]} min={0.1} max={9.99} step={0.01}
                 formatValue={(value) => value.toFixed(2)}
                 onValueChange={(value) => updateInput(1, value)} disabled={disabled} />
               <NumericExpressionInput aria-label="White input value"
-                value={settings.levelsInput[2]} min={settings.levelsInput[0] + 1} max={255}
+                value={selected.input[2]} min={selected.input[0] + 1} max={255}
                 kind="integer" onValueChange={(value) => updateInput(2, value)} disabled={disabled} />
             </div>
             <LevelsTrack
               label="Output Levels"
-              values={settings.levelsOutput}
+              values={selected.output}
               ariaLabels={['Black output', 'White output']}
               background="linear-gradient(to right, #050607, #f2f4f6)"
               disabled={disabled}

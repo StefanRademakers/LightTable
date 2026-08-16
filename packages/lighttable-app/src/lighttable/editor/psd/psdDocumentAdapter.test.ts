@@ -514,6 +514,13 @@ describe('importPsdDocument', () => {
           shadowOutput: 8,
           highlightOutput: 246,
           midtoneInput: 1.3
+        },
+        red: {
+          shadowInput: 12,
+          highlightInput: 240,
+          shadowOutput: 4,
+          highlightOutput: 248,
+          midtoneInput: 0.8
         }
       }
     })]), 'levels.psd');
@@ -524,7 +531,10 @@ describe('importPsdDocument', () => {
     expect(layer.adjustmentKind).toBe('levels');
     expect(settings.photoshopAdjustment).toMatchObject({
       kind: 'levels', levelsChannel: 'rgb',
-      levelsInput: [16, 1.3, 235], levelsOutput: [8, 246]
+      levels: {
+        rgb: { input: [16, 1.3, 235], output: [8, 246] },
+        red: { input: [12, 0.8, 240], output: [4, 248] }
+      }
     });
   });
 
@@ -668,6 +678,6 @@ describe('importPsdDocument', () => {
     ]);
     expect(materializeBasicAdjustments(
       layer.attachedAdjustments![0]!.adjustmentStack
-    ).photoshopAdjustment.levelsInput).toEqual([9, 1.15, 241]);
+    ).photoshopAdjustment.levels.rgb.input).toEqual([9, 1.15, 241]);
   });
 });

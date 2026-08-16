@@ -8,8 +8,10 @@ import {
 
 export const ADJUSTMENT_UNIFORM_FLOATS = 320;
 export const LINEAR_COMPOSITE_FLAG_INDEX = 18;
-export const PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET = 233;
-export const PHOTOSHOP_BLEND_PROFILE_OFFSET = 298;
+export const PHOTOSHOP_PAYLOAD_OFFSET = 128;
+export const PHOTOSHOP_LEVELS_CHANNELS_OFFSET = 233;
+export const PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET = 248;
+export const PHOTOSHOP_BLEND_PROFILE_OFFSET = 313;
 
 export interface ColorLookupUniform {
   readonly enabled: boolean;
@@ -96,9 +98,8 @@ export const buildAdjustmentUniform = (
     photoshop.brightness,
     photoshop.contrast,
     photoshop.useLegacyBrightnessContrast ? 1 : 0,
-    ...photoshop.levelsInput,
-    photoshop.levelsOutput[0],
-    photoshop.levelsOutput[1],
+    ...photoshop.levels.rgb.input,
+    ...photoshop.levels.rgb.output,
     photoshop.exposure,
     photoshop.exposureOffset,
     photoshop.exposureGamma,
@@ -135,6 +136,11 @@ export const buildAdjustmentUniform = (
     ['rgb', 'red', 'green', 'blue'].indexOf(photoshop.levelsChannel),
     ['none', 'film-stock', 'moonlight', 'teal-orange'].indexOf(photoshop.colorLookupPreset)
   ], 128);
+  packed.set([
+    ...photoshop.levels.red.input, ...photoshop.levels.red.output,
+    ...photoshop.levels.green.input, ...photoshop.levels.green.output,
+    ...photoshop.levels.blue.input, ...photoshop.levels.blue.output
+  ], PHOTOSHOP_LEVELS_CHANNELS_OFFSET);
   if (photoshop.kind === 'brightness-contrast') {
     const transfer = buildPhotoshopBrightnessContrastLut(
       photoshop.brightness,

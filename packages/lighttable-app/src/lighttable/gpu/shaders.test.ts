@@ -17,6 +17,12 @@ import {
   VIEWPORT_BLIT_WGSL
 } from './shaders';
 import {
+  PHOTOSHOP_BLEND_PROFILE_OFFSET,
+  PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
+  PHOTOSHOP_PAYLOAD_OFFSET
+} from './adjustmentUniform';
+import {
   GRAIN_BLUR_WGSL,
   GRAIN_COMPOSITE_WGSL,
   GRAIN_GENERATE_WGSL
@@ -113,9 +119,7 @@ describe('LightTable WGSL modules', () => {
     expect(allShaders).not.toMatch(/\.[rgbaxyzw]{2,4}\s*[+\-*/]=/);
   });
 
-  it('keeps mutable Photoshop Levels channel output writable for Dawn', () => {
-    expect(CREATIVE_GRADE_WGSL).toContain('var adjusted = mix(vec3f(outputBlack)');
-    expect(CREATIVE_GRADE_WGSL).not.toContain('let adjusted = mix(vec3f(outputBlack)');
+  it('keeps mutable Photoshop vector output writable for Dawn', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('var rotated = vec2f(');
     expect(CREATIVE_GRADE_WGSL).not.toContain('let rotated = vec2f(');
   });
@@ -327,11 +331,26 @@ describe('LightTable WGSL modules', () => {
   it('evaluates Photoshop Brightness/Contrast in the encoded document profile', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('samplePhotoshopBrightnessContrastLut(encoded.r)');
     expect(CREATIVE_GRADE_WGSL).toContain('photoshopLinearSrgbToEncodedDocument(rgb)');
-    expect(CREATIVE_GRADE_WGSL).toContain('photoshopValue(170u) > 0.5');
+    expect(CREATIVE_GRADE_WGSL).toContain(
+      `photoshopValue(${PHOTOSHOP_BLEND_PROFILE_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET}u) > 0.5`
+    );
+    expect(CREATIVE_GRADE_WGSL).toContain(
+      `photoshopValue(${PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET}u + left)`
+    );
     expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb');
     expect(CREATIVE_GRADE_WGSL).toContain('let pivot = 127.0 / 255.0');
     expect(CREATIVE_GRADE_WGSL).toContain('1.0 / max(1.0 - contrast / 100.0');
     expect(CREATIVE_GRADE_WGSL).toContain('if (brightness < 0.0)');
+  });
+
+  it('evaluates Photoshop Levels in the encoded document profile', () => {
+    const channelOffset = PHOTOSHOP_LEVELS_CHANNELS_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
+    expect(CREATIVE_GRADE_WGSL).toContain('let encoded = photoshopLinearSrgbToEncodedDocument(rgb)');
+    expect(CREATIVE_GRADE_WGSL).toContain(`applyPhotoshopLevelsChannel(encoded.r, ${channelOffset}u)`);
+    expect(CREATIVE_GRADE_WGSL).toContain(`applyPhotoshopLevelsChannel(encoded.g, ${channelOffset + 5}u)`);
+    expect(CREATIVE_GRADE_WGSL).toContain(`applyPhotoshopLevelsChannel(encoded.b, ${channelOffset + 10}u)`);
+    expect(CREATIVE_GRADE_WGSL).toContain('applyPhotoshopLevelsChannel(adjusted.r, 4u)');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(adjusted)');
   });
 
   it('transforms layer pixels and masks through their independent document transforms', () => {

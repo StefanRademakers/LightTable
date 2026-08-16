@@ -32,8 +32,10 @@ const authored = (kind: PhotoshopAdjustmentKind) => {
     kind,
     brightness: 24,
     contrast: 13,
-    levelsInput: [12, 1.25, 238],
-    levelsOutput: [4, 249],
+    levels: {
+      ...values.photoshopAdjustment.levels,
+      rgb: { input: [12, 1.25, 238], output: [4, 249] }
+    },
     exposure: 1.5,
     exposureOffset: 0.02,
     exposureGamma: 1.1,
@@ -86,6 +88,31 @@ describe('Photoshop adjustment export adapter', () => {
     expect(exposure.gamma).toBeCloseTo(1.1, 6);
     expect(binaryRoundTrip(authored('color-lookup'))).toMatchObject({
       type: 'color lookup', lutFormat: 'cube', lut3DFileName: 'LightTable-teal-orange.cube'
+    });
+  });
+
+  it('roundtrips composite and per-channel Levels together', () => {
+    const values = createDefaultAdjustments();
+    values.photoshopAdjustment.kind = 'levels';
+    values.photoshopAdjustment.levels.rgb = {
+      input: [20, 0.5, 235], output: [10, 245]
+    };
+    values.photoshopAdjustment.levels.red = {
+      input: [30, 2, 220], output: [20, 235]
+    };
+    const stack = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(values), 'levels'
+    );
+    expect(binaryRoundTrip(exportAdjustmentStackToPsd('levels', stack)!)).toMatchObject({
+      type: 'levels',
+      rgb: {
+        shadowInput: 20, midtoneInput: 0.5, highlightInput: 235,
+        shadowOutput: 10, highlightOutput: 245
+      },
+      red: {
+        shadowInput: 30, midtoneInput: 2, highlightInput: 220,
+        shadowOutput: 20, highlightOutput: 235
+      }
     });
   });
 

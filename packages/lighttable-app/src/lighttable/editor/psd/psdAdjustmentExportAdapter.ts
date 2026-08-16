@@ -24,12 +24,15 @@ const mixer = (values: readonly number[]): ChannelMixerChannel => ({
   blue: values[2] ?? 0,
   constant: values[3] ?? 0
 });
-const levels = (settings: PhotoshopAdjustmentSettings): LevelsAdjustmentChannel => ({
-  shadowInput: Math.round(settings.levelsInput[0]),
-  midtoneInput: settings.levelsInput[1],
-  highlightInput: Math.round(settings.levelsInput[2]),
-  shadowOutput: Math.round(settings.levelsOutput[0]),
-  highlightOutput: Math.round(settings.levelsOutput[1])
+const levels = (
+  settings: PhotoshopAdjustmentSettings,
+  channel: PhotoshopAdjustmentSettings['levelsChannel']
+): LevelsAdjustmentChannel => ({
+  shadowInput: Math.round(settings.levels[channel].input[0]),
+  midtoneInput: settings.levels[channel].input[1],
+  highlightInput: Math.round(settings.levels[channel].input[2]),
+  shadowOutput: Math.round(settings.levels[channel].output[0]),
+  highlightOutput: Math.round(settings.levels[channel].output[1])
 });
 
 const lookupTransform = (
@@ -93,8 +96,13 @@ const photoshopAdjustment = (
       contrast: settings.contrast, useLegacy: settings.useLegacyBrightnessContrast
     };
     case 'levels': {
-      const channel = levels(settings);
-      return { type: 'levels', [settings.levelsChannel]: channel };
+      return {
+        type: 'levels',
+        rgb: levels(settings, 'rgb'),
+        red: levels(settings, 'red'),
+        green: levels(settings, 'green'),
+        blue: levels(settings, 'blue')
+      };
     }
     case 'exposure': return {
       type: 'exposure', exposure: settings.exposure,

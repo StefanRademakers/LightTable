@@ -92,30 +92,14 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
   const scalarValue = (spec: SliderSpec, index: number) => {
     const value = settings[spec.key];
     if (typeof value === 'number') return value;
-    if (spec.key === 'levelsInput') return settings.levelsInput[index];
-    if (spec.key === 'levelsOutput') return settings.levelsOutput[index - 3];
     return 0;
   };
   const resetValue = (spec: SliderSpec, index: number) => {
     const value = defaults[spec.key];
     if (typeof value === 'number') return value;
-    if (spec.key === 'levelsInput') return defaults.levelsInput[index];
-    if (spec.key === 'levelsOutput') return defaults.levelsOutput[index - 3];
     return 0;
   };
   const updateScalar = (spec: SliderSpec, index: number, value: number) => {
-    if (spec.key === 'levelsInput') {
-      const levelsInput = [...settings.levelsInput] as PhotoshopAdjustmentSettings['levelsInput'];
-      levelsInput[index] = value;
-      update({ ...settings, levelsInput });
-      return;
-    }
-    if (spec.key === 'levelsOutput') {
-      const levelsOutput = [...settings.levelsOutput] as PhotoshopAdjustmentSettings['levelsOutput'];
-      levelsOutput[index - 3] = value;
-      update({ ...settings, levelsOutput });
-      return;
-    }
     update({ ...settings, [spec.key]: value });
   };
   const renderArraySliders = (

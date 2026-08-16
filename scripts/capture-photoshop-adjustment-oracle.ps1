@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -108,9 +108,32 @@ $brightnessContrastCalibrationCases = @(
   @{ id='legacy-contrast-pos-50'; brightness=0; contrast=50; useLegacy=$true },
   @{ id='legacy-contrast-pos-80'; brightness=0; contrast=80; useLegacy=$true }
 )
+$levelsCases = @(
+  @{ id='neutral'; channel='composite'; black=0; gamma=1.0; white=255; outputBlack=0; outputWhite=255 },
+  @{ id='input-black-51'; channel='composite'; black=51; gamma=1.0; white=255; outputBlack=0; outputWhite=255 },
+  @{ id='input-black-204'; channel='composite'; black=204; gamma=1.0; white=255; outputBlack=0; outputWhite=255 },
+  @{ id='input-white-204'; channel='composite'; black=0; gamma=1.0; white=204; outputBlack=0; outputWhite=255 },
+  @{ id='input-white-51'; channel='composite'; black=0; gamma=1.0; white=51; outputBlack=0; outputWhite=255 },
+  @{ id='gamma-010'; channel='composite'; black=0; gamma=0.1; white=255; outputBlack=0; outputWhite=255 },
+  @{ id='gamma-020'; channel='composite'; black=0; gamma=0.2; white=255; outputBlack=0; outputWhite=255 },
+  @{ id='gamma-050'; channel='composite'; black=0; gamma=0.5; white=255; outputBlack=0; outputWhite=255 },
+  @{ id='gamma-200'; channel='composite'; black=0; gamma=2.0; white=255; outputBlack=0; outputWhite=255 },
+  @{ id='gamma-500'; channel='composite'; black=0; gamma=5.0; white=255; outputBlack=0; outputWhite=255 },
+  @{ id='gamma-999'; channel='composite'; black=0; gamma=9.99; white=255; outputBlack=0; outputWhite=255 },
+  @{ id='output-black-51'; channel='composite'; black=0; gamma=1.0; white=255; outputBlack=51; outputWhite=255 },
+  @{ id='output-black-204'; channel='composite'; black=0; gamma=1.0; white=255; outputBlack=204; outputWhite=255 },
+  @{ id='output-white-204'; channel='composite'; black=0; gamma=1.0; white=255; outputBlack=0; outputWhite=204 },
+  @{ id='output-white-51'; channel='composite'; black=0; gamma=1.0; white=255; outputBlack=0; outputWhite=51 },
+  @{ id='combined-80'; channel='composite'; black=40; gamma=0.2; white=215; outputBlack=40; outputWhite=215 },
+  @{ id='red-combined'; channel='red'; black=30; gamma=2.0; white=220; outputBlack=20; outputWhite=235 },
+  @{ id='green-combined'; channel='green'; black=30; gamma=2.0; white=220; outputBlack=20; outputWhite=235 },
+  @{ id='blue-combined'; channel='blue'; black=30; gamma=2.0; white=220; outputBlack=20; outputWhite=235 },
+  @{ id='composite-red-combined'; channel='composite'; black=20; gamma=0.5; white=235; outputBlack=10; outputWhite=245;
+    secondaryChannel='red'; secondaryBlack=30; secondaryGamma=2.0; secondaryWhite=220; secondaryOutputBlack=20; secondaryOutputWhite=235 }
+)
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
-} else { $exposureCases }
+} elseif ($Adjustment -eq 'levels') { $levelsCases } else { $exposureCases }
 if (-not [string]::IsNullOrWhiteSpace($CasePattern)) {
   $cases = @($cases | Where-Object { $_.id -match $CasePattern })
   if ($cases.Count -eq 0) { throw "No adjustment oracle cases match: $CasePattern" }
@@ -132,6 +155,46 @@ try {
   adjustment.putInteger(s2t('contrast'), $($case.contrast));
   adjustment.putBoolean(s2t('useLegacy'), $(if ($case.useLegacy) { 'true' } else { 'false' }));
   adjustmentLayer.putObject(s2t('type'), s2t('brightnessEvent'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'levels') {
+      $channelId = switch ($case.channel) {
+        'red' { 'Rd  ' }
+        'green' { 'Grn ' }
+        'blue' { 'Bl  ' }
+        default { 'Cmps' }
+      }
+      $secondaryDescriptor = ''
+      if ($case.secondaryChannel) {
+        $secondaryChannelId = switch ($case.secondaryChannel) {
+          'red' { 'Rd  ' }
+          'green' { 'Grn ' }
+          'blue' { 'Bl  ' }
+          default { 'Cmps' }
+        }
+        $secondaryDescriptor = "addLevelsChannel(levelsAdjustments, '$secondaryChannelId', $($case.secondaryBlack), $($case.secondaryGamma), $($case.secondaryWhite), $($case.secondaryOutputBlack), $($case.secondaryOutputWhite));"
+      }
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putEnumerated(s2t('presetKind'), s2t('presetKindType'), s2t('presetKindCustom'));
+  function addLevelsChannel(list, channelId, black, gamma, white, outputBlack, outputWhite) {
+    var levelChannel = new ActionDescriptor();
+    var levelChannelReference = new ActionReference();
+    levelChannelReference.putEnumerated(c2t('Chnl'), c2t('Chnl'), c2t(channelId));
+    levelChannel.putReference(c2t('Chnl'), levelChannelReference);
+    var levelInput = new ActionList();
+    levelInput.putInteger(black); levelInput.putInteger(white);
+    levelChannel.putList(c2t('Inpt'), levelInput);
+    levelChannel.putDouble(c2t('Gmm '), gamma);
+    var levelOutput = new ActionList();
+    levelOutput.putInteger(outputBlack); levelOutput.putInteger(outputWhite);
+    levelChannel.putList(c2t('Otpt'), levelOutput);
+    list.putObject(c2t('LvlA'), levelChannel);
+  }
+  var levelsAdjustments = new ActionList();
+  addLevelsChannel(levelsAdjustments, '$channelId', $($case.black), $($case.gamma), $($case.white), $($case.outputBlack), $($case.outputWhite));
+  $secondaryDescriptor
+  adjustment.putList(c2t('Adjs'), levelsAdjustments);
+  adjustmentLayer.putObject(s2t('type'), s2t('levels'), adjustment);
 "@
     } else {
       $adjustmentDescriptor = @"
@@ -205,7 +268,7 @@ $adjustmentDescriptor
 }
 
 $manifest = Join-Path ([IO.Directory]::GetParent($outputPath).FullName) 'photoshop-manifest.json'
-$results | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifest -Encoding utf8
+ConvertTo-Json -InputObject @($results) -Depth 5 | Set-Content -LiteralPath $manifest -Encoding utf8
 $results | Format-Table -AutoSize
 $failures = @($results | Where-Object { $_.status -ne 'captured' })
 if ($failures.Count) { throw "Photoshop adjustment oracle failed; see $manifest" }

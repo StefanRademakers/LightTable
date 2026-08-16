@@ -1,4 +1,17 @@
 import { GRADIENT_MAP_WGSL } from './gradientMapShader';
+import {
+  PHOTOSHOP_BLEND_PROFILE_OFFSET,
+  PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
+  PHOTOSHOP_PAYLOAD_OFFSET
+} from './adjustmentUniform';
+
+const PHOTOSHOP_BLEND_PROFILE_RELATIVE_OFFSET =
+  PHOTOSHOP_BLEND_PROFILE_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
+const PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_RELATIVE_OFFSET =
+  PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
+const PHOTOSHOP_LEVELS_CHANNELS_RELATIVE_OFFSET =
+  PHOTOSHOP_LEVELS_CHANNELS_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 export const FULLSCREEN_VERTEX_WGSL = /* wgsl */ `
 struct VertexOutput {
   @builtin(position) position: vec4f,
@@ -617,7 +630,7 @@ fn photoshopEncodedToLinearChannel(value: f32) -> f32 {
 }
 
 fn photoshopLinearSrgbToEncodedDocument(rgb: vec3f) -> vec3f {
-  if (photoshopValue(170u) > 0.5) {
+  if (photoshopValue(${PHOTOSHOP_BLEND_PROFILE_RELATIVE_OFFSET}u) > 0.5) {
     let adobe = vec3f(
       0.71516271 * rgb.r + 0.28483729 * rgb.g,
       rgb.g,
@@ -633,7 +646,7 @@ fn photoshopLinearSrgbToEncodedDocument(rgb: vec3f) -> vec3f {
 }
 
 fn photoshopEncodedDocumentToLinearSrgb(encoded: vec3f) -> vec3f {
-  if (photoshopValue(170u) > 0.5) {
+  if (photoshopValue(${PHOTOSHOP_BLEND_PROFILE_RELATIVE_OFFSET}u) > 0.5) {
     let adobe = pow(max(encoded, vec3f(0.0)), vec3f(563.0 / 256.0));
     return vec3f(
       1.39835574 * adobe.r - 0.39835574 * adobe.g,
@@ -658,10 +671,20 @@ fn samplePhotoshopBrightnessContrastLut(value: f32) -> f32 {
     fraction = position - f32(left);
   }
   return mix(
-    photoshopValue(105u + left),
-    photoshopValue(106u + left),
+    photoshopValue(${PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_RELATIVE_OFFSET}u + left),
+    photoshopValue(${PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_RELATIVE_OFFSET + 1}u + left),
     fraction
   );
+}
+
+fn applyPhotoshopLevelsChannel(value: f32, parameterOffset: u32) -> f32 {
+  let black = photoshopValue(parameterOffset) / 255.0;
+  let gamma = max(photoshopValue(parameterOffset + 1u), 0.01);
+  let white = max(photoshopValue(parameterOffset + 2u) / 255.0, black + 0.000001);
+  let outputBlack = photoshopValue(parameterOffset + 3u) / 255.0;
+  let outputWhite = photoshopValue(parameterOffset + 4u) / 255.0;
+  let normalized = clamp((value - black) / (white - black), 0.0, 1.0);
+  return mix(outputBlack, outputWhite, pow(normalized, 1.0 / gamma));
 }
 
 fn sampleExternalColorLookup(source: vec3f) -> vec3f {
@@ -741,18 +764,18 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     return photoshopEncodedDocumentToLinearSrgb(clamp(adjusted, vec3f(0.0), vec3f(1.0)));
   }
   if (kind == 2u) {
-    let black = photoshopValue(4u) / 255.0;
-    let gamma = max(photoshopValue(5u), 0.01);
-    let white = max(photoshopValue(6u) / 255.0, black + 0.000001);
-    let outputBlack = photoshopValue(7u) / 255.0;
-    let outputWhite = photoshopValue(8u) / 255.0;
-    let normalized = clamp((rgb - vec3f(black)) / (white - black), vec3f(0.0), vec3f(1.0));
-    var adjusted = mix(vec3f(outputBlack), vec3f(outputWhite), pow(normalized, vec3f(1.0 / gamma)));
-    let channel = u32(photoshopValue(97u) + 0.5);
-    if (channel == 1u) { adjusted = vec3f(adjusted.r, rgb.g, rgb.b); }
-    if (channel == 2u) { adjusted = vec3f(rgb.r, adjusted.g, rgb.b); }
-    if (channel == 3u) { adjusted = vec3f(rgb.r, rgb.g, adjusted.b); }
-    return adjusted;
+    let encoded = photoshopLinearSrgbToEncodedDocument(rgb);
+    var adjusted = vec3f(
+      applyPhotoshopLevelsChannel(encoded.r, ${PHOTOSHOP_LEVELS_CHANNELS_RELATIVE_OFFSET}u),
+      applyPhotoshopLevelsChannel(encoded.g, ${PHOTOSHOP_LEVELS_CHANNELS_RELATIVE_OFFSET + 5}u),
+      applyPhotoshopLevelsChannel(encoded.b, ${PHOTOSHOP_LEVELS_CHANNELS_RELATIVE_OFFSET + 10}u)
+    );
+    adjusted = vec3f(
+      applyPhotoshopLevelsChannel(adjusted.r, 4u),
+      applyPhotoshopLevelsChannel(adjusted.g, 4u),
+      applyPhotoshopLevelsChannel(adjusted.b, 4u)
+    );
+    return photoshopEncodedDocumentToLinearSrgb(adjusted);
   }
   if (kind == 3u) {
     // Photoshop Exposure uses a power-2.2 encoded-light bridge even in an

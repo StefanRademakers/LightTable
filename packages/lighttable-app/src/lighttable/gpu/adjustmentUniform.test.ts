@@ -5,7 +5,8 @@ import {
   buildAdjustmentUniform,
   LINEAR_COMPOSITE_FLAG_INDEX,
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
-  PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET
+  PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_LEVELS_CHANNELS_OFFSET
 } from './adjustmentUniform';
 
 describe('LightTable adjustment uniform packing', () => {
@@ -90,9 +91,16 @@ describe('LightTable adjustment uniform packing', () => {
   it('packs Levels channel and the built-in Color Lookup preset', () => {
     const settings = createDefaultAdjustments();
     settings.photoshopAdjustment.levelsChannel = 'blue';
+    settings.photoshopAdjustment.levels.red = {
+      input: [12, 1.25, 238], output: [4, 249]
+    };
     settings.photoshopAdjustment.colorLookupPreset = 'teal-orange';
     const packed = buildAdjustmentUniform(settings, 100, 50, true);
     expect(packed[225]).toBe(3);
     expect(packed[226]).toBe(3);
+    expect(Array.from(packed.slice(
+      PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
+      PHOTOSHOP_LEVELS_CHANNELS_OFFSET + 5
+    ))).toEqual([12, 1.25, 238, 4, 249]);
   });
 });

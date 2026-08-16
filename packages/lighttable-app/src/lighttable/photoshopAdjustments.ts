@@ -26,6 +26,19 @@ export const isPhotoshopAdjustmentKind = (
 
 export type RgbTriplet = [number, number, number];
 export type RgbaColor = { r: number; g: number; b: number; a: number };
+export type LevelsChannel = 'rgb' | 'red' | 'green' | 'blue';
+export interface LevelsChannelSettings {
+  input: RgbTriplet;
+  output: [number, number];
+}
+export type LevelsChannels = Record<LevelsChannel, LevelsChannelSettings>;
+
+const createDefaultLevelsChannels = (): LevelsChannels => ({
+  rgb: { input: [0, 1, 255], output: [0, 255] },
+  red: { input: [0, 1, 255], output: [0, 255] },
+  green: { input: [0, 1, 255], output: [0, 255] },
+  blue: { input: [0, 1, 255], output: [0, 255] }
+});
 
 /**
  * Canonical authored payload for Photoshop-shaped nodes that do not map to a
@@ -38,9 +51,8 @@ export interface PhotoshopAdjustmentSettings {
   brightness: number;
   contrast: number;
   useLegacyBrightnessContrast: boolean;
-  levelsChannel: 'rgb' | 'red' | 'green' | 'blue';
-  levelsInput: RgbTriplet;
-  levelsOutput: [number, number];
+  levelsChannel: LevelsChannel;
+  levels: LevelsChannels;
   exposure: number;
   exposureOffset: number;
   exposureGamma: number;
@@ -80,8 +92,7 @@ export const createDefaultPhotoshopAdjustment = (
   contrast: 0,
   useLegacyBrightnessContrast: false,
   levelsChannel: 'rgb',
-  levelsInput: [0, 1, 255],
-  levelsOutput: [0, 255],
+  levels: createDefaultLevelsChannels(),
   exposure: 0,
   exposureOffset: 0,
   exposureGamma: 1,
@@ -115,4 +126,25 @@ export const createDefaultPhotoshopAdjustment = (
 
 export const clonePhotoshopAdjustment = (
   value: PhotoshopAdjustmentSettings
-): PhotoshopAdjustmentSettings => structuredClone(value);
+): PhotoshopAdjustmentSettings => {
+  const defaults = createDefaultLevelsChannels();
+  const legacy = value as PhotoshopAdjustmentSettings & {
+    levelsInput?: RgbTriplet;
+    levelsOutput?: [number, number];
+  };
+  const levels = value.levels
+    ? {
+      rgb: { ...defaults.rgb, ...value.levels.rgb },
+      red: { ...defaults.red, ...value.levels.red },
+      green: { ...defaults.green, ...value.levels.green },
+      blue: { ...defaults.blue, ...value.levels.blue }
+    }
+    : defaults;
+  if (!value.levels && legacy.levelsInput && legacy.levelsOutput) {
+    levels[value.levelsChannel ?? 'rgb'] = {
+      input: legacy.levelsInput,
+      output: legacy.levelsOutput
+    };
+  }
+  return structuredClone({ ...value, levels });
+};

@@ -427,8 +427,10 @@ describe('PSD export projection', () => {
     values.photoshopAdjustment = {
       ...values.photoshopAdjustment,
       kind: 'levels',
-      levelsInput: [10, 1.2, 240],
-      levelsOutput: [3, 250]
+      levels: {
+        ...values.photoshopAdjustment.levels,
+        rgb: { input: [10, 1.2, 240], output: [3, 250] }
+      }
     };
     const stack = selectAdjustmentLayerModules(
       createAdjustmentStackFromBasicAdjustments(values),

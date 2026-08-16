@@ -245,22 +245,24 @@ const importedPhotoshopSettings = (
         ['rgb', source.rgb], ['red', source.red], ['green', source.green], ['blue', source.blue]
       ] as const;
       const authored = channels.filter(([, value]) => Boolean(value));
-      const selected = authored[0];
-      if (!selected?.[1]) return null;
+      if (!authored.length) return null;
       const settings = result('levels');
-      settings.levelsChannel = selected[0];
-      settings.levelsInput = [
-        selected[1].shadowInput, selected[1].midtoneInput, selected[1].highlightInput
-      ];
-      settings.levelsOutput = [selected[1].shadowOutput, selected[1].highlightOutput];
-      const approximate = authored.length > 1;
+      for (const [channel, value] of authored) {
+        if (!value) continue;
+        settings.levels[channel] = {
+          input: [value.shadowInput, value.midtoneInput, value.highlightInput],
+          output: [value.shadowOutput, value.highlightOutput]
+        };
+      }
+      const nonNeutral = authored.find(([, value]) => value && (
+        value.shadowInput !== 0 || value.midtoneInput !== 1 || value.highlightInput !== 255
+        || value.shadowOutput !== 0 || value.highlightOutput !== 255
+      ));
+      settings.levelsChannel = nonNeutral?.[0] ?? authored[0]![0];
       return {
         kind: settings.kind, settings,
-        support: approximate ? 'approximate' : 'native',
-        reason: approximate
-          ? 'The primary Levels channel is editable; additional authored Photoshop channels remain preserved in the source descriptor.'
-          : 'Photoshop Levels is mapped to the native channel-aware LightTable Levels node.',
-        ...(approximate ? { warning: 'Photoshop Levels contains multiple authored channels; LightTable currently edits the first channel and preserves the complete descriptor.' } : {})
+        support: 'native',
+        reason: 'Photoshop composite and per-channel Levels are mapped to the native channel-aware LightTable Levels node.'
       };
     }
     case 'exposure': {

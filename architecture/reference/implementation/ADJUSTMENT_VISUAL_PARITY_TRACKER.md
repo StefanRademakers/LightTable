@@ -88,3 +88,36 @@ Calibration can be regenerated with
 is Adobe's [Brightness / Contrast documentation](https://helpx.adobe.com/uk/photoshop/using/apply-brightness-contrast-adjustment.html);
 the oracle, rather than an invented smoothing curve, is the implementation
 authority.
+
+## Levels
+
+Status: accepted.
+
+Photoshop Levels operates on encoded document channels, not on LightTable's
+canonical linear-light composite. The standard input range, gamma power, and
+output range are therefore applied after encoding to the PSD blend profile and
+decoded again before the next compositor node. Neutral remains exact.
+
+A Photoshop Levels descriptor contains four simultaneously active transfer
+functions: composite RGB plus Red, Green, and Blue. LightTable previously kept
+only the first editable channel, which is commonly Photoshop's neutral RGB
+entry, so authored per-channel work could render neutral. The node model, UI,
+PSD import/export, and GPU payload now retain all four. Black-box stack testing
+also established Photoshop's order: per-channel transfer functions run first,
+then the composite RGB transfer function.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Grayscale and channel ramp | untagged / 8-bit | 20 | 0.314% | 1.842% | 99.686% |
+| `D:\people.jpg` | untagged / 8-bit | 9 | 0.282% | 0.996% | 99.718% |
+| `D:\people.jpg` | sRGB / 16-bit | 9 | 0.338% | 1.021% | 99.662% |
+
+All cases pass the 5-percent per-case gate, including 80-percent endpoints,
+gamma 0.1 and 9.99, isolated R/G/B channels, and a simultaneous composite-plus-
+red stack. The original linear-light, single-channel renderer scored 92.180%
+with only 42.1% of cases passing; the accepted renderer scores 99.686% with all
+cases passing. The largest residual is Photoshop's protected/quantized deep-shadow
+response at gamma 2–5 in the 8-bit path (for gamma 5 it disappears above code
+8). LightTable deliberately retains its smooth float response rather than
+adding an ungrounded shadow curve; this remains a documented holdout for a
+future measured transfer implementation.
