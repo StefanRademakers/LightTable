@@ -7,6 +7,25 @@ migration. The editor engine, UI, CSS, icons, tests and design notes live here;
 product hosts connect through explicit capabilities instead of importing host
 state, S3 details or application routes.
 
+## Current editing model
+
+- `Properties` is one contextual dock tab. A Layers-tree selection routes it
+  to an independently owned Grade, Lens Fx, adjustment, Text or Layer Effects
+  editor; it is not one monolithic inspector component.
+- Non-destructive processing can live as a standalone adjustment layer, with a
+  linked white mask by default, or as an ordered adjustment attached to one
+  raster layer. Both forms are visible and directly selectable in Layers.
+- The compositor builds a pure ordered plan before WebGPU encoding. Layer and
+  attached-adjustment order are semantic; optimization may only fuse proven
+  equivalent nodes. Working composition uses linear-light `rgba16float`, while
+  the current released PSD writer remains an explicit 8-bit RGB subset.
+- Photoshop-family adjustment descriptors now round-trip for the supported
+  set. Color Lookup can load a 3D `.cube` file, retain its exact bytes as a
+  LightTable document asset and embed it in supported PSD interchange.
+- Shared UI lives under `packages/lighttable-app/src/ui`. Production screens
+  and **View > UI Style Guide...** render the same components; contextual
+  geometry is an explicit variant rather than CSS inherited from a container.
+
 ## Development
 
 ```bash
@@ -14,6 +33,7 @@ npm install
 npm run dev:web
 npm run dev:desktop
 npm test
+npm run audit:ui-boundary
 npm run build:web
 npm run package:desktop
 ```

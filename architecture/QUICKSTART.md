@@ -49,6 +49,17 @@ If conversation context disappeared, retain these facts before touching code:
    nearest contracts/tests. For “work all todos,” follow `work/README.md`, finish
    and verify each task, move it to `work/done`, commit it and continue without
    repeatedly asking for permission.
+9. The Layers tree and one contextual `Properties` dock tab are the editing
+   UI model. `Properties` routes one explicit selection target to a separate
+   Grade, Lens Fx, Photoshop-style adjustment, Text or Effects editor.
+10. Non-destructive processing has two visible ownership forms: a standalone
+    adjustment layer affecting the lower composite, or an ordered adjustment
+    attached to one raster layer. Stack order affects output; never reorder or
+    fuse nodes without a proved semantic equivalence.
+11. Shared controls own their internal CSS and geometry under `src/ui`.
+    Containers only supply flow, available space, clipping and placement;
+    contextual differences use named variants and appear identically in the
+    live UI Style Guide.
 
 ## The product in one paragraph
 
@@ -260,10 +271,13 @@ project-gated. Do not make provider adapters aware of project folders. See
 ### Current panel identities
 
 [`workspacePanelRegistry.ts`](../packages/lighttable-app/src/lighttable/editor/workspace/workspacePanelRegistry.ts)
-defines stable identities for the document host, scopes, Grade, Effects, Text,
-Lens Fx, Layers, Channels, Debug, Agent, GenAI and Assets/AI History. Dockview
-may float, tab or rearrange them while their IDs, content and command wiring
-remain stable.
+defines stable identities for the document host, contextual Properties,
+Scopes, Layers, Channels, Debug, Agent, GenAI and Assets/AI History. Grade,
+Lens Fx, Photoshop-style adjustments, Text and Layer Effects are no longer
+separate workspace tabs: they remain separate editor components routed through
+Properties by the selected Layers-tree target. Dockview may float, tab or
+rearrange registered panels while their IDs, content and command wiring remain
+stable.
 
 The current presets are `photo-edit`, `grading` and `ai-generation`. They only
 change the Dockview arrangement. The status bar provides direct switches
@@ -291,18 +305,52 @@ Shared visual language lives in:
   control implementations;
 - [`src/ui`](../packages/lighttable-app/src/ui): buttons, form fields, color
   and gradient fields, segmented controls, switches, numeric expressions,
-  menus, dialogs, sections and search;
-- [`PanelControls.tsx`](../packages/lighttable-app/src/lighttable/editor/ui/PanelControls.tsx)
-  and [`ToolOptionControls.tsx`](../packages/lighttable-app/src/lighttable/editor/ui/ToolOptionControls.tsx):
-  editor-specific compositions of those primitives;
+  menus, dialogs, sections, search, `AdjustmentSlider` and reusable panel
+  compositions;
+- [`PanelControls.tsx`](../packages/lighttable-app/src/ui/PanelControls.tsx):
+  shared property fields and disclosures;
+- [`ToolOptionControls.tsx`](../packages/lighttable-app/src/lighttable/editor/ui/ToolOptionControls.tsx):
+  editor-specific property-bar compositions of those primitives;
 - View > UI Style Guide: a live catalogue of shared production controls plus
   explicitly labelled prototypes; prototypes are exploration, not canonical
   reusable UI.
 
-Feature CSS belongs with the feature, but must consume shared tokens. Do not
-invent a near-duplicate slider, select, swatch or popup because a panel needs a
-minor variation. Dockview theme mapping and editor geometry live in
+Feature CSS belongs with the feature, but must consume shared tokens. A shared
+component owns its internal geometry and states; a container may only arrange
+it or constrain available space. Use an explicit variant such as
+`AdjustmentSlider`'s `tool-bar`, `tool-panel` or `layer-row` rather than an
+ancestor selector. `npm run audit:ui-boundary` rejects editor-domain imports
+from `src/ui` and feature stylesheets that reach into protected UI roots. Do
+not invent a near-duplicate slider, select, swatch or popup because a panel
+needs a minor variation. Dockview theme mapping and editor geometry live in
 [`lighttable.css`](../packages/lighttable-app/src/lighttable/lighttable.css).
+
+### Contextual Properties and adjustment ownership
+
+[`propertiesInspectorTarget.ts`](../packages/lighttable-app/src/lighttable/application/properties/propertiesInspectorTarget.ts)
+is the selection contract. It distinguishes a layer, mask, local processing
+owner, attached adjustment, Layer Style stack and individual style effect.
+[`PropertiesPanel.tsx`](../packages/lighttable-app/src/lighttable/editor/panels/PropertiesPanel.tsx)
+is deliberately a thin router: it mounts exactly one independently owned
+editor for the resolved context.
+
+The Layers UI exposes two non-destructive forms:
+
+```text
+Grade                            standalone adjustment layer + linked white mask
+Background
+  Grade                          local/attached adjustment on Background
+  Effects
+    Drop Shadow                  Layer Style, not processing/Grade
+```
+
+The adjustment creation catalog is centralized in
+[`adjustmentLayerCatalog.ts`](../packages/lighttable-app/src/lighttable/processing/adjustmentLayerCatalog.ts).
+It supplies one grouped menu and icon/name/order vocabulary for Grade, Lens Fx,
+Photoshop-family adjustments and LightTable-native composites. A menu row may
+create a standalone layer or, where supported, attach the same authored node to
+the selected raster layer. Attached processing is not represented with the
+Layer Effects `fx` mark.
 
 ## Tools, input and history
 
@@ -373,6 +421,21 @@ is the only service that may encode layer ordering, groups, clipping, masks,
 transforms, local adjustments and layer styles. It has a no-op fast path for a
 single full-canvas identity raster.
 
+Adjustment order is part of the document meaning. A standalone adjustment
+consumes the accumulated lower composite at its exact layer position; an
+attached adjustment evaluates in authored order inside its owning raster
+layer. Grade is currently a convenient composite editor over registered
+processing modules, not a privileged second pixel pipeline. A future optimizer
+may collapse compatible adjacent operations, but only as a runtime plan rewrite
+with identical masks, clipping, color-domain behavior and outputâ€”never by
+rewriting canonical authored order.
+
+Document color intermediates and compositor targets use linear-light
+`rgba16float`. That higher-precision working path is independent from file
+representability: the current PSD writer still emits its verified 8-bit RGB
+subset, and a 16-bit working document must not be advertised as 16-bit PSD
+export support.
+
 [`LayerDocumentRenderer.ts`](../packages/lighttable-app/src/lighttable/editor/rendering/LayerDocumentRenderer.ts)
 owns the document-facing renderer runtime: synchronization, source resources,
 composition, picking, thumbnails, merge/flatten/rasterize, paint, selection,
@@ -438,10 +501,11 @@ be proven by at least two consumers and likely separates:
 The current large `LightTableEditorOverlay`, `LayerDocumentRenderer` and
 `WebGpuEngine` façades are the main warning signs. Extract cohesive owners;
 do not replace them with a vague universal manager or a premature public SDK.
-The architecture audit also currently flags `layerShaders.ts`,
-`documentCommands.ts`, `layeredDocumentFormat.ts` and `LayerPanel.tsx` above
-their documented source-size budgets. These are ownership signals, not an
-invitation to raise the budgets or perform cosmetic file splitting.
+The architecture audit currently flags `LightTableEditorOverlay.tsx`,
+`WebGpuEngine.ts`, `layerShaders.ts`, `documentCommands.ts`,
+`layeredDocumentFormat.ts`, `LayerPanel.tsx` and `shaders.ts` above their
+documented source-size budgets. These are ownership signals, not an invitation
+to raise the budgets or perform cosmetic file splitting.
 
 ## Semantic commands, stable IDs and external control
 
@@ -637,8 +701,19 @@ Current PSD export supports an 8-bit RGB merged composite plus a substantial
 editable subset: raster layers with baked arbitrary affine bounds, groups,
 visibility, opacity/fill, blend, clipping, locks, raster masks with density/
 feather, editable point/paragraph text and runs, vectors/fills/strokes/gradients,
-and mapped Layer Styles. Known lossy cases fail closed or require explicit
-handling rather than silently flattening.
+and mapped Layer Styles. Supported authored Photoshop-family adjustment layers
+are projected to native editable descriptors, including Curves, Gradient Map,
+Vibrance and the registered classic adjustment kinds. A supported adjustment
+attached to a raster layer is exported as a clipped adjustment layer above its
+owner; this preserves the local visual relationship but is not a Photoshop
+Smart Filter claim. Known lossy cases fail closed or require explicit handling
+rather than silently flattening.
+
+Color Lookup accepts supported 3D `.cube` tables. The exact source bytes are a
+document-scoped LightTable asset, realized lazily as a GPU LUT and embedded in
+the LightTable file and supported Photoshop Color Lookup descriptor. Basic
+`LUT_3D_SIZE` with optional `DOMAIN_MIN`/`DOMAIN_MAX` is current; 1D and combined
+shaper/3D formats remain unsupported.
 
 Still gated include 16-bit PSD/PSB writing, Smart Object and Smart Filter
 semantics, unsupported native adjustment descriptors, patterns, some path-text
