@@ -13,6 +13,8 @@ import { findDocumentLayer } from '../../editor/document/layerTree';
 import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
 import {
   adjustmentStackForOwner,
+  adjustmentStackHasLocalProcessing,
+  adjustmentStackLocalProcessingIsEnabled,
   adjustmentStackOwnerIsEnabled,
   createAdjustmentStackFromBasicAdjustments
 } from '../../processing/adjustmentStack';
@@ -43,7 +45,10 @@ const setup = (initialDocument: ImageDocument) => {
     beginDocumentTransaction: vi.fn(),
     endDocumentTransaction: vi.fn(),
     createAdjustmentLayer: vi.fn(),
+    createCurvesAdjustmentLayer: vi.fn(),
     createLensFxLayer: vi.fn(),
+    createAdjustmentLayerOfKind: vi.fn(),
+    createAttachedAdjustment: vi.fn(() => null),
     addActiveLayerMask: vi.fn(() => true),
     duplicateActiveLayer: vi.fn(() => true),
     rasterizeActiveTextLayer: vi.fn(() => true),
@@ -208,7 +213,8 @@ describe('createLayerPanelController', () => {
     expect(
       bypassed?.type === 'raster'
       && bypassed.adjustmentStack
-      && !adjustmentStackOwnerIsEnabled(bypassed.adjustmentStack, 'grade')
+      && !adjustmentStackLocalProcessingIsEnabled(bypassed.adjustmentStack, 'grade')
+      && adjustmentStackLocalProcessingIsEnabled(bypassed.adjustmentStack, 'curves')
       && adjustmentStackOwnerIsEnabled(bypassed.adjustmentStack, 'lens-fx')
     ).toBe(true);
 
@@ -220,9 +226,25 @@ describe('createLayerPanelController', () => {
     expect(
       restored?.type === 'raster'
       && restored.adjustmentStack
-      && adjustmentStackOwnerIsEnabled(restored.adjustmentStack, 'grade')
+      && adjustmentStackLocalProcessingIsEnabled(restored.adjustmentStack, 'grade')
       && adjustmentStackOwnerIsEnabled(restored.adjustmentStack, 'lens-fx')
     ).toBe(true);
+  });
+
+  it('creates a neutral attached Curves node without manufacturing local Grade', () => {
+    const document = createImageDocument('test', 100, 100, 'asset');
+    const harness = setup(document);
+    const layerId = document.activeLayerId!;
+
+    harness.controller.createLocalProcessing(layerId, 'curves');
+    const layer = findDocumentLayer(harness.document(), layerId);
+
+    expect(layer?.type === 'raster' && layer.adjustmentStack
+      ? adjustmentStackHasLocalProcessing(layer.adjustmentStack, 'curves')
+      : false).toBe(true);
+    expect(layer?.type === 'raster' && layer.adjustmentStack
+      ? adjustmentStackHasLocalProcessing(layer.adjustmentStack, 'grade')
+      : true).toBe(false);
   });
 
   it('bypasses attached Lens Fx without disabling the attached Grade', () => {
@@ -266,8 +288,11 @@ describe('createLayerPanelController', () => {
     const layer = findDocumentLayer(harness.document(), layerId);
 
     expect(layer?.type === 'raster' && layer.adjustmentStack
-      ? adjustmentStackForOwner(layer.adjustmentStack, 'grade').modules
-      : null).toEqual([]);
+      ? adjustmentStackHasLocalProcessing(layer.adjustmentStack, 'grade')
+      : true).toBe(false);
+    expect(layer?.type === 'raster' && layer.adjustmentStack
+      ? adjustmentStackHasLocalProcessing(layer.adjustmentStack, 'curves')
+      : false).toBe(true);
     expect(layer?.type === 'raster' && layer.adjustmentStack
       ? adjustmentStackForOwner(layer.adjustmentStack, 'lens-fx').modules.length
       : 0).toBeGreaterThan(0);

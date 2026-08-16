@@ -2,6 +2,11 @@ import { cloneColorMixer, createDefaultColorMixer, type ColorMixerAdjustments } 
 import { cloneColorGrading, createDefaultColorGrading, type ColorGradingAdjustments } from './colorGrading';
 import { cloneCurves, createDefaultCurves, type CurvesAdjustments } from './curves';
 import { cloneEffects, createDefaultEffects, type LightTableEffects } from './effects/types';
+import {
+  clonePhotoshopAdjustment,
+  createDefaultPhotoshopAdjustment,
+  type PhotoshopAdjustmentSettings
+} from './photoshopAdjustments';
 
 export interface GradientMapStop {
   position: number;
@@ -58,6 +63,7 @@ export interface BasicAdjustments {
   curves: CurvesAdjustments;
   /** Optional during alpha-format reads; defaults always materialize it. */
   gradientMap?: GradientMapAdjustments;
+  photoshopAdjustment: PhotoshopAdjustmentSettings;
   effects: LightTableEffects;
 }
 
@@ -106,6 +112,7 @@ export const DEFAULT_BASIC_ADJUSTMENTS: Readonly<BasicAdjustments> = Object.free
   colorGrading: createDefaultColorGrading(),
   curves: createDefaultCurves(),
   gradientMap: createDefaultGradientMap(),
+  photoshopAdjustment: createDefaultPhotoshopAdjustment(),
   effects: createDefaultEffects()
 });
 
@@ -115,6 +122,9 @@ export const cloneAdjustments = (adjustments: BasicAdjustments): BasicAdjustment
   colorGrading: cloneColorGrading(adjustments.colorGrading),
   curves: cloneCurves(adjustments.curves),
   gradientMap: structuredClone(adjustments.gradientMap ?? createDefaultGradientMap()),
+  photoshopAdjustment: clonePhotoshopAdjustment(
+    adjustments.photoshopAdjustment ?? createDefaultPhotoshopAdjustment()
+  ),
   effects: cloneEffects(adjustments.effects)
 });
 
@@ -124,5 +134,6 @@ export const createDefaultAdjustments = (): BasicAdjustments => ({
   colorGrading: cloneColorGrading(DEFAULT_BASIC_ADJUSTMENTS.colorGrading),
   curves: cloneCurves(DEFAULT_BASIC_ADJUSTMENTS.curves),
   gradientMap: structuredClone(DEFAULT_BASIC_ADJUSTMENTS.gradientMap ?? createDefaultGradientMap()),
+  photoshopAdjustment: clonePhotoshopAdjustment(DEFAULT_BASIC_ADJUSTMENTS.photoshopAdjustment),
   effects: cloneEffects(DEFAULT_BASIC_ADJUSTMENTS.effects)
 });

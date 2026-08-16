@@ -496,11 +496,13 @@ describe('importPsdDocument', () => {
     const layer = result.document.layers[0];
     expect(layer.type).toBe('adjustment');
     if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
-    expect(materializeBasicAdjustments(layer.adjustmentStack).exposureEV).toBe(1.25);
+    expect(layer.adjustmentKind).toBe('exposure');
+    expect(materializeBasicAdjustments(layer.adjustmentStack).photoshopAdjustment)
+      .toMatchObject({ kind: 'exposure', exposure: 1.25, exposureOffset: 0, exposureGamma: 1 });
     expect(result.assets).toHaveLength(0);
   });
 
-  it('maps Photoshop Levels to editable LightTable curve channels', () => {
+  it('maps Photoshop Levels to the channel-aware native Levels node', () => {
     const result = importPsdDocument(decoded([raster('levels', {
       kind: 'adjustment',
       pixels: null,
@@ -519,12 +521,14 @@ describe('importPsdDocument', () => {
     expect(layer.type).toBe('adjustment');
     if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
     const settings = materializeBasicAdjustments(layer.adjustmentStack);
-    expect(settings.curves.master).toHaveLength(33);
-    expect(settings.curves.master[0]?.y).toBeCloseTo(8 / 255);
-    expect(settings.curves.master.at(-1)?.y).toBeCloseTo(246 / 255);
+    expect(layer.adjustmentKind).toBe('levels');
+    expect(settings.photoshopAdjustment).toMatchObject({
+      kind: 'levels', levelsChannel: 'rgb',
+      levelsInput: [16, 1.3, 235], levelsOutput: [8, 246]
+    });
   });
 
-  it('maps Photoshop Invert to an exact editable master curve', () => {
+  it('maps Photoshop Invert to its dedicated native node', () => {
     const result = importPsdDocument(decoded([raster('invert', {
       kind: 'adjustment',
       pixels: null,
@@ -533,10 +537,9 @@ describe('importPsdDocument', () => {
     const layer = result.document.layers[0];
     expect(layer.type).toBe('adjustment');
     if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
-    expect(materializeBasicAdjustments(layer.adjustmentStack).curves.master).toEqual([
-      { x: 0, y: 1 },
-      { x: 1, y: 0 }
-    ]);
+    expect(layer.adjustmentKind).toBe('invert');
+    expect(materializeBasicAdjustments(layer.adjustmentStack).photoshopAdjustment.kind)
+      .toBe('invert');
   });
 
   it('maps a solid Photoshop Gradient Map to the native ordered gradient executor', () => {
@@ -573,5 +576,98 @@ describe('importPsdDocument', () => {
     expect(result.compatibility).toContainEqual(expect.objectContaining({
       feature: 'adjustment', support: 'native'
     }));
+  });
+
+  it.each([
+    ['brightness-contrast', { type: 'brightness/contrast', brightness: 12, contrast: 8 }],
+    ['exposure', { type: 'exposure', exposure: 1, offset: 0.01, gamma: 1.1 }],
+    ['hue-saturation', { type: 'hue/saturation', master: { a: 0, b: 0, c: 0, d: 0, hue: 5, saturation: 6, lightness: 7 } }],
+    ['color-balance', { type: 'color balance', shadows: { cyanRed: 1, magentaGreen: 2, yellowBlue: 3 } }],
+    ['black-white', { type: 'black & white', reds: 41, yellows: 59 }],
+    ['photo-filter', { type: 'photo filter', color: { r: 255, g: 128, b: 0 }, density: 24 }],
+    ['channel-mixer', { type: 'channel mixer', red: { red: 100, green: 0, blue: 0, constant: 0 } }],
+    ['color-lookup', { type: 'color lookup', lut3DFileName: 'LightTable-moonlight.cube', lut3DFileData: new Uint8Array([1]) }],
+    ['selective-color', { type: 'selective color', mode: 'relative', reds: { c: 1, m: 2, y: 3, k: 4 } }],
+    ['posterize', { type: 'posterize', levels: 6 }],
+    ['threshold', { type: 'threshold', level: 110 }]
+  ] as const)('restores Photoshop %s as its dedicated contextual adjustment node', (kind, adjustment) => {
+    const result = importPsdDocument(decoded([raster(kind, {
+      kind: 'adjustment', pixels: null, adjustment
+    })]), `${kind}.psd`);
+    const layer = result.document.layers[0];
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer.');
+
+    expect(layer.adjustmentKind).toBe(kind);
+    expect(materializeBasicAdjustments(layer.adjustmentStack).photoshopAdjustment.kind)
+      .toBe(kind);
+  });
+
+  it('restores an embedded Photoshop .cube LUT as a document asset', async () => {
+    const sourceText = [
+      'TITLE "Imported Cinematic"',
+      'LUT_3D_SIZE 2',
+      '0 0 0', '1 0 0', '0 1 0', '1 1 0',
+      '0 0 1', '1 0 1', '0 1 1', '1 1 1', ''
+    ].join('\n');
+    const sourceBytes = new TextEncoder().encode(sourceText);
+    const result = importPsdDocument(decoded([raster('custom-lookup', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: {
+        type: 'color lookup',
+        lutFormat: 'cube',
+        lut3DFileName: 'Imported.cube',
+        lut3DFileData: sourceBytes
+      }
+    })]), 'custom-lookup.psd');
+    const layer = result.document.layers[0];
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer.');
+    const settings = materializeBasicAdjustments(layer.adjustmentStack).photoshopAdjustment;
+    const metadata = result.document.assets.colorLookups[0];
+    const binary = result.assets.find((asset) => 'lutId' in asset);
+
+    expect(metadata).toMatchObject({
+      id: settings.colorLookupAssetId,
+      name: 'Imported Cinematic',
+      size: 2,
+      byteLength: sourceBytes.byteLength
+    });
+    expect(binary && 'lutId' in binary ? binary.lutId : null).toBe(metadata?.id);
+    expect(binary && 'lutId' in binary
+      ? new Uint8Array(await binary.source.arrayBuffer())
+      : null).toEqual(sourceBytes);
+  });
+
+  it('folds simple clipped Photoshop adjustment layers into ordered attached nodes', () => {
+    const result = importPsdDocument(decoded([
+      raster('pixels'),
+      raster('attached-levels', {
+        kind: 'adjustment', pixels: null, clipping: true,
+        adjustment: {
+          type: 'levels',
+          rgb: {
+            shadowInput: 9, midtoneInput: 1.15, highlightInput: 241,
+            shadowOutput: 2, highlightOutput: 252
+          }
+        }
+      }),
+      raster('attached-invert', {
+        kind: 'adjustment', pixels: null, clipping: true,
+        adjustment: { type: 'invert' }
+      })
+    ]), 'attached.psd');
+
+    expect(result.document.layers).toHaveLength(1);
+    const layer = result.document.layers[0];
+    if (layer.type !== 'raster') throw new Error('Expected raster base.');
+    expect(layer.attachedAdjustments?.map(({ adjustmentKind, name }) => ({
+      adjustmentKind, name
+    }))).toEqual([
+      { adjustmentKind: 'levels', name: 'attached-levels' },
+      { adjustmentKind: 'invert', name: 'attached-invert' }
+    ]);
+    expect(materializeBasicAdjustments(
+      layer.attachedAdjustments![0]!.adjustmentStack
+    ).photoshopAdjustment.levelsInput).toEqual([9, 1.15, 241]);
   });
 });

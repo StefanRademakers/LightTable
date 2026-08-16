@@ -113,6 +113,13 @@ describe('LightTable WGSL modules', () => {
     expect(allShaders).not.toMatch(/\.[rgbaxyzw]{2,4}\s*[+\-*/]=/);
   });
 
+  it('keeps mutable Photoshop Levels channel output writable for Dawn', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('var adjusted = mix(vec3f(outputBlack)');
+    expect(CREATIVE_GRADE_WGSL).not.toContain('let adjusted = mix(vec3f(outputBlack)');
+    expect(CREATIVE_GRADE_WGSL).toContain('var rotated = vec2f(');
+    expect(CREATIVE_GRADE_WGSL).not.toContain('let rotated = vec2f(');
+  });
+
   it('uses one shared smooth scene-to-display transform instead of the old gamut clamp', () => {
     expect(OUTPUT_TRANSFORM_WGSL).toContain('fn sceneToDisplay');
     expect(OUTPUT_TRANSFORM_WGSL).toContain('fn displayShoulder');

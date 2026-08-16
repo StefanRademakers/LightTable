@@ -6,6 +6,7 @@ import {
 import { createAdjustmentStackFromBasicAdjustments } from '../processing/adjustmentStack';
 import { createDefaultAdjustments } from '../types';
 import { LayerProcessingRenderer } from './layerProcessingRenderer';
+import { selectAdjustmentLayerModules } from '../processing/adjustmentLayerCatalog';
 
 const texture = (name: string) => ({ name }) as unknown as GPUTexture;
 const encoder = {} as GPUCommandEncoder;
@@ -70,5 +71,65 @@ describe('LayerProcessingRenderer', () => {
     );
 
     expect(renderer.encode(encoder, source, layer)).toBe(source);
+  });
+
+  it('exactly bypasses disabled processing owners', () => {
+    const source = texture('source');
+    const layer = layerWithStack();
+    layer.adjustmentStack = {
+      ...layer.adjustmentStack!,
+      modules: layer.adjustmentStack!.modules.map((module) => ({
+        ...module,
+        enabled: false
+      }))
+    };
+    const grade = { encode: vi.fn() };
+    const effects = {
+      encodeSourceGeometry: vi.fn(),
+      encodeLinearSpatial: vi.fn(),
+      encodeDisplayPost: vi.fn()
+    };
+    const renderer = new LayerProcessingRenderer(grade, effects);
+
+    expect(renderer.encode(encoder, source, layer)).toBe(source);
+    expect(grade.encode).not.toHaveBeenCalled();
+    expect(effects.encodeSourceGeometry).not.toHaveBeenCalled();
+    expect(effects.encodeLinearSpatial).not.toHaveBeenCalled();
+    expect(effects.encodeDisplayPost).not.toHaveBeenCalled();
+  });
+
+  it('processes enabled attached nodes in authored order after the raster stack', () => {
+    const source = texture('source');
+    const attachmentStack = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'exposure'
+    );
+    const layer = {
+      ...layerWithStack(),
+      adjustmentStack: null,
+      attachedAdjustments: [{
+        id: 'first', adjustmentKind: 'exposure' as const, name: 'Exposure',
+        enabled: true, revision: 0, adjustmentStack: attachmentStack
+      }, {
+        id: 'disabled', adjustmentKind: 'threshold' as const, name: 'Threshold',
+        enabled: false, revision: 0, adjustmentStack: attachmentStack
+      }]
+    };
+    const output = texture('attached-output');
+    const grade = {
+      encode: vi.fn((_encoder: GPUCommandEncoder, _source: GPUTexture, _layer: RasterLayer) => output)
+    };
+    const effects = {
+      encodeSourceGeometry: vi.fn(),
+      encodeLinearSpatial: vi.fn(),
+      encodeDisplayPost: vi.fn()
+    };
+    const renderer = new LayerProcessingRenderer(grade, effects);
+
+    expect(renderer.encode(encoder, source, layer)).toBe(output);
+    expect(grade.encode).toHaveBeenCalledTimes(1);
+    expect(grade.encode.mock.calls[0]?.[2]).toMatchObject({
+      name: 'Exposure', adjustmentStack: attachmentStack
+    });
   });
 });

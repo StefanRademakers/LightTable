@@ -1,6 +1,7 @@
 import React from 'react';
-import { AdjustmentSlider } from '../../AdjustmentSlider';
-import { ColorSwatchField } from '../../../ui/ColorSwatchField';
+import { AdjustmentSlider } from './AdjustmentSlider';
+import { ColorSwatchField } from './ColorSwatchField';
+import { ActionButton } from './ActionButton';
 
 export interface PanelColor {
   readonly r: number;
@@ -26,9 +27,11 @@ export const PanelSelectField: React.FC<{
   label: string;
   value: string;
   options: readonly { value: string; label: string }[];
+  labelWidth?: string;
   onChange: (value: string) => void;
-}> = ({ label, value, options, onChange }) => (
-  <label className="lighttable-style-field">
+}> = ({ label, value, options, labelWidth, onChange }) => (
+  <label className="lighttable-style-field"
+    style={labelWidth ? { '--lt-property-label-width': labelWidth } as React.CSSProperties : undefined}>
     <span>{label}</span>
     <select value={value} onChange={(event) => onChange(event.currentTarget.value)}>
       {options.map((option) => (
@@ -37,6 +40,54 @@ export const PanelSelectField: React.FC<{
     </select>
   </label>
 );
+
+const acceptedFile = (file: File, accept: string) => {
+  const rules = accept.split(',').map((rule) => rule.trim().toLowerCase()).filter(Boolean);
+  if (!rules.length) return true;
+  const name = file.name.toLowerCase();
+  const mediaType = file.type.toLowerCase();
+  return rules.some((rule) => rule.startsWith('.') ? name.endsWith(rule) : mediaType === rule);
+};
+
+export const PanelFileField: React.FC<{
+  label: string;
+  buttonLabel: string;
+  accept: string;
+  disabled?: boolean;
+  title?: string;
+  onFile: (file: File) => void | Promise<void>;
+  onRejected?: () => void;
+}> = ({ label, buttonLabel, accept, disabled = false, title, onFile, onRejected }) => {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const publish = (files: FileList | null) => {
+    const file = Array.from(files ?? []).find((candidate) => acceptedFile(candidate, accept));
+    if (file) void onFile(file);
+    else if (files?.length) onRejected?.();
+  };
+  return (
+    <div className="lighttable-style-field lighttable-file-field" title={title}
+      onDragEnter={(event) => { event.preventDefault(); event.stopPropagation(); }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'copy';
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        publish(event.dataTransfer.files);
+      }}>
+      <span>{label}</span>
+      <ActionButton size="control" disabled={disabled} onClick={() => inputRef.current?.click()}>
+        {buttonLabel}
+      </ActionButton>
+      <input ref={inputRef} type="file" accept={accept} hidden onChange={(event) => {
+        publish(event.currentTarget.files);
+        event.currentTarget.value = '';
+      }} />
+    </div>
+  );
+};
 
 export const PanelCheckboxField: React.FC<{
   label: string;
@@ -200,8 +251,10 @@ export const PanelAngleControl: React.FC<{
   </div>;
 };
 
-export const PanelAdvancedDisclosure: React.FC<React.PropsWithChildren> = ({ children }) => (
-  <details className="lighttable-style-advanced">
+export const PanelAdvancedDisclosure: React.FC<React.PropsWithChildren<{
+  edge?: 'contained' | 'panel-bleed';
+}>> = ({ children, edge = 'contained' }) => (
+  <details className={`lighttable-style-advanced lighttable-style-advanced--${edge}`}>
     <summary>Advanced</summary>
     <div className="lighttable-style-advanced__content">{children}</div>
   </details>

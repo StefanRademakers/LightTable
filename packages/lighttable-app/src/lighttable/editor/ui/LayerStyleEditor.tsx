@@ -24,7 +24,7 @@ import {
   PanelColorSwatch as ColorSwatch,
   PanelNumberSlider as NumberSlider,
   PanelSelectField as SelectField
-} from './PanelControls';
+} from '../../../ui/PanelControls';
 
 interface LayerStyleEditorProps {
   mode?: 'dialog' | 'panel';
@@ -182,7 +182,7 @@ const ShadowControls: React.FC<{
         />
       </div>
     </div>
-    <PanelAdvancedDisclosure>
+    <PanelAdvancedDisclosure edge="panel-bleed">
         <SelectField
           label="Blend mode"
           value={effect.blendMode}
@@ -261,7 +261,7 @@ const GlowControls: React.FC<{
         ]} onChange={(source) => patch({ source: source as typeof effect.source })} />
       ) : null}
     </div>
-    <PanelAdvancedDisclosure>
+    <PanelAdvancedDisclosure edge="panel-bleed">
       <SelectField label="Fill" value={effect.gradient ? 'gradient' : 'color'} options={[
         { value: 'color', label: 'Color' }, { value: 'gradient', label: 'Gradient' }
       ]} onChange={(fill) => patch({
@@ -346,7 +346,7 @@ const StrokeControls: React.FC<{
       <NumberSlider label="Opacity" value={effect.opacity * 100} min={0} max={100}
         suffix="%" resetValue={100} onChange={(opacity) => patch({ opacity: opacity / 100 })} />
     </div>
-    <PanelAdvancedDisclosure>
+    <PanelAdvancedDisclosure edge="panel-bleed">
       <SelectField label="Blend mode" value={effect.blendMode}
         options={BLEND_MODES.map((mode) => ({ value: mode.id, label: mode.label }))}
         onChange={(blendMode) => patch({ blendMode: blendMode as BlendMode })} />

@@ -5,6 +5,7 @@ import type {
   DocumentAssetId,
   DocumentFontAsset,
   DerivedLayerPreview,
+  AttachedAdjustment,
   ImageDocument,
   LayerId,
   LayerLocks,
@@ -24,6 +25,7 @@ import {
 } from '../../processing/adjustmentStack';
 import { CURRENT_PROCESSING_MODULES } from '../../processing/moduleDefinitions';
 import type { AffineMatrix } from '../rendering/renderContract';
+import { isAdjustmentLayerKind, type AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 import { isFiniteAffineMatrix } from '../rendering/renderContract';
 import type { LayerStyleStack } from '../styles/layerStyleTypes';
 import { cloneLayerStyleStack } from '../styles/layerStyleDefaults';
@@ -44,6 +46,7 @@ const FOOTER_SIZE = 12;
 const MANIFEST_VERSION = 1 as const;
 const MAX_FONT_BYTES = 64 * 1024 * 1024;
 const MAX_DOCUMENT_FONT_BYTES = 256 * 1024 * 1024;
+const MAX_COLOR_LOOKUP_BYTES = 32 * 1024 * 1024;
 
 interface BinaryAssetReference {
   offset: number;
@@ -83,6 +86,7 @@ interface RasterLayerManifestEntry extends CommonLayerManifestEntry {
   offsetX: number;
   offsetY: number;
   adjustmentStack: AdjustmentStack | null;
+  attachedAdjustments?: AttachedAdjustment[];
   pixel: BinaryAssetReference;
   mask: RasterMaskManifestEntry | null;
 }
@@ -96,6 +100,7 @@ interface GroupLayerManifestEntry extends CommonLayerManifestEntry {
 
 interface AdjustmentLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'adjustment';
+  adjustmentKind: AdjustmentLayerKind | null;
   adjustmentStack: AdjustmentStack;
   mask: RasterMaskManifestEntry | null;
 }
@@ -144,6 +149,16 @@ interface LayeredDocumentManifest {
       revision: number;
       asset: BinaryAssetReference;
     }>;
+    colorLookups?: Array<{
+      id: string;
+      name: string;
+      size: number;
+      domainMin: readonly [number, number, number];
+      domainMax: readonly [number, number, number];
+      byteLength: number;
+      revision: number;
+      asset: BinaryAssetReference;
+    }>;
     preservedSources: Array<{
       id: string;
       kind: 'photoshop-document' | 'pdf-document' | 'illustrator-document';
@@ -172,6 +187,11 @@ export interface PatternAssetBlob {
   source: Blob;
 }
 
+export interface ColorLookupAssetBlob {
+  lutId: DocumentAssetId;
+  source: Blob;
+}
+
 export interface PreservedSourceAssetBlob {
   sourceId: DocumentAssetId;
   source: Blob;
@@ -185,6 +205,7 @@ export interface FontAssetBlob {
 export type DocumentAssetBlob =
   | LayerAssetBlobs
   | PatternAssetBlob
+  | ColorLookupAssetBlob
   | PreservedSourceAssetBlob
   | FontAssetBlob;
 
@@ -194,6 +215,7 @@ export interface ParsedLayeredDocument {
   preview: Blob;
   assets: LayerAssetBlobs[];
   patternAssets: PatternAssetBlob[];
+  colorLookupAssets: ColorLookupAssetBlob[];
   preservedSourceAssets: PreservedSourceAssetBlob[];
   fontAssets: FontAssetBlob[];
 }
@@ -231,6 +253,11 @@ export const buildLayeredDocumentFile = (
     assets
       .filter((asset): asset is PatternAssetBlob => 'patternId' in asset)
       .map((asset) => [asset.patternId, asset])
+  );
+  const assetsByColorLookup = new Map(
+    assets
+      .filter((asset): asset is ColorLookupAssetBlob => 'lutId' in asset)
+      .map((asset) => [asset.lutId, asset])
   );
   const assetsByPreservedSource = new Map(
     assets
@@ -319,6 +346,7 @@ export const buildLayeredDocumentFile = (
       return {
         ...common,
         type: 'adjustment',
+        adjustmentKind: layer.adjustmentKind,
         adjustmentStack: cloneAdjustmentStack(layer.adjustmentStack),
         mask
       };
@@ -402,6 +430,10 @@ export const buildLayeredDocumentFile = (
       adjustmentStack: layer.adjustmentStack
         ? cloneAdjustmentStack(layer.adjustmentStack)
         : null,
+      attachedAdjustments: (layer.attachedAdjustments ?? []).map((adjustment) => ({
+        ...adjustment,
+        adjustmentStack: cloneAdjustmentStack(adjustment.adjustmentStack)
+      })),
       pixel,
       mask
     };
@@ -414,6 +446,16 @@ export const buildLayeredDocumentFile = (
     binaryParts.push(binary.source);
     offset += binary.source.size;
     return { ...pattern, asset };
+  });
+  const colorLookups = document.assets.colorLookups.map((lookup) => {
+    const binary = assetsByColorLookup.get(lookup.id);
+    if (!binary || binary.source.size !== lookup.byteLength) {
+      throw new Error(`Color Lookup asset is missing or inconsistent for ${lookup.name}.`);
+    }
+    const asset = { offset, length: binary.source.size };
+    binaryParts.push(binary.source);
+    offset += binary.source.size;
+    return { ...structuredClone(lookup), asset };
   });
   const preservedSources = document.assets.preservedSources.map((source) => {
     const binary = assetsByPreservedSource.get(source.id);
@@ -463,6 +505,7 @@ export const buildLayeredDocumentFile = (
         ? structuredClone(document.photoshopDocument)
         : null,
       patterns,
+      colorLookups,
       preservedSources,
       fonts,
       layers
@@ -655,7 +698,10 @@ const parseLayerLocks = (value: unknown): LayerLocks => {
   };
 };
 
-const parseAdjustmentStack = (value: unknown): AdjustmentStack => {
+const parseAdjustmentStack = (
+  value: unknown,
+  requireFullInventory = true
+): AdjustmentStack => {
   if (
     !isRecord(value)
     || typeof value.id !== 'string'
@@ -693,7 +739,7 @@ const parseAdjustmentStack = (value: unknown): AdjustmentStack => {
   if (
     modules.some(({ type }) => !knownTypes.has(type))
     || new Set(modules.map(({ id }) => id)).size !== modules.length
-    || requiredBridgeTypes.some((type) => !actualTypes.includes(type))
+    || (requireFullInventory && requiredBridgeTypes.some((type) => !actualTypes.includes(type)))
   ) {
     throw new Error('The LightTable document adjustment module inventory is invalid.');
   }
@@ -750,6 +796,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
   const now = Date.now();
   const assets: LayerAssetBlobs[] = [];
   const patternAssets: PatternAssetBlob[] = [];
+  const colorLookupAssets: ColorLookupAssetBlob[] = [];
   const preservedSourceAssets: PreservedSourceAssetBlob[] = [];
   const fontAssets: FontAssetBlob[] = [];
   const parseLayer = (entry: unknown, path: string): LayerNode => {
@@ -894,7 +941,10 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       return {
         ...common,
         type: 'adjustment',
-        adjustmentStack: parseAdjustmentStack(entry.adjustmentStack),
+        adjustmentKind: isAdjustmentLayerKind(entry.adjustmentKind)
+          ? entry.adjustmentKind
+          : null,
+        adjustmentStack: parseAdjustmentStack(entry.adjustmentStack, false),
         mask: parsedMask.mask
       };
     }
@@ -981,7 +1031,29 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       pixelSource: { kind: 'runtime-raster', runtimeId: id },
       adjustmentStack: entry.adjustmentStack === null
         ? null
-        : parseAdjustmentStack(entry.adjustmentStack),
+        : parseAdjustmentStack(entry.adjustmentStack, false),
+      attachedAdjustments: (Array.isArray(entry.attachedAdjustments)
+        ? entry.attachedAdjustments
+        : []).map((candidate: unknown, index: number) => {
+        if (
+          !isRecord(candidate)
+          || typeof candidate.id !== 'string'
+          || typeof candidate.name !== 'string'
+          || typeof candidate.enabled !== 'boolean'
+          || typeof candidate.revision !== 'number'
+          || !isAdjustmentLayerKind(candidate.adjustmentKind)
+        ) {
+          throw new Error(`Raster layer ${path} attached adjustment ${index + 1} is invalid.`);
+        }
+        return {
+          id: candidate.id,
+          name: candidate.name,
+          enabled: candidate.enabled,
+          revision: candidate.revision,
+          adjustmentKind: candidate.adjustmentKind,
+          adjustmentStack: parseAdjustmentStack(candidate.adjustmentStack, false)
+        };
+      }),
       dirtyBounds: null,
       mask: parsedMask.mask
     };
@@ -1024,6 +1096,52 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
       name: entry.name,
       width: Number(entry.width),
       height: Number(entry.height),
+      revision: Number(entry.revision)
+    };
+  });
+  const rawColorLookups = source.colorLookups ?? [];
+  if (!Array.isArray(rawColorLookups)) {
+    throw new Error('The LightTable document Color Lookup registry is invalid.');
+  }
+  const colorLookups = rawColorLookups.map((entry, index) => {
+    const validDomain = (value: unknown): value is [number, number, number] =>
+      Array.isArray(value) && value.length === 3
+      && value.every((component) => typeof component === 'number' && Number.isFinite(component));
+    const domainMin = isRecord(entry) ? entry.domainMin : undefined;
+    const domainMax = isRecord(entry) ? entry.domainMax : undefined;
+    if (
+      !isRecord(entry)
+      || typeof entry.id !== 'string'
+      || typeof entry.name !== 'string'
+      || !Number.isInteger(entry.size)
+      || Number(entry.size) < 2
+      || Number(entry.size) > 65
+      || !validDomain(domainMin)
+      || !validDomain(domainMax)
+      || domainMin.some((minimum, component) => !(domainMax[component]! > minimum))
+      || !Number.isInteger(entry.byteLength)
+      || Number(entry.byteLength) <= 0
+      || Number(entry.byteLength) > MAX_COLOR_LOOKUP_BYTES
+      || !Number.isInteger(entry.revision)
+      || Number(entry.revision) < 0
+      || !validAssetReference(entry.asset, Number(previewLength), manifestStart)
+      || Number(entry.asset.length) !== Number(entry.byteLength)
+    ) {
+      throw new Error(`Color Lookup ${index + 1} in the LightTable document is invalid.`);
+    }
+    const id = entry.id as DocumentAssetId;
+    const reference = entry.asset;
+    colorLookupAssets.push({
+      lutId: id,
+      source: blob.slice(reference.offset, reference.offset + reference.length, 'application/x-cube')
+    });
+    return {
+      id,
+      name: entry.name,
+      size: Number(entry.size),
+      domainMin: [...domainMin] as [number, number, number],
+      domainMax: [...domainMax] as [number, number, number],
+      byteLength: Number(entry.byteLength),
       revision: Number(entry.revision)
     };
   });
@@ -1240,7 +1358,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     importProvenance,
     photoshopImportReport,
     photoshopDocument,
-    assets: { patterns, preservedSources, fonts },
+    assets: { patterns, colorLookups, preservedSources, fonts },
     revision: 0,
     createdAt: now,
     modifiedAt: now
@@ -1251,6 +1369,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
     preview: blob.slice(0, Number(previewLength), 'image/png'),
     assets,
     patternAssets,
+    colorLookupAssets,
     preservedSourceAssets,
     fontAssets
   };

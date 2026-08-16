@@ -478,6 +478,80 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
+  it('creates a standalone Curves node with exactly one processing module', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+
+    expect(state.commands.createCurvesAdjustmentLayer()).toBe(true);
+
+    const layer = state.document().layers.at(-1);
+    expect(layer?.type).toBe('adjustment');
+    expect(layer?.name).toBe('Curves');
+    if (layer?.type !== 'adjustment') throw new Error('Expected a Curves adjustment layer.');
+    expect(layer.adjustmentKind).toBe('curves');
+    expect(layer.adjustmentStack.modules.map((module) => module.type)).toEqual(['lt.curves']);
+    expect(layer.mask).not.toBeNull();
+  });
+
+  it.each([
+    ['exposure', 'Exposure', 'lt.photoshop-adjustment'],
+    ['vibrance', 'Vibrance', 'lt.global-color'],
+    ['gradient-map', 'Gradient Map', 'lt.gradient-map']
+  ] as const)('creates a focused %s adjustment node', (kind, name, moduleType) => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+
+    expect(state.commands.createAdjustmentLayerOfKind(kind)).toBe(true);
+
+    const layer = state.document().layers.at(-1);
+    expect(layer?.type).toBe('adjustment');
+    expect(layer?.name).toBe(name);
+    if (layer?.type !== 'adjustment') throw new Error(`Expected a ${name} adjustment layer.`);
+    expect(layer.adjustmentKind).toBe(kind);
+    expect(layer.adjustmentStack.modules.map((module) => module.type)).toEqual([moduleType]);
+    if (kind === 'gradient-map') {
+      expect(layer.adjustmentStack.modules[0]?.settings.gradientMap)
+        .toMatchObject({ enabled: true });
+    }
+    expect(layer.mask).not.toBeNull();
+  });
+
+  it.each([
+    'brightness-contrast', 'levels', 'exposure', 'hue-saturation',
+    'color-balance', 'black-white', 'photo-filter', 'channel-mixer',
+    'color-lookup', 'selective-color', 'invert', 'posterize', 'threshold'
+  ] as const)('creates %s as an independent Photoshop adjustment node', (kind) => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    expect(state.commands.createAdjustmentLayerOfKind(kind)).toBe(true);
+    const layer = state.document().layers.at(-1);
+    if (layer?.type !== 'adjustment') throw new Error('Expected an adjustment layer.');
+    expect(layer.adjustmentKind).toBe(kind);
+    expect(layer.adjustmentStack.modules).toHaveLength(1);
+    expect(layer.adjustmentStack.modules[0]?.type).toBe('lt.photoshop-adjustment');
+    expect(layer.adjustmentStack.modules[0]?.settings.photoshopAdjustment)
+      .toMatchObject({ kind });
+    expect(layer.mask).not.toBeNull();
+  });
+
+  it('attaches independent adjustment nodes without replacing the raster local grade', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const raster = state.document().layers[0]!;
+
+    const exposureId = state.commands.createAttachedAdjustment(raster.id, 'exposure');
+    const thresholdId = state.commands.createAttachedAdjustment(raster.id, 'threshold');
+
+    expect(exposureId).toMatch(/^attached-/);
+    expect(thresholdId).toMatch(/^attached-/);
+    expect(state.document().layers).toHaveLength(1);
+    const current = state.document().layers[0];
+    if (current?.type !== 'raster') throw new Error('Expected the raster layer.');
+    expect(current.adjustmentStack).toBeNull();
+    expect(current.attachedAdjustments?.map(({ adjustmentKind }) => adjustmentKind))
+      .toEqual(['exposure', 'threshold']);
+    expect(current.attachedAdjustments?.map(({ adjustmentStack }) =>
+      (adjustmentStack.modules[0]?.settings.photoshopAdjustment as { kind?: string } | undefined)?.kind))
+      .toEqual(['exposure', 'threshold']);
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledTimes(2);
+  });
+
   it('merges contiguous tight raster layers into a reversible full-canvas destination', () => {
     const first = createImageDocument('Test', 32, 24, 'asset');
     const state = setup(createRasterLayer(first, 'Top'));

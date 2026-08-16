@@ -1,6 +1,6 @@
 import { buildCurveLut, cloneCurves, CURVE_CHANNELS, CURVE_LUT_SIZE, type CurvesAdjustments } from '../curves';
 import type { BasicAdjustments } from '../types';
-import { buildAdjustmentUniform } from './adjustmentUniform';
+import { buildAdjustmentUniform, type ColorLookupUniform } from './adjustmentUniform';
 
 export interface AdjustmentGpuPayloadTargets {
   readonly uniformBuffer: GPUBuffer;
@@ -52,13 +52,15 @@ export class AdjustmentGpuPayloadWriter {
     adjustments: BasicAdjustments,
     width: number,
     height: number,
-    inputIsLinearComposite: boolean
+    inputIsLinearComposite: boolean,
+    colorLookup: ColorLookupUniform | null = null
   ): AdjustmentGpuPayloadChange {
     const uniform = buildAdjustmentUniform(
       adjustments,
       width,
       height,
-      inputIsLinearComposite
+      inputIsLinearComposite,
+      colorLookup
     );
     const uniformChanged = !floatArraysEqual(this.lastUniform, uniform);
     if (uniformChanged) {

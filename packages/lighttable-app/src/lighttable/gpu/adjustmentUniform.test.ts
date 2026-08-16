@@ -55,4 +55,31 @@ describe('LightTable adjustment uniform packing', () => {
       0, 0.25, 0.5, expect.closeTo(0.4)
     ]);
   });
+
+  it('packs a dedicated Photoshop Exposure payload after the native ABI', () => {
+    const settings = createDefaultAdjustments();
+    settings.photoshopAdjustment = {
+      ...settings.photoshopAdjustment,
+      kind: 'exposure',
+      exposure: 2.25,
+      exposureOffset: -0.125,
+      exposureGamma: 1.8
+    };
+
+    const packed = buildAdjustmentUniform(settings, 100, 50, true);
+
+    expect(packed[128]).toBe(3);
+    expect(packed[137]).toBe(2.25);
+    expect(packed[138]).toBe(-0.125);
+    expect(packed[139]).toBeCloseTo(1.8);
+  });
+
+  it('packs Levels channel and the built-in Color Lookup preset', () => {
+    const settings = createDefaultAdjustments();
+    settings.photoshopAdjustment.levelsChannel = 'blue';
+    settings.photoshopAdjustment.colorLookupPreset = 'teal-orange';
+    const packed = buildAdjustmentUniform(settings, 100, 50, true);
+    expect(packed[225]).toBe(3);
+    expect(packed[226]).toBe(3);
+  });
 });

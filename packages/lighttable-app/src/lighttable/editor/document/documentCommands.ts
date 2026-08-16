@@ -7,6 +7,7 @@ import {
   createLayerId,
   layerIsLocked,
   type ImageDocument,
+  type AttachedAdjustment,
   type LayerId,
   type LayerLocks,
   type LayerNode,
@@ -31,8 +32,12 @@ import {
 } from '@lighttable/vector-core';
 import { createDefaultGradientPaint, type GradientPaintInstance } from '@lighttable/paint-core';
 import {
+  ensureAdjustmentStackLocalProcessing,
+  removeAdjustmentStackLocalProcessing,
+  setAdjustmentStackLocalProcessingEnabled,
   setAdjustmentStackOwnerEnabled,
   removeAdjustmentStackOwner,
+  type LocalProcessingKind,
   type AdjustmentStackOwner,
   type AdjustmentStack
 } from '../../processing/adjustmentStack';
@@ -280,10 +285,11 @@ export const createAdjustmentLayer = (
   document: ImageDocument,
   adjustmentStack: AdjustmentStack,
   name = 'Grade',
-  aboveLayerId = document.activeLayerId ?? undefined
+  aboveLayerId = document.activeLayerId ?? undefined,
+  adjustmentKind: import('../../processing/adjustmentLayerCatalog').AdjustmentLayerKind | null = null
 ): ImageDocument => {
   const layer = {
-    ...createAdjustmentLayerNode(adjustmentStack, name),
+    ...createAdjustmentLayerNode(adjustmentStack, name, adjustmentKind),
     mask: createDefaultRasterMask()
   };
   const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
@@ -567,6 +573,86 @@ export const setRasterLayerAdjustmentStack = (
   };
 });
 
+export const addRasterLayerAttachedAdjustment = (
+  document: ImageDocument,
+  layerId: LayerId,
+  adjustment: AttachedAdjustment
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster') return layer;
+  return {
+    ...layer,
+    attachedAdjustments: [
+      ...(layer.attachedAdjustments ?? []),
+      structuredClone(adjustment)
+    ],
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+export const setRasterLayerAttachedAdjustmentStack = (
+  document: ImageDocument,
+  layerId: LayerId,
+  adjustmentId: string,
+  adjustmentStack: AdjustmentStack
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster') return layer;
+  let changed = false;
+  const attachedAdjustments = (layer.attachedAdjustments ?? []).map((adjustment) => {
+    if (adjustment.id !== adjustmentId) return adjustment;
+    changed = true;
+    return {
+      ...adjustment,
+      adjustmentStack: structuredClone(adjustmentStack),
+      revision: adjustment.revision + 1
+    };
+  });
+  return changed ? {
+    ...layer,
+    attachedAdjustments,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  } : layer;
+});
+
+export const setRasterLayerAttachedAdjustmentEnabled = (
+  document: ImageDocument,
+  layerId: LayerId,
+  adjustmentId: string,
+  enabled: boolean
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster') return layer;
+  let changed = false;
+  const attachedAdjustments = (layer.attachedAdjustments ?? []).map((adjustment) => {
+    if (adjustment.id !== adjustmentId || adjustment.enabled === enabled) return adjustment;
+    changed = true;
+    return { ...adjustment, enabled, revision: adjustment.revision + 1 };
+  });
+  return changed ? {
+    ...layer,
+    attachedAdjustments,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  } : layer;
+});
+
+export const removeRasterLayerAttachedAdjustment = (
+  document: ImageDocument,
+  layerId: LayerId,
+  adjustmentId: string
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster') return layer;
+  const attachedAdjustments = (layer.attachedAdjustments ?? [])
+    .filter((adjustment) => adjustment.id !== adjustmentId);
+  if (attachedAdjustments.length === (layer.attachedAdjustments ?? []).length) return layer;
+  return {
+    ...layer,
+    attachedAdjustments,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
 export const setRasterLayerAdjustmentStackEnabled = (
   document: ImageDocument,
   layerId: LayerId,
@@ -583,6 +669,49 @@ export const setRasterLayerAdjustmentStackEnabled = (
   return {
     ...layer,
     adjustmentStack,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+export const setRasterLayerLocalProcessingEnabled = (
+  document: ImageDocument,
+  layerId: LayerId,
+  enabled: boolean,
+  kind: LocalProcessingKind
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster' || !layer.adjustmentStack) return layer;
+  const adjustmentStack = setAdjustmentStackLocalProcessingEnabled(
+    layer.adjustmentStack,
+    kind,
+    enabled
+  );
+  if (adjustmentStack === layer.adjustmentStack) return layer;
+  return { ...layer, adjustmentStack, revision: layer.revision + 1, modifiedAt: Date.now() };
+});
+
+export const ensureRasterLayerLocalProcessing = (
+  document: ImageDocument,
+  layerId: LayerId,
+  kind: LocalProcessingKind
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster') return layer;
+  const adjustmentStack = ensureAdjustmentStackLocalProcessing(layer.adjustmentStack, kind);
+  if (adjustmentStack === layer.adjustmentStack) return layer;
+  return { ...layer, adjustmentStack, revision: layer.revision + 1, modifiedAt: Date.now() };
+});
+
+export const removeRasterLayerLocalProcessing = (
+  document: ImageDocument,
+  layerId: LayerId,
+  kind: LocalProcessingKind
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'raster' || !layer.adjustmentStack) return layer;
+  const adjustmentStack = removeAdjustmentStackLocalProcessing(layer.adjustmentStack, kind);
+  if (adjustmentStack === layer.adjustmentStack) return layer;
+  return {
+    ...layer,
+    adjustmentStack: adjustmentStack.modules.length ? adjustmentStack : null,
     revision: layer.revision + 1,
     modifiedAt: Date.now()
   };

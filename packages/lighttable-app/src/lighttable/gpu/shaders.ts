@@ -296,6 +296,7 @@ struct Adjustments {
   gradientMapControls: vec4f,
   gradientMapColors: array<vec4f, 8>,
   gradientMapOpacity: array<vec4f, 8>,
+  photoshop: array<vec4f, 32>,
 }
 
 @group(0) @binding(0) var correctedTexture: texture_2d<f32>;
@@ -303,6 +304,7 @@ struct Adjustments {
 @group(0) @binding(2) var sourceSampler: sampler;
 @group(0) @binding(3) var<uniform> adjustments: Adjustments;
 @group(0) @binding(4) var curveLut: texture_2d<f32>;
+@group(0) @binding(5) var colorLookupLut: texture_3d<f32>;
 
 fn luminance(rgb: vec3f) -> f32 {
   return dot(rgb, vec3f(0.2126, 0.7152, 0.0722));
@@ -594,6 +596,219 @@ fn applyCustomCurves(rgb: vec3f) -> vec3f {
   return curved;
 }
 
+fn photoshopValue(index: u32) -> f32 {
+  return adjustments.photoshop[index / 4u][index % 4u];
+}
+
+fn preservePhotoshopLuminance(source: vec3f, adjusted: vec3f) -> vec3f {
+  let sourceY = luminance(source);
+  let adjustedY = max(luminance(adjusted), 0.000001);
+  return adjusted * sourceY / adjustedY;
+}
+
+fn colorLookupLinearToEncodedChannel(value: f32) -> f32 {
+  if (value <= 0.0031308) { return value * 12.92; }
+  return 1.055 * pow(value, 1.0 / 2.4) - 0.055;
+}
+
+fn colorLookupEncodedToLinearChannel(value: f32) -> f32 {
+  if (value <= 0.04045) { return value / 12.92; }
+  return pow((value + 0.055) / 1.055, 2.4);
+}
+
+fn sampleExternalColorLookup(source: vec3f) -> vec3f {
+  let encoded = vec3f(
+    colorLookupLinearToEncodedChannel(source.r),
+    colorLookupLinearToEncodedChannel(source.g),
+    colorLookupLinearToEncodedChannel(source.b)
+  );
+  let domainMin = vec3f(photoshopValue(99u), photoshopValue(100u), photoshopValue(101u));
+  let domainMax = vec3f(photoshopValue(102u), photoshopValue(103u), photoshopValue(104u));
+  let position = clamp((encoded - domainMin) / max(domainMax - domainMin, vec3f(0.000001)), vec3f(0.0), vec3f(1.0));
+  let dimensions = textureDimensions(colorLookupLut);
+  let scaled = position * vec3f(dimensions - vec3u(1u));
+  let lower = vec3u(floor(scaled));
+  let upper = min(lower + vec3u(1u), dimensions - vec3u(1u));
+  let fraction = scaled - vec3f(lower);
+  let z0y0 = mix(
+    textureLoad(colorLookupLut, vec3u(lower.x, lower.y, lower.z), 0).rgb,
+    textureLoad(colorLookupLut, vec3u(upper.x, lower.y, lower.z), 0).rgb,
+    fraction.x
+  );
+  let z0y1 = mix(
+    textureLoad(colorLookupLut, vec3u(lower.x, upper.y, lower.z), 0).rgb,
+    textureLoad(colorLookupLut, vec3u(upper.x, upper.y, lower.z), 0).rgb,
+    fraction.x
+  );
+  let z1y0 = mix(
+    textureLoad(colorLookupLut, vec3u(lower.x, lower.y, upper.z), 0).rgb,
+    textureLoad(colorLookupLut, vec3u(upper.x, lower.y, upper.z), 0).rgb,
+    fraction.x
+  );
+  let z1y1 = mix(
+    textureLoad(colorLookupLut, vec3u(lower.x, upper.y, upper.z), 0).rgb,
+    textureLoad(colorLookupLut, vec3u(upper.x, upper.y, upper.z), 0).rgb,
+    fraction.x
+  );
+  let mapped = mix(mix(z0y0, z0y1, fraction.y), mix(z1y0, z1y1, fraction.y), fraction.z);
+  return vec3f(
+    colorLookupEncodedToLinearChannel(mapped.r),
+    colorLookupEncodedToLinearChannel(mapped.g),
+    colorLookupEncodedToLinearChannel(mapped.b)
+  );
+}
+
+fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
+  let kind = u32(photoshopValue(0u) + 0.5);
+  if (kind == 0u) { return source; }
+  var rgb = source;
+  if (kind == 1u) {
+    let brightness = photoshopValue(1u) / 255.0;
+    let contrast = photoshopValue(2u);
+    let factor = select(
+      (100.0 + contrast) / max(100.0 - contrast, 0.001),
+      (259.0 * (contrast + 255.0)) / max(255.0 * (259.0 - contrast), 0.001),
+      photoshopValue(3u) > 0.5
+    );
+    return (rgb + vec3f(brightness) - vec3f(0.5)) * factor + vec3f(0.5);
+  }
+  if (kind == 2u) {
+    let black = photoshopValue(4u) / 255.0;
+    let gamma = max(photoshopValue(5u), 0.01);
+    let white = max(photoshopValue(6u) / 255.0, black + 0.000001);
+    let outputBlack = photoshopValue(7u) / 255.0;
+    let outputWhite = photoshopValue(8u) / 255.0;
+    let normalized = clamp((rgb - vec3f(black)) / (white - black), vec3f(0.0), vec3f(1.0));
+    var adjusted = mix(vec3f(outputBlack), vec3f(outputWhite), pow(normalized, vec3f(1.0 / gamma)));
+    let channel = u32(photoshopValue(97u) + 0.5);
+    if (channel == 1u) { adjusted = vec3f(adjusted.r, rgb.g, rgb.b); }
+    if (channel == 2u) { adjusted = vec3f(rgb.r, adjusted.g, rgb.b); }
+    if (channel == 3u) { adjusted = vec3f(rgb.r, rgb.g, adjusted.b); }
+    return adjusted;
+  }
+  if (kind == 3u) {
+    let exposed = rgb * exp2(photoshopValue(9u)) + vec3f(photoshopValue(10u));
+    return pow(max(exposed, vec3f(0.0)), vec3f(1.0 / max(photoshopValue(11u), 0.01)));
+  }
+  if (kind == 4u) {
+    var lab = linearRgbToOklab(rgb);
+    let angle = photoshopValue(12u) * 0.01745329252;
+    let cosine = cos(angle);
+    let sine = sin(angle);
+    var rotated = vec2f(lab.y * cosine - lab.z * sine, lab.y * sine + lab.z * cosine);
+    let saturation = max(0.0, 1.0 + photoshopValue(13u) / 100.0);
+    if (photoshopValue(15u) > 0.5) {
+      let colorizeAngle = (photoshopValue(12u) + 180.0) * 0.01745329252;
+      rotated = vec2f(cos(colorizeAngle), sin(colorizeAngle)) * (photoshopValue(13u) / 100.0) * 0.22;
+    } else {
+      rotated *= saturation;
+    }
+    lab = vec3f(lab.x + photoshopValue(14u) / 400.0, rotated);
+    return oklabToLinearRgb(lab);
+  }
+  if (kind == 5u) {
+    let y = clamp(luminance(rgb), 0.0, 1.0);
+    let shadowWeight = 1.0 - smoothstep(0.0, 0.55, y);
+    let highlightWeight = smoothstep(0.45, 1.0, y);
+    let midtoneWeight = max(0.0, 1.0 - shadowWeight - highlightWeight);
+    let shift = vec3f(
+      photoshopValue(16u) * shadowWeight + photoshopValue(19u) * midtoneWeight + photoshopValue(22u) * highlightWeight,
+      photoshopValue(17u) * shadowWeight + photoshopValue(20u) * midtoneWeight + photoshopValue(23u) * highlightWeight,
+      photoshopValue(18u) * shadowWeight + photoshopValue(21u) * midtoneWeight + photoshopValue(24u) * highlightWeight
+    ) / 100.0;
+    let adjusted = rgb + shift * vec3f(0.32);
+    return select(adjusted, preservePhotoshopLuminance(rgb, adjusted), photoshopValue(25u) > 0.5);
+  }
+  if (kind == 6u) {
+    let maximum = max(rgb.r, max(rgb.g, rgb.b));
+    let minimum = min(rgb.r, min(rgb.g, rgb.b));
+    let chroma = maximum - minimum;
+    var hue = 0.0;
+    if (chroma > 0.000001) {
+      if (maximum == rgb.r) { hue = ((rgb.g - rgb.b) / chroma) / 6.0; }
+      else if (maximum == rgb.g) { hue = ((rgb.b - rgb.r) / chroma + 2.0) / 6.0; }
+      else { hue = ((rgb.r - rgb.g) / chroma + 4.0) / 6.0; }
+      hue = hue - floor(hue);
+    }
+    let defaultMixers = array<f32, 6>(40.0, 60.0, 40.0, 60.0, 20.0, 80.0);
+    var authoredMix = 0.0;
+    var defaultMix = 0.0;
+    for (var index = 0u; index < 6u; index += 1u) {
+      let center = f32(index) / 6.0;
+      let distance = min(abs(hue - center), 1.0 - abs(hue - center));
+      let weight = max(0.0, 1.0 - distance * 6.0);
+      authoredMix += weight * photoshopValue(26u + index);
+      defaultMix += weight * defaultMixers[index];
+    }
+    let chromaWeight = smoothstep(0.0, 0.08, chroma);
+    let mixScale = mix(1.0, authoredMix / max(defaultMix, 1.0), chromaWeight);
+    let gray = max(0.0, luminance(rgb) * mixScale);
+    var result = vec3f(gray);
+    if (photoshopValue(32u) > 0.5) {
+      result = mix(result, vec3f(photoshopValue(33u), photoshopValue(34u), photoshopValue(35u)) * gray, 0.35);
+    }
+    return result;
+  }
+  if (kind == 7u) {
+    let filterColor = vec3f(photoshopValue(37u), photoshopValue(38u), photoshopValue(39u));
+    let adjusted = mix(rgb, filterColor * max(luminance(rgb), 0.05), photoshopValue(41u) / 100.0);
+    return select(adjusted, preservePhotoshopLuminance(rgb, adjusted), photoshopValue(25u) > 0.5);
+  }
+  if (kind == 8u) {
+    let red = dot(rgb, vec3f(photoshopValue(43u), photoshopValue(44u), photoshopValue(45u)) / 100.0) + photoshopValue(46u) / 100.0;
+    let green = dot(rgb, vec3f(photoshopValue(47u), photoshopValue(48u), photoshopValue(49u)) / 100.0) + photoshopValue(50u) / 100.0;
+    let blue = dot(rgb, vec3f(photoshopValue(51u), photoshopValue(52u), photoshopValue(53u)) / 100.0) + photoshopValue(54u) / 100.0;
+    if (photoshopValue(55u) > 0.5) { return vec3f(red); }
+    return vec3f(red, green, blue);
+  }
+  if (kind == 9u) {
+    if (photoshopValue(56u) > 0.5) { return sampleExternalColorLookup(rgb); }
+    let preset = u32(photoshopValue(98u) + 0.5);
+    if (preset == 1u) {
+      let mapped = vec3f(
+        dot(rgb, vec3f(1.08, -0.03, -0.01)),
+        dot(rgb, vec3f(-0.02, 1.03, 0.01)),
+        dot(rgb, vec3f(0.01, -0.04, 0.94))
+      );
+      return pow(max(mapped, vec3f(0.0)), vec3f(0.94));
+    }
+    if (preset == 2u) {
+      let y = luminance(rgb);
+      return mix(rgb, vec3f(y * 0.62, y * 0.76, y * 1.08), 0.55);
+    }
+    if (preset == 3u) {
+      let y = clamp(luminance(rgb), 0.0, 1.0);
+      let shadows = vec3f(0.02, 0.14, 0.16) * (1.0 - y);
+      let highlights = vec3f(0.18, 0.07, -0.03) * y;
+      return rgb + shadows + highlights;
+    }
+    return rgb;
+  }
+  if (kind == 10u) {
+    // Compact range-weighted RGB approximation. Exact CMYK Relative/Absolute
+    // behavior remains part of the Photoshop parity pass.
+    let range = u32(photoshopValue(57u) + 0.5);
+    let base = 59u + min(range, 8u) * 4u;
+    let cmy = vec3f(photoshopValue(base), photoshopValue(base + 1u), photoshopValue(base + 2u)) / 100.0;
+    let black = photoshopValue(base + 3u) / 100.0;
+    let maximum = max(rgb.r, max(rgb.g, rgb.b));
+    let minimum = min(rgb.r, min(rgb.g, rgb.b));
+    let chroma = maximum - minimum;
+    let familyWeight = select(chroma, 1.0 - chroma, range >= 6u);
+    return rgb * (vec3f(1.0) - cmy * familyWeight) - vec3f(black * familyWeight);
+  }
+  if (kind == 11u) { return vec3f(1.0) - rgb; }
+  if (kind == 12u) {
+    let levels = max(2.0, photoshopValue(95u));
+    return floor(clamp(rgb, vec3f(0.0), vec3f(1.0)) * levels) / max(levels - 1.0, 1.0);
+  }
+  if (kind == 13u) {
+    let level = photoshopValue(96u) / 255.0;
+    return vec3f(select(0.0, 1.0, luminance(rgb) >= level));
+  }
+  return rgb;
+}
+
 ${GRADIENT_MAP_WGSL}
 
 fn edgeAwareTextureSample(uv: vec2f, offset: vec2f, centerY: f32) -> vec2f {
@@ -698,6 +913,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   rgb = applyLift(rgb);
   rgb = applyCustomCurves(rgb);
   rgb = applyGradientMap(rgb, input.uv * vec2f(textureDimensions(correctedTexture)));
+  rgb = applyPhotoshopAdjustment(rgb);
   return vec4f(rgb, corrected.a);
 }
 `;

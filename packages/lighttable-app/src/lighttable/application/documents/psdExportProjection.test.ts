@@ -7,6 +7,7 @@ import {
   createImageDocument,
   createTextLayerNode,
   createVectorLayer,
+  type DocumentAssetId,
   type LayerId
 } from '../../editor/document/documentTypes';
 import { createDefaultLayerStyle } from '../../editor/styles/layerStyleDefaults';
@@ -17,6 +18,7 @@ import { srgbIccProfileBytes } from '../../editor/color/srgbIccProfile';
 import { replaceMissingTextFont } from '../text/replaceMissingTextFont';
 import type { DocumentFontAsset } from '../../editor/document/documentTypes';
 import {
+  addRasterLayerAttachedAdjustment,
   createAdjustmentLayer,
   createGradientFillLayer,
   setLayerBlendMode,
@@ -25,8 +27,12 @@ import {
 } from '../../editor/document/documentCommands';
 import { createDefaultAdjustments } from '../../types';
 import { createPlacedRasterLayer } from '../../editor/document/placedRasterLayerCommand';
-import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import {
+  adjustmentStackForModuleTypes,
+  createAdjustmentStackFromBasicAdjustments
+} from '../../processing/adjustmentStack';
 import { FACE_WARP_NODE_TYPE } from '../../effects/faceWarp/faceWarpTypes';
+import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
 
 const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -319,5 +325,141 @@ describe('PSD export projection', () => {
     expect(projection.warnings).not.toContain(
       'layers[1]: this adjustment has no unchanged, exact Photoshop descriptor.'
     );
+  });
+
+  it('projects an embedded document LUT into the native Photoshop Color Lookup descriptor', () => {
+    const source = createImageDocument('Color Lookup', 2, 2, 'background');
+    const lutId = 'lut-projection' as DocumentAssetId;
+    const lutData = new TextEncoder().encode([
+      'LUT_3D_SIZE 2',
+      '0 0 0', '1 0 0', '0 1 0', '1 1 0',
+      '0 0 1', '1 0 1', '0 1 1', '1 1 1', ''
+    ].join('\n'));
+    source.assets.colorLookups.push({
+      id: lutId,
+      name: 'Projection.cube',
+      size: 2,
+      domainMin: [0, 0, 0],
+      domainMax: [1, 1, 1],
+      byteLength: lutData.byteLength,
+      revision: 0
+    });
+    const settings = createDefaultAdjustments();
+    settings.photoshopAdjustment = {
+      ...settings.photoshopAdjustment,
+      kind: 'color-lookup',
+      colorLookupPreset: 'none',
+      colorLookupAssetId: lutId
+    };
+    const authored = createAdjustmentLayer(
+      source,
+      selectAdjustmentLayerModules(
+        createAdjustmentStackFromBasicAdjustments(settings),
+        'color-lookup'
+      ),
+      'Color Lookup',
+      source.activeLayerId ?? undefined,
+      'color-lookup'
+    );
+    const projection = projectDocumentToPsd(
+      authored,
+      pixels(2, 2),
+      [{ layerId: authored.layers[0]!.id, pixels: pixels(2, 2) }],
+      [{ lutId, data: lutData }]
+    );
+    const decoded = readPsd(writePsdUint8Array(projection.psd, {
+      noBackground: true, trimImageData: true
+    }), {
+      useImageData: true,
+      skipLayerImageData: true,
+      skipCompositeImageData: true,
+      skipThumbnail: true
+    });
+    const adjustment = decoded.children?.[1]?.adjustment;
+
+    expect(adjustment).toMatchObject({
+      type: 'color lookup',
+      lut3DFileName: 'Projection.cube'
+    });
+    if (adjustment?.type !== 'color lookup') throw new Error('Expected Color Lookup descriptor.');
+    expect(Array.from(adjustment.lut3DFileData ?? [])).toEqual(Array.from(lutData));
+  });
+
+  it('exports a standalone Curves node as an editable Photoshop Curves adjustment', () => {
+    const document = createImageDocument('Curves', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.curves.master = [
+      { x: 0, y: 0 },
+      { x: 0.5, y: 0.75 },
+      { x: 1, y: 1 }
+    ];
+    const authored = createAdjustmentLayer(
+      document,
+      adjustmentStackForModuleTypes(
+        createAdjustmentStackFromBasicAdjustments(settings),
+        ['lt.curves']
+      ),
+      'Curves'
+    );
+
+    const projection = projectDocumentToPsd(authored, pixels(2, 2), [{
+      layerId: authored.layers[0]!.id, pixels: pixels(2, 2)
+    }]);
+
+    expect(projection.psd.children?.[1]?.adjustment).toMatchObject({
+      type: 'curves',
+      rgb: [
+        { input: 0, output: 0 },
+        { input: 128, output: 191 },
+        { input: 255, output: 255 }
+      ]
+    });
+    expect(projection.warnings).not.toContain(
+      'layers[1]: this adjustment has no unchanged, exact Photoshop descriptor.'
+    );
+  });
+
+  it('exports attached adjustments as ordered editable clipped Photoshop layers', () => {
+    const source = createImageDocument('Attached', 2, 2, 'background');
+    const raster = source.layers[0]!;
+    if (raster.type !== 'raster') throw new Error('Expected raster fixture.');
+    const values = createDefaultAdjustments();
+    values.photoshopAdjustment = {
+      ...values.photoshopAdjustment,
+      kind: 'levels',
+      levelsInput: [10, 1.2, 240],
+      levelsOutput: [3, 250]
+    };
+    const stack = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(values),
+      'levels'
+    );
+    const document = addRasterLayerAttachedAdjustment(source, raster.id, {
+      id: 'attached-levels', adjustmentKind: 'levels', name: 'Levels',
+      enabled: true, revision: 1, adjustmentStack: stack
+    });
+    const projection = projectDocumentToPsd(document, pixels(2, 2), [{
+      layerId: raster.id, pixels: pixels(2, 2)
+    }]);
+    const encoded = writePsdUint8Array(projection.psd, {
+      noBackground: true, trimImageData: true, invalidateTextLayers: false
+    });
+    const decoded = readPsd(encoded, {
+      useImageData: true, skipLayerImageData: true,
+      skipCompositeImageData: true, skipThumbnail: true
+    });
+
+    expect(decoded.children).toHaveLength(2);
+    expect(decoded.children?.[0]).toMatchObject({ name: 'Background' });
+    expect(decoded.children?.[1]).toMatchObject({
+      name: 'Levels', clipping: true,
+      adjustment: {
+        type: 'levels',
+        rgb: {
+          shadowInput: 10, midtoneInput: 1.2, highlightInput: 240,
+          shadowOutput: 3, highlightOutput: 250
+        }
+      }
+    });
   });
 });

@@ -284,10 +284,14 @@ export const useDocumentFileCommands = (
         const layerAssets = exportedAssets.filter(
           (asset): asset is LayerAssetBlobs => 'layerId' in asset
         );
+        const colorLookupAssets = exportedAssets.filter(
+          (asset): asset is import('../persistence/layeredDocumentFormat').ColorLookupAssetBlob => 'lutId' in asset
+        );
         const exported = await exportPsdDocument(
           imageDocument,
           composite,
           layerAssets,
+          colorLookupAssets,
           current.fileNameBase
         );
         task.throwIfCanceled();

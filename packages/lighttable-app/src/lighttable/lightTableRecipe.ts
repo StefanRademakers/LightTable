@@ -87,7 +87,7 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
   let recognizedSettings = 0;
   (Object.keys(settings) as Array<keyof BasicAdjustments>).forEach((key) => {
     if (key === 'colorMixer' || key === 'colorGrading' || key === 'curves'
-      || key === 'gradientMap' || key === 'effects') return;
+      || key === 'gradientMap' || key === 'photoshopAdjustment' || key === 'effects') return;
     const settingValue = value[key];
     if (typeof settingValue === 'number' && Number.isFinite(settingValue)) {
       (settings as unknown as Record<string, number>)[key] = settingValue;

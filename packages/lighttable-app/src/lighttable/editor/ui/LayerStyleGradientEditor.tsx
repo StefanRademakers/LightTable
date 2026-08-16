@@ -6,7 +6,7 @@ import type {
   LayerStyleOpacityStop
 } from '../styles/layerStyleTypes';
 import { OpacitySlider } from '../../../ui/OpacitySlider';
-import { PanelColorSwatch } from './PanelControls';
+import { PanelColorSwatch } from '../../../ui/PanelControls';
 
 const MAX_STOPS = 8;
 const DEFAULT_HINT = 'Hover over a control for instructions.';

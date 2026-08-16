@@ -76,6 +76,14 @@ describe('editor keymap', () => {
     )).toBe('open-image-size');
   });
 
+  it('routes Photoshop Curves to the contextual smart adjustment command', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'm', code: 'KeyM', metaKey: true }),
+      context({ hasActiveLayer: true })
+    )).toBe('apply-curves');
+  });
+
   it('routes Photoshop-compatible view overlay shortcuts', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,

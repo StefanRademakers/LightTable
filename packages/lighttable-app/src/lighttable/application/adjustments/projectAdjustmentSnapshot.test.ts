@@ -8,14 +8,19 @@ import {
 } from '../../editor/document/documentTypes';
 import {
   createAdjustmentLayer,
+  addRasterLayerAttachedAdjustment,
   setRasterLayerAdjustmentStack
 } from '../../editor/document/documentCommands';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   adjustmentStackForOwner,
-  createAdjustmentStackFromBasicAdjustments
+  adjustmentStackForModuleTypes,
+  createAdjustmentStackFromBasicAdjustments,
+  ensureAdjustmentStackLocalProcessing
 } from '../../processing/adjustmentStack';
 import { projectAdjustmentSnapshot } from './projectAdjustmentSnapshot';
+import { attachedAdjustmentOwnerId } from '../../processing/attachedAdjustment';
+import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
 import {
   addWarpNodeToStack,
   createDefaultWarpNodeSettings,
@@ -164,6 +169,96 @@ describe('adjustment snapshot projection', () => {
     expect(projected.adjustmentStack.modules.some((module) => (
       module.type === 'lt.grain'
     ))).toBe(false);
+  });
+
+  it('updates a standalone Curves node without expanding it into Grade', () => {
+    const base = createImageDocument('Image', 64, 48, 'image');
+    const curvesStack = adjustmentStackForModuleTypes(
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      ['lt.curves']
+    );
+    const document = createAdjustmentLayer(base, curvesStack, 'Curves');
+    const adjustmentId = document.activeLayerId!;
+    const snapshot = createDefaultAdjustments();
+    snapshot.curves.master = [
+      { x: 0, y: 0 },
+      { x: 0.5, y: 0.7 },
+      { x: 1, y: 1 }
+    ];
+
+    const result = projectAdjustmentSnapshot({
+      snapshot,
+      targetLayerId: adjustmentId,
+      document,
+      documentAdjustments: createDefaultAdjustments()
+    });
+    const projected = result.document
+      ? findDocumentLayer(result.document, adjustmentId)
+      : null;
+    if (projected?.type !== 'adjustment') throw new Error('Expected Curves node.');
+    expect(projected.adjustmentStack.modules.map((module) => module.type))
+      .toEqual(['lt.curves']);
+    expect(projected.adjustmentStack.modules[0]?.settings.curves)
+      .toEqual(snapshot.curves);
+  });
+
+  it('updates only the addressed attached adjustment stack', () => {
+    const base = createImageDocument('Image', 64, 48, 'image');
+    const rasterId = base.activeLayerId!;
+    const exposureStack = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'exposure'
+    );
+    const document = addRasterLayerAttachedAdjustment(base, rasterId, {
+      id: 'exposure', adjustmentKind: 'exposure', name: 'Exposure',
+      enabled: true, revision: 0, adjustmentStack: exposureStack
+    });
+    const snapshot = createDefaultAdjustments();
+    snapshot.photoshopAdjustment.kind = 'exposure';
+    snapshot.photoshopAdjustment.exposure = 1.75;
+
+    const result = projectAdjustmentSnapshot({
+      snapshot,
+      targetLayerId: attachedAdjustmentOwnerId(rasterId, 'exposure'),
+      document,
+      documentAdjustments: createDefaultAdjustments()
+    });
+    const raster = result.document ? findDocumentLayer(result.document, rasterId) : null;
+    if (raster?.type !== 'raster') throw new Error('Expected raster layer.');
+    expect(raster.adjustmentStack).toBeNull();
+    expect(raster.attachedAdjustments?.[0]?.adjustmentStack.modules)
+      .toHaveLength(1);
+    const settings = raster.attachedAdjustments?.[0]?.adjustmentStack.modules[0]
+      ?.settings.photoshopAdjustment as { exposure?: number } | undefined;
+    expect(settings?.exposure).toBe(1.75);
+  });
+
+  it('updates attached Curves without manufacturing the rest of local Grade', () => {
+    const base = createImageDocument('Image', 64, 48, 'image');
+    const rasterId = base.activeLayerId!;
+    const document = setRasterLayerAdjustmentStack(
+      base,
+      rasterId,
+      ensureAdjustmentStackLocalProcessing(null, 'curves')
+    );
+    const snapshot = createDefaultAdjustments();
+    snapshot.curves.master = [
+      { x: 0, y: 0 },
+      { x: 0.4, y: 0.65 },
+      { x: 1, y: 1 }
+    ];
+
+    const result = projectAdjustmentSnapshot({
+      snapshot,
+      targetLayerId: rasterId,
+      document,
+      documentAdjustments: createDefaultAdjustments()
+    });
+    const projected = result.document ? findDocumentLayer(result.document, rasterId) : null;
+    if (projected?.type !== 'raster') throw new Error('Expected raster layer.');
+    expect(projected.adjustmentStack?.modules.map((module) => module.type))
+      .toEqual(['lt.curves']);
+    expect(projected.adjustmentStack?.modules[0]?.settings.curves).toEqual(snapshot.curves);
   });
 
   it('stores Lens Fx without manufacturing a neutral Grade owner', () => {

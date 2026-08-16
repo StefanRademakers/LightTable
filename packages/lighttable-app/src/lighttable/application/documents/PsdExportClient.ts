@@ -1,5 +1,8 @@
 import type { ImageDocument } from '../../editor/document/documentTypes';
-import type { LayerAssetBlobs } from '../../editor/persistence/layeredDocumentFormat';
+import type {
+  ColorLookupAssetBlob,
+  LayerAssetBlobs
+} from '../../editor/persistence/layeredDocumentFormat';
 import type { PsdExportRequest, PsdExportResponse } from './psdExportProtocol';
 
 export interface ExportedPsdDocument {
@@ -15,6 +18,7 @@ export const exportPsdDocument = async (
   document: ImageDocument,
   composite: Blob,
   layerAssets: readonly LayerAssetBlobs[],
+  colorLookupAssets: readonly ColorLookupAssetBlob[],
   fileNameBase: string
 ): Promise<ExportedPsdDocument> => {
   if (document.width > 30_000 || document.height > 30_000) {
@@ -28,7 +32,9 @@ export const exportPsdDocument = async (
         if (event.data.requestId === requestId) resolve(event.data);
       };
       worker.onerror = (event) => reject(new Error(event.message || 'The PSD export worker failed.'));
-      worker.postMessage({ requestId, document, composite, layerAssets } satisfies PsdExportRequest);
+      worker.postMessage({
+        requestId, document, composite, layerAssets, colorLookupAssets
+      } satisfies PsdExportRequest);
     });
     if (response.status === 'error') throw new Error(response.message);
     if (response.warnings.length > 0) {

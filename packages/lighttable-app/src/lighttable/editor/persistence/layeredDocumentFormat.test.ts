@@ -12,6 +12,7 @@ import {
 } from '@lighttable/vector-core';
 import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
 import {
   createImageDocument,
   createVectorLayer,
@@ -21,6 +22,7 @@ import {
 } from '../document/documentTypes';
 import {
   addLayerMask,
+  addRasterLayerAttachedAdjustment,
   createAdjustmentLayer,
   createGradientFillLayer,
   createGroupLayer,
@@ -632,6 +634,47 @@ describe('LightTable layered PNG format', () => {
     expect(new Uint8Array(await parsed!.assets[1].pixels.arrayBuffer())).toEqual(new Uint8Array([2, 2, 3]));
   });
 
+  it('embeds Color Lookup source bytes and metadata byte-exact', async () => {
+    const lutId = 'lut-roundtrip' as DocumentAssetId;
+    const lutText = [
+      'TITLE "Roundtrip LUT"',
+      'LUT_3D_SIZE 2',
+      'DOMAIN_MIN 0 0 0',
+      'DOMAIN_MAX 1 1 1',
+      '0 0 0', '1 0 0', '0 1 0', '1 1 0',
+      '0 0 1', '1 0 1', '0 1 1', '1 1 1', ''
+    ].join('\n');
+    const lutSource = new Blob([lutText], { type: 'application/x-cube' });
+    const document = createImageDocument('LUT roundtrip', 2, 2, 'source');
+    document.assets.colorLookups.push({
+      id: lutId,
+      name: 'Roundtrip LUT',
+      size: 2,
+      domainMin: [0, 0, 0],
+      domainMax: [1, 1, 1],
+      byteLength: lutSource.size,
+      revision: 0
+    });
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId: document.layers[0]!.id,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }, { lutId, source: lutSource }],
+      'lut-roundtrip.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+
+    expect(parsed?.document.assets.colorLookups).toEqual(document.assets.colorLookups);
+    expect(parsed?.colorLookupAssets).toHaveLength(1);
+    expect(parsed?.colorLookupAssets[0]?.lutId).toBe(lutId);
+    expect(await parsed?.colorLookupAssets[0]?.source.text()).toBe(lutText);
+  });
+
   it('keeps distinct real PNG preview and layer payloads byte-exact', async () => {
     let document = createRasterLayer(createImageDocument('Pixel roundtrip', 2, 2, 'source'));
     const localStack = defaultStack();
@@ -911,13 +954,16 @@ describe('LightTable layered PNG format', () => {
     const withCool = createAdjustmentLayer(
       source,
       createAdjustmentStackFromBasicAdjustments(cool),
-      'Cool'
+      'Cool',
+      undefined,
+      'grade'
     );
     const document = createAdjustmentLayer(
       withCool,
       createAdjustmentStackFromBasicAdjustments(warm),
       'Warm',
-      withCool.activeLayerId ?? undefined
+      withCool.activeLayerId ?? undefined,
+      'grade'
     );
     const file = buildLayeredDocumentFile(
       new Blob([PREVIEW_PNG], { type: 'image/png' }),
@@ -935,6 +981,7 @@ describe('LightTable layered PNG format', () => {
     const grades = parsed?.document.layers.filter((layer) => layer.type === 'adjustment') ?? [];
 
     expect(grades.map((layer) => layer.name)).toEqual(['Cool', 'Warm']);
+    expect(grades.map((layer) => layer.adjustmentKind)).toEqual(['grade', 'grade']);
     expect(grades[0]?.type === 'adjustment'
       ? grades[0].adjustmentStack.modules.find((module) => module.type === 'lt.white-balance')?.settings.temperature
       : null).toBe(-42);
@@ -1091,6 +1138,43 @@ describe('LightTable layered PNG format', () => {
       geometry: { kind: 'rectangle', width: 320, height: 180 },
       style: { fill: { kind: 'gradient' }, stroke: null }
     });
+  });
+
+  it('round-trips ordered adjustments attached to a raster layer', async () => {
+    const source = createImageDocument('Attached', 2, 2, 'source');
+    const rasterId = source.layers[0]!.id;
+    const stack = selectAdjustmentLayerModules(defaultStack(), 'exposure');
+    const document = addRasterLayerAttachedAdjustment(source, rasterId, {
+      id: 'attached-exposure',
+      adjustmentKind: 'exposure',
+      name: 'Exposure',
+      enabled: false,
+      revision: 3,
+      adjustmentStack: stack
+    });
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId: rasterId,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }],
+      'attached.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const raster = parsed?.document.layers[0];
+    expect(raster?.type).toBe('raster');
+    expect(raster?.type === 'raster' ? raster.attachedAdjustments : null).toEqual([{
+      id: 'attached-exposure',
+      adjustmentKind: 'exposure',
+      name: 'Exposure',
+      enabled: false,
+      revision: 3,
+      adjustmentStack: stack
+    }]);
   });
 
   it('reopens converted text as editable glyph paths without restoring text semantics', async () => {

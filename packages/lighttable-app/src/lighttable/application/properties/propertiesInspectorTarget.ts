@@ -3,9 +3,13 @@ import { layerSupportsLayerStyles } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
 import {
-  adjustmentStackHasOwner,
-  type AdjustmentStackOwner
+  adjustmentStackHasLocalProcessing,
+  type LocalProcessingKind
 } from '../../processing/adjustmentStack';
+import {
+  adjustmentPropertiesViewForStack,
+  type AdjustmentPropertiesView
+} from '../../processing/adjustmentLayerCatalog';
 
 export type PropertiesInspectorTarget =
   | { readonly kind: 'none' }
@@ -14,7 +18,12 @@ export type PropertiesInspectorTarget =
   | {
       readonly kind: 'processing';
       readonly layerId: LayerId;
-      readonly owner: Extract<AdjustmentStackOwner, 'grade' | 'lens-fx'>;
+      readonly owner: LocalProcessingKind;
+    }
+  | {
+      readonly kind: 'attached-processing';
+      readonly layerId: LayerId;
+      readonly adjustmentId: string;
     }
   | { readonly kind: 'style-stack'; readonly layerId: LayerId }
   | {
@@ -25,8 +34,7 @@ export type PropertiesInspectorTarget =
 
 export type PropertiesInspectorView =
   | 'empty'
-  | 'grade'
-  | 'lens-fx'
+  | AdjustmentPropertiesView
   | 'effects'
   | 'text';
 
@@ -56,7 +64,11 @@ export const propertiesTargetIsValid = (
     // Raster layers may open a neutral local editor before its first authored
     // module exists. The first mutation creates the canonical owner stack.
     return layer.type === 'raster'
-      || Boolean(stack && adjustmentStackHasOwner(stack, target.owner));
+      || Boolean(stack && adjustmentStackHasLocalProcessing(stack, target.owner));
+  }
+  if (target.kind === 'attached-processing') {
+    return layer.type === 'raster'
+      && (layer.attachedAdjustments ?? []).some(({ id }) => id === target.adjustmentId);
   }
   if (!layerSupportsLayerStyles(layer)) return false;
   if (target.kind === 'style-stack') return true;
@@ -84,11 +96,14 @@ export const propertiesInspectorView = (
   const layer = findDocumentLayer(document, reconciled.layerId);
   if (!layer) return 'empty';
   if (reconciled.kind === 'processing') return reconciled.owner;
+  if (reconciled.kind === 'attached-processing') {
+    if (layer.type !== 'raster') return 'empty';
+    return (layer.attachedAdjustments ?? [])
+      .find(({ id }) => id === reconciled.adjustmentId)?.adjustmentKind ?? 'empty';
+  }
   if (reconciled.kind === 'style' || reconciled.kind === 'style-stack') return 'effects';
   if (layer.type === 'text') return 'text';
   if (layer.type === 'raster') return 'grade';
   if (layer.type !== 'adjustment') return 'empty';
-  const hasGrade = adjustmentStackHasOwner(layer.adjustmentStack, 'grade');
-  const hasLensFx = adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx');
-  return hasLensFx && !hasGrade ? 'lens-fx' : 'grade';
+  return layer.adjustmentKind ?? adjustmentPropertiesViewForStack(layer.adjustmentStack);
 };

@@ -26,6 +26,7 @@ export interface AdjustmentStack {
 }
 
 export type AdjustmentStackOwner = 'geometry' | 'grade' | 'lens-fx';
+export type LocalProcessingKind = 'grade' | 'curves' | 'lens-fx';
 
 const ownerIncludesCategory = (
   owner: AdjustmentStackOwner,
@@ -52,6 +53,70 @@ export const adjustmentStackHasOwner = (
 ): boolean => Boolean(stack?.modules.some((module) =>
   adjustmentModuleBelongsToOwner(module.type, owner, registry)
 ));
+
+export const adjustmentModuleBelongsToLocalProcessing = (
+  type: string,
+  kind: LocalProcessingKind,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): boolean => kind === 'curves'
+  ? type === 'lt.curves'
+  : kind === 'grade'
+    ? type !== 'lt.curves' && adjustmentModuleBelongsToOwner(type, 'grade', registry)
+    : adjustmentModuleBelongsToOwner(type, 'lens-fx', registry);
+
+export const adjustmentStackHasLocalProcessing = (
+  stack: AdjustmentStack | null | undefined,
+  kind: LocalProcessingKind,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): boolean => Boolean(stack?.modules.some((module) =>
+  adjustmentModuleBelongsToLocalProcessing(module.type, kind, registry)
+));
+
+export const adjustmentStackLocalProcessingIsEnabled = (
+  stack: AdjustmentStack,
+  kind: LocalProcessingKind,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): boolean => stack.modules.some((module) =>
+  module.enabled && adjustmentModuleBelongsToLocalProcessing(module.type, kind, registry)
+);
+
+export const setAdjustmentStackLocalProcessingEnabled = (
+  stack: AdjustmentStack,
+  kind: LocalProcessingKind,
+  enabled: boolean,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): AdjustmentStack => {
+  let changed = false;
+  const modules = stack.modules.map((module) => {
+    if (
+      !adjustmentModuleBelongsToLocalProcessing(module.type, kind, registry)
+      || module.enabled === enabled
+    ) return module;
+    changed = true;
+    return { ...module, enabled, revision: module.revision + 1 };
+  });
+  return changed ? {
+    ...cloneAdjustmentStack(stack),
+    revision: stack.revision + 1,
+    modules
+  } : stack;
+};
+
+export const removeAdjustmentStackLocalProcessing = (
+  stack: AdjustmentStack,
+  kind: LocalProcessingKind,
+  registry: ProcessingModuleRegistry = currentProcessingModuleRegistry
+): AdjustmentStack => {
+  const cloned = cloneAdjustmentStack(stack);
+  const modules = cloned.modules.filter((module) =>
+    !adjustmentModuleBelongsToLocalProcessing(module.type, kind, registry)
+  );
+  return modules.length === stack.modules.length ? stack : {
+    ...cloned,
+    revision: stack.revision + 1,
+    modules
+  };
+};
 
 export const adjustmentStackOwnerIsEnabled = (
   stack: AdjustmentStack,
@@ -98,6 +163,18 @@ export const adjustmentStackForOwner = (
     adjustmentModuleBelongsToOwner(module.type, owner, registry)
   )
 });
+
+/** Keeps an explicit module inventory for a specialized adjustment node. */
+export const adjustmentStackForModuleTypes = (
+  stack: AdjustmentStack,
+  types: readonly string[]
+): AdjustmentStack => {
+  const included = new Set(types);
+  return {
+    ...cloneAdjustmentStack(stack),
+    modules: stack.modules.filter((module) => included.has(module.type))
+  };
+};
 
 /** Removes one authored processing owner while preserving every other module family. */
 export const removeAdjustmentStackOwner = (
@@ -258,6 +335,49 @@ export const createAdjustmentStackFromBasicAdjustments = (
     revision: changed ? (previous?.revision ?? -1) + 1 : (previous?.revision ?? 0),
     modules: currentModules
   };
+};
+
+/** Adds missing neutral modules without disturbing authored local processing. */
+export const ensureAdjustmentStackModuleTypes = (
+  stack: AdjustmentStack | null | undefined,
+  types: readonly string[]
+): AdjustmentStack => {
+  const source = adjustmentStackForScope(
+    createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+    'layer'
+  );
+  const requested = new Set(types);
+  const base = stack ? cloneAdjustmentStack(stack) : {
+    id: source.id,
+    revision: 0,
+    modules: []
+  };
+  const existing = new Set(base.modules.map((module) => module.type));
+  const additions = source.modules.filter((module) =>
+    requested.has(module.type) && !existing.has(module.type)
+  );
+  if (!additions.length) return stack ?? base;
+  return {
+    ...base,
+    revision: base.revision + 1,
+    modules: [...base.modules, ...additions]
+  };
+};
+
+export const ensureAdjustmentStackLocalProcessing = (
+  stack: AdjustmentStack | null | undefined,
+  kind: LocalProcessingKind
+): AdjustmentStack => {
+  const source = adjustmentStackForScope(
+    createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+    'layer'
+  );
+  return ensureAdjustmentStackModuleTypes(
+    stack,
+    source.modules
+      .filter((module) => adjustmentModuleBelongsToLocalProcessing(module.type, kind))
+      .map((module) => module.type)
+  );
 };
 
 /**

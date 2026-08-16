@@ -7,6 +7,7 @@ import type {
 import { layerIsLocked } from '../../editor/document/documentTypes';
 import {
   addLayerMask,
+  addRasterLayerAttachedAdjustment,
   createAdjustmentLayer,
   duplicateLayer,
   createRasterLayer,
@@ -33,7 +34,6 @@ import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import type { RasterSelectionMask } from '../../editor/selection/selectionTypes';
 import { selectionOperationsSupportBounds } from '../../editor/tools/transform/selectionTransform';
 import {
-  adjustmentStackForOwner,
   adjustmentStackForScope,
   createAdjustmentStackFromBasicAdjustments
 } from '../../processing/adjustmentStack';
@@ -42,6 +42,11 @@ import {
   type BasicAdjustments
 } from '../../types';
 import type { LightTableImageClipboard } from '../../../platform/LightTableImageClipboard';
+import {
+  adjustmentLayerDefinition,
+  selectAdjustmentLayerModules,
+  type AdjustmentLayerKind
+} from '../../processing/adjustmentLayerCatalog';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -125,7 +130,10 @@ export interface LayerDocumentCommands {
   ): boolean;
   duplicateActiveLayer(): boolean;
   createAdjustmentLayer(): boolean;
+  createCurvesAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): boolean;
+  createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
   mergeSelectedLayers(selectedLayerIds: LayerId[]): boolean;
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
@@ -344,7 +352,7 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const createProcessingLayer = (owner: 'grade' | 'lens-fx') => {
+  const createProcessingLayer = (kind: AdjustmentLayerKind) => {
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
     const previousDocumentGrade = dependencies.getDocumentAdjustments?.();
@@ -357,21 +365,27 @@ export const createLayerDocumentCommands = (
       || !dependencies.publishPanelAdjustments
     ) return false;
 
-    // A processing layer starts neutral and owns exactly one category.
+    // A processing layer starts neutral and owns an explicit module inventory.
     const source = createDefaultAdjustments();
-    const stack = adjustmentStackForOwner(
-      adjustmentStackForScope(
-        createAdjustmentStackFromBasicAdjustments(source),
-        'adjustment-layer'
-      ),
-      owner
-    );
+    const definition = adjustmentLayerDefinition(kind);
+    if (definition.photoshopKind) {
+      source.photoshopAdjustment.kind = definition.photoshopKind;
+    }
+    if (kind === 'gradient-map' && source.gradientMap) {
+      source.gradientMap.enabled = true;
+    }
+    if (kind === 'grain') source.effects.grain.enabled = true;
+    const stack = selectAdjustmentLayerModules(adjustmentStackForScope(
+      createAdjustmentStackFromBasicAdjustments(source),
+      'adjustment-layer'
+    ), kind);
     const clearedDocumentGrade = createDefaultAdjustments();
     const next = createAdjustmentLayer(
       current,
       stack,
-      owner === 'grade' ? 'Grade' : 'Lens Fx',
-      current.activeLayerId ?? undefined
+      definition.name,
+      current.activeLayerId ?? undefined,
+      kind
     );
 
     dependencies.publishDocumentAdjustments(clearedDocumentGrade);
@@ -396,7 +410,41 @@ export const createLayerDocumentCommands = (
   };
 
   const createGradeAdjustmentLayer = () => createProcessingLayer('grade');
+  const createCurvesAdjustmentLayer = () => createProcessingLayer('curves');
   const createLensFxLayer = () => createProcessingLayer('lens-fx');
+
+  const createAttachedAdjustment = (layerId: LayerId, kind: AdjustmentLayerKind) => {
+    const dependencies = dependenciesRef.current;
+    const current = dependencies.getDocument();
+    const layer = current ? findRasterLayer(current, layerId) : null;
+    if (!current || !layer || layerIsLocked(layer, 'pixels')) return null;
+    const source = createDefaultAdjustments();
+    const definition = adjustmentLayerDefinition(kind);
+    if (definition.photoshopKind) source.photoshopAdjustment.kind = definition.photoshopKind;
+    if (kind === 'gradient-map' && source.gradientMap) source.gradientMap.enabled = true;
+    if (kind === 'grain') source.effects.grain.enabled = true;
+    const adjustmentStack = selectAdjustmentLayerModules(adjustmentStackForScope(
+      createAdjustmentStackFromBasicAdjustments(source),
+      'layer'
+    ), kind);
+    const adjustmentId = `attached-${crypto.randomUUID()}`;
+    const next = addRasterLayerAttachedAdjustment(current, layerId, {
+      id: adjustmentId,
+      adjustmentKind: kind,
+      name: definition.name,
+      enabled: true,
+      revision: 0,
+      adjustmentStack
+    });
+    if (next === current) return null;
+    dependencies.applyDocumentSnapshot(next);
+    dependencies.publishPanelAdjustments?.(source);
+    dependencies.pushDocumentHistory(current, next);
+    dependencies.setActiveChannel('pixels');
+    dependencies.setStatus(`Attached ${definition.name} to ${layer.name}`);
+    dependencies.setError(null);
+    return adjustmentId;
+  };
 
   const mergeSelectedLayers = (selectedLayerIds: LayerId[]) => {
     const current = dependenciesRef.current.getDocument();
@@ -918,7 +966,10 @@ export const createLayerDocumentCommands = (
     applyBackgroundRemovalMask,
     duplicateActiveLayer,
     createAdjustmentLayer: createGradeAdjustmentLayer,
+    createCurvesAdjustmentLayer,
     createLensFxLayer,
+    createAdjustmentLayerOfKind: createProcessingLayer,
+    createAttachedAdjustment,
     mergeSelectedLayers,
     mergeActiveLayerDown,
     flatten,

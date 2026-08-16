@@ -2,6 +2,7 @@ import type { BlendMode } from './blendModes';
 import type { AffineMatrix } from '../geometry/affine';
 import { identityAffineMatrix } from '../geometry/affine';
 import type { AdjustmentStack } from '../../processing/adjustmentStack';
+import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 import type { LayerStyleStack } from '../styles/layerStyleTypes';
 import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 import {
@@ -204,6 +205,8 @@ export interface RasterLayer extends CommonLayer {
    * by an explicit AdjustmentLayer instead of hidden document state.
    */
   adjustmentStack: AdjustmentStack | null;
+  /** Ordered, independently editable non-destructive adjustments attached to this layer. */
+  attachedAdjustments?: AttachedAdjustment[];
   pixelRevision: number;
   width: number;
   height: number;
@@ -212,6 +215,15 @@ export interface RasterLayer extends CommonLayer {
   pixelSource: RasterPixelSource;
   dirtyBounds: Rect | null;
   mask: RasterMask | null;
+}
+
+export interface AttachedAdjustment {
+  id: string;
+  adjustmentKind: AdjustmentLayerKind;
+  name: string;
+  enabled: boolean;
+  revision: number;
+  adjustmentStack: AdjustmentStack;
 }
 
 export interface GroupLayer extends CommonLayer {
@@ -224,6 +236,8 @@ export interface GroupLayer extends CommonLayer {
 
 export interface AdjustmentLayer extends CommonLayer {
   type: 'adjustment';
+  /** Stable UI/interop identity; the module stack remains rendering authority. */
+  adjustmentKind: AdjustmentLayerKind | null;
   adjustmentStack: AdjustmentStack;
   mask: RasterMask | null;
 }
@@ -372,6 +386,16 @@ export interface PatternAsset {
   revision: number;
 }
 
+export interface ColorLookupAsset {
+  id: DocumentAssetId;
+  name: string;
+  size: number;
+  domainMin: readonly [number, number, number];
+  domainMax: readonly [number, number, number];
+  byteLength: number;
+  revision: number;
+}
+
 export interface PreservedSourceAsset {
   id: DocumentAssetId;
   kind: 'photoshop-document' | 'pdf-document' | 'illustrator-document';
@@ -397,6 +421,8 @@ export interface DocumentFontAsset extends FontAssetRef {
 
 export interface DocumentAssetRegistry {
   patterns: PatternAsset[];
+  /** Embedded portable 3D .cube sources used by Color Lookup nodes. */
+  colorLookups: ColorLookupAsset[];
   /** Immutable source files retained for lossless future round-tripping. */
   preservedSources: PreservedSourceAsset[];
   /** Deduplicated font faces; bytes are persisted once by fingerprint. */
@@ -442,10 +468,12 @@ export const createGroupLayer = (name = 'Group'): GroupLayer => ({
 
 export const createAdjustmentLayer = (
   adjustmentStack: AdjustmentStack,
-  name = 'Adjustment'
+  name = 'Adjustment',
+  adjustmentKind: AdjustmentLayerKind | null = null
 ): AdjustmentLayer => ({
   ...createCommonLayer('adjustment', name),
   type: 'adjustment',
+  adjustmentKind,
   adjustmentStack: structuredClone(adjustmentStack),
   mask: null
 });
@@ -513,6 +541,7 @@ export const createImageDocument = (
       transform: identityAffineMatrix(),
       pixelSource: { kind: 'imported-image', assetId },
       adjustmentStack: null,
+      attachedAdjustments: [],
       dirtyBounds: null,
       mask: null
     }],
@@ -521,7 +550,7 @@ export const createImageDocument = (
     importProvenance,
     photoshopImportReport: null,
     photoshopDocument: null,
-    assets: { patterns: [], preservedSources: [], fonts: [] },
+    assets: { patterns: [], colorLookups: [], preservedSources: [], fonts: [] },
     revision: 0,
     createdAt: now,
     modifiedAt: now

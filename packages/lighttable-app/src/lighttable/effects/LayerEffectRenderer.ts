@@ -2,7 +2,7 @@ import type {
   AdjustmentLayer,
   RasterLayer
 } from '../editor/document/documentTypes';
-import { adjustmentStackHasOwner } from '../processing/adjustmentStack';
+import { adjustmentStackOwnerIsEnabled } from '../processing/adjustmentStack';
 import type { LightTableEffectRuntimeCallbacks } from './types';
 import { DocumentEffectRuntime } from './DocumentEffectRuntime';
 import type { WarpDebugView } from './warp/warpTypes';
@@ -18,8 +18,13 @@ import type { MeshDeformationTelemetry } from './deformation/MeshDeformationEffe
  */
 export const layerNeedsEffectRuntime = (
   layer: AdjustmentLayer | RasterLayer
-): boolean => adjustmentStackHasOwner(layer.adjustmentStack, 'geometry')
-  || adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx');
+): boolean => {
+  const stack = layer.adjustmentStack;
+  return Boolean(stack && (
+    adjustmentStackOwnerIsEnabled(stack, 'geometry')
+    || adjustmentStackOwnerIsEnabled(stack, 'lens-fx')
+  ));
+};
 
 /**
  * Owns one geometry/Lens Fx runtime per layer owner.

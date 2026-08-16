@@ -2,6 +2,15 @@ import React from 'react';
 import { ScopesPanel } from '../../ScopesPanel';
 import { DebugPanel } from '../../editor/ui/DebugPanel';
 import { GradePanel } from '../../editor/panels/GradePanel';
+import { CurvesPropertiesPanel } from '../../editor/panels/CurvesPropertiesPanel';
+import { AdjustmentPropertiesPanel } from '../../editor/panels/AdjustmentPropertiesPanel';
+import { GradientMapPropertiesPanel } from '../../editor/panels/GradientMapPropertiesPanel';
+import { PhotoshopAdjustmentPropertiesPanel } from '../../editor/panels/PhotoshopAdjustmentPropertiesPanel';
+import { GrainPropertiesPanel } from '../../editor/panels/GrainPropertiesPanel';
+import {
+  isPhotoshopAdjustmentKind,
+  PHOTOSHOP_ADJUSTMENT_KINDS
+} from '../../photoshopAdjustments';
 import { TextPropertiesPanel } from '../../editor/panels/TextPropertiesPanel';
 import {
   LensFxPanel
@@ -67,12 +76,26 @@ export const createEditorWorkspacePanels = ({
     properties: (
       <PropertiesPanel
         view={propertiesView}
-        grade={<GradePanel {...grade} />}
-        lensFx={<LensFxPanel key={lensFxKey} {...lensFx} />}
-        effects={<LayerStylesPanel {...effects} />}
-        text={text
-          ? <TextPropertiesPanel {...text} />
-          : <aside className="lighttable-panel" aria-label="Text properties" />}
+        editors={{
+          grade: <GradePanel {...grade} />,
+          curves: <CurvesPropertiesPanel {...grade} />,
+          exposure: <PhotoshopAdjustmentPropertiesPanel kind="exposure" {...grade} />,
+          vibrance: <AdjustmentPropertiesPanel title="Vibrance" {...grade} />,
+          'color-vibrance': <AdjustmentPropertiesPanel title="Color and Vibrance" {...grade} />,
+          'gradient-map': <GradientMapPropertiesPanel {...grade} />,
+          'clarity-dehaze': <AdjustmentPropertiesPanel title="Clarity and Dehaze" {...grade} />,
+          grain: <GrainPropertiesPanel {...lensFx} />,
+          'lens-fx': <LensFxPanel key={lensFxKey} {...lensFx} />,
+          effects: <LayerStylesPanel {...effects} />,
+          text: text
+            ? <TextPropertiesPanel {...text} />
+            : <aside className="lighttable-panel" aria-label="Text properties" />,
+          ...Object.fromEntries(PHOTOSHOP_ADJUSTMENT_KINDS
+            .filter((kind) => kind !== 'exposure')
+            .map((kind) => [kind, isPhotoshopAdjustmentKind(kind)
+              ? <PhotoshopAdjustmentPropertiesPanel key={kind} kind={kind} {...grade} />
+              : null]))
+        }}
       />
     ),
     agent: <AgentActivityPanel {...agent} />,

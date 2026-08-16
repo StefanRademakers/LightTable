@@ -2,7 +2,7 @@ import React from 'react';
 import { navigateFontPicker } from './fontPickerKeyboard';
 import { createPortal } from 'react-dom';
 import { lightTableIcon } from '../../../assets/icons';
-import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
 import type {
   BrushSettings,
@@ -330,6 +330,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
   onZoomFit,
   orientation = 'horizontal'
 }) => {
+  const adjustmentLayout = orientation === 'vertical' ? 'tool-panel' : 'tool-bar';
   const activeToolDefinition = toolDefinition(activeTool);
   const vectorStyleToolActive = activeTool.startsWith('vector-') || activeTool.startsWith('shape-');
   const editsVectorSelection = vectorStyleToolActive && Boolean(selectedVectorStyle);
@@ -408,6 +409,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
         </label>
       ) : null}
       <SelectionToolOptions
+        adjustmentLayout={adjustmentLayout}
         activeTool={activeTool}
         feather={selectionFeather}
         antiAlias={selectionAntiAlias}
@@ -736,12 +738,14 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
       ) : null}
       {activeTool === 'warp' ? (
         <WarpToolOptions
+          adjustmentLayout={adjustmentLayout}
           warp={warp}
           onChange={onWarpChange}
           onReset={onWarpReset}
         />
       ) : null}
-      {activeTool === 'face-warp' ? <FaceWarpToolOptions {...faceWarp} /> : null}
+      {activeTool === 'face-warp' ? <FaceWarpToolOptions {...faceWarp}
+        adjustmentLayout={adjustmentLayout} /> : null}
       {activeTool === 'text-point' || activeTool === 'text-paragraph'
         || activeTool === 'text-vertical' || activeTool === 'text-path' ? (
         <div className="lighttable-tool-options__text" aria-label="Text settings">
@@ -990,6 +994,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
                 </ToolOptionSelect>
               )}
               <AdjustmentSlider
+                layout={adjustmentLayout}
                 label={activeTool === 'sponge' ? 'Flow' : 'Exposure'}
                 value={(activeTool === 'sponge' ? toneBrush.spongeFlow : toneBrush.exposure) * 100}
                 min={1}
@@ -1035,6 +1040,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             ) : null}
           </ToolOptionSelect>
           <AdjustmentSlider
+          layout={adjustmentLayout}
           label="Size"
           value={brush.size}
           min={1}
@@ -1044,6 +1050,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           onChange={(size) => onBrushChange({ size })}
           />
           <AdjustmentSlider
+          layout={adjustmentLayout}
           label={resolveBrushPreset(brush.presetId).engine === 'warp' ? 'Density' : 'Hardness'}
           value={(activeTool === 'healing-brush'
             ? sampledBrush.healingHardness : brush.hardness) * 100}
@@ -1059,6 +1066,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             : onBrushChange({ hardness: value / 100 })}
           />
           {!isToneBrushTool(activeTool) ? <AdjustmentSlider
+          layout={adjustmentLayout}
           label={isSampledBrushTool(activeTool) || resolveBrushPreset(brush.presetId).engine === 'paint'
             ? 'Opacity' : 'Strength'}
           value={(activeTool === 'healing-brush'
@@ -1076,6 +1084,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
           /> : null}
           {activeTool !== 'healing-brush' && !isToneBrushTool(activeTool) ? (
             <AdjustmentSlider
+            layout={adjustmentLayout}
             label="Flow"
             value={brush.flow * 100}
             min={1}
@@ -1087,6 +1096,7 @@ export const ToolOptionsContent: React.FC<ToolOptionsProps & {
             />
           ) : null}
           <AdjustmentSlider
+          layout={adjustmentLayout}
           label="Smooth"
           value={brush.smooth * 100}
           min={0}

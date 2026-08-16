@@ -8,7 +8,7 @@ import type { BasicAdjustments } from '../../types';
 
 export type NumericAdjustmentKey = Exclude<
   keyof BasicAdjustments,
-  'colorMixer' | 'colorGrading' | 'curves' | 'gradientMap' | 'effects'
+  'colorMixer' | 'colorGrading' | 'curves' | 'gradientMap' | 'photoshopAdjustment' | 'effects'
 >;
 
 export interface GroupVisibility {

@@ -42,7 +42,11 @@ self.onmessage = async (event: MessageEvent<PsdExportRequest>) => {
       pixels: await decode(asset.pixels),
       mask: asset.mask ? await decode(asset.mask) : undefined
     })));
-    const projection = projectDocumentToPsd(request.document, composite, assets);
+    const lutAssets = await Promise.all(request.colorLookupAssets.map(async (asset) => ({
+      lutId: asset.lutId,
+      data: new Uint8Array(await asset.source.arrayBuffer())
+    })));
+    const projection = projectDocumentToPsd(request.document, composite, assets, lutAssets);
     const psb = request.document.width > 30_000 || request.document.height > 30_000;
     const encoded = writePsdUint8Array(projection.psd, {
       psb,

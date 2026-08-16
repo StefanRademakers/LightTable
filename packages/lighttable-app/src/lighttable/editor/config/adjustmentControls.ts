@@ -1,5 +1,5 @@
 import type { SegmentedControlOption } from '../../../ui/SegmentedControl';
-import type { AdjustmentSliderTrack } from '../../AdjustmentSlider';
+import type { AdjustmentSliderTrack } from '../../../ui/AdjustmentSlider';
 import type {
   NumericAdjustmentKey
 } from '../../application/adjustments/groupVisibility';

@@ -64,6 +64,8 @@ interface RendererPresentationSyncOptions<
   readonly selectionDraft: SelectionShape | null;
   readonly selectionOverlayVisible: boolean;
   readonly scopeVisibility: ScopeVisibility;
+  /** Keeps shared histogram analysis alive for contextual editors such as Levels. */
+  readonly histogramConsumerVisible?: boolean;
   readonly scopeSettings: ScopeSettings;
   readonly scopeVisibilityRef: MutableRefObject<ScopeVisibility>;
   readonly scopeSettingsRef: MutableRefObject<ScopeSettings>;
@@ -89,6 +91,7 @@ export const useRendererPresentationSync = <
   selectionDraft,
   selectionOverlayVisible,
   scopeVisibility,
+  histogramConsumerVisible = false,
   scopeSettings,
   scopeVisibilityRef,
   scopeSettingsRef
@@ -134,11 +137,12 @@ export const useRendererPresentationSync = <
     scopeVisibilityRef.current = scopeVisibility;
     scopeSettingsRef.current = scopeSettings;
     rendererRef.current?.setScopeOptions(
-      scopeVisibility.histogram,
+      scopeVisibility.histogram || histogramConsumerVisible,
       createScopeRendererOptions(scopeVisibility, scopeSettings)
     );
   }, [
     rendererRef,
+    histogramConsumerVisible,
     scopeSettings,
     scopeSettingsRef,
     scopeVisibility,

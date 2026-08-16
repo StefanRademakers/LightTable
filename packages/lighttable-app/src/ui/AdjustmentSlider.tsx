@@ -10,7 +10,7 @@ const TRACK_BACKGROUNDS: Record<AdjustmentSliderTrack, string> = {
   saturation: 'linear-gradient(to right, #626870 0%, #4d79b8 20%, #4da882 42%, #d1b34e 70%, #d84b50 100%)'
 };
 
-interface AdjustmentSliderProps {
+export interface AdjustmentSliderProps {
   label: string;
   ariaLabel?: string;
   value: number;
@@ -21,7 +21,8 @@ interface AdjustmentSliderProps {
   resetValue?: number;
   track?: AdjustmentSliderTrack;
   trackBackground?: string;
-  layout?: 'stacked' | 'inline' | 'bare';
+  layout?: 'stacked' | 'inline' | 'bare' | 'layer-row' | 'tool-bar' | 'tool-panel';
+  density?: 'default' | 'spaced' | 'compact';
   showResetMarker?: boolean;
   disabled?: boolean;
   resetModifierActive?: boolean;
@@ -49,6 +50,7 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   track,
   trackBackground: customTrackBackground,
   layout = 'stacked',
+  density = 'default',
   showResetMarker = true,
   disabled = false,
   resetModifierActive = false,
@@ -149,7 +151,7 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
     ? TRACK_BACKGROUNDS[track]
     : `linear-gradient(to right, var(--lt-range-track-fill) 0%, var(--lt-range-track-fill) ${percentage}%, var(--lt-range-track) ${percentage}%, var(--lt-range-track) 100%)`);
   return (
-    <label className={`lighttable-adjustment lighttable-adjustment--${layout}${disabled ? ' lighttable-adjustment--disabled' : ''}`}>
+    <label className={`lighttable-adjustment lighttable-adjustment--${layout} lighttable-adjustment--density-${density}${disabled ? ' lighttable-adjustment--disabled' : ''}`}>
       {layout !== 'bare' ? <span
         className="lighttable-adjustment__header"
         title={resetModifierActive ? `Reset ${label}` : label}

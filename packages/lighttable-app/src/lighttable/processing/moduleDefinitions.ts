@@ -55,6 +55,7 @@ export type CurrentAdjustmentSettingsPath =
   | 'colorGrading'
   | 'curves'
   | 'gradientMap'
+  | 'photoshopAdjustment'
   | 'effects.grain'
   | 'effects.halation'
   | 'effects.chromaticAberration'
@@ -196,6 +197,22 @@ export const CURRENT_PROCESSING_MODULES = [
     alphaBehavior: 'preserve',
     psdCandidates: ['gradient-map'],
     notes: 'Maps Photoshop document luminance through an editable shared gradient.'
+  },
+  {
+    type: 'lt.photoshop-adjustment',
+    label: 'Photoshop Adjustment',
+    category: 'color',
+    settingsPaths: ['photoshopAdjustment'],
+    allowedScopes: CREATIVE_GRADE_SCOPES,
+    inputDomain: 'perceptual',
+    outputDomain: 'linear-rgb',
+    alphaBehavior: 'preserve',
+    psdCandidates: [
+      'brightness-contrast', 'levels', 'exposure', 'hue-saturation',
+      'color-balance', 'black-white', 'photo-filter', 'channel-mixer',
+      'color-lookup', 'selective-color', 'invert', 'posterize', 'threshold'
+    ],
+    notes: 'Dedicated authored payload; evaluated according to its stable family kind.'
   },
   {
     type: 'lt.detail',

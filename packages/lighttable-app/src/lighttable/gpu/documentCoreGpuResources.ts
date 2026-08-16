@@ -25,6 +25,7 @@ export class DocumentCoreGpuResources {
   readonly blurHorizontalBuffer: GPUBuffer;
   readonly blurVerticalBuffer: GPUBuffer;
   readonly curveTexture: GPUTexture;
+  readonly identityColorLookupTexture: GPUTexture;
 
   private readonly adjustmentPayloadWriter: AdjustmentGpuPayloadWriter;
   private lastOutputSettings: Float32Array | null = null;
@@ -67,6 +68,29 @@ export class DocumentCoreGpuResources {
       format: 'rgba32float',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
     });
+    this.identityColorLookupTexture = device.createTexture({
+      label: 'LightTable identity 3D Color Lookup',
+      size: [2, 2, 2],
+      dimension: '3d',
+      format: 'rgba32float',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    });
+    const identity = new Float32Array(2 * 2 * 2 * 4);
+    let target = 0;
+    for (let blue = 0; blue < 2; blue += 1) {
+      for (let green = 0; green < 2; green += 1) {
+        for (let red = 0; red < 2; red += 1) {
+          identity.set([red, green, blue, 1], target);
+          target += 4;
+        }
+      }
+    }
+    device.queue.writeTexture(
+      { texture: this.identityColorLookupTexture },
+      identity,
+      { bytesPerRow: 2 * 4 * Float32Array.BYTES_PER_ELEMENT, rowsPerImage: 2 },
+      { width: 2, height: 2, depthOrArrayLayers: 2 }
+    );
     this.adjustmentPayloadWriter = new AdjustmentGpuPayloadWriter(device, {
       uniformBuffer: this.adjustmentBuffer,
       curveTexture: this.curveTexture
@@ -112,6 +136,7 @@ export class DocumentCoreGpuResources {
     this.blurHorizontalBuffer.destroy();
     this.blurVerticalBuffer.destroy();
     this.curveTexture.destroy();
+    this.identityColorLookupTexture.destroy();
     this.lastOutputSettings = null;
   }
 

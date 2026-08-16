@@ -1,6 +1,6 @@
 import React from 'react';
 import { lightTableIcon } from '../assets/icons';
-import { AdjustmentSlider } from '../lighttable/AdjustmentSlider';
+import { AdjustmentSlider } from './AdjustmentSlider';
 import { FormInput } from './FormInput';
 import { OpacitySlider } from './OpacitySlider';
 import { SquareIconButton } from './SquareIconButton';

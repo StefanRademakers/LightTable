@@ -58,6 +58,31 @@ const labels = {
 };
 
 describe('createEditorMenuOptions', () => {
+  it('exposes the complete current adjustment catalog with Photoshop shortcuts', () => {
+    const menuCommands = commands();
+    const image = createEditorMenuOptions('image', state(), labels, menuCommands);
+    const adjustments = image.find(({ value }) => value === 'image-adjustments')?.children;
+    const curves = adjustments?.find(({ value }) => value === 'image-adjustments-curves');
+    expect(curves).toMatchObject({ label: 'Curves...', shortcut: 'Ctrl+M', disabled: false });
+    curves?.onClick?.();
+    expect(menuCommands.applyAdjustment).toHaveBeenCalledWith('curves');
+    expect(adjustments?.map(({ label }) => label)).toEqual([
+      'Grade...', 'Lens Fx...',
+      'Brightness / Contrast...', 'Levels...', 'Curves...', 'Exposure...',
+      'Color and Vibrance...', 'Hue / Saturation...', 'Color Balance...',
+      'Black & White...', 'Photo Filter...', 'Channel Mixer...', 'Color Lookup...',
+      'Invert...', 'Posterize...', 'Threshold...', 'Gradient Map...', 'Selective Color...',
+      'Clarity and Dehaze...', 'Grain...'
+    ]);
+    expect(adjustments?.filter(({ separatorBefore }) => separatorBefore).map(({ value }) => value))
+      .toEqual([
+        'image-adjustments-brightness-contrast',
+        'image-adjustments-color-vibrance',
+        'image-adjustments-invert',
+        'image-adjustments-clarity-dehaze'
+      ]);
+  });
+
   it('moves document color commands into Photoshop-compatible Edit and Image menus', () => {
     const menuCommands = commands();
     const colorState = state({ documentColor: { bitDepth: 16, profileState: 'assumed' } });

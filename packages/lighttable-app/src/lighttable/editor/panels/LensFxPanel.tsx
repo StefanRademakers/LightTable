@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ActionButton } from '../../../ui/ActionButton';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
 import { lightTableIcon } from '../../../assets/icons';
-import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { EffectPanel } from '../../effects/EffectPanel';
 import {
   DEFAULT_CHROMATIC_ABERRATION_SETTINGS

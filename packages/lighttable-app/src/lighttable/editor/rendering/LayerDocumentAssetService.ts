@@ -4,6 +4,7 @@ import type {
   LayerId,
   LayerNode
 } from '../document/documentTypes';
+import { adjustmentStackHasEditablePsdDescriptor } from '../psd/psdAdjustmentExportAdapter';
 import {
   walkLayerTree,
   walkRasterLayers
@@ -171,13 +172,27 @@ export class LayerDocumentAssetService {
         layer.transform
       );
       const maskTexture = layer.mask ? this.ports.maskTexture(layer.id) : null;
+      // Photoshop can represent these attached nodes as clipped editable
+      // adjustment layers. Keep them out of the baked base pixels; native
+      // LightTable-only processing remains baked so the PSD stays visual.
+      const bakedLayer = {
+        ...layer,
+        attachedAdjustments: (layer.attachedAdjustments ?? []).filter((adjustment) =>
+          !adjustmentStackHasEditablePsdDescriptor(
+            adjustment.adjustmentKind,
+            adjustment.adjustmentStack
+          ))
+      };
+      const hasBakedProcessing = Boolean(
+        bakedLayer.adjustmentStack || bakedLayer.attachedAdjustments.length
+      );
       assets.push({
         layerId: layer.id,
         bounds: { x: left, y: top, width, height },
-        pixels: layer.adjustmentStack && encodeAdjustment
+        pixels: hasBakedProcessing && encodeAdjustment
           ? await this.ports.encodeProcessedRasterLayer(
               document,
-              layer,
+              bakedLayer,
               encodeAdjustment,
               { width, height, sourceToOutput }
             )
@@ -240,6 +255,7 @@ export class LayerDocumentAssetService {
     for (const asset of assets) {
       if ('sourceId' in asset) continue;
       if ('fingerprintSha256' in asset) continue;
+      if ('lutId' in asset) continue;
       if ('patternId' in asset) {
         await this.ports.loadPattern(asset);
         continue;

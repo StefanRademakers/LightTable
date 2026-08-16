@@ -5,11 +5,19 @@ import { localProcessingTreeItems } from './LocalProcessingTreeRows';
 
 describe('LayerPanel creation flyout', () => {
   it('orders processing and fill layers vertically and uses the gradient tool icon', () => {
-    expect(LAYER_CREATION_OPTIONS).toEqual([
-      { id: 'grade', label: 'New Grade layer', iconName: 'add_adjustment_layer.png' },
-      { id: 'lens-fx', label: 'New Lens Fx layer', iconName: 'lens_fx.png' },
-      { id: 'gradient-fill', label: 'New Gradient Fill layer', iconName: 'tool_gradient.png' }
+    expect(LAYER_CREATION_OPTIONS.map(({ id }) => id)).toEqual([
+      'grade', 'lens-fx', 'brightness-contrast', 'levels', 'curves', 'exposure',
+      'color-vibrance', 'hue-saturation', 'color-balance', 'black-white',
+      'photo-filter', 'channel-mixer', 'color-lookup', 'invert', 'posterize',
+      'threshold', 'gradient-map', 'selective-color', 'clarity-dehaze',
+      'grain', 'gradient-fill'
     ]);
+    expect(LAYER_CREATION_OPTIONS.filter(({ sectionStart }) => sectionStart).map(({ id }) => id))
+      .toEqual(['brightness-contrast', 'color-vibrance', 'invert', 'clarity-dehaze', 'gradient-fill']);
+    expect(LAYER_CREATION_OPTIONS.find(({ id }) => id === 'gradient-fill'))
+      .toMatchObject({ iconName: 'tool_gradient.png' });
+    expect(LAYER_CREATION_OPTIONS.find(({ id }) => id === 'curves'))
+      .toMatchObject({ iconName: 'adjustment_curves.svg' });
   });
 
   it('projects a layer-local Grade as an expandable child instead of a status badge', () => {
@@ -51,6 +59,21 @@ describe('LayerPanel creation flyout', () => {
 
     expect(localProcessingTreeItems(raster)).toEqual([
       { id: 'lens-fx', label: 'Lens Fx', enabled: true }
+    ]);
+  });
+
+  it('projects an attached Curves node independently from local Grade', () => {
+    const raster = {
+      type: 'raster',
+      adjustmentStack: {
+        id: 'local-processing',
+        revision: 1,
+        modules: [{ id: 'curves', type: 'lt.curves', enabled: true, revision: 1, settings: {} }]
+      }
+    } as LayerNode;
+
+    expect(localProcessingTreeItems(raster)).toEqual([
+      { id: 'curves', label: 'Curves', enabled: true }
     ]);
   });
 });

@@ -3,24 +3,15 @@ import type { PropertiesInspectorView } from '../../application/properties/prope
 
 export interface PropertiesPanelProps {
   readonly view: PropertiesInspectorView;
-  readonly grade: React.ReactNode;
-  readonly lensFx: React.ReactNode;
-  readonly effects: React.ReactNode;
-  readonly text: React.ReactNode;
+  readonly editors: Partial<Record<Exclude<PropertiesInspectorView, 'empty'>, React.ReactNode>>;
 }
 
 /** Routes one explicit Layers-tree target to an independently owned editor. */
 export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   view,
-  grade,
-  lensFx,
-  effects,
-  text
+  editors
 }) => {
-  if (view === 'grade') return grade;
-  if (view === 'lens-fx') return lensFx;
-  if (view === 'effects') return effects;
-  if (view === 'text') return text;
+  if (view !== 'empty' && editors[view]) return editors[view];
   return (
     <aside className="lighttable-panel" aria-label="Properties">
       <div className="lighttable-panel__empty">

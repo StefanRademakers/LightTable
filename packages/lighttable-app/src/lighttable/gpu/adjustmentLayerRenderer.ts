@@ -93,7 +93,8 @@ export class AdjustmentLayerRenderer {
       adjustments,
       dependencies.width,
       dependencies.height,
-      true
+      true,
+      runtime.colorLookupUniform
     );
 
     const basicBindGroup = this.device.createBindGroup({

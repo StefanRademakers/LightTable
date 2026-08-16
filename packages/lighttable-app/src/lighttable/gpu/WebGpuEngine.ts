@@ -6,6 +6,7 @@ import {
   LayerEffectRenderer,
   layerNeedsEffectRuntime
 } from '../effects/LayerEffectRenderer';
+import { attachedAdjustmentProcessingOwner } from '../processing/attachedAdjustment';
 import type { DepthAnalysisResult } from '../analysis/depth/types';
 import {
   layerIsLocked,
@@ -41,7 +42,10 @@ import type {
   SelectionShape
 } from '../editor/selection/selectionTypes';
 import type { AffineMatrix } from '../editor/tools/transform/transformTypes';
-import type { DocumentAssetBlob } from '../editor/persistence/layeredDocumentFormat';
+import type {
+  ColorLookupAssetBlob,
+  DocumentAssetBlob
+} from '../editor/persistence/layeredDocumentFormat';
 import { LayerDocumentRenderer } from '../editor/rendering/LayerDocumentRenderer';
 import type { ReversiblePixelEdit } from '../editor/history/ReversiblePixelEdit';
 import { FeatureAlignmentService } from '../editor/autoAlign/FeatureAlignmentService';
@@ -121,6 +125,7 @@ import { SmartSelectionOverlayBackend } from '../editor/rendering/SmartSelection
 import type { TextFontRuntimePort } from '../text/rendering/TextLayerRenderCoordinator';
 import type { TextEditingOverlay } from '@lighttable/text-rendering';
 import { TextEditingOverlayBackend } from '@lighttable/text-webgpu';
+import { ColorLookupAssetStore } from './ColorLookupAssetStore';
 
 const FACE_WARP_MESH_THEME: VectorEditingOverlayTheme = {
   pathColor: [0.1, 0.82, 0.95, 1],
@@ -162,6 +167,7 @@ export class WebGpuEngine {
   private documentRenderer: LayerDocumentRenderer | null = null;
   private readonly adjustmentLayerResources: AdjustmentLayerGpuResources;
   private readonly adjustmentLayerRenderer: AdjustmentLayerRenderer;
+  private readonly colorLookupAssets: ColorLookupAssetStore;
   private translationAlignmentService: FeatureAlignmentService | null = null;
   private imageDocument: ImageDocument | null = null;
   /**
@@ -196,6 +202,7 @@ export class WebGpuEngine {
     this.context = context;
     this.canvasFormat = canvasFormat;
     this.callbacks = callbacks;
+    this.colorLookupAssets = new ColorLookupAssetStore(device);
     this.adjustmentLayerResources = new AdjustmentLayerGpuResources(device);
     this.adjustmentLayerRenderer = new AdjustmentLayerRenderer(
       device,
@@ -1231,17 +1238,31 @@ export class WebGpuEngine {
     return this.documentRenderer?.measureLayerMaskContent(layer) ?? null;
   }
 
-  exportLayerAssets(document: ImageDocument) {
-    if (!this.documentRenderer) throw new Error('The LightTable layer renderer is unavailable.');
-    return this.documentRenderer.exportDocumentAssets(document);
+  private exportColorLookupAssets(document: ImageDocument): ColorLookupAssetBlob[] {
+    return document.assets.colorLookups.map((asset) => {
+      const source = this.colorLookupAssets.getSource(asset.id);
+      if (!source) throw new Error(`Color Lookup ${asset.name} is not available for saving.`);
+      return { lutId: asset.id, source };
+    });
   }
 
-  exportPsdLayerAssets(document: ImageDocument) {
+  async exportLayerAssets(document: ImageDocument) {
     if (!this.documentRenderer) throw new Error('The LightTable layer renderer is unavailable.');
-    return this.documentRenderer.exportPsdDocumentAssets(
-      document,
-      (encoder, source, layer) => this.encodeLayerProcessing(encoder, source, layer)
-    );
+    return [
+      ...await this.documentRenderer.exportDocumentAssets(document),
+      ...this.exportColorLookupAssets(document)
+    ];
+  }
+
+  async exportPsdLayerAssets(document: ImageDocument) {
+    if (!this.documentRenderer) throw new Error('The LightTable layer renderer is unavailable.');
+    return [
+      ...await this.documentRenderer.exportPsdDocumentAssets(
+        document,
+        (encoder, source, layer) => this.encodeLayerProcessing(encoder, source, layer)
+      ),
+      ...this.exportColorLookupAssets(document)
+    ];
   }
 
   exportLayerForBackgroundRemoval(document: ImageDocument, layer: RasterLayer) {
@@ -1272,7 +1293,14 @@ export class WebGpuEngine {
 
   async loadLayerAssets(assets: DocumentAssetBlob[]) {
     if (!this.documentRenderer) throw new Error('The LightTable layer renderer is unavailable.');
-    await this.documentRenderer.loadDocumentAssets(assets);
+    for (const asset of assets) {
+      if (!('lutId' in asset)) continue;
+      await this.colorLookupAssets.load(asset);
+      this.adjustmentLayerResources.invalidateColorLookupAsset(asset.lutId);
+    }
+    await this.documentRenderer.loadDocumentAssets(
+      assets.filter((asset) => !('lutId' in asset))
+    );
     this.markDocumentDirty();
   }
 
@@ -1429,7 +1457,9 @@ export class WebGpuEngine {
       sampler: coreResources.sampler,
       creativePipeline: this.creativePipeline,
       correctedTexture: this.imageResources.correctedTexture,
-      downsampleTexture: this.imageResources.downsampleTexture
+      downsampleTexture: this.imageResources.downsampleTexture,
+      identityColorLookupTexture: coreResources.identityColorLookupTexture,
+      resolveColorLookup: (id) => this.colorLookupAssets.get(id)
     });
 
     this.imageResources.downsampleBindGroup = this.device.createBindGroup({
@@ -1461,8 +1491,9 @@ export class WebGpuEngine {
         { binding: 0, resource: this.imageResources.correctedTexture.createView() },
         { binding: 1, resource: this.imageResources.downsampleTexture.createView() },
         { binding: 2, resource: coreResources.sampler },
-        { binding: 3, resource: { buffer: coreResources.adjustmentBuffer } },
-        { binding: 4, resource: coreResources.curveTexture.createView() }
+          { binding: 3, resource: { buffer: coreResources.adjustmentBuffer } },
+          { binding: 4, resource: coreResources.curveTexture.createView() },
+          { binding: 5, resource: coreResources.identityColorLookupTexture.createView() }
       ]
     });
     this.adjustmentLayerRenderer.configure({
@@ -2048,7 +2079,8 @@ export class WebGpuEngine {
       final: Boolean(this.imageResources.finalTexture),
       curveLutBytes: this.coreResources ? CURVE_LUT_SIZE * 16 : 0,
       adjustmentLayerBytes: this.adjustmentLayerResources.estimatedBytes(),
-      layerDocumentBytes: this.documentRenderer?.estimatedTextureBytes() ?? 0,
+      layerDocumentBytes: (this.documentRenderer?.estimatedTextureBytes() ?? 0)
+        + this.colorLookupAssets.estimatedTextureBytes(),
       effectBytes: (this.effectRuntime?.estimatedTextureBytes() ?? 0)
         + (this.layerEffectRenderer?.estimatedTextureBytes() ?? 0)
     }) + (this.vectorEditingOverlayBackend?.cacheMetrics().bytes ?? 0);
@@ -2128,11 +2160,18 @@ export class WebGpuEngine {
       const documentTexture = this.documentCompositeTexture;
       this.layerEffectRenderer?.syncOwners(new Set(
         walkLayerTree(this.imageDocument.layers)
-          .filter(({ node }) =>
-            (node.type === 'raster' || node.type === 'adjustment')
-            && layerNeedsEffectRuntime(node)
-          )
-          .map(({ node }) => node.id)
+          .flatMap(({ node }) => {
+            if (node.type !== 'raster' && node.type !== 'adjustment') return [];
+            const ids = layerNeedsEffectRuntime(node) ? [node.id] : [];
+            if (node.type === 'raster') {
+              for (const adjustment of node.attachedAdjustments ?? []) {
+                if (!adjustment.enabled) continue;
+                const owner = attachedAdjustmentProcessingOwner(node, adjustment);
+                if (layerNeedsEffectRuntime(owner)) ids.push(owner.id);
+              }
+            }
+            return ids;
+          })
       ));
       if (
         this.renderDirty.correctionStageRequired('source-geometry')
@@ -2846,6 +2885,7 @@ export class WebGpuEngine {
     this.documentRenderer?.destroyImageResources();
     this.adjustmentLayerRenderer.reset();
     this.adjustmentLayerResources.reset();
+    this.colorLookupAssets.clear();
     this.imageDocument = null;
     this.isolatedMaskLayerId = null;
     this.isolatedMaskTexture = null;

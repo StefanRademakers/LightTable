@@ -1,7 +1,8 @@
 import React from 'react';
 import { ContextMenu, type ContextMenuOption } from '../../../ui/ContextMenu';
+import { AnchoredViewportMenu } from '../../../ui/AnchoredViewportMenu';
 import { lightTableIcon } from '../../../assets/icons';
-import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import {
   layerSupportsContentCompositing,
   layerSupportsLayerStyles
@@ -21,15 +22,26 @@ import type {
 import { layerThumbnailDimensions } from '../layers/layerThumbnailTypes';
 import { layerRowInset } from '../layers/layerTreeGeometry';
 import {
-  adjustmentStackHasOwner
+  adjustmentStackHasOwner,
+  type LocalProcessingKind
 } from '../../processing/adjustmentStack';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { layerStyleTreeEffects } from './layerStyleTreePresentation';
 import { buildDocumentCapabilityFindings } from '../compatibility/documentCapabilityFindings';
 import { LayerCompatibilityBadge } from './LayerCompatibilityBadge';
 import { layerCompatibilityPresentation } from './layerCompatibilityPresentation';
-import { LocalProcessingTreeRows, localProcessingTreeItems } from './LocalProcessingTreeRows';
+import {
+  AttachedAdjustmentTreeRows,
+  LocalProcessingTreeRows,
+  localProcessingTreeItems
+} from './LocalProcessingTreeRows';
 import type { PropertiesInspectorTarget } from '../../application/properties/propertiesInspectorTarget';
+import {
+  ADJUSTMENT_LAYER_DEFINITIONS,
+  adjustmentLayerMenuDefinitionGroups,
+  adjustmentLayerDefinition,
+  type AdjustmentLayerKind
+} from '../../processing/adjustmentLayerCatalog';
 
 interface LayerPanelProps {
   document: ImageDocument;
@@ -65,8 +77,12 @@ interface LayerPanelProps {
   onLockChange: (layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean) => void;
   onCreate: () => void;
   onCreateAdjustment: () => void;
+  onCreateCurvesAdjustment: () => void;
+  onCreateLocalProcessing: (layerId: LayerId, kind: LocalProcessingKind) => void;
   onCreateGradientFill: () => void;
   onCreateLensFx: () => void;
+  onCreateAdjustmentKind: (kind: AdjustmentLayerKind) => void;
+  onCreateAttachedAdjustment: (layerId: LayerId, kind: AdjustmentLayerKind) => string | null;
   onCreateGroup: () => void;
   onGroupSelection: (layerIds: LayerId[]) => void;
   onUngroupSelection: (layerIds: LayerId[]) => void;
@@ -82,8 +98,11 @@ interface LayerPanelProps {
   onEditStyles: (layerId: LayerId, effectId?: LayerStyleId) => void;
   onStyleStackEnabled: (layerId: LayerId, enabled: boolean) => void;
   onLocalGradeEnabled: (layerId: LayerId, enabled: boolean) => void;
+  onLocalCurvesEnabled: (layerId: LayerId, enabled: boolean) => void;
   onLocalLensFxEnabled: (layerId: LayerId, enabled: boolean) => void;
-  onRemoveLocalProcessing: (layerId: LayerId, owner: 'grade' | 'lens-fx') => void;
+  onRemoveLocalProcessing: (layerId: LayerId, owner: LocalProcessingKind) => void;
+  onAttachedAdjustmentEnabled: (layerId: LayerId, adjustmentId: string, enabled: boolean) => void;
+  onRemoveAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
   onStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => void;
   onRemoveStyle: (layerId: LayerId, effectId: LayerStyleId) => void;
   onClearStyles: (layerId: LayerId) => void;
@@ -93,7 +112,8 @@ interface LayerPanelProps {
   onOpenFontReport?: (layerId: LayerId) => void;
   inspectorTarget: PropertiesInspectorTarget;
   onInspectLayer: (layerId: LayerId, channel: PaintChannel) => void;
-  onInspectProcessing: (layerId: LayerId, owner: 'grade' | 'lens-fx') => void;
+  onInspectProcessing: (layerId: LayerId, owner: LocalProcessingKind) => void;
+  onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
 }
 
 interface VisualLayerRow {
@@ -102,7 +122,7 @@ interface VisualLayerRow {
 }
 
 type LayerSubtarget = Extract<PropertiesInspectorTarget,
-  { kind: 'processing' | 'style-stack' | 'style' }>;
+  { kind: 'processing' | 'attached-processing' | 'style-stack' | 'style' }>;
 
 export const LAYER_SUBTARGET_DRAG_TYPE = 'application/x-lighttable-layer-subtarget';
 
@@ -110,7 +130,11 @@ const parseLayerSubtarget = (value: string): LayerSubtarget | null => {
   try {
     const target = JSON.parse(value) as Partial<LayerSubtarget>;
     if (typeof target.layerId !== 'string') return null;
-    if (target.kind === 'processing' && (target.owner === 'grade' || target.owner === 'lens-fx')) {
+    if (target.kind === 'processing'
+      && (target.owner === 'grade' || target.owner === 'curves' || target.owner === 'lens-fx')) {
+      return target as LayerSubtarget;
+    }
+    if (target.kind === 'attached-processing' && typeof target.adjustmentId === 'string') {
       return target as LayerSubtarget;
     }
     if (target.kind === 'style-stack') return target as LayerSubtarget;
@@ -122,9 +146,18 @@ const parseLayerSubtarget = (value: string): LayerSubtarget | null => {
 };
 
 export const LAYER_CREATION_OPTIONS = [
-  { id: 'grade', label: 'New Grade layer', iconName: 'add_adjustment_layer.png' },
-  { id: 'lens-fx', label: 'New Lens Fx layer', iconName: 'lens_fx.png' },
-  { id: 'gradient-fill', label: 'New Gradient Fill layer', iconName: 'tool_gradient.png' }
+  ...adjustmentLayerMenuDefinitionGroups().flatMap((group, groupIndex) =>
+    group.map((definition, definitionIndex) => ({
+      id: definition.id,
+      label: `New ${definition.name}${definition.family === 'photoshop' ? ' adjustment' : ''} layer`,
+      menuLabel: definition.menuLabel,
+      iconName: definition.iconName,
+      sectionStart: groupIndex > 0 && definitionIndex === 0
+    }))),
+  {
+    id: 'gradient-fill', label: 'New Gradient Fill layer', menuLabel: 'Gradient Fill',
+    iconName: 'tool_gradient.png', sectionStart: true
+  }
 ] as const;
 
 const visualLayerRows = (
@@ -143,6 +176,9 @@ const visualLayerRows = (
 const layerTypeIcon = (layer: LayerNode) => {
   if (layer.type === 'group') return lightTableIcon('layer_group.png');
   if (layer.type === 'adjustment') {
+    if (layer.adjustmentKind) {
+      return lightTableIcon(adjustmentLayerDefinition(layer.adjustmentKind).iconName);
+    }
     return lightTableIcon(
       adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx')
         && !adjustmentStackHasOwner(layer.adjustmentStack, 'grade')
@@ -187,8 +223,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onLockChange,
   onCreate,
   onCreateAdjustment,
+  onCreateCurvesAdjustment,
+  onCreateLocalProcessing,
   onCreateGradientFill,
   onCreateLensFx,
+  onCreateAdjustmentKind,
+  onCreateAttachedAdjustment,
   onCreateGroup,
   onGroupSelection,
   onUngroupSelection,
@@ -204,8 +244,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onEditStyles,
   onStyleStackEnabled,
   onLocalGradeEnabled,
+  onLocalCurvesEnabled,
   onLocalLensFxEnabled,
   onRemoveLocalProcessing,
+  onAttachedAdjustmentEnabled,
+  onRemoveAttachedAdjustment,
   onStyleEnabled,
   onRemoveStyle,
   onClearStyles,
@@ -215,7 +258,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onOpenFontReport,
   inspectorTarget,
   onInspectLayer,
-  onInspectProcessing
+  onInspectProcessing,
+  onInspectAttachedAdjustment
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
@@ -230,6 +274,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const [collapsedStyles, setCollapsedStyles] = React.useState<Set<LayerId>>(() => new Set());
   const [renamingLayerId, setRenamingLayerId] = React.useState<LayerId | null>(null);
   const [createLayerMenuOpen, setCreateLayerMenuOpen] = React.useState(false);
+  const createLayerMenuTriggerRef = React.useRef<HTMLButtonElement>(null);
+  const closeCreateLayerMenu = React.useCallback(() => setCreateLayerMenuOpen(false), []);
   const [selectedLayerIds, setSelectedLayerIds] = React.useState<Set<LayerId>>(
     () => new Set(document.activeLayerId ? [document.activeLayerId] : [])
   );
@@ -271,10 +317,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     canUngroupSelection
   } = layerCapabilities;
   const canDeleteSelection = layerCapabilities.canDeleteSelection;
-  const layerCreationHandlers: Record<(typeof LAYER_CREATION_OPTIONS)[number]['id'], () => void> = {
-    'grade': onCreateAdjustment,
-    'lens-fx': onCreateLensFx,
-    'gradient-fill': onCreateGradientFill
+  const layerCreationHandlers = (id: (typeof LAYER_CREATION_OPTIONS)[number]['id']) => {
+    if (id === 'gradient-fill') return onCreateGradientFill;
+    if (id === 'grade') return onCreateAdjustment;
+    if (id === 'curves') return onCreateCurvesAdjustment;
+    if (id === 'lens-fx') return onCreateLensFx;
+    return () => onCreateAdjustmentKind(id);
   };
 
   React.useEffect(() => {
@@ -357,6 +405,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       restoreParentTarget(target.layerId);
       return;
     }
+    if (target.kind === 'attached-processing') {
+      onRemoveAttachedAdjustment(target.layerId, target.adjustmentId);
+      restoreParentTarget(target.layerId);
+      return;
+    }
     if (target.kind === 'style') {
       onRemoveStyle(target.layerId, target.effectId);
       restoreParentTarget(target.layerId);
@@ -421,7 +474,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     ? [{
         value: 'remove-subtarget',
         label: subtargetMenu.target.kind === 'processing'
-          ? `Remove Local ${subtargetMenu.target.owner === 'grade' ? 'Grade' : 'Lens Fx'}`
+          ? `Remove Local ${subtargetMenu.target.owner === 'lens-fx'
+            ? 'Lens Fx'
+            : subtargetMenu.target.owner === 'curves' ? 'Curves' : 'Grade'}`
+          : subtargetMenu.target.kind === 'attached-processing'
+            ? 'Remove Attached Adjustment'
           : subtargetMenu.target.kind === 'style-stack'
             ? 'Clear Layer Effects'
             : `Delete ${selectedStyleName ?? 'Layer Effect'}`,
@@ -434,6 +491,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     { value: 'new-layer', label: 'New layer', onClick: onCreate },
     { value: 'new-adjustment', label: 'New Grade layer', onClick: onCreateAdjustment },
     { value: 'new-lens-fx', label: 'New Lens Fx layer', onClick: onCreateLensFx },
+    ...ADJUSTMENT_LAYER_DEFINITIONS
+      .filter(({ family, creationVisible }) => family === 'photoshop' && creationVisible !== false)
+      .map((definition) => ({
+        value: `new-${definition.id}-adjustment`,
+        label: `New ${definition.name} adjustment layer`,
+        onClick: () => onCreateAdjustmentKind(definition.id)
+      })),
     { value: 'new-group', label: 'New group', onClick: onCreateGroup },
     {
       value: 'duplicate-layer',
@@ -511,6 +575,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       label: 'Edit Local Grade',
       separatorBefore: true,
       onClick: () => onInspectProcessing(activeLayer.id, 'grade')
+    }, {
+      value: 'local-curves',
+      label: 'Edit Local Curves',
+      onClick: () => {
+        onCreateLocalProcessing(activeLayer.id, 'curves');
+        onInspectProcessing(activeLayer.id, 'curves');
+      }
     }, {
       value: 'local-lens-fx',
       label: 'Edit Local Lens Fx',
@@ -624,6 +695,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           <div className="lighttable-layers__opacity-controls">
               <AdjustmentSlider
                 label="Opacity"
+                layout="layer-row"
                 value={activeLayer.opacity * 100}
                 min={0}
                 max={100}
@@ -636,6 +708,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               />
               <AdjustmentSlider
                 label="Fill"
+                layout="layer-row"
                 value={activeLayer.fillOpacity * 100}
                 min={0}
                 max={100}
@@ -655,9 +728,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           const icon = layerTypeIcon(layer);
           const previews = thumbnails.get(layer.id);
           const localProcessingItems = localProcessingTreeItems(layer);
+          const attachedAdjustmentItems = layer.type === 'raster'
+            ? layer.attachedAdjustments ?? []
+            : [];
           const visibleStyleEffects = layerStyleTreeEffects(layer.styleStack);
           const hasStyles = visibleStyleEffects.length > 0;
-          const hasExpandableChildren = localProcessingItems.length > 0 || hasStyles;
+          const hasExpandableChildren = localProcessingItems.length > 0
+            || attachedAdjustmentItems.length > 0
+            || hasStyles;
           const childrenExpanded = hasExpandableChildren && !collapsedStyles.has(layer.id);
           const siblings = siblingLayers(document, layer.id);
           const siblingIndex = siblings.findIndex((sibling) => sibling.id === layer.id);
@@ -1110,6 +1188,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   : undefined}
                 onEnabled={(layerId, owner, enabled) => {
                   if (owner === 'grade') onLocalGradeEnabled(layerId, enabled);
+                  else if (owner === 'curves') onLocalCurvesEnabled(layerId, enabled);
                   else onLocalLensFxEnabled(layerId, enabled);
                 }}
                 onActivate={(owner) => {
@@ -1130,7 +1209,39 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   beginSubtargetDrag(
                     event,
                     { kind: 'processing', layerId: layer.id, owner },
-                    owner === 'grade' ? 'Grade' : 'Lens Fx'
+                    owner === 'lens-fx' ? 'Lens Fx' : owner === 'curves' ? 'Curves' : 'Grade'
+                  );
+                }}
+              />
+              <AttachedAdjustmentTreeRows
+                layerId={layer.id}
+                items={attachedAdjustmentItems}
+                selectedId={inspectorTarget.kind === 'attached-processing'
+                  && inspectorTarget.layerId === layer.id
+                  ? inspectorTarget.adjustmentId
+                  : undefined}
+                onEnabled={onAttachedAdjustmentEnabled}
+                onActivate={(adjustmentId) => {
+                  onSelect(layer.id);
+                  onChannelChange('pixels');
+                  onInspectAttachedAdjustment(layer.id, adjustmentId);
+                }}
+                onContextMenu={(event, adjustmentId) => {
+                  onSelect(layer.id);
+                  onChannelChange('pixels');
+                  onInspectAttachedAdjustment(layer.id, adjustmentId);
+                  openSubtargetMenu(event, {
+                    kind: 'attached-processing', layerId: layer.id, adjustmentId
+                  });
+                }}
+                onDragStart={(event, adjustmentId, label) => {
+                  onSelect(layer.id);
+                  onChannelChange('pixels');
+                  onInspectAttachedAdjustment(layer.id, adjustmentId);
+                  beginSubtargetDrag(
+                    event,
+                    { kind: 'attached-processing', layerId: layer.id, adjustmentId },
+                    label
                   );
                 }}
               />
@@ -1256,20 +1367,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         ><img src={lightTableIcon('add_mask.png')} alt="" aria-hidden="true" /></button>
         <div
           className="lighttable-layers__create-menu"
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) setCreateLayerMenuOpen(false);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.stopPropagation();
-              setCreateLayerMenuOpen(false);
-              event.currentTarget.querySelector<HTMLButtonElement>(
-                '.lighttable-layers__create-menu-trigger'
-              )?.focus();
-            }
-          }}
         >
           <button
+            ref={createLayerMenuTriggerRef}
             type="button"
             className="lighttable-layers__create-menu-trigger"
             onClick={() => setCreateLayerMenuOpen((open) => !open)}
@@ -1279,25 +1379,65 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             aria-expanded={createLayerMenuOpen}
           ><img src={lightTableIcon('add_adjustment_layer.png')} alt="" aria-hidden="true" /></button>
           {createLayerMenuOpen ? (
-            <div
+            <AnchoredViewportMenu
+              anchor={createLayerMenuTriggerRef}
               className="lighttable-layers__create-flyout"
-              role="menu"
-              aria-label="New fill or processing layer"
+              ariaLabel="New fill or processing layer"
+              onClose={closeCreateLayerMenu}
             >
               {LAYER_CREATION_OPTIONS.map((option) => (
-                <button
+                <div
+                  className={`lighttable-layers__create-option${
+                    option.sectionStart
+                      ? ' lighttable-layers__create-option--section-start'
+                      : ''
+                  }`}
+                  role="none"
                   key={option.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setCreateLayerMenuOpen(false);
-                    layerCreationHandlers[option.id]();
-                  }}
-                  title={option.label}
-                  aria-label={option.label}
-                ><img src={lightTableIcon(option.iconName)} alt="" aria-hidden="true" /></button>
+                >
+                  <button
+                    className="lighttable-layers__create-layer"
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setCreateLayerMenuOpen(false);
+                      layerCreationHandlers(option.id)();
+                    }}
+                    title={option.label}
+                    aria-label={option.label}
+                  >
+                    <img src={lightTableIcon(option.iconName)} alt="" aria-hidden="true" />
+                    <span>{option.menuLabel}</span>
+                  </button>
+                  {option.id !== 'gradient-fill' ? (
+                    <button
+                      className="lighttable-layers__create-attached"
+                      type="button"
+                      role="menuitem"
+                      disabled={activeLayer?.type !== 'raster' || activeLayer.locks.all}
+                      onClick={() => {
+                        if (activeLayer?.type !== 'raster') return;
+                        setCreateLayerMenuOpen(false);
+                        if (option.id === 'grade' || option.id === 'curves' || option.id === 'lens-fx') {
+                          const kind: LocalProcessingKind = option.id === 'lens-fx'
+                            ? 'lens-fx'
+                            : option.id === 'curves' ? 'curves' : 'grade';
+                          onCreateLocalProcessing(activeLayer.id, kind);
+                          onInspectProcessing(activeLayer.id, kind);
+                          return;
+                        }
+                        const adjustmentId = onCreateAttachedAdjustment(activeLayer.id, option.id);
+                        if (adjustmentId) {
+                          onInspectAttachedAdjustment(activeLayer.id, adjustmentId);
+                        }
+                      }}
+                      title={`Attach ${option.menuLabel} to selected layer`}
+                      aria-label={`Attach ${option.menuLabel} to selected layer`}
+                    ><img src={lightTableIcon('link_vertical.png')} alt="" aria-hidden="true" /></button>
+                  ) : null}
+                </div>
               ))}
-            </div>
+            </AnchoredViewportMenu>
           ) : null}
         </div>
         <button

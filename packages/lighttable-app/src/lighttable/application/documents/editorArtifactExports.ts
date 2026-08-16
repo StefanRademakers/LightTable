@@ -45,6 +45,7 @@ export const exportEditorPsdArtifact = async (
     document,
     composite,
     assets.filter((asset) => 'layerId' in asset),
+    assets.filter((asset) => 'lutId' in asset),
     sourceName
   )).file;
 };

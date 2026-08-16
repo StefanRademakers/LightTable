@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
 import { SwitchControl } from '../../../ui/SwitchControl';
 import { lightTableIcon } from '../../../assets/icons';
-import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { ColorGradingWheel } from '../../ColorGradingWheel';
 import {
   COLOR_GRADING_ZONE_LABELS,
@@ -44,6 +44,7 @@ import {
   type GradientMapAdjustments,
   type RgbHistogram
 } from '../../types';
+import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
 
 type GradeGroup = keyof GroupVisibility;
 
@@ -56,6 +57,7 @@ export interface GradePanelModel {
   readonly showOriginal: boolean;
   readonly colorMixerScopeContainerRef: React.RefObject<HTMLDivElement | null>;
   readonly colorMixerHueCanvasRef: React.RefCallback<HTMLCanvasElement>;
+  readonly colorLookupAssets?: readonly { readonly id: string; readonly name: string }[];
 }
 
 export interface GradePanelCommands {
@@ -95,6 +97,9 @@ export interface GradePanelCommands {
   readonly resetCurve: (channel: CurveChannel) => void;
   readonly updateGradientMap: (value: GradientMapAdjustments) => void;
   readonly resetGradientMap: () => void;
+  readonly updatePhotoshopAdjustment: (value: PhotoshopAdjustmentSettings) => void;
+  readonly resetPhotoshopAdjustment: () => void;
+  readonly loadColorLookup?: (file: File) => Promise<void>;
 }
 
 export interface GradePanelProps {
@@ -344,6 +349,7 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
           </div>
           {COLOR_MIXER_CHANNELS.map((channel) => (
             <AdjustmentSlider
+              density="spaced"
               key={`${channel}-${selectedRange.label}`}
               label={MIXER_CHANNEL_LABELS[channel]}
               value={adjustments.colorMixer[channel][selectedColorMixerRange]}
@@ -387,6 +393,7 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
           onInteractionEnd={commands.endAdjustment}
         />
         <AdjustmentSlider
+          density={compact ? 'compact' : 'default'}
           label="Luminance"
           value={adjustments.colorGrading.luminance[index]}
           min={-100}
@@ -600,7 +607,7 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
       <section className="lighttable-group lighttable-master-group">
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label">
-            <strong>All</strong>
+            <strong>Grade - All</strong>
           </div>
           <div className="lighttable-group__actions">
             <button

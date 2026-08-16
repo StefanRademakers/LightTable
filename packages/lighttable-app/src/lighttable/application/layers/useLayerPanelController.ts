@@ -25,8 +25,11 @@ import {
   setLayerMaskEnabled,
   setLayerOpacity,
   setVectorLayerAntiAlias,
-  setRasterLayerAdjustmentStackEnabled,
-  removeRasterLayerAdjustmentStackOwner,
+  ensureRasterLayerLocalProcessing,
+  setRasterLayerLocalProcessingEnabled,
+  removeRasterLayerLocalProcessing,
+  removeRasterLayerAttachedAdjustment,
+  setRasterLayerAttachedAdjustmentEnabled,
   setLayersLock,
   setLayersVisibility,
   ungroupLayers
@@ -44,6 +47,8 @@ import {
   setLayerStyleStackEnabled
 } from '../../editor/styles/layerStyleCommands';
 import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
+import type { LocalProcessingKind } from '../../processing/adjustmentStack';
+import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 
 export interface LayerPanelControllerDependencies {
   getDocument(): ImageDocument | null;
@@ -57,7 +62,10 @@ export interface LayerPanelControllerDependencies {
   beginDocumentTransaction(): void;
   endDocumentTransaction(): void;
   createAdjustmentLayer(): void;
+  createCurvesAdjustmentLayer(): void;
   createLensFxLayer(): void;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): void;
+  createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
   addActiveLayerMask(): boolean;
   duplicateActiveLayer(): boolean;
   rasterizeActiveTextLayer(): boolean;
@@ -101,8 +109,12 @@ export interface LayerPanelController {
   setLock(layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean): void;
   createRasterLayer(): void;
   createAdjustmentLayer(): void;
+  createCurvesAdjustmentLayer(): void;
+  createLocalProcessing(layerId: LayerId, kind: LocalProcessingKind): void;
   createGradientFillLayer(): void;
   createLensFxLayer(): void;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): void;
+  createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
   createGroup(): void;
   groupSelection(layerIds: LayerId[]): void;
   ungroupSelection(layerIds: LayerId[]): void;
@@ -116,8 +128,11 @@ export interface LayerPanelController {
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
   setStyleStackEnabled(layerId: LayerId, enabled: boolean): void;
   setLocalGradeEnabled(layerId: LayerId, enabled: boolean): void;
+  setLocalCurvesEnabled(layerId: LayerId, enabled: boolean): void;
   setLocalLensFxEnabled(layerId: LayerId, enabled: boolean): void;
-  removeLocalProcessing(layerId: LayerId, owner: 'grade' | 'lens-fx'): void;
+  removeLocalProcessing(layerId: LayerId, owner: LocalProcessingKind): void;
+  setAttachedAdjustmentEnabled(layerId: LayerId, adjustmentId: string, enabled: boolean): void;
+  removeAttachedAdjustment(layerId: LayerId, adjustmentId: string): void;
   setStyleEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): void;
   removeStyle(layerId: LayerId, effectId: LayerStyleId): void;
   clearStyles(layerId: LayerId): void;
@@ -239,9 +254,15 @@ export const createLayerPanelController = (
     createRasterLayer: () =>
       usePixelChannel((current) => createRasterLayer(current)),
     createAdjustmentLayer: () => resolveDependencies().createAdjustmentLayer(),
+    createCurvesAdjustmentLayer: () => resolveDependencies().createCurvesAdjustmentLayer(),
+    createLocalProcessing: (layerId, kind) =>
+      mutate((current) => ensureRasterLayerLocalProcessing(current, layerId, kind)),
     createGradientFillLayer: () =>
       usePixelChannel((current) => createGradientFillLayer(current)),
     createLensFxLayer: () => resolveDependencies().createLensFxLayer(),
+    createAdjustmentLayerOfKind: (kind) => resolveDependencies().createAdjustmentLayerOfKind(kind),
+    createAttachedAdjustment: (layerId, kind) =>
+      resolveDependencies().createAttachedAdjustment(layerId, kind),
     createGroup: () =>
       usePixelChannel((current) => createGroupLayer(current)),
     groupSelection: (layerIds) =>
@@ -284,14 +305,27 @@ export const createLayerPanelController = (
       mutate((current) => setLayerStyleStackEnabled(current, layerId, enabled)),
     setLocalGradeEnabled: (layerId, enabled) =>
       mutate((current) =>
-        setRasterLayerAdjustmentStackEnabled(current, layerId, enabled, 'grade')),
+        setRasterLayerLocalProcessingEnabled(current, layerId, enabled, 'grade')),
+    setLocalCurvesEnabled: (layerId, enabled) =>
+      mutate((current) =>
+        setRasterLayerLocalProcessingEnabled(current, layerId, enabled, 'curves')),
     setLocalLensFxEnabled: (layerId, enabled) =>
       mutate((current) =>
-        setRasterLayerAdjustmentStackEnabled(current, layerId, enabled, 'lens-fx')),
+        setRasterLayerLocalProcessingEnabled(current, layerId, enabled, 'lens-fx')),
     removeLocalProcessing: (layerId, owner) => {
       resolveDependencies().finishProcessingEditing?.();
       mutate((current) =>
-        removeRasterLayerAdjustmentStackOwner(current, layerId, owner));
+        removeRasterLayerLocalProcessing(current, layerId, owner));
+    },
+    setAttachedAdjustmentEnabled: (layerId, adjustmentId, enabled) =>
+      mutate((current) => setRasterLayerAttachedAdjustmentEnabled(
+        current, layerId, adjustmentId, enabled
+      )),
+    removeAttachedAdjustment: (layerId, adjustmentId) => {
+      resolveDependencies().finishProcessingEditing?.();
+      mutate((current) => removeRasterLayerAttachedAdjustment(
+        current, layerId, adjustmentId
+      ));
     },
     setStyleEnabled: (layerId, effectId, enabled) =>
       mutate((current) =>

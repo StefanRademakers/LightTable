@@ -1,5 +1,5 @@
 import React from 'react';
-import { AdjustmentSlider } from '../lighttable/AdjustmentSlider';
+import { AdjustmentSlider } from './AdjustmentSlider';
 
 export const OpacitySlider: React.FC<{
   value: number;

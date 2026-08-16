@@ -10,6 +10,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   saveFile: vi.fn(),
   quickExportPng: vi.fn(),
   openImageSize: vi.fn(),
+  applyCurves: vi.fn(),
   isTransformActive: vi.fn(() => false),
   commitTransform: vi.fn(),
   repeatTransform: vi.fn(),
@@ -98,6 +99,12 @@ describe('executeEditorKeyboardCommand', () => {
     expect(target.openFile).toHaveBeenCalledOnce();
     expect(target.saveFile).toHaveBeenCalledOnce();
     expect(target.quickExportPng).toHaveBeenCalledOnce();
+  });
+
+  it('routes contextual Curves through its editor port', () => {
+    const target = ports();
+    executeEditorKeyboardCommand('apply-curves', target);
+    expect(target.applyCurves).toHaveBeenCalledOnce();
   });
 
   it('commits an active transform before switching to another tool', () => {

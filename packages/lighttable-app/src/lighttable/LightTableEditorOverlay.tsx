@@ -15,6 +15,7 @@ import { useEditorRecoveryJournal } from './application/documents/useEditorRecov
 import { exportEditorPngArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
+import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
   type AdjustmentPresentationDomain } from './application/adjustments/adjustmentPresentationStore';
@@ -48,6 +49,8 @@ import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
+import { materializeBasicAdjustments } from './processing/adjustmentStack';
+import { attachedAdjustmentOwnerId } from './processing/attachedAdjustment';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
 import { buildPdfTextExportPreflight } from './application/pdf/pdfTextExportPreflight';
@@ -270,6 +273,7 @@ import {
   layerIsLocked,
   type DocumentGuide,
   type DocumentCreationSettings,
+  type DocumentAssetId,
   type ImageDocument,
   type LayerId,
   type Rect
@@ -284,6 +288,7 @@ import {
   type FontAssetBlob,
   type PreservedSourceAssetBlob
 } from './editor/persistence/layeredDocumentFormat';
+import { parseCubeLut } from './processing/colorLookupCube';
 import {
   imagePickerAccept
 } from './image-io/supportedImageFormats';
@@ -669,6 +674,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
+  const applyCurvesRef = useRef<() => void>(() => undefined);
   const rasterizeShapeRef = useRef<(
     transaction: VectorElementCreationTransaction
   ) => boolean>(() => false);
@@ -2146,6 +2152,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getActiveTargetLayerId: () => {
       const document = imageDocumentRef.current;
       if (!document) return null;
+      if (propertiesTarget.kind === 'attached-processing') {
+        return attachedAdjustmentOwnerId(
+          propertiesTarget.layerId,
+          propertiesTarget.adjustmentId
+        );
+      }
       const active = findDocumentLayer(document, document.activeLayerId);
       return active?.type === 'adjustment' || active?.type === 'raster'
         ? active.id
@@ -2161,6 +2173,81 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const beginAdjustmentTransaction = adjustmentTransactionController.begin;
   const endAdjustmentTransaction = adjustmentTransactionController.end;
   const changeAdjustments = adjustmentTransactionController.change;
+  const loadColorLookup = async (file: File) => {
+    if (!/\.cube$/i.test(file.name)) throw new Error('Choose a 3D .cube LUT file.');
+    if (file.size <= 0 || file.size > 32 * 1024 * 1024) {
+      throw new Error('A .cube LUT must be between 1 byte and 32 MiB.');
+    }
+    const parsed = parseCubeLut(await file.text());
+    const renderer = engineRef.current;
+    const beforeDocument = imageDocumentRef.current;
+    if (!renderer || !beforeDocument) throw new Error('Open a document before loading a LUT.');
+    const beforeAdjustments = cloneAdjustments(adjustmentsRef.current);
+    const assetId = `lut-${crypto.randomUUID()}` as DocumentAssetId;
+    await renderer.loadLayerAssets([{ lutId: assetId, source: file }]);
+
+    const targetLayerId = propertiesTarget.kind === 'attached-processing'
+      ? attachedAdjustmentOwnerId(propertiesTarget.layerId, propertiesTarget.adjustmentId)
+      : (() => {
+          const active = findDocumentLayer(beforeDocument, beforeDocument.activeLayerId);
+          return active?.type === 'adjustment' || active?.type === 'raster'
+            ? active.id
+            : null;
+        })();
+    const nextAdjustments = {
+      ...beforeAdjustments,
+      photoshopAdjustment: {
+        ...beforeAdjustments.photoshopAdjustment,
+        kind: 'color-lookup' as const,
+        colorLookupPreset: 'none' as const,
+        colorLookupAssetId: assetId
+      }
+    };
+    const withAsset: ImageDocument = {
+      ...beforeDocument,
+      assets: {
+        ...beforeDocument.assets,
+        colorLookups: [
+          ...beforeDocument.assets.colorLookups,
+          {
+            id: assetId,
+            name: parsed.title || file.name,
+            size: parsed.size,
+            domainMin: parsed.domainMin,
+            domainMax: parsed.domainMax,
+            byteLength: file.size,
+            revision: 0
+          }
+        ]
+      },
+      revision: beforeDocument.revision + 1,
+      modifiedAt: Date.now()
+    };
+    const projection = projectAdjustmentSnapshot({
+      snapshot: nextAdjustments,
+      targetLayerId,
+      document: withAsset,
+      documentAdjustments: documentAdjustmentsRef.current
+    });
+    if (!projection.document) throw new Error('The selected layer cannot own this Color Lookup.');
+    const afterDocument = projection.document;
+    applyDocumentSnapshot(afterDocument);
+    publishAdjustmentPresentation(nextAdjustments, 'grade');
+    pushHistoryEntry({
+      type: 'adjustment.color-lookup',
+      label: 'Load Color Lookup',
+      documentMutation: true,
+      undo: () => {
+        applyDocumentSnapshot(beforeDocument);
+        publishAdjustmentPresentation(cloneAdjustments(beforeAdjustments), 'grade');
+      },
+      redo: () => {
+        applyDocumentSnapshot(afterDocument);
+        publishAdjustmentPresentation(cloneAdjustments(nextAdjustments), 'grade');
+      }
+    });
+    setGradeStatus(`Loaded ${parsed.title || file.name} · ${parsed.size}³ LUT`);
+  };
   const lensBlurEnabled = useAdjustmentPresentationSelector(
     adjustmentPresentationStore,
     (current) => current.effects.lensBlur.enabled
@@ -2252,6 +2339,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetCurve,
     updateGradientMap,
     resetGradientMap,
+    updatePhotoshopAdjustment,
+    resetPhotoshopAdjustment,
     resetAll,
     toggleGroupVisibility,
     resetGroup
@@ -2615,6 +2704,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selectionDraft,
     selectionOverlayVisible: editorSession.activeTool !== 'view',
     scopeVisibility,
+    histogramConsumerVisible: propertiesView === 'levels' || propertiesView === 'curves',
     scopeSettings,
     scopeVisibilityRef,
     scopeSettingsRef
@@ -2691,6 +2781,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       saveFile: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
       openImageSize: editorDialogs.openImageSize,
+      applyCurves: () => applyCurvesRef.current(),
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
       repeatTransform: (duplicate) => repeatTransformRef.current(duplicate),
@@ -3886,7 +3977,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     beginDocumentTransaction,
     endDocumentTransaction,
     createAdjustmentLayer: layerDocumentCommands.createAdjustmentLayer,
+    createCurvesAdjustmentLayer: layerDocumentCommands.createCurvesAdjustmentLayer,
     createLensFxLayer: layerDocumentCommands.createLensFxLayer,
+    createAdjustmentLayerOfKind: layerDocumentCommands.createAdjustmentLayerOfKind,
+    createAttachedAdjustment: layerDocumentCommands.createAttachedAdjustment,
     addActiveLayerMask: () => layerDocumentCommands.addActiveLayerMask(
       editorSession.selection.length > 0
     ),
@@ -3913,6 +4007,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     finishTextEditing: () => { textEditingController.finish(); }
   });
+  applyCurvesRef.current = () => {
+    const document = imageDocumentRef.current;
+    const active = document ? findDocumentLayer(document, document.activeLayerId) : null;
+    if (active?.type === 'raster' && !active.locks.all) {
+      layerPanelController.createLocalProcessing(active.id, 'curves');
+      showProperties({ kind: 'processing', layerId: active.id, owner: 'curves' });
+      return;
+    }
+    layerPanelController.createCurvesAdjustmentLayer();
+  };
   deleteActiveTargetRef.current = () => {
     const document = imageDocumentRef.current;
     const session = editorSessionRef.current;
@@ -4642,6 +4746,31 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     image: {
       openSize: editorDialogs.openImageSize,
+      applyCurves: () => applyCurvesRef.current(),
+      applyAdjustment: (kind) => {
+        const document = imageDocumentRef.current;
+        const active = document ? findDocumentLayer(document, document.activeLayerId) : null;
+        if (active?.type === 'raster' && !active.locks.all && !active.locks.pixels) {
+          if (kind === 'curves') {
+            applyCurvesRef.current();
+            return;
+          }
+          if (kind === 'grade' || kind === 'lens-fx') {
+            const owner = kind === 'lens-fx' ? 'lens-fx' : 'grade';
+            layerPanelController.createLocalProcessing(active.id, owner);
+            showProperties({ kind: 'processing', layerId: active.id, owner });
+            return;
+          }
+          const adjustmentId = layerPanelController.createAttachedAdjustment(active.id, kind);
+          if (adjustmentId) {
+            showProperties({
+              kind: 'attached-processing', layerId: active.id, adjustmentId
+            });
+          }
+          return;
+        }
+        layerPanelController.createAdjustmentLayerOfKind(kind);
+      },
       assignSrgbProfile: () => {
         documentMutationController.change((document) => document.colorSettings.profileState === 'assigned'
           ? document
@@ -4741,6 +4870,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onInspectProcessing={(layerId, owner) => {
         showProperties({ kind: 'processing', layerId, owner });
+      }}
+      onInspectAttachedAdjustment={(layerId, adjustmentId) => {
+        const currentDocument = imageDocumentRef.current;
+        const layer = currentDocument
+          ? findDocumentLayer(currentDocument, layerId)
+          : null;
+        const adjustment = layer?.type === 'raster'
+          ? (layer.attachedAdjustments ?? []).find(({ id }) => id === adjustmentId)
+          : null;
+        if (adjustment) {
+          publishAdjustmentPresentation(
+            materializeBasicAdjustments(adjustment.adjustmentStack)
+          );
+        }
+        showProperties({ kind: 'attached-processing', layerId, adjustmentId });
       }}
       onMaskIsolationChange={(layerId) => {
         setIsolatedMaskLayerId(layerId);
@@ -5836,7 +5980,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetModifierActive: shiftPressed,
                   showOriginal,
                   colorMixerScopeContainerRef,
-                  colorMixerHueCanvasRef: attachColorMixerHueCanvas
+                  colorMixerHueCanvasRef: attachColorMixerHueCanvas,
+                  colorLookupAssets: imageDocument?.assets.colorLookups ?? []
                 },
                   commands: {
                   resetAll,
@@ -5861,8 +6006,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   updateCurve,
                   resetCurve,
                   updateGradientMap,
-                  resetGradientMap
-                  }
+                  resetGradientMap,
+                  updatePhotoshopAdjustment,
+                  resetPhotoshopAdjustment,
+                  loadColorLookup
+                }
                 },
               effects: {
                 document: imageDocument,

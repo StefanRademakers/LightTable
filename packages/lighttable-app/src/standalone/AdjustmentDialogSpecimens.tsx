@@ -15,7 +15,7 @@ import {
   PanelNumberSlider,
   PanelSelectField,
   type PanelColor
-} from '../lighttable/editor/ui/PanelControls';
+} from '../ui/PanelControls';
 
 const BLACK_WHITE_GRADIENT: GradientFieldValue = {
   colorStops: [

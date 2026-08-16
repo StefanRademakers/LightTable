@@ -52,6 +52,15 @@ Feature-specific layout may have local CSS, but it composes the shared tokens
 and primitives. Removing visible browser focus rings requires an intentional
 keyboard-focus replacement, not `outline: none` globally.
 
+Component CSS owns internal geometry under the component's own root class.
+Containers may define flow, available width, clipping and placement, but must
+not silently restyle a descendant component. A genuine contextual geometry
+change is an explicit component variant, such as `AdjustmentSlider`'s
+`layer-row`, `tool-bar` and `tool-panel` layouts. The Style Guide follows the same rule: specimen wrappers
+provide available space but do not repair or fork component internals. Run
+`npm run audit:ui-boundary` to enforce the source boundary and reject every
+feature stylesheet that reaches into a UI-owned component root.
+
 ### Canonical Layers tree
 
 The Layers tree has one geometry contract. `layerTreeGeometry.ts` owns numeric
@@ -87,6 +96,10 @@ action. Layer-local attached Grade does not synthesize a separate layer mask.
 
 Panels use these primitives rather than feature-local visual copies:
 
+- `ActionButton` for labelled actions, with `regular`, 28-pixel `control` and
+  `compact` density variants; these are contextual densities of one component,
+  while disabled and destructive are states/intent, not additional button
+  families. `SquareIconButton` is the icon-only action;
 - `SwitchControl` for an entire section/effect and a native labelled checkbox
   for a compatibility boolean inside a section;
 - `AdjustmentSlider` / `PanelNumberSlider` for continuous numeric values and
@@ -98,6 +111,9 @@ Panels use these primitives rather than feature-local visual copies:
 - `PanelAngleControl` for dial, keyboard and numeric angle input;
 - `PanelAdvancedDisclosure` for Photoshop/interchange parameters that are
   preserved but are not part of the frequent editing path.
+- `PanelFileField` for a labelled file action with click and drop support, and
+  `lighttable-property-stack` when multiple full-width property rows must be
+  stacked with canonical spacing.
 
 Grade and Lens Fx share `AdjustmentSlider` and `SwitchControl`; Text and vector
 Shape/Gradient properties share `ToolOptionControls`; Layer Styles now compose
@@ -112,10 +128,11 @@ controls compose `ActionButton`, `PanelColorField` and `PanelNumberSlider`.
 A gradient feature must not add private range, button or swatch styling.
 
 The live catalog is available from **View > UI Style Guide...**. It uses the
-production components themselves and groups them into Typography, Actions,
-Inputs, Paint, Panel controls and Dialogs. Actions execute commands; persistent
-choices such as checkboxes, switches and segmented controls belong to Inputs.
-Every new shared control or canonical dialog
+production components themselves and groups them into Foundations, Actions,
+Fields, Selection, Sliders, Paint & color, Gradients, Lists & navigation,
+Containers, Layout & geometry, Feedback, Adjustment dialogs and Dialogs. Actions execute commands;
+persistent choices such as checkboxes, switches and segmented controls belong
+to Selection. Every new shared control or canonical dialog
 composition must be added there. The catalog is also a visual regression target:
 it documents heading/body/help/error hierarchy, control states, keyboard focus,
 and the standard dialog order of header, content, then right-aligned secondary
@@ -133,6 +150,13 @@ enough, while ordinary documentation text is often too heavy. A focused token
 pass must rationalize those roles and then audit existing screens against the
 catalog; feature-local font-size or font-weight fixes are not an acceptable
 substitute.
+
+The app-wide inventory, convergence rules and possible package boundary are
+recorded in `architecture/research/LIGHTTABLE_UI_SYSTEM_AUDIT.md`. Extraction to
+a separate UI package is deliberately gated on removing editor-domain imports
+from primitives and co-locating their tokens, CSS and tests. A package boundary
+must follow the component contract; it must not be used to disguise duplicate
+controls.
 
 The repeatable `npm run audit:desktop:panel-language:build` matrix checks compact
 and wide windows at 100% and 200% device scale against a nested PSD. It asserts

@@ -1,5 +1,5 @@
 import React from 'react';
-import { AdjustmentSlider } from '../../../AdjustmentSlider';
+import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
 import type { EditorSession } from '../../../editor/session/editorSession';
 import type { WarpBrushMode } from '../../../effects/warp/warpTypes';
 import { MAX_STROKE_SMOOTH } from '../../../editor/tools/brush/strokeSmoother';
@@ -8,6 +8,7 @@ export interface WarpToolOptionsProps {
   readonly warp: EditorSession['warp'];
   readonly onChange: (change: Partial<EditorSession['warp']>) => void;
   readonly onReset: () => void;
+  readonly adjustmentLayout?: AdjustmentSliderProps['layout'];
 }
 
 /**
@@ -18,6 +19,7 @@ export interface WarpToolOptionsProps {
  */
 export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
   warp,
+  adjustmentLayout,
   onChange,
   onReset
 }) => (
@@ -46,6 +48,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       Show displacement
     </label>
     <AdjustmentSlider
+      layout={adjustmentLayout}
       label="Size"
       value={warp.diameterPx}
       min={1}
@@ -56,6 +59,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       onChange={(diameterPx) => onChange({ diameterPx })}
     />
     <AdjustmentSlider
+      layout={adjustmentLayout}
       label="Strength"
       value={warp.strength * 100}
       min={1}
@@ -66,6 +70,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       onChange={(value) => onChange({ strength: value / 100 })}
     />
     <AdjustmentSlider
+      layout={adjustmentLayout}
       label="Density"
       value={warp.hardness * 100}
       min={0}
@@ -76,6 +81,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       onChange={(value) => onChange({ hardness: value / 100 })}
     />
     <AdjustmentSlider
+      layout={adjustmentLayout}
       label="Flow"
       value={warp.flow * 100}
       min={1}
@@ -86,6 +92,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       onChange={(value) => onChange({ flow: value / 100 })}
     />
     <AdjustmentSlider
+      layout={adjustmentLayout}
       label="Spacing"
       value={warp.spacing * 100}
       min={1}
@@ -96,6 +103,7 @@ export const WarpToolOptions: React.FC<WarpToolOptionsProps> = ({
       onChange={(value) => onChange({ spacing: value / 100 })}
     />
     <AdjustmentSlider
+      layout={adjustmentLayout}
       label="Smooth"
       value={warp.smooth * 100}
       min={0}

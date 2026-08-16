@@ -62,8 +62,17 @@ save target or clears native dirty state.
 
 Current evidence and explicit gates are recorded in
 `PSD_EXPORT_RELEASE_CANDIDATE.md`. PSB, Smart Object packages, PSD pattern
-resources and unsupported native adjustments remain outside the released
-writer boundary.
+resources and native operations without a tested Photoshop descriptor remain
+outside the released writer boundary. Supported classic adjustment nodes are
+written as editable Photoshop adjustment descriptors rather than neutral
+placeholders.
+
+Color Lookup adjustments preserve an embedded 3D `.cube` payload in both
+directions. LightTable stores the original bytes as a document asset and emits
+those same bytes in the Photoshop Color Lookup descriptor; PSD import restores
+that descriptor as a native document asset. Basic `LUT_3D_SIZE` tables and
+`DOMAIN_MIN`/`DOMAIN_MAX` are supported. 1D LUTs and combined shaper/3D formats
+remain an explicit unsupported boundary.
 
 ## Mapping to LightTable
 

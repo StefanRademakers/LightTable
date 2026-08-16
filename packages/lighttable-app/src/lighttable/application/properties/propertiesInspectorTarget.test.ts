@@ -54,7 +54,41 @@ describe('properties inspector target', () => {
       .toBe('grade');
   });
 
-  it('distinguishes local Grade, Lens Fx and Layer Style children', () => {
+  it('routes a standalone Curves node to its focused editor', () => {
+    const curves = layer({
+      id: 'curves' as LayerNode['id'],
+      type: 'adjustment',
+      adjustmentStack: {
+        id: 'curves-stack',
+        revision: 1,
+        modules: [{ id: 'curves-module', type: 'lt.curves', enabled: true, revision: 1, settings: {} }]
+      }
+    });
+    expect(propertiesInspectorView(documentWith(curves), {
+      kind: 'layer', layerId: curves.id
+    })).toBe('curves');
+  });
+
+  it.each([
+    ['lt.light', 'exposure'],
+    ['lt.global-color', 'vibrance'],
+    ['lt.gradient-map', 'gradient-map']
+  ] as const)('routes a standalone %s node to %s properties', (type, view) => {
+    const adjustment = layer({
+      id: type as LayerNode['id'],
+      type: 'adjustment',
+      adjustmentStack: {
+        id: `${type}-stack`,
+        revision: 1,
+        modules: [{ id: `${type}-module`, type, enabled: true, revision: 1, settings: {} }]
+      }
+    });
+    expect(propertiesInspectorView(documentWith(adjustment), {
+      kind: 'layer', layerId: adjustment.id
+    })).toBe(view);
+  });
+
+  it('distinguishes local Grade, Curves, Lens Fx and Layer Style children', () => {
     const shadow = createDefaultLayerStyle('drop-shadow');
     const raster = layer({
       id: 'raster' as LayerNode['id'],
@@ -70,6 +104,9 @@ describe('properties inspector target', () => {
     expect(propertiesInspectorView(document, {
       kind: 'processing', layerId: raster.id, owner: 'lens-fx'
     })).toBe('lens-fx');
+    expect(propertiesInspectorView(document, {
+      kind: 'processing', layerId: raster.id, owner: 'curves'
+    })).toBe('curves');
     expect(propertiesInspectorView(document, {
       kind: 'style', layerId: raster.id, effectId: shadow.id
     })).toBe('effects');

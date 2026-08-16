@@ -6,6 +6,7 @@ import {
   PanelAngleControl,
   PanelCheckboxField,
   PanelColorSwatch,
+  PanelFileField,
   PanelNumberSlider,
   PanelSelectField
 } from './PanelControls';
@@ -16,6 +17,8 @@ describe('shared panel controls', () => {
       <PanelSelectField label="Mode" value="normal" options={[
         { value: 'normal', label: 'Normal' }
       ]} onChange={vi.fn()} />
+      <PanelFileField label="3D LUT" buttonLabel="Load .cube..." accept=".cube"
+        onFile={vi.fn()} />
       <PanelCheckboxField label="Enabled" checked onChange={vi.fn()} />
       <PanelColorSwatch label="Color" value={{ r: 1, g: 0, b: 0, a: 1 }} onChange={vi.fn()} />
       <PanelNumberSlider label="Opacity" value={50} min={0} max={100} suffix="%"
@@ -25,6 +28,9 @@ describe('shared panel controls', () => {
     </>);
 
     expect(markup).toContain('<span>Mode</span>');
+    expect(markup).toContain('<span>3D LUT</span>');
+    expect(markup).toContain('Load .cube...');
+    expect(markup).toContain('action-button--control');
     expect(markup).toContain('<span>Enabled</span>');
     expect(markup).toContain('background-color:#ff0000');
     expect(markup).toContain('aria-label="Sample color"');

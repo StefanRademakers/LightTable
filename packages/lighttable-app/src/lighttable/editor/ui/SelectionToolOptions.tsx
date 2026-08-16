@@ -1,5 +1,5 @@
 import React from 'react';
-import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../ui/AdjustmentSlider';
 import type { EditorSession, ToolId } from '../session/editorSession';
 import { MAX_STROKE_SMOOTH } from '../tools/brush/strokeSmoother';
 import { ToolOptionNumber, ToolOptionSelect } from './ToolOptionControls';
@@ -14,6 +14,7 @@ interface SelectionToolOptionsProps {
   readonly rowHeight: number;
   readonly columnWidth: number;
   readonly smooth: number;
+  readonly adjustmentLayout?: AdjustmentSliderProps['layout'];
   readonly onFeatherChange: (radius: number) => void;
   readonly onAntiAliasChange: (enabled: boolean) => void;
   readonly onMarqueeStyleChange: (style: EditorSession['selectionMarqueeStyle']) => void;
@@ -38,6 +39,7 @@ export const SelectionToolOptions: React.FC<SelectionToolOptionsProps> = ({
   rowHeight,
   columnWidth,
   smooth,
+  adjustmentLayout,
   onFeatherChange,
   onAntiAliasChange,
   onMarqueeStyleChange,
@@ -99,7 +101,7 @@ export const SelectionToolOptions: React.FC<SelectionToolOptionsProps> = ({
   return (
     <div className="lighttable-tool-options__vector-style" aria-label="Lasso selection settings">
       {activeTool === 'select-free' ? (
-        <AdjustmentSlider label="Smooth" value={smooth * 100} min={0}
+        <AdjustmentSlider layout={adjustmentLayout} label="Smooth" value={smooth * 100} min={0}
           max={MAX_STROKE_SMOOTH * 100} resetValue={0}
           format={(value) => `${Math.round(value)}%`}
           onReset={() => onSmoothChange(0)} onChange={(value) => onSmoothChange(value / 100)} />

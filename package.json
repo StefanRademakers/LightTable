@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "context:agent": "node scripts/agent-context.mjs",
+    "audit:ui-boundary": "node scripts/audit-ui-boundary.mjs",
     "setup:text-wasm": "node scripts/text-wasm.mjs setup",
     "build:text-wasm": "node scripts/text-wasm.mjs build",
     "ensure:text-wasm": "node scripts/text-wasm.mjs ensure",
@@ -93,6 +94,7 @@
     "smoke:desktop:zoom:build": "npm run package:desktop:verify && npm run smoke:desktop:zoom --",
     "smoke:desktop:screen-modes": "node scripts/smoke-desktop-screen-modes.mjs",
     "smoke:desktop:layer-subtargets": "node scripts/smoke-desktop-layer-subtargets.mjs",
+    "smoke:desktop:adjustment-menu": "node scripts/smoke-desktop-adjustment-menu.mjs",
     "smoke:desktop:screen-modes:build": "npm run package:desktop:verify && npm run smoke:desktop:screen-modes --",
     "smoke:desktop:ui-style-guide": "node scripts/smoke-desktop-ui-style-guide.mjs",
     "smoke:desktop:ui-style-guide:build": "npm run package:desktop:verify && npm run smoke:desktop:ui-style-guide --",

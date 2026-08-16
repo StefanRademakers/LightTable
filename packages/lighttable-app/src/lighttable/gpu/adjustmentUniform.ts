@@ -1,8 +1,14 @@
 import { curveActiveMask } from '../curves';
 import type { BasicAdjustments } from '../types';
 
-export const ADJUSTMENT_UNIFORM_FLOATS = 128;
+export const ADJUSTMENT_UNIFORM_FLOATS = 256;
 export const LINEAR_COMPOSITE_FLAG_INDEX = 18;
+
+export interface ColorLookupUniform {
+  readonly enabled: boolean;
+  readonly domainMin: readonly [number, number, number];
+  readonly domainMax: readonly [number, number, number];
+}
 
 /**
  * Packs the shared Adjustments uniform used by the basic and creative passes.
@@ -12,7 +18,8 @@ export const buildAdjustmentUniform = (
   value: BasicAdjustments,
   sourceWidth: number,
   sourceHeight: number,
-  inputIsLinearComposite: boolean
+  inputIsLinearComposite: boolean,
+  colorLookup: ColorLookupUniform | null = null
 ) => {
   const gradientMap = value.gradientMap;
   const colorStops = [...(gradientMap?.colorStops ?? [])]
@@ -70,5 +77,59 @@ export const buildAdjustmentUniform = (
       colorStops[index]?.midpoint ?? 0.5
     ], 96 + index * 4);
   }
+  const photoshop = value.photoshopAdjustment;
+  const kindIndex = [
+    'brightness-contrast', 'levels', 'exposure', 'hue-saturation',
+    'color-balance', 'black-white', 'photo-filter', 'channel-mixer',
+    'color-lookup', 'selective-color', 'invert', 'posterize', 'threshold'
+  ].indexOf(photoshop.kind) + 1;
+  packed.set([
+    kindIndex,
+    photoshop.brightness,
+    photoshop.contrast,
+    photoshop.useLegacyBrightnessContrast ? 1 : 0,
+    ...photoshop.levelsInput,
+    photoshop.levelsOutput[0],
+    photoshop.levelsOutput[1],
+    photoshop.exposure,
+    photoshop.exposureOffset,
+    photoshop.exposureGamma,
+    photoshop.hue,
+    photoshop.hueSaturation,
+    photoshop.hueLightness,
+    photoshop.colorize ? 1 : 0,
+    ...photoshop.colorBalanceShadows,
+    ...photoshop.colorBalanceMidtones,
+    ...photoshop.colorBalanceHighlights,
+    photoshop.preserveLuminosity ? 1 : 0,
+    ...photoshop.blackWhiteMix,
+    photoshop.blackWhiteTint ? 1 : 0,
+    photoshop.blackWhiteTintColor.r,
+    photoshop.blackWhiteTintColor.g,
+    photoshop.blackWhiteTintColor.b,
+    photoshop.blackWhiteTintColor.a,
+    photoshop.photoFilterColor.r,
+    photoshop.photoFilterColor.g,
+    photoshop.photoFilterColor.b,
+    photoshop.photoFilterColor.a,
+    photoshop.photoFilterDensity,
+    ['red', 'green', 'blue'].indexOf(photoshop.channelMixerOutput),
+    ...photoshop.channelMixerRed,
+    ...photoshop.channelMixerGreen,
+    ...photoshop.channelMixerBlue,
+    photoshop.channelMixerMonochrome ? 1 : 0,
+    colorLookup?.enabled ? 1 : 0,
+    photoshop.selectiveColorRange,
+    photoshop.selectiveColorMethod === 'absolute' ? 1 : 0,
+    ...photoshop.selectiveColorValues.slice(0, 36),
+    photoshop.posterizeLevels,
+    photoshop.thresholdLevel,
+    ['rgb', 'red', 'green', 'blue'].indexOf(photoshop.levelsChannel),
+    ['none', 'film-stock', 'moonlight', 'teal-orange'].indexOf(photoshop.colorLookupPreset)
+  ], 128);
+  packed.set([
+    ...(colorLookup?.domainMin ?? [0, 0, 0]),
+    ...(colorLookup?.domainMax ?? [1, 1, 1])
+  ], 227);
   return packed;
 };

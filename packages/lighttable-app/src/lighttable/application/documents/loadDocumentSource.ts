@@ -306,7 +306,11 @@ export const loadDocumentSource = async (
 
   request.renderer.setDocument(document);
   if (layered) {
-    await request.renderer.loadLayerAssets([...layered.assets, ...layered.patternAssets]);
+    await request.renderer.loadLayerAssets([
+      ...layered.assets,
+      ...layered.patternAssets,
+      ...layered.colorLookupAssets
+    ]);
   }
   if (semanticPsd) await request.renderer.loadLayerAssets(semanticPsd.assets);
   const documentInitMs = dependencies.now() - documentStartedAt;

@@ -2,6 +2,10 @@ import type { ContextMenuOption } from '../../../ui/ContextMenu';
 import type { BlendMode } from '../document/blendModes';
 import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';
 import { createDefaultSnapSettings, type SnapSettings } from '../../application/tools/snapping/snapSettings';
+import {
+  adjustmentLayerMenuDefinitionGroups,
+  type AdjustmentLayerKind
+} from '../../processing/adjustmentLayerCatalog';
 
 export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'layer' | 'type' | 'ai' | 'view' | 'help';
 
@@ -92,6 +96,8 @@ export interface EditorMenuCommands {
   layerViaCopy: () => void;
   renameLayer: () => void;
   invertLayerColors: () => void;
+  applyCurves: () => void;
+  applyAdjustment: (kind: AdjustmentLayerKind) => void;
   openImageSize: () => void;
   assignSrgbProfile: () => void;
   beginAutoAlign: () => void;
@@ -414,12 +420,34 @@ export const createEditorMenuOptions = (
   }
 
   if (menu === 'image') {
+    const adjustmentShortcut = (kind: AdjustmentLayerKind): string | undefined => {
+      if (kind === 'levels') return labels.primaryShortcut('L');
+      if (kind === 'curves') return labels.primaryShortcut('M');
+      if (kind === 'hue-saturation') return labels.primaryShortcut('U');
+      if (kind === 'color-balance') return labels.primaryShortcut('B');
+      if (kind === 'black-white') return `Alt+Shift+${labels.primaryShortcut('B')}`;
+      if (kind === 'invert') return labels.primaryShortcut('I');
+      return undefined;
+    };
+    const imageAdjustments = adjustmentLayerMenuDefinitionGroups()
+      .flatMap((group, groupIndex) => group.map((definition, definitionIndex) => ({
+        value: `image-adjustments-${definition.id}`,
+        label: `${definition.name}...`,
+        shortcut: adjustmentShortcut(definition.id),
+        separatorBefore: groupIndex > 0 && definitionIndex === 0,
+        onClick: () => commands.applyAdjustment(definition.id),
+        disabled: !state.hasDocument || state.saving
+      })));
     return [{
       value: 'image-size',
       label: 'Image Size...',
       shortcut: labels.primaryShortcut('Alt+I'),
       onClick: commands.openImageSize,
       disabled: !state.hasDocument || state.saving
+    }, {
+      value: 'image-adjustments',
+      label: 'Adjustments',
+      children: imageAdjustments
     }, {
       value: 'image-mode',
       label: 'Mode',

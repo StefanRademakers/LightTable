@@ -6,6 +6,7 @@ export interface EditorKeyboardCommandPorts {
   saveFile(): void;
   quickExportPng(): void;
   openImageSize(): void;
+  applyCurves(): void;
   isTransformActive(): boolean;
   commitTransform(): void;
   repeatTransform(duplicate?: boolean): void;
@@ -90,6 +91,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'open-image-size':
       ports.openImageSize();
+      return;
+    case 'apply-curves':
+      ports.applyCurves();
       return;
     case 'undo':
       if (!ports.undoPenAnchor()) ports.undo();

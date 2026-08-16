@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActionButton } from '../../../../ui/ActionButton';
 import { SegmentedControl } from '../../../../ui/SegmentedControl';
-import { AdjustmentSlider } from '../../../AdjustmentSlider';
+import { AdjustmentSlider, type AdjustmentSliderProps } from '../../../../ui/AdjustmentSlider';
 import type {
   FaceWarpFace,
   FaceWarpFeatureSide,
@@ -34,6 +34,7 @@ export interface FaceWarpToolOptionsProps {
   readonly onInteractionStart: () => void;
   readonly onInteractionEnd: () => void;
   readonly onReset: () => void;
+  readonly adjustmentLayout?: AdjustmentSliderProps['layout'];
 }
 
 const SemanticSlider: React.FC<{
@@ -42,7 +43,9 @@ const SemanticSlider: React.FC<{
   onChange: (value: number) => void;
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
-}> = ({ label, value, onChange, onInteractionStart, onInteractionEnd }) => <AdjustmentSlider
+  layout?: AdjustmentSliderProps['layout'];
+}> = ({ label, value, onChange, onInteractionStart, onInteractionEnd, layout }) => <AdjustmentSlider
+  layout={layout}
   label={label}
   value={value * 100}
   min={-100}
@@ -65,6 +68,7 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
   brushStrength,
   semanticTarget,
   protectedFeature,
+  adjustmentLayout,
   onDetect,
   onAcceptDetection,
   onCancelDetection,
@@ -113,11 +117,11 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
       Show mesh
     </label>
     {selected && !reviewPending && mode === 'sculpt' ? <>
-      <AdjustmentSlider label="Brush" value={brushSize} min={8} max={1200}
+      <AdjustmentSlider layout={adjustmentLayout} label="Brush" value={brushSize} min={8} max={1200}
         resetValue={120} format={(current) => `${Math.round(current)} px`}
         onReset={() => onBrushChange({ size: 120 })}
         onChange={(size) => onBrushChange({ size })} />
-      <AdjustmentSlider label="Strength" value={brushStrength * 100} min={1} max={100}
+      <AdjustmentSlider layout={adjustmentLayout} label="Strength" value={brushStrength * 100} min={1} max={100}
         resetValue={35} format={(current) => `${Math.round(current)}%`}
         onReset={() => onBrushChange({ strength: 0.35 })}
         onChange={(strength) => onBrushChange({ strength: strength / 100 })} />
@@ -162,18 +166,18 @@ export const FaceWarpToolOptions: React.FC<FaceWarpToolOptionsProps> = ({
           <option value="smile">Smile</option>
         </select>
       </label>
-      {semanticFeature === 'face' ? <SemanticSlider label="Amount"
+      {semanticFeature === 'face' ? <SemanticSlider layout={adjustmentLayout} label="Amount"
         value={selected.parameters.faceWidth}
         onChange={(faceWidth) => onParametersChange({ faceWidth })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
-      {semanticFeature === 'eyes' ? <SemanticSlider label="Amount" value={featureValue('eyeSize')}
+      {semanticFeature === 'eyes' ? <SemanticSlider layout={adjustmentLayout} label="Amount" value={featureValue('eyeSize')}
         onChange={(eyeSize) => onParametersChange({ eyeSize })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
-      {semanticFeature === 'nose' ? <SemanticSlider label="Amount"
+      {semanticFeature === 'nose' ? <SemanticSlider layout={adjustmentLayout} label="Amount"
         value={selected.parameters.noseWidth}
         onChange={(noseWidth) => onParametersChange({ noseWidth })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
-      {semanticFeature === 'smile' ? <SemanticSlider label="Amount" value={featureValue('smile')}
+      {semanticFeature === 'smile' ? <SemanticSlider layout={adjustmentLayout} label="Amount" value={featureValue('smile')}
         onChange={(smile) => onParametersChange({ smile })}
         onInteractionStart={onInteractionStart} onInteractionEnd={onInteractionEnd} /> : null}
     </> : null}

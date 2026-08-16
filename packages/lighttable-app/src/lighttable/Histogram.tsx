@@ -3,7 +3,10 @@ import type { RgbHistogram } from './types';
 
 interface HistogramProps {
   histogram: RgbHistogram | null;
+  channel?: HistogramChannel;
 }
+
+export type HistogramChannel = 'rgb' | 'red' | 'green' | 'blue';
 
 const smoothBins = (values: Uint32Array): number[] => {
   const weights = [1, 2, 3, 2, 1];
@@ -28,7 +31,7 @@ const resolveDisplayPeak = (channels: number[][]) => {
   return Math.max(1, counts[Math.floor((counts.length - 1) * 0.99)]);
 };
 
-export const Histogram: React.FC<HistogramProps> = ({ histogram }) => {
+export const Histogram: React.FC<HistogramProps> = ({ histogram, channel = 'rgb' }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const draw = useCallback(() => {
@@ -51,7 +54,10 @@ export const Histogram: React.FC<HistogramProps> = ({ histogram }) => {
       smoothBins(histogram.green),
       smoothBins(histogram.blue)
     ];
-    const displayPeak = resolveDisplayPeak(channels);
+    const selectedChannels = channel === 'rgb'
+      ? channels
+      : [channels[channel === 'red' ? 0 : channel === 'green' ? 1 : 2]];
+    const displayPeak = resolveDisplayPeak(selectedChannels);
     const valueToY = (value: number) => {
       const normalized = Math.min(1, value / displayPeak);
       // A mild power curve keeps low-volume detail visible without the broad,
@@ -83,14 +89,25 @@ export const Histogram: React.FC<HistogramProps> = ({ histogram }) => {
     };
 
     context.globalCompositeOperation = 'screen';
-    fillChannel(channels[2], 'rgba(45, 116, 255, 0.13)');
-    fillChannel(channels[1], 'rgba(42, 230, 105, 0.11)');
-    fillChannel(channels[0], 'rgba(255, 48, 62, 0.13)');
-    strokeChannel(channels[2], '#488bff');
-    strokeChannel(channels[1], '#34e070');
-    strokeChannel(channels[0], '#ff424c');
+    if (channel === 'rgb') {
+      fillChannel(channels[2], 'rgba(45, 116, 255, 0.13)');
+      fillChannel(channels[1], 'rgba(42, 230, 105, 0.11)');
+      fillChannel(channels[0], 'rgba(255, 48, 62, 0.13)');
+      strokeChannel(channels[2], '#488bff');
+      strokeChannel(channels[1], '#34e070');
+      strokeChannel(channels[0], '#ff424c');
+    } else {
+      const selected = selectedChannels[0];
+      const colors = {
+        red: ['rgba(255, 66, 76, 0.18)', '#ff424c'],
+        green: ['rgba(52, 224, 112, 0.16)', '#34e070'],
+        blue: ['rgba(72, 139, 255, 0.18)', '#488bff']
+      } as const;
+      fillChannel(selected, colors[channel][0]);
+      strokeChannel(selected, colors[channel][1]);
+    }
     context.globalCompositeOperation = 'source-over';
-  }, [histogram]);
+  }, [channel, histogram]);
 
   useEffect(() => {
     draw();

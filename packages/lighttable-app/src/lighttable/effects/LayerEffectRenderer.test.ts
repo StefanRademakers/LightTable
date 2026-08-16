@@ -33,6 +33,22 @@ describe('layerNeedsEffectRuntime', () => {
       modules: []
     }))).toBe(false);
   });
+
+  it('does not retain an effect runtime for disabled effect nodes', () => {
+    const layer = layerWithStack({
+      id: 'disabled-warp-stack',
+      revision: 1,
+      modules: [{
+        id: 'disabled-warp-node',
+        type: WARP_NODE_TYPE,
+        enabled: false,
+        revision: 1,
+        settings: { ...createDefaultWarpNodeSettings() }
+      }]
+    });
+
+    expect(layerNeedsEffectRuntime(layer)).toBe(false);
+  });
 });
 
 describe('LayerEffectRenderer memory telemetry', () => {

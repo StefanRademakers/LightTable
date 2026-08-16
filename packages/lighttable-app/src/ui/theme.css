@@ -68,6 +68,18 @@
   --lt-leading-compact: 1;
   --lt-leading-ui: 1.35;
 
+  /* Spatial rhythm. Use role tokens below when geometry has product meaning. */
+  --lt-space-1: 2px;
+  --lt-space-2: 4px;
+  --lt-space-3: 6px;
+  --lt-space-4: 8px;
+  --lt-space-5: 10px;
+  --lt-space-6: 12px;
+  --lt-space-7: 14px;
+  --lt-space-8: 16px;
+  --lt-space-9: 18px;
+  --lt-space-10: 24px;
+
   /* Interaction */
   --lt-accent: #568be0;
   --lt-accent-hover: #72a2ef;
@@ -91,6 +103,8 @@
   /* Controls */
   --lt-control-radius: 6px;
   --lt-control-height: 28px;
+  --lt-control-height-compact: 24px;
+  --lt-action-height-dialog: 36px;
   --lt-radius-xs: 2px;
   --lt-radius-sm: 3px;
   --lt-radius-md: 4px;
@@ -98,10 +112,31 @@
   --lt-radius-dialog: 12px;
   --lt-radius-pill: 999px;
   --lt-control-chevron-right: 8px;
+  --lt-menu-padding: 5px;
+  --lt-menu-item-height: 34px;
+  --lt-menu-item-gap: 2px;
+  --lt-menu-item-padding: 7px;
+  --lt-menu-icon-size: 20px;
   --lt-control-border: rgb(226 231 232 / 24%);
   --lt-control-text: rgb(226 231 232 / 86%);
   --lt-tool-options-separator: var(--lt-border-strong);
   --lt-toolbox-width: 38px;
+
+  /* Layout geometry shared by panels, bars and future sibling products. */
+  --lt-layout-menubar-height: 36px;
+  --lt-layout-toolbar-height: 38px;
+  --lt-layout-document-tabs-height: 30px;
+  --lt-layout-statusbar-height: 32px;
+  --lt-layout-section-header-height: 40px;
+  --lt-layout-property-label-width: 92px;
+  --lt-layout-property-gap: var(--lt-space-4);
+  --lt-layout-property-stack-gap: var(--lt-space-4);
+  --lt-layout-panel-narrow: 220px;
+  --lt-layout-panel-min: 250px;
+  --lt-layout-panel-standard: 260px;
+  --lt-layout-panel-wide: 320px;
+  --lt-layout-tool-popover-width: 248px;
+  --lt-layout-section-padding: 7px 14px 12px;
   --lt-range-track: #444141;
   --lt-range-track-fill: #606264;
   --lt-range-thumb: #919294;

@@ -2,6 +2,12 @@
 
 Status: active development reference, researched 2026-08-15.
 
+Implementation update 2026-08-16: the shared catalog now exposes all 18
+current creation families as independent, mask-bearing LightTable adjustment
+nodes with contextual Properties editors. The first broad implementation pass
+is deliberately followed by a manual Photoshop parity pass; the presence of a
+panel is not yet a parity claim.
+
 This document indexes the current Photoshop adjustment-layer experience and
 maps it to LightTable's existing non-destructive processing system. It is not
 an instruction to build a second adjustment framework. Current code and tests
@@ -431,10 +437,12 @@ Adobe references:
 | --- | --- |
 | Explicit adjustment node | `AdjustmentLayer` in `editor/document/documentTypes.ts` |
 | Local non-destructive raster grade | `RasterLayer.adjustmentStack` |
+| Ordered local smart adjustments | `RasterLayer.attachedAdjustments`; each child owns its own kind, bypass and stack |
 | Adjustment-layer masks | `AdjustmentLayer.mask` and mask-only persisted assets |
-| Create/update commands | `createAdjustmentLayer`, `setAdjustmentLayerStack` |
+| Create/update commands | `createAdjustmentLayer`, `addRasterLayerAttachedAdjustment`, and focused stack setters |
 | Native file persistence | `editor/persistence/layeredDocumentFormat.ts` |
 | Multiple ordered adjustment layers | Covered by layered document roundtrip tests |
+| Context creation | Layers flyout creates a standalone node from the main row or a local child from its link action; Image > Adjustments attaches to an editable raster selection and otherwise inserts a standalone layer |
 
 ### Processing and GPU
 
@@ -454,12 +462,16 @@ Adobe references:
 | `lt.lens-blur` | Depth-aware lens blur controls |
 | `lt.halation` | Amount, Radius, Threshold, Warmth |
 | `lt.grain` | Amount, Size, Softness, Color, response, Blend, Seed |
+| `lt.photoshop-adjustment` | Brightness/Contrast, semantic Levels, Exposure/Offset/Gamma, Hue/Saturation, Color Balance, Black & White, Photo Filter, Channel Mixer, built-in Color Lookup looks, Selective Color, Invert, Posterize and Threshold |
 
 The registry and allowed scopes are in
 `lighttable/processing/moduleDefinitions.ts`. Stack bridging is in
 `lighttable/processing/adjustmentStack.ts`. Per-layer rendering is in
 `lighttable/gpu/adjustmentLayerRenderer.ts` and
 `lighttable/gpu/adjustmentLayerGpuResources.ts`.
+Attached children are projected as stable synthetic processing owners by
+`lighttable/processing/attachedAdjustment.ts`; the same GPU stages therefore
+run them sequentially without a second shader or effect framework.
 
 ## Current Photoshop import and export status
 
@@ -480,14 +492,11 @@ approximates these established `ag-psd` descriptors:
 | Photo Filter | Global Color Grading tint | Approximate transfer |
 | Gradient Map | Native `lt.gradient-map` | Strong; classic interpolation only |
 
-These established Photoshop descriptors are preserved but evaluate as a no-op
-today:
-
-- Channel Mixer;
-- Color Lookup;
-- Posterize;
-- Threshold;
-- Selective Color.
+Channel Mixer, Posterize and Threshold now have native GPU evaluators.
+Selective Color has a range-aware first-pass evaluator and must still be
+calibrated against Photoshop's Relative and Absolute transfer behavior. Color
+Lookup offers built-in LightTable looks; retained external `.cube`, Abstract
+and Device Link assets are still missing.
 
 The current `ag-psd` dependency does not expose the 2025/2026 Photoshop
 Color and Vibrance, Clarity and Dehaze, or Grain descriptors in its standard
@@ -550,17 +559,17 @@ from having a production editor and an exact evaluator. Use these terms:
 | Brightness/Contrast | Complete: sliders, checkbox | Contrast exists; Brightness is only approximated through Exposure | Photoshop Brightness transfer and Use Legacy mode |
 | Levels | Mostly complete: histogram, sliders, number fields, channel select | Imported Levels are sampled into Curves | A semantic Levels module and a synchronized five-handle histogram editor |
 | Curves | Complete: Curves editor, channel select | Native editor, LUT and evaluator exist | Presets/Auto/eyedroppers where wanted and edited PSD export evidence |
-| Exposure | Complete: sliders, preset/select fields | Exposure EV exists | Offset and Gamma evaluators/bindings; calibration and export |
+| Exposure | Complete: sliders | Dedicated Exposure, Offset and Gamma binding/evaluator | Photoshop calibration and edited PSD export |
 | Hue/Saturation | Mostly complete: sliders, selects, color-range specimen | Color Mixer gives a useful but different result | Exact Photoshop ranges/falloff, Colorize and semantic adapter |
 | Color Balance | Complete: segments, sliders, checkbox | Color Grading is a useful approximation | Opponent-axis transfer and Preserve Luminosity calibration |
-| Black & White | Complete: sliders, checkbox, swatch | Desaturation and tint are partial | Six channel-weight monochrome evaluator and Auto behavior |
+| Black & White | Complete: sliders, checkbox, swatch | Six authored color ranges and tint affect the evaluator | Photoshop calibration and Auto behavior |
 | Photo Filter | Complete: segments, select, swatch, slider, checkbox | Global tint is an approximation | Density/filter transfer and Preserve Luminosity behavior |
-| Channel Mixer | Complete from selects, sliders and checkbox | No native evaluator | Typed 3x3 channel matrix, constant, monochrome and total validation |
-| Color Lookup | Select fields exist | No retained LUT adjustment | LUT asset picker/import, 3D LUT evaluator and retained asset lifecycle |
-| Selective Color | Complete from select, sliders and segments | No native evaluator | CMYK family model plus Relative/Absolute transfer |
+| Channel Mixer | Complete from selects, sliders and checkbox | Native 3x3 matrix, constants and monochrome evaluator | Total validation, presets, calibration and adapter |
+| Color Lookup | Built-in look selector | Built-in Film Stock, Moonlight and Teal & Orange evaluators | LUT asset picker/import, 3D LUT evaluator and retained asset lifecycle |
+| Selective Color | Complete from select, sliders and segments | First-pass range-aware evaluator | Exact CMYK Relative/Absolute transfer and calibration |
 | Invert | No special control required | Native result can use a reversed master Curve | Typed presentation plus verified edited PSD export |
-| Posterize | Complete: one slider/number field | No native evaluator | Small channel-quantization module and adapter |
-| Threshold | Mostly complete: histogram and slider | No native evaluator | Threshold module and a semantic histogram marker binding |
+| Posterize | Complete: one slider/number field | Native channel-quantization evaluator | Adapter and parity calibration |
+| Threshold | Slider complete; histogram still pending | Native luminance-threshold evaluator | Semantic histogram marker binding and adapter |
 | Gradient Map | Complete: production gradient editor | Native module/evaluator and strongest current adapter | Noise gradients and exact non-classic interpolation methods |
 | Clarity and Dehaze | Complete: sliders | Native Detail module/evaluator | Photoshop calibration and new-descriptor PSD fixtures/adapters |
 | Grain | Complete: sliders and advanced Lens Fx controls | Native Grain module/evaluator | Map Photoshop Roughness semantics and add descriptor fixtures/adapters |
@@ -672,8 +681,16 @@ scope badge and layer-tree placement explain the difference:
 - **Affects layers below** is a Photoshop-style adjustment layer: it is an
   independent, maskable layer in the composition stack.
 - **Grade** remains LightTable's compound creative workflow, able to host
-  several modules together. It is a presentation/preset over the stack, not
-  the generic home of every specialized adjustment dialog.
+  several modules together. It is a composite editor over the same authored
+  node types used by specialized adjustment layers, not a second processing
+  model or the generic home of every specialized dialog.
+
+The authored node stack remains the semantic truth. Performance optimization
+belongs in a separate compositor compile step: discard neutral or disabled
+nodes, split at masks/blends/spatial or resource boundaries, and fuse only
+adjacent compatible pixel-local nodes into a cached GPU pass. This preserves
+observable stack order and 16-bit intermediates while avoiding unnecessary
+texture round-trips. Never persist the fused execution plan as document state.
 
 Do not render all eighteen dialogs expanded underneath each other. For a
 raster layer, show a compact ordered summary and expand or navigate to only
@@ -694,24 +711,25 @@ Adobe references:
 Keep the current `New fill or processing layer` menu, but group it clearly:
 
 ```text
-Adjustments
+LightTable
   Grade
-  Color and Vibrance
-  Light
+  Lens Fx
+
+Photoshop Adjustments
   Curves
+  Exposure
+  Vibrance
   Gradient Map
-  Clarity and Dehaze
-  Grain
-  Invert
 
 Fill Layers
   Solid Color
   Gradient
   Pattern            (disabled until retained pattern assets exist)
-
-Effects
-  Lens Fx
 ```
+
+Only show an adjustment here once its controls reach a real evaluator. The
+remaining Photoshop families join this ordered catalog incrementally; visual
+dialog specimens alone are not product functionality.
 
 Selecting a specialized adjustment layer should route the existing Properties
 or Grade surface to a compact view:

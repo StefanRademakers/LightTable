@@ -15,6 +15,7 @@ import { findDocumentLayer } from '../../editor/document/layerTree';
 import type { LightTableViewState } from '../../types';
 import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';
 import type { SnapSettings } from '../../application/tools/snapping/snapSettings';
+import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 
 export interface EditorMenuControllerOptions {
   readonly projection: EditorMenuProjectionInput;
@@ -58,6 +59,8 @@ export interface EditorMenuControllerOptions {
   };
   readonly image: {
     openSize(): void;
+    applyCurves(): void;
+    applyAdjustment?(kind: AdjustmentLayerKind): void;
     assignSrgbProfile?(): void;
   };
   readonly layers: {
@@ -182,6 +185,11 @@ export const createEditorMenuController = ({
       layerViaCopy: layers.layerViaCopy,
       renameLayer: layers.rename,
       invertLayerColors: layers.invertColors,
+      applyCurves: image.applyCurves,
+      applyAdjustment: image.applyAdjustment ?? ((kind) => {
+        if (kind === 'curves') image.applyCurves();
+        else layers.panel.createAdjustmentLayerOfKind(kind);
+      }),
       openImageSize: image.openSize,
       assignSrgbProfile: image.assignSrgbProfile ?? (() => undefined),
       beginAutoAlign: autoAlign.begin,

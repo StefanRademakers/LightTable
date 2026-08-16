@@ -63,6 +63,10 @@ import type {
   LensDistortionNumericKey
 } from '../../editor/config/adjustmentControls';
 import type { AdjustmentPresentationDomain } from './adjustmentPresentationStore';
+import {
+  createDefaultPhotoshopAdjustment,
+  type PhotoshopAdjustmentSettings
+} from '../../photoshopAdjustments';
 
 export interface AdjustmentCommandPorts {
   readonly beginAdjustment: () => void;
@@ -144,6 +148,8 @@ export interface AdjustmentCommands {
   readonly resetCurve: (channel: CurveChannel) => void;
   readonly updateGradientMap: (value: GradientMapAdjustments) => void;
   readonly resetGradientMap: () => void;
+  readonly updatePhotoshopAdjustment: (value: PhotoshopAdjustmentSettings) => void;
+  readonly resetPhotoshopAdjustment: () => void;
   readonly resetAll: () => void;
   readonly toggleGroupVisibility: (group: keyof GroupVisibility) => void;
   readonly resetGroup: (group: keyof GroupVisibility) => void;
@@ -195,6 +201,24 @@ export const createAdjustmentCommands = (
     ports.changeAdjustments((current) => ({
       ...current,
       gradientMap: structuredClone(DEFAULT_BASIC_ADJUSTMENTS.gradientMap)
+    }), 'grade');
+  };
+
+  const updatePhotoshopAdjustment = (value: PhotoshopAdjustmentSettings) => {
+    ports.beginAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      photoshopAdjustment: structuredClone(value)
+    }), 'grade');
+  };
+
+  const resetPhotoshopAdjustment = () => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      photoshopAdjustment: createDefaultPhotoshopAdjustment(
+        current.photoshopAdjustment.kind
+      )
     }), 'grade');
   };
 
@@ -575,6 +599,8 @@ export const createAdjustmentCommands = (
     resetCurve,
     updateGradientMap,
     resetGradientMap,
+    updatePhotoshopAdjustment,
+    resetPhotoshopAdjustment,
     resetAll,
     toggleGroupVisibility,
     resetGroup,

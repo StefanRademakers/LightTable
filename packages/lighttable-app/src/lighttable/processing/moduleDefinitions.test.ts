@@ -24,6 +24,7 @@ const EXPECTED_SETTINGS_PATHS = [
   'colorGrading',
   'curves',
   'gradientMap',
+  'photoshopAdjustment',
   'effects.grain',
   'effects.halation',
   'effects.chromaticAberration',

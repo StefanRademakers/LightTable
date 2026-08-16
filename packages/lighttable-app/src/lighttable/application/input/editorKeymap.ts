@@ -31,6 +31,7 @@ export type EditorKeyboardCommand =
   | 'save-file'
   | 'quick-export-png'
   | 'open-image-size'
+  | 'apply-curves'
   | 'undo'
   | 'redo'
   | 'temporary-pan-start'
@@ -209,6 +210,9 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       allowWhileEditing: true,
       // Image Size is document-scoped, not layer-scoped. Requiring an active
       // layer made the shortcut silently fail while the same menu item worked.
+      when: (context) => !context.saving
+    }),
+    command('image.adjustments.curves', { key: 'm', primary: true, alt: false, shift: false }, 'apply-curves', {
       when: (context) => !context.saving
     }),
     command('history.undo', { key: 'z', primary: true, alt: false, shift: false }, 'undo', {

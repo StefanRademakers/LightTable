@@ -1,11 +1,15 @@
 import type { ImageDocument } from '../../editor/document/documentTypes';
-import type { LayerAssetBlobs } from '../../editor/persistence/layeredDocumentFormat';
+import type {
+  ColorLookupAssetBlob,
+  LayerAssetBlobs
+} from '../../editor/persistence/layeredDocumentFormat';
 
 export interface PsdExportRequest {
   readonly requestId: number;
   readonly document: ImageDocument;
   readonly composite: Blob;
   readonly layerAssets: readonly LayerAssetBlobs[];
+  readonly colorLookupAssets: readonly ColorLookupAssetBlob[];
 }
 
 export type PsdExportResponse = {

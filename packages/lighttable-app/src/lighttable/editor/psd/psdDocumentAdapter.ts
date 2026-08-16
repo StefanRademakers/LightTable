@@ -11,6 +11,7 @@ import { BLEND_MODES } from '../document/blendModes';
 import {
   createDefaultLayerLocks,
   semanticLayerDependencyKey,
+  type ColorLookupAsset,
   type DocumentAssetId,
   type DocumentId,
   type ImageDocument,
@@ -30,7 +31,18 @@ import { importPsdVectorShape } from './psdVectorShapeAdapter';
 import { importPsdText } from './psdTextAdapter';
 import type { PsdDecodeSuccess, PsdLayerNodeDto } from '../../image-io/psdProtocol';
 import { createDefaultAdjustments } from '../../types';
-import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import {
+  createAdjustmentStackFromBasicAdjustments
+} from '../../processing/adjustmentStack';
+import {
+  selectAdjustmentLayerModules,
+  type AdjustmentLayerKind
+} from '../../processing/adjustmentLayerCatalog';
+import {
+  createDefaultPhotoshopAdjustment,
+  type PhotoshopAdjustmentKind,
+  type PhotoshopAdjustmentSettings
+} from '../../photoshopAdjustments';
 import type { CurvePoint } from '../../curves';
 import { createDefaultLayerStyleStack } from '../styles/layerStyleDefaults';
 import {
@@ -38,6 +50,7 @@ import {
   documentBlendProfileFromIccName
 } from '../color/documentColorTransform';
 import type { DocumentBlendProfile } from '../document/documentTypes';
+import { parseCubeLut } from '../../processing/colorLookupCube';
 
 export interface PsdDocumentImport {
   document: ImageDocument;
@@ -180,12 +193,209 @@ const rgbToHueSaturation = (red: number, green: number, blue: number) => {
   };
 };
 
+const photoshopKindForDescriptor = (
+  source: PsdAdjustment | null
+): AdjustmentLayerKind | null => {
+  if (!source) return null;
+  return ({
+    'brightness/contrast': 'brightness-contrast',
+    levels: 'levels',
+    curves: 'curves',
+    exposure: 'exposure',
+    vibrance: 'color-vibrance',
+    'hue/saturation': 'hue-saturation',
+    'color balance': 'color-balance',
+    'black & white': 'black-white',
+    'photo filter': 'photo-filter',
+    'channel mixer': 'channel-mixer',
+    'color lookup': 'color-lookup',
+    invert: 'invert',
+    posterize: 'posterize',
+    threshold: 'threshold',
+    'gradient map': 'gradient-map',
+    'selective color': 'selective-color'
+  } as Partial<Record<PsdAdjustment['type'], AdjustmentLayerKind>>)[source.type] ?? null;
+};
+
+interface ImportedPhotoshopSettings {
+  readonly kind: PhotoshopAdjustmentKind;
+  readonly settings: PhotoshopAdjustmentSettings;
+  readonly support: PsdImportSupport;
+  readonly reason: string;
+  readonly warning?: string;
+}
+
+const importedPhotoshopSettings = (
+  source: PsdAdjustment,
+  sourceProfile: DocumentBlendProfile,
+  registerColorLookup: (name: string, data: Uint8Array) => DocumentAssetId
+): ImportedPhotoshopSettings | null => {
+  const result = (kind: PhotoshopAdjustmentKind) =>
+    createDefaultPhotoshopAdjustment(kind);
+  switch (source.type) {
+    case 'brightness/contrast': {
+      const settings = result('brightness-contrast');
+      settings.brightness = source.brightness ?? 0;
+      settings.contrast = source.contrast ?? 0;
+      settings.useLegacyBrightnessContrast = source.useLegacy ?? false;
+      return { kind: settings.kind, settings, support: 'native', reason: 'Brightness / Contrast is mapped to its native LightTable adjustment node.' };
+    }
+    case 'levels': {
+      const channels = [
+        ['rgb', source.rgb], ['red', source.red], ['green', source.green], ['blue', source.blue]
+      ] as const;
+      const authored = channels.filter(([, value]) => Boolean(value));
+      const selected = authored[0];
+      if (!selected?.[1]) return null;
+      const settings = result('levels');
+      settings.levelsChannel = selected[0];
+      settings.levelsInput = [
+        selected[1].shadowInput, selected[1].midtoneInput, selected[1].highlightInput
+      ];
+      settings.levelsOutput = [selected[1].shadowOutput, selected[1].highlightOutput];
+      const approximate = authored.length > 1;
+      return {
+        kind: settings.kind, settings,
+        support: approximate ? 'approximate' : 'native',
+        reason: approximate
+          ? 'The primary Levels channel is editable; additional authored Photoshop channels remain preserved in the source descriptor.'
+          : 'Photoshop Levels is mapped to the native channel-aware LightTable Levels node.',
+        ...(approximate ? { warning: 'Photoshop Levels contains multiple authored channels; LightTable currently edits the first channel and preserves the complete descriptor.' } : {})
+      };
+    }
+    case 'exposure': {
+      const settings = result('exposure');
+      settings.exposure = source.exposure ?? 0;
+      settings.exposureOffset = source.offset ?? 0;
+      settings.exposureGamma = source.gamma ?? 1;
+      return { kind: settings.kind, settings, support: 'native', reason: 'Exposure, Offset and Gamma are mapped to the native LightTable Exposure node.' };
+    }
+    case 'hue/saturation': {
+      const settings = result('hue-saturation');
+      const master = source.master;
+      if (master) {
+        settings.hue = master.hue;
+        settings.hueSaturation = master.saturation;
+        settings.hueLightness = master.lightness;
+      }
+      const hasRanges = Boolean(source.reds || source.yellows || source.greens || source.cyans || source.blues || source.magentas);
+      return {
+        kind: settings.kind, settings,
+        support: hasRanges ? 'approximate' : 'native',
+        reason: hasRanges
+          ? 'Master Hue / Saturation is editable; Photoshop color-range overrides remain preserved.'
+          : 'Photoshop master Hue / Saturation is mapped to the native LightTable node.',
+        ...(hasRanges ? { warning: 'Photoshop Hue / Saturation range overrides remain preserved but are not independently editable yet.' } : {})
+      };
+    }
+    case 'color balance': {
+      const settings = result('color-balance');
+      const values = (entry: typeof source.shadows) => [
+        entry?.cyanRed ?? 0, entry?.magentaGreen ?? 0, entry?.yellowBlue ?? 0
+      ] as [number, number, number];
+      settings.colorBalanceShadows = values(source.shadows);
+      settings.colorBalanceMidtones = values(source.midtones);
+      settings.colorBalanceHighlights = values(source.highlights);
+      settings.preserveLuminosity = source.preserveLuminosity ?? true;
+      return { kind: settings.kind, settings, support: 'native', reason: 'Photoshop Color Balance zones are mapped to the native LightTable node.' };
+    }
+    case 'black & white': {
+      const settings = result('black-white');
+      settings.blackWhiteMix = [source.reds ?? 40, source.yellows ?? 60, source.greens ?? 40,
+        source.cyans ?? 60, source.blues ?? 20, source.magentas ?? 80];
+      settings.blackWhiteTint = source.useTint ?? false;
+      const tint = rgbColor(source.tintColor, sourceProfile);
+      if (tint) settings.blackWhiteTintColor = { r: tint.red, g: tint.green, b: tint.blue, a: 1 };
+      return { kind: settings.kind, settings, support: 'native', reason: 'Photoshop Black & White channel weights and tint are mapped to the native LightTable node.' };
+    }
+    case 'photo filter': {
+      const settings = result('photo-filter');
+      const filter = rgbColor(source.color, sourceProfile);
+      if (filter) settings.photoFilterColor = { r: filter.red, g: filter.green, b: filter.blue, a: 1 };
+      settings.photoFilterDensity = source.density ?? 25;
+      settings.preserveLuminosity = source.preserveLuminosity ?? true;
+      return { kind: settings.kind, settings, support: 'native', reason: 'Photoshop Photo Filter is mapped to the native LightTable node.' };
+    }
+    case 'channel mixer': {
+      const settings = result('channel-mixer');
+      const values = (entry: typeof source.red) => [entry?.red ?? 0, entry?.green ?? 0,
+        entry?.blue ?? 0, entry?.constant ?? 0] as [number, number, number, number];
+      settings.channelMixerMonochrome = source.monochrome ?? false;
+      settings.channelMixerRed = values(source.monochrome ? source.gray : source.red);
+      settings.channelMixerGreen = values(source.green);
+      settings.channelMixerBlue = values(source.blue);
+      return { kind: settings.kind, settings, support: 'native', reason: 'Photoshop Channel Mixer channels are mapped to the native LightTable node.' };
+    }
+    case 'color lookup': {
+      const settings = result('color-lookup');
+      const file = source.lut3DFileName?.toLowerCase() ?? '';
+      settings.colorLookupPreset = file.includes('film-stock') ? 'film-stock'
+        : file.includes('moonlight') ? 'moonlight'
+          : file.includes('teal-orange') ? 'teal-orange' : 'none';
+      if (settings.colorLookupPreset === 'none' && source.lut3DFileData) {
+        try {
+          settings.colorLookupAssetId = registerColorLookup(
+            source.lut3DFileName || 'Photoshop Color Lookup.cube',
+            source.lut3DFileData
+          );
+          return {
+            kind: settings.kind,
+            settings,
+            support: 'native',
+            reason: 'The embedded Photoshop .cube LUT is restored as an editable native Color Lookup asset.'
+          };
+        } catch (error) {
+          return {
+            kind: settings.kind,
+            settings,
+            support: 'preserved',
+            reason: 'The embedded Photoshop Color Lookup descriptor is preserved but its LUT could not be decoded.',
+            warning: error instanceof Error ? error.message : 'The embedded .cube LUT is invalid.'
+          };
+        }
+      }
+      const native = settings.colorLookupPreset !== 'none' || !source.lut3DFileData;
+      return {
+        kind: settings.kind, settings,
+        support: native ? 'native' : 'preserved',
+        reason: native
+          ? 'The embedded LightTable Color Lookup preset is restored as an editable native node.'
+          : 'The external Photoshop Color Lookup descriptor is preserved; arbitrary LUT assets are not editable yet.',
+        ...(!native ? { warning: 'An external Photoshop Color Lookup LUT remains preserved and currently renders as a no-op.' } : {})
+      };
+    }
+    case 'selective color': {
+      const settings = result('selective-color');
+      const ranges = [source.reds, source.yellows, source.greens, source.cyans, source.blues,
+        source.magentas, source.whites, source.neutrals, source.blacks];
+      settings.selectiveColorValues = ranges.flatMap((entry) => [
+        entry?.c ?? 0, entry?.m ?? 0, entry?.y ?? 0, entry?.k ?? 0
+      ]);
+      settings.selectiveColorMethod = source.mode ?? 'relative';
+      return { kind: settings.kind, settings, support: 'native', reason: 'Photoshop Selective Color ranges are mapped to the native LightTable node.' };
+    }
+    case 'invert': return { kind: 'invert', settings: result('invert'), support: 'native', reason: 'Photoshop Invert is mapped to the native LightTable node.' };
+    case 'posterize': {
+      const settings = result('posterize'); settings.posterizeLevels = source.levels ?? 4;
+      return { kind: settings.kind, settings, support: 'native', reason: 'Photoshop Posterize is mapped to the native LightTable node.' };
+    }
+    case 'threshold': {
+      const settings = result('threshold'); settings.thresholdLevel = source.level ?? 128;
+      return { kind: settings.kind, settings, support: 'native', reason: 'Photoshop Threshold is mapped to the native LightTable node.' };
+    }
+    default: return null;
+  }
+};
+
 const importPsdAdjustment = (
   descriptor: unknown,
   warnings: string[],
   compatibility: PsdImportCompatibilityEntry[],
   path: string,
-  sourceProfile: DocumentBlendProfile = 'srgb'
+  sourceProfile: DocumentBlendProfile = 'srgb',
+  registerColorLookup: (name: string, data: Uint8Array) => DocumentAssetId = () => {
+    throw new Error('Embedded Color Lookup assets are unavailable in this import context.');
+  }
 ) => {
   const adjustments = createDefaultAdjustments();
   const source = descriptor as PsdAdjustment | null;
@@ -198,6 +408,27 @@ const importPsdAdjustment = (
       reason: 'The adjustment descriptor is missing and renders as a no-op.'
     });
     return createAdjustmentStackFromBasicAdjustments(adjustments);
+  }
+  const nativePhotoshop = importedPhotoshopSettings(
+    source,
+    sourceProfile,
+    registerColorLookup
+  );
+  if (nativePhotoshop) {
+    adjustments.photoshopAdjustment = nativePhotoshop.settings;
+    if (nativePhotoshop.warning) {
+      warnings.push(`${path}: ${nativePhotoshop.warning}`);
+    }
+    compatibility.push({
+      path,
+      feature: 'adjustment',
+      support: nativePhotoshop.support,
+      reason: nativePhotoshop.reason
+    });
+    return selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(adjustments),
+      nativePhotoshop.kind
+    );
   }
   let support: PsdImportSupport = 'native';
   let supportReason = `Photoshop ${source.type} is mapped to a native LightTable adjustment.`;
@@ -378,6 +609,7 @@ export const importPsdDocument = (
   name: string
 ): PsdDocumentImport => {
   const assets: DocumentAssetBlob[] = [];
+  const colorLookups: ColorLookupAsset[] = [];
   const warnings = [...source.warnings];
   const compatibility: PsdImportCompatibilityEntry[] = [];
   const now = Date.now();
@@ -392,6 +624,22 @@ export const importPsdDocument = (
     const patternId = patternIds.get(pattern.id)!;
     assets.push({ patternId, source: pattern.pixels });
   });
+  const registerColorLookup = (fileName: string, data: Uint8Array): DocumentAssetId => {
+    const parsed = parseCubeLut(new TextDecoder().decode(data));
+    const id = `psd-lut-${crypto.randomUUID()}` as DocumentAssetId;
+    const sourceBlob = new Blob([Uint8Array.from(data).buffer], { type: 'application/x-cube' });
+    colorLookups.push({
+      id,
+      name: parsed.title || fileName,
+      size: parsed.size,
+      domainMin: parsed.domainMin,
+      domainMax: parsed.domainMax,
+      byteLength: sourceBlob.size,
+      revision: 0
+    });
+    assets.push({ lutId: id, source: sourceBlob });
+    return id;
+  };
   const adapt = (node: PsdLayerNodeDto, path: string): AdaptedLayer => {
     const id = node.id as LayerId;
     if (node.pixelSummary && node.pixelSummary.nonTransparentPixels === 0) {
@@ -518,20 +766,22 @@ export const importPsdDocument = (
           pixelRevision: 0,
           dirtyBounds: null
         } : null,
-        children: node.children.flatMap((child, index) =>
-          adaptedLayers(adapt(child, `${path}.children[${index}]`)))
+        children: adaptSiblings(node.children, `${path}.children`)
       };
     }
     if (node.kind === 'adjustment') {
+      const adjustmentKind = photoshopKindForDescriptor(node.adjustment as PsdAdjustment | null);
       const layer: AdjustmentLayer = {
         ...common,
         type: 'adjustment',
+        adjustmentKind,
         adjustmentStack: importPsdAdjustment(
           node.adjustment,
           warnings,
           compatibility,
           path,
-          blendProfile
+          blendProfile,
+          registerColorLookup
         ),
         mask: node.mask ? {
           id: node.mask.id,
@@ -791,8 +1041,50 @@ export const importPsdDocument = (
     return layer;
   };
 
-  const layers = source.layers.flatMap((layer, index) =>
-    adaptedLayers(adapt(layer, `layers[${index}]`)));
+  function adaptSiblings(nodes: readonly PsdLayerNodeDto[], path: string): LayerNode[] {
+    const layers: LayerNode[] = [];
+    nodes.forEach((node, index) => {
+      const adapted = adaptedLayers(adapt(node, `${path}[${index}]`));
+      const adjustment = adapted.length === 1 && adapted[0]?.type === 'adjustment'
+        ? adapted[0] : null;
+      const base = layers.at(-1);
+      const canAttach = Boolean(
+        adjustment
+        && adjustment.adjustmentKind
+        && node.clipping
+        && !node.mask
+        && node.blendMode === 'normal'
+        && Math.abs(node.opacity - 1) < 0.00001
+        && Math.abs(node.fillOpacity - 1) < 0.00001
+        && base?.type === 'raster'
+      );
+      if (canAttach && adjustment && base?.type === 'raster') {
+        const attached = {
+          id: adjustment.id,
+          adjustmentKind: adjustment.adjustmentKind!,
+          name: adjustment.name,
+          enabled: adjustment.visible,
+          revision: 0,
+          adjustmentStack: adjustment.adjustmentStack
+        };
+        layers[layers.length - 1] = {
+          ...base,
+          attachedAdjustments: [...(base.attachedAdjustments ?? []), attached]
+        };
+        compatibility.push({
+          path: `${path}[${index}]`,
+          feature: 'node',
+          support: 'native',
+          reason: 'A simple clipped Photoshop Adjustment Layer is mapped to an ordered attached LightTable adjustment.'
+        });
+        return;
+      }
+      layers.push(...adapted);
+    });
+    return layers;
+  }
+
+  const layers = adaptSiblings(source.layers, 'layers');
   const activeLayerId = layers.at(-1)?.id ?? null;
   return {
     document: {
@@ -840,6 +1132,7 @@ export const importPsdDocument = (
           height: pattern.height,
           revision: 0
         })),
+        colorLookups,
         // PSD is an import format, not a second payload inside LightTable's
         // native document. Imported layers/assets become authoritative.
         preservedSources: [],

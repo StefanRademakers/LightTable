@@ -16,6 +16,7 @@ import type {
 import { LayerPanel } from '../../editor/ui/LayerPanel';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import type { PropertiesInspectorTarget } from '../../application/properties/propertiesInspectorTarget';
+import type { LocalProcessingKind } from '../../processing/adjustmentStack';
 
 export interface LayersWorkspacePanelProps {
   document: ImageDocument | null;
@@ -35,7 +36,8 @@ export interface LayersWorkspacePanelProps {
   onRemoveBackground: () => void;
   inspectorTarget: PropertiesInspectorTarget;
   onInspectLayer: (layerId: LayerId, channel: PaintChannel) => void;
-  onInspectProcessing: (layerId: LayerId, owner: 'grade' | 'lens-fx') => void;
+  onInspectProcessing: (layerId: LayerId, owner: LocalProcessingKind) => void;
+  onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
 }
 
 /**
@@ -62,7 +64,8 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   onRemoveBackground,
   inspectorTarget,
   onInspectLayer,
-  onInspectProcessing
+  onInspectProcessing,
+  onInspectAttachedAdjustment
 }) => {
   if (!document) {
     return (
@@ -104,8 +107,12 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onLockChange={controller.setLock}
         onCreate={controller.createRasterLayer}
         onCreateAdjustment={controller.createAdjustmentLayer}
+        onCreateCurvesAdjustment={controller.createCurvesAdjustmentLayer}
+        onCreateLocalProcessing={controller.createLocalProcessing}
         onCreateGradientFill={controller.createGradientFillLayer}
         onCreateLensFx={controller.createLensFxLayer}
+        onCreateAdjustmentKind={controller.createAdjustmentLayerOfKind}
+        onCreateAttachedAdjustment={controller.createAttachedAdjustment}
         onCreateGroup={controller.createGroup}
         onGroupSelection={controller.groupSelection}
         onUngroupSelection={controller.ungroupSelection}
@@ -121,8 +128,11 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onEditStyles={controller.editStyles}
         onStyleStackEnabled={controller.setStyleStackEnabled}
         onLocalGradeEnabled={controller.setLocalGradeEnabled}
+        onLocalCurvesEnabled={controller.setLocalCurvesEnabled}
         onLocalLensFxEnabled={controller.setLocalLensFxEnabled}
         onRemoveLocalProcessing={controller.removeLocalProcessing}
+        onAttachedAdjustmentEnabled={controller.setAttachedAdjustmentEnabled}
+        onRemoveAttachedAdjustment={controller.removeAttachedAdjustment}
         onStyleEnabled={controller.setStyleEnabled}
         onRemoveStyle={controller.removeStyle}
         onClearStyles={controller.clearStyles}
@@ -133,6 +143,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         inspectorTarget={inspectorTarget}
         onInspectLayer={onInspectLayer}
         onInspectProcessing={onInspectProcessing}
+        onInspectAttachedAdjustment={onInspectAttachedAdjustment}
       />
     </div>
   );

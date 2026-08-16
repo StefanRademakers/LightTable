@@ -12,6 +12,9 @@ import {
 } from '../document/documentTypes';
 import type { DocumentAssetBlob } from '../persistence/layeredDocumentFormat';
 import { LayerDocumentAssetService, type LayerDocumentAssetPorts } from './LayerDocumentAssetService';
+import { createDefaultAdjustments } from '../../types';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
 
 const patternId = 'pattern-1' as DocumentAssetId;
 const texture = { label: 'pixels' } as GPUTexture;
@@ -163,6 +166,30 @@ describe('LayerDocumentAssetService', () => {
       texture,
       false,
       expect.anything()
+    );
+  });
+
+  it('keeps editable attached Photoshop adjustments out of the baked PSD base pixels', async () => {
+    const ports = createPorts();
+    const service = new LayerDocumentAssetService(ports);
+    const document = documentWith();
+    const layer = document.layers[0] as RasterLayer;
+    const values = createDefaultAdjustments();
+    values.photoshopAdjustment.kind = 'levels';
+    layer.attachedAdjustments = [{
+      id: 'attached-levels', adjustmentKind: 'levels', name: 'Levels',
+      enabled: true, revision: 0,
+      adjustmentStack: selectAdjustmentLayerModules(
+        createAdjustmentStackFromBasicAdjustments(values), 'levels'
+      )
+    }];
+
+    await service.exportPsd(document, vi.fn((_encoder, source) => source));
+
+    expect(ports.encodeProcessedRasterLayer).not.toHaveBeenCalled();
+    expect(ports.encodeTexture).toHaveBeenCalledWith(
+      layer.id, texture, false,
+      expect.objectContaining({ width: 64, height: 32 })
     );
   });
 

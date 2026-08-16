@@ -9,7 +9,7 @@ beforeAll(() => {
 
 const createDevice = () => {
   const buffers: Array<{ destroy: ReturnType<typeof vi.fn> }> = [];
-  const texture = { destroy: vi.fn() };
+  const textures: Array<{ destroy: ReturnType<typeof vi.fn> }> = [];
   const device = {
     queue: {
       writeBuffer: vi.fn(),
@@ -21,25 +21,29 @@ const createDevice = () => {
       buffers.push(buffer);
       return buffer;
     }),
-    createTexture: vi.fn(() => texture)
+    createTexture: vi.fn(() => {
+      const texture = { destroy: vi.fn() };
+      textures.push(texture);
+      return texture;
+    })
   } as unknown as GPUDevice;
-  return { device, buffers, texture };
+  return { device, buffers, textures };
 };
 
 describe('DocumentCoreGpuResources', () => {
   it('owns and idempotently destroys its complete resource bundle', () => {
-    const { device, buffers, texture } = createDevice();
+    const { device, buffers, textures } = createDevice();
     const resources = new DocumentCoreGpuResources(device);
 
     expect(device.createSampler).toHaveBeenCalledTimes(2);
     expect(device.createBuffer).toHaveBeenCalledTimes(6);
-    expect(device.createTexture).toHaveBeenCalledTimes(1);
+    expect(device.createTexture).toHaveBeenCalledTimes(2);
 
     resources.destroy();
     resources.destroy();
 
     buffers.forEach((buffer) => expect(buffer.destroy).toHaveBeenCalledTimes(1));
-    expect(texture.destroy).toHaveBeenCalledTimes(1);
+    textures.forEach((texture) => expect(texture.destroy).toHaveBeenCalledTimes(1));
   });
 
   it('retains equal viewport-independent output settings', () => {

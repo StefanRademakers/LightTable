@@ -2,12 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultAdjustments } from '../types';
 import {
   adjustmentStackForOwner,
+  adjustmentStackForModuleTypes,
   adjustmentStackForScope,
+  adjustmentStackHasLocalProcessing,
+  adjustmentStackLocalProcessingIsEnabled,
   adjustmentStackOwnerIsEnabled,
   cloneAdjustmentStack,
   createAdjustmentStackFromBasicAdjustments,
+  ensureAdjustmentStackLocalProcessing,
   materializeBasicAdjustments,
   removeAdjustmentStackOwner,
+  removeAdjustmentStackLocalProcessing,
+  setAdjustmentStackLocalProcessingEnabled,
   setAdjustmentStackOwnerEnabled
 } from './adjustmentStack';
 
@@ -143,6 +149,35 @@ describe('LightTable adjustment stacks', () => {
     expect(adjustmentStackOwnerIsEnabled(lensBypassed, 'lens-fx')).toBe(false);
     expect(materializeBasicAdjustments(lensBypassed).exposureEV).toBe(1.5);
     expect(materializeBasicAdjustments(lensBypassed).effects.lensDistortion.enabled).toBe(false);
+  });
+
+  it('extracts the exact module inventory for a specialized adjustment node', () => {
+    const stack = createAdjustmentStackFromBasicAdjustments(
+      createDefaultAdjustments(), undefined, sequentialIds()
+    );
+
+    const curves = adjustmentStackForModuleTypes(stack, ['lt.curves']);
+
+    expect(curves.modules.map((module) => module.type)).toEqual(['lt.curves']);
+    expect(curves.id).toBe(stack.id);
+  });
+
+  it('keeps local Grade and Curves independently addressable', () => {
+    const curves = ensureAdjustmentStackLocalProcessing(null, 'curves');
+    expect(curves.modules.map((module) => module.type)).toEqual(['lt.curves']);
+    expect(adjustmentStackHasLocalProcessing(curves, 'curves')).toBe(true);
+    expect(adjustmentStackHasLocalProcessing(curves, 'grade')).toBe(false);
+
+    const withGrade = ensureAdjustmentStackLocalProcessing(curves, 'grade');
+    expect(adjustmentStackHasLocalProcessing(withGrade, 'grade')).toBe(true);
+    expect(adjustmentStackHasLocalProcessing(withGrade, 'curves')).toBe(true);
+
+    const curvesBypassed = setAdjustmentStackLocalProcessingEnabled(withGrade, 'curves', false);
+    expect(adjustmentStackLocalProcessingIsEnabled(curvesBypassed, 'curves')).toBe(false);
+    expect(adjustmentStackLocalProcessingIsEnabled(curvesBypassed, 'grade')).toBe(true);
+
+    const withoutGrade = removeAdjustmentStackLocalProcessing(curvesBypassed, 'grade');
+    expect(withoutGrade.modules.map((module) => module.type)).toEqual(['lt.curves']);
   });
 
   it('removes one local owner without deleting unrelated processing modules', () => {

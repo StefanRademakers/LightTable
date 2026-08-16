@@ -3,8 +3,9 @@ import type {
   RasterLayer
 } from '../editor/document/documentTypes';
 import {
-  adjustmentStackHasOwner
+  adjustmentStackOwnerIsEnabled
 } from '../processing/adjustmentStack';
+import { attachedAdjustmentProcessingOwner } from '../processing/attachedAdjustment';
 
 export interface LayerGradeEncoder {
   encode(
@@ -50,12 +51,31 @@ export class LayerProcessingRenderer {
     source: GPUTexture,
     layer: AdjustmentLayer | RasterLayer
   ): GPUTexture {
+    let result = this.encodeStack(encoder, source, layer);
+    if (layer.type === 'raster') {
+      for (const adjustment of layer.attachedAdjustments ?? []) {
+        if (!adjustment.enabled) continue;
+        result = this.encodeStack(
+          encoder,
+          result,
+          attachedAdjustmentProcessingOwner(layer, adjustment)
+        );
+      }
+    }
+    return result;
+  }
+
+  private encodeStack(
+    encoder: GPUCommandEncoder,
+    source: GPUTexture,
+    layer: AdjustmentLayer | RasterLayer
+  ): GPUTexture {
     const stack = layer.adjustmentStack;
     if (!stack) return source;
 
-    const hasGeometry = adjustmentStackHasOwner(stack, 'geometry');
-    const hasGrade = adjustmentStackHasOwner(stack, 'grade');
-    const hasEffects = adjustmentStackHasOwner(stack, 'lens-fx');
+    const hasGeometry = adjustmentStackOwnerIsEnabled(stack, 'geometry');
+    const hasGrade = adjustmentStackOwnerIsEnabled(stack, 'grade');
+    const hasEffects = adjustmentStackOwnerIsEnabled(stack, 'lens-fx');
     const geometry = hasGeometry || hasEffects
       ? this.effectEncoder.encodeSourceGeometry(encoder, source, layer)
       : source;

@@ -8,14 +8,19 @@ import type {
 import { exportLayerStyleStackToPsd } from '../../editor/psd/layerStylePsdExportAdapter';
 import { exportTextLayerToPsd } from '../../editor/psd/psdTextExportAdapter';
 import { exportVectorLayerToPsd } from '../../editor/psd/psdVectorExportAdapter';
+import { exportAdjustmentStackToPsd } from '../../editor/psd/psdAdjustmentExportAdapter';
 import { walkLayerTree } from '../../editor/document/layerTree';
-import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
 
 export interface PsdExportPixelAsset {
   readonly layerId: LayerId;
   readonly pixels?: PixelData;
   readonly mask?: PixelData;
   readonly bounds?: { x: number; y: number; width: number; height: number };
+}
+
+export interface PsdExportLutAsset {
+  readonly lutId: string;
+  readonly data: Uint8Array;
 }
 
 export interface PsdExportProjectionResult {
@@ -60,9 +65,16 @@ const maskData = (
 export const projectDocumentToPsd = (
   document: ImageDocument,
   composite: PixelData,
-  assets: readonly PsdExportPixelAsset[]
+  assets: readonly PsdExportPixelAsset[],
+  lutAssets: readonly PsdExportLutAsset[] = []
 ): PsdExportProjectionResult => {
   const byLayer = new Map(assets.map((asset) => [asset.layerId, asset]));
+  const byLut = new Map(lutAssets.map((asset) => [asset.lutId, asset.data]));
+  const resolveColorLookup = (assetId: string) => {
+    const metadata = document.assets.colorLookups.find(({ id }) => id === assetId);
+    const data = byLut.get(assetId);
+    return metadata && data ? { name: metadata.name, data } : null;
+  };
   const warnings: string[] = [];
   let editableTextLayers = 0;
   let editableVectorLayers = 0;
@@ -85,8 +97,32 @@ export const projectDocumentToPsd = (
   );
 
   const projectNodes = (nodes: readonly LayerNode[], path: string): Layer[] =>
-    nodes.flatMap((node, index) => embeddedTextPathLayerIds.has(node.id)
-      ? [] : [project(node, `${path}[${index}]`)]);
+    nodes.flatMap((node, index) => {
+      if (embeddedTextPathLayerIds.has(node.id)) return [];
+      const nodePath = `${path}[${index}]`;
+      const base = project(node, nodePath);
+      if (node.type !== 'raster') return [base];
+      const attached = (node.attachedAdjustments ?? []).flatMap((adjustment) => {
+        const descriptor = exportAdjustmentStackToPsd(
+          adjustment.adjustmentKind,
+          adjustment.adjustmentStack,
+          resolveColorLookup
+        );
+        if (!descriptor) return [];
+        return [{
+          id: numericLayerId(`${node.id}:attached:${adjustment.id}`),
+          name: adjustment.name,
+          hidden: !adjustment.enabled,
+          opacity: 1,
+          fillOpacity: 1,
+          blendMode: 'normal' as const,
+          clipping: true,
+          adjustment: descriptor,
+          timestamp: node.modifiedAt / 1000
+        } satisfies Layer];
+      });
+      return [base, ...attached];
+    });
 
   const project = (node: LayerNode, path: string): Layer => {
     const asset = byLayer.get(node.id);
@@ -122,29 +158,13 @@ export const projectDocumentToPsd = (
       if (node.photoshop?.adjustment && node.revision === 0) {
         common.adjustment = structuredClone(node.photoshop.adjustment) as Layer['adjustment'];
       } else {
-        const gradientMap = materializeBasicAdjustments(node.adjustmentStack).gradientMap;
-        if (gradientMap?.enabled) {
-          common.adjustment = {
-            type: 'gradient map',
-            gradientType: 'solid',
-            reverse: gradientMap.reverse,
-            dither: gradientMap.dither,
-            colorStops: gradientMap.colorStops.map((stop) => ({
-              location: Math.round(stop.position * 4096),
-              midpoint: Math.round(stop.midpoint * 100),
-              color: {
-                r: Math.round(stop.color.r * 255),
-                g: Math.round(stop.color.g * 255),
-                b: Math.round(stop.color.b * 255)
-              }
-            })),
-            opacityStops: gradientMap.opacityStops.map((stop) => ({
-              location: Math.round(stop.position * 4096),
-              midpoint: Math.round(stop.midpoint * 100),
-              opacity: Math.round(stop.opacity * 100)
-            }))
-          };
-        } else {
+        const adjustment = exportAdjustmentStackToPsd(
+          node.adjustmentKind,
+          node.adjustmentStack,
+          resolveColorLookup
+        );
+        if (adjustment) common.adjustment = adjustment;
+        else {
           warnings.push(`${path}: this adjustment has no unchanged, exact Photoshop descriptor.`);
         }
       }

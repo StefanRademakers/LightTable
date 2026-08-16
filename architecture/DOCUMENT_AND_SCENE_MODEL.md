@@ -19,6 +19,13 @@ Smart Objects and complete Smart Filter semantics are a target, not yet a
 first-class `LayerNode` variant. PSD metadata and preserved source assets do not
 by themselves mean the Smart Object model is complete.
 
+Document assets are immutable source payloads referenced by canonical IDs.
+The registry currently covers patterns, embedded fonts, preserved interchange
+sources and 3D Color Lookup tables. A Color Lookup asset records its cube size,
+input domain and byte length in `ImageDocument`; the original `.cube` bytes are
+stored beside layer pixels in the layered LightTable container. Runtime GPU
+textures are derived resources and never enter the document model.
+
 The current layer union is not a closed-world product limit. Planned native
 node kinds include text, embedded/smart documents, 3D scene layers and
 AI/procedural content whose result can be resolved to the same render contract.

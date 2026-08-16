@@ -126,6 +126,10 @@ caches:
   submitted command buffer no longer references them.
 - document image/core resource owners allocate only when the current feature
   path needs them.
+- `ColorLookupAssetStore` retains exact document-scoped `.cube` sources and
+  realizes referenced 3D LUTs as `rgba32float` textures. Sampling is explicitly
+  trilinear in the shader so float-filtering support is not a device requirement;
+  the identity LUT is the exact bypass for nodes without a custom asset.
 
 Every cache has an owner, key, byte estimate, invalidation rule and destroy
 path. A cached handle that is missing invalidates its downstream chain. Device

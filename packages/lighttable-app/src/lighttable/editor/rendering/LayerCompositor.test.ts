@@ -4,6 +4,7 @@ import { translationMatrix } from '../geometry/affine';
 import {
   createGroupLayer,
   createImageDocument,
+  createAdjustmentLayer,
   createTextLayerNode,
   createVectorLayer
 } from '../document/documentTypes';
@@ -152,6 +153,63 @@ describe('LayerCompositor', () => {
     expect(targets.ensureSingle).toHaveBeenCalledOnce();
     expect(targets.ensure).not.toHaveBeenCalled();
     expect(clearTexture).toHaveBeenCalledWith(expect.anything(), transparentTarget);
+  });
+
+  it('feeds standalone adjustment nodes from bottom to top through separate GPU passes', () => {
+    const document = createImageDocument('Ordered adjustments', 64, 32, 'source');
+    const curves = createAdjustmentLayer({
+      id: 'curves-stack', revision: 1,
+      modules: [{ id: 'curves', type: 'lt.curves', enabled: true, revision: 1, settings: {} }]
+    }, 'Curves');
+    const grade = createAdjustmentLayer({
+      id: 'grade-stack', revision: 1,
+      modules: [{ id: 'light', type: 'lt.light', enabled: true, revision: 1, settings: {} }]
+    }, 'Grade');
+    document.layers.push(curves, grade);
+    const compositeA = texture();
+    const compositeB = texture();
+    const rasterTexture = texture();
+    const curvesTexture = texture();
+    const gradeTexture = texture();
+    const encodeAdjustment = vi.fn((_encoder, _source, layer) =>
+      layer.name === 'Curves' ? curvesTexture : gradeTexture
+    );
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer: vi.fn() },
+        createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => ({ texture: rasterTexture, maskTexture: null })) } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: vi.fn() } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(texture),
+      clearTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+
+    compositor.encode({} as GPUCommandEncoder, document, encodeAdjustment);
+
+    expect(encodeAdjustment).toHaveBeenCalledTimes(2);
+    expect(encodeAdjustment.mock.calls.map((call) => call[2].name)).toEqual(['Curves', 'Grade']);
+    expect(encodeAdjustment.mock.calls[0]?.[1]).toBe(compositeB);
+    expect(encodeAdjustment.mock.calls[1]?.[1]).toBe(compositeA);
+
+    encodeAdjustment.mockClear();
+    document.layers = [document.layers[0]!, grade, curves];
+    compositor.encode({} as GPUCommandEncoder, document, encodeAdjustment);
+    expect(encodeAdjustment.mock.calls.map((call) => call[2].name)).toEqual(['Grade', 'Curves']);
   });
 
   it('propagates parent transforms to native vector layers', () => {

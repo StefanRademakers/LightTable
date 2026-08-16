@@ -13,26 +13,42 @@ import { SquareIconButton } from '../ui/SquareIconButton';
 import { SwitchControl } from '../ui/SwitchControl';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import { UiColorPickerPrototype } from './UiColorPickerPrototype';
-import { GenAiPanel } from '../genai/ui/GenAiPanel';
 import {
   ADJUSTMENT_DIALOG_SPECIMENS,
   photoshopShortcutForCurrentPlatform
 } from './AdjustmentDialogSpecimens';
 import {
+  UiChoiceListSpecimen,
+  UiContainerSpecimens,
+  UiGradientEditorSpecimen,
+  UiLayerTreeSpecimen,
+  UiLayoutGeometrySpecimens,
+  UiMenuListSpecimen,
+  UiSliderSpecimens,
+  UiSplitActionListSpecimen,
+  UiTabListSpecimen
+} from './UiSystemSpecimens';
+import {
   PanelAdvancedDisclosure,
   PanelAngleControl,
   PanelCheckboxField,
-  PanelNumberSlider,
+  PanelFileField,
   PanelSelectField,
   type PanelColor
-} from '../lighttable/editor/ui/PanelControls';
+} from '../ui/PanelControls';
 
 export const UI_STYLE_GUIDE_CATEGORIES = [
-  { id: 'typography', label: 'Typography' },
+  { id: 'foundations', label: 'Foundations' },
   { id: 'actions', label: 'Actions' },
-  { id: 'inputs', label: 'Inputs' },
-  { id: 'paint', label: 'Paint' },
-  { id: 'panels', label: 'Panel controls' },
+  { id: 'fields', label: 'Fields' },
+  { id: 'selection', label: 'Selection' },
+  { id: 'sliders', label: 'Sliders' },
+  { id: 'paint', label: 'Paint & color' },
+  { id: 'gradients', label: 'Gradients' },
+  { id: 'lists', label: 'Lists & navigation' },
+  { id: 'containers', label: 'Containers' },
+  { id: 'layout', label: 'Layout & geometry' },
+  { id: 'feedback', label: 'Feedback' },
   { id: 'adjustments', label: 'Adjustment dialogs' },
   { id: 'dialogs', label: 'Dialogs' }
 ] as const;
@@ -51,8 +67,11 @@ const DEMO_GRADIENT: GradientFieldValue = {
   ]
 };
 
-const Sample = ({ title, children }: React.PropsWithChildren<{ title: string }>) => (
-  <section className="lighttable-ui-guide__sample">
+const Sample = ({ title, wide = false, children }: React.PropsWithChildren<{
+  title: string;
+  wide?: boolean;
+}>) => (
+  <section className={`lighttable-ui-guide__sample${wide ? ' lighttable-ui-guide__sample--wide' : ''}`}>
     <h5>{title}</h5>
     <div className="lighttable-ui-guide__sample-content">{children}</div>
   </section>
@@ -77,7 +96,6 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
   const [compactColor, setCompactColor] = useState('#1f7af2');
   const [gradientExpanded, setGradientExpanded] = useState(false);
   const [noneExpanded, setNoneExpanded] = useState(false);
-  const [slider, setSlider] = useState(30);
   const [angle, setAngle] = useState(315);
   const [search, setSearch] = useState('');
 
@@ -107,7 +125,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
               <p>Live production styles and controls. Feature UI should compose these instead of restyling them.</p>
             </header>
             <div className="lighttable-ui-guide__samples">
-              {category === 'typography' ? <>
+              {category === 'foundations' ? <>
                 <Sample title="Typography scale">
                   <div className="lighttable-ui-guide__type-stack">
                     <p className="lighttable-ui-guide__type-large">Large · 14 px · titles and headings</p>
@@ -123,6 +141,20 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                     <p className="lighttable-preferences__error">Error text explains the problem and the next action.</p>
                   </div>
                 </Sample>
+                <Sample title="Control geometry">
+                  <div className="lighttable-ui-guide__geometry">
+                    <span><i className="is-regular" />28 px control</span>
+                    <span><i className="is-compact" />24 px compact</span>
+                    <span><i className="is-radius" />6 px radius</span>
+                  </div>
+                </Sample>
+                <Sample title="Surface and semantic color roles">
+                  <div className="lighttable-ui-guide__swatches">
+                    {['app', 'panel', 'control', 'selected', 'info', 'success', 'warning', 'danger'].map((role) => (
+                      <span key={role}><i data-role={role} />{role}</span>
+                    ))}
+                  </div>
+                </Sample>
                 <Sample title="Text input states">
                   <div className="lighttable-ui-guide__field-stack">
                     <label><span>Label</span><FormInput aria-label="Typography input" defaultValue="Editable value" /></label>
@@ -131,25 +163,28 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                 </Sample>
               </> : null}
               {category === 'actions' ? <>
-                <Sample title="Action buttons">
-                  <ActionButton>Regular</ActionButton>
-                  <ActionButton size="compact">Compact</ActionButton>
-                  <ActionButton disabled>Disabled</ActionButton>
+                <Sample title="One button component - density by context">
+                  <ActionButton>Dialog · 36 px</ActionButton>
+                  <ActionButton size="control">Control row · 28 px</ActionButton>
+                  <ActionButton size="compact">Compact · 24 px</ActionButton>
                 </Sample>
                 <Sample title="Icon buttons">
                   <SquareIconButton icon="+" aria-label="Add" />
                   <SquareIconButton icon="−" active aria-label="Remove active" />
                   <SquareIconButton icon="×" disabled aria-label="Disabled" />
                 </Sample>
+                <Sample title="States - geometry does not change">
+                  <ActionButton size="control">Enabled</ActionButton>
+                  <ActionButton size="control" disabled>Disabled</ActionButton>
+                  <ActionButton size="control" className="admin-table__danger">Destructive</ActionButton>
+                </Sample>
               </> : null}
-              {category === 'inputs' ? <>
+              {category === 'fields' ? <>
                 <Sample title="Standard control height · 28 px">
                   <FormInput aria-label="Aligned text field" defaultValue="Text" />
                   <NumericExpressionInput value={number} min={0} max={1000}
                     aria-label="Aligned numeric field" onValueChange={setNumber} />
-                  <SegmentedControl value={segment} onChange={setSegment} ariaLabel="Aligned segmented control"
-                    options={[{ value: 'new', label: 'New' }, { value: 'add', label: 'Add' },
-                      { value: 'subtract', label: 'Subtract' }]} />
+                  <ActionButton size="control">Control action</ActionButton>
                 </Sample>
                 <Sample title="Text fields">
                   <FormInput aria-label="Text example" defaultValue="Layer name" />
@@ -173,6 +208,12 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                   <PanelCheckboxField label="Enabled" checked={enabled} onChange={setEnabled} />
                   <PanelCheckboxField label="Optional setting" checked={false} onChange={() => undefined} />
                 </Sample>
+                <Sample title="File field">
+                  <PanelFileField label="3D LUT" buttonLabel="Load .cube..." accept=".cube"
+                    onFile={() => undefined} />
+                </Sample>
+              </> : null}
+              {category === 'selection' ? <>
                 <Sample title="Switches">
                   <SwitchControl checked={enabled} onCheckedChange={setEnabled} label="Example enabled" />
                   <SwitchControl checked={false} onCheckedChange={() => undefined} label="Example disabled" disabled />
@@ -194,7 +235,15 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                         icon: <img src={lightTableIcon('photo.png')} alt="" aria-hidden="true" /> }
                     ]} />
                 </Sample>
+                <Sample title="Disabled segmented option">
+                  <SegmentedControl value="one" onChange={() => undefined} ariaLabel="Disabled option example"
+                    options={[{ value: 'one', label: 'Available' },
+                      { value: 'two', label: 'Unavailable', disabled: true }]} />
+                </Sample>
               </> : null}
+              {category === 'sliders' ? <Sample title="Slider layouts, tracks and multi-handle" wide>
+                <UiSliderSpecimens />
+              </Sample> : null}
               {category === 'paint' ? <>
                 <Sample title="Paint fields · 104 × 28 px">
                   <div className="lighttable-ui-guide__control-table">
@@ -226,26 +275,65 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({ open, on
                     opacity={colorOpacity} onOpacityChange={setColorOpacity} />
                 </Sample>
               </> : null}
-              {category === 'panels' ? <>
-                <Sample title="GenAI panel states">
-                  <GenAiPanel
-                    providerName="OpenArt"
-                    status="disconnected"
-                    onConnect={() => undefined}
-                  />
+              {category === 'gradients' ? <>
+                <Sample title="Gradient triggers · regular and compact">
+                  <GradientField value={DEMO_GRADIENT} ariaLabel="Regular gradient trigger"
+                    onClick={() => undefined} />
+                  <GradientField value={DEMO_GRADIENT} size="compact"
+                    ariaLabel="Compact gradient trigger" onClick={() => undefined} />
                 </Sample>
-                <Sample title="Slider">
-                  <PanelNumberSlider label="Blur" value={slider} min={0} max={250}
-                    suffix=" px" onChange={setSlider} />
+                <Sample title="Complete gradient editor" wide>
+                  <UiGradientEditorSpecimen />
+                </Sample>
+              </> : null}
+              {category === 'lists' ? <>
+                <Sample title="Command menu · icons, shortcut, separator and disabled">
+                  <UiMenuListSpecimen />
+                </Sample>
+                <Sample title="Split-action creation list - create or attach">
+                  <UiSplitActionListSpecimen />
+                </Sample>
+                <Sample title="Grouped choice listbox">
+                  <UiChoiceListSpecimen />
+                </Sample>
+                <Sample title="Hierarchical Layers tree">
+                  <UiLayerTreeSpecimen />
+                </Sample>
+                <Sample title="Horizontal document tabs">
+                  <UiTabListSpecimen />
+                </Sample>
+              </> : null}
+              {category === 'containers' ? <>
+                <Sample title="Panel, property stack, toolbar group and popover" wide>
+                  <UiContainerSpecimens />
                 </Sample>
                 <Sample title="Angle control">
                   <PanelAngleControl label="Angle" value={angle} onChange={setAngle} />
                 </Sample>
                 <Sample title="Advanced disclosure">
                   <PanelAdvancedDisclosure>
-                    <PanelNumberSlider label="Advanced value" value={slider} min={0} max={100}
-                      suffix="%" onChange={setSlider} />
+                    <PanelSelectField label="Method" value="classic" onChange={() => undefined}
+                      options={[{ value: 'classic', label: 'Classic' }]} />
                   </PanelAdvancedDisclosure>
+                </Sample>
+              </> : null}
+              {category === 'layout' ? <>
+                <Sample title="Spacing scale, property widths and workspace geometry" wide>
+                  <UiLayoutGeometrySpecimens />
+                </Sample>
+              </> : null}
+              {category === 'feedback' ? <>
+                <Sample title="Notices">
+                  <div className="lighttable-ui-guide__feedback-stack">
+                    <div className="lighttable-style-notice">Informational notice with a stable layout.</div>
+                    <div className="lighttable-ui-guide__feedback lighttable-ui-guide__feedback--success">Ready · changes saved</div>
+                    <div className="lighttable-ui-guide__feedback lighttable-ui-guide__feedback--warning">Approximate Photoshop compatibility</div>
+                    <div className="lighttable-ui-guide__feedback lighttable-ui-guide__feedback--error">Asset could not be loaded</div>
+                  </div>
+                </Sample>
+                <Sample title="Empty and disabled states">
+                  <div className="lighttable-panel__empty">Select editable content to show properties.</div>
+                  <ActionButton size="control" disabled>Unavailable action</ActionButton>
                 </Sample>
               </> : null}
               {category === 'adjustments' ? <>

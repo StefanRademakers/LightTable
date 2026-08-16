@@ -4,7 +4,7 @@ import { ActionButton } from '../../../ui/ActionButton';
 import { NumericExpressionInput } from '../../../ui/NumericExpressionInput';
 import { SwitchControl } from '../../../ui/SwitchControl';
 import { useDialogAccessibility } from '../../../ui/useDialogAccessibility';
-import { AdjustmentSlider } from '../../AdjustmentSlider';
+import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import type { ImageDocument } from '../document/documentTypes';
 import {
   MAX_IMAGE_SIZE_DIMENSION,
