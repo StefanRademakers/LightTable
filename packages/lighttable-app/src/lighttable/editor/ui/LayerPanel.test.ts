@@ -35,7 +35,7 @@ describe('LayerPanel creation flyout', () => {
 
   it('orders processing layers and leaves Gradient Fill and Lens FX Grain to their tools', () => {
     expect(LAYER_CREATION_OPTIONS.map(({ id }) => id)).toEqual([
-      'grade', 'brightness-contrast', 'levels', 'curves', 'exposure',
+      'grade', 'lens-fx', 'brightness-contrast', 'levels', 'curves', 'exposure',
       'color-vibrance', 'hue-saturation', 'color-balance', 'black-white',
       'photo-filter', 'channel-mixer', 'color-lookup', 'invert', 'posterize',
       'threshold', 'gradient-map', 'selective-color', 'clarity-dehaze'
@@ -44,7 +44,7 @@ describe('LayerPanel creation flyout', () => {
       .toEqual(['brightness-contrast', 'color-vibrance', 'invert', 'clarity-dehaze']);
     expect(LAYER_CREATION_OPTIONS.find(({ id }) => id === 'curves'))
       .toMatchObject({ iconName: 'adjustment_curves.svg' });
-    expect(LAYER_CREATION_OPTIONS.some(({ id }) => id === 'lens-fx')).toBe(false);
+    expect(LAYER_CREATION_OPTIONS.some(({ id }) => id === 'lens-fx')).toBe(true);
     expect(LAYER_CREATION_OPTIONS.some(({ id }) => id === 'grain')).toBe(false);
   });
 

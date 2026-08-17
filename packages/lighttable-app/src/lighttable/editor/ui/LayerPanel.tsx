@@ -326,12 +326,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const capabilityFindings = React.useMemo(() => buildDocumentCapabilityFindings(
     document.photoshopImportReport ?? null, textFontDiagnostics
   ), [document.photoshopImportReport, textFontDiagnostics]);
-  const documentFxLayer = document.layers.find(layerIsDocumentFx) ?? null;
-  const compositeRows = visualLayerRows(
-    document.layers.filter((layer) => !layerIsDocumentFx(layer)),
-    collapsedGroups
-  );
-  const rows = compositeRows;
+  const rows = visualLayerRows(document.layers, collapsedGroups);
   const allRows = visualLayerRows(document.layers, new Set());
   const allLayerIds = new Set(allRows.map(({ layer }) => layer.id));
   const selectedIds = [...selectedLayerIds].filter((layerId) => allLayerIds.has(layerId));
@@ -352,38 +347,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     canUngroupSelection
   } = layerCapabilities;
   const canDeleteSelection = layerCapabilities.canDeleteSelection;
-  const activeIsDocumentFx = Boolean(activeLayer && layerIsDocumentFx(activeLayer));
-  const selectionContainsDocumentFx = selectedIds.some((layerId) =>
-    documentFxLayer?.id === layerId
-  );
-  const globalLensFxActive = inspectorTarget.kind === 'document-processing'
-    ? inspectorTarget.owner === 'lens-fx'
-    : Boolean(documentFxLayer
-      && inspectorTarget.kind === 'layer'
-      && inspectorTarget.layerId === documentFxLayer.id);
-  const globalGradeActive = inspectorTarget.kind === 'document-processing'
-    && inspectorTarget.owner === 'grade';
-  const compositeLayerIsActive = inspectorTarget.kind !== 'document-processing';
-  const globalLensFxVisible = documentFxLayer?.visible
-    ?? documentProcessingVisibility.lensFx;
-  const activateGlobalLensFx = () => {
-    if (documentFxLayer) {
-      setSelectedLayerIds(new Set([documentFxLayer.id]));
-      selectionAnchorRef.current = documentFxLayer.id;
-      onSelect(documentFxLayer.id);
-      onChannelChange('pixels');
-      onInspectLayer(documentFxLayer.id, 'pixels');
-      return;
-    }
-    setSelectedLayerIds(new Set());
-    selectionAnchorRef.current = null;
-    onInspectDocumentProcessing('lens-fx');
-  };
-  const activateGlobalGrade = () => {
-    setSelectedLayerIds(new Set());
-    selectionAnchorRef.current = null;
-    onInspectDocumentProcessing('grade');
-  };
+  const activeIsDocumentFx = false;
+  const selectionContainsDocumentFx = false;
+  const compositeLayerIsActive = true;
   const layerCreationHandlers = (id: (typeof LAYER_CREATION_OPTIONS)[number]['id']) => {
     if (id === 'grade') return onCreateAdjustment;
     if (id === 'curves') return onCreateCurvesAdjustment;
@@ -392,9 +358,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
 
   React.useEffect(() => {
     setSelectedLayerIds((current) => {
-      if (inspectorTarget.kind === 'document-processing') {
-        return current.size === 0 ? current : new Set();
-      }
       const next = new Set([...current].filter((layerId) => allLayerIds.has(layerId)));
       if (document.activeLayerId && !next.has(document.activeLayerId)) {
         selectionAnchorRef.current = document.activeLayerId;
@@ -694,89 +657,19 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
 
   return (
     <section className="lighttable-layers" aria-label="Layers">
-      <div
-        className={`lighttable-layers__composite-controls${
-          globalLensFxActive
-            ? ' lighttable-layers__composite-controls--reserved'
-            : globalGradeActive
-              ? ' lighttable-layers__composite-controls--global-grade'
-            : ''
-        }`}
-        aria-hidden={globalLensFxActive}
-      >
-      {globalGradeActive ? (
-        <>
-          <div className="lighttable-global-grade-controls__preset-row">
-            <FormSelect
-              aria-label="Global Grade look or preset"
-              value="custom"
-              onChange={(event) => {
-                if (event.currentTarget.value === 'neutral') onResetGlobalGrade();
-                if (event.currentTarget.value === 'copied') onPasteGlobalGrade();
-              }}
-            >
-              <option value="custom">Look / Preset</option>
-              <option value="neutral">Neutral</option>
-              {copiedGradeName ? <option value="copied">{copiedGradeName}</option> : null}
-            </FormSelect>
-            <SquareIconButton
-              size="compact"
-              appearance="quiet"
-              icon={<img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />}
-              onClick={onResetGlobalGrade}
-              title="Reset Global Grade"
-              aria-label="Reset Global Grade"
-            />
-          </div>
-          <AdjustmentSlider
-            label="Strength"
-            layout="layer-row"
-            value={globalGradeStrength}
-            min={0}
-            max={100}
-            format={(value) => `${Math.round(value)}%`}
-            resetValue={100}
-            onReset={() => onGlobalGradeStrength(100)}
-            onChange={onGlobalGradeStrength}
-            onInteractionStart={onGlobalGradeStrengthInteractionStart}
-            onInteractionEnd={onGlobalGradeStrengthInteractionEnd}
-          />
-          <div className="lighttable-global-grade-controls__clipboard-row">
-            <SquareIconButton
-              size="compact"
-              appearance="quiet"
-              icon={<img src={lightTableIcon('copy.png')} alt="" aria-hidden="true" />}
-              onClick={onCopyGlobalGrade}
-              title="Copy Global Grade"
-              aria-label="Copy Global Grade"
-            />
-            <SquareIconButton
-              size="compact"
-              appearance="quiet"
-              icon={<img src={lightTableIcon('paste_grade.svg')} alt="" aria-hidden="true" />}
-              onClick={onPasteGlobalGrade}
-              disabled={!copiedGradeName}
-              title="Paste Global Grade"
-              aria-label="Paste Global Grade"
-            />
-          </div>
-        </>
-      ) : activeLayer ? (
+      <div className="lighttable-layers__composite-controls">
+      {activeLayer ? (
         <>
           <div className="lighttable-layers__blend-lock-row">
             <FormSelect
               className="lighttable-layers__blend-mode"
               aria-label="Layer blend mode"
               value={activeLayer.type === 'group' ? 'pass-through' : activeLayer.blendMode}
-              disabled={activeIsDocumentFx || !layerSupportsContentCompositing(activeLayer)}
+              disabled={activeLayer.type === 'group'}
               title={
-                activeIsDocumentFx
-                  ? 'Document FX uses a fixed final-pass composite'
-                  : activeLayer.type === 'group'
+                activeLayer.type === 'group'
                   ? 'Pass-through group compositing'
-                  : activeLayer.type === 'adjustment'
-                    ? 'Adjustment blend modes arrive with recursive adjustment compositing'
-                    : undefined
+                  : undefined
               }
               onChange={(event) => onBlendMode(activeLayer.id, event.currentTarget.value as BlendMode)}
             >
@@ -840,101 +733,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       ) : null}
       </div>
       <div className="lighttable-layers__list" role="tree" aria-label="Layer stack" data-editor-native-tab-navigation="tab-only">
-        <div
-          role="treeitem"
-          tabIndex={0}
-          aria-selected={globalLensFxActive}
-          className={`lighttable-global-processing-row${
-            globalLensFxActive ? ' lighttable-global-processing-row--active' : ''
-          }`}
-          onClick={activateGlobalLensFx}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            event.preventDefault();
-            activateGlobalLensFx();
-          }}
-        >
-          <ButtonBase type="button" className="lighttable-layer__visibility"
-            onClick={(event) => {
-              event.stopPropagation();
-              if (documentFxLayer) onVisibility([documentFxLayer.id], !documentFxLayer.visible);
-              else onDocumentProcessingVisibility('lens-fx', !globalLensFxVisible);
-            }}
-            aria-label={globalLensFxVisible ? 'Hide Global Lens FX' : 'Show Global Lens FX'}
-            title={globalLensFxVisible ? 'Hide Global Lens FX' : 'Show Global Lens FX'}>
-            <img src={lightTableIcon(globalLensFxVisible ? 'visible.png' : 'visible_off.png')} alt="" />
-          </ButtonBase>
-          <span className="lighttable-global-processing-row__thumbnail-slot" aria-hidden="true" />
-          <input
-            className="lighttable-layer__name lighttable-global-processing-row__name"
-            value="Global Lens FX"
-            readOnly
-            tabIndex={-1}
-            aria-label="Global Lens FX"
-          />
-          {globalLensFxModified ? (
-            <SquareIconButton
-              size="compact"
-              appearance="quiet"
-              icon={<img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />}
-              onClick={(event) => {
-                event.stopPropagation();
-                activateGlobalLensFx();
-                onResetGlobalLensFx();
-              }}
-              title="Reset Global Lens FX"
-              aria-label="Reset Global Lens FX"
-            />
-          ) : null}
-        </div>
-        <div
-          role="treeitem"
-          tabIndex={0}
-          aria-selected={globalGradeActive}
-          className={`lighttable-global-processing-row${
-            globalGradeActive ? ' lighttable-global-processing-row--active' : ''
-          }`}
-          onClick={activateGlobalGrade}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            event.preventDefault();
-            activateGlobalGrade();
-          }}
-        >
-          <ButtonBase type="button" className="lighttable-layer__visibility"
-            onClick={(event) => {
-              event.stopPropagation();
-              onDocumentProcessingVisibility('grade', !documentProcessingVisibility.grade);
-            }}
-            aria-label={documentProcessingVisibility.grade ? 'Hide Global Grade' : 'Show Global Grade'}
-            title={documentProcessingVisibility.grade ? 'Hide Global Grade' : 'Show Global Grade'}>
-            <img src={lightTableIcon(documentProcessingVisibility.grade ? 'visible.png' : 'visible_off.png')} alt="" />
-          </ButtonBase>
-          <span className="lighttable-global-processing-row__thumbnail-slot" aria-hidden="true" />
-          <input
-            className="lighttable-layer__name lighttable-global-processing-row__name"
-            value="Global Grade"
-            readOnly
-            tabIndex={-1}
-            aria-label="Global Grade"
-          />
-          {globalGradeModified ? (
-            <SquareIconButton
-              size="compact"
-              appearance="quiet"
-              icon={<img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />}
-              onClick={(event) => {
-                event.stopPropagation();
-                activateGlobalGrade();
-                onResetGlobalGrade();
-              }}
-              title="Reset Global Grade"
-              aria-label="Reset Global Grade"
-            />
-          ) : null}
-        </div>
-        <div className="lighttable-layer-zone-divider lighttable-layer-zone-divider--quiet"
-          role="presentation" />
         {rows.map(({ layer, depth }) => {
           const documentFx = layerIsDocumentFx(layer);
           const icon = layerTypeIcon(layer);
@@ -1031,8 +829,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             }}
             onDragOver={(event) => {
               const sourceId = draggedLayerIdRef.current;
-              if (!sourceId || sourceId === layer.id || documentFx
-                || documentFxLayer?.id === sourceId) return;
+              if (!sourceId || sourceId === layer.id || documentFx) return;
               event.preventDefault();
               event.dataTransfer.dropEffect = 'move';
               const bounds = event.currentTarget.getBoundingClientRect();

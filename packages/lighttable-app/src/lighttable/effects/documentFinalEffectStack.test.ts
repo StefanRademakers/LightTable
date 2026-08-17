@@ -8,12 +8,9 @@ import {
 } from '../processing/adjustmentStack';
 import { selectAdjustmentLayerModules } from '../processing/adjustmentLayerCatalog';
 import { createDefaultAdjustments } from '../types';
-import {
-  adjustmentLayerOwnsDocumentFinalEffects,
-  composeDocumentFinalEffectStack
-} from './documentFinalEffectStack';
+import { composeDocumentFinalEffectStack } from './documentFinalEffectStack';
 
-describe('document-final Lens FX stack', () => {
+describe('legacy document-owned effect stack', () => {
   it('never extracts a Lens FX layer from its canonical layer-tree position', () => {
     const base = createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
     const settings = createDefaultAdjustments();
@@ -27,7 +24,6 @@ describe('document-final Lens FX stack', () => {
     const document = createImageDocument('Test', 32, 32, 'asset');
     document.layers.push(layer);
 
-    expect(adjustmentLayerOwnsDocumentFinalEffects(layer)).toBe(true);
     const composed = composeDocumentFinalEffectStack(base, document);
     const extracted = composed.modules.filter(({ id }) =>
       lensFx.modules.some((module) => module.id === id)
@@ -55,7 +51,6 @@ describe('document-final Lens FX stack', () => {
     const document = createImageDocument('Test', 32, 32, 'asset');
     document.layers.push(layer);
 
-    expect(adjustmentLayerOwnsDocumentFinalEffects(layer)).toBe(true);
     expect(composeDocumentFinalEffectStack(base, document).modules).toHaveLength(base.modules.length);
   });
 });

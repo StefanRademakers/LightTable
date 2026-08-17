@@ -387,21 +387,13 @@ export const createLayerDocumentCommands = (
       'adjustment-layer'
     ), kind);
     const clearedDocumentGrade = createDefaultAdjustments();
-    let next = createAdjustmentLayer(
+    const next = createAdjustmentLayer(
       current,
       stack,
       definition.name,
       current.activeLayerId ?? undefined,
       kind
     );
-    if (kind === 'lens-fx' && next.activeLayerId) {
-      const rootTarget = [...next.layers]
-        .reverse()
-        .find((layer) => layer.id !== next.activeLayerId);
-      if (rootTarget) {
-        next = moveLayerRelative(next, next.activeLayerId, rootTarget.id, 'above');
-      }
-    }
 
     dependencies.publishDocumentAdjustments(clearedDocumentGrade);
     dependencies.applyDocumentSnapshot(next);

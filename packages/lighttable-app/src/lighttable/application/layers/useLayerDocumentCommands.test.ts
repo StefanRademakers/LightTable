@@ -484,7 +484,7 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
-  it('keeps a Lens Fx layer at the root document-final boundary', () => {
+  it('creates a Lens Fx layer beside the active layer inside its group', () => {
     const document = createImageDocument('Test', 32, 24, 'asset');
     const background = document.layers[0]!;
     const group = createGroupLayerNode('Group');
@@ -495,12 +495,14 @@ describe('useLayerDocumentCommands', () => {
 
     expect(state.commands.createLensFxLayer()).toBe(true);
 
-    expect(state.document().layers).toHaveLength(2);
-    expect(state.document().layers.at(-1)).toMatchObject({
+    expect(state.document().layers).toHaveLength(1);
+    const updatedGroup = state.document().layers[0];
+    expect(updatedGroup).toMatchObject({ type: 'group' });
+    if (updatedGroup?.type !== 'group') throw new Error('Expected group fixture.');
+    expect(updatedGroup.children).toHaveLength(2);
+    expect(updatedGroup.children[0]).toMatchObject({ id: background.id });
+    expect(updatedGroup.children[1]).toMatchObject({
       type: 'adjustment', name: 'Lens Fx', adjustmentKind: 'lens-fx'
-    });
-    expect(state.document().layers[0]).toMatchObject({
-      type: 'group', children: [{ id: background.id }]
     });
   });
 

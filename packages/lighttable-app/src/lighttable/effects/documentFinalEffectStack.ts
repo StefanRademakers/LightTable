@@ -1,9 +1,5 @@
-import type {
-  AdjustmentLayer,
-  ImageDocument
-} from '../editor/document/documentTypes';
+import type { ImageDocument } from '../editor/document/documentTypes';
 import {
-  adjustmentStackHasOwner,
   cloneAdjustmentStack,
   type AdjustmentStack
 } from '../processing/adjustmentStack';
@@ -15,16 +11,6 @@ const EFFECT_STAGE_ORDER = {
   'display-post': 2
 } as const;
 
-/** Identifies Lens FX ownership without implying any scheduling position. */
-export const adjustmentLayerOwnsDocumentFinalEffects = (
-  layer: AdjustmentLayer
-): boolean => adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx');
-
-/**
- * A pristine Lens FX control layer can use the stage-aware document-final
- * runtime. Once ordinary layer compositing participates, keep it in the layer
- * compositor so opacity, masks, clipping and blend mode remain authoritative.
- */
 /**
  * Orders only the legacy document-owned effect stack. Visible Grade and Lens
  * FX layers are never collected here: their exact tree position, masks and

@@ -51,8 +51,7 @@ export const ADJUSTMENT_LAYER_DEFINITIONS: readonly AdjustmentLayerDefinition[] 
     menuLabel: 'Lens Fx',
     iconName: 'lens_fx.png',
     family: 'lighttable',
-    owner: 'lens-fx',
-    creationVisible: false
+    owner: 'lens-fx'
   },
   {
     id: 'color-vibrance',
