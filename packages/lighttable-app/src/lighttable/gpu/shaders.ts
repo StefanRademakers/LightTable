@@ -1563,7 +1563,16 @@ fn applyDetailNode(centerRgb: vec3f, uv: vec2f) -> vec3f {
   }
   let dimensions = max(vec2f(textureDimensions(correctedTexture)), vec2f(1.0));
   let radius = clamp(adjustments.detail[0].y, 0.5, 3.0);
-  let texel = vec2f(radius) / dimensions;
+  // Camera-style denoise controls build useful suppression early in their
+  // range; a linear control made 25–50 feel nearly inert. The perceptual
+  // response keeps both endpoints exact while distributing authority earlier.
+  let luminanceStrength = pow(clamp(luminanceAmount / 100.0, 0.0, 1.0), 0.40);
+  let colorStrength = clamp(colorAmount / 100.0, 0.0, 1.0);
+  // A high noise-reduction amount needs a wider analysis footprint, not only
+  // a stronger blend of the same tiny neighbourhood. Keep the neutral path
+  // and sharpening-only footprint unchanged, then grow smoothly to 2.8x.
+  let analysisScale = mix(1.0, 2.8, pow(luminanceStrength, 0.85));
+  let texel = vec2f(radius * analysisScale) / dimensions;
   let centerY = max(luminance(centerRgb), 1e-6);
   let luminanceDetail = adjustments.detail[1].y / 100.0;
   let colorDetail = adjustments.detail[2].x / 100.0;
@@ -1580,7 +1589,10 @@ fn applyDetailNode(centerRgb: vec3f, uv: vec2f) -> vec3f {
     let sampleRgb = textureSample(correctedTexture, sourceSampler, uv + offsets[index] * texel).rgb;
     let sampleY = max(luminance(sampleRgb), 1e-6);
     // Detail controls protect real luminance/color boundaries from smoothing.
-    let edgeThreshold = mix(22.0, 70.0, luminanceDetail);
+    // At the top of the range, admit progressively larger noise excursions.
+    // The Detail controls remain the edge-protection authority.
+    let edgeThreshold = mix(22.0, 70.0, luminanceDetail)
+      * mix(1.0, 0.30, pow(luminanceStrength, 1.25));
     let chromaDistance = length((sampleRgb - vec3f(sampleY)) - (centerRgb - vec3f(centerY)));
     let edgeWeight = exp(-abs(sampleY - centerY) * edgeThreshold)
       * exp(-chromaDistance * mix(10.0, 42.0, colorDetail));
@@ -1600,7 +1612,9 @@ fn applyDetailNode(centerRgb: vec3f, uv: vec2f) -> vec3f {
   for (var index = 0u; index < 4u; index += 1u) {
     let sampleRgb = textureSample(correctedTexture, sourceSampler, uv + coarseOffsets[index] * texel).rgb;
     let sampleY = max(luminance(sampleRgb), 1e-6);
-    let edgeWeight = exp(-abs(sampleY - centerY) * mix(16.0, 52.0, luminanceDetail));
+    let edgeWeight = exp(-abs(sampleY - centerY)
+      * mix(16.0, 52.0, luminanceDetail)
+      * mix(1.0, 0.30, pow(luminanceStrength, 1.25)));
     coarseRgbSum += sampleRgb * edgeWeight;
     coarseYSum += sampleY * edgeWeight;
     coarseWeightTotal += edgeWeight;
@@ -1611,13 +1625,15 @@ fn applyDetailNode(centerRgb: vec3f, uv: vec2f) -> vec3f {
   let localChroma = localRgb - vec3f(luminance(localRgb));
   let coarseChroma = coarseRgb - vec3f(luminance(coarseRgb));
 
-  let luminanceStrength = luminanceAmount / 100.0;
   let luminanceBase = mix(coarseY, localY, luminanceDetail);
-  var resultY = mix(centerY, luminanceBase, luminanceStrength * mix(0.92, 0.38, luminanceDetail));
+  var resultY = mix(
+    centerY,
+    luminanceBase,
+    luminanceStrength * mix(1.0, 0.80, luminanceDetail)
+  );
   let luminanceContrast = adjustments.detail[1].z / 100.0;
   resultY += (centerY - coarseY) * luminanceStrength * luminanceContrast * 0.55;
 
-  let colorStrength = colorAmount / 100.0;
   let colorSmoothness = adjustments.detail[2].y / 100.0;
   let colorBase = mix(localChroma, coarseChroma, colorSmoothness);
   var resultChroma = mix(

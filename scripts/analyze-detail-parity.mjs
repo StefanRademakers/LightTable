@@ -6,11 +6,14 @@ import sharp from 'sharp';
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
 const root = path.resolve(rootArgument?.slice('--root='.length)
   ?? 'D:\\mediavibe\\LightTableTests\\DetailParity');
+const amounts = [25, 50, 80, 100];
 const paths = {
   cameraRawNeutral: path.join(root, 'camera-raw', 'neutral.png'),
-  cameraRawTarget: path.join(root, 'camera-raw', 'luminance-100.png'),
   lightTableNeutral: path.join(root, 'lighttable', 'neutral.png'),
-  lightTableTarget: path.join(root, 'lighttable', 'luminance-100.png')
+  ...Object.fromEntries(amounts.flatMap((amount) => ([
+    [`cameraRaw${amount}`, path.join(root, 'camera-raw', `luminance-${amount}.png`)],
+    [`lightTable${amount}`, path.join(root, 'lighttable', `luminance-${amount}.png`)]
+  ])))
 };
 
 const load = async (file) => sharp(file).removeAlpha().raw()
@@ -71,31 +74,33 @@ const highFrequencyEnergy = ({ data, info }) => {
   return Math.sqrt(squared / count) / 255;
 };
 
-const cameraRawEffect = effect(images.cameraRawNeutral.data, images.cameraRawTarget.data);
-const lightTableEffect = effect(images.lightTableNeutral.data, images.lightTableTarget.data);
-const highFrequency = {
-  cameraRawNeutral: highFrequencyEnergy(images.cameraRawNeutral),
-  cameraRawTarget: highFrequencyEnergy(images.cameraRawTarget),
-  lightTableNeutral: highFrequencyEnergy(images.lightTableNeutral),
-  lightTableTarget: highFrequencyEnergy(images.lightTableTarget)
-};
+const cameraRawNeutralHighFrequency = highFrequencyEnergy(images.cameraRawNeutral);
+const lightTableNeutralHighFrequency = highFrequencyEnergy(images.lightTableNeutral);
 const report = {
-  schema: 1,
+  schema: 2,
   generatedAt: new Date().toISOString(),
   dimensions: [...dimensions][0],
-  direct: {
-    neutralRmse: normalizedRmse(images.cameraRawNeutral.data, images.lightTableNeutral.data),
-    targetRmse: normalizedRmse(images.cameraRawTarget.data, images.lightTableTarget.data)
-  },
-  effectDelta: vectorMetrics(cameraRawEffect, lightTableEffect),
-  highFrequency: {
-    ...highFrequency,
-    cameraRawRetention: highFrequency.cameraRawTarget / highFrequency.cameraRawNeutral,
-    lightTableRetention: highFrequency.lightTableTarget / highFrequency.lightTableNeutral
-  },
+  neutralRmse: normalizedRmse(images.cameraRawNeutral.data, images.lightTableNeutral.data),
+  cases: amounts.map((amount) => {
+    const cameraRawTarget = images[`cameraRaw${amount}`];
+    const lightTableTarget = images[`lightTable${amount}`];
+    const cameraRawTargetHighFrequency = highFrequencyEnergy(cameraRawTarget);
+    const lightTableTargetHighFrequency = highFrequencyEnergy(lightTableTarget);
+    return {
+      amount,
+      directTargetRmse: normalizedRmse(cameraRawTarget.data, lightTableTarget.data),
+      effectDelta: vectorMetrics(
+        effect(images.cameraRawNeutral.data, cameraRawTarget.data),
+        effect(images.lightTableNeutral.data, lightTableTarget.data)
+      ),
+      highFrequency: {
+        cameraRawRetention: cameraRawTargetHighFrequency / cameraRawNeutralHighFrequency,
+        lightTableRetention: lightTableTargetHighFrequency / lightTableNeutralHighFrequency
+      }
+    };
+  }),
   note: 'Initial characterization only; no parity threshold or tuning decision is encoded.'
 };
 await mkdir(root, { recursive: true });
 await writeFile(path.join(root, 'comparison-report.json'), `${JSON.stringify(report, null, 2)}\n`);
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-

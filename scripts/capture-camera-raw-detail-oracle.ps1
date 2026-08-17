@@ -54,6 +54,9 @@ function JsString([string]$value) {
 $photoshop = Get-PhotoshopAutomation
 $cases = @(
   @{ id = 'neutral'; luminanceNoiseReduction = 0 },
+  @{ id = 'luminance-25'; luminanceNoiseReduction = 25 },
+  @{ id = 'luminance-50'; luminanceNoiseReduction = 50 },
+  @{ id = 'luminance-80'; luminanceNoiseReduction = 80 },
   @{ id = 'luminance-100'; luminanceNoiseReduction = 100 }
 )
 $results = @()
