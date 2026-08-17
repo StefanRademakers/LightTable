@@ -20,6 +20,7 @@ export interface AdjustmentLayerGpuRuntime {
   uniformBuffer: GPUBuffer;
   curveTexture: GPUTexture;
   creativeBindGroup: GPUBindGroup;
+  createCreativeBindGroup: (source: GPUTexture, spatialInput: GPUTexture) => GPUBindGroup;
   payloadWriter: AdjustmentGpuPayloadWriter;
   colorLookupAssetId: string | null;
   colorLookupUniform: ColorLookupUniform | null;
@@ -136,14 +137,12 @@ export class AdjustmentLayerGpuResources {
     const colorVibranceColorTexture = photoshopAdjustmentKind === 'color-vibrance'
       ? createColorVibranceTexture(`LightTable Color and Vibrance color: ${layer.name}`, 'rgba8unorm')
       : null;
-    const runtime = {
-      uniformBuffer,
-      curveTexture,
-      creativeBindGroup: this.device.createBindGroup({
+    const createCreativeBindGroup = (source: GPUTexture, spatialInput: GPUTexture) =>
+      this.device.createBindGroup({
         layout: dependencies.creativePipeline.getBindGroupLayout(0),
         entries: [
-          { binding: 0, resource: dependencies.correctedTexture.createView() },
-          { binding: 1, resource: dependencies.downsampleTexture.createView() },
+          { binding: 0, resource: source.createView() },
+          { binding: 1, resource: spatialInput.createView() },
           { binding: 2, resource: dependencies.sampler },
           { binding: 3, resource: { buffer: uniformBuffer } },
           { binding: 4, resource: curveTexture.createView() },
@@ -155,7 +154,15 @@ export class AdjustmentLayerGpuResources {
             ?? dependencies.identityColorLookupTexture).createView() },
           { binding: 8, resource: dependencies.photoshopColorBalanceTransferTexture.createView() }
         ]
-      }),
+      });
+    const runtime = {
+      uniformBuffer,
+      curveTexture,
+      creativeBindGroup: createCreativeBindGroup(
+        dependencies.correctedTexture,
+        dependencies.downsampleTexture
+      ),
+      createCreativeBindGroup,
       payloadWriter: new AdjustmentGpuPayloadWriter(this.device, {
         uniformBuffer,
         curveTexture,

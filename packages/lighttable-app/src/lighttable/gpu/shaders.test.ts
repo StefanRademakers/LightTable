@@ -18,6 +18,10 @@ import {
   VIEWPORT_BLIT_WGSL
 } from './shaders';
 import {
+  WAVELET_DETAIL_HORIZONTAL_WGSL,
+  WAVELET_DETAIL_VERTICAL_WGSL
+} from './waveletDetailShaders';
+import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
@@ -95,6 +99,8 @@ const renderShaders = [
   ['downsample', DOWNSAMPLE_WGSL],
   ['gaussian blur', GAUSSIAN_BLUR_WGSL],
   ['creative grade', CREATIVE_GRADE_WGSL],
+  ['wavelet Detail horizontal', WAVELET_DETAIL_HORIZONTAL_WGSL],
+  ['wavelet Detail vertical', WAVELET_DETAIL_VERTICAL_WGSL],
   ['Global Grade strength mix', GLOBAL_GRADE_MIX_WGSL],
   ['lens blur depth refinement', LENS_BLUR_DEPTH_REFINE_WGSL],
   ['lens blur downsample', LENS_BLUR_DOWNSAMPLE_WGSL],
@@ -117,6 +123,15 @@ const renderShaders = [
 ] as const;
 
 describe('LightTable WGSL modules', () => {
+  it('keeps denoise in the four-scale wavelet node and sharpening in creative grade', () => {
+    expect(WAVELET_DETAIL_HORIZONTAL_WGSL).toContain('negativeOne.rgb * 4.0 + center.rgb * 6.0');
+    expect(WAVELET_DETAIL_VERTICAL_WGSL).toContain('array<f32, 4>');
+    expect(WAVELET_DETAIL_VERTICAL_WGSL).toContain('filteredYDetail');
+    expect(WAVELET_DETAIL_VERTICAL_WGSL).toContain('filteredChromaDetail');
+    expect(CREATIVE_GRADE_WGSL).toContain('Noise reduction is performed by the conditional multi-pass a-trous node');
+    expect(CREATIVE_GRADE_WGSL).not.toContain('applyLegacyDetailNode');
+  });
+
   it('mixes Global Grade once after its complete pipeline', () => {
     expect(GLOBAL_GRADE_MIX_WGSL).toContain('return mix(source, graded, clamp(settings.strength');
     expect(BASIC_CORRECTION_WGSL).not.toContain('settings.strength');

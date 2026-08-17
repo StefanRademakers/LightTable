@@ -238,7 +238,7 @@ export const CURRENT_PROCESSING_MODULES = [
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
     coordinateSpace: 'document',
-    notes: 'Conditional shared fine/coarse analysis for sharpening and noise reduction.'
+    notes: 'Conditional four-scale a-trous wavelet shrinkage for luminance/color noise; fine-detail sharpening remains fused into creative grade.'
   },
   {
     type: 'lt.lens-distortion',

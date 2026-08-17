@@ -1,4 +1,5 @@
 import { GRADIENT_MAP_WGSL } from './gradientMapShader';
+import { ADJUSTMENTS_WGSL } from './adjustmentShaderLayout';
 import { PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES } from './photoshopColorVibranceLut.generated';
 import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
@@ -286,43 +287,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 `;
 
 export const CREATIVE_GRADE_WGSL = /* wgsl */ `
-struct Adjustments {
-  temperature: f32,
-  tint: f32,
-  exposureEV: f32,
-  contrast: f32,
-  highlights: f32,
-  shadows: f32,
-  whites: f32,
-  blacks: f32,
-  clarity: f32,
-  vibrance: f32,
-  saturation: f32,
-  texture: f32,
-  dehaze: f32,
-  vignette: f32,
-  lift: f32,
-  sourceWidth: f32,
-  sourceHeight: f32,
-  curveActive: f32,
-  padding1: vec2f,
-  mixerHue0: vec4f,
-  mixerHue1: vec4f,
-  mixerSaturation0: vec4f,
-  mixerSaturation1: vec4f,
-  mixerLuminance0: vec4f,
-  mixerLuminance1: vec4f,
-  gradingHue: vec4f,
-  gradingSaturation: vec4f,
-  gradingLuminance: vec4f,
-  gradingControls: vec4f,
-  gradientMapControls: vec4f,
-  gradientMapColors: array<vec4f, 8>,
-  gradientMapOpacity: array<vec4f, 8>,
-  photoshop: array<vec4f, 60>,
-  pointColor: array<vec4f, 24>,
-  detail: array<vec4f, 3>,
-}
+${ADJUSTMENTS_WGSL}
 
 @group(0) @binding(0) var correctedTexture: texture_2d<f32>;
 @group(0) @binding(1) var blurredLuminanceTexture: texture_2d<f32>;
@@ -1554,103 +1519,41 @@ fn localDarkChannel(uv: vec2f) -> f32 {
   return clamp(dark, 0.0, 1.0);
 }
 
+// Noise reduction is performed by the conditional multi-pass a-trous node
+// before this shader. Sharpening stays here because it is a single fine-detail
+// operation and therefore does not allocate the wavelet work set on its own.
 fn applyDetailNode(centerRgb: vec3f, uv: vec2f) -> vec3f {
   let sharpenAmount = adjustments.detail[0].x;
-  let luminanceAmount = adjustments.detail[1].x;
-  let colorAmount = adjustments.detail[1].w;
-  if (max(sharpenAmount, max(luminanceAmount, colorAmount)) <= 0.00001) {
+  if (sharpenAmount <= 0.00001) {
     return centerRgb;
   }
   let dimensions = max(vec2f(textureDimensions(correctedTexture)), vec2f(1.0));
   let radius = clamp(adjustments.detail[0].y, 0.5, 3.0);
-  // Camera-style denoise controls build useful suppression early in their
-  // range; a linear control made 25–50 feel nearly inert. The perceptual
-  // response keeps both endpoints exact while distributing authority earlier.
-  let luminanceStrength = pow(clamp(luminanceAmount / 100.0, 0.0, 1.0), 0.40);
-  let colorStrength = clamp(colorAmount / 100.0, 0.0, 1.0);
-  // A high noise-reduction amount needs a wider analysis footprint, not only
-  // a stronger blend of the same tiny neighbourhood. Keep the neutral path
-  // and sharpening-only footprint unchanged, then grow smoothly to 2.8x.
-  let analysisScale = mix(1.0, 2.8, pow(luminanceStrength, 0.85));
-  let texel = vec2f(radius * analysisScale) / dimensions;
+  let texel = vec2f(radius) / dimensions;
   let centerY = max(luminance(centerRgb), 1e-6);
-  let luminanceDetail = adjustments.detail[1].y / 100.0;
-  let colorDetail = adjustments.detail[2].x / 100.0;
   let offsets = array<vec2f, 8>(
     vec2f(-1.0, 0.0), vec2f(1.0, 0.0),
     vec2f(0.0, -1.0), vec2f(0.0, 1.0),
     vec2f(-0.707, -0.707), vec2f(0.707, -0.707),
     vec2f(-0.707, 0.707), vec2f(0.707, 0.707)
   );
-  var weightedRgb = centerRgb * 2.0;
   var weightedY = centerY * 2.0;
   var weightTotal = 2.0;
   for (var index = 0u; index < 8u; index += 1u) {
-    let sampleRgb = textureSample(correctedTexture, sourceSampler, uv + offsets[index] * texel).rgb;
-    let sampleY = max(luminance(sampleRgb), 1e-6);
-    // Detail controls protect real luminance/color boundaries from smoothing.
-    // At the top of the range, admit progressively larger noise excursions.
-    // The Detail controls remain the edge-protection authority.
-    let edgeThreshold = mix(22.0, 70.0, luminanceDetail)
-      * mix(1.0, 0.30, pow(luminanceStrength, 1.25));
-    let chromaDistance = length((sampleRgb - vec3f(sampleY)) - (centerRgb - vec3f(centerY)));
-    let edgeWeight = exp(-abs(sampleY - centerY) * edgeThreshold)
-      * exp(-chromaDistance * mix(10.0, 42.0, colorDetail));
-    weightedRgb += sampleRgb * edgeWeight;
+    let sampleY = luminance(textureSample(correctedTexture, sourceSampler, uv + offsets[index] * texel).rgb);
+    let edgeWeight = exp(-abs(sampleY - centerY) * 24.0);
     weightedY += sampleY * edgeWeight;
     weightTotal += edgeWeight;
   }
-  let localRgb = weightedRgb / max(weightTotal, 0.0001);
   let localY = weightedY / max(weightTotal, 0.0001);
-  let coarseOffsets = array<vec2f, 4>(
-    vec2f(-2.0, 0.0), vec2f(2.0, 0.0),
-    vec2f(0.0, -2.0), vec2f(0.0, 2.0)
-  );
-  var coarseRgbSum = centerRgb * 2.0;
-  var coarseYSum = centerY * 2.0;
-  var coarseWeightTotal = 2.0;
-  for (var index = 0u; index < 4u; index += 1u) {
-    let sampleRgb = textureSample(correctedTexture, sourceSampler, uv + coarseOffsets[index] * texel).rgb;
-    let sampleY = max(luminance(sampleRgb), 1e-6);
-    let edgeWeight = exp(-abs(sampleY - centerY)
-      * mix(16.0, 52.0, luminanceDetail)
-      * mix(1.0, 0.30, pow(luminanceStrength, 1.25)));
-    coarseRgbSum += sampleRgb * edgeWeight;
-    coarseYSum += sampleY * edgeWeight;
-    coarseWeightTotal += edgeWeight;
-  }
-  let coarseRgb = coarseRgbSum / max(coarseWeightTotal, 0.0001);
-  let coarseY = coarseYSum / max(coarseWeightTotal, 0.0001);
-  let centerChroma = centerRgb - vec3f(centerY);
-  let localChroma = localRgb - vec3f(luminance(localRgb));
-  let coarseChroma = coarseRgb - vec3f(luminance(coarseRgb));
-
-  let luminanceBase = mix(coarseY, localY, luminanceDetail);
-  var resultY = mix(
-    centerY,
-    luminanceBase,
-    luminanceStrength * mix(1.0, 0.80, luminanceDetail)
-  );
-  let luminanceContrast = adjustments.detail[1].z / 100.0;
-  resultY += (centerY - coarseY) * luminanceStrength * luminanceContrast * 0.55;
-
-  let colorSmoothness = adjustments.detail[2].y / 100.0;
-  let colorBase = mix(localChroma, coarseChroma, colorSmoothness);
-  var resultChroma = mix(
-    centerChroma,
-    colorBase,
-    colorStrength * mix(0.42, 0.96, colorSmoothness) * mix(0.95, 0.45, colorDetail)
-  );
-
-  let sharpenDetail = adjustments.detail[0].z / 100.0;
-  let highFrequency = mix(centerY - coarseY, centerY - localY, sharpenDetail);
+  let highFrequency = centerY - localY;
   let edgeMagnitude = abs(highFrequency) / max(localY + 0.02, 0.02);
   let masking = adjustments.detail[0].w / 100.0;
   let sharpenMask = smoothstep(masking * 0.08, masking * 0.08 + 0.018, edgeMagnitude);
-  resultY += highFrequency * (sharpenAmount / 100.0)
+  let sharpenDetail = adjustments.detail[0].z / 100.0;
+  let resultY = centerY + highFrequency * (sharpenAmount / 100.0)
     * mix(0.42, 1.08, sharpenDetail) * sharpenMask;
-
-  return vec3f(max(0.0, resultY)) + resultChroma;
+  return centerRgb * (max(0.0, resultY) / centerY);
 }
 
 @fragment

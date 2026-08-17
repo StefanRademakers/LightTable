@@ -140,6 +140,7 @@ import type { TextFontRuntimePort } from '../text/rendering/TextLayerRenderCoord
 import type { TextEditingOverlay } from '@lighttable/text-rendering';
 import { TextEditingOverlayBackend } from '@lighttable/text-webgpu';
 import { ColorLookupAssetStore } from './ColorLookupAssetStore';
+import { WaveletDetailRuntime } from './WaveletDetailRuntime';
 
 const FACE_WARP_MESH_THEME: VectorEditingOverlayTheme = {
   pathColor: [0.1, 0.82, 0.95, 1],
@@ -181,6 +182,7 @@ export class WebGpuEngine {
   private documentRenderer: LayerDocumentRenderer | null = null;
   private readonly adjustmentLayerResources: AdjustmentLayerGpuResources;
   private readonly adjustmentLayerRenderer: AdjustmentLayerRenderer;
+  private waveletDetailRuntime: WaveletDetailRuntime | null = null;
   private readonly colorLookupAssets: ColorLookupAssetStore;
   private translationAlignmentService: FeatureAlignmentService | null = null;
   private imageDocument: ImageDocument | null = null;
@@ -396,6 +398,11 @@ export class WebGpuEngine {
     this.downsamplePipeline = pipelines.downsample;
     this.blurPipeline = pipelines.blur;
     this.creativePipeline = pipelines.creative;
+    this.waveletDetailRuntime = new WaveletDetailRuntime(
+      this.device,
+      coreResources.sampler,
+      pipelines.vertexModule
+    );
     this.globalGradeMixPipeline = pipelines.globalGradeMix;
     this.outputPipeline = pipelines.output;
     this.sourceLoader = new DocumentSourceGpuLoader(
@@ -1484,7 +1491,7 @@ export class WebGpuEngine {
       !this.basicPipeline || !this.downsamplePipeline || !this.blurPipeline || !this.creativePipeline ||
       !this.outputPipeline || !this.effectRuntime || !this.displayResolvePipeline ||
       !this.blitPipeline || !this.channelBlitPipeline || !this.differencePipeline ||
-      !this.histogramRuntime || !this.metadata) return;
+      !this.histogramRuntime || !this.waveletDetailRuntime || !this.metadata) return;
     const coreResources = this.coreResources;
 
     const downsampleWidth = Math.max(1, Math.ceil(width / 4));
@@ -1520,6 +1527,7 @@ export class WebGpuEngine {
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
     });
     this.effectRuntime.resize(width, height);
+    this.waveletDetailRuntime.configure(width, height);
     this.layerEffectRenderer?.resize(width, height);
     this.imageResources.finalTexture = this.device.createTexture({
       label: 'LightTable display-encoded result',
@@ -1592,7 +1600,8 @@ export class WebGpuEngine {
       height,
       blendProfile: this.imageDocument?.colorSettings.blendProfile ?? 'srgb',
       bitDepth: this.imageDocument?.colorSettings.bitDepth
-        ?? (this.metadata?.sourceBitDepth === 8 ? 8 : this.metadata?.sourceBitDepth === 32 ? 32 : 16)
+        ?? (this.metadata?.sourceBitDepth === 8 ? 8 : this.metadata?.sourceBitDepth === 32 ? 32 : 16),
+      waveletDetailRuntime: this.waveletDetailRuntime
     });
     this.imageResources.blitOriginalBindGroup = this.device.createBindGroup({
       layout: this.blitPipeline.getBindGroupLayout(0),
@@ -2211,6 +2220,7 @@ export class WebGpuEngine {
         + this.colorLookupAssets.estimatedTextureBytes(),
       effectBytes: (this.effectRuntime?.estimatedTextureBytes() ?? 0)
         + (this.layerEffectRenderer?.estimatedTextureBytes() ?? 0)
+        + (this.waveletDetailRuntime?.estimatedTextureBytes() ?? 0)
     }) + (this.vectorEditingOverlayBackend?.cacheMetrics().bytes ?? 0);
   }
 
@@ -2226,6 +2236,7 @@ export class WebGpuEngine {
       !this.imageResources.blurTexture || !this.imageResources.creativeTexture || !this.imageResources.displayTexture ||
       !this.imageResources.finalTexture || !this.basicPipeline || !this.downsamplePipeline ||
       !this.blurPipeline || !this.creativePipeline || !this.globalGradeMixPipeline ||
+      !this.waveletDetailRuntime ||
       !this.outputPipeline || !this.coreResources ||
       !this.imageResources.sourceTexture ||
       !this.effectRuntime || !this.documentRenderer || !this.imageDocument ||
@@ -2324,12 +2335,28 @@ export class WebGpuEngine {
             basicBindGroup,
             this.imageResources.correctedTexture.createView()
           );
+          const detailTexture = this.waveletDetailRuntime.encode(
+            encoder,
+            this.imageResources.correctedTexture,
+            this.coreResources.adjustmentBuffer,
+            this.adjustmentState.current.detail,
+            'LightTable Global Grade wavelet Detail'
+          );
           if (Math.abs(this.adjustmentState.current.clarity) > 0.00001
             || Math.abs(this.adjustmentState.current.dehaze) > 0.00001) {
+            const downsampleBindGroup = detailTexture === this.imageResources.correctedTexture
+              ? this.imageResources.downsampleBindGroup
+              : this.device.createBindGroup({
+                layout: this.downsamplePipeline.getBindGroupLayout(0),
+                entries: [
+                  { binding: 0, resource: detailTexture.createView() },
+                  { binding: 1, resource: this.coreResources.sampler }
+                ]
+              });
             this.drawFullscreenPass(
               encoder,
               this.downsamplePipeline,
-              this.imageResources.downsampleBindGroup,
+              downsampleBindGroup,
               this.imageResources.downsampleTexture.createView()
             );
             this.drawFullscreenPass(
@@ -2348,7 +2375,9 @@ export class WebGpuEngine {
           this.drawFullscreenPass(
             encoder,
             this.creativePipeline,
-            this.imageResources.creativeBindGroup,
+            detailTexture === this.imageResources.correctedTexture
+              ? this.imageResources.creativeBindGroup
+              : this.createGlobalCreativeBindGroup(detailTexture),
             this.imageResources.creativeTexture.createView()
           );
           gradedTexture = this.imageResources.creativeTexture;
@@ -2626,6 +2655,27 @@ export class WebGpuEngine {
     pass.end();
   }
 
+  private createGlobalCreativeBindGroup(source: GPUTexture): GPUBindGroup {
+    if (
+      !this.creativePipeline || !this.coreResources
+      || !this.imageResources.downsampleTexture
+    ) throw new Error('Global creative resources are not initialized.');
+    return this.device.createBindGroup({
+      layout: this.creativePipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: source.createView() },
+        { binding: 1, resource: this.imageResources.downsampleTexture.createView() },
+        { binding: 2, resource: this.coreResources.sampler },
+        { binding: 3, resource: { buffer: this.coreResources.adjustmentBuffer } },
+        { binding: 4, resource: this.coreResources.curveTexture.createView() },
+        { binding: 5, resource: this.coreResources.identityColorLookupTexture.createView() },
+        { binding: 6, resource: this.coreResources.identityColorLookupTexture.createView() },
+        { binding: 7, resource: this.coreResources.identityColorLookupTexture.createView() },
+        { binding: 8, resource: this.coreResources.photoshopColorBalanceTransferTexture.createView() }
+      ]
+    });
+  }
+
   async exportPng(options: WebGpuPngExportOptions = {}) {
     if (!this.metadata || !this.imageResources.finalTexture) throw new Error('No processed image is available for export.');
     if (this.documentRenderer && !await this.documentRenderer.waitForTextSourcesForExport()) throw new Error('Text sources changed or could not be prepared for export.');
@@ -2823,6 +2873,8 @@ export class WebGpuEngine {
     this.histogramRuntime = null;
     this.coreResources?.destroy();
     this.coreResources = null;
+    this.waveletDetailRuntime?.destroy();
+    this.waveletDetailRuntime = null;
     this.effectRuntime?.destroy();
     this.effectRuntime = null;
     this.layerEffectRenderer?.destroy();
@@ -3102,6 +3154,7 @@ export class WebGpuEngine {
     this.histogramRuntime?.clear();
     this.effectRuntime?.destroyImageResources();
     this.layerEffectRenderer?.destroyImageResources();
+    this.waveletDetailRuntime?.destroyImageResources();
     this.imageResources.reset();
   }
 }

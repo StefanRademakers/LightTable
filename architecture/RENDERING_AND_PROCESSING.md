@@ -186,6 +186,16 @@ ownership are independent from Grade, while its pixel work is fused into the
 existing output transform before display-post Grain. Neutral or disabled
 settings are an exact bypass and do not allocate or submit an extra pass.
 
+Detail noise reduction is a shared conditional executor for Global Grade,
+Grade Layers and attached Grade. It runs four shift-invariant B3-spline
+à-trous scales in the linear 16-bit float working domain, shrink-filters
+luminance and chroma residuals independently, and preserves the source alpha.
+There is no downsampling or CPU readback. Neutral luminance and color amounts
+return the input texture directly; its three full-resolution scratch textures
+and two render pipelines are created lazily and owned by the document
+renderer. Fine-detail sharpening remains a single creative-grade operation
+and does not activate the multipass wavelet work set by itself.
+
 **Partial:** some Grade controls are still packed into combined
 `BasicAdjustments` shader paths, and not every operation is yet a standalone
 generic executor. `WebGpuEngine` and `LayerDocumentRenderer` still expose

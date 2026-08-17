@@ -8,6 +8,7 @@ import { evaluateAdjustmentStack, type AdjustmentEvaluation } from '../processin
 import type { BasicAdjustments } from '../types';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
 import { encodeFullscreenPass } from './fullscreenPass';
+import type { WaveletDetailRuntime } from './WaveletDetailRuntime';
 
 const SPATIAL_EPSILON = 0.00001;
 
@@ -55,6 +56,7 @@ export interface AdjustmentLayerRendererDependencies {
   height: number;
   blendProfile: DocumentBlendProfile;
   bitDepth: DocumentBitDepth;
+  waveletDetailRuntime: WaveletDetailRuntime;
 }
 
 /**
@@ -124,11 +126,28 @@ export class AdjustmentLayerRenderer {
       { label: `LightTable Adjustment Layer basic: ${layer.name}` }
     );
 
+    const detailTexture = dependencies.waveletDetailRuntime.encode(
+      encoder,
+      dependencies.correctedTexture,
+      runtime.uniformBuffer,
+      adjustments.detail,
+      `LightTable Adjustment Layer wavelet Detail: ${layer.name}`
+    );
+
     if (plan.requiresSpatialInput) {
+      const downsampleBindGroup = detailTexture === dependencies.correctedTexture
+        ? dependencies.downsampleBindGroup
+        : this.device.createBindGroup({
+          layout: dependencies.downsamplePipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: detailTexture.createView() },
+            { binding: 1, resource: dependencies.sampler }
+          ]
+        });
       encodeFullscreenPass(
         encoder,
         dependencies.downsamplePipeline,
-        dependencies.downsampleBindGroup,
+        downsampleBindGroup,
         dependencies.downsampleTexture.createView()
       );
       encodeFullscreenPass(
@@ -148,7 +167,9 @@ export class AdjustmentLayerRenderer {
     encodeFullscreenPass(
       encoder,
       dependencies.creativePipeline,
-      runtime.creativeBindGroup,
+      detailTexture === dependencies.correctedTexture
+        ? runtime.creativeBindGroup
+        : runtime.createCreativeBindGroup(detailTexture, dependencies.downsampleTexture),
       dependencies.creativeTexture.createView(),
       { label: `LightTable Adjustment Layer creative: ${layer.name}` }
     );
