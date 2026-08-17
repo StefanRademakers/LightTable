@@ -39,6 +39,7 @@ the task genuinely spans every system.
 - [System map](SYSTEM_MAP.md)
 - [Document and scene model](DOCUMENT_AND_SCENE_MODEL.md)
 - [Rendering and processing](RENDERING_AND_PROCESSING.md)
+- [Detail, sharpening and denoise research](DETAIL_DENOISE_RESEARCH.md)
 - [Vector system](VECTOR_SYSTEM.md)
 - [Performance contract](PERFORMANCE_CONTRACT.md)
 - [Supported hardware and release soak](SUPPORTED_HARDWARE_AND_SOAK_GATE.md)
