@@ -8,7 +8,8 @@ import {
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
   PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET,
   PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
-  PHOTOSHOP_LEVELS_CHANNELS_OFFSET
+  PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
+  PHOTOSHOP_VIBRANCE_OFFSET
 } from './adjustmentUniform';
 
 describe('LightTable adjustment uniform packing', () => {
@@ -99,6 +100,22 @@ describe('LightTable adjustment uniform packing', () => {
       createDefaultAdjustments(), 100, 50, true, null, 'srgb', 8
     );
     expect(packed[PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET]).toBe(8);
+  });
+
+  it('packs Photoshop Vibrance independently from the native Grade controls', () => {
+    const settings = createDefaultAdjustments();
+    settings.photoshopAdjustment.kind = 'vibrance';
+    settings.photoshopAdjustment.vibrance = 80;
+    settings.photoshopAdjustment.vibranceSaturation = -20;
+    const packed = buildAdjustmentUniform(settings, 100, 50, true);
+
+    expect(packed[128]).toBe(14);
+    expect(Array.from(packed.slice(
+      PHOTOSHOP_VIBRANCE_OFFSET,
+      PHOTOSHOP_VIBRANCE_OFFSET + 2
+    ))).toEqual([80, -20]);
+    expect(packed[9]).toBe(0);
+    expect(packed[10]).toBe(0);
   });
 
   it('packs Levels channel and the built-in Color Lookup preset', () => {

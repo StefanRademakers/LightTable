@@ -39,6 +39,8 @@ const authored = (kind: PhotoshopAdjustmentKind) => {
     exposure: 1.5,
     exposureOffset: 0.02,
     exposureGamma: 1.1,
+    vibrance: 80,
+    vibranceSaturation: -20,
     hue: 18,
     hueSaturation: 22,
     hueLightness: -4,
@@ -58,6 +60,7 @@ describe('Photoshop adjustment export adapter', () => {
     ['brightness-contrast', 'brightness/contrast'],
     ['levels', 'levels'],
     ['exposure', 'exposure'],
+    ['vibrance', 'vibrance'],
     ['hue-saturation', 'hue/saturation'],
     ['color-balance', 'color balance'],
     ['black-white', 'black & white'],
@@ -86,6 +89,9 @@ describe('Photoshop adjustment export adapter', () => {
     if (exposure?.type !== 'exposure') throw new Error('Expected Exposure descriptor.');
     expect(exposure.offset).toBeCloseTo(0.02, 6);
     expect(exposure.gamma).toBeCloseTo(1.1, 6);
+    expect(binaryRoundTrip(authored('vibrance'))).toMatchObject({
+      type: 'vibrance', vibrance: 80, saturation: -20
+    });
     expect(binaryRoundTrip(authored('color-lookup'))).toMatchObject({
       type: 'color lookup', lutFormat: 'cube', lut3DFileName: 'LightTable-teal-orange.cube'
     });

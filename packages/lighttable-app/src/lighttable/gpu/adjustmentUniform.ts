@@ -13,6 +13,7 @@ export const PHOTOSHOP_LEVELS_CHANNELS_OFFSET = 233;
 export const PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET = 248;
 export const PHOTOSHOP_BLEND_PROFILE_OFFSET = 313;
 export const PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET = 314;
+export const PHOTOSHOP_VIBRANCE_OFFSET = 356;
 export const PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET = 362;
 
 export interface ColorLookupUniform {
@@ -97,7 +98,8 @@ export const buildAdjustmentUniform = (
   const kindIndex = [
     'brightness-contrast', 'levels', 'exposure', 'hue-saturation',
     'color-balance', 'black-white', 'photo-filter', 'channel-mixer',
-    'color-lookup', 'selective-color', 'invert', 'posterize', 'threshold'
+    'color-lookup', 'selective-color', 'invert', 'posterize', 'threshold',
+    'vibrance'
   ].indexOf(photoshop.kind) + 1;
   packed.set([
     kindIndex,
@@ -165,6 +167,10 @@ export const buildAdjustmentUniform = (
     }),
     PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET
   );
+  packed.set([
+    photoshop.vibrance,
+    photoshop.vibranceSaturation
+  ], PHOTOSHOP_VIBRANCE_OFFSET);
   packed[PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET] = documentBitDepth;
   packed.set([
     ...(colorLookup?.domainMin ?? [0, 0, 0]),

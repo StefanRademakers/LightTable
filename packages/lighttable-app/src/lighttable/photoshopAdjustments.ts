@@ -2,6 +2,7 @@ export type PhotoshopAdjustmentKind =
   | 'brightness-contrast'
   | 'levels'
   | 'exposure'
+  | 'vibrance'
   | 'hue-saturation'
   | 'color-balance'
   | 'black-white'
@@ -14,7 +15,7 @@ export type PhotoshopAdjustmentKind =
   | 'threshold';
 
 export const PHOTOSHOP_ADJUSTMENT_KINDS: readonly PhotoshopAdjustmentKind[] = [
-  'brightness-contrast', 'levels', 'exposure', 'hue-saturation', 'color-balance',
+  'brightness-contrast', 'levels', 'exposure', 'vibrance', 'hue-saturation', 'color-balance',
   'black-white', 'photo-filter', 'channel-mixer', 'color-lookup',
   'selective-color', 'invert', 'posterize', 'threshold'
 ];
@@ -74,6 +75,8 @@ export interface PhotoshopAdjustmentSettings {
   exposure: number;
   exposureOffset: number;
   exposureGamma: number;
+  vibrance: number;
+  vibranceSaturation: number;
   hue: number;
   hueSaturation: number;
   hueLightness: number;
@@ -116,6 +119,8 @@ export const createDefaultPhotoshopAdjustment = (
   exposure: 0,
   exposureOffset: 0,
   exposureGamma: 1,
+  vibrance: 0,
+  vibranceSaturation: 0,
   hue: 0,
   hueSaturation: 0,
   hueLightness: 0,
@@ -177,6 +182,8 @@ export const clonePhotoshopAdjustment = (
   ) as HueSaturationRanges;
   return structuredClone({
     ...value,
+    vibrance: value.vibrance ?? 0,
+    vibranceSaturation: value.vibranceSaturation ?? 0,
     levels,
     hueSaturationChannel: value.hueSaturationChannel ?? 'master',
     hueSaturationRanges

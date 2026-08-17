@@ -497,7 +497,7 @@ describe('useLayerDocumentCommands', () => {
 
   it.each([
     ['exposure', 'Exposure', 'lt.photoshop-adjustment'],
-    ['vibrance', 'Vibrance', 'lt.global-color'],
+    ['vibrance', 'Vibrance', 'lt.photoshop-adjustment'],
     ['gradient-map', 'Gradient Map', 'lt.gradient-map']
   ] as const)('creates a focused %s adjustment node', (kind, name, moduleType) => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));

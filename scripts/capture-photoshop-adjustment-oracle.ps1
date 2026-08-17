@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer', 'selective-color', 'gradient-map', 'invert', 'posterize', 'threshold')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'vibrance', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer', 'selective-color', 'gradient-map', 'invert', 'posterize', 'threshold')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -296,6 +296,23 @@ $posterizeCases = @(2,3,4,8,16,32,64,128,255) | ForEach-Object {
 $thresholdCases = @(1,2,64,127,128,192,254,255) | ForEach-Object {
   @{ id="level-$_"; level=$_ }
 }
+$vibranceCases = @(
+  @{ id='neutral'; vibrance=0; saturation=0 },
+  @{ id='vibrance-neg-100'; vibrance=-100; saturation=0 },
+  @{ id='vibrance-neg-80'; vibrance=-80; saturation=0 },
+  @{ id='vibrance-neg-20'; vibrance=-20; saturation=0 },
+  @{ id='vibrance-pos-20'; vibrance=20; saturation=0 },
+  @{ id='vibrance-pos-80'; vibrance=80; saturation=0 },
+  @{ id='vibrance-pos-100'; vibrance=100; saturation=0 },
+  @{ id='saturation-neg-100'; vibrance=0; saturation=-100 },
+  @{ id='saturation-neg-80'; vibrance=0; saturation=-80 },
+  @{ id='saturation-neg-20'; vibrance=0; saturation=-20 },
+  @{ id='saturation-pos-20'; vibrance=0; saturation=20 },
+  @{ id='saturation-pos-80'; vibrance=0; saturation=80 },
+  @{ id='saturation-pos-100'; vibrance=0; saturation=100 },
+  @{ id='combined-positive-80'; vibrance=80; saturation=80 },
+  @{ id='combined-negative-80'; vibrance=-80; saturation=-80 }
+)
 $selectiveColorCases = @(@{ id='neutral'; rangeIndex=0; cmyk=@(0,0,0,0); method='relative' })
 $selectiveRangeNames = @('reds','yellows','greens','cyans','blues','magentas','whites','neutrals','blacks')
 for ($rangeIndex = 0; $rangeIndex -lt $selectiveRangeNames.Count; $rangeIndex++) {
@@ -329,6 +346,7 @@ $cases = if ($Adjustment -eq 'brightness-contrast') {
 } elseif ($Adjustment -eq 'levels') { $levelsCases }
 elseif ($Adjustment -eq 'curves') { $curvesCases }
 elseif ($Adjustment -eq 'hue-saturation') { $hueSaturationCases }
+elseif ($Adjustment -eq 'vibrance') { $vibranceCases }
 elseif ($Adjustment -eq 'color-balance') { $colorBalanceCases }
 elseif ($Adjustment -eq 'black-white') { $blackWhiteCases }
 elseif ($Adjustment -eq 'photo-filter') { $photoFilterCases }
@@ -350,6 +368,9 @@ try {
   try { $photoshop = [Runtime.InteropServices.Marshal]::GetActiveObject('Photoshop.Application') }
   catch { $photoshop = New-Object -ComObject Photoshop.Application }
   $photoshop.DisplayDialogs = 3
+  while ($photoshop.Documents.Count -gt 0) {
+    $photoshop.ActiveDocument.Close(2)
+  }
   foreach ($case in $cases) {
     $target = Join-Path $outputPath "$($case.id).png"
     $psdTarget = Join-Path $psdPath "$($case.id).psd"
@@ -491,6 +512,13 @@ try {
 $rangeDescriptors
   adjustment.putList(c2t('Adjs'), hueAdjustments);
   adjustmentLayer.putObject(s2t('type'), s2t('hueSaturation'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'vibrance') {
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putInteger(s2t('vibrance'), $($case.vibrance));
+  adjustment.putInteger(s2t('saturation'), $($case.saturation));
+  adjustmentLayer.putObject(s2t('type'), s2t('vibrance'), adjustment);
 "@
     } elseif ($Adjustment -eq 'color-balance') {
       $adjustmentDescriptor = @"

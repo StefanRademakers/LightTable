@@ -502,6 +502,22 @@ describe('importPsdDocument', () => {
     expect(result.assets).toHaveLength(0);
   });
 
+  it('imports Photoshop Vibrance as a dedicated Photoshop-semantic node', () => {
+    const result = importPsdDocument(decoded([raster('vibrance', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: { type: 'vibrance', vibrance: 80, saturation: -20 }
+    })]), 'vibrance.psd');
+    const layer = result.document.layers[0];
+    expect(layer.type).toBe('adjustment');
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
+    expect(layer.adjustmentKind).toBe('vibrance');
+    expect(layer.adjustmentStack.modules.map((module) => module.type))
+      .toEqual(['lt.photoshop-adjustment']);
+    expect(materializeBasicAdjustments(layer.adjustmentStack).photoshopAdjustment)
+      .toMatchObject({ kind: 'vibrance', vibrance: 80, vibranceSaturation: -20 });
+  });
+
   it('maps Photoshop Levels to the channel-aware native Levels node', () => {
     const result = importPsdDocument(decoded([raster('levels', {
       kind: 'adjustment',

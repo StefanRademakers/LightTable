@@ -5,7 +5,8 @@ import {
   PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET,
   PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
-  PHOTOSHOP_PAYLOAD_OFFSET
+  PHOTOSHOP_PAYLOAD_OFFSET,
+  PHOTOSHOP_VIBRANCE_OFFSET
 } from './adjustmentUniform';
 
 const PHOTOSHOP_BLEND_PROFILE_RELATIVE_OFFSET =
@@ -18,6 +19,8 @@ const PHOTOSHOP_HUE_SATURATION_RANGES_RELATIVE_OFFSET =
   PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 const PHOTOSHOP_DOCUMENT_BIT_DEPTH_RELATIVE_OFFSET =
   PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
+const PHOTOSHOP_VIBRANCE_RELATIVE_OFFSET =
+  PHOTOSHOP_VIBRANCE_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 export const FULLSCREEN_VERTEX_WGSL = /* wgsl */ `
 struct VertexOutput {
   @builtin(position) position: vec4f,
@@ -709,6 +712,78 @@ fn photoshopEncodedDocumentToLinearSrgb(encoded: vec3f) -> vec3f {
   );
 }
 
+fn photoshopLinearSrgbToLinearDocument(rgb: vec3f) -> vec3f {
+  if (photoshopValue(${PHOTOSHOP_BLEND_PROFILE_RELATIVE_OFFSET}u) > 0.5) {
+    return vec3f(
+      0.71516271 * rgb.r + 0.28483729 * rgb.g,
+      rgb.g,
+      0.04117054 * rgb.g + 0.95882946 * rgb.b
+    );
+  }
+  return rgb;
+}
+
+fn photoshopLinearDocumentToLinearSrgb(rgb: vec3f) -> vec3f {
+  if (photoshopValue(${PHOTOSHOP_BLEND_PROFILE_RELATIVE_OFFSET}u) > 0.5) {
+    return vec3f(
+      1.39835574 * rgb.r - 0.39835574 * rgb.g,
+      rgb.g,
+      -0.0429288 * rgb.g + 1.0429288 * rgb.b
+    );
+  }
+  return rgb;
+}
+
+fn photoshopVibranceHue(rgb: vec3f, maximum: f32, chroma: f32) -> f32 {
+  if (chroma <= 0.000001) { return 0.0; }
+  var hue = 0.0;
+  if (maximum == rgb.r) { hue = ((rgb.g - rgb.b) / chroma) / 6.0; }
+  else if (maximum == rgb.g) { hue = ((rgb.b - rgb.r) / chroma + 2.0) / 6.0; }
+  else { hue = ((rgb.r - rgb.g) / chroma + 4.0) / 6.0; }
+  return hue - floor(hue);
+}
+
+fn applyPhotoshopVibrance(source: vec3f) -> vec3f {
+  let vibrance = clamp(photoshopValue(${PHOTOSHOP_VIBRANCE_RELATIVE_OFFSET}u), -100.0, 100.0);
+  let saturation = clamp(photoshopValue(${PHOTOSHOP_VIBRANCE_RELATIVE_OFFSET + 1}u), -100.0, 100.0);
+  if (abs(vibrance) < 0.00001 && abs(saturation) < 0.00001) { return source; }
+
+  // The Photoshop oracle shows that Vibrance operates in linear document RGB,
+  // preserves hue, and approaches a saturation-dependent endpoint. Positive
+  // values protect both already-saturated colours and the magenta-to-orange
+  // skin-tone arc. Negative values use a separate, gentler endpoint.
+  var rgb = photoshopLinearSrgbToLinearDocument(source);
+  if (abs(vibrance) >= 0.00001) {
+    let maximum = max(rgb.r, max(rgb.g, rgb.b));
+    let minimum = min(rgb.r, min(rgb.g, rgb.b));
+    let chroma = maximum - minimum;
+    let sourceSaturation = chroma / max(maximum, 0.000001);
+    let hue = photoshopVibranceHue(rgb, maximum, chroma);
+    let redArcDistance = min(hue, 1.0 - hue);
+    let skinProtection = max(0.0, 1.0 - redArcDistance / (75.0 / 360.0));
+    let endpointScale = select(
+      1.0 + sourceSaturation * (1.0 - sourceSaturation) * (1.0 - 0.2 * skinProtection),
+      0.34 + 0.4 * sourceSaturation,
+      vibrance < 0.0
+    );
+    let endpoint = clamp(
+      vec3f(maximum) + (rgb - vec3f(maximum)) * endpointScale,
+      vec3f(0.0),
+      vec3f(1.0)
+    );
+    rgb = mix(rgb, endpoint, abs(vibrance) / 100.0);
+  }
+
+  // Photoshop's Saturation control is not its Hue/Saturation adjustment.
+  // Across the complete RGB lattice it is a linear-light chroma scale around
+  // this measured document-space axis; Vibrance is evaluated first.
+  if (abs(saturation) >= 0.00001) {
+    let gray = 0.2882153 * rgb.r + 0.7127024 * rgb.g;
+    rgb = clamp(rgb + (rgb - vec3f(gray)) * (saturation / 100.0), vec3f(0.0), vec3f(1.0));
+  }
+  return photoshopLinearDocumentToLinearSrgb(rgb);
+}
+
 fn photoshopLinearSrgbToD50Xyz(rgb: vec3f) -> vec3f {
   return vec3f(
     dot(rgb, vec3f(0.43607464, 0.38506491, 0.14308038)),
@@ -1185,6 +1260,9 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
       photoshopValue(${PHOTOSHOP_DOCUMENT_BIT_DEPTH_RELATIVE_OFFSET}u) < 12.0
     );
     return vec3f(select(0.0, 1.0, grayCode >= level));
+  }
+  if (kind == 14u) {
+    return applyPhotoshopVibrance(rgb);
   }
   return rgb;
 }

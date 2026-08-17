@@ -498,3 +498,41 @@ for editable LightTable import and cross-application recovery.
 shaper/3D formats remain outside this accepted scope. LightTable's three named
 creative presets are native looks rather than claims of equivalence to Adobe's
 similarly named installed LUT files.
+
+## Vibrance
+
+Status: accepted as a dedicated Photoshop-semantic node. Native Grade Color
+and Vibrance retains its existing OKLab behavior.
+
+Photoshop's Vibrance adjustment has two distinct processing paths. Its
+Saturation control scales linear-document-RGB chroma around a measured
+`0.2882153 R + 0.7127024 G` axis. Its Vibrance control preserves linear hue,
+uses separate positive and negative saturation-dependent endpoints, protects
+already saturated colors, and attenuates positive changes across the
+magenta-to-orange skin-tone arc. When both controls are authored, Photoshop
+evaluates Vibrance first and Saturation second. The measured slider response is
+also linear-light interpolation toward each signed endpoint rather than an
+encoded RGB blend.
+
+The implementation is isolated in `lt.photoshop-adjustment`; it neither
+changes nor reuses Grade's `lt.global-color` evaluator. Imported PSD Vibrance
+layers therefore keep Photoshop semantics, while LightTable's broader Color
+and Vibrance editor remains a native creative tool. The same dedicated payload
+roundtrips back to a native PSD Vibrance descriptor.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Gate |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 15 | 0.674% | 2.383% | 99.326% | 15 / 15 |
+| Hue/lightness diagnostic ramp | sRGB / 16-bit | 15 | 0.726% | 2.425% | 99.274% | 15 / 15 |
+| Complete 17x17x17 RGB lattice | sRGB / 8-bit | 13 | 0.670% | 2.610% | 99.330% | 13 / 13 |
+| `D:\face.jpg` | sRGB / 8-bit | 15 | 1.095% | 4.429% | 98.905% | 15 / 15 |
+| Hue/lightness diagnostic ramp | Adobe RGB (1998) / 8-bit | 15 | 0.844% | 3.075% | 99.156% | 15 / 15 |
+
+The cases cover neutral, signed 20/80/100 extremes for both controls, and
+signed combined-80 cases. Saturation alone is within roughly 0.20% RMSE in
+every validation corpus; the remaining approximation is concentrated in
+negative Vibrance's proprietary falloff. Adobe's own documentation confirms
+the measured intent: lower-saturation colors receive more effect, highly
+saturated colors are protected from clipping, and skin tones receive
+additional protection. No LUT texture, readback, or additional compositor pass
+is used.

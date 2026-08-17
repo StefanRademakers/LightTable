@@ -37,6 +37,10 @@ const FAMILY_SLIDERS: Partial<Record<PhotoshopAdjustmentKind, readonly SliderSpe
     { key: 'exposureOffset', label: 'Offset', min: -0.5, max: 0.5, step: 0.001, format: (value) => value.toFixed(3) },
     { key: 'exposureGamma', label: 'Gamma Correction', min: 0.01, max: 9.99, step: 0.01, format: (value) => value.toFixed(2) }
   ],
+  vibrance: [
+    { key: 'vibrance', label: 'Vibrance', min: -100, max: 100, format: percent },
+    { key: 'vibranceSaturation', label: 'Saturation', min: -100, max: 100, format: percent }
+  ],
   'hue-saturation': [
     { key: 'hue', label: 'Hue', min: -180, max: 180, format: (value) => `${Math.round(value)}°` },
     { key: 'hueSaturation', label: 'Saturation', min: -100, max: 100, format: percent },
@@ -55,6 +59,7 @@ const FAMILY_SLIDERS: Partial<Record<PhotoshopAdjustmentKind, readonly SliderSpe
 
 const titleFor = (kind: PhotoshopAdjustmentKind) => ({
   'brightness-contrast': 'Brightness / Contrast', levels: 'Levels', exposure: 'Exposure',
+  vibrance: 'Vibrance',
   'hue-saturation': 'Hue / Saturation', 'color-balance': 'Color Balance',
   'black-white': 'Black & White', 'photo-filter': 'Photo Filter',
   'channel-mixer': 'Channel Mixer', 'color-lookup': 'Color Lookup',

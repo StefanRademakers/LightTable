@@ -208,7 +208,7 @@ export const CURRENT_PROCESSING_MODULES = [
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
     psdCandidates: [
-      'brightness-contrast', 'levels', 'exposure', 'hue-saturation',
+      'brightness-contrast', 'levels', 'exposure', 'vibrance', 'hue-saturation',
       'color-balance', 'black-white', 'photo-filter', 'channel-mixer',
       'color-lookup', 'selective-color', 'invert', 'posterize', 'threshold'
     ],

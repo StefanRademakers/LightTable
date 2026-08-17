@@ -80,7 +80,6 @@ export const createEditorWorkspacePanels = ({
           grade: <GradePanel {...grade} />,
           curves: <CurvesPropertiesPanel {...grade} />,
           exposure: <PhotoshopAdjustmentPropertiesPanel kind="exposure" {...grade} />,
-          vibrance: <AdjustmentPropertiesPanel title="Vibrance" {...grade} />,
           'color-vibrance': <AdjustmentPropertiesPanel title="Color and Vibrance" {...grade} />,
           'gradient-map': <GradientMapPropertiesPanel {...grade} />,
           'clarity-dehaze': <AdjustmentPropertiesPanel title="Clarity and Dehaze" {...grade} />,

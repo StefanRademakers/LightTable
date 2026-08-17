@@ -20,7 +20,8 @@ import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
-  PHOTOSHOP_PAYLOAD_OFFSET
+  PHOTOSHOP_PAYLOAD_OFFSET,
+  PHOTOSHOP_VIBRANCE_OFFSET
 } from './adjustmentUniform';
 import {
   GRAIN_BLUR_WGSL,
@@ -329,6 +330,16 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('vec3f(1.0 / (2.2 * gamma))');
     expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(correctedEncoded)');
     expect(BASIC_CORRECTION_WGSL).toContain('rgb *= exp2(adjustments.exposureEV)');
+  });
+
+  it('evaluates Photoshop Vibrance separately from native Grade color', () => {
+    const offset = PHOTOSHOP_VIBRANCE_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
+    expect(CREATIVE_GRADE_WGSL).toContain(`photoshopValue(${offset}u)`);
+    expect(CREATIVE_GRADE_WGSL).toContain(`photoshopValue(${offset + 1}u)`);
+    expect(CREATIVE_GRADE_WGSL).toContain('let endpointScale = select(');
+    expect(CREATIVE_GRADE_WGSL).toContain('0.2882153 * rgb.r + 0.7127024 * rgb.g');
+    expect(CREATIVE_GRADE_WGSL).toContain('return applyPhotoshopVibrance(rgb)');
+    expect(CREATIVE_GRADE_WGSL).toContain('rgb = applyPerceptualColor(rgb)');
   });
 
   it('evaluates Photoshop Brightness/Contrast in the encoded document profile', () => {

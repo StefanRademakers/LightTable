@@ -231,7 +231,7 @@ const photoshopKindForDescriptor = (
     levels: 'levels',
     curves: 'curves',
     exposure: 'exposure',
-    vibrance: 'color-vibrance',
+    vibrance: 'vibrance',
     'hue/saturation': 'hue-saturation',
     'color balance': 'color-balance',
     'black & white': 'black-white',
@@ -300,6 +300,17 @@ const importedPhotoshopSettings = (
       settings.exposureOffset = source.offset ?? 0;
       settings.exposureGamma = source.gamma ?? 1;
       return { kind: settings.kind, settings, support: 'native', reason: 'Exposure, Offset and Gamma are mapped to the native LightTable Exposure node.' };
+    }
+    case 'vibrance': {
+      const settings = result('vibrance');
+      settings.vibrance = source.vibrance ?? 0;
+      settings.vibranceSaturation = source.saturation ?? 0;
+      return {
+        kind: settings.kind,
+        settings,
+        support: 'native',
+        reason: 'Photoshop Vibrance and Saturation are mapped to the measured native LightTable node.'
+      };
     }
     case 'hue/saturation': {
       const settings = result('hue-saturation');
@@ -495,10 +506,6 @@ const importPsdAdjustment = (
       warnings.push(`${path}: Photoshop Brightness is provisionally mapped to LightTable Exposure pending a golden-fixture transfer curve.`);
       support = 'approximate';
       supportReason = 'Brightness is provisionally mapped to Exposure; Contrast is native.';
-      break;
-    case 'vibrance':
-      adjustments.vibrance = source.vibrance ?? 0;
-      adjustments.saturation = source.saturation ?? 0;
       break;
     case 'hue/saturation': {
       const master = source.master;

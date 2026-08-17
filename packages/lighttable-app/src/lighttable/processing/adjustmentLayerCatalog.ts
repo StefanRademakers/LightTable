@@ -102,7 +102,8 @@ export const ADJUSTMENT_LAYER_DEFINITIONS: readonly AdjustmentLayerDefinition[] 
     menuLabel: 'Vibrance',
     iconName: 'adjustment_vibrance.svg',
     family: 'photoshop',
-    moduleTypes: ['lt.global-color'],
+    moduleTypes: ['lt.photoshop-adjustment'],
+    photoshopKind: 'vibrance',
     creationVisible: false
   },
   {
