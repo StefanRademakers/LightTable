@@ -244,6 +244,34 @@ const BLACKS_POSITIVE_CURVE = array<f32, 17>(
   0.93725490, 1.0
 );
 
+const WHITES_NEGATIVE_25_CURVE = array<f32, 17>(
+  0.0, 0.06274510, 0.12549020, 0.18431373, 0.24705882,
+  0.30588235, 0.36470588, 0.42352941, 0.48235294, 0.54117647,
+  0.60392157, 0.66274510, 0.72156863, 0.78431373, 0.85098039,
+  0.91764706, 1.0
+);
+
+const WHITES_NEGATIVE_50_CURVE = array<f32, 17>(
+  0.0, 0.05882353, 0.12549020, 0.18431373, 0.24313725,
+  0.30196078, 0.36078431, 0.41960784, 0.47058824, 0.52941176,
+  0.58431373, 0.64313725, 0.70196078, 0.76078431, 0.82352941,
+  0.89803922, 1.0
+);
+
+const WHITES_NEGATIVE_80_CURVE = array<f32, 17>(
+  0.0, 0.05882353, 0.12156863, 0.18431373, 0.24313725,
+  0.30196078, 0.36078431, 0.41568627, 0.46666667, 0.52156863,
+  0.57647059, 0.62745098, 0.68235294, 0.73333333, 0.79215686,
+  0.86666667, 1.0
+);
+
+const WHITES_NEGATIVE_100_CURVE = array<f32, 17>(
+  0.0, 0.05882353, 0.12156863, 0.18431373, 0.24313725,
+  0.30196078, 0.36078431, 0.41568627, 0.46666667, 0.51764706,
+  0.57254902, 0.62352941, 0.67450980, 0.72156863, 0.77254902,
+  0.83921569, 1.0
+);
+
 fn linearToSrgbScalar(value: f32) -> f32 {
   let safeValue = max(value, 0.0);
   return select(
@@ -283,6 +311,20 @@ fn sampleBlacksCurve(encodedY: f32, amount: f32) -> f32 {
   return mix(curve80, curve100, (magnitude - 0.80) / 0.20);
 }
 
+fn sampleNegativeWhitesCurve(encodedY: f32, magnitude: f32) -> f32 {
+  let position = clamp(encodedY, 0.0, 1.0) * 16.0;
+  let lower = min(u32(floor(position)), 15u);
+  let fraction = position - f32(lower);
+  let curve25 = mix(WHITES_NEGATIVE_25_CURVE[lower], WHITES_NEGATIVE_25_CURVE[lower + 1u], fraction);
+  if (magnitude <= 0.25) { return mix(encodedY, curve25, magnitude / 0.25); }
+  let curve50 = mix(WHITES_NEGATIVE_50_CURVE[lower], WHITES_NEGATIVE_50_CURVE[lower + 1u], fraction);
+  if (magnitude <= 0.50) { return mix(curve25, curve50, (magnitude - 0.25) / 0.25); }
+  let curve80 = mix(WHITES_NEGATIVE_80_CURVE[lower], WHITES_NEGATIVE_80_CURVE[lower + 1u], fraction);
+  if (magnitude <= 0.80) { return mix(curve50, curve80, (magnitude - 0.50) / 0.30); }
+  let curve100 = mix(WHITES_NEGATIVE_100_CURVE[lower], WHITES_NEGATIVE_100_CURVE[lower + 1u], fraction);
+  return mix(curve80, curve100, (magnitude - 0.80) / 0.20);
+}
+
 fn shadowsTonalMask(y: f32) -> f32 {
   // A logistic mask around scene-linear middle grey follows the useful part of
   // darktable's tonal-mask approach: strong deep-shadow coverage with an early,
@@ -311,6 +353,11 @@ fn applyToneControls(rgb: vec3f) -> vec3f {
   if (abs(blacksAmount) > 0.00001 && newY < 1.0) {
     let encodedY = linearToSrgbScalar(newY);
     newY = srgbToLinearChannel(sampleBlacksCurve(encodedY, blacksAmount));
+  }
+  let whitesAmount = adjustments.whites / 100.0;
+  if (whitesAmount < -0.00001 && newY < 1.0) {
+    let encodedY = linearToSrgbScalar(newY);
+    newY = srgbToLinearChannel(sampleNegativeWhitesCurve(encodedY, -whitesAmount));
   }
   let contrastAmount = adjustments.contrast / 100.0;
   // The calibrated curve describes the display-referred 0..1 interval. Keep
@@ -1763,13 +1810,12 @@ fn displayShoulder(value: f32, strength: f32) -> f32 {
 
 fn applyWhitesToDisplay(sceneY: f32, displayY: f32) -> f32 {
   let amount = settings.whites / 100.0;
-  if (abs(amount) < 0.00001) { return displayY; }
+  // Negative Whites is calibrated in the basic perceptual tone pass. Positive
+  // Whites remains here because its highlight protection is output-dependent.
+  if (amount <= 0.00001) { return displayY; }
   let whiteMask = smoothstep(0.42, 0.92, sceneY);
-  if (amount > 0.0) {
-    let strength = amount * amount * (3.0 - 2.0 * amount);
-    return displayY + whiteMask * strength * (1.0 - displayY);
-  }
-  return displayY * exp2(-0.22 * -amount * whiteMask);
+  let strength = amount * amount * (3.0 - 2.0 * amount);
+  return displayY + whiteMask * strength * (1.0 - displayY);
 }
 
 fn chromaFitForChannel(channel: f32, grey: f32) -> f32 {

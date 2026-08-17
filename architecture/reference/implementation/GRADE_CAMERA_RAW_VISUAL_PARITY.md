@@ -154,6 +154,26 @@ scene-linear and untouched, preserving 16-bit/HDR headroom.
 | Photograph | LightTable / Camera Raw magnitude | 0.223 | 0.981 |
 | Photograph | Maximum delta RMSE | 12.62% | 4.18% |
 
-Highlights, Shadows and Whites remain unchanged pending a grounded adaptive
-model. Their ramp and photograph responses disagree too strongly for a fixed
-scalar correction.
+Highlights, Shadows and positive Whites remain unchanged pending a grounded
+adaptive model. Their ramp and photograph responses disagree too strongly for
+a fixed scalar correction.
+
+### Negative Whites transfer family
+
+Negative Whites is now calibrated separately from positive Whites. The four
+measured negative curves agree across the ramp and photograph and replace the
+former weak exponential output adjustment. Positive Whites remains on the
+existing protected output path because a fixed transfer curve overcorrects the
+photograph and therefore is not yet a justified replacement.
+
+Across the four negative settings, effect correlation is 0.9923–0.9974 on the
+ramp and 0.9852–0.9908 on the photograph. Maximum delta RMSE is 0.43 percent on
+the ramp and 0.80 percent on the photograph. The aggregate Whites metrics also
+improve despite the untouched positive half:
+
+| Corpus | Metric | Before | After |
+| --- | --- | ---: | ---: |
+| Grayscale ramp | Effect correlation | 0.6118 | 0.8096 |
+| Grayscale ramp | LightTable / Camera Raw magnitude | 0.360 | 0.680 |
+| Photograph | Effect correlation | 0.7230 | 0.8805 |
+| Photograph | LightTable / Camera Raw magnitude | 0.474 | 0.800 |
