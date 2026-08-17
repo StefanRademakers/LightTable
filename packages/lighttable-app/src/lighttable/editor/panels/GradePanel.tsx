@@ -50,6 +50,10 @@ import {
   type RgbHistogram
 } from '../../types';
 import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
+import {
+  GradeHistogramControl,
+  type GradeHistogramControlKey
+} from './GradeHistogramControl';
 
 type GradeGroup = Exclude<keyof GroupVisibility, 'globalGrade' | 'globalLensFx'>;
 
@@ -208,6 +212,14 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
   const pointColorSampleCountRef = useRef(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
+  const [histogramPreview, setHistogramPreview] = useState<Partial<
+    Record<GradeHistogramControlKey, number>
+  >>({});
+  const histogramPreviewFrameRef = useRef<number | null>(null);
+  const pendingHistogramPreviewRef = useRef<{
+    key: GradeHistogramControlKey;
+    value: number;
+  } | null>(null);
   const adjustments = useGradePresentation(model.adjustmentStore);
   const { metadata, visibility, resetModifierActive } = model;
 
@@ -223,6 +235,37 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
       setSelectedPointColorId(samples[samples.length - 1]!.id);
     }
   }, [adjustments.pointColor.samples, selectedPointColorId]);
+
+  useEffect(() => () => {
+    if (histogramPreviewFrameRef.current !== null) {
+      cancelAnimationFrame(histogramPreviewFrameRef.current);
+    }
+  }, []);
+
+  const publishHistogramSliderPreview = (key: GradeHistogramControlKey, value: number) => {
+    pendingHistogramPreviewRef.current = { key, value };
+    if (histogramPreviewFrameRef.current === null) {
+      histogramPreviewFrameRef.current = requestAnimationFrame(() => {
+        histogramPreviewFrameRef.current = null;
+        const pending = pendingHistogramPreviewRef.current;
+        pendingHistogramPreviewRef.current = null;
+        if (pending) {
+          setHistogramPreview((current) => ({ ...current, [pending.key]: pending.value }));
+        }
+      });
+    }
+    commands.updateAdjustment(key, value);
+  };
+
+  const finishHistogramInteraction = () => {
+    if (histogramPreviewFrameRef.current !== null) {
+      cancelAnimationFrame(histogramPreviewFrameRef.current);
+      histogramPreviewFrameRef.current = null;
+    }
+    pendingHistogramPreviewRef.current = null;
+    commands.endAdjustment();
+    setHistogramPreview({});
+  };
 
   const setGroupExpanded = (group: GradeGroup, next: boolean) => {
     setExpanded((current) => ({ ...current, [group]: next }));
@@ -245,11 +288,23 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
       />
       {expanded[group] ? (
         <div className="lighttable-group__controls">
+          {group === 'light' ? (
+            <GradeHistogramControl
+              histogram={model.histogram}
+              adjustments={adjustments}
+              disabled={!metadata || !visibility[group]}
+              onChange={publishHistogramSliderPreview}
+              onInteractionStart={commands.beginAdjustment}
+              onInteractionEnd={finishHistogramInteraction}
+            />
+          ) : null}
           {sliders.map((slider) => (
             <AdjustmentSlider
               key={slider.key}
               label={slider.label}
-              value={adjustments[slider.key]}
+              value={slider.key in histogramPreview
+                ? histogramPreview[slider.key as GradeHistogramControlKey]!
+                : adjustments[slider.key]}
               min={slider.min}
               max={slider.max}
               step={slider.step}

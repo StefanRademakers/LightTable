@@ -2738,7 +2738,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     selectionDraft,
     selectionOverlayVisible: editorSession.activeTool !== 'view',
     scopeVisibility,
-    histogramConsumerVisible: propertiesView === 'levels' || propertiesView === 'curves',
+    histogramConsumerVisible: propertiesView === 'grade'
+      || propertiesView === 'levels'
+      || propertiesView === 'curves',
     scopeSettings,
     scopeVisibilityRef,
     scopeSettingsRef
