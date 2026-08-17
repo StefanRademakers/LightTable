@@ -17,11 +17,11 @@
     },
     {
       "id": "effects-extremes",
-      "settings": { "Texture": 80, "Clarity": 80, "Dehaze": 80, "Vignette": -80 }
+      "settings": { "Texture": 80, "Clarity": 80, "Dehaze": 80 }
     },
     {
       "id": "combined-grade",
-      "settings": { "Exposure": 2.5, "Contrast": 60, "Highlights": -60, "Shadows": 70, "Temperature": 70, "Tint": -60, "Vibrance": 75, "Saturation": 20, "Texture": 60, "Clarity": 50, "Dehaze": 40, "Vignette": -50 }
+      "settings": { "Exposure": 2.5, "Contrast": 60, "Highlights": -60, "Shadows": 70, "Temperature": 70, "Tint": -60, "Vibrance": 75, "Saturation": 20, "Texture": 60, "Clarity": 50, "Dehaze": 40 }
     }
   ]
 }

@@ -25,7 +25,6 @@ export interface OutputTransformSettings {
 export const calculateOutputTransformSettings = (adjustments: BasicAdjustments): OutputTransformSettings => {
   let shoulderStrength = positiveControlStrength(adjustments.exposureEV, 2, 1);
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.highlights, 100, 0.72));
-  shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.contrast, 100, 0.42));
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.texture, 100, 0.32));
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.clarity, 100, 0.32));
   shoulderStrength = Math.max(

@@ -20,6 +20,16 @@ describe('LightTable output transform settings', () => {
     expect(output.shoulderStrength).toBeGreaterThan(0);
   });
 
+  it('keeps Contrast inside its endpoint-preserving basic tone curve', () => {
+    const adjustments = createDefaultAdjustments();
+    adjustments.contrast = 100;
+
+    const output = calculateOutputTransformSettings(adjustments);
+
+    expect(output.active).toBe(true);
+    expect(output.shoulderStrength).toBe(0);
+  });
+
   it('treats the post-crop Vignette as an independent output effect', () => {
     const adjustments = createDefaultAdjustments();
     adjustments.effects.vignette = {

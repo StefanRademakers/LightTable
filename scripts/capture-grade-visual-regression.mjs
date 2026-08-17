@@ -93,7 +93,12 @@ try {
     const documentId = opened.value?.documentId;
     if (!documentId) throw new Error('Grade source open did not return a document ID.');
     await driver.waitForDocument(documentId, 120_000);
-    await page.getByText('Grade - All', { exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+    let gradePanel = page.getByLabel('Global Grade properties', { exact: true }).last();
+    if (!await gradePanel.isVisible().catch(() => false)) {
+      await page.getByRole('treeitem', { name: /Global Grade/ }).last().click();
+      gradePanel = page.getByLabel('Global Grade properties', { exact: true }).last();
+    }
+    await gradePanel.waitFor({ state: 'visible', timeout: 30_000 });
     for (const [label, value] of Object.entries(entry.settings)) {
       await setSlider(page, label, value);
     }

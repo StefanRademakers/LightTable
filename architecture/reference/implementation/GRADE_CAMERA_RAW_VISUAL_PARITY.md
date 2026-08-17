@@ -104,3 +104,31 @@ diagnostic luminance distributions, then test a grounded adaptive model on both
 the ramp and photographs. Any accepted change must rerun the existing native
 Grade visual regression so good Grade behavior is not traded away for a single
 Camera Raw match.
+
+## Accepted improvements
+
+### Contrast transfer curve
+
+The first accepted renderer change replaces the old scene-log pivot formula
+with an endpoint-preserving perceptual transfer curve measured from Camera Raw
+18.5. Intermediate control values interpolate toward the measured positive or
+negative endpoint. The measured Camera Raw response scales almost linearly:
+across the six intermediate settings, residual curve-shape error on the ramp is
+less than one 8-bit code value.
+
+Contrast no longer activates the generic display shoulder. That shoulder made
+positive Contrast incorrectly lower white from 255 to roughly 246 even though
+the contrast curve itself already protects both endpoints.
+
+| Corpus | Metric | Before | After |
+| --- | --- | ---: | ---: |
+| Grayscale ramp | Effect correlation | 0.8577 | 0.9959 |
+| Grayscale ramp | LightTable / Camera Raw magnitude | 1.449 | 0.994 |
+| Grayscale ramp | Maximum delta RMSE | 6.98% | 0.41% |
+| Photograph | Effect correlation | 0.7778 | 0.8964 |
+| Photograph | LightTable / Camera Raw magnitude | 1.412 | 0.959 |
+| Photograph | Maximum delta RMSE | 8.06% | 3.70% |
+
+Exposure and the remaining Light controls were intentionally unchanged. The
+native Grade baseline was refreshed after this measured improvement; neutral,
+color, effects and combined pipeline cases then reproduced at 100 percent.

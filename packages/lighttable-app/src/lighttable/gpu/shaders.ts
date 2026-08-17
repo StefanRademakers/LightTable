@@ -195,6 +195,39 @@ fn luminance(rgb: vec3f) -> f32 {
   return dot(rgb, vec3f(0.2126, 0.7152, 0.0722));
 }
 
+const CONTRAST_NEGATIVE_CURVE = array<f32, 17>(
+  0.0, 0.12549020, 0.21176471, 0.28235294, 0.34901961,
+  0.40392157, 0.45490196, 0.49803922, 0.53725490, 0.57254902,
+  0.60392157, 0.63921569, 0.68627451, 0.73725490, 0.80784314,
+  0.89019608, 1.0
+);
+
+const CONTRAST_POSITIVE_CURVE = array<f32, 17>(
+  0.0, 0.00784314, 0.03137255, 0.07843137, 0.13333333,
+  0.19607843, 0.27058824, 0.35686275, 0.44313725, 0.54901961,
+  0.65490196, 0.74509804, 0.82352941, 0.88627451, 0.94117647,
+  0.97647059, 1.0
+);
+
+fn linearToSrgbScalar(value: f32) -> f32 {
+  let safeValue = max(value, 0.0);
+  return select(
+    1.055 * pow(safeValue, 1.0 / 2.4) - 0.055,
+    safeValue * 12.92,
+    safeValue <= 0.0031308
+  );
+}
+
+fn sampleContrastCurve(encodedY: f32, positive: bool) -> f32 {
+  let position = clamp(encodedY, 0.0, 1.0) * 16.0;
+  let lower = min(u32(floor(position)), 15u);
+  let fraction = position - f32(lower);
+  if (positive) {
+    return mix(CONTRAST_POSITIVE_CURVE[lower], CONTRAST_POSITIVE_CURVE[lower + 1u], fraction);
+  }
+  return mix(CONTRAST_NEGATIVE_CURVE[lower], CONTRAST_NEGATIVE_CURVE[lower + 1u], fraction);
+}
+
 fn shadowsTonalMask(y: f32) -> f32 {
   // A logistic mask around scene-linear middle grey follows the useful part of
   // darktable's tonal-mask approach: strong deep-shadow coverage with an early,
@@ -219,13 +252,18 @@ fn applyToneControls(rgb: vec3f) -> vec3f {
     adjustments.blacks * 0.007 * blacksMask +
     adjustments.shadows * 0.009 * shadowsMask +
     adjustments.highlights * 0.008 * highlightsMask;
-  var newLogY = logY + tonalStops;
+  let newLogY = logY + tonalStops;
+  var newY = exp2(newLogY);
   let contrastAmount = adjustments.contrast / 100.0;
-  let contrastPivot = -1.45;
-  let distance = newLogY - contrastPivot;
-  let rolloff = 1.0 / (1.0 + 0.09 * distance * distance);
-  newLogY = newLogY + distance * contrastAmount * 0.72 * rolloff;
-  let newY = exp2(newLogY);
+  // The calibrated curve describes the display-referred 0..1 interval. Keep
+  // scene-linear superwhites intact so 16-bit/HDR headroom remains available
+  // to the output transform instead of collapsing to the final 1.0 knot.
+  if (abs(contrastAmount) > 0.00001 && newY < 1.0) {
+    let encodedY = linearToSrgbScalar(newY);
+    let endpoint = sampleContrastCurve(encodedY, contrastAmount > 0.0);
+    let contrastedY = mix(encodedY, endpoint, abs(contrastAmount));
+    newY = srgbToLinearChannel(contrastedY);
+  }
   return rgb * (newY / y);
 }
 
