@@ -27,6 +27,22 @@ export interface AdjustmentStack {
 
 export type AdjustmentStackOwner = 'geometry' | 'grade' | 'lens-fx';
 export type LocalProcessingKind = 'grade' | 'curves' | 'lens-fx';
+export type GradeModuleGroup =
+  | 'light'
+  | 'color'
+  | 'colorMixer'
+  | 'colorGrading'
+  | 'curves'
+  | 'effects';
+
+const GRADE_MODULE_TYPES: Readonly<Record<GradeModuleGroup, readonly string[]>> = {
+  light: ['lt.light'],
+  color: ['lt.white-balance', 'lt.global-color'],
+  colorMixer: ['lt.color-mixer'],
+  colorGrading: ['lt.color-grading'],
+  curves: ['lt.curves'],
+  effects: ['lt.detail']
+};
 
 const ownerIncludesCategory = (
   owner: AdjustmentStackOwner,
@@ -283,6 +299,40 @@ export const setAdjustmentStackEnabled = (
   };
 };
 
+/** Reports a Grade section's bypass state without treating a not-yet-authored
+ * neutral module as disabled. */
+export const adjustmentStackGradeGroupIsEnabled = (
+  stack: AdjustmentStack | null | undefined,
+  group: GradeModuleGroup
+): boolean => {
+  const requested = new Set(GRADE_MODULE_TYPES[group]);
+  const modules = stack?.modules.filter((module) => requested.has(module.type)) ?? [];
+  return modules.length === 0 || modules.some((module) => module.enabled);
+};
+
+/** Bypasses one Grade section while retaining its authored parameters. Missing
+ * neutral modules are materialized so an off state survives the first edit. */
+export const setAdjustmentStackGradeGroupEnabled = (
+  stack: AdjustmentStack | null | undefined,
+  group: GradeModuleGroup,
+  enabled: boolean
+): AdjustmentStack => {
+  const types = GRADE_MODULE_TYPES[group];
+  const ensured = ensureAdjustmentStackModuleTypes(stack, types);
+  const requested = new Set(types);
+  let changed = false;
+  const modules = ensured.modules.map((module) => {
+    if (!requested.has(module.type) || module.enabled === enabled) return module;
+    changed = true;
+    return { ...module, enabled, revision: module.revision + 1 };
+  });
+  return changed ? {
+    ...cloneAdjustmentStack(ensured),
+    revision: ensured.revision + 1,
+    modules
+  } : ensured;
+};
+
 export const adjustmentStackForScope = (
   stack: AdjustmentStack,
   scope: 'layer' | 'adjustment-layer' | 'group' | 'document-creative' | 'document-output',
@@ -315,7 +365,7 @@ export const createAdjustmentStackFromBasicAdjustments = (
     .map((definition) => {
       const settings = settingsForModule(adjustments, definition.settingsPaths);
       const existing = previous?.modules.find((module) => module.type === definition.type);
-      if (existing && existing.enabled && valuesEqual(existing.settings, settings)) {
+      if (existing && valuesEqual(existing.settings, settings)) {
         return {
           ...existing,
           settings: cloneValue(existing.settings)
@@ -325,7 +375,7 @@ export const createAdjustmentStackFromBasicAdjustments = (
       return {
         id: existing?.id ?? createId('module'),
         type: definition.type,
-        enabled: true,
+        enabled: existing?.enabled ?? true,
         revision: (existing?.revision ?? -1) + 1,
         settings
       };

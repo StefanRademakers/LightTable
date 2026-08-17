@@ -35,12 +35,15 @@ import {
   ensureAdjustmentStackLocalProcessing,
   removeAdjustmentStackLocalProcessing,
   setAdjustmentStackLocalProcessingEnabled,
+  setAdjustmentStackGradeGroupEnabled,
   setAdjustmentStackOwnerEnabled,
   removeAdjustmentStackOwner,
   type LocalProcessingKind,
+  type GradeModuleGroup,
   type AdjustmentStackOwner,
   type AdjustmentStack
 } from '../../processing/adjustmentStack';
+import { parseAttachedAdjustmentOwnerId } from '../../processing/attachedAdjustment';
 import {
   findLayerNode,
   findRasterLayer,
@@ -614,6 +617,45 @@ export const setRasterLayerAttachedAdjustmentStack = (
     modifiedAt: Date.now()
   } : layer;
 });
+
+/** Changes one Grade section on whichever canonical owner is being inspected:
+ * an Adjustment Layer, a raster-local Grade, or an attached adjustment. */
+export const setGradeOwnerGroupEnabled = (
+  document: ImageDocument,
+  ownerId: LayerId,
+  group: GradeModuleGroup,
+  enabled: boolean
+): ImageDocument => {
+  const attached = parseAttachedAdjustmentOwnerId(ownerId);
+  if (attached) {
+    const layer = findRasterLayer(document, attached.layerId);
+    const adjustment = layer?.attachedAdjustments?.find(({ id }) => id === attached.adjustmentId);
+    return adjustment
+      ? setRasterLayerAttachedAdjustmentStack(
+          document,
+          attached.layerId,
+          attached.adjustmentId,
+          setAdjustmentStackGradeGroupEnabled(adjustment.adjustmentStack, group, enabled)
+        )
+      : document;
+  }
+  const layer = findLayerNode(document.layers, ownerId)?.node;
+  if (layer?.type === 'adjustment') {
+    return setAdjustmentLayerStack(
+      document,
+      ownerId,
+      setAdjustmentStackGradeGroupEnabled(layer.adjustmentStack, group, enabled)
+    );
+  }
+  if (layer?.type === 'raster') {
+    return setRasterLayerAdjustmentStack(
+      document,
+      ownerId,
+      setAdjustmentStackGradeGroupEnabled(layer.adjustmentStack, group, enabled)
+    );
+  }
+  return document;
+};
 
 export const setRasterLayerAttachedAdjustmentEnabled = (
   document: ImageDocument,

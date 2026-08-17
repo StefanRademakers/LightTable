@@ -6,6 +6,7 @@ import {
   adjustmentStackForScope,
   adjustmentStackHasLocalProcessing,
   adjustmentStackLocalProcessingIsEnabled,
+  adjustmentStackGradeGroupIsEnabled,
   adjustmentStackOwnerIsEnabled,
   cloneAdjustmentStack,
   createAdjustmentStackFromBasicAdjustments,
@@ -14,6 +15,7 @@ import {
   removeAdjustmentStackOwner,
   removeAdjustmentStackLocalProcessing,
   setAdjustmentStackLocalProcessingEnabled,
+  setAdjustmentStackGradeGroupEnabled,
   setAdjustmentStackOwnerEnabled
 } from './adjustmentStack';
 
@@ -94,6 +96,25 @@ describe('LightTable adjustment stacks', () => {
     expect(materialized.exposureEV).toBe(0);
     expect(materialized.shadows).toBe(0);
     expect(materialized.temperature).toBe(20);
+  });
+
+  it('bypasses one Grade section without losing values or re-enabling on edit', () => {
+    const settings = createDefaultAdjustments();
+    settings.colorGrading.hue[0] = 0.72;
+    const stack = createAdjustmentStackFromBasicAdjustments(settings, undefined, sequentialIds());
+    const bypassed = setAdjustmentStackGradeGroupEnabled(stack, 'colorGrading', false);
+
+    expect(adjustmentStackGradeGroupIsEnabled(bypassed, 'colorGrading')).toBe(false);
+    expect(materializeBasicAdjustments(bypassed).colorGrading.hue[0]).toBe(0);
+    expect(materializeBasicAdjustments(bypassed, undefined, undefined, true)
+      .colorGrading.hue[0]).toBe(0.72);
+
+    const edited = createDefaultAdjustments();
+    edited.colorGrading.hue[0] = 0.4;
+    const updated = createAdjustmentStackFromBasicAdjustments(edited, bypassed, sequentialIds());
+    expect(adjustmentStackGradeGroupIsEnabled(updated, 'colorGrading')).toBe(false);
+    expect(materializeBasicAdjustments(updated, undefined, undefined, true)
+      .colorGrading.hue[0]).toBe(0.4);
   });
 
   it('is JSON serializable without changing the current grade', () => {

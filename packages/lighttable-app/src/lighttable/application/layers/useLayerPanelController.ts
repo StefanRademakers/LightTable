@@ -30,6 +30,7 @@ import {
   removeRasterLayerLocalProcessing,
   removeRasterLayerAttachedAdjustment,
   setRasterLayerAttachedAdjustmentEnabled,
+  setGradeOwnerGroupEnabled,
   setLayersLock,
   setLayersVisibility,
   ungroupLayers
@@ -48,6 +49,7 @@ import {
 } from '../../editor/styles/layerStyleCommands';
 import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
 import type { LocalProcessingKind } from '../../processing/adjustmentStack';
+import type { GradeModuleGroup } from '../../processing/adjustmentStack';
 import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 
 export interface LayerPanelControllerDependencies {
@@ -130,6 +132,7 @@ export interface LayerPanelController {
   setLocalGradeEnabled(layerId: LayerId, enabled: boolean): void;
   setLocalCurvesEnabled(layerId: LayerId, enabled: boolean): void;
   setLocalLensFxEnabled(layerId: LayerId, enabled: boolean): void;
+  setGradeGroupEnabled(ownerId: LayerId, group: GradeModuleGroup, enabled: boolean): void;
   removeLocalProcessing(layerId: LayerId, owner: LocalProcessingKind): void;
   setAttachedAdjustmentEnabled(layerId: LayerId, adjustmentId: string, enabled: boolean): void;
   removeAttachedAdjustment(layerId: LayerId, adjustmentId: string): void;
@@ -316,6 +319,8 @@ export const createLayerPanelController = (
     setLocalLensFxEnabled: (layerId, enabled) =>
       mutate((current) =>
         setRasterLayerLocalProcessingEnabled(current, layerId, enabled, 'lens-fx')),
+    setGradeGroupEnabled: (ownerId, group, enabled) =>
+      mutate((current) => setGradeOwnerGroupEnabled(current, ownerId, group, enabled)),
     removeLocalProcessing: (layerId, owner) => {
       resolveDependencies().finishProcessingEditing?.();
       mutate((current) =>

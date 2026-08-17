@@ -53,6 +53,8 @@ import { useLayerPanelController } from './application/layers/useLayerPanelContr
 import {
   adjustmentStackHasLocalProcessing,
   adjustmentStackLocalProcessingIsEnabled,
+  adjustmentStackGradeGroupIsEnabled,
+  type GradeModuleGroup,
   materializeBasicAdjustments
 } from './processing/adjustmentStack';
 import { attachedAdjustmentOwnerId } from './processing/attachedAdjustment';
@@ -4197,6 +4199,35 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const gradeContextLayer = imageDocument && 'layerId' in reconciledPropertiesTarget
     ? findDocumentLayer(imageDocument, reconciledPropertiesTarget.layerId)
     : null;
+  const gradeOwnerStack = reconciledPropertiesTarget.kind === 'attached-processing'
+    && gradeContextLayer?.type === 'raster'
+    ? (gradeContextLayer.attachedAdjustments ?? []).find(
+        ({ id }) => id === reconciledPropertiesTarget.adjustmentId
+      )?.adjustmentStack ?? null
+    : gradeContextLayer?.type === 'adjustment' || gradeContextLayer?.type === 'raster'
+      ? gradeContextLayer.adjustmentStack
+      : null;
+  const gradeOwnerId = reconciledPropertiesTarget.kind === 'attached-processing'
+    ? attachedAdjustmentOwnerId(
+        reconciledPropertiesTarget.layerId,
+        reconciledPropertiesTarget.adjustmentId
+      )
+    : 'layerId' in reconciledPropertiesTarget
+      ? reconciledPropertiesTarget.layerId
+      : null;
+  const gradeUsesDocumentVisibility = reconciledPropertiesTarget.kind === 'document-processing'
+    && reconciledPropertiesTarget.owner === 'grade';
+  const gradeSectionVisibility = gradeUsesDocumentVisibility
+    ? groupVisibility
+    : {
+        ...groupVisibility,
+        light: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'light'),
+        color: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'color'),
+        colorMixer: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'colorMixer'),
+        colorGrading: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'colorGrading'),
+        curves: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'curves'),
+        effects: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'effects')
+      };
   const gradeMasterEnabled = reconciledPropertiesTarget.kind === 'document-processing'
     && reconciledPropertiesTarget.owner === 'grade'
     ? groupVisibility.globalGrade
@@ -4224,6 +4255,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (gradeContextLayer.type === 'raster') {
       commandLayerPanelController.setLocalGradeEnabled(gradeContextLayer.id, !gradeMasterEnabled);
     }
+  };
+  const toggleGradeSectionVisibility = (group: keyof GroupVisibility) => {
+    if (group === 'globalGrade' || group === 'globalLensFx' || gradeUsesDocumentVisibility) {
+      toggleGroupVisibility(group);
+      return;
+    }
+    if (!gradeOwnerId) return;
+    const gradeGroup = group as GradeModuleGroup;
+    commandLayerPanelController.setGradeGroupEnabled(
+      gradeOwnerId,
+      gradeGroup,
+      !adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, gradeGroup)
+    );
   };
 
   const effectiveDocumentGuides = guideDraft ?? imageDocument?.guides ?? [];
@@ -6113,7 +6157,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 model: {
                   adjustmentStore: adjustmentPresentationStore,
                   metadata,
-                  visibility: groupVisibility,
+                  visibility: gradeSectionVisibility,
                   histogram,
                   resetModifierActive: shiftPressed,
                   masterEnabled: gradeMasterEnabled,
@@ -6125,7 +6169,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   commands: {
                   resetAll,
                   toggleMasterEnabled: toggleGradeMasterEnabled,
-                  toggleVisibility: toggleGroupVisibility,
+                  toggleVisibility: toggleGradeSectionVisibility,
                   resetGroup,
                   beginAdjustment: beginAdjustmentTransaction,
                   endAdjustment: endAdjustmentTransaction,
