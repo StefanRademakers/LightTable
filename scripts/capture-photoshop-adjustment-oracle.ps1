@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'vibrance', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer', 'selective-color', 'gradient-map', 'invert', 'posterize', 'threshold')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'vibrance', 'color-vibrance', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer', 'selective-color', 'gradient-map', 'invert', 'posterize', 'threshold')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -313,6 +313,104 @@ $vibranceCases = @(
   @{ id='combined-positive-80'; vibrance=80; saturation=80 },
   @{ id='combined-negative-80'; vibrance=-80; saturation=-80 }
 )
+$colorVibranceCases = @(
+  @{ id='neutral'; temperature=0; tint=0; vibrance=0; saturation=0 },
+  @{ id='temperature-neg-100'; temperature=-100; tint=0; vibrance=0; saturation=0 },
+  @{ id='temperature-neg-80'; temperature=-80; tint=0; vibrance=0; saturation=0 },
+  @{ id='temperature-neg-20'; temperature=-20; tint=0; vibrance=0; saturation=0 },
+  @{ id='temperature-pos-20'; temperature=20; tint=0; vibrance=0; saturation=0 },
+  @{ id='temperature-pos-80'; temperature=80; tint=0; vibrance=0; saturation=0 },
+  @{ id='temperature-pos-100'; temperature=100; tint=0; vibrance=0; saturation=0 },
+  @{ id='tint-neg-100'; temperature=0; tint=-100; vibrance=0; saturation=0 },
+  @{ id='tint-neg-80'; temperature=0; tint=-80; vibrance=0; saturation=0 },
+  @{ id='tint-neg-20'; temperature=0; tint=-20; vibrance=0; saturation=0 },
+  @{ id='tint-pos-20'; temperature=0; tint=20; vibrance=0; saturation=0 },
+  @{ id='tint-pos-80'; temperature=0; tint=80; vibrance=0; saturation=0 },
+  @{ id='tint-pos-100'; temperature=0; tint=100; vibrance=0; saturation=0 },
+  @{ id='vibrance-neg-100'; temperature=0; tint=0; vibrance=-100; saturation=0 },
+  @{ id='vibrance-neg-80'; temperature=0; tint=0; vibrance=-80; saturation=0 },
+  @{ id='vibrance-neg-20'; temperature=0; tint=0; vibrance=-20; saturation=0 },
+  @{ id='vibrance-pos-20'; temperature=0; tint=0; vibrance=20; saturation=0 },
+  @{ id='vibrance-pos-80'; temperature=0; tint=0; vibrance=80; saturation=0 },
+  @{ id='vibrance-pos-100'; temperature=0; tint=0; vibrance=100; saturation=0 },
+  @{ id='saturation-neg-100'; temperature=0; tint=0; vibrance=0; saturation=-100 },
+  @{ id='saturation-neg-80'; temperature=0; tint=0; vibrance=0; saturation=-80 },
+  @{ id='saturation-neg-20'; temperature=0; tint=0; vibrance=0; saturation=-20 },
+  @{ id='saturation-pos-20'; temperature=0; tint=0; vibrance=0; saturation=20 },
+  @{ id='saturation-pos-80'; temperature=0; tint=0; vibrance=0; saturation=80 },
+  @{ id='saturation-pos-100'; temperature=0; tint=0; vibrance=0; saturation=100 },
+  @{ id='combined-positive-80'; temperature=80; tint=80; vibrance=80; saturation=80 },
+  @{ id='combined-negative-80'; temperature=-80; tint=-80; vibrance=-80; saturation=-80 },
+  @{ id='heldout-wb-positive-50'; temperature=50; tint=50; vibrance=0; saturation=0 },
+  @{ id='heldout-wb-cross-50'; temperature=50; tint=-50; vibrance=0; saturation=0 },
+  @{ id='heldout-wb-negative-50'; temperature=-50; tint=-50; vibrance=0; saturation=0 },
+  @{ id='heldout-color-positive-50'; temperature=0; tint=0; vibrance=50; saturation=50 },
+  @{ id='heldout-color-cross-50'; temperature=0; tint=0; vibrance=50; saturation=-50 },
+  @{ id='heldout-color-negative-50'; temperature=0; tint=0; vibrance=-50; saturation=-50 },
+  @{ id='heldout-combined-positive-50'; temperature=50; tint=50; vibrance=50; saturation=50 },
+  @{ id='heldout-combined-cross-50'; temperature=50; tint=-50; vibrance=50; saturation=-50 },
+  @{ id='heldout-combined-negative-50'; temperature=-50; tint=-50; vibrance=-50; saturation=-50 },
+  @{ id='heldout-combined-random-a'; temperature=33; tint=-67; vibrance=72; saturation=41 },
+  @{ id='heldout-combined-random-b'; temperature=-91; tint=37; vibrance=-44; saturation=63 },
+  @{ id='heldout-wb-random-b'; temperature=-91; tint=37; vibrance=0; saturation=0 },
+  @{ id='heldout-color-random-b'; temperature=0; tint=0; vibrance=-44; saturation=63 }
+)
+$colorVibranceCalibrationCases = @($colorVibranceCases)
+$colorVibranceParameters = @('temperature', 'tint', 'vibrance', 'saturation')
+for ($firstIndex = 0; $firstIndex -lt $colorVibranceParameters.Count; $firstIndex++) {
+  for ($secondIndex = $firstIndex + 1; $secondIndex -lt $colorVibranceParameters.Count; $secondIndex++) {
+    $first = $colorVibranceParameters[$firstIndex]
+    $second = $colorVibranceParameters[$secondIndex]
+    foreach ($firstValue in @(-80, 80)) {
+      foreach ($secondValue in @(-80, 80)) {
+        $entry = @{
+          id="pair-$first-$firstValue-$second-$secondValue"
+          temperature=0
+          tint=0
+          vibrance=0
+          saturation=0
+        }
+        $entry[$first] = $firstValue
+        $entry[$second] = $secondValue
+        $colorVibranceCalibrationCases += $entry
+      }
+    }
+  }
+}
+$colorVibranceKnots = @(-100, -80, -20, 0, 20, 80, 100)
+foreach ($temperature in $colorVibranceKnots) {
+  foreach ($tint in $colorVibranceKnots) {
+    $colorVibranceCalibrationCases += @{
+      id="wb-temperature-$temperature-tint-$tint"
+      temperature=$temperature
+      tint=$tint
+      vibrance=0
+      saturation=0
+    }
+  }
+}
+foreach ($temperature in (-100..100 | Where-Object { $_ % 10 -eq 0 })) {
+  foreach ($tint in (-100..100 | Where-Object { $_ % 10 -eq 0 })) {
+    $colorVibranceCalibrationCases += @{
+      id="wb10-temperature-$temperature-tint-$tint"
+      temperature=$temperature
+      tint=$tint
+      vibrance=0
+      saturation=0
+    }
+  }
+}
+foreach ($vibrance in $colorVibranceKnots) {
+  foreach ($saturation in $colorVibranceKnots) {
+    $colorVibranceCalibrationCases += @{
+      id="color-vibrance-$vibrance-saturation-$saturation"
+      temperature=0
+      tint=0
+      vibrance=$vibrance
+      saturation=$saturation
+    }
+  }
+}
 $selectiveColorCases = @(@{ id='neutral'; rangeIndex=0; cmyk=@(0,0,0,0); method='relative' })
 $selectiveRangeNames = @('reds','yellows','greens','cyans','blues','magentas','whites','neutrals','blacks')
 for ($rangeIndex = 0; $rangeIndex -lt $selectiveRangeNames.Count; $rangeIndex++) {
@@ -347,6 +445,9 @@ $cases = if ($Adjustment -eq 'brightness-contrast') {
 elseif ($Adjustment -eq 'curves') { $curvesCases }
 elseif ($Adjustment -eq 'hue-saturation') { $hueSaturationCases }
 elseif ($Adjustment -eq 'vibrance') { $vibranceCases }
+elseif ($Adjustment -eq 'color-vibrance') {
+  if ($Corpus -eq 'calibration') { $colorVibranceCalibrationCases } else { $colorVibranceCases }
+}
 elseif ($Adjustment -eq 'color-balance') { $colorBalanceCases }
 elseif ($Adjustment -eq 'black-white') { $blackWhiteCases }
 elseif ($Adjustment -eq 'photo-filter') { $photoFilterCases }
@@ -516,6 +617,16 @@ $rangeDescriptors
     } elseif ($Adjustment -eq 'vibrance') {
       $adjustmentDescriptor = @"
   var adjustment = new ActionDescriptor();
+  adjustment.putInteger(s2t('vibrance'), $($case.vibrance));
+  adjustment.putInteger(s2t('saturation'), $($case.saturation));
+  adjustmentLayer.putObject(s2t('type'), s2t('vibrance'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'color-vibrance') {
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putInteger(s2t('temperature'), $($case.temperature));
+  adjustment.putInteger(s2t('tint'), $($case.tint));
+  adjustment.putBoolean(s2t('useLegacy'), false);
   adjustment.putInteger(s2t('vibrance'), $($case.vibrance));
   adjustment.putInteger(s2t('saturation'), $($case.saturation));
   adjustmentLayer.putObject(s2t('type'), s2t('vibrance'), adjustment);

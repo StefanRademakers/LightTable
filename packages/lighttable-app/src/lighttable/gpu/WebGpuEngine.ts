@@ -1531,7 +1531,9 @@ export class WebGpuEngine {
         { binding: 2, resource: coreResources.sampler },
           { binding: 3, resource: { buffer: coreResources.adjustmentBuffer } },
           { binding: 4, resource: coreResources.curveTexture.createView() },
-          { binding: 5, resource: coreResources.identityColorLookupTexture.createView() }
+          { binding: 5, resource: coreResources.identityColorLookupTexture.createView() },
+          { binding: 6, resource: coreResources.identityColorLookupTexture.createView() },
+          { binding: 7, resource: coreResources.identityColorLookupTexture.createView() }
       ]
     });
     this.adjustmentLayerRenderer.configure({

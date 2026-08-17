@@ -59,7 +59,8 @@ export const ADJUSTMENT_LAYER_DEFINITIONS: readonly AdjustmentLayerDefinition[] 
     menuLabel: 'Color and Vibrance',
     iconName: 'adjustment_vibrance.svg',
     family: 'photoshop',
-    moduleTypes: ['lt.white-balance', 'lt.global-color']
+    moduleTypes: ['lt.photoshop-adjustment'],
+    photoshopKind: 'color-vibrance'
   },
   {
     id: 'brightness-contrast',

@@ -327,6 +327,8 @@ struct Adjustments {
 @group(0) @binding(3) var<uniform> adjustments: Adjustments;
 @group(0) @binding(4) var curveLut: texture_2d<f32>;
 @group(0) @binding(5) var colorLookupLut: texture_3d<f32>;
+@group(0) @binding(6) var colorVibranceWhiteBalanceLut: texture_3d<f32>;
+@group(0) @binding(7) var colorVibranceColorLut: texture_3d<f32>;
 
 fn luminance(rgb: vec3f) -> f32 {
   return dot(rgb, vec3f(0.2126, 0.7152, 0.0722));
@@ -997,6 +999,42 @@ fn sampleExternalColorLookup(source: vec3f) -> vec3f {
   );
 }
 
+fn sampleUnitColorLookup(lut: texture_3d<f32>, encoded: vec3f) -> vec3f {
+  let dimensions = textureDimensions(lut);
+  let scaled = clamp(encoded, vec3f(0.0), vec3f(1.0)) * vec3f(dimensions - vec3u(1u));
+  let lower = vec3u(floor(scaled));
+  let upper = min(lower + vec3u(1u), dimensions - vec3u(1u));
+  let fraction = scaled - vec3f(lower);
+  let z0y0 = mix(
+    textureLoad(lut, vec3u(lower.x, lower.y, lower.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, lower.y, lower.z), 0).rgb,
+    fraction.x
+  );
+  let z0y1 = mix(
+    textureLoad(lut, vec3u(lower.x, upper.y, lower.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, upper.y, lower.z), 0).rgb,
+    fraction.x
+  );
+  let z1y0 = mix(
+    textureLoad(lut, vec3u(lower.x, lower.y, upper.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, lower.y, upper.z), 0).rgb,
+    fraction.x
+  );
+  let z1y1 = mix(
+    textureLoad(lut, vec3u(lower.x, upper.y, upper.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, upper.y, upper.z), 0).rgb,
+    fraction.x
+  );
+  return mix(mix(z0y0, z0y1, fraction.y), mix(z1y0, z1y1, fraction.y), fraction.z);
+}
+
+fn applyPhotoshopColorVibrance(source: vec3f) -> vec3f {
+  var encoded = photoshopLinearSrgbToEncodedDocument(source);
+  encoded = sampleUnitColorLookup(colorVibranceWhiteBalanceLut, encoded);
+  encoded = sampleUnitColorLookup(colorVibranceColorLut, encoded);
+  return photoshopEncodedDocumentToLinearSrgb(encoded);
+}
+
 fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
   let kind = u32(photoshopValue(0u) + 0.5);
   if (kind == 0u) { return source; }
@@ -1263,6 +1301,9 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
   }
   if (kind == 14u) {
     return applyPhotoshopVibrance(rgb);
+  }
+  if (kind == 15u) {
+    return applyPhotoshopColorVibrance(rgb);
   }
   return rgb;
 }

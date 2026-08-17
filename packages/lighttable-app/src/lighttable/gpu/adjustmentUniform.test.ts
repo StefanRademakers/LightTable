@@ -118,6 +118,13 @@ describe('LightTable adjustment uniform packing', () => {
     expect(packed[10]).toBe(0);
   });
 
+  it('reserves a distinct evaluator kind for current Color and Vibrance', () => {
+    const settings = createDefaultAdjustments();
+    settings.photoshopAdjustment.kind = 'color-vibrance';
+    const packed = buildAdjustmentUniform(settings, 100, 50, true);
+    expect(packed[128]).toBe(15);
+  });
+
   it('packs Levels channel and the built-in Color Lookup preset', () => {
     const settings = createDefaultAdjustments();
     settings.photoshopAdjustment.levelsChannel = 'blue';

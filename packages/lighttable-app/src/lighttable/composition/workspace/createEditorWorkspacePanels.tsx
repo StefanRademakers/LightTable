@@ -80,7 +80,7 @@ export const createEditorWorkspacePanels = ({
           grade: <GradePanel {...grade} />,
           curves: <CurvesPropertiesPanel {...grade} />,
           exposure: <PhotoshopAdjustmentPropertiesPanel kind="exposure" {...grade} />,
-          'color-vibrance': <AdjustmentPropertiesPanel title="Color and Vibrance" {...grade} />,
+          'color-vibrance': <PhotoshopAdjustmentPropertiesPanel kind="color-vibrance" {...grade} />,
           'gradient-map': <GradientMapPropertiesPanel {...grade} />,
           'clarity-dehaze': <AdjustmentPropertiesPanel title="Clarity and Dehaze" {...grade} />,
           grain: <GrainPropertiesPanel {...lensFx} />,
@@ -90,7 +90,7 @@ export const createEditorWorkspacePanels = ({
             ? <TextPropertiesPanel {...text} />
             : <aside className="lighttable-panel" aria-label="Text properties" />,
           ...Object.fromEntries(PHOTOSHOP_ADJUSTMENT_KINDS
-            .filter((kind) => kind !== 'exposure')
+            .filter((kind) => kind !== 'exposure' && kind !== 'color-vibrance')
             .map((kind) => [kind, isPhotoshopAdjustmentKind(kind)
               ? <PhotoshopAdjustmentPropertiesPanel key={kind} kind={kind} {...grade} />
               : null]))

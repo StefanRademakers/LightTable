@@ -99,7 +99,7 @@ export const buildAdjustmentUniform = (
     'brightness-contrast', 'levels', 'exposure', 'hue-saturation',
     'color-balance', 'black-white', 'photo-filter', 'channel-mixer',
     'color-lookup', 'selective-color', 'invert', 'posterize', 'threshold',
-    'vibrance'
+    'vibrance', 'color-vibrance'
   ].indexOf(photoshop.kind) + 1;
   packed.set([
     kindIndex,

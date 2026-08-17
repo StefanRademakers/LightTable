@@ -518,6 +518,26 @@ describe('importPsdDocument', () => {
       .toMatchObject({ kind: 'vibrance', vibrance: 80, vibranceSaturation: -20 });
   });
 
+  it('imports Photoshop 27 Color and Vibrance separately from legacy Vibrance', () => {
+    const result = importPsdDocument(decoded([raster('color and vibrance', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: {
+        type: 'vibrance', temperature: -91, tint: 37, useLegacy: false,
+        vibrance: -44, saturation: 63
+      }
+    })]), 'color-vibrance.psd');
+    const layer = result.document.layers[0];
+    expect(layer.type).toBe('adjustment');
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
+    expect(layer.adjustmentKind).toBe('color-vibrance');
+    expect(materializeBasicAdjustments(layer.adjustmentStack).photoshopAdjustment)
+      .toMatchObject({
+        kind: 'color-vibrance', colorVibranceTemperature: -91, colorVibranceTint: 37,
+        colorVibranceVibrance: -44, colorVibranceSaturation: 63
+      });
+  });
+
   it('maps Photoshop Levels to the channel-aware native Levels node', () => {
     const result = importPsdDocument(decoded([raster('levels', {
       kind: 'adjustment',

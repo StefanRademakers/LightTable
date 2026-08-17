@@ -20,6 +20,10 @@ import {
 } from './psdProtocol';
 import { readPsdColorProfile } from './psdColorProfile';
 import {
+  applyPsdVibranceDescriptorExtensions,
+  readPsdVibranceDescriptorExtensions
+} from './psdVibranceDescriptor';
+import {
   createPsdPixelNormalizer,
   type PsdPixelNormalizer
 } from './psdColorManagement.worker';
@@ -414,6 +418,10 @@ self.onmessage = async ({ data }: MessageEvent<PsdWorkerRequest>) => {
       logMissingFeatures: true,
       log: (message) => warnings.push(String(message))
     });
+    applyPsdVibranceDescriptorExtensions(
+      psd.children,
+      readPsdVibranceDescriptorExtensions(data.bytes)
+    );
     const parseMs = performance.now() - parseStartedAt;
     try {
       recoverPsdGlobalTextPaths(psd);

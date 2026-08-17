@@ -41,6 +41,12 @@ const FAMILY_SLIDERS: Partial<Record<PhotoshopAdjustmentKind, readonly SliderSpe
     { key: 'vibrance', label: 'Vibrance', min: -100, max: 100, format: percent },
     { key: 'vibranceSaturation', label: 'Saturation', min: -100, max: 100, format: percent }
   ],
+  'color-vibrance': [
+    { key: 'colorVibranceTemperature', label: 'Temperature', min: -100, max: 100 },
+    { key: 'colorVibranceTint', label: 'Tint', min: -100, max: 100 },
+    { key: 'colorVibranceVibrance', label: 'Vibrance', min: -100, max: 100, format: percent },
+    { key: 'colorVibranceSaturation', label: 'Saturation', min: -100, max: 100, format: percent }
+  ],
   'hue-saturation': [
     { key: 'hue', label: 'Hue', min: -180, max: 180, format: (value) => `${Math.round(value)}°` },
     { key: 'hueSaturation', label: 'Saturation', min: -100, max: 100, format: percent },
@@ -59,7 +65,7 @@ const FAMILY_SLIDERS: Partial<Record<PhotoshopAdjustmentKind, readonly SliderSpe
 
 const titleFor = (kind: PhotoshopAdjustmentKind) => ({
   'brightness-contrast': 'Brightness / Contrast', levels: 'Levels', exposure: 'Exposure',
-  vibrance: 'Vibrance',
+  vibrance: 'Vibrance', 'color-vibrance': 'Color and Vibrance',
   'hue-saturation': 'Hue / Saturation', 'color-balance': 'Color Balance',
   'black-white': 'Black & White', 'photo-filter': 'Photo Filter',
   'channel-mixer': 'Channel Mixer', 'color-lookup': 'Color Lookup',

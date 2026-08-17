@@ -2,14 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDefaultAdjustments } from '../types';
 import { AdjustmentGpuPayloadWriter } from './AdjustmentGpuPayloadWriter';
 
-const createWriter = () => {
+const createWriter = (colorVibrance = false) => {
   const writeBuffer = vi.fn();
   const writeTexture = vi.fn();
   const writer = new AdjustmentGpuPayloadWriter(
     { queue: { writeBuffer, writeTexture } } as unknown as GPUDevice,
     {
       uniformBuffer: {} as GPUBuffer,
-      curveTexture: {} as GPUTexture
+      curveTexture: {} as GPUTexture,
+      ...(colorVibrance ? {
+        colorVibranceWhiteBalanceTexture: {} as GPUTexture,
+        colorVibranceColorTexture: {} as GPUTexture
+      } : {})
     }
   );
   return { writer, writeBuffer, writeTexture };
@@ -72,5 +76,20 @@ describe('AdjustmentGpuPayloadWriter', () => {
     expect(test.writer.sync(adjustments, 1280, 720, true).uniformChanged).toBe(true);
     expect(test.writeBuffer).toHaveBeenCalledTimes(2);
     expect(test.writeTexture).toHaveBeenCalledOnce();
+  });
+
+  it('uploads coupled Color and Vibrance LUTs only when their parameters change', () => {
+    const test = createWriter(true);
+    const adjustments = createDefaultAdjustments();
+    adjustments.photoshopAdjustment.kind = 'color-vibrance';
+
+    test.writer.sync(adjustments, 1920, 1080, true);
+    expect(test.writeTexture).toHaveBeenCalledTimes(3); // curves plus two 3D LUTs
+    test.writer.sync(adjustments, 1920, 1080, true);
+    expect(test.writeTexture).toHaveBeenCalledTimes(3);
+
+    adjustments.photoshopAdjustment.colorVibranceTemperature = 37;
+    test.writer.sync(adjustments, 1920, 1080, true);
+    expect(test.writeTexture).toHaveBeenCalledTimes(5);
   });
 });

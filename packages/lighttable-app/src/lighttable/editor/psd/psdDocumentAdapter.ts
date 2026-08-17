@@ -226,6 +226,16 @@ const photoshopKindForDescriptor = (
   source: PsdAdjustment | null
 ): AdjustmentLayerKind | null => {
   if (!source) return null;
+  if (source.type === 'vibrance') {
+    const modern = source as typeof source & {
+      temperature?: number;
+      tint?: number;
+      useLegacy?: boolean;
+    };
+    if (modern.useLegacy === false || modern.temperature !== undefined || modern.tint !== undefined) {
+      return 'color-vibrance';
+    }
+  }
   return ({
     'brightness/contrast': 'brightness-contrast',
     levels: 'levels',
@@ -302,6 +312,24 @@ const importedPhotoshopSettings = (
       return { kind: settings.kind, settings, support: 'native', reason: 'Exposure, Offset and Gamma are mapped to the native LightTable Exposure node.' };
     }
     case 'vibrance': {
+      const modern = source as typeof source & {
+        temperature?: number;
+        tint?: number;
+        useLegacy?: boolean;
+      };
+      if (modern.useLegacy === false || modern.temperature !== undefined || modern.tint !== undefined) {
+        const settings = result('color-vibrance');
+        settings.colorVibranceTemperature = modern.temperature ?? 0;
+        settings.colorVibranceTint = modern.tint ?? 0;
+        settings.colorVibranceVibrance = source.vibrance ?? 0;
+        settings.colorVibranceSaturation = source.saturation ?? 0;
+        return {
+          kind: settings.kind,
+          settings,
+          support: 'native',
+          reason: 'Photoshop 27 Color and Vibrance is mapped to its coupled measured LightTable node.'
+        };
+      }
       const settings = result('vibrance');
       settings.vibrance = source.vibrance ?? 0;
       settings.vibranceSaturation = source.saturation ?? 0;

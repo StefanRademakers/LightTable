@@ -128,6 +128,15 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('var lab = linearRgbToOklab(rgb);');
   });
 
+  it('evaluates current Photoshop Color and Vibrance as two coupled LUT stages', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('@binding(6) var colorVibranceWhiteBalanceLut');
+    expect(CREATIVE_GRADE_WGSL).toContain('@binding(7) var colorVibranceColorLut');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn applyPhotoshopColorVibrance');
+    expect(CREATIVE_GRADE_WGSL.indexOf('colorVibranceWhiteBalanceLut, encoded'))
+      .toBeLessThan(CREATIVE_GRADE_WGSL.indexOf('colorVibranceColorLut, encoded'));
+    expect(CREATIVE_GRADE_WGSL).toContain('if (kind == 15u)');
+  });
+
   it('uses one shared smooth scene-to-display transform instead of the old gamut clamp', () => {
     expect(OUTPUT_TRANSFORM_WGSL).toContain('fn sceneToDisplay');
     expect(OUTPUT_TRANSFORM_WGSL).toContain('fn displayShoulder');

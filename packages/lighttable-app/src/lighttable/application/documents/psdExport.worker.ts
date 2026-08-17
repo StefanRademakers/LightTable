@@ -6,6 +6,7 @@ import { projectDocumentToPsd } from './psdExportProjection';
 import { appendPsdImageResource } from './psdImageResourceWriter';
 import { srgbIccProfileBytes } from '../../editor/color/srgbIccProfile';
 import type { PsdExportRequest, PsdExportResponse } from './psdExportProtocol';
+import { writePsdColorVibranceDescriptors } from './psdColorVibranceWriter';
 
 const { initializeCanvas, writePsdUint8Array } = agPsd;
 initializeCanvas(
@@ -48,7 +49,7 @@ self.onmessage = async (event: MessageEvent<PsdExportRequest>) => {
     })));
     const projection = projectDocumentToPsd(request.document, composite, assets, lutAssets);
     const psb = request.document.width > 30_000 || request.document.height > 30_000;
-    const encoded = writePsdUint8Array(projection.psd, {
+    const encoded = writePsdColorVibranceDescriptors(writePsdUint8Array(projection.psd, {
       psb,
       // Electron's module-worker ImageData brand is not accepted by the
       // OffscreenCanvas context used inside ag-psd's optional thumbnail path.
@@ -60,7 +61,7 @@ self.onmessage = async (event: MessageEvent<PsdExportRequest>) => {
       compress: false,
       invalidateTextLayers: false,
       logMissingFeatures: false
-    });
+    }), projection.psd.children);
     // PSD resource 1039 is not exposed by ag-psd's production handler set.
     // Append the compact CC0 sRGB profile after encoding so Photoshop never
     // has to guess the release-candidate export color space.

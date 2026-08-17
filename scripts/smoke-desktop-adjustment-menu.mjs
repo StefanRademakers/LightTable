@@ -16,6 +16,7 @@ await mkdir(userData, { recursive: true });
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const pageErrors = [];
+const consoleErrors = [];
 const app = await electron.launch({
   executablePath: launch.executablePath,
   args: launch.args,
@@ -27,6 +28,9 @@ const app = await electron.launch({
 try {
   const page = await app.firstWindow({ timeout: 30_000 });
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
   await page.setViewportSize({ width: 820, height: 620 });
   await waitForDesktopLauncher({
     app,
@@ -59,7 +63,7 @@ try {
   ));
   if (!isPortal) throw new Error('The adjustment menu is still owned by the Layers panel DOM.');
 
-  for (const label of ['Grade', 'Lens Fx', 'Curves', 'Exposure', 'Selective Color']) {
+  for (const label of ['Grade', 'Lens Fx', 'Color and Vibrance', 'Curves', 'Exposure', 'Selective Color']) {
     await menu.getByRole('menuitem', { name: `New ${label}${[
       'Grade', 'Lens Fx'
     ].includes(label) ? '' : ' adjustment'} layer`, exact: true })
@@ -88,8 +92,19 @@ try {
   if (await levels.locator('input[type="range"]').count() !== 5) {
     throw new Error('Levels does not expose the expected five combined range handles.');
   }
+  await trigger.click();
+  await page.getByRole('menu', { name: 'New fill or processing layer' })
+    .getByRole('menuitem', { name: 'New Color and Vibrance adjustment layer', exact: true })
+    .click();
+  const colorVibrance = page.getByRole('complementary', { name: 'Color and Vibrance properties' });
+  await colorVibrance.waitFor({ state: 'visible' });
+  if (await colorVibrance.locator('input[type="range"]').count() !== 4) {
+    throw new Error('Color and Vibrance does not expose its four coupled controls.');
+  }
   await page.screenshot({ path: levelsScreenshotPath });
-  if (pageErrors.length) throw new Error(`Renderer errors: ${JSON.stringify(pageErrors)}`);
+  if (pageErrors.length || consoleErrors.length) {
+    throw new Error(`Renderer errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
+  }
 
   await writeFile(reportPath, `${JSON.stringify({
     bounds,
@@ -97,7 +112,9 @@ try {
     portalOwned: isPortal,
     attachedExposure: true,
     attachedLevels: true,
-    pageErrors
+    colorVibranceLayer: true,
+    pageErrors,
+    consoleErrors
   }, null, 2)}\n`);
   process.stdout.write(`Adjustment menu smoke passed. Report: ${reportPath}\n`);
 } finally {

@@ -116,6 +116,13 @@ const photoshopAdjustment = (
       type: 'vibrance', vibrance: settings.vibrance,
       saturation: settings.vibranceSaturation
     };
+    case 'color-vibrance': return {
+      type: 'vibrance', vibrance: settings.colorVibranceVibrance,
+      saturation: settings.colorVibranceSaturation,
+      temperature: settings.colorVibranceTemperature,
+      tint: settings.colorVibranceTint,
+      useLegacy: false
+    } as PsdAdjustment;
     case 'hue-saturation': return {
       type: 'hue/saturation',
       master: settings.colorize ? {
@@ -261,9 +268,6 @@ export const exportAdjustmentStackToPsd = (
       }))
     };
   }
-  if (effectiveKind === 'color-vibrance') return {
-    type: 'vibrance', vibrance: adjustments.vibrance, saturation: adjustments.saturation
-  };
   if (!effectiveKind || !isPhotoshopAdjustmentKind(effectiveKind)) return null;
   return photoshopAdjustment(
     { ...adjustments.photoshopAdjustment, kind: effectiveKind },

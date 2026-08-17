@@ -92,6 +92,7 @@
     "capture:lighttable-adjustment-oracle": "node scripts/capture-lighttable-adjustment-oracle.mjs",
     "analyze:adjustment-oracle": "node scripts/analyze-adjustment-oracle.mjs",
     "generate:photoshop-brightness-contrast-lut": "node scripts/generate-photoshop-brightness-contrast-lut.mjs",
+    "generate:photoshop-color-vibrance-lut": "node scripts/generate-photoshop-color-vibrance-lut.mjs",
     "generate:psd-blend-corpus": "node scripts/generate-psd-blend-mode-corpus.mjs",
     "generate:psd-blend-color-matrix": "node scripts/generate-psd-blend-color-matrix.mjs",
     "audit:psd-blend-corpus": "node scripts/audit-psd-blend-mode-corpus.mjs",

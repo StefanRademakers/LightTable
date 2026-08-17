@@ -536,3 +536,37 @@ the measured intent: lower-saturation colors receive more effect, highly
 saturated colors are protected from clipping, and skin tones receive
 additional protection. No LUT texture, readback, or additional compositor pass
 is used.
+
+## Color and Vibrance
+
+Status: accepted as a separate Photoshop 27 semantic node; it does not replace
+or alter native Grade. Photoshop stores this newer adjustment in the same
+`vibA` PSD block as classic Vibrance, distinguished by `useLegacy: false` and
+the additional `temperature` and `tint` descriptor fields.
+
+Oracle measurements show two coupled operations in a fixed order:
+Temperature and Tint form a white-balance stage, followed by a combined
+Vibrance and Saturation stage. Treating the four sliders as independent curves
+loses gamut-dependent interactions at large values. LightTable therefore uses
+two measured 9x9x9 RGB LUT stages, interpolated over dense Temperature/Tint and
+Vibrance/Saturation parameter grids. This retains Photoshop's soft range
+falloffs and clipping protection without changing Grade's deliberately broader
+OKLab controls. The two active GPU textures consume approximately 5.8 KiB per
+node and require no CPU readback or extra compositor pass.
+
+| Corpus | Profile / depth | Cases | Visual parity | Individual 95% gate |
+| --- | --- | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 27 | 98.883% | 26 / 27 |
+| `D:\face.jpg`, combined signed 80 extremes | sRGB / 8-bit | 2 | 98.079% | 2 / 2 |
+
+The diagnostic worst case is combined positive 80 at 93.35%; the photographic
+cases pass the visual gate. A dense 10-point white-balance parameter grid also
+reaches 98.8% on the unseen `temperature=-91, tint=37` face case. These tests
+deliberately include zero, signed 20/80/100 extremes, combined extremes, and
+off-grid parameter values rather than validating only small slider moves.
+
+PSD import reads the extended descriptor before ag-psd normalizes it to classic
+Vibrance. PSD export restores `temperature`, `tint`, `useLegacy: false`,
+`vibrance`, and `Strt`, while classic Vibrance continues to roundtrip unchanged.
+The descriptor postprocessor is intentionally PSD-v1-only; LightTable does not
+currently emit PSB unless either canvas dimension exceeds 30,000 pixels.
