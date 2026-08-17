@@ -82,7 +82,6 @@ interface LayerPanelProps {
   onCreateAdjustment: () => void;
   onCreateCurvesAdjustment: () => void;
   onCreateLocalProcessing: (layerId: LayerId, kind: LocalProcessingKind) => void;
-  onCreateGradientFill: () => void;
   onCreateAdjustmentKind: (kind: AdjustmentLayerKind) => void;
   onCreateAttachedAdjustment: (layerId: LayerId, kind: AdjustmentLayerKind) => string | null;
   onCreateGroup: () => void;
@@ -160,17 +159,13 @@ const parseLayerSubtarget = (value: string): LayerSubtarget | null => {
 
 export const LAYER_CREATION_OPTIONS = [
   ...adjustmentLayerMenuDefinitionGroups().flatMap((group, groupIndex) =>
-    group.map((definition, definitionIndex) => ({
+    group.filter((definition) => definition.id !== 'grain').map((definition, definitionIndex) => ({
       id: definition.id,
       label: `New ${definition.name}${definition.family === 'photoshop' ? ' adjustment' : ''} layer`,
       menuLabel: definition.menuLabel,
       iconName: definition.iconName,
       sectionStart: groupIndex > 0 && definitionIndex === 0
-    }))),
-  {
-    id: 'gradient-fill', label: 'New Gradient Fill layer', menuLabel: 'Gradient Fill',
-    iconName: 'tool_gradient.png', sectionStart: true
-  }
+    })))
 ] as const;
 
 const visualLayerRows = (
@@ -189,6 +184,9 @@ const visualLayerRows = (
 /** Root Lens FX control layers live in the fixed document-final UI zone. */
 export const layerIsDocumentFx = (layer: LayerNode): boolean =>
   layer.type === 'adjustment' && adjustmentLayerUsesDocumentFinalEffects(layer);
+
+export const layerHasAnyLock = (layer: LayerNode): boolean =>
+  Object.values(layer.locks).some(Boolean);
 
 const layerTypeIcon = (layer: LayerNode) => {
   if (layer.type === 'group') return lightTableIcon('layer_group.png');
@@ -242,7 +240,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onCreateAdjustment,
   onCreateCurvesAdjustment,
   onCreateLocalProcessing,
-  onCreateGradientFill,
   onCreateAdjustmentKind,
   onCreateAttachedAdjustment,
   onCreateGroup,
@@ -382,7 +379,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     onInspectDocumentProcessing('grade');
   };
   const layerCreationHandlers = (id: (typeof LAYER_CREATION_OPTIONS)[number]['id']) => {
-    if (id === 'gradient-fill') return onCreateGradientFill;
     if (id === 'grade') return onCreateAdjustment;
     if (id === 'curves') return onCreateCurvesAdjustment;
     return () => onCreateAdjustmentKind(id);
@@ -1362,7 +1358,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   title="Document FX — fixed after layer compositing"
                 />
               ) : null}
-              {layer.locks.all ? <img className="lighttable-layer__lock" src={lightTableIcon('lock_closed.png')} alt="Locked" /> : null}
+              {layerHasAnyLock(layer) ? (
+                <img
+                  className="lighttable-layer__lock"
+                  src={lightTableIcon('lock_closed.png')}
+                  alt="Layer has locked properties"
+                  title={layer.locks.all ? 'Layer locked' : 'Some layer properties locked'}
+                />
+              ) : null}
             </span>
             {layer.type !== 'group' && hasExpandableChildren ? (
               <ButtonBase
@@ -1626,8 +1629,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     <img src={lightTableIcon(option.iconName)} alt="" aria-hidden="true" />
                     <span>{option.menuLabel}</span>
                   </ButtonBase>
-                  {option.id !== 'gradient-fill' ? (
-                    <ButtonBase
+                  <ButtonBase
                       className="lighttable-layers__create-attached"
                       type="button"
                       role="menuitem"
@@ -1651,7 +1653,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       title={`Attach ${option.menuLabel} to selected layer`}
                       aria-label={`Attach ${option.menuLabel} to selected layer`}
                     ><img src={lightTableIcon('link_vertical.png')} alt="" aria-hidden="true" /></ButtonBase>
-                  ) : null}
                 </div>
               ))}
             </AnchoredViewportMenu>

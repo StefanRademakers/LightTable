@@ -131,7 +131,6 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onCreateAdjustment={controller.createAdjustmentLayer}
         onCreateCurvesAdjustment={controller.createCurvesAdjustmentLayer}
         onCreateLocalProcessing={controller.createLocalProcessing}
-        onCreateGradientFill={controller.createGradientFillLayer}
         onCreateAdjustmentKind={controller.createAdjustmentLayerOfKind}
         onCreateAttachedAdjustment={controller.createAttachedAdjustment}
         onCreateGroup={controller.createGroup}

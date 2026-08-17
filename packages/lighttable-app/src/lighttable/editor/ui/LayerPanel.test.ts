@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LayerNode } from '../document/documentTypes';
-import { LAYER_CREATION_OPTIONS, layerIsDocumentFx } from './LayerPanel';
+import { LAYER_CREATION_OPTIONS, layerHasAnyLock, layerIsDocumentFx } from './LayerPanel';
 import { localProcessingTreeItems } from './LocalProcessingTreeRows';
 import { createAdjustmentLayer } from '../document/documentTypes';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
@@ -23,21 +23,29 @@ describe('LayerPanel creation flyout', () => {
     expect(layerIsDocumentFx(lensFx)).toBe(false);
   });
 
-  it('orders processing and fill layers vertically and uses the gradient tool icon', () => {
+  it('summarizes every individual layer lock in the layer row', () => {
+    const layer = createAdjustmentLayer(
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'Grade'
+    );
+    expect(layerHasAnyLock(layer)).toBe(false);
+    layer.locks.position = true;
+    expect(layerHasAnyLock(layer)).toBe(true);
+  });
+
+  it('orders processing layers and leaves Gradient Fill and Lens FX Grain to their tools', () => {
     expect(LAYER_CREATION_OPTIONS.map(({ id }) => id)).toEqual([
       'grade', 'brightness-contrast', 'levels', 'curves', 'exposure',
       'color-vibrance', 'hue-saturation', 'color-balance', 'black-white',
       'photo-filter', 'channel-mixer', 'color-lookup', 'invert', 'posterize',
-      'threshold', 'gradient-map', 'selective-color', 'clarity-dehaze',
-      'grain', 'gradient-fill'
+      'threshold', 'gradient-map', 'selective-color', 'clarity-dehaze'
     ]);
     expect(LAYER_CREATION_OPTIONS.filter(({ sectionStart }) => sectionStart).map(({ id }) => id))
-      .toEqual(['brightness-contrast', 'color-vibrance', 'invert', 'clarity-dehaze', 'gradient-fill']);
-    expect(LAYER_CREATION_OPTIONS.find(({ id }) => id === 'gradient-fill'))
-      .toMatchObject({ iconName: 'tool_gradient.png' });
+      .toEqual(['brightness-contrast', 'color-vibrance', 'invert', 'clarity-dehaze']);
     expect(LAYER_CREATION_OPTIONS.find(({ id }) => id === 'curves'))
       .toMatchObject({ iconName: 'adjustment_curves.svg' });
     expect(LAYER_CREATION_OPTIONS.some(({ id }) => id === 'lens-fx')).toBe(false);
+    expect(LAYER_CREATION_OPTIONS.some(({ id }) => id === 'grain')).toBe(false);
   });
 
   it('projects a layer-local Grade as an expandable child instead of a status badge', () => {

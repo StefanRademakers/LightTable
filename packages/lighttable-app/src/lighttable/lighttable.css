@@ -3078,7 +3078,7 @@
 }
 
 .lighttable-layers__locks button:hover,
-.lighttable-layers__lock-toggle--active {
+.lighttable-layers__locks button.lighttable-layers__lock-toggle--active {
   border-color: var(--lt-border-strong);
   background: var(--lt-surface-control);
 }

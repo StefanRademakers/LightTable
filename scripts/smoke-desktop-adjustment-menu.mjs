@@ -145,6 +145,26 @@ try {
   }
   await page.getByRole('treeitem', { name: /Background/ }).click();
   await layersPanel.getByLabel('Layer blend mode').waitFor({ state: 'visible' });
+  const transparencyLock = layersPanel.getByRole('button', { name: 'Lock transparent pixels' });
+  await transparencyLock.hover();
+  const hoverLockStyle = await transparencyLock.evaluate((button) => {
+    const style = getComputedStyle(button);
+    return { background: style.backgroundColor, border: style.borderColor };
+  });
+  await transparencyLock.click();
+  await layersPanel.getByAltText('Layer has locked properties').waitFor({ state: 'visible' });
+  const activeLockStyle = await transparencyLock.evaluate((button) => {
+    const style = getComputedStyle(button);
+    return { background: style.backgroundColor, border: style.borderColor };
+  });
+  if (activeLockStyle.background !== hoverLockStyle.background
+    || activeLockStyle.border !== hoverLockStyle.border) {
+    throw new Error(`Active lock does not retain its hover style: ${JSON.stringify({ hoverLockStyle, activeLockStyle })}.`);
+  }
+  await transparencyLock.click();
+  if (await layersPanel.getByAltText('Layer has locked properties').count()) {
+    throw new Error('The layer-row lock summary remained after the final lock was cleared.');
+  }
 
   const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
   await trigger.click();
@@ -172,6 +192,12 @@ try {
   }
   if (await menu.getByRole('menuitem', { name: 'New Lens Fx layer', exact: true }).count()) {
     throw new Error('New Lens Fx layer is still exposed in the creation menu.');
+  }
+  if (await menu.getByRole('menuitem', { name: 'New Gradient Fill layer', exact: true }).count()) {
+    throw new Error('Gradient Fill is still exposed in the processing-layer menu.');
+  }
+  if (await menu.getByRole('menuitem', { name: /^New Grain(?: adjustment)? layer$/ }).count()) {
+    throw new Error('Lens FX Grain is still exposed as a standalone adjustment layer.');
   }
   const attachExposure = menu.getByRole('menuitem', {
     name: 'Attach Exposure to selected layer', exact: true
