@@ -59,6 +59,10 @@ describe('LightTable adjustment uniform packing', () => {
     expect([...packed.slice(96, 100)]).toEqual([
       0, 0.25, 0.5, expect.closeTo(0.4)
     ]);
+
+    settings.gradientMap.photoshopCompatible = true;
+    const compatible = buildAdjustmentUniform(settings, 100, 50, true);
+    expect(compatible[63]).toBe(19);
   });
 
   it('packs a dedicated Photoshop Exposure payload after the native ABI', () => {

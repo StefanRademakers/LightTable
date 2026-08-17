@@ -374,6 +374,8 @@ export const createLayerDocumentCommands = (
     if (kind === 'curves') source.curves.interpolation = 'photoshop-natural';
     if (kind === 'gradient-map' && source.gradientMap) {
       source.gradientMap.enabled = true;
+      source.gradientMap.interpolation = 'classic';
+      source.gradientMap.photoshopCompatible = true;
     }
     if (kind === 'grain') source.effects.grain.enabled = true;
     const stack = selectAdjustmentLayerModules(adjustmentStackForScope(
@@ -423,7 +425,11 @@ export const createLayerDocumentCommands = (
     const definition = adjustmentLayerDefinition(kind);
     if (definition.photoshopKind) source.photoshopAdjustment.kind = definition.photoshopKind;
     if (kind === 'curves') source.curves.interpolation = 'photoshop-natural';
-    if (kind === 'gradient-map' && source.gradientMap) source.gradientMap.enabled = true;
+    if (kind === 'gradient-map' && source.gradientMap) {
+      source.gradientMap.enabled = true;
+      source.gradientMap.interpolation = 'classic';
+      source.gradientMap.photoshopCompatible = true;
+    }
     if (kind === 'grain') source.effects.grain.enabled = true;
     const adjustmentStack = selectAdjustmentLayerModules(adjustmentStackForScope(
       createAdjustmentStackFromBasicAdjustments(source),

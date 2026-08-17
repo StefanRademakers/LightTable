@@ -600,6 +600,8 @@ describe('importPsdDocument', () => {
       enabled: true,
       reverse: true,
       dither: true,
+      interpolation: 'classic',
+      photoshopCompatible: true,
       colorStops: [
         { position: 0, midpoint: 0.4 },
         { position: 1, midpoint: 0.5 }

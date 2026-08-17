@@ -24,6 +24,8 @@ export interface GradientMapAdjustments {
   enabled: boolean;
   reverse: boolean;
   dither: boolean;
+  interpolation?: 'classic' | 'perceptual' | 'linear' | 'smooth';
+  photoshopCompatible?: boolean;
   colorStops: GradientMapStop[];
   opacityStops: GradientMapOpacityStop[];
 }
@@ -32,6 +34,8 @@ export const createDefaultGradientMap = (): GradientMapAdjustments => ({
   enabled: false,
   reverse: false,
   dither: false,
+  interpolation: 'classic',
+  photoshopCompatible: false,
   colorStops: [
     { position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0 } },
     { position: 1, midpoint: 0.5, color: { r: 1, g: 1, b: 1 } }

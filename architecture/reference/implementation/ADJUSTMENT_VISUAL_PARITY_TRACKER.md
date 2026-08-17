@@ -437,3 +437,36 @@ Relative versus Absolute semantics in its
 [Selective Color documentation](https://helpx.adobe.com/photoshop/using/mix-colors.html).
 The range and correction equations were cross-checked against FFmpeg's
 [Photoshop-derived Selective Color implementation](https://chromium.googlesource.com/chromium/third_party/ffmpeg/+/master/libavfilter/vf_selectivecolor.c).
+
+## Gradient Map
+
+Status: accepted for Photoshop Classic descriptors; explicit Perceptual,
+Linear, Smooth, noise-gradient, and dither-pattern parity remain separate work.
+
+Photoshop's classic Gradient Map maps encoded-document blend luminosity through
+a symmetric cubic color ramp. For a normalized segment amount `t`, its measured
+curve is `t + 0.5*t*(1-t)*(2*t-1)`. Segment midpoint metadata belongs to the
+right-hand stop, unlike the native Grade widget's existing left-stop contract.
+LightTable previously used encoded Rec.709 linear-light luminance, linear color
+interpolation, and left-stop midpoint ownership.
+
+The corrected renderer activates these semantics only for Photoshop-compatible
+Gradient Map nodes. Existing Grade gradients keep their prior interpolation,
+opacity, and midpoint behavior. Photoshop also preserves opacity-stop metadata
+in Gradient Map PSD descriptors but ignores it during adjustment rendering;
+two independent transparency probes were pixel-identical to their fully opaque
+counterparts. Imported Photoshop Gradient Maps therefore use opaque internal
+stops, while native Grade gradients continue to support functional opacity.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Within two code values |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 9 | 0.353% | 2.622% | 99.647% | 8 / 9 |
+| `D:\people.jpg` | sRGB / 16-bit | 9 | 0.485% | 2.580% | 99.515% | 8 / 9 |
+
+The corpus covers black/white, Reverse, midpoint 20/80, red/blue,
+blue/orange, three stops with extreme midpoints, and two adversarial opacity
+layouts. All 18 renders pass the 5-percent gate. The three-stop extreme is the
+only case outside two code values. Adobe documents Classic as cubic,
+Perceptual as OKLab, Linear as linear-color interpolation, and confirms that
+Gradient Maps participate in these modes in its
+[Gradient interpolation guide](https://helpx.adobe.com/sg/photoshop/using/gradient-interpolation.html).

@@ -76,7 +76,10 @@ export const buildAdjustmentUniform = (
     gradientMap?.enabled ? 1 : 0,
     colorStops.length,
     opacityStops.length,
-    (gradientMap?.reverse ? 1 : 0) + (gradientMap?.dither ? 2 : 0)
+    (gradientMap?.reverse ? 1 : 0)
+      + (gradientMap?.dither ? 2 : 0)
+      + (gradientMap?.interpolation === 'perceptual' ? 4 : gradientMap?.interpolation === 'linear' ? 8 : 0)
+      + (gradientMap?.photoshopCompatible ? 16 : 0)
   ], 60);
   colorStops.forEach((stop, index) => packed.set([
     stop.color.r, stop.color.g, stop.color.b, stop.position

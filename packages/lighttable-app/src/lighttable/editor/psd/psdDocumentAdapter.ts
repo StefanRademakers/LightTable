@@ -627,8 +627,14 @@ const importPsdAdjustment = (
         enabled: true,
         reverse: source.reverse ?? false,
         dither: source.dither ?? false,
+        // ag-psd reports its Perceptual fallback even when the PSD has no
+        // explicit method key; Photoshop renders that legacy descriptor as Classic.
+        interpolation: 'classic',
+        photoshopCompatible: true,
         colorStops,
-        opacityStops: (source.opacityStops?.length ? source.opacityStops : [
+        // Photoshop retains gradient transparency metadata in a Gradient Map
+        // descriptor but does not apply it to the adjustment output.
+        opacityStops: ([
           { location: 0, midpoint: 50, opacity: 100 },
           { location: 4096, midpoint: 50, opacity: 100 }
         ]).map((stop) => ({

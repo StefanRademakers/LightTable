@@ -13,6 +13,10 @@ fn gradientMidpointAmount(amount: f32, midpoint: f32) -> f32 {
   );
 }
 
+fn photoshopClassicGradientAmount(amount: f32) -> f32 {
+  return amount + 0.5 * amount * (1.0 - amount) * (2.0 * amount - 1.0);
+}
+
 fn gradientMapColorAt(position: f32) -> vec3f {
   let count = u32(adjustments.gradientMapControls.y + 0.5);
   if (count == 0u) { return vec3f(position); }
@@ -29,7 +33,10 @@ fn gradientMapColorAt(position: f32) -> vec3f {
     0.0,
     lower == upper
   );
-  amount = gradientMidpointAmount(amount, adjustments.gradientMapOpacity[lower].w);
+  let flags = u32(adjustments.gradientMapControls.w + 0.5);
+  let midpoint = select(adjustments.gradientMapOpacity[lower].w, adjustments.gradientMapOpacity[upper].w, (flags & 16u) != 0u);
+  amount = gradientMidpointAmount(amount, midpoint);
+  if ((flags & 16u) != 0u) { amount = photoshopClassicGradientAmount(amount); }
   return vec3f(
     curveDomainToLinear(mix(first.r, second.r, amount)),
     curveDomainToLinear(mix(first.g, second.g, amount)),
@@ -53,7 +60,9 @@ fn gradientMapOpacityAt(position: f32) -> f32 {
     0.0,
     lower == upper
   );
-  amount = gradientMidpointAmount(amount, first.z);
+  let flags = u32(adjustments.gradientMapControls.w + 0.5);
+  let midpoint = select(first.z, second.z, (flags & 16u) != 0u);
+  amount = gradientMidpointAmount(amount, midpoint);
   return mix(first.y, second.y, amount);
 }
 
@@ -61,11 +70,21 @@ fn applyGradientMap(rgb: vec3f, pixel: vec2f) -> vec3f {
   if (adjustments.gradientMapControls.x < 0.5) { return rgb; }
   let flags = u32(adjustments.gradientMapControls.w + 0.5);
   var position = clamp(linearToCurveDomain(max(luminance(rgb), 0.0)), 0.0, 1.0);
+  if ((flags & 16u) != 0u) {
+    position = clamp(photoshopBlendLuminosity(photoshopLinearSrgbToEncodedDocument(rgb)), 0.0, 1.0);
+  }
   if ((flags & 2u) != 0u) {
     let noise = fract(sin(dot(pixel, vec2f(12.9898, 78.233))) * 43758.5453) - 0.5;
     position = clamp(position + noise / 255.0, 0.0, 1.0);
   }
   if ((flags & 1u) != 0u) { position = 1.0 - position; }
-  return mix(rgb, gradientMapColorAt(position), gradientMapOpacityAt(position));
+  let mapped = gradientMapColorAt(position);
+  let opacity = gradientMapOpacityAt(position);
+  if ((flags & 16u) != 0u) {
+    let encodedSource = photoshopLinearSrgbToEncodedDocument(rgb);
+    let encodedMapped = photoshopLinearSrgbToEncodedDocument(mapped);
+    return photoshopEncodedDocumentToLinearSrgb(mix(encodedSource, encodedMapped, opacity));
+  }
+  return mix(rgb, mapped, opacity);
 }
 `;

@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer', 'selective-color', 'invert', 'posterize', 'threshold')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer', 'selective-color', 'gradient-map', 'invert', 'posterize', 'threshold')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -307,6 +307,23 @@ for ($rangeIndex = 0; $rangeIndex -lt $selectiveRangeNames.Count; $rangeIndex++)
     @{ id="$rangeName-absolute-mix"; rangeIndex=$rangeIndex; cmyk=@(80,-60,40,100); method='absolute' }
   )
 }
+$blackStop = @{ location=0; midpoint=50; color=@(0,0,0) }
+$whiteStop = @{ location=4096; midpoint=50; color=@(255,255,255) }
+$opaqueStops = @(
+  @{ location=0; midpoint=50; opacity=100 },
+  @{ location=4096; midpoint=50; opacity=100 }
+)
+$gradientMapCases = @(
+  @{ id='black-white'; reverse=$false; dither=$false; colorStops=@($blackStop,$whiteStop); opacityStops=$opaqueStops },
+  @{ id='black-white-reverse'; reverse=$true; dither=$false; colorStops=@($blackStop,$whiteStop); opacityStops=$opaqueStops },
+  @{ id='black-white-midpoint-20'; reverse=$false; dither=$false; colorStops=@($blackStop,@{ location=4096; midpoint=20; color=@(255,255,255) }); opacityStops=$opaqueStops },
+  @{ id='black-white-midpoint-80'; reverse=$false; dither=$false; colorStops=@($blackStop,@{ location=4096; midpoint=80; color=@(255,255,255) }); opacityStops=$opaqueStops },
+  @{ id='red-blue'; reverse=$false; dither=$false; colorStops=@(@{ location=0; midpoint=50; color=@(255,0,0) },@{ location=4096; midpoint=50; color=@(0,0,255) }); opacityStops=$opaqueStops },
+  @{ id='blue-orange-opaque'; reverse=$false; dither=$false; colorStops=@(@{ location=0; midpoint=50; color=@(0,64,255) },@{ location=4096; midpoint=50; color=@(255,128,0) }); opacityStops=$opaqueStops },
+  @{ id='three-stop-extreme'; reverse=$false; dither=$false; colorStops=@(@{ location=0; midpoint=20; color=@(0,0,255) },@{ location=1024; midpoint=80; color=@(255,0,0) },@{ location=4096; midpoint=50; color=@(255,255,255) }); opacityStops=$opaqueStops },
+  @{ id='opacity-left-zero'; reverse=$false; dither=$false; colorStops=@($blackStop,$whiteStop); opacityStops=@(@{ location=0; midpoint=50; opacity=0 },@{ location=4096; midpoint=50; opacity=100 }) },
+  @{ id='opacity-three-stop'; reverse=$false; dither=$false; colorStops=@(@{ location=0; midpoint=50; color=@(0,64,255) },@{ location=4096; midpoint=50; color=@(255,128,0) }); opacityStops=@(@{ location=0; midpoint=20; opacity=100 },@{ location=2048; midpoint=80; opacity=0 },@{ location=4096; midpoint=50; opacity=100 }) }
+)
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
 } elseif ($Adjustment -eq 'levels') { $levelsCases }
@@ -317,6 +334,7 @@ elseif ($Adjustment -eq 'black-white') { $blackWhiteCases }
 elseif ($Adjustment -eq 'photo-filter') { $photoFilterCases }
 elseif ($Adjustment -eq 'channel-mixer') { $channelMixerCases }
 elseif ($Adjustment -eq 'selective-color') { $selectiveColorCases }
+elseif ($Adjustment -eq 'gradient-map') { $gradientMapCases }
 elseif ($Adjustment -eq 'invert') { $invertCases }
 elseif ($Adjustment -eq 'posterize') { $posterizeCases }
 elseif ($Adjustment -eq 'threshold') { $thresholdCases }
@@ -581,6 +599,51 @@ $matrixDescriptors
   adjustment.putList(c2t('ClrC'), corrections);
   adjustment.putEnumerated(c2t('Mthd'), c2t('CrcM'), c2t('$(if ($case.method -eq 'absolute') { 'Absl' } else { 'Rltv' })'));
   adjustmentLayer.putObject(s2t('type'), c2t('SlcC'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'gradient-map') {
+      $colorStopCalls = ($case.colorStops | ForEach-Object {
+@"
+  addColorStop(colors, $($_.location), $($_.midpoint), $($_.color[0]), $($_.color[1]), $($_.color[2]));
+"@
+      }) -join ''
+      $opacityStopCalls = ($case.opacityStops | ForEach-Object {
+@"
+  addOpacityStop(opacity, $($_.location), $($_.midpoint), $($_.opacity));
+"@
+      }) -join ''
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putBoolean(c2t('Dthr'), $(if ($case.dither) { 'true' } else { 'false' }));
+  adjustment.putBoolean(c2t('Rvrs'), $(if ($case.reverse) { 'true' } else { 'false' }));
+  adjustment.putEnumerated(s2t('gradientsInterpolationMethod'), s2t('gradientInterpolationMethodType'), s2t('classic'));
+  var gradient = new ActionDescriptor();
+  gradient.putString(c2t('Nm  '), 'LightTable parity');
+  gradient.putEnumerated(c2t('GrdF'), c2t('GrdF'), c2t('CstS'));
+  gradient.putBoolean(c2t('ShTr'), true);
+  gradient.putDouble(c2t('Intr'), 4096);
+  function addColorStop(list, location, midpoint, red, green, blue) {
+    var stop = new ActionDescriptor();
+    var color = new ActionDescriptor();
+    color.putDouble(c2t('Rd  '), red); color.putDouble(c2t('Grn '), green); color.putDouble(c2t('Bl  '), blue);
+    stop.putObject(c2t('Clr '), s2t('RGBColor'), color);
+    stop.putEnumerated(c2t('Type'), c2t('Clry'), c2t('UsrS'));
+    stop.putInteger(c2t('Lctn'), location); stop.putInteger(c2t('Mdpn'), midpoint);
+    list.putObject(c2t('Clrt'), stop);
+  }
+  function addOpacityStop(list, location, midpoint, value) {
+    var stop = new ActionDescriptor();
+    stop.putUnitDouble(c2t('Opct'), c2t('#Prc'), value);
+    stop.putInteger(c2t('Lctn'), location); stop.putInteger(c2t('Mdpn'), midpoint);
+    list.putObject(c2t('TrnS'), stop);
+  }
+  var colors = new ActionList();
+$colorStopCalls
+  gradient.putList(c2t('Clrs'), colors);
+  var opacity = new ActionList();
+$opacityStopCalls
+  gradient.putList(c2t('Trns'), opacity);
+  adjustment.putObject(c2t('Grad'), c2t('Grdn'), gradient);
+  adjustmentLayer.putObject(s2t('type'), c2t('GdMp'), adjustment);
 "@
     } elseif ($Adjustment -eq 'photo-filter') {
       $adjustmentDescriptor = @"

@@ -400,6 +400,12 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).not.toContain('let familyWeight = select(chroma');
   });
 
+  it('keeps Photoshop Gradient Map cubic interpolation separate from native Grade gradients', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('fn photoshopClassicGradientAmount(amount: f32)');
+    expect(CREATIVE_GRADE_WGSL).toContain('(flags & 16u) != 0u');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopBlendLuminosity(photoshopLinearSrgbToEncodedDocument(rgb))');
+  });
+
   it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');
