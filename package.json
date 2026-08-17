@@ -111,6 +111,7 @@
     "smoke:desktop:layer-subtargets": "node scripts/smoke-desktop-layer-subtargets.mjs",
     "smoke:desktop:adjustment-menu": "node scripts/smoke-desktop-adjustment-menu.mjs",
     "smoke:desktop:color-vibrance-ui": "node scripts/smoke-desktop-color-vibrance-ui.mjs",
+    "smoke:desktop:lens-fx-ui": "node scripts/smoke-desktop-lens-fx-ui.mjs",
     "smoke:desktop:screen-modes:build": "npm run package:desktop:verify && npm run smoke:desktop:screen-modes --",
     "smoke:desktop:ui-style-guide": "node scripts/smoke-desktop-ui-style-guide.mjs",
     "smoke:desktop:base-ui-boundary": "node scripts/smoke-desktop-base-ui-boundary.mjs",

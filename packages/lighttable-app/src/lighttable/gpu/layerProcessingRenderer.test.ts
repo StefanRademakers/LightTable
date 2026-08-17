@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createAdjustmentLayer,
   createImageDocument,
   type RasterLayer
 } from '../editor/document/documentTypes';
@@ -71,6 +72,28 @@ describe('LayerProcessingRenderer', () => {
     );
 
     expect(renderer.encode(encoder, source, layer)).toBe(source);
+  });
+
+  it('defers Lens FX adjustment layers to the document-final runtime', () => {
+    const source = texture('source');
+    const stack = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'lens-fx'
+    );
+    const layer = createAdjustmentLayer(stack, 'Lens Fx', 'lens-fx');
+    const grade = { encode: vi.fn() };
+    const effects = {
+      encodeSourceGeometry: vi.fn(),
+      encodeLinearSpatial: vi.fn(),
+      encodeDisplayPost: vi.fn()
+    };
+    const renderer = new LayerProcessingRenderer(grade, effects);
+
+    expect(renderer.encode(encoder, source, layer)).toBe(source);
+    expect(grade.encode).not.toHaveBeenCalled();
+    expect(effects.encodeSourceGeometry).not.toHaveBeenCalled();
+    expect(effects.encodeLinearSpatial).not.toHaveBeenCalled();
+    expect(effects.encodeDisplayPost).not.toHaveBeenCalled();
   });
 
   it('exactly bypasses disabled processing owners', () => {

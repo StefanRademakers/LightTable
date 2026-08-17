@@ -2,6 +2,7 @@ import type { GradientPaintInstance } from '@lighttable/paint-core';
 import type { BasicAdjustments, LightTableImageMetadata } from '../types';
 import { CURVE_LUT_SIZE } from '../curves';
 import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
+import { composeDocumentFinalEffectStack } from '../effects/documentFinalEffectStack';
 import {
   LayerEffectRenderer,
   layerNeedsEffectRuntime
@@ -385,7 +386,13 @@ export class WebGpuEngine {
       pipelines.precisionSourceResolve
     );
     const effectCallbacks = {
-      requestRender: () => this.requestRender(),
+      requestRender: () => {
+        // Optional pipelines may become ready after the frame that first
+        // requested them was already cached. Re-open the complete effect
+        // chain so the realized feature cannot remain an invisible bypass.
+        this.renderDirty.invalidateCorrectionFrom('source-geometry');
+        this.requestRender();
+      },
       reportError: (featureId: string, message: string) => this.callbacks.onFeatureError?.(featureId, message)
     };
     this.documentRenderer = new LayerDocumentRenderer(
@@ -493,6 +500,7 @@ export class WebGpuEngine {
     measure('style-initialization', stageStartedAt);
     stageStartedAt = performance.now();
     this.adjustmentLayerResources.syncDocument(document);
+    this.synchronizeDocumentFinalEffects();
     measure('adjustment-resources', stageStartedAt);
     // The first layered document changes the shared shader input domain from
     // an encoded source image to a linear layer composite. Later document
@@ -538,6 +546,7 @@ export class WebGpuEngine {
     );
     this.documentRenderer.syncDocument(document);
     this.adjustmentLayerResources.syncDocument(document);
+    this.synchronizeDocumentFinalEffects();
     this.initializeLayerStylesIfNeeded(document);
     this.writeAdjustments();
     this.writeOutputSettings();
@@ -569,6 +578,7 @@ export class WebGpuEngine {
     );
     this.documentRenderer.syncDocument(document);
     this.adjustmentLayerResources.syncDocument(document);
+    this.synchronizeDocumentFinalEffects();
     this.markDocumentDirty();
   }
 
@@ -1649,7 +1659,10 @@ export class WebGpuEngine {
 
   private applyMaterializedAdjustments() {
     const effectChange = this.effectRuntime?.setAdjustmentStack(
-      this.adjustmentState.stackSnapshot()
+      composeDocumentFinalEffectStack(
+        this.adjustmentState.stackSnapshot(),
+        this.imageDocument
+      )
     );
     this.syncInteractiveRenderCadence();
     const payloadChange = this.syncAdjustmentPayload();
@@ -1668,12 +1681,25 @@ export class WebGpuEngine {
   }
 
   setDepthMap(depth: DepthAnalysisResult) {
-    if (!this.effectRuntime?.setDepthMap(depth)) return;
+    const documentChanged = this.effectRuntime?.setDepthMap(depth) ?? false;
+    const layerChanged = this.layerEffectRenderer?.setDepthMap(depth) ?? false;
+    if (!documentChanged && !layerChanged) return;
     this.writeOutputSettings();
+    if (layerChanged) {
+      this.markDocumentDirty();
+      return;
+    }
     this.renderDirty.invalidateCorrectionFrom('linear-spatial');
     this.renderDirty.invalidate('histogram');
     this.scopeRuntime.markImageDirty();
     this.requestRender();
+  }
+
+  private synchronizeDocumentFinalEffects() {
+    this.effectRuntime?.setAdjustmentStack(composeDocumentFinalEffectStack(
+      this.adjustmentState.stackSnapshot(),
+      this.imageDocument
+    ));
   }
 
   setBefore(before: boolean) {

@@ -120,6 +120,7 @@ describe('createAdjustmentCommands', () => {
     expect(harness.focusPickerActive()).toBe(false);
 
     harness.commands.setLensBlurEnabled(false);
+    expect(harness.publishLensBlurViewportMode).toHaveBeenCalledWith('result');
     expect(harness.adjustments().effects.lensBlur.enabled).toBe(false);
     expect(harness.focusPickerActive()).toBe(false);
   });

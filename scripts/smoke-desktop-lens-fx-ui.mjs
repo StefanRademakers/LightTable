@@ -1,0 +1,146 @@
+import { _electron as electron } from 'playwright-core';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import process from 'node:process';
+import sharp from 'sharp';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
+
+const workspace = path.resolve(import.meta.dirname, '..');
+const output = path.join(workspace, 'tmp', 'lens-fx-ui-smoke');
+const userData = path.join(output, `user-data-${process.pid}`);
+const sourcePath = process.argv[2] ?? 'D:\\face.jpg';
+const launch = await resolveDesktopTestLaunch(workspace);
+await mkdir(userData, { recursive: true });
+
+const difference = async (left, right) => {
+  const [a, b] = await Promise.all([
+    sharp(left).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(right).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  ]);
+  if (a.info.width !== b.info.width || a.info.height !== b.info.height) {
+    throw new Error('Lens FX comparison dimensions differ.');
+  }
+  let squared = 0;
+  for (let index = 0; index < a.data.length; index += 1) {
+    const delta = (a.data[index] - b.data[index]) / 255;
+    squared += delta * delta;
+  }
+  return Math.sqrt(squared / a.data.length);
+};
+
+const environment = { ...process.env, LIGHTTABLE_AUTOMATION_USER_DATA: userData };
+delete environment.ELECTRON_RUN_AS_NODE;
+const app = await electron.launch({
+  executablePath: launch.executablePath,
+  args: launch.args,
+  cwd: workspace,
+  env: environment,
+  timeout: 30_000
+});
+
+try {
+  const page = await app.firstWindow({ timeout: 30_000 });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.stack ?? error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const driver = await attachLightTableAutomation(page, 'lens-fx-ui-smoke');
+  const artifact = await driver.registerInputArtifact(
+    await readFile(sourcePath), path.basename(sourcePath), 'image/jpeg'
+  );
+  const opened = await driver.executeWorkspace('file.openArtifact', { artifactId: artifact.id });
+  const documentId = opened.value?.documentId;
+  if (!documentId) throw new Error('Opening the Lens FX source returned no document.');
+  await driver.waitForDocument(documentId, 120_000);
+  await driver.waitForLayers(documentId, 120_000);
+
+  const exportPng = async (name) => {
+    const accepted = await driver.execute(documentId, 'file.exportPng', {}, { requireCompleted: false });
+    const task = await driver.waitForTask(documentId, accepted.taskId, 120_000);
+    if (!task.artifact) throw new Error(`Export ${name} produced no artifact.`);
+    const png = await driver.readArtifact(task.artifact.id);
+    const target = path.join(output, `${name}.png`);
+    await writeFile(target, png.bytes);
+    return target;
+  };
+
+  const neutral = await exportPng('neutral');
+  await page.getByRole('button', { name: 'New fill or processing layer' }).click();
+  await page.getByRole('menu', { name: 'New fill or processing layer' })
+    .getByRole('menuitem', { name: 'New Lens Fx layer', exact: true })
+    .click();
+  await page.getByRole('switch', { name: 'Enable Lens Distortion' }).waitFor();
+
+  const metrics = {};
+  const bypassMetrics = {};
+  const exercise = async (effect, sliderLabel, key = 'End', prepare) => {
+    const enable = page.getByRole('switch', { name: `Enable ${effect}` });
+    const section = page.getByRole('button', { name: `Reset ${effect}` })
+      .locator('xpath=ancestor::section[1]');
+    await enable.click();
+    await prepare?.(section);
+    const slider = section.getByLabel(sliderLabel, { exact: true });
+    await slider.focus();
+    await slider.press(key);
+    await page.waitForTimeout(2_000);
+    const rendered = await exportPng(effect.toLowerCase().replaceAll(' ', '-'));
+    metrics[effect] = await difference(neutral, rendered);
+    await page.getByRole('switch', { name: `Disable ${effect}` }).click();
+    const bypassed = await exportPng(`${effect.toLowerCase().replaceAll(' ', '-')}-disabled`);
+    bypassMetrics[effect] = await difference(neutral, bypassed);
+  };
+
+  await exercise('Lens Distortion', 'Distortion');
+  await exercise('Chromatic Aberration', 'Amount');
+  await exercise('Halation', 'Amount', 'End', async (section) => {
+    const threshold = section.getByLabel('Threshold', { exact: true });
+    await threshold.focus();
+    await threshold.press('Home');
+  });
+  await exercise('Grain', 'Amount');
+
+  const lensBlurEnable = page.getByRole('switch', { name: 'Enable Lens Blur' });
+  const lensBlurSection = page.getByRole('button', { name: 'Reset Lens Blur' })
+    .locator('xpath=ancestor::section[1]');
+  await lensBlurEnable.click();
+  await page.waitForFunction(() => {
+    const text = document.body.textContent ?? '';
+    return text.includes('Depth ready') || text.includes('Depth analysis failed');
+  }, undefined, { timeout: 120_000 });
+  const depthStatus = await lensBlurSection.textContent();
+  if (!depthStatus?.includes('Depth ready')) {
+    throw new Error(`Lens Blur depth did not become ready: ${depthStatus}`);
+  }
+  const aperture = lensBlurSection.getByLabel('Aperture Size', { exact: true });
+  await aperture.focus();
+  await aperture.press('End');
+  const depthOfField = lensBlurSection.getByLabel('Depth of Field', { exact: true });
+  await depthOfField.focus();
+  await depthOfField.press('Home');
+  await page.waitForTimeout(2_000);
+  const lensBlur = await exportPng('lens-blur');
+  metrics['Lens Blur'] = await difference(neutral, lensBlur);
+  await lensBlurSection.getByRole('radio', { name: 'Depth', exact: true }).click();
+  const depthView = await exportPng('lens-blur-depth');
+  metrics['Lens Blur Depth View'] = await difference(lensBlur, depthView);
+  await page.getByRole('switch', { name: 'Disable Lens Blur' }).click();
+  const lensBlurBypassed = await exportPng('lens-blur-disabled');
+  bypassMetrics['Lens Blur'] = await difference(neutral, lensBlurBypassed);
+
+  await page.screenshot({ path: path.join(output, 'lens-fx-panel.png') });
+  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ sourcePath, metrics, bypassMetrics, errors }, null, 2)}\n`);
+  const actionableErrors = errors.filter((message) => !message.includes('[W:onnxruntime:'));
+  if (actionableErrors.length) throw new Error(`Renderer errors: ${JSON.stringify(actionableErrors)}`);
+  for (const [effect, value] of Object.entries(metrics)) {
+    if (value < 0.002) throw new Error(`${effect} did not materially change the production render (${value} RMSE).`);
+  }
+  for (const [effect, value] of Object.entries(bypassMetrics)) {
+    if (value > 0.000001) throw new Error(`${effect} did not return to exact bypass (${value} RMSE).`);
+  }
+  process.stdout.write(`Lens FX UI smoke: ${JSON.stringify({ metrics, bypassMetrics })}\n`);
+} finally {
+  await app.close().catch(() => undefined);
+}

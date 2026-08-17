@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createImageDocument, type RasterLayer } from '../editor/document/documentTypes';
-import type { AdjustmentStack } from '../processing/adjustmentStack';
+import { createAdjustmentLayer, createImageDocument, type RasterLayer } from '../editor/document/documentTypes';
+import { createAdjustmentStackFromBasicAdjustments, type AdjustmentStack } from '../processing/adjustmentStack';
+import { selectAdjustmentLayerModules } from '../processing/adjustmentLayerCatalog';
+import { createDefaultAdjustments } from '../types';
 import { WARP_NODE_TYPE, createDefaultWarpNodeSettings } from './warp/warpTypes';
 import { LayerEffectRenderer, layerNeedsEffectRuntime } from './LayerEffectRenderer';
 
@@ -48,6 +50,15 @@ describe('layerNeedsEffectRuntime', () => {
     });
 
     expect(layerNeedsEffectRuntime(layer)).toBe(false);
+  });
+
+  it('does not allocate a local runtime for a document-final Lens FX layer', () => {
+    const stack = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'lens-fx'
+    );
+    expect(layerNeedsEffectRuntime(createAdjustmentLayer(stack, 'Lens Fx', 'lens-fx')))
+      .toBe(false);
   });
 });
 

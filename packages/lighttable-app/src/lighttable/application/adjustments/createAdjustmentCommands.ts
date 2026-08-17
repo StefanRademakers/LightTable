@@ -362,7 +362,10 @@ export const createAdjustmentCommands = (
   const setLensBlurEnabled = (enabled: boolean) => {
     ports.endLensBlurInteraction();
     changeEffect('lensBlur', (current) => ({ ...current, enabled }));
-    if (!enabled) ports.setFocusPickerActive(false);
+    if (!enabled) {
+      ports.setFocusPickerActive(false);
+      ports.publishLensBlurViewportMode('result');
+    }
   };
 
   const setLensBlurShape = (shape: BokehShape) => {

@@ -6,6 +6,7 @@ import {
   adjustmentStackOwnerIsEnabled
 } from '../processing/adjustmentStack';
 import { attachedAdjustmentProcessingOwner } from '../processing/attachedAdjustment';
+import { adjustmentLayerUsesDocumentFinalEffects } from '../effects/documentFinalEffectStack';
 
 export interface LayerGradeEncoder {
   encode(
@@ -72,6 +73,13 @@ export class LayerProcessingRenderer {
   ): GPUTexture {
     const stack = layer.adjustmentStack;
     if (!stack) return source;
+
+    // Lens FX adjustment layers are control layers for the stage-aware
+    // document-final runtime. Executing them here would put display grain in
+    // the linear layer compositor and would starve Lens Blur of document depth.
+    if (layer.type === 'adjustment' && adjustmentLayerUsesDocumentFinalEffects(layer)) {
+      return source;
+    }
 
     const hasGeometry = adjustmentStackOwnerIsEnabled(stack, 'geometry');
     const hasGrade = adjustmentStackOwnerIsEnabled(stack, 'grade');

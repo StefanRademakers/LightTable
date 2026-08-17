@@ -7,6 +7,8 @@ import type { LightTableEffectRuntimeCallbacks } from './types';
 import { DocumentEffectRuntime } from './DocumentEffectRuntime';
 import type { WarpDebugView } from './warp/warpTypes';
 import type { MeshDeformationTelemetry } from './deformation/MeshDeformationEffect';
+import type { DepthAnalysisResult } from '../analysis/depth/types';
+import { adjustmentLayerUsesDocumentFinalEffects } from './documentFinalEffectStack';
 
 /**
  * Returns whether a layer needs a per-owner GPU effect runtime.
@@ -19,6 +21,9 @@ import type { MeshDeformationTelemetry } from './deformation/MeshDeformationEffe
 export const layerNeedsEffectRuntime = (
   layer: AdjustmentLayer | RasterLayer
 ): boolean => {
+  if (layer.type === 'adjustment' && adjustmentLayerUsesDocumentFinalEffects(layer)) {
+    return false;
+  }
   const stack = layer.adjustmentStack;
   return Boolean(stack && (
     adjustmentStackOwnerIsEnabled(stack, 'geometry')
@@ -39,6 +44,7 @@ export class LayerEffectRenderer {
   private height = 0;
   private warpDebugView: WarpDebugView = 'result';
   private warpDebugLayerId: string | null = null;
+  private depthMap: DepthAnalysisResult | null = null;
 
   constructor(
     private readonly device: GPUDevice,
@@ -51,6 +57,14 @@ export class LayerEffectRenderer {
     this.width = width;
     this.height = height;
     this.runtimes.forEach((runtime) => runtime.resize(width, height));
+  }
+
+  /** Publishes document-relative depth to existing and future local runtimes. */
+  setDepthMap(depth: DepthAnalysisResult): boolean {
+    if (this.depthMap === depth) return false;
+    this.depthMap = depth;
+    this.runtimes.forEach((runtime) => runtime.setDepthMap(depth));
+    return true;
   }
 
   /**
@@ -122,6 +136,7 @@ export class LayerEffectRenderer {
         scope
       );
       runtime.resize(this.width, this.height);
+      if (this.depthMap) runtime.setDepthMap(this.depthMap);
       this.runtimes.set(layer.id, runtime);
     } else {
       runtime.setAdjustmentStack(layer.adjustmentStack);
@@ -168,10 +183,12 @@ export class LayerEffectRenderer {
 
   destroyImageResources(): void {
     this.runtimes.forEach((runtime) => runtime.destroyImageResources());
+    this.depthMap = null;
   }
 
   destroy(): void {
     this.runtimes.forEach((runtime) => runtime.destroy());
     this.runtimes.clear();
+    this.depthMap = null;
   }
 }
