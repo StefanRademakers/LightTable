@@ -11,6 +11,10 @@ import type {
   TransformQuad,
   TransformSessionState
 } from '../tools/transform/transformTypes';
+import type {
+  TransformFrameMode,
+  TransformSessionFrame
+} from '../tools/transform/transformSessionFrame';
 import type { ToolId } from '../session/editorSession';
 import type { SnapFeature, SnapMatch } from '../../application/tools/snapping/snapEngine';
 import { LayoutGuideInteractionLayer } from './LayoutGuideInteractionLayer';
@@ -49,6 +53,8 @@ export interface DocumentViewportSurfaceProps {
   onTransformPick: (point: { x: number; y: number }) => void;
   transformSnapTargets?: readonly SnapFeature[];
   transformSnapEnabled?: boolean;
+  transformFrameMode?: TransformFrameMode;
+  transformFrameOverride?: TransformSessionFrame | null;
   onTransformSnapMatches?: (matches: readonly SnapMatch[]) => void;
   documentGuides?: readonly DocumentGuide[];
   rulersVisible?: boolean;
@@ -100,6 +106,8 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onTransformPick,
   transformSnapTargets,
   transformSnapEnabled,
+  transformFrameMode,
+  transformFrameOverride,
   onTransformSnapMatches,
   documentGuides = [],
   rulersVisible = false,
@@ -175,6 +183,8 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
           onPickLayer={onTransformPick}
           snapTargets={transformSnapTargets}
           snapEnabled={transformSnapEnabled}
+          frameMode={transformFrameMode}
+          frameOverride={transformFrameOverride}
           onSnapMatches={onTransformSnapMatches}
         />
       ) : null}

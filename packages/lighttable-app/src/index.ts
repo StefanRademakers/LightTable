@@ -104,6 +104,7 @@ export {
   projectStorageRelativePath,
   type LightTableProjectManifest,
   type ProjectFolderMappings,
+  type ProjectLastUsedDocument,
   type ProjectUserFolder,
   type ProjectStorageLocation,
   type ProjectUserStorageLocation

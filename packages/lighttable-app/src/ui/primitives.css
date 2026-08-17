@@ -172,8 +172,8 @@ select option:checked {
   min-height: 20px;
 }
 
-.square-icon-button--compact img,
-.square-icon-button--compact svg {
+.square-icon-button.square-icon-button--compact img,
+.square-icon-button.square-icon-button--compact svg {
   width: 13px;
   height: 13px;
 }
@@ -803,50 +803,92 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   width: 100%;
   height: 100%;
   display: grid;
-  place-items: center;
-  overflow: auto;
-  background:
-    radial-gradient(circle at 50% 35%, rgba(85, 144, 255, 0.08), transparent 32%),
-    var(--lt-surface-app);
+  overflow: hidden;
+  background: var(--lt-surface-app);
 }
 
-.lighttable-launcher__content {
-  width: min(1000px, calc(100vw - 48px));
-  display: grid;
-  gap: 28px;
-  padding: 40px 0;
-}
-
-.lighttable-launcher__start {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(380px, 1.1fr);
-  gap: 18px;
-}
-
-.lighttable-launcher--drop-active {
-  background:
-    radial-gradient(circle at 50% 35%, rgba(85, 144, 255, 0.2), transparent 38%),
-    var(--lt-surface-app);
-}
-
-.lighttable-launcher__card {
-  width: auto;
+.lighttable-launcher__workspace {
+  width: 100%;
+  height: 100%;
   min-width: 0;
-  padding: 26px;
+  min-height: 0;
   display: grid;
-  justify-items: start;
-  gap: 12px;
-  border: 1px solid var(--lt-border);
-  border-radius: var(--lt-radius-dialog);
+  grid-template-columns: 180px minmax(0, 1fr);
+  overflow: hidden;
   background: var(--lt-surface-panel);
 }
 
-.lighttable-launcher__new-card {
-  align-content: start;
+.lighttable-launcher__navigation {
+  border-right: 1px solid var(--lt-border-subtle);
+}
+
+.lighttable-launcher__navigation button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lighttable-launcher__navigation button > span {
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: var(--lt-text-muted);
+  background: var(--lt-surface-inset);
+  font-size: var(--lt-type-small);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.lighttable-launcher__view {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--lt-surface-panel);
+}
+
+.lighttable-launcher__view-header {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--lt-border-subtle);
+}
+
+.lighttable-launcher__view-header h1 {
+  margin: 0;
+  font-size: var(--lt-type-large);
+}
+
+.lighttable-launcher__view-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+}
+
+.lighttable-launcher__new-document {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
 }
 
 .lighttable-new-document-dialog {
   width: min(360px, calc(100vw - 32px));
+}
+
+.lighttable-new-document-dialog--embedded {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.lighttable-new-document-dialog--embedded .modal__footer {
+  padding: 14px 0 0;
+  border: 0;
 }
 
 .lighttable-new-document-dialog__fields {
@@ -876,42 +918,6 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   -webkit-appearance: none;
 }
 
-.lighttable-launcher__primary-action,
-.lighttable-launcher__open {
-  min-width: 110px;
-}
-
-.lighttable-launcher__recent-section h2 {
-  margin: 0 0 12px;
-  font-size: var(--lt-type-large);
-}
-
-.lighttable-launcher__guide-action {
-  width: max-content;
-  padding: 0;
-  border: 0;
-  color: var(--color-tab-active);
-  background: transparent;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-
-.lighttable-launcher__local-first {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 5px 12px;
-  margin: 18px 0 24px;
-  padding: 12px 14px;
-  border: 1px solid var(--lt-border-subtle);
-  border-radius: var(--lt-radius-panel);
-  color: var(--color-text-muted);
-  background: var(--lt-surface-panel);
-}
-
-.lighttable-launcher__local-first strong { color: var(--color-text); }
-.lighttable-launcher__local-first label { grid-column: 2; font-size: var(--lt-type-small); }
-
 .lighttable-new-document-dialog__fields select {
   width: 100%;
 }
@@ -920,284 +926,150 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   grid-column: 1 / -1;
 }
 
-.lighttable-project-dialog__label {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--color-text-muted);
-  font-size: var(--lt-type-small);
-}
-
-.lighttable-launcher__project-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--lt-border-subtle);
-  border-radius: var(--lt-radius-panel);
-  background: var(--lt-surface-panel);
-}
-
-.lighttable-launcher__project-bar strong { margin-right: auto; }
-
-.image-size-dialog {
-  width: min(470px, calc(100vw - 32px));
-}
-
-.image-size-dialog__summary {
-  display: grid;
-  gap: 6px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--lt-border-subtle);
-}
-
-.image-size-dialog__summary div {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.image-size-dialog__summary span,
-.image-size-dialog__body label > span,
-.image-size-dialog__row > span:first-child {
-  color: var(--color-text-muted);
-}
-
-.image-size-dialog__body {
-  display: grid;
-  gap: 12px;
-  padding: 16px 18px;
-}
-
-.image-size-dialog__row {
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr) 150px;
-  align-items: center;
-  gap: 8px;
-}
-
-.image-size-dialog__dimensions {
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr) 150px;
-  align-items: end;
-  gap: 8px;
-}
-
-.image-size-dialog__dimensions label {
-  grid-column: 1 / 3;
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-
-.image-size-dialog__dimensions > select { grid-column: 3; }
-.image-size-dialog__link-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-left: 110px;
-  color: var(--color-text-muted);
-}
-.image-size-dialog__resample-row { grid-template-columns: 110px 36px minmax(0, 1fr); }
-
-.image-size-dialog__noise {
-  width: 100%;
-}
-.image-size-dialog__check { margin-left: 110px; }
-
-.lighttable-launcher__recovery-section {
-  display: grid;
-  gap: 12px;
-}
-
-.lighttable-launcher__recovery-heading,
-.lighttable-launcher__recovery-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.lighttable-launcher__recovery-heading {
-  justify-content: space-between;
-}
-
-.lighttable-launcher__recovery-heading h2,
-.lighttable-launcher__recovery-heading p,
-.lighttable-launcher__recovery-card h3,
-.lighttable-launcher__recovery-card p {
-  margin: 0;
-}
-
-.lighttable-launcher__recovery-heading h2 {
-  font-size: var(--lt-type-large);
-}
-
-/* Dialog selects use the same compact control language as editor panels. */
-select.form-input {
-  min-height: var(--lt-control-height);
-  height: var(--lt-control-height);
-  padding: 2px 20px 2px 8px;
-  border: 1px solid var(--lt-border-strong);
-  border-radius: var(--lt-radius-sm);
-  color: var(--lt-text-secondary);
-  font-size: var(--lt-type-regular) !important;
-}
-
-.lighttable-launcher__recovery-heading p,
-.lighttable-launcher__recovery-card p {
-  color: var(--color-text-muted);
-  font-size: var(--lt-type-small);
-}
-
-.lighttable-launcher__recoveries {
-  display: grid;
-  gap: 10px;
-}
-
-.lighttable-launcher__recovery-card {
-  grid-template-columns: 160px minmax(0, 1fr);
-  align-items: start;
-  padding: 14px;
-}
-
-.lighttable-launcher__recovery-preview {
-  width: 160px;
-  height: 100px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  background: var(--lt-surface-canvas);
-}
-
-.lighttable-launcher__recovery-preview img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.lighttable-launcher__recovery-copy {
-  min-width: 0;
-  display: grid;
-  gap: 5px;
-}
-
-.lighttable-launcher__recovery-copy > p:first-of-type {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lighttable-launcher__recovery-warning {
-  color: var(--color-warning, #e6b85c) !important;
-}
-
-.lighttable-launcher__recents {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.lighttable-launcher__recent {
+.lighttable-launcher-gallery {
   position: relative;
+  width: 100%;
   min-width: 0;
 }
 
-.lighttable-launcher__recent > button:first-child {
+.lighttable-launcher-gallery__item {
+  position: absolute;
+  inset: 0 auto auto 0;
+  box-shadow: 0 3px 9px rgb(0 0 0 / 28%);
+}
+
+.lighttable-launcher-gallery__card,
+.lighttable-launcher-gallery__card > button {
+  position: relative;
+  width: 100%;
+  height: 100%;
   min-width: 0;
+}
+
+.lighttable-launcher-gallery__card {
+  position: relative;
+  overflow: hidden;
+  background: var(--lt-surface-inset);
+}
+
+.lighttable-launcher-gallery__card > button {
   padding: 0;
   display: grid;
-  gap: 7px;
-  border: 1px solid transparent;
-  color: var(--color-text);
+  grid-template-rows: minmax(0, 1fr) 28px;
+  overflow: hidden;
+  border: 0;
+  color: var(--lt-text-secondary);
   background: transparent;
   text-align: left;
   cursor: pointer;
 }
 
-.lighttable-launcher__recent > button:first-child:hover {
-  border-color: var(--lt-border-strong);
+.lighttable-launcher-gallery__card > button:hover:not(:disabled),
+.lighttable-launcher-gallery__card > button:focus-visible:not(:disabled) {
   background: var(--lt-surface-control-hover);
 }
 
-.lighttable-launcher__recent-preview {
-  width: 100%;
-  max-width: 320px;
-  max-height: 320px;
-  aspect-ratio: 1;
+.lighttable-launcher-gallery__card > button::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border: 1px solid transparent;
+  pointer-events: none;
+}
+
+.lighttable-launcher-gallery__card > button:hover:not(:disabled)::after,
+.lighttable-launcher-gallery__card > button:focus-visible:not(:disabled)::after {
+  border-color: var(--lt-focus-ring);
+}
+
+.lighttable-launcher-gallery__preview {
+  min-width: 0;
   display: grid;
   place-items: center;
   overflow: hidden;
-  color: var(--color-text-muted);
+  color: var(--lt-text-muted);
   background: var(--lt-surface-canvas);
 }
 
-.lighttable-launcher__recent-preview img {
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
+.lighttable-launcher-gallery__preview img {
+  width: 100%;
+  height: 100%;
   display: block;
-  object-fit: contain;
+  object-fit: cover;
 }
 
-.lighttable-launcher__recent-name {
+.lighttable-launcher-gallery__footer {
   min-width: 0;
-  padding: 0 4px 4px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.lighttable-launcher-gallery__footer strong,
+.lighttable-launcher-gallery__footer small {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-@media (max-width: 760px) {
-  .lighttable-launcher__start,
-  .lighttable-launcher__recents {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .lighttable-launcher__recovery-card {
-    grid-template-columns: 1fr;
-  }
+.lighttable-launcher-gallery__footer strong {
+  flex: 1;
+  font-size: var(--lt-type-small);
+  font-weight: var(--lt-weight-regular);
 }
 
-.lighttable-launcher__recent--missing .lighttable-launcher__recent-preview {
-  border: 1px dashed var(--lt-border-strong);
+.lighttable-launcher-gallery__footer small {
+  max-width: 45%;
+  color: var(--lt-text-muted);
 }
 
-.lighttable-launcher__recent-remove {
+.lighttable-launcher-gallery__card.is-missing {
+  outline: 1px dashed var(--lt-border-strong);
+  outline-offset: -1px;
+}
+
+.lighttable-launcher-gallery__remove {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  padding: 3px 7px;
+  top: 5px;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   border: 1px solid var(--lt-border-strong);
-  border-radius: 3px;
-  color: var(--color-text);
-  background: var(--lt-surface-panel);
+  border-radius: var(--lt-radius-sm);
+  color: var(--lt-text-secondary);
+  background: var(--lt-surface-popover);
   cursor: pointer;
 }
 
-.lighttable-launcher--drop-active .lighttable-launcher__card {
-  border-color: var(--color-tab-active);
-  box-shadow: 0 0 0 2px rgba(85, 144, 255, 0.16);
-}
-
-.lighttable-launcher__card h1,
-.lighttable-launcher__card p {
+.lighttable-launcher__empty {
   margin: 0;
+  color: var(--lt-text-muted);
 }
 
-.lighttable-launcher__card p {
-  margin-bottom: 10px;
-  color: var(--color-text-muted);
+.lighttable-launcher__warning {
+  margin: 0 0 16px;
+  color: var(--lt-danger);
 }
 
-.lighttable-launcher__formats {
-  margin-top: -12px;
-  margin-bottom: 8px;
-  color: var(--color-text-muted);
-  font-size: var(--lt-type-small);
+.lighttable-launcher--drop-active .lighttable-launcher__workspace {
+  border-color: var(--lt-focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--lt-focus-ring) 20%, transparent);
 }
 
+@media (max-width: 760px) {
+  .lighttable-launcher__workspace {
+    grid-template-columns: 135px minmax(0, 1fr);
+  }
+
+  .lighttable-launcher__view-scroll {
+    padding: 18px;
+  }
+}
 .lighttable-file-drop {
   position: fixed;
   inset: 0;
@@ -1270,12 +1142,6 @@ select.form-input {
   display: flex;
   gap: 8px;
 }
-.lighttable-launcher__utility-actions {
-  display: flex;
-  gap: 8px;
-  justify-self: start;
-}
-
 .lighttable-guide {
   position: fixed;
   z-index: 1900;

@@ -50,7 +50,6 @@ export interface EditorDialogsProps {
   readonly foregroundColor: string;
   readonly backgroundColor: string;
   readonly onFill: (color: string, preserveTransparency: boolean) => void;
-  readonly onFlatten: () => void;
   readonly onConvertTextToShape: (layerId: LayerId) => void;
   readonly onError: (message: string) => void;
   readonly release?: LightTableReleaseService;
@@ -77,7 +76,6 @@ export const EditorDialogs = ({
   foregroundColor,
   backgroundColor,
   onFill,
-  onFlatten,
   onConvertTextToShape,
   onError,
   release,
@@ -121,23 +119,6 @@ export const EditorDialogs = ({
         controller.closeFeather();
         onFeather(radius);
       }}
-    />
-    <ConfirmDialog
-      open={Boolean(controller.flattenRequest)}
-      title={
-        controller.flattenRequest?.kind === 'group'
-          ? 'Flatten group?'
-          : 'Flatten image?'
-      }
-      description={
-        controller.flattenRequest?.kind === 'group'
-          ? 'The visible raster contents of this group will become one raster layer. This can be undone while the document remains open.'
-          : 'The visible layer stack will become one raster layer. This can be undone while the document remains open.'
-      }
-      confirmLabel="Flatten"
-      danger
-      onCancel={controller.closeFlatten}
-      onConfirm={onFlatten}
     />
     <ConfirmDialog
       open={Boolean(controller.textToShapeRequest)}

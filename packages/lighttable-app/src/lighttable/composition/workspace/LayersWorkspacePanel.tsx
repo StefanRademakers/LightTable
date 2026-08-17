@@ -41,11 +41,14 @@ export interface LayersWorkspacePanelProps {
   onDocumentProcessingVisibility: (owner: 'grade' | 'lens-fx', visible: boolean) => void;
   onInspectDocumentProcessing: (owner: 'grade' | 'lens-fx') => void;
   globalGradeStrength: number;
+  globalGradeModified: boolean;
+  globalLensFxModified: boolean;
   copiedGradeName: string | null;
   onGlobalGradeStrength: (strength: number) => void;
   onGlobalGradeStrengthInteractionStart: () => void;
   onGlobalGradeStrengthInteractionEnd: () => void;
   onResetGlobalGrade: () => void;
+  onResetGlobalLensFx: () => void;
   onCopyGlobalGrade: () => void;
   onPasteGlobalGrade: () => void;
   onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
@@ -80,11 +83,14 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   onDocumentProcessingVisibility,
   onInspectDocumentProcessing,
   globalGradeStrength,
+  globalGradeModified,
+  globalLensFxModified,
   copiedGradeName,
   onGlobalGradeStrength,
   onGlobalGradeStrengthInteractionStart,
   onGlobalGradeStrengthInteractionEnd,
   onResetGlobalGrade,
+  onResetGlobalLensFx,
   onCopyGlobalGrade,
   onPasteGlobalGrade,
   onInspectAttachedAdjustment
@@ -167,11 +173,14 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onDocumentProcessingVisibility={onDocumentProcessingVisibility}
         onInspectDocumentProcessing={onInspectDocumentProcessing}
         globalGradeStrength={globalGradeStrength}
+        globalGradeModified={globalGradeModified}
+        globalLensFxModified={globalLensFxModified}
         copiedGradeName={copiedGradeName}
         onGlobalGradeStrength={onGlobalGradeStrength}
         onGlobalGradeStrengthInteractionStart={onGlobalGradeStrengthInteractionStart}
         onGlobalGradeStrengthInteractionEnd={onGlobalGradeStrengthInteractionEnd}
         onResetGlobalGrade={onResetGlobalGrade}
+        onResetGlobalLensFx={onResetGlobalLensFx}
         onCopyGlobalGrade={onCopyGlobalGrade}
         onPasteGlobalGrade={onPasteGlobalGrade}
         onInspectAttachedAdjustment={onInspectAttachedAdjustment}

@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
+  resolveViewportImageRect,
   resolveViewportRenderState,
   viewportRenderStatesEqual
 } from './viewportRenderState';
 
 describe('viewport render state', () => {
+  it('resolves centered image geometry with its authored pan in one calculation', () => {
+    expect(resolveViewportImageRect(400, 200, 1000, 700, 2, 25, -10)).toEqual({
+      x: 125,
+      y: 140,
+      width: 800,
+      height: 400
+    });
+  });
+
   it('resolves canvas pixels and GPU uniforms once at the f32 boundary', () => {
     const state = resolveViewportRenderState(
       640.4,

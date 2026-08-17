@@ -7,6 +7,7 @@ import {
   adjustmentStackHasLocalProcessing,
   adjustmentStackLocalProcessingIsEnabled,
   adjustmentStackGradeGroupIsEnabled,
+  adjustmentStackOwnerHasAuthoredSettings,
   adjustmentStackOwnerIsEnabled,
   cloneAdjustmentStack,
   createAdjustmentStackFromBasicAdjustments,
@@ -25,6 +26,22 @@ const sequentialIds = () => {
 };
 
 describe('LightTable adjustment stacks', () => {
+  it('detects authored Global Grade and Global Lens FX independently', () => {
+    const neutral = createDefaultAdjustments();
+    expect(adjustmentStackOwnerHasAuthoredSettings(neutral, 'grade')).toBe(false);
+    expect(adjustmentStackOwnerHasAuthoredSettings(neutral, 'lens-fx')).toBe(false);
+
+    const graded = createDefaultAdjustments();
+    graded.exposureEV = 1.25;
+    expect(adjustmentStackOwnerHasAuthoredSettings(graded, 'grade')).toBe(true);
+    expect(adjustmentStackOwnerHasAuthoredSettings(graded, 'lens-fx')).toBe(false);
+
+    const lensFx = createDefaultAdjustments();
+    lensFx.effects.lensDistortion.amount = 24;
+    expect(adjustmentStackOwnerHasAuthoredSettings(lensFx, 'grade')).toBe(false);
+    expect(adjustmentStackOwnerHasAuthoredSettings(lensFx, 'lens-fx')).toBe(true);
+  });
+
   it('round-trips every current BasicAdjustments setting', () => {
     const settings = createDefaultAdjustments();
     settings.exposureEV = 1.25;

@@ -7,12 +7,14 @@ import {
 import { toolDefinition, type ToolDefinition } from '../tools/toolRegistry';
 import { ToolButton, toolFamilyFor } from './EditorToolbar';
 import type { ToolId } from '../session/editorSession';
+import { ActionButton } from '../../../ui/ActionButton';
 
 interface ToolOptionsContextMenuProps extends ToolOptionsProps {
   x: number;
   y: number;
   onClose: () => void;
   onToolChange: (tool: ToolId) => void;
+  onAlignTransformAxesToDocument?: () => void;
 }
 
 const EDGE_GAP = 8;
@@ -53,6 +55,7 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
   y,
   onClose,
   onToolChange,
+  onAlignTransformAxesToDocument,
   ...toolOptions
 }) => {
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -135,6 +138,18 @@ export const ToolOptionsContextMenu: React.FC<ToolOptionsContextMenuProps> = ({
       ) : null}
       <div className="lighttable-tool-options-menu">
         <ToolOptionsContent {...toolOptions} orientation="vertical" />
+        {toolOptions.activeTool === 'transform' && onAlignTransformAxesToDocument ? (
+          <div className="lighttable-tool-options__content lighttable-tool-options__content--vertical">
+            <ActionButton size="control" layout="fill"
+              title="Align the transform handles to the document without changing the layer"
+              onClick={() => {
+              onAlignTransformAxesToDocument();
+              onClose();
+            }}>
+              Align Transform Box to Document
+            </ActionButton>
+          </div>
+        ) : null}
       </div>
     </div>,
     document.body

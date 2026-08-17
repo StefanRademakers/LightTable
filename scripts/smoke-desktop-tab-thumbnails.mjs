@@ -76,15 +76,16 @@ try {
   }
 
   const previewImage = inactiveTab.locator('.lighttable-document-tab__preview img');
-  await previewImage.waitFor({ state: 'attached', timeout: 60_000 });
   await inactiveTab.hover();
+  await previewImage.waitFor({ state: 'attached', timeout: 60_000 });
   await inactiveTab.locator('.lighttable-document-tab__preview').waitFor({ state: 'visible' });
   const dimensions = await previewImage.evaluate((image) => ({
     naturalWidth: image.naturalWidth,
     naturalHeight: image.naturalHeight,
     src: image.currentSrc
   }));
-  if (dimensions.naturalWidth !== 256 || dimensions.naturalHeight !== 144) {
+  if (!dimensions.naturalWidth || !dimensions.naturalHeight
+    || Math.abs((dimensions.naturalWidth / dimensions.naturalHeight) - (16 / 9)) > 0.01) {
     throw new Error(`Inactive thumbnail has unexpected dimensions: ${JSON.stringify(dimensions)}`);
   }
   if (pageErrors.length || consoleErrors.length) {

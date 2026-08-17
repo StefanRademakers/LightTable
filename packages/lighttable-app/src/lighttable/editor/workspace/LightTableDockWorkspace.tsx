@@ -345,6 +345,7 @@ const DocumentHost: React.FC<{
   onSurfaceReady?: () => void;
 }> = ({ documents, activeDocumentId, onActiveDocumentChange, onSurfaceReady }) => {
   const activeDocument = documents.find((document) => document.id === activeDocumentId) ?? documents[0];
+  const [hoveredDocumentId, setHoveredDocumentId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     // Dockview creates panel contents after the parent editor effects have
@@ -368,6 +369,7 @@ const DocumentHost: React.FC<{
               draggable
               onDragStart={(event) => writeLightTableDocumentDrag(event.dataTransfer, document.id, document.title)}
               onMouseEnter={(event) => {
+                setHoveredDocumentId(document.id);
                 const bounds = event.currentTarget.getBoundingClientRect();
                 const preview = event.currentTarget.querySelector<HTMLElement>('.lighttable-document-tab__preview');
                 if (!preview) return;
@@ -381,10 +383,11 @@ const DocumentHost: React.FC<{
                 preview.style.left = `${Math.round(bounds.left * 2 - positioned.left)}px`;
                 preview.style.top = `${Math.round(bounds.bottom * 2 - positioned.top)}px`;
               }}
+              onMouseLeave={() => setHoveredDocumentId((current) => current === document.id ? null : current)}
             >
               {document.thumbnailUrl && !active ? (
                 <div className="lighttable-document-tab__preview" role="tooltip">
-                  <img src={document.thumbnailUrl} alt="" />
+                  {hoveredDocumentId === document.id ? <img src={document.thumbnailUrl} alt="" /> : null}
                 </div>
               ) : null}
               <ButtonBase
@@ -791,8 +794,17 @@ export const LightTableDockWorkspace = forwardRef<
   }, [applyDockColumnVisibility, dockColumns]);
 
   const showPanel = useCallback((panelId: string) => {
-    apiRef.current?.getPanel(panelId)?.api.setActive();
-  }, []);
+    const api = apiRef.current;
+    const panel = api?.getPanel(panelId);
+    if (!api || !panel) return;
+    const groupId = panel.group.id;
+    if (dockColumnGroupIdsRef.current.left.includes(groupId)) {
+      applyDockColumnVisibility({ left: true });
+    } else if (dockColumnGroupIdsRef.current.right.includes(groupId)) {
+      applyDockColumnVisibility({ right: true });
+    }
+    panel.api.setActive();
+  }, [applyDockColumnVisibility]);
 
   useImperativeHandle(
     ref,

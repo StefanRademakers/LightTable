@@ -57,17 +57,18 @@ export const useDocumentRuntimeServices = ({
   rendererLifecycle,
   onLocalDirtyChange
 }: DocumentRuntimeServiceOptions): DocumentRuntimeServices => {
+  const externallyOwned = Boolean(history && tasks && rendererLifecycle);
   const owned = useMemo(
-    () => new OwnedDocumentRuntimeServices(documentId),
-    [documentId]
+    () => externallyOwned ? null : new OwnedDocumentRuntimeServices(documentId),
+    [documentId, externallyOwned]
   );
   const onLocalDirtyChangeRef = useRef(onLocalDirtyChange);
   onLocalDirtyChangeRef.current = onLocalDirtyChange;
 
-  const resolvedHistory = history ?? owned.history;
-  const resolvedTasks = tasks ?? owned.tasks;
+  const resolvedHistory = history ?? owned!.history;
+  const resolvedTasks = tasks ?? owned!.tasks;
   const resolvedRendererLifecycle =
-    rendererLifecycle ?? owned.rendererLifecycle;
+    rendererLifecycle ?? owned!.rendererLifecycle;
 
   useEffect(() => {
     if (history) return;
@@ -76,7 +77,7 @@ export const useDocumentRuntimeServices = ({
     });
   }, [history, resolvedHistory]);
 
-  useEffect(() => () => owned.dispose(), [owned]);
+  useEffect(() => () => owned?.dispose(), [owned]);
 
   useEffect(() => {
     resolvedRendererLifecycle.setActive(active);

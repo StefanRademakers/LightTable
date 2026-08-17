@@ -79,8 +79,7 @@ describe('createEditorMenuController', () => {
         cancel: vi.fn()
       },
       dialogs: {
-        openFeather: vi.fn(),
-        requestFlatten: vi.fn()
+        openFeather: vi.fn()
       } as unknown as EditorDialogController,
       viewport: {
         setZoomMode: vi.fn(),

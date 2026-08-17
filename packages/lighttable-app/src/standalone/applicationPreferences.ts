@@ -20,6 +20,8 @@ export interface ApplicationPreferences {
   readonly tools: {
     readonly zoomWithScrollWheel: boolean;
     readonly openMaskEditingOnDoubleClick: boolean;
+    /** Keep the confirmed oriented transform frame instead of starting from document axes. */
+    readonly preserveTransformLocalAxes: boolean;
   };
   readonly projects: {
     readonly folders: ProjectFolderMappings;
@@ -53,7 +55,8 @@ export const DEFAULT_APPLICATION_PREFERENCES: ApplicationPreferences = {
   },
   tools: {
     zoomWithScrollWheel: true,
-    openMaskEditingOnDoubleClick: true
+    openMaskEditingOnDoubleClick: true,
+    preserveTransformLocalAxes: true
   },
   projects: {
     folders: DEFAULT_PROJECT_FOLDER_MAPPINGS,
@@ -92,6 +95,8 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
       || typeof candidate.tools !== 'object'
       || typeof candidate.tools.zoomWithScrollWheel !== 'boolean'
       || typeof candidate.tools.openMaskEditingOnDoubleClick !== 'boolean'
+      || (candidate.tools.preserveTransformLocalAxes !== undefined
+        && typeof candidate.tools.preserveTransformLocalAxes !== 'boolean')
     ))
     || (candidate.projects !== undefined && (
       !candidate.projects
@@ -124,7 +129,8 @@ export const parseApplicationPreferences = (value: unknown): ApplicationPreferen
     },
     tools: {
       zoomWithScrollWheel: candidate.tools?.zoomWithScrollWheel ?? true,
-      openMaskEditingOnDoubleClick: candidate.tools?.openMaskEditingOnDoubleClick ?? true
+      openMaskEditingOnDoubleClick: candidate.tools?.openMaskEditingOnDoubleClick ?? true,
+      preserveTransformLocalAxes: candidate.tools?.preserveTransformLocalAxes ?? true
     },
     projects: {
       folders: projectFolders,

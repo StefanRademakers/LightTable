@@ -118,11 +118,14 @@ interface LayerPanelProps {
   onDocumentProcessingVisibility: (owner: 'grade' | 'lens-fx', visible: boolean) => void;
   onInspectDocumentProcessing: (owner: 'grade' | 'lens-fx') => void;
   globalGradeStrength: number;
+  globalGradeModified: boolean;
+  globalLensFxModified: boolean;
   copiedGradeName: string | null;
   onGlobalGradeStrength: (strength: number) => void;
   onGlobalGradeStrengthInteractionStart: () => void;
   onGlobalGradeStrengthInteractionEnd: () => void;
   onResetGlobalGrade: () => void;
+  onResetGlobalLensFx: () => void;
   onCopyGlobalGrade: () => void;
   onPasteGlobalGrade: () => void;
   onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
@@ -276,11 +279,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onDocumentProcessingVisibility,
   onInspectDocumentProcessing,
   globalGradeStrength,
+  globalGradeModified,
+  globalLensFxModified,
   copiedGradeName,
   onGlobalGradeStrength,
   onGlobalGradeStrengthInteractionStart,
   onGlobalGradeStrengthInteractionEnd,
   onResetGlobalGrade,
+  onResetGlobalLensFx,
   onCopyGlobalGrade,
   onPasteGlobalGrade,
   onInspectAttachedAdjustment
@@ -289,6 +295,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
   const [clippingBoundaryHoverLayerId, setClippingBoundaryHoverLayerId] = React.useState<LayerId | null>(null);
   const [draggedLayerId, setDraggedLayerId] = React.useState<LayerId | null>(null);
+  const [groupDropActive, setGroupDropActive] = React.useState(false);
+  const [duplicateDropActive, setDuplicateDropActive] = React.useState(false);
   const [trashDropActive, setTrashDropActive] = React.useState(false);
   const [dropTarget, setDropTarget] = React.useState<{
     layerId: LayerId;
@@ -626,23 +634,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         if (activeLayer && layerSupportsLayerStyles(activeLayer)) onEditStyles(activeLayer.id);
       }
     },
-    ...(activeLayer?.type === 'raster' ? [{
-      value: 'local-grade',
-      label: 'Edit Local Grade',
-      separatorBefore: true,
-      onClick: () => onInspectProcessing(activeLayer.id, 'grade')
-    }, {
-      value: 'local-curves',
-      label: 'Edit Local Curves',
-      onClick: () => {
-        onCreateLocalProcessing(activeLayer.id, 'curves');
-        onInspectProcessing(activeLayer.id, 'curves');
-      }
-    }, {
-      value: 'local-lens-fx',
-      label: 'Edit Local Lens Fx',
-      onClick: () => onInspectProcessing(activeLayer.id, 'lens-fx')
-    }] : []),
     {
       value: 'clear-layer-style',
       label: 'Clear Layer Style',
@@ -883,6 +874,20 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             tabIndex={-1}
             aria-label="Global Lens FX"
           />
+          {globalLensFxModified ? (
+            <SquareIconButton
+              size="compact"
+              appearance="quiet"
+              icon={<img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />}
+              onClick={(event) => {
+                event.stopPropagation();
+                activateGlobalLensFx();
+                onResetGlobalLensFx();
+              }}
+              title="Reset Global Lens FX"
+              aria-label="Reset Global Lens FX"
+            />
+          ) : null}
         </div>
         <div
           role="treeitem"
@@ -915,6 +920,20 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             tabIndex={-1}
             aria-label="Global Grade"
           />
+          {globalGradeModified ? (
+            <SquareIconButton
+              size="compact"
+              appearance="quiet"
+              icon={<img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />}
+              onClick={(event) => {
+                event.stopPropagation();
+                activateGlobalGrade();
+                onResetGlobalGrade();
+              }}
+              title="Reset Global Grade"
+              aria-label="Reset Global Grade"
+            />
+          ) : null}
         </div>
         <div className="lighttable-layer-zone-divider lighttable-layer-zone-divider--quiet"
           role="presentation" />
@@ -1008,7 +1027,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               }
               onSelect(layer.id);
               onChannelChange('pixels');
-              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.effectAllowed = 'copyMove';
               event.dataTransfer.setData('application/x-lighttable-layer-id', layer.id);
               event.dataTransfer.setData('text/plain', layer.name);
             }}
@@ -1053,6 +1072,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               draggedLayerIdRef.current = null;
               setDraggedLayerId(null);
               setDropTarget(null);
+              setGroupDropActive(false);
+              setDuplicateDropActive(false);
             }}
           >
             {canToggleClipping && !documentFx ? (
@@ -1100,7 +1121,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             {layer.type === 'group' ? (
               <ButtonBase
                 type="button"
-                className="lighttable-layer__disclosure"
+                className={`lighttable-layer__disclosure${
+                  collapsedGroups.has(layer.id) ? ' lighttable-layer__disclosure--collapsed' : ''
+                }`}
                 onClick={(event) => {
                   event.stopPropagation();
                   setCollapsedGroups((current) => {
@@ -1114,7 +1137,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 title={collapsedGroups.has(layer.id) ? 'Expand group' : 'Collapse group'}
               >
                 <img
-                  src={lightTableIcon(collapsedGroups.has(layer.id) ? 'area_closed.png' : 'area_open.png')}
+                  src={lightTableIcon('chevron_layer.png')}
                   alt=""
                 />
               </ButtonBase>
@@ -1565,11 +1588,50 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         >fx</ButtonBase>
         <ButtonBase
           type="button"
+          className={groupDropActive ? 'lighttable-layers__group--drop-active' : undefined}
           onClick={() => {
             if (selectedIds.length) onGroupSelection(selectedIds);
             else onCreateGroup();
           }}
           disabled={selectionContainsDocumentFx || (selectedIds.length > 0 && !canGroupSelection)}
+          onDragEnter={(event) => {
+            if (!Array.from(event.dataTransfer.types).includes(
+              'application/x-lighttable-layer-id'
+            ) || selectionContainsDocumentFx || !canGroupSelection) return;
+            event.preventDefault();
+            setGroupDropActive(true);
+          }}
+          onDragOver={(event) => {
+            if (!Array.from(event.dataTransfer.types).includes(
+              'application/x-lighttable-layer-id'
+            ) || selectionContainsDocumentFx || !canGroupSelection) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            setGroupDropActive(true);
+          }}
+          onDragLeave={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+            setGroupDropActive(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const sourceLayerId = (
+              draggedLayerIdRef.current
+              ?? event.dataTransfer.getData('application/x-lighttable-layer-id')
+            ) as LayerId;
+            const layerIds = sourceLayerId && selectedLayerIds.has(sourceLayerId)
+              ? selectedIds
+              : sourceLayerId ? [sourceLayerId] : [];
+            if (layerIds.length && queryLayerCommandCapabilities(
+              document,
+              layerIds
+            ).canGroupSelection) onGroupSelection(layerIds);
+            draggedLayerIdRef.current = null;
+            setDraggedLayerId(null);
+            setDropTarget(null);
+            setGroupDropActive(false);
+          }}
           title={selectedIds.length ? 'Group selected layers' : 'New group'}
           aria-label={selectedIds.length ? 'Group selected layers' : 'New group'}
         ><img src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></ButtonBase>
@@ -1660,7 +1722,40 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         </div>
         <ButtonBase
           type="button"
+          className={duplicateDropActive ? 'lighttable-layers__duplicate--drop-active' : undefined}
           onClick={onCreate}
+          onDragEnter={(event) => {
+            if (!Array.from(event.dataTransfer.types).includes(
+              'application/x-lighttable-layer-id'
+            )) return;
+            event.preventDefault();
+            setDuplicateDropActive(true);
+          }}
+          onDragOver={(event) => {
+            if (!Array.from(event.dataTransfer.types).includes(
+              'application/x-lighttable-layer-id'
+            )) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+            setDuplicateDropActive(true);
+          }}
+          onDragLeave={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+            setDuplicateDropActive(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const sourceLayerId = (
+              draggedLayerIdRef.current
+              ?? event.dataTransfer.getData('application/x-lighttable-layer-id')
+            ) as LayerId;
+            if (sourceLayerId) onDuplicate();
+            draggedLayerIdRef.current = null;
+            setDraggedLayerId(null);
+            setDropTarget(null);
+            setDuplicateDropActive(false);
+          }}
           title="New raster layer"
           aria-label="New raster layer"
         ><img src={lightTableIcon('add_layer.png')} alt="" aria-hidden="true" /></ButtonBase>

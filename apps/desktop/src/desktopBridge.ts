@@ -13,7 +13,12 @@ import type {
   LightTableLocalAiConnectionTest
 } from '@lighttable/app';
 import type { LightTableRecoveryLocation } from '@lighttable/app';
-import type { ProjectFolderMappings, ProjectUserFolder, ProjectUserStorageLocation } from '@lighttable/app/project-manifest';
+import type {
+  ProjectFolderMappings,
+  ProjectLastUsedDocument,
+  ProjectUserFolder,
+  ProjectUserStorageLocation
+} from '@lighttable/app/project-manifest';
 import type {
   GenAiAssetId,
   GenAiAssetReference,
@@ -81,6 +86,7 @@ export interface DesktopProjectSummary {
   readonly name: string;
   readonly rootPath: string;
   readonly manifestPath: string;
+  readonly lastUsedDocument: ProjectLastUsedDocument | null;
 }
 
 export interface DesktopRecentProject extends DesktopProjectSummary {
@@ -132,6 +138,8 @@ export interface LightTableDesktopBridge {
   listRecentFiles(): Promise<readonly DesktopRecentFile[]>;
   loadRecentFileThumbnail(id: string): Promise<string | null>;
   openRecentFile(id: string): Promise<DesktopFilePayload | null>;
+  rememberOpenedFiles(files: readonly File[]): Promise<void>;
+  revealRecentFile(id: string): Promise<void>;
   removeRecentFile(id: string): Promise<void>;
   clearRecentFiles(): Promise<void>;
   chooseProjectParent(): Promise<DesktopProjectLocation | null>;
@@ -146,6 +154,8 @@ export interface LightTableDesktopBridge {
   openProject(): Promise<DesktopProjectSummary | null>;
   listRecentProjects(): Promise<readonly DesktopRecentProject[]>;
   openRecentProject(recentId: string): Promise<DesktopProjectSummary | null>;
+  loadRecentProjectThumbnail(recentId: string): Promise<string | null>;
+  openProjectLastUsedDocument(projectId: string): Promise<DesktopFilePayload | null>;
   revealProject(manifestPath: string): Promise<void>;
   closeProject(): Promise<void>;
   removeRecentProject(recentId: string): Promise<void>;

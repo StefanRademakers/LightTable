@@ -64,6 +64,7 @@ export interface DocumentViewportState {
   };
   readonly setZoomMode: Dispatch<SetStateAction<DocumentViewport['zoomMode']>>;
   readonly setView: Dispatch<SetStateAction<DocumentViewportState['view']>>;
+  readonly setViewport: Dispatch<SetStateAction<DocumentViewport>>;
 }
 
 const createDefaultViewport = (): DocumentViewport => ({
@@ -115,6 +116,17 @@ export const useDocumentViewportState = (
     else setLocalViewport(apply);
   }, [documentSession]);
 
+  const setViewport = useCallback<Dispatch<SetStateAction<DocumentViewport>>>(
+    (update) => {
+      const apply = (current: DocumentViewport): DocumentViewport => ({
+        ...resolveUpdate(current, update)
+      });
+      if (documentSession) documentSession.updateViewport(apply);
+      else setLocalViewport(apply);
+    },
+    [documentSession]
+  );
+
   return {
     zoomMode: viewport.zoomMode,
     view: {
@@ -123,7 +135,8 @@ export const useDocumentViewportState = (
       panY: viewport.panY
     },
     setZoomMode,
-    setView
+    setView,
+    setViewport
   };
 };
 

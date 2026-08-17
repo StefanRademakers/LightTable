@@ -15,6 +15,7 @@ export interface ToolOptionsMenuBinding extends ToolOptionsProps {
   y: number;
   onClose: () => void;
   onToolChange: (tool: ToolOptionsProps['activeTool']) => void;
+  onAlignTransformAxesToDocument?: () => void;
 }
 
 export interface EditorOverlayLayerProps {

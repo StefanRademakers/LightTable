@@ -1,0 +1,407 @@
+Task 147 - Project Home and capability-driven workspace surfaces
+
+Goal
+====
+
+Make an opened project without an active document a complete, stable workspace
+state. `New Project` creates the project on disk and enters Project Home, where
+the user can import, browse and organize media before opening or creating an
+editable image document.
+
+At the same time, separate the generic application workspace shell from the
+image-document editor. UI availability must be derived from one explicit
+surface/command context instead of scattered `activeDocument` checks.
+
+This task builds only the Project Home and image-document surfaces. Video, 3D
+and other media are architectural test cases and future extension points, not
+new editors required by this task.
+
+Problem
+=======
+
+The application currently treats `no open document` as equivalent to `show the
+launcher`. That is false once a project exists. A valid project may contain no
+documents, may have no last-used document, or may remain open after its last
+document tab is closed.
+
+The existing editor shell also risks showing stale document context when no
+document is active:
+
+- the previous document tab can remain visually implied;
+- Properties can show Local Grade or another stale editor;
+- Layers can show old layers or document-level processing;
+- tool options can imply an editable transform/paint target;
+- status can report old dimensions, profile or GPU memory;
+- shortcuts and commands can reach controllers without a target document.
+
+Creating a blank fake document to keep the editor alive is not acceptable. A
+project is a container and workspace; documents are optional content inside it.
+
+Primary application states
+==========================
+
+Introduce an explicit discriminated workspace surface model. Exact naming may
+follow existing architecture, but the semantic states must be first-class:
+
+    launcher
+        no active project and no open document
+
+    project-home
+        active project, no active document
+
+    document-loading
+        requested document tab has presence but is not ready
+
+    image-document
+        active editable image document
+
+    document-error
+        document identity/tab remains recoverable after load failure
+
+Conceptually:
+
+    Application workspace
+    ├─ Start / launcher
+    ├─ Project workspace
+    │  ├─ Project Home
+    │  └─ active document surface
+    └─ Standalone active document surface
+
+Do not infer this state independently inside individual panels. Compute it at
+one composition/application boundary and publish it as the workspace context.
+
+User-facing state transitions
+=============================
+
+New Project
+-----------
+
+1. User creates a project with a name and disk location.
+2. The project manifest/directory is committed successfully.
+3. The project becomes active.
+4. The normal application workspace opens on Project Home.
+5. Assets and project commands are usable immediately.
+6. No blank or hidden image document is created.
+
+Open Project
+------------
+
+- Valid last-used document: open the project and request that document.
+- No last-used document: enter Project Home.
+- Missing/unreadable last-used document: enter Project Home and show a compact,
+  actionable warning; do not fall back to the application launcher.
+- Project open failure: retain the previous stable state and report the error.
+
+Close last document
+-------------------
+
+- With an active project: return to Project Home.
+- Without an active project: return to the launcher.
+- Project remains open until explicitly closed.
+
+Close Project
+-------------
+
+- Resolve dirty/open document close policy first.
+- Close project-owned resources and return to standalone document state if
+  standalone documents remain open, otherwise return to the launcher.
+- Never silently discard unsaved documents merely to leave Project Home.
+
+Project Home surface
+====================
+
+Use the normal workspace frame so the application does not jump between two
+unrelated layouts. Replace the document editor surface with a truthful Project
+Home surface.
+
+Central content:
+
+    [media/project icon]
+
+    Drop media here
+    or click to browse
+
+    [Browse / Import]  [New Document]
+
+The exact copy should use the project name where useful, for example
+`Drop media to add to <Project>`.
+
+Project Home requirements:
+
+- no document tab is selected or fabricated;
+- Assets is the preferred relevant panel/context;
+- imported project assets use the existing asset browser and justified layout;
+- recent/last-used project media can be opened from the asset view;
+- Browse and drag/drop enter one canonical project import path;
+- New Document creates a real unsaved/new project document through the normal
+  document creation path;
+- central surface, panels and menus remain keyboard accessible;
+- loading/import progress must not block unrelated project navigation.
+
+Panel behavior without an active document
+=========================================
+
+Properties
+----------
+
+- Must not render stale Grade, adjustment, text, vector or effect properties.
+- May show a compact project-context editor later, but the initial implementation
+  may use a clear neutral Project Home/No active document state.
+- Selecting a project asset may render asset metadata only when that is a real
+  supported Properties editor, not through image-document property components.
+
+Layers / Channels / Scopes
+--------------------------
+
+- Must publish no stale document data.
+- Layers shows a quiet `No active document` state or an intentionally empty
+  document panel.
+- Channels and Scopes remain inactive/empty until a compatible document surface
+  owns them.
+- Floating panel geometry and workspace layout may remain, but contents must be
+  context-correct.
+
+Assets / GenAI / Agent
+----------------------
+
+- Assets remains usable in Project Home.
+- GenAI/Agent commands that operate on project assets may remain enabled.
+- Commands requiring a canvas, selection, active layer or image document must
+  be disabled through the central command context.
+
+Toolbar and tool options
+------------------------
+
+- Image editing tools have no target and must be disabled or visually inactive.
+- Tool Options may retain stable bar geometry but cannot show stale active-layer
+  values or claim that a transform/paint session exists.
+- Choosing a disabled document tool must not create an implicit document.
+- Application/project commands such as import remain accessible elsewhere.
+
+Status bar
+----------
+
+- Must not show stale image dimensions, zoom, RGB/bit-depth/profile, readiness
+  timings or per-document GPU memory.
+- May show project identity, asset/import status or a neutral ready state.
+- Workspace layout switcher remains available when meaningful.
+
+Menus, shortcuts and command capabilities
+=========================================
+
+Do not implement availability through many component-local booleans. Extend or
+compose the canonical command layer so menu, hotkey, toolbar, context menu,
+automation and future external control share the same decision.
+
+Useful command scopes/capabilities include:
+
+- application;
+- project;
+- project asset collection;
+- document;
+- image canvas;
+- layer stack;
+- editable pixels;
+- vector editing;
+- text editing;
+- selection;
+- timeline/future time media.
+
+The exact representation may be a discriminated context plus command-specific
+`canExecute` predicates. Avoid a global soup of unrelated boolean flags.
+
+Initial capability matrix
+=========================
+
+Inventory every visible and invokable surface before implementation. At
+minimum classify:
+
+                         Launcher   Project Home   Image loading   Image ready
+    File/Open                yes          yes             yes           yes
+    Project commands         yes          yes             yes           yes
+    Assets                   limited      yes             yes           yes
+    New Document             yes          yes             yes           yes
+    Image menu               no           no              no            yes
+    Layer menu               no           no              no            yes
+    Type/Select/Filter       no           no              no            yes
+    Pixel/vector tools       no           no              no            yes
+    Layers/Channels          none         empty           empty         yes
+    Scopes                   no           no              no            yes
+    Document Properties      no           no              no            yes
+    Save document            no           no              pending       yes
+    Save project             n/a          yes             yes           yes
+    Export image             no           no              no            yes
+
+Expand this into a complete implementation inventory covering:
+
+- every top-level menu item and shortcut;
+- toolbar tools and flyouts;
+- property-bar controls;
+- docked and floating panels;
+- context menus;
+- drag/drop targets and clipboard commands;
+- status bar items;
+- save/export/close/recovery operations;
+- automation and command-service operations;
+- project Assets, GenAI and Agent actions;
+- loading, error, recovery and no-selection substates.
+
+The inventory is both a design artifact and a test source. Undefined behavior
+is a defect; do not leave controls accidentally enabled because no one listed
+them.
+
+Flexible media intake boundary
+==============================
+
+Project Home should accept artifacts through a generic import-recognition
+boundary rather than assuming every dropped file immediately becomes an image
+canvas.
+
+Current supported behavior:
+
+- PNG/JPEG/WebP/TIFF and other supported raster formats: import/open according
+  to the existing project asset contract;
+- PSD/PSB/PDF: use their existing layered/document import route;
+- unsupported media: report a clear unsupported/import-unavailable result and
+  leave the workspace unchanged.
+
+Future examples used only to validate the boundary:
+
+- video could become a project asset and later offer `Extract Frame` or open a
+  time-based surface;
+- a 3D model could later become an asset and offer render/snapshot actions;
+- audio or compound documents could use their own surface/command capability.
+
+Do not build video playback, frame extraction, timeline UI or 3D rendering in
+this task. Do ensure the central drop handler can classify an artifact and
+route or reject it without hard-coding image-canvas behavior throughout the UI.
+
+Drop semantics depend on target context:
+
+- drop on Project Home: import into the project, then open when appropriate;
+- drop on an image canvas: use image-document Place/Open semantics;
+- drop on Assets: import as a project asset;
+- unsupported target/type combination: explain and perform no partial import.
+
+Application composition boundary
+================================
+
+The generic workspace shell owns:
+
+- menu/header frame;
+- project identity;
+- dock layout and workspace persistence;
+- document tab strip;
+- status/workspace switcher frame;
+- active surface selection;
+- project-level Assets/GenAI/Agent availability.
+
+The image-document surface owns:
+
+- canvas/viewport;
+- Layers/Channels/Scopes document models;
+- image Properties editors;
+- image tools, selections and tool options;
+- document renderer/GPU lifecycle;
+- document save/export/recovery integration.
+
+Project Home must not mount a hidden `LightTableEditorOverlay` merely to reuse
+its chrome. Extract or compose shared shell pieces at a truthful ownership
+boundary. Preserve the existing UI kit, typography, spacing and dock behavior.
+
+Persistence and project behavior
+================================
+
+- A newly created project exists durably on disk before Project Home appears.
+- Project Home records the project as recent.
+- Opening/importing media updates `lastUsedDocument` only when a real project
+  document becomes active through the canonical project path.
+- Project Home itself is not stored as a fake last-used document.
+- Closing the final document does not erase project metadata or assets.
+- Restarting and reopening an empty project returns to Project Home.
+- Missing last-used files do not make the complete project inaccessible.
+
+Performance and lifecycle
+=========================
+
+- Project Home mounts no WebGPU image renderer, scopes or document recovery
+  runtime when no document is active.
+- Import inspection runs asynchronously and does not block the application UI.
+- Rapid open/close/import actions are generation-safe and publish no stale
+  active document.
+- Leaving Project Home removes its observers/listeners and cancels obsolete
+  import previews.
+- Project asset thumbnails use bounded/lazy ownership consistent with the
+  launcher and Asset Browser.
+- This task must remain compatible with parked task 146: an open project can
+  contain cold/hibernated documents without requiring all editors to mount.
+
+Required tests
+==============
+
+State transitions:
+
+- startup without project/document shows launcher;
+- New Project creates disk state and enters Project Home;
+- empty recent project opens Project Home;
+- project with valid last-used document opens that document;
+- missing last-used document opens Project Home with warning;
+- closing final project document returns to Project Home;
+- closing final standalone document returns to launcher;
+- closing project returns to the correct remaining app state.
+
+Context correctness:
+
+- no stale tab, Properties, Layers, Channels, Scopes, tool options or status;
+- all image-only menu items, shortcuts and commands reject Project Home;
+- project/import/asset commands remain available;
+- automation receives the same command availability as the visible UI;
+- floating panels display empty/project context without stale document state.
+
+Import and assets:
+
+- browse and drag/drop share one canonical import operation;
+- supported image import creates/opens the expected project document;
+- multiple dropped assets are organized without UI blocking;
+- unsupported media reports once and leaves no partial document/asset;
+- target-specific drop behavior does not confuse Project Home with image Place;
+- recent project thumbnail/last-used document updates only after real activation.
+
+Lifecycle:
+
+- Project Home creates zero document GPU engines;
+- project open/close cycles leave no listeners, object URLs or tasks behind;
+- failed/canceled imports clean temporary files and preview resources;
+- opening the first document replaces Project Home without duplicate shells;
+- closing it restores Project Home and the previous dock geometry.
+
+Acceptance criteria
+===================
+
+- An active project can exist and remain useful with zero active documents.
+- New Project lands in a ready on-disk workspace, not a fake blank image.
+- Project Home supports organizing/importing media and creating a document.
+- The normal workspace remains spatially stable while document-specific content
+  becomes truthfully empty/disabled.
+- No stale document state is visible or invokable.
+- Menu, hotkey, toolbar, context menu and automation availability come from one
+  shared command/surface context.
+- Project Home mounts no image renderer or document runtime.
+- The media intake boundary can reject or later route video/3D without changing
+  the core workspace mental model.
+- Web and desktop share the same state model; disk-specific project creation
+  remains behind the host boundary.
+
+Explicit non-goals
+==================
+
+- implementing video playback, timelines or frame extraction;
+- implementing a 3D viewport or renderer;
+- pretending unsupported media is an image document;
+- creating a hidden/blank document to support Project Home;
+- keeping stale document panels enabled for visual convenience;
+- moving all image-editor state during this task unless required for the shell
+  ownership boundary;
+- implementing document GPU hibernation from parked task 146;
+- redesigning the established UI kit or workspace geometry.
+

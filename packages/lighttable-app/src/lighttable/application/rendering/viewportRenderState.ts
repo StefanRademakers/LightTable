@@ -11,6 +11,22 @@ export interface ViewportRenderState {
   uniforms: Float32Array<ArrayBuffer>;
 }
 
+/** Resolves one document image into viewport presentation coordinates. */
+export const resolveViewportImageRect = (
+  imageWidth: number,
+  imageHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+  scale: number,
+  panX: number,
+  panY: number
+): ViewportRenderRect => ({
+  x: (viewportWidth - imageWidth * scale) / 2 + panX,
+  y: (viewportHeight - imageHeight * scale) / 2 + panY,
+  width: imageWidth * scale,
+  height: imageHeight * scale
+});
+
 /**
  * Resolves DOM viewport measurements to the exact values consumed by WebGPU.
  * Comparing this state prevents layout-object churn from producing redundant

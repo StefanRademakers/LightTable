@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   DesktopRecoveryWritePayload,
   DesktopSavePayload,
@@ -12,6 +12,9 @@ const bridge: LightTableDesktopBridge = {
   loadRecentFileThumbnail: (id: string) =>
     ipcRenderer.invoke('lighttable:load-recent-file-thumbnail', id),
   openRecentFile: (id: string) => ipcRenderer.invoke('lighttable:open-recent-file', id),
+  rememberOpenedFiles: (files) => ipcRenderer.invoke('lighttable:remember-opened-files',
+    files.map((file) => webUtils.getPathForFile(file)).filter(Boolean)),
+  revealRecentFile: (id) => ipcRenderer.invoke('lighttable:reveal-recent-file', id),
   removeRecentFile: (id: string) => ipcRenderer.invoke('lighttable:remove-recent-file', id),
   clearRecentFiles: () => ipcRenderer.invoke('lighttable:clear-recent-files'),
   chooseProjectParent: () => ipcRenderer.invoke('lighttable:project-choose-parent'),
@@ -20,6 +23,10 @@ const bridge: LightTableDesktopBridge = {
   openProject: () => ipcRenderer.invoke('lighttable:project-open'),
   listRecentProjects: () => ipcRenderer.invoke('lighttable:project-list-recent'),
   openRecentProject: (recentId) => ipcRenderer.invoke('lighttable:project-open-recent', recentId),
+  loadRecentProjectThumbnail: (recentId) =>
+    ipcRenderer.invoke('lighttable:project-recent-thumbnail', recentId),
+  openProjectLastUsedDocument: (projectId) =>
+    ipcRenderer.invoke('lighttable:project-open-last-document', projectId),
   revealProject: (manifestPath) => ipcRenderer.invoke('lighttable:project-reveal', manifestPath),
   closeProject: () => ipcRenderer.invoke('lighttable:project-close'),
   removeRecentProject: (recentId) => ipcRenderer.invoke('lighttable:project-remove-recent', recentId),

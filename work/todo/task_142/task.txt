@@ -1,0 +1,140 @@
+Task 142 - Preserve Global Grade and Global Lens FX in PSD export
+
+Goal
+====
+
+Make the PSD export boundary explicit and predictable for LightTable's
+document-global processing. Preserve the editable layer stack wherever a
+reliable Photoshop representation exists, while guaranteeing an honest
+appearance fallback for processing that Photoshop cannot reconstruct.
+
+Current state
+=============
+
+- The merged PSD composite includes Global Grade and Global Lens FX.
+- Regular layers, supported adjustment layers and attached adjustments are
+  projected into the editable PSD layer tree.
+- Global Grade and Global Lens FX live outside `document.layers` and are not
+  currently represented semantically in that PSD layer tree.
+- The PSD may therefore open with the correct initial composite but diverge
+  after Photoshop rebuilds or edits the layer stack.
+- The LightTable document remains the authoritative lossless/editable source.
+
+Required design
+===============
+
+Global Grade
+------------
+
+Export Global Grade as a top-level Photoshop folder named `Global Grade`:
+
+- preserve LightTable processing order inside the folder;
+- export the folder collapsed by default;
+- map the Global Grade master visibility to folder visibility;
+- emit genuine Photoshop adjustment layers for modules with a proven,
+  sufficiently equivalent descriptor, such as Curves, Exposure,
+  Hue/Saturation and Color Balance;
+- do not infer equivalence from matching names alone;
+- preserve unsupported/custom processing through an explicitly named rendered
+  fallback only where necessary;
+- avoid silently exporting a visually different editable approximation.
+
+Strength needs its own parity gate. At 100%, the translated adjustment stack
+can be used directly. Below 100%, compare LightTable's final-result mix with
+Photoshop folder opacity across normal, clipped, masked and blended documents.
+Use folder opacity only if the visual result is acceptably equivalent;
+otherwise retain an explicit rendered fallback or report the limitation.
+
+Expected conceptual structure:
+
+    > Global Grade (collapsed)
+        Curves
+        Exposure
+        Hue / Saturation
+        Color Balance
+        LightTable custom grade (rendered, only when required)
+
+Global Lens FX
+--------------
+
+Export Global Lens FX as a separate top-level folder named `Global Lens FX`,
+also collapsed by default. Treat it as document-final processing and preserve
+its order relative to Global Grade.
+
+Lens distortion, lens blur/depth, halation, grain, creative chromatic
+aberration and post-crop vignette do not all have reliable Photoshop
+adjustment-layer equivalents. Until embedded Smart Object source data and
+proven Smart Filter descriptors exist, use an explicitly named rendered
+appearance fallback rather than pretending the effects are editable.
+
+Expected initial structure:
+
+    > Global Lens FX (collapsed)
+        LightTable Lens FX (rendered)
+
+Export modes
+============
+
+Define and expose two honest PSD intents:
+
+1. Editable PSD
+   - preserve normal layers and supported adjustment descriptors;
+   - translate supported Global Grade modules into the collapsed folder;
+   - preserve unsupported global processing with a clearly reported fallback;
+   - return structured warnings for every semantic loss.
+
+2. Maximum Appearance PSD
+   - bake the complete final document result;
+   - prioritize visual equivalence over editability;
+   - never apply Global Grade or Global Lens FX twice.
+
+Investigate whether a top-level `LightTable Global Output` compatibility layer
+is useful as an optional safety snapshot. If used, make its purpose obvious:
+it guarantees the initial appearance but obscures editable content until the
+user hides it. It must not be presented as a semantic roundtrip.
+
+Implementation requirements
+===========================
+
+- Add document-global state to the PSD export projection explicitly; do not
+  obtain it through UI state or hidden renderer coupling.
+- Preserve the exact Global Lens FX / Global Grade processing order used by
+  the compositor.
+- Reuse the same deterministic final-render/bake boundary as Flatten Image and
+  raster export so appearance exports cannot double-apply globals.
+- Keep PSD descriptor generation separate from LightTable GPU implementation
+  details.
+- Maintain 16-bit/HDR processing until the chosen PSD encoding boundary; also
+  document the current PSD writer's bit-depth limitations.
+- Preserve normal PSD import/export behavior for documents without globals.
+- Keep `.lt` as the fully editable source of truth.
+
+Verification
+============
+
+- Export with neither global processor, each one independently, and both in
+  their real compositor order.
+- Cover visibility off/on, neutral/default state and non-100% Grade Strength.
+- Cover supported and unsupported Grade modules in the same document.
+- Open in the supported current Photoshop version and verify:
+  - initial composite appearance;
+  - folder names, order and collapsed state;
+  - adjustment editability;
+  - folder visibility;
+  - Photoshop layer-stack regeneration after an edit;
+  - structured warnings for every rendered or dropped semantic.
+- Test RGB ramps, alpha, masks, blend modes, clipping, 8/16-bit source
+  documents and representative photographs.
+- Add PSD projection unit tests and Photoshop roundtrip/oracle fixtures.
+- Verify Flatten Image, PNG export and PSD appearance export share consistent
+  final-render semantics and never double-apply global processing.
+
+Definition of done
+==================
+
+Global Grade appears as an ordered, collapsed Photoshop folder containing real
+adjustment layers wherever parity is proven. Global Lens FX has an explicit,
+collapsed appearance-preserving representation until genuine Smart Filter
+roundtrip is available. Export intent and every loss of editability are clear,
+tested and reported, and opening or rebuilding the PSD never applies the
+global processors twice.

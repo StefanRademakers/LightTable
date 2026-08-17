@@ -64,6 +64,16 @@ describe('createEditorMenuOptions', () => {
     const adjustments = image.find(({ value }) => value === 'image-adjustments')?.children;
     const curves = adjustments?.find(({ value }) => value === 'image-adjustments-curves');
     expect(curves).toMatchObject({ label: 'Curves...', shortcut: 'Ctrl+M', disabled: false });
+    expect(Object.fromEntries(adjustments?.filter(({ shortcut }) => shortcut).map(({ label, shortcut }) => [
+      label, shortcut
+    ]) ?? [])).toEqual({
+      'Levels...': 'Ctrl+L',
+      'Curves...': 'Ctrl+M',
+      'Hue / Saturation...': 'Ctrl+U',
+      'Color Balance...': 'Ctrl+B',
+      'Black & White...': 'Alt+Shift+Ctrl+B',
+      'Invert...': 'Ctrl+I'
+    });
     curves?.onClick?.();
     expect(menuCommands.applyAdjustment).toHaveBeenCalledWith('curves');
     expect(adjustments?.map(({ label }) => label)).toEqual([
@@ -209,7 +219,8 @@ describe('createEditorMenuOptions', () => {
     const menuCommands = commands();
     menuCommands.projectsAvailable = true;
     menuCommands.activeProject = {
-      id: 'project-1', name: 'Campaign', rootPath: 'D:/Campaign', manifestPath: 'D:/Campaign/project.ltproject'
+      id: 'project-1', name: 'Campaign', rootPath: 'D:/Campaign',
+      manifestPath: 'D:/Campaign/project.ltproject', lastUsedDocument: null
     };
     menuCommands.recentProjects = [{
       ...menuCommands.activeProject, recentId: 'recent-project-1', available: true

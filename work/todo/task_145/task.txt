@@ -1,0 +1,237 @@
+Task 145 - Duplicate Image as an independent unsaved document
+
+Goal
+====
+
+Add `Image > Duplicate...` as an in-memory document fork. The command opens a
+small standard dialog with an optional name, duplicates the complete editable
+document state and opens the result in a new unsaved tab. It does not write a
+file, overwrite the source, or keep mutable state coupled to the source.
+
+User-facing contract
+====================
+
+- `Image > Duplicate...` is enabled whenever an editable document is open.
+- Invoking it opens a standard `Duplicate Image` dialog.
+- The dialog identifies the source document and offers one `As` name field.
+- The suggested name is `<source base name> copy`; the complete field is
+  selected initially for fast replacement.
+- The name is optional. Empty input resolves to the same deterministic default.
+- Enter/OK duplicates; Escape/Cancel leaves all state unchanged.
+- Success opens and activates one new tab with the resolved name.
+- The new tab is unsaved and has no disk path, file handle or overwrite target.
+- Closing it follows the normal unsaved-document prompt/recovery policy.
+- The source document, selection, history position and dirty state do not
+  change merely because a duplicate was created.
+
+This is document duplication, not `Duplicate Layer`, Copy Merged, Save As,
+Snapshot or linked-instance behavior.
+
+Duplicated state
+================
+
+Clone the complete authored document model at one coherent revision:
+
+- canvas dimensions, bit depth, color profile and resolution metadata;
+- complete layer/group ordering and collapsed-independent semantic structure;
+- raster/paint content including pixels outside current crop/canvas bounds;
+- vector paths, live shapes, text, fonts and transforms;
+- masks, mask linking, feather/density and clipping stacks;
+- adjustment, Grade and Lens FX layers at their exact visible positions;
+- attached/local processing and layer styles;
+- blend modes, opacity, Fill, locks and visibility;
+- guides, grid/document geometry and active selection state;
+- imported compatibility metadata and preserved source payloads where their
+  ownership contract allows exact copying;
+- document-level settings required to reproduce the visible result.
+
+Task 143 remains authoritative: Grade and Lens FX are ordinary processing
+layers. Duplication copies the visible layer tree as-is and must not extract,
+stage-sort or recreate a hidden Global Grade/Lens FX model.
+
+New document identity
+=====================
+
+The result receives fresh runtime identity:
+
+- new document id;
+- fresh layer, group, mask, adjustment and effect ids where ids are scoped to
+  an open workspace and could collide across automation/drag/selection ports;
+- remapped internal references through one old-id to new-id map;
+- new recovery identity and autosave lineage;
+- no source path, recent-file identity, native file handle or cloud locator;
+- dirty/unsaved state appropriate for a newly created document;
+- independent active-tab/session/controller state.
+
+Preserve user-facing names and semantic references while remapping runtime
+identity. Path-text references, clipping relationships, attached-effect owners,
+mask owners, selection sources and any dependency graph edges must point to the
+new ids only. No reference in the duplicate may accidentally resolve into the
+source document.
+
+History and undo
+================
+
+Document duplication is a workspace command, not a mutation inside the source
+document:
+
+- do not add an undo entry to the source;
+- the duplicate starts with an empty edit history at its duplicated baseline;
+- subsequent edits and undo/redo are completely independent;
+- recovery of either document may not alter or require the other;
+- cancel/failure opens no tab and publishes no partial document.
+
+If product testing later proves useful, preserving source history can be a
+separate explicit feature. Do not silently clone retained undo GPU resources in
+the initial implementation.
+
+Memory and GPU ownership
+========================
+
+Avoid an eager second copy of every large immutable source when safe sharing is
+already supported, but never share mutable ownership accidentally.
+
+- immutable decoded/source assets may be shared through explicit reference-
+  counted asset ownership;
+- mutable paint, mask, selection and generated surfaces require an independent
+  GPU copy or a proven copy-on-write boundary before either document can edit;
+- cached composites, scopes, thumbnails, analysis results and transient render
+  targets are rebuildable and should not be cloned;
+- compositor plans and processing caches are recreated for the new document;
+- text/vector semantic models are cloned and their derived GPU previews rebuild;
+- device loss and tab close must release each document's resources exactly once;
+- duplicate creation must validate projected memory before committing the tab.
+
+Prefer a staged fork transaction:
+
+1. capture one immutable source document snapshot;
+2. build and validate the id-remapped semantic duplicate;
+3. retain/share immutable assets and encode required mutable GPU copies;
+4. submit and validate GPU work;
+5. construct the independent document session and renderer;
+6. publish the new workspace tab atomically;
+7. release staged resources on any failure.
+
+Never publish a tab whose masks, paint surfaces or layer references are still
+partially connected to the source.
+
+UI and command integration
+==========================
+
+Add the command through the canonical menu/command service so menu, shortcut,
+automation and future external control reach the same operation.
+
+    Image
+        Image Size...
+        Canvas Size...
+        Image Rotation >
+        Crop
+        Trim...
+        Reveal All
+        ----------------
+        Duplicate...
+
+Dialog layout uses existing UI-kit components only:
+
+    Duplicate Image
+
+    Duplicate   <source document title>
+    As          [suggested copy name____________]
+
+                                      [Cancel] [OK]
+
+- standard dialog shell, form row, text field and action buttons;
+- locked typography, spacing, focus, validation and keyboard behavior;
+- no custom button, input or dialog CSS;
+- long source names ellipsize while remaining available in a tooltip;
+- trim surrounding whitespace from the submitted name;
+- reject control characters and names violating the document-title contract;
+- do not require a filename extension because this is not a disk filename.
+
+Do not initially expose Photoshop's `Duplicate Merged Layers Only` checkbox.
+That creates a flattened-document variant with different semantics and should
+be added later only through the canonical final-render/flatten boundary.
+
+Persistence, recovery and export
+================================
+
+- The duplicate is immediately eligible for normal unsaved recovery.
+- Its recovery record must contain the new identity and complete independent
+  editable state.
+- Save prompts for a destination as a new document; Save may not target the
+  source file implicitly.
+- Export behaves like any other unsaved document and derives a suggested name
+  from the duplicated title.
+- Saving, exporting, flattening or closing the duplicate cannot mutate source
+  dirty state or source recovery records.
+
+Performance requirements
+========================
+
+- Dialog opening is immediate and performs no duplication work.
+- Duplicate starts only after confirmation.
+- Keep the UI responsive while large mutable GPU surfaces are copied.
+- Report determinate progress where byte totals are known; allow cancellation
+  before publication.
+- Do not read full image pixels back through the CPU.
+- Reuse GPU-to-GPU copies and immutable asset references where valid.
+- No recurring work or resource growth remains after duplicate/close cycles.
+
+Required tests
+==============
+
+Semantic tests:
+
+- default and custom names, including blank-name fallback;
+- new document/layer/mask/effect ids and correctly remapped references;
+- exact layer ordering, transforms, off-canvas content and processing position;
+- active geometric and raster-backed selections;
+- vectors, live text, groups, masks, clipping and attached processing;
+- imported PSD metadata and embedded LUT/font/source assets;
+- source remains byte/semantic equivalent after duplication.
+
+Runtime tests:
+
+- editing paint pixels in the duplicate never changes the source;
+- editing masks, vectors, text, adjustments and Lens FX remains independent;
+- source and duplicate render initially pixel-equivalent;
+- closing either tab leaves the other valid;
+- device loss/recovery with both tabs open;
+- repeated duplicate/close cycles show no retained-resource growth;
+- failure or cancellation cleans staged GPU resources and opens no tab.
+
+Workflow tests:
+
+- menu opens the dialog with selected suggested name;
+- Enter confirms and Escape cancels;
+- confirmed duplicate opens as the active unsaved tab;
+- source receives no undo entry;
+- duplicate begins with empty history and independent recovery;
+- save prompts for a new destination and cannot overwrite the source silently;
+- duplicate, edit, undo, save/reopen and recovery preserve exact output;
+- web and desktop use the same semantic fork implementation.
+
+Acceptance criteria
+===================
+
+- `Image > Duplicate...` creates one independent, unsaved document tab.
+- Optional naming works and never implies a disk save.
+- Complete editable content, including off-canvas data, is preserved.
+- Grade/Lens FX and all other processing remain at their truthful stack scope.
+- Source and duplicate start visually identical but can be edited independently.
+- Source history and dirty state remain unchanged.
+- The duplicate has fresh identity, empty history and its own recovery lineage.
+- Large duplication remains responsive and performs no CPU image readback.
+- Cancel/failure is atomic and leak-free.
+- UI uses only standard reusable controls.
+
+Explicit non-goals
+==================
+
+- writing the duplicate to disk during creation;
+- Save As or overwriting the source file;
+- linked documents, aliases or synchronized instances;
+- cloning the source undo/redo history;
+- Duplicate Merged Layers Only in the first implementation;
+- flattening, rasterizing or baking unsupported editable content;
+- changing document geometry or processing order.

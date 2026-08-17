@@ -76,12 +76,21 @@ describe('editor keymap', () => {
     )).toBe('open-image-size');
   });
 
-  it('routes Photoshop Curves to the contextual smart adjustment command', () => {
+  it.each([
+    { key: 'l', altKey: false, shiftKey: false, kind: 'levels' },
+    { key: 'm', altKey: false, shiftKey: false, kind: 'curves' },
+    { key: 'u', altKey: false, shiftKey: false, kind: 'hue-saturation' },
+    { key: 'b', altKey: false, shiftKey: false, kind: 'color-balance' },
+    { key: 'b', altKey: true, shiftKey: true, kind: 'black-white' },
+    { key: 'i', altKey: false, shiftKey: false, kind: 'invert' }
+  ])('routes the Photoshop $kind shortcut to its contextual smart adjustment', ({
+    key, altKey, shiftKey, kind
+  }) => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
-      input({ key: 'm', code: 'KeyM', metaKey: true }),
+      input({ key, code: `Key${key.toUpperCase()}`, metaKey: true, altKey, shiftKey }),
       context({ hasActiveLayer: true })
-    )).toBe('apply-curves');
+    )).toEqual({ type: 'apply-adjustment', kind });
   });
 
   it('routes Photoshop-compatible view overlay shortcuts', () => {

@@ -1,0 +1,337 @@
+Task 143 - Restore truthful Grade and Lens FX layer-stack processing
+
+Goal
+====
+
+Return LightTable to one user-visible layer model for Grade and Lens FX while
+preserving the current fast GPU interaction path. A Grade Layer or Lens FX
+Layer processes the composite beneath its exact visible stack position. A
+topmost processing layer is global because of its position, never because it
+belongs to a separate hidden document-processing model.
+
+This task is driven by user trust. A user familiar with a layer stack must be
+able to predict the result by looking at the stack. Internal compositor stages,
+node categories and performance shortcuts may never change that meaning.
+
+Non-negotiable invariant
+========================
+
+The visible stack position is always the processing position.
+
+- A Lens FX Layer in the middle of the stack executes in the middle.
+- A Lens FX Layer inside a group processes only the eligible lower composite
+  inside that group.
+- Layers above a Grade or Lens FX Layer are not processed by that layer.
+- Changing opacity, mask, clipping, blend mode or another property may never
+  move processing to a different point in the stack.
+- A performance optimization is legal only when it is proven pixel-equivalent
+  to evaluating the layer at its visible position.
+- A renderer shortcut may not collect processing modules from arbitrary tree
+  positions and move them into a document-final pass.
+
+Product model
+=============
+
+Only these visible ownership forms remain:
+
+1. Grade Layer
+   - processes the eligible composite below it;
+   - supports ordinary visibility, order, groups, clipping, opacity, blend and
+     mask semantics;
+   - a Grade Layer at the top of the root stack is naturally global.
+
+2. Lens FX Layer
+   - processes the eligible composite below it at its exact stack position;
+   - supports the same ordinary layer ownership and compositing semantics;
+   - a Lens FX Layer at the top of the root stack is naturally global.
+
+3. Attached/local Grade and Lens FX
+   - process only their owning drawable or future Smart Object;
+   - remain visible as children beneath that owner;
+   - execute before the owner's mask, styles and parent compositing according
+     to the canonical local-processing contract.
+
+There are no permanent empty Global Grade or Global Lens FX pseudo-layers.
+"Global" is a consequence of placing an ordinary processing layer above all
+eligible content, not a separate user-facing object type.
+
+Selection and Properties contract
+=================================
+
+- Every blue Layers-tree row is a real active layer target.
+- Selecting a Grade Layer opens that exact Grade Layer in Properties.
+- Selecting a Lens FX Layer opens that exact Lens FX Layer in Properties.
+- Selecting an attached Grade or Lens FX child opens that exact local owner.
+- There is no hidden second active content layer behind a selected processing
+  layer.
+- A canvas selection remains document selection state. It affects a newly
+  created processing layer only through an explicit mask-creation rule; an
+  existing processing layer never silently consumes it.
+- The Grading workspace may arrange panels and scopes, but it may not silently
+  change, manufacture or redirect the processing target.
+
+Canonical evaluation
+====================
+
+Every parent stack evaluates bottom-to-top:
+
+    lower layers
+        -> lower composite
+        -> Grade or Lens FX Layer processing
+        -> layer mask
+        -> opacity, blend and clipping
+        -> layers above
+
+For a Lens FX Layer, its owned ordered stack evaluates against the lower
+composite and returns to the compositor's linear premultiplied `rgba16float`
+contract before mask, opacity, blend and clipping are applied.
+
+Internal Lens FX node requirements:
+
+- geometry/distortion uses the processing layer's declared document/group
+  coordinate contract;
+- spatial blur, halation and similar nodes consume the output of the preceding
+  node in serialized order;
+- perceptual/display-referred math performs explicit domain conversion and
+  returns to the linear compositor representation;
+- canvas-edge behavior is explicit; an effect may not resize the document
+  implicitly;
+- Lens Blur depth/analysis is keyed to the exact input composite revision and
+  cannot reuse stale analysis from a different stack scope;
+- disabled and neutral nodes are exact bypasses.
+
+Current implementation finding
+==============================
+
+The general layer route already provides much of the required foundation:
+
+- `LayerCompositor` evaluates adjustment layers against the accumulated lower
+  composite and mixes the result with mask, opacity, blend and clipping;
+- `LayerProcessingRenderer` and `LayerEffectRenderer` can execute per-owner
+  Grade and Lens FX stacks;
+- groups, local processing, masks and registered Lens FX node runtimes already
+  exist.
+
+The critical semantic defect is the current document-final shortcut:
+
+- `adjustmentLayerUsesDocumentFinalEffects()` classifies a pristine Lens FX
+  adjustment using layer properties but does not prove that the layer is at a
+  semantically equivalent topmost root position;
+- `visibleDocumentFinalModules()` walks the tree and can collect qualifying
+  Lens FX modules from arbitrary visible positions;
+- those modules are then executed by the document-final runtime;
+- changing mask/opacity/clipping can move the same layer between final and
+  ordinary layer evaluation.
+
+This behavior must first be captured by failing order tests and then removed.
+Never broaden or patch the shortcut with another heuristic.
+
+Target compositor plan
+======================
+
+Compile the canonical layer tree into a pure ordered compositor plan. The plan
+must distinguish semantics from scheduling:
+
+- semantics: exact tree order, group scope, masks, clipping and blend;
+- scheduling: cached prefixes, node outputs, transient targets and safe
+  topmost suffix execution.
+
+Conceptual plan:
+
+    cached lower prefix
+        -> processing layer A
+        -> mix A
+        -> upper ordinary layers
+        -> processing layer B
+        -> mix B
+        -> technical output
+
+The compositor may identify a topmost root suffix of Grade/Lens FX Layers and
+schedule that suffix after a cached base composite only when the result is
+provably identical. Each layer in the suffix remains an independent ordered
+layer operation. Do not merge and stage-sort modules across separate layers.
+
+Caching and invalidation
+========================
+
+Use revisioned dependencies so interactive edits do the minimum valid work:
+
+- cache the root/base composite before a topmost processing suffix;
+- cache a lower prefix around an active or expensive midstack processing
+  layer when the memory budget permits;
+- key a processing result by exact input-composite revision, node/stack
+  revision, dimensions, color contract and required analysis revision;
+- mask, opacity, blend and clipping changes should reuse the raw processing
+  result when their semantics allow and rerun only the mix plus upper chain;
+- a change invalidates that node and every dependent result above it, never a
+  valid lower prefix;
+- group checkpoints are scoped to their group and ancestor revisions;
+- viewport, selection overlays and panel state never invalidate content;
+- scopes analyze only a new final visible-content revision.
+
+Memory policy
+=============
+
+Full-resolution `rgba16float` checkpoints are expensive (approximately 66 MiB
+for one 3840 x 2160 texture). Do not retain one output per layer by default.
+
+- Always prioritize the active document's useful base composite.
+- Retain checkpoints around active or expensive processing nodes only within
+  a measured GPU-memory budget.
+- Use bounded LRU eviction for rebuildable intermediates.
+- Reuse transient ping-pong targets through a shared pool.
+- Neutral/hidden processing layers allocate no effect-specific resources.
+- Inactive documents may release rebuildable processing caches.
+- Every cache reports keys, hits, misses, bytes, invalidations and destruction.
+
+Interaction performance
+=======================
+
+- Lightweight Grade and distortion should update at display cadence where the
+  target hardware allows.
+- Heavy blur/halation may lower preview quality or cadence without blocking
+  pointer input.
+- Publish at most one GPU update per animation frame and synchronously flush
+  the final pointer-up value.
+- One continuous gesture creates one history entry.
+- React observes settled state; it does not rebuild the compositor graph or
+  own pointer-rate shader state.
+- No CPU pixel readback or synchronous scope analysis is permitted in the
+  interaction path.
+- Topmost processing must remain close to the current document-final fast path
+  in measured GPU time; an RTX 5090 result is not sufficient evidence.
+
+Implementation phases
+=====================
+
+Phase 0 - Freeze evidence
+-------------------------
+
+- Capture current visual output and GPU telemetry before changing semantics.
+- Build fixtures for topmost, midstack, grouped, masked, clipped, hidden and
+  attached Grade/Lens FX.
+- Include alternating stacks such as:
+
+      raster -> Grade A -> raster -> Lens FX -> Grade B
+
+- Record 1080p and 4K interaction results on a high-end discrete GPU plus at
+  least one integrated Windows GPU and Apple Silicon device.
+
+Phase 1 - Prove and correct order
+---------------------------------
+
+- Add tests demonstrating that a pristine Lens FX Layer currently escapes its
+  visible stack position.
+- Remove position-independent document-final extraction.
+- Route every non-proven Lens FX Layer through the existing per-owner layer
+  evaluator.
+- Verify order, groups, visibility, masks, clipping, opacity and blend before
+  adding performance shortcuts.
+- Confirm that changing only mask or opacity cannot alter processing position.
+
+Phase 2 - Safe topmost suffix optimization
+------------------------------------------
+
+- Detect only a semantically eligible topmost root processing suffix.
+- Cache the ordinary base composite below it.
+- Evaluate every Grade/Lens FX Layer independently in exact stack order.
+- Preserve each layer's mask, mix, blend and clipping semantics.
+- Compare pixel output against the unoptimized evaluator for every optimized
+  plan; debug/test builds should be able to force either route.
+- Keep measured performance within a small recorded margin of the current
+  global route.
+
+Phase 3 - Midstack checkpoints
+------------------------------
+
+- Add revisioned lower-prefix checkpoints around active/expensive nodes.
+- Invalidate only from the changed dependency upward.
+- Introduce bounded cache retention and transient texture pooling.
+- Add telemetry and lifecycle/device-loss coverage.
+
+Phase 4 - Product UI migration
+------------------------------
+
+- Remove permanent Global Grade and Global Lens FX pseudo-rows only after the
+  truthful layer evaluator and fast path are verified.
+- Expose ordinary Grade Layer and Lens FX Layer creation through the canonical
+  adjustment menu and reuse existing icons/components.
+- Keep attached/local children as explicit owners.
+- Ensure Properties titles communicate `Grade Layer`, `Lens FX Layer`,
+  `Local Grade` and `Local Lens FX` without parallel hidden context.
+- Move Look/Preset, Strength and copy/paste to the selected Grade Layer model.
+  Determine by parity testing whether Strength is exactly layer opacity or an
+  intentionally separate internal Grade mix.
+- Do not add a second selection or document-processing target model.
+
+Phase 5 - Flatten, persistence and interchange
+----------------------------------------------
+
+- Flatten evaluates only the visible layer tree through the same live
+  compositor and needs no separate global reset.
+- Hidden Grade/Lens FX Layers are excluded naturally.
+- Undo restores the complete original tree and processing state.
+- Save/open preserves ordinary processing-layer position and ownership.
+- PSD Grade export follows the layer's exact tree position and mask.
+- Unsupported Lens FX exports as an explicit per-layer rendered fallback until
+  genuine Smart Filter roundtrip exists.
+- Revise task 142: a special `Global Grade` PSD folder is no longer the primary
+  model if this task is accepted.
+
+Correctness verification matrix
+===============================
+
+For both Grade Layer and Lens FX Layer cover:
+
+- root top, root middle and root bottom;
+- before/after ordinary raster, vector and text content;
+- isolated and pass-through groups at several depths;
+- visible/hidden and enabled/disabled;
+- mask absent, white, black, partial, feathered and transformed;
+- opacity 0, partial and 100%;
+- supported blend modes and clipping chains;
+- multiple ordered processing layers with reversed order;
+- local/attached processing combined with processing layers;
+- continuous drag, undo/redo, save/open, merge, flatten and export;
+- 8/16-bit source metadata while retaining 16-bit float intermediates.
+
+Performance gates
+=================
+
+- Neutral and hidden nodes execute no effect pass.
+- Editing a topmost processing layer does not rebuild ordinary lower content.
+- Editing a midstack processing layer does not rebuild a valid lower prefix.
+- Mask/opacity-only edits do not rerun expensive Lens FX when the raw processed
+  output remains valid.
+- No recurring GPU work occurs while idle.
+- No retained-resource growth after repeated add/delete and undo/redo cycles.
+- No validation errors, stale depth results or cross-document cache reuse.
+- Pointer input remains responsive even when heavy final-quality work cannot
+  meet display cadence.
+- Report GPU stage timings, cache hit rates, estimated bytes and interaction
+  p50/p95 rather than relying on subjective smoothness on an RTX 5090.
+
+Rollback boundaries
+===================
+
+- Keep semantic correction, caching and UI migration in separate focused
+  commits.
+- Do not remove the current UI representation until unoptimized truthful
+  rendering and the topmost fast path both pass.
+- Every optimization must have a force-disabled comparison route during
+  development and pixel-equivalence tests.
+- If a cache optimization fails correctness or lifecycle gates, remove that
+  optimization without reverting the truthful layer model.
+- Never restore the position-independent document-final shortcut as a
+  performance workaround.
+
+Definition of done
+==================
+
+The task is complete when Grade and Lens FX are ordinary, explicit processing
+layers whose visible position always determines their exact processing scope;
+attached variants remain local; no hidden creative singleton or pseudo-layer
+is required; topmost usage remains fast through proven scheduling and caching;
+midstack interaction reuses valid lower composites; live preview, flatten and
+export share the same evaluator; and the complete correctness, performance,
+memory and hardware gates pass without a semantic shortcut.

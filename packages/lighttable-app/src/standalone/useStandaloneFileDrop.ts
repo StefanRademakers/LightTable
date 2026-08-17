@@ -30,7 +30,8 @@ export interface StandaloneFileDropState {
  * separate document session instead of replacing the active document.
  */
 export const useStandaloneFileDrop = (
-  onOpen: (file: File, decodeMode?: StandaloneDecodeMode) => unknown
+  onOpen: (file: File, decodeMode?: StandaloneDecodeMode) => unknown,
+  onAccepted?: (files: readonly File[]) => void
 ): StandaloneFileDropState => {
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +83,7 @@ export const useStandaloneFileDrop = (
             + `${dropped.length - supported.length} unsupported file${dropped.length - supported.length === 1 ? '' : 's'} skipped.`
       );
       supported.forEach((file) => onOpen(file, 'automatic'));
+      onAccepted?.(supported);
     };
 
     window.addEventListener('dragenter', onDragEnter);
@@ -96,7 +98,7 @@ export const useStandaloneFileDrop = (
       window.removeEventListener('drop', onDrop);
       window.removeEventListener('blur', reset);
     };
-  }, [onOpen]);
+  }, [onAccepted, onOpen]);
 
   return { active, error, clearError };
 };

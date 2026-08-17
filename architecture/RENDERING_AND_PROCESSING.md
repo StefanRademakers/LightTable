@@ -144,9 +144,12 @@ The render frame reuses cached intermediate textures when their exact
 dependency revisions are unchanged.
 
 `ViewportPresentationController` translates DOM viewport measurements into
-retained GPU uniforms, owns interactive-linear to settled-nearest sampling,
-and disposes its settle timer. GPU resource recreation republishes the retained
-uniforms without manufacturing a document or content change.
+retained GPU uniforms and owns scale-resident sampling: below the pixel-view
+threshold presentation is linear, while at and above it every zoom frame stays
+nearest-neighbour. Sampling and geometry changes commit as one viewport
+invalidation, with no delayed settlement render. GPU resource recreation
+republishes the retained uniforms without manufacturing a document or content
+change.
 
 Rules:
 

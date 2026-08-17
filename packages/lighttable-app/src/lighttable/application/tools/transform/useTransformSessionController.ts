@@ -36,6 +36,12 @@ import {
   topLevelTransformLayerIds,
   transformLayerGroupInDocumentSpace
 } from '../snapping/groupLayerTransform';
+import {
+  alignTransformFrameToDocument,
+  transformSessionFrame,
+  type TransformFrameMode,
+  type TransformSessionFrame
+} from '../../../editor/tools/transform/transformSessionFrame';
 
 export interface TransformEditorRendererPort extends TransformRendererPort {
   setDocument(document: ImageDocument): void;
@@ -69,12 +75,16 @@ export interface TransformSessionDependencies {
   pushHistoryEntry(entry: TransformHistoryEntry): void;
   setError(message: string | null): void;
   setStatus(message: string): void;
+  transformFrameMode?: TransformFrameMode;
 }
 
 export interface TransformSessionController {
   state: TransformSessionState | null;
+  frameOverride: TransformSessionFrame | null;
   update(matrix: AffineMatrix): void;
   updateProjective(quad: TransformQuad): void;
+  checkpoint(): void;
+  alignFrameToDocument(): void;
   commit(): void;
   cancel(): void;
   reset(): void;
@@ -88,8 +98,9 @@ export interface TransformSessionController {
  * React adapter for the renderer-backed transform transaction.
  *
  * The low-level TransformController owns preview pixels and transform math.
- * This adapter owns the editor transaction: document publication, selection
- * publication and exactly one history entry when a transform is committed.
+ * This adapter owns document/selection publication and gesture checkpoints.
+ * Pointer-up publishes one durable history entry while a continuation frame
+ * keeps the user-facing local transform space alive until explicit confirmation.
  */
 export const useTransformSessionController = (
   dependencies: TransformSessionDependencies
@@ -99,6 +110,13 @@ export const useTransformSessionController = (
   const controllerRef = useRef<TransformController | null>(null);
   const controllerDocumentIdRef = useRef<ImageDocument['id'] | null>(null);
   const [state, setState] = useState<TransformSessionState | null>(null);
+  const [frameOverride, setFrameOverrideState] = useState<TransformSessionFrame | null>(null);
+  const frameOverrideRef = useRef<TransformSessionFrame | null>(null);
+  const continuationFrameRef = useRef<TransformSessionFrame | null>(null);
+  const setFrameOverride = useCallback((frame: TransformSessionFrame | null) => {
+    frameOverrideRef.current = frame;
+    setFrameOverrideState(frame);
+  }, []);
   const selectedLayerKey = (dependencies.selectedLayerIds ?? []).join('\u0000');
   const lastLayerTransformRef = useRef<AffineMatrix | null>(null);
   const groupRef = useRef<{
@@ -168,7 +186,9 @@ export const useTransformSessionController = (
     });
   }, []);
 
-  const finish = useCallback((commit: boolean) => {
+  const finish = useCallback((commit: boolean, preserveContinuation = false) => {
+    if (!preserveContinuation) continuationFrameRef.current = null;
+    setFrameOverride(null);
     const mask = maskRef.current;
     if (mask) {
       maskRef.current = null;
@@ -227,7 +247,7 @@ export const useTransformSessionController = (
       lastLayerTransformRef.current = { ...transformDelta };
     }
     applyFinishedTransform(result);
-  }, [applyFinishedTransform]);
+  }, [applyFinishedTransform, setFrameOverride]);
 
   const reset = useCallback(() => {
     const mask = maskRef.current;
@@ -247,8 +267,10 @@ export const useTransformSessionController = (
     }
     controllerRef.current = null;
     controllerDocumentIdRef.current = null;
+    continuationFrameRef.current = null;
+    setFrameOverride(null);
     setState(null);
-  }, []);
+  }, [setFrameOverride]);
 
   const begin = useCallback(async () => {
     const current = dependenciesRef.current;
@@ -291,6 +313,8 @@ export const useTransformSessionController = (
         sourceKind: 'layer',
         previewKind: 'semantic'
       });
+      setFrameOverride(continuationFrameRef.current);
+      continuationFrameRef.current = null;
       current.setError(null);
       return;
     }
@@ -327,6 +351,8 @@ export const useTransformSessionController = (
         sourceKind: 'layer',
         previewKind: 'semantic'
       });
+      setFrameOverride(continuationFrameRef.current);
+      continuationFrameRef.current = null;
       current.setError(null);
       return;
     }
@@ -342,13 +368,48 @@ export const useTransformSessionController = (
     const result = await controller.begin(document, current.selection);
     if (result.ok) {
       setState(result.state);
+      setFrameOverride(continuationFrameRef.current);
+      continuationFrameRef.current = null;
       current.setError(null);
       if (result.notice) current.setStatus(result.notice);
       return;
     }
     if (result.code === 'stale' || result.code === 'already-active') return;
     if (result.message) current.setError(result.message);
-  }, []);
+  }, [setFrameOverride]);
+
+  const checkpoint = useCallback(() => {
+    const controllerState = controllerRef.current?.state;
+    const active = controllerState ?? (state ? {
+      ...state,
+      matrix: maskRef.current?.matrix ?? groupRef.current?.matrix ?? state.matrix
+    } : null);
+    if (!active) return;
+    if (!active.projectiveQuad) {
+      const frame = frameOverrideRef.current
+        ?? transformSessionFrame(active, dependenciesRef.current.transformFrameMode ?? 'document');
+      continuationFrameRef.current = {
+        bounds: { ...frame.bounds },
+        matrix: multiplyMatrices(active.matrix, frame.matrix)
+      };
+    } else {
+      continuationFrameRef.current = null;
+    }
+    finish(true, true);
+  }, [finish, state]);
+
+  const alignFrameToDocument = useCallback(() => {
+    const controllerState = controllerRef.current?.state;
+    const active = controllerState ?? (state ? {
+      ...state,
+      matrix: maskRef.current?.matrix ?? groupRef.current?.matrix ?? state.matrix
+    } : null);
+    if (!active || active.projectiveQuad) return;
+    const frame = frameOverrideRef.current
+      ?? transformSessionFrame(active, dependenciesRef.current.transformFrameMode ?? 'local');
+    const aligned = alignTransformFrameToDocument(active, frame);
+    if (aligned) setFrameOverride(aligned);
+  }, [setFrameOverride, state]);
 
   const update = useCallback((matrix: AffineMatrix) => {
     const mask = maskRef.current;
@@ -554,8 +615,11 @@ export const useTransformSessionController = (
 
   return {
     state,
+    frameOverride,
     update,
     updateProjective,
+    checkpoint,
+    alignFrameToDocument,
     commit: () => finish(true),
     cancel: () => finish(false),
     reset,

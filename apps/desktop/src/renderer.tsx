@@ -154,6 +154,9 @@ const desktopHost: LightTableHost = {
     open: () => window.lightTableDesktop.openProject(),
     listRecent: () => window.lightTableDesktop.listRecentProjects(),
     openRecent: (recentId) => window.lightTableDesktop.openRecentProject(recentId),
+    loadRecentThumbnail: (recentId) => window.lightTableDesktop.loadRecentProjectThumbnail(recentId),
+    openLastUsedDocument: async (project) =>
+      desktopFile(await window.lightTableDesktop.openProjectLastUsedDocument(project.id)),
     reveal: (project) => window.lightTableDesktop.revealProject(project.manifestPath),
     close: () => window.lightTableDesktop.closeProject(),
     removeRecent: (recentId) => window.lightTableDesktop.removeRecentProject(recentId),
@@ -254,6 +257,12 @@ const desktopHost: LightTableHost = {
   async openRecentFile(id) {
     const payload = await window.lightTableDesktop.openRecentFile(id);
     return desktopFile(payload);
+  },
+  rememberRecentFiles(files) {
+    return window.lightTableDesktop.rememberOpenedFiles(files);
+  },
+  revealRecentFile(id) {
+    return window.lightTableDesktop.revealRecentFile(id);
   },
   removeRecentFile(id) {
     return window.lightTableDesktop.removeRecentFile(id);

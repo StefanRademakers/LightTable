@@ -25,11 +25,11 @@ import {
 import { useStandaloneFileDrop } from './useStandaloneFileDrop';
 import { requestWorkspaceDocumentClose } from './requestWorkspaceDocumentClose';
 import {
-  imagePickerAccept,
-  imagePickerFormatNames
+  imagePickerAccept
 } from '../lighttable/image-io/supportedImageFormats';
 import { createBlankPngFile } from './createBlankPngFile';
 import { NewDocumentDialog } from './NewDocumentDialog';
+import { LauncherJustifiedGallery } from './LauncherJustifiedGallery';
 import { NewProjectDialog } from './NewProjectDialog';
 import {
   LightTableCommandPortRegistry,
@@ -39,8 +39,6 @@ import type {
   LightTableRecoveryListing,
   LightTableRecoveryRecord
 } from '../platform/LightTableRecoveryStore';
-import { AboutUpdateDialog } from '../lighttable/editor/ui/AboutUpdateDialog';
-import { ThirdPartyLicensesDialog } from '../lighttable/editor/ui/ThirdPartyLicensesDialog';
 import { useReleaseSelectFocusAfterChange } from '../ui/useReleaseSelectFocusAfterChange';
 import {
   GuidedSampleCoach,
@@ -61,70 +59,13 @@ interface LightTableStandaloneAppProps {
 
 export const recentFilesForLauncher = (
   recentFiles: readonly LightTableRecentFile[]
-): readonly LightTableRecentFile[] => recentFiles.slice(0, 15);
+): readonly LightTableRecentFile[] => recentFiles;
 
-const RecentFileCard = ({
-  recent,
-  opening,
-  loadThumbnail,
-  onOpen,
-  onRemove
-}: {
-  readonly recent: LightTableRecentFile;
-  readonly opening: boolean;
-  readonly loadThumbnail?: (id: string) => Promise<string | null>;
-  readonly onOpen: (id: string) => void;
-  readonly onRemove?: (id: string) => void;
-}) => {
-  const previewRef = useRef<HTMLSpanElement>(null);
-  const [thumbnail, setThumbnail] = useState(recent.thumbnailUrl);
+type LauncherPage = 'new-document' | 'recent-files' | 'recent-projects' | 'recovery-records';
 
-  useEffect(() => {
-    setThumbnail(recent.thumbnailUrl);
-    if (recent.thumbnailUrl || !recent.available || !loadThumbnail) return undefined;
-    const target = previewRef.current;
-    if (!target) return undefined;
-    let active = true;
-    const load = () => {
-      void loadThumbnail(recent.id).then((url) => {
-        if (active && url) setThumbnail(url);
-      }).catch(() => undefined);
-    };
-    if (typeof IntersectionObserver === 'undefined') {
-      load();
-      return () => { active = false; };
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
-      observer.disconnect();
-      load();
-    }, { rootMargin: '120px' });
-    observer.observe(target);
-    return () => { active = false; observer.disconnect(); };
-  }, [loadThumbnail, recent.available, recent.id, recent.thumbnailUrl]);
-
-  return (
-    <article className={`lighttable-launcher__recent${recent.available ? '' : ' lighttable-launcher__recent--missing'}`}>
-      <ButtonBase type="button" disabled={opening} onClick={() => onOpen(recent.id)}>
-        <span ref={previewRef} className="lighttable-launcher__recent-preview">
-          {thumbnail
-            ? <img src={thumbnail} alt="" />
-            : <span>{recent.available ? 'No preview' : 'File missing'}</span>}
-        </span>
-        <span className="lighttable-launcher__recent-name" title={recent.name}>{recent.name}</span>
-      </ButtonBase>
-      {!recent.available && onRemove ? (
-        <ButtonBase
-          className="lighttable-launcher__recent-remove"
-          type="button"
-          aria-label={`Remove missing recent file ${recent.name}`}
-          title="Remove missing recent file"
-          onClick={() => onRemove(recent.id)}
-        >Remove</ButtonBase>
-      ) : null}
-    </article>
-  );
-};
+const canUseSourceAsTabPreview = (file: File): boolean =>
+  /^(image\/(?:avif|bmp|gif|jpeg|png|svg\+xml|webp))$/i.test(file.type)
+  || /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(file.name);
 
 const RECOVERY_ATTEMPT_PREFIX = 'lighttable:recovery-attempt:';
 const recoveryAttemptKey = (recoveryId: string) => `${RECOVERY_ATTEMPT_PREFIX}${recoveryId}`;
@@ -210,6 +151,22 @@ export function LightTableStandaloneApp({
     closeDocument: closeWorkspaceDocument,
     activateDocument
   } = useStandaloneDocumentWorkspace(host.systemFontProvider);
+  const [materializedDocumentIds, setMaterializedDocumentIds] = useState<ReadonlySet<DocumentSessionId>>(
+    () => new Set()
+  );
+  useEffect(() => {
+    const openIds = new Set(snapshot.documentOrder);
+    setMaterializedDocumentIds((current) => {
+      const next = new Set([...current].filter((id) => openIds.has(id)));
+      if (snapshot.activeDocumentId) next.add(snapshot.activeDocumentId);
+      if (next.size === current.size && [...next].every((id) => current.has(id))) return current;
+      return next;
+    });
+  }, [snapshot.activeDocumentId, snapshot.documentOrder]);
+  const materializedDocuments = useMemo(
+    () => documents.filter((document) => document.active || materializedDocumentIds.has(document.id)),
+    [documents, materializedDocumentIds]
+  );
   const commandPorts = useMemo(() => new LightTableCommandPortRegistry(), []);
   const commandService = useMemo(
     () => new LightTableCommandService(controller.workspace, commandPorts, {
@@ -245,9 +202,9 @@ export function LightTableStandaloneApp({
   );
   const [opening, setOpening] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [launcherPage, setLauncherPage] = useState<LauncherPage>('new-document');
+  const launcherFileInputRef = useRef<HTMLInputElement>(null);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
-  const [thirdPartyLicensesOpen, setThirdPartyLicensesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [preferences, setPreferences] = useState(() => typeof localStorage === 'undefined'
     ? DEFAULT_APPLICATION_PREFERENCES
@@ -256,7 +213,6 @@ export function LightTableStandaloneApp({
     void host.localAi?.configureProviders(preferences.genAi.providers).catch(() => undefined);
   }, [host.localAi, preferences.genAi.providers]);
   const [guidedSample, setGuidedSample] = useState<GuidedSampleSession | null>(null);
-  const [telemetryEnabled, setTelemetryEnabled] = useState(() => host.funnel?.enabled() ?? false);
   const [recentFiles, setRecentFiles] = useState<readonly LightTableRecentFile[]>([]);
   const [activeProject, setActiveProject] = useState<LightTableProjectSummary | null>(null);
   const [recentProjects, setRecentProjects] = useState<readonly LightTableRecentProject[]>([]);
@@ -267,6 +223,9 @@ export function LightTableStandaloneApp({
   const [documentThumbnailUrls, setDocumentThumbnailUrls] = useState<Record<string, string>>({});
   const documentThumbnailUrlsRef = useRef(documentThumbnailUrls);
   documentThumbnailUrlsRef.current = documentThumbnailUrls;
+  const [documentSourcePreviewUrls, setDocumentSourcePreviewUrls] = useState<Record<string, string>>({});
+  const documentSourcePreviewUrlsRef = useRef(documentSourcePreviewUrls);
+  documentSourcePreviewUrlsRef.current = documentSourcePreviewUrls;
   const publishDocumentThumbnail = useCallback((documentId: DocumentSessionId, thumbnail: Blob) => {
     const nextUrl = URL.createObjectURL(thumbnail);
     setDocumentThumbnailUrls((current) => {
@@ -277,7 +236,27 @@ export function LightTableStandaloneApp({
   }, []);
   useEffect(() => () => {
     Object.values(documentThumbnailUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+    Object.values(documentSourcePreviewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
   }, []);
+  useEffect(() => {
+    setDocumentSourcePreviewUrls((current) => {
+      const openIds = new Set(documents.map(({ id }) => id));
+      const next = { ...current };
+      let changed = false;
+      for (const [id, url] of Object.entries(current)) {
+        if (openIds.has(id as DocumentSessionId)) continue;
+        URL.revokeObjectURL(url);
+        delete next[id];
+        changed = true;
+      }
+      for (const document of documents) {
+        if (next[document.id] || !canUseSourceAsTabPreview(document.runtime.file)) continue;
+        next[document.id] = URL.createObjectURL(document.runtime.file);
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [documents]);
   useEffect(() => {
     const openDocumentIds = new Set(documents.map(({ id }) => id));
     setDocumentThumbnailUrls((current) => {
@@ -298,10 +277,10 @@ export function LightTableStandaloneApp({
   const [recoveryPreviews, setRecoveryPreviews] = useState<Record<string, string>>({});
   const recoveryPreviewsRef = useRef(recoveryPreviews);
   recoveryPreviewsRef.current = recoveryPreviews;
+  const recoveryListingRef = useRef(recoveryListing);
+  recoveryListingRef.current = recoveryListing;
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
-  const [recoveriesDeferred, setRecoveriesDeferred] = useState(false);
   const [screenMode, setScreenMode] = useState<EditorScreenMode>('normal');
-  const fileDrop = useStandaloneFileDrop(openDocument);
   const launcherRecordedRef = useRef(false);
 
   useEffect(() => () => commandService.dispose(), [commandService]);
@@ -373,11 +352,17 @@ export function LightTableStandaloneApp({
       return;
     }
     try {
-      setRecentFiles((await host.listRecentFiles()).slice(0, 15));
+      setRecentFiles(await host.listRecentFiles());
     } catch {
       setRecentFiles([]);
     }
   }, [host]);
+
+  const rememberDroppedFiles = useCallback((files: readonly File[]) => {
+    if (!host.rememberRecentFiles) return;
+    void host.rememberRecentFiles(files).then(refreshRecentFiles).catch(() => undefined);
+  }, [host, refreshRecentFiles]);
+  const fileDrop = useStandaloneFileDrop(openDocument, rememberDroppedFiles);
 
   const refreshRecentProjects = useCallback(async () => {
     try {
@@ -424,27 +409,43 @@ export function LightTableStandaloneApp({
 
   const openProject = useCallback(async () => {
     setProjectError(null);
+    setOpening(true);
     try {
       const project = await host.projects?.open() ?? null;
       if (project) {
         setActiveProject(project);
+        const file = project.lastUsedDocument
+          ? await host.projects?.openLastUsedDocument(project) ?? null
+          : null;
+        if (file) openDocument(file);
         await refreshRecentProjects();
       }
     } catch (reason) {
       setProjectError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setOpening(false);
     }
-  }, [host.projects, refreshRecentProjects]);
+  }, [host.projects, openDocument, refreshRecentProjects]);
 
   const openRecentProject = useCallback(async (recentId: string) => {
     setProjectError(null);
+    setOpening(true);
     try {
       const project = await host.projects?.openRecent(recentId) ?? null;
-      if (project) setActiveProject(project);
+      if (project) {
+        setActiveProject(project);
+        const file = project.lastUsedDocument
+          ? await host.projects?.openLastUsedDocument(project) ?? null
+          : null;
+        if (file) openDocument(file);
+      }
       await refreshRecentProjects();
     } catch (reason) {
       setProjectError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setOpening(false);
     }
-  }, [host.projects, refreshRecentProjects]);
+  }, [host.projects, openDocument, refreshRecentProjects]);
 
   const clearRecentProjects = useCallback(async () => {
     await host.projects?.clearRecent();
@@ -452,8 +453,11 @@ export function LightTableStandaloneApp({
   }, [host.projects, refreshRecentProjects]);
 
   useEffect(() => {
-    if (snapshot.documentOrder.length === 0) void refreshRecentFiles();
-  }, [refreshRecentFiles, snapshot.documentOrder.length]);
+    if (snapshot.documentOrder.length === 0) {
+      void refreshRecentFiles();
+      void refreshRecentProjects();
+    }
+  }, [refreshRecentFiles, refreshRecentProjects, snapshot.documentOrder.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -592,50 +596,37 @@ export function LightTableStandaloneApp({
   }, [host, openRecoveredDocument]);
 
   const previewRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
-    if (!host.recovery || recoveryPreviews[record.recoveryId]) return;
+    if (!host.recovery) return null;
+    if (recoveryPreviews[record.recoveryId]) return recoveryPreviews[record.recoveryId];
     setRecoveryError(null);
     try {
       const entry = await host.recovery.read(record.recoveryId);
       if (!entry) throw new Error('The recovery preview is missing or corrupt.');
+      if (!recoveryListingRef.current.records.some(({ recoveryId }) => recoveryId === record.recoveryId)) {
+        return null;
+      }
       const url = URL.createObjectURL(entry.artifact);
       setRecoveryPreviews((current) => ({ ...current, [record.recoveryId]: url }));
+      return url;
     } catch (reason) {
       setRecoveryError(reason instanceof Error ? reason.message : String(reason));
+      return null;
     }
   }, [host, recoveryPreviews]);
-
-  const discardRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
-    if (!host.recovery) return;
-    await host.recovery.removeRecord(record.recoveryId);
-    clearRecoveryAttempt(record.recoveryId);
-    const preview = recoveryPreviews[record.recoveryId];
-    if (preview) URL.revokeObjectURL(preview);
-    setRecoveryPreviews((current) => {
-      const next = { ...current };
-      delete next[record.recoveryId];
-      return next;
-    });
-    await refreshRecoveries();
-  }, [host, recoveryPreviews, refreshRecoveries]);
 
   const resolveRecovery = useCallback(async (recoveryId: string) => {
     await host.recovery?.removeRecord(recoveryId);
     clearRecoveryAttempt(recoveryId);
+    setRecoveryPreviews((current) => {
+      const preview = current[recoveryId];
+      if (!preview) return current;
+      URL.revokeObjectURL(preview);
+      const next = { ...current };
+      delete next[recoveryId];
+      return next;
+    });
     await refreshRecoveries();
   }, [host, refreshRecoveries]);
-
-  const recoverAll = useCallback(async () => {
-    const plan = planRecoveryWorkspace(recoveryListing, hasRecoveryAttempt);
-    let requestedActive: DocumentSessionId | null = null;
-    let lastOpened: DocumentSessionId | null = null;
-    for (const record of plan.records) {
-      const openedId = await openRecovery(record);
-      if (!openedId) continue;
-      lastOpened = openedId;
-      if (record.recoveryId === plan.activeRecoveryId) requestedActive = openedId;
-    }
-    if (requestedActive ?? lastOpened) activateDocument((requestedActive ?? lastOpened)!);
-  }, [activateDocument, openRecovery, recoveryListing]);
 
   useEffect(() => {
     const handleApplicationShortcut = (event: KeyboardEvent) => {
@@ -663,245 +654,104 @@ export function LightTableStandaloneApp({
 
   const workspaceDocuments = useMemo(
     () => documents.map(({ id, title, dirty }) => ({
-      id, title, dirty, thumbnailUrl: documentThumbnailUrls[id]
+      id, title, dirty, thumbnailUrl: documentThumbnailUrls[id] ?? documentSourcePreviewUrls[id]
     })),
-    [documentThumbnailUrls, documents]
+    [documentSourcePreviewUrls, documentThumbnailUrls, documents]
   );
 
   if (snapshot.documentOrder.length === 0) {
-    const recoverableRecords = recoveriesDeferred
-      ? []
-      : newestRecoveryRecords(recoveryListing);
+    const recoverableRecords = newestRecoveryRecords(recoveryListing);
+    const pageTitle: Record<LauncherPage, string> = {
+      'new-document': 'New Document',
+      'recent-files': 'Recent Files',
+      'recent-projects': 'Recent Projects',
+      'recovery-records': 'Recovery Records'
+    };
     return (
-      <main
-        className={`lighttable-launcher${fileDrop.active ? ' lighttable-launcher--drop-active' : ''}`}
-      >
-        <div className="lighttable-launcher__content">
-          {recoverableRecords.length > 0 ? (
-            <section className="lighttable-launcher__recovery-section" aria-labelledby="recoverable-work-heading">
-              <div className="lighttable-launcher__recovery-heading">
-                <div>
-                  <h2 id="recoverable-work-heading">Recoverable work</h2>
-                  <p>Recovered copies never overwrite their original source.</p>
-                </div>
-                <div className="lighttable-launcher__recovery-actions">
-                  {recoverableRecords.length > 1 ? (
-                    <ButtonBase className="action-button" type="button" disabled={opening} onClick={() => void recoverAll()}>
-                      Open all
-                    </ButtonBase>
-                  ) : null}
-                  <ButtonBase className="action-button" type="button" onClick={() => setRecoveriesDeferred(true)}>
-                    Later
-                  </ButtonBase>
-                </div>
-              </div>
-              <div className="lighttable-launcher__recoveries">
-                {recoverableRecords.map((record) => {
-                  const crashLoop = hasRecoveryAttempt(record.recoveryId);
-                  const preview = recoveryPreviews[record.recoveryId];
-                  return (
-                    <article className="lighttable-launcher__card lighttable-launcher__recovery-card" key={record.recoveryId}>
-                      <div className="lighttable-launcher__recovery-preview">
-                        {preview ? <img src={preview} alt={`Preview of ${record.sourceName || 'recovered work'}`} /> : <span>No preview loaded</span>}
-                      </div>
-                      <div className="lighttable-launcher__recovery-copy">
-                        <h3>{record.sourceName || 'Recovered document'}</h3>
-                        <p>{record.sourcePath || 'Original source location is unavailable.'}</p>
-                        {record.sourceAvailability === 'missing' ? (
-                          <p className="lighttable-launcher__recovery-warning" role="status">
-                            The original source is missing or moved. This recovered copy remains available.
-                          </p>
-                        ) : null}
-                        {record.sourceAvailability === 'newer' ? (
-                          <p className="lighttable-launcher__recovery-warning" role="status">
-                            The original source is newer. Recovery opens as a separate copy.
-                          </p>
-                        ) : null}
-                        <p>{record.sourceMediaType || record.mediaType} · revision {record.canonicalRevision}</p>
-                        <p>Last edit {new Date(record.updatedAt).toLocaleString()}</p>
-                        {crashLoop ? (
-                          <p className="lighttable-launcher__recovery-warning" role="alert">
-                            This copy was open when LightTable stopped. It will retry in isolated safe mode.
-                          </p>
-                        ) : null}
-                        <div className="lighttable-launcher__recovery-actions">
-                          <ButtonBase className="action-button" type="button" disabled={opening} onClick={() => void openRecovery(record)}>
-                            {crashLoop ? 'Retry recovered copy' : 'Open recovered copy'}
-                          </ButtonBase>
-                          <ButtonBase className="action-button" type="button" onClick={() => void previewRecovery(record)}>
-                            Preview
-                          </ButtonBase>
-                          <ButtonBase className="action-button" type="button" onClick={() => void discardRecovery(record)}>
-                            Discard
-                          </ButtonBase>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
-          {recoveryListing.rejections.length > 0 ? (
-            <p className="lighttable-file-drop__error" role="alert">
-              {recoveryListing.rejections.length} recovery record(s) were isolated because they are unreadable or from an unsupported version.
-            </p>
-          ) : null}
-          {recoveryError ? <p className="lighttable-file-drop__error" role="alert">{recoveryError}</p> : null}
-          {!host.recovery ? (
-            <p className="lighttable-launcher__recovery-unavailable" role="status">
-              Durable crash recovery is unavailable in this environment.
-            </p>
-          ) : null}
-          <div className="lighttable-launcher__start">
-            <section className="lighttable-launcher__card lighttable-launcher__open-card">
-              <h1>Open</h1>
-              <p>Drop a supported file here, or choose a file.</p>
-              <span className="lighttable-launcher__formats">
-                {imagePickerFormatNames('automatic')}
-              </span>
-              {host.openFile ? (
-                <ButtonBase
-                  className="action-button lighttable-launcher__open"
-                  type="button"
-                  disabled={opening}
-                  onClick={() => void requestHostDocument()}
-                >
-                  {opening ? 'Opening…' : 'Open file'}
-                </ButtonBase>
-              ) : (
-                <label className="action-button lighttable-launcher__open">
-                  Open file
-                  <input
-                    type="file"
-                    accept={imagePickerAccept('automatic')}
-                    hidden
-                    onChange={(event) => {
-                      const file = event.currentTarget.files?.[0] ?? null;
-                      event.currentTarget.value = '';
-                      if (file) openDocument(file);
-                    }}
-                  />
-                </label>
-              )}
-              {fileDrop.error ? (
-                <p className="lighttable-file-drop__error" role="alert">
-                  {fileDrop.error}
-                </p>
-              ) : null}
-            </section>
-
-            <section className="lighttable-launcher__card lighttable-launcher__new-card">
-              <h1>New document</h1>
-              <p>Create an empty image document.</p>
-              <ButtonBase className="action-button lighttable-launcher__primary-action" type="button" onClick={requestNewDocument}>
-                New document
-              </ButtonBase>
-              <ButtonBase className="lighttable-launcher__guide-action" type="button" disabled={creating}
-                onClick={() => void startGuidedSample()}>
-                {creating ? 'Preparing...' : 'Try a guided layered edit'}
-              </ButtonBase>
-            </section>
-          </div>
-
-          {host.projects ? (
-            <section className="lighttable-launcher__project-bar" aria-label="Project workspace">
-              <strong>{activeProject ? `Project: ${activeProject.name}` : 'Standalone workspace'}</strong>
-              <ButtonBase className="action-button" type="button" onClick={requestNewProject}>New project</ButtonBase>
-              <ButtonBase className="action-button" type="button" onClick={() => void openProject()}>Open project</ButtonBase>
-              {activeProject ? (
-                <ButtonBase className="action-button" type="button" onClick={() => {
-                  void host.projects?.close();
-                  setActiveProject(null);
-                }}>Close project</ButtonBase>
-              ) : null}
-            </section>
-          ) : null}
-
-          {recentProjects.length > 0 ? (
-            <section className="lighttable-launcher__recent-section">
-              <h2>Recent projects</h2>
-              <div className="lighttable-launcher__utility-actions">
-                {recentProjects.slice(0, 8).map((project) => (
-                  <ButtonBase className="action-button" type="button" key={project.recentId}
-                    disabled={!project.available} title={project.manifestPath}
-                    onClick={() => void openRecentProject(project.recentId)}>
-                    {project.name}
-                  </ButtonBase>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <section className="lighttable-launcher__local-first" aria-label="Local-first editing">
-            <strong>Your files stay local.</strong>
-            <span>Open PNG, JPEG, WebP, TIFF, PSD/PSB and PDF. Unsupported document features are preserved with a preview and reported before export.</span>
-            {host.funnel ? (
-              <label><input type="checkbox" checked={telemetryEnabled} onChange={(event) => {
-                const enabled = event.currentTarget.checked;
-                host.funnel?.setEnabled(enabled);
-                if (enabled) host.funnel?.record('launcher.viewed');
-                setTelemetryEnabled(enabled);
-              }} /> Store anonymous onboarding progress on this device</label>
-            ) : null}
-          </section>
-
-          {recentFiles.length > 0 ? (
-            <section className="lighttable-launcher__recent-section">
-              <h2>Recent files</h2>
-              <div className="lighttable-launcher__recents">
-                {recentFilesForLauncher(recentFiles).map((recent) => (
-                  <RecentFileCard
-                    key={recent.id}
-                    recent={recent}
-                    opening={opening}
-                    loadThumbnail={host.loadRecentFileThumbnail}
-                    onOpen={(id) => void openRecentDocument(id)}
-                    onRemove={host.removeRecentFile ? (id) => void removeRecentFile(id) : undefined}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-          <div className="lighttable-launcher__utility-actions">
-            <ButtonBase className="action-button" type="button" onClick={() => setSettingsOpen(true)}>Preferences</ButtonBase>
-            <ButtonBase className="action-button" type="button" onClick={() => setThirdPartyLicensesOpen(true)}>Third-party Licenses</ButtonBase>
-            <ButtonBase className="action-button" type="button" onClick={() => setAboutOpen(true)}>About LightTable</ButtonBase>
-          </div>
-        </div>
-        <NewDocumentDialog
-          open={newDialogOpen}
-          clipboard={host.clipboard}
-          creating={creating}
-          onCancel={() => setNewDialogOpen(false)}
-          onCreate={(size) => void createDocument(size)}
-        />
-        <NewProjectDialog open={newProjectOpen} creating={projectCreating}
-          location={projectLocation} error={projectError}
-          onChooseLocation={() => void chooseProjectLocation()}
-          onCancel={() => setNewProjectOpen(false)}
-          onCreate={(name) => void createProject(name)} />
-        <AboutUpdateDialog
-          open={aboutOpen}
-          release={host.release}
-          dirtyDocuments={false}
-          onClose={() => setAboutOpen(false)}
-        />
-        <ThirdPartyLicensesDialog
-          open={thirdPartyLicensesOpen}
-          includeDesktopRuntime={Boolean(host.release)}
-          onClose={() => setThirdPartyLicensesOpen(false)}
-        />
-        <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
-          onCancel={() => setSettingsOpen(false)} onSave={(next) => {
-            saveApplicationPreferences(next);
-            setPreferences(next);
-            setSettingsOpen(false);
+      <main className={`lighttable-launcher${fileDrop.active ? ' lighttable-launcher--drop-active' : ''}`}>
+        <input ref={launcherFileInputRef} type="file" accept={imagePickerAccept('automatic')} hidden
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0] ?? null;
+            event.currentTarget.value = '';
+            if (file) openDocument(file);
           }} />
+        <div className="lighttable-launcher__workspace">
+          <nav className="lighttable-preferences__navigation lighttable-launcher__navigation" aria-label="Start">
+            <ButtonBase type="button" disabled={opening} onClick={() => {
+              if (host.openFile) void requestHostDocument();
+              else launcherFileInputRef.current?.click();
+            }}>Open</ButtonBase>
+            <ButtonBase type="button" className={launcherPage === 'new-document' ? 'is-active' : undefined}
+              aria-current={launcherPage === 'new-document' ? 'page' : undefined}
+              onClick={() => setLauncherPage('new-document')}>New Document</ButtonBase>
+            <ButtonBase type="button" className={launcherPage === 'recent-files' ? 'is-active' : undefined}
+              aria-current={launcherPage === 'recent-files' ? 'page' : undefined}
+              onClick={() => setLauncherPage('recent-files')}>Recent Files</ButtonBase>
+            <ButtonBase type="button" className={launcherPage === 'recent-projects' ? 'is-active' : undefined}
+              aria-current={launcherPage === 'recent-projects' ? 'page' : undefined}
+              onClick={() => setLauncherPage('recent-projects')}>Recent Projects</ButtonBase>
+            <ButtonBase type="button" className={launcherPage === 'recovery-records' ? 'is-active' : undefined}
+              aria-current={launcherPage === 'recovery-records' ? 'page' : undefined}
+              onClick={() => setLauncherPage('recovery-records')}>
+              Recovery Records
+              {recoverableRecords.length ? <span>{recoverableRecords.length}</span> : null}
+            </ButtonBase>
+          </nav>
+          <section className="lighttable-launcher__view" aria-labelledby="launcher-view-title">
+            <header className="lighttable-launcher__view-header">
+              <h1 id="launcher-view-title">{pageTitle[launcherPage]}</h1>
+            </header>
+            <div className="lighttable-launcher__view-scroll">
+              {launcherPage === 'new-document' ? (
+                <div className="lighttable-launcher__new-document">
+                  <NewDocumentDialog open presentation="embedded" clipboard={host.clipboard}
+                    creating={creating} onCancel={() => undefined}
+                    onCreate={(options) => void createDocument(options)} />
+                </div>
+              ) : launcherPage === 'recent-files' ? (
+                recentFiles.length ? <LauncherJustifiedGallery opening={opening}
+                  items={recentFilesForLauncher(recentFiles).map((recent) => ({
+                    id: recent.id, title: recent.name, available: recent.available,
+                    previewUrl: recent.thumbnailUrl,
+                    loadPreview: host.loadRecentFileThumbnail ? () => host.loadRecentFileThumbnail!(recent.id) : undefined,
+                    onOpen: () => void openRecentDocument(recent.id),
+                    onReveal: host.revealRecentFile ? () => void host.revealRecentFile!(recent.id) : undefined,
+                    onRemove: host.removeRecentFile ? () => void removeRecentFile(recent.id) : undefined
+                  }))} /> : <p className="lighttable-launcher__empty">No recent files.</p>
+              ) : launcherPage === 'recent-projects' ? (
+                recentProjects.length ? <LauncherJustifiedGallery opening={opening}
+                  items={recentProjects.map((project) => ({
+                    id: project.recentId, title: project.name,
+                    subtitle: project.lastUsedDocument?.name ?? project.rootPath,
+                    loadPreview: host.projects?.loadRecentThumbnail
+                      ? () => host.projects!.loadRecentThumbnail(project.recentId)
+                      : undefined,
+                    available: project.available, onOpen: () => void openRecentProject(project.recentId),
+                    onRemove: host.projects ? () => void host.projects?.removeRecent(project.recentId).then(refreshRecentProjects) : undefined
+                  }))} /> : <p className="lighttable-launcher__empty">No recent projects.</p>
+              ) : (
+                <>
+                  {recoveryListing.rejections.length ? <p className="lighttable-launcher__warning" role="alert">
+                    {recoveryListing.rejections.length} recovery record(s) were isolated because they are unreadable or unsupported.
+                  </p> : null}
+                  {recoveryError ? <p className="lighttable-launcher__warning" role="alert">{recoveryError}</p> : null}
+                  {!host.recovery ? <p className="lighttable-launcher__empty">Recovery records are unavailable in this environment.</p>
+                    : recoverableRecords.length ? <LauncherJustifiedGallery opening={opening}
+                      items={recoverableRecords.map((record) => ({
+                        id: record.recoveryId, title: record.sourceName || 'Recovered document',
+                        subtitle: `Last edit ${new Date(record.updatedAt).toLocaleString()}`,
+                        available: true, previewUrl: recoveryPreviews[record.recoveryId],
+                        loadPreview: () => previewRecovery(record), onOpen: () => void openRecovery(record)
+                      }))} /> : <p className="lighttable-launcher__empty">No recovery records.</p>}
+                </>
+              )}
+              {fileDrop.error ? <p className="lighttable-launcher__warning" role="alert">{fileDrop.error}</p> : null}
+            </div>
+          </section>
+        </div>
       </main>
     );
   }
-
   return (
     <>
       {fileDrop.active ? (
@@ -931,7 +781,7 @@ export function LightTableStandaloneApp({
           {projectError}
         </ButtonBase>
       ) : null}
-      {documents.map((document) => (
+      {materializedDocuments.map((document) => (
         <StandaloneDocumentRuntimeView
           key={document.id}
           document={document}

@@ -7,46 +7,33 @@ import {
 
 export type ViewportSampling = 'linear' | 'nearest';
 
+/** At four screen pixels per image pixel, pixel structure becomes intentional. */
+export const PIXEL_ACCURATE_SAMPLING_SCALE = 4;
+
 interface ViewportPresentationPorts {
   writeViewport(uniforms: Float32Array<ArrayBuffer>): void;
   invalidateViewport(): void;
   requestRender(): void;
 }
 
-interface ViewportPresentationOptions {
-  settleDelayMs?: number;
-  schedule?: typeof globalThis.setTimeout;
-  cancel?: typeof globalThis.clearTimeout;
-}
-
 /**
  * Owns the presentation-only state of a document viewport.
  *
  * The controller deliberately knows nothing about document composition. It
- * converts DOM measurements to GPU uniforms and switches from smooth sampling
- * during interaction to pixel-accurate sampling after zoom settles. Keeping
- * the timer and its disposal here prevents viewport lifecycle state from
- * leaking into the document render graph.
+ * converts DOM measurements to GPU uniforms and chooses sampling directly from
+ * the current scale. Once individual pixels are intentionally visible, every
+ * zoom frame stays pixel-accurate instead of flashing through a temporary
+ * smooth presentation and scheduling a second settlement render.
  */
 export class ViewportPresentationController {
-  private readonly settleDelayMs: number;
-  private readonly schedule: typeof globalThis.setTimeout;
-  private readonly cancel: typeof globalThis.clearTimeout;
   private currentState: ViewportRenderState | null = null;
   private currentSampling: ViewportSampling = 'linear';
-  private currentScale = Number.NaN;
-  private settleTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
   private disposed = false;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
-    private readonly ports: ViewportPresentationPorts,
-    options: ViewportPresentationOptions = {}
-  ) {
-    this.settleDelayMs = options.settleDelayMs ?? 75;
-    this.schedule = options.schedule ?? globalThis.setTimeout.bind(globalThis);
-    this.cancel = options.cancel ?? globalThis.clearTimeout.bind(globalThis);
-  }
+    private readonly ports: ViewportPresentationPorts
+  ) {}
 
   get state() {
     return this.currentState;
@@ -72,10 +59,10 @@ export class ViewportPresentationController {
   ) {
     if (this.disposed) return false;
     const scale = metadataWidth ? rect.width / metadataWidth : 1;
-    if (!Number.isFinite(this.currentScale) || Math.abs(scale - this.currentScale) > 0.0001) {
-      this.currentScale = scale;
-      this.beginInteractiveSampling(scale);
-    }
+    const nextSampling: ViewportSampling = scale >= PIXEL_ACCURATE_SAMPLING_SCALE
+      ? 'nearest'
+      : 'linear';
+    const samplingChanged = nextSampling !== this.currentSampling;
 
     const nextState = resolveViewportRenderState(
       cssWidth,
@@ -83,11 +70,16 @@ export class ViewportPresentationController {
       devicePixelRatio,
       rect
     );
-    if (viewportRenderStatesEqual(this.currentState, nextState)) return false;
-    this.currentState = nextState;
-    if (this.canvas.width !== nextState.pixelWidth) this.canvas.width = nextState.pixelWidth;
-    if (this.canvas.height !== nextState.pixelHeight) this.canvas.height = nextState.pixelHeight;
-    this.ports.writeViewport(nextState.uniforms);
+    const stateChanged = !viewportRenderStatesEqual(this.currentState, nextState);
+    if (!stateChanged && !samplingChanged) return false;
+
+    this.currentSampling = nextSampling;
+    if (stateChanged) {
+      this.currentState = nextState;
+      if (this.canvas.width !== nextState.pixelWidth) this.canvas.width = nextState.pixelWidth;
+      if (this.canvas.height !== nextState.pixelHeight) this.canvas.height = nextState.pixelHeight;
+      this.ports.writeViewport(nextState.uniforms);
+    }
     this.invalidateAndRender();
     return true;
   }
@@ -95,25 +87,6 @@ export class ViewportPresentationController {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
-    if (this.settleTimer !== null) {
-      this.cancel(this.settleTimer);
-      this.settleTimer = null;
-    }
-  }
-
-  private beginInteractiveSampling(scale: number) {
-    if (this.settleTimer !== null) this.cancel(this.settleTimer);
-    this.setSampling('linear');
-    this.settleTimer = this.schedule(() => {
-      this.settleTimer = null;
-      if (!this.disposed) this.setSampling(scale >= 4 ? 'nearest' : 'linear');
-    }, this.settleDelayMs);
-  }
-
-  private setSampling(sampling: ViewportSampling) {
-    if (this.currentSampling === sampling) return;
-    this.currentSampling = sampling;
-    this.invalidateAndRender();
   }
 
   private invalidateAndRender() {

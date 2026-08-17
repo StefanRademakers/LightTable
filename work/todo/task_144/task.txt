@@ -1,0 +1,845 @@
+Task 144 - Canonical document geometry operations
+
+Goal
+====
+
+Build one authoritative document-geometry system for Canvas Size, Crop,
+whole-image rotation and canvas flipping. Every operation must preserve the editable layer
+model, apply to the complete scene consistently, remain fast on 16-bit WebGPU
+documents, round-trip through LightTable persistence and create one durable,
+atomic undo entry.
+
+The same geometry primitives must also provide the fixed-angle layer/selection
+commands under `Edit > Transform`. These are a different user operation and
+must never be routed through whole-document Image Rotation.
+
+This foundation must also make a future Generative Expand workflow possible.
+Canvas Size itself remains a deterministic editor command with no dependency
+on GenAI, providers or generated content. It only exposes enough truthful
+geometry metadata for a later feature to identify newly added canvas regions.
+
+User-facing invariant
+=====================
+
+The document is transformed exactly as one visible scene.
+
+- Canvas Size changes the editable document bounds without scaling content.
+- Increasing Canvas Size exposes transparent space; it does not stretch or
+  regenerate existing pixels.
+- Decreasing Canvas Size clips the view but does not destructively delete
+  layer content outside the new bounds.
+- Crop changes the document bounds to the committed crop rectangle. Content
+  outside those bounds remains editable by default and can reappear after a
+  later larger crop, Canvas Size or Reveal All operation.
+- Image Rotation rotates every visible and editable document participant, not
+  just the merged preview or active layer.
+- Canvas flips reflect the complete document.
+- Raster layers, vectors, text, masks, adjustments, effects and selections may
+  not drift apart.
+- Nested local geometry remains editable and stable.
+- A command either commits completely or leaves document and GPU state wholly
+  unchanged.
+- Undo/redo restores both semantic state and exact runtime resources.
+
+Terminology and command separation
+==================================
+
+Keep these commands semantically distinct:
+
+1. Image Size
+   - changes pixel dimensions through resampling;
+   - can change authored resolution;
+   - may optionally scale layer-style sizes.
+
+2. Canvas Size
+   - changes document bounds only;
+   - uses a 3 x 3 anchor to place existing content inside the new bounds;
+   - never resamples layer color content.
+
+3. Image Rotation
+   - transforms the complete authored scene;
+   - 90/180-degree rotations and flips are exact;
+   - arbitrary rotation creates the axis-aligned bounds required to contain
+     the rotated old canvas unless a later explicit crop option says otherwise.
+
+4. Rotate View
+   - presentation-only viewport rotation;
+   - never modifies document geometry and is outside this task.
+
+5. Crop
+   - interactively chooses new document bounds without resampling content;
+   - is a first-class consumer of the same canonical geometry transaction;
+   - preserves cropped-away content by default;
+   - must remain distinct from resizing and viewport framing.
+
+6. Trim and Reveal All
+   - later consumers of the same geometry foundation;
+   - are not required for the first milestone, but the API must not block them.
+
+7. Layer or selection Transform
+   - changes only the active layer, selected layers or active pixel selection;
+   - keeps document dimensions and every unrelated layer unchanged;
+   - rotates/flips around the current transform reference point;
+   - respects local transform axes and linked-mask semantics;
+   - shares affine math with document geometry but not its command scope.
+
+Current foundation
+==================
+
+Relevant existing systems include:
+
+- `application/imageSize/imageSizeModel.ts` for semantic Image Size planning;
+- `editor/rendering/ImageResizeGpuService.ts` for atomic reversible GPU
+  exchanges;
+- `editor/document/sceneTransformGraph.ts` for canonical parent-to-document
+  matrix resolution;
+- `editor/document/documentTypes.ts` for the editable scene tree, masks,
+  guides and document dimensions;
+- `editor/selection/selectionTypes.ts` for geometric and raster-backed
+  selection history;
+- `effects/DocumentEffectRuntime.ts` and `effects/LayerEffectRenderer.ts` for
+  dimension-dependent effect runtimes;
+- the document command/history ports for scriptable commands and one-step
+  undo/redo.
+
+Do not implement Canvas Size by pretending it is Image Size with another
+resampling option. Extract reusable transaction mechanics where useful, but
+keep each command's geometry and pixel semantics explicit.
+
+Canonical geometry plan
+=======================
+
+Introduce a serializable, validated plan describing one mapping from the old
+document coordinate system into the new document coordinate system.
+
+Conceptually:
+
+    interface DocumentGeometryPlan {
+      operation: 'canvas-size' | 'crop' | 'rotate' | 'flip';
+      sourceWidth: number;
+      sourceHeight: number;
+      targetWidth: number;
+      targetHeight: number;
+      oldDocumentToNewDocument: AffineMatrix;
+      sampling: 'exact-copy' | 'exact-orthogonal' | 'filtered-affine';
+      expansionRegions: Rect[];
+    }
+
+Names may follow existing conventions, but there must be one authoritative
+matrix and dimension contract. Renderer, selections, guides, export and tests
+must consume the same plan rather than reimplementing formulas.
+
+Canvas Size matrix
+------------------
+
+Represent the anchor as normalized coordinates `(ax, ay)`, each chosen from
+`0`, `0.5` and `1`.
+
+    dx = (targetWidth  - sourceWidth)  * ax
+    dy = (targetHeight - sourceHeight) * ay
+
+The old document maps into the new document with translation `(dx, dy)`.
+Positive differences expose space; negative differences crop. Width and height
+may be entered as absolute dimensions or as relative deltas, but both UI modes
+must produce the same canonical request and plan.
+
+Crop matrix and bounds
+----------------------
+
+Represent an axis-aligned committed crop in old document coordinates:
+
+    crop = { x, y, width, height }
+    targetWidth = width
+    targetHeight = height
+    oldDocumentToNewDocument = translate(-x, -y)
+
+The crop rectangle may initially be constrained to the old canvas or may later
+be allowed to extend beyond it. If extension is supported, the same
+`expansionRegions` contract as Canvas Size identifies newly exposed transparent
+space. Width and height use the shared deterministic integer/pixel-center
+rounding rules; the overlay may not round independently from the command.
+
+Initial Crop is axis-aligned in document space. A rotated visual crop or
+straighten workflow is a composed operation: rotate the complete document and
+then apply the resulting axis-aligned crop plan in one atomic transaction. Do
+not encode a rotated crop as accidental layer shear or a viewport transform.
+
+Cropping is non-destructive by default: root content is translated and clipped
+by the new document bounds, but raster sources, vector geometry, text, masks and
+off-canvas pixels are retained. A future explicit `Delete Cropped Pixels`
+option is a separate destructive bake with strict eligibility rules; it must
+never be implied merely by committing Crop.
+
+Orthogonal rotation and flip matrices
+-------------------------------------
+
+Use exact matrices with the required translation into positive target bounds:
+
+- 90 degrees clockwise: `(x, y) -> (sourceHeight - y, x)`;
+- 90 degrees counter-clockwise: `(x, y) -> (y, sourceWidth - x)`;
+- 180 degrees: `(x, y) -> (sourceWidth - x, sourceHeight - y)`;
+- horizontal flip: `(x, y) -> (sourceWidth - x, y)`;
+- vertical flip: `(x, y) -> (x, sourceHeight - y)`.
+
+Adopt the application's existing pixel-center convention consistently. Tests
+must catch half-pixel shifts, one-pixel transparent seams and off-by-one mask
+edges.
+
+Arbitrary rotation
+------------------
+
+Rotate around the document center, transform all four old-canvas corners,
+derive their axis-aligned bounds, round dimensions deterministically and add a
+translation that places the minimum corner at the new origin. The plan owns
+that exact mapping; UI overlays and GPU code may not independently round it.
+
+Fixed layer/selection transform plans
+=====================================
+
+Support the Photoshop-familiar commands:
+
+    Edit > Transform >
+        Again
+        ----------------
+        Scale
+        Rotate
+        Skew
+        Distort
+        Perspective
+        ----------------
+        Warp
+        ----------------
+        Rotate 180 degrees
+        Rotate 90 degrees Clockwise
+        Rotate 90 degrees Counter Clockwise
+        Flip Horizontal
+        Flip Vertical
+
+This task requires the five fixed rotate/flip variants and the shared command
+foundation. Existing Free Transform remains authoritative for interactive
+Scale, Rotate and related modes; do not rebuild those tools inside this task.
+`Transform Again` is allowed only after its repeatable transaction semantics
+are specified and tested.
+
+The fixed transform target is resolved once when the command begins:
+
+- active selection with editable pixel content: transform the selected pixels
+  according to the existing selection-transform ownership contract;
+- otherwise active layer or explicitly selected layer set;
+- no target: command disabled.
+
+Do not silently switch targets during an async GPU operation. Text, vector,
+adjustment and group layers remain semantic nodes and receive transforms rather
+than rasterization.
+
+Pivot and local-space contract
+------------------------------
+
+Fixed rotations and flips use the selected target's current transformed bounds
+and reference point, initially its visual center. Compose the delta in the
+correct parent/local space so nested groups and preserved local transform axes
+behave identically to the current improved Free Transform lifecycle.
+
+For a layer target:
+
+    newLocalToParent = parentInverse
+      * pivotedDocumentDelta
+      * oldLocalToDocument
+
+Use the scene-transform graph to derive these matrices; never treat a nested
+layer's local matrix as document space. A 90-degree layer rotation does not
+swap document width/height or move unrelated roots.
+
+`Preserve local transform axes` remains relevant to subsequent interactive
+transforms. The fixed command commits one durable transform result and must not
+accidentally reset the layer frame to document axes.
+
+Mask behavior differs deliberately from Image Rotation:
+
+- linked layer mask: receives the same visible layer delta;
+- unlinked layer mask: remains fixed in document space;
+- mask channel targeted directly: transform the mask only;
+- whole-document Image Rotation: transforms all masks regardless of linking.
+
+Adjustment layers and groups may have masks and normal transforms, so fixed
+commands must work on them even though they own no raster color texture.
+Layer locks are honored: position/all lock disables a layer transform; pixel
+lock alone does not block a semantic matrix transform unless the existing lock
+contract explicitly says otherwise.
+
+Selection-target transform
+--------------------------
+
+When pixels inside an active selection are the transform target, preserve the
+existing Photoshop-like floating/session behavior:
+
+- source pixels and source alpha are captured once;
+- repeated gestures or a fixed command update the same transform session;
+- Enter/tool switch commits according to the established lifecycle;
+- pointer-up/fixed command produces the intended durable undo state;
+- the selection mask and transformed pixels remain registered;
+- pixels outside the selection are unchanged.
+
+For a purely geometric selection without a pixel transform target, fixed
+rotate/flip commands transform the selection shape about its bounds center and
+do not alter layer content. Make the target rule visible and testable; do not
+guess between layer and selection based on renderer state.
+
+Semantic scene projection
+=========================
+
+Pre-multiply the document mapping into root-node transforms only:
+
+    newRootTransform = oldDocumentToNewDocument * oldRootTransform
+
+Do not rewrite nested children or editable local geometry. The existing scene
+graph then naturally carries the operation through groups.
+
+This contract applies to:
+
+- raster and paint layers;
+- placed/runtime raster content;
+- groups and nested groups;
+- adjustment layers;
+- vector layers, paths, anchors, handles and live shapes;
+- point, paragraph and path text;
+- gradient-fill vector layers;
+- derived PSD/text/vector previews;
+- any future Smart Object node with a normal root transform.
+
+Raster color textures remain unchanged for Canvas Size, flips and rotation.
+The scene transform performs the visible mapping at render time, preserving
+source pixels and avoiding cumulative generation loss. Exact orthogonal
+operations must remain exact. Arbitrary rotation is filtered only during
+presentation/compositing unless a later explicit rasterize command bakes it.
+
+Audit painting, hit-testing, bounds, snapping and inverse coordinate mapping
+against transformed roots. Editing after the operation must address the same
+local pixels and vector geometry the user sees.
+
+Masks
+=====
+
+Document operations apply to every mask regardless of its linked flag. The
+linked flag controls later layer-local transforms; it must not allow a mask to
+remain behind when the whole document rotates or moves into a resized canvas.
+
+Cover:
+
+- raster-layer masks;
+- vector/text/group/adjustment-layer raster masks;
+- linked and unlinked masks;
+- mask density and feather;
+- non-identity mask transforms;
+- dirty bounds and revision keys;
+- Photoshop-imported mask metadata and preserved previews.
+
+Mask pixels currently live in document-sized GPU surfaces. Implement a
+geometry transfer with these paths:
+
+- Canvas expansion/crop: clear destination and copy the overlapping source
+  rectangle with the plan offset;
+- orthogonal rotation and flips: exact texel mapping without interpolation;
+- arbitrary rotation: alpha-correct filtered affine sampling with transparent
+  pixels outside the source.
+
+Define whether the persisted mask transform absorbs the document matrix or
+the mask texture is physically transferred and normalized. Do not mix both.
+The chosen representation must preserve future independent mask edits and
+round-trip reliably.
+
+Selections
+==========
+
+Transform the current selection as document content, including:
+
+- rectangle, ellipse, lasso and polygon points;
+- existing affine selection transforms;
+- feather radii;
+- magic-wand and object-selection raster results;
+- layer-mask, layer-transparency and composite-channel selection sources;
+- document-sized mask/result/shape GPU targets;
+- marching ants and selection bounds.
+
+Geometric operations can compose the document matrix with stored geometry.
+Raster-backed selection snapshots require the same exact/filtered GPU transfer
+used for masks. Do not leave replayable operations referring to stale document
+revisions or source dimensions. After undo/redo, semantic operations and GPU
+targets must again match exactly.
+
+Guides, snapping and layout state
+=================================
+
+Canvas Size translates guide positions with the document origin.
+
+For orthogonal operations:
+
+- 90-degree rotation swaps horizontal and vertical orientation;
+- 180-degree rotation preserves orientation and mirrors positions;
+- flips mirror only guides along the reflected axis.
+
+Arbitrary rotation maps axis-aligned guides to angled lines, which the current
+guide model cannot express. Before shipping Arbitrary Rotation, perform a
+Photoshop behavior check and choose an explicit product rule:
+
+- extend guides to general lines; or
+- retain/reset them in the new document axes with a clearly defined behavior.
+
+Never silently approximate transformed angled guides as unrelated horizontal
+or vertical lines. Grid origin, rulers, snapping caches and smart-guide bounds
+must invalidate against the committed plan.
+
+Adjustments, filters and effects
+================================
+
+Audit every effect by coordinate ownership, not by its UI name.
+
+Layer-local processing
+----------------------
+
+Attached Grade, attached adjustments, ordinary adjustment-layer processing,
+layer styles, local gradients and other layer-local work should render before
+the root scene transform. Their result therefore moves with the layer without
+rewriting color/tone parameters.
+
+Verify spatial parameters including:
+
+- pixel radii and feather sizes;
+- effect centers and offsets;
+- gradient angles and origins;
+- pattern transforms;
+- drop-shadow/global-light directions;
+- stroke alignment and scale;
+- blur/deformation coordinates;
+- local mask-relative sampling.
+
+The desired invariant is that transforming the complete document transforms
+the visible styled result. Rewrite individual parameters only where the
+renderer currently evaluates them in document space and matrix composition
+cannot preserve that result.
+
+Document-relative processing
+----------------------------
+
+Dimension-dependent processing must be resized/recreated and invalidated:
+
+- Lens Distortion;
+- Lens Blur and depth/analysis caches;
+- post-crop Vignette;
+- Halation;
+- Grain;
+- creative Chromatic Aberration;
+- warp/deformation surfaces;
+- scopes and histogram sources.
+
+Normalized centers generally remain normalized against the new canvas. Pixel
+centers or offsets may need the plan mapping. Pixel radii do not scale for
+Canvas Size or rotation. Specify each node's coordinate domain in its registry
+or adapter rather than adding scattered type-name conditionals.
+
+Task 143's invariant remains authoritative: a processing layer executes at its
+visible stack position. Geometry work may not revive a document-final shortcut
+that relocates Lens FX from the visible stack.
+
+Layer styles
+============
+
+Exercise every existing style family:
+
+- drop and inner shadow;
+- outer and inner glow;
+- bevel and emboss;
+- satin;
+- color, gradient and pattern overlay;
+- stroke with solid/gradient/pattern fill.
+
+Test global light, align-with-layer, angles, offsets and scaled style values.
+Canvas Size and rotation do not invoke Image Size's `Scale Styles` behavior.
+The document transform moves the completed style result; authored style sizes
+remain unchanged.
+
+Generative Expand extension point
+=================================
+
+Canvas Size must calculate the exact region that was not covered by the old
+canvas after it maps into the new canvas. Store or return this as derived
+command output, not permanent hidden GenAI state.
+
+For an axis-aligned Canvas Size operation, represent the difference as a
+stable, non-overlapping set of up to four rectangles:
+
+    newCanvas - intersect(newCanvas, transformedOldCanvas)
+
+This enables a later Generative Expand workflow to:
+
+1. run Canvas Size through the ordinary deterministic command;
+2. obtain the expansion regions from its committed geometry result;
+3. build an exact alpha selection/mask for only the new space, optionally with
+   a controlled overlap into old pixels for generative context;
+4. render the source composite and mask supplied to the chosen provider;
+5. place generated output on a new ordinary raster layer with its own mask;
+6. keep the original content and Canvas Size operation independently undoable.
+
+Do not put prompts, provider IDs, generated bytes, AI progress or networking in
+the geometry subsystem. It exposes only geometry. Generative Expand is a later
+application workflow consuming that geometry through a narrow port.
+
+The geometry result should also support future `Select Added Canvas` and
+content-aware fill workflows without requiring AI.
+
+Crop interaction and lifecycle
+==============================
+
+Add Crop as a real tool backed by a transient interaction session, not by
+mutating document dimensions on every pointer move.
+
+- entering Crop creates a preview rectangle from the current document bounds;
+- handles resize edges/corners and dragging inside moves the crop rectangle;
+- outside shading, boundary, handles and optional rule-of-thirds grid are
+  presentation-only overlays;
+- Enter or the standard confirm control commits one canonical Crop command;
+- Escape or the standard cancel control discards the session without history;
+- tool switching follows the established explicit confirm/cancel policy and
+  may not silently commit an accidental crop;
+- pointer-up updates only transient crop state and does not create undo entries;
+- one committed crop creates exactly one durable undo entry;
+- zoom, pan and high-DPI changes preserve the same document-space crop bounds;
+- snapping consumes canvas edges, guides and document-space geometry without
+  owning another copy of crop math.
+
+The crop overlay must remain responsive without re-running the compositor.
+Only the final commit changes document geometry, mask/selection targets,
+effect dimensions and exports. A later live cropped preview must use a cheap
+viewport scissor/overlay path rather than repeated document transactions.
+
+UI and reusable controls
+========================
+
+Add Image-menu commands using the existing menu and command infrastructure:
+
+    Image Size...
+    Canvas Size...
+    Crop
+    Image Rotation >
+        180 degrees
+        90 degrees Clockwise
+        90 degrees Counter Clockwise
+        Arbitrary...
+        ----------------
+        Flip Canvas Horizontal
+        Flip Canvas Vertical
+
+Canvas Size dialog:
+
+- current width, height and estimated document size;
+- new width and height;
+- the same supported measurement units as Image Size where appropriate;
+- Relative toggle;
+- one reusable 3 x 3 anchor control;
+- transparent extension as the initial LightTable behavior;
+- standard dialog, field, select, toggle and action components from the UI kit;
+- no one-off typography, buttons or layout CSS.
+
+The anchor control belongs in the UI Style Guide with its states and metadata
+because Crop, alignment and future layout tools may reuse it.
+
+Arbitrary Rotation dialog:
+
+- numeric angle with clockwise/counter-clockwise meaning made explicit;
+- standard number field and dialog actions;
+- deterministic preview of resulting dimensions where useful;
+- no live destructive mutation before commit.
+
+Crop tool/options:
+
+- use the existing Crop toolbar slot/icon if present and expose `Image > Crop`
+  as the commit/menu route appropriate to the active crop session;
+- standard constrained ratio presets plus Unconstrained;
+- editable width/height or ratio fields using shared field/select controls;
+- swap orientation control;
+- optional overlay selector (None, Rule of Thirds initially);
+- clear/reset, cancel and commit through standard action controls;
+- `Delete Cropped Pixels` remains hidden until its destructive semantics are
+  implemented and truthful for every supported target;
+- no duplicate crop-specific buttons, dropdowns, typography or sliders.
+
+All commands are document-scoped. They do not require an active layer and
+layer locks do not block them. Disable them while the document is unavailable,
+saving or executing an incompatible document mutation.
+
+The preceding paragraph applies to Image-menu document commands. Edit-menu
+Transform commands are target-scoped and require a valid transformable layer,
+layer set or selection. Reuse the existing menu component and Free Transform
+command/controller paths. The menu labels must distinguish canvas operations
+from layer operations exactly:
+
+- `Image > Image Rotation > Flip Canvas Horizontal` changes the document;
+- `Edit > Transform > Flip Horizontal` changes only the resolved target.
+
+Command, undo and recovery transaction
+======================================
+
+Follow the established command service and document port boundary so UI,
+keyboard shortcuts, automation and future MCP control all reach one canonical
+implementation.
+
+Each commit owns:
+
+- validated request and geometry plan;
+- semantic document before/after projection;
+- guide before/after state;
+- selection before/after state;
+- reversible mask/selection GPU exchanges;
+- renderer/effect resize and invalidation;
+- one history label and one durable undo entry;
+- recovery scheduling after successful commit.
+
+Encode every GPU operation before attaching any new resource to live runtime
+state. If plan creation, allocation, encoding or validation fails, preserve all
+old semantic and GPU state. Dispose detached textures only after submitted GPU
+work is safe and the corresponding history state is no longer reachable.
+
+Undo and redo must not recompute arbitrary rotation dimensions with new
+rounding. They reuse the original plan and exact retained states.
+
+Performance and memory
+======================
+
+Fast paths:
+
+- root semantic projection is O(number of root nodes);
+- raster color sources are not copied for Canvas Size or Image Rotation;
+- Canvas Size mask/selection work is rectangle clear/copy;
+- orthogonal mask/selection transforms use exact compute/render kernels;
+- disabled/neutral processing remains bypassed;
+- scopes and thumbnails update after the committed document invalidation, not
+  repeatedly during a non-interactive dialog edit.
+
+Before allocation, validate target dimensions against:
+
+- the active device's `maxTextureDimension2D`;
+- renderer/document format limits;
+- a realistic projected GPU-memory budget for 16-bit compositing targets;
+- PSD versus PSB export limits where relevant.
+
+Do not rely solely on Image Size's current fixed 16,384-pixel limit if the
+active GPU or supported document/export path has a different truthful limit.
+Show a useful validation error rather than allowing device loss.
+
+Persistence and export
+======================
+
+LightTable layered format:
+
+- persist new dimensions, root transforms, guides and all unchanged semantic
+  content normally;
+- no compatibility shim is required while the format remains under active
+  development;
+- recovery artifacts must restore the exact post-operation scene.
+
+PNG/JPEG/PDF export:
+
+- use the new document bounds;
+- clip content to those bounds;
+- preserve transparency for PNG/PDF where supported;
+- composite the chosen background only at formats that require opacity.
+
+PSD/PSB export:
+
+- write the new document dimensions and merged composite;
+- preserve layer ordering, masks, adjustment structure and transformed bounds;
+- verify ordinary raster layers carrying non-identity transforms do not lose
+  appearance or silently claim unsupported Photoshop editability;
+- reuse the existing compatibility-report/fallback policy where Photoshop
+  cannot represent LightTable's non-destructive transform exactly;
+- test save, reopen in LightTable, open in Photoshop, resave in Photoshop and
+  reopen in LightTable.
+
+Implementation stages
+=====================
+
+Stage 1 - Pure geometry model
+
+- define and validate Canvas Size, rotation and flip requests;
+- implement deterministic plan/matrix/bounds/expansion calculations;
+- add exhaustive unit tests for every anchor, direction and odd/even size;
+- establish pixel-center and rounding contracts.
+
+Stage 2 - Semantic scene transaction
+
+- project root transforms and dimensions;
+- transform guides for supported operations;
+- integrate one document-scoped command and atomic history entry;
+- prove nested raster/vector/text/group geometry remains unchanged locally.
+
+Stage 3 - GPU masks and selections
+
+- implement clear/copy and exact orthogonal kernels;
+- integrate reversible resource exchange;
+- preserve selection operation semantics and overlays;
+- test linked/unlinked masks and feathered alpha.
+
+Stage 4 - Canvas Size UI
+
+- add Image-menu entry, shortcut and standard dialog;
+- add the reusable anchor control to the Style Guide;
+- expose relative/absolute dimensions and transparent extension;
+- add a desktop smoke test covering commit and immediate undo.
+
+Stage 4b - Non-destructive Crop
+
+- add the Crop tool/session and presentation-only overlay;
+- implement the pure axis-aligned Crop plan through the same geometry command;
+- preserve every off-canvas raster pixel, vector point, text object, mask and
+  effect instead of pruning authored scene nodes to the new bounds;
+- add ratio constraints, document-space hit testing, commit/cancel and one-step
+  undo/redo;
+- verify crop interaction never schedules content compositing while dragging;
+- add desktop smoke coverage for crop, undo, recrop larger and restored content.
+
+Stage 5 - Orthogonal Image Rotation and flips
+
+- add menu hierarchy and commands;
+- handle dimensions, guides, masks, selections and renderer invalidation;
+- verify exact pixels and no cumulative degradation.
+
+Stage 6 - Arbitrary Rotation
+
+- implement deterministic expanded bounds and filtered alpha transfer;
+- resolve the guide policy explicitly;
+- validate style/filter/effect coordinate ownership;
+- add memory rejection and large-document tests.
+
+Stage 7 - Persistence, export and parity
+
+- LT save/reopen/recovery;
+- PNG/JPEG/PDF bounds;
+- PSD/PSB semantic and visual roundtrip;
+- compare representative behavior with current Photoshop.
+
+Stage 8 - Fixed layer and selection transforms
+
+- add the five fixed Edit > Transform rotate/flip commands;
+- route them through the existing transform target and history boundary;
+- compose pivoted deltas through the scene-transform graph;
+- preserve local axes and linked/unlinked mask behavior;
+- test raster, vector, text, group and adjustment targets;
+- test active pixel selections and geometric-selection-only behavior;
+- verify these commands never change canvas dimensions.
+
+Stage 9 - Future consumers
+
+- expose expansion regions through a narrow application result/port;
+- implement Reveal All, Trim, destructive Delete Cropped Pixels or Generative
+  Expand only as separate tasks;
+- never add a GenAI import to document geometry packages.
+
+Required test matrix
+====================
+
+Run Canvas Size anchors, 90/180 rotations, both flips and arbitrary angles on:
+
+- one full-canvas raster layer;
+- offset and transformed raster/paint layers;
+- nested groups with isolated and pass-through compositing;
+- live rectangle, ellipse, polygon, star and free path;
+- point, paragraph, warped and path text;
+- gradient fill and gradient overlay;
+- linked and unlinked painted masks;
+- masked adjustment layers;
+- attached Grade, Curves and Lens FX;
+- Grade and Lens FX layers at different stack positions;
+- clipping stacks, blend modes, opacity and Fill;
+- every layer-style family;
+- active geometric and raster-backed selections;
+- guides and snapping;
+- imported PSD layers with preserved metadata and derived previews;
+- 8-, 16- and 32-bit authored documents where supported;
+- odd dimensions such as 511 x 257 and one-pixel expansion/crop;
+- large documents near device limits.
+
+Run Crop additionally with:
+
+- every edge and corner handle plus moving the complete crop rectangle;
+- unconstrained, fixed-ratio, portrait/landscape-swapped and one-pixel crops;
+- crops completely inside the canvas and crops extending outside it if enabled;
+- raster pixels, vector paths/anchors, text bounds, masks and effects extending
+  beyond both the old and newly cropped document bounds;
+- crop, undo, recrop larger and verify the exact off-canvas authored content
+  returns without rerasterization or regenerated vector geometry;
+- crop while zoomed, panned and above the nearest-neighbor zoom threshold;
+- Enter commit, Escape cancel and tool-switch lifecycle;
+- guides/snapping, active selections, linked/unlinked masks and nested groups;
+- save/reopen, recovery and PNG/PSD export at the cropped bounds;
+- render telemetry proving drag updates remain presentation-only.
+
+Also run each fixed layer/selection rotate and flip variant on:
+
+- transformed root and nested raster layers;
+- vector/live-shape and text layers without rasterization;
+- groups containing mixed semantic content;
+- adjustment and Lens FX layers with masks;
+- linked and unlinked masks;
+- a directly targeted mask channel;
+- active pixel selections and geometric selections;
+- position-locked and fully locked layers;
+- targets with preserved local axes after earlier Free Transform operations;
+- content extending beyond the document canvas.
+
+For each representative case verify:
+
+- visual output immediately after commit;
+- editable local geometry and hit testing;
+- no mask/selection drift;
+- one undo and redo;
+- save/reopen and recovery;
+- PNG export bounds;
+- PSD/PSB compatibility result;
+- no GPU validation error, device loss or leaked detached textures.
+
+Acceptance criteria
+===================
+
+- Image > Canvas Size works with absolute/relative dimensions and all anchors.
+- Crop provides a responsive document-space overlay and commits through the
+  same canonical geometry system.
+- Crop changes clipping bounds only: off-canvas raster pixels, vector geometry,
+  text, masks and effects remain authored and editable.
+- Undo restores the exact pre-crop dimensions, scene transforms, selections,
+  masks and GPU resources; recropping larger reveals the original content.
+- Crop drag creates no document-history spam or content-compositor work, and
+  commit/cancel behavior is unambiguous.
+- Canvas expansion is transparent and existing content is neither scaled nor
+  destructively cropped.
+- Expansion regions are deterministic and covered by pure tests.
+- 90/180 rotations and flips transform the complete editable document exactly.
+- Arbitrary rotation preserves complete scene alignment and deterministic
+  bounds before it is exposed publicly.
+- Edit > Transform exposes fixed 180/90-degree rotations and horizontal/
+  vertical flips for the current layer/selection target.
+- Fixed layer transforms do not change canvas dimensions or unrelated layers.
+- Nested transforms, local axes and mask-linking behavior remain correct.
+- Raster, vector, text, groups, masks, selections, adjustments and effects stay
+  visually registered.
+- Visible layer-stack processing order remains truthful.
+- Each operation is one atomic undo/redo step and survives recovery.
+- Orthogonal operations do not introduce blur or one-pixel seams.
+- Operations remain interactive and avoid raster color copies where matrices
+  are sufficient.
+- Web and desktop builds share the same semantic implementation.
+- UI uses the standard control library and the anchor control appears in the
+  Style Guide.
+- Production code has no dependency on `work/` and geometry code has no GenAI
+  dependency.
+
+Explicit non-goals for the initial delivery
+===========================================
+
+- automatic Generative Expand;
+- content-aware filling of new canvas space;
+- destructive `Delete Cropped Pixels` until separately specified and tested;
+- destructive layer rasterization after rotation;
+- arbitrary angled guides unless chosen as the guide-model solution;
+- artboards or multiple canvases;
+- combining Image Size and Canvas Size into one ambiguous dialog;
+- silently baking unsupported semantics merely to simplify PSD export.

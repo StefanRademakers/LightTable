@@ -46,6 +46,7 @@ import {
   createProjectOnDisk,
   openProjectManifest,
   resolveProjectStoragePath,
+  setProjectLastUsedDocument,
   type DesktopProjectSummary
 } from './projectService';
 import { WindowsSystemFontCatalog } from './systemFonts';
@@ -118,6 +119,7 @@ let localAiModelManager: LocalAiModelManager | null = null;
 const httpAiConnections = new Map<string, LocalAiConnectionController>();
 const httpAiGenerations = new Map<string, LocalAiGenerationController>();
 let activeProjectManifestPath: string | null = null;
+let projectLastUsedOperation: Promise<unknown> = Promise.resolve();
 let agentRequestSequence = 0;
 const pendingAgentRequests = new Map<string, {
   readonly resolve: (value: unknown) => void;
@@ -135,6 +137,37 @@ const recentProjectsPath = (): string => path.join(app.getPath('userData'), 'rec
 const recentProjectOperations = new RecentFileOperationQueue();
 const RECENT_THUMBNAIL_CACHE_LIMIT = 24;
 const recentThumbnailCache = new BoundedLruCache<string>(RECENT_THUMBNAIL_CACHE_LIMIT);
+
+const rememberProjectAssetAsLastUsed = async (manifestPath: string, requestedAssetId: string): Promise<void> => {
+  const operation = projectLastUsedOperation.catch(() => undefined).then(async () => {
+    const { index } = await readProjectAssetIndex(manifestPath);
+    const entry = index.assets.find(({ id }) => id === requestedAssetId);
+    if (!entry) return;
+    await setProjectLastUsedDocument(manifestPath, {
+      assetId: entry.id,
+      relativePath: entry.path,
+      name: entry.name,
+      updatedAt: new Date().toISOString()
+    });
+  });
+  projectLastUsedOperation = operation;
+  await operation;
+};
+
+const rememberActiveProjectFileAsLastUsed = async (filePath: string): Promise<void> => {
+  const manifestPath = activeProjectManifestPath;
+  if (!manifestPath) return;
+  const { rootPath, index } = await readProjectAssetIndex(manifestPath);
+  const relativePath = path.relative(rootPath, path.resolve(filePath));
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) return;
+  const portablePath = relativePath.split(path.sep).join('/').toLocaleLowerCase('en-US');
+  let entry = index.assets.find((candidate) => candidate.path.toLocaleLowerCase('en-US') === portablePath);
+  if (!entry) {
+    const rebuilt = await rebuildProjectAssetIndex({ manifestPath });
+    entry = rebuilt.assets.find((candidate) => candidate.path.toLocaleLowerCase('en-US') === portablePath);
+  }
+  if (entry) await rememberProjectAssetAsLastUsed(manifestPath, entry.id);
+};
 const releaseChannel = releaseChannelFor(
   app.getVersion(),
   app.isPackaged,
@@ -274,6 +307,20 @@ const rememberRecentFile = async (filePath: string): Promise<void> => {
       path: filePath,
       openedAt: Date.now()
     }));
+  });
+};
+
+const rememberRecentFileBatch = async (filePaths: readonly string[]): Promise<void> => {
+  if (!filePaths.length) return;
+  await recentFileOperations.run(async () => {
+    let entries = await loadRecentFiles();
+    const openedAt = Date.now();
+    for (const [index, filePath] of filePaths.entries()) {
+      const id = recentFileId(filePath);
+      recentThumbnailCache.delete(id);
+      entries = touchRecentFile(entries, { id, path: filePath, openedAt: openedAt + index });
+    }
+    await saveRecentFiles(entries);
   });
 };
 
@@ -1314,6 +1361,7 @@ void app.whenReady().then(async () => {
     const project = await openProjectManifest(activeProjectManifestPath);
     if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
     const asset = await readProjectAsset(activeProjectManifestPath, assetId);
+    if (asset) await rememberProjectAssetAsLastUsed(activeProjectManifestPath, assetId);
     return asset ? {
       name: asset.name,
       mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream',
@@ -1445,6 +1493,7 @@ void app.whenReady().then(async () => {
 
     const payload = await readDesktopFilePayload(selectedPath);
     await rememberRecentFile(selectedPath);
+    await rememberActiveProjectFileAsLastUsed(selectedPath);
     return payload;
   });
 
@@ -1507,10 +1556,42 @@ void app.whenReady().then(async () => {
     try {
       const payload = await readDesktopFilePayload(entry.path);
       await rememberRecentFile(entry.path);
+      await rememberActiveProjectFileAsLastUsed(entry.path);
       return payload;
     } catch {
       return null;
     }
+  });
+
+  ipcMain.handle('lighttable:remember-opened-files', async (event, requestedPaths: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (!Array.isArray(requestedPaths) || requestedPaths.length > 128) {
+      throw new Error('Invalid opened-files request.');
+    }
+    const filePaths: string[] = [];
+    for (const candidate of requestedPaths) {
+      if (typeof candidate !== 'string' || candidate.length > 32_768 || !path.isAbsolute(candidate)) continue;
+      const filePath = path.resolve(candidate);
+      try {
+        if (!(await stat(filePath)).isFile() || !desktopMediaTypeForFileName(filePath)) continue;
+        filePaths.push(filePath);
+      } catch {
+        // A file can disappear between the OS drop and persistence; the other
+        // accepted files must still enter the MRU list.
+      }
+    }
+    await rememberRecentFileBatch(filePaths);
+    const lastFilePath = filePaths.at(-1);
+    if (lastFilePath) await rememberActiveProjectFileAsLastUsed(lastFilePath);
+  });
+
+  ipcMain.handle('lighttable:reveal-recent-file', async (event, id: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof id !== 'string' || id.length > 128) throw new Error('Invalid recent-file request.');
+    await recentFileOperations.settled();
+    const entry = (await loadRecentFiles()).find((candidate) => candidate.id === id);
+    if (!entry) return;
+    shell.showItemInFolder(entry.path);
   });
 
   ipcMain.handle('lighttable:remove-recent-file', async (event, id: string) => {
@@ -1611,6 +1692,7 @@ void app.whenReady().then(async () => {
           name: entry.name,
           rootPath: path.dirname(entry.path),
           manifestPath: entry.path,
+          lastUsedDocument: null,
           recentId: entry.id,
           available: false
         };
@@ -1633,6 +1715,40 @@ void app.whenReady().then(async () => {
     } catch {
       return null;
     }
+  });
+
+  ipcMain.handle('lighttable:project-recent-thumbnail', async (event, recentId: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof recentId !== 'string' || recentId.length > 128) throw new Error('Invalid recent-project request.');
+    await recentProjectOperations.settled();
+    const entry = (await loadRecentProjects()).find((candidate) => candidate.id === recentId);
+    if (!entry) return null;
+    try {
+      const { manifest } = await openProjectManifest(entry.path);
+      if (!manifest.lastUsedDocument) return null;
+      const bytes = await readProjectAssetPreview(entry.path, manifest.lastUsedDocument.assetId);
+      if (bytes) return `data:image/png;base64,${Buffer.from(bytes).toString('base64')}`;
+      const assetPath = await resolveProjectAssetPath(entry.path, manifest.lastUsedDocument.assetId);
+      const thumbnail = await nativeImage.createThumbnailFromPath(assetPath, { width: 640, height: 360 });
+      return thumbnail.isEmpty() ? null : thumbnail.toDataURL();
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle('lighttable:project-open-last-document', async (event, projectId: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof projectId !== 'string' || !activeProjectManifestPath) return null;
+    const project = await openProjectManifest(activeProjectManifestPath);
+    if (project.summary.id !== projectId || !project.manifest.lastUsedDocument) return null;
+    const asset = await readProjectAsset(activeProjectManifestPath, project.manifest.lastUsedDocument.assetId);
+    if (!asset) return null;
+    await rememberProjectAssetAsLastUsed(activeProjectManifestPath, project.manifest.lastUsedDocument.assetId);
+    return {
+      name: asset.name,
+      type: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream',
+      bytes: asset.bytes
+    };
   });
 
   ipcMain.handle('lighttable:project-reveal', async (event, manifestPath: unknown) => {

@@ -20,6 +20,56 @@ const texture = (name: string) => ({ name }) as unknown as GPUTexture;
 const layerId = (value: string) => value as LayerId;
 
 describe('RasterDocumentOperations', () => {
+  it('resolves the high-precision document-final texture into a linear raster destination', () => {
+    const destinationId = layerId('flattened');
+    const sourceView = { label: 'display source view' };
+    const destinationView = { label: 'linear destination view' };
+    const source = { createView: vi.fn(() => sourceView) } as unknown as GPUTexture;
+    const destinationTexture = {
+      createView: vi.fn(() => destinationView)
+    } as unknown as GPUTexture;
+    const pass = {
+      setPipeline: vi.fn(),
+      setBindGroup: vi.fn(),
+      draw: vi.fn(),
+      end: vi.fn()
+    };
+    const finish = vi.fn(() => 'flatten commands');
+    const createBindGroup = vi.fn(() => ({ label: 'flatten bind group' }));
+    const submit = vi.fn();
+    const invalidateLayer = vi.fn();
+    const releaseSubmittedResources = vi.fn();
+    const pipeline = {
+      getBindGroupLayout: vi.fn(() => ({ label: 'flatten layout' }))
+    } as unknown as GPURenderPipeline;
+    const operations = new RasterDocumentOperations({
+      device: {
+        createCommandEncoder: () => ({ beginRenderPass: vi.fn(() => pass), finish }),
+        createBindGroup,
+        queue: { submit }
+      } as unknown as GPUDevice,
+      layerResources: {
+        raster: (id: LayerId) => id === destinationId
+          ? { texture: destinationTexture, width: 64, height: 32 }
+          : null
+      } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      encodeComposite: vi.fn(),
+      invalidateLayer,
+      releaseSubmittedResources
+    });
+
+    expect(operations.flattenRenderedImage(source, destinationId, pipeline)).toBe(true);
+    expect(createBindGroup).toHaveBeenCalledWith(expect.objectContaining({
+      entries: [{ binding: 0, resource: sourceView }]
+    }));
+    expect(pass.setPipeline).toHaveBeenCalledWith(pipeline);
+    expect(pass.draw).toHaveBeenCalledWith(3);
+    expect(submit).toHaveBeenCalledWith(['flatten commands']);
+    expect(invalidateLayer).toHaveBeenCalledWith(destinationId);
+    expect(releaseSubmittedResources).toHaveBeenCalledOnce();
+  });
+
   it('duplicates raster and mask pixels and invalidates the destination cache', () => {
     const copyTextureToTexture = vi.fn();
     const submit = vi.fn();

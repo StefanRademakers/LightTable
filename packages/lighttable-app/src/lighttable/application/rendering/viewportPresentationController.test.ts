@@ -15,7 +15,6 @@ const createHarness = () => {
 
 describe('ViewportPresentationController', () => {
   it('publishes changed viewport measurements exactly once', () => {
-    vi.useFakeTimers();
     const harness = createHarness();
     const rect = { x: 10, y: 20, width: 800, height: 450 };
 
@@ -29,11 +28,9 @@ describe('ViewportPresentationController', () => {
     expect(harness.controller.resize(1600, 1000, 700, 2, rect)).toBe(false);
     expect(harness.writeViewport).toHaveBeenCalledOnce();
     harness.controller.dispose();
-    vi.useRealTimers();
   });
 
-  it('uses smooth sampling while zooming and nearest sampling after a high zoom settles', () => {
-    vi.useFakeTimers();
+  it('keeps nearest sampling throughout every zoom step above the pixel threshold', () => {
     const harness = createHarness();
 
     harness.controller.resize(100, 800, 600, 1, {
@@ -42,8 +39,15 @@ describe('ViewportPresentationController', () => {
       width: 500,
       height: 500
     });
-    expect(harness.controller.sampling).toBe('linear');
-    vi.advanceTimersByTime(75);
+    expect(harness.controller.sampling).toBe('nearest');
+    expect(harness.invalidateViewport).toHaveBeenCalledOnce();
+
+    harness.controller.resize(100, 800, 600, 1, {
+      x: 0,
+      y: 0,
+      width: 700,
+      height: 700
+    });
     expect(harness.controller.sampling).toBe('nearest');
     expect(harness.invalidateViewport).toHaveBeenCalledTimes(2);
 
@@ -54,30 +58,30 @@ describe('ViewportPresentationController', () => {
       height: 200
     });
     expect(harness.controller.sampling).toBe('linear');
-    vi.advanceTimersByTime(75);
-    expect(harness.controller.sampling).toBe('linear');
+    expect(harness.invalidateViewport).toHaveBeenCalledTimes(3);
     harness.controller.dispose();
-    vi.useRealTimers();
   });
 
-  it('cancels pending sampling work when disposed', () => {
-    vi.useFakeTimers();
+  it('rejects viewport work after disposal', () => {
     const harness = createHarness();
-    harness.controller.resize(100, 800, 600, 1, {
+    const rect = {
       x: 0,
       y: 0,
       width: 500,
       height: 500
-    });
+    };
+    harness.controller.resize(100, 800, 600, 1, rect);
     harness.controller.dispose();
-    vi.runAllTimers();
-    expect(harness.controller.sampling).toBe('linear');
+    expect(harness.controller.resize(100, 800, 600, 1, {
+      ...rect,
+      width: 200,
+      height: 200
+    })).toBe(false);
+    expect(harness.controller.sampling).toBe('nearest');
     expect(harness.invalidateViewport).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it('can republish retained uniforms after GPU resources are recreated', () => {
-    vi.useFakeTimers();
     const harness = createHarness();
     expect(harness.controller.syncCurrentState()).toBe(false);
     harness.controller.resize(100, 800, 600, 1, {
@@ -90,6 +94,5 @@ describe('ViewportPresentationController', () => {
     expect(harness.controller.syncCurrentState()).toBe(true);
     expect(harness.writeViewport).toHaveBeenCalledOnce();
     harness.controller.dispose();
-    vi.useRealTimers();
   });
 });

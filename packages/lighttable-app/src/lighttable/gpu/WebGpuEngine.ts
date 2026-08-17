@@ -266,6 +266,7 @@ export class WebGpuEngine {
   private layerEffectRenderer: LayerEffectRenderer | null = null;
   private layerProcessingRenderer: LayerProcessingRenderer | null = null;
   private displayResolvePipeline: GPURenderPipeline | null = null;
+  private displayToLinearPipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
   private thumbnailPipeline: GPURenderPipeline | null = null;
   private maskBlitPipeline: GPURenderPipeline | null = null;
@@ -452,6 +453,7 @@ export class WebGpuEngine {
       this.layerEffectRenderer
     );
     this.displayResolvePipeline = pipelines.displayResolve;
+    this.displayToLinearPipeline = pipelines.displayToLinear;
     this.blitPipeline = pipelines.blit;
     this.maskBlitPipeline = pipelines.maskBlit;
     this.channelBlitPipeline = pipelines.channelBlit;
@@ -1428,12 +1430,18 @@ export class WebGpuEngine {
   }
 
   flattenImage(document: ImageDocument, destinationId: LayerId) {
-    const changed = this.documentRenderer?.flattenImage(
-      document,
-      destinationId,
-      (encoder, source, layer) =>
-        this.encodeLayerProcessing(encoder, source, layer)
-    ) ?? false;
+    // Materialize pending invalidations before taking the destructive snapshot.
+    // Queue submission order guarantees that the following conversion observes
+    // the complete Global Grade + Global Lens FX result.
+    this.renderNow();
+    const source = this.displayPostTexture;
+    const changed = source && this.displayToLinearPipeline
+      ? this.documentRenderer?.flattenRenderedImage(
+        source,
+        destinationId,
+        this.displayToLinearPipeline
+      ) ?? false
+      : false;
     if (changed) this.markDocumentDirty();
     return changed;
   }

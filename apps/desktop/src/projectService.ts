@@ -8,17 +8,20 @@ import {
   PROJECT_STORAGE_LOCATIONS,
   PROJECT_USER_STORAGE_LOCATIONS,
   type LightTableProjectManifest,
+  type ProjectLastUsedDocument,
   type ProjectFolderMappings,
   type ProjectUserFolder,
   type ProjectStorageLocation,
   type ProjectUserStorageLocation
 } from '@lighttable/app/project-manifest';
+import { atomicWriteFile } from './atomicFileWriter';
 
 export interface DesktopProjectSummary {
   readonly id: string;
   readonly name: string;
   readonly rootPath: string;
   readonly manifestPath: string;
+  readonly lastUsedDocument: ProjectLastUsedDocument | null;
 }
 
 const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
@@ -61,8 +64,31 @@ export const openProjectManifest = async (manifestPath: string): Promise<{
   for (const location of PROJECT_STORAGE_LOCATIONS) resolveProjectStoragePath(rootPath, manifest, location);
   return {
     manifest,
-    summary: { id: manifest.id, name: manifest.name, rootPath, manifestPath: resolvedManifestPath }
+    summary: {
+      id: manifest.id,
+      name: manifest.name,
+      rootPath,
+      manifestPath: resolvedManifestPath,
+      lastUsedDocument: manifest.lastUsedDocument
+    }
   };
+};
+
+export const setProjectLastUsedDocument = async (
+  manifestPath: string,
+  lastUsedDocument: ProjectLastUsedDocument
+): Promise<DesktopProjectSummary> => {
+  const { manifest } = await openProjectManifest(manifestPath);
+  const next: LightTableProjectManifest = { ...manifest, lastUsedDocument };
+  const bytes = new TextEncoder().encode(`${JSON.stringify(next, null, 2)}\n`);
+  await atomicWriteFile({
+    targetPath: path.resolve(manifestPath),
+    bytes,
+    validate: async (temporaryPath) => {
+      parseLightTableProjectManifest(JSON.parse(await readFile(temporaryPath, 'utf8')));
+    }
+  });
+  return (await openProjectManifest(manifestPath)).summary;
 };
 
 const pathExists = async (candidate: string): Promise<boolean> => {

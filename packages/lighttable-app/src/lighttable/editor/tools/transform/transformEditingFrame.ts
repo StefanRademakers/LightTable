@@ -1,6 +1,7 @@
 import type { VectorSelectionFrame } from '@lighttable/vector-rendering';
 import { multiplyMatrices, rectCorners, transformPoint, type TransformPoint } from './affine';
 import type { TransformSessionState } from './transformTypes';
+import type { TransformSessionFrame } from './transformSessionFrame';
 
 const midpoint = (first: TransformPoint, second: TransformPoint): TransformPoint => ({
   x: (first.x + second.x) * 0.5,
@@ -32,10 +33,12 @@ export const transformCornerRotationTargets = (
  */
 export const buildTransformEditingFrame = (
   state: TransformSessionState,
-  viewportScale: number
+  viewportScale: number,
+  frame?: TransformSessionFrame
 ): VectorSelectionFrame => {
-  const sourceToDocument = multiplyMatrices(state.matrix, state.sourceMatrix);
-  const corners = state.projectiveQuad ?? rectCorners(state.sourceContentBounds)
+  const sourceToDocument = multiplyMatrices(state.matrix, frame?.matrix ?? state.sourceMatrix);
+  const sourceBounds = frame?.bounds ?? state.sourceContentBounds;
+  const corners = state.projectiveQuad ?? rectCorners(sourceBounds)
     .map((point) => transformPoint(sourceToDocument, point));
   const [northWest, northEast, southEast, southWest] = corners;
   const north = midpoint(northWest, northEast);
@@ -62,12 +65,13 @@ export const buildTransformEditingFrame = (
       'transform-frame',
       state.layerId,
       ...Object.values(state.sourceMatrix).map(finite),
+      ...Object.values(frame?.matrix ?? state.sourceMatrix).map(finite),
       ...Object.values(state.matrix).map(finite),
       ...(state.projectiveQuad ?? []).flatMap((point) => [finite(point.x), finite(point.y)]),
-      finite(state.sourceContentBounds.x),
-      finite(state.sourceContentBounds.y),
-      finite(state.sourceContentBounds.width),
-      finite(state.sourceContentBounds.height),
+      finite(sourceBounds.x),
+      finite(sourceBounds.y),
+      finite(sourceBounds.width),
+      finite(sourceBounds.height),
       finite(viewportScale)
     ].join(':'),
     bounds: {

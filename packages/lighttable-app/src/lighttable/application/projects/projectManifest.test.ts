@@ -7,10 +7,11 @@ import {
 } from './projectManifest';
 
 describe('LightTable project manifest', () => {
-  it('normalizes an early v1 manifest without custom folders', () => {
-    const manifest = createLightTableProjectManifest({ id: 'project-12345678', name: 'Early v1' });
-    const { userFolders: _userFolders, ...earlyManifest } = manifest;
-    expect(parseLightTableProjectManifest(earlyManifest).userFolders).toEqual([]);
+  it('requires the canonical v2 project workspace state', () => {
+    const manifest = createLightTableProjectManifest({ id: 'project-12345678', name: 'Current' });
+    expect(manifest.lastUsedDocument).toBeNull();
+    expect(() => parseLightTableProjectManifest({ ...manifest, version: 1 }))
+      .toThrow('supported LightTable project');
   });
 
   it('creates the complete portable default layout', () => {
@@ -25,18 +26,19 @@ describe('LightTable project manifest', () => {
   it.each(['../outside', '/absolute', 'C:/outside', 'folder/../outside', 'folder/'])
   ('rejects escaping or non-canonical folder mapping %s', (cache) => {
     expect(() => parseLightTableProjectManifest({
-      format: 'lighttable-project', version: 1, id: 'project-12345678',
+      format: 'lighttable-project', version: 2, id: 'project-12345678',
       name: 'Unsafe', createdAt: '2026-08-11T12:00:00Z',
-      folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, cache }, userFolders: []
+      folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, cache }, userFolders: [], lastUsedDocument: null
     })).toThrow('folder mappings');
   });
 
   it('normalizes portable backslash mappings on read', () => {
     const manifest = parseLightTableProjectManifest({
-      format: 'lighttable-project', version: 1, id: 'project-12345678',
+      format: 'lighttable-project', version: 2, id: 'project-12345678',
       name: 'Portable', createdAt: '2026-08-11T12:00:00Z',
       folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, aiHistory: 'AiRenders\\History' },
-      userFolders: [{ name: 'References', path: 'Production\\References' }]
+      userFolders: [{ name: 'References', path: 'Production\\References' }],
+      lastUsedDocument: null
     });
     expect(manifest.folders.aiHistory).toBe('AiRenders/History');
     expect(manifest.userFolders[0]?.path).toBe('Production/References');

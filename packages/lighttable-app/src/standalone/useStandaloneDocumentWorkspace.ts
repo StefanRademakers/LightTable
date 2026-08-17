@@ -1,6 +1,8 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useSyncExternalStore
 } from 'react';
 import {
@@ -33,6 +35,22 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
     () => new DocumentWorkspaceController<StandaloneDocumentRuntime>({ systemFontProvider }),
     [systemFontProvider]
   );
+  const currentControllerRef = useRef(controller);
+  const controllerLeaseRef = useRef(0);
+  currentControllerRef.current = controller;
+  useEffect(() => {
+    const lease = ++controllerLeaseRef.current;
+    return () => {
+      // React Strict Mode reconnects effects without replacing their memoized
+      // controller. Defer terminal disposal for one microtask so that reconnect
+      // can claim a new lease; a real unmount or controller replacement cannot.
+      queueMicrotask(() => {
+        if (currentControllerRef.current !== controller || controllerLeaseRef.current === lease) {
+          controller.dispose();
+        }
+      });
+    };
+  }, [controller]);
   const snapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,

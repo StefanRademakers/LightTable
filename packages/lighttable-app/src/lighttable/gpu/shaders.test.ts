@@ -5,6 +5,7 @@ import { WgslReflect } from 'wgsl_reflect/wgsl_reflect.module.js';
 import {
   BASIC_CORRECTION_WGSL,
   DISPLAY_RESOLVE_WGSL,
+  DISPLAY_TO_LINEAR_WGSL,
   DOWNSAMPLE_WGSL,
   CREATIVE_GRADE_WGSL,
   DOCUMENT_THUMBNAIL_WGSL,
@@ -114,6 +115,7 @@ const renderShaders = [
   ['grain blur', GRAIN_BLUR_WGSL],
   ['grain composite', GRAIN_COMPOSITE_WGSL],
   ['display resolve', DISPLAY_RESOLVE_WGSL],
+  ['flatten display to linear', DISPLAY_TO_LINEAR_WGSL],
   ['document thumbnail', DOCUMENT_THUMBNAIL_WGSL],
   ['viewport blit', VIEWPORT_BLIT_WGSL],
   ['mask viewport blit', MASK_VIEWPORT_BLIT_WGSL],

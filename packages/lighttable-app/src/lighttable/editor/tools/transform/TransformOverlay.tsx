@@ -2,7 +2,6 @@ import React, { useMemo, useRef } from 'react';
 import type { Rect } from '../../document/documentTypes';
 import {
   aroundPoint,
-  invertMatrix,
   multiplyMatrices,
   rectCorners,
   rotationMatrix,
@@ -14,6 +13,13 @@ import type { AffineMatrix, TransformHandle, TransformQuad, TransformSessionStat
 import { transformCornerRotationTargets } from './transformEditingFrame';
 import type { SnapFeature, SnapMatch } from '../../../application/tools/snapping/snapEngine';
 import { snapAffineTranslation, snapProjectiveTranslation } from './snapTransformTranslation';
+import {
+  appendTransformFrameOperation,
+  pointInTransformFrame,
+  transformSessionFrame,
+  type TransformFrameMode,
+  type TransformSessionFrame
+} from './transformSessionFrame';
 
 interface TransformOverlayProps {
   state: TransformSessionState;
@@ -25,6 +31,8 @@ interface TransformOverlayProps {
   onProjectiveChange: (quad: TransformQuad) => void;
   onCommitGesture: () => void;
   onDuplicateChange: (duplicate: boolean) => void;
+  frameMode?: TransformFrameMode;
+  frameOverride?: TransformSessionFrame | null;
   onPickLayer?: (point: TransformPoint) => void;
   snapTargets?: readonly SnapFeature[];
   snapEnabled?: boolean;
@@ -35,6 +43,7 @@ interface DragState {
   pointerId: number;
   handle: TransformHandle;
   matrix: AffineMatrix;
+  frameMatrix: AffineMatrix;
   start: TransformPoint;
   anchor: TransformPoint;
   handlePoint: TransformPoint;
@@ -86,6 +95,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   onProjectiveChange,
   onCommitGesture,
   onDuplicateChange,
+  frameMode = 'document',
+  frameOverride = null,
   onPickLayer,
   snapTargets = [],
   snapEnabled = true,
@@ -104,8 +115,9 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     };
   };
   const geometry = useMemo(() => {
-    const source = rectCorners(state.sourceContentBounds)
-      .map((point) => transformPoint(state.sourceMatrix, point));
+    const frame = frameOverride ?? transformSessionFrame(state, frameMode);
+    const localSource = rectCorners(frame.bounds);
+    const source = localSource.map((point) => transformPoint(frame.matrix, point));
     const affineCorners: TransformQuad = [
       transformPoint(state.matrix, source[0]),
       transformPoint(state.matrix, source[1]),
@@ -121,22 +133,24 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       : { x: 0, y: -1 };
     return {
       source,
-      sourceCenter: midpoint(source[0], source[2]),
+      frameMatrix: frame.matrix,
+      localSource,
+      sourceCenter: midpoint(localSource[0], localSource[2]),
       corners,
       center,
       rotation: { x: top.x + normal.x * 28 / Math.max(scale, 1e-6), y: top.y + normal.y * 28 / Math.max(scale, 1e-6) },
       handles: [
-        ['north-west', source[0], source[2], corners[0], corners[2]],
-        ['north', midpoint(source[0], source[1]), midpoint(source[2], source[3]), midpoint(corners[0], corners[1]), midpoint(corners[2], corners[3])],
-        ['north-east', source[1], source[3], corners[1], corners[3]],
-        ['east', midpoint(source[1], source[2]), midpoint(source[3], source[0]), midpoint(corners[1], corners[2]), midpoint(corners[3], corners[0])],
-        ['south-east', source[2], source[0], corners[2], corners[0]],
-        ['south', midpoint(source[2], source[3]), midpoint(source[0], source[1]), midpoint(corners[2], corners[3]), midpoint(corners[0], corners[1])],
-        ['south-west', source[3], source[1], corners[3], corners[1]],
-        ['west', midpoint(source[3], source[0]), midpoint(source[1], source[2]), midpoint(corners[3], corners[0]), midpoint(corners[1], corners[2])]
+        ['north-west', localSource[0], localSource[2], corners[0], corners[2]],
+        ['north', midpoint(localSource[0], localSource[1]), midpoint(localSource[2], localSource[3]), midpoint(corners[0], corners[1]), midpoint(corners[2], corners[3])],
+        ['north-east', localSource[1], localSource[3], corners[1], corners[3]],
+        ['east', midpoint(localSource[1], localSource[2]), midpoint(localSource[3], localSource[0]), midpoint(corners[1], corners[2]), midpoint(corners[3], corners[0])],
+        ['south-east', localSource[2], localSource[0], corners[2], corners[0]],
+        ['south', midpoint(localSource[2], localSource[3]), midpoint(localSource[0], localSource[1]), midpoint(corners[2], corners[3]), midpoint(corners[0], corners[1])],
+        ['south-west', localSource[3], localSource[1], corners[3], corners[1]],
+        ['west', midpoint(localSource[3], localSource[0]), midpoint(localSource[1], localSource[2]), midpoint(corners[3], corners[0]), midpoint(corners[1], corners[2])]
       ] as Array<[TransformHandle, TransformPoint, TransformPoint, TransformPoint, TransformPoint]>
     };
-  }, [scale, state.matrix, state.projectiveQuad, state.sourceContentBounds, state.sourceMatrix]);
+  }, [frameMode, frameOverride, scale, state.matrix, state.projectiveQuad, state.sourceBounds, state.sourceContentBounds, state.sourceMatrix]);
 
   const begin = (
     event: React.PointerEvent<SVGElement>,
@@ -162,6 +176,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       pointerId: event.pointerId,
       handle,
       matrix: state.matrix,
+      frameMatrix: geometry.frameMatrix,
       start,
       anchor: event.altKey ? geometry.sourceCenter : anchor,
       handlePoint,
@@ -228,9 +243,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       onChange(multiplyMatrices(aroundPoint(rotationMatrix(delta), drag.pivot), drag.matrix));
     } else if (!state.projectiveQuad) {
       onSnapMatches?.([]);
-      const inverse = invertMatrix(drag.matrix);
-      if (!inverse) return;
-      const local = transformPoint(inverse, current);
+      const local = pointInTransformFrame(drag.matrix, drag.frameMatrix, current);
+      if (!local) return;
       const horizontal = !['north', 'south'].includes(drag.handle);
       const vertical = !['east', 'west'].includes(drag.handle);
       const denominatorX = drag.handlePoint.x - drag.anchor.x;
@@ -250,10 +264,12 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
               c: 0, d: 1, tx: 0, ty: 0
             };
         drag.changed = true;
-        onChange(multiplyMatrices(
+        const next = appendTransformFrameOperation(
           drag.matrix,
+          drag.frameMatrix,
           aroundPoint(shear, drag.anchor)
-        ));
+        );
+        if (next) onChange(next);
         event.preventDefault();
         event.stopPropagation();
         return;
@@ -270,10 +286,12 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       scaleX = Math.abs(scaleX) < 0.01 ? Math.sign(scaleX || 1) * 0.01 : scaleX;
       scaleY = Math.abs(scaleY) < 0.01 ? Math.sign(scaleY || 1) * 0.01 : scaleY;
       drag.changed = true;
-      onChange(multiplyMatrices(
+      const next = appendTransformFrameOperation(
         drag.matrix,
+        drag.frameMatrix,
         aroundPoint(scaleMatrix(scaleX, scaleY), drag.anchor)
-      ));
+      );
+      if (next) onChange(next);
     }
     event.preventDefault();
     event.stopPropagation();
@@ -282,8 +300,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   const end = (event: React.PointerEvent<SVGSVGElement>) => {
     const drag = dragRef.current;
     if (drag?.pointerId !== event.pointerId) return;
-    const commitGesture = drag.changed;
-    if (!commitGesture && drag.handle === 'body' && onPickLayer) {
+    if (!drag.changed && drag.handle === 'body' && onPickLayer) {
       const point = toDocument(event);
       const movedPixels = Math.hypot(point.x - drag.start.x, point.y - drag.start.y) * scale;
       if (movedPixels <= 3) onPickLayer(point);
@@ -293,10 +310,9 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     event.currentTarget.releasePointerCapture(event.pointerId);
     event.preventDefault();
     event.stopPropagation();
-    // A transform-tool drag is one editor command. Preview updates stay out of
-    // history; releasing the pointer publishes exactly one undo entry through
-    // the central transform-session transaction.
-    if (commitGesture) onCommitGesture();
+    // Pointer-up ends only this gesture. Enter, repeating the transform-tool
+    // shortcut, or switching tools confirms the complete transform session.
+    if (drag.changed) onCommitGesture();
   };
 
   const screenCorners = geometry.corners.map(toScreen);

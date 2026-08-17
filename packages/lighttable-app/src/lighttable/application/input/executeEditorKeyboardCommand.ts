@@ -1,4 +1,5 @@
 import type { ToolId } from '../../editor/session/editorSession';
+import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 import type { EditorKeyboardCommand } from './editorKeyboardRouter';
 
 export interface EditorKeyboardCommandPorts {
@@ -6,7 +7,7 @@ export interface EditorKeyboardCommandPorts {
   saveFile(): void;
   quickExportPng(): void;
   openImageSize(): void;
-  applyCurves(): void;
+  applyAdjustment(kind: AdjustmentLayerKind): void;
   isTransformActive(): boolean;
   commitTransform(): void;
   repeatTransform(duplicate?: boolean): void;
@@ -63,6 +64,10 @@ export const executeEditorKeyboardCommand = (
   ports: EditorKeyboardCommandPorts
 ): void => {
   if (typeof command === 'object') {
+    if (command.type === 'apply-adjustment') {
+      ports.applyAdjustment(command.kind);
+      return;
+    }
     if (command.type === 'set-brush-percent') {
       ports.inputBrushPercent(command.target, command.digit);
       return;
@@ -90,9 +95,6 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'open-image-size':
       ports.openImageSize();
-      return;
-    case 'apply-curves':
-      ports.applyCurves();
       return;
     case 'undo':
       if (!ports.undoPenAnchor()) ports.undo();

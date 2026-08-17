@@ -2,6 +2,7 @@ import {
   BASIC_CORRECTION_WGSL,
   CREATIVE_GRADE_WGSL,
   DISPLAY_RESOLVE_WGSL,
+  DISPLAY_TO_LINEAR_WGSL,
   DOWNSAMPLE_WGSL,
   FULLSCREEN_VERTEX_WGSL,
   GAUSSIAN_BLUR_WGSL,
@@ -26,6 +27,7 @@ export interface CorePipelineBundle {
   output: GPURenderPipeline;
   precisionSourceResolve: GPURenderPipeline;
   displayResolve: GPURenderPipeline;
+  displayToLinear: GPURenderPipeline;
   blit: GPURenderPipeline;
   maskBlit: GPURenderPipeline;
   channelBlit: GPURenderPipeline;
@@ -135,6 +137,11 @@ export const getCorePipelineBundle = (
       'LightTable display resolve',
       DISPLAY_RESOLVE_WGSL,
       'rgba8unorm'
+    ),
+    displayToLinear: createRenderPipeline(
+      'LightTable flatten display to linear',
+      DISPLAY_TO_LINEAR_WGSL,
+      'rgba16float'
     ),
     blit: createRenderPipeline(
       'LightTable viewport blit',

@@ -56,8 +56,8 @@ const setup = (initialDocument: ImageDocument) => {
     loadLayerTransparencySelection: vi.fn(),
     mergeActiveLayerDown: vi.fn(),
     mergeSelectedLayers: vi.fn(),
-    requestFlattenGroup: vi.fn(),
-    requestFlattenImage: vi.fn(),
+    flattenGroup: vi.fn(),
+    flattenImage: vi.fn(),
     editStyles: vi.fn(),
     finishStyleEditing: vi.fn(),
     finishProcessingEditing: vi.fn(),
@@ -395,7 +395,7 @@ describe('createLayerPanelController', () => {
     expect(harness.dependencies.setPaintTarget).toHaveBeenLastCalledWith('pixels');
   });
 
-  it('delegates destructive and dialog-backed commands without duplicating policy', () => {
+  it('delegates undoable merge and flatten commands without confirmation UI', () => {
     const harness = setup(createRasterLayer(
       createImageDocument('test', 100, 100, 'asset')
     ));
@@ -410,7 +410,7 @@ describe('createLayerPanelController', () => {
     expect(harness.dependencies.mergeActiveLayerDown).toHaveBeenCalledOnce();
     expect(harness.dependencies.mergeSelectedLayers)
       .toHaveBeenCalledWith(layerIds);
-    expect(harness.dependencies.requestFlattenGroup).toHaveBeenCalledWith(groupId);
-    expect(harness.dependencies.requestFlattenImage).toHaveBeenCalledOnce();
+    expect(harness.dependencies.flattenGroup).toHaveBeenCalledWith(groupId);
+    expect(harness.dependencies.flattenImage).toHaveBeenCalledOnce();
   });
 });

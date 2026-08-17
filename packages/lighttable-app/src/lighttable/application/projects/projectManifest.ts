@@ -1,5 +1,5 @@
 export const LIGHTTABLE_PROJECT_FORMAT = 'lighttable-project' as const;
-export const LIGHTTABLE_PROJECT_VERSION = 1 as const;
+export const LIGHTTABLE_PROJECT_VERSION = 2 as const;
 export const LIGHTTABLE_PROJECT_MANIFEST_NAME = 'project.ltproject' as const;
 
 export const PROJECT_STORAGE_LOCATIONS = [
@@ -16,6 +16,13 @@ export type ProjectFolderMappings = Readonly<Record<ProjectStorageLocation, stri
 export interface ProjectUserFolder {
   readonly name: string;
   readonly path: string;
+}
+
+export interface ProjectLastUsedDocument {
+  readonly assetId: string;
+  readonly relativePath: string;
+  readonly name: string;
+  readonly updatedAt: string;
 }
 
 export const DEFAULT_PROJECT_FOLDER_MAPPINGS: ProjectFolderMappings = {
@@ -41,6 +48,7 @@ export interface LightTableProjectManifest {
   readonly createdAt: string;
   readonly folders: ProjectFolderMappings;
   readonly userFolders: readonly ProjectUserFolder[];
+  readonly lastUsedDocument: ProjectLastUsedDocument | null;
 }
 
 const normalizedRelativeFolder = (value: unknown): string | null => {
@@ -92,8 +100,8 @@ export const parseLightTableProjectManifest = (value: unknown): LightTableProjec
     throw new Error('The project manifest is not an object.');
   }
   const candidate = value as Record<string, unknown>;
-  const manifestKeys = ['format', 'version', 'id', 'name', 'createdAt', 'folders', 'userFolders'];
-  const requiredManifestKeys = ['format', 'version', 'id', 'name', 'createdAt', 'folders'];
+  const manifestKeys = ['format', 'version', 'id', 'name', 'createdAt', 'folders', 'userFolders', 'lastUsedDocument'];
+  const requiredManifestKeys = manifestKeys;
   if (requiredManifestKeys.some((key) => !(key in candidate))
     || Object.keys(candidate).some((key) => !manifestKeys.includes(key))) {
     throw new Error('The project manifest contains unsupported fields.');
@@ -112,10 +120,26 @@ export const parseLightTableProjectManifest = (value: unknown): LightTableProjec
   }
   const folders = normalizeProjectFolderMappings(candidate.folders);
   if (!folders) throw new Error('The project folder mappings are invalid.');
-  // Early v1 manifests predate custom project folders. Their canonical
-  // meaning is an empty custom-folder list; unknown fields remain rejected.
-  const userFolders = normalizeProjectUserFolders(candidate.userFolders ?? []);
+  const userFolders = normalizeProjectUserFolders(candidate.userFolders);
   if (!userFolders) throw new Error('The project user folders are invalid.');
+  let lastUsedDocument: ProjectLastUsedDocument | null = null;
+  if (candidate.lastUsedDocument !== null) {
+    if (!candidate.lastUsedDocument || typeof candidate.lastUsedDocument !== 'object'
+      || Array.isArray(candidate.lastUsedDocument)) throw new Error('The last used project document is invalid.');
+    const last = candidate.lastUsedDocument as Record<string, unknown>;
+    if (Object.keys(last).length !== 4 || typeof last.assetId !== 'string'
+      || !/^[a-f0-9]{24}$/.test(last.assetId) || typeof last.name !== 'string'
+      || !last.name.trim() || last.name.length > 255 || typeof last.updatedAt !== 'string'
+      || !Number.isFinite(Date.parse(last.updatedAt))) throw new Error('The last used project document is invalid.');
+    const relativePath = normalizedRelativeFolder(last.relativePath);
+    if (!relativePath) throw new Error('The last used project document path is invalid.');
+    lastUsedDocument = {
+      assetId: last.assetId,
+      relativePath,
+      name: last.name.trim(),
+      updatedAt: last.updatedAt
+    };
+  }
   return {
     format: LIGHTTABLE_PROJECT_FORMAT,
     version: LIGHTTABLE_PROJECT_VERSION,
@@ -123,7 +147,8 @@ export const parseLightTableProjectManifest = (value: unknown): LightTableProjec
     name: candidate.name.trim(),
     createdAt: candidate.createdAt,
     folders,
-    userFolders
+    userFolders,
+    lastUsedDocument
   };
 };
 
@@ -133,6 +158,7 @@ export const createLightTableProjectManifest = (input: {
   readonly createdAt?: string;
   readonly folders?: ProjectFolderMappings;
   readonly userFolders?: readonly ProjectUserFolder[];
+  readonly lastUsedDocument?: ProjectLastUsedDocument | null;
 }): LightTableProjectManifest => parseLightTableProjectManifest({
   format: LIGHTTABLE_PROJECT_FORMAT,
   version: LIGHTTABLE_PROJECT_VERSION,
@@ -140,7 +166,8 @@ export const createLightTableProjectManifest = (input: {
   name: input.name,
   createdAt: input.createdAt ?? new Date().toISOString(),
   folders: input.folders ?? DEFAULT_PROJECT_FOLDER_MAPPINGS,
-  userFolders: input.userFolders ?? []
+  userFolders: input.userFolders ?? [],
+  lastUsedDocument: input.lastUsedDocument ?? null
 });
 
 export const projectStorageRelativePath = (

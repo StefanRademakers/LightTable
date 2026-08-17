@@ -8,6 +8,7 @@ import { useDocumentHistoryController, type EditorHistoryEntry } from './applica
 import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
 import { DocumentRendererLifecycle } from './application/rendering/documentRendererLifecycle';
+import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
@@ -54,10 +55,12 @@ import {
   adjustmentStackHasLocalProcessing,
   adjustmentStackLocalProcessingIsEnabled,
   adjustmentStackGradeGroupIsEnabled,
+  adjustmentStackOwnerHasAuthoredSettings,
   type GradeModuleGroup,
   materializeBasicAdjustments
 } from './processing/adjustmentStack';
 import { attachedAdjustmentOwnerId } from './processing/attachedAdjustment';
+import type { AdjustmentLayerKind } from './processing/adjustmentLayerCatalog';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
 import { buildPdfTextExportPreflight } from './application/pdf/pdfTextExportPreflight';
@@ -110,7 +113,7 @@ import {
 import { EditorDocumentSurface } from './composition/workspace/EditorDocumentSurface';
 import { EditorOverlayLayer } from './composition/workspace/EditorOverlayLayer';
 import { type DocumentRendererPort } from './infrastructure/rendering/webGpuDocumentRenderer';
-import { useLightTableGradeClipboard } from './lightTableGradeClipboard';
+import { pasteGradeSettings, useLightTableGradeClipboard } from './lightTableGradeClipboard';
 import {
   resolveLightTableEditorSourceKey,
   resolveLightTableSaveSourceKey,
@@ -253,6 +256,7 @@ import { useSelectionSessionController } from './application/tools/selection/use
 import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
 import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
 import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
+import { transformSessionFrame } from './editor/tools/transform/transformSessionFrame';
 import { buildSmartGuideEditingFrame } from './editor/tools/transform/smartGuideEditingFrame';
 import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
 import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeometry';
@@ -451,6 +455,7 @@ export interface LightTableEditorOverlayProps {
   toolPreferences?: {
     readonly zoomWithScrollWheel: boolean;
     readonly openMaskEditingOnDoubleClick: boolean;
+    readonly preserveTransformLocalAxes: boolean;
   };
   genAiPreferences?: {
     readonly createProviderId: string;
@@ -688,6 +693,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
   const applyCurvesRef = useRef<() => void>(() => undefined);
+  const applyAdjustmentRef = useRef<(kind: AdjustmentLayerKind) => void>(() => undefined);
   const rasterizeShapeRef = useRef<(
     transaction: VectorElementCreationTransaction
   ) => boolean>(() => false);
@@ -721,7 +727,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     zoomMode,
     setZoomMode,
     view,
-    setView
+    setView,
+    setViewport
   } = useDocumentViewportState(documentSession);
   const [viewportSize, setViewportSize] = useState({ width: 1, height: 1 });
   const [documentSurfaceRevision, setDocumentSurfaceRevision] = useState(0);
@@ -1083,12 +1090,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return Math.min(viewportSize.width / metadata.width, viewportSize.height / metadata.height) * 0.94;
   }, [metadata, viewportSize.height, viewportSize.width]);
   const activeScale = zoomMode === 'fit' ? fitScale : zoomMode === '100' ? 1 : view.scale;
-  const imageRect = useMemo(() => ({
-    x: (viewportSize.width - (metadata?.width ?? 1) * activeScale) / 2 + view.panX,
-    y: (viewportSize.height - (metadata?.height ?? 1) * activeScale) / 2 + view.panY,
-    width: (metadata?.width ?? 1) * activeScale,
-    height: (metadata?.height ?? 1) * activeScale
-  }), [activeScale, metadata, view.panX, view.panY, viewportSize.height, viewportSize.width]);
+  const imageRect = useMemo(() => resolveViewportImageRect(
+    metadata?.width ?? 1,
+    metadata?.height ?? 1,
+    viewportSize.width,
+    viewportSize.height,
+    activeScale,
+    view.panX,
+    view.panY
+  ), [activeScale, metadata, view.panX, view.panY, viewportSize.height, viewportSize.width]);
   const {
     dockResizeActiveRef,
     handleDockResizeInteractionChange
@@ -2388,12 +2398,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const applyUndoEditor = useCallback(async () => {
     endAdjustmentTransaction();
     endDocumentTransaction();
+    // Gesture checkpoints are durable history entries while the transform tool
+    // immediately opens the next preview session. Close that preview before
+    // navigating history so the renderer cannot keep a stale transform source.
+    if (transformActiveRef.current()) commitTransformRef.current();
     return documentHistoryController.undo();
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
   const applyRedoEditor = useCallback(async () => {
     endAdjustmentTransaction();
     endDocumentTransaction();
+    if (transformActiveRef.current()) commitTransformRef.current();
     return documentHistoryController.redo();
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
@@ -2767,13 +2782,42 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return () => window.clearTimeout(timeout);
   }, [gradeStatus]);
 
+  useEffect(() => {
+    if (!error) return;
+    // Status-bar errors are transient interaction feedback. Diagnostics keeps
+    // the full record, so the workspace can recover visually without hiding
+    // information needed for debugging a real engine or document failure.
+    const timeout = window.setTimeout(() => setError(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [error]);
+
   const selectAllContent = selectionSessionController.selectAll;
   const clearCurrentSelection = selectionSessionController.clear;
   const invertCurrentSelection = selectionSessionController.invert;
   const featherCurrentSelection = selectionSessionController.feather;
+  const presentViewportImmediately = useCallback((
+    scale: number,
+    panX: number,
+    panY: number
+  ) => {
+    if (!metadata) return;
+    engineRef.current?.resizeViewport(
+      viewportSize.width,
+      viewportSize.height,
+      Math.max(1, window.devicePixelRatio || 1),
+      resolveViewportImageRect(
+        metadata.width,
+        metadata.height,
+        viewportSize.width,
+        viewportSize.height,
+        scale,
+        panX,
+        panY
+      )
+    );
+  }, [metadata, viewportSize.height, viewportSize.width]);
   const applyExactZoom = useCallback((percent: number) => {
-    setZoomMode('custom');
-    setView(zoomViewToScaleAtPoint({
+    const nextView = zoomViewToScaleAtPoint({
       cursor: {
         x: viewportSize.width / 2,
         y: viewportSize.height / 2
@@ -2781,16 +2825,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       viewport: viewportSize,
       view: { scale: activeScale, panX: view.panX, panY: view.panY },
       scale: zoomPercentToScale(percent)
-    }));
-  }, [activeScale, setView, setZoomMode, view.panX, view.panY, viewportSize]);
+    });
+    presentViewportImmediately(nextView.scale, nextView.panX, nextView.panY);
+    setViewport((current) => ({ ...current, zoomMode: 'custom', ...nextView }));
+  }, [activeScale, presentViewportImmediately, setViewport, view.panX, view.panY, viewportSize]);
   const applyFitZoom = useCallback(() => {
-    setZoomMode('fit');
-    setView({ scale: 1, panX: 0, panY: 0 });
-  }, [setView, setZoomMode]);
+    presentViewportImmediately(fitScale, 0, 0);
+    setViewport((current) => ({
+      ...current, zoomMode: 'fit', scale: 1, panX: 0, panY: 0
+    }));
+  }, [fitScale, presentViewportImmediately, setViewport]);
   const applyActualZoom = useCallback(() => {
-    setZoomMode('100');
-    setView({ scale: 1, panX: 0, panY: 0 });
-  }, [setView, setZoomMode]);
+    presentViewportImmediately(1, 0, 0);
+    setViewport((current) => ({
+      ...current, zoomMode: '100', scale: 1, panX: 0, panY: 0
+    }));
+  }, [presentViewportImmediately, setViewport]);
   const setExactZoom = useCallback((percent: number) => {
     if (!executeRegisteredCommand('view.setZoom', { mode: 'custom', percent })) {
       applyExactZoom(percent);
@@ -2820,7 +2870,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       saveFile: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
       openImageSize: editorDialogs.openImageSize,
-      applyCurves: () => applyCurvesRef.current(),
+      applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
       repeatTransform: (duplicate) => repeatTransformRef.current(duplicate),
@@ -3072,9 +3122,66 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   }, [publishGlobalGradeStrength, pushHistoryEntry]);
   const resetGlobalGrade = React.useCallback(() => {
-    adjustmentCommands.resetGrade();
-    publishGlobalGradeStrength(100);
-  }, [adjustmentCommands, publishGlobalGradeStrength]);
+    endAdjustmentTransaction();
+    const documentId = imageDocumentRef.current?.id ?? null;
+    if (!documentId) return;
+    const beforeAdjustments = cloneAdjustments(documentAdjustmentsRef.current);
+    const beforeStrength = globalGradeStrengthRef.current;
+    const afterAdjustments = pasteGradeSettings(beforeAdjustments, createDefaultAdjustments());
+    const apply = (adjustments: BasicAdjustments, strength: number) => {
+      if (imageDocumentRef.current?.id !== documentId) return;
+      applyAdjustmentSnapshot(cloneAdjustments(adjustments), null, 'grade');
+      publishGlobalGradeStrength(strength);
+    };
+    apply(afterAdjustments, 100);
+    if (JSON.stringify(beforeAdjustments) === JSON.stringify(afterAdjustments)
+      && beforeStrength === 100) return;
+    pushHistoryEntry({
+      type: 'adjustment.global-grade-reset',
+      label: 'Reset Global Grade',
+      undo: () => apply(beforeAdjustments, beforeStrength),
+      redo: () => apply(afterAdjustments, 100)
+    });
+  }, [
+    applyAdjustmentSnapshot,
+    endAdjustmentTransaction,
+    publishGlobalGradeStrength,
+    pushHistoryEntry
+  ]);
+  const resetGlobalLensFx = React.useCallback(() => {
+    endAdjustmentTransaction();
+    const documentId = imageDocumentRef.current?.id ?? null;
+    if (!documentId) return;
+    const beforeAdjustments = cloneAdjustments(documentAdjustmentsRef.current);
+    const defaults = createDefaultAdjustments();
+    const afterAdjustments: BasicAdjustments = {
+      ...cloneAdjustments(beforeAdjustments),
+      effects: cloneAdjustments(defaults).effects
+    };
+    if (JSON.stringify(beforeAdjustments) === JSON.stringify(afterAdjustments)) return;
+    const apply = (adjustments: BasicAdjustments) => {
+      if (imageDocumentRef.current?.id !== documentId) return;
+      applyAdjustmentSnapshot(cloneAdjustments(adjustments), null, 'lens-fx');
+      setFocusPickerActive(false);
+      setLensBlurViewportModeState('result');
+    };
+    apply(afterAdjustments);
+    pushHistoryEntry({
+      type: 'adjustment.global-lens-fx-reset',
+      label: 'Reset Global Lens FX',
+      undo: () => apply(beforeAdjustments),
+      redo: () => apply(afterAdjustments)
+    });
+  }, [applyAdjustmentSnapshot, endAdjustmentTransaction, pushHistoryEntry]);
+
+  const globalGradeModified = useAdjustmentPresentationSelector(
+    adjustmentPresentationStore,
+    () => adjustmentStackOwnerHasAuthoredSettings(documentAdjustmentsRef.current, 'grade')
+  ) || globalGradeStrength !== 100;
+  const globalLensFxModified = useAdjustmentPresentationSelector(
+    adjustmentPresentationStore,
+    () => adjustmentStackOwnerHasAuthoredSettings(documentAdjustmentsRef.current, 'lens-fx')
+  );
 
   useEffect(() => {
     if (rendererSnapshot.status === 'ready' || rendererSnapshot.status === 'suspended') {
@@ -3921,7 +4028,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     publishPanelAdjustments: (next) => {
       publishAdjustmentPresentation(cloneAdjustments(next));
-    }
+    },
+    getGlobalGradeStrength: () => globalGradeStrengthRef.current,
+    publishGlobalGradeStrength
   });
   const backgroundRemovalController = useBackgroundRemovalController({
     getDocument: () => imageDocumentRef.current,
@@ -4071,9 +4180,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     loadLayerTransparencySelection: selectionSessionController.selectLayerTransparency,
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
     mergeSelectedLayers,
-    requestFlattenGroup: (groupId) =>
-      editorDialogs.requestFlatten({ kind: 'group', groupId }),
-    requestFlattenImage: () => editorDialogs.requestFlatten({ kind: 'image' }),
+    flattenGroup: (groupId) => layerDocumentCommands.flatten({ kind: 'group', groupId }),
+    flattenImage: () => layerDocumentCommands.flatten({ kind: 'image' }),
     editStyles: openLayerStyleEditor,
     finishStyleEditing: layerStyleEditor.commit,
     finishProcessingEditing: () => {
@@ -4096,7 +4204,39 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       showProperties({ kind: 'processing', layerId: active.id, owner: 'curves' });
       return;
     }
-    layerPanelController.createCurvesAdjustmentLayer();
+    if (layerPanelController.createCurvesAdjustmentLayer()) {
+      requestAnimationFrame(() => {
+        const layerId = imageDocumentRef.current?.activeLayerId;
+        if (layerId) showProperties({ kind: 'layer', layerId });
+      });
+    }
+  };
+  applyAdjustmentRef.current = (kind) => {
+    const document = imageDocumentRef.current;
+    const active = document ? findDocumentLayer(document, document.activeLayerId) : null;
+    if (active?.type === 'raster' && !active.locks.all && !active.locks.pixels) {
+      if (kind === 'curves') {
+        applyCurvesRef.current();
+        return;
+      }
+      if (kind === 'grade' || kind === 'lens-fx') {
+        const owner = kind === 'lens-fx' ? 'lens-fx' : 'grade';
+        layerPanelController.createLocalProcessing(active.id, owner);
+        showProperties({ kind: 'processing', layerId: active.id, owner });
+        return;
+      }
+      const adjustmentId = layerPanelController.createAttachedAdjustment(active.id, kind);
+      if (adjustmentId) {
+        showProperties({ kind: 'attached-processing', layerId: active.id, adjustmentId });
+      }
+      return;
+    }
+    if (layerPanelController.createAdjustmentLayerOfKind(kind)) {
+      requestAnimationFrame(() => {
+        const layerId = imageDocumentRef.current?.activeLayerId;
+        if (layerId) showProperties({ kind: 'layer', layerId });
+      });
+    }
   };
   deleteActiveTargetRef.current = () => {
     const document = imageDocumentRef.current;
@@ -4318,12 +4458,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pushDocumentHistory,
     pushHistoryEntry,
     setError,
-    setStatus: setGradeStatus
+    setStatus: setGradeStatus,
+    transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document'
   });
   const transformState = transformSession.state;
+  const activeTransformFrame = useMemo(() => transformState
+    ? transformSession.frameOverride ?? transformSessionFrame(
+        transformState,
+        toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document'
+      )
+    : null, [toolPreferences?.preserveTransformLocalAxes, transformSession.frameOverride, transformState]);
   const transformFrame = useMemo(() => transformState
-    ? buildTransformEditingFrame(transformState, activeScale)
-    : null, [activeScale, transformState]);
+    ? buildTransformEditingFrame(transformState, activeScale, activeTransformFrame ?? undefined)
+    : null, [activeScale, activeTransformFrame, transformState]);
   const transformSnapTargets = useMemo(() => imageDocument && transformState
     ? buildLayerSnapTargets(imageDocument, {
         excludedLayerIds: new Set([
@@ -4523,12 +4670,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   };
   activateToolRef.current = activatePersistentTool;
-
-  const commitFlattenRequest = () => {
-    const request = editorDialogs.flattenRequest;
-    editorDialogs.closeFlatten();
-    if (request) layerDocumentCommands.flatten(request);
-  };
 
   const invertActiveLayerColors = () => {
     layerDocumentCommands.invertActiveLayerColors(editorSession.activeChannel);
@@ -4904,30 +5045,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     image: {
       openSize: editorDialogs.openImageSize,
       applyCurves: () => applyCurvesRef.current(),
-      applyAdjustment: (kind) => {
-        const document = imageDocumentRef.current;
-        const active = document ? findDocumentLayer(document, document.activeLayerId) : null;
-        if (active?.type === 'raster' && !active.locks.all && !active.locks.pixels) {
-          if (kind === 'curves') {
-            applyCurvesRef.current();
-            return;
-          }
-          if (kind === 'grade' || kind === 'lens-fx') {
-            const owner = kind === 'lens-fx' ? 'lens-fx' : 'grade';
-            layerPanelController.createLocalProcessing(active.id, owner);
-            showProperties({ kind: 'processing', layerId: active.id, owner });
-            return;
-          }
-          const adjustmentId = layerPanelController.createAttachedAdjustment(active.id, kind);
-          if (adjustmentId) {
-            showProperties({
-              kind: 'attached-processing', layerId: active.id, adjustmentId
-            });
-          }
-          return;
-        }
-        layerPanelController.createAdjustmentLayerOfKind(kind);
-      },
+      applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
       assignSrgbProfile: () => {
         documentMutationController.change((document) => document.colorSettings.profileState === 'assigned'
           ? document
@@ -5009,11 +5127,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       openMaskEditingOnDoubleClick={toolPreferences?.openMaskEditingOnDoubleClick ?? true}
       controller={commandLayerPanelController}
       globalGradeStrength={globalGradeStrength}
+      globalGradeModified={globalGradeModified}
+      globalLensFxModified={globalLensFxModified}
       copiedGradeName={copiedGrade?.name ?? null}
       onGlobalGradeStrength={publishGlobalGradeStrength}
       onGlobalGradeStrengthInteractionStart={beginGlobalGradeStrength}
       onGlobalGradeStrengthInteractionEnd={endGlobalGradeStrength}
       onResetGlobalGrade={resetGlobalGrade}
+      onResetGlobalLensFx={resetGlobalLensFx}
       onCopyGlobalGrade={copyCurrentGrade}
       onPasteGlobalGrade={pasteCurrentGrade}
       editingTextLayerId={textEditing.layerId}
@@ -5741,7 +5862,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             foregroundColor: editorSession.brush.color,
             backgroundColor: editorSession.brush.backgroundColor,
             onFill: fillActiveTarget,
-            onFlatten: commitFlattenRequest,
             onConvertTextToShape: commitTextToShape,
             onError: setError,
             release: releaseService,
@@ -5846,6 +5966,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onTransformAutoSelectLayerChange: (transformAutoSelectLayer) => {
               setEditorSession((current) => ({ ...current, transformAutoSelectLayer }));
             },
+            onAlignTransformAxesToDocument: transformSession.alignFrameToDocument,
             onSelectionCombineModeChange: (selectionCombineMode) => {
               setEditorSession((current) => ({ ...current, selectionCombineMode }));
             },
@@ -5987,11 +6108,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     },
                     onTransformChange: updateTransformMatrix,
                     onTransformProjectiveChange: updateTransformProjective,
-                    onTransformCommitGesture: transformSession.commit,
+                    onTransformCommitGesture: transformSession.checkpoint,
                     onTransformDuplicateChange: transformSession.setDuplicate,
                     onTransformPick: pickTransformAtPoint,
                     transformSnapTargets,
                     transformSnapEnabled: editorSession.snap.enabled,
+                    transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
+                    transformFrameOverride: transformSession.frameOverride,
                     onTransformSnapMatches: setTransformSnapMatches,
                     documentGuides: effectiveDocumentGuides,
                     rulersVisible: editorSession.snap.rulersVisible,

@@ -1,4 +1,5 @@
 import type { ToolId } from '../../editor/session/editorSession';
+import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 import { usesBrushSize } from '../../editor/tools/toolCapabilities';
 import {
   TOOL_DEFINITIONS,
@@ -31,7 +32,6 @@ export type EditorKeyboardCommand =
   | 'save-file'
   | 'quick-export-png'
   | 'open-image-size'
-  | 'apply-curves'
   | 'undo'
   | 'redo'
   | 'temporary-pan-start'
@@ -79,6 +79,7 @@ export type EditorKeyboardCommand =
   | 'zoom-actual'
   | 'cancel-active-operation'
   | { readonly type: 'activate-tool'; readonly tool: ToolId }
+  | { readonly type: 'apply-adjustment'; readonly kind: AdjustmentLayerKind }
   | { readonly type: 'set-brush-percent'; readonly target: 'opacity' | 'flow'; readonly digit: number }
   | { readonly type: 'nudge'; readonly x: number; readonly y: number };
 
@@ -211,9 +212,24 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       // layer made the shortcut silently fail while the same menu item worked.
       when: (context) => !context.saving
     }),
-    command('image.adjustments.curves', { key: 'm', primary: true, alt: false, shift: false }, 'apply-curves', {
-      when: (context) => !context.saving
-    }),
+    command('image.adjustments.levels', { key: 'l', primary: true, alt: false, shift: false }, {
+      type: 'apply-adjustment', kind: 'levels'
+    }, { when: (context) => !context.saving }),
+    command('image.adjustments.curves', { key: 'm', primary: true, alt: false, shift: false }, {
+      type: 'apply-adjustment', kind: 'curves'
+    }, { when: (context) => !context.saving }),
+    command('image.adjustments.hue-saturation', { key: 'u', primary: true, alt: false, shift: false }, {
+      type: 'apply-adjustment', kind: 'hue-saturation'
+    }, { when: (context) => !context.saving }),
+    command('image.adjustments.color-balance', { key: 'b', primary: true, alt: false, shift: false }, {
+      type: 'apply-adjustment', kind: 'color-balance'
+    }, { when: (context) => !context.saving }),
+    command('image.adjustments.black-white', { key: 'b', primary: true, alt: true, shift: true }, {
+      type: 'apply-adjustment', kind: 'black-white'
+    }, { when: (context) => !context.saving }),
+    command('image.adjustments.invert', { key: 'i', primary: true, alt: false, shift: false }, {
+      type: 'apply-adjustment', kind: 'invert'
+    }, { when: (context) => !context.saving }),
     command('history.undo', { key: 'z', primary: true, alt: false, shift: false }, 'undo', {
       allowWhileEditing: true
     }),
@@ -282,7 +298,6 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('transform.repeat-duplicate', { key: 't', primary: true, alt: true, shift: true }, 'repeat-transform-duplicate', {
       when: (context) => !context.saving && context.hasActiveLayer && !context.transforming
     }),
-    command('layer.invert-target', { key: 'i', primary: true, alt: false, shift: false }, 'invert-active-target'),
     command('selection.feather', { key: 'f6', primary: false, alt: false, shift: true }, 'selection-feather', {
       when: (context) => context.hasSelection
     }),

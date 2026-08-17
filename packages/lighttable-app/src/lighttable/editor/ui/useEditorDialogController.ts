@@ -2,10 +2,6 @@ import { useCallback, useState } from 'react';
 import type { LayerId } from '../document/documentTypes';
 import type { PdfExportPreflightRequest } from '../pdf/PdfExportPreflightDialog';
 
-export type FlattenRequest =
-  | { readonly kind: 'group'; readonly groupId: LayerId }
-  | { readonly kind: 'image' };
-
 export interface TextToShapeRequest {
   readonly layerId: LayerId;
 }
@@ -25,8 +21,6 @@ export const useEditorDialogController = () => {
   const [fillOpen, setFillOpen] = useState(false);
   const [imageSizeOpen, setImageSizeOpen] = useState(false);
   const [newGuideOpen, setNewGuideOpen] = useState(false);
-  const [flattenRequest, setFlattenRequest] =
-    useState<FlattenRequest | null>(null);
   const [psdReportOpen, setPsdReportOpen] = useState(false);
   const [formatSupportOpen, setFormatSupportOpen] = useState(false);
   const [thirdPartyLicensesOpen, setThirdPartyLicensesOpen] = useState(false);
@@ -42,7 +36,6 @@ export const useEditorDialogController = () => {
     setFillOpen(false);
     setImageSizeOpen(false);
     setNewGuideOpen(false);
-    setFlattenRequest(null);
     setPsdReportOpen(false);
     setFormatSupportOpen(false);
     setThirdPartyLicensesOpen(false);
@@ -58,7 +51,6 @@ export const useEditorDialogController = () => {
     fillOpen,
     imageSizeOpen,
     newGuideOpen,
-    flattenRequest,
     psdReportOpen,
     formatSupportOpen,
     thirdPartyLicensesOpen,
@@ -75,11 +67,6 @@ export const useEditorDialogController = () => {
     closeImageSize: useCallback(() => setImageSizeOpen(false), []),
     openNewGuide: useCallback(() => setNewGuideOpen(true), []),
     closeNewGuide: useCallback(() => setNewGuideOpen(false), []),
-    requestFlatten: useCallback(
-      (request: FlattenRequest) => setFlattenRequest(request),
-      []
-    ),
-    closeFlatten: useCallback(() => setFlattenRequest(null), []),
     requestTextToShape: useCallback(
       (request: TextToShapeRequest) => setTextToShapeRequest(request),
       []

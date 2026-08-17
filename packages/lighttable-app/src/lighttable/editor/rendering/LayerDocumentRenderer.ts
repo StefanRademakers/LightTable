@@ -385,6 +385,18 @@ export class LayerDocumentRenderer {
     );
   }
 
+  flattenRenderedImage(
+    source: GPUTexture,
+    destinationId: LayerId,
+    displayToLinearPipeline: GPURenderPipeline
+  ) {
+    return this.runtime.rasterDocumentOperations.flattenRenderedImage(
+      source,
+      destinationId,
+      displayToLinearPipeline
+    );
+  }
+
   prepareRasterDestination(destination: RasterLayer) {
     return this.runtime.rasterDocumentOperations.prepareRasterDestination(destination);
   }

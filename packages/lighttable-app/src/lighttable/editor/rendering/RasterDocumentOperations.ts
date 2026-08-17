@@ -255,4 +255,39 @@ export class RasterDocumentOperations {
     this.options.invalidateLayer(destinationId);
     return true;
   }
+
+  flattenRenderedImage(
+    source: GPUTexture,
+    destinationId: LayerId,
+    displayToLinearPipeline: GPURenderPipeline
+  ) {
+    const { device, layerResources } = this.options;
+    const destination = layerResources.raster(destinationId);
+    if (!destination) return false;
+    const { width, height } = this.options.dimensions();
+    if (destination.width !== width || destination.height !== height) return false;
+    const encoder = device.createCommandEncoder({ label: 'LightTable flatten document-final image' });
+    const bindGroup = device.createBindGroup({
+      label: 'LightTable flatten document-final bind group',
+      layout: displayToLinearPipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: source.createView() }]
+    });
+    const pass = encoder.beginRenderPass({
+      label: 'LightTable flatten document-final pass',
+      colorAttachments: [{
+        view: destination.texture.createView(),
+        clearValue: { r: 0, g: 0, b: 0, a: 0 },
+        loadOp: 'clear',
+        storeOp: 'store'
+      }]
+    });
+    pass.setPipeline(displayToLinearPipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(3);
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+    this.options.releaseSubmittedResources();
+    this.options.invalidateLayer(destinationId);
+    return true;
+  }
 }

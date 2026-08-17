@@ -1,0 +1,317 @@
+Task 146 - Bounded document GPU residency and lossless hibernation
+
+Status
+======
+
+Parked architecture task. Do not implement this as a simple cap on mounted
+React editors. Resume only when the editable document state has a proven
+lossless owner outside transient view and GPU runtime state.
+
+Problem
+=======
+
+LightTable lazily materializes a document editor the first time its tab is
+selected. Documents that have never been visited remain cheap. Once visited,
+the complete editor remains mounted for instant switching. Inactive renderers
+are correctly suspended: frame submission, scopes, selection animation and
+text processing stop. Their GPU textures and editor runtime nevertheless stay
+resident without a global limit.
+
+This is intentional today because some authoritative editing state still lives
+inside the mounted editor composition. Blindly unmounting an inactive editor
+could lose or reset:
+
+- the complete editable layer/document model;
+- undo and redo history, including GPU-backed history resources;
+- active layer, mask subtarget and selection state;
+- tool sessions, transforms, vector editing and text editing state;
+- imported compatibility payloads and document-local assets;
+- local Grade, adjustment, Lens FX and layer-effect state;
+- pending save, recovery or background task ownership.
+
+With many large documents visited in one session, suspended GPU resources can
+therefore grow until device or process memory becomes the practical limit.
+This is not a recurring-render leak, but it is an unbounded residency policy.
+
+Goal
+====
+
+Introduce a lossless document-hibernation system and a bounded GPU residency
+manager. A user may keep many documents open while only a small, policy-driven
+working set owns expensive GPU/runtime resources. Returning to a hibernated tab
+must reconstruct the editor at the exact same authored revision without losing
+undo, selection, tools, compatibility data or recovery guarantees.
+
+Mental model
+============
+
+An open document and a resident renderer are different lifetimes:
+
+    Open document session
+        authoritative semantic state
+        history and recovery lineage
+        source/document assets
+        tab and dirty state
+
+            optionally owns
+
+    Resident editor runtime
+        WebGPU engine and textures
+        derived composites and scopes
+        decoded/render caches
+        transient interaction controllers
+
+Closing a tab destroys both. Hibernating destroys only reconstructible runtime
+resources. Activating a hibernated tab rehydrates them from the open document
+session.
+
+Required architecture
+=====================
+
+1. Move authoritative state out of the mounted editor
+------------------------------------------------------
+
+Inventory every state value currently owned by `LightTableEditorOverlay` and
+classify it as:
+
+- authoritative document state;
+- persistent per-document editor state;
+- reconstructible derived state;
+- transient active gesture state;
+- external or shared immutable asset.
+
+Authoritative and persistent state must live in a document-scoped store owned
+by `DocumentSession`, not in a React component or WebGPU engine. React renders
+an editor for that store; it does not become the state owner.
+
+At minimum preserve:
+
+- complete `ImageDocument` and layer graph at one coherent revision;
+- command history cursor, saved baseline and undo resource ownership;
+- active layer/subtarget, selection and mask-isolation state;
+- document-local tool settings that must survive tab switching;
+- viewport transform where product UX expects it to be per document;
+- compatibility payloads, embedded LUTs/fonts and preserved source data;
+- dirty, recovery and save transaction state.
+
+Pointer-down gestures, open transforms, brush strokes and other transactions
+must be committed or explicitly cancel hibernation. Never serialize a partial
+GPU command as if it were a completed edit.
+
+2. Add explicit residency states
+--------------------------------
+
+Extend the document runtime lifecycle beyond active/suspended:
+
+    cold          tab exists; editor has never been materialized
+    starting      renderer/decoder is being constructed
+    active        visible editor and live renderer
+    warm          inactive, suspended renderer remains resident
+    hibernating   runtime resources are being released atomically
+    hibernated    document state remains; heavy runtime is absent
+    restoring     runtime is rebuilding from authoritative state
+    failed        restore failed without losing document state
+    disposed      tab/document was closed
+
+Transitions must be generation guarded. A late decoder, worker, thumbnail or
+GPU renderer from an obsolete generation must destroy itself and may not
+publish into a reactivated or closed document.
+
+3. Separate reconstructible and retained resources
+---------------------------------------------------
+
+Hibernation should release:
+
+- WebGPU engine, document textures and transient render targets;
+- retained composites, scopes, histograms and thumbnails that can regenerate;
+- decoder instances, analysis workers and optional effect runtimes;
+- glyph/vector render caches that have document-independent source ownership;
+- animation frames, timers, observers and interaction schedulers.
+
+Hibernation may retain:
+
+- original `File`/Blob or a durable project/recovery source handle;
+- semantic raster/vector/text/layer state;
+- compressed or explicitly reference-counted immutable source assets;
+- undo history only when its resources have a non-GPU durable representation;
+- the latest small tab thumbnail.
+
+GPU-only mutable history cannot simply be destroyed. Before this task ships,
+history must either support durable snapshots/deltas, spill-to-CPU/disk under a
+budget, or pin that document as non-hibernatable with a clearly measured cost.
+
+4. Residency manager and budgets
+================================
+
+Create one workspace-level residency manager. Do not scatter LRU decisions
+through React components.
+
+Inputs should include:
+
+- active document id;
+- per-document estimated GPU bytes;
+- recent activation order;
+- pending gesture/task/save/export/recovery state;
+- device memory signals where available;
+- user/application memory policy;
+- restore cost and document source availability.
+
+Initial policy proposal:
+
+- active document is always resident;
+- retain a small warm MRU set when within budget;
+- enforce a byte budget, not only a document-count limit;
+- prefer hibernating oldest inactive, clean, cheaply restorable documents;
+- never hibernate an active gesture, save/export, destructive transaction or
+  document whose history has no durable representation;
+- react to WebGPU allocation pressure/device loss by shrinking the warm set;
+- allow explicit diagnostics to explain why a document remains pinned.
+
+The policy must be deterministic and independently testable. Avoid depending
+on browser garbage collection as a resource-management mechanism.
+
+Activation and loading UX
+=========================
+
+- Clicking a cold or hibernated tab gives it active tab presence immediately.
+- Show a lightweight document loading surface inside that tab while restoring.
+- Tabs, close buttons and switching to another ready document remain responsive.
+- Coalesce repeated activation requests; newest requested tab wins.
+- Restoring one document must not resume render loops for other inactive tabs.
+- A cached tab thumbnail may remain visible until the first exact restored
+  frame, but must be clearly presentation-only and never mistaken for editable
+  canvas content.
+- Restore failure keeps the tab/document recoverable and offers retry/close;
+  it must not discard semantic state.
+
+Undo, save and recovery contract
+================================
+
+- Hibernation itself creates no undo entry and does not change dirty state.
+- Undo/redo after restore produces the same result as before hibernation.
+- Save and export may restore the required renderer privately, but may not
+  activate the tab or reorder documents as a side effect.
+- Autosave/recovery operates from authoritative document state and must not
+  require the editor view to remain mounted.
+- Closing a hibernated tab releases semantic, history, source and thumbnail
+  resources exactly once.
+- Application shutdown disposes active, warm, cold and hibernated documents.
+
+Thumbnail and preview boundary
+==============================
+
+Tab thumbnails are small presentation resources with their own bounded cache.
+They may survive hibernation. Source previews and generated thumbnails require
+explicit URL ownership:
+
+- revoke replaced and closed-document object URLs;
+- ignore late thumbnail publication from stale renderer generations;
+- decode tab preview images only on hover/visibility;
+- do not retain a complete decoded source merely to support tab hover.
+
+Diagnostics
+===========
+
+Expose enough internal evidence to tune and verify the policy:
+
+- state per document: cold/active/warm/hibernated/restoring/pinned;
+- estimated GPU and retained CPU bytes;
+- last activation and last hibernation time;
+- restore duration and source/decode path;
+- reason a document is pinned or selected for eviction;
+- counts of created, destroyed and late-discarded renderers;
+- total workspace residency versus configured budget.
+
+Diagnostics are development/telemetry surfaces, not permanent visual clutter
+in the normal Layers or Properties UI.
+
+Implementation phases
+=====================
+
+Phase 1 - State ownership audit
+
+- enumerate editor-local state and classify ownership;
+- add tests proving tab unmount/remount currently loses nothing required;
+- move authoritative state into document-scoped stores;
+- make recovery serialization independent of a mounted editor.
+
+Phase 2 - Manual hibernation prototype
+
+- add explicit hibernate/restore commands behind development diagnostics;
+- destroy and recreate the renderer without closing the document;
+- prove visual, semantic, history and selection equivalence;
+- instrument resource release and restore latency.
+
+Phase 3 - Workspace residency manager
+
+- implement deterministic byte-budget and MRU policy;
+- add pinning for unsafe transactions/resources;
+- provide activation loading state and cancellation;
+- handle device loss and memory pressure.
+
+Phase 4 - Product hardening
+
+- stress with mixed PNG, TIFF, PSD/PSB, PDF, text, vectors and large paint docs;
+- tune defaults across low, medium and high-memory GPUs;
+- validate long-running open/switch/edit/hibernate/restore/close cycles;
+- add release-soak evidence and regression thresholds.
+
+Required tests
+==============
+
+State equivalence:
+
+- hibernate/restore preserves the complete layer graph and rendered output;
+- active layer, mask target, vector/text selection and viewport restore exactly;
+- Grade, adjustment, Lens FX, layer effects and masks retain stack order;
+- imported PSD compatibility payloads and embedded assets survive;
+- dirty/saved baseline and recovery identity do not change.
+
+History:
+
+- undo and redo across hibernation match a continuously resident document;
+- GPU-backed paint/mask/transform history is durable or correctly pins the doc;
+- history byte accounting transfers or releases ownership exactly once.
+
+Concurrency:
+
+- rapid A/B/C tab activation discards stale restores;
+- close during restore destroys late renderer/decoder resources;
+- save/export/recovery during residency changes remains atomic;
+- device loss during restore leaves semantic state intact;
+- active gestures prevent or safely complete hibernation.
+
+Memory and performance:
+
+- opening many tabs materializes only the requested working set;
+- visiting documents beyond budget causes predictable eviction;
+- stable-tail CPU and GPU memory stop growing after repeated cycles;
+- inactive warm documents submit no frames;
+- hibernated documents own no heavyweight GPU resources;
+- close returns all document resources to the measured baseline;
+- activation remains responsive while restore runs asynchronously.
+
+Acceptance criteria
+===================
+
+- Open document count is no longer equivalent to resident GPU runtime count.
+- Workspace GPU residency remains within a deterministic configurable budget.
+- No authored, editor, undo, recovery or compatibility state is lost.
+- Active and recently used documents remain fast to switch when budget allows.
+- Hibernated restore is cancelable, generation-safe and visibly understandable.
+- Save/export/recovery work independently of mounted React editor views.
+- Renderer, decoder, worker, timer, object-URL and GPU ownership is released
+  exactly once across close, hibernate, failed restore and app shutdown.
+- Automated stress evidence shows a bounded stable memory tail.
+
+Explicit non-goals
+==================
+
+- simply limiting `materializedDocumentIds` and unmounting old editors;
+- silently flattening documents or baking editable layers for hibernation;
+- discarding undo history to meet a memory target;
+- relying on garbage collection to release WebGPU resources;
+- background rendering of every open document;
+- changing the visible layer-stack mental model;
+- coupling this policy to launcher Recent Files thumbnail virtualization.
+

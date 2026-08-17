@@ -18,7 +18,11 @@ describe('application preferences', () => {
     expect(parseApplicationPreferences({
       version: 1,
       autosave: { enabled: false, intervalMs: 120_000 },
-      tools: { zoomWithScrollWheel: false, openMaskEditingOnDoubleClick: false },
+      tools: {
+        zoomWithScrollWheel: false,
+        openMaskEditingOnDoubleClick: false,
+        preserveTransformLocalAxes: true
+      },
       projects: {
         folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, characters: 'Cast' },
         createFolders: ['characters', 'sets'],
@@ -28,7 +32,11 @@ describe('application preferences', () => {
     })).toEqual({
       version: 1,
       autosave: { enabled: false, intervalMs: 120_000 },
-      tools: { zoomWithScrollWheel: false, openMaskEditingOnDoubleClick: false },
+      tools: {
+        zoomWithScrollWheel: false,
+        openMaskEditingOnDoubleClick: false,
+        preserveTransformLocalAxes: true
+      },
       projects: {
         folders: { ...DEFAULT_PROJECT_FOLDER_MAPPINGS, characters: 'Cast' },
         createFolders: ['characters', 'sets'],
@@ -45,7 +53,11 @@ describe('application preferences', () => {
     })).toEqual({
       version: 1,
       autosave: { enabled: false, intervalMs: 120_000 },
-      tools: { zoomWithScrollWheel: true, openMaskEditingOnDoubleClick: true },
+      tools: {
+        zoomWithScrollWheel: true,
+        openMaskEditingOnDoubleClick: true,
+        preserveTransformLocalAxes: true
+      },
       projects: {
         folders: DEFAULT_PROJECT_FOLDER_MAPPINGS,
         createFolders: PROJECT_USER_STORAGE_LOCATIONS,

@@ -9,7 +9,12 @@ import {
   createLocalLightTableFunnelTelemetry,
   type LightTableFunnelTelemetry
 } from './LightTableFunnelTelemetry';
-import type { ProjectFolderMappings, ProjectUserFolder, ProjectUserStorageLocation } from '../lighttable/application/projects/projectManifest';
+import type {
+  ProjectFolderMappings,
+  ProjectLastUsedDocument,
+  ProjectUserFolder,
+  ProjectUserStorageLocation
+} from '../lighttable/application/projects/projectManifest';
 import type {
   GenAiHostPort,
   GenAiProviderSnapshot
@@ -70,6 +75,7 @@ export interface LightTableProjectSummary {
   readonly name: string;
   readonly rootPath: string;
   readonly manifestPath: string;
+  readonly lastUsedDocument: ProjectLastUsedDocument | null;
 }
 
 export interface LightTableRecentProject extends LightTableProjectSummary {
@@ -96,6 +102,8 @@ export interface LightTableProjectService {
   open(): Promise<LightTableProjectSummary | null>;
   listRecent(): Promise<readonly LightTableRecentProject[]>;
   openRecent(recentId: string): Promise<LightTableProjectSummary | null>;
+  loadRecentThumbnail(recentId: string): Promise<string | null>;
+  openLastUsedDocument(project: LightTableProjectSummary): Promise<File | null>;
   reveal(project: LightTableProjectSummary): Promise<void>;
   close(): Promise<void>;
   removeRecent(recentId: string): Promise<void>;
@@ -270,6 +278,8 @@ export interface LightTableHost {
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
   loadRecentFileThumbnail?(id: string): Promise<string | null>;
   openRecentFile?(id: string): Promise<File | null>;
+  rememberRecentFiles?(files: readonly File[]): Promise<void>;
+  revealRecentFile?(id: string): Promise<void>;
   removeRecentFile?(id: string): Promise<void>;
   clearRecentFiles?(): Promise<void>;
   /** Enter or leave the host window's native/browser fullscreen presentation. */

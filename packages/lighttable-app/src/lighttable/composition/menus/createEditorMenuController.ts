@@ -208,13 +208,10 @@ export const createEditorMenuController = ({
       mergeDown: layers.mergeDown,
       flattenGroup: () => {
         if (activeLayer?.type === 'group') {
-          dialogs.requestFlatten({
-            kind: 'group',
-            groupId: activeLayer.id
-          });
+          layers.panel.flattenGroup(activeLayer.id);
         }
       },
-      flattenImage: () => dialogs.requestFlatten({ kind: 'image' }),
+      flattenImage: layers.panel.flattenImage,
       toggleLayerVisibility: () => activeLayer
         && layers.panel.setVisibility([activeLayer.id], !activeLayer.visible),
       toggleLayerLock: () => activeLayer

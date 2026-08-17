@@ -77,6 +77,7 @@ const setup = (initialDocument: ImageDocument) => {
   };
   let documentAdjustments = createDefaultAdjustments();
   let panelAdjustments = createDefaultAdjustments();
+  let globalGradeStrength = 100;
   const dependencies = {
     getDocument: () => document,
     getRenderer: () => activeRenderer,
@@ -98,6 +99,10 @@ const setup = (initialDocument: ImageDocument) => {
     }),
     publishPanelAdjustments: vi.fn((next) => {
       panelAdjustments = cloneAdjustments(next);
+    }),
+    getGlobalGradeStrength: () => globalGradeStrength,
+    publishGlobalGradeStrength: vi.fn((next) => {
+      globalGradeStrength = next;
     })
   };
   const commands = createLayerDocumentCommands(() => dependencies);
@@ -109,7 +114,8 @@ const setup = (initialDocument: ImageDocument) => {
     historyEntries,
     document: () => document,
     documentAdjustments: () => documentAdjustments,
-    panelAdjustments: () => panelAdjustments
+    panelAdjustments: () => panelAdjustments,
+    globalGradeStrength: () => globalGradeStrength
   };
 };
 
@@ -612,6 +618,11 @@ describe('useLayerDocumentCommands', () => {
     const first = createImageDocument('Test', 32, 24, 'asset');
     const state = setup(createRasterLayer(first, 'Top'));
     const sourceIds = state.document().layers.map(({ id }) => id);
+    state.documentAdjustments().exposureEV = 1.25;
+    state.documentAdjustments().effects.grain.enabled = true;
+    state.documentAdjustments().effects.grain.amount = 35;
+    state.panelAdjustments().exposureEV = 1.25;
+    state.dependencies.publishGlobalGradeStrength(42);
 
     expect(state.commands.flatten({ kind: 'image' })).toBe(true);
 
@@ -623,10 +634,19 @@ describe('useLayerDocumentCommands', () => {
       expect.anything(), destination?.id
     );
     expect(state.historyEntries).toHaveLength(1);
+    expect(state.documentAdjustments()).toEqual(createDefaultAdjustments());
+    expect(state.panelAdjustments()).toEqual(createDefaultAdjustments());
+    expect(state.globalGradeStrength()).toBe(100);
     state.historyEntries[0].undo();
     expect(state.document().layers.map(({ id }) => id)).toEqual(sourceIds);
+    expect(state.documentAdjustments().exposureEV).toBe(1.25);
+    expect(state.documentAdjustments().effects.grain).toMatchObject({ enabled: true, amount: 35 });
+    expect(state.panelAdjustments().exposureEV).toBe(1.25);
+    expect(state.globalGradeStrength()).toBe(42);
     state.historyEntries[0].redo();
     expect(state.document().layers[0]?.id).toBe(destination?.id);
+    expect(state.documentAdjustments()).toEqual(createDefaultAdjustments());
+    expect(state.globalGradeStrength()).toBe(100);
   });
 
   it('bakes an active vector shape into the raster layer below with pixel history', () => {

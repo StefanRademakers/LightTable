@@ -10,6 +10,7 @@ import {
   createProjectOnDisk,
   openProjectManifest,
   resolveProjectStoragePath,
+  setProjectLastUsedDocument,
   validateProjectName
 } from './projectService';
 
@@ -43,6 +44,24 @@ describe('desktop project service', () => {
     const parentPath = await temporaryRoot();
     await createProjectOnDisk({ name: 'Campaign', parentPath });
     await expect(createProjectOnDisk({ name: 'Campaign', parentPath })).rejects.toThrow('already exists');
+  });
+
+  it('overwrites the canonical last-used document immediately', async () => {
+    const parentPath = await temporaryRoot();
+    const summary = await createProjectOnDisk({ name: 'Campaign', parentPath });
+    const first = {
+      assetId: '0123456789abcdef01234567', relativePath: 'Sets/first.psd',
+      name: 'first.psd', updatedAt: '2026-08-17T18:00:00.000Z'
+    };
+    const second = {
+      assetId: 'fedcba9876543210fedcba98', relativePath: 'Sets/second.psd',
+      name: 'second.psd', updatedAt: '2026-08-17T18:01:00.000Z'
+    };
+    await setProjectLastUsedDocument(summary.manifestPath, first);
+    await setProjectLastUsedDocument(summary.manifestPath, second);
+    const opened = await openProjectManifest(summary.manifestPath);
+    expect(opened.manifest.lastUsedDocument).toEqual(second);
+    expect(opened.summary.lastUsedDocument).toEqual(second);
   });
 
   it('creates new projects using requested user folder mappings', async () => {

@@ -63,10 +63,10 @@ export interface LayerPanelControllerDependencies {
   setPaintTarget(channel: PaintChannel, brushColor?: string): void;
   beginDocumentTransaction(): void;
   endDocumentTransaction(): void;
-  createAdjustmentLayer(): void;
-  createCurvesAdjustmentLayer(): void;
-  createLensFxLayer(): void;
-  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): void;
+  createAdjustmentLayer(): boolean;
+  createCurvesAdjustmentLayer(): boolean;
+  createLensFxLayer(): boolean;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): boolean;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
   addActiveLayerMask(): boolean;
   duplicateActiveLayer(): boolean;
@@ -75,8 +75,8 @@ export interface LayerPanelControllerDependencies {
   loadLayerTransparencySelection(layerId: LayerId): void;
   mergeActiveLayerDown(): void;
   mergeSelectedLayers(layerIds: LayerId[]): void;
-  requestFlattenGroup(groupId: LayerId): void;
-  requestFlattenImage(): void;
+  flattenGroup(groupId: LayerId): void;
+  flattenImage(): void;
   editStyles(layerId: LayerId, effectId?: LayerStyleId): void;
   finishStyleEditing?(): void;
   finishProcessingEditing?(): void;
@@ -110,12 +110,12 @@ export interface LayerPanelController {
   moveActive(direction: 'up' | 'down'): void;
   setLock(layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean): void;
   createRasterLayer(): void;
-  createAdjustmentLayer(): void;
-  createCurvesAdjustmentLayer(): void;
+  createAdjustmentLayer(): boolean;
+  createCurvesAdjustmentLayer(): boolean;
   createLocalProcessing(layerId: LayerId, kind: LocalProcessingKind): void;
   createGradientFillLayer(): void;
-  createLensFxLayer(): void;
-  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): void;
+  createLensFxLayer(): boolean;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): boolean;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
   createGroup(): void;
   groupSelection(layerIds: LayerId[]): void;
@@ -295,12 +295,12 @@ export const createLayerPanelController = (
     flattenGroup: (groupId) => {
       const dependencies = resolveDependencies();
       dependencies.finishTextEditing?.();
-      dependencies.requestFlattenGroup(groupId);
+      dependencies.flattenGroup(groupId);
     },
     flattenImage: () => {
       const dependencies = resolveDependencies();
       dependencies.finishTextEditing?.();
-      dependencies.requestFlattenImage();
+      dependencies.flattenImage();
     },
     editStyles: (layerId, effectId) =>
       resolveDependencies().editStyles(layerId, effectId),

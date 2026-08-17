@@ -1895,6 +1895,36 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+// Converts the high-precision, display-encoded document-final result back to
+// the premultiplied linear representation owned by editable raster layers.
+// Flatten Image can then neutralize Global Grade and Global Lens FX without
+// changing the visible result or quantizing through the 8-bit viewport target.
+export const DISPLAY_TO_LINEAR_WGSL = /* wgsl */ `
+@group(0) @binding(0) var displayTexture: texture_2d<f32>;
+
+fn srgbToLinearChannel(value: f32) -> f32 {
+  let safeValue = max(value, 0.0);
+  return select(
+    pow((safeValue + 0.055) / 1.055, 2.4),
+    safeValue / 12.92,
+    safeValue <= 0.04045
+  );
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let dimensions = vec2i(textureDimensions(displayTexture));
+  let coordinate = clamp(vec2i(floor(input.uv * vec2f(dimensions))), vec2i(0), dimensions - vec2i(1));
+  let source = textureLoad(displayTexture, coordinate, 0);
+  let linear = vec3f(
+    srgbToLinearChannel(source.r),
+    srgbToLinearChannel(source.g),
+    srgbToLinearChannel(source.b)
+  );
+  return vec4f(linear * source.a, source.a);
+}
+`;
+
 // rgba16unorm is exposed by texture-formats-tier1 as an unfilterable texture.
 // Resolve it one-to-one into LightTable's filterable rgba16float source
 // boundary before any layer, viewport, scope or correction pipeline samples it.

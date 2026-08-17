@@ -334,6 +334,17 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
                         ...draft.tools, openMaskEditingOnDoubleClick
                       } })} />
                   </div>
+                  <div className="lighttable-preferences__option">
+                    <div>
+                      <strong>Preserve local transform axes</strong>
+                      <p>Keep a layer's oriented transform frame after confirming. When off, each new transform starts from document-aligned axes.</p>
+                    </div>
+                    <SwitchControl checked={draft.tools.preserveTransformLocalAxes}
+                      label="Preserve local transform axes"
+                      onCheckedChange={(preserveTransformLocalAxes) => setDraft({ ...draft, tools: {
+                        ...draft.tools, preserveTransformLocalAxes
+                      } })} />
+                  </div>
                 </div>
               </section>
             ) : page === 'ai-providers' ? (

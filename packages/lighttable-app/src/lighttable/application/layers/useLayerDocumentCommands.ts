@@ -39,6 +39,7 @@ import {
   createAdjustmentStackFromBasicAdjustments
 } from '../../processing/adjustmentStack';
 import {
+  cloneAdjustments,
   createDefaultAdjustments,
   type BasicAdjustments
 } from '../../types';
@@ -121,6 +122,8 @@ export interface LayerDocumentCommandDependencies {
   getPanelAdjustments?(): BasicAdjustments;
   publishDocumentAdjustments?(adjustments: BasicAdjustments): void;
   publishPanelAdjustments?(adjustments: BasicAdjustments): void;
+  getGlobalGradeStrength?(): number;
+  publishGlobalGradeStrength?(strength: number): void;
 }
 
 export interface LayerDocumentCommands {
@@ -527,14 +530,26 @@ export const createLayerDocumentCommands = (
   };
 
   const flatten = (request: FlattenRequest) => {
-    const current = dependenciesRef.current.getDocument();
-    const renderer = dependenciesRef.current.getRenderer();
+    const dependencies = dependenciesRef.current;
+    const current = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
     if (!current || !renderer) return false;
+    const resetsDocumentFinalState = request.kind === 'image';
+    const previousDocumentAdjustments = resetsDocumentFinalState
+      ? cloneAdjustments(dependencies.getDocumentAdjustments?.() ?? createDefaultAdjustments())
+      : null;
+    const previousPanelAdjustments = resetsDocumentFinalState
+      ? cloneAdjustments(dependencies.getPanelAdjustments?.() ?? createDefaultAdjustments())
+      : null;
+    const previousGlobalGradeStrength = resetsDocumentFinalState
+      ? dependencies.getGlobalGradeStrength?.() ?? 100
+      : 100;
+    const neutralAdjustments = createDefaultAdjustments();
     const plan = request.kind === 'group'
       ? getFlattenGroupPlan(current, request.groupId)
       : getFlattenImagePlan(current);
     if (!plan) {
-      dependenciesRef.current.setError(
+      dependencies.setError(
         request.kind === 'group'
           ? 'This group has no layers to flatten.'
           : 'This image has no layers to flatten.'
@@ -559,21 +574,38 @@ export const createLayerDocumentCommands = (
       return false;
     }
 
-    dependenciesRef.current.applyDocumentSnapshot(next);
-    dependenciesRef.current.pushHistoryEntry({
+    if (resetsDocumentFinalState) {
+      dependencies.publishDocumentAdjustments?.(neutralAdjustments);
+      dependencies.publishPanelAdjustments?.(neutralAdjustments);
+      dependencies.publishGlobalGradeStrength?.(100);
+    }
+    dependencies.applyDocumentSnapshot(next);
+    dependencies.pushHistoryEntry({
       byteSize: current.width * current.height * 8,
       layerIds: [...plan.layerIds, destination.id],
       undo: () => {
-        dependenciesRef.current.applyDocumentSnapshot(current);
+        const latest = dependenciesRef.current;
+        if (previousDocumentAdjustments && previousPanelAdjustments) {
+          latest.publishDocumentAdjustments?.(previousDocumentAdjustments);
+          latest.publishPanelAdjustments?.(previousPanelAdjustments);
+          latest.publishGlobalGradeStrength?.(previousGlobalGradeStrength);
+        }
+        latest.applyDocumentSnapshot(current);
       },
       redo: () => {
-        dependenciesRef.current.applyDocumentSnapshot(next);
+        const latest = dependenciesRef.current;
+        if (resetsDocumentFinalState) {
+          latest.publishDocumentAdjustments?.(neutralAdjustments);
+          latest.publishPanelAdjustments?.(neutralAdjustments);
+          latest.publishGlobalGradeStrength?.(100);
+        }
+        latest.applyDocumentSnapshot(next);
       }
     });
     renderer.commitRasterDestination(destination.id);
-    dependenciesRef.current.setActiveChannel('pixels');
-    dependenciesRef.current.setError(null);
-    dependenciesRef.current.setStatus(
+    dependencies.setActiveChannel('pixels');
+    dependencies.setError(null);
+    dependencies.setStatus(
       request.kind === 'group' ? 'Group flattened' : 'Image flattened'
     );
     return true;

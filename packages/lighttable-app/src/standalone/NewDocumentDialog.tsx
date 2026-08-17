@@ -18,6 +18,7 @@ interface NewDocumentDialogProps {
   readonly creating: boolean;
   readonly onCancel: () => void;
   readonly onCreate: (options: LightTableCreateDocumentOptions) => void;
+  readonly presentation?: 'dialog' | 'embedded';
 }
 
 const DEFAULT_WIDTH = 1920;
@@ -49,7 +50,8 @@ export function NewDocumentDialog({
   clipboard,
   creating,
   onCancel,
-  onCreate
+  onCreate,
+  presentation = 'dialog'
 }: NewDocumentDialogProps) {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
@@ -60,7 +62,8 @@ export function NewDocumentDialog({
   const [backgroundKind, setBackgroundKind] = useState<'transparent' | 'solid'>('transparent');
   const [backgroundColor, setBackgroundColor] = useState('#ffffff');
   const requestRef = useRef(0);
-  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLFormElement>(open, onCancel);
+  const modal = presentation === 'dialog';
+  const { dialogRef, onDialogKeyDown } = useDialogAccessibility<HTMLFormElement>(open && modal, onCancel);
 
   useEffect(() => {
     if (!open) return;
@@ -99,17 +102,16 @@ export function NewDocumentDialog({
   const optionsValid = valid && name.trim().length > 0 && name.trim().length <= 255
     && Number.isFinite(resolutionPpi) && resolutionPpi >= 1 && resolutionPpi <= 2400;
 
-  return createPortal(
-    <div className="modal-backdrop lighttable-dialog-backdrop">
+  const form = (
       <form
         ref={dialogRef}
-        className="modal lighttable-new-document-dialog"
-        role="dialog"
-        aria-modal="true"
+        className={`${modal ? 'modal ' : ''}lighttable-new-document-dialog${modal ? '' : ' lighttable-new-document-dialog--embedded'}`}
+        role={modal ? 'dialog' : undefined}
+        aria-modal={modal ? 'true' : undefined}
         aria-label="New document"
-        tabIndex={-1}
-        data-editor-native-tab-navigation
-        onKeyDown={onDialogKeyDown}
+        tabIndex={modal ? -1 : undefined}
+        data-editor-native-tab-navigation={modal ? true : undefined}
+        onKeyDown={modal ? onDialogKeyDown : undefined}
         onSubmit={(event) => {
           event.preventDefault();
           if (optionsValid && !creating) {
@@ -123,9 +125,9 @@ export function NewDocumentDialog({
           }
         }}
       >
-        <div className="modal__header">
+        {modal ? <div className="modal__header">
           <h3 className="modal__title">New document</h3>
-        </div>
+        </div> : null}
         <div className="lighttable-new-document-dialog__fields">
           <label className="lighttable-new-document-dialog__wide-field">
             <span>Name</span>
@@ -134,7 +136,7 @@ export function NewDocumentDialog({
           <label>
             <span>Width</span>
             <FormInput
-              autoFocus
+              autoFocus={modal}
               type="number"
               inputMode="numeric"
               min="1"
@@ -191,13 +193,15 @@ export function NewDocumentDialog({
           ) : null}
         </div>
         <div className="modal__footer">
-          <ActionButton onClick={onCancel}>Cancel</ActionButton>
+          {modal ? <ActionButton onClick={onCancel}>Cancel</ActionButton> : null}
           <ActionButton type="submit" disabled={!optionsValid || creating}>
             {creating ? 'Creating…' : 'Create'}
           </ActionButton>
         </div>
       </form>
-    </div>,
-    document.body
   );
+  return modal ? createPortal(
+    <div className="modal-backdrop lighttable-dialog-backdrop">{form}</div>,
+    document.body
+  ) : form;
 }
