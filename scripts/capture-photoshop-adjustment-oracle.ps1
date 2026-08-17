@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -146,10 +146,35 @@ $curvesCases = @(
   @{ id='blue-s-curve'; channel='blue'; points='0:0,64:32,192:224,255:255' },
   @{ id='composite-red-stack'; channel='composite'; points='0:0,128:204,255:255'; secondaryChannel='red'; secondaryPoints='0:0,128:64,255:255' }
 )
+$hueSaturationCases = @(
+  @{ id='neutral'; hue=0; saturation=0; lightness=0; colorize=$false },
+  @{ id='hue-neg-180'; hue=-180; saturation=0; lightness=0; colorize=$false },
+  @{ id='hue-neg-144'; hue=-144; saturation=0; lightness=0; colorize=$false },
+  @{ id='hue-neg-36'; hue=-36; saturation=0; lightness=0; colorize=$false },
+  @{ id='hue-pos-36'; hue=36; saturation=0; lightness=0; colorize=$false },
+  @{ id='hue-pos-144'; hue=144; saturation=0; lightness=0; colorize=$false },
+  @{ id='hue-pos-180'; hue=180; saturation=0; lightness=0; colorize=$false },
+  @{ id='saturation-neg-100'; hue=0; saturation=-100; lightness=0; colorize=$false },
+  @{ id='saturation-neg-80'; hue=0; saturation=-80; lightness=0; colorize=$false },
+  @{ id='saturation-neg-20'; hue=0; saturation=-20; lightness=0; colorize=$false },
+  @{ id='saturation-pos-20'; hue=0; saturation=20; lightness=0; colorize=$false },
+  @{ id='saturation-pos-80'; hue=0; saturation=80; lightness=0; colorize=$false },
+  @{ id='saturation-pos-100'; hue=0; saturation=100; lightness=0; colorize=$false },
+  @{ id='lightness-neg-100'; hue=0; saturation=0; lightness=-100; colorize=$false },
+  @{ id='lightness-neg-80'; hue=0; saturation=0; lightness=-80; colorize=$false },
+  @{ id='lightness-neg-20'; hue=0; saturation=0; lightness=-20; colorize=$false },
+  @{ id='lightness-pos-20'; hue=0; saturation=0; lightness=20; colorize=$false },
+  @{ id='lightness-pos-80'; hue=0; saturation=0; lightness=80; colorize=$false },
+  @{ id='lightness-pos-100'; hue=0; saturation=0; lightness=100; colorize=$false },
+  @{ id='combined-positive-80'; hue=144; saturation=80; lightness=80; colorize=$false },
+  @{ id='combined-negative-80'; hue=-144; saturation=-80; lightness=-80; colorize=$false },
+  @{ id='colorize-80'; hue=288; saturation=80; lightness=0; colorize=$true }
+)
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
 } elseif ($Adjustment -eq 'levels') { $levelsCases }
 elseif ($Adjustment -eq 'curves') { $curvesCases }
+elseif ($Adjustment -eq 'hue-saturation') { $hueSaturationCases }
 else { $exposureCases }
 if (-not [string]::IsNullOrWhiteSpace($CasePattern)) {
   $cases = @($cases | Where-Object { $_.id -match $CasePattern })
@@ -265,6 +290,20 @@ try {
   $secondaryCurveDescriptor
   adjustment.putList(c2t('Adjs'), curveAdjustments);
   adjustmentLayer.putObject(s2t('type'), s2t('curves'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'hue-saturation') {
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putEnumerated(s2t('presetKind'), s2t('presetKindType'), s2t('presetKindCustom'));
+  adjustment.putBoolean(c2t('Clrz'), $(if ($case.colorize) { 'true' } else { 'false' }));
+  var hueAdjustments = new ActionList();
+  var masterHue = new ActionDescriptor();
+  masterHue.putInteger(c2t('H   '), $($case.hue));
+  masterHue.putInteger(c2t('Strt'), $($case.saturation));
+  masterHue.putInteger(c2t('Lght'), $($case.lightness));
+  hueAdjustments.putObject(c2t('Hst2'), masterHue);
+  adjustment.putList(c2t('Adjs'), hueAdjustments);
+  adjustmentLayer.putObject(s2t('type'), s2t('hueSaturation'), adjustment);
 "@
     } else {
       $adjustmentDescriptor = @"

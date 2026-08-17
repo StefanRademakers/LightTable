@@ -119,9 +119,11 @@ describe('LightTable WGSL modules', () => {
     expect(allShaders).not.toMatch(/\.[rgbaxyzw]{2,4}\s*[+\-*/]=/);
   });
 
-  it('keeps mutable Photoshop vector output writable for Dawn', () => {
-    expect(CREATIVE_GRADE_WGSL).toContain('var rotated = vec2f(');
-    expect(CREATIVE_GRADE_WGSL).not.toContain('let rotated = vec2f(');
+  it('uses the Photoshop document-space HSL route without replacing perceptual Grade color', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('fn photoshopRgbToHsl');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(photoshopHslToRgb(hsl))');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn applyPerceptualColor');
+    expect(CREATIVE_GRADE_WGSL).toContain('var lab = linearRgbToOklab(rgb);');
   });
 
   it('uses one shared smooth scene-to-display transform instead of the old gamut clamp', () => {

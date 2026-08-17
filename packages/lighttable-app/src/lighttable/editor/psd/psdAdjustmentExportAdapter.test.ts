@@ -91,6 +91,26 @@ describe('Photoshop adjustment export adapter', () => {
     });
   });
 
+  it('roundtrips Photoshop Colorize using its native Hue/Saturation descriptor encoding', () => {
+    const values = createDefaultAdjustments();
+    values.photoshopAdjustment = {
+      ...values.photoshopAdjustment,
+      kind: 'hue-saturation',
+      colorize: true,
+      hue: 288,
+      hueSaturation: 80,
+      hueLightness: -12
+    };
+    const stack = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(values),
+      'hue-saturation'
+    );
+    expect(binaryRoundTrip(exportAdjustmentStackToPsd('hue-saturation', stack)!)).toMatchObject({
+      type: 'hue/saturation',
+      master: { a: 256, b: -72, c: 80, d: -12, hue: 0, saturation: 0, lightness: 0 }
+    });
+  });
+
   it('roundtrips composite and per-channel Levels together', () => {
     const values = createDefaultAdjustments();
     values.photoshopAdjustment.kind = 'levels';

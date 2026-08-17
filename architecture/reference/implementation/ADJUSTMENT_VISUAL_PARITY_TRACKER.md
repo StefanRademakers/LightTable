@@ -148,3 +148,40 @@ All cases are within two output code values, including 80-percent midpoint
 moves, endpoint lifts, inverse, isolated color channels, and a simultaneous
 composite-plus-red curve. The previous shared monotone implementation scored
 99.017% overall, with about 3.9% RMSE on the strongest midpoint cases.
+
+## Hue / Saturation
+
+Status: accepted for Master and Colorize; selective color ranges remain open.
+
+Photoshop 27.11 processes Hue / Saturation in encoded document RGB. Its Master
+response is not LightTable's perceptual Grade saturation: Lightness first fades
+each encoded channel toward black or white, after which Hue and Saturation run
+in HSL. Negative saturation scales chroma toward zero; positive saturation uses
+the measured reciprocal response and clips at full saturation. This asymmetry is
+especially important at +80 and +100. Colorize retains the source HSL lightness
+while assigning its authored hue and saturation.
+
+This measured route is confined to the Photoshop adjustment node. Grade keeps
+its existing Oklab implementation. PSD import/export now also recognizes
+Photoshop's native Colorize descriptor (`a = 256`, with H/S/L stored in the
+range fields), and Colorize exposes Photoshop's 0–360 Hue and 0–100 Saturation
+ranges in the contextual editor.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `D:\people.jpg` | untagged / 8-bit | 22 | 0.139% | 1.134% | 99.861% |
+| `D:\kleur.jpg` | sRGB / 8-bit | 22 | 0.172% | 1.531% | 99.828% |
+| `D:\kleur.jpg` extreme subset | sRGB / 16-bit | 10 | 0.105% | 0.256% | 99.895% |
+
+Every case passes the 5-percent per-case gate. The corpus covers Hue ±180,
+Saturation and Lightness ±100, combined ±80 settings, and Colorize at 80%
+saturation. Colorize is the largest 8-bit residual; the independent 16-bit
+corpus reduces it to 0.231% RMSE, so no arbitrary hue offset is warranted.
+
+Photoshop also stores Reds, Yellows, Greens, Cyans, Blues, and Magentas as
+independent range adjustments. Each uses four hue boundaries: a fully selected
+inner interval plus a soft falloff interval on either side, wrapping around the
+hue circle for Reds. Those controls are preserved in imported PSD metadata but
+are not yet editable or rendered by this accepted Master implementation. They
+require a dedicated hue-ramp oracle before implementation; a hard range mask or
+invented smoothing curve is not acceptable.

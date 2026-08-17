@@ -634,6 +634,22 @@ describe('importPsdDocument', () => {
       .toBe(kind);
   });
 
+  it('restores Photoshop Hue/Saturation Colorize parameters', () => {
+    const result = importPsdDocument(decoded([raster('colorize', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: {
+        type: 'hue/saturation',
+        master: { a: 256, b: -72, c: 80, d: -12, hue: 0, saturation: 0, lightness: 0 }
+      }
+    })]), 'colorize.psd');
+    const layer = result.document.layers[0];
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer.');
+    expect(materializeBasicAdjustments(layer.adjustmentStack).photoshopAdjustment).toMatchObject({
+      kind: 'hue-saturation', colorize: true, hue: 288, hueSaturation: 80, hueLightness: -12
+    });
+  });
+
   it('restores an embedded Photoshop .cube LUT as a document asset', async () => {
     const sourceText = [
       'TITLE "Imported Cinematic"',

@@ -661,6 +661,43 @@ fn photoshopEncodedDocumentToLinearSrgb(encoded: vec3f) -> vec3f {
   );
 }
 
+fn photoshopRgbToHsl(rgb: vec3f) -> vec3f {
+  let maximum = max(rgb.r, max(rgb.g, rgb.b));
+  let minimum = min(rgb.r, min(rgb.g, rgb.b));
+  let chroma = maximum - minimum;
+  let lightness = (maximum + minimum) * 0.5;
+  if (chroma <= 0.000001) { return vec3f(0.0, 0.0, lightness); }
+  let saturation = chroma / max(0.000001, 1.0 - abs(2.0 * lightness - 1.0));
+  var hue = 0.0;
+  if (maximum == rgb.r) {
+    hue = (rgb.g - rgb.b) / chroma;
+  } else if (maximum == rgb.g) {
+    hue = (rgb.b - rgb.r) / chroma + 2.0;
+  } else {
+    hue = (rgb.r - rgb.g) / chroma + 4.0;
+  }
+  return vec3f(fract(hue / 6.0), saturation, lightness);
+}
+
+fn photoshopHueToRgb(p: f32, q: f32, hue: f32) -> f32 {
+  let wrapped = fract(hue);
+  if (wrapped < 1.0 / 6.0) { return p + (q - p) * 6.0 * wrapped; }
+  if (wrapped < 0.5) { return q; }
+  if (wrapped < 2.0 / 3.0) { return p + (q - p) * (2.0 / 3.0 - wrapped) * 6.0; }
+  return p;
+}
+
+fn photoshopHslToRgb(hsl: vec3f) -> vec3f {
+  if (hsl.y <= 0.000001) { return vec3f(hsl.z); }
+  let q = select(hsl.z * (1.0 + hsl.y), hsl.z + hsl.y - hsl.z * hsl.y, hsl.z >= 0.5);
+  let p = 2.0 * hsl.z - q;
+  return vec3f(
+    photoshopHueToRgb(p, q, hsl.x + 1.0 / 3.0),
+    photoshopHueToRgb(p, q, hsl.x),
+    photoshopHueToRgb(p, q, hsl.x - 1.0 / 3.0)
+  );
+}
+
 fn samplePhotoshopBrightnessContrastLut(value: f32) -> f32 {
   let code = clamp(value, 0.0, 1.0) * 255.0;
   var left = 63u;
@@ -790,20 +827,31 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     return photoshopEncodedDocumentToLinearSrgb(correctedEncoded);
   }
   if (kind == 4u) {
-    var lab = linearRgbToOklab(rgb);
-    let angle = photoshopValue(12u) * 0.01745329252;
-    let cosine = cos(angle);
-    let sine = sin(angle);
-    var rotated = vec2f(lab.y * cosine - lab.z * sine, lab.y * sine + lab.z * cosine);
-    let saturation = max(0.0, 1.0 + photoshopValue(13u) / 100.0);
-    if (photoshopValue(15u) > 0.5) {
-      let colorizeAngle = (photoshopValue(12u) + 180.0) * 0.01745329252;
-      rotated = vec2f(cos(colorizeAngle), sin(colorizeAngle)) * (photoshopValue(13u) / 100.0) * 0.22;
-    } else {
-      rotated *= saturation;
+    let hueAmount = photoshopValue(12u);
+    let saturationAmount = photoshopValue(13u) / 100.0;
+    let lightnessAmount = photoshopValue(14u) / 100.0;
+    let colorize = photoshopValue(15u) > 0.5;
+    if (!colorize && abs(hueAmount) < 0.00001 && abs(saturationAmount) < 0.00001 && abs(lightnessAmount) < 0.00001) {
+      return rgb;
     }
-    lab = vec3f(lab.x + photoshopValue(14u) / 400.0, rotated);
-    return oklabToLinearRgb(lab);
+    let encoded = photoshopLinearSrgbToEncodedDocument(rgb);
+    let lightAdjusted = select(
+      encoded + (vec3f(1.0) - encoded) * lightnessAmount,
+      encoded * (1.0 + lightnessAmount),
+      lightnessAmount < 0.0
+    );
+    var hsl = photoshopRgbToHsl(clamp(lightAdjusted, vec3f(0.0), vec3f(1.0)));
+    if (colorize) {
+      hsl = vec3f(fract(hueAmount / 360.0), clamp(saturationAmount, 0.0, 1.0), hsl.z);
+    } else {
+      let saturated = select(
+        hsl.y / max(0.000001, 1.0 - saturationAmount),
+        hsl.y * (1.0 + saturationAmount),
+        saturationAmount < 0.0
+      );
+      hsl = vec3f(fract(hsl.x + hueAmount / 360.0), clamp(saturated, 0.0, 1.0), hsl.z);
+    }
+    return photoshopEncodedDocumentToLinearSrgb(photoshopHslToRgb(hsl));
   }
   if (kind == 5u) {
     let y = clamp(luminance(rgb), 0.0, 1.0);

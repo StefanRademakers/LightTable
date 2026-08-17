@@ -72,7 +72,11 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
     ? adjustments.photoshopAdjustment
     : createDefaultPhotoshopAdjustment(kind);
   const defaults = createDefaultPhotoshopAdjustment(kind);
-  const sliders = FAMILY_SLIDERS[kind] ?? [];
+  const sliders: readonly SliderSpec[] = kind === 'hue-saturation' && settings.colorize ? [
+    { key: 'hue', label: 'Hue', min: 0, max: 360, format: (value) => `${Math.round(value)}°` },
+    { key: 'hueSaturation', label: 'Saturation', min: 0, max: 100, format: percent },
+    { key: 'hueLightness', label: 'Lightness', min: -100, max: 100, format: percent }
+  ] : FAMILY_SLIDERS[kind] ?? [];
   const [lutError, setLutError] = React.useState<string | null>(null);
   const loadLut = async (file: File) => {
     if (!commands.loadColorLookup) return;

@@ -276,11 +276,13 @@ const importedPhotoshopSettings = (
       const settings = result('hue-saturation');
       const master = source.master;
       if (master) {
-        settings.hue = master.hue;
-        settings.hueSaturation = master.saturation;
-        settings.hueLightness = master.lightness;
+        settings.colorize = master.a === 256;
+        settings.hue = settings.colorize ? (master.b + 360) % 360 : master.hue;
+        settings.hueSaturation = settings.colorize ? master.c : master.saturation;
+        settings.hueLightness = settings.colorize ? master.d : master.lightness;
       }
-      const hasRanges = Boolean(source.reds || source.yellows || source.greens || source.cyans || source.blues || source.magentas);
+      const hasRanges = [source.reds, source.yellows, source.greens, source.cyans, source.blues, source.magentas]
+        .some((range) => Boolean(range && (range.hue !== 0 || range.saturation !== 0 || range.lightness !== 0)));
       return {
         kind: settings.kind, settings,
         support: hasRanges ? 'approximate' : 'native',

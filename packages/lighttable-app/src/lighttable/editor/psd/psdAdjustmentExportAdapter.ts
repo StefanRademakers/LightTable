@@ -110,8 +110,14 @@ const photoshopAdjustment = (
     };
     case 'hue-saturation': return {
       type: 'hue/saturation',
-      master: {
-        a: 0, b: 0, c: 0, d: 0,
+      master: settings.colorize ? {
+        a: 256,
+        b: settings.hue > 180 ? settings.hue - 360 : settings.hue,
+        c: settings.hueSaturation,
+        d: settings.hueLightness,
+        hue: 0, saturation: 0, lightness: 0
+      } : {
+        a: 0, b: -144, c: 25, d: 0,
         hue: settings.hue,
         saturation: settings.hueSaturation,
         lightness: settings.hueLightness
