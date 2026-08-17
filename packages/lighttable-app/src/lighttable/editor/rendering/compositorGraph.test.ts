@@ -13,6 +13,7 @@ import {
   containsActiveLayerStyles,
   containsVisibleAdjustmentLayer,
   groupNeedsCompositingEnvelope,
+  splitActiveProcessingCheckpoint,
   splitTopmostProcessingSuffix
 } from './compositorGraph';
 import { createAdjustmentLayer } from '../document/documentTypes';
@@ -180,6 +181,20 @@ describe('compositorGraph', () => {
     });
     expect(splitTopmostProcessingSuffix([lower, grade, raster('above')])).toBeNull();
     expect(splitTopmostProcessingSuffix([lower, { ...grade, clipping: true }])).toBeNull();
+  });
+
+  it('places a safe checkpoint below an active midstack processing layer', () => {
+    const stack = createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
+    const lower = raster('lower');
+    const grade = createAdjustmentLayer(stack, 'Grade', 'grade');
+    const above = raster('above');
+
+    expect(splitActiveProcessingCheckpoint([lower, grade, above], grade.id)).toEqual({
+      base: [lower], remainder: [grade, above]
+    });
+    expect(splitActiveProcessingCheckpoint(
+      [lower, grade, { ...above, clipping: true }], grade.id
+    )).toBeNull();
   });
 
   it('analyzes the fast-path inputs and mask-dependent group envelope once', () => {

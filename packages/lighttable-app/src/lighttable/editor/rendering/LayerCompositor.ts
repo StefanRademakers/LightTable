@@ -27,6 +27,7 @@ import {
 import {
   analyzeDocumentComposite,
   buildCompositorPlan,
+  splitActiveProcessingCheckpoint,
   splitTopmostProcessingSuffix,
   type CompositorPlan,
   type CompositorPlanEntry
@@ -790,24 +791,35 @@ export class LayerCompositor {
       && excludedLayerIds.size === 0
       ? splitTopmostProcessingSuffix(document.layers)
       : null;
+    const activeCheckpoint = !suffix
+      && this.topmostSuffixCacheEnabled
+      && encodeAdjustment
+      && excludedLayerIds.size === 0
+      ? splitActiveProcessingCheckpoint(document.layers, document.activeLayerId)
+      : null;
+    const checkpoint = suffix
+      ? { base: suffix.base, remainder: suffix.processing, label: 'topmost processing suffix' }
+      : activeCheckpoint
+        ? { ...activeCheckpoint, label: 'active processing layer' }
+        : null;
     let background: GPUTexture;
-    if (suffix) {
+    if (checkpoint) {
       const contract = `${document.width}x${document.height}:${JSON.stringify(document.colorSettings)}`;
       const cacheValid = Boolean(
         this.topmostBaseTexture
         && this.topmostBaseDocumentId === document.id
         && this.topmostBaseContract === contract
-        && this.topmostBaseNodes.length === suffix.base.length
-        && this.topmostBaseNodes.every((node, index) => node === suffix.base[index])
+        && this.topmostBaseNodes.length === checkpoint.base.length
+        && this.topmostBaseNodes.every((node, index) => node === checkpoint.base[index])
       );
       if (!cacheValid) {
         this.topmostBaseMisses += 1;
         this.topmostBaseTexture?.destroy();
         this.topmostBaseTexture = this.options.createTexture(
-          'LightTable cached composite below topmost processing suffix'
+          `LightTable cached composite below ${checkpoint.label}`
         );
         const [baseResult] = renderNodes(
-          buildCompositorPlan(suffix.base, (layerId) => Boolean(this.options.maskTextureFor(layerId))),
+          buildCompositorPlan(checkpoint.base, (layerId) => Boolean(this.options.maskTextureFor(layerId))),
           compositeA,
           compositeB
         );
@@ -817,13 +829,13 @@ export class LayerCompositor {
           this.options.dimensions()
         );
         this.topmostBaseDocumentId = document.id;
-        this.topmostBaseNodes = [...suffix.base];
+        this.topmostBaseNodes = [...checkpoint.base];
         this.topmostBaseContract = contract;
       } else {
         this.topmostBaseHits += 1;
       }
       [background] = renderNodes(
-        buildCompositorPlan(suffix.processing, (layerId) => Boolean(this.options.maskTextureFor(layerId))),
+        buildCompositorPlan(checkpoint.remainder, (layerId) => Boolean(this.options.maskTextureFor(layerId))),
         this.topmostBaseTexture!,
         compositeA,
         identityAffineMatrix(),

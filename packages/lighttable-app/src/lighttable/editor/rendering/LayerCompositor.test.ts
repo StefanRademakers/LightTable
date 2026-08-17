@@ -169,7 +169,10 @@ describe('LayerCompositor', () => {
     const compositeA = texture();
     const compositeB = texture();
     const rasterTexture = texture();
-    const cachedBaseTexture = texture();
+    const cachedBaseTexture = {
+      createView: vi.fn(() => ({})),
+      destroy: vi.fn()
+    } as unknown as GPUTexture;
     const curvesTexture = texture();
     const gradeTexture = texture();
     const encodeAdjustment = vi.fn((_encoder, _source, layer) =>
@@ -214,6 +217,70 @@ describe('LayerCompositor', () => {
     compositor.encode(encoder, document, encodeAdjustment);
     expect(encodeAdjustment.mock.calls.map((call) => call[2].name)).toEqual(['Grade', 'Curves']);
     expect(compositor.topmostSuffixCacheTelemetry()).toMatchObject({ misses: 1, hits: 1 });
+  });
+
+  it('reuses the lower composite while editing an active midstack processing layer', () => {
+    const document = createImageDocument('Midstack adjustment', 64, 32, 'lower-source');
+    const lower = document.layers[0]!;
+    const grade = createAdjustmentLayer({
+      id: 'grade-stack', revision: 1,
+      modules: [{ id: 'light', type: 'lt.light', enabled: true, revision: 1, settings: {} }]
+    }, 'Grade');
+    const upperDocument = createImageDocument('Upper', 64, 32, 'upper-source');
+    const upper = upperDocument.layers[0]!;
+    document.layers = [lower, grade, upper];
+    document.activeLayerId = grade.id;
+
+    const compositeA = texture();
+    const compositeB = texture();
+    const lowerTexture = texture();
+    const upperTexture = texture();
+    const cachedBaseTexture = {
+      createView: vi.fn(() => ({})),
+      destroy: vi.fn()
+    } as unknown as GPUTexture;
+    const adjustedTexture = texture();
+    const raster = vi.fn((layer) => ({
+      texture: layer.id === lower.id ? lowerTexture : upperTexture,
+      maskTexture: null
+    }));
+    const encodeAdjustment = vi.fn(() => adjustedTexture);
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer: vi.fn() },
+        createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      layerResources: { raster } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: vi.fn() } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(() => cachedBaseTexture),
+      clearTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+    const encoder = { copyTextureToTexture: vi.fn() } as unknown as GPUCommandEncoder;
+
+    compositor.encode(encoder, document, encodeAdjustment);
+    compositor.encode(encoder, document, encodeAdjustment);
+
+    expect(raster).toHaveBeenCalledTimes(3);
+    expect(compositor.topmostSuffixCacheTelemetry()).toMatchObject({ misses: 1, hits: 1 });
+
+    document.layers = [{ ...lower, opacity: 0.5 }, grade, upper];
+    compositor.encode(encoder, document, encodeAdjustment);
+    expect(raster).toHaveBeenCalledTimes(5);
+    expect(compositor.topmostSuffixCacheTelemetry()).toMatchObject({ misses: 2, hits: 1 });
   });
 
   it('propagates parent transforms to native vector layers', () => {

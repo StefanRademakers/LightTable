@@ -34,6 +34,11 @@ export interface TopmostProcessingSuffix {
   readonly processing: readonly Extract<LayerNode, { type: 'adjustment' }>[];
 }
 
+export interface ActiveProcessingCheckpoint {
+  readonly base: readonly LayerNode[];
+  readonly remainder: readonly LayerNode[];
+}
+
 /**
  * Finds the only processing suffix that may safely reuse a root base
  * composite. Clipped adjustments are deliberately excluded because their
@@ -54,6 +59,21 @@ export const splitTopmostProcessingSuffix = (
     base: nodes.slice(0, start),
     processing: nodes.slice(start) as readonly Extract<LayerNode, { type: 'adjustment' }>[]
   };
+};
+
+/** Safe root checkpoint immediately below the actively edited processing layer. */
+export const splitActiveProcessingCheckpoint = (
+  nodes: readonly LayerNode[],
+  activeLayerId: LayerNode['id'] | null
+): ActiveProcessingCheckpoint | null => {
+  if (!activeLayerId) return null;
+  const index = nodes.findIndex(({ id }) => id === activeLayerId);
+  if (index <= 0 || nodes[index]?.type !== 'adjustment') return null;
+  const remainder = nodes.slice(index);
+  // A clipping chain may depend on an isolated sibling below the checkpoint.
+  // Until that alpha checkpoint is explicit, use canonical full evaluation.
+  if (remainder.some(({ clipping }) => clipping)) return null;
+  return { base: nodes.slice(0, index), remainder };
 };
 
 /**
