@@ -2,6 +2,7 @@ import { curveActiveMask } from './curves';
 import { halationIsActive } from './effects/halation/settings';
 import { lensBlurIsActive } from './effects/lensBlur/settings';
 import { cloneVignetteSettings, vignetteIsActive, type VignetteSettings } from './effects/vignette/settings';
+import { pointColorIsActive } from './pointColor';
 import type { BasicAdjustments } from './types';
 
 const positiveControlStrength = (value: number, fullScale: number, maximum: number) => {
@@ -34,6 +35,14 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
   }
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(maxValue(adjustments.colorMixer.luminance), 100, 0.72));
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(maxValue(adjustments.colorGrading.luminance), 100, 0.72));
+  shoulderStrength = Math.max(
+    shoulderStrength,
+    positiveControlStrength(
+      maxValue([0, ...adjustments.pointColor.samples.map((sample) => sample.luminanceShift)]),
+      100,
+      0.72
+    )
+  );
   if (halationIsActive(adjustments.effects.halation)) {
     shoulderStrength = Math.max(
       shoulderStrength,
@@ -64,6 +73,7 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
       sumAbsolute(adjustments.colorGrading.luminance) + curveActiveMask(adjustments.curves) > 0.00001 ||
       halationIsActive(adjustments.effects.halation)
       || lensBlurIsActive(adjustments.effects.lensBlur)
+      || pointColorIsActive(adjustments.pointColor)
       || vignetteIsActive(adjustments.effects.vignette)
   };
 };

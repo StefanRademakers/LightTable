@@ -9,7 +9,8 @@ import {
   PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET,
   PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
-  PHOTOSHOP_VIBRANCE_OFFSET
+  PHOTOSHOP_VIBRANCE_OFFSET,
+  POINT_COLOR_PAYLOAD_OFFSET
 } from './adjustmentUniform';
 
 describe('LightTable adjustment uniform packing', () => {
@@ -166,5 +167,21 @@ describe('LightTable adjustment uniform packing', () => {
 
     expect(Array.from(buildAdjustmentUniform(changed, 100, 50, true)))
       .toEqual(Array.from(buildAdjustmentUniform(baseline, 100, 50, true)));
+  });
+
+  it('packs Point Color samples as three aligned vec4 rows', () => {
+    const settings = createDefaultAdjustments();
+    settings.pointColor = { samples: [{
+      id: 'sample', lightness: 0.7, chroma: 0.12, hue: 0.8,
+      hueShift: 15, saturationShift: -20, luminanceShift: 10, variance: -30,
+      range: 60, hueRange: 40, saturationRange: 50, luminanceRange: 70
+    }] };
+    const packed = buildAdjustmentUniform(settings, 100, 50, true);
+    const values = Array.from(packed.slice(
+      POINT_COLOR_PAYLOAD_OFFSET,
+      POINT_COLOR_PAYLOAD_OFFSET + 12
+    ));
+    [0.7, 0.12, 0.8, 1, 15, -20, 10, -30, 60, 40, 50, 70]
+      .forEach((expected, index) => expect(values[index]).toBeCloseTo(expected, 5));
   });
 });

@@ -3,13 +3,14 @@ import {
 } from '../../types';
 import { createDefaultColorGrading } from '../../colorGrading';
 import { createDefaultColorMixer } from '../../colorMixer';
+import { createDefaultPointColor } from '../../pointColor';
 import { createDefaultCurves } from '../../curves';
 import type { BasicAdjustments } from '../../types';
 import { createDefaultAdjustments } from '../../types';
 
 export type NumericAdjustmentKey = Exclude<
   keyof BasicAdjustments,
-  'colorMixer' | 'colorGrading' | 'curves' | 'gradientMap' | 'photoshopAdjustment' | 'effects'
+  'colorMixer' | 'pointColor' | 'colorGrading' | 'curves' | 'gradientMap' | 'photoshopAdjustment' | 'effects'
 >;
 
 export interface GroupVisibility {
@@ -77,7 +78,10 @@ export const applyGroupVisibility = (
 
   if (!visibility.light) zero(LIGHT_SLIDER_KEYS);
   if (!visibility.color) zero(COLOR_SLIDER_KEYS);
-  if (!visibility.colorMixer) next.colorMixer = createDefaultColorMixer();
+  if (!visibility.colorMixer) {
+    next.colorMixer = createDefaultColorMixer();
+    next.pointColor = createDefaultPointColor();
+  }
   if (!visibility.colorGrading) next.colorGrading = createDefaultColorGrading();
   if (!visibility.curves) next.curves = createDefaultCurves();
   if (!visibility.effects) zero(EFFECTS_SLIDER_KEYS);

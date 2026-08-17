@@ -232,6 +232,14 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL.match(/1\.0 - cos\(hue - centers\[index\]\)/g)).toHaveLength(1);
   });
 
+  it('evaluates Point Color as an order-independent three-dimensional selection', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('fn applyPointColor');
+    expect(CREATIVE_GRADE_WGSL).toContain('uncovered *= 1.0 - weight');
+    expect(CREATIVE_GRADE_WGSL).toContain('rgb = applyPointColor(rgb);');
+    expect(CREATIVE_GRADE_WGSL.indexOf('rgb = applyPointColor(rgb);'))
+      .toBeGreaterThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyColorMixer(rgb);'));
+  });
+
   it('allows global mixer saturation through the low-chroma protection path', () => {
     expect(CREATIVE_GRADE_WGSL).not.toContain('if (chromaProtection <= 0.00001)');
     expect(CREATIVE_GRADE_WGSL).toContain('let saturationProtection = mix(1.0, chromaProtection, saturationSelection)');

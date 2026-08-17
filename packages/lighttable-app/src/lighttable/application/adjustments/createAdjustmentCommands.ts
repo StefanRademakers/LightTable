@@ -12,6 +12,13 @@ import {
   type ColorMixerValues
 } from '../../colorMixer';
 import {
+  clonePointColor,
+  createDefaultPointColor,
+  createPointColorSample,
+  MAX_POINT_COLOR_SAMPLES,
+  type PointColorSample
+} from '../../pointColor';
+import {
   cloneCurves,
   createDefaultCurves,
   createIdentityCurve,
@@ -135,6 +142,16 @@ export interface AdjustmentCommands {
     value: number
   ) => void;
   readonly resetColorMixer: (channel: ColorMixerChannel, index: number) => void;
+  readonly addPointColorSample: (
+    id: string, lightness: number, chroma: number, hue: number
+  ) => void;
+  readonly updatePointColorSample: (
+    id: string,
+    key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
+    value: number
+  ) => void;
+  readonly resetPointColorSample: (id: string) => void;
+  readonly removePointColorSample: (id: string) => void;
   readonly updateColorGradingWheel: (
     zone: ColorGradingZone,
     hue: number,
@@ -450,6 +467,64 @@ export const createAdjustmentCommands = (
     });
   };
 
+  const addPointColorSample = (
+    id: string,
+    lightness: number,
+    chroma: number,
+    hue: number
+  ) => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => {
+      if (current.pointColor.samples.length >= MAX_POINT_COLOR_SAMPLES) return current;
+      return {
+        ...current,
+        pointColor: {
+          samples: [
+            ...clonePointColor(current.pointColor).samples,
+            createPointColorSample(id, lightness, chroma, hue)
+          ]
+        }
+      };
+    });
+  };
+
+  const updatePointColorSample = (
+    id: string,
+    key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
+    value: number
+  ) => {
+    ports.beginAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      pointColor: {
+        samples: current.pointColor.samples.map((sample) =>
+          sample.id === id ? { ...sample, [key]: value } : { ...sample })
+      }
+    }));
+  };
+
+  const resetPointColorSample = (id: string) => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      pointColor: {
+        samples: current.pointColor.samples.map((sample) => sample.id === id
+          ? createPointColorSample(sample.id, sample.lightness, sample.chroma, sample.hue)
+          : { ...sample })
+      }
+    }));
+  };
+
+  const removePointColorSample = (id: string) => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      pointColor: {
+        samples: current.pointColor.samples.filter((sample) => sample.id !== id)
+      }
+    }));
+  };
+
   const updateColorGradingWheel = (
     zone: ColorGradingZone,
     hue: number,
@@ -568,7 +643,11 @@ export const createAdjustmentCommands = (
     ports.endAdjustment();
     ports.changeAdjustments((current) => {
       if (group === 'colorMixer') {
-        return { ...current, colorMixer: createDefaultColorMixer() };
+        return {
+          ...current,
+          colorMixer: createDefaultColorMixer(),
+          pointColor: createDefaultPointColor()
+        };
       }
       if (group === 'colorGrading') {
         return { ...current, colorGrading: createDefaultColorGrading() };
@@ -644,6 +723,10 @@ export const createAdjustmentCommands = (
     setLensBlurViewportMode,
     updateColorMixer,
     resetColorMixer,
+    addPointColorSample,
+    updatePointColorSample,
+    resetPointColorSample,
+    removePointColorSample,
     updateColorGradingWheel,
     updateColorGradingLuminance,
     updateColorGradingControl,

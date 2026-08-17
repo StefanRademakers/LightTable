@@ -6,7 +6,11 @@ import {
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_SIZE
 } from './photoshopBrightnessContrastLut';
 
-export const ADJUSTMENT_UNIFORM_FLOATS = 368;
+export const POINT_COLOR_PAYLOAD_OFFSET = 368;
+export const POINT_COLOR_SAMPLE_FLOATS = 12;
+export const POINT_COLOR_MAX_SAMPLES = 8;
+export const ADJUSTMENT_UNIFORM_FLOATS =
+  POINT_COLOR_PAYLOAD_OFFSET + POINT_COLOR_SAMPLE_FLOATS * POINT_COLOR_MAX_SAMPLES;
 export const LINEAR_COMPOSITE_FLAG_INDEX = 18;
 export const PHOTOSHOP_PAYLOAD_OFFSET = 128;
 export const PHOTOSHOP_LEVELS_CHANNELS_OFFSET = 233;
@@ -174,6 +178,13 @@ export const buildAdjustmentUniform = (
     photoshop.vibranceSaturation
   ], PHOTOSHOP_VIBRANCE_OFFSET);
   packed[PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET] = documentBitDepth;
+  value.pointColor.samples.slice(0, POINT_COLOR_MAX_SAMPLES).forEach((sample, index) => {
+    packed.set([
+      sample.lightness, sample.chroma, sample.hue, 1,
+      sample.hueShift, sample.saturationShift, sample.luminanceShift, sample.variance,
+      sample.range, sample.hueRange, sample.saturationRange, sample.luminanceRange
+    ], POINT_COLOR_PAYLOAD_OFFSET + index * POINT_COLOR_SAMPLE_FLOATS);
+  });
   packed.set([
     ...(colorLookup?.domainMin ?? [0, 0, 0]),
     ...(colorLookup?.domainMax ?? [1, 1, 1])

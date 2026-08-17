@@ -2,6 +2,7 @@ import { cloneColorMixer, createDefaultColorMixer, type ColorMixerAdjustments } 
 import { cloneColorGrading, createDefaultColorGrading, type ColorGradingAdjustments } from './colorGrading';
 import { cloneCurves, createDefaultCurves, type CurvesAdjustments } from './curves';
 import { cloneEffects, createDefaultEffects, type LightTableEffects } from './effects/types';
+import { clonePointColor, createDefaultPointColor, type PointColorAdjustments } from './pointColor';
 import {
   clonePhotoshopAdjustment,
   createDefaultPhotoshopAdjustment,
@@ -62,6 +63,7 @@ export interface BasicAdjustments {
   vibrance: number;
   saturation: number;
   colorMixer: ColorMixerAdjustments;
+  pointColor: PointColorAdjustments;
   colorGrading: ColorGradingAdjustments;
   curves: CurvesAdjustments;
   /** Optional during alpha-format reads; defaults always materialize it. */
@@ -111,6 +113,7 @@ export const DEFAULT_BASIC_ADJUSTMENTS: Readonly<BasicAdjustments> = Object.free
   vibrance: 0,
   saturation: 0,
   colorMixer: createDefaultColorMixer(),
+  pointColor: createDefaultPointColor(),
   colorGrading: createDefaultColorGrading(),
   curves: createDefaultCurves(),
   gradientMap: createDefaultGradientMap(),
@@ -121,6 +124,7 @@ export const DEFAULT_BASIC_ADJUSTMENTS: Readonly<BasicAdjustments> = Object.free
 export const cloneAdjustments = (adjustments: BasicAdjustments): BasicAdjustments => ({
   ...adjustments,
   colorMixer: cloneColorMixer(adjustments.colorMixer),
+  pointColor: clonePointColor(adjustments.pointColor ?? createDefaultPointColor()),
   colorGrading: cloneColorGrading(adjustments.colorGrading),
   curves: cloneCurves(adjustments.curves),
   gradientMap: structuredClone(adjustments.gradientMap ?? createDefaultGradientMap()),
@@ -133,6 +137,7 @@ export const cloneAdjustments = (adjustments: BasicAdjustments): BasicAdjustment
 export const createDefaultAdjustments = (): BasicAdjustments => ({
   ...DEFAULT_BASIC_ADJUSTMENTS,
   colorMixer: cloneColorMixer(DEFAULT_BASIC_ADJUSTMENTS.colorMixer),
+  pointColor: clonePointColor(DEFAULT_BASIC_ADJUSTMENTS.pointColor),
   colorGrading: cloneColorGrading(DEFAULT_BASIC_ADJUSTMENTS.colorGrading),
   curves: cloneCurves(DEFAULT_BASIC_ADJUSTMENTS.curves),
   gradientMap: structuredClone(DEFAULT_BASIC_ADJUSTMENTS.gradientMap ?? createDefaultGradientMap()),

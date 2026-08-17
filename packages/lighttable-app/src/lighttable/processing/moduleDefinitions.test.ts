@@ -20,6 +20,7 @@ const EXPECTED_SETTINGS_PATHS = [
   'vibrance',
   'saturation',
   'colorMixer',
+  'pointColor',
   'colorGrading',
   'curves',
   'gradientMap',

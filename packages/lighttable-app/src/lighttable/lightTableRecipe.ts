@@ -4,6 +4,7 @@ import {
   type BasicAdjustments
 } from './types';
 import { type ColorMixerChannel, type ColorMixerValues } from './colorMixer';
+import { MAX_POINT_COLOR_SAMPLES, type PointColorSample } from './pointColor';
 import { type ColorGradingValues } from './colorGrading';
 import { CURVE_CHANNELS, normalizeCurvePoints, type CurvePoint } from './curves';
 import { createDefaultGrainSettings } from './effects/grain/settings';
@@ -93,7 +94,7 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
   const settings = createDefaultAdjustments();
   let recognizedSettings = 0;
   (Object.keys(settings) as Array<keyof BasicAdjustments>).forEach((key) => {
-    if (key === 'colorMixer' || key === 'colorGrading' || key === 'curves'
+    if (key === 'colorMixer' || key === 'pointColor' || key === 'colorGrading' || key === 'curves'
       || key === 'gradientMap' || key === 'photoshopAdjustment' || key === 'effects') return;
     const settingValue = value[key];
     if (typeof settingValue === 'number' && Number.isFinite(settingValue)) {
@@ -111,6 +112,24 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
         recognizedSettings += 1;
       }
     });
+  }
+
+  const rawPointColor = value.pointColor;
+  if (isObject(rawPointColor) && Array.isArray(rawPointColor.samples)) {
+    const numericKeys = [
+      'lightness', 'chroma', 'hue', 'hueShift', 'saturationShift',
+      'luminanceShift', 'variance', 'range', 'hueRange',
+      'saturationRange', 'luminanceRange'
+    ] as const;
+    const samples = rawPointColor.samples.slice(0, MAX_POINT_COLOR_SAMPLES).filter((sample) =>
+      isObject(sample)
+      && typeof sample.id === 'string'
+      && numericKeys.every((key) => typeof sample[key] === 'number' && Number.isFinite(sample[key]))
+    ) as unknown as PointColorSample[];
+    if (samples.length > 0 || rawPointColor.samples.length === 0) {
+      settings.pointColor = { samples: samples.map((sample) => ({ ...sample })) };
+      recognizedSettings += 1;
+    }
   }
 
   const rawColorGrading = value.colorGrading;

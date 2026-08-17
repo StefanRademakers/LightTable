@@ -18,12 +18,15 @@ describe('CurvesPropertiesPanel', () => {
         resetModifierActive: false,
         masterEnabled: true,
         colorMixerScopeContainerRef: { current: null },
-        colorMixerHueCanvasRef: noop
+        colorMixerHueCanvasRef: noop,
+        pointColorPickerActive: false
       }}
       commands={{
         resetAll: noop, toggleMasterEnabled: noop, toggleVisibility: noop, resetGroup: noop,
         beginAdjustment: noop, endAdjustment: noop, updateAdjustment: noop,
         resetAdjustment: noop, updateColorMixer: noop, resetColorMixer: noop,
+        addPointColorSample: noop, updatePointColorSample: noop,
+        resetPointColorSample: noop, removePointColorSample: noop, togglePointColorPicker: noop,
         updateColorGradingWheel: noop, updateColorGradingLuminance: noop,
         updateColorGradingControl: noop, resetColorGradingControl: noop,
         resetColorGradingZone: noop, resetColorGradingLuminance: noop,

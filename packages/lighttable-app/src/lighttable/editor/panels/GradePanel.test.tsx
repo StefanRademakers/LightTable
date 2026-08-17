@@ -18,12 +18,15 @@ const props = (globalGrade: boolean): GradePanelProps => {
       resetModifierActive: false,
       masterEnabled: globalGrade,
       colorMixerScopeContainerRef: { current: null },
-      colorMixerHueCanvasRef: noop
+      colorMixerHueCanvasRef: noop,
+      pointColorPickerActive: false
     },
     commands: {
       resetAll: noop, toggleMasterEnabled: noop, toggleVisibility: noop, resetGroup: noop,
       beginAdjustment: noop, endAdjustment: noop, updateAdjustment: noop,
       resetAdjustment: noop, updateColorMixer: noop, resetColorMixer: noop,
+      addPointColorSample: noop, updatePointColorSample: noop,
+      resetPointColorSample: noop, removePointColorSample: noop, togglePointColorPicker: noop,
       updateColorGradingWheel: noop, updateColorGradingLuminance: noop,
       updateColorGradingControl: noop, resetColorGradingControl: noop,
       resetColorGradingZone: noop, resetColorGradingLuminance: noop,
@@ -45,6 +48,7 @@ describe('GradePanel', () => {
     expect(disabled).toContain('aria-label="Enable Global Grade"');
     expect(disabled).toContain('aria-checked="false"');
     expect(enabled).not.toContain('Gradient Map');
+    expect(enabled).toContain('Point Color');
   });
 
   it('retains Gradient Map as its focused adjustment editor', () => {

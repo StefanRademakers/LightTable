@@ -17,6 +17,7 @@ import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFon
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
+import { linearRgbToOklab, srgbToLinear } from './colorMath';
 import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
   type AdjustmentPresentationDomain } from './application/adjustments/adjustmentPresentationStore';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
@@ -767,6 +768,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [sourceBlob, setSourceBlob] = useState<Blob | null>(null);
   const [sourceIdentity, setSourceIdentity] = useState('');
   const [focusPickerActive, setFocusPickerActive] = useState(false);
+  const [pointColorPickerActive, setPointColorPickerActive] = useState(false);
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
@@ -2351,6 +2353,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setLensBlurViewportMode,
     updateColorMixer: updateColorMixerAdjustment,
     resetColorMixer: resetColorMixerAdjustment,
+    addPointColorSample,
+    updatePointColorSample,
+    resetPointColorSample,
+    removePointColorSample,
     updateColorGradingWheel,
     updateColorGradingLuminance,
     updateColorGradingControl,
@@ -2448,6 +2454,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetDocumentInteraction: () => {
       resetLensBlurDepth();
       setFocusPickerActive(false);
+      setPointColorPickerActive(false);
       selectionGestureRef.current.reset();
       paintGestureRef.current.reset();
       setSelectionDraft(null);
@@ -2538,6 +2545,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         resetLensBlur: () => {
           resetLensBlurDepth();
           setFocusPickerActive(false);
+          setPointColorPickerActive(false);
           setLensBlurViewportModeState('result');
         },
         publishAdjustments: (startingAdjustments) => {
@@ -3644,13 +3652,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     temporaryZoomOut: temporaryZoomOutActive,
     onTransformPick: pickTransformAtPoint,
     preciseBrushCursor,
-    eyedropperActive: (editorSession.activeTool === 'brush'
+    eyedropperActive: pointColorPickerActive || ((editorSession.activeTool === 'brush'
       || editorSession.activeTool === 'fill'
-      || editorSession.activeTool === 'gradient') && altPressed,
+      || editorSession.activeTool === 'gradient') && altPressed),
     sampleSourceActive: (editorSession.activeTool === 'clone-stamp'
       || editorSession.activeTool === 'healing-brush') && altPressed,
     onColorPick: (point) => {
       void engineRef.current?.sampleDisplayColor(point).then((color) => {
+        if (pointColorPickerActive) {
+          const lab = linearRgbToOklab(srgbToLinear([
+            color[0] / 255,
+            color[1] / 255,
+            color[2] / 255
+          ]));
+          addPointColorSample(
+            `point-color-${globalThis.crypto.randomUUID()}`,
+            lab[0],
+            Math.hypot(lab[1], lab[2]),
+            Math.atan2(lab[2], lab[1])
+          );
+          setPointColorPickerActive(false);
+          return;
+        }
         updateBrush({ color: rgba8ToHex(color) });
       }).catch((reason: unknown) => {
         setGradeStatus(reason instanceof Error ? reason.message : 'The color could not be sampled.');
@@ -5867,9 +5890,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     zoomOutActive: temporaryZoomOutActive
                       || (editorSession.activeTool === 'zoom' && altPressed),
                     preciseBrushCursor,
-                    eyedropperActive: (editorSession.activeTool === 'brush'
+                    eyedropperActive: pointColorPickerActive || ((editorSession.activeTool === 'brush'
                       || editorSession.activeTool === 'fill'
-                      || editorSession.activeTool === 'gradient') && altPressed,
+                      || editorSession.activeTool === 'gradient') && altPressed),
                     dragging: viewportInteraction.dragging,
                     focusPickerActive,
                     selection: editorSession.selection,
@@ -6096,7 +6119,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   masterEnabled: gradeMasterEnabled,
                   colorMixerScopeContainerRef,
                   colorMixerHueCanvasRef: attachColorMixerHueCanvas,
-                  colorLookupAssets: imageDocument?.assets.colorLookups ?? []
+                  colorLookupAssets: imageDocument?.assets.colorLookups ?? [],
+                  pointColorPickerActive
                 },
                   commands: {
                   resetAll,
@@ -6109,6 +6133,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetAdjustment,
                   updateColorMixer: updateColorMixerAdjustment,
                   resetColorMixer: resetColorMixerAdjustment,
+                  addPointColorSample,
+                  updatePointColorSample,
+                  resetPointColorSample,
+                  removePointColorSample,
+                  togglePointColorPicker: () => setPointColorPickerActive((current) => !current),
                   updateColorGradingWheel,
                   updateColorGradingLuminance,
                   updateColorGradingControl,

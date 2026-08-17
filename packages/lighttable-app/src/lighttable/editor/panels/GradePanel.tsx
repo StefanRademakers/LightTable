@@ -1,9 +1,10 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SegmentedControl } from '../../../ui/SegmentedControl';
 import { SwitchControl } from '../../../ui/SwitchControl';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
+import { SquareIconButton } from '../../../ui/SquareIconButton';
 import { ColorGradingWheel } from '../../ColorGradingWheel';
 import {
   COLOR_GRADING_ZONE_LABELS,
@@ -17,6 +18,11 @@ import {
   colorMixerTrack,
   type ColorMixerChannel
 } from '../../colorMixer';
+import {
+  MAX_POINT_COLOR_SAMPLES,
+  pointColorSampleCss,
+  type PointColorSample
+} from '../../pointColor';
 import { CurvesEditor } from '../../CurvesEditor';
 import type { CurveChannel, ToneCurve } from '../../curves';
 import {
@@ -57,6 +63,7 @@ export interface GradePanelModel {
   readonly colorMixerScopeContainerRef: React.RefObject<HTMLDivElement | null>;
   readonly colorMixerHueCanvasRef: React.RefCallback<HTMLCanvasElement>;
   readonly colorLookupAssets?: readonly { readonly id: string; readonly name: string }[];
+  readonly pointColorPickerActive: boolean;
 }
 
 export interface GradePanelCommands {
@@ -74,6 +81,17 @@ export interface GradePanelCommands {
     value: number
   ) => void;
   readonly resetColorMixer: (channel: ColorMixerChannel, index: number) => void;
+  readonly addPointColorSample: (
+    id: string, lightness: number, chroma: number, hue: number
+  ) => void;
+  readonly updatePointColorSample: (
+    id: string,
+    key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
+    value: number
+  ) => void;
+  readonly resetPointColorSample: (id: string) => void;
+  readonly removePointColorSample: (id: string) => void;
+  readonly togglePointColorPicker: () => void;
   readonly updateColorGradingWheel: (
     zone: ColorGradingZone,
     hue: number,
@@ -185,10 +203,26 @@ const GroupHeader = ({
 export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: GradePanelProps) => {
   const [expanded, setExpanded] = useState(DEFAULT_EXPANDED);
   const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
+  const [colorMixerView, setColorMixerView] = useState<'mixer' | 'point'>('mixer');
+  const [selectedPointColorId, setSelectedPointColorId] = useState<string | null>(null);
+  const pointColorSampleCountRef = useRef(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
   const adjustments = useGradePresentation(model.adjustmentStore);
   const { metadata, visibility, resetModifierActive } = model;
+
+  useEffect(() => {
+    const samples = adjustments.pointColor.samples;
+    const sampleWasAdded = samples.length > pointColorSampleCountRef.current;
+    pointColorSampleCountRef.current = samples.length;
+    if (samples.length === 0) {
+      setSelectedPointColorId(null);
+      return;
+    }
+    if (sampleWasAdded || !samples.some((sample) => sample.id === selectedPointColorId)) {
+      setSelectedPointColorId(samples[samples.length - 1]!.id);
+    }
+  }, [adjustments.pointColor.samples, selectedPointColorId]);
 
   const setGroupExpanded = (group: GradeGroup, next: boolean) => {
     setExpanded((current) => ({ ...current, [group]: next }));
@@ -235,6 +269,99 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     </section>
   );
 
+  const renderPointColor = () => {
+    const selected = adjustments.pointColor.samples.find(
+      (sample) => sample.id === selectedPointColorId
+    ) ?? null;
+    const disabled = !metadata || !visibility.colorMixer || !selected;
+    const update = (
+      key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
+      value: number
+    ) => {
+      if (selected) commands.updatePointColorSample(selected.id, key, value);
+    };
+    const swatch = selected ? pointColorSampleCss(selected) : '#7c828a';
+    const controls = [
+      { key: 'hueShift', label: 'Hue Shift', min: -100, max: 100, reset: 0,
+        track: 'linear-gradient(to right, #e95b63, #e6c64e, #52be76, #4fc2c5, #5c78dc, #bd55bd, #e95b63)' },
+      { key: 'saturationShift', label: 'Saturation Shift', min: -100, max: 100, reset: 0,
+        track: `linear-gradient(to right, #5b6067, ${swatch})` },
+      { key: 'luminanceShift', label: 'Luminance Shift', min: -100, max: 100, reset: 0,
+        track: `linear-gradient(to right, #383c42, ${swatch}, #f1f3f5)` },
+      { key: 'variance', label: 'Variance', min: -100, max: 100, reset: 0 },
+      { key: 'range', label: 'Range', min: 0, max: 100, reset: 50 },
+      { key: 'hueRange', label: 'Hue Range', min: 0, max: 100, reset: 50,
+        track: 'linear-gradient(to right, #5b6067, #df5b62, #d2c94b, #4db66c, #4bc2c3, #5575dc, #cf4eaa)' },
+      { key: 'saturationRange', label: 'Saturation Range', min: 0, max: 100, reset: 50,
+        track: `linear-gradient(to right, #5b6067, ${swatch})` },
+      { key: 'luminanceRange', label: 'Luminance Range', min: 0, max: 100, reset: 50,
+        track: 'linear-gradient(to right, #383c42, #f1f3f5)' }
+    ] as const;
+
+    return (
+      <div className="lighttable-point-color">
+        <div className="lighttable-point-color__samples">
+          <SquareIconButton
+            size="compact"
+            active={model.pointColorPickerActive}
+            disabled={!metadata || adjustments.pointColor.samples.length >= MAX_POINT_COLOR_SAMPLES}
+            aria-label="Sample Point Color from image"
+            title="Sample Point Color from image"
+            onClick={commands.togglePointColorPicker}
+            icon={<img src={lightTableIcon('tool_sample_color.png')} alt="" aria-hidden="true" />}
+          />
+          {adjustments.pointColor.samples.map((sample) => (
+            <SquareIconButton
+              key={sample.id}
+              size="compact"
+              active={sample.id === selectedPointColorId}
+              aria-label="Select sampled color"
+              title="Select sampled color"
+              onClick={() => setSelectedPointColorId(sample.id)}
+              icon={<span className="lighttable-point-color__swatch" style={{ background: pointColorSampleCss(sample) }} />}
+            />
+          ))}
+          <SquareIconButton
+            size="compact"
+            appearance="quiet"
+            disabled={!selected}
+            aria-label="Reset sampled color adjustments"
+            title="Reset sampled color adjustments"
+            onClick={() => selected && commands.resetPointColorSample(selected.id)}
+            icon={<img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />}
+          />
+          <SquareIconButton
+            size="compact"
+            appearance="quiet"
+            disabled={!selected}
+            aria-label="Remove sampled color"
+            title="Remove sampled color"
+            onClick={() => selected && commands.removePointColorSample(selected.id)}
+            icon={<img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" />}
+          />
+        </div>
+        {controls.map((control) => (
+          <AdjustmentSlider
+            density="spaced"
+            key={control.key}
+            label={control.label}
+            value={selected?.[control.key] ?? control.reset}
+            min={control.min}
+            max={control.max}
+            resetValue={control.reset}
+            trackBackground={'track' in control ? control.track : undefined}
+            disabled={disabled}
+            resetModifierActive={resetModifierActive}
+            onChange={(value) => update(control.key, value)}
+            onReset={() => update(control.key, control.reset)}
+            onInteractionStart={commands.beginAdjustment}
+            onInteractionEnd={commands.endAdjustment}
+          />
+        ))}
+      </div>
+    );
+  };
+
   const renderColorMixer = () => {
     const group = 'colorMixer' as const;
     const visible = visibility[group];
@@ -272,6 +399,21 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
           className="lighttable-group__controls lighttable-color-mixer"
           hidden={!expanded[group]}
         >
+          <SegmentedControl
+            value={colorMixerView}
+            onChange={(next) => {
+              setColorMixerView(next);
+              if (next !== 'point' && model.pointColorPickerActive) {
+                commands.togglePointColorPicker();
+              }
+            }}
+            ariaLabel="Color Mixer editor"
+            options={[
+              { value: 'mixer', label: 'Mixer' },
+              { value: 'point', label: 'Point Color' }
+            ]}
+          />
+          {colorMixerView === 'mixer' ? <>
           <div
             ref={model.colorMixerScopeContainerRef}
             className="lighttable-color-mixer__picker"
@@ -366,6 +508,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               onInteractionEnd={commands.endAdjustment}
             />
           ))}
+          </> : renderPointColor()}
         </div>
       </section>
     );

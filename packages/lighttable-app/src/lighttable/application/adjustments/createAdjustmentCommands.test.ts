@@ -91,6 +91,21 @@ describe('createAdjustmentCommands', () => {
     expect(harness.endAdjustment).toHaveBeenCalled();
   });
 
+  it('authors, edits and removes an independent Point Color sample', () => {
+    const harness = createHarness();
+    harness.commands.addPointColorSample('skin', 0.7, 0.12, 0.8);
+    harness.commands.updatePointColorSample('skin', 'hueShift', 35);
+    harness.commands.updatePointColorSample('skin', 'luminanceRange', 72);
+
+    expect(harness.adjustments().pointColor.samples[0]).toMatchObject({
+      id: 'skin', hueShift: 35, luminanceRange: 72
+    });
+    expect(harness.beginAdjustment).toHaveBeenCalledTimes(2);
+
+    harness.commands.removePointColorSample('skin');
+    expect(harness.adjustments().pointColor.samples).toEqual([]);
+  });
+
   it('resets Grade without clearing the independent Lens FX pass', () => {
     const harness = createHarness();
     harness.commands.updateAdjustment('exposureEV', 2);

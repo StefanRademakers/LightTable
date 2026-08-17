@@ -185,6 +185,24 @@ describe('parseLightTableRecipe', () => {
     expect(recipe?.settings.colorMixer.luminance[2]).toBe(-15);
   });
 
+  it('restores current Point Color samples', () => {
+    const recipe = parseLightTableRecipe({
+      lighttable: {
+        sourceFileKey: 'test',
+        settings: {
+          pointColor: { samples: [{
+            id: 'skin', lightness: 0.7, chroma: 0.12, hue: 0.8,
+            hueShift: 12, saturationShift: -8, luminanceShift: 5, variance: 20,
+            range: 60, hueRange: 30, saturationRange: 40, luminanceRange: 50
+          }] }
+        }
+      }
+    });
+    expect(recipe?.settings.pointColor.samples[0]).toMatchObject({
+      id: 'skin', hueShift: 12, range: 60
+    });
+  });
+
   it('restores Custom Curve control points', () => {
     const recipe = parseLightTableRecipe({
       lighttable: {

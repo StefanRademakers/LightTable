@@ -4750,6 +4750,31 @@
   background: var(--lt-surface-collapsible-content);
 }
 
+.lighttable-color-mixer > .segmented-control {
+  width: 100%;
+  margin-bottom: var(--lt-space-2);
+}
+
+.lighttable-color-mixer > .segmented-control .segmented-control__button {
+  flex: 1 1 50%;
+}
+
+.lighttable-point-color__samples {
+  display: flex;
+  align-items: center;
+  gap: var(--lt-space-1);
+  min-height: 28px;
+  margin-bottom: var(--lt-space-2);
+}
+
+.lighttable-point-color__swatch {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: 50%;
+}
+
 .lighttable-color-mixer__picker {
   position: relative;
   width: 100%;

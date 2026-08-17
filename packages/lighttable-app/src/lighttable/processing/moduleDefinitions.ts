@@ -51,6 +51,7 @@ export type CurrentAdjustmentSettingsPath =
   | 'vibrance'
   | 'saturation'
   | 'colorMixer'
+  | 'pointColor'
   | 'colorGrading'
   | 'curves'
   | 'gradientMap'
@@ -156,7 +157,7 @@ export const CURRENT_PROCESSING_MODULES = [
     type: 'lt.color-mixer',
     label: 'Color Mixer',
     category: 'color',
-    settingsPaths: ['colorMixer'],
+    settingsPaths: ['colorMixer', 'pointColor'],
     allowedScopes: CREATIVE_GRADE_SCOPES,
     inputDomain: 'perceptual',
     outputDomain: 'linear-rgb',

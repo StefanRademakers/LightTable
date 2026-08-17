@@ -320,6 +320,7 @@ struct Adjustments {
   gradientMapColors: array<vec4f, 8>,
   gradientMapOpacity: array<vec4f, 8>,
   photoshop: array<vec4f, 60>,
+  pointColor: array<vec4f, 24>,
 }
 
 @group(0) @binding(0) var correctedTexture: texture_2d<f32>;
@@ -471,6 +472,80 @@ fn applyColorMixer(rgb: vec3f) -> vec3f {
     cos(adjustedHue) * adjustedChroma,
     sin(adjustedHue) * adjustedChroma
   ));
+}
+
+fn pointColorSample(index: u32, row: u32) -> vec4f {
+  return adjustments.pointColor[index * 3u + row];
+}
+
+fn pointColorMagnitude() -> f32 {
+  var magnitude = 0.0;
+  for (var index = 0u; index < 8u; index += 1u) {
+    let sample = pointColorSample(index, 0u);
+    let adjustment = pointColorSample(index, 1u);
+    magnitude += sample.w * dot(abs(adjustment), vec4f(1.0));
+  }
+  return magnitude;
+}
+
+fn pointColorAxisWeight(distance: f32, radius: f32) -> f32 {
+  let normalized = distance / max(radius, 0.00001);
+  return 1.0 - smoothstep(0.55, 1.0, normalized);
+}
+
+fn applyPointColor(rgb: vec3f) -> vec3f {
+  if (pointColorMagnitude() < 0.00001) {
+    return rgb;
+  }
+  let lab = linearRgbToOklab(rgb);
+  let chroma = length(lab.yz);
+  let hue = atan2(lab.z, lab.y);
+  var accumulatedDelta = vec3f(0.0);
+  var totalWeight = 0.0;
+  var uncovered = 1.0;
+
+  for (var index = 0u; index < 8u; index += 1u) {
+    let sample = pointColorSample(index, 0u);
+    if (sample.w < 0.5) {
+      continue;
+    }
+    let adjustment = pointColorSample(index, 1u);
+    let selection = pointColorSample(index, 2u);
+    let reach = 0.35 + clamp(selection.x / 100.0, 0.0, 1.0) * 1.65;
+    let hueRadius = min(3.1415926536, mix(0.035, 3.1415926536, clamp(selection.y / 100.0, 0.0, 1.0)) * reach);
+    let chromaRadius = mix(0.008, 0.35, clamp(selection.z / 100.0, 0.0, 1.0)) * reach;
+    let lightnessRadius = mix(0.015, 0.75, clamp(selection.w / 100.0, 0.0, 1.0)) * reach;
+    let hueDelta = atan2(sin(hue - sample.z), cos(hue - sample.z));
+    let weight =
+      pointColorAxisWeight(abs(hueDelta), hueRadius)
+      * pointColorAxisWeight(abs(chroma - sample.y), chromaRadius)
+      * pointColorAxisWeight(abs(lab.x - sample.x), lightnessRadius);
+    if (weight < 0.00001) {
+      continue;
+    }
+
+    let varianceScale = max(0.1, 1.0 + adjustment.w / 100.0 * 0.65);
+    let adjustedHue = sample.z + hueDelta * varianceScale + adjustment.x / 100.0 * 0.7853981634;
+    let adjustedChroma = max(
+      0.0,
+      (sample.y + (chroma - sample.y) * varianceScale)
+        * max(0.0, 1.0 + adjustment.y / 100.0)
+    );
+    let adjustedLightness = max(0.0, lab.x * exp2(adjustment.z / 100.0 * 0.9));
+    let candidate = vec3f(
+      adjustedLightness,
+      cos(adjustedHue) * adjustedChroma,
+      sin(adjustedHue) * adjustedChroma
+    );
+    accumulatedDelta = accumulatedDelta + (candidate - lab) * weight;
+    totalWeight += weight;
+    uncovered *= 1.0 - weight;
+  }
+  if (totalWeight < 0.00001) {
+    return rgb;
+  }
+  let coverage = 1.0 - uncovered;
+  return oklabToLinearRgb(lab + accumulatedDelta / totalWeight * coverage);
 }
 
 fn colorGradingMagnitude() -> f32 {
@@ -1513,6 +1588,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     rgb = (rgb - vec3f(1.0)) / transmission + vec3f(1.0);
   }
   rgb = applyColorMixer(rgb);
+  rgb = applyPointColor(rgb);
   // Global Saturation/Vibrance is the final colour balance. Keeping it after
   // the Mixer prevents global desaturation from changing hue classification.
   rgb = applyPerceptualColor(rgb);
