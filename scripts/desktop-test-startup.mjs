@@ -68,7 +68,7 @@ export const waitForDesktopLauncher = async ({
   label = 'desktop',
   timeout = 30_000
 }) => {
-  const openFileButton = page.getByRole('button', { name: 'Open file' });
+  const openFileButton = page.getByRole('button', { name: 'Open', exact: true });
   try {
     await openFileButton.waitFor({ state: 'visible', timeout });
     return openFileButton;

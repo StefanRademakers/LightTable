@@ -59,7 +59,6 @@ describe('LightTable processing module inventory', () => {
   it('allows Lens Fx owners on layers and Adjustment Layers', () => {
     const lensFx = CURRENT_PROCESSING_MODULES.filter((definition) =>
       ['lens', 'output'].includes(definition.category)
-      && definition.type !== 'lt.vignette'
     );
     lensFx.forEach((definition) => {
       expect(definition.allowedScopes).toContain('layer');
@@ -70,6 +69,6 @@ describe('LightTable processing module inventory', () => {
     expect(grain?.allowedScopes).toContain('document-output');
     const vignette = CURRENT_PROCESSING_MODULES.find((definition) => definition.type === 'lt.vignette');
     expect(vignette?.category).toBe('output');
-    expect(vignette?.allowedScopes).toEqual(['document-creative', 'document-output']);
+    expect(vignette?.allowedScopes).toContain('adjustment-layer');
   });
 });

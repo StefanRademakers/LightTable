@@ -68,7 +68,11 @@ try {
   };
 
   const neutral = await exportPng('neutral');
-  await page.getByRole('treeitem', { name: /Global Lens FX/ }).click();
+  await page.getByRole('button', { name: 'New fill or processing layer' }).click();
+  await page.getByRole('menu', { name: 'New fill or processing layer' })
+    .getByRole('menuitem', { name: 'New Lens Fx layer', exact: true })
+    .click();
+  await page.getByRole('treeitem', { name: /Lens Fx/ }).waitFor();
   await page.getByRole('switch', { name: 'Enable Lens Distortion' }).waitFor();
 
   const metrics = {};
@@ -122,14 +126,8 @@ try {
       };
     }
     interactionTelemetry[effect] = await driver.queryRenderTelemetry(documentId);
-    if ((effect === 'Lens Distortion' || effect === 'Post-crop Vignette')
-      && interactionTelemetry[effect]?.stages?.['document-composite']?.executions !== 0) {
-      throw new Error(`${effect} rebuilt the layer composite during a final-pass control update.`);
-    }
-    if (effect === 'Post-crop Vignette'
-      && ((interactionTelemetry[effect]?.stages?.['source-geometry']?.executions ?? 0) !== 0
-        || (interactionTelemetry[effect]?.stages?.['linear-spatial']?.executions ?? 0) !== 0)) {
-      throw new Error(`Post-crop Vignette woke an upstream processing stage: ${JSON.stringify(interactionTelemetry[effect]?.stages)}.`);
+    if ((interactionTelemetry[effect]?.processingSuffixCache?.hits ?? 0) < 1) {
+      throw new Error(`${effect} did not reuse the lower composite through the topmost processing suffix cache.`);
     }
     const rendered = await exportPng(effect.toLowerCase().replaceAll(' ', '-'));
     metrics[effect] = await difference(neutral, rendered);
@@ -200,6 +198,10 @@ try {
   const actionableErrors = errors.filter((message) => !message.includes('[W:onnxruntime:'));
   if (actionableErrors.length) throw new Error(`Renderer errors: ${JSON.stringify(actionableErrors)}`);
   for (const [effect, value] of Object.entries(metrics)) {
+    if (effect === 'Lens Blur Depth View') {
+      if (value > 0.000001) throw new Error(`Depth visualization contaminated export (${value} RMSE).`);
+      continue;
+    }
     if (value < 0.002) throw new Error(`${effect} did not materially change the production render (${value} RMSE).`);
   }
   for (const [effect, value] of Object.entries(bypassMetrics)) {

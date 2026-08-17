@@ -41,6 +41,7 @@ import {
 } from '../effects/halation/shaders';
 import { CHROMATIC_ABERRATION_WGSL } from '../effects/chromaticAberration/shaders';
 import { LENS_DISTORTION_WGSL } from '../effects/lensDistortion/shaders';
+import { VIGNETTE_WGSL } from '../effects/vignette/shaders';
 import {
   LENS_BLUR_COMPOSITE_WGSL,
   LENS_BLUR_DEPTH_REFINE_WGSL,
@@ -96,6 +97,7 @@ import {
 const renderShaders = [
   ['lens distortion', LENS_DISTORTION_WGSL],
   ['chromatic aberration', CHROMATIC_ABERRATION_WGSL],
+  ['post-crop vignette', VIGNETTE_WGSL],
   ['basic correction', BASIC_CORRECTION_WGSL],
   ['downsample', DOWNSAMPLE_WGSL],
   ['gaussian blur', GAUSSIAN_BLUR_WGSL],

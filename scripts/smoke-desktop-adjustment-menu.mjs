@@ -8,7 +8,6 @@ const workspace = path.resolve(import.meta.dirname, '..');
 const output = path.join(workspace, 'tmp', 'adjustment-menu-smoke');
 const reportPath = path.join(output, 'report.json');
 const screenshotPath = path.join(output, 'adjustment-menu.png');
-const globalGradeScreenshotPath = path.join(output, 'global-grade-controls.png');
 const levelsScreenshotPath = path.join(output, 'levels-properties.png');
 const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(workspace);
@@ -46,113 +45,9 @@ try {
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'attached', timeout: 60_000 });
 
-  const globalRows = page.locator('.lighttable-global-processing-row');
-  if (await globalRows.count() !== 2) throw new Error('The two global processing rows are missing.');
   const layersPanel = page.locator('.lighttable-layers');
-  const compositeControls = layersPanel.locator('.lighttable-layers__composite-controls');
-  const layerListTop = async () => layersPanel.locator('.lighttable-layers__list')
-    .evaluate((list) => list.getBoundingClientRect().top);
-  if (!await layersPanel.getByLabel('Layer blend mode').isVisible()
-    || !await layersPanel.getByLabel('Opacity', { exact: true }).isVisible()
-    || !await layersPanel.getByLabel('Fill', { exact: true }).isVisible()) {
-    throw new Error('Composite layer controls are missing for the active raster layer.');
-  }
-  const layerListTopWithCompositeLayer = await layerListTop();
-  const globalLabels = await globalRows.locator('.lighttable-global-processing-row__name').evaluateAll(
-    (labels) => labels.map((label) => label instanceof HTMLInputElement ? label.value : label.textContent ?? '')
-  );
-  if (globalLabels.join('|') !== 'Global Lens FX|Global Grade') {
-    throw new Error(`Global processing order is incorrect: ${globalLabels.join('|')}.`);
-  }
-  const globalHeights = await globalRows.evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
-  if (globalHeights.some((height) => height !== 22)) {
-    throw new Error(`Global processing rows are not 22px high: ${globalHeights.join(', ')}.`);
-  }
-  const globalRowPresentation = await page.evaluate(() => {
-    const globalName = document.querySelector('.lighttable-global-processing-row__name');
-    const layerName = document.querySelector('.lighttable-layer > .lighttable-layer__name');
-    const globalRow = document.querySelector('.lighttable-global-processing-row');
-    const layerRow = layerName?.closest('.lighttable-layer');
-    if (!(globalName instanceof HTMLElement) || !(layerName instanceof HTMLElement)
-      || !(globalRow instanceof HTMLElement) || !(layerRow instanceof HTMLElement)) return null;
-    const globalStyle = getComputedStyle(globalName);
-    const layerStyle = getComputedStyle(layerName);
-    const globalNameBounds = globalName.getBoundingClientRect();
-    const layerNameBounds = layerName.getBoundingClientRect();
-    const globalRowBounds = globalRow.getBoundingClientRect();
-    const layerRowBounds = layerRow.getBoundingClientRect();
-    return {
-      globalTag: globalName.tagName,
-      layerTag: layerName.tagName,
-      globalNameX: globalNameBounds.x,
-      layerNameX: layerNameBounds.x,
-      globalCenterOffset: globalNameBounds.y + globalNameBounds.height / 2
-        - (globalRowBounds.y + globalRowBounds.height / 2),
-      layerCenterOffset: layerNameBounds.y + layerNameBounds.height / 2
-        - (layerRowBounds.y + layerRowBounds.height / 2),
-      globalFont: `${globalStyle.fontFamily}|${globalStyle.fontSize}|${globalStyle.fontWeight}|${globalStyle.lineHeight}|${globalStyle.letterSpacing}`,
-      layerFont: `${layerStyle.fontFamily}|${layerStyle.fontSize}|${layerStyle.fontWeight}|${layerStyle.lineHeight}|${layerStyle.letterSpacing}`,
-      inactiveBackground: getComputedStyle(globalRow).backgroundColor
-    };
-  });
-  if (!globalRowPresentation
-    || globalRowPresentation.globalTag !== globalRowPresentation.layerTag
-    || Math.abs(globalRowPresentation.globalNameX - globalRowPresentation.layerNameX) > 0.5
-    || Math.abs(globalRowPresentation.globalCenterOffset - globalRowPresentation.layerCenterOffset) > 0.5
-    || globalRowPresentation.globalFont !== globalRowPresentation.layerFont) {
-    throw new Error(`Global processing typography is not aligned with layers: ${JSON.stringify(globalRowPresentation)}.`);
-  }
-  if (globalRowPresentation.inactiveBackground !== 'rgb(41, 45, 50)') {
-    throw new Error(`Inactive global row has the wrong background: ${globalRowPresentation.inactiveBackground}.`);
-  }
-  await page.getByRole('treeitem', { name: /Global Lens FX/ }).click();
-  await page.getByRole('switch', { name: 'Enable Lens Distortion' }).waitFor({ state: 'visible' });
-  if (await layersPanel.getByLabel('Layer blend mode').isVisible()
-    || await layersPanel.getByLabel('Opacity', { exact: true }).isVisible()
-    || await layersPanel.getByLabel('Fill', { exact: true }).isVisible()) {
-    throw new Error('Composite layer controls stayed linked to the last layer in a global context.');
-  }
-  if (!await compositeControls.evaluate((controls) => getComputedStyle(controls).visibility === 'hidden')) {
-    throw new Error('The global context did not reserve the composite-control surface.');
-  }
-  const layerListTopWithGlobalPass = await layerListTop();
-  if (Math.abs(layerListTopWithCompositeLayer - layerListTopWithGlobalPass) > 0.5) {
-    throw new Error(`The layer stack jumped vertically: ${layerListTopWithCompositeLayer} -> ${layerListTopWithGlobalPass}.`);
-  }
-  if (await page.locator('.lighttable-layer--active, .lighttable-layer--selected').count()) {
-    throw new Error('A composite layer stayed active while Global Lens FX was selected.');
-  }
-  const globalActiveBackground = await globalRows.first().evaluate((row) => getComputedStyle(row).backgroundColor);
-  if (globalActiveBackground !== 'rgb(36, 86, 163)') {
-    throw new Error(`Active global row has the wrong background: ${globalActiveBackground}.`);
-  }
-
-  await page.getByRole('treeitem', { name: /Global Grade/ }).click();
-  const globalGradeRow = page.getByRole('treeitem', { name: /Global Grade/ });
-  const gradePanel = page.getByRole('complementary', { name: 'Global Grade properties' });
-  const gradeMasterSwitch = gradePanel.getByRole('switch', { name: 'Disable Global Grade' });
-  await gradeMasterSwitch.waitFor({ state: 'visible' });
-  if (await gradePanel.getByText('Gradient Map', { exact: true }).count()) {
-    throw new Error('Gradient Map is still embedded in the aggregate Grade editor.');
-  }
-  await globalGradeRow.getByRole('button', { name: 'Hide Global Grade' }).click();
-  await gradePanel.getByRole('switch', { name: 'Enable Global Grade' }).waitFor({ state: 'visible' });
-  await gradePanel.getByRole('switch', { name: 'Enable Global Grade' }).click();
-  await globalGradeRow.getByRole('button', { name: 'Hide Global Grade' }).waitFor({ state: 'visible' });
-  const globalStrength = layersPanel.getByRole('slider', { name: 'Strength', exact: true });
-  await globalStrength.waitFor({ state: 'visible' });
-  await layersPanel.getByRole('combobox', { name: 'Global Grade look or preset' })
-    .waitFor({ state: 'visible' });
-  const layerListTopWithGlobalGrade = await layerListTop();
-  if (Math.abs(layerListTopWithCompositeLayer - layerListTopWithGlobalGrade) > 0.5) {
-    throw new Error(`Global Grade made the layer stack jump: ${layerListTopWithCompositeLayer} -> ${layerListTopWithGlobalGrade}.`);
-  }
-  await layersPanel.screenshot({ path: globalGradeScreenshotPath });
-  await layersPanel.getByRole('button', { name: 'Copy Global Grade' }).click();
-  await layersPanel.getByRole('button', { name: 'Paste Global Grade' })
-    .waitFor({ state: 'visible' });
-  if (await layersPanel.getByRole('button', { name: 'Paste Global Grade' }).isDisabled()) {
-    throw new Error('The shared Grade clipboard did not enable Global Grade paste.');
+  if (await page.locator('.lighttable-global-processing-row').count()) {
+    throw new Error('Legacy Global Grade or Global Lens FX pseudo rows are still visible.');
   }
   await page.getByRole('treeitem', { name: /Background/ }).click();
   await layersPanel.getByLabel('Layer blend mode').waitFor({ state: 'visible' });
@@ -201,9 +96,8 @@ try {
     ].includes(label) ? '' : ' adjustment'} layer`, exact: true })
       .waitFor({ state: 'attached' });
   }
-  if (await menu.getByRole('menuitem', { name: 'New Lens Fx layer', exact: true }).count()) {
-    throw new Error('New Lens Fx layer is still exposed in the creation menu.');
-  }
+  await menu.getByRole('menuitem', { name: 'New Lens Fx layer', exact: true })
+    .waitFor({ state: 'attached' });
   if (await menu.getByRole('menuitem', { name: 'New Gradient Fill layer', exact: true }).count()) {
     throw new Error('Gradient Fill is still exposed in the processing-layer menu.');
   }
@@ -383,7 +277,6 @@ try {
     bounds,
     viewport,
     portalOwned: isPortal,
-    globalRows: { labels: globalLabels, heights: globalHeights },
     attachedExposure: true,
     attachedLevels: true,
     levelsLiveDrag: { liveBlackInput, committedBlackInput },

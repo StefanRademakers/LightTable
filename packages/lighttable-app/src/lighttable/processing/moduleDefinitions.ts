@@ -292,12 +292,12 @@ export const CURRENT_PROCESSING_MODULES = [
     label: 'Post-crop Vignette',
     category: 'output',
     settingsPaths: ['effects.vignette'],
-    allowedScopes: ['document-creative', 'document-output'],
+    allowedScopes: ['layer', 'adjustment-layer', 'smart-filter', 'group', 'document-creative', 'document-output'],
     inputDomain: 'linear-rgb',
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
     coordinateSpace: 'document',
-    notes: 'Fused into the document output transform before display-post Grain.'
+    notes: 'Ordered layer-capable vignette before display-post Grain.'
   },
   {
     type: 'lt.grain',

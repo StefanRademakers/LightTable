@@ -10,7 +10,7 @@ import { WarpEffect } from './warp/WarpEffect';
 import { readWarpNodeSettings } from './warp/warpTypes';
 import type { WarpDebugView } from './warp/warpTypes';
 import { FaceWarpEffect } from './faceWarp/FaceWarpEffect';
-import { FusedOutputVignetteEffect } from './vignette/FusedOutputVignetteEffect';
+import { VignetteEffect } from './vignette/VignetteEffect';
 import { readFaceWarpNodeSettings } from './faceWarp/faceWarpTypes';
 import type {
   LightTableEffectRuntimeCallbacks,
@@ -173,8 +173,11 @@ export const DOCUMENT_EFFECT_NODE_DEFINITIONS = [
   definition(
     'lt.vignette',
     'display-post',
-    () => new FusedOutputVignetteEffect(),
-    () => {}
+    (context, _instance, node) => new VignetteEffect(
+      context.device, context.sampler, context.vertexModule,
+      node.effects.vignette, context.callbacks
+    ),
+    (effect, _instance, node) => effect.setSettings(node.effects.vignette)
   ),
   definition(
     'lt.grain',

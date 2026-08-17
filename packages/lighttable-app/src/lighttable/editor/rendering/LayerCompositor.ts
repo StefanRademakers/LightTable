@@ -787,7 +787,6 @@ export class LayerCompositor {
 
     const suffix = this.topmostSuffixCacheEnabled
       && encodeAdjustment
-      && !includeDevelopmentTextFixture
       && excludedLayerIds.size === 0
       ? splitTopmostProcessingSuffix(document.layers)
       : null;
