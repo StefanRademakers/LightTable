@@ -478,6 +478,26 @@ describe('useLayerDocumentCommands', () => {
     expect(state.historyEntries).toHaveLength(1);
   });
 
+  it('keeps a Lens Fx layer at the root document-final boundary', () => {
+    const document = createImageDocument('Test', 32, 24, 'asset');
+    const background = document.layers[0]!;
+    const group = createGroupLayerNode('Group');
+    group.children = [background];
+    document.layers = [group];
+    document.activeLayerId = background.id;
+    const state = setup(document);
+
+    expect(state.commands.createLensFxLayer()).toBe(true);
+
+    expect(state.document().layers).toHaveLength(2);
+    expect(state.document().layers.at(-1)).toMatchObject({
+      type: 'adjustment', name: 'Lens Fx', adjustmentKind: 'lens-fx'
+    });
+    expect(state.document().layers[0]).toMatchObject({
+      type: 'group', children: [{ id: background.id }]
+    });
+  });
+
   it('creates a standalone Curves node with exactly one processing module', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
 

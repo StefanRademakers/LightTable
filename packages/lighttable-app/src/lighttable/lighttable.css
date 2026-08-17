@@ -3252,6 +3252,32 @@
   gap: var(--lt-layer-row-gap);
 }
 
+.lighttable-layer-zone-divider {
+  min-height: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lt-text-muted);
+  font-family: var(--lt-font-ui);
+  font-size: var(--lt-type-small);
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.lighttable-layer-zone-divider::before,
+.lighttable-layer-zone-divider::after {
+  height: 1px;
+  flex: 1 1 auto;
+  background: var(--lt-border-strong);
+  opacity: 0.72;
+  content: '';
+}
+
+.lighttable-layer-zone-divider span {
+  flex: 0 0 auto;
+}
+
 .lighttable-layer {
   position: relative;
   box-sizing: border-box;
@@ -3285,6 +3311,19 @@
 .lighttable-layer--dragging { opacity: 0.45; }
 .lighttable-layer--text-editing {
   box-shadow: inset 2px 0 0 var(--lt-accent);
+}
+
+.lighttable-layer__document-fx-lock {
+  width: 10px;
+  height: 10px;
+  object-fit: contain;
+  opacity: 0.58;
+}
+
+.lighttable-layer__mask-link:disabled,
+.lighttable-layer__mask:disabled {
+  opacity: 0.38;
+  cursor: default;
 }
 
 .lighttable-layer__text-status--editing {

@@ -19,6 +19,7 @@ import {
   markLayerMaskPixelsChanged,
   markLayerPixelsChanged,
   mergeLayers as mergeDocumentLayers,
+  moveLayerRelative,
   rasterizeTextLayer
 } from '../../editor/document/documentCommands';
 import { createPlacedRasterLayer } from '../../editor/document/placedRasterLayerCommand';
@@ -383,13 +384,21 @@ export const createLayerDocumentCommands = (
       'adjustment-layer'
     ), kind);
     const clearedDocumentGrade = createDefaultAdjustments();
-    const next = createAdjustmentLayer(
+    let next = createAdjustmentLayer(
       current,
       stack,
       definition.name,
       current.activeLayerId ?? undefined,
       kind
     );
+    if (kind === 'lens-fx' && next.activeLayerId) {
+      const rootTarget = [...next.layers]
+        .reverse()
+        .find((layer) => layer.id !== next.activeLayerId);
+      if (rootTarget) {
+        next = moveLayerRelative(next, next.activeLayerId, rootTarget.id, 'above');
+      }
+    }
 
     dependencies.publishDocumentAdjustments(clearedDocumentGrade);
     dependencies.applyDocumentSnapshot(next);

@@ -27,6 +27,7 @@ import {
   adjustmentStackHasOwner,
   type LocalProcessingKind
 } from '../../processing/adjustmentStack';
+import { adjustmentLayerUsesDocumentFinalEffects } from '../../effects/documentFinalEffectStack';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { layerStyleTreeEffects } from './layerStyleTreePresentation';
 import { buildDocumentCapabilityFindings } from '../compatibility/documentCapabilityFindings';
@@ -174,6 +175,10 @@ const visualLayerRows = (
   )
 ]);
 
+/** Root Lens FX control layers live in the fixed document-final UI zone. */
+export const layerIsDocumentFx = (layer: LayerNode): boolean =>
+  layer.type === 'adjustment' && adjustmentLayerUsesDocumentFinalEffects(layer);
+
 const layerTypeIcon = (layer: LayerNode) => {
   if (layer.type === 'group') return lightTableIcon('layer_group.png');
   if (layer.type === 'adjustment') {
@@ -297,7 +302,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const capabilityFindings = React.useMemo(() => buildDocumentCapabilityFindings(
     document.photoshopImportReport ?? null, textFontDiagnostics
   ), [document.photoshopImportReport, textFontDiagnostics]);
-  const rows = visualLayerRows(document.layers, collapsedGroups);
+  const documentFxRows = [...document.layers]
+    .filter(layerIsDocumentFx)
+    .reverse()
+    .map((layer) => ({ layer, depth: 0 }));
+  const compositeRows = visualLayerRows(
+    document.layers.filter((layer) => !layerIsDocumentFx(layer)),
+    collapsedGroups
+  );
+  const rows = [...documentFxRows, ...compositeRows];
   const allRows = visualLayerRows(document.layers, new Set());
   const allLayerIds = new Set(allRows.map(({ layer }) => layer.id));
   const selectedIds = [...selectedLayerIds].filter((layerId) => allLayerIds.has(layerId));
@@ -318,6 +331,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     canUngroupSelection
   } = layerCapabilities;
   const canDeleteSelection = layerCapabilities.canDeleteSelection;
+  const activeIsDocumentFx = Boolean(activeLayer && layerIsDocumentFx(activeLayer));
+  const selectionContainsDocumentFx = selectedIds.some((layerId) =>
+    documentFxRows.some(({ layer }) => layer.id === layerId)
+  );
   const layerCreationHandlers = (id: (typeof LAYER_CREATION_OPTIONS)[number]['id']) => {
     if (id === 'gradient-fill') return onCreateGradientFill;
     if (id === 'grade') return onCreateAdjustment;
@@ -538,7 +555,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       value: 'group-selected',
       label: `Group Selected${selectedIds.length > 1 ? ` (${selectedIds.length})` : ''}`,
       separatorBefore: true,
-      disabled: !canGroupSelection,
+      disabled: selectionContainsDocumentFx || !canGroupSelection,
       onClick: () => onGroupSelection(selectedIds)
     },
     {
@@ -551,7 +568,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       value: 'clipping-mask',
       label: activeLayer?.clipping ? 'Release Clipping Mask' : 'Create Clipping Mask',
       separatorBefore: true,
-      disabled: !activeLayer || !canToggleActiveClipping,
+      disabled: activeIsDocumentFx || !activeLayer || !canToggleActiveClipping,
       onClick: () => {
         if (activeLayer) onClipping(activeLayer.id, !activeLayer.clipping);
       }
@@ -559,7 +576,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     {
       value: 'layer-style',
       label: 'Layer Style...',
-      disabled: !canEditActiveLayerStyles,
+      disabled: activeIsDocumentFx || !canEditActiveLayerStyles,
       onClick: () => {
         if (activeLayer && layerSupportsLayerStyles(activeLayer)) onEditStyles(activeLayer.id);
       }
@@ -609,13 +626,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       label: 'Merge Down',
       shortcut: primaryShortcutLabel('E'),
       separatorBefore: true,
-      disabled: !canMergeDown,
+      disabled: activeIsDocumentFx || !canMergeDown,
       onClick: onMergeDown
     },
     {
       value: 'merge-selected',
       label: `Merge Selected${selectedIds.length > 1 ? ` (${selectedIds.length})` : ''}`,
-      disabled: !canMergeSelected,
+      disabled: selectionContainsDocumentFx || !canMergeSelected,
       onClick: () => onMergeSelected(selectedIds)
     },
     {
@@ -650,9 +667,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               className="lighttable-layers__blend-mode"
               aria-label="Layer blend mode"
               value={activeLayer.type === 'group' ? 'pass-through' : activeLayer.blendMode}
-              disabled={!layerSupportsContentCompositing(activeLayer)}
+              disabled={activeIsDocumentFx || !layerSupportsContentCompositing(activeLayer)}
               title={
-                activeLayer.type === 'group'
+                activeIsDocumentFx
+                  ? 'Document FX uses a fixed final-pass composite'
+                  : activeLayer.type === 'group'
                   ? 'Pass-through group compositing'
                   : activeLayer.type === 'adjustment'
                     ? 'Adjustment blend modes arrive with recursive adjustment compositing'
@@ -695,6 +714,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 max={100}
                 format={(value) => `${Math.round(value)}%`}
                 resetValue={100}
+                disabled={activeIsDocumentFx}
                 onReset={() => onOpacity(activeLayer.id, 1)}
                 onChange={(value) => onOpacity(activeLayer.id, value / 100)}
                 onInteractionStart={onOpacityInteractionStart}
@@ -708,7 +728,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 max={100}
                 format={(value) => `${Math.round(value)}%`}
                 resetValue={100}
-                disabled={!layerSupportsContentCompositing(activeLayer)}
+                disabled={activeIsDocumentFx || !layerSupportsContentCompositing(activeLayer)}
                 onReset={() => onFillOpacity(activeLayer.id, 1)}
                 onChange={(value) => onFillOpacity(activeLayer.id, value / 100)}
                 onInteractionStart={onOpacityInteractionStart}
@@ -718,7 +738,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         </>
       ) : null}
       <div className="lighttable-layers__list" role="tree" aria-label="Layer stack" data-editor-native-tab-navigation="tab-only">
-        {rows.map(({ layer, depth }) => {
+        {rows.map(({ layer, depth }, rowIndex) => {
+          const documentFx = layerIsDocumentFx(layer);
           const icon = layerTypeIcon(layer);
           const previews = thumbnails.get(layer.id);
           const localProcessingItems = localProcessingTreeItems(layer);
@@ -740,9 +761,19 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           );
           return (
           <React.Fragment key={layer.id}>
+          {documentFxRows.length > 0 && rowIndex === 0 ? (
+            <div className="lighttable-layer-zone-divider" role="presentation">
+              <span>document fx</span>
+            </div>
+          ) : null}
+          {documentFxRows.length > 0 && rowIndex === documentFxRows.length ? (
+            <div className="lighttable-layer-zone-divider" role="presentation">
+              <span>layer composite</span>
+            </div>
+          ) : null}
           <div
             data-layer-id={layer.id}
-            draggable
+            draggable={!documentFx}
             {...layerTreeItemAccessibility(layer, depth, selectedLayerIds.has(layer.id), document.activeLayerId === layer.id,
               layer.type === 'group' ? !collapsedGroups.has(layer.id) : undefined)}
             className={[
@@ -790,6 +821,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               });
             }}
             onDragStart={(event) => {
+              if (documentFx) {
+                event.preventDefault();
+                return;
+              }
               window.getSelection()?.removeAllRanges();
               if (globalThis.document.activeElement instanceof HTMLElement) {
                 globalThis.document.activeElement.blur();
@@ -809,7 +844,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             }}
             onDragOver={(event) => {
               const sourceId = draggedLayerIdRef.current;
-              if (!sourceId || sourceId === layer.id) return;
+              if (!sourceId || sourceId === layer.id || documentFx
+                || documentFxRows.some(({ layer: candidate }) => candidate.id === sourceId)) return;
               event.preventDefault();
               event.dataTransfer.dropEffect = 'move';
               const bounds = event.currentTarget.getBoundingClientRect();
@@ -849,7 +885,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               setDropTarget(null);
             }}
           >
-            {canToggleClipping ? (
+            {canToggleClipping && !documentFx ? (
               <ButtonBase
                 type="button"
                 className={`lighttable-layer__clipping-boundary${
@@ -984,6 +1020,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <ButtonBase
                   type="button"
                   className={`lighttable-layer__mask-link${layer.mask.linked ? ' lighttable-layer__mask-link--linked' : ''}`}
+                  disabled={documentFx}
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -999,7 +1036,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <span className="lighttable-layer__thumbnail-slot">
                 <ButtonBase
                   type="button"
-                  draggable
+                  draggable={!documentFx}
+                  disabled={documentFx}
                   style={thumbnailDimensions}
                   className={`lighttable-layer__thumbnail lighttable-layer__mask${document.activeLayerId === layer.id && activeChannel === 'mask' ? ' lighttable-layer__thumbnail--active lighttable-layer__thumbnail--active-mask' : ''}${isolatedMaskLayerId === layer.id ? ' lighttable-layer__thumbnail--mask-isolated' : ''}${layer.mask.enabled ? '' : ' lighttable-layer__mask--disabled'}`}
                   onClick={(event) => {
@@ -1142,6 +1180,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   onOpen={() => onOpenFontReport?.(layer.id)} />
               ) : null}
               {hasStyles ? <span className="lighttable-layer__fx-mark" aria-label="Layer effects">fx</span> : null}
+              {documentFx ? (
+                <img
+                  className="lighttable-layer__document-fx-lock"
+                  src={lightTableIcon('lock_closed.png')}
+                  alt="Fixed document-final position"
+                  title="Document FX — fixed after layer compositing"
+                />
+              ) : null}
               {layer.locks.all ? <img className="lighttable-layer__lock" src={lightTableIcon('lock_closed.png')} alt="Locked" /> : null}
             </span>
             {layer.type !== 'group' && hasExpandableChildren ? (
@@ -1334,8 +1380,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           onClick={() => {
             if (activeLayer && layerSupportsLayerStyles(activeLayer)) onEditStyles(activeLayer.id);
           }}
-          disabled={!canEditActiveLayerStyles}
-          title={canEditActiveLayerStyles ? 'Open layer effects' : 'Select a layer that supports effects'}
+          disabled={activeIsDocumentFx || !canEditActiveLayerStyles}
+          title={activeIsDocumentFx
+            ? 'Layer styles are not available for document-final effects'
+            : canEditActiveLayerStyles ? 'Open layer effects' : 'Select a layer that supports effects'}
           aria-label="Add layer style"
         >fx</ButtonBase>
         <ButtonBase
@@ -1344,7 +1392,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             if (selectedIds.length) onGroupSelection(selectedIds);
             else onCreateGroup();
           }}
-          disabled={selectedIds.length > 0 && !canGroupSelection}
+          disabled={selectionContainsDocumentFx || (selectedIds.length > 0 && !canGroupSelection)}
           title={selectedIds.length ? 'Group selected layers' : 'New group'}
           aria-label={selectedIds.length ? 'Group selected layers' : 'New group'}
         ><img src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></ButtonBase>
@@ -1353,6 +1401,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           onClick={onAddMask}
           disabled={
             !activeLayer
+            || activeIsDocumentFx
             || activeLayer.type === 'group'
             || Boolean(activeLayer.mask)
           }
