@@ -1312,6 +1312,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       publishEditorAdjustments: (nextAdjustments, domain) => {
         publishAdjustmentPresentation(nextAdjustments, domain);
       },
+      stageEditorAdjustments: (nextAdjustments) => {
+        adjustmentsRef.current = nextAdjustments;
+      },
       getGroupVisibility: () => groupVisibilityRef.current,
       publishGroupVisibility: (visibility) => {
         groupVisibilityRef.current = visibility;
@@ -2168,7 +2171,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commitSnapshot: applyAdjustmentSnapshot,
     pushHistoryEntry
   });
-  resetAdjustmentTransactionRef.current = adjustmentTransactionController.reset;
+  resetAdjustmentTransactionRef.current = () => {
+    adjustmentTransactionController.reset();
+    documentProjectionController.discardAdjustmentPreview();
+  };
 
   const beginAdjustmentTransaction = adjustmentTransactionController.begin;
   const endAdjustmentTransaction = adjustmentTransactionController.end;

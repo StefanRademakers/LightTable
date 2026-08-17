@@ -61,6 +61,21 @@ const RANGE_EDIT_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDow
 // coalesced to an interactive preview rate. The final value is always flushed.
 const INTERACTION_PUBLISH_INTERVAL_MS = 33;
 
+export const adjustmentSliderValueAtPosition = (
+  clientX: number,
+  left: number,
+  width: number,
+  min: number,
+  max: number,
+  step: number
+) => {
+  const ratio = width > 0 ? Math.min(1, Math.max(0, (clientX - left) / width)) : 0;
+  const raw = min + ratio * (max - min);
+  const increment = Number.isFinite(step) && step > 0 ? step : 1;
+  const snapped = min + Math.round((raw - min) / increment) * increment;
+  return Math.min(max, Math.max(min, Number(snapped.toFixed(10))));
+};
+
 export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   label,
   ariaLabel,
@@ -90,7 +105,6 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   const publishedValueRef = React.useRef(value);
   const lastPublishTimeRef = React.useRef(0);
   const publishTimerRef = React.useRef<number | null>(null);
-  const pointerGuardCleanupRef = React.useRef<(() => void) | null>(null);
   const onChangeRef = React.useRef(onChange);
   const onInteractionStartRef = React.useRef(onInteractionStart);
   const onInteractionEndRef = React.useRef(onInteractionEnd);
@@ -132,32 +146,24 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   const finishPointerInteraction = React.useCallback((pointerId: number) => {
     if (activePointerRef.current !== pointerId) return;
     activePointerRef.current = null;
-    pointerGuardCleanupRef.current?.();
-    pointerGuardCleanupRef.current = null;
     publishLatestValue(true);
     onInteractionEndRef.current?.();
   }, [publishLatestValue]);
 
-  const installPointerGuards = React.useCallback((pointerId: number) => {
-    pointerGuardCleanupRef.current?.();
-    const finishWindowPointer = (event: PointerEvent) => {
-      if (event.pointerId === pointerId) finishPointerInteraction(pointerId);
-    };
-    const finishOnWindowBlur = () => finishPointerInteraction(pointerId);
-    const cleanup = () => {
-      window.removeEventListener('pointerup', finishWindowPointer, true);
-      window.removeEventListener('pointercancel', finishWindowPointer, true);
-      window.removeEventListener('blur', finishOnWindowBlur);
-    };
-
-    // Pointer capture normally supplies pointerup itself. These listeners are
-    // installed only for the active control as a safety net for browser/window
-    // transitions and DOM reparenting while a dockable panel is moving.
-    window.addEventListener('pointerup', finishWindowPointer, true);
-    window.addEventListener('pointercancel', finishWindowPointer, true);
-    window.addEventListener('blur', finishOnWindowBlur);
-    pointerGuardCleanupRef.current = cleanup;
-  }, [finishPointerInteraction]);
+  const updateFromPointer = React.useCallback((input: HTMLInputElement, clientX: number) => {
+    const bounds = input.getBoundingClientRect();
+    const next = adjustmentSliderValueAtPosition(
+      clientX,
+      bounds.left,
+      bounds.width,
+      min,
+      max,
+      step
+    );
+    latestValueRef.current = next;
+    setDisplayValue(next);
+    scheduleValuePublish();
+  }, [max, min, scheduleValuePublish, step]);
 
   React.useEffect(() => {
     if (activePointerRef.current !== null || keyboardInteractionRef.current) return;
@@ -167,8 +173,6 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   }, [value]);
 
   React.useEffect(() => () => {
-      pointerGuardCleanupRef.current?.();
-      pointerGuardCleanupRef.current = null;
       cancelScheduledPublish();
   }, [cancelScheduledPublish]);
 
@@ -232,25 +236,25 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
               || !event.isPrimary
               || activePointerRef.current !== null
             ) return;
+            // Pointer editing is explicit so native range dragging, React's
+            // controlled value and pointer capture have only one writer.
+            event.preventDefault();
+            event.currentTarget.focus({ preventScroll: true });
             activePointerRef.current = event.pointerId;
-            installPointerGuards(event.pointerId);
             onInteractionStartRef.current?.();
-
-            // Keep ownership of the drag when the pointer leaves the small
-            // thumb or crosses neighbouring controls in the scrolling panel.
             event.currentTarget.setPointerCapture(event.pointerId);
+            updateFromPointer(event.currentTarget, event.clientX);
           }}
           onPointerMove={(event) => {
-            // A native range can occasionally retain its internal drag state
-            // after a missed release. Never let hover continue that drag.
-            if (
-              activePointerRef.current === event.pointerId
-              && (event.buttons & 1) === 0
-            ) {
-              finishPointerInteraction(event.pointerId);
+            if (activePointerRef.current === event.pointerId) {
+              updateFromPointer(event.currentTarget, event.clientX);
             }
           }}
-          onPointerUp={(event) => finishPointerInteraction(event.pointerId)}
+          onPointerUp={(event) => {
+            if (activePointerRef.current !== event.pointerId) return;
+            updateFromPointer(event.currentTarget, event.clientX);
+            finishPointerInteraction(event.pointerId);
+          }}
           onPointerCancel={(event) => finishPointerInteraction(event.pointerId)}
           onLostPointerCapture={(event) => finishPointerInteraction(event.pointerId)}
           onKeyDown={(event) => {
@@ -279,18 +283,19 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
           // Chromium/WebKit may defer change until pointer-up.
           onChange={() => undefined}
           onInput={(event) => {
-            // Only a pointer interaction started by this control or an
-            // intentional keyboard edit may alter the value. This guards
-            // against native range controls that get stuck dragging and then
-            // react to plain hover movement.
-            if (activePointerRef.current === null && !keyboardInteractionRef.current) {
-              event.currentTarget.value = String(displayValue);
-              return;
-            }
+            // Pointer values come from updateFromPointer. Native input remains
+            // available for keyboard and assistive-technology edits.
+            if (activePointerRef.current !== null) return;
             const next = Number(event.currentTarget.value);
             latestValueRef.current = next;
             setDisplayValue(next);
-            scheduleValuePublish();
+            if (keyboardInteractionRef.current) {
+              scheduleValuePublish();
+            } else {
+              onInteractionStartRef.current?.();
+              publishLatestValue(true);
+              onInteractionEndRef.current?.();
+            }
           }}
           aria-label={ariaLabel ?? label}
         />

@@ -19,6 +19,7 @@ export interface DocumentProjectionPort {
     adjustments: BasicAdjustments,
     domain: AdjustmentPresentationDomain
   ): void;
+  stageEditorAdjustments(adjustments: BasicAdjustments): void;
   getGroupVisibility(): GroupVisibility;
   publishGroupVisibility(visibility: GroupVisibility): void;
   publishRendererDocument(document: ImageDocument): void;
@@ -38,6 +39,7 @@ export interface DocumentProjectionController {
   ): void;
   applyDocumentSnapshot(document: ImageDocument): void;
   applyGroupVisibilitySnapshot(visibility: GroupVisibility): void;
+  discardAdjustmentPreview(): void;
 }
 
 /**
@@ -52,6 +54,7 @@ export interface DocumentProjectionController {
 export const createDocumentProjectionController = (
   port: DocumentProjectionPort
 ): DocumentProjectionController => {
+  let previewDocument: ImageDocument | null = null;
   const publishRendererAdjustments = () => {
     port.publishRendererAdjustments(applyGroupVisibility(
       port.getDocumentAdjustments(),
@@ -65,14 +68,28 @@ export const createDocumentProjectionController = (
     publishCanonicalDocument: boolean,
     domain: AdjustmentPresentationDomain
   ) => {
-    const currentDocument = port.getDocument();
+    const canonicalDocument = port.getDocument();
+    const currentDocument = !publishCanonicalDocument
+      && previewDocument?.id === canonicalDocument?.id
+      ? previewDocument
+      : canonicalDocument;
     const projection = projectAdjustmentSnapshot({
       snapshot,
       targetLayerId,
       document: currentDocument,
       documentAdjustments: port.getDocumentAdjustments()
     });
-    port.publishEditorAdjustments(projection.editorAdjustments, domain);
+    if (publishCanonicalDocument) {
+      previewDocument = null;
+      port.publishEditorAdjustments(projection.editorAdjustments, domain);
+    } else {
+      // Pointer-rate previews only advance the authoritative ref used by the
+      // next mutation. The active slider owns its thumb/value locally; waking
+      // React's external-store subscribers here would synchronously rerender
+      // the complete contextual panel for every native input sample.
+      port.stageEditorAdjustments(projection.editorAdjustments);
+      previewDocument = projection.document;
+    }
     if (publishCanonicalDocument) {
       port.publishDocumentAdjustments(projection.documentAdjustments);
       if (projection.document !== currentDocument) {
@@ -97,6 +114,7 @@ export const createDocumentProjectionController = (
       projectAdjustments(snapshot, targetLayerId, true, domain);
     },
     applyDocumentSnapshot: (document) => {
+      previewDocument = null;
       port.publishDocument(document);
       port.publishRendererDocument(document);
       publishRendererAdjustments();
@@ -104,6 +122,9 @@ export const createDocumentProjectionController = (
     applyGroupVisibilitySnapshot: (visibility) => {
       port.publishGroupVisibility(visibility);
       publishRendererAdjustments();
+    },
+    discardAdjustmentPreview: () => {
+      previewDocument = null;
     }
   };
 };

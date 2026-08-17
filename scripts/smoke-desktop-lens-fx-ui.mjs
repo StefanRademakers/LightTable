@@ -94,15 +94,35 @@ try {
       await driver.resetRenderTelemetry(documentId);
       await page.mouse.move(bounds.x + 2, bounds.y + bounds.height / 2);
       await page.mouse.down();
+      const dragValues = [];
+      const dragTelemetry = [];
       for (let step = 0; step <= 45; step += 1) {
         await page.mouse.move(
           bounds.x + 2 + (bounds.width - 4) * (step / 45),
           bounds.y + bounds.height / 2
         );
+        if (step === 15 || step === 30 || step === 45) {
+          dragValues.push(Number(await slider.inputValue()));
+          dragTelemetry.push(await driver.queryRenderTelemetry(documentId));
+        }
         await page.waitForTimeout(1000 / 60);
       }
       await page.mouse.up();
       await page.waitForTimeout(500);
+      if (!(dragValues[0] < dragValues[1] && dragValues[1] < dragValues[2])) {
+        throw new Error(`Lens Distortion slider did not update continuously while dragging: ${dragValues.join(', ')}`);
+      }
+      const correctionFrames = dragTelemetry.map((snapshot) =>
+        snapshot?.stages?.['source-geometry']?.executions ?? 0
+      );
+      if (!(correctionFrames[0] < correctionFrames[1]
+        && correctionFrames[1] < correctionFrames[2])) {
+        throw new Error(`Lens Distortion did not submit continuous GPU previews: ${correctionFrames.join(', ')}`);
+      }
+      interactionTelemetry['Lens Distortion drag samples'] = {
+        values: dragValues,
+        sourceGeometryFrames: correctionFrames
+      };
     }
     interactionTelemetry[effect] = await driver.queryRenderTelemetry(documentId);
     if (effect === 'Lens Distortion'

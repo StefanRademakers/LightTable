@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultGroupVisibility } from '../adjustments/groupVisibility';
 import { createImageDocument } from '../../editor/document/documentTypes';
+import { findDocumentLayer } from '../../editor/document/layerTree';
 import { createDefaultAdjustments } from '../../types';
 import {
   createDocumentProjectionController,
@@ -14,6 +15,12 @@ const createFixture = () => {
   let groupVisibility = createDefaultGroupVisibility();
   const publishRendererDocument = vi.fn();
   const publishRendererAdjustments = vi.fn();
+  const publishEditorAdjustments = vi.fn((next: typeof editorAdjustments) => {
+    editorAdjustments = next;
+  });
+  const stageEditorAdjustments = vi.fn((next: typeof editorAdjustments) => {
+    editorAdjustments = next;
+  });
   const port: DocumentProjectionPort = {
     getDocument: () => document,
     publishDocument: (next) => {
@@ -23,9 +30,8 @@ const createFixture = () => {
     publishDocumentAdjustments: (next) => {
       documentAdjustments = next;
     },
-    publishEditorAdjustments: (next) => {
-      editorAdjustments = next;
-    },
+    publishEditorAdjustments,
+    stageEditorAdjustments,
     getGroupVisibility: () => groupVisibility,
     publishGroupVisibility: (next) => {
       groupVisibility = next;
@@ -40,7 +46,9 @@ const createFixture = () => {
     getEditorAdjustments: () => editorAdjustments,
     getGroupVisibility: () => groupVisibility,
     publishRendererDocument,
-    publishRendererAdjustments
+    publishRendererAdjustments,
+    publishEditorAdjustments,
+    stageEditorAdjustments
   };
 };
 
@@ -77,6 +85,8 @@ describe('createDocumentProjectionController', () => {
     });
     expect(fixture.getDocumentAdjustments().exposureEV).toBe(0);
     expect(fixture.getEditorAdjustments()).toEqual(nextAdjustments);
+    expect(fixture.publishEditorAdjustments).toHaveBeenCalledOnce();
+    expect(fixture.stageEditorAdjustments).not.toHaveBeenCalled();
     expect(fixture.publishRendererDocument).toHaveBeenCalledOnce();
     expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
   });
@@ -96,8 +106,51 @@ describe('createDocumentProjectionController', () => {
 
     expect(fixture.getDocument()).toBe(originalDocument);
     expect(fixture.getEditorAdjustments()).toEqual(nextAdjustments);
+    expect(fixture.publishEditorAdjustments).not.toHaveBeenCalled();
+    expect(fixture.stageEditorAdjustments).toHaveBeenCalledOnce();
     expect(fixture.publishRendererDocument).toHaveBeenCalledOnce();
     expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
+  });
+
+  it('advances node revisions across consecutive previews from one gesture', () => {
+    const fixture = createFixture();
+    const originalDocument = fixture.getDocument();
+    const targetLayerId = originalDocument.activeLayerId!;
+
+    fixture.controller.previewAdjustmentSnapshot({
+      ...createDefaultAdjustments(),
+      effects: {
+        ...createDefaultAdjustments().effects,
+        lensDistortion: {
+          ...createDefaultAdjustments().effects.lensDistortion,
+          enabled: true,
+          amount: -40
+        }
+      }
+    }, targetLayerId, 'lens-fx');
+    fixture.controller.previewAdjustmentSnapshot({
+      ...createDefaultAdjustments(),
+      effects: {
+        ...createDefaultAdjustments().effects,
+        lensDistortion: {
+          ...createDefaultAdjustments().effects.lensDistortion,
+          enabled: true,
+          amount: 40
+        }
+      }
+    }, targetLayerId, 'lens-fx');
+
+    const projectedDocuments = fixture.publishRendererDocument.mock.calls
+      .map(([document]) => document);
+    const revisions = projectedDocuments.map((document) => {
+      const layer = findDocumentLayer(document, targetLayerId);
+      if (layer?.type !== 'raster') throw new Error('Expected a raster preview owner.');
+      return layer.adjustmentStack?.modules.find(({ type }) => type === 'lt.lens-distortion')?.revision;
+    });
+    expect(revisions).toHaveLength(2);
+    expect(revisions[0]).toEqual(expect.any(Number));
+    expect(revisions[1]).toBeGreaterThan(revisions[0]!);
+    expect(fixture.getDocument()).toBe(originalDocument);
   });
 
   it('reprojects renderer adjustments when a presentation group is bypassed', () => {
