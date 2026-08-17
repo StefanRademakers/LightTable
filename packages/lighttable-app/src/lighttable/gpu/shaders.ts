@@ -887,43 +887,6 @@ fn photoshopApplyHueSaturation(
   return photoshopHslToRgb(hsl);
 }
 
-fn photoshopColorBalanceChannel(value: f32, tone: u32, amount: f32) -> f32 {
-  if (abs(amount) <= 0.000001) { return value; }
-
-  // Photoshop's current Color Balance response is a family of smooth
-  // per-channel transfer curves, not a linear RGB offset. Midtones are a
-  // symmetric power curve. Adding shadow color and subtracting highlight
-  // color use the wider half-strength member of that same family.
-  if (tone == 1u) {
-    return clamp(pow(clamp(value, 0.0, 1.0), exp2(-amount / 100.0)), 0.0, 1.0);
-  }
-  if ((tone == 0u && amount > 0.0) || (tone == 2u && amount < 0.0)) {
-    return clamp(pow(clamp(value, 0.0, 1.0), exp2(-amount / 200.0)), 0.0, 1.0);
-  }
-
-  // The opposite shadow/highlight directions use asymmetric shoulder/toe
-  // falloff. This is the classic transfer documented by GIMP's original
-  // Color Balance implementation and remains close to Photoshop 27's
-  // measured endpoint response, including its clipping protection.
-  let code = clamp(value, 0.0, 1.0) * 255.0;
-  var falloff = 0.0;
-  if (tone == 0u) {
-    falloff = 1.075 - 1.0 / ((255.0 - code) / 16.0 + 1.0);
-  } else {
-    falloff = 1.075 - 1.0 / (code / 16.0 + 1.0);
-  }
-  let classic = clamp((code + amount * falloff) / 255.0, 0.0, 1.0);
-  if (tone == 2u && amount > 0.0) {
-    // Photoshop 27's positive highlight shoulder sits between its classic
-    // rational falloff and a protected complementary power curve. The blend
-    // and exponent were measured at +20, +80 and +100 rather than inferred
-    // from one mild setting.
-    let protectedShoulder = 1.0 - pow(1.0 - clamp(value, 0.0, 1.0), exp2(amount / 72.0));
-    return mix(classic, protectedShoulder, 0.625);
-  }
-  return classic;
-}
-
 fn photoshopMeasuredColorBalanceChannel(value: f32, tone: u32, amount: f32) -> f32 {
   let code = clamp(value, 0.0, 1.0) * 255.0;
   let parameterPosition = (clamp(amount, -100.0, 100.0) + 100.0) / 10.0;
@@ -931,7 +894,7 @@ fn photoshopMeasuredColorBalanceChannel(value: f32, tone: u32, amount: f32) -> f
   return textureSampleLevel(
     colorBalanceTransferLut,
     sourceSampler,
-    vec2f((code + 0.5) / 256.0, (row + 0.5) / 63.0),
+    vec2f((code + 0.5) / 256.0, (row + 0.5) / 206.0),
     0.0
   ).r;
 }
@@ -944,11 +907,76 @@ fn photoshopApplyMeasuredColorBalanceTone(color: vec3f, amounts: vec3f, tone: u3
   );
 }
 
-fn photoshopApplyColorBalanceTone(color: vec3f, amounts: vec3f, tone: u32) -> vec3f {
+fn photoshopMeasuredPreserveColorBalanceChannel(value: f32, tone: u32, amount: f32) -> f32 {
+  let code = clamp(value, 0.0, 1.0) * 255.0;
+  var row = 63.0 + clamp(-amount, 0.0, 200.0) / 20.0;
+  if (tone == 2u) {
+    row = 74.0 + clamp(amount, 0.0, 200.0) / 20.0;
+  }
+  return textureSampleLevel(
+    colorBalanceTransferLut,
+    sourceSampler,
+    vec2f((code + 0.5) / 256.0, (row + 0.5) / 206.0),
+    0.0
+  ).r;
+}
+
+fn photoshopSamplePreserveColorBalanceOverlapRow(value: f32, row: f32) -> f32 {
+  let code = clamp(value, 0.0, 1.0) * 255.0;
+  return textureSampleLevel(
+    colorBalanceTransferLut,
+    sourceSampler,
+    vec2f((code + 0.5) / 256.0, (row + 0.5) / 206.0),
+    0.0
+  ).r;
+}
+
+fn photoshopMeasuredPreserveColorBalanceOverlapChannel(
+  value: f32,
+  shadowAmount: f32,
+  highlightAmount: f32
+) -> f32 {
+  let shadowPosition = clamp(-shadowAmount, 0.0, 200.0) / 20.0;
+  let highlightPosition = clamp(highlightAmount, 0.0, 200.0) / 20.0;
+  let shadowLow = min(floor(shadowPosition), 9.0);
+  let highlightLow = min(floor(highlightPosition), 9.0);
+  let shadowFraction = shadowPosition - shadowLow;
+  let highlightFraction = highlightPosition - highlightLow;
+  let row00 = 85.0 + shadowLow * 11.0 + highlightLow;
+  let low = mix(
+    photoshopSamplePreserveColorBalanceOverlapRow(value, row00),
+    photoshopSamplePreserveColorBalanceOverlapRow(value, row00 + 1.0),
+    highlightFraction
+  );
+  let high = mix(
+    photoshopSamplePreserveColorBalanceOverlapRow(value, row00 + 11.0),
+    photoshopSamplePreserveColorBalanceOverlapRow(value, row00 + 12.0),
+    highlightFraction
+  );
+  return mix(low, high, shadowFraction);
+}
+
+fn photoshopApplyMeasuredPreserveColorBalanceOverlap(
+  color: vec3f,
+  shadows: vec3f,
+  highlights: vec3f
+) -> vec3f {
   return vec3f(
-    photoshopColorBalanceChannel(color.r, tone, amounts.r),
-    photoshopColorBalanceChannel(color.g, tone, amounts.g),
-    photoshopColorBalanceChannel(color.b, tone, amounts.b)
+    photoshopMeasuredPreserveColorBalanceOverlapChannel(color.r, shadows.r, highlights.r),
+    photoshopMeasuredPreserveColorBalanceOverlapChannel(color.g, shadows.g, highlights.g),
+    photoshopMeasuredPreserveColorBalanceOverlapChannel(color.b, shadows.b, highlights.b)
+  );
+}
+
+fn photoshopApplyMeasuredPreserveColorBalanceTone(
+  color: vec3f,
+  amounts: vec3f,
+  tone: u32
+) -> vec3f {
+  return vec3f(
+    photoshopMeasuredPreserveColorBalanceChannel(color.r, tone, amounts.r),
+    photoshopMeasuredPreserveColorBalanceChannel(color.g, tone, amounts.g),
+    photoshopMeasuredPreserveColorBalanceChannel(color.b, tone, amounts.b)
   );
 }
 
@@ -1169,17 +1197,30 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
       // channel, highlights at the weakest, and midtones halfway between.
       // This keeps the useful tonal endpoint stable instead of repairing
       // luminance after clipping has already occurred.
-      shadows = (shadows - vec3f(max(shadows.r, max(shadows.g, shadows.b)))) * 0.75;
+      let shadowMaximum = max(shadows.r, max(shadows.g, shadows.b));
+      shadows -= vec3f(shadowMaximum);
       let midtoneMinimum = min(midtones.r, min(midtones.g, midtones.b));
       let midtoneMaximum = max(midtones.r, max(midtones.g, midtones.b));
       midtones -= vec3f((midtoneMinimum + midtoneMaximum) * 0.5);
-      highlights = (highlights - vec3f(min(highlights.r, min(highlights.g, highlights.b)))) * 0.775;
+      let highlightMinimum = min(highlights.r, min(highlights.g, highlights.b));
+      highlights -= vec3f(highlightMinimum);
     }
     var adjusted = encoded;
     if (photoshopValue(25u) > 0.5) {
-      adjusted = photoshopApplyColorBalanceTone(adjusted, shadows, 0u);
-      adjusted = photoshopApplyColorBalanceTone(adjusted, midtones, 1u);
-      adjusted = photoshopApplyColorBalanceTone(adjusted, highlights, 2u);
+      let shadowHighlightOverlap =
+        (abs(shadows.r) > 0.000001 && abs(highlights.r) > 0.000001)
+        || (abs(shadows.g) > 0.000001 && abs(highlights.g) > 0.000001)
+        || (abs(shadows.b) > 0.000001 && abs(highlights.b) > 0.000001);
+      if (shadowHighlightOverlap) {
+        adjusted = photoshopApplyMeasuredPreserveColorBalanceOverlap(
+          adjusted, shadows, highlights
+        );
+        adjusted = photoshopApplyMeasuredColorBalanceTone(adjusted, midtones, 1u);
+      } else {
+        adjusted = photoshopApplyMeasuredPreserveColorBalanceTone(adjusted, shadows, 0u);
+        adjusted = photoshopApplyMeasuredPreserveColorBalanceTone(adjusted, highlights, 2u);
+        adjusted = photoshopApplyMeasuredColorBalanceTone(adjusted, midtones, 1u);
+      }
     } else {
       adjusted = photoshopApplyMeasuredColorBalanceTone(adjusted, shadows, 0u);
       adjusted = photoshopApplyMeasuredColorBalanceTone(adjusted, midtones, 1u);

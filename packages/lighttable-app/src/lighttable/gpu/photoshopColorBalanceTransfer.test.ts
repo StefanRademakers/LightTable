@@ -6,13 +6,20 @@ import {
 } from './photoshopColorBalanceTransfer';
 
 describe('Photoshop Color Balance transfer calibration', () => {
-  it('contains all three 21-knot transfer families with identity neutral rows', () => {
+  it('contains all three 21-knot transfer families and preserved shadow/highlight spans', () => {
     const data = decodePhotoshopColorBalanceTransfer();
     expect(data).toHaveLength(
       PHOTOSHOP_COLOR_BALANCE_TRANSFER_WIDTH * PHOTOSHOP_COLOR_BALANCE_TRANSFER_ROWS
     );
     for (const tone of [0, 1, 2]) {
       const row = (tone * 21 + 10) * PHOTOSHOP_COLOR_BALANCE_TRANSFER_WIDTH;
+      for (let input = 0; input < 256; input += 1) {
+        expect(Math.abs(data[row + input]! - input)).toBeLessThanOrEqual(1);
+      }
+    }
+    expect(PHOTOSHOP_COLOR_BALANCE_TRANSFER_ROWS).toBe(206);
+    for (const rowIndex of [63, 74, 85]) {
+      const row = rowIndex * PHOTOSHOP_COLOR_BALANCE_TRANSFER_WIDTH;
       for (let input = 0; input < 256; input += 1) {
         expect(Math.abs(data[row + input]! - input)).toBeLessThanOrEqual(1);
       }

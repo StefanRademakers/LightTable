@@ -230,8 +230,61 @@ foreach ($tone in @('shadows', 'midtones', 'highlights')) {
     }
     $settings[$tone] = @($amount,0,0)
     $colorBalanceCalibrationCases += $settings
+
+    $preserveSettings = @{
+      id="preserve-transfer-$tone-$amount"
+      shadows=@(0,0,0)
+      midtones=@(0,0,0)
+      highlights=@(0,0,0)
+      preserveLuminosity=$true
+    }
+    $preserveSettings[$tone] = @($amount,0,0)
+    $colorBalanceCalibrationCases += $preserveSettings
   }
 }
+foreach ($tone in @('shadows', 'highlights')) {
+  foreach ($amount in (0..100 | Where-Object { $_ % 10 -eq 0 })) {
+    $spanSettings = @{
+      id="preserve-span-$tone-$amount"
+      shadows=@(0,0,0)
+      midtones=@(0,0,0)
+      highlights=@(0,0,0)
+      preserveLuminosity=$true
+    }
+    $spanSettings[$tone] = @($amount,-$amount,$amount)
+    $colorBalanceCalibrationCases += $spanSettings
+  }
+}
+$colorBalanceCalibrationCases += @(
+  @{ id='preserve-order-all-positive'; shadows=@(100,0,0); midtones=@(100,0,0); highlights=@(100,0,0); preserveLuminosity=$true },
+  @{ id='preserve-order-all-negative'; shadows=@(-100,0,0); midtones=@(-100,0,0); highlights=@(-100,0,0); preserveLuminosity=$true },
+  @{ id='preserve-order-shadow-highlight-overlap'; shadows=@(100,0,0); midtones=@(0,0,0); highlights=@(-100,0,0); preserveLuminosity=$true },
+  @{ id='preserve-order-shadow-midtone-overlap'; shadows=@(100,0,0); midtones=@(100,0,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='preserve-order-highlight-midtone-overlap'; shadows=@(0,0,0); midtones=@(-100,0,0); highlights=@(-100,0,0); preserveLuminosity=$true },
+  @{ id='raw-order-all-positive'; shadows=@(100,0,0); midtones=@(100,0,0); highlights=@(100,0,0); preserveLuminosity=$false },
+  @{ id='raw-order-all-negative'; shadows=@(-100,0,0); midtones=@(-100,0,0); highlights=@(-100,0,0); preserveLuminosity=$false },
+  @{ id='raw-order-shadow-highlight-overlap'; shadows=@(100,0,0); midtones=@(0,0,0); highlights=@(-100,0,0); preserveLuminosity=$false },
+  @{ id='raw-order-shadow-midtone-overlap'; shadows=@(100,0,0); midtones=@(100,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='raw-order-highlight-midtone-overlap'; shadows=@(0,0,0); midtones=@(-100,0,0); highlights=@(-100,0,0); preserveLuminosity=$false }
+)
+foreach ($shadowAmount in (0..100 | Where-Object { $_ % 10 -eq 0 })) {
+  foreach ($highlightAmount in (0..100 | Where-Object { $_ % 10 -eq 0 })) {
+    $colorBalanceCalibrationCases += @{
+      id="preserve-overlap-$shadowAmount-$highlightAmount"
+      shadows=@($shadowAmount,-$shadowAmount,$shadowAmount)
+      midtones=@(0,0,0)
+      highlights=@(-$highlightAmount,$highlightAmount,-$highlightAmount)
+      preserveLuminosity=$true
+    }
+  }
+}
+$colorBalanceCalibrationCases += @(
+  @{ id='preserve-interpolation-13-27'; shadows=@(13,-13,13); midtones=@(0,0,0); highlights=@(-27,27,-27); preserveLuminosity=$true },
+  @{ id='preserve-interpolation-37-73'; shadows=@(37,-37,37); midtones=@(0,0,0); highlights=@(-73,73,-73); preserveLuminosity=$true },
+  @{ id='preserve-interpolation-89-11'; shadows=@(89,-89,89); midtones=@(0,0,0); highlights=@(-11,11,-11); preserveLuminosity=$true },
+  @{ id='preserve-interpolation-53-47-midtones'; shadows=@(53,-53,53); midtones=@(37,-22,11); highlights=@(-47,47,-47); preserveLuminosity=$true },
+  @{ id='preserve-interpolation-1-99-midtones'; shadows=@(1,-1,1); midtones=@(-67,19,43); highlights=@(-99,99,-99); preserveLuminosity=$true }
+)
 $photoFilterCases = @(
   @{ id='warm-density-1-preserve'; color=@(255,140,40); density=1; preserveLuminosity=$true },
   @{ id='warm-density-20-preserve'; color=@(255,140,40); density=20; preserveLuminosity=$true },

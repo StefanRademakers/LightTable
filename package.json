@@ -158,7 +158,7 @@
     "smoke:desktop:paragraph:build": "npm run package:desktop:verify && npm run smoke:desktop:paragraph --",
     "smoke:pdf-corpus": "node scripts/smoke-pdf-corpus.mjs",
     "make:desktop": "npm run ensure:text-wasm && npm run make -w @lighttable/desktop",
-    "test": "npm run test:text-wasm && npm run test:release-soak-policy && npm run test --workspaces --if-present",
+    "test": "npm run test:text-wasm && npm run test:release-soak-policy && npm run test:adjustment-parity-policy && npm run test --workspaces --if-present",
     "typecheck": "npm run ensure:text-wasm && npm run typecheck --workspaces --if-present",
     "verify:boundary": "node scripts/verify-boundary.mjs",
     "audit:source-structure": "node scripts/audit-source-structure.mjs",
