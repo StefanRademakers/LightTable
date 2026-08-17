@@ -692,6 +692,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
 
   return (
     <section className="lighttable-layers" aria-label="Layers">
+      <div
+        className={`lighttable-layers__composite-controls${
+          globalLensFxActive || globalGradeActive
+            ? ' lighttable-layers__composite-controls--reserved'
+            : ''
+        }`}
+        aria-hidden={globalLensFxActive || globalGradeActive}
+      >
       {activeLayer ? (
         <>
           <div className="lighttable-layers__blend-lock-row">
@@ -769,6 +777,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           </div>
         </>
       ) : null}
+      </div>
       <div className="lighttable-layers__list" role="tree" aria-label="Layer stack" data-editor-native-tab-navigation="tab-only">
         <div
           role="treeitem"

@@ -47,6 +47,16 @@ try {
 
   const globalRows = page.locator('.lighttable-global-processing-row');
   if (await globalRows.count() !== 2) throw new Error('The two global processing rows are missing.');
+  const layersPanel = page.locator('.lighttable-layers');
+  const compositeControls = layersPanel.locator('.lighttable-layers__composite-controls');
+  const layerListTop = async () => layersPanel.locator('.lighttable-layers__list')
+    .evaluate((list) => list.getBoundingClientRect().top);
+  if (!await layersPanel.getByLabel('Layer blend mode').isVisible()
+    || !await layersPanel.getByLabel('Opacity', { exact: true }).isVisible()
+    || !await layersPanel.getByLabel('Fill', { exact: true }).isVisible()) {
+    throw new Error('Composite layer controls are missing for the active raster layer.');
+  }
+  const layerListTopWithCompositeLayer = await layerListTop();
   const globalLabels = await globalRows.locator('.lighttable-global-processing-row__name').evaluateAll(
     (labels) => labels.map((label) => label instanceof HTMLInputElement ? label.value : label.textContent ?? '')
   );
@@ -96,6 +106,18 @@ try {
   }
   await page.getByRole('treeitem', { name: /Global Lens FX/ }).click();
   await page.getByRole('switch', { name: 'Enable Lens Distortion' }).waitFor({ state: 'visible' });
+  if (await layersPanel.getByLabel('Layer blend mode').isVisible()
+    || await layersPanel.getByLabel('Opacity', { exact: true }).isVisible()
+    || await layersPanel.getByLabel('Fill', { exact: true }).isVisible()) {
+    throw new Error('Composite layer controls stayed linked to the last layer in a global context.');
+  }
+  if (!await compositeControls.evaluate((controls) => getComputedStyle(controls).visibility === 'hidden')) {
+    throw new Error('The global context did not reserve the composite-control surface.');
+  }
+  const layerListTopWithGlobalPass = await layerListTop();
+  if (Math.abs(layerListTopWithCompositeLayer - layerListTopWithGlobalPass) > 0.5) {
+    throw new Error(`The layer stack jumped vertically: ${layerListTopWithCompositeLayer} -> ${layerListTopWithGlobalPass}.`);
+  }
   if (await page.locator('.lighttable-layer--active, .lighttable-layer--selected').count()) {
     throw new Error('A composite layer stayed active while Global Lens FX was selected.');
   }
