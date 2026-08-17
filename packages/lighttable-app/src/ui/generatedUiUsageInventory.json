@@ -515,7 +515,7 @@
     {
       "id": "panel-select",
       "metadataDeclared": true,
-      "productionUsageCount": 6,
+      "productionUsageCount": 7,
       "internalUsageCount": 0,
       "contextCount": 2,
       "overrideCount": 0,
@@ -527,7 +527,7 @@
         },
         {
           "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
-          "count": 5,
+          "count": 6,
           "kind": "product"
         }
       ],

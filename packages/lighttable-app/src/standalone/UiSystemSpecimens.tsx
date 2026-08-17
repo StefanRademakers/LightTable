@@ -22,7 +22,15 @@ export const UiSliderSpecimens = () => {
     { label: 'Temperature', track: 'temperature' },
     { label: 'Tint', track: 'tint' },
     { label: 'Vibrance', track: 'vibrance' },
-    { label: 'Saturation', track: 'saturation' }
+    { label: 'Saturation', track: 'saturation' },
+    { label: 'Hue', track: 'hue' },
+    { label: 'Cyan / Red', track: 'cyan-red' },
+    { label: 'Magenta / Green', track: 'magenta-green' },
+    { label: 'Yellow / Blue', track: 'yellow-blue' },
+    { label: 'Red / Cyan', track: 'red-cyan' },
+    { label: 'Green / Magenta', track: 'green-magenta' },
+    { label: 'Blue / Yellow', track: 'blue-yellow' },
+    { label: 'White / Black', track: 'white-black' }
   ];
   return <div className="lighttable-ui-guide__vertical-stack">
     <AdjustmentSlider label="Stacked" value={value} min={0} max={100}
@@ -46,7 +54,7 @@ export const UiSliderSpecimens = () => {
         min={0} max={100} onChange={setValue} onReset={() => setValue(50)} />
     ))}
     <AdjustmentSlider label="Hue" value={value * 3.6} min={0} max={360}
-      trackBackground="linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)"
+      track="hue"
       format={(current) => `${Math.round(current)}°`}
       onChange={(next) => setValue(next / 3.6)} onReset={() => setValue(0)} />
     <OpacitySlider value={opacity} color="#5ca8ef" onChange={setOpacity} />

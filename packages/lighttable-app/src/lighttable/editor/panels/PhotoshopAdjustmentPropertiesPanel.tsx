@@ -1,7 +1,7 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
 import { lightTableIcon } from '../../../assets/icons';
-import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
+import { AdjustmentSlider, type AdjustmentSliderTrack } from '../../../ui/AdjustmentSlider';
 import { useGradePresentation } from '../../application/adjustments/adjustmentPresentationStore';
 import {
   createDefaultPhotoshopAdjustment,
@@ -24,33 +24,34 @@ interface SliderSpec {
   readonly max: number;
   readonly step?: number;
   readonly format?: (value: number) => string;
+  readonly track?: AdjustmentSliderTrack;
 }
 
 const percent = (value: number) => `${Math.round(value)}%`;
 const FAMILY_SLIDERS: Partial<Record<PhotoshopAdjustmentKind, readonly SliderSpec[]>> = {
   'brightness-contrast': [
-    { key: 'brightness', label: 'Brightness', min: -150, max: 150 },
-    { key: 'contrast', label: 'Contrast', min: -50, max: 100 }
+    { key: 'brightness', label: 'Brightness', min: -150, max: 150, track: 'luminance' },
+    { key: 'contrast', label: 'Contrast', min: -50, max: 100, track: 'luminance' }
   ],
   exposure: [
-    { key: 'exposure', label: 'Exposure', min: -20, max: 20, step: 0.01, format: (value) => value.toFixed(2) },
-    { key: 'exposureOffset', label: 'Offset', min: -0.5, max: 0.5, step: 0.001, format: (value) => value.toFixed(3) },
-    { key: 'exposureGamma', label: 'Gamma Correction', min: 0.01, max: 9.99, step: 0.01, format: (value) => value.toFixed(2) }
+    { key: 'exposure', label: 'Exposure', min: -20, max: 20, step: 0.01, format: (value) => value.toFixed(2), track: 'luminance' },
+    { key: 'exposureOffset', label: 'Offset', min: -0.5, max: 0.5, step: 0.001, format: (value) => value.toFixed(3), track: 'luminance' },
+    { key: 'exposureGamma', label: 'Gamma Correction', min: 0.01, max: 9.99, step: 0.01, format: (value) => value.toFixed(2), track: 'luminance' }
   ],
   vibrance: [
-    { key: 'vibrance', label: 'Vibrance', min: -100, max: 100, format: percent },
-    { key: 'vibranceSaturation', label: 'Saturation', min: -100, max: 100, format: percent }
+    { key: 'vibrance', label: 'Vibrance', min: -100, max: 100, format: percent, track: 'vibrance' },
+    { key: 'vibranceSaturation', label: 'Saturation', min: -100, max: 100, format: percent, track: 'saturation' }
   ],
   'color-vibrance': [
-    { key: 'colorVibranceTemperature', label: 'Temperature', min: -100, max: 100 },
-    { key: 'colorVibranceTint', label: 'Tint', min: -100, max: 100 },
-    { key: 'colorVibranceVibrance', label: 'Vibrance', min: -100, max: 100, format: percent },
-    { key: 'colorVibranceSaturation', label: 'Saturation', min: -100, max: 100, format: percent }
+    { key: 'colorVibranceTemperature', label: 'Temperature', min: -100, max: 100, track: 'temperature' },
+    { key: 'colorVibranceTint', label: 'Tint', min: -100, max: 100, track: 'tint' },
+    { key: 'colorVibranceVibrance', label: 'Vibrance', min: -100, max: 100, format: percent, track: 'vibrance' },
+    { key: 'colorVibranceSaturation', label: 'Saturation', min: -100, max: 100, format: percent, track: 'saturation' }
   ],
   'hue-saturation': [
-    { key: 'hue', label: 'Hue', min: -180, max: 180, format: (value) => `${Math.round(value)}°` },
-    { key: 'hueSaturation', label: 'Saturation', min: -100, max: 100, format: percent },
-    { key: 'hueLightness', label: 'Lightness', min: -100, max: 100, format: percent }
+    { key: 'hue', label: 'Hue', min: -180, max: 180, format: (value) => `${Math.round(value)}°`, track: 'hue' },
+    { key: 'hueSaturation', label: 'Saturation', min: -100, max: 100, format: percent, track: 'saturation' },
+    { key: 'hueLightness', label: 'Lightness', min: -100, max: 100, format: percent, track: 'luminance' }
   ],
   'photo-filter': [
     { key: 'photoFilterDensity', label: 'Density', min: 1, max: 100, format: percent }
@@ -59,7 +60,7 @@ const FAMILY_SLIDERS: Partial<Record<PhotoshopAdjustmentKind, readonly SliderSpe
     { key: 'posterizeLevels', label: 'Levels', min: 2, max: 255 }
   ],
   threshold: [
-    { key: 'thresholdLevel', label: 'Threshold Level', min: 1, max: 255 }
+    { key: 'thresholdLevel', label: 'Threshold Level', min: 1, max: 255, track: 'luminance' }
   ]
 };
 
@@ -84,9 +85,9 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
     : createDefaultPhotoshopAdjustment(kind);
   const defaults = createDefaultPhotoshopAdjustment(kind);
   const sliders: readonly SliderSpec[] = kind === 'hue-saturation' && settings.colorize ? [
-    { key: 'hue', label: 'Hue', min: 0, max: 360, format: (value) => `${Math.round(value)}°` },
-    { key: 'hueSaturation', label: 'Saturation', min: 0, max: 100, format: percent },
-    { key: 'hueLightness', label: 'Lightness', min: -100, max: 100, format: percent }
+    { key: 'hue', label: 'Hue', min: 0, max: 360, format: (value) => `${Math.round(value)}°`, track: 'hue' },
+    { key: 'hueSaturation', label: 'Saturation', min: 0, max: 100, format: percent, track: 'saturation' },
+    { key: 'hueLightness', label: 'Lightness', min: -100, max: 100, format: percent, track: 'luminance' }
   ] : FAMILY_SLIDERS[kind] ?? [];
   const [lutError, setLutError] = React.useState<string | null>(null);
   const loadLut = async (file: File) => {
@@ -152,7 +153,8 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
     minimum: number,
     maximum: number,
     defaultsForArray: readonly number[],
-    publish: (next: number[]) => void
+    publish: (next: number[]) => void,
+    tracks: readonly (AdjustmentSliderTrack | undefined)[] = []
   ) => labels.map((label, index) => (
     <AdjustmentSlider
       key={label}
@@ -160,6 +162,7 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
       value={values[index] ?? 0}
       min={minimum}
       max={maximum}
+      track={tracks[index]}
       resetValue={defaultsForArray[index] ?? 0}
       disabled={!model.metadata}
       resetModifierActive={model.resetModifierActive}
@@ -224,6 +227,7 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
                 max={slider.max}
                 step={slider.step}
                 format={slider.format}
+                track={slider.track}
                 resetValue={resetValue(slider, index)}
                 disabled={!model.metadata}
                 resetModifierActive={model.resetModifierActive}
@@ -252,12 +256,12 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
                   : settings.colorBalanceTone === 'highlights' ? 'colorBalanceHighlights'
                     : 'colorBalanceMidtones';
                 update({ ...settings, [key]: next as PhotoshopAdjustmentSettings[typeof key] });
-              })}
+              }, ['cyan-red', 'magenta-green', 'yellow-blue'])}
               <PanelCheckboxField label="Preserve Luminosity" checked={settings.preserveLuminosity}
                 onChange={(preserveLuminosity) => update({ ...settings, preserveLuminosity })} />
             </> : null}
             {kind === 'black-white' ? <>
-              {renderArraySliders(settings.blackWhiteMix, ['Reds', 'Yellows', 'Greens', 'Cyans', 'Blues', 'Magentas'], -200, 300, defaults.blackWhiteMix, (next) => update({ ...settings, blackWhiteMix: next as PhotoshopAdjustmentSettings['blackWhiteMix'] }))}
+              {renderArraySliders(settings.blackWhiteMix, ['Reds', 'Yellows', 'Greens', 'Cyans', 'Blues', 'Magentas'], -200, 300, defaults.blackWhiteMix, (next) => update({ ...settings, blackWhiteMix: next as PhotoshopAdjustmentSettings['blackWhiteMix'] }), ['luminance', 'luminance', 'luminance', 'luminance', 'luminance', 'luminance'])}
               <PanelCheckboxField label="Tint" checked={settings.blackWhiteTint}
                 onChange={(blackWhiteTint) => update({ ...settings, blackWhiteTint })} />
               {settings.blackWhiteTint ? <PanelColorSwatch label="Tint color" value={settings.blackWhiteTintColor}
@@ -277,7 +281,7 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
                 const key = settings.channelMixerOutput === 'red' ? 'channelMixerRed'
                   : settings.channelMixerOutput === 'green' ? 'channelMixerGreen' : 'channelMixerBlue';
                 update({ ...settings, [key]: next as PhotoshopAdjustmentSettings[typeof key] });
-              })}
+              }, ['cyan-red', 'magenta-green', 'yellow-blue', 'luminance'])}
               <PanelCheckboxField label="Monochrome" checked={settings.channelMixerMonochrome}
                 onChange={(channelMixerMonochrome) => update({ ...settings, channelMixerMonochrome })} />
             </> : null}
@@ -289,7 +293,7 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
                 const selectiveColorValues = [...settings.selectiveColorValues];
                 next.forEach((value, index) => { selectiveColorValues[selectiveOffset + index] = value; });
                 update({ ...settings, selectiveColorValues });
-              })}
+              }, ['red-cyan', 'green-magenta', 'blue-yellow', 'white-black'])}
               <PanelSelectField label="Method" value={settings.selectiveColorMethod}
                 options={[{ value: 'relative', label: 'Relative' }, { value: 'absolute', label: 'Absolute' }]}
                 onChange={(selectiveColorMethod) => update({ ...settings, selectiveColorMethod: selectiveColorMethod as PhotoshopAdjustmentSettings['selectiveColorMethod'] })} />
