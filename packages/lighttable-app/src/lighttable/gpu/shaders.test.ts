@@ -393,6 +393,13 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('round(luminosityCode)');
   });
 
+  it('evaluates every authored Photoshop Selective Color range in encoded document RGB', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('fn photoshopSelectiveColorRange(');
+    expect(CREATIVE_GRADE_WGSL).toContain('59u + rangeIndex * 4u');
+    expect(CREATIVE_GRADE_WGSL).toContain('let neutralScale = 1.0 - 0.5 *');
+    expect(CREATIVE_GRADE_WGSL).not.toContain('let familyWeight = select(chroma');
+  });
+
   it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');

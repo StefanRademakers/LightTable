@@ -402,3 +402,38 @@ On the unrendered 8-bit source oracle, rounded blend luminosity disagrees with
 Photoshop on only 14 of 1,474,560 binary pixel decisions. Remaining rendered
 differences are boundary flips caused by import/profile precision; no fitted
 falloff or threshold epsilon was added.
+
+## Selective Color
+
+Status: accepted.
+
+Photoshop Selective Color stores nine simultaneously active CMYK correction
+ranges: Reds, Yellows, Greens, Cyans, Blues, Magentas, Whites, Neutrals, and
+Blacks. LightTable previously evaluated only the range currently selected in
+the Properties dropdown and used one generic chroma weight. Merely changing
+the editor dropdown could therefore change the rendered document, while most
+authored PSD range data was ignored.
+
+The corrected node evaluates every stored range in encoded document RGB and
+adds its contribution from the original pixel. Primary/secondary ranges use
+the distance from maximum/minimum to the middle channel. Whites and Blacks
+fall off from the upper and lower half-range; Neutrals use the complementary
+maximum/minimum distance around mid-gray. Relative corrections scale by the
+remaining amount of each RGB component, while Absolute corrections use the
+authored CMYK amount directly. Per-component and final gamut protection match
+Photoshop's bounded response. No LUT, extra pass, or readback is used.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Within two code values |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 37 | 0.042% | 0.112% | 99.958% | 37 / 37 |
+| `D:\people.jpg` | sRGB / 16-bit | 37 | 0.126% | 0.273% | 99.874% | 37 / 37 |
+
+The corpus measures neutral plus all nine ranges with Relative Cyan +100,
+Relative Black -100/+100, and an Absolute C/M/Y/K mix of +80/-60/+40/+100.
+Before replacement, the same diagnostic corpus scored 90.082% with only 20 of
+37 cases inside the 5-percent gate; the accepted implementation passes all 74
+measured renders across both bit depths. Adobe defines the nine ranges and
+Relative versus Absolute semantics in its
+[Selective Color documentation](https://helpx.adobe.com/photoshop/using/mix-colors.html).
+The range and correction equations were cross-checked against FFmpeg's
+[Photoshop-derived Selective Color implementation](https://chromium.googlesource.com/chromium/third_party/ffmpeg/+/master/libavfilter/vf_selectivecolor.c).

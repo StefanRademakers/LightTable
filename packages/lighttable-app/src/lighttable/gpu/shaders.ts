@@ -649,6 +649,24 @@ fn photoshopSetBlendLuminosity(color: vec3f, targetLuminosity: f32) -> vec3f {
   return photoshopClipBlendColor(color + vec3f(targetLuminosity - photoshopBlendLuminosity(color)));
 }
 
+fn photoshopSelectiveColorRange(
+  encoded: vec3f,
+  scale: f32,
+  rangeIndex: u32,
+  relative: bool
+) -> vec3f {
+  let base = 59u + rangeIndex * 4u;
+  let cmy = vec3f(
+    photoshopValue(base),
+    photoshopValue(base + 1u),
+    photoshopValue(base + 2u)
+  ) / 100.0;
+  let black = photoshopValue(base + 3u) / 100.0;
+  var correction = (-vec3f(1.0) - cmy) * black - cmy;
+  correction = select(correction, correction * (vec3f(1.0) - encoded), relative);
+  return clamp(correction, -encoded, vec3f(1.0) - encoded) * max(scale, 0.0);
+}
+
 fn photoshopLinearToEncodedChannel(value: f32) -> f32 {
   if (value <= 0.0031308) { return value * 12.92; }
   return 1.055 * pow(value, 1.0 / 2.4) - 0.055;
@@ -1123,17 +1141,29 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     return rgb;
   }
   if (kind == 10u) {
-    // Compact range-weighted RGB approximation. Exact CMYK Relative/Absolute
-    // behavior remains part of the Photoshop parity pass.
-    let range = u32(photoshopValue(57u) + 0.5);
-    let base = 59u + min(range, 8u) * 4u;
-    let cmy = vec3f(photoshopValue(base), photoshopValue(base + 1u), photoshopValue(base + 2u)) / 100.0;
-    let black = photoshopValue(base + 3u) / 100.0;
-    let maximum = max(rgb.r, max(rgb.g, rgb.b));
-    let minimum = min(rgb.r, min(rgb.g, rgb.b));
-    let chroma = maximum - minimum;
-    let familyWeight = select(chroma, 1.0 - chroma, range >= 6u);
-    return rgb * (vec3f(1.0) - cmy * familyWeight) - vec3f(black * familyWeight);
+    let encoded = clamp(photoshopLinearSrgbToEncodedDocument(rgb), vec3f(0.0), vec3f(1.0));
+    let minimum = min(encoded.r, min(encoded.g, encoded.b));
+    let maximum = max(encoded.r, max(encoded.g, encoded.b));
+    let middle = encoded.r + encoded.g + encoded.b - minimum - maximum;
+    let relative = photoshopValue(58u) < 0.5;
+    var correction = vec3f(0.0);
+    if (encoded.r == maximum) { correction += photoshopSelectiveColorRange(encoded, maximum - middle, 0u, relative); }
+    if (encoded.b == minimum) { correction += photoshopSelectiveColorRange(encoded, middle - minimum, 1u, relative); }
+    if (encoded.g == maximum) { correction += photoshopSelectiveColorRange(encoded, maximum - middle, 2u, relative); }
+    if (encoded.r == minimum) { correction += photoshopSelectiveColorRange(encoded, middle - minimum, 3u, relative); }
+    if (encoded.b == maximum) { correction += photoshopSelectiveColorRange(encoded, maximum - middle, 4u, relative); }
+    if (encoded.g == minimum) { correction += photoshopSelectiveColorRange(encoded, middle - minimum, 5u, relative); }
+    if (all(encoded > vec3f(0.5))) {
+      correction += photoshopSelectiveColorRange(encoded, minimum * 2.0 - 1.0, 6u, relative);
+    }
+    if (any(encoded > vec3f(0.0)) && any(encoded < vec3f(1.0))) {
+      let neutralScale = 1.0 - 0.5 * (abs(maximum * 2.0 - 1.0) + abs(minimum * 2.0 - 1.0));
+      correction += photoshopSelectiveColorRange(encoded, neutralScale, 7u, relative);
+    }
+    if (all(encoded < vec3f(0.5))) {
+      correction += photoshopSelectiveColorRange(encoded, 1.0 - maximum * 2.0, 8u, relative);
+    }
+    return photoshopEncodedDocumentToLinearSrgb(clamp(encoded + correction, vec3f(0.0), vec3f(1.0)));
   }
   if (kind == 11u) {
     let encoded = photoshopLinearSrgbToEncodedDocument(rgb);

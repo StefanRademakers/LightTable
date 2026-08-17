@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer', 'invert', 'posterize', 'threshold')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer', 'selective-color', 'invert', 'posterize', 'threshold')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -296,6 +296,17 @@ $posterizeCases = @(2,3,4,8,16,32,64,128,255) | ForEach-Object {
 $thresholdCases = @(1,2,64,127,128,192,254,255) | ForEach-Object {
   @{ id="level-$_"; level=$_ }
 }
+$selectiveColorCases = @(@{ id='neutral'; rangeIndex=0; cmyk=@(0,0,0,0); method='relative' })
+$selectiveRangeNames = @('reds','yellows','greens','cyans','blues','magentas','whites','neutrals','blacks')
+for ($rangeIndex = 0; $rangeIndex -lt $selectiveRangeNames.Count; $rangeIndex++) {
+  $rangeName = $selectiveRangeNames[$rangeIndex]
+  $selectiveColorCases += @(
+    @{ id="$rangeName-relative-cyan-pos-100"; rangeIndex=$rangeIndex; cmyk=@(100,0,0,0); method='relative' },
+    @{ id="$rangeName-relative-black-neg-100"; rangeIndex=$rangeIndex; cmyk=@(0,0,0,-100); method='relative' },
+    @{ id="$rangeName-relative-black-pos-100"; rangeIndex=$rangeIndex; cmyk=@(0,0,0,100); method='relative' },
+    @{ id="$rangeName-absolute-mix"; rangeIndex=$rangeIndex; cmyk=@(80,-60,40,100); method='absolute' }
+  )
+}
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
 } elseif ($Adjustment -eq 'levels') { $levelsCases }
@@ -305,6 +316,7 @@ elseif ($Adjustment -eq 'color-balance') { $colorBalanceCases }
 elseif ($Adjustment -eq 'black-white') { $blackWhiteCases }
 elseif ($Adjustment -eq 'photo-filter') { $photoFilterCases }
 elseif ($Adjustment -eq 'channel-mixer') { $channelMixerCases }
+elseif ($Adjustment -eq 'selective-color') { $selectiveColorCases }
 elseif ($Adjustment -eq 'invert') { $invertCases }
 elseif ($Adjustment -eq 'posterize') { $posterizeCases }
 elseif ($Adjustment -eq 'threshold') { $thresholdCases }
@@ -551,6 +563,24 @@ $matrixDescriptors
   var adjustment = new ActionDescriptor();
   adjustment.putInteger(c2t('Lvl '), $($case.level));
   adjustmentLayer.putObject(s2t('type'), c2t('Thrs'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'selective-color') {
+      $rangeIds = @('Rds ', 'Ylws', 'Grns', 'Cyns', 'Bls ', 'Mgnt', 'Whts', 'Ntrl', 'Blks')
+      $rangeId = $rangeIds[$case.rangeIndex]
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putEnumerated(s2t('presetKind'), s2t('presetKindType'), s2t('presetKindCustom'));
+  var corrections = new ActionList();
+  var correction = new ActionDescriptor();
+  correction.putEnumerated(c2t('Clrs'), c2t('Clrs'), c2t('$rangeId'));
+  correction.putUnitDouble(c2t('Cyn '), c2t('#Prc'), $($case.cmyk[0]));
+  correction.putUnitDouble(c2t('Mgnt'), c2t('#Prc'), $($case.cmyk[1]));
+  correction.putUnitDouble(c2t('Ylw '), c2t('#Prc'), $($case.cmyk[2]));
+  correction.putUnitDouble(c2t('Blck'), c2t('#Prc'), $($case.cmyk[3]));
+  corrections.putObject(c2t('ClrC'), correction);
+  adjustment.putList(c2t('ClrC'), corrections);
+  adjustment.putEnumerated(c2t('Mthd'), c2t('CrcM'), c2t('$(if ($case.method -eq 'absolute') { 'Absl' } else { 'Rltv' })'));
+  adjustmentLayer.putObject(s2t('type'), c2t('SlcC'), adjustment);
 "@
     } elseif ($Adjustment -eq 'photo-filter') {
       $adjustmentDescriptor = @"
