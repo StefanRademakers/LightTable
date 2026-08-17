@@ -8,6 +8,7 @@ export interface CurvePoint {
 export type ToneCurve = CurvePoint[];
 
 export interface CurvesAdjustments {
+  interpolation?: 'monotone' | 'photoshop-natural';
   master: ToneCurve;
   red: ToneCurve;
   green: ToneCurve;
@@ -19,7 +20,10 @@ export const CURVE_LUT_SIZE = 1024;
 
 export const createIdentityCurve = (): ToneCurve => [{ x: 0, y: 0 }, { x: 1, y: 1 }];
 
-export const createDefaultCurves = (): CurvesAdjustments => ({
+export const createDefaultCurves = (
+  interpolation: NonNullable<CurvesAdjustments['interpolation']> = 'monotone'
+): CurvesAdjustments => ({
+  interpolation,
   master: createIdentityCurve(),
   red: createIdentityCurve(),
   green: createIdentityCurve(),
@@ -27,6 +31,7 @@ export const createDefaultCurves = (): CurvesAdjustments => ({
 });
 
 export const cloneCurves = (curves: CurvesAdjustments): CurvesAdjustments => ({
+  interpolation: curves.interpolation ?? 'monotone',
   master: curves.master.map((point) => ({ ...point })),
   red: curves.red.map((point) => ({ ...point })),
   green: curves.green.map((point) => ({ ...point })),
@@ -97,12 +102,69 @@ export const evaluateToneCurve = (sourcePoints: ToneCurve, x: number): number =>
   return Math.max(0, Math.min(1, value));
 };
 
+const naturalSplineSecondDerivatives = (points: ToneCurve): number[] => {
+  const second = new Array<number>(points.length).fill(0);
+  const work = new Array<number>(points.length).fill(0);
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const previous = points[index - 1]!;
+    const current = points[index]!;
+    const next = points[index + 1]!;
+    const span = next.x - previous.x;
+    const sigma = (current.x - previous.x) / span;
+    const pivot = sigma * second[index - 1]! + 2;
+    second[index] = (sigma - 1) / pivot;
+    const slopeDelta = (next.y - current.y) / (next.x - current.x)
+      - (current.y - previous.y) / (current.x - previous.x);
+    work[index] = (6 * slopeDelta / span - sigma * work[index - 1]!) / pivot;
+  }
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    second[index] = second[index]! * second[index + 1]! + work[index]!;
+  }
+  return second;
+};
+
+const evaluateNaturalSpline = (
+  points: ToneCurve,
+  second: readonly number[],
+  x: number
+) => {
+  if (x <= points[0]!.x) return points[0]!.y;
+  if (x >= points[points.length - 1]!.x) return points[points.length - 1]!.y;
+  let leftIndex = 0;
+  while (leftIndex < points.length - 2 && x > points[leftIndex + 1]!.x) leftIndex += 1;
+  const rightIndex = leftIndex + 1;
+  const left = points[leftIndex]!;
+  const right = points[rightIndex]!;
+  const width = right.x - left.x;
+  const leftWeight = (right.x - x) / width;
+  const rightWeight = (x - left.x) / width;
+  const value = leftWeight * left.y + rightWeight * right.y + (
+    (leftWeight ** 3 - leftWeight) * second[leftIndex]!
+    + (rightWeight ** 3 - rightWeight) * second[rightIndex]!
+  ) * width * width / 6;
+  return Math.max(0, Math.min(1, value));
+};
+
+/** Photoshop 27.11 point-curve interpolation, measured against its rendered output. */
+export const evaluatePhotoshopToneCurve = (sourcePoints: ToneCurve, x: number): number => {
+  const points = normalizeCurvePoints(sourcePoints);
+  return evaluateNaturalSpline(points, naturalSplineSecondDerivatives(points), x);
+};
+
 export const buildCurveLut = (curves: CurvesAdjustments, size = CURVE_LUT_SIZE): Float32Array<ArrayBuffer> => {
   const output = new Float32Array(size * 4);
+  const evaluators = CURVE_CHANNELS.map((channel) => {
+    if (curves.interpolation !== 'photoshop-natural') {
+      return (x: number) => evaluateToneCurve(curves[channel], x);
+    }
+    const points = normalizeCurvePoints(curves[channel]);
+    const second = naturalSplineSecondDerivatives(points);
+    return (x: number) => evaluateNaturalSpline(points, second, x);
+  });
   for (let index = 0; index < size; index += 1) {
     const x = index / (size - 1);
     CURVE_CHANNELS.forEach((channel, channelIndex) => {
-      output[index * 4 + channelIndex] = evaluateToneCurve(curves[channel], x);
+      output[index * 4 + channelIndex] = evaluators[channelIndex]!(x);
     });
   }
   return output;

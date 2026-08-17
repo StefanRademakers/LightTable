@@ -485,6 +485,7 @@ const importPsdAdjustment = (
       break;
     }
     case 'curves': {
+      adjustments.curves.interpolation = 'photoshop-natural';
       adjustments.curves.master = mapCurve(source.rgb) ?? adjustments.curves.master;
       adjustments.curves.red = mapCurve(source.red) ?? adjustments.curves.red;
       adjustments.curves.green = mapCurve(source.green) ?? adjustments.curves.green;

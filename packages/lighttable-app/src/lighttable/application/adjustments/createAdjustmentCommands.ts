@@ -535,7 +535,10 @@ export const createAdjustmentCommands = (
         return { ...current, colorGrading: createDefaultColorGrading() };
       }
       if (group === 'curves') {
-        return { ...current, curves: createDefaultCurves() };
+        return {
+          ...current,
+          curves: createDefaultCurves(current.curves.interpolation ?? 'monotone')
+        };
       }
       const keys = group === 'light'
         ? LIGHT_SLIDER_KEYS

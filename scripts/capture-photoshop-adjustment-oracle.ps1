@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -131,9 +131,26 @@ $levelsCases = @(
   @{ id='composite-red-combined'; channel='composite'; black=20; gamma=0.5; white=235; outputBlack=10; outputWhite=245;
     secondaryChannel='red'; secondaryBlack=30; secondaryGamma=2.0; secondaryWhite=220; secondaryOutputBlack=20; secondaryOutputWhite=235 }
 )
+$curvesCases = @(
+  @{ id='neutral'; channel='composite'; points='0:0,255:255' },
+  @{ id='lift-black-51'; channel='composite'; points='0:51,255:255' },
+  @{ id='lift-black-204'; channel='composite'; points='0:204,255:255' },
+  @{ id='lower-white-204'; channel='composite'; points='0:0,255:204' },
+  @{ id='lower-white-51'; channel='composite'; points='0:0,255:51' },
+  @{ id='midtone-up-80'; channel='composite'; points='0:0,128:230,255:255' },
+  @{ id='midtone-down-80'; channel='composite'; points='0:0,128:26,255:255' },
+  @{ id='s-curve'; channel='composite'; points='0:0,64:32,192:224,255:255' },
+  @{ id='inverse'; channel='composite'; points='0:255,255:0' },
+  @{ id='red-s-curve'; channel='red'; points='0:0,64:32,192:224,255:255' },
+  @{ id='green-s-curve'; channel='green'; points='0:0,64:32,192:224,255:255' },
+  @{ id='blue-s-curve'; channel='blue'; points='0:0,64:32,192:224,255:255' },
+  @{ id='composite-red-stack'; channel='composite'; points='0:0,128:204,255:255'; secondaryChannel='red'; secondaryPoints='0:0,128:64,255:255' }
+)
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
-} elseif ($Adjustment -eq 'levels') { $levelsCases } else { $exposureCases }
+} elseif ($Adjustment -eq 'levels') { $levelsCases }
+elseif ($Adjustment -eq 'curves') { $curvesCases }
+else { $exposureCases }
 if (-not [string]::IsNullOrWhiteSpace($CasePattern)) {
   $cases = @($cases | Where-Object { $_.id -match $CasePattern })
   if ($cases.Count -eq 0) { throw "No adjustment oracle cases match: $CasePattern" }
@@ -195,6 +212,59 @@ try {
   $secondaryDescriptor
   adjustment.putList(c2t('Adjs'), levelsAdjustments);
   adjustmentLayer.putObject(s2t('type'), s2t('levels'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'curves') {
+      $channelId = switch ($case.channel) {
+        'red' { 'Rd  ' }
+        'green' { 'Grn ' }
+        'blue' { 'Bl  ' }
+        default { 'Cmps' }
+      }
+      $pointCalls = (($case.points -split ',') | ForEach-Object {
+        $coordinates = $_ -split ':'
+        "addCurvePoint(curvePoints, $($coordinates[0]), $($coordinates[1]));"
+      }) -join "`n  "
+      $secondaryCurveDescriptor = ''
+      if ($case.secondaryChannel) {
+        $secondaryChannelId = switch ($case.secondaryChannel) {
+          'red' { 'Rd  ' }
+          'green' { 'Grn ' }
+          'blue' { 'Bl  ' }
+          default { 'Cmps' }
+        }
+        $secondaryPointCalls = (($case.secondaryPoints -split ',') | ForEach-Object {
+          $coordinates = $_ -split ':'
+          "addCurvePoint(secondaryCurvePoints, $($coordinates[0]), $($coordinates[1]));"
+        }) -join "`n  "
+        $secondaryCurveDescriptor = @"
+  var secondaryCurvePoints = new ActionList();
+  $secondaryPointCalls
+  addCurveChannel(curveAdjustments, '$secondaryChannelId', secondaryCurvePoints);
+"@
+      }
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putEnumerated(s2t('presetKind'), s2t('presetKindType'), s2t('presetKindCustom'));
+  function addCurvePoint(list, horizontal, vertical) {
+    var point = new ActionDescriptor();
+    point.putDouble(c2t('Hrzn'), horizontal); point.putDouble(c2t('Vrtc'), vertical);
+    list.putObject(c2t('Pnt '), point);
+  }
+  function addCurveChannel(list, channelId, points) {
+    var curveChannel = new ActionDescriptor();
+    var curveChannelReference = new ActionReference();
+    curveChannelReference.putEnumerated(c2t('Chnl'), c2t('Chnl'), c2t(channelId));
+    curveChannel.putReference(c2t('Chnl'), curveChannelReference);
+    curveChannel.putList(c2t('Crv '), points);
+    list.putObject(c2t('CrvA'), curveChannel);
+  }
+  var curveAdjustments = new ActionList();
+  var curvePoints = new ActionList();
+  $pointCalls
+  addCurveChannel(curveAdjustments, '$channelId', curvePoints);
+  $secondaryCurveDescriptor
+  adjustment.putList(c2t('Adjs'), curveAdjustments);
+  adjustmentLayer.putObject(s2t('type'), s2t('curves'), adjustment);
 "@
     } else {
       $adjustmentDescriptor = @"

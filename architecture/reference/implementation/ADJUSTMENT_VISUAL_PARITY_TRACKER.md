@@ -121,3 +121,30 @@ response at gamma 2–5 in the 8-bit path (for gamma 5 it disappears above code
 8). LightTable deliberately retains its smooth float response rather than
 adding an ungrounded shadow curve; this remains a documented holdout for a
 future measured transfer implementation.
+
+## Curves
+
+Status: accepted.
+
+Photoshop 27.11 point curves use a natural cubic spline. Candidate fitting on
+strong one-point and S-curves rejected linear, Catmull-Rom, and LightTable's
+existing monotone Hermite interpolation; the natural spline predicts Photoshop
+to roughly 0.1 percent RMSE on those curve shapes before the full render test.
+
+LightTable now records curve interpolation semantics explicitly. Standalone,
+attached, and PSD-imported Photoshop Curves nodes use `photoshop-natural`;
+Grade continues to use its existing overshoot-safe `monotone` interpolation.
+Editing and resetting a Curves node retain its mode, so the parity improvement
+does not alter an existing Grade look. R/G/B curves run before the composite
+curve, matching the measured Photoshop stack order.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Grayscale and channel ramp | untagged / 8-bit | 13 | 0.045% | 0.142% | 99.955% |
+| `D:\people.jpg` | untagged / 8-bit | 9 | 0.043% | 0.130% | 99.957% |
+| `D:\people.jpg` | sRGB / 16-bit | 9 | 0.163% | 0.283% | 99.837% |
+
+All cases are within two output code values, including 80-percent midpoint
+moves, endpoint lifts, inverse, isolated color channels, and a simultaneous
+composite-plus-red curve. The previous shared monotone implementation scored
+99.017% overall, with about 3.9% RMSE on the strongest midpoint cases.

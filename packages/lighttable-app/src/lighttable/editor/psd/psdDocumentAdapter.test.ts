@@ -538,6 +538,28 @@ describe('importPsdDocument', () => {
     });
   });
 
+  it('maps Photoshop Curves to its natural-spline rendering mode', () => {
+    const result = importPsdDocument(decoded([raster('curves', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: {
+        type: 'curves',
+        rgb: [
+          { input: 0, output: 0 },
+          { input: 128, output: 230 },
+          { input: 255, output: 255 }
+        ]
+      }
+    })]), 'curves.psd');
+    const layer = result.document.layers[0];
+    expect(layer.type).toBe('adjustment');
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer');
+    expect(materializeBasicAdjustments(layer.adjustmentStack).curves).toMatchObject({
+      interpolation: 'photoshop-natural',
+      master: [{ x: 0, y: 0 }, { x: 128 / 255, y: 230 / 255 }, { x: 1, y: 1 }]
+    });
+  });
+
   it('maps Photoshop Invert to its dedicated native node', () => {
     const result = importPsdDocument(decoded([raster('invert', {
       kind: 'adjustment',

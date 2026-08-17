@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildCurveLut, createDefaultCurves, curveActiveMask, evaluateToneCurve } from './curves';
+import {
+  buildCurveLut,
+  createDefaultCurves,
+  curveActiveMask,
+  evaluatePhotoshopToneCurve,
+  evaluateToneCurve
+} from './curves';
 
 describe('LightTable Custom Curves', () => {
   it('builds an identity LUT without moving black or white', () => {
@@ -24,6 +30,23 @@ describe('LightTable Custom Curves', () => {
       expect(value).toBeLessThanOrEqual(0.94);
       previous = value;
     }
+  });
+
+  it('matches Photoshop 27.11 natural-spline holdout samples', () => {
+    const lifted = [{ x: 0, y: 0 }, { x: 128 / 255, y: 230 / 255 }, { x: 1, y: 1 }];
+    const lowered = [{ x: 0, y: 0 }, { x: 128 / 255, y: 26 / 255 }, { x: 1, y: 1 }];
+    expect(evaluatePhotoshopToneCurve(lifted, 64 / 255) * 255).toBeCloseTo(134, 0);
+    expect(evaluatePhotoshopToneCurve(lifted, 192 / 255) * 255).toBeCloseTo(255, 0);
+    expect(evaluatePhotoshopToneCurve(lowered, 64 / 255) * 255).toBeCloseTo(0, 0);
+    expect(evaluatePhotoshopToneCurve(lowered, 192 / 255) * 255).toBeCloseTo(122, 0);
+  });
+
+  it('keeps Grade monotone interpolation separate from Photoshop Curves', () => {
+    const grade = createDefaultCurves('monotone');
+    const photoshop = createDefaultCurves('photoshop-natural');
+    grade.master = [{ x: 0, y: 0 }, { x: 128 / 255, y: 230 / 255 }, { x: 1, y: 1 }];
+    photoshop.master = grade.master;
+    expect(buildCurveLut(grade)[256 * 4]).not.toBeCloseTo(buildCurveLut(photoshop)[256 * 4]!, 3);
   });
 
   it('marks only the changed LUT channels as active', () => {

@@ -489,6 +489,9 @@ describe('useLayerDocumentCommands', () => {
     if (layer?.type !== 'adjustment') throw new Error('Expected a Curves adjustment layer.');
     expect(layer.adjustmentKind).toBe('curves');
     expect(layer.adjustmentStack.modules.map((module) => module.type)).toEqual(['lt.curves']);
+    expect(layer.adjustmentStack.modules[0]?.settings).toMatchObject({
+      curves: { interpolation: 'photoshop-natural' }
+    });
     expect(layer.mask).not.toBeNull();
   });
 
