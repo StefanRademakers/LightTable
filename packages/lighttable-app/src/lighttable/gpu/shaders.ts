@@ -1089,11 +1089,12 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     return photoshopEncodedDocumentToLinearSrgb(preserved);
   }
   if (kind == 8u) {
-    let red = dot(rgb, vec3f(photoshopValue(43u), photoshopValue(44u), photoshopValue(45u)) / 100.0) + photoshopValue(46u) / 100.0;
-    let green = dot(rgb, vec3f(photoshopValue(47u), photoshopValue(48u), photoshopValue(49u)) / 100.0) + photoshopValue(50u) / 100.0;
-    let blue = dot(rgb, vec3f(photoshopValue(51u), photoshopValue(52u), photoshopValue(53u)) / 100.0) + photoshopValue(54u) / 100.0;
-    if (photoshopValue(55u) > 0.5) { return vec3f(red); }
-    return vec3f(red, green, blue);
+    let encoded = photoshopLinearSrgbToEncodedDocument(rgb);
+    let red = dot(encoded, vec3f(photoshopValue(43u), photoshopValue(44u), photoshopValue(45u)) / 100.0) + photoshopValue(46u) / 100.0;
+    let green = dot(encoded, vec3f(photoshopValue(47u), photoshopValue(48u), photoshopValue(49u)) / 100.0) + photoshopValue(50u) / 100.0;
+    let blue = dot(encoded, vec3f(photoshopValue(51u), photoshopValue(52u), photoshopValue(53u)) / 100.0) + photoshopValue(54u) / 100.0;
+    let mixed = select(vec3f(red, green, blue), vec3f(red), photoshopValue(55u) > 0.5);
+    return photoshopEncodedDocumentToLinearSrgb(clamp(mixed, vec3f(0.0), vec3f(1.0)));
   }
   if (kind == 9u) {
     if (photoshopValue(56u) > 0.5) { return sampleExternalColorLookup(rgb); }

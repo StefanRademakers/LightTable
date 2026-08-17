@@ -307,3 +307,32 @@ case is within two output code values by the tracker metric. Adobe describes
 Photo Filter as a photographic color-transmission simulation, Density as its
 strength, and Preserve Luminosity as protection of image luminosity in the
 [Photo Filter guide](https://helpx.adobe.com/sg/photoshop/using/applying-color-balance-adjustment.html).
+
+## Channel Mixer
+
+Status: accepted.
+
+Photoshop 27.11 applies each Channel Mixer output matrix directly to encoded
+document RGB, adds that output channel's Constant in the same -2..2 domain, and
+then clips to the document range. Monochrome evaluates the Gray matrix once and
+copies it to all three outputs. The old LightTable node used the same authored
+matrix in linear compositor RGB, which happened to make identity, pure channel
+swaps, and fully clipped endpoints exact while producing large errors for mixed
+positive values.
+
+The corrected implementation only adds the existing document encode/decode
+bridge around the matrix. It changes neither Grade nor the stack structure and
+adds no pass, texture, lookup, or readback.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Cases <= 5% RMSE |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 15 | 0.032% | 0.191% | 99.968% | 15 / 15 |
+| `D:\people.jpg` | sRGB / 16-bit | 15 | 0.057% | 0.256% | 99.943% | 15 / 15 |
+
+The corpus covers identity, Red/Blue swap, source coefficients at -200 and
++200, a full three-output matrix, Constant at -200, +80, and +200, and four
+monochrome mixes including Photoshop's infrared preset and adversarial
+endpoints. Every case is within two output code values by the tracker metric.
+Adobe documents the same -200..200 coefficient and Constant ranges, negative
+source inversion, output-channel matrices, and Monochrome behavior in its
+[Channel Mixer guide](https://helpx.adobe.com/ie/photoshop/using/color-monochrome-adjustments-using-channels.html).

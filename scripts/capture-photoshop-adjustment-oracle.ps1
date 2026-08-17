@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -272,6 +272,23 @@ $blackWhiteCases = @(
   @{ id='red-tint'; mix=@(40,60,40,60,20,80); tint=$true; tintColor=@(255,0,0) },
   @{ id='blue-tint'; mix=@(40,60,40,60,20,80); tint=$true; tintColor=@(0,80,255) }
 )
+$channelMixerCases = @(
+  @{ id='identity'; monochrome=$false; red=@(100,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,0) },
+  @{ id='swap-red-blue'; monochrome=$false; red=@(0,0,100,0); green=@(0,100,0,0); blue=@(100,0,0,0); gray=@(40,40,20,0) },
+  @{ id='red-source-neg-200'; monochrome=$false; red=@(-200,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,0) },
+  @{ id='red-source-pos-200'; monochrome=$false; red=@(200,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,0) },
+  @{ id='red-combined'; monochrome=$false; red=@(-70,200,-30,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,0) },
+  @{ id='full-matrix'; monochrome=$false; red=@(80,40,-20,10); green=@(-50,200,-50,-20); blue=@(25,25,100,30); gray=@(40,40,20,0) },
+  @{ id='red-constant-neg-200'; monochrome=$false; red=@(100,0,0,-200); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,0) },
+  @{ id='red-constant-pos-200'; monochrome=$false; red=@(100,0,0,200); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,0) },
+  @{ id='all-constant-pos-80'; monochrome=$false; red=@(100,0,0,80); green=@(0,100,0,80); blue=@(0,0,100,80); gray=@(40,40,20,0) },
+  @{ id='monochrome-default'; monochrome=$true; red=@(100,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,0) },
+  @{ id='monochrome-red'; monochrome=$true; red=@(100,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(100,0,0,0) },
+  @{ id='monochrome-infrared'; monochrome=$true; red=@(100,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(-70,200,-30,0) },
+  @{ id='monochrome-extreme'; monochrome=$true; red=@(100,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(-200,200,200,-80) },
+  @{ id='monochrome-constant-neg-200'; monochrome=$true; red=@(100,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,-200) },
+  @{ id='monochrome-constant-pos-200'; monochrome=$true; red=@(100,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,200) }
+)
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
 } elseif ($Adjustment -eq 'levels') { $levelsCases }
@@ -280,6 +297,7 @@ elseif ($Adjustment -eq 'hue-saturation') { $hueSaturationCases }
 elseif ($Adjustment -eq 'color-balance') { $colorBalanceCases }
 elseif ($Adjustment -eq 'black-white') { $blackWhiteCases }
 elseif ($Adjustment -eq 'photo-filter') { $photoFilterCases }
+elseif ($Adjustment -eq 'channel-mixer') { $channelMixerCases }
 else { $exposureCases }
 if (-not [string]::IsNullOrWhiteSpace($CasePattern)) {
   $cases = @($cases | Where-Object { $_.id -match $CasePattern })
@@ -467,6 +485,45 @@ $rangeDescriptors
   adjustment.putInteger(s2t('bwPresetKind'), 5);
   adjustment.putString(s2t('blackAndWhitePresetFileName'), '');
   adjustmentLayer.putObject(s2t('type'), s2t('blackAndWhite'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'channel-mixer') {
+      $matrixDescriptors = if ($case.monochrome) {
+@"
+  var gray = new ActionDescriptor();
+  gray.putUnitDouble(s2t('red'), s2t('percentUnit'), $($case.gray[0]));
+  gray.putUnitDouble(s2t('grain'), s2t('percentUnit'), $($case.gray[1]));
+  gray.putUnitDouble(s2t('blue'), s2t('percentUnit'), $($case.gray[2]));
+  gray.putUnitDouble(s2t('constant'), s2t('percentUnit'), $($case.gray[3]));
+  adjustment.putObject(s2t('gray'), s2t('channelMatrix'), gray);
+"@
+      } else {
+@"
+  var red = new ActionDescriptor();
+  red.putUnitDouble(s2t('red'), s2t('percentUnit'), $($case.red[0]));
+  red.putUnitDouble(s2t('grain'), s2t('percentUnit'), $($case.red[1]));
+  red.putUnitDouble(s2t('blue'), s2t('percentUnit'), $($case.red[2]));
+  red.putUnitDouble(s2t('constant'), s2t('percentUnit'), $($case.red[3]));
+  adjustment.putObject(s2t('red'), s2t('channelMatrix'), red);
+  var green = new ActionDescriptor();
+  green.putUnitDouble(s2t('red'), s2t('percentUnit'), $($case.green[0]));
+  green.putUnitDouble(s2t('grain'), s2t('percentUnit'), $($case.green[1]));
+  green.putUnitDouble(s2t('blue'), s2t('percentUnit'), $($case.green[2]));
+  green.putUnitDouble(s2t('constant'), s2t('percentUnit'), $($case.green[3]));
+  adjustment.putObject(s2t('grain'), s2t('channelMatrix'), green);
+  var blue = new ActionDescriptor();
+  blue.putUnitDouble(s2t('red'), s2t('percentUnit'), $($case.blue[0]));
+  blue.putUnitDouble(s2t('grain'), s2t('percentUnit'), $($case.blue[1]));
+  blue.putUnitDouble(s2t('blue'), s2t('percentUnit'), $($case.blue[2]));
+  blue.putUnitDouble(s2t('constant'), s2t('percentUnit'), $($case.blue[3]));
+  adjustment.putObject(s2t('blue'), s2t('channelMatrix'), blue);
+"@
+      }
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putEnumerated(s2t('presetKind'), s2t('presetKindType'), s2t('presetKindCustom'));
+  adjustment.putBoolean(s2t('monochromatic'), $(if ($case.monochrome) { 'true' } else { 'false' }));
+$matrixDescriptors
+  adjustmentLayer.putObject(s2t('type'), s2t('channelMixer'), adjustment);
 "@
     } elseif ($Adjustment -eq 'photo-filter') {
       $adjustmentDescriptor = @"

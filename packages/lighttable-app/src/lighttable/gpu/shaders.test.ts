@@ -372,6 +372,12 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).not.toContain('let mixScale = mix(1.0, authoredMix');
   });
 
+  it('evaluates Photoshop Channel Mixer and Constant in encoded document channels', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('let red = dot(encoded, vec3f(photoshopValue(43u)');
+    expect(CREATIVE_GRADE_WGSL).toContain('let mixed = select(vec3f(red, green, blue), vec3f(red)');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(clamp(mixed');
+  });
+
   it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');
