@@ -132,3 +132,28 @@ the contrast curve itself already protects both endpoints.
 Exposure and the remaining Light controls were intentionally unchanged. The
 native Grade baseline was refreshed after this measured improvement; neutral,
 color, effects and combined pipeline cases then reproduced at 100 percent.
+
+### Blacks transfer family
+
+Blacks now uses a measured perceptual transfer family instead of a small
+scene-log shadow mask. Camera Raw's positive response scales linearly toward a
+single endpoint curve. Its negative response changes shape substantially, so
+the implementation interpolates between measured -25, -50, -80 and -100
+curves. This preserves the progressive black-point crush instead of inventing
+an unverified gain or exponent.
+
+The curves run conditionally in the existing basic pass. Values above 1.0 stay
+scene-linear and untouched, preserving 16-bit/HDR headroom.
+
+| Corpus | Metric | Before | After |
+| --- | --- | ---: | ---: |
+| Grayscale ramp | Effect correlation | 0.6475 | 0.9928 |
+| Grayscale ramp | LightTable / Camera Raw magnitude | 0.212 | 0.990 |
+| Grayscale ramp | Maximum delta RMSE | 12.35% | 0.35% |
+| Photograph | Effect correlation | 0.6535 | 0.9585 |
+| Photograph | LightTable / Camera Raw magnitude | 0.223 | 0.981 |
+| Photograph | Maximum delta RMSE | 12.62% | 4.18% |
+
+Highlights, Shadows and Whites remain unchanged pending a grounded adaptive
+model. Their ramp and photograph responses disagree too strongly for a fixed
+scalar correction.

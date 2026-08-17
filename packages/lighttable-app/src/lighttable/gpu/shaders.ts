@@ -209,6 +209,41 @@ const CONTRAST_POSITIVE_CURVE = array<f32, 17>(
   0.97647059, 1.0
 );
 
+const BLACKS_NEGATIVE_25_CURVE = array<f32, 17>(
+  0.0, 0.03529412, 0.10196078, 0.16470588, 0.23137255,
+  0.29803922, 0.36078431, 0.42745098, 0.48627451, 0.55294118,
+  0.61568627, 0.67843137, 0.74509804, 0.80784314, 0.87058824,
+  0.93725490, 1.0
+);
+
+const BLACKS_NEGATIVE_50_CURVE = array<f32, 17>(
+  0.0, 0.0, 0.06666667, 0.13333333, 0.20392157,
+  0.27450980, 0.34117647, 0.40784314, 0.47058824, 0.53725490,
+  0.60392157, 0.67058824, 0.73725490, 0.80392157, 0.87058824,
+  0.93333333, 1.0
+);
+
+const BLACKS_NEGATIVE_80_CURVE = array<f32, 17>(
+  0.0, 0.0, 0.0, 0.05098039, 0.12549020,
+  0.20392157, 0.28235294, 0.35294118, 0.42352941, 0.49411765,
+  0.57254902, 0.64705882, 0.72156863, 0.79215686, 0.86274510,
+  0.93333333, 1.0
+);
+
+const BLACKS_NEGATIVE_100_CURVE = array<f32, 17>(
+  0.0, 0.0, 0.0, 0.0, 0.01960784,
+  0.10196078, 0.18823529, 0.27450980, 0.35294118, 0.43137255,
+  0.52156863, 0.60784314, 0.69411765, 0.77254902, 0.85490196,
+  0.92941176, 1.0
+);
+
+const BLACKS_POSITIVE_CURVE = array<f32, 17>(
+  0.0, 0.09803922, 0.19215686, 0.26666667, 0.33333333,
+  0.39607843, 0.45882353, 0.51764706, 0.56862745, 0.61960784,
+  0.67058824, 0.72156863, 0.77254902, 0.82745098, 0.88235294,
+  0.93725490, 1.0
+);
+
 fn linearToSrgbScalar(value: f32) -> f32 {
   let safeValue = max(value, 0.0);
   return select(
@@ -228,6 +263,26 @@ fn sampleContrastCurve(encodedY: f32, positive: bool) -> f32 {
   return mix(CONTRAST_NEGATIVE_CURVE[lower], CONTRAST_NEGATIVE_CURVE[lower + 1u], fraction);
 }
 
+fn sampleBlacksCurve(encodedY: f32, amount: f32) -> f32 {
+  let position = clamp(encodedY, 0.0, 1.0) * 16.0;
+  let lower = min(u32(floor(position)), 15u);
+  let fraction = position - f32(lower);
+  if (amount > 0.0) {
+    let endpoint = mix(BLACKS_POSITIVE_CURVE[lower], BLACKS_POSITIVE_CURVE[lower + 1u], fraction);
+    return mix(encodedY, endpoint, amount);
+  }
+
+  let magnitude = -amount;
+  let curve25 = mix(BLACKS_NEGATIVE_25_CURVE[lower], BLACKS_NEGATIVE_25_CURVE[lower + 1u], fraction);
+  if (magnitude <= 0.25) { return mix(encodedY, curve25, magnitude / 0.25); }
+  let curve50 = mix(BLACKS_NEGATIVE_50_CURVE[lower], BLACKS_NEGATIVE_50_CURVE[lower + 1u], fraction);
+  if (magnitude <= 0.50) { return mix(curve25, curve50, (magnitude - 0.25) / 0.25); }
+  let curve80 = mix(BLACKS_NEGATIVE_80_CURVE[lower], BLACKS_NEGATIVE_80_CURVE[lower + 1u], fraction);
+  if (magnitude <= 0.80) { return mix(curve50, curve80, (magnitude - 0.50) / 0.30); }
+  let curve100 = mix(BLACKS_NEGATIVE_100_CURVE[lower], BLACKS_NEGATIVE_100_CURVE[lower + 1u], fraction);
+  return mix(curve80, curve100, (magnitude - 0.80) / 0.20);
+}
+
 fn shadowsTonalMask(y: f32) -> f32 {
   // A logistic mask around scene-linear middle grey follows the useful part of
   // darktable's tonal-mask approach: strong deep-shadow coverage with an early,
@@ -245,15 +300,18 @@ fn applyToneControls(rgb: vec3f) -> vec3f {
   let epsilon = 1e-6;
   let y = max(luminance(rgb), epsilon);
   let logY = log2(y);
-  let blacksMask = 1.0 - smoothstep(-6.5, -3.1, logY);
   let shadowsMask = shadowsTonalMask(y);
   let highlightsMask = smoothstep(-2.2, -0.55, logY) * (1.0 - smoothstep(0.15, 1.65, logY));
   let tonalStops =
-    adjustments.blacks * 0.007 * blacksMask +
     adjustments.shadows * 0.009 * shadowsMask +
     adjustments.highlights * 0.008 * highlightsMask;
   let newLogY = logY + tonalStops;
   var newY = exp2(newLogY);
+  let blacksAmount = adjustments.blacks / 100.0;
+  if (abs(blacksAmount) > 0.00001 && newY < 1.0) {
+    let encodedY = linearToSrgbScalar(newY);
+    newY = srgbToLinearChannel(sampleBlacksCurve(encodedY, blacksAmount));
+  }
   let contrastAmount = adjustments.contrast / 100.0;
   // The calibrated curve describes the display-referred 0..1 interval. Keep
   // scene-linear superwhites intact so 16-bit/HDR headroom remains available
