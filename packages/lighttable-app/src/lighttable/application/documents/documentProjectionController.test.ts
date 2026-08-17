@@ -4,6 +4,10 @@ import { createImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { createDefaultAdjustments } from '../../types';
 import {
+  buildAdjustmentUniform,
+  DETAIL_PAYLOAD_OFFSET
+} from '../../gpu/adjustmentUniform';
+import {
   createDocumentProjectionController,
   type DocumentProjectionPort
 } from './documentProjectionController';
@@ -194,5 +198,33 @@ describe('createDocumentProjectionController', () => {
       vibrance: 0,
       saturation: 0
     });
+  });
+
+  it('bypasses and restores authored Detail values through the renderer payload', () => {
+    const fixture = createFixture();
+    const authored = createDefaultAdjustments();
+    authored.detail.luminanceNoiseReduction = 100;
+    fixture.controller.applyAdjustmentSnapshot(authored);
+    fixture.publishRendererAdjustments.mockClear();
+
+    fixture.controller.applyGroupVisibilitySnapshot({
+      ...fixture.getGroupVisibility(),
+      detail: false
+    });
+
+    const bypassed = fixture.publishRendererAdjustments.mock.calls[0]?.[0];
+    expect(bypassed?.detail.luminanceNoiseReduction).toBe(0);
+    expect(fixture.getDocumentAdjustments().detail.luminanceNoiseReduction).toBe(100);
+    expect(buildAdjustmentUniform(bypassed!, 16, 9, false)[DETAIL_PAYLOAD_OFFSET + 4]).toBe(0);
+
+    fixture.publishRendererAdjustments.mockClear();
+    fixture.controller.applyGroupVisibilitySnapshot({
+      ...fixture.getGroupVisibility(),
+      detail: true
+    });
+
+    const restored = fixture.publishRendererAdjustments.mock.calls[0]?.[0];
+    expect(restored?.detail.luminanceNoiseReduction).toBe(100);
+    expect(buildAdjustmentUniform(restored!, 16, 9, false)[DETAIL_PAYLOAD_OFFSET + 4]).toBe(100);
   });
 });
