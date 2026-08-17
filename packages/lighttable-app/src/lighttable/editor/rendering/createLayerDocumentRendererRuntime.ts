@@ -465,6 +465,7 @@ export const createLayerDocumentRendererRuntime = (
       // Opening/replacing an image resets document-owned text sources, but the
       // coordinator itself remains reusable for the lifetime of the GPU engine.
       () => textLayerCoordinator.resetDocument(),
+      () => compositor.destroyCaches(),
       () => compositeTargets.destroy(),
       () => selectionTextures.destroy(),
       () => geometryPreviews.clear(),
@@ -484,6 +485,7 @@ export const createLayerDocumentRendererRuntime = (
       () => textLayerCoordinator.estimatedTextureBytes(),
       ({ width, height }) =>
         compositeTargets.estimatedTextureBytes(width, height, 8),
+      () => compositor.topmostSuffixCacheTelemetry().bytes,
       ({ width, height }) =>
         selectionTextures.estimatedTextureBytes(width, height),
       ({ rgba16Bytes }) =>
@@ -498,6 +500,7 @@ export const createLayerDocumentRendererRuntime = (
     selection: selectionTextures,
     invalidateAll: () => {
       renderResources.invalidateAllStyles();
+      compositor.destroyCaches();
       compositeTargets.destroy();
     }
   });
@@ -532,6 +535,7 @@ export const createLayerDocumentRendererRuntime = (
     layerPresentationPicker,
     resizeSurface: (width, height) => {
       resources.setDimensions(width, height);
+      compositor.destroyCaches();
       compositeTargets.destroy();
       renderResources.invalidateAllStyles();
       renderResources.releaseStyleTargets();

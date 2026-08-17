@@ -12,7 +12,8 @@ import {
   collectVisibleLeafNodes,
   containsActiveLayerStyles,
   containsVisibleAdjustmentLayer,
-  groupNeedsCompositingEnvelope
+  groupNeedsCompositingEnvelope,
+  splitTopmostProcessingSuffix
 } from './compositorGraph';
 import { createAdjustmentLayer } from '../document/documentTypes';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
@@ -166,6 +167,19 @@ describe('compositorGraph', () => {
     expect(plan.entries[1]?.children?.entries.map(({ node }) => node.name)).toEqual([
       'inside', 'Grouped Lens FX'
     ]);
+  });
+
+  it('recognizes only a contiguous unclipped topmost root processing suffix', () => {
+    const base = createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
+    const lower = raster('lower');
+    const grade = createAdjustmentLayer(base, 'Grade', 'grade');
+    const lensFx = createAdjustmentLayer(base, 'Lens FX', 'lens-fx');
+
+    expect(splitTopmostProcessingSuffix([lower, grade, lensFx])).toEqual({
+      base: [lower], processing: [grade, lensFx]
+    });
+    expect(splitTopmostProcessingSuffix([lower, grade, raster('above')])).toBeNull();
+    expect(splitTopmostProcessingSuffix([lower, { ...grade, clipping: true }])).toBeNull();
   });
 
   it('analyzes the fast-path inputs and mask-dependent group envelope once', () => {

@@ -29,6 +29,33 @@ export interface DocumentCompositeAnalysis {
   activeLayerStyles: boolean;
 }
 
+export interface TopmostProcessingSuffix {
+  readonly base: readonly LayerNode[];
+  readonly processing: readonly Extract<LayerNode, { type: 'adjustment' }>[];
+}
+
+/**
+ * Finds the only processing suffix that may safely reuse a root base
+ * composite. Clipped adjustments are deliberately excluded because their
+ * alpha source is the preceding sibling in isolation, not the accumulated
+ * lower composite. Every returned layer remains an independent operation.
+ */
+export const splitTopmostProcessingSuffix = (
+  nodes: readonly LayerNode[]
+): TopmostProcessingSuffix | null => {
+  let start = nodes.length;
+  while (start > 0) {
+    const node = nodes[start - 1];
+    if (node.type !== 'adjustment' || node.clipping) break;
+    start -= 1;
+  }
+  if (start === nodes.length) return null;
+  return {
+    base: nodes.slice(0, start),
+    processing: nodes.slice(start) as readonly Extract<LayerNode, { type: 'adjustment' }>[]
+  };
+};
+
 /**
  * Resolves sibling clipping-chain semantics without allocating GPU resources.
  * Layer arrays are bottom-most first, matching both LightTable and PSD import.

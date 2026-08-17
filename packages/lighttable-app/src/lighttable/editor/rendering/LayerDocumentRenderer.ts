@@ -200,6 +200,14 @@ export class LayerDocumentRenderer {
     return this.runtime.textureMemory.estimate();
   }
 
+  processingCacheTelemetry() {
+    return this.runtime.compositor.topmostSuffixCacheTelemetry();
+  }
+
+  setTopmostSuffixCacheEnabled(enabled: boolean) {
+    this.runtime.compositor.setTopmostSuffixCacheEnabled(enabled);
+  }
+
   setGeometryPreview(layer: Pick<LayerNode, 'id' | 'geometryRevision'>, matrix: AffineMatrix | null) {
     return this.runtime.geometryPreviews.set(layer.id, layer.geometryRevision, matrix);
   }

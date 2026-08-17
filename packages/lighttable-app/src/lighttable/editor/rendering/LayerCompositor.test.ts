@@ -169,6 +169,7 @@ describe('LayerCompositor', () => {
     const compositeA = texture();
     const compositeB = texture();
     const rasterTexture = texture();
+    const cachedBaseTexture = texture();
     const curvesTexture = texture();
     const gradeTexture = texture();
     const encodeAdjustment = vi.fn((_encoder, _source, layer) =>
@@ -194,22 +195,25 @@ describe('LayerCompositor', () => {
       dimensions: () => ({ width: 64, height: 32 }),
       syncDocument: vi.fn(),
       maskTextureFor: vi.fn(() => null),
-      createTexture: vi.fn(texture),
+      createTexture: vi.fn(() => cachedBaseTexture),
       clearTexture: vi.fn(),
       drawFullscreen: vi.fn()
     });
 
-    compositor.encode({} as GPUCommandEncoder, document, encodeAdjustment);
+    const encoder = { copyTextureToTexture: vi.fn() } as unknown as GPUCommandEncoder;
+    compositor.encode(encoder, document, encodeAdjustment);
 
     expect(encodeAdjustment).toHaveBeenCalledTimes(2);
     expect(encodeAdjustment.mock.calls.map((call) => call[2].name)).toEqual(['Curves', 'Grade']);
-    expect(encodeAdjustment.mock.calls[0]?.[1]).toBe(compositeB);
+    expect(encodeAdjustment.mock.calls[0]?.[1]).toBe(cachedBaseTexture);
     expect(encodeAdjustment.mock.calls[1]?.[1]).toBe(compositeA);
+    expect(compositor.topmostSuffixCacheTelemetry()).toMatchObject({ misses: 1, hits: 0 });
 
     encodeAdjustment.mockClear();
     document.layers = [document.layers[0]!, grade, curves];
-    compositor.encode({} as GPUCommandEncoder, document, encodeAdjustment);
+    compositor.encode(encoder, document, encodeAdjustment);
     expect(encodeAdjustment.mock.calls.map((call) => call[2].name)).toEqual(['Grade', 'Curves']);
+    expect(compositor.topmostSuffixCacheTelemetry()).toMatchObject({ misses: 1, hits: 1 });
   });
 
   it('propagates parent transforms to native vector layers', () => {

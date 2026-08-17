@@ -2635,8 +2635,16 @@ export class WebGpuEngine {
     return {
       ...this.renderTelemetry.snapshot(),
       gpuTextureBytes: this.estimatedGpuTextureBytes(),
+      processingSuffixCache: this.documentRenderer?.processingCacheTelemetry() ?? null,
       deformation: this.layerEffectRenderer?.deformationTelemetry() ?? null
     };
+  }
+
+  /** Debug/parity route for comparing canonical evaluation without suffix reuse. */
+  setTopmostProcessingCacheEnabled(enabled: boolean) {
+    this.documentRenderer?.setTopmostSuffixCacheEnabled(enabled);
+    this.renderDirty.invalidate('document');
+    this.requestRender();
   }
 
   resetRenderTelemetry() {

@@ -77,7 +77,7 @@ describe('createEditorMenuOptions', () => {
     curves?.onClick?.();
     expect(menuCommands.applyAdjustment).toHaveBeenCalledWith('curves');
     expect(adjustments?.map(({ label }) => label)).toEqual([
-      'Grade...',
+      'Grade...', 'Lens Fx...',
       'Brightness / Contrast...', 'Levels...', 'Curves...', 'Exposure...',
       'Color and Vibrance...', 'Hue / Saturation...', 'Color Balance...',
       'Black & White...', 'Photo Filter...', 'Channel Mixer...', 'Color Lookup...',

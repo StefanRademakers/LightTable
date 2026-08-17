@@ -26,6 +26,8 @@ import {
 } from '../styles/layerStyleRenderPlan';
 import {
   analyzeDocumentComposite,
+  buildCompositorPlan,
+  splitTopmostProcessingSuffix,
   type CompositorPlan,
   type CompositorPlanEntry
 } from './compositorGraph';
@@ -86,8 +88,37 @@ interface LayerCompositorOptions {
 export class LayerCompositor {
   private blendProfile = 0;
   private blendQuantization = 0;
+  private topmostBaseTexture: GPUTexture | null = null;
+  private topmostBaseDocumentId: string | null = null;
+  private topmostBaseNodes: readonly ImageDocument['layers'][number][] = [];
+  private topmostBaseContract = '';
+  private topmostBaseHits = 0;
+  private topmostBaseMisses = 0;
+  private topmostSuffixCacheEnabled = true;
 
   constructor(private readonly options: LayerCompositorOptions) {}
+
+  topmostSuffixCacheTelemetry() {
+    const { width, height } = this.options.dimensions();
+    return {
+      hits: this.topmostBaseHits,
+      misses: this.topmostBaseMisses,
+      bytes: this.topmostBaseTexture ? width * height * 8 : 0
+    };
+  }
+
+  setTopmostSuffixCacheEnabled(enabled: boolean) {
+    this.topmostSuffixCacheEnabled = enabled;
+    if (!enabled) this.destroyCaches();
+  }
+
+  destroyCaches() {
+    this.topmostBaseTexture?.destroy();
+    this.topmostBaseTexture = null;
+    this.topmostBaseDocumentId = null;
+    this.topmostBaseNodes = [];
+    this.topmostBaseContract = '';
+  }
 
   encode(
     encoder: GPUCommandEncoder,
@@ -229,6 +260,10 @@ export class LayerCompositor {
       if (node.type === 'adjustment') {
         if (!encodeAdjustment) return [background, target];
         const adjusted = encodeAdjustment(encoder, background, node);
+        // A neutral/disabled processing owner returns its input by identity.
+        // In that case mask, opacity and blend cannot change any pixel, so the
+        // adjustment mix itself is an exact zero-work bypass as well.
+        if (adjusted === background) return [background, target];
         const maskTexture = this.options.maskTextureFor(node.id);
         const settingsBuffer = this.options.device.createBuffer({
           label: `LightTable adjustment mix settings: ${node.name}`,
@@ -658,13 +693,17 @@ export class LayerCompositor {
       plan: CompositorPlan,
       initialBackground: GPUTexture,
       initialTarget: GPUTexture,
-      inheritedTransform: AffineMatrix = identityAffineMatrix()
+      inheritedTransform: AffineMatrix = identityAffineMatrix(),
+      protectedBackground: GPUTexture | null = null
     ): [GPUTexture, GPUTexture] => {
       let background = initialBackground;
       let target = initialTarget;
       let clippingBase: GPUTexture | null = null;
       plan.entries.forEach((entry) => {
         if (entry.skipBecauseClippingBaseMissing) return;
+        if (target === protectedBackground) {
+          target = background === compositeA ? compositeB : compositeA;
+        }
         [background, target] = renderNode(
           entry,
           background,
@@ -746,7 +785,54 @@ export class LayerCompositor {
       return [parentTarget, parentBackground];
     };
 
-    const [background] = renderNodes(analysis.plan, compositeA, compositeB);
+    const suffix = this.topmostSuffixCacheEnabled
+      && encodeAdjustment
+      && !includeDevelopmentTextFixture
+      && excludedLayerIds.size === 0
+      ? splitTopmostProcessingSuffix(document.layers)
+      : null;
+    let background: GPUTexture;
+    if (suffix) {
+      const contract = `${document.width}x${document.height}:${JSON.stringify(document.colorSettings)}`;
+      const cacheValid = Boolean(
+        this.topmostBaseTexture
+        && this.topmostBaseDocumentId === document.id
+        && this.topmostBaseContract === contract
+        && this.topmostBaseNodes.length === suffix.base.length
+        && this.topmostBaseNodes.every((node, index) => node === suffix.base[index])
+      );
+      if (!cacheValid) {
+        this.topmostBaseMisses += 1;
+        this.topmostBaseTexture?.destroy();
+        this.topmostBaseTexture = this.options.createTexture(
+          'LightTable cached composite below topmost processing suffix'
+        );
+        const [baseResult] = renderNodes(
+          buildCompositorPlan(suffix.base, (layerId) => Boolean(this.options.maskTextureFor(layerId))),
+          compositeA,
+          compositeB
+        );
+        encoder.copyTextureToTexture(
+          { texture: baseResult },
+          { texture: this.topmostBaseTexture },
+          this.options.dimensions()
+        );
+        this.topmostBaseDocumentId = document.id;
+        this.topmostBaseNodes = [...suffix.base];
+        this.topmostBaseContract = contract;
+      } else {
+        this.topmostBaseHits += 1;
+      }
+      [background] = renderNodes(
+        buildCompositorPlan(suffix.processing, (layerId) => Boolean(this.options.maskTextureFor(layerId))),
+        this.topmostBaseTexture!,
+        compositeA,
+        identityAffineMatrix(),
+        this.topmostBaseTexture
+      );
+    } else {
+      [background] = renderNodes(analysis.plan, compositeA, compositeB);
+    }
     if (includeDevelopmentTextFixture) {
       this.options.developmentTextFixture?.encode(
         encoder,
