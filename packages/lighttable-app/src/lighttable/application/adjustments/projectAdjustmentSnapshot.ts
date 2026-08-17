@@ -24,7 +24,7 @@ export interface AdjustmentProjection {
   readonly editorAdjustments: BasicAdjustments;
   readonly documentAdjustments: BasicAdjustments;
   readonly document: ImageDocument | null;
-  readonly scope: 'layer' | 'adjustment-layer';
+  readonly scope: 'document' | 'layer' | 'adjustment-layer';
 }
 
 /**
@@ -43,7 +43,12 @@ export const projectAdjustmentSnapshot = ({
 }: AdjustmentProjectionInput): AdjustmentProjection => {
   const editorAdjustments = structuredClone(snapshot);
   if (!targetLayerId) {
-    throw new Error('Select a raster layer or Grade Layer before grading.');
+    return {
+      editorAdjustments,
+      documentAdjustments: editorAdjustments,
+      document,
+      scope: 'document'
+    };
   }
   if (!document) {
     throw new Error('An Adjustment Layer grade requires an active document.');

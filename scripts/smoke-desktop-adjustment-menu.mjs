@@ -45,6 +45,50 @@ try {
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'attached', timeout: 60_000 });
 
+  const globalRows = page.locator('.lighttable-global-processing-row');
+  if (await globalRows.count() !== 2) throw new Error('The two global processing rows are missing.');
+  const globalLabels = await globalRows.locator('.lighttable-global-processing-row__name').allTextContents();
+  if (globalLabels.join('|') !== 'Global Lens FX|Global Grade') {
+    throw new Error(`Global processing order is incorrect: ${globalLabels.join('|')}.`);
+  }
+  const globalHeights = await globalRows.evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+  if (globalHeights.some((height) => height !== 22)) {
+    throw new Error(`Global processing rows are not 22px high: ${globalHeights.join(', ')}.`);
+  }
+  const globalRowPresentation = await page.evaluate(() => {
+    const globalName = document.querySelector('.lighttable-global-processing-row__name');
+    const layerName = document.querySelector('.lighttable-layer__name');
+    const globalRow = document.querySelector('.lighttable-global-processing-row');
+    if (!(globalName instanceof HTMLElement) || !(layerName instanceof HTMLElement)
+      || !(globalRow instanceof HTMLElement)) return null;
+    const globalStyle = getComputedStyle(globalName);
+    const layerStyle = getComputedStyle(layerName);
+    return {
+      globalNameX: globalName.getBoundingClientRect().x,
+      layerNameX: layerName.getBoundingClientRect().x,
+      globalFont: `${globalStyle.fontFamily}|${globalStyle.fontSize}|${globalStyle.fontWeight}`,
+      layerFont: `${layerStyle.fontFamily}|${layerStyle.fontSize}|${layerStyle.fontWeight}`,
+      inactiveBackground: getComputedStyle(globalRow).backgroundColor
+    };
+  });
+  if (!globalRowPresentation
+    || Math.abs(globalRowPresentation.globalNameX - globalRowPresentation.layerNameX) > 0.5
+    || globalRowPresentation.globalFont !== globalRowPresentation.layerFont) {
+    throw new Error(`Global processing typography is not aligned with layers: ${JSON.stringify(globalRowPresentation)}.`);
+  }
+  if (globalRowPresentation.inactiveBackground !== 'rgb(41, 45, 50)') {
+    throw new Error(`Inactive global row has the wrong background: ${globalRowPresentation.inactiveBackground}.`);
+  }
+  await page.getByRole('treeitem', { name: /Global Lens FX/ }).click();
+  await page.getByRole('switch', { name: 'Enable Lens Distortion' }).waitFor({ state: 'visible' });
+  if (await page.locator('.lighttable-layer--active, .lighttable-layer--selected').count()) {
+    throw new Error('A composite layer stayed active while Global Lens FX was selected.');
+  }
+  const globalActiveBackground = await globalRows.first().evaluate((row) => getComputedStyle(row).backgroundColor);
+  if (globalActiveBackground !== 'rgb(36, 86, 163)') {
+    throw new Error(`Active global row has the wrong background: ${globalActiveBackground}.`);
+  }
+
   const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
   await trigger.click();
   const menu = page.getByRole('menu', { name: 'New fill or processing layer' });
@@ -63,11 +107,14 @@ try {
   ));
   if (!isPortal) throw new Error('The adjustment menu is still owned by the Layers panel DOM.');
 
-  for (const label of ['Grade', 'Lens Fx', 'Color and Vibrance', 'Curves', 'Exposure', 'Selective Color']) {
+  for (const label of ['Grade', 'Color and Vibrance', 'Curves', 'Exposure', 'Selective Color']) {
     await menu.getByRole('menuitem', { name: `New ${label}${[
-      'Grade', 'Lens Fx'
+      'Grade'
     ].includes(label) ? '' : ' adjustment'} layer`, exact: true })
       .waitFor({ state: 'attached' });
+  }
+  if (await menu.getByRole('menuitem', { name: 'New Lens Fx layer', exact: true }).count()) {
+    throw new Error('New Lens Fx layer is still exposed in the creation menu.');
   }
   const attachExposure = menu.getByRole('menuitem', {
     name: 'Attach Exposure to selected layer', exact: true
@@ -237,6 +284,7 @@ try {
     bounds,
     viewport,
     portalOwned: isPortal,
+    globalRows: { labels: globalLabels, heights: globalHeights },
     attachedExposure: true,
     attachedLevels: true,
     levelsLiveDrag: { liveBlackInput, committedBlackInput },

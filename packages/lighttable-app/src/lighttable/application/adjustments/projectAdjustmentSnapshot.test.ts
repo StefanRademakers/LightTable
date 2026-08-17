@@ -30,18 +30,21 @@ import {
 } from '../../effects/warp/warpTypes';
 
 describe('adjustment snapshot projection', () => {
-  it('rejects an adjustment when no explicit layer target is selected', () => {
+  it('projects an explicit document-processing target onto the global pass', () => {
     const document = createImageDocument('Image', 64, 48, 'image');
     const snapshot = {
       ...createDefaultAdjustments(),
       exposureEV: 1.5
     };
-    expect(() => projectAdjustmentSnapshot({
+    const result = projectAdjustmentSnapshot({
       snapshot,
       targetLayerId: null,
       document,
       documentAdjustments: createDefaultAdjustments()
-    })).toThrow('Select a raster layer or Grade Layer');
+    });
+    expect(result.scope).toBe('document');
+    expect(result.document).toBe(document);
+    expect(result.documentAdjustments.exposureEV).toBe(1.5);
   });
 
   it('stores Grade and Lens Fx on the raster owner and clears hidden document effects', () => {

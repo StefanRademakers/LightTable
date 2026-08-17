@@ -112,6 +112,29 @@ describe('createDocumentProjectionController', () => {
     expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
   });
 
+  it('previews and commits document-global processing without a layer owner', () => {
+    const fixture = createFixture();
+    const preview = {
+      ...createDefaultAdjustments(),
+      exposureEV: 0.75
+    };
+
+    fixture.controller.previewAdjustmentSnapshot(preview, null, 'grade');
+
+    expect(fixture.getDocumentAdjustments().exposureEV).toBe(0);
+    expect(fixture.getEditorAdjustments().exposureEV).toBe(0.75);
+    expect(fixture.publishRendererAdjustments).toHaveBeenLastCalledWith(
+      expect.objectContaining({ exposureEV: 0.75 })
+    );
+
+    fixture.controller.applyAdjustmentSnapshot(preview, null, 'grade');
+
+    expect(fixture.getDocumentAdjustments().exposureEV).toBe(0.75);
+    expect(fixture.publishRendererAdjustments).toHaveBeenLastCalledWith(
+      expect.objectContaining({ exposureEV: 0.75 })
+    );
+  });
+
   it('advances node revisions across consecutive previews from one gesture', () => {
     const fixture = createFixture();
     const originalDocument = fixture.getDocument();

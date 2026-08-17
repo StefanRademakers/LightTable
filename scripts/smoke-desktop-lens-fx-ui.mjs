@@ -68,10 +68,7 @@ try {
   };
 
   const neutral = await exportPng('neutral');
-  await page.getByRole('button', { name: 'New fill or processing layer' }).click();
-  await page.getByRole('menu', { name: 'New fill or processing layer' })
-    .getByRole('menuitem', { name: 'New Lens Fx layer', exact: true })
-    .click();
+  await page.getByRole('treeitem', { name: /Global Lens FX/ }).click();
   await page.getByRole('switch', { name: 'Enable Lens Distortion' }).waitFor();
 
   const metrics = {};

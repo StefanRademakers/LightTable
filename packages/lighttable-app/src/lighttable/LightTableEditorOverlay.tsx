@@ -2155,6 +2155,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getActiveTargetLayerId: () => {
       const document = imageDocumentRef.current;
       if (!document) return null;
+      if (propertiesTarget.kind === 'document-processing') return null;
       if (propertiesTarget.kind === 'attached-processing') {
         return attachedAdjustmentOwnerId(
           propertiesTarget.layerId,
@@ -2192,7 +2193,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const assetId = `lut-${crypto.randomUUID()}` as DocumentAssetId;
     await renderer.loadLayerAssets([{ lutId: assetId, source: file }]);
 
-    const targetLayerId = propertiesTarget.kind === 'attached-processing'
+    const targetLayerId = propertiesTarget.kind === 'document-processing'
+      ? null
+      : propertiesTarget.kind === 'attached-processing'
       ? attachedAdjustmentOwnerId(propertiesTarget.layerId, propertiesTarget.adjustmentId)
       : (() => {
           const active = findDocumentLayer(beforeDocument, beforeDocument.activeLayerId);
@@ -4876,6 +4879,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
       onInspectProcessing={(layerId, owner) => {
         showProperties({ kind: 'processing', layerId, owner });
+      }}
+      documentProcessingVisibility={{
+        grade: groupVisibility.globalGrade,
+        lensFx: groupVisibility.globalLensFx
+      }}
+      onDocumentProcessingVisibility={(owner, visible) => {
+        documentProjectionController.applyGroupVisibilitySnapshot({
+          ...groupVisibilityRef.current,
+          [owner === 'grade' ? 'globalGrade' : 'globalLensFx']: visible
+        });
+      }}
+      onInspectDocumentProcessing={(owner) => {
+        publishAdjustmentPresentation(
+          cloneAdjustments(documentAdjustmentsRef.current),
+          owner === 'grade' ? 'grade' : 'lens-fx'
+        );
+        showProperties({ kind: 'document-processing', owner });
       }}
       onInspectAttachedAdjustment={(layerId, adjustmentId) => {
         const currentDocument = imageDocumentRef.current;

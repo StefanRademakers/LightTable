@@ -44,6 +44,17 @@ const documentWith = (active: LayerNode): ImageDocument => ({
 } as unknown as ImageDocument);
 
 describe('properties inspector target', () => {
+  it('keeps document processing independent from the active layer', () => {
+    const raster = layer({ id: 'raster' as LayerNode['id'], type: 'raster', adjustmentStack: null });
+    const document = documentWith(raster);
+    const grade = { kind: 'document-processing', owner: 'grade' } as const;
+    const lensFx = { kind: 'document-processing', owner: 'lens-fx' } as const;
+
+    expect(propertiesTargetIsValid(document, grade)).toBe(true);
+    expect(propertiesInspectorView(document, grade)).toBe('grade');
+    expect(propertiesInspectorView(document, lensFx)).toBe('lens-fx');
+  });
+
   it('routes layer content to the matching reusable editor', () => {
     const text = layer({ id: 'text' as LayerNode['id'], type: 'text' });
     expect(propertiesInspectorView(documentWith(text), { kind: 'layer', layerId: text.id }))

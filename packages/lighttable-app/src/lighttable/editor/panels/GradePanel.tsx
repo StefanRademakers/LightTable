@@ -47,7 +47,7 @@ import {
 } from '../../types';
 import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
 
-type GradeGroup = keyof GroupVisibility;
+type GradeGroup = Exclude<keyof GroupVisibility, 'globalGrade' | 'globalLensFx'>;
 
 export interface GradePanelModel {
   readonly adjustmentStore: AdjustmentPresentationStore;

@@ -82,7 +82,6 @@ interface LayerPanelProps {
   onCreateCurvesAdjustment: () => void;
   onCreateLocalProcessing: (layerId: LayerId, kind: LocalProcessingKind) => void;
   onCreateGradientFill: () => void;
-  onCreateLensFx: () => void;
   onCreateAdjustmentKind: (kind: AdjustmentLayerKind) => void;
   onCreateAttachedAdjustment: (layerId: LayerId, kind: AdjustmentLayerKind) => string | null;
   onCreateGroup: () => void;
@@ -115,6 +114,9 @@ interface LayerPanelProps {
   inspectorTarget: PropertiesInspectorTarget;
   onInspectLayer: (layerId: LayerId, channel: PaintChannel) => void;
   onInspectProcessing: (layerId: LayerId, owner: LocalProcessingKind) => void;
+  documentProcessingVisibility: Readonly<{ grade: boolean; lensFx: boolean }>;
+  onDocumentProcessingVisibility: (owner: 'grade' | 'lens-fx', visible: boolean) => void;
+  onInspectDocumentProcessing: (owner: 'grade' | 'lens-fx') => void;
   onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
 }
 
@@ -232,7 +234,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onCreateCurvesAdjustment,
   onCreateLocalProcessing,
   onCreateGradientFill,
-  onCreateLensFx,
   onCreateAdjustmentKind,
   onCreateAttachedAdjustment,
   onCreateGroup,
@@ -265,6 +266,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   inspectorTarget,
   onInspectLayer,
   onInspectProcessing,
+  documentProcessingVisibility,
+  onDocumentProcessingVisibility,
+  onInspectDocumentProcessing,
   onInspectAttachedAdjustment
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
@@ -302,15 +306,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const capabilityFindings = React.useMemo(() => buildDocumentCapabilityFindings(
     document.photoshopImportReport ?? null, textFontDiagnostics
   ), [document.photoshopImportReport, textFontDiagnostics]);
-  const documentFxRows = [...document.layers]
-    .filter(layerIsDocumentFx)
-    .reverse()
-    .map((layer) => ({ layer, depth: 0 }));
+  const documentFxLayer = document.layers.find(layerIsDocumentFx) ?? null;
   const compositeRows = visualLayerRows(
     document.layers.filter((layer) => !layerIsDocumentFx(layer)),
     collapsedGroups
   );
-  const rows = [...documentFxRows, ...compositeRows];
+  const rows = compositeRows;
   const allRows = visualLayerRows(document.layers, new Set());
   const allLayerIds = new Set(allRows.map(({ layer }) => layer.id));
   const selectedIds = [...selectedLayerIds].filter((layerId) => allLayerIds.has(layerId));
@@ -333,18 +334,48 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const canDeleteSelection = layerCapabilities.canDeleteSelection;
   const activeIsDocumentFx = Boolean(activeLayer && layerIsDocumentFx(activeLayer));
   const selectionContainsDocumentFx = selectedIds.some((layerId) =>
-    documentFxRows.some(({ layer }) => layer.id === layerId)
+    documentFxLayer?.id === layerId
   );
+  const globalLensFxActive = inspectorTarget.kind === 'document-processing'
+    ? inspectorTarget.owner === 'lens-fx'
+    : Boolean(documentFxLayer
+      && inspectorTarget.kind === 'layer'
+      && inspectorTarget.layerId === documentFxLayer.id);
+  const globalGradeActive = inspectorTarget.kind === 'document-processing'
+    && inspectorTarget.owner === 'grade';
+  const compositeLayerIsActive = inspectorTarget.kind !== 'document-processing';
+  const globalLensFxVisible = documentFxLayer?.visible
+    ?? documentProcessingVisibility.lensFx;
+  const activateGlobalLensFx = () => {
+    if (documentFxLayer) {
+      setSelectedLayerIds(new Set([documentFxLayer.id]));
+      selectionAnchorRef.current = documentFxLayer.id;
+      onSelect(documentFxLayer.id);
+      onChannelChange('pixels');
+      onInspectLayer(documentFxLayer.id, 'pixels');
+      return;
+    }
+    setSelectedLayerIds(new Set());
+    selectionAnchorRef.current = null;
+    onInspectDocumentProcessing('lens-fx');
+  };
+  const activateGlobalGrade = () => {
+    setSelectedLayerIds(new Set());
+    selectionAnchorRef.current = null;
+    onInspectDocumentProcessing('grade');
+  };
   const layerCreationHandlers = (id: (typeof LAYER_CREATION_OPTIONS)[number]['id']) => {
     if (id === 'gradient-fill') return onCreateGradientFill;
     if (id === 'grade') return onCreateAdjustment;
     if (id === 'curves') return onCreateCurvesAdjustment;
-    if (id === 'lens-fx') return onCreateLensFx;
     return () => onCreateAdjustmentKind(id);
   };
 
   React.useEffect(() => {
     setSelectedLayerIds((current) => {
+      if (inspectorTarget.kind === 'document-processing') {
+        return current.size === 0 ? current : new Set();
+      }
       const next = new Set([...current].filter((layerId) => allLayerIds.has(layerId)));
       if (document.activeLayerId && !next.has(document.activeLayerId)) {
         selectionAnchorRef.current = document.activeLayerId;
@@ -356,7 +387,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   // The layer tree revision and active id are sufficient; deriving allLayerIds
   // in the dependency list would make every render look like a selection change.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document.revision, document.activeLayerId]);
+  }, [document.revision, document.activeLayerId, inspectorTarget.kind]);
 
   React.useEffect(() => {
     onSelectionChange?.(selectedIds);
@@ -445,6 +476,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     if (
       inspectorTarget.kind !== 'none'
       && inspectorTarget.kind !== 'layer'
+      && inspectorTarget.kind !== 'document-processing'
       && inspectorTarget.layerId === document.activeLayerId
     ) return inspectorTarget;
     return document.activeLayerId
@@ -738,7 +770,62 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         </>
       ) : null}
       <div className="lighttable-layers__list" role="tree" aria-label="Layer stack" data-editor-native-tab-navigation="tab-only">
-        {rows.map(({ layer, depth }, rowIndex) => {
+        <div
+          role="treeitem"
+          tabIndex={0}
+          aria-selected={globalLensFxActive}
+          className={`lighttable-global-processing-row${
+            globalLensFxActive ? ' lighttable-global-processing-row--active' : ''
+          }`}
+          onClick={activateGlobalLensFx}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            activateGlobalLensFx();
+          }}
+        >
+          <ButtonBase type="button" className="lighttable-layer__visibility"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (documentFxLayer) onVisibility([documentFxLayer.id], !documentFxLayer.visible);
+              else onDocumentProcessingVisibility('lens-fx', !globalLensFxVisible);
+            }}
+            aria-label={globalLensFxVisible ? 'Hide Global Lens FX' : 'Show Global Lens FX'}
+            title={globalLensFxVisible ? 'Hide Global Lens FX' : 'Show Global Lens FX'}>
+            <img src={lightTableIcon(globalLensFxVisible ? 'visible.png' : 'visible_off.png')} alt="" />
+          </ButtonBase>
+          <span className="lighttable-global-processing-row__thumbnail-slot" aria-hidden="true" />
+          <span className="lighttable-layer__name lighttable-global-processing-row__name">Global Lens FX</span>
+        </div>
+        <div
+          role="treeitem"
+          tabIndex={0}
+          aria-selected={globalGradeActive}
+          className={`lighttable-global-processing-row${
+            globalGradeActive ? ' lighttable-global-processing-row--active' : ''
+          }`}
+          onClick={activateGlobalGrade}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            activateGlobalGrade();
+          }}
+        >
+          <ButtonBase type="button" className="lighttable-layer__visibility"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDocumentProcessingVisibility('grade', !documentProcessingVisibility.grade);
+            }}
+            aria-label={documentProcessingVisibility.grade ? 'Hide Global Grade' : 'Show Global Grade'}
+            title={documentProcessingVisibility.grade ? 'Hide Global Grade' : 'Show Global Grade'}>
+            <img src={lightTableIcon(documentProcessingVisibility.grade ? 'visible.png' : 'visible_off.png')} alt="" />
+          </ButtonBase>
+          <span className="lighttable-global-processing-row__thumbnail-slot" aria-hidden="true" />
+          <span className="lighttable-layer__name lighttable-global-processing-row__name">Global Grade</span>
+        </div>
+        <div className="lighttable-layer-zone-divider lighttable-layer-zone-divider--quiet"
+          role="presentation" />
+        {rows.map(({ layer, depth }) => {
           const documentFx = layerIsDocumentFx(layer);
           const icon = layerTypeIcon(layer);
           const previews = thumbnails.get(layer.id);
@@ -761,24 +848,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           );
           return (
           <React.Fragment key={layer.id}>
-          {documentFxRows.length > 0 && rowIndex === 0 ? (
-            <div className="lighttable-layer-zone-divider" role="presentation">
-              <span>document fx</span>
-            </div>
-          ) : null}
-          {documentFxRows.length > 0 && rowIndex === documentFxRows.length ? (
-            <div className="lighttable-layer-zone-divider" role="presentation">
-              <span>layer composite</span>
-            </div>
-          ) : null}
           <div
             data-layer-id={layer.id}
             draggable={!documentFx}
-            {...layerTreeItemAccessibility(layer, depth, selectedLayerIds.has(layer.id), document.activeLayerId === layer.id,
+            {...layerTreeItemAccessibility(layer, depth, selectedLayerIds.has(layer.id), compositeLayerIsActive && document.activeLayerId === layer.id,
               layer.type === 'group' ? !collapsedGroups.has(layer.id) : undefined)}
             className={[
               'lighttable-layer',
-              document.activeLayerId === layer.id ? 'lighttable-layer--active' : '',
+              compositeLayerIsActive && document.activeLayerId === layer.id ? 'lighttable-layer--active' : '',
               selectedLayerIds.has(layer.id) ? 'lighttable-layer--selected' : '',
               editingTextLayerId === layer.id ? 'lighttable-layer--text-editing' : '',
               layer.clipping ? 'lighttable-layer--clipped' : '',
@@ -845,7 +922,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             onDragOver={(event) => {
               const sourceId = draggedLayerIdRef.current;
               if (!sourceId || sourceId === layer.id || documentFx
-                || documentFxRows.some(({ layer: candidate }) => candidate.id === sourceId)) return;
+                || documentFxLayer?.id === sourceId) return;
               event.preventDefault();
               event.dataTransfer.dropEffect = 'move';
               const bounds = event.currentTarget.getBoundingClientRect();
@@ -967,7 +1044,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   layer.type === 'raster'
                     ? 'lighttable-layer__thumbnail--transparent'
                     : '',
-                  document.activeLayerId === layer.id && activeChannel === 'pixels'
+                  compositeLayerIsActive && document.activeLayerId === layer.id && activeChannel === 'pixels'
                     ? 'lighttable-layer__thumbnail--active'
                     : ''
                 ].filter(Boolean).join(' ')}
@@ -1039,7 +1116,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   draggable={!documentFx}
                   disabled={documentFx}
                   style={thumbnailDimensions}
-                  className={`lighttable-layer__thumbnail lighttable-layer__mask${document.activeLayerId === layer.id && activeChannel === 'mask' ? ' lighttable-layer__thumbnail--active lighttable-layer__thumbnail--active-mask' : ''}${isolatedMaskLayerId === layer.id ? ' lighttable-layer__thumbnail--mask-isolated' : ''}${layer.mask.enabled ? '' : ' lighttable-layer__mask--disabled'}`}
+                  className={`lighttable-layer__thumbnail lighttable-layer__mask${compositeLayerIsActive && document.activeLayerId === layer.id && activeChannel === 'mask' ? ' lighttable-layer__thumbnail--active lighttable-layer__thumbnail--active-mask' : ''}${isolatedMaskLayerId === layer.id ? ' lighttable-layer__thumbnail--mask-isolated' : ''}${layer.mask.enabled ? '' : ' lighttable-layer__mask--disabled'}`}
                   onClick={(event) => {
                     event.stopPropagation();
                     if (event.ctrlKey || event.metaKey) {

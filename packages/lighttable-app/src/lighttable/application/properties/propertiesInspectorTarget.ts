@@ -13,6 +13,10 @@ import {
 
 export type PropertiesInspectorTarget =
   | { readonly kind: 'none' }
+  | {
+      readonly kind: 'document-processing';
+      readonly owner: 'grade' | 'lens-fx';
+    }
   | { readonly kind: 'layer'; readonly layerId: LayerId }
   | { readonly kind: 'mask'; readonly layerId: LayerId }
   | {
@@ -55,6 +59,7 @@ export const propertiesTargetIsValid = (
   target: PropertiesInspectorTarget
 ): boolean => {
   if (target.kind === 'none') return document.activeLayerId === null;
+  if (target.kind === 'document-processing') return true;
   const layer = findDocumentLayer(document, target.layerId);
   if (!layer || layer.id !== document.activeLayerId) return false;
   if (target.kind === 'layer') return true;
@@ -93,6 +98,7 @@ export const propertiesInspectorView = (
   if (!document) return 'empty';
   const reconciled = reconcilePropertiesTarget(document, target);
   if (reconciled.kind === 'none' || reconciled.kind === 'mask') return 'empty';
+  if (reconciled.kind === 'document-processing') return reconciled.owner;
   const layer = findDocumentLayer(document, reconciled.layerId);
   if (!layer) return 'empty';
   if (reconciled.kind === 'processing') return reconciled.owner;

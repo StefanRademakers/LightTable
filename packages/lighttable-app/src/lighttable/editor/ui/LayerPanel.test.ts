@@ -25,7 +25,7 @@ describe('LayerPanel creation flyout', () => {
 
   it('orders processing and fill layers vertically and uses the gradient tool icon', () => {
     expect(LAYER_CREATION_OPTIONS.map(({ id }) => id)).toEqual([
-      'grade', 'lens-fx', 'brightness-contrast', 'levels', 'curves', 'exposure',
+      'grade', 'brightness-contrast', 'levels', 'curves', 'exposure',
       'color-vibrance', 'hue-saturation', 'color-balance', 'black-white',
       'photo-filter', 'channel-mixer', 'color-lookup', 'invert', 'posterize',
       'threshold', 'gradient-map', 'selective-color', 'clarity-dehaze',
@@ -37,6 +37,7 @@ describe('LayerPanel creation flyout', () => {
       .toMatchObject({ iconName: 'tool_gradient.png' });
     expect(LAYER_CREATION_OPTIONS.find(({ id }) => id === 'curves'))
       .toMatchObject({ iconName: 'adjustment_curves.svg' });
+    expect(LAYER_CREATION_OPTIONS.some(({ id }) => id === 'lens-fx')).toBe(false);
   });
 
   it('projects a layer-local Grade as an expandable child instead of a status badge', () => {

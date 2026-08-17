@@ -99,7 +99,14 @@ export const createDocumentProjectionController = (
     if (projection.document) {
       port.publishRendererDocument(projection.document);
     }
-    publishRendererAdjustments();
+    if (!publishCanonicalDocument && projection.scope === 'document') {
+      port.publishRendererAdjustments(applyGroupVisibility(
+        projection.documentAdjustments,
+        port.getGroupVisibility()
+      ));
+    } else {
+      publishRendererAdjustments();
+    }
   };
 
   return {

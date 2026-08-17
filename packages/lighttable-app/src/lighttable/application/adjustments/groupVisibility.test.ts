@@ -46,4 +46,34 @@ describe('adjustment group visibility', () => {
 
     expect(adjustments.shadows).toBe(50);
   });
+
+  it('bypasses Global Grade without disabling Global Lens FX', () => {
+    const adjustments = createDefaultAdjustments();
+    adjustments.exposureEV = 2;
+    adjustments.effects.lensDistortion.enabled = true;
+    adjustments.effects.lensDistortion.amount = 45;
+
+    const result = applyGroupVisibility(adjustments, {
+      ...createDefaultGroupVisibility(),
+      globalGrade: false
+    });
+
+    expect(result.exposureEV).toBe(0);
+    expect(result.effects.lensDistortion.enabled).toBe(true);
+    expect(result.effects.lensDistortion.amount).toBe(45);
+  });
+
+  it('bypasses Global Lens FX without resetting Global Grade', () => {
+    const adjustments = createDefaultAdjustments();
+    adjustments.exposureEV = 2;
+    adjustments.effects.lensDistortion.enabled = true;
+
+    const result = applyGroupVisibility(adjustments, {
+      ...createDefaultGroupVisibility(),
+      globalLensFx: false
+    });
+
+    expect(result.exposureEV).toBe(2);
+    expect(result.effects.lensDistortion.enabled).toBe(false);
+  });
 });

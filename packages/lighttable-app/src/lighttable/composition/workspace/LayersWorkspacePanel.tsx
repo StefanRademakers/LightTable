@@ -37,6 +37,9 @@ export interface LayersWorkspacePanelProps {
   inspectorTarget: PropertiesInspectorTarget;
   onInspectLayer: (layerId: LayerId, channel: PaintChannel) => void;
   onInspectProcessing: (layerId: LayerId, owner: LocalProcessingKind) => void;
+  documentProcessingVisibility: Readonly<{ grade: boolean; lensFx: boolean }>;
+  onDocumentProcessingVisibility: (owner: 'grade' | 'lens-fx', visible: boolean) => void;
+  onInspectDocumentProcessing: (owner: 'grade' | 'lens-fx') => void;
   onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
 }
 
@@ -65,6 +68,9 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   inspectorTarget,
   onInspectLayer,
   onInspectProcessing,
+  documentProcessingVisibility,
+  onDocumentProcessingVisibility,
+  onInspectDocumentProcessing,
   onInspectAttachedAdjustment
 }) => {
   if (!document) {
@@ -110,7 +116,6 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onCreateCurvesAdjustment={controller.createCurvesAdjustmentLayer}
         onCreateLocalProcessing={controller.createLocalProcessing}
         onCreateGradientFill={controller.createGradientFillLayer}
-        onCreateLensFx={controller.createLensFxLayer}
         onCreateAdjustmentKind={controller.createAdjustmentLayerOfKind}
         onCreateAttachedAdjustment={controller.createAttachedAdjustment}
         onCreateGroup={controller.createGroup}
@@ -143,6 +148,9 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         inspectorTarget={inspectorTarget}
         onInspectLayer={onInspectLayer}
         onInspectProcessing={onInspectProcessing}
+        documentProcessingVisibility={documentProcessingVisibility}
+        onDocumentProcessingVisibility={onDocumentProcessingVisibility}
+        onInspectDocumentProcessing={onInspectDocumentProcessing}
         onInspectAttachedAdjustment={onInspectAttachedAdjustment}
       />
     </div>

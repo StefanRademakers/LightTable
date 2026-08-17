@@ -5,6 +5,7 @@ import { createDefaultColorGrading } from '../../colorGrading';
 import { createDefaultColorMixer } from '../../colorMixer';
 import { createDefaultCurves } from '../../curves';
 import type { BasicAdjustments } from '../../types';
+import { createDefaultAdjustments } from '../../types';
 
 export type NumericAdjustmentKey = Exclude<
   keyof BasicAdjustments,
@@ -12,6 +13,8 @@ export type NumericAdjustmentKey = Exclude<
 >;
 
 export interface GroupVisibility {
+  readonly globalGrade: boolean;
+  readonly globalLensFx: boolean;
   readonly light: boolean;
   readonly color: boolean;
   readonly colorMixer: boolean;
@@ -45,6 +48,8 @@ export const EFFECTS_SLIDER_KEYS = new Set<NumericAdjustmentKey>([
 ]);
 
 export const createDefaultGroupVisibility = (): GroupVisibility => ({
+  globalGrade: true,
+  globalLensFx: true,
   light: true,
   color: true,
   colorMixer: true,
@@ -57,7 +62,14 @@ export const applyGroupVisibility = (
   adjustments: BasicAdjustments,
   visibility: GroupVisibility
 ): BasicAdjustments => {
-  const next = cloneAdjustments(adjustments);
+  let next = cloneAdjustments(adjustments);
+  const defaults = createDefaultAdjustments();
+  if (!visibility.globalGrade) {
+    const lensFx = next.effects;
+    next = defaults;
+    next.effects = lensFx;
+  }
+  if (!visibility.globalLensFx) next.effects = defaults.effects;
   const zero = (keys: ReadonlySet<NumericAdjustmentKey>) => {
     keys.forEach((key) => {
       next[key] = 0;
