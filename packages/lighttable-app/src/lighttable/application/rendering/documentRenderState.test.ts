@@ -11,10 +11,16 @@ import {
   setLayerOpacity,
   setLayerVisibility
 } from '../../editor/document/documentCommands';
-import { createImageDocument } from '../../editor/document/documentTypes';
-import { documentRenderStatesEqual } from './documentRenderState';
+import { createAdjustmentLayer, createImageDocument } from '../../editor/document/documentTypes';
+import {
+  documentCompositeRenderStatesEqual,
+  documentRenderStatesEqual
+} from './documentRenderState';
 import { applyTextLayerDataMutation } from '../../editor/document/textLayerCommands';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
+import { createDefaultAdjustments } from '../../types';
 
 describe('document render state', () => {
   it('ignores insertion-only text metadata but observes paint revisions', () => {
@@ -78,6 +84,42 @@ describe('document render state', () => {
       document,
       setLayerVisibility(document, layerId, false)
     )).toBe(false);
+  });
+
+  it('reuses the layer composite for fixed document-final Lens FX changes', () => {
+    const document = createImageDocument('Image', 64, 32, 'asset');
+    const first = createDefaultAdjustments();
+    first.effects.lensDistortion.enabled = true;
+    first.effects.lensDistortion.amount = 20;
+    const lensFx = createAdjustmentLayer(
+      selectAdjustmentLayerModules(createAdjustmentStackFromBasicAdjustments(first), 'lens-fx'),
+      'Lens Fx',
+      'lens-fx'
+    );
+    document.layers.push(lensFx);
+    const second = createDefaultAdjustments();
+    second.effects.lensDistortion.enabled = true;
+    second.effects.lensDistortion.amount = 80;
+    const changed = {
+      ...document,
+      layers: [
+        document.layers[0],
+        {
+          ...lensFx,
+          adjustmentStack: selectAdjustmentLayerModules(
+            createAdjustmentStackFromBasicAdjustments(second, lensFx.adjustmentStack),
+            'lens-fx'
+          )
+        }
+      ]
+    };
+
+    expect(documentRenderStatesEqual(document, changed)).toBe(false);
+    expect(documentCompositeRenderStatesEqual(document, changed)).toBe(true);
+    expect(documentCompositeRenderStatesEqual(document, {
+      ...changed,
+      layers: [changed.layers[0], { ...changed.layers[1], opacity: 0.5 }]
+    })).toBe(false);
   });
 
   it('detects raster pixel changes without depending on generic revisions', () => {

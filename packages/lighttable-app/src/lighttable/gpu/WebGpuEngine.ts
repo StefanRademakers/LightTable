@@ -1,7 +1,10 @@
 import type { GradientPaintInstance } from '@lighttable/paint-core';
 import type { BasicAdjustments, LightTableImageMetadata } from '../types';
 import { CURVE_LUT_SIZE } from '../curves';
-import { DocumentEffectRuntime } from '../effects/DocumentEffectRuntime';
+import {
+  DocumentEffectRuntime,
+  type DocumentEffectStackChange
+} from '../effects/DocumentEffectRuntime';
 import { composeDocumentFinalEffectStack } from '../effects/documentFinalEffectStack';
 import {
   LayerEffectRenderer,
@@ -95,7 +98,10 @@ import { estimateDocumentGpuBytes } from './documentGpuMemoryEstimate';
 import { DocumentSourceGpuLoader } from './documentSourceGpuLoader';
 import { DocumentScopeRuntime } from './documentScopeRuntime';
 import { DocumentHistogramRuntime } from './documentHistogramRuntime';
-import { documentRenderStatesEqual } from '../application/rendering/documentRenderState';
+import {
+  documentCompositeRenderStatesEqual,
+  documentRenderStatesEqual
+} from '../application/rendering/documentRenderState';
 import type { WarpDebugView } from '../effects/warp/warpTypes';
 import {
   BRUSH_CURSOR_THEME,
@@ -478,6 +484,16 @@ export class WebGpuEngine {
     // boundary when render-bearing immutable document content changed.
     if (documentRenderStatesEqual(previousDocument, document)) {
       if (warpDebugOwnerChanged) this.markDocumentDirty();
+      return;
+    }
+    if (documentCompositeRenderStatesEqual(previousDocument, document)) {
+      const effectChange = this.synchronizeDocumentFinalEffects();
+      if (effectChange?.earliestStage) {
+        this.renderDirty.invalidateCorrectionFrom(effectChange.earliestStage);
+        this.renderDirty.invalidate('histogram');
+        this.scopeRuntime.markImageDirty();
+        this.requestRender();
+      }
       return;
     }
     const traceDocumentSync = (
@@ -1695,8 +1711,8 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
-  private synchronizeDocumentFinalEffects() {
-    this.effectRuntime?.setAdjustmentStack(composeDocumentFinalEffectStack(
+  private synchronizeDocumentFinalEffects(): DocumentEffectStackChange | undefined {
+    return this.effectRuntime?.setAdjustmentStack(composeDocumentFinalEffectStack(
       this.adjustmentState.stackSnapshot(),
       this.imageDocument
     ));

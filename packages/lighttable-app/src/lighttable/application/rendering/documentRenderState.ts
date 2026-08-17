@@ -5,6 +5,7 @@ import type {
   RasterPixelSource
 } from '../../editor/document/documentTypes';
 import type { AffineMatrix } from '../../editor/rendering/renderContract';
+import { adjustmentLayerUsesDocumentFinalEffects } from '../../effects/documentFinalEffectStack';
 
 const transformsEqual = (left: AffineMatrix, right: AffineMatrix) =>
   left === right
@@ -127,4 +128,53 @@ export const documentRenderStatesEqual = (
     && current.height === next.height
     && current.assets === next.assets
     && layerListsEqual(current.layers, next.layers);
+};
+
+const documentCompositeLayerStatesEqual = (left: LayerNode, right: LayerNode): boolean => {
+  if (left === right) return true;
+  if (
+    left.type === 'adjustment'
+    && right.type === 'adjustment'
+    && adjustmentLayerUsesDocumentFinalEffects(left)
+    && adjustmentLayerUsesDocumentFinalEffects(right)
+  ) {
+    // A pristine Document FX layer is an identity node inside the layer
+    // compositor. Its stack and visibility belong exclusively to the cached
+    // document-final runtime.
+    return left.id === right.id;
+  }
+  if (!commonLayerRenderStateEqual(left, right)) return false;
+  if (left.type === 'group' && right.type === 'group') {
+    return left.compositing === right.compositing
+      && masksEqual(left.mask, right.mask)
+      && documentCompositeLayerListsEqual(left.children, right.children);
+  }
+  return layerRenderStatesEqual(left, right);
+};
+
+const documentCompositeLayerListsEqual = (
+  left: readonly LayerNode[],
+  right: readonly LayerNode[]
+): boolean => left === right || (
+  left.length === right.length
+  && left.every((layer, index) => documentCompositeLayerStatesEqual(layer, right[index]))
+);
+
+/**
+ * Returns whether the cached layer composite can be reused.
+ *
+ * Unlike documentRenderStatesEqual(), changes owned solely by a fixed
+ * document-final Lens FX layer are intentionally ignored. Ordinary adjustment
+ * layers, local Lens FX, masks and compositing properties remain conservative.
+ */
+export const documentCompositeRenderStatesEqual = (
+  current: ImageDocument | null,
+  next: ImageDocument
+): boolean => {
+  if (!current || current.id !== next.id) return false;
+  if (current === next) return true;
+  return current.width === next.width
+    && current.height === next.height
+    && current.assets === next.assets
+    && documentCompositeLayerListsEqual(current.layers, next.layers);
 };

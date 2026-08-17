@@ -76,16 +76,39 @@ try {
 
   const metrics = {};
   const bypassMetrics = {};
+  const interactionTelemetry = {};
   const exercise = async (effect, sliderLabel, key = 'End', prepare) => {
     const enable = page.getByRole('switch', { name: `Enable ${effect}` });
     const section = page.getByRole('button', { name: `Reset ${effect}` })
       .locator('xpath=ancestor::section[1]');
     await enable.click();
     await prepare?.(section);
+    await driver.resetRenderTelemetry(documentId);
     const slider = section.getByLabel(sliderLabel, { exact: true });
     await slider.focus();
     await slider.press(key);
     await page.waitForTimeout(2_000);
+    if (effect === 'Lens Distortion') {
+      const bounds = await slider.boundingBox();
+      if (!bounds) throw new Error('Lens Distortion slider has no interactive bounds.');
+      await driver.resetRenderTelemetry(documentId);
+      await page.mouse.move(bounds.x + 2, bounds.y + bounds.height / 2);
+      await page.mouse.down();
+      for (let step = 0; step <= 45; step += 1) {
+        await page.mouse.move(
+          bounds.x + 2 + (bounds.width - 4) * (step / 45),
+          bounds.y + bounds.height / 2
+        );
+        await page.waitForTimeout(1000 / 60);
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+    }
+    interactionTelemetry[effect] = await driver.queryRenderTelemetry(documentId);
+    if (effect === 'Lens Distortion'
+      && interactionTelemetry[effect]?.stages?.['document-composite']?.executions !== 0) {
+      throw new Error('Lens Distortion rebuilt the layer composite during a final-pass control update.');
+    }
     const rendered = await exportPng(effect.toLowerCase().replaceAll(' ', '-'));
     metrics[effect] = await difference(neutral, rendered);
     await page.getByRole('switch', { name: `Disable ${effect}` }).click();
@@ -140,7 +163,11 @@ try {
   for (const [effect, value] of Object.entries(bypassMetrics)) {
     if (value > 0.000001) throw new Error(`${effect} did not return to exact bypass (${value} RMSE).`);
   }
-  process.stdout.write(`Lens FX UI smoke: ${JSON.stringify({ metrics, bypassMetrics })}\n`);
+  process.stdout.write(`Lens FX UI smoke: ${JSON.stringify({
+    metrics,
+    bypassMetrics,
+    interactionTelemetry
+  })}\n`);
 } finally {
   await app.close().catch(() => undefined);
 }

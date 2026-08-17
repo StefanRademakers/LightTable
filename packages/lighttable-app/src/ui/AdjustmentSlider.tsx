@@ -46,6 +46,8 @@ export interface AdjustmentSliderProps {
   density?: 'default' | 'spaced' | 'compact';
   showResetMarker?: boolean;
   disabled?: boolean;
+  /** Maximum publication cadence for expensive consumers; the thumb remains pointer-rate. */
+  publishIntervalMs?: number;
   resetModifierActive?: boolean;
   onChange: (value: number) => void;
   onReset: () => void;
@@ -74,6 +76,7 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   density = 'default',
   showResetMarker = true,
   disabled = false,
+  publishIntervalMs = INTERACTION_PUBLISH_INTERVAL_MS,
   resetModifierActive = false,
   onChange,
   onReset,
@@ -91,9 +94,11 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   const onChangeRef = React.useRef(onChange);
   const onInteractionStartRef = React.useRef(onInteractionStart);
   const onInteractionEndRef = React.useRef(onInteractionEnd);
+  const publishIntervalRef = React.useRef(publishIntervalMs);
   onChangeRef.current = onChange;
   onInteractionStartRef.current = onInteractionStart;
   onInteractionEndRef.current = onInteractionEnd;
+  publishIntervalRef.current = Math.max(0, publishIntervalMs);
 
   const cancelScheduledPublish = React.useCallback(() => {
     if (publishTimerRef.current === null) return;
@@ -112,7 +117,8 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
 
   const scheduleValuePublish = React.useCallback(() => {
     const elapsed = performance.now() - lastPublishTimeRef.current;
-    if (elapsed >= INTERACTION_PUBLISH_INTERVAL_MS) {
+    const interval = publishIntervalRef.current;
+    if (elapsed >= interval) {
       publishLatestValue();
       return;
     }
@@ -120,7 +126,7 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
     publishTimerRef.current = window.setTimeout(() => {
       publishTimerRef.current = null;
       publishLatestValue();
-    }, INTERACTION_PUBLISH_INTERVAL_MS - elapsed);
+    }, interval - elapsed);
   }, [publishLatestValue]);
 
   const finishPointerInteraction = React.useCallback((pointerId: number) => {

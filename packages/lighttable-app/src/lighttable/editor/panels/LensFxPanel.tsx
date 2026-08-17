@@ -166,6 +166,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               format={slider.format}
               track={slider.track}
               resetValue={DEFAULT_LENS_DISTORTION_SETTINGS[slider.key]}
+              publishIntervalMs={1000 / 60}
               disabled={!metadata || !lensDistortion.enabled}
               resetModifierActive={resetModifierActive}
               onChange={(value) => commands.lensDistortion.update(slider.key, value)}
