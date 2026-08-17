@@ -104,16 +104,23 @@ export const PanelCheckboxField: React.FC<{
 );
 
 export const PanelColorSwatch = <T extends PanelColor>({
-  label, value, inline = false, onChange
+  label, value, inline = false, onChange,
+  onInteractionStart, onInteractionCommit, onInteractionCancel
 }: {
   label: string;
   value: T;
   inline?: boolean;
   onChange: (color: T) => void;
+  onInteractionStart?: () => void;
+  onInteractionCommit?: () => void;
+  onInteractionCancel?: () => void;
 }) => {
   const swatch = (
     <ColorSwatchField value={panelColorHex(value)} ariaLabel={label}
-      onChange={(color) => onChange(parsePanelHexColor<T>(color, value.a))} />
+      onChange={(color) => onChange(parsePanelHexColor<T>(color, value.a))}
+      onInteractionStart={onInteractionStart}
+      onInteractionCommit={onInteractionCommit}
+      onInteractionCancel={onInteractionCancel} />
   );
   return inline ? swatch : (
     <div className="lighttable-style-field">

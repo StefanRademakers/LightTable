@@ -132,15 +132,17 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
   const chromaticAberration = adjustments.effects.chromaticAberration;
   const lensDistortion = adjustments.effects.lensDistortion;
   const lensBlur = adjustments.effects.lensBlur;
+  const [lensBlurPreview, setLensBlurPreview] = React.useState<typeof lensBlur | null>(null);
+  const presentedLensBlur = lensBlurPreview ?? lensBlur;
   const analyzing = model.depthProgress.status === 'loading-model'
     || model.depthProgress.status === 'estimating';
-  const focus = focusInterval(lensBlur);
+  const focus = focusInterval(presentedLensBlur);
   const focusVisualizationStyle = {
     '--focus-start': `${focus.start * 100}%`,
     '--focus-end': `${focus.end * 100}%`,
-    '--focus-distance': `${lensBlur.focusDistance * 100}%`,
-    '--transition-feather': `${Math.min(40, lensBlur.transitionFeather * 100)}%`,
-    '--aperture-size': `${Math.max(14, lensBlur.apertureSize)}%`
+    '--focus-distance': `${presentedLensBlur.focusDistance * 100}%`,
+    '--transition-feather': `${Math.min(40, presentedLensBlur.transitionFeather * 100)}%`,
+    '--aperture-size': `${Math.max(14, presentedLensBlur.apertureSize)}%`
   } as React.CSSProperties;
 
   return (
@@ -290,7 +292,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
             <AdjustmentSlider
               key={slider.key}
               label={slider.label}
-              value={lensBlur[slider.key]}
+              value={presentedLensBlur[slider.key]}
               min={slider.min}
               max={slider.max}
               step={slider.step}
@@ -299,10 +301,22 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               resetValue={DEFAULT_LENS_BLUR_SETTINGS[slider.key]}
               disabled={!metadata || !lensBlur.enabled || analyzing}
               resetModifierActive={resetModifierActive}
-              onChange={(value) => commands.lensBlur.update(slider.key, value)}
+              onChange={(value) => {
+                setLensBlurPreview((current) => ({
+                  ...(current ?? lensBlur),
+                  [slider.key]: value
+                }));
+                commands.lensBlur.update(slider.key, value);
+              }}
               onReset={() => commands.lensBlur.resetControl(slider.key)}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment}
+              onInteractionStart={() => {
+                setLensBlurPreview({ ...lensBlur });
+                commands.beginAdjustment();
+              }}
+              onInteractionEnd={() => {
+                commands.endAdjustment();
+                setLensBlurPreview(null);
+              }}
             />
           ))}
         </EffectPanel>

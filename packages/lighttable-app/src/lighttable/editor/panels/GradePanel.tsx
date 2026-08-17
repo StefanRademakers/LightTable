@@ -546,6 +546,10 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
         }))
       });
     };
+    const commitGradientMap = (next: typeof gradientMap) => {
+      commands.updateGradientMap(next);
+      commands.endAdjustment();
+    };
 
     return (
       <section className={`lighttable-group${gradientMap.enabled ? '' : ' lighttable-group--disabled'}`}>
@@ -575,24 +579,26 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
             </ButtonBase>
             <SwitchControl
               checked={gradientMap.enabled}
-              onCheckedChange={(enabled) => commands.updateGradientMap({ ...gradientMap, enabled })}
+              onCheckedChange={(enabled) => commitGradientMap({ ...gradientMap, enabled })}
               label={`${gradientMap.enabled ? 'Disable' : 'Enable'} Gradient Map`}
             />
           </div>
         </div>
         {gradientMapExpanded ? (
           <div className="lighttable-group__controls">
-            <GradientAssetEditor value={editorValue} onChange={publishEditorValue} />
+            <GradientAssetEditor value={editorValue} onChange={publishEditorValue}
+              onInteractionStart={commands.beginAdjustment}
+              onInteractionEnd={commands.endAdjustment} />
             <div className="lighttable-gradient-map__options">
               <SwitchControl
                 checked={gradientMap.reverse}
-                onCheckedChange={(reverse) => commands.updateGradientMap({ ...gradientMap, reverse })}
+                onCheckedChange={(reverse) => commitGradientMap({ ...gradientMap, reverse })}
                 label="Reverse Gradient Map"
               />
               <span>Reverse</span>
               <SwitchControl
                 checked={gradientMap.dither}
-                onCheckedChange={(dither) => commands.updateGradientMap({ ...gradientMap, dither })}
+                onCheckedChange={(dither) => commitGradientMap({ ...gradientMap, dither })}
                 label="Dither Gradient Map"
               />
               <span>Dither</span>

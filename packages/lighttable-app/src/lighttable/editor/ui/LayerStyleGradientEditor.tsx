@@ -70,9 +70,18 @@ export const GradientAssetEditor: React.FC<{
   value: LayerStyleGradient;
   onChange: (value: LayerStyleGradient) => void;
   initialColorStop?: 'first' | 'last';
-}> = ({ value, onChange, initialColorStop = 'first' }) => {
-  const colorStops = [...value.colorStops].sort((a, b) => a.position - b.position);
-  const opacityStops = [...value.opacityStops].sort((a, b) => a.position - b.position);
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
+}> = ({
+  value, onChange, initialColorStop = 'first',
+  onInteractionStart, onInteractionEnd
+}) => {
+  const interactionActiveRef = React.useRef(false);
+  const draftRef = React.useRef<LayerStyleGradient | null>(null);
+  const [draft, setDraft] = React.useState<LayerStyleGradient | null>(null);
+  const presentedValue = draft ?? value;
+  const colorStops = [...presentedValue.colorStops].sort((a, b) => a.position - b.position);
+  const opacityStops = [...presentedValue.opacityStops].sort((a, b) => a.position - b.position);
   const [selectedColorId, setSelectedColorId] = React.useState<string | null>(
     (initialColorStop === 'last' ? colorStops.at(-1) : colorStops[0])?.id ?? null
   );
@@ -106,45 +115,70 @@ export const GradientAssetEditor: React.FC<{
     ).join(', ')})`
     : '#000';
 
-  const publish = (patch: Partial<LayerStyleGradient>) => onChange({ ...value, ...patch });
+  const beginInteraction = () => {
+    if (interactionActiveRef.current) return;
+    interactionActiveRef.current = true;
+    draftRef.current = structuredClone(value);
+    setDraft(draftRef.current);
+    onInteractionStart?.();
+  };
+  const endInteraction = () => {
+    if (!interactionActiveRef.current) return;
+    interactionActiveRef.current = false;
+    onInteractionEnd?.();
+    draftRef.current = null;
+    setDraft(null);
+  };
+  const publish = (patch: Partial<LayerStyleGradient>) => {
+    const next = { ...(draftRef.current ?? value), ...patch };
+    if (interactionActiveRef.current) {
+      draftRef.current = next;
+      setDraft(next);
+    }
+    onChange(next);
+  };
   const updateColor = (id: string, patch: Partial<LayerStyleGradientStop>) => publish({
-    colorStops: value.colorStops.map((stop) => stop.id === id ? { ...stop, ...patch } : stop)
+    colorStops: (draftRef.current ?? value).colorStops.map((stop) => stop.id === id ? { ...stop, ...patch } : stop)
   });
   const updateOpacity = (id: string, patch: Partial<LayerStyleOpacityStop>) => publish({
-    opacityStops: value.opacityStops.map((stop) => stop.id === id ? { ...stop, ...patch } : stop)
+    opacityStops: (draftRef.current ?? value).opacityStops.map((stop) => stop.id === id ? { ...stop, ...patch } : stop)
   });
 
   const addColor = (position = 0.5) => {
-    if (value.colorStops.length >= MAX_STOPS) return;
+    const current = draftRef.current ?? value;
+    if (current.colorStops.length >= MAX_STOPS) return;
     const stop = {
       id: stopId(),
       position,
       midpoint: 0.5,
-      color: sampleColor(value.colorStops, position)
+      color: sampleColor(current.colorStops, position)
     };
-    publish({ colorStops: [...value.colorStops, stop] });
+    publish({ colorStops: [...current.colorStops, stop] });
     setSelectedColorId(stop.id);
   };
   const addOpacity = (position = 0.5) => {
-    if (value.opacityStops.length >= MAX_STOPS) return;
+    const current = draftRef.current ?? value;
+    if (current.opacityStops.length >= MAX_STOPS) return;
     const stop = {
       id: stopId(),
       position,
       midpoint: 0.5,
-      opacity: sampleOpacity(value.opacityStops, position)
+      opacity: sampleOpacity(current.opacityStops, position)
     };
-    publish({ opacityStops: [...value.opacityStops, stop] });
+    publish({ opacityStops: [...current.opacityStops, stop] });
     setSelectedOpacityId(stop.id);
   };
   const removeColor = (id: string) => {
-    const colorStops = removableGradientStops(value.colorStops, id);
-    if (colorStops === value.colorStops) return;
+    const current = draftRef.current ?? value;
+    const colorStops = removableGradientStops(current.colorStops, id);
+    if (colorStops === current.colorStops) return;
     publish({ colorStops });
     setSelectedColorId(colorStops[0]?.id ?? null);
   };
   const removeOpacity = (id: string) => {
-    const opacityStops = removableGradientStops(value.opacityStops, id);
-    if (opacityStops === value.opacityStops) return;
+    const current = draftRef.current ?? value;
+    const opacityStops = removableGradientStops(current.opacityStops, id);
+    if (opacityStops === current.opacityStops) return;
     publish({ opacityStops });
     setSelectedOpacityId(opacityStops[0]?.id ?? null);
   };
@@ -163,6 +197,7 @@ export const GradientAssetEditor: React.FC<{
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
+      beginInteraction();
       select(id);
       event.currentTarget.setPointerCapture(event.pointerId);
       update(id, { position: pointerPosition(event) });
@@ -175,17 +210,26 @@ export const GradientAssetEditor: React.FC<{
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
+      endInteraction();
     },
+    onPointerCancel: endInteraction,
+    onLostPointerCapture: endInteraction,
     onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      if (removable) remove(id);
+      if (removable) {
+        beginInteraction();
+        remove(id);
+        endInteraction();
+      }
     },
     onDoubleClick: (event: React.MouseEvent<HTMLButtonElement>) => event.stopPropagation(),
     onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
       if (removable && (event.key === 'Delete' || event.key === 'Backspace')) {
         event.preventDefault();
+        beginInteraction();
         remove(id);
+        endInteraction();
       }
     }
   });
@@ -203,6 +247,7 @@ export const GradientAssetEditor: React.FC<{
         if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
+        beginInteraction();
         event.currentTarget.setPointerCapture(event.pointerId);
         move(event);
       },
@@ -213,7 +258,10 @@ export const GradientAssetEditor: React.FC<{
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
+        endInteraction();
       },
+      onPointerCancel: endInteraction,
+      onLostPointerCapture: endInteraction,
       onDoubleClick: (event: React.MouseEvent<HTMLButtonElement>) => event.stopPropagation()
     };
   };
@@ -228,8 +276,10 @@ export const GradientAssetEditor: React.FC<{
           onFocus={() => setHint('Adjust the opacity of the selected opacity stop.')}>
           <OpacitySlider label="Opacity" ariaLabel="Gradient stop opacity"
             value={selectedOpacity.opacity}
-            color={colorHex(sampleColor(value.colorStops, selectedOpacity.position))}
-            onChange={(opacity) => updateOpacity(selectedOpacity.id, { opacity })} />
+            color={colorHex(sampleColor(presentedValue.colorStops, selectedOpacity.position))}
+            onChange={(opacity) => updateOpacity(selectedOpacity.id, { opacity })}
+            onInteractionStart={beginInteraction}
+            onInteractionEnd={endInteraction} />
         </div>
       ) : null}
       <div className="lighttable-style-gradient__track">
@@ -239,9 +289,11 @@ export const GradientAssetEditor: React.FC<{
           onMouseEnter={() => setHint('Click above the gradient to add an opacity stop.')}
           onFocus={() => setHint('Press Enter to add an opacity stop in the center.')}
           onClick={(event) => {
+            beginInteraction();
             const bounds = event.currentTarget.getBoundingClientRect();
             addOpacity(event.detail === 0 ? 0.5
               : gradientStopPosition(event.clientX, bounds.left, bounds.width));
+            endInteraction();
           }} />
         <div className="lighttable-style-gradient__preview" style={{ background: preview }}>
         {opacityStops.slice(0, -1).map((stop, index) => {
@@ -326,9 +378,11 @@ export const GradientAssetEditor: React.FC<{
           onMouseEnter={() => setHint('Click below the gradient to add a color stop.')}
           onFocus={() => setHint('Press Enter to add a color stop in the center.')}
           onClick={(event) => {
+            beginInteraction();
             const bounds = event.currentTarget.getBoundingClientRect();
             addColor(event.detail === 0 ? 0.5
               : gradientStopPosition(event.clientX, bounds.left, bounds.width));
+            endInteraction();
           }} />
       </div>
 
@@ -337,7 +391,10 @@ export const GradientAssetEditor: React.FC<{
           onMouseEnter={() => setHint('Choose the color of the selected color stop.')}
           onFocus={() => setHint('Choose the color of the selected color stop.')}>
           <PanelColorSwatch label="Color" value={selectedColor.color}
-            onChange={(color) => updateColor(selectedColor.id, { color })} />
+            onChange={(color) => updateColor(selectedColor.id, { color })}
+            onInteractionStart={beginInteraction}
+            onInteractionCommit={endInteraction}
+            onInteractionCancel={endInteraction} />
         </div>
       ) : null}
 

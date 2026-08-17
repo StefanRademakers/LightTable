@@ -30,6 +30,10 @@ export const GradientMapPropertiesPanel = ({ model, commands }: GradePanelProps)
       position, midpoint, opacity
     }))
   });
+  const commitGradientMap = (next: typeof gradientMap) => {
+    commands.updateGradientMap(next);
+    commands.endAdjustment();
+  };
 
   return (
     <aside className="lighttable-panel lighttable-grade-panel" aria-label="Gradient Map properties">
@@ -46,11 +50,13 @@ export const GradientMapPropertiesPanel = ({ model, commands }: GradePanelProps)
       <div className="lighttable-panel__controls">
         <section className="lighttable-group">
           <div className="lighttable-group__controls">
-            <GradientAssetEditor value={editorValue} onChange={updateGradient} />
+            <GradientAssetEditor value={editorValue} onChange={updateGradient}
+              onInteractionStart={commands.beginAdjustment}
+              onInteractionEnd={commands.endAdjustment} />
             <div className="lighttable-gradient-map__options">
-              <SwitchControl checked={gradientMap.reverse} onCheckedChange={(reverse) => commands.updateGradientMap({ ...gradientMap, reverse })} label="Reverse Gradient Map" />
+              <SwitchControl checked={gradientMap.reverse} onCheckedChange={(reverse) => commitGradientMap({ ...gradientMap, reverse })} label="Reverse Gradient Map" />
               <span>Reverse</span>
-              <SwitchControl checked={gradientMap.dither} onCheckedChange={(dither) => commands.updateGradientMap({ ...gradientMap, dither })} label="Dither Gradient Map" />
+              <SwitchControl checked={gradientMap.dither} onCheckedChange={(dither) => commitGradientMap({ ...gradientMap, dither })} label="Dither Gradient Map" />
               <span>Dither</span>
             </div>
           </div>

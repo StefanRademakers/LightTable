@@ -6,12 +6,17 @@ import { Histogram, type HistogramChannel } from '../../Histogram';
 import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
 import type { GradePanelProps } from './GradePanel';
 import { PanelSelectField } from '../../../ui/PanelControls';
+import { adjustmentSliderValueAtPosition } from '../../../ui/AdjustmentSlider';
 
 type LevelsInput = PhotoshopAdjustmentSettings['levels']['rgb']['input'];
 type LevelsOutput = PhotoshopAdjustmentSettings['levels']['rgb']['output'];
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(maximum, Math.max(minimum, value));
+const LEVELS_EDIT_KEYS = new Set([
+  'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+  'PageUp', 'PageDown', 'Home', 'End'
+]);
 
 export const levelsGammaPosition = ([black, gamma, white]: Readonly<LevelsInput>) =>
   black + (white - black) * Math.pow(0.5, gamma);
@@ -38,6 +43,116 @@ export interface LevelsTrackProps {
   readonly onInteractionEnd: () => void;
 }
 
+const LevelsHandle: React.FC<{
+  readonly value: number;
+  readonly minimum: number;
+  readonly maximum: number;
+  readonly step: number;
+  readonly disabled: boolean;
+  readonly ariaLabel: string;
+  readonly className: string;
+  readonly onChange: (value: number) => void;
+  readonly onInteractionStart: () => void;
+  readonly onInteractionEnd: () => void;
+}> = ({
+  value, minimum, maximum, step, disabled, ariaLabel, className,
+  onChange, onInteractionStart, onInteractionEnd
+}) => {
+  const pointerRef = React.useRef<number | null>(null);
+  const frameRef = React.useRef<number | null>(null);
+  const latestRef = React.useRef(value);
+  const publishedRef = React.useRef(value);
+  const [displayValue, setDisplayValue] = React.useState(value);
+
+  const publish = React.useCallback((force = false) => {
+    if (frameRef.current !== null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    if (!force && latestRef.current === publishedRef.current) return;
+    publishedRef.current = latestRef.current;
+    onChange(latestRef.current);
+  }, [onChange]);
+  const updateFromPointer = (input: HTMLInputElement, clientX: number) => {
+    const bounds = input.getBoundingClientRect();
+    const next = clamp(adjustmentSliderValueAtPosition(
+      clientX, bounds.left, bounds.width, 0, 255, step
+    ), minimum, maximum);
+    latestRef.current = next;
+    setDisplayValue(next);
+    if (frameRef.current === null) {
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = null;
+        publish();
+      });
+    }
+  };
+  const finish = (pointerId: number) => {
+    if (pointerRef.current !== pointerId) return;
+    pointerRef.current = null;
+    publish(true);
+    onInteractionEnd();
+  };
+
+  React.useEffect(() => {
+    if (pointerRef.current !== null) return;
+    latestRef.current = value;
+    publishedRef.current = value;
+    setDisplayValue(value);
+  }, [value]);
+  React.useEffect(() => () => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+  }, []);
+
+  return <input
+    className={className}
+    type="range"
+    min={0}
+    max={255}
+    step={step}
+    value={displayValue}
+    disabled={disabled}
+    aria-label={ariaLabel}
+    onPointerDown={(event) => {
+      if (event.button !== 0 || !event.isPrimary || pointerRef.current !== null) return;
+      event.preventDefault();
+      pointerRef.current = event.pointerId;
+      onInteractionStart();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      updateFromPointer(event.currentTarget, event.clientX);
+    }}
+    onPointerMove={(event) => {
+      if (pointerRef.current === event.pointerId) {
+        updateFromPointer(event.currentTarget, event.clientX);
+      }
+    }}
+    onPointerUp={(event) => {
+      if (pointerRef.current !== event.pointerId) return;
+      updateFromPointer(event.currentTarget, event.clientX);
+      finish(event.pointerId);
+    }}
+    onPointerCancel={(event) => finish(event.pointerId)}
+    onLostPointerCapture={(event) => finish(event.pointerId)}
+    onKeyDown={(event) => {
+      if (!LEVELS_EDIT_KEYS.has(event.key) || event.repeat) return;
+      onInteractionStart();
+    }}
+    onKeyUp={(event) => {
+      if (LEVELS_EDIT_KEYS.has(event.key)) onInteractionEnd();
+    }}
+    onBlur={onInteractionEnd}
+    onChange={(event) => {
+      if (pointerRef.current !== null) return;
+      const next = Number(event.currentTarget.value);
+      latestRef.current = next;
+      publishedRef.current = next;
+      setDisplayValue(next);
+      onChange(next);
+    }}
+    onDragStart={(event) => event.preventDefault()}
+  />;
+};
+
 export const LevelsTrack = ({
   label,
   values,
@@ -58,23 +173,24 @@ export const LevelsTrack = ({
         style={{ ['--lighttable-slider-track' as string]: background }}
         aria-hidden="true"
       />
-      {values.map((value, index) => (
-        <input
+      {values.map((value, index) => {
+        const minimum = index === 0 ? 0 : values[index - 1] ?? 0;
+        const maximum = index === values.length - 1 ? 255 : values[index + 1] ?? 255;
+        const endpointGap = values.length === 3 && index !== 1 ? 1 : 0;
+        return <LevelsHandle
           key={ariaLabels[index]}
           className={`lighttable-levels__handle lighttable-levels__handle--${index}`}
-          type="range"
-          min={0}
-          max={255}
+          minimum={minimum + (index > 0 ? endpointGap : 0)}
+          maximum={maximum - (index < values.length - 1 ? endpointGap : 0)}
           step={index === 1 && values.length === 3 ? 0.1 : 1}
           value={value}
           disabled={disabled}
-          aria-label={ariaLabels[index]}
-          onPointerDown={onInteractionStart}
-          onPointerUp={onInteractionEnd}
-          onPointerCancel={onInteractionEnd}
-          onChange={(event) => onChange(index, Number(event.currentTarget.value))}
-        />
-      ))}
+          ariaLabel={ariaLabels[index]}
+          onInteractionStart={onInteractionStart}
+          onInteractionEnd={onInteractionEnd}
+          onChange={(next) => onChange(index, next)}
+        />;
+      })}
     </div>
     {showValues ? <div className="lighttable-levels__values">
       {values.map((value, index) => (
@@ -88,7 +204,11 @@ export const LevelsTrack = ({
           kind={index === 1 && values.length === 3 ? 'float' : 'integer'}
           formatValue={formatters?.[index]}
           disabled={disabled}
-          onValueChange={(next) => onChange(index, next)}
+          onValueChange={(next) => {
+            onInteractionStart();
+            onChange(index, next);
+            onInteractionEnd();
+          }}
         />
       ))}
     </div> : null}
@@ -103,6 +223,10 @@ export const LevelsPropertiesPanel = ({
   const disabled = !model.metadata;
   const update = (next: PhotoshopAdjustmentSettings) =>
     commands.updatePhotoshopAdjustment(next);
+  const commit = (recipe: () => void) => {
+    recipe();
+    commands.endAdjustment();
+  };
   const selected = settings.levels[settings.levelsChannel];
   const updateSelected = (next: { input?: LevelsInput; output?: LevelsOutput }) => update({
     ...settings,
@@ -160,10 +284,10 @@ export const LevelsPropertiesPanel = ({
               options={['rgb', 'red', 'green', 'blue'].map((value) => ({
                 value, label: value.toUpperCase()
               }))}
-              onChange={(levelsChannel) => update({
+              onChange={(levelsChannel) => commit(() => update({
                 ...settings,
                 levelsChannel: levelsChannel as PhotoshopAdjustmentSettings['levelsChannel']
-              })} />
+              }))} />
             <div className="lighttable-levels__histogram">
               <Histogram histogram={model.histogram}
                 channel={settings.levelsChannel as HistogramChannel} />
@@ -182,14 +306,14 @@ export const LevelsPropertiesPanel = ({
             <div className="lighttable-levels__input-values">
               <NumericExpressionInput aria-label="Black input value"
                 value={selected.input[0]} min={0} max={selected.input[2] - 1}
-                kind="integer" onValueChange={(value) => updateInput(0, value)} disabled={disabled} />
+                kind="integer" onValueChange={(value) => commit(() => updateInput(0, value))} disabled={disabled} />
               <NumericExpressionInput aria-label="Gamma value"
                 value={selected.input[1]} min={0.1} max={9.99} step={0.01}
                 formatValue={(value) => value.toFixed(2)}
-                onValueChange={(value) => updateInput(1, value)} disabled={disabled} />
+                onValueChange={(value) => commit(() => updateInput(1, value))} disabled={disabled} />
               <NumericExpressionInput aria-label="White input value"
                 value={selected.input[2]} min={selected.input[0] + 1} max={255}
-                kind="integer" onValueChange={(value) => updateInput(2, value)} disabled={disabled} />
+                kind="integer" onValueChange={(value) => commit(() => updateInput(2, value))} disabled={disabled} />
             </div>
             <LevelsTrack
               label="Output Levels"

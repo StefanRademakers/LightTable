@@ -157,6 +157,25 @@ try {
   if (!depthStatus?.includes('Depth ready')) {
     throw new Error(`Lens Blur depth did not become ready: ${depthStatus}`);
   }
+  const focusDistance = lensBlurSection.getByLabel('Focus Distance', { exact: true });
+  await focusDistance.scrollIntoViewIfNeeded();
+  const focusBounds = await focusDistance.boundingBox();
+  if (!focusBounds) throw new Error('Lens Blur focus-distance slider has no bounds.');
+  await page.mouse.move(focusBounds.x + focusBounds.width * 0.5, focusBounds.y + focusBounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(focusBounds.x + focusBounds.width * 0.78, focusBounds.y + focusBounds.height / 2, { steps: 8 });
+  await page.waitForTimeout(80);
+  const liveFocusDistance = await lensBlurSection.locator('.lighttable-lens-blur__visualization')
+    .evaluate((element) => element.style.getPropertyValue('--focus-distance'));
+  const liveFocusSlider = await focusDistance.inputValue();
+  if (Number.parseFloat(liveFocusDistance) < 65) {
+    throw new Error(`Lens Blur visualization did not update during drag: ${liveFocusDistance} (slider ${liveFocusSlider}).`);
+  }
+  await page.mouse.up();
+  interactionTelemetry['Lens Blur visualization'] = {
+    focusDistance: liveFocusDistance,
+    slider: liveFocusSlider
+  };
   const aperture = lensBlurSection.getByLabel('Aperture Size', { exact: true });
   await aperture.focus();
   await aperture.press('End');

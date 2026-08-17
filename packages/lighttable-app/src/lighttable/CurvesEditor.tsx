@@ -70,7 +70,14 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
   onInteractionEnd
 }) => {
   const dragIndexRef = useRef<number | null>(null);
-  const points = curves[channel];
+  const previewPointsRef = useRef<ToneCurve | null>(null);
+  const [previewPoints, setPreviewPoints] = React.useState<ToneCurve | null>(null);
+  const points = previewPoints ?? curves[channel];
+  const publishPreview = (next: ToneCurve) => {
+    previewPointsRef.current = next;
+    setPreviewPoints(next);
+    onChange(channel, next);
+  };
   const curvePath = useMemo(() => {
     const samples = Array.from({ length: 129 }, (_, index) => {
       const x = index / 128;
@@ -84,6 +91,8 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
     event.preventDefault();
     event.stopPropagation();
     dragIndexRef.current = index;
+    previewPointsRef.current = points.map((point) => ({ ...point }));
+    setPreviewPoints(previewPointsRef.current);
     event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
     onInteractionStart();
   };
@@ -101,18 +110,19 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
     dragIndexRef.current = next.findIndex((candidate) => Math.abs(candidate.x - point.x) < 1e-5);
     svg.setPointerCapture(event.pointerId);
     onInteractionStart();
-    onChange(channel, next);
+    publishPreview(next);
   };
 
   const movePoint = (event: React.PointerEvent<SVGSVGElement>) => {
     const index = dragIndexRef.current;
     if (index === null || disabled) return;
     const point = toSvgPoint(event);
-    const next = points.map((candidate) => ({ ...candidate }));
+    const current = previewPointsRef.current ?? points;
+    const next = current.map((candidate) => ({ ...candidate }));
     const minimumX = index === 0 ? 0 : next[index - 1].x + 0.005;
     const maximumX = index === next.length - 1 ? 1 : next[index + 1].x - 0.005;
     next[index] = { x: Math.max(minimumX, Math.min(maximumX, point.x)), y: point.y };
-    onChange(channel, next);
+    publishPreview(next);
   };
 
   const endDrag = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -120,6 +130,8 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
     dragIndexRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     onInteractionEnd();
+    previewPointsRef.current = null;
+    setPreviewPoints(null);
   };
 
   const removePoint = (event: React.MouseEvent<SVGCircleElement>, index: number) => {

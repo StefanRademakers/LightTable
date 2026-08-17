@@ -30,9 +30,9 @@
   --lt-surface-control-hover: #252a31;
   --lt-surface-layer-row: #262a2f;
   --lt-surface-layer-row-hover: var(--lt-surface-control-hover);
-  /* Multi-selected and active rows share the 15%-brighter fill; active keeps its accent border. */
+  /* Multi-selection stays quiet; the primary active row matches the active tool treatment. */
   --lt-surface-layer-row-selected: #2c3c55;
-  --lt-surface-layer-row-active: #2c3c55;
+  --lt-surface-layer-row-active: var(--lt-accent-strong);
   --lt-border-layer-row: transparent;
   --lt-border-layer-row-active: var(--lt-accent);
   --lt-surface-inset: #0c0f13;

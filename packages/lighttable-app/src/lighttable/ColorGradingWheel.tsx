@@ -32,8 +32,11 @@ export const ColorGradingWheel: React.FC<ColorGradingWheelProps> = ({
 }) => {
   const wheelRef = useRef<HTMLDivElement | null>(null);
   const pointerIdRef = useRef<number | null>(null);
-  const radius = clamp(saturation, 0, 100) / 100;
-  const angle = (normalizeHue(hue) * Math.PI) / 180;
+  const [preview, setPreview] = React.useState<{ hue: number; saturation: number } | null>(null);
+  const presentedHue = preview?.hue ?? hue;
+  const presentedSaturation = preview?.saturation ?? saturation;
+  const radius = clamp(presentedSaturation, 0, 100) / 100;
+  const angle = (normalizeHue(presentedHue) * Math.PI) / 180;
   // OKLab hue grows from red toward yellow. Screen Y grows downward, so the
   // visual wheel must invert Y to match Lightroom's counter-clockwise layout.
   const pointerX = Math.cos(angle);
@@ -46,7 +49,10 @@ export const ColorGradingWheel: React.FC<ColorGradingWheelProps> = ({
     const x = (clientX - (bounds.left + bounds.width / 2)) / half;
     const y = (clientY - (bounds.top + bounds.height / 2)) / half;
     const nextRadius = clamp(Math.hypot(x, y), 0, 1);
-    const nextHue = nextRadius < 0.001 ? hue : normalizeHue((Math.atan2(-y, x) * 180) / Math.PI);
+    const nextHue = nextRadius < 0.001
+      ? presentedHue
+      : normalizeHue((Math.atan2(-y, x) * 180) / Math.PI);
+    setPreview({ hue: nextHue, saturation: nextRadius * 100 });
     onChange(nextHue, nextRadius * 100);
   };
 
@@ -63,7 +69,7 @@ export const ColorGradingWheel: React.FC<ColorGradingWheelProps> = ({
         }}
       >
         <strong>{label}</strong>
-        <span>H:{Math.round(normalizeHue(hue))} S:{Math.round(saturation)} L:{Math.round(luminance)}</span>
+        <span>H:{Math.round(normalizeHue(presentedHue))} S:{Math.round(presentedSaturation)} L:{Math.round(luminance)}</span>
       </div>
       <div
         ref={wheelRef}
@@ -73,8 +79,8 @@ export const ColorGradingWheel: React.FC<ColorGradingWheelProps> = ({
         aria-label={`${label} color tint`}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(saturation)}
-        aria-valuetext={`${Math.round(hue)} degrees, ${Math.round(saturation)} percent`}
+        aria-valuenow={Math.round(presentedSaturation)}
+        aria-valuetext={`${Math.round(presentedHue)} degrees, ${Math.round(presentedSaturation)} percent`}
         onPointerDown={(event) => {
           if (disabled || event.button !== 0) return;
           if (event.shiftKey || resetModifierActive) {
@@ -94,11 +100,13 @@ export const ColorGradingWheel: React.FC<ColorGradingWheelProps> = ({
           if (pointerIdRef.current !== event.pointerId) return;
           pointerIdRef.current = null;
           onInteractionEnd();
+          setPreview(null);
         }}
         onPointerCancel={(event) => {
           if (pointerIdRef.current !== event.pointerId) return;
           pointerIdRef.current = null;
           onInteractionEnd();
+          setPreview(null);
         }}
         onDoubleClick={(event) => {
           if (!disabled) {
@@ -108,8 +116,8 @@ export const ColorGradingWheel: React.FC<ColorGradingWheelProps> = ({
         }}
         onKeyDown={(event) => {
           if (disabled) return;
-          let nextHue = hue;
-          let nextSaturation = saturation;
+          let nextHue = presentedHue;
+          let nextSaturation = presentedSaturation;
           if (event.key === 'ArrowLeft') nextHue -= event.shiftKey ? 10 : 1;
           else if (event.key === 'ArrowRight') nextHue += event.shiftKey ? 10 : 1;
           else if (event.key === 'ArrowDown') nextSaturation -= event.shiftKey ? 10 : 1;
@@ -118,10 +126,11 @@ export const ColorGradingWheel: React.FC<ColorGradingWheelProps> = ({
           else return;
           event.preventDefault();
           onInteractionStart();
+          setPreview({ hue: normalizeHue(nextHue), saturation: clamp(nextSaturation, 0, 100) });
           onChange(normalizeHue(nextHue), clamp(nextSaturation, 0, 100));
         }}
-        onKeyUp={onInteractionEnd}
-        onBlur={onInteractionEnd}
+        onKeyUp={() => { onInteractionEnd(); setPreview(null); }}
+        onBlur={() => { onInteractionEnd(); setPreview(null); }}
       >
         <span className="lighttable-grading-wheel__guide" aria-hidden="true" />
         <span
@@ -129,7 +138,7 @@ export const ColorGradingWheel: React.FC<ColorGradingWheelProps> = ({
           style={{
             left: `${50 + pointerX * 56}%`,
             top: `${50 + pointerY * 56}%`,
-            backgroundColor: `hsl(${normalizeHue(hue)} 100% 55%)`
+            backgroundColor: `hsl(${normalizeHue(presentedHue)} 100% 55%)`
           }}
           aria-hidden="true"
         />
@@ -138,7 +147,7 @@ export const ColorGradingWheel: React.FC<ColorGradingWheelProps> = ({
           style={{
             left: `${50 + pointerX * radius * 50}%`,
             top: `${50 + pointerY * radius * 50}%`,
-            backgroundColor: radius > 0.015 ? `hsl(${normalizeHue(hue)} ${Math.max(18, saturation)}% 58%)` : undefined
+            backgroundColor: radius > 0.015 ? `hsl(${normalizeHue(presentedHue)} ${Math.max(18, presentedSaturation)}% 58%)` : undefined
           }}
           aria-hidden="true"
         />
