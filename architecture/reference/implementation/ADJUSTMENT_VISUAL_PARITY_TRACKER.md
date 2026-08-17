@@ -336,3 +336,17 @@ endpoints. Every case is within two output code values by the tracker metric.
 Adobe documents the same -200..200 coefficient and Constant ranges, negative
 source inversion, output-channel matrices, and Monochrome behavior in its
 [Channel Mixer guide](https://helpx.adobe.com/ie/photoshop/using/color-monochrome-adjustments-using-channels.html).
+
+## Invert
+
+Status: accepted.
+
+Photoshop 27.11 inverts each encoded document channel (`1 - channel`) and then
+returns to the compositor working space. LightTable previously inverted linear
+RGB, which scored 71.745% on the diagnostic color corpus. The corrected node is
+exact on both measured corpora and does not affect Grade.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 1 | 0.000% | 0.000% | 100.000% |
+| `D:\people.jpg` | sRGB / 16-bit | 1 | 0.000% | 0.000% | 100.000% |

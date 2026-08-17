@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter', 'channel-mixer', 'invert', 'posterize', 'threshold')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -289,6 +289,13 @@ $channelMixerCases = @(
   @{ id='monochrome-constant-neg-200'; monochrome=$true; red=@(100,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,-200) },
   @{ id='monochrome-constant-pos-200'; monochrome=$true; red=@(100,0,0,0); green=@(0,100,0,0); blue=@(0,0,100,0); gray=@(40,40,20,200) }
 )
+$invertCases = @(@{ id='invert' })
+$posterizeCases = @(2,3,4,8,16,32,64,128,255) | ForEach-Object {
+  @{ id="levels-$_"; levels=$_ }
+}
+$thresholdCases = @(1,2,64,127,128,192,254,255) | ForEach-Object {
+  @{ id="level-$_"; level=$_ }
+}
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
 } elseif ($Adjustment -eq 'levels') { $levelsCases }
@@ -298,6 +305,9 @@ elseif ($Adjustment -eq 'color-balance') { $colorBalanceCases }
 elseif ($Adjustment -eq 'black-white') { $blackWhiteCases }
 elseif ($Adjustment -eq 'photo-filter') { $photoFilterCases }
 elseif ($Adjustment -eq 'channel-mixer') { $channelMixerCases }
+elseif ($Adjustment -eq 'invert') { $invertCases }
+elseif ($Adjustment -eq 'posterize') { $posterizeCases }
+elseif ($Adjustment -eq 'threshold') { $thresholdCases }
 else { $exposureCases }
 if (-not [string]::IsNullOrWhiteSpace($CasePattern)) {
   $cases = @($cases | Where-Object { $_.id -match $CasePattern })
@@ -524,6 +534,23 @@ $rangeDescriptors
   adjustment.putBoolean(s2t('monochromatic'), $(if ($case.monochrome) { 'true' } else { 'false' }));
 $matrixDescriptors
   adjustmentLayer.putObject(s2t('type'), s2t('channelMixer'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'invert') {
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustmentLayer.putObject(s2t('type'), c2t('Invr'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'posterize') {
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putInteger(c2t('Lvls'), $($case.levels));
+  adjustmentLayer.putObject(s2t('type'), c2t('Pstr'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'threshold') {
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putInteger(c2t('Lvl '), $($case.level));
+  adjustmentLayer.putObject(s2t('type'), c2t('Thrs'), adjustment);
 "@
     } elseif ($Adjustment -eq 'photo-filter') {
       $adjustmentDescriptor = @"

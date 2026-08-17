@@ -1132,7 +1132,10 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     let familyWeight = select(chroma, 1.0 - chroma, range >= 6u);
     return rgb * (vec3f(1.0) - cmy * familyWeight) - vec3f(black * familyWeight);
   }
-  if (kind == 11u) { return vec3f(1.0) - rgb; }
+  if (kind == 11u) {
+    let encoded = photoshopLinearSrgbToEncodedDocument(rgb);
+    return photoshopEncodedDocumentToLinearSrgb(vec3f(1.0) - encoded);
+  }
   if (kind == 12u) {
     let levels = max(2.0, photoshopValue(95u));
     return floor(clamp(rgb, vec3f(0.0), vec3f(1.0)) * levels) / max(levels - 1.0, 1.0);

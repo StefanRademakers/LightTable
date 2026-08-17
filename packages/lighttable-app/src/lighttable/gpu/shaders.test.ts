@@ -378,6 +378,11 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(clamp(mixed');
   });
 
+  it('evaluates Photoshop Invert in encoded document channels', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(vec3f(1.0) - encoded)');
+    expect(CREATIVE_GRADE_WGSL).not.toContain('if (kind == 11u) { return vec3f(1.0) - rgb; }');
+  });
+
   it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');
