@@ -1,0 +1,311 @@
+Task 141 - Complete Global Grade visual parity with Camera Raw
+
+Goal
+====
+
+Bring LightTable Global Grade to approximately 95% visual-result parity with
+the current Adobe Camera Raw/Lightroom processing where the controls represent
+the same photographic operation, without sacrificing LightTable's speed,
+16-bit/HDR headroom, non-destructive model, or existing good Grade behavior.
+
+This is an evidence-driven calibration project, not a request to copy Adobe's
+UI or blindly replace LightTable algorithms with similarly named controls.
+Every renderer change must be supported by captures, metrics, visual review and
+a focused commit. A difference is a finding, not automatically a defect.
+
+Durable reference
+=================
+
+Read before starting:
+
+- architecture/reference/implementation/GRADE_CAMERA_RAW_VISUAL_PARITY.md
+- architecture/RENDERING_AND_PROCESSING.md
+- architecture/PERFORMANCE_CONTRACT.md
+- architecture/reference/implementation/grade-visual-suite.json
+- scripts/grade-light-parity-cases.json
+
+Existing oracle commands:
+
+- npm run capture:camera-raw-grade-light-oracle
+- npm run capture:lighttable-grade-light-oracle
+- npm run analyze:grade-light-parity
+- npm run regress:grade-visual
+
+Current validated baseline
+==========================
+
+Reference host at task creation:
+
+- Photoshop 2026 27.9.1
+- Camera Raw 18.5
+
+Already completed and committed:
+
+- Light / Exposure: characterized; current response retained for now.
+- Light / Contrast: calibrated and validated.
+- Light / Blacks: calibrated and validated.
+- Light / negative Whites: calibrated and validated.
+- Lift: intentionally retained as a LightTable-specific black-pedestal control;
+  Camera Raw has no direct equivalent.
+
+Relevant commits:
+
+- cb95193a test(grade): add Camera Raw Light parity oracle
+- b288038d feat(grade): calibrate contrast to Camera Raw
+- 5912a190 feat(grade): calibrate blacks to Camera Raw
+- 1f09422c feat(grade): calibrate negative whites to Camera Raw
+
+The worktree must be clean before beginning. Reconfirm Adobe versions and
+recapture the neutral references if either product version has changed.
+
+Non-negotiable execution rules
+==============================
+
+1. Work one section and normally one control family at a time.
+2. Measure neutral, moderate, 80% and endpoint values, including both signs.
+3. Use diagnostic ramps/color targets and several real photographs. Never tune
+   only against D:\people.jpg or one grayscale ramp.
+4. Compare each product's adjusted output against its own neutral output so a
+   decode/profile difference is not mistaken for a control difference.
+5. Test exact sliders in isolation first, then combinations and processing
+   order. Re-run earlier accepted sections after every later renderer change.
+6. Do not invent scalar gains, noise curves or falloff functions without
+   evidence. Research official Adobe behavior and relevant papers/open-source
+   implementations when the black-box response does not explain the model.
+7. Never weaken a good existing Grade decision merely to improve one oracle
+   image. Record justified LightTable differences explicitly.
+8. Preserve scene-linear values above 1.0 and 16-bit/HDR headroom unless a
+   measured control explicitly changes that range.
+9. Neutral controls must remain exact bypasses. No new GPU pass may run when
+   its section is disabled or neutral.
+10. No CPU pixel readback, per-drag pipeline rebuild, synchronous analysis or
+    React-state bottleneck may enter the interactive render path.
+11. Keep the fast Global Grade workflow. Prefer fusion into existing passes;
+    use a conditional node only when the operation is genuinely spatial.
+12. Commit only proven improvements. Each accepted control/family receives a
+    focused commit with measured before/after results in the parity document.
+13. Do not accept or refresh a visual baseline until the intended difference
+    has passed the Adobe corpus and has been manually inspectable.
+
+Phase 0 - Strengthen the oracle and corpus
+==========================================
+
+- Inventory suitable existing photographs under D:\*.jpg and D:\*.png.
+- Add a controlled corpus covering:
+  - grayscale and stepped luminance ramps;
+  - near-black and near-white steps;
+  - smooth gradients for banding/continuity;
+  - saturated RGB/CMY and skin-tone patches;
+  - low-key, high-key, backlit, colorful and noisy photographs;
+  - at least one wide-gamut or HDR/headroom diagnostic.
+- Record embedded/assigned profiles and ensure the same sRGB-compatible path is
+  used in both applications. Treat profile mismatches as invalid evidence.
+- Extend the capture manifest so every Grade section can be isolated and reset
+  deterministically.
+- Store large captures outside the repository under LightTableTests. Commit
+  manifests, analyzers, thresholds and durable findings only.
+- Add contact sheets/difference views that make clipping, hue shifts, halos,
+  banding and texture loss visible beside the numeric report.
+
+Phase 1 - Finish Light
+======================
+
+Controls still open:
+
+- Exposure residuals at large positive/negative EV values.
+- Highlights, both signs.
+- Shadows, both signs.
+- Positive Whites.
+- Multi-control combinations and order.
+
+Attack:
+
+- Recover isolated transfer responses from multiple luminance distributions.
+- Determine whether each remaining response is a fixed curve, histogram-
+  adaptive tonal mask, profile-dependent operation, or output shoulder.
+- For adaptive controls, identify the smallest stable image statistic required
+  and calculate it asynchronously/cached. Do not guess an adaptive scale from
+  only the ramp and one photograph.
+- Verify endpoints, clipping protection, hue preservation and superwhite
+  behavior at -100, -80, -50, -25, +25, +50, +80 and +100.
+- Test Exposure + Highlights/Whites and Shadows + Blacks combinations after
+  isolated parity is acceptable.
+
+Phase 2 - Color
+===============
+
+Controls:
+
+- Temperature
+- Tint
+- Vibrance
+- Saturation
+
+Attack:
+
+- Use neutral gray, skin tones and saturated color targets plus photographs.
+- Measure chromatic adaptation, neutral-axis preservation, gamut compression,
+  skin protection and saturation falloff at extremes.
+- Keep Temperature/Tint grounded in the chosen working-space/CAT model.
+- Determine whether Camera Raw Vibrance offers behavior worth adopting without
+  breaking LightTable's existing creative result.
+- Confirm slider gradients remain explanatory UI only and do not imply a false
+  processing model.
+
+Phase 3 - Curves
+================
+
+- Compare master RGB and individual R/G/B channels.
+- Cover endpoint edits, multiple points, steep S-curves and near-flat curves.
+- Test interpolation continuity, clipping, monotonicity and 16-bit precision.
+- Investigate Camera Raw's Refine Saturation behavior separately; add it only
+  if useful and grounded.
+- Preserve the single shared native lt.curves node/editor/shader architecture.
+
+Phase 4 - Texture, Clarity and Dehaze
+=====================================
+
+- Build frequency-separated targets with coarse, medium and fine detail,
+  edges, haze gradients, skin and high-contrast halos.
+- Compare positive and negative extremes, not just small values.
+- Measure local contrast radius, edge protection, halo width, saturation and
+  highlight/shadow behavior.
+- Confirm the shared lt.detail implementation remains the single source for
+  Grade and the equivalent adjustment node.
+- Keep neutral values free of an extra spatial pass.
+
+Phase 5 - Detail: Sharpening and Noise Reduction
+================================================
+
+Sharpening:
+
+- Amount, Radius, Detail and Masking.
+- Test impulse edges, fine texture, skin, low-contrast detail and noise.
+- Inspect halos, ringing, edge masks and processing order.
+
+Noise Reduction:
+
+- Luminance, Luminance Detail and Luminance Contrast.
+- Color, Color Detail and Color Smoothness.
+- Test synthetic multi-scale noise, real high-ISO photographs, flat fields,
+  edges, color speckles and fine chroma texture.
+- Compare the existing wavelet/multi-scale reconstruction to Camera Raw.
+- Research relevant papers and darktable implementations where helpful, but do
+  not copy code or silently change semantics.
+- Validate the order: denoise before sharpening unless measurements prove a
+  different internal split. Confirm disabled branches are exact bypasses.
+- RAW-domain denoise/demosaic remains a separate future project; this task
+  calibrates the current rendered-image Grade path.
+
+Phase 6 - Color Mixer
+=====================
+
+- Test all hue ranges with controlled color wedges and real photographs.
+- Compare Hue, Saturation and Luminance independently and in combination.
+- Measure range overlap, interpolation around red wraparound, skin behavior and
+  saturated-edge artifacts.
+- Keep Color Mixer distinct from Photoshop Hue/Saturation where their models
+  differ; share UI and infrastructure, not false semantics.
+
+Phase 7 - Point Color
+=====================
+
+- Eyedropper selection and multiple stored color points.
+- Hue/Saturation/Luminance shifts.
+- Hue, Saturation and Luminance ranges plus Variance.
+- Visualize Range accuracy and bypass behavior.
+- Test overlapping points, wraparound, neutrals, skin and narrow selections.
+- Do not substitute the Photoshop Selective Color CMYK-relative algorithm.
+
+Phase 8 - Color Grading
+=======================
+
+- 3-Way, Global, Shadows, Midtones and Highlights.
+- Wheel hue/saturation plus luminance controls.
+- Test tonal-mask overlap, neutral preservation, wheel reset, extreme colors
+  and interaction with prior Light/Color controls.
+- Determine Camera Raw's blend/balance behavior if LightTable exposes or needs
+  equivalent controls.
+
+Phase 9 - Black & White Mix
+===========================
+
+- Compare a true photographic B&W Mix over Red, Orange, Yellow, Green, Aqua,
+  Blue, Purple and Magenta, plus optional tint.
+- Use controlled hue wedges and real skin/foliage/sky photographs.
+- Keep the Photoshop six-channel Black & White adjustment separate for PSD and
+  Photoshop parity; do not relabel it as the Grade implementation.
+
+Phase 10 - Look/Profile and remaining workflow behavior
+=======================================================
+
+- Validate LUT/Profile selection and Strength from 0 through 100%.
+- Share LUT loading and GPU sampling with Color Lookup without conflating their
+  document semantics.
+- Test copy/paste across documents, reset, section switches and master Global
+  Grade bypass after all algorithms settle.
+- Defer Auto Tone unless a robust, measurable analysis is available.
+
+Phase 11 - Cross-section processing order and performance
+=========================================================
+
+- Capture important two-section and full-stack combinations.
+- Verify order deliberately rather than assuming isolated parity composes.
+- Re-run every earlier section after each shader/node structural change.
+- Confirm Global Grade, Grade Layer and Local Grade use the intended shared
+  processors while respecting their different scope, opacity and masks.
+- Profile 4K and larger documents during continuous slider drags.
+- Confirm real-time GPU updates occur during drag and React only settles state
+  afterward; avoid the prior Lens Distortion listener/state failure mode.
+- Compare GPU timestamps, pass count, allocations and retained resources before
+  and after. No unexplained regression is acceptable.
+- Consider compositor fusion only as an explicit optimization pass after node
+  correctness and order are proven.
+
+Acceptance gates per control family
+===================================
+
+An improvement may be accepted only when all applicable gates pass:
+
+- Camera Raw descriptor/control is proven active and isolated.
+- Neutral output remains unchanged.
+- Direction/effect correlation is preferably >= 0.95 across the corpus.
+- Effect magnitude is preferably within 0.90–1.10 of Camera Raw.
+- Normalized delta RMSE is preferably <= 5% at extremes and materially lower
+  than the previous implementation.
+- Moderate values are smooth and do not merely fit the endpoints.
+- No new clipping, hue rotation, halos, banding or texture destruction appears
+  in visual comparisons.
+- Existing native Grade regression passes after an intentionally reviewed
+  baseline update.
+- Relevant unit, shader, boundary, typecheck, web build and desktop runtime
+  checks pass.
+- Performance remains interactive and neutral/disabled branches stay free.
+
+The thresholds guide decisions; they are not permission to game one aggregate
+score. Document exceptions when Camera Raw is image-adaptive, profile-specific,
+or demonstrably less desirable than an existing LightTable result.
+
+Required completion evidence
+============================
+
+- Updated section-by-section parity document with before/after tables.
+- Versioned case manifests and analyzers for every Grade section.
+- External Camera Raw and LightTable capture corpus plus reports/contact sheets.
+- Native Grade visual regression covering isolated groups and combined extremes.
+- Performance comparison showing pass count and interaction cost.
+- A final matrix marking every control: matched, intentionally different,
+  blocked by adaptation/profile behavior, or deferred.
+- Manual product-owner review of representative moderate and extreme results.
+- Focused commits for each proven improvement, followed by a final integration
+  verification commit only if shared test/docs infrastructure changed.
+
+Definition of done
+==================
+
+The task is complete when all listed Global Grade sections have been measured,
+implemented or explicitly justified, earlier sections have been revalidated
+after the final processing-order changes, the representative corpus reaches an
+honest approximately 95% visual-result parity target, performance contracts are
+met, and the owner can manually compare the final contact sheets without hidden
+known gaps.
