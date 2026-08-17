@@ -166,6 +166,6 @@ export class LightTableAutomationClient {
   }
 }
 
-export const attachLightTableAutomation = async (page, requestPrefix) => (
-  new LightTableAutomationClient(page, requestPrefix).attach()
+export const attachLightTableAutomation = async (page, requestPrefix, timeout) => (
+  new LightTableAutomationClient(page, requestPrefix).attach(timeout)
 );
