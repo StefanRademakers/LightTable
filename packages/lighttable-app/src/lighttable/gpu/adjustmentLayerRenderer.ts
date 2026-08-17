@@ -1,5 +1,6 @@
 import type {
   AdjustmentLayer,
+  DocumentBitDepth,
   DocumentBlendProfile,
   RasterLayer
 } from '../editor/document/documentTypes';
@@ -53,6 +54,7 @@ export interface AdjustmentLayerRendererDependencies {
   width: number;
   height: number;
   blendProfile: DocumentBlendProfile;
+  bitDepth: DocumentBitDepth;
 }
 
 /**
@@ -72,6 +74,11 @@ export class AdjustmentLayerRenderer {
 
   configure(dependencies: AdjustmentLayerRendererDependencies): void {
     this.dependencies = dependencies;
+  }
+
+  setDocumentColorContext(blendProfile: DocumentBlendProfile, bitDepth: DocumentBitDepth): void {
+    if (!this.dependencies) return;
+    this.dependencies = { ...this.dependencies, blendProfile, bitDepth };
   }
 
   reset(): void {
@@ -97,7 +104,8 @@ export class AdjustmentLayerRenderer {
       dependencies.height,
       true,
       runtime.colorLookupUniform,
-      dependencies.blendProfile
+      dependencies.blendProfile,
+      dependencies.bitDepth
     );
 
     const basicBindGroup = this.device.createBindGroup({

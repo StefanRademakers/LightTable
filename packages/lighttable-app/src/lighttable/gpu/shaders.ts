@@ -2,6 +2,7 @@ import { GRADIENT_MAP_WGSL } from './gradientMapShader';
 import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET,
   PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
   PHOTOSHOP_PAYLOAD_OFFSET
@@ -15,6 +16,8 @@ const PHOTOSHOP_LEVELS_CHANNELS_RELATIVE_OFFSET =
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 const PHOTOSHOP_HUE_SATURATION_RANGES_RELATIVE_OFFSET =
   PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
+const PHOTOSHOP_DOCUMENT_BIT_DEPTH_RELATIVE_OFFSET =
+  PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 export const FULLSCREEN_VERTEX_WGSL = /* wgsl */ `
 struct VertexOutput {
   @builtin(position) position: vec4f,
@@ -1143,8 +1146,15 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     return photoshopEncodedDocumentToLinearSrgb(buckets / (levels - 1.0));
   }
   if (kind == 13u) {
-    let level = photoshopValue(96u) / 255.0;
-    return vec3f(select(0.0, 1.0, luminance(rgb) >= level));
+    let level = photoshopValue(96u);
+    let encoded = clamp(photoshopLinearSrgbToEncodedDocument(rgb), vec3f(0.0), vec3f(1.0));
+    let luminosityCode = dot(encoded, vec3f(0.30, 0.59, 0.11)) * 255.0;
+    let grayCode = select(
+      luminosityCode,
+      round(luminosityCode),
+      photoshopValue(${PHOTOSHOP_DOCUMENT_BIT_DEPTH_RELATIVE_OFFSET}u) < 12.0
+    );
+    return vec3f(select(0.0, 1.0, grayCode >= level));
   }
   return rgb;
 }

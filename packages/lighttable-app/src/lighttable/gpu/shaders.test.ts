@@ -388,6 +388,11 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(buckets / (levels - 1.0))');
   });
 
+  it('evaluates Photoshop Threshold from rounded encoded blend luminosity', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('let luminosityCode = dot(encoded, vec3f(0.30, 0.59, 0.11)) * 255.0');
+    expect(CREATIVE_GRADE_WGSL).toContain('round(luminosityCode)');
+  });
+
   it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');

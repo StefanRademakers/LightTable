@@ -459,6 +459,10 @@ export class WebGpuEngine {
     const firstDocument = !previousDocument || previousDocument.id !== document.id;
     if (firstDocument) this.textEditingOverlay = null;
     this.imageDocument = document;
+    this.adjustmentLayerRenderer.setDocumentColorContext(
+      document.colorSettings.blendProfile,
+      document.colorSettings.bitDepth
+    );
     const warpDebugOwnerChanged = this.layerEffectRenderer?.setWarpDebugVisualization(
       this.warpDebugVisualization,
       document.activeLayerId
@@ -528,6 +532,10 @@ export class WebGpuEngine {
     this.metadata = { ...this.metadata, width: document.width, height: document.height };
     this.createImageResources(document.width, document.height);
     this.imageDocument = document;
+    this.adjustmentLayerRenderer.setDocumentColorContext(
+      document.colorSettings.blendProfile,
+      document.colorSettings.bitDepth
+    );
     this.documentRenderer.syncDocument(document);
     this.adjustmentLayerResources.syncDocument(document);
     this.initializeLayerStylesIfNeeded(document);
@@ -555,6 +563,10 @@ export class WebGpuEngine {
       throw new Error('Load an image before exporting its LightTable document.');
     }
     this.imageDocument = document;
+    this.adjustmentLayerRenderer.setDocumentColorContext(
+      document.colorSettings.blendProfile,
+      document.colorSettings.bitDepth
+    );
     this.documentRenderer.syncDocument(document);
     this.adjustmentLayerResources.syncDocument(document);
     this.markDocumentDirty();
@@ -1537,7 +1549,9 @@ export class WebGpuEngine {
       blurVerticalBindGroup: this.imageResources.blurVerticalBindGroup,
       width,
       height,
-      blendProfile: this.imageDocument?.colorSettings.blendProfile ?? 'srgb'
+      blendProfile: this.imageDocument?.colorSettings.blendProfile ?? 'srgb',
+      bitDepth: this.imageDocument?.colorSettings.bitDepth
+        ?? (this.metadata?.sourceBitDepth === 8 ? 8 : this.metadata?.sourceBitDepth === 32 ? 32 : 16)
     });
     this.imageResources.blitOriginalBindGroup = this.device.createBindGroup({
       layout: this.blitPipeline.getBindGroupLayout(0),
@@ -2035,7 +2049,9 @@ export class WebGpuEngine {
       this.metadata?.width ?? 1,
       this.metadata?.height ?? 1,
       Boolean(this.imageDocument),
-      this.imageDocument?.colorSettings.blendProfile ?? 'srgb'
+      this.imageDocument?.colorSettings.blendProfile ?? 'srgb',
+      this.imageDocument?.colorSettings.bitDepth
+        ?? (this.metadata?.sourceBitDepth === 8 ? 8 : this.metadata?.sourceBitDepth === 32 ? 32 : 16)
     );
   }
 

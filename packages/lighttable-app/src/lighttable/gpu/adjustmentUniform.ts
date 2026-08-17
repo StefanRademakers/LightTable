@@ -1,5 +1,5 @@
 import { curveActiveMask } from '../curves';
-import type { DocumentBlendProfile } from '../editor/document/documentTypes';
+import type { DocumentBitDepth, DocumentBlendProfile } from '../editor/document/documentTypes';
 import type { BasicAdjustments } from '../types';
 import {
   buildPhotoshopBrightnessContrastLut,
@@ -13,6 +13,7 @@ export const PHOTOSHOP_LEVELS_CHANNELS_OFFSET = 233;
 export const PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET = 248;
 export const PHOTOSHOP_BLEND_PROFILE_OFFSET = 313;
 export const PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET = 314;
+export const PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET = 362;
 
 export interface ColorLookupUniform {
   readonly enabled: boolean;
@@ -30,7 +31,8 @@ export const buildAdjustmentUniform = (
   sourceHeight: number,
   inputIsLinearComposite: boolean,
   colorLookup: ColorLookupUniform | null = null,
-  photoshopBlendProfile: DocumentBlendProfile = 'srgb'
+  photoshopBlendProfile: DocumentBlendProfile = 'srgb',
+  documentBitDepth: DocumentBitDepth = 16
 ) => {
   const gradientMap = value.gradientMap;
   const colorStops = [...(gradientMap?.colorStops ?? [])]
@@ -160,6 +162,7 @@ export const buildAdjustmentUniform = (
     }),
     PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET
   );
+  packed[PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET] = documentBitDepth;
   packed.set([
     ...(colorLookup?.domainMin ?? [0, 0, 0]),
     ...(colorLookup?.domainMax ?? [1, 1, 1])

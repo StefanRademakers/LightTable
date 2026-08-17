@@ -6,6 +6,7 @@ import {
   LINEAR_COMPOSITE_FLAG_INDEX,
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET,
   PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET
 } from './adjustmentUniform';
@@ -87,6 +88,13 @@ describe('LightTable adjustment uniform packing', () => {
     );
     expect(packed[PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET + 32]).toBeGreaterThan(0.5);
     expect(packed[PHOTOSHOP_BLEND_PROFILE_OFFSET]).toBe(1);
+  });
+
+  it('packs document bit depth for bit-depth-sensitive Photoshop adjustments', () => {
+    const packed = buildAdjustmentUniform(
+      createDefaultAdjustments(), 100, 50, true, null, 'srgb', 8
+    );
+    expect(packed[PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET]).toBe(8);
   });
 
   it('packs Levels channel and the built-in Color Lookup preset', () => {

@@ -371,3 +371,34 @@ Level 3 residual comes from pixels immediately around the one-third and
 two-thirds code boundaries; all other photographic cases are within two output
 code values. LightTable retains continuous float bucket values instead of
 injecting an ungrounded 8-bit epsilon into its 16-bit compositor.
+
+## Threshold
+
+Status: accepted.
+
+Photoshop 27.11 evaluates Threshold from encoded-document blend luminosity,
+using the same `0.30 R + 0.59 G + 0.11 B` coefficients as its classic blend
+luminosity. In an 8-bit document that luminosity is rounded to an 8-bit code
+before comparison; in a 16-bit document Photoshop retains the finer value.
+The selected threshold code is inclusive: values at or above it become white.
+LightTable previously compared Rec.709 luminance in linear compositor RGB.
+
+The GPU payload now carries authored document bit depth as well as blend
+profile. Adjustment Layer render resources refresh both values when a document
+is attached; previously their initial configuration could precede the document
+and retain fallback color context. This corrects Threshold and prevents other
+local/Adjustment Layer nodes from silently using sRGB semantics for an Adobe
+RGB PSD. The change adds no render pass, texture, lookup, or readback.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Cases <= 5% RMSE |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 8 | 0.429% | 0.960% | 99.571% | 8 / 8 |
+| Hue/lightness diagnostic ramp | sRGB / 16-bit | 8 | 0.586% | 1.473% | 99.414% | 8 / 8 |
+| `D:\people.jpg` | sRGB / 16-bit | 8 | 1.840% | 4.795% | 98.160% | 8 / 8 |
+
+The corpus covers threshold codes 1, 2, 64, 127, 128, 192, 254, and 255, so
+both endpoints, the central boundary, and high-strength behavior are measured.
+On the unrendered 8-bit source oracle, rounded blend luminosity disagrees with
+Photoshop on only 14 of 1,474,560 binary pixel decisions. Remaining rendered
+differences are boundary flips caused by import/profile precision; no fitted
+falloff or threshold epsilon was added.
