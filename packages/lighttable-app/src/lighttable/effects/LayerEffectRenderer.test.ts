@@ -52,13 +52,15 @@ describe('layerNeedsEffectRuntime', () => {
     expect(layerNeedsEffectRuntime(layer)).toBe(false);
   });
 
-  it('does not allocate a local runtime for a document-final Lens FX layer', () => {
+  it('allocates a local runtime for an enabled Lens FX processing layer', () => {
+    const settings = createDefaultAdjustments();
+    settings.effects.lensDistortion.enabled = true;
     const stack = selectAdjustmentLayerModules(
-      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      createAdjustmentStackFromBasicAdjustments(settings),
       'lens-fx'
     );
     expect(layerNeedsEffectRuntime(createAdjustmentLayer(stack, 'Lens Fx', 'lens-fx')))
-      .toBe(false);
+      .toBe(true);
   });
 });
 

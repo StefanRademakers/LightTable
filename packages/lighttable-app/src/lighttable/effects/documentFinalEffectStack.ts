@@ -1,12 +1,10 @@
 import type {
   AdjustmentLayer,
-  ImageDocument,
-  LayerNode
+  ImageDocument
 } from '../editor/document/documentTypes';
 import {
   adjustmentStackHasOwner,
   cloneAdjustmentStack,
-  type AdjustmentModuleInstance,
   type AdjustmentStack
 } from '../processing/adjustmentStack';
 import { currentDocumentEffectNodeRegistry } from './documentEffectNodeRegistry';
@@ -17,7 +15,7 @@ const EFFECT_STAGE_ORDER = {
   'display-post': 2
 } as const;
 
-/** Lens FX adjustment layers are document-final control layers, not pixels. */
+/** Identifies Lens FX ownership without implying any scheduling position. */
 export const adjustmentLayerOwnsDocumentFinalEffects = (
   layer: AdjustmentLayer
 ): boolean => adjustmentStackHasOwner(layer.adjustmentStack, 'lens-fx');
@@ -27,55 +25,23 @@ export const adjustmentLayerOwnsDocumentFinalEffects = (
  * runtime. Once ordinary layer compositing participates, keep it in the layer
  * compositor so opacity, masks, clipping and blend mode remain authoritative.
  */
-export const adjustmentLayerUsesDocumentFinalEffects = (
-  layer: AdjustmentLayer
-): boolean => adjustmentLayerOwnsDocumentFinalEffects(layer)
-  && layer.opacity >= 0.99999
-  && layer.blendMode === 'normal'
-  && !layer.clipping
-  && (!layer.mask || (
-    layer.mask.enabled
-    && layer.mask.pixelRevision === 0
-    && layer.mask.density >= 0.99999
-    && layer.mask.feather <= 0.01
-  ));
-
-const visibleDocumentFinalModules = (
-  nodes: readonly LayerNode[],
-  ancestorsVisible = true
-): AdjustmentModuleInstance[] => nodes.flatMap((node) => {
-  const visible = ancestorsVisible && node.visible;
-  if (!visible) return [];
-  if (node.type === 'group') {
-    return visibleDocumentFinalModules(node.children, visible);
-  }
-  if (node.type !== 'adjustment' || !adjustmentLayerUsesDocumentFinalEffects(node)) {
-    return [];
-  }
-  return cloneAdjustmentStack(node.adjustmentStack).modules.filter((module) =>
-    currentDocumentEffectNodeRegistry.definition(module.type)
-  );
-});
-
 /**
- * Combines hidden document processing with visible Lens FX control layers.
- *
- * The stage sort is intentional: a Lens FX layer is one logical final pass,
- * while its internal nodes still execute in their required texture domains.
+ * Orders only the legacy document-owned effect stack. Visible Grade and Lens
+ * FX layers are never collected here: their exact tree position, masks and
+ * blending are authoritative and are evaluated by LayerCompositor.
  */
 export const composeDocumentFinalEffectStack = (
   base: AdjustmentStack,
-  document: ImageDocument | null
+  _document: ImageDocument | null
 ): AdjustmentStack => {
   const clonedBase = cloneAdjustmentStack(base);
-  if (!document) return clonedBase;
   const baseEffects = clonedBase.modules.filter((module) =>
     currentDocumentEffectNodeRegistry.definition(module.type)
   );
   const nonEffects = clonedBase.modules.filter((module) =>
     !currentDocumentEffectNodeRegistry.definition(module.type)
   );
-  const effects = [...baseEffects, ...visibleDocumentFinalModules(document.layers)]
+  const effects = baseEffects
     .map((module, order) => ({ module, order }))
     .sort((left, right) => {
       const leftStage = currentDocumentEffectNodeRegistry.definition(left.module.type)?.stage;

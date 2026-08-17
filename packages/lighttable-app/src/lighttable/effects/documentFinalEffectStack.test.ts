@@ -10,12 +10,11 @@ import { selectAdjustmentLayerModules } from '../processing/adjustmentLayerCatal
 import { createDefaultAdjustments } from '../types';
 import {
   adjustmentLayerOwnsDocumentFinalEffects,
-  adjustmentLayerUsesDocumentFinalEffects,
   composeDocumentFinalEffectStack
 } from './documentFinalEffectStack';
 
 describe('document-final Lens FX stack', () => {
-  it('keeps a Lens FX layer as one logical stage-ordered document pass', () => {
+  it('never extracts a Lens FX layer from its canonical layer-tree position', () => {
     const base = createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
     const settings = createDefaultAdjustments();
     settings.effects.lensBlur.enabled = true;
@@ -29,16 +28,12 @@ describe('document-final Lens FX stack', () => {
     document.layers.push(layer);
 
     expect(adjustmentLayerOwnsDocumentFinalEffects(layer)).toBe(true);
-    expect(adjustmentLayerUsesDocumentFinalEffects(layer)).toBe(true);
     const composed = composeDocumentFinalEffectStack(base, document);
-    const layerTypes = new Set(lensFx.modules.map(({ type }) => type));
-    const appended = composed.modules.filter(({ id }) =>
+    const extracted = composed.modules.filter(({ id }) =>
       lensFx.modules.some((module) => module.id === id)
     );
-    expect(new Set(appended.map(({ type }) => type))).toEqual(layerTypes);
-    expect(appended.at(-1)?.type).toBe('lt.grain');
-    expect(appended.findIndex(({ type }) => type === 'lt.lens-blur'))
-      .toBeLessThan(appended.findIndex(({ type }) => type === 'lt.grain'));
+    expect(extracted).toEqual([]);
+    expect(composed.modules).toHaveLength(base.modules.length);
   });
 
   it('does not execute hidden Lens FX control layers', () => {
@@ -52,7 +47,7 @@ describe('document-final Lens FX stack', () => {
     expect(composed.modules).toHaveLength(base.modules.length);
   });
 
-  it('leaves composited Lens FX layers to the local renderer', () => {
+  it('also leaves partially composited Lens FX layers to the local renderer', () => {
     const base = createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
     const lensFx = selectAdjustmentLayerModules(base, 'lens-fx');
     const layer = createAdjustmentLayer(lensFx, 'Lens Fx', 'lens-fx');
@@ -61,7 +56,6 @@ describe('document-final Lens FX stack', () => {
     document.layers.push(layer);
 
     expect(adjustmentLayerOwnsDocumentFinalEffects(layer)).toBe(true);
-    expect(adjustmentLayerUsesDocumentFinalEffects(layer)).toBe(false);
     expect(composeDocumentFinalEffectStack(base, document).modules).toHaveLength(base.modules.length);
   });
 });

@@ -8,7 +8,7 @@ import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCa
 import { createDefaultAdjustments } from '../../types';
 
 describe('LayerPanel creation flyout', () => {
-  it('recognizes only Lens Fx adjustment layers as fixed document effects', () => {
+  it('keeps Lens Fx and Grade as ordinary canonical processing layers', () => {
     const base = createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
     const lensFx = createAdjustmentLayer(
       selectAdjustmentLayerModules(base, 'lens-fx'), 'Lens Fx', 'lens-fx'
@@ -17,7 +17,7 @@ describe('LayerPanel creation flyout', () => {
       selectAdjustmentLayerModules(base, 'grade'), 'Grade', 'grade'
     );
 
-    expect(layerIsDocumentFx(lensFx)).toBe(true);
+    expect(layerIsDocumentFx(lensFx)).toBe(false);
     expect(layerIsDocumentFx(grade)).toBe(false);
     lensFx.opacity = 0.5;
     expect(layerIsDocumentFx(lensFx)).toBe(false);

@@ -8,7 +8,6 @@ import { DocumentEffectRuntime } from './DocumentEffectRuntime';
 import type { WarpDebugView } from './warp/warpTypes';
 import type { MeshDeformationTelemetry } from './deformation/MeshDeformationEffect';
 import type { DepthAnalysisResult } from '../analysis/depth/types';
-import { adjustmentLayerUsesDocumentFinalEffects } from './documentFinalEffectStack';
 
 /**
  * Returns whether a layer needs a per-owner GPU effect runtime.
@@ -21,9 +20,6 @@ import { adjustmentLayerUsesDocumentFinalEffects } from './documentFinalEffectSt
 export const layerNeedsEffectRuntime = (
   layer: AdjustmentLayer | RasterLayer
 ): boolean => {
-  if (layer.type === 'adjustment' && adjustmentLayerUsesDocumentFinalEffects(layer)) {
-    return false;
-  }
   const stack = layer.adjustmentStack;
   return Boolean(stack && (
     adjustmentStackOwnerIsEnabled(stack, 'geometry')

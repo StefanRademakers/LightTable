@@ -5,7 +5,6 @@ import type {
   RasterPixelSource
 } from '../../editor/document/documentTypes';
 import type { AffineMatrix } from '../../editor/rendering/renderContract';
-import { adjustmentLayerUsesDocumentFinalEffects } from '../../effects/documentFinalEffectStack';
 
 const transformsEqual = (left: AffineMatrix, right: AffineMatrix) =>
   left === right
@@ -132,17 +131,6 @@ export const documentRenderStatesEqual = (
 
 const documentCompositeLayerStatesEqual = (left: LayerNode, right: LayerNode): boolean => {
   if (left === right) return true;
-  if (
-    left.type === 'adjustment'
-    && right.type === 'adjustment'
-    && adjustmentLayerUsesDocumentFinalEffects(left)
-    && adjustmentLayerUsesDocumentFinalEffects(right)
-  ) {
-    // A pristine Document FX layer is an identity node inside the layer
-    // compositor. Its stack and visibility belong exclusively to the cached
-    // document-final runtime.
-    return left.id === right.id;
-  }
   if (!commonLayerRenderStateEqual(left, right)) return false;
   if (left.type === 'group' && right.type === 'group') {
     return left.compositing === right.compositing
@@ -163,9 +151,9 @@ const documentCompositeLayerListsEqual = (
 /**
  * Returns whether the cached layer composite can be reused.
  *
- * Unlike documentRenderStatesEqual(), changes owned solely by a fixed
- * document-final Lens FX layer are intentionally ignored. Ordinary adjustment
- * layers, local Lens FX, masks and compositing properties remain conservative.
+ * Every visible adjustment stack is composited content. Scheduling may reuse
+ * a proven lower prefix, but cannot hide a layer-stack mutation from semantic
+ * invalidation.
  */
 export const documentCompositeRenderStatesEqual = (
   current: ImageDocument | null,

@@ -74,26 +74,31 @@ describe('LayerProcessingRenderer', () => {
     expect(renderer.encode(encoder, source, layer)).toBe(source);
   });
 
-  it('defers Lens FX adjustment layers to the document-final runtime', () => {
+  it('executes Lens FX adjustment layers at their canonical stack position', () => {
     const source = texture('source');
+    const settings = createDefaultAdjustments();
+    settings.effects.lensDistortion.enabled = true;
     const stack = selectAdjustmentLayerModules(
-      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      createAdjustmentStackFromBasicAdjustments(settings),
       'lens-fx'
     );
     const layer = createAdjustmentLayer(stack, 'Lens Fx', 'lens-fx');
     const grade = { encode: vi.fn() };
+    const geometry = texture('geometry');
+    const spatial = texture('spatial');
+    const display = texture('display');
     const effects = {
-      encodeSourceGeometry: vi.fn(),
-      encodeLinearSpatial: vi.fn(),
-      encodeDisplayPost: vi.fn()
+      encodeSourceGeometry: vi.fn(() => geometry),
+      encodeLinearSpatial: vi.fn(() => spatial),
+      encodeDisplayPost: vi.fn(() => display)
     };
     const renderer = new LayerProcessingRenderer(grade, effects);
 
-    expect(renderer.encode(encoder, source, layer)).toBe(source);
+    expect(renderer.encode(encoder, source, layer)).toBe(display);
     expect(grade.encode).not.toHaveBeenCalled();
-    expect(effects.encodeSourceGeometry).not.toHaveBeenCalled();
-    expect(effects.encodeLinearSpatial).not.toHaveBeenCalled();
-    expect(effects.encodeDisplayPost).not.toHaveBeenCalled();
+    expect(effects.encodeSourceGeometry).toHaveBeenCalledWith(encoder, source, layer);
+    expect(effects.encodeLinearSpatial).toHaveBeenCalledWith(encoder, geometry, layer);
+    expect(effects.encodeDisplayPost).toHaveBeenCalledWith(encoder, spatial, layer);
   });
 
   it('exactly bypasses disabled processing owners', () => {

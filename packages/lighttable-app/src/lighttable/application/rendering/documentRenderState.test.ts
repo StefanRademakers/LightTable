@@ -86,7 +86,7 @@ describe('document render state', () => {
     )).toBe(false);
   });
 
-  it('reuses the layer composite for fixed document-final Lens FX changes', () => {
+  it('invalidates the layer composite when a Lens FX processing layer changes', () => {
     const document = createImageDocument('Image', 64, 32, 'asset');
     const first = createDefaultAdjustments();
     first.effects.lensDistortion.enabled = true;
@@ -115,7 +115,7 @@ describe('document render state', () => {
     };
 
     expect(documentRenderStatesEqual(document, changed)).toBe(false);
-    expect(documentCompositeRenderStatesEqual(document, changed)).toBe(true);
+    expect(documentCompositeRenderStatesEqual(document, changed)).toBe(false);
     expect(documentCompositeRenderStatesEqual(document, {
       ...changed,
       layers: [changed.layers[0], { ...changed.layers[1], opacity: 0.5 }]

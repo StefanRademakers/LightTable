@@ -28,7 +28,6 @@ import {
   adjustmentStackHasOwner,
   type LocalProcessingKind
 } from '../../processing/adjustmentStack';
-import { adjustmentLayerUsesDocumentFinalEffects } from '../../effects/documentFinalEffectStack';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import { layerStyleTreeEffects } from './layerStyleTreePresentation';
 import { buildDocumentCapabilityFindings } from '../compatibility/documentCapabilityFindings';
@@ -184,9 +183,8 @@ const visualLayerRows = (
   )
 ]);
 
-/** Root Lens FX control layers live in the fixed document-final UI zone. */
-export const layerIsDocumentFx = (layer: LayerNode): boolean =>
-  layer.type === 'adjustment' && adjustmentLayerUsesDocumentFinalEffects(layer);
+/** Ordinary processing layers always remain in the canonical layer tree. */
+export const layerIsDocumentFx = (_layer: LayerNode): boolean => false;
 
 export const layerHasAnyLock = (layer: LayerNode): boolean =>
   Object.values(layer.locks).some(Boolean);

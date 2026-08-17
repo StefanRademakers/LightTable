@@ -16,6 +16,7 @@ import {
 } from './compositorGraph';
 import { createAdjustmentLayer } from '../document/documentTypes';
 import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
 import { createDefaultAdjustments } from '../../types';
 
 const raster = (name: string): RasterLayer => {
@@ -123,6 +124,47 @@ describe('compositorGraph', () => {
     }))).toEqual([
       { name: 'base', use: false, capture: true },
       { name: 'clipped', use: true, capture: false }
+    ]);
+  });
+
+  it('preserves alternating Grade, content and Lens FX order exactly', () => {
+    const base = createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
+    const gradeA = createAdjustmentLayer(
+      selectAdjustmentLayerModules(base, 'grade'), 'Grade A', 'grade'
+    );
+    const lensFx = createAdjustmentLayer(
+      selectAdjustmentLayerModules(base, 'lens-fx'), 'Lens FX', 'lens-fx'
+    );
+    const gradeB = createAdjustmentLayer(
+      selectAdjustmentLayerModules(base, 'grade'), 'Grade B', 'grade'
+    );
+
+    const plan = buildCompositorPlan([
+      raster('bottom'), gradeA, raster('middle'), lensFx, gradeB
+    ]);
+
+    expect(plan.entries.map(({ node }) => node.name)).toEqual([
+      'bottom', 'Grade A', 'middle', 'Lens FX', 'Grade B'
+    ]);
+  });
+
+  it('keeps processing layers scoped to their authored group', () => {
+    const base = createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments());
+    const group = createGroupLayer('processing group');
+    group.children = [
+      raster('inside'),
+      createAdjustmentLayer(
+        selectAdjustmentLayerModules(base, 'lens-fx'), 'Grouped Lens FX', 'lens-fx'
+      )
+    ];
+
+    const plan = buildCompositorPlan([raster('outside'), group, raster('above')]);
+
+    expect(plan.entries.map(({ node }) => node.name)).toEqual([
+      'outside', 'processing group', 'above'
+    ]);
+    expect(plan.entries[1]?.children?.entries.map(({ node }) => node.name)).toEqual([
+      'inside', 'Grouped Lens FX'
     ]);
   });
 
