@@ -748,6 +748,51 @@ fn photoshopApplyHueSaturation(
   return photoshopHslToRgb(hsl);
 }
 
+fn photoshopColorBalanceChannel(value: f32, tone: u32, amount: f32) -> f32 {
+  if (abs(amount) <= 0.000001) { return value; }
+
+  // Photoshop's current Color Balance response is a family of smooth
+  // per-channel transfer curves, not a linear RGB offset. Midtones are a
+  // symmetric power curve. Adding shadow color and subtracting highlight
+  // color use the wider half-strength member of that same family.
+  if (tone == 1u) {
+    return clamp(pow(clamp(value, 0.0, 1.0), exp2(-amount / 100.0)), 0.0, 1.0);
+  }
+  if ((tone == 0u && amount > 0.0) || (tone == 2u && amount < 0.0)) {
+    return clamp(pow(clamp(value, 0.0, 1.0), exp2(-amount / 200.0)), 0.0, 1.0);
+  }
+
+  // The opposite shadow/highlight directions use asymmetric shoulder/toe
+  // falloff. This is the classic transfer documented by GIMP's original
+  // Color Balance implementation and remains close to Photoshop 27's
+  // measured endpoint response, including its clipping protection.
+  let code = clamp(value, 0.0, 1.0) * 255.0;
+  var falloff = 0.0;
+  if (tone == 0u) {
+    falloff = 1.075 - 1.0 / ((255.0 - code) / 16.0 + 1.0);
+  } else {
+    falloff = 1.075 - 1.0 / (code / 16.0 + 1.0);
+  }
+  let classic = clamp((code + amount * falloff) / 255.0, 0.0, 1.0);
+  if (tone == 2u && amount > 0.0) {
+    // Photoshop 27's positive highlight shoulder sits between its classic
+    // rational falloff and a protected complementary power curve. The blend
+    // and exponent were measured at +20, +80 and +100 rather than inferred
+    // from one mild setting.
+    let protectedShoulder = 1.0 - pow(1.0 - clamp(value, 0.0, 1.0), exp2(amount / 72.0));
+    return mix(classic, protectedShoulder, 0.625);
+  }
+  return classic;
+}
+
+fn photoshopApplyColorBalanceTone(color: vec3f, amounts: vec3f, tone: u32) -> vec3f {
+  return vec3f(
+    photoshopColorBalanceChannel(color.r, tone, amounts.r),
+    photoshopColorBalanceChannel(color.g, tone, amounts.g),
+    photoshopColorBalanceChannel(color.b, tone, amounts.b)
+  );
+}
+
 fn samplePhotoshopBrightnessContrastLut(value: f32) -> f32 {
   let code = clamp(value, 0.0, 1.0) * 255.0;
   var left = 63u;
@@ -919,17 +964,26 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     return photoshopEncodedDocumentToLinearSrgb(adjusted);
   }
   if (kind == 5u) {
-    let y = clamp(luminance(rgb), 0.0, 1.0);
-    let shadowWeight = 1.0 - smoothstep(0.0, 0.55, y);
-    let highlightWeight = smoothstep(0.45, 1.0, y);
-    let midtoneWeight = max(0.0, 1.0 - shadowWeight - highlightWeight);
-    let shift = vec3f(
-      photoshopValue(16u) * shadowWeight + photoshopValue(19u) * midtoneWeight + photoshopValue(22u) * highlightWeight,
-      photoshopValue(17u) * shadowWeight + photoshopValue(20u) * midtoneWeight + photoshopValue(23u) * highlightWeight,
-      photoshopValue(18u) * shadowWeight + photoshopValue(21u) * midtoneWeight + photoshopValue(24u) * highlightWeight
-    ) / 100.0;
-    let adjusted = rgb + shift * vec3f(0.32);
-    return select(adjusted, preservePhotoshopLuminance(rgb, adjusted), photoshopValue(25u) > 0.5);
+    let encoded = photoshopLinearSrgbToEncodedDocument(rgb);
+    var shadows = vec3f(photoshopValue(16u), photoshopValue(17u), photoshopValue(18u));
+    var midtones = vec3f(photoshopValue(19u), photoshopValue(20u), photoshopValue(21u));
+    var highlights = vec3f(photoshopValue(22u), photoshopValue(23u), photoshopValue(24u));
+    if (photoshopValue(25u) > 0.5) {
+      // Preserve Luminosity removes the neutral component before applying
+      // the curves. Photoshop anchors shadows at the strongest authored
+      // channel, highlights at the weakest, and midtones halfway between.
+      // This keeps the useful tonal endpoint stable instead of repairing
+      // luminance after clipping has already occurred.
+      shadows = (shadows - vec3f(max(shadows.r, max(shadows.g, shadows.b)))) * 0.75;
+      let midtoneMinimum = min(midtones.r, min(midtones.g, midtones.b));
+      let midtoneMaximum = max(midtones.r, max(midtones.g, midtones.b));
+      midtones -= vec3f((midtoneMinimum + midtoneMaximum) * 0.5);
+      highlights = (highlights - vec3f(min(highlights.r, min(highlights.g, highlights.b)))) * 0.775;
+    }
+    var adjusted = photoshopApplyColorBalanceTone(encoded, shadows, 0u);
+    adjusted = photoshopApplyColorBalanceTone(adjusted, midtones, 1u);
+    adjusted = photoshopApplyColorBalanceTone(adjusted, highlights, 2u);
+    return photoshopEncodedDocumentToLinearSrgb(adjusted);
   }
   if (kind == 6u) {
     let maximum = max(rgb.r, max(rgb.g, rgb.b));

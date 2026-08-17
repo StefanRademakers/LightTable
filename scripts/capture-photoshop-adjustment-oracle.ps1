@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -179,11 +179,51 @@ $hueSaturationCases = @(
   @{ id='range-blue-saturation-pos-100'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=5; rangeHue=0; rangeSaturation=100; rangeLightness=0 },
   @{ id='range-magenta-lightness-neg-80'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=6; rangeHue=0; rangeSaturation=0; rangeLightness=-80 }
 )
+$colorBalanceCases = @(
+  @{ id='neutral'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='shadows-cyan-red-neg-100'; shadows=@(-100,0,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='shadows-cyan-red-pos-100'; shadows=@(100,0,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='shadows-magenta-green-neg-80'; shadows=@(0,-80,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='shadows-yellow-blue-pos-80'; shadows=@(0,0,80); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='shadows-combined-80'; shadows=@(80,-80,80); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='midtones-cyan-red-neg-100'; shadows=@(0,0,0); midtones=@(-100,0,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='midtones-cyan-red-pos-100'; shadows=@(0,0,0); midtones=@(100,0,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='midtones-magenta-green-neg-80'; shadows=@(0,0,0); midtones=@(0,-80,0); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='midtones-yellow-blue-pos-80'; shadows=@(0,0,0); midtones=@(0,0,80); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='midtones-combined-80'; shadows=@(0,0,0); midtones=@(80,-80,80); highlights=@(0,0,0); preserveLuminosity=$true },
+  @{ id='highlights-cyan-red-neg-100'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(-100,0,0); preserveLuminosity=$true },
+  @{ id='highlights-cyan-red-pos-100'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(100,0,0); preserveLuminosity=$true },
+  @{ id='highlights-magenta-green-neg-80'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(0,-80,0); preserveLuminosity=$true },
+  @{ id='highlights-yellow-blue-pos-80'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(0,0,80); preserveLuminosity=$true },
+  @{ id='highlights-combined-80'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(80,-80,80); preserveLuminosity=$true },
+  @{ id='all-tones-combined-80'; shadows=@(-80,80,-80); midtones=@(80,-80,80); highlights=@(-80,80,-80); preserveLuminosity=$true },
+  @{ id='shadows-cyan-red-neg-100-no-preserve'; shadows=@(-100,0,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='shadows-cyan-red-pos-100-no-preserve'; shadows=@(100,0,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='shadows-cyan-red-neg-20-no-preserve'; shadows=@(-20,0,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='shadows-cyan-red-pos-20-no-preserve'; shadows=@(20,0,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='shadows-cyan-red-neg-80-no-preserve'; shadows=@(-80,0,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='shadows-cyan-red-pos-80-no-preserve'; shadows=@(80,0,0); midtones=@(0,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='midtones-cyan-red-neg-100-no-preserve'; shadows=@(0,0,0); midtones=@(-100,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='midtones-cyan-red-pos-100-no-preserve'; shadows=@(0,0,0); midtones=@(100,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='midtones-cyan-red-neg-20-no-preserve'; shadows=@(0,0,0); midtones=@(-20,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='midtones-cyan-red-pos-20-no-preserve'; shadows=@(0,0,0); midtones=@(20,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='midtones-cyan-red-neg-80-no-preserve'; shadows=@(0,0,0); midtones=@(-80,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='midtones-cyan-red-pos-80-no-preserve'; shadows=@(0,0,0); midtones=@(80,0,0); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='highlights-cyan-red-neg-100-no-preserve'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(-100,0,0); preserveLuminosity=$false },
+  @{ id='highlights-cyan-red-pos-100-no-preserve'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(100,0,0); preserveLuminosity=$false },
+  @{ id='highlights-cyan-red-neg-20-no-preserve'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(-20,0,0); preserveLuminosity=$false },
+  @{ id='highlights-cyan-red-pos-20-no-preserve'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(20,0,0); preserveLuminosity=$false },
+  @{ id='highlights-cyan-red-neg-80-no-preserve'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(-80,0,0); preserveLuminosity=$false },
+  @{ id='highlights-cyan-red-pos-80-no-preserve'; shadows=@(0,0,0); midtones=@(0,0,0); highlights=@(80,0,0); preserveLuminosity=$false },
+  @{ id='midtones-combined-no-preserve'; shadows=@(0,0,0); midtones=@(80,-80,80); highlights=@(0,0,0); preserveLuminosity=$false },
+  @{ id='all-tones-no-preserve'; shadows=@(-80,80,-80); midtones=@(80,-80,80); highlights=@(-80,80,-80); preserveLuminosity=$false }
+)
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
 } elseif ($Adjustment -eq 'levels') { $levelsCases }
 elseif ($Adjustment -eq 'curves') { $curvesCases }
 elseif ($Adjustment -eq 'hue-saturation') { $hueSaturationCases }
+elseif ($Adjustment -eq 'color-balance') { $colorBalanceCases }
 else { $exposureCases }
 if (-not [string]::IsNullOrWhiteSpace($CasePattern)) {
   $cases = @($cases | Where-Object { $_.id -match $CasePattern })
@@ -337,6 +377,21 @@ try {
 $rangeDescriptors
   adjustment.putList(c2t('Adjs'), hueAdjustments);
   adjustmentLayer.putObject(s2t('type'), s2t('hueSaturation'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'color-balance') {
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  var shadows = new ActionList();
+  shadows.putInteger($($case.shadows[0])); shadows.putInteger($($case.shadows[1])); shadows.putInteger($($case.shadows[2]));
+  adjustment.putList(c2t('ShdL'), shadows);
+  var midtones = new ActionList();
+  midtones.putInteger($($case.midtones[0])); midtones.putInteger($($case.midtones[1])); midtones.putInteger($($case.midtones[2]));
+  adjustment.putList(c2t('MdtL'), midtones);
+  var highlights = new ActionList();
+  highlights.putInteger($($case.highlights[0])); highlights.putInteger($($case.highlights[1])); highlights.putInteger($($case.highlights[2]));
+  adjustment.putList(c2t('HghL'), highlights);
+  adjustment.putBoolean(c2t('PrsL'), $(if ($case.preserveLuminosity) { 'true' } else { 'false' }));
+  adjustmentLayer.putObject(s2t('type'), s2t('colorBalance'), adjustment);
 "@
     } else {
       $adjustmentDescriptor = @"

@@ -199,3 +199,44 @@ over isolated Hue, Saturation, Lightness, and combined +80 cases. The strongest
 combined Reds photograph remains the largest residual at 3.955% RMSE, inside
 the per-case gate; single-range operations measure between 99.448% and 99.981%
 parity. No fitted correction curve is applied to that residual.
+
+## Color Balance
+
+Status: measured improvement accepted; photographic extreme-case audit remains
+open.
+
+Photoshop 27.11 does not implement Color Balance as a linear RGB offset. The
+measured encoded-document response uses sign-dependent toe, midpoint, and
+shoulder transfer curves with clipping after each tonal stage. Midtones follow
+a symmetric power family (`2^(-amount / 100)`); adding shadow color and
+subtracting highlight color use the wider half-strength family. The remaining
+toe/shoulder directions retain the classic asymmetric rational falloff found in
+GIMP's original Color Balance source. Photoshop's current positive-highlight
+shoulder lies between that classic response and a protected complementary power
+curve; +20, +80, and +100 captures determine the blend rather than a mild-value
+fit.
+
+`Preserve Luminosity` changes the transfer inputs rather than repairing
+luminance after clipping. For each three-axis tonal vector, Photoshop removes a
+neutral component using the strongest channel as the shadow anchor, the
+min/max midpoint as the midtone anchor, and the weakest channel as the highlight
+anchor. This explains the measured opponent-channel response and avoids the old
+single-lightness-mask approximation. Grade remains unchanged, and the node adds
+no pass, texture, readback, or CPU work.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Cases <= 5% RMSE |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 37 | 1.792% | 12.532% | 98.208% | 36 / 37 |
+| `D:\people.jpg` | sRGB / 16-bit | 37 | 2.242% | 14.258% | 97.758% | 32 / 37 |
+
+The diagnostic corpus passes the full tracker gate. The 16-bit photograph
+passes the overall 95-percent visual-parity requirement but not yet the strict
+per-case requirement. Its misses are concentrated in endpoint shadows and the
+deliberately adversarial case that drives all three tonal ranges to alternating
+80-percent extremes; ordinary and isolated midtone cases are approximately
+99.4–99.8% parity. This residual remains explicit rather than being hidden by a
+photo-specific correction. Adobe documents the tone ranges and default
+luminosity protection in its
+[Color Balance guide](https://helpx.adobe.com/uk/photoshop/using/applying-color-balance-adjustment.html);
+the historic transfer-family reference is GIMP's
+[original Color Balance implementation](https://raw.githubusercontent.com/GNOME/gimp/GIMP_1_0_4/app/color_balance.c).
