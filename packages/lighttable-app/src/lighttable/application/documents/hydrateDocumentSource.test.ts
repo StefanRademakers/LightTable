@@ -41,7 +41,7 @@ const renderer = () => ({
 });
 
 describe('hydrateDocumentSource', () => {
-  it('applies the initial document grade when no layered stack exists', async () => {
+  it('keeps the legacy document-final renderer neutral after a flat recipe was attached locally', async () => {
     const target = renderer();
     const adjustments: BasicAdjustments = {
       ...createDefaultAdjustments(),
@@ -55,30 +55,33 @@ describe('hydrateDocumentSource', () => {
       groupVisibility: createDefaultGroupVisibility()
     });
 
-    expect(result?.adjustments.exposureEV).toBe(1.25);
+    expect(result?.adjustments.exposureEV).toBe(0);
     expect(target.setAdjustmentStack).not.toHaveBeenCalled();
     expect(target.setAdjustments).toHaveBeenCalledWith(
-      expect.objectContaining({ exposureEV: 1.25 })
+      expect.objectContaining({ exposureEV: 0 })
     );
   });
 
-  it('keeps disabled adjustment groups out of renderer hydration', async () => {
+  it('does not restore a hidden layered document-processing stack', async () => {
     const target = renderer();
     const adjustments: BasicAdjustments = {
       ...createDefaultAdjustments(),
       exposureEV: 2
     };
+    const layeredAdjustmentStack = {
+      id: 'legacy-global',
+      revision: 1,
+      modules: []
+    };
 
     await hydrateDocumentSource({
       renderer: target,
-      loaded: loadedSource(),
+      loaded: loadedSource({ layeredAdjustmentStack }),
       initialAdjustments: adjustments,
-      groupVisibility: {
-        ...createDefaultGroupVisibility(),
-        light: false
-      }
+      groupVisibility: createDefaultGroupVisibility()
     });
 
+    expect(target.setAdjustmentStack).not.toHaveBeenCalled();
     expect(target.setAdjustments).toHaveBeenCalledWith(
       expect.objectContaining({ exposureEV: 0 })
     );

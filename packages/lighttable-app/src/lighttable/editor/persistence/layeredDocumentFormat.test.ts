@@ -990,6 +990,51 @@ describe('LightTable layered PNG format', () => {
       : null).toBe(61);
   });
 
+  it('round-trips a Lens Fx layer at its exact nested stack position', async () => {
+    const source = createImageDocument('Nested Lens Fx', 2, 2, 'source');
+    const backgroundId = source.layers[0]!.id;
+    const withGroup = createGroupLayer(source, 'Scene');
+    const groupId = withGroup.activeLayerId!;
+    const grouped = moveLayerIntoGroup(withGroup, backgroundId, groupId);
+    const lensStack = selectAdjustmentLayerModules(defaultStack(), 'lens-fx');
+    const document = createAdjustmentLayer(
+      grouped,
+      lensStack,
+      'Lens Fx',
+      backgroundId,
+      'lens-fx'
+    );
+    const lensFxId = document.activeLayerId!;
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }),
+      document,
+      defaultStack(),
+      [{
+        layerId: backgroundId,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }],
+      'nested-lens-fx.png'
+    );
+
+    const parsed = await parseLayeredDocumentFile(file);
+    const parsedGroup = parsed ? findDocumentLayer(parsed.document, groupId) : null;
+    const parsedLensFx = parsed ? findDocumentLayer(parsed.document, lensFxId) : null;
+
+    expect(parsedGroup?.type).toBe('group');
+    expect(parsedGroup?.type === 'group'
+      ? parsedGroup.children.map(({ id }) => id)
+      : []).toEqual([backgroundId, lensFxId]);
+    expect(parsedLensFx).toMatchObject({
+      type: 'adjustment',
+      adjustmentKind: 'lens-fx',
+      name: 'Lens Fx'
+    });
+    expect(parsedLensFx?.type === 'adjustment'
+      ? parsedLensFx.adjustmentStack
+      : null).toEqual(lensStack);
+  });
+
   it('round-trips normalized high-precision import provenance', async () => {
     const document = createImageDocument('16-bit source', 2, 2, 'source', {
       decoder: 'wasm-vips',

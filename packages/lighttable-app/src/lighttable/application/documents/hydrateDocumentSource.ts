@@ -1,10 +1,7 @@
-import { applyGroupVisibility, type GroupVisibility } from '../adjustments/groupVisibility';
+import type { GroupVisibility } from '../adjustments/groupVisibility';
 import type { ReferenceDifferenceMetrics } from '../rendering/rendererTypes';
-import {
-  materializeBasicAdjustments,
-  type AdjustmentStack
-} from '../../processing/adjustmentStack';
-import { cloneAdjustments, type BasicAdjustments } from '../../types';
+import type { AdjustmentStack } from '../../processing/adjustmentStack';
+import { createDefaultAdjustments, type BasicAdjustments } from '../../types';
 import type { LoadedDocumentSource } from './loadDocumentSource';
 
 export interface DocumentHydrationRenderer {
@@ -38,19 +35,12 @@ export const hydrateDocumentSource = async (
 ): Promise<HydratedDocumentSource | null> => {
   const isCanceled = request.isCanceled ?? (() => false);
   const { loaded, renderer } = request;
-  const adjustments = cloneAdjustments(
-    loaded.layeredAdjustmentStack
-      ? materializeBasicAdjustments(loaded.layeredAdjustmentStack)
-      : request.initialAdjustments
-  );
-
-  if (loaded.layeredAdjustmentStack) {
-    renderer.setAdjustmentStack(loaded.layeredAdjustmentStack);
-  }
-  renderer.setAdjustments(applyGroupVisibility(
-    adjustments,
-    request.groupVisibility
-  ));
+  // Creative processing is owned by visible document layers. Flat-import
+  // recipes have already been attached to their raster by loadDocumentSource;
+  // replaying them here would apply the grade a second time. Keep the legacy
+  // document-final renderer neutral until that technical route is removed.
+  const adjustments = createDefaultAdjustments();
+  renderer.setAdjustments(adjustments);
 
   if (!loaded.psdImport) {
     return {
