@@ -91,6 +91,8 @@
     "capture:photoshop-adjustment-oracle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/capture-photoshop-adjustment-oracle.ps1",
     "capture:lighttable-adjustment-oracle": "node scripts/capture-lighttable-adjustment-oracle.mjs",
     "analyze:adjustment-oracle": "node scripts/analyze-adjustment-oracle.mjs",
+    "regress:adjustment-parity": "node scripts/run-adjustment-parity-regression.mjs",
+    "test:adjustment-parity-policy": "node --test scripts/adjustment-parity-suite.test.mjs",
     "generate:photoshop-brightness-contrast-lut": "node scripts/generate-photoshop-brightness-contrast-lut.mjs",
     "generate:photoshop-color-vibrance-lut": "node scripts/generate-photoshop-color-vibrance-lut.mjs",
     "generate:photoshop-color-balance-transfer": "node scripts/generate-photoshop-color-balance-transfer.mjs",

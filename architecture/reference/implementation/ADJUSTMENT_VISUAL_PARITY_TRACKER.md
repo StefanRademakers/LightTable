@@ -25,6 +25,16 @@ previously accepted adjustments. External captures live under
 `D:\mediavibe\LightTableTests\AdjustmentParity`; summaries and implementation
 decisions live here.
 
+The machine-readable canonical corpus selection lives in
+`adjustment-parity-suite.json`. It deliberately lists only accepted diagnostic
+and real-image evidence; exploratory probe directories are not release gates.
+Run `npm run regress:adjustment-parity -- --regressions-only` to compare the
+existing captures against their accepted baselines, or add `--capture` to
+recapture LightTable output before comparing it. The latter expects the current
+desktop application to have been packaged first. This suite covers the
+Photoshop-shaped adjustment nodes. A separate native Grade visual golden is
+still required before Grade regression can be called automated end to end.
+
 ## Exposure
 
 Status: accepted.
