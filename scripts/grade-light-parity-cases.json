@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "section": "light",
+  "controls": [
+    {
+      "key": "exposureEV",
+      "label": "Exposure",
+      "cameraRawDescriptor": "Ex12",
+      "cameraRawValueType": "double",
+      "values": [-5, -4, -2, -1, 1, 2, 4, 5]
+    },
+    {
+      "key": "contrast",
+      "label": "Contrast",
+      "cameraRawDescriptor": "Cr12",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    },
+    {
+      "key": "highlights",
+      "label": "Highlights",
+      "cameraRawDescriptor": "Hi12",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    },
+    {
+      "key": "shadows",
+      "label": "Shadows",
+      "cameraRawDescriptor": "Sh12",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    },
+    {
+      "key": "whites",
+      "label": "Whites",
+      "cameraRawDescriptor": "Wh12",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    },
+    {
+      "key": "blacks",
+      "label": "Blacks",
+      "cameraRawDescriptor": "Bk12",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    }
+  ]
+}
