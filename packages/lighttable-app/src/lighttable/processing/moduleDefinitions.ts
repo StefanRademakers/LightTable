@@ -48,7 +48,6 @@ export type CurrentAdjustmentSettingsPath =
   | 'texture'
   | 'clarity'
   | 'dehaze'
-  | 'vignette'
   | 'vibrance'
   | 'saturation'
   | 'colorMixer'
@@ -60,7 +59,8 @@ export type CurrentAdjustmentSettingsPath =
   | 'effects.halation'
   | 'effects.chromaticAberration'
   | 'effects.lensDistortion'
-  | 'effects.lensBlur';
+  | 'effects.lensBlur'
+  | 'effects.vignette';
 
 export interface ProcessingModuleDefinition {
   type: string;
@@ -227,17 +227,6 @@ export const CURRENT_PROCESSING_MODULES = [
     notes: 'Coordinate space becomes scope-relative when the evaluator is extracted.'
   },
   {
-    type: 'lt.vignette',
-    label: 'Vignette',
-    category: 'spatial',
-    settingsPaths: ['vignette'],
-    allowedScopes: CREATIVE_GRADE_SCOPES,
-    inputDomain: 'linear-rgb',
-    outputDomain: 'linear-rgb',
-    alphaBehavior: 'preserve',
-    coordinateSpace: 'document'
-  },
-  {
     type: 'lt.lens-distortion',
     label: 'Lens Distortion',
     category: 'lens',
@@ -283,6 +272,18 @@ export const CURRENT_PROCESSING_MODULES = [
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
     coordinateSpace: 'layer'
+  },
+  {
+    type: 'lt.vignette',
+    label: 'Post-crop Vignette',
+    category: 'output',
+    settingsPaths: ['effects.vignette'],
+    allowedScopes: ['document-creative', 'document-output'],
+    inputDomain: 'linear-rgb',
+    outputDomain: 'linear-rgb',
+    alphaBehavior: 'preserve',
+    coordinateSpace: 'document',
+    notes: 'Fused into the document output transform before display-post Grain.'
   },
   {
     type: 'lt.grain',

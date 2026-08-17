@@ -10,6 +10,7 @@ import { WarpEffect } from './warp/WarpEffect';
 import { readWarpNodeSettings } from './warp/warpTypes';
 import type { WarpDebugView } from './warp/warpTypes';
 import { FaceWarpEffect } from './faceWarp/FaceWarpEffect';
+import { FusedOutputVignetteEffect } from './vignette/FusedOutputVignetteEffect';
 import { readFaceWarpNodeSettings } from './faceWarp/faceWarpTypes';
 import type {
   LightTableEffectRuntimeCallbacks,
@@ -34,7 +35,8 @@ export interface DocumentGpuEffect {
   estimatedTextureBytes(): number;
   deformationTelemetry?(): MeshDeformationTelemetry;
   setDepthMap?(depth: DepthAnalysisResult): void;
-  setInteractionActive?(active: boolean): void;
+  /** Returns true only when this gesture changes the effect's rendered quality. */
+  setInteractionActive?(active: boolean): boolean;
   /** Preferred render cadence while this active effect is upstream-dirty. */
   interactionFrameIntervalMs?(): number;
   setDepthVisualization?(visible: boolean): void;
@@ -167,6 +169,12 @@ export const DOCUMENT_EFFECT_NODE_DEFINITIONS = [
       context.callbacks
     ),
     (effect, _instance, node) => effect.setSettings(node.effects.halation)
+  ),
+  definition(
+    'lt.vignette',
+    'display-post',
+    () => new FusedOutputVignetteEffect(),
+    () => {}
   ),
   definition(
     'lt.grain',

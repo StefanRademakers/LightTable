@@ -152,4 +152,19 @@ describe('LightTable adjustment uniform packing', () => {
       PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET + 7
     ))).toEqual([300, 330, 20, 50, 40, -60, 80]);
   });
+  it('keeps Post-crop Vignette out of the Grade uniform', () => {
+    const baseline = createDefaultAdjustments();
+    const changed = createDefaultAdjustments();
+    changed.effects.vignette = {
+      enabled: true,
+      amount: -80,
+      midpoint: 25,
+      roundness: 70,
+      feather: 15,
+      highlights: 90
+    };
+
+    expect(Array.from(buildAdjustmentUniform(changed, 100, 50, true)))
+      .toEqual(Array.from(buildAdjustmentUniform(baseline, 100, 50, true)));
+  });
 });

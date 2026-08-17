@@ -136,6 +136,27 @@ describe('createAdjustmentCommands', () => {
     expect(harness.focusPickerActive()).toBe(false);
   });
 
+  it('authors and resets the document-output Vignette through Lens FX state', () => {
+    const harness = createHarness();
+
+    harness.commands.setVignetteEnabled(true);
+    harness.commands.updateVignette('amount', -72);
+    harness.commands.updateVignette('roundness', 35);
+    harness.commands.resetVignetteControl('roundness');
+
+    expect(harness.adjustments().effects.vignette).toMatchObject({
+      enabled: true,
+      amount: -72,
+      roundness: 0
+    });
+
+    harness.commands.resetVignette();
+    expect(harness.adjustments().effects.vignette).toEqual({
+      ...createDefaultAdjustments().effects.vignette,
+      enabled: true
+    });
+  });
+
   it('copies curve input values instead of retaining mutable point objects', () => {
     const harness = createHarness();
     const points: BasicAdjustments['curves']['master'] = [

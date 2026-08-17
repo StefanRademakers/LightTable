@@ -43,8 +43,7 @@ export const COLOR_SLIDER_KEYS = new Set<NumericAdjustmentKey>([
 export const EFFECTS_SLIDER_KEYS = new Set<NumericAdjustmentKey>([
   'texture',
   'clarity',
-  'dehaze',
-  'vignette'
+  'dehaze'
 ]);
 
 export const createDefaultGroupVisibility = (): GroupVisibility => ({

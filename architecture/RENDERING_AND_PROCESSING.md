@@ -181,6 +181,11 @@ aberration, lens blur, halation, grain and warp. Definitions live in
 `DocumentEffectRuntime` evaluates them in validated serialized order inside
 constrained coordinate/data stages.
 
+Post-crop Vignette is a document-output Lens FX node. Its controls and stack
+ownership are independent from Grade, while its pixel work is fused into the
+existing output transform before display-post Grain. Neutral or disabled
+settings are an exact bypass and do not allocate or submit an extra pass.
+
 **Partial:** some Grade controls are still packed into combined
 `BasicAdjustments` shader paths, and not every operation is yet a standalone
 generic executor. `WebGpuEngine` and `LayerDocumentRenderer` still expose

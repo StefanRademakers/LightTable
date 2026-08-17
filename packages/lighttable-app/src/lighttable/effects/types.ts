@@ -23,6 +23,11 @@ import {
   createDefaultLensBlurSettings,
   type LensBlurSettings
 } from './lensBlur/settings';
+import {
+  cloneVignetteSettings,
+  createDefaultVignetteSettings,
+  type VignetteSettings
+} from './vignette/settings';
 
 export interface LightTableEffects {
   grain: GrainSettings;
@@ -30,6 +35,7 @@ export interface LightTableEffects {
   chromaticAberration: ChromaticAberrationSettings;
   lensDistortion: LensDistortionSettings;
   lensBlur: LensBlurSettings;
+  vignette: VignetteSettings;
 }
 
 export const createDefaultEffects = (): LightTableEffects => ({
@@ -37,7 +43,8 @@ export const createDefaultEffects = (): LightTableEffects => ({
   halation: createDefaultHalationSettings(),
   chromaticAberration: createDefaultChromaticAberrationSettings(),
   lensDistortion: createDefaultLensDistortionSettings(),
-  lensBlur: createDefaultLensBlurSettings()
+  lensBlur: createDefaultLensBlurSettings(),
+  vignette: createDefaultVignetteSettings()
 });
 
 export const cloneEffects = (effects: LightTableEffects): LightTableEffects => ({
@@ -45,7 +52,8 @@ export const cloneEffects = (effects: LightTableEffects): LightTableEffects => (
   halation: cloneHalationSettings(effects.halation),
   chromaticAberration: cloneChromaticAberrationSettings(effects.chromaticAberration),
   lensDistortion: cloneLensDistortionSettings(effects.lensDistortion),
-  lensBlur: cloneLensBlurSettings(effects.lensBlur)
+  lensBlur: cloneLensBlurSettings(effects.lensBlur),
+  vignette: cloneVignetteSettings(effects.vignette)
 });
 
 export type LightTableEffectStage = 'source-geometry' | 'linear-spatial' | 'display-post';

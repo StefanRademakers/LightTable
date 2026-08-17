@@ -12,6 +12,7 @@ import {
 } from './documentEffectNodeRegistry';
 import type { LightTableEffectStage } from './types';
 import { createWarpModuleInstance } from './warp/warpTypes';
+import { FusedOutputVignetteEffect } from './vignette/FusedOutputVignetteEffect';
 
 const texture = (name: string) => ({ name }) as unknown as GPUTexture;
 
@@ -22,7 +23,7 @@ const effect = (id: string, stage: LightTableEffectStage): DocumentGpuEffect => 
     texture(`${(input as unknown as { name: string }).name}>${id}`)),
   resize: vi.fn(),
   setDepthMap: vi.fn(),
-  setInteractionActive: vi.fn(),
+  setInteractionActive: vi.fn(() => true),
   setDepthVisualization: vi.fn(),
   destroyImageResources: vi.fn(),
   destroy: vi.fn(),
@@ -58,6 +59,12 @@ const createRuntime = (stack = createAdjustmentStackFromBasicAdjustments(
       update: vi.fn()
     })
   );
+  definitions.push({
+    type: 'lt.vignette',
+    stage: 'display-post',
+    create: () => new FusedOutputVignetteEffect(),
+    update: vi.fn()
+  });
   const runtime = DocumentEffectRuntime.createFromStack(
     {
       device: {} as GPUDevice,
@@ -119,6 +126,16 @@ describe('DocumentEffectRuntime', () => {
 
     expect(runtime.setInteractionActive(true)).toBe(false);
     expect(runtime.setInteractionActive(true)).toBe(false);
+  });
+
+  it('does not infer a quality change from the mere presence of an interaction hook', () => {
+    const { runtime, effects } = createRuntime();
+    effects.forEach((item) => {
+      item.setInteractionActive = vi.fn(() => false);
+    });
+
+    expect(runtime.setInteractionActive(true)).toBe(false);
+    effects.forEach((item) => expect(item.setInteractionActive).toHaveBeenCalledWith(true));
   });
 
   it('applies the slowest requested cadence only during an active gesture', () => {

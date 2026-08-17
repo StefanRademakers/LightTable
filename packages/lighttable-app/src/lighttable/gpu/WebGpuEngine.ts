@@ -79,6 +79,10 @@ import type { ViewportRenderRect } from '../application/rendering/viewportRender
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
 import {
+  createDefaultVignetteSettings,
+  vignetteIsActive
+} from '../effects/vignette/settings';
+import {
   adjustmentStackOwnerHasAuthoredSettings,
   type AdjustmentStack
 } from '../processing/adjustmentStack';
@@ -2135,16 +2139,23 @@ export class WebGpuEngine {
       this.lensBlurDepthVisualization &&
       this.effectRuntime?.hasDepth
     );
+    const vignette = vignetteIsActive(lensOnly.vignette)
+      ? lensOnly.vignette
+      : createDefaultVignetteSettings();
     const next = new Float32Array([
       visualizingDepth ? 0 : settings.whites * strength,
       visualizingDepth ? 0 : lensOnly.shoulderStrength
         + (settings.shoulderStrength - lensOnly.shoulderStrength) * strength,
       visualizingDepth ? 0 : (lensOnly.active || (settings.active && strength > 0) ? 1 : 0),
-      visualizingDepth ? 0 : settings.vignette * strength,
-      this.metadata?.width ?? 1,
-      this.metadata?.height ?? 1,
+      visualizingDepth ? 0 : vignette.amount,
+      this.imageDocument?.width ?? this.metadata?.width ?? 1,
+      this.imageDocument?.height ?? this.metadata?.height ?? 1,
       strength,
-      0
+      vignette.midpoint,
+      vignette.roundness,
+      vignette.feather,
+      vignette.highlights,
+      visualizingDepth ? 0 : (vignetteIsActive(vignette) ? 1 : 0)
     ]);
     return this.coreResources.writeOutputSettings(next);
   }

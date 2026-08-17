@@ -17,6 +17,7 @@ import type {
   LensBlurSettings
 } from '../../effects/lensBlur/settings';
 import type { LensDistortionSettings } from '../../effects/lensDistortion/settings';
+import type { VignetteSettings } from '../../effects/vignette/settings';
 
 export interface SliderDefinition<TKey = NumericAdjustmentKey> {
   readonly key: TKey;
@@ -58,7 +59,6 @@ const SLIDERS: ReadonlyArray<SliderDefinition> = [
   { key: 'texture', label: 'Texture', min: -100, max: 100, track: 'luminance' },
   { key: 'clarity', label: 'Clarity', min: -100, max: 100, track: 'luminance' },
   { key: 'dehaze', label: 'Dehaze', min: -100, max: 100, track: 'luminance' },
-  { key: 'vignette', label: 'Vignette', min: -100, max: 100, track: 'luminance' },
   { key: 'vibrance', label: 'Vibrance', min: -100, max: 100, track: 'vibrance' },
   { key: 'saturation', label: 'Saturation', min: -100, max: 100, track: 'saturation' }
 ];
@@ -70,8 +70,17 @@ const COLOR_KEYS = new Set<NumericAdjustmentKey>([
   'temperature', 'tint', 'vibrance', 'saturation'
 ]);
 const EFFECT_KEYS = new Set<NumericAdjustmentKey>([
-  'texture', 'clarity', 'dehaze', 'vignette'
+  'texture', 'clarity', 'dehaze'
 ]);
+
+export type VignetteNumericKey = Exclude<keyof VignetteSettings, 'enabled'>;
+export const VIGNETTE_SLIDERS: ReadonlyArray<SliderDefinition<VignetteNumericKey>> = [
+  { key: 'amount', label: 'Amount', min: -100, max: 100, track: 'luminance' },
+  { key: 'midpoint', label: 'Midpoint', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
+  { key: 'roundness', label: 'Roundness', min: -100, max: 100 },
+  { key: 'feather', label: 'Feather', min: 0, max: 100, format: (value) => `${Math.round(value)}%` },
+  { key: 'highlights', label: 'Highlights', min: 0, max: 100, format: (value) => `${Math.round(value)}%`, track: 'luminance' }
+];
 
 export const LIGHT_SLIDERS = SLIDERS.filter(({ key }) => LIGHT_KEYS.has(key));
 export const COLOR_SLIDERS = SLIDERS.filter(({ key }) => COLOR_KEYS.has(key));

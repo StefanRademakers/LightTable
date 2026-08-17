@@ -20,6 +20,7 @@ import {
 import {
   DEFAULT_LENS_DISTORTION_SETTINGS
 } from '../../effects/lensDistortion/settings';
+import { DEFAULT_VIGNETTE_SETTINGS } from '../../effects/vignette/settings';
 import type { LightTableImageMetadata } from '../../types';
 import {
   type AdjustmentPresentationStore,
@@ -39,12 +40,14 @@ import {
   LENS_BLUR_SLIDERS,
   LENS_BLUR_VIEWPORT_MODE_OPTIONS,
   LENS_DISTORTION_SLIDERS,
+  VIGNETTE_SLIDERS,
   type ChromaticAberrationNumericKey,
   type GrainNumericKey,
   type HalationNumericKey,
   type LensBlurNumericKey,
   type LensBlurViewportMode,
-  type LensDistortionNumericKey
+  type LensDistortionNumericKey,
+  type VignetteNumericKey
 } from '../config/adjustmentControls';
 
 export interface LensFxExpandedState {
@@ -53,6 +56,7 @@ export interface LensFxExpandedState {
   readonly chromaticAberration: boolean;
   readonly lensDistortion: boolean;
   readonly lensBlur: boolean;
+  readonly vignette: boolean;
 }
 
 export interface LensFxPanelModel {
@@ -92,6 +96,12 @@ export interface LensFxPanelCommands {
     resetControl: (key: LensDistortionNumericKey) => void;
     reset: () => void;
   };
+  readonly vignette: {
+    setEnabled: (enabled: boolean) => void;
+    update: (key: VignetteNumericKey, value: number) => void;
+    resetControl: (key: VignetteNumericKey) => void;
+    reset: () => void;
+  };
   readonly lensBlur: {
     setEnabled: (enabled: boolean) => void;
     update: (key: LensBlurNumericKey, value: number) => void;
@@ -116,7 +126,8 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
     halation: true,
     chromaticAberration: true,
     lensDistortion: true,
-    lensBlur: true
+    lensBlur: true,
+    vignette: true
   });
   const adjustments = useLensFxPresentation(model.adjustmentStore);
   const { metadata, resetModifierActive } = model;
@@ -132,6 +143,7 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
   const chromaticAberration = adjustments.effects.chromaticAberration;
   const lensDistortion = adjustments.effects.lensDistortion;
   const lensBlur = adjustments.effects.lensBlur;
+  const vignette = adjustments.effects.vignette;
   const [lensBlurPreview, setLensBlurPreview] = React.useState<typeof lensBlur | null>(null);
   const presentedLensBlur = lensBlurPreview ?? lensBlur;
   const analyzing = model.depthProgress.status === 'loading-model'
@@ -345,6 +357,36 @@ export const LensFxPanel = ({ model, commands }: LensFxPanelProps) => {
               resetModifierActive={resetModifierActive}
               onChange={(value) => commands.halation.update(slider.key, value)}
               onReset={() => commands.halation.resetControl(slider.key)}
+              onInteractionStart={commands.beginAdjustment}
+              onInteractionEnd={commands.endAdjustment}
+            />
+          ))}
+        </EffectPanel>
+
+        <EffectPanel
+          label="Post-crop Vignette"
+          expanded={expanded.vignette}
+          enabled={vignette.enabled}
+          resetModifierActive={resetModifierActive}
+          onExpandedChange={(next) => setGroupExpanded('vignette', next)}
+          onEnabledChange={commands.vignette.setEnabled}
+          onReset={commands.vignette.reset}
+        >
+          {VIGNETTE_SLIDERS.map((slider) => (
+            <AdjustmentSlider
+              key={slider.key}
+              label={slider.label}
+              value={vignette[slider.key]}
+              min={slider.min}
+              max={slider.max}
+              step={slider.step}
+              format={slider.format}
+              track={slider.track}
+              resetValue={DEFAULT_VIGNETTE_SETTINGS[slider.key]}
+              disabled={!metadata || !vignette.enabled}
+              resetModifierActive={resetModifierActive}
+              onChange={(value) => commands.vignette.update(slider.key, value)}
+              onReset={() => commands.vignette.resetControl(slider.key)}
               onInteractionStart={commands.beginAdjustment}
               onInteractionEnd={commands.endAdjustment}
             />

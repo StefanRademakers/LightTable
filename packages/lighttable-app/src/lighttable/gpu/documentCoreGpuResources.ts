@@ -63,7 +63,7 @@ export class DocumentCoreGpuResources {
     this.outputSettingsBuffer = createUniformBuffer(
       device,
       'LightTable output transform settings',
-      8
+      12
     );
     this.viewBuffer = createUniformBuffer(device, 'LightTable viewport settings', 8);
     this.channelViewBuffer = createUniformBuffer(device, 'LightTable channel view settings', 4);

@@ -1,6 +1,7 @@
 import { curveActiveMask } from './curves';
 import { halationIsActive } from './effects/halation/settings';
 import { lensBlurIsActive } from './effects/lensBlur/settings';
+import { cloneVignetteSettings, vignetteIsActive, type VignetteSettings } from './effects/vignette/settings';
 import type { BasicAdjustments } from './types';
 
 const positiveControlStrength = (value: number, fullScale: number, maximum: number) => {
@@ -16,7 +17,7 @@ export interface OutputTransformSettings {
   whites: number;
   shoulderStrength: number;
   active: boolean;
-  vignette: number;
+  vignette: VignetteSettings;
 }
 
 export const calculateOutputTransformSettings = (adjustments: BasicAdjustments): OutputTransformSettings => {
@@ -25,7 +26,12 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.contrast, 100, 0.42));
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.texture, 100, 0.32));
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.clarity, 100, 0.32));
-  shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.vignette, 100, 0.72));
+  if (vignetteIsActive(adjustments.effects.vignette)) {
+    shoulderStrength = Math.max(
+      shoulderStrength,
+      positiveControlStrength(adjustments.effects.vignette.amount, 100, 0.72)
+    );
+  }
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(maxValue(adjustments.colorMixer.luminance), 100, 0.72));
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(maxValue(adjustments.colorGrading.luminance), 100, 0.72));
   if (halationIsActive(adjustments.effects.halation)) {
@@ -46,16 +52,18 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
     Math.abs(adjustments.contrast) + Math.abs(adjustments.highlights) + Math.abs(adjustments.shadows) +
     Math.abs(adjustments.whites) + Math.abs(adjustments.blacks) + Math.abs(adjustments.lift) +
     Math.abs(adjustments.texture) + Math.abs(adjustments.clarity) + Math.abs(adjustments.dehaze) +
-    Math.abs(adjustments.vignette) + Math.abs(adjustments.vibrance) + Math.abs(adjustments.saturation);
+    Math.abs(adjustments.vibrance) + Math.abs(adjustments.saturation);
 
   return {
     whites: adjustments.whites,
     shoulderStrength: Math.min(1, Math.max(0, shoulderStrength)),
-    vignette: adjustments.vignette,
+    vignette: cloneVignetteSettings(adjustments.effects.vignette),
     active: scalarMagnitude +
       sumAbsolute(adjustments.colorMixer.hue) + sumAbsolute(adjustments.colorMixer.saturation) +
       sumAbsolute(adjustments.colorMixer.luminance) + sumAbsolute(adjustments.colorGrading.saturation) +
       sumAbsolute(adjustments.colorGrading.luminance) + curveActiveMask(adjustments.curves) > 0.00001 ||
-      halationIsActive(adjustments.effects.halation) || lensBlurIsActive(adjustments.effects.lensBlur)
+      halationIsActive(adjustments.effects.halation)
+      || lensBlurIsActive(adjustments.effects.lensBlur)
+      || vignetteIsActive(adjustments.effects.vignette)
   };
 };

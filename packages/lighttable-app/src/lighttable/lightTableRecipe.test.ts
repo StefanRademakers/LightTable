@@ -137,6 +137,35 @@ describe('parseLightTableRecipe', () => {
     expect(recipe?.settings.effects.lensBlur.focusDistance).toBe(0.4);
   });
 
+  it('restores the document-output Post-crop Vignette controls', () => {
+    const recipe = parseLightTableRecipe({
+      lighttable: {
+        sourceFileKey: 'projects/project-1/media/original.png',
+        settings: {
+          effects: {
+            vignette: {
+              enabled: true,
+              amount: -64,
+              midpoint: 37,
+              roundness: 22,
+              feather: 73,
+              highlights: 48
+            }
+          }
+        }
+      }
+    });
+
+    expect(recipe?.settings.effects.vignette).toEqual({
+      enabled: true,
+      amount: -64,
+      midpoint: 37,
+      roundness: 22,
+      feather: 73,
+      highlights: 48
+    });
+  });
+
   it('restores nested Color Mixer channels', () => {
     const recipe = parseLightTableRecipe({
       lighttable: {

@@ -2338,6 +2338,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetLensDistortionControl: resetLensDistortionAdjustment,
     resetLensDistortion,
     setLensDistortionEnabled,
+    updateVignette: updateVignetteAdjustment,
+    resetVignetteControl: resetVignetteAdjustment,
+    resetVignette,
+    setVignetteEnabled,
     updateLensBlur: updateLensBlurAdjustment,
     resetLensBlurControl: resetLensBlurAdjustment,
     resetLensBlur,
@@ -6062,6 +6066,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                     update: updateLensDistortionAdjustment,
                     resetControl: resetLensDistortionAdjustment,
                     reset: resetLensDistortion
+                  },
+                  vignette: {
+                    setEnabled: setVignetteEnabled,
+                    update: updateVignetteAdjustment,
+                    resetControl: resetVignetteAdjustment,
+                    reset: resetVignette
                   },
                   lensBlur: {
                     setEnabled: setLensBlurEnabled,

@@ -59,7 +59,6 @@ export interface BasicAdjustments {
   texture: number;
   clarity: number;
   dehaze: number;
-  vignette: number;
   vibrance: number;
   saturation: number;
   colorMixer: ColorMixerAdjustments;
@@ -109,7 +108,6 @@ export const DEFAULT_BASIC_ADJUSTMENTS: Readonly<BasicAdjustments> = Object.free
   texture: 0,
   clarity: 0,
   dehaze: 0,
-  vignette: 0,
   vibrance: 0,
   saturation: 0,
   colorMixer: createDefaultColorMixer(),

@@ -122,6 +122,7 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
 
   setInteractionActive(active: boolean) {
     this.interactionActive = active;
+    return lensBlurIsActive(this.settings) && this.rawDepthTexture !== null;
   }
 
   interactionFrameIntervalMs() {

@@ -11,6 +11,7 @@ import { createDefaultHalationSettings } from './effects/halation/settings';
 import { createDefaultChromaticAberrationSettings } from './effects/chromaticAberration/settings';
 import { createDefaultLensDistortionSettings } from './effects/lensDistortion/settings';
 import { createDefaultLensBlurSettings, LENS_BLUR_QUALITIES } from './effects/lensBlur/settings';
+import { createDefaultVignetteSettings } from './effects/vignette/settings';
 
 export interface LightTableRecipe {
   sourceFileKey: string;
@@ -209,6 +210,11 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
       }
       settings.effects.lensBlur = lensBlur.settings;
       recognizedSettings += lensBlur.recognized;
+    }
+    const vignette = parseEffectSettings(rawEffects.vignette, createDefaultVignetteSettings());
+    if (vignette) {
+      settings.effects.vignette = vignette.settings;
+      recognizedSettings += vignette.recognized;
     }
   }
 

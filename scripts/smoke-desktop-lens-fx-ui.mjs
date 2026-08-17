@@ -122,9 +122,14 @@ try {
       };
     }
     interactionTelemetry[effect] = await driver.queryRenderTelemetry(documentId);
-    if (effect === 'Lens Distortion'
+    if ((effect === 'Lens Distortion' || effect === 'Post-crop Vignette')
       && interactionTelemetry[effect]?.stages?.['document-composite']?.executions !== 0) {
-      throw new Error('Lens Distortion rebuilt the layer composite during a final-pass control update.');
+      throw new Error(`${effect} rebuilt the layer composite during a final-pass control update.`);
+    }
+    if (effect === 'Post-crop Vignette'
+      && ((interactionTelemetry[effect]?.stages?.['source-geometry']?.executions ?? 0) !== 0
+        || (interactionTelemetry[effect]?.stages?.['linear-spatial']?.executions ?? 0) !== 0)) {
+      throw new Error(`Post-crop Vignette woke an upstream processing stage: ${JSON.stringify(interactionTelemetry[effect]?.stages)}.`);
     }
     const rendered = await exportPng(effect.toLowerCase().replaceAll(' ', '-'));
     metrics[effect] = await difference(neutral, rendered);
@@ -140,6 +145,7 @@ try {
     await threshold.focus();
     await threshold.press('Home');
   });
+  await exercise('Post-crop Vignette', 'Amount', 'Home');
   await exercise('Grain', 'Amount');
 
   const lensBlurEnable = page.getByRole('switch', { name: 'Enable Lens Blur' });

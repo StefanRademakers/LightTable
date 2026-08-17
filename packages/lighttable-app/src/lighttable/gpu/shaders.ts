@@ -1557,10 +1557,15 @@ struct OutputSettings {
   whites: f32,
   shoulderStrength: f32,
   enabled: f32,
-  vignette: f32,
+  vignetteAmount: f32,
   sourceWidth: f32,
   sourceHeight: f32,
-  padding: vec2f,
+  strength: f32,
+  vignetteMidpoint: f32,
+  vignetteRoundness: f32,
+  vignetteFeather: f32,
+  vignetteHighlights: f32,
+  vignetteEnabled: f32,
 }
 
 @group(0) @binding(0) var inputTexture: texture_2d<f32>;
@@ -1614,12 +1619,27 @@ fn sceneToDisplay(rgb: vec3f) -> vec3f {
 }
 
 fn applyVignette(rgb: vec3f, uv: vec2f) -> vec3f {
-  if (abs(settings.vignette) < 0.00001) { return rgb; }
+  if (settings.vignetteEnabled < 0.5 || abs(settings.vignetteAmount) < 0.00001) {
+    return rgb;
+  }
   let aspect = settings.sourceWidth / max(settings.sourceHeight, 1.0);
-  let centered = (uv - vec2f(0.5)) * vec2f(2.0 * aspect, 2.0);
-  let normalizedDistance = length(centered) / max(length(vec2f(aspect, 1.0)), 0.0001);
-  let weight = smoothstep(0.48, 1.0, normalizedDistance);
-  let edgeEV = (settings.vignette / 100.0) * 1.5;
+  let centered = (uv - vec2f(0.5)) * 2.0;
+  let pixelCircleDistance = length(centered * vec2f(aspect, 1.0))
+    / max(length(vec2f(aspect, 1.0)), 0.0001);
+  let documentOvalDistance = length(centered) / 1.41421356237;
+  let roundness = clamp(settings.vignetteRoundness / 100.0, -1.0, 1.0);
+  let roundnessMix = roundness * 0.5 + 0.5;
+  let normalizedDistance = mix(documentOvalDistance, pixelCircleDistance, roundnessMix);
+  let midpoint = clamp(settings.vignetteMidpoint / 100.0, 0.0, 1.0);
+  let transitionStart = mix(0.10, 0.76, midpoint);
+  let feather = clamp(settings.vignetteFeather / 100.0, 0.0, 1.0);
+  let transitionEnd = min(1.0, transitionStart + mix(0.008, 1.0 - transitionStart, feather));
+  var weight = smoothstep(transitionStart, max(transitionEnd, transitionStart + 0.0001), normalizedDistance);
+  if (settings.vignetteAmount < 0.0 && settings.vignetteHighlights > 0.0) {
+    let highlightMask = smoothstep(0.35, 1.15, luminance(rgb));
+    weight *= 1.0 - highlightMask * clamp(settings.vignetteHighlights / 100.0, 0.0, 1.0);
+  }
+  let edgeEV = (settings.vignetteAmount / 100.0) * 2.0;
   return rgb * exp2(edgeEV * weight);
 }
 

@@ -55,7 +55,9 @@ export const buildAdjustmentUniform = (
   value.saturation,
   value.texture,
   value.dehaze,
-  value.vignette,
+  // Post-crop Vignette is fused into the document output payload. Keep this
+  // legacy Grade slot neutral so dragging it never invalidates Grade passes.
+  0,
   value.lift,
   sourceWidth,
   sourceHeight,

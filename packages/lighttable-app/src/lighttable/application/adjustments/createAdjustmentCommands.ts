@@ -40,6 +40,10 @@ import {
   createDefaultLensDistortionSettings,
   DEFAULT_LENS_DISTORTION_SETTINGS
 } from '../../effects/lensDistortion/settings';
+import {
+  createDefaultVignetteSettings,
+  DEFAULT_VIGNETTE_SETTINGS
+} from '../../effects/vignette/settings';
 import { copyLightTableGrade, pasteGradeSettings } from '../../lightTableGradeClipboard';
 import {
   createDefaultAdjustments,
@@ -60,7 +64,8 @@ import type {
   HalationNumericKey,
   LensBlurNumericKey,
   LensBlurViewportMode,
-  LensDistortionNumericKey
+  LensDistortionNumericKey,
+  VignetteNumericKey
 } from '../../editor/config/adjustmentControls';
 import type { AdjustmentPresentationDomain } from './adjustmentPresentationStore';
 import {
@@ -113,6 +118,10 @@ export interface AdjustmentCommands {
   readonly resetLensDistortionControl: (key: LensDistortionNumericKey) => void;
   readonly resetLensDistortion: () => void;
   readonly setLensDistortionEnabled: (enabled: boolean) => void;
+  readonly updateVignette: (key: VignetteNumericKey, value: number) => void;
+  readonly resetVignetteControl: (key: VignetteNumericKey) => void;
+  readonly resetVignette: () => void;
+  readonly setVignetteEnabled: (enabled: boolean) => void;
   readonly updateLensBlur: (key: LensBlurNumericKey, value: number) => void;
   readonly resetLensBlurControl: (key: LensBlurNumericKey) => void;
   readonly resetLensBlur: () => void;
@@ -336,6 +345,32 @@ export const createAdjustmentCommands = (
   const setLensDistortionEnabled = (enabled: boolean) => {
     ports.endAdjustment();
     changeEffect('lensDistortion', (current) => ({ ...current, enabled }));
+  };
+
+  const updateVignette = (key: VignetteNumericKey, value: number) => {
+    ports.beginAdjustment();
+    changeEffect('vignette', (current) => ({ ...current, [key]: value }));
+  };
+
+  const resetVignetteControl = (key: VignetteNumericKey) => {
+    ports.endAdjustment();
+    changeEffect('vignette', (current) => ({
+      ...current,
+      [key]: DEFAULT_VIGNETTE_SETTINGS[key]
+    }));
+  };
+
+  const resetVignette = () => {
+    ports.endAdjustment();
+    changeEffect('vignette', (current) => ({
+      ...createDefaultVignetteSettings(),
+      enabled: current.enabled
+    }));
+  };
+
+  const setVignetteEnabled = (enabled: boolean) => {
+    ports.endAdjustment();
+    changeEffect('vignette', (current) => ({ ...current, enabled }));
   };
 
   const updateLensBlur = (key: LensBlurNumericKey, value: number) => {
@@ -596,6 +631,10 @@ export const createAdjustmentCommands = (
     resetLensDistortionControl,
     resetLensDistortion,
     setLensDistortionEnabled,
+    updateVignette,
+    resetVignetteControl,
+    resetVignette,
+    setVignetteEnabled,
     updateLensBlur,
     resetLensBlurControl,
     resetLensBlur,
