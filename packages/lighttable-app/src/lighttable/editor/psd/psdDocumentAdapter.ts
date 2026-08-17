@@ -377,9 +377,9 @@ const importedPhotoshopSettings = (
     case 'color lookup': {
       const settings = result('color-lookup');
       const file = source.lut3DFileName?.toLowerCase() ?? '';
-      settings.colorLookupPreset = file.includes('film-stock') ? 'film-stock'
-        : file.includes('moonlight') ? 'moonlight'
-          : file.includes('teal-orange') ? 'teal-orange' : 'none';
+      settings.colorLookupPreset = file.endsWith('lighttable-film-stock.cube') ? 'film-stock'
+        : file.endsWith('lighttable-moonlight.cube') ? 'moonlight'
+          : file.endsWith('lighttable-teal-orange.cube') ? 'teal-orange' : 'none';
       if (settings.colorLookupPreset === 'none' && source.lut3DFileData) {
         try {
           settings.colorLookupAssetId = registerColorLookup(

@@ -167,7 +167,11 @@ describe('Photoshop adjustment export adapter', () => {
       createAdjustmentStackFromBasicAdjustments(values),
       'color-lookup'
     );
-    const source = new TextEncoder().encode('LUT_3D_SIZE 2\n0 0 0\n1 0 0\n');
+    const source = new TextEncoder().encode([
+      'LUT_3D_SIZE 2',
+      '0 0 0', '1 0 0', '0 1 0', '1 1 0',
+      '0 0 1', '1 0 1', '0 1 1', '1 1 1', ''
+    ].join('\n'));
     const descriptor = exportAdjustmentStackToPsd('color-lookup', stack, (assetId) => (
       assetId === 'lut-cinematic' ? { name: 'Cinematic.cube', data: source } : null
     ));
@@ -176,10 +180,13 @@ describe('Photoshop adjustment export adapter', () => {
     expect(decoded).toMatchObject({
       type: 'color lookup',
       lutFormat: 'cube',
+      dataOrder: 'rgb',
+      tableOrder: 'bgr',
       lut3DFileName: 'Cinematic.cube'
     });
     if (decoded?.type !== 'color lookup') throw new Error('Expected Color Lookup descriptor.');
     expect(Array.from(decoded.lut3DFileData ?? [])).toEqual(Array.from(source));
+    expect(new TextDecoder().decode(decoded.profile?.slice(12, 24))).toBe('linkRGB RGB ');
   });
 
   it('keeps the existing Curves, Gradient Map and Vibrance native paths', () => {

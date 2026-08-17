@@ -470,3 +470,31 @@ only case outside two code values. Adobe documents Classic as cubic,
 Perceptual as OKLab, Linear as linear-color interpolation, and confirms that
 Gradient Maps participate in these modes in its
 [Gradient interpolation guide](https://helpx.adobe.com/sg/photoshop/using/gradient-interpolation.html).
+
+## Color Lookup
+
+Status: accepted for embedded 3D `.cube` assets.
+
+LightTable already evaluated portable `.cube` assets with trilinear sampling in
+encoded document RGB. Two Photoshop-authored, compiled LUTs validate that path
+across a warm photographic look and the adversarial Night From Day transform.
+Both pass the visual gate without a fitted correction curve.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Maximum error |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 2 | 0.240% | 0.264% | 99.760% | 5 code values |
+
+The PSD writer previously embedded the original `.cube` bytes but omitted the
+compiled ICC DeviceLink that Photoshop uses for rendering. Such a layer opened
+as Color Lookup while producing no visual change. Export now deterministically
+generates Photoshop's ICC v4 RGB DeviceLink representation: a 17x17x17 float
+CLUT in the `D2B0` multi-process tag, with RGB data and BGR table order. A
+Night From Day PSD created with this generated profile renders pixel-identically
+to the same LUT loaded through Photoshop 27.11's own Properties panel: 100.000%
+parity and zero maximum error. The portable `.cube` remains embedded byte-exact
+for editable LightTable import and cross-application recovery.
+
+`.3dl`, `.look`, Abstract Profile, Device Link Profile, and combined 1D
+shaper/3D formats remain outside this accepted scope. LightTable's three named
+creative presets are native looks rather than claims of equivalence to Adobe's
+similarly named installed LUT files.

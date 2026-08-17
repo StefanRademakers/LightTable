@@ -5,6 +5,7 @@ import type {
   CurvesAdjustmentChannel,
   LevelsAdjustmentChannel
 } from 'ag-psd';
+import { createColorLookupDeviceLinkProfile } from '../../processing/colorLookupIccProfile';
 import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 import { materializeBasicAdjustments, type AdjustmentStack } from '../../processing/adjustmentStack';
 import {
@@ -76,10 +77,13 @@ const lookupCube = (preset: PhotoshopAdjustmentSettings['colorLookupPreset']) =>
   for (let blue = 0; blue < size; blue += 1) {
     for (let green = 0; green < size; green += 1) {
       for (let red = 0; red < size; red += 1) {
-        const mapped = lookupTransform(preset, [
-          red / (size - 1), green / (size - 1), blue / (size - 1)
-        ]);
-        lines.push(mapped.map((value) => value.toFixed(7)).join(' '));
+        const encoded = [red, green, blue].map((value) => value / (size - 1));
+        const linear = encoded.map((value) => value <= 0.04045
+          ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4) as [number, number, number];
+        const mapped = lookupTransform(preset, linear);
+        lines.push(mapped.map((value) => value <= 0.0031308
+          ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055)
+          .map((value) => value.toFixed(7)).join(' '));
       }
     }
   }
@@ -174,19 +178,23 @@ const photoshopAdjustment = (
         if (!asset) return null;
         return {
           type: 'color lookup', lookupType: '3dlut', dither: true,
-          lutFormat: 'cube', dataOrder: 'rgb', tableOrder: 'rgb',
+          profile: createColorLookupDeviceLinkProfile(asset.data),
+          lutFormat: 'cube', dataOrder: 'rgb', tableOrder: 'bgr',
           lut3DFileName: asset.name,
           lut3DFileData: asset.data
         };
       }
-      return settings.colorLookupPreset === 'none'
-      ? { type: 'color lookup', lookupType: '3dlut', name: 'LightTable Identity' }
-      : {
-          type: 'color lookup', lookupType: '3dlut', dither: true,
-          lutFormat: 'cube', dataOrder: 'rgb', tableOrder: 'rgb',
-          lut3DFileName: `LightTable-${settings.colorLookupPreset}.cube`,
-          lut3DFileData: lookupCube(settings.colorLookupPreset)
-        };
+      if (settings.colorLookupPreset === 'none') {
+        return { type: 'color lookup', lookupType: '3dlut', name: 'LightTable Identity' };
+      }
+      const data = lookupCube(settings.colorLookupPreset);
+      return {
+        type: 'color lookup', lookupType: '3dlut', dither: true,
+        profile: createColorLookupDeviceLinkProfile(data),
+        lutFormat: 'cube', dataOrder: 'rgb', tableOrder: 'bgr',
+        lut3DFileName: `LightTable-${settings.colorLookupPreset}.cube`,
+        lut3DFileData: data
+      };
     }
     case 'selective-color': {
       const ranges = Array.from({ length: 9 }, (_, index) => ({

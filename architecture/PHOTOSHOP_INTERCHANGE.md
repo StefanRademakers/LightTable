@@ -70,9 +70,12 @@ placeholders.
 Color Lookup adjustments preserve an embedded 3D `.cube` payload in both
 directions. LightTable stores the original bytes as a document asset and emits
 those same bytes in the Photoshop Color Lookup descriptor; PSD import restores
-that descriptor as a native document asset. Basic `LUT_3D_SIZE` tables and
-`DOMAIN_MIN`/`DOMAIN_MAX` are supported. 1D LUTs and combined shaper/3D formats
-remain an explicit unsupported boundary.
+that descriptor as a native document asset. Export also compiles a deterministic
+ICC v4 RGB DeviceLink with Photoshop's 17-cube `D2B0` layout. Photoshop requires
+that profile in addition to the portable source bytes to render the adjustment;
+omitting it produces an editable-looking but visual no-op layer. Basic
+`LUT_3D_SIZE` tables and `DOMAIN_MIN`/`DOMAIN_MAX` are supported. 1D LUTs and
+combined shaper/3D formats remain an explicit unsupported boundary.
 
 ## Mapping to LightTable
 
