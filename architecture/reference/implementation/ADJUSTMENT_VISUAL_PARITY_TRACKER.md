@@ -32,8 +32,12 @@ Run `npm run regress:adjustment-parity -- --regressions-only` to compare the
 existing captures against their accepted baselines, or add `--capture` to
 recapture LightTable output before comparing it. The latter expects the current
 desktop application to have been packaged first. This suite covers the
-Photoshop-shaped adjustment nodes. A separate native Grade visual golden is
-still required before Grade regression can be called automated end to end.
+Photoshop-shaped adjustment nodes. Native Grade is protected separately by
+`grade-visual-suite.json` and `npm run regress:grade-visual`. That harness opens
+a real photograph, drives the production Grade sliders through their accessible
+UI labels, exports through the production compositor, and compares six neutral,
+isolated-group, extreme, and combined cases against the explicitly accepted
+external baseline. It introduces no test-only mutation path in the app.
 
 ## Exposure
 

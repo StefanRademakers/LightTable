@@ -12,6 +12,13 @@ const suitePath = path.join(
   'adjustment-parity-suite.json'
 );
 const suite = JSON.parse(await readFile(suitePath, 'utf8'));
+const gradeSuite = JSON.parse(await readFile(path.join(
+  workspace,
+  'architecture',
+  'reference',
+  'implementation',
+  'grade-visual-suite.json'
+), 'utf8'));
 
 test('canonical adjustment parity suite has valid unique corpus gates', () => {
   assert.equal(suite.schema, 1);
@@ -50,4 +57,18 @@ test('core color adjustments retain both diagnostic and photograph evidence', ()
     const corpora = suite.corpora.filter((corpus) => corpus.adjustment === adjustment);
     assert.ok(corpora.length >= 2, `${adjustment} needs diagnostic and real-image evidence`);
   }
+});
+
+test('native Grade visual suite covers neutral, isolated groups, and combined extremes', () => {
+  assert.equal(gradeSuite.schema, 1);
+  assert.ok(gradeSuite.minimumParityPercent >= 99.5);
+  const ids = new Set(gradeSuite.cases.map(({ id }) => id));
+  for (const expected of [
+    'neutral',
+    'light-positive-extreme',
+    'light-negative-extreme',
+    'color-extremes',
+    'effects-extremes',
+    'combined-grade'
+  ]) assert.equal(ids.has(expected), true, `missing Grade case: ${expected}`);
 });

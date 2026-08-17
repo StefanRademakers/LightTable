@@ -92,6 +92,8 @@
     "capture:lighttable-adjustment-oracle": "node scripts/capture-lighttable-adjustment-oracle.mjs",
     "analyze:adjustment-oracle": "node scripts/analyze-adjustment-oracle.mjs",
     "regress:adjustment-parity": "node scripts/run-adjustment-parity-regression.mjs",
+    "regress:grade-visual": "node scripts/capture-grade-visual-regression.mjs",
+    "capture:grade-visual-baseline": "node scripts/capture-grade-visual-regression.mjs --accept",
     "test:adjustment-parity-policy": "node --test scripts/adjustment-parity-suite.test.mjs",
     "generate:photoshop-brightness-contrast-lut": "node scripts/generate-photoshop-brightness-contrast-lut.mjs",
     "generate:photoshop-color-vibrance-lut": "node scripts/generate-photoshop-color-vibrance-lut.mjs",

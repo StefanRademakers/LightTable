@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "minimumParityPercent": 99.5,
+  "cases": [
+    { "id": "neutral", "settings": {} },
+    {
+      "id": "light-positive-extreme",
+      "settings": { "Exposure": 4.5, "Contrast": 80, "Highlights": -80, "Shadows": 80, "Whites": 80, "Blacks": -80, "Lift": 80 }
+    },
+    {
+      "id": "light-negative-extreme",
+      "settings": { "Exposure": -4.5, "Contrast": -80, "Highlights": 80, "Shadows": -80, "Whites": -80, "Blacks": 80, "Lift": -80 }
+    },
+    {
+      "id": "color-extremes",
+      "settings": { "Temperature": 80, "Tint": -80, "Vibrance": 80, "Saturation": -80 }
+    },
+    {
+      "id": "effects-extremes",
+      "settings": { "Texture": 80, "Clarity": 80, "Dehaze": 80, "Vignette": -80 }
+    },
+    {
+      "id": "combined-grade",
+      "settings": { "Exposure": 2.5, "Contrast": 60, "Highlights": -60, "Shadows": 70, "Temperature": 70, "Tint": -60, "Vibrance": 75, "Saturation": 20, "Texture": 60, "Clarity": 50, "Dehaze": 40, "Vignette": -50 }
+    }
+  ]
+}
