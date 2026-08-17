@@ -1590,27 +1590,47 @@ fn applyDetailNode(centerRgb: vec3f, uv: vec2f) -> vec3f {
   }
   let localRgb = weightedRgb / max(weightTotal, 0.0001);
   let localY = weightedY / max(weightTotal, 0.0001);
+  let coarseOffsets = array<vec2f, 4>(
+    vec2f(-2.0, 0.0), vec2f(2.0, 0.0),
+    vec2f(0.0, -2.0), vec2f(0.0, 2.0)
+  );
+  var coarseRgbSum = centerRgb * 2.0;
+  var coarseYSum = centerY * 2.0;
+  var coarseWeightTotal = 2.0;
+  for (var index = 0u; index < 4u; index += 1u) {
+    let sampleRgb = textureSample(correctedTexture, sourceSampler, uv + coarseOffsets[index] * texel).rgb;
+    let sampleY = max(luminance(sampleRgb), 1e-6);
+    let edgeWeight = exp(-abs(sampleY - centerY) * mix(16.0, 52.0, luminanceDetail));
+    coarseRgbSum += sampleRgb * edgeWeight;
+    coarseYSum += sampleY * edgeWeight;
+    coarseWeightTotal += edgeWeight;
+  }
+  let coarseRgb = coarseRgbSum / max(coarseWeightTotal, 0.0001);
+  let coarseY = coarseYSum / max(coarseWeightTotal, 0.0001);
   let centerChroma = centerRgb - vec3f(centerY);
   let localChroma = localRgb - vec3f(luminance(localRgb));
+  let coarseChroma = coarseRgb - vec3f(luminance(coarseRgb));
 
   let luminanceStrength = luminanceAmount / 100.0;
-  var resultY = mix(centerY, localY, luminanceStrength * mix(0.92, 0.38, luminanceDetail));
+  let luminanceBase = mix(coarseY, localY, luminanceDetail);
+  var resultY = mix(centerY, luminanceBase, luminanceStrength * mix(0.92, 0.38, luminanceDetail));
   let luminanceContrast = adjustments.detail[1].z / 100.0;
-  resultY += (centerY - localY) * luminanceStrength * luminanceContrast * 0.55;
+  resultY += (centerY - coarseY) * luminanceStrength * luminanceContrast * 0.55;
 
   let colorStrength = colorAmount / 100.0;
   let colorSmoothness = adjustments.detail[2].y / 100.0;
+  let colorBase = mix(localChroma, coarseChroma, colorSmoothness);
   var resultChroma = mix(
     centerChroma,
-    localChroma,
+    colorBase,
     colorStrength * mix(0.42, 0.96, colorSmoothness) * mix(0.95, 0.45, colorDetail)
   );
 
-  let highFrequency = centerY - localY;
+  let sharpenDetail = adjustments.detail[0].z / 100.0;
+  let highFrequency = mix(centerY - coarseY, centerY - localY, sharpenDetail);
   let edgeMagnitude = abs(highFrequency) / max(localY + 0.02, 0.02);
   let masking = adjustments.detail[0].w / 100.0;
   let sharpenMask = smoothstep(masking * 0.08, masking * 0.08 + 0.018, edgeMagnitude);
-  let sharpenDetail = adjustments.detail[0].z / 100.0;
   resultY += highFrequency * (sharpenAmount / 100.0)
     * mix(0.42, 1.08, sharpenDetail) * sharpenMask;
 
