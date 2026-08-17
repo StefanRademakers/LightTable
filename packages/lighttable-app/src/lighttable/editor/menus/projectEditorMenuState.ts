@@ -20,7 +20,6 @@ export interface EditorMenuProjectionInput {
   readonly activeChannel: PaintChannel;
   readonly autoAlignPreview: boolean;
   readonly zoomMode: 'fit' | '100' | 'custom';
-  readonly showOriginal: boolean;
   readonly showDifference: boolean;
 }
 
@@ -41,7 +40,6 @@ export const projectEditorMenuState = ({
   activeChannel,
   autoAlignPreview,
   zoomMode,
-  showOriginal,
   showDifference
 }: EditorMenuProjectionInput): EditorMenuState => {
   const capabilities = document
@@ -95,7 +93,6 @@ export const projectEditorMenuState = ({
       && autoAlignTargets.length === 1
     ),
     zoomMode,
-    showOriginal,
     showDifference,
     documentColor: document ? {
       bitDepth: document.colorSettings.bitDepth,

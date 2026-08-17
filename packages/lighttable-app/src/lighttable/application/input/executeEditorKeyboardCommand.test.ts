@@ -38,7 +38,6 @@ const ports = (): EditorKeyboardCommandPorts => ({
   openSelectionFeather: vi.fn(),
   swapColors: vi.fn(),
   resetColors: vi.fn(),
-  toggleOriginal: vi.fn(),
   toggleExtras: vi.fn(),
   toggleRulers: vi.fn(),
   toggleSnap: vi.fn(),

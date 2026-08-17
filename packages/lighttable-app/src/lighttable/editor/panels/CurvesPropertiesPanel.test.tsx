@@ -16,12 +16,11 @@ describe('CurvesPropertiesPanel', () => {
         visibility: createDefaultGroupVisibility(),
         histogram: null,
         resetModifierActive: false,
-        showOriginal: false,
         colorMixerScopeContainerRef: { current: null },
         colorMixerHueCanvasRef: noop
       }}
       commands={{
-        resetAll: noop, toggleOriginal: noop, toggleVisibility: noop, resetGroup: noop,
+        resetAll: noop, toggleVisibility: noop, resetGroup: noop,
         beginAdjustment: noop, endAdjustment: noop, updateAdjustment: noop,
         resetAdjustment: noop, updateColorMixer: noop, resetColorMixer: noop,
         updateColorGradingWheel: noop, updateColorGradingLuminance: noop,

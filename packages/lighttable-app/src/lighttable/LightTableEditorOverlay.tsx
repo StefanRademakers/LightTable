@@ -741,7 +741,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
     return execution;
   }, [commandService, workspaceDocumentId]);
-  const [showOriginal, setShowOriginal] = useState(false);
   const [showDifference, setShowDifference] = useState(false);
   const [isolatedMaskLayerId, setIsolatedMaskLayerId] = useState<LayerId | null>(null);
   const [isolatedCompositeChannel, setIsolatedCompositeChannel] =
@@ -2539,7 +2538,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         resetViewport: () => {
           setIsolatedMaskLayerId(null);
           setIsolatedCompositeChannel(null);
-          setShowOriginal(false);
           setShowDifference(false);
           setView({ scale: 1, panX: 0, panY: 0 });
         },
@@ -2710,7 +2708,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   useRendererPresentationSync({
     rendererRef: engineRef,
-    showOriginal,
     showDifference,
     isolatedMaskLayerId,
     isolatedCompositeChannel,
@@ -2851,10 +2848,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ...current,
         brush: { ...current.brush, color: '#000000', backgroundColor: '#ffffff' }
       })),
-      toggleOriginal: () => {
-        setShowDifference(false);
-        setShowOriginal((current) => !current);
-      },
       toggleExtras: () => setEditorSession((current) => ({
         ...current,
         snap: { ...current.snap, extrasVisible: current.snap.extrasVisible === false }
@@ -4526,7 +4519,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       activeChannel: editorSession.activeChannel,
       autoAlignPreview: Boolean(autoAlignPreview),
       zoomMode,
-      showOriginal,
       showDifference
     },
     labels: {
@@ -4856,7 +4848,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setView,
       fit: fitZoom,
       actualSize: actualZoom,
-      setShowOriginal,
       setShowDifference,
       snap: editorSession.snap,
       setSnap: (action) => setEditorSession((current) => ({
@@ -6053,17 +6044,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   visibility: groupVisibility,
                   histogram,
                   resetModifierActive: shiftPressed,
-                  showOriginal,
                   colorMixerScopeContainerRef,
                   colorMixerHueCanvasRef: attachColorMixerHueCanvas,
                   colorLookupAssets: imageDocument?.assets.colorLookups ?? []
                 },
                   commands: {
                   resetAll,
-                  toggleOriginal: () => {
-                    setShowDifference(false);
-                    setShowOriginal((current) => !current);
-                  },
                   toggleVisibility: toggleGroupVisibility,
                   resetGroup,
                   beginAdjustment: beginAdjustmentTransaction,

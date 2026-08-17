@@ -128,6 +128,17 @@ try {
   }
 
   await page.getByRole('treeitem', { name: /Global Grade/ }).click();
+  const globalGradeRow = page.getByRole('treeitem', { name: /Global Grade/ });
+  const gradePanel = page.getByRole('complementary', { name: 'Grade - All properties' });
+  const gradeMasterSwitch = gradePanel.getByRole('switch', { name: 'Disable Global Grade' });
+  await gradeMasterSwitch.waitFor({ state: 'visible' });
+  if (await gradePanel.getByText('Gradient Map', { exact: true }).count()) {
+    throw new Error('Gradient Map is still embedded in the aggregate Grade editor.');
+  }
+  await globalGradeRow.getByRole('button', { name: 'Hide Global Grade' }).click();
+  await gradePanel.getByRole('switch', { name: 'Enable Global Grade' }).waitFor({ state: 'visible' });
+  await gradePanel.getByRole('switch', { name: 'Enable Global Grade' }).click();
+  await globalGradeRow.getByRole('button', { name: 'Hide Global Grade' }).waitFor({ state: 'visible' });
   const globalStrength = layersPanel.getByRole('slider', { name: 'Strength', exact: true });
   await globalStrength.waitFor({ state: 'visible' });
   await layersPanel.getByRole('combobox', { name: 'Global Grade look or preset' })

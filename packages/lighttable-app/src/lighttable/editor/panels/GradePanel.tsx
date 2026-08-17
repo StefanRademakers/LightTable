@@ -18,8 +18,6 @@ import {
   type ColorMixerChannel
 } from '../../colorMixer';
 import { CurvesEditor } from '../../CurvesEditor';
-import { GradientAssetEditor } from '../ui/LayerStyleGradientEditor';
-import type { LayerStyleGradient } from '../styles/layerStyleTypes';
 import type { CurveChannel, ToneCurve } from '../../curves';
 import {
   type GroupVisibility,
@@ -55,7 +53,6 @@ export interface GradePanelModel {
   readonly visibility: GroupVisibility;
   readonly histogram: RgbHistogram | null;
   readonly resetModifierActive: boolean;
-  readonly showOriginal: boolean;
   readonly colorMixerScopeContainerRef: React.RefObject<HTMLDivElement | null>;
   readonly colorMixerHueCanvasRef: React.RefCallback<HTMLCanvasElement>;
   readonly colorLookupAssets?: readonly { readonly id: string; readonly name: string }[];
@@ -63,8 +60,7 @@ export interface GradePanelModel {
 
 export interface GradePanelCommands {
   readonly resetAll: () => void;
-  readonly toggleOriginal: () => void;
-  readonly toggleVisibility: (group: GradeGroup) => void;
+  readonly toggleVisibility: (group: keyof GroupVisibility) => void;
   readonly resetGroup: (group: GradeGroup) => void;
   readonly beginAdjustment: () => void;
   readonly endAdjustment: () => void;
@@ -188,7 +184,6 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
   const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
-  const [gradientMapExpanded, setGradientMapExpanded] = useState(false);
   const adjustments = useGradePresentation(model.adjustmentStore);
   const { metadata, visibility, resetModifierActive } = model;
 
@@ -512,105 +507,8 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
     );
   };
 
-  const renderGradientMap = () => {
-    const gradientMap = adjustments.gradientMap ?? DEFAULT_BASIC_ADJUSTMENTS.gradientMap!;
-    const editorValue: LayerStyleGradient = {
-      id: 'gradient-map',
-      type: 'solid',
-      name: 'Gradient Map',
-      smoothness: 1,
-      roughness: 0,
-      seed: 0,
-      colorStops: gradientMap.colorStops.map((stop, index) => ({
-        ...stop,
-        id: `gradient-map-color-${index}`,
-        color: { ...stop.color, a: 1 }
-      })),
-      opacityStops: gradientMap.opacityStops.map((stop, index) => ({
-        ...stop,
-        id: `gradient-map-opacity-${index}`
-      }))
-    };
-    const publishEditorValue = (value: LayerStyleGradient) => {
-      commands.updateGradientMap({
-        ...gradientMap,
-        colorStops: value.colorStops.map(({ position, midpoint, color }) => ({
-          position,
-          midpoint,
-          color: { r: color.r, g: color.g, b: color.b }
-        })),
-        opacityStops: value.opacityStops.map(({ position, midpoint, opacity }) => ({
-          position,
-          midpoint,
-          opacity
-        }))
-      });
-    };
-    const commitGradientMap = (next: typeof gradientMap) => {
-      commands.updateGradientMap(next);
-      commands.endAdjustment();
-    };
-
-    return (
-      <section className={`lighttable-group${gradientMap.enabled ? '' : ' lighttable-group--disabled'}`}>
-        <div className="lighttable-group__header">
-          <ButtonBase
-            type="button"
-            className="lighttable-group__toggle"
-            onClick={() => setGradientMapExpanded((current) => !current)}
-            aria-expanded={gradientMapExpanded}
-          >
-            <img
-              src={lightTableIcon(gradientMapExpanded ? 'area_open.png' : 'area_closed.png')}
-              alt=""
-              aria-hidden="true"
-            />
-            <strong>Gradient Map</strong>
-          </ButtonBase>
-          <div className="lighttable-group__actions">
-            <ButtonBase
-              type="button"
-              className="lighttable-group__reset"
-              onClick={commands.resetGradientMap}
-              aria-label="Reset Gradient Map"
-              title="Reset Gradient Map"
-            >
-              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
-            </ButtonBase>
-            <SwitchControl
-              checked={gradientMap.enabled}
-              onCheckedChange={(enabled) => commitGradientMap({ ...gradientMap, enabled })}
-              label={`${gradientMap.enabled ? 'Disable' : 'Enable'} Gradient Map`}
-            />
-          </div>
-        </div>
-        {gradientMapExpanded ? (
-          <div className="lighttable-group__controls">
-            <GradientAssetEditor value={editorValue} onChange={publishEditorValue}
-              onInteractionStart={commands.beginAdjustment}
-              onInteractionEnd={commands.endAdjustment} />
-            <div className="lighttable-gradient-map__options">
-              <SwitchControl
-                checked={gradientMap.reverse}
-                onCheckedChange={(reverse) => commitGradientMap({ ...gradientMap, reverse })}
-                label="Reverse Gradient Map"
-              />
-              <span>Reverse</span>
-              <SwitchControl
-                checked={gradientMap.dither}
-                onCheckedChange={(dither) => commitGradientMap({ ...gradientMap, dither })}
-                label="Dither Gradient Map"
-              />
-              <span>Dither</span>
-            </div>
-          </div>
-        ) : null}
-      </section>
-    );
-  };
-
   return (
-    <aside className="lighttable-panel lighttable-grade-panel">
+    <aside className="lighttable-panel lighttable-grade-panel" aria-label="Grade - All properties">
       <section className="lighttable-group lighttable-master-group">
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label">
@@ -627,11 +525,9 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
             </ButtonBase>
             <SwitchControl
-              checked={!model.showOriginal}
-              onCheckedChange={commands.toggleOriginal}
-              label={model.showOriginal
-                ? 'Show image with all settings'
-                : 'Show original image'}
+              checked={visibility.globalGrade}
+              onCheckedChange={() => commands.toggleVisibility('globalGrade')}
+              label={visibility.globalGrade ? 'Disable Global Grade' : 'Enable Global Grade'}
             />
           </div>
         </div>
@@ -642,7 +538,6 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
         {renderAdjustmentGroup('effects', 'Effects', EFFECTS_SLIDERS)}
         {renderColorMixer()}
         {renderColorGrading()}
-        {renderGradientMap()}
         {renderCurves()}
       </div>
     </aside>

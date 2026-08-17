@@ -34,7 +34,6 @@ const state = (change: Partial<EditorMenuState> = {}): EditorMenuState => ({
   autoAlignPreview: false,
   autoAlignAvailable: false,
   zoomMode: 'fit',
-  showOriginal: false,
   showDifference: false,
   blendModes: [
     { id: 'normal', label: 'Normal', selected: true, separatorBefore: false },
@@ -364,7 +363,7 @@ describe('createEditorMenuOptions', () => {
     const menuCommands = commands();
     const options = createEditorMenuOptions(
       'view',
-      state({ zoomMode: '100', showOriginal: true, showDifference: false }),
+      state({ zoomMode: '100', showDifference: false }),
       labels,
       menuCommands
     );
@@ -372,7 +371,7 @@ describe('createEditorMenuOptions', () => {
     expect(options.find((option) => option.value === 'actual-size')?.label).toBe('100% (current)');
     expect(options.find((option) => option.value === 'fit')?.shortcut).toBe('Ctrl+0');
     expect(options.find((option) => option.value === 'actual-size')?.shortcut).toBe('Ctrl+1');
-    expect(options.find((option) => option.value === 'show-original')?.label).toBe('Show corrected');
+    expect(options.find((option) => option.value === 'show-original')).toBeUndefined();
     expect(options.find((option) => option.value === 'toggle-screen-mode'))
       .toMatchObject({ label: 'Toggle screen mode', shortcut: 'F' });
     expect(options.find((option) => option.value === 'ui-style-guide'))

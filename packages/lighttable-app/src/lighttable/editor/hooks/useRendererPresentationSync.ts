@@ -15,7 +15,6 @@ import type {
 import type { LayerId } from '../document/documentTypes';
 
 export interface RendererPresentationPort {
-  setBefore(enabled: boolean): void;
   setDifference(enabled: boolean): void;
   setMaskIsolation(layerId: LayerId | null): void;
   setCompositeChannelIsolation(channel: CompositeColorChannel | null): void;
@@ -52,7 +51,6 @@ interface RendererPresentationSyncOptions<
   Renderer extends RendererPresentationPort
 > {
   readonly rendererRef: MutableRefObject<Renderer | null>;
-  readonly showOriginal: boolean;
   readonly showDifference: boolean;
   readonly isolatedMaskLayerId: LayerId | null;
   readonly isolatedCompositeChannel: CompositeColorChannel | null;
@@ -79,7 +77,6 @@ export const useRendererPresentationSync = <
   Renderer extends RendererPresentationPort
 >({
   rendererRef,
-  showOriginal,
   showDifference,
   isolatedMaskLayerId,
   isolatedCompositeChannel,
@@ -97,9 +94,8 @@ export const useRendererPresentationSync = <
   scopeSettingsRef
 }: RendererPresentationSyncOptions<Renderer>): void => {
   useEffect(() => {
-    rendererRef.current?.setBefore(showOriginal);
     rendererRef.current?.setDifference(showDifference);
-  }, [rendererRef, showDifference, showOriginal]);
+  }, [rendererRef, showDifference]);
 
   useEffect(() => {
     rendererRef.current?.setMaskIsolation(isolatedMaskLayerId);

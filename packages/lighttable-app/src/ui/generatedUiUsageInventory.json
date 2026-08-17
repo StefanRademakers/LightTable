@@ -125,7 +125,7 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 139,
+      "productionUsageCount": 137,
       "internalUsageCount": 0,
       "contextCount": 35,
       "overrideCount": 0,
@@ -177,7 +177,7 @@
         },
         {
           "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 5,
+          "count": 3,
           "kind": "product"
         },
         {
@@ -660,7 +660,7 @@
     {
       "id": "switch-control",
       "metadataDeclared": true,
-      "productionUsageCount": 19,
+      "productionUsageCount": 16,
       "internalUsageCount": 0,
       "contextCount": 8,
       "overrideCount": 0,
@@ -672,7 +672,7 @@
         },
         {
           "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 5,
+          "count": 2,
           "kind": "product"
         },
         {

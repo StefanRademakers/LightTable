@@ -59,7 +59,6 @@ export type EditorKeyboardCommand =
   | 'selection-feather'
   | 'swap-colors'
   | 'reset-colors'
-  | 'toggle-original'
   | 'toggle-extras'
   | 'toggle-rulers'
   | 'toggle-snap'

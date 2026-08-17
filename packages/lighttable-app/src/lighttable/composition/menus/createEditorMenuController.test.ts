@@ -30,7 +30,6 @@ describe('createEditorMenuController', () => {
         activeChannel: 'pixels',
         autoAlignPreview: false,
         zoomMode: 'fit',
-        showOriginal: false,
         showDifference: false
       },
       labels: {
@@ -86,7 +85,6 @@ describe('createEditorMenuController', () => {
       viewport: {
         setZoomMode: vi.fn(),
         setView: vi.fn(),
-        setShowOriginal: vi.fn(),
         setShowDifference: vi.fn()
       },
       workspace: {
@@ -134,7 +132,6 @@ describe('createEditorMenuController', () => {
         activeChannel: 'pixels',
         autoAlignPreview: false,
         zoomMode: 'fit',
-        showOriginal: false,
         showDifference: false
       },
       labels: { primaryShortcut: (key) => `Ctrl+${key}` },
@@ -159,7 +156,7 @@ describe('createEditorMenuController', () => {
       dialogs: {} as EditorDialogController,
       viewport: {
         setZoomMode: vi.fn(), setView: vi.fn(),
-        setShowOriginal: vi.fn(), setShowDifference: vi.fn()
+        setShowDifference: vi.fn()
       },
       workspace: {
         showDebugPanel: vi.fn(), showGenAiPanel: vi.fn(), toggleScreenMode: vi.fn(), resetLayout: vi.fn(),

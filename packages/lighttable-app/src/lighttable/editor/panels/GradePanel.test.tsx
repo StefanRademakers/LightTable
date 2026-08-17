@@ -1,0 +1,54 @@
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import { createDefaultGroupVisibility } from '../../application/adjustments/groupVisibility';
+import { AdjustmentPresentationStore } from '../../application/adjustments/adjustmentPresentationStore';
+import { createDefaultAdjustments } from '../../types';
+import { GradePanel, type GradePanelProps } from './GradePanel';
+import { GradientMapPropertiesPanel } from './GradientMapPropertiesPanel';
+
+const props = (globalGrade: boolean): GradePanelProps => {
+  const noop = vi.fn();
+  return {
+    model: {
+      adjustmentStore: new AdjustmentPresentationStore(createDefaultAdjustments()),
+      metadata: null,
+      visibility: { ...createDefaultGroupVisibility(), globalGrade },
+      histogram: null,
+      resetModifierActive: false,
+      colorMixerScopeContainerRef: { current: null },
+      colorMixerHueCanvasRef: noop
+    },
+    commands: {
+      resetAll: noop, toggleVisibility: noop, resetGroup: noop,
+      beginAdjustment: noop, endAdjustment: noop, updateAdjustment: noop,
+      resetAdjustment: noop, updateColorMixer: noop, resetColorMixer: noop,
+      updateColorGradingWheel: noop, updateColorGradingLuminance: noop,
+      updateColorGradingControl: noop, resetColorGradingControl: noop,
+      resetColorGradingZone: noop, resetColorGradingLuminance: noop,
+      updateCurve: noop, resetCurve: noop, updateGradientMap: noop, resetGradientMap: noop,
+      updatePhotoshopAdjustment: noop, resetPhotoshopAdjustment: noop
+    }
+  };
+};
+
+describe('GradePanel', () => {
+  it('uses Global Grade visibility for its master switch and omits Gradient Map', () => {
+    const enabled = renderToStaticMarkup(<GradePanel {...props(true)} />);
+    const disabled = renderToStaticMarkup(<GradePanel {...props(false)} />);
+
+    expect(enabled).toContain('aria-label="Disable Global Grade"');
+    expect(enabled).toContain('aria-label="Grade - All properties"');
+    expect(enabled).toContain('aria-checked="true"');
+    expect(disabled).toContain('aria-label="Enable Global Grade"');
+    expect(disabled).toContain('aria-checked="false"');
+    expect(enabled).not.toContain('Gradient Map');
+  });
+
+  it('retains Gradient Map as its focused adjustment editor', () => {
+    const markup = renderToStaticMarkup(<GradientMapPropertiesPanel {...props(true)} />);
+
+    expect(markup).toContain('aria-label="Gradient Map properties"');
+    expect(markup).toContain('<strong>Gradient Map</strong>');
+  });
+});

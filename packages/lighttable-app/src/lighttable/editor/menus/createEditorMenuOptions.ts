@@ -40,7 +40,6 @@ export interface EditorMenuState {
   autoAlignPreview: boolean;
   autoAlignAvailable: boolean;
   zoomMode: 'fit' | '100' | 'custom';
-  showOriginal: boolean;
   showDifference: boolean;
   documentColor?: {
     bitDepth: 8 | 16 | 32;
@@ -120,7 +119,6 @@ export interface EditorMenuCommands {
   deleteLayer: () => void;
   fit: () => void;
   actualSize: () => void;
-  toggleOriginal: () => void;
   toggleDifference: () => void;
   toggleScreenMode: () => void;
   showDebugPanel: () => void;
@@ -688,15 +686,9 @@ export const createEditorMenuOptions = (
       disabled: !state.hasMetadata
     },
     {
-      value: 'show-original',
-      label: state.showOriginal ? 'Show corrected' : 'Show original',
-      separatorBefore: true,
-      onClick: commands.toggleOriginal,
-      disabled: !state.hasMetadata
-    },
-    {
       value: 'show-difference',
       label: state.showDifference ? 'Show corrected' : 'Show reference difference',
+      separatorBefore: true,
       onClick: commands.toggleDifference,
       disabled: !state.hasMetadata
     },

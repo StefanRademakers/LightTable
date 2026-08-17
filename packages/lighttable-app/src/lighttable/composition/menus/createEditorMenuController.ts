@@ -84,7 +84,6 @@ export interface EditorMenuControllerOptions {
     setView: Dispatch<SetStateAction<LightTableViewState>>;
     fit?(): void;
     actualSize?(): void;
-    setShowOriginal: Dispatch<SetStateAction<boolean>>;
     setShowDifference: Dispatch<SetStateAction<boolean>>;
     snap?: SnapSettings;
     setSnap?: Dispatch<SetStateAction<SnapSettings>>;
@@ -236,12 +235,7 @@ export const createEditorMenuController = ({
         viewport.setZoomMode('100');
         viewport.setView({ scale: 1, panX: 0, panY: 0 });
       },
-      toggleOriginal: () => {
-        viewport.setShowDifference(false);
-        viewport.setShowOriginal((current) => !current);
-      },
       toggleDifference: () => {
-        viewport.setShowOriginal(false);
         viewport.setShowDifference((current) => !current);
       },
       snap: viewport.snap,

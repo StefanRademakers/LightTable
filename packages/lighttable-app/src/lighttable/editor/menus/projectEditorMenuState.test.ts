@@ -21,7 +21,6 @@ const baseInput = () => ({
   activeChannel: 'pixels' as const,
   autoAlignPreview: false,
   zoomMode: 'fit' as const,
-  showOriginal: false,
   showDifference: false
 });
 

@@ -34,7 +34,6 @@ export interface EditorKeyboardCommandPorts {
   openSelectionFeather(): void;
   swapColors(): void;
   resetColors(): void;
-  toggleOriginal(): void;
   toggleExtras(): void;
   toggleRulers(): void;
   toggleSnap(): void;
@@ -178,9 +177,6 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'reset-colors':
       ports.resetColors();
-      return;
-    case 'toggle-original':
-      ports.toggleOriginal();
       return;
     case 'toggle-extras':
       ports.toggleExtras();
