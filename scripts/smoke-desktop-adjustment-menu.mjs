@@ -47,7 +47,9 @@ try {
 
   const globalRows = page.locator('.lighttable-global-processing-row');
   if (await globalRows.count() !== 2) throw new Error('The two global processing rows are missing.');
-  const globalLabels = await globalRows.locator('.lighttable-global-processing-row__name').allTextContents();
+  const globalLabels = await globalRows.locator('.lighttable-global-processing-row__name').evaluateAll(
+    (labels) => labels.map((label) => label instanceof HTMLInputElement ? label.value : label.textContent ?? '')
+  );
   if (globalLabels.join('|') !== 'Global Lens FX|Global Grade') {
     throw new Error(`Global processing order is incorrect: ${globalLabels.join('|')}.`);
   }
@@ -57,22 +59,35 @@ try {
   }
   const globalRowPresentation = await page.evaluate(() => {
     const globalName = document.querySelector('.lighttable-global-processing-row__name');
-    const layerName = document.querySelector('.lighttable-layer__name');
+    const layerName = document.querySelector('.lighttable-layer > .lighttable-layer__name');
     const globalRow = document.querySelector('.lighttable-global-processing-row');
+    const layerRow = layerName?.closest('.lighttable-layer');
     if (!(globalName instanceof HTMLElement) || !(layerName instanceof HTMLElement)
-      || !(globalRow instanceof HTMLElement)) return null;
+      || !(globalRow instanceof HTMLElement) || !(layerRow instanceof HTMLElement)) return null;
     const globalStyle = getComputedStyle(globalName);
     const layerStyle = getComputedStyle(layerName);
+    const globalNameBounds = globalName.getBoundingClientRect();
+    const layerNameBounds = layerName.getBoundingClientRect();
+    const globalRowBounds = globalRow.getBoundingClientRect();
+    const layerRowBounds = layerRow.getBoundingClientRect();
     return {
-      globalNameX: globalName.getBoundingClientRect().x,
-      layerNameX: layerName.getBoundingClientRect().x,
-      globalFont: `${globalStyle.fontFamily}|${globalStyle.fontSize}|${globalStyle.fontWeight}`,
-      layerFont: `${layerStyle.fontFamily}|${layerStyle.fontSize}|${layerStyle.fontWeight}`,
+      globalTag: globalName.tagName,
+      layerTag: layerName.tagName,
+      globalNameX: globalNameBounds.x,
+      layerNameX: layerNameBounds.x,
+      globalCenterOffset: globalNameBounds.y + globalNameBounds.height / 2
+        - (globalRowBounds.y + globalRowBounds.height / 2),
+      layerCenterOffset: layerNameBounds.y + layerNameBounds.height / 2
+        - (layerRowBounds.y + layerRowBounds.height / 2),
+      globalFont: `${globalStyle.fontFamily}|${globalStyle.fontSize}|${globalStyle.fontWeight}|${globalStyle.lineHeight}|${globalStyle.letterSpacing}`,
+      layerFont: `${layerStyle.fontFamily}|${layerStyle.fontSize}|${layerStyle.fontWeight}|${layerStyle.lineHeight}|${layerStyle.letterSpacing}`,
       inactiveBackground: getComputedStyle(globalRow).backgroundColor
     };
   });
   if (!globalRowPresentation
+    || globalRowPresentation.globalTag !== globalRowPresentation.layerTag
     || Math.abs(globalRowPresentation.globalNameX - globalRowPresentation.layerNameX) > 0.5
+    || Math.abs(globalRowPresentation.globalCenterOffset - globalRowPresentation.layerCenterOffset) > 0.5
     || globalRowPresentation.globalFont !== globalRowPresentation.layerFont) {
     throw new Error(`Global processing typography is not aligned with layers: ${JSON.stringify(globalRowPresentation)}.`);
   }

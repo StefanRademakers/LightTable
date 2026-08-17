@@ -3329,8 +3329,6 @@
 }
 
 .lighttable-global-processing-row > .lighttable-global-processing-row__name {
-  color: var(--lt-text-secondary);
-  font-size: var(--lt-type-small);
   text-align: left;
 }
 
@@ -3442,7 +3440,11 @@
   box-shadow: inset 0 0 0 1px rgba(114, 162, 239, 0.45);
 }
 
-.lighttable-layer__visibility { border: 0; background: transparent; }
+.lighttable-layer__visibility {
+  flex: 0 0 25px;
+  border: 0;
+  background: transparent;
+}
 
 .lighttable-layer__disclosure {
   width: 14px;

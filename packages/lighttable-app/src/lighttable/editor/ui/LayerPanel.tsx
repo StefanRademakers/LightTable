@@ -795,7 +795,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             <img src={lightTableIcon(globalLensFxVisible ? 'visible.png' : 'visible_off.png')} alt="" />
           </ButtonBase>
           <span className="lighttable-global-processing-row__thumbnail-slot" aria-hidden="true" />
-          <span className="lighttable-layer__name lighttable-global-processing-row__name">Global Lens FX</span>
+          <input
+            className="lighttable-layer__name lighttable-global-processing-row__name"
+            value="Global Lens FX"
+            readOnly
+            tabIndex={-1}
+            aria-label="Global Lens FX"
+          />
         </div>
         <div
           role="treeitem"
@@ -821,7 +827,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             <img src={lightTableIcon(documentProcessingVisibility.grade ? 'visible.png' : 'visible_off.png')} alt="" />
           </ButtonBase>
           <span className="lighttable-global-processing-row__thumbnail-slot" aria-hidden="true" />
-          <span className="lighttable-layer__name lighttable-global-processing-row__name">Global Grade</span>
+          <input
+            className="lighttable-layer__name lighttable-global-processing-row__name"
+            value="Global Grade"
+            readOnly
+            tabIndex={-1}
+            aria-label="Global Grade"
+          />
         </div>
         <div className="lighttable-layer-zone-divider lighttable-layer-zone-divider--quiet"
           role="presentation" />
