@@ -1,4 +1,5 @@
 import { GRADIENT_MAP_WGSL } from './gradientMapShader';
+import { PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES } from './photoshopColorVibranceLut.generated';
 import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
@@ -1077,10 +1078,48 @@ fn sampleUnitColorLookup(lut: texture_3d<f32>, encoded: vec3f) -> vec3f {
   return mix(mix(z0y0, z0y1, fraction.y), mix(z1y0, z1y1, fraction.y), fraction.z);
 }
 
+fn sampleExtendedUnitColorLookup(lut: texture_3d<f32>, encoded: vec3f) -> vec3f {
+  let dimensions = textureDimensions(lut);
+  let scaled = encoded * vec3f(dimensions - vec3u(1u));
+  let lowerFloat = clamp(
+    floor(scaled),
+    vec3f(0.0),
+    vec3f(dimensions - vec3u(2u))
+  );
+  let lower = vec3u(lowerFloat);
+  let upper = lower + vec3u(1u);
+  let fraction = scaled - lowerFloat;
+  let z0y0 = mix(
+    textureLoad(lut, vec3u(lower.x, lower.y, lower.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, lower.y, lower.z), 0).rgb,
+    fraction.x
+  );
+  let z0y1 = mix(
+    textureLoad(lut, vec3u(lower.x, upper.y, lower.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, upper.y, lower.z), 0).rgb,
+    fraction.x
+  );
+  let z1y0 = mix(
+    textureLoad(lut, vec3u(lower.x, lower.y, upper.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, lower.y, upper.z), 0).rgb,
+    fraction.x
+  );
+  let z1y1 = mix(
+    textureLoad(lut, vec3u(lower.x, upper.y, upper.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, upper.y, upper.z), 0).rgb,
+    fraction.x
+  );
+  return mix(mix(z0y0, z0y1, fraction.y), mix(z1y0, z1y1, fraction.y), fraction.z);
+}
+
 fn applyPhotoshopColorVibrance(source: vec3f) -> vec3f {
   var encoded = photoshopLinearSrgbToEncodedDocument(source);
-  encoded = sampleUnitColorLookup(colorVibranceWhiteBalanceLut, encoded);
-  encoded = sampleUnitColorLookup(colorVibranceColorLut, encoded);
+  encoded = clamp(
+    sampleUnitColorLookup(colorVibranceWhiteBalanceLut, encoded),
+    vec3f(-${PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES}.0 / 255.0),
+    vec3f(${255 + PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES}.0 / 255.0)
+  );
+  encoded = sampleExtendedUnitColorLookup(colorVibranceColorLut, encoded);
   return photoshopEncodedDocumentToLinearSrgb(encoded);
 }
 

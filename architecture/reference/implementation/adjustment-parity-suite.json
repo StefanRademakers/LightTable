@@ -49,7 +49,8 @@
     { "adjustment": "vibrance", "root": "vibrance-adobe-rgb", "baseline": 99.156 },
     { "adjustment": "vibrance", "root": "vibrance-lattice", "baseline": 99.330 },
     { "adjustment": "vibrance", "root": "vibrance-face", "baseline": 98.905 },
-    { "adjustment": "color-vibrance", "root": "color-vibrance", "baseline": 98.883, "open": true },
-    { "adjustment": "color-vibrance", "root": "color-vibrance-face", "baseline": 98.079 }
+    { "adjustment": "color-vibrance", "root": "color-vibrance", "baseline": 99.143 },
+    { "adjustment": "color-vibrance", "root": "color-vibrance-face", "baseline": 98.760 },
+    { "adjustment": "color-vibrance", "root": "color-vibrance-people-16", "baseline": 97.264 }
   ]
 }

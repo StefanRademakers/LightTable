@@ -577,20 +577,27 @@ Oracle measurements show two coupled operations in a fixed order:
 Temperature and Tint form a white-balance stage, followed by a combined
 Vibrance and Saturation stage. Treating the four sliders as independent curves
 loses gamut-dependent interactions at large values. LightTable therefore uses
-two measured 9x9x9 RGB LUT stages, interpolated over dense Temperature/Tint and
-Vibrance/Saturation parameter grids. This retains Photoshop's soft range
-falloffs and clipping protection without changing Grade's deliberately broader
-OKLab controls. The two active GPU textures consume approximately 5.8 KiB per
-node and require no CPU readback or extra compositor pass.
+two measured 13x13x13 RGB LUT stages, interpolated over dense Temperature/Tint
+and Vibrance/Saturation parameter grids. The white-balance volume retains a
+measured quarter-channel of signed headroom, and the color volume extrapolates
+at its boundary before the final document-gamut clamp. This models Photoshop's
+soft range falloff and clipping protection without changing Grade's
+deliberately broader OKLab controls. The two active GPU textures consume
+approximately 43 KiB per node and require the same eight samples per LUT, no
+CPU readback, and no extra compositor pass.
 
 | Corpus | Profile / depth | Cases | Visual parity | Individual 95% gate |
 | --- | --- | ---: | ---: | ---: |
-| Hue/lightness diagnostic ramp | sRGB / 8-bit | 27 | 98.883% | 26 / 27 |
-| `D:\face.jpg`, combined signed 80 extremes | sRGB / 8-bit | 2 | 98.079% | 2 / 2 |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 27 | 99.143% | 27 / 27 |
+| `D:\face.jpg`, combined signed 80 extremes | sRGB / 8-bit | 2 | 98.760% | 2 / 2 |
+| `D:\people.jpg`, combined signed 80 extremes | sRGB / 16-bit | 2 | 97.264% | 2 / 2 |
+| Complete RGB lattice, signed parameter pairs | sRGB / 8-bit | 24 | 98.101% | 24 / 24 |
+| `D:\face.jpg`, off-grid random controls | sRGB / 8-bit | 3 | 97.772% | 3 / 3 |
 
-The diagnostic worst case is combined positive 80 at 93.35%; the photographic
-cases pass the visual gate. A dense 10-point white-balance parameter grid also
-reaches 98.8% on the unseen `temperature=-91, tint=37` face case. These tests
+The diagnostic worst case is combined positive 80 at 96.121%; all diagnostic,
+pairwise and photographic cases now pass the visual gate. A dense 10-point
+white-balance parameter grid also covers the unseen
+`temperature=-91, tint=37` face case. These tests
 deliberately include zero, signed 20/80/100 extremes, combined extremes, and
 off-grid parameter values rather than validating only small slider moves.
 

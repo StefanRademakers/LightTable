@@ -116,7 +116,7 @@ export class AdjustmentLayerGpuResources {
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
     });
     const colorLookup = dependencies.resolveColorLookup(colorLookupAssetId);
-    const createColorVibranceTexture = (label: string) => this.device.createTexture({
+    const createColorVibranceTexture = (label: string, format: GPUTextureFormat) => this.device.createTexture({
       label,
       size: [
         PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE,
@@ -124,14 +124,17 @@ export class AdjustmentLayerGpuResources {
         PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
       ],
       dimension: '3d',
-      format: 'rgba8unorm',
+      format,
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
     });
     const colorVibranceWhiteBalanceTexture = photoshopAdjustmentKind === 'color-vibrance'
-      ? createColorVibranceTexture(`LightTable Color and Vibrance white balance: ${layer.name}`)
+      ? createColorVibranceTexture(
+        `LightTable Color and Vibrance white balance: ${layer.name}`,
+        'rgba32float'
+      )
       : null;
     const colorVibranceColorTexture = photoshopAdjustmentKind === 'color-vibrance'
-      ? createColorVibranceTexture(`LightTable Color and Vibrance color: ${layer.name}`)
+      ? createColorVibranceTexture(`LightTable Color and Vibrance color: ${layer.name}`, 'rgba8unorm')
       : null;
     const runtime = {
       uniformBuffer,

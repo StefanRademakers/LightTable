@@ -16,13 +16,26 @@ describe('Photoshop Color and Vibrance response LUT', () => {
       red + green * PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
       + blue * PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE ** 2
     ) * 4;
-    for (const coordinate of [[0, 0, 0], [4, 2, 7], [8, 8, 8]] as const) {
+    for (const coordinate of [
+      [0, 0, 0],
+      [5, 2, 7],
+      [PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE - 1, PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE - 1,
+        PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE - 1]
+    ] as const) {
       const offset = index(coordinate[0], coordinate[1], coordinate[2]);
-      const expected = coordinate.map((value) => Math.round(value / 8 * 255));
-      expect([...result.whiteBalance.slice(offset, offset + 4)])
-        .toEqual([...expected, 255]);
-      expect([...result.color.slice(offset, offset + 4)])
-        .toEqual([...expected, 255]);
+      const expected = coordinate.map((value) => Math.round(
+        value / (PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE - 1) * 255
+      ));
+      const whiteBalance = [...result.whiteBalance.slice(offset, offset + 4)];
+      expected.forEach((value, channel) => {
+        expect(Math.abs(whiteBalance[channel]! - value / 255)).toBeLessThanOrEqual(1 / 255 + 1e-7);
+      });
+      expect(whiteBalance[3]).toBe(1);
+      const color = [...result.color.slice(offset, offset + 4)];
+      expected.forEach((value, channel) => {
+        expect(Math.abs(color[channel]! - value)).toBeLessThanOrEqual(1);
+      });
+      expect(color[3]).toBe(255);
     }
   });
 
@@ -39,8 +52,10 @@ describe('Photoshop Color and Vibrance response LUT', () => {
     expect(result.whiteBalance).not.toEqual(neutral.whiteBalance);
     expect(result.color).not.toEqual(neutral.color);
     expect([...result.whiteBalance].filter((_, index) => index % 4 === 3)
-      .every((value) => value === 255)).toBe(true);
+      .every((value) => value === 1)).toBe(true);
     expect([...result.color].filter((_, index) => index % 4 === 3)
       .every((value) => value === 255)).toBe(true);
+    expect([...result.whiteBalance].filter((_, index) => index % 4 !== 3)
+      .some((value) => value < 0 || value > 1)).toBe(true);
   });
 });

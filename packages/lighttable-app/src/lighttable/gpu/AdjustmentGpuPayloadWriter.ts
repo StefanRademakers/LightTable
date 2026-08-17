@@ -106,8 +106,12 @@ export class AdjustmentGpuPayloadWriter {
       if (!this.lastColorVibranceParameters
         || parameters.some((value, index) => value !== this.lastColorVibranceParameters?.[index])) {
         const luts = buildPhotoshopColorVibranceLuts(settings);
-        const layout = {
+        const colorLayout = {
           bytesPerRow: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE * 4,
+          rowsPerImage: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
+        };
+        const whiteBalanceLayout = {
+          bytesPerRow: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE * 4 * Float32Array.BYTES_PER_ELEMENT,
           rowsPerImage: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
         };
         const extent = {
@@ -116,10 +120,13 @@ export class AdjustmentGpuPayloadWriter {
           depthOrArrayLayers: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
         };
         this.device.queue.writeTexture(
-          { texture: this.targets.colorVibranceWhiteBalanceTexture }, luts.whiteBalance, layout, extent
+          { texture: this.targets.colorVibranceWhiteBalanceTexture },
+          luts.whiteBalance,
+          whiteBalanceLayout,
+          extent
         );
         this.device.queue.writeTexture(
-          { texture: this.targets.colorVibranceColorTexture }, luts.color, layout, extent
+          { texture: this.targets.colorVibranceColorTexture }, luts.color, colorLayout, extent
         );
         this.lastColorVibranceParameters = parameters;
       }
