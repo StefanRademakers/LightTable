@@ -168,7 +168,7 @@ export const ADJUSTMENT_LAYER_DEFINITIONS: readonly AdjustmentLayerDefinition[] 
   },
   {
     id: 'clarity-dehaze', name: 'Clarity and Dehaze', menuLabel: 'Clarity and Dehaze',
-    iconName: 'layer_adjustment.png', family: 'photoshop', moduleTypes: ['lt.detail']
+    iconName: 'layer_adjustment.png', family: 'photoshop', moduleTypes: ['lt.local-contrast']
   },
   {
     id: 'grain', name: 'Grain', menuLabel: 'Grain',

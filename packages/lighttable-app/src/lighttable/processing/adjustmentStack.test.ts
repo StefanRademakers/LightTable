@@ -119,6 +119,21 @@ describe('LightTable adjustment stacks', () => {
       .colorGrading.hue[0]).toBe(0.4);
   });
 
+  it('addresses local contrast and Detail as independent Grade modules', () => {
+    const settings = createDefaultAdjustments();
+    settings.clarity = 24;
+    settings.detail.sharpeningAmount = 65;
+    const stack = createAdjustmentStackFromBasicAdjustments(settings, undefined, sequentialIds());
+    const withoutDetail = setAdjustmentStackGradeGroupEnabled(stack, 'detail', false);
+
+    expect(adjustmentStackGradeGroupIsEnabled(withoutDetail, 'effects')).toBe(true);
+    expect(adjustmentStackGradeGroupIsEnabled(withoutDetail, 'detail')).toBe(false);
+    expect(materializeBasicAdjustments(withoutDetail).clarity).toBe(24);
+    expect(materializeBasicAdjustments(withoutDetail).detail.sharpeningAmount).toBe(0);
+    expect(materializeBasicAdjustments(withoutDetail, undefined, undefined, true)
+      .detail.sharpeningAmount).toBe(65);
+  });
+
   it('is JSON serializable without changing the current grade', () => {
     const createId = sequentialIds();
     const initial = createAdjustmentStackFromBasicAdjustments(

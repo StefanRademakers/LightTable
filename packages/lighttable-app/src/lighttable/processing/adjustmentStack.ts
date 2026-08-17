@@ -33,7 +33,8 @@ export type GradeModuleGroup =
   | 'colorMixer'
   | 'colorGrading'
   | 'curves'
-  | 'effects';
+  | 'effects'
+  | 'detail';
 
 const GRADE_MODULE_TYPES: Readonly<Record<GradeModuleGroup, readonly string[]>> = {
   light: ['lt.light'],
@@ -41,7 +42,8 @@ const GRADE_MODULE_TYPES: Readonly<Record<GradeModuleGroup, readonly string[]>> 
   colorMixer: ['lt.color-mixer'],
   colorGrading: ['lt.color-grading'],
   curves: ['lt.curves'],
-  effects: ['lt.detail']
+  effects: ['lt.local-contrast'],
+  detail: ['lt.detail']
 };
 
 const ownerIncludesCategory = (

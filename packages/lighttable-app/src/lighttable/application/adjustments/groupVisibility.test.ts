@@ -47,6 +47,26 @@ describe('adjustment group visibility', () => {
     expect(adjustments.shadows).toBe(50);
   });
 
+  it('bypasses local contrast and detail independently', () => {
+    const adjustments = createDefaultAdjustments();
+    adjustments.clarity = 35;
+    adjustments.detail.sharpeningAmount = 70;
+
+    const withoutLocalContrast = applyGroupVisibility(adjustments, {
+      ...createDefaultGroupVisibility(),
+      effects: false
+    });
+    const withoutDetail = applyGroupVisibility(adjustments, {
+      ...createDefaultGroupVisibility(),
+      detail: false
+    });
+
+    expect(withoutLocalContrast.clarity).toBe(0);
+    expect(withoutLocalContrast.detail.sharpeningAmount).toBe(70);
+    expect(withoutDetail.clarity).toBe(35);
+    expect(withoutDetail.detail.sharpeningAmount).toBe(0);
+  });
+
   it('bypasses Global Grade without disabling Global Lens FX', () => {
     const adjustments = createDefaultAdjustments();
     adjustments.exposureEV = 2;

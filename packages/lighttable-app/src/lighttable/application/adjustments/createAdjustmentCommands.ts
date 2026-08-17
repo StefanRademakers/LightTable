@@ -687,6 +687,9 @@ export const createAdjustmentCommands = (
           curves: createDefaultCurves(current.curves.interpolation ?? 'monotone')
         };
       }
+      if (group === 'detail') {
+        return { ...current, detail: createDefaultDetail() };
+      }
       const keys = group === 'light'
         ? LIGHT_SLIDER_KEYS
         : group === 'color'
@@ -696,7 +699,6 @@ export const createAdjustmentCommands = (
       keys.forEach((key) => {
         next[key] = DEFAULT_BASIC_ADJUSTMENTS[key];
       });
-      if (group === 'effects') next.detail = createDefaultDetail();
       return next;
     });
   };

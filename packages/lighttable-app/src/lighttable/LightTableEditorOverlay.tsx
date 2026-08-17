@@ -4231,7 +4231,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         colorMixer: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'colorMixer'),
         colorGrading: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'colorGrading'),
         curves: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'curves'),
-        effects: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'effects')
+        effects: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'effects'),
+        detail: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'detail')
       };
   const gradeMasterEnabled = reconciledPropertiesTarget.kind === 'document-processing'
     && reconciledPropertiesTarget.owner === 'grade'

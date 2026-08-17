@@ -50,8 +50,12 @@ describe('GradePanel', () => {
     expect(disabled).toContain('aria-checked="false"');
     expect(enabled).not.toContain('Gradient Map');
     expect(enabled).toContain('Point Color');
+    expect(enabled).toContain('Texture / Clarity / Dehaze');
     expect(enabled).toContain('Sharpening');
-    expect(enabled).toContain('Noise Reduction');
+    expect(enabled).toContain('Luminance Noise');
+    expect(enabled).toContain('Color Noise');
+    expect(enabled).toContain('Refine');
+    expect(enabled).not.toContain('Sharpening Detail');
   });
 
   it('retains Gradient Map as its focused adjustment editor', () => {

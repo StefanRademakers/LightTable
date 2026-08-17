@@ -22,6 +22,7 @@ export interface GroupVisibility {
   readonly colorGrading: boolean;
   readonly curves: boolean;
   readonly effects: boolean;
+  readonly detail: boolean;
 }
 
 export const LIGHT_SLIDER_KEYS = new Set<NumericAdjustmentKey>([
@@ -55,7 +56,8 @@ export const createDefaultGroupVisibility = (): GroupVisibility => ({
   colorMixer: true,
   colorGrading: true,
   curves: true,
-  effects: true
+  effects: true,
+  detail: true
 });
 
 export const applyGroupVisibility = (
@@ -84,9 +86,7 @@ export const applyGroupVisibility = (
   }
   if (!visibility.colorGrading) next.colorGrading = createDefaultColorGrading();
   if (!visibility.curves) next.curves = createDefaultCurves();
-  if (!visibility.effects) {
-    zero(EFFECTS_SLIDER_KEYS);
-    next.detail = createDefaultAdjustments().detail;
-  }
+  if (!visibility.effects) zero(EFFECTS_SLIDER_KEYS);
+  if (!visibility.detail) next.detail = createDefaultAdjustments().detail;
   return next;
 };

@@ -4861,15 +4861,34 @@
 .lighttable-detail-controls {
   display: grid;
   gap: var(--lt-space-3);
-  margin-top: var(--lt-space-5);
-  padding-top: var(--lt-space-4);
-  border-top: 1px solid var(--lt-border-subtle);
 }
 
-.lighttable-detail-controls__title {
+.lighttable-detail-controls__refine {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: var(--lt-space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--lt-text-secondary);
   font-size: var(--lt-type-regular);
   font-weight: var(--lt-weight-semibold);
+  text-align: left;
+}
+
+.lighttable-detail-controls__refine img {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  opacity: 0.82;
+}
+
+.lighttable-detail-controls__advanced {
+  display: grid;
+  gap: var(--lt-space-3);
+  padding-top: var(--lt-space-2);
+  border-top: 1px solid var(--lt-border-subtle);
 }
 
 .lighttable-color-mixer > .segmented-control {

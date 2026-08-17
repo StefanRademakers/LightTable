@@ -139,6 +139,7 @@ const DEFAULT_EXPANDED: Readonly<Record<GradeGroup, boolean>> = {
   light: true,
   color: true,
   effects: true,
+  detail: true,
   colorMixer: true,
   colorGrading: true,
   curves: true
@@ -218,6 +219,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
   const pointColorSampleCountRef = useRef(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
+  const [detailRefineExpanded, setDetailRefineExpanded] = useState(false);
   const [histogramPreview, setHistogramPreview] = useState<Partial<
     Record<GradeHistogramControlKey, number>
   >>({});
@@ -325,57 +327,82 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               onInteractionEnd={commands.endAdjustment}
             />
           ))}
-          {group === 'effects' ? (
-            <div className="lighttable-detail-controls">
-              <strong className="lighttable-detail-controls__title">Sharpening</strong>
-              {DETAIL_SHARPENING_SLIDERS.map((slider) => (
-                <AdjustmentSlider
-                  key={slider.key}
-                  label={slider.label}
-                  value={adjustments.detail[slider.key]}
-                  min={slider.min}
-                  max={slider.max}
-                  step={slider.step}
-                  format={slider.format}
-                  resetValue={DEFAULT_BASIC_ADJUSTMENTS.detail[slider.key]}
-                  disabled={!metadata || !visibility[group]}
-                  onChange={(value) => commands.updateDetail(slider.key, value)}
-                  onReset={() => commands.resetDetailControl(slider.key)}
-                  onInteractionStart={commands.beginAdjustment}
-                  onInteractionEnd={commands.endAdjustment}
-                />
-              ))}
-              <strong className="lighttable-detail-controls__title">Noise Reduction</strong>
-              {DETAIL_NOISE_SLIDERS.map((slider) => {
-                const dependentDisabled = slider.key.startsWith('luminance')
-                  ? slider.key !== 'luminanceNoiseReduction'
-                    && adjustments.detail.luminanceNoiseReduction <= 0
-                  : slider.key !== 'colorNoiseReduction'
-                    && adjustments.detail.colorNoiseReduction <= 0;
-                return (
-                  <AdjustmentSlider
-                    key={slider.key}
-                    label={slider.label}
-                    value={adjustments.detail[slider.key]}
-                    min={slider.min}
-                    max={slider.max}
-                    step={slider.step}
-                    format={slider.format}
-                    resetValue={DEFAULT_BASIC_ADJUSTMENTS.detail[slider.key]}
-                    disabled={!metadata || !visibility[group] || dependentDisabled}
-                    onChange={(value) => commands.updateDetail(slider.key, value)}
-                    onReset={() => commands.resetDetailControl(slider.key)}
-                    onInteractionStart={commands.beginAdjustment}
-                    onInteractionEnd={commands.endAdjustment}
-                  />
-                );
-              })}
-            </div>
-          ) : null}
         </div>
       ) : null}
     </section>
   );
+
+  const renderDetail = () => {
+    const group = 'detail' as const;
+    const visible = visibility[group];
+    const sliders = [...DETAIL_SHARPENING_SLIDERS, ...DETAIL_NOISE_SLIDERS];
+    const sliderFor = (key: keyof DetailAdjustments, label?: string) => {
+      const slider = sliders.find((candidate) => candidate.key === key)!;
+      const dependentDisabled = key.startsWith('luminance')
+        ? key !== 'luminanceNoiseReduction' && adjustments.detail.luminanceNoiseReduction <= 0
+        : key.startsWith('color')
+          ? key !== 'colorNoiseReduction' && adjustments.detail.colorNoiseReduction <= 0
+          : false;
+      return (
+        <AdjustmentSlider
+          key={key}
+          label={label ?? slider.label}
+          value={adjustments.detail[key]}
+          min={slider.min}
+          max={slider.max}
+          step={slider.step}
+          format={slider.format}
+          resetValue={DEFAULT_BASIC_ADJUSTMENTS.detail[key]}
+          disabled={!metadata || !visible || dependentDisabled}
+          onChange={(value) => commands.updateDetail(key, value)}
+          onReset={() => commands.resetDetailControl(key)}
+          onInteractionStart={commands.beginAdjustment}
+          onInteractionEnd={commands.endAdjustment}
+        />
+      );
+    };
+    return (
+      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
+        <GroupHeader
+          label="Detail"
+          expanded={expanded[group]}
+          visible={visible}
+          resetModifierActive={resetModifierActive}
+          setExpanded={(next) => setGroupExpanded(group, next)}
+          reset={() => commands.resetGroup(group)}
+          toggleVisibility={() => commands.toggleVisibility(group)}
+        />
+        {expanded[group] ? (
+          <div className="lighttable-group__controls lighttable-detail-controls">
+            {sliderFor('sharpeningAmount', 'Sharpening')}
+            {sliderFor('luminanceNoiseReduction', 'Luminance Noise')}
+            {sliderFor('colorNoiseReduction', 'Color Noise')}
+            <ButtonBase
+              type="button"
+              className="lighttable-detail-controls__refine"
+              aria-expanded={detailRefineExpanded}
+              onClick={() => setDetailRefineExpanded((current) => !current)}
+            >
+              <img src={lightTableIcon(detailRefineExpanded ? 'area_open.png' : 'area_closed.png')}
+                alt="" aria-hidden="true" />
+              <strong>Refine</strong>
+            </ButtonBase>
+            {detailRefineExpanded ? (
+              <div className="lighttable-detail-controls__advanced">
+                {sliderFor('sharpeningRadius')}
+                {sliderFor('sharpeningDetail', 'Sharpening Detail')}
+                {sliderFor('sharpeningMasking')}
+                {sliderFor('luminanceDetail')}
+                {sliderFor('luminanceContrast')}
+                {sliderFor('colorDetail')}
+                {sliderFor('colorSmoothness')}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+    );
+  };
 
   const renderPointColor = () => {
     const selected = adjustments.pointColor.samples.find(
@@ -789,7 +816,8 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
       <div className="lighttable-panel__controls">
         {renderAdjustmentGroup('light', 'Light', LIGHT_SLIDERS)}
         {renderAdjustmentGroup('color', 'Color', COLOR_SLIDERS)}
-        {renderAdjustmentGroup('effects', 'Detail', EFFECTS_SLIDERS)}
+        {renderAdjustmentGroup('effects', 'Texture / Clarity / Dehaze', EFFECTS_SLIDERS)}
+        {renderDetail()}
         {renderColorMixer()}
         {renderColorGrading()}
         {renderCurves()}

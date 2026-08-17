@@ -217,16 +217,28 @@ export const CURRENT_PROCESSING_MODULES = [
     notes: 'Dedicated authored payload; evaluated according to its stable family kind.'
   },
   {
-    type: 'lt.detail',
+    type: 'lt.local-contrast',
     label: 'Texture / Clarity / Dehaze',
     category: 'spatial',
-    settingsPaths: ['texture', 'clarity', 'dehaze', 'detail'],
+    settingsPaths: ['texture', 'clarity', 'dehaze'],
     allowedScopes: CREATIVE_GRADE_SCOPES,
     inputDomain: 'linear-rgb',
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
     coordinateSpace: 'document',
     notes: 'Coordinate space becomes scope-relative when the evaluator is extracted.'
+  },
+  {
+    type: 'lt.detail',
+    label: 'Detail',
+    category: 'spatial',
+    settingsPaths: ['detail'],
+    allowedScopes: CREATIVE_GRADE_SCOPES,
+    inputDomain: 'linear-rgb',
+    outputDomain: 'linear-rgb',
+    alphaBehavior: 'preserve',
+    coordinateSpace: 'document',
+    notes: 'Conditional shared fine/coarse analysis for sharpening and noise reduction.'
   },
   {
     type: 'lt.lens-distortion',
