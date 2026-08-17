@@ -1026,34 +1026,37 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     return photoshopEncodedDocumentToLinearSrgb(adjusted);
   }
   if (kind == 6u) {
-    let maximum = max(rgb.r, max(rgb.g, rgb.b));
-    let minimum = min(rgb.r, min(rgb.g, rgb.b));
+    let encoded = photoshopLinearSrgbToEncodedDocument(rgb);
+    let maximum = max(encoded.r, max(encoded.g, encoded.b));
+    let minimum = min(encoded.r, min(encoded.g, encoded.b));
     let chroma = maximum - minimum;
     var hue = 0.0;
     if (chroma > 0.000001) {
-      if (maximum == rgb.r) { hue = ((rgb.g - rgb.b) / chroma) / 6.0; }
-      else if (maximum == rgb.g) { hue = ((rgb.b - rgb.r) / chroma + 2.0) / 6.0; }
-      else { hue = ((rgb.r - rgb.g) / chroma + 4.0) / 6.0; }
+      if (maximum == encoded.r) { hue = ((encoded.g - encoded.b) / chroma) / 6.0; }
+      else if (maximum == encoded.g) { hue = ((encoded.b - encoded.r) / chroma + 2.0) / 6.0; }
+      else { hue = ((encoded.r - encoded.g) / chroma + 4.0) / 6.0; }
       hue = hue - floor(hue);
     }
-    let defaultMixers = array<f32, 6>(40.0, 60.0, 40.0, 60.0, 20.0, 80.0);
     var authoredMix = 0.0;
-    var defaultMix = 0.0;
     for (var index = 0u; index < 6u; index += 1u) {
       let center = f32(index) / 6.0;
       let distance = min(abs(hue - center), 1.0 - abs(hue - center));
       let weight = max(0.0, 1.0 - distance * 6.0);
       authoredMix += weight * photoshopValue(26u + index);
-      defaultMix += weight * defaultMixers[index];
     }
-    let chromaWeight = smoothstep(0.0, 0.08, chroma);
-    let mixScale = mix(1.0, authoredMix / max(defaultMix, 1.0), chromaWeight);
-    let gray = max(0.0, luminance(rgb) * mixScale);
+    let gray = clamp(minimum + chroma * authoredMix / 100.0, 0.0, 1.0);
     var result = vec3f(gray);
     if (photoshopValue(32u) > 0.5) {
-      result = mix(result, vec3f(photoshopValue(33u), photoshopValue(34u), photoshopValue(35u)) * gray, 0.35);
+      let encodedTintSrgb = vec3f(photoshopValue(33u), photoshopValue(34u), photoshopValue(35u));
+      let linearTintSrgb = vec3f(
+        photoshopEncodedToLinearChannel(encodedTintSrgb.r),
+        photoshopEncodedToLinearChannel(encodedTintSrgb.g),
+        photoshopEncodedToLinearChannel(encodedTintSrgb.b)
+      );
+      let encodedTint = photoshopLinearSrgbToEncodedDocument(linearTintSrgb);
+      result = photoshopSetBlendLuminosity(encodedTint, gray);
     }
-    return result;
+    return photoshopEncodedDocumentToLinearSrgb(result);
   }
   if (kind == 7u) {
     let encodedFilter = vec3f(photoshopValue(37u), photoshopValue(38u), photoshopValue(39u));

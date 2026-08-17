@@ -241,6 +241,39 @@ luminosity protection in its
 the historic transfer-family reference is GIMP's
 [original Color Balance implementation](https://raw.githubusercontent.com/GNOME/gimp/GIMP_1_0_4/app/color_balance.c).
 
+## Black & White
+
+Status: accepted.
+
+Photoshop 27.11 evaluates Black & White in encoded document RGB. It decomposes
+each pixel into its neutral minimum channel plus chroma, then multiplies that
+chroma by a hue-interpolated value from the Red, Yellow, Green, Cyan, Blue, and
+Magenta sliders:
+
+`gray = min(R, G, B) + (max(R, G, B) - min(R, G, B)) * mixer(hue) / 100`
+
+This preserves neutral pixels naturally and makes each slider the exact output
+percentage for its fully saturated primary or secondary color. It also explains
+Photoshop's full -200..300 range without a special endpoint curve. The old
+LightTable implementation scaled linear luminance relative to the default mix,
+which changed neutral pixels and scored only 80.194% on the diagnostic corpus.
+
+Tint reuses Photoshop's encoded `SetLum` / `ClipColor` operation: the authored
+tint supplies chroma and hue while the monochrome result supplies luminosity.
+Grade remains unchanged; the adjustment adds no pass, texture, or readback.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Cases <= 5% RMSE |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 22 | 0.075% | 0.477% | 99.925% | 22 / 22 |
+| `D:\people.jpg` | sRGB / 16-bit | 22 | 0.185% | 0.246% | 99.815% | 22 / 22 |
+
+The corpus covers every mixer independently at -200 and +300, Red at +100,
+uniform and alternating endpoint combinations, the default mix, and neutral,
+red, and blue tint colors. Every 16-bit photographic case is within two output
+code values by the tracker metric. Adobe documents the same six color sliders,
+Auto behavior, and optional Tint color in its current
+[Black & White guide](https://helpx.adobe.com/photoshop/desktop/adjust-color/color-effects-techniques/convert-a-color-image-to-black-and-white.html).
+
 ## Photo Filter
 
 Status: accepted.

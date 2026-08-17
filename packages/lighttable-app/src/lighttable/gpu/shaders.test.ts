@@ -365,6 +365,13 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).not.toMatch(/\btarget\s*:/);
   });
 
+  it('evaluates Photoshop Black & White from encoded neutral and chroma components', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('let gray = clamp(minimum + chroma * authoredMix / 100.0');
+    expect(CREATIVE_GRADE_WGSL).toContain('let encodedTint = photoshopLinearSrgbToEncodedDocument');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopSetBlendLuminosity(encodedTint, gray)');
+    expect(CREATIVE_GRADE_WGSL).not.toContain('let mixScale = mix(1.0, authoredMix');
+  });
+
   it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');

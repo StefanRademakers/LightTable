@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'photo-filter')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'black-white', 'photo-filter')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -248,12 +248,37 @@ $photoFilterCases = @(
   @{ id='black-density-100-preserve'; color=@(0,0,0); density=100; preserveLuminosity=$true },
   @{ id='black-density-100-no-preserve'; color=@(0,0,0); density=100; preserveLuminosity=$false }
 )
+$blackWhiteCases = @(
+  @{ id='default'; mix=@(40,60,40,60,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='all-zero'; mix=@(0,0,0,0,0,0); tint=$false; tintColor=@(225,211,179) },
+  @{ id='all-100'; mix=@(100,100,100,100,100,100); tint=$false; tintColor=@(225,211,179) },
+  @{ id='all-neg-200'; mix=@(-200,-200,-200,-200,-200,-200); tint=$false; tintColor=@(225,211,179) },
+  @{ id='all-pos-300'; mix=@(300,300,300,300,300,300); tint=$false; tintColor=@(225,211,179) },
+  @{ id='alternating-extremes'; mix=@(-200,300,-200,300,-200,300); tint=$false; tintColor=@(225,211,179) },
+  @{ id='reds-neg-200'; mix=@(-200,60,40,60,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='reds-pos-100'; mix=@(100,60,40,60,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='reds-pos-300'; mix=@(300,60,40,60,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='yellows-neg-200'; mix=@(40,-200,40,60,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='yellows-pos-300'; mix=@(40,300,40,60,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='greens-neg-200'; mix=@(40,60,-200,60,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='greens-pos-300'; mix=@(40,60,300,60,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='cyans-neg-200'; mix=@(40,60,40,-200,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='cyans-pos-300'; mix=@(40,60,40,300,20,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='blues-neg-200'; mix=@(40,60,40,60,-200,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='blues-pos-300'; mix=@(40,60,40,60,300,80); tint=$false; tintColor=@(225,211,179) },
+  @{ id='magentas-neg-200'; mix=@(40,60,40,60,20,-200); tint=$false; tintColor=@(225,211,179) },
+  @{ id='magentas-pos-300'; mix=@(40,60,40,60,20,300); tint=$false; tintColor=@(225,211,179) },
+  @{ id='default-tint'; mix=@(40,60,40,60,20,80); tint=$true; tintColor=@(225,211,179) },
+  @{ id='red-tint'; mix=@(40,60,40,60,20,80); tint=$true; tintColor=@(255,0,0) },
+  @{ id='blue-tint'; mix=@(40,60,40,60,20,80); tint=$true; tintColor=@(0,80,255) }
+)
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
 } elseif ($Adjustment -eq 'levels') { $levelsCases }
 elseif ($Adjustment -eq 'curves') { $curvesCases }
 elseif ($Adjustment -eq 'hue-saturation') { $hueSaturationCases }
 elseif ($Adjustment -eq 'color-balance') { $colorBalanceCases }
+elseif ($Adjustment -eq 'black-white') { $blackWhiteCases }
 elseif ($Adjustment -eq 'photo-filter') { $photoFilterCases }
 else { $exposureCases }
 if (-not [string]::IsNullOrWhiteSpace($CasePattern)) {
@@ -423,6 +448,25 @@ $rangeDescriptors
   adjustment.putList(c2t('HghL'), highlights);
   adjustment.putBoolean(c2t('PrsL'), $(if ($case.preserveLuminosity) { 'true' } else { 'false' }));
   adjustmentLayer.putObject(s2t('type'), s2t('colorBalance'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'black-white') {
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  adjustment.putInteger(c2t('Rd  '), $($case.mix[0]));
+  adjustment.putInteger(c2t('Yllw'), $($case.mix[1]));
+  adjustment.putInteger(c2t('Grn '), $($case.mix[2]));
+  adjustment.putInteger(c2t('Cyn '), $($case.mix[3]));
+  adjustment.putInteger(c2t('Bl  '), $($case.mix[4]));
+  adjustment.putInteger(c2t('Mgnt'), $($case.mix[5]));
+  adjustment.putBoolean(s2t('useTint'), $(if ($case.tint) { 'true' } else { 'false' }));
+  var tintColor = new ActionDescriptor();
+  tintColor.putDouble(c2t('Rd  '), $($case.tintColor[0]));
+  tintColor.putDouble(c2t('Grn '), $($case.tintColor[1]));
+  tintColor.putDouble(c2t('Bl  '), $($case.tintColor[2]));
+  adjustment.putObject(s2t('tintColor'), s2t('RGBColor'), tintColor);
+  adjustment.putInteger(s2t('bwPresetKind'), 5);
+  adjustment.putString(s2t('blackAndWhitePresetFileName'), '');
+  adjustmentLayer.putObject(s2t('type'), s2t('blackAndWhite'), adjustment);
 "@
     } elseif ($Adjustment -eq 'photo-filter') {
       $adjustmentDescriptor = @"
