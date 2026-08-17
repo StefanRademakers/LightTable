@@ -31,6 +31,8 @@ describe('LightTable adjustment stacks', () => {
     settings.temperature = -31;
     settings.colorMixer.saturation[3] = 42;
     settings.colorGrading.hue[0] = 0.73;
+    settings.detail.sharpeningAmount = 88;
+    settings.detail.colorNoiseReduction = 31;
     settings.curves.master = [{ x: 0, y: 0 }, { x: 0.4, y: 0.52 }, { x: 1, y: 1 }];
     settings.gradientMap = {
       enabled: true,

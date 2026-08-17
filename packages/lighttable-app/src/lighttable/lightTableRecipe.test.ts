@@ -245,6 +245,20 @@ describe('parseLightTableRecipe', () => {
     expect(recipe?.settings.gradientMap).toEqual(gradientMap);
   });
 
+  it('restores current Detail settings', () => {
+    const recipe = parseLightTableRecipe({
+      lighttable: {
+        sourceFileKey: 'detail.png',
+        settings: {
+          detail: { sharpeningAmount: 85, colorNoiseReduction: 42 }
+        }
+      }
+    });
+    expect(recipe?.settings.detail.sharpeningAmount).toBe(85);
+    expect(recipe?.settings.detail.colorNoiseReduction).toBe(42);
+    expect(recipe?.settings.detail.luminanceDetail).toBe(50);
+  });
+
   it('rejects incomplete and non-numeric recipes', () => {
     expect(parseLightTableRecipe({ lighttable: { settings: { exposureEV: 1 } } })).toBeNull();
     expect(parseLightTableRecipe({

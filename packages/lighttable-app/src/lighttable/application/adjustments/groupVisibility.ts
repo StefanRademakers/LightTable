@@ -10,7 +10,7 @@ import { createDefaultAdjustments } from '../../types';
 
 export type NumericAdjustmentKey = Exclude<
   keyof BasicAdjustments,
-  'colorMixer' | 'pointColor' | 'colorGrading' | 'curves' | 'gradientMap' | 'photoshopAdjustment' | 'effects'
+  'colorMixer' | 'pointColor' | 'colorGrading' | 'curves' | 'gradientMap' | 'photoshopAdjustment' | 'detail' | 'effects'
 >;
 
 export interface GroupVisibility {
@@ -84,6 +84,9 @@ export const applyGroupVisibility = (
   }
   if (!visibility.colorGrading) next.colorGrading = createDefaultColorGrading();
   if (!visibility.curves) next.curves = createDefaultCurves();
-  if (!visibility.effects) zero(EFFECTS_SLIDER_KEYS);
+  if (!visibility.effects) {
+    zero(EFFECTS_SLIDER_KEYS);
+    next.detail = createDefaultAdjustments().detail;
+  }
   return next;
 };

@@ -9,8 +9,10 @@ import {
 export const POINT_COLOR_PAYLOAD_OFFSET = 368;
 export const POINT_COLOR_SAMPLE_FLOATS = 12;
 export const POINT_COLOR_MAX_SAMPLES = 8;
-export const ADJUSTMENT_UNIFORM_FLOATS =
+export const DETAIL_PAYLOAD_OFFSET =
   POINT_COLOR_PAYLOAD_OFFSET + POINT_COLOR_SAMPLE_FLOATS * POINT_COLOR_MAX_SAMPLES;
+export const ADJUSTMENT_UNIFORM_FLOATS =
+  DETAIL_PAYLOAD_OFFSET + 12;
 export const LINEAR_COMPOSITE_FLAG_INDEX = 18;
 export const PHOTOSHOP_PAYLOAD_OFFSET = 128;
 export const PHOTOSHOP_LEVELS_CHANNELS_OFFSET = 233;
@@ -185,6 +187,20 @@ export const buildAdjustmentUniform = (
       sample.range, sample.hueRange, sample.saturationRange, sample.luminanceRange
     ], POINT_COLOR_PAYLOAD_OFFSET + index * POINT_COLOR_SAMPLE_FLOATS);
   });
+  packed.set([
+    value.detail.sharpeningAmount,
+    value.detail.sharpeningRadius,
+    value.detail.sharpeningDetail,
+    value.detail.sharpeningMasking,
+    value.detail.luminanceNoiseReduction,
+    value.detail.luminanceDetail,
+    value.detail.luminanceContrast,
+    value.detail.colorNoiseReduction,
+    value.detail.colorDetail,
+    value.detail.colorSmoothness,
+    0,
+    0
+  ], DETAIL_PAYLOAD_OFFSET);
   packed.set([
     ...(colorLookup?.domainMin ?? [0, 0, 0]),
     ...(colorLookup?.domainMax ?? [1, 1, 1])

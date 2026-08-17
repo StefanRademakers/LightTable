@@ -321,6 +321,7 @@ struct Adjustments {
   gradientMapOpacity: array<vec4f, 8>,
   photoshop: array<vec4f, 60>,
   pointColor: array<vec4f, 24>,
+  detail: array<vec4f, 3>,
 }
 
 @group(0) @binding(0) var correctedTexture: texture_2d<f32>;
@@ -1553,10 +1554,73 @@ fn localDarkChannel(uv: vec2f) -> f32 {
   return clamp(dark, 0.0, 1.0);
 }
 
+fn applyDetailNode(centerRgb: vec3f, uv: vec2f) -> vec3f {
+  let sharpenAmount = adjustments.detail[0].x;
+  let luminanceAmount = adjustments.detail[1].x;
+  let colorAmount = adjustments.detail[1].w;
+  if (max(sharpenAmount, max(luminanceAmount, colorAmount)) <= 0.00001) {
+    return centerRgb;
+  }
+  let dimensions = max(vec2f(textureDimensions(correctedTexture)), vec2f(1.0));
+  let radius = clamp(adjustments.detail[0].y, 0.5, 3.0);
+  let texel = vec2f(radius) / dimensions;
+  let centerY = max(luminance(centerRgb), 1e-6);
+  let luminanceDetail = adjustments.detail[1].y / 100.0;
+  let colorDetail = adjustments.detail[2].x / 100.0;
+  let offsets = array<vec2f, 8>(
+    vec2f(-1.0, 0.0), vec2f(1.0, 0.0),
+    vec2f(0.0, -1.0), vec2f(0.0, 1.0),
+    vec2f(-0.707, -0.707), vec2f(0.707, -0.707),
+    vec2f(-0.707, 0.707), vec2f(0.707, 0.707)
+  );
+  var weightedRgb = centerRgb * 2.0;
+  var weightedY = centerY * 2.0;
+  var weightTotal = 2.0;
+  for (var index = 0u; index < 8u; index += 1u) {
+    let sampleRgb = textureSample(correctedTexture, sourceSampler, uv + offsets[index] * texel).rgb;
+    let sampleY = max(luminance(sampleRgb), 1e-6);
+    // Detail controls protect real luminance/color boundaries from smoothing.
+    let edgeThreshold = mix(22.0, 70.0, luminanceDetail);
+    let chromaDistance = length((sampleRgb - vec3f(sampleY)) - (centerRgb - vec3f(centerY)));
+    let edgeWeight = exp(-abs(sampleY - centerY) * edgeThreshold)
+      * exp(-chromaDistance * mix(10.0, 42.0, colorDetail));
+    weightedRgb += sampleRgb * edgeWeight;
+    weightedY += sampleY * edgeWeight;
+    weightTotal += edgeWeight;
+  }
+  let localRgb = weightedRgb / max(weightTotal, 0.0001);
+  let localY = weightedY / max(weightTotal, 0.0001);
+  let centerChroma = centerRgb - vec3f(centerY);
+  let localChroma = localRgb - vec3f(luminance(localRgb));
+
+  let luminanceStrength = luminanceAmount / 100.0;
+  var resultY = mix(centerY, localY, luminanceStrength * mix(0.92, 0.38, luminanceDetail));
+  let luminanceContrast = adjustments.detail[1].z / 100.0;
+  resultY += (centerY - localY) * luminanceStrength * luminanceContrast * 0.55;
+
+  let colorStrength = colorAmount / 100.0;
+  let colorSmoothness = adjustments.detail[2].y / 100.0;
+  var resultChroma = mix(
+    centerChroma,
+    localChroma,
+    colorStrength * mix(0.42, 0.96, colorSmoothness) * mix(0.95, 0.45, colorDetail)
+  );
+
+  let highFrequency = centerY - localY;
+  let edgeMagnitude = abs(highFrequency) / max(localY + 0.02, 0.02);
+  let masking = adjustments.detail[0].w / 100.0;
+  let sharpenMask = smoothstep(masking * 0.08, masking * 0.08 + 0.018, edgeMagnitude);
+  let sharpenDetail = adjustments.detail[0].z / 100.0;
+  resultY += highFrequency * (sharpenAmount / 100.0)
+    * mix(0.42, 1.08, sharpenDetail) * sharpenMask;
+
+  return vec3f(max(0.0, resultY)) + resultChroma;
+}
+
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let corrected = textureSample(correctedTexture, sourceSampler, input.uv);
-  var rgb = corrected.rgb;
+  var rgb = applyDetailNode(corrected.rgb, input.uv);
   var y = max(luminance(rgb), 1e-6);
   if (abs(adjustments.texture) > 0.00001) {
     let localFineBase = textureScaleBase(input.uv, y);

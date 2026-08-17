@@ -95,13 +95,25 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
   let recognizedSettings = 0;
   (Object.keys(settings) as Array<keyof BasicAdjustments>).forEach((key) => {
     if (key === 'colorMixer' || key === 'pointColor' || key === 'colorGrading' || key === 'curves'
-      || key === 'gradientMap' || key === 'photoshopAdjustment' || key === 'effects') return;
+      || key === 'gradientMap' || key === 'photoshopAdjustment' || key === 'detail'
+      || key === 'effects') return;
     const settingValue = value[key];
     if (typeof settingValue === 'number' && Number.isFinite(settingValue)) {
       (settings as unknown as Record<string, number>)[key] = settingValue;
       recognizedSettings += 1;
     }
   });
+
+  const rawDetail = value.detail;
+  if (isObject(rawDetail)) {
+    (Object.keys(settings.detail) as Array<keyof typeof settings.detail>).forEach((key) => {
+      const detailValue = rawDetail[key];
+      if (typeof detailValue === 'number' && Number.isFinite(detailValue)) {
+        settings.detail[key] = detailValue;
+        recognizedSettings += 1;
+      }
+    });
+  }
 
   const rawColorMixer = value.colorMixer;
   if (isObject(rawColorMixer)) {

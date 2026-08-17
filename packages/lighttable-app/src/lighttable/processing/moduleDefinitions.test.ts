@@ -17,6 +17,7 @@ const EXPECTED_SETTINGS_PATHS = [
   'texture',
   'clarity',
   'dehaze',
+  'detail',
   'vibrance',
   'saturation',
   'colorMixer',

@@ -36,6 +36,8 @@ import {
 import {
   COLOR_SLIDERS,
   colorMixerRangeBounds,
+  DETAIL_NOISE_SLIDERS,
+  DETAIL_SHARPENING_SLIDERS,
   EFFECTS_SLIDERS,
   GRADING_MODE_OPTIONS,
   LIGHT_SLIDERS,
@@ -50,6 +52,7 @@ import {
   type RgbHistogram
 } from '../../types';
 import type { PhotoshopAdjustmentSettings } from '../../photoshopAdjustments';
+import type { DetailAdjustments } from '../../detail';
 import {
   GradeHistogramControl,
   type GradeHistogramControlKey
@@ -79,6 +82,9 @@ export interface GradePanelCommands {
   readonly endAdjustment: () => void;
   readonly updateAdjustment: (key: NumericAdjustmentKey, value: number) => void;
   readonly resetAdjustment: (key: NumericAdjustmentKey) => void;
+  readonly updateDetail: (key: keyof DetailAdjustments, value: number) => void;
+  readonly resetDetailControl: (key: keyof DetailAdjustments) => void;
+  readonly resetDetail: () => void;
   readonly updateColorMixer: (
     channel: ColorMixerChannel,
     index: number,
@@ -319,6 +325,53 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
               onInteractionEnd={commands.endAdjustment}
             />
           ))}
+          {group === 'effects' ? (
+            <div className="lighttable-detail-controls">
+              <strong className="lighttable-detail-controls__title">Sharpening</strong>
+              {DETAIL_SHARPENING_SLIDERS.map((slider) => (
+                <AdjustmentSlider
+                  key={slider.key}
+                  label={slider.label}
+                  value={adjustments.detail[slider.key]}
+                  min={slider.min}
+                  max={slider.max}
+                  step={slider.step}
+                  format={slider.format}
+                  resetValue={DEFAULT_BASIC_ADJUSTMENTS.detail[slider.key]}
+                  disabled={!metadata || !visibility[group]}
+                  onChange={(value) => commands.updateDetail(slider.key, value)}
+                  onReset={() => commands.resetDetailControl(slider.key)}
+                  onInteractionStart={commands.beginAdjustment}
+                  onInteractionEnd={commands.endAdjustment}
+                />
+              ))}
+              <strong className="lighttable-detail-controls__title">Noise Reduction</strong>
+              {DETAIL_NOISE_SLIDERS.map((slider) => {
+                const dependentDisabled = slider.key.startsWith('luminance')
+                  ? slider.key !== 'luminanceNoiseReduction'
+                    && adjustments.detail.luminanceNoiseReduction <= 0
+                  : slider.key !== 'colorNoiseReduction'
+                    && adjustments.detail.colorNoiseReduction <= 0;
+                return (
+                  <AdjustmentSlider
+                    key={slider.key}
+                    label={slider.label}
+                    value={adjustments.detail[slider.key]}
+                    min={slider.min}
+                    max={slider.max}
+                    step={slider.step}
+                    format={slider.format}
+                    resetValue={DEFAULT_BASIC_ADJUSTMENTS.detail[slider.key]}
+                    disabled={!metadata || !visibility[group] || dependentDisabled}
+                    onChange={(value) => commands.updateDetail(slider.key, value)}
+                    onReset={() => commands.resetDetailControl(slider.key)}
+                    onInteractionStart={commands.beginAdjustment}
+                    onInteractionEnd={commands.endAdjustment}
+                  />
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -736,7 +789,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
       <div className="lighttable-panel__controls">
         {renderAdjustmentGroup('light', 'Light', LIGHT_SLIDERS)}
         {renderAdjustmentGroup('color', 'Color', COLOR_SLIDERS)}
-        {renderAdjustmentGroup('effects', 'Effects', EFFECTS_SLIDERS)}
+        {renderAdjustmentGroup('effects', 'Detail', EFFECTS_SLIDERS)}
         {renderColorMixer()}
         {renderColorGrading()}
         {renderCurves()}

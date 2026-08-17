@@ -23,6 +23,7 @@ describe('CurvesPropertiesPanel', () => {
       }}
       commands={{
         resetAll: noop, toggleMasterEnabled: noop, toggleVisibility: noop, resetGroup: noop,
+        updateDetail: noop, resetDetailControl: noop, resetDetail: noop,
         beginAdjustment: noop, endAdjustment: noop, updateAdjustment: noop,
         resetAdjustment: noop, updateColorMixer: noop, resetColorMixer: noop,
         addPointColorSample: noop, updatePointColorSample: noop,

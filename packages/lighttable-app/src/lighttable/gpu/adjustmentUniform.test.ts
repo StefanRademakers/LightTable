@@ -3,6 +3,7 @@ import { createDefaultAdjustments } from '../types';
 import {
   ADJUSTMENT_UNIFORM_FLOATS,
   buildAdjustmentUniform,
+  DETAIL_PAYLOAD_OFFSET,
   LINEAR_COMPOSITE_FLAG_INDEX,
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
@@ -34,6 +35,19 @@ describe('LightTable adjustment uniform packing', () => {
     expect(packed[57]).toBe(-12);
     expect(packed[58]).toBe(0);
     expect(packed[59]).toBe(0);
+  });
+
+  it('packs the complete Detail node after Point Color', () => {
+    const settings = createDefaultAdjustments();
+    settings.detail = {
+      sharpeningAmount: 120, sharpeningRadius: 1.5, sharpeningDetail: 70,
+      sharpeningMasking: 30, luminanceNoiseReduction: 44, luminanceDetail: 61,
+      luminanceContrast: 12, colorNoiseReduction: 55, colorDetail: 48,
+      colorSmoothness: 67
+    };
+    const packed = buildAdjustmentUniform(settings, 100, 50, true);
+    expect(Array.from(packed.slice(DETAIL_PAYLOAD_OFFSET, DETAIL_PAYLOAD_OFFSET + 10)))
+      .toEqual([120, 1.5, 70, 30, 44, 61, 12, 55, 48, 67]);
   });
 
   it('packs the native Gradient Map after the existing grading ABI', () => {

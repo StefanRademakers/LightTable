@@ -48,6 +48,7 @@ export type CurrentAdjustmentSettingsPath =
   | 'texture'
   | 'clarity'
   | 'dehaze'
+  | 'detail'
   | 'vibrance'
   | 'saturation'
   | 'colorMixer'
@@ -219,7 +220,7 @@ export const CURRENT_PROCESSING_MODULES = [
     type: 'lt.detail',
     label: 'Texture / Clarity / Dehaze',
     category: 'spatial',
-    settingsPaths: ['texture', 'clarity', 'dehaze'],
+    settingsPaths: ['texture', 'clarity', 'dehaze', 'detail'],
     allowedScopes: CREATIVE_GRADE_SCOPES,
     inputDomain: 'linear-rgb',
     outputDomain: 'linear-rgb',

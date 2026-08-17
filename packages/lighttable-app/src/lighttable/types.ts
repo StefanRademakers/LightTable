@@ -3,6 +3,7 @@ import { cloneColorGrading, createDefaultColorGrading, type ColorGradingAdjustme
 import { cloneCurves, createDefaultCurves, type CurvesAdjustments } from './curves';
 import { cloneEffects, createDefaultEffects, type LightTableEffects } from './effects/types';
 import { clonePointColor, createDefaultPointColor, type PointColorAdjustments } from './pointColor';
+import { cloneDetail, createDefaultDetail, type DetailAdjustments } from './detail';
 import {
   clonePhotoshopAdjustment,
   createDefaultPhotoshopAdjustment,
@@ -62,6 +63,7 @@ export interface BasicAdjustments {
   dehaze: number;
   vibrance: number;
   saturation: number;
+  detail: DetailAdjustments;
   colorMixer: ColorMixerAdjustments;
   pointColor: PointColorAdjustments;
   colorGrading: ColorGradingAdjustments;
@@ -112,6 +114,7 @@ export const DEFAULT_BASIC_ADJUSTMENTS: Readonly<BasicAdjustments> = Object.free
   dehaze: 0,
   vibrance: 0,
   saturation: 0,
+  detail: createDefaultDetail(),
   colorMixer: createDefaultColorMixer(),
   pointColor: createDefaultPointColor(),
   colorGrading: createDefaultColorGrading(),
@@ -125,6 +128,7 @@ export const cloneAdjustments = (adjustments: BasicAdjustments): BasicAdjustment
   ...adjustments,
   colorMixer: cloneColorMixer(adjustments.colorMixer),
   pointColor: clonePointColor(adjustments.pointColor ?? createDefaultPointColor()),
+  detail: cloneDetail(adjustments.detail ?? createDefaultDetail()),
   colorGrading: cloneColorGrading(adjustments.colorGrading),
   curves: cloneCurves(adjustments.curves),
   gradientMap: structuredClone(adjustments.gradientMap ?? createDefaultGradientMap()),
@@ -138,6 +142,7 @@ export const createDefaultAdjustments = (): BasicAdjustments => ({
   ...DEFAULT_BASIC_ADJUSTMENTS,
   colorMixer: cloneColorMixer(DEFAULT_BASIC_ADJUSTMENTS.colorMixer),
   pointColor: clonePointColor(DEFAULT_BASIC_ADJUSTMENTS.pointColor),
+  detail: cloneDetail(DEFAULT_BASIC_ADJUSTMENTS.detail),
   colorGrading: cloneColorGrading(DEFAULT_BASIC_ADJUSTMENTS.colorGrading),
   curves: cloneCurves(DEFAULT_BASIC_ADJUSTMENTS.curves),
   gradientMap: structuredClone(DEFAULT_BASIC_ADJUSTMENTS.gradientMap ?? createDefaultGradientMap()),

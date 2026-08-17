@@ -4858,6 +4858,20 @@
   background: var(--lt-surface-collapsible-content);
 }
 
+.lighttable-detail-controls {
+  display: grid;
+  gap: var(--lt-space-3);
+  margin-top: var(--lt-space-5);
+  padding-top: var(--lt-space-4);
+  border-top: 1px solid var(--lt-border-subtle);
+}
+
+.lighttable-detail-controls__title {
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-regular);
+  font-weight: var(--lt-weight-semibold);
+}
+
 .lighttable-color-mixer > .segmented-control {
   width: 100%;
   margin-bottom: var(--lt-space-2);

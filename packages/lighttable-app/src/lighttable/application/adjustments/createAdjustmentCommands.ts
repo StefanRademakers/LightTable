@@ -79,6 +79,7 @@ import {
   createDefaultPhotoshopAdjustment,
   type PhotoshopAdjustmentSettings
 } from '../../photoshopAdjustments';
+import { createDefaultDetail, type DetailAdjustments } from '../../detail';
 
 export interface AdjustmentCommandPorts {
   readonly beginAdjustment: () => void;
@@ -101,6 +102,9 @@ export interface AdjustmentCommandPorts {
 export interface AdjustmentCommands {
   readonly updateAdjustment: (key: NumericAdjustmentKey, value: number) => void;
   readonly resetAdjustment: (key: NumericAdjustmentKey) => void;
+  readonly updateDetail: (key: keyof DetailAdjustments, value: number) => void;
+  readonly resetDetailControl: (key: keyof DetailAdjustments) => void;
+  readonly resetDetail: () => void;
   readonly updateGrain: (key: GrainNumericKey, value: number) => void;
   readonly resetGrainControl: (key: GrainNumericKey) => void;
   readonly resetGrain: () => void;
@@ -213,6 +217,31 @@ export const createAdjustmentCommands = (
       ...current,
       [key]: DEFAULT_BASIC_ADJUSTMENTS[key]
     }));
+  };
+
+  const updateDetail = (key: keyof DetailAdjustments, value: number) => {
+    ports.beginAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      detail: { ...current.detail, [key]: value }
+    }), 'grade');
+  };
+
+  const resetDetailControl = (key: keyof DetailAdjustments) => {
+    ports.endAdjustment();
+    const defaults = createDefaultDetail();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      detail: { ...current.detail, [key]: defaults[key] }
+    }), 'grade');
+  };
+
+  const resetDetail = () => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      detail: createDefaultDetail()
+    }), 'grade');
   };
 
   const updateGradientMap = (value: GradientMapAdjustments) => {
@@ -667,6 +696,7 @@ export const createAdjustmentCommands = (
       keys.forEach((key) => {
         next[key] = DEFAULT_BASIC_ADJUSTMENTS[key];
       });
+      if (group === 'effects') next.detail = createDefaultDetail();
       return next;
     });
   };
@@ -694,6 +724,9 @@ export const createAdjustmentCommands = (
   return {
     updateAdjustment,
     resetAdjustment,
+    updateDetail,
+    resetDetailControl,
+    resetDetail,
     updateGrain,
     resetGrainControl,
     resetGrain,

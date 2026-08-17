@@ -106,6 +106,20 @@ describe('createAdjustmentCommands', () => {
     expect(harness.adjustments().pointColor.samples).toEqual([]);
   });
 
+  it('authors and resets Detail without disturbing Texture controls', () => {
+    const harness = createHarness();
+    harness.commands.updateAdjustment('texture', 32);
+    harness.commands.updateDetail('luminanceNoiseReduction', 40);
+    harness.commands.updateDetail('colorSmoothness', 75);
+    expect(harness.adjustments().detail.luminanceNoiseReduction).toBe(40);
+    expect(harness.adjustments().detail.colorSmoothness).toBe(75);
+
+    harness.commands.resetDetail();
+    expect(harness.adjustments().detail.luminanceNoiseReduction).toBe(0);
+    expect(harness.adjustments().detail.colorSmoothness).toBe(50);
+    expect(harness.adjustments().texture).toBe(32);
+  });
+
   it('resets Grade without clearing the independent Lens FX pass', () => {
     const harness = createHarness();
     harness.commands.updateAdjustment('exposureEV', 2);

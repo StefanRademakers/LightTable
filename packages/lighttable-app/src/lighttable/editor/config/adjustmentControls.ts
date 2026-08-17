@@ -18,6 +18,7 @@ import type {
 } from '../../effects/lensBlur/settings';
 import type { LensDistortionSettings } from '../../effects/lensDistortion/settings';
 import type { VignetteSettings } from '../../effects/vignette/settings';
+import type { DetailAdjustments } from '../../detail';
 
 export interface SliderDefinition<TKey = NumericAdjustmentKey> {
   readonly key: TKey;
@@ -85,6 +86,23 @@ export const VIGNETTE_SLIDERS: ReadonlyArray<SliderDefinition<VignetteNumericKey
 export const LIGHT_SLIDERS = SLIDERS.filter(({ key }) => LIGHT_KEYS.has(key));
 export const COLOR_SLIDERS = SLIDERS.filter(({ key }) => COLOR_KEYS.has(key));
 export const EFFECTS_SLIDERS = SLIDERS.filter(({ key }) => EFFECT_KEYS.has(key));
+
+export type DetailSliderDefinition = SliderDefinition<keyof DetailAdjustments>;
+export const DETAIL_SHARPENING_SLIDERS: readonly DetailSliderDefinition[] = [
+  { key: 'sharpeningAmount', label: 'Amount', min: 0, max: 150 },
+  { key: 'sharpeningRadius', label: 'Radius', min: 0.5, max: 3, step: 0.05,
+    format: (value) => value.toFixed(2) },
+  { key: 'sharpeningDetail', label: 'Detail', min: 0, max: 100 },
+  { key: 'sharpeningMasking', label: 'Masking', min: 0, max: 100 }
+];
+export const DETAIL_NOISE_SLIDERS: readonly DetailSliderDefinition[] = [
+  { key: 'luminanceNoiseReduction', label: 'Luminance', min: 0, max: 100 },
+  { key: 'luminanceDetail', label: 'Luminance Detail', min: 0, max: 100 },
+  { key: 'luminanceContrast', label: 'Luminance Contrast', min: 0, max: 100 },
+  { key: 'colorNoiseReduction', label: 'Color', min: 0, max: 100 },
+  { key: 'colorDetail', label: 'Color Detail', min: 0, max: 100 },
+  { key: 'colorSmoothness', label: 'Color Smoothness', min: 0, max: 100 }
+];
 
 export const GRAIN_SLIDERS: ReadonlyArray<
   SliderDefinition<Exclude<keyof GrainSettings, 'enabled'>>

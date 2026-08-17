@@ -3,6 +3,7 @@ import { halationIsActive } from './effects/halation/settings';
 import { lensBlurIsActive } from './effects/lensBlur/settings';
 import { cloneVignetteSettings, vignetteIsActive, type VignetteSettings } from './effects/vignette/settings';
 import { pointColorIsActive } from './pointColor';
+import { detailIsActive } from './detail';
 import type { BasicAdjustments } from './types';
 
 const positiveControlStrength = (value: number, fullScale: number, maximum: number) => {
@@ -27,6 +28,10 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.contrast, 100, 0.42));
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.texture, 100, 0.32));
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(adjustments.clarity, 100, 0.32));
+  shoulderStrength = Math.max(
+    shoulderStrength,
+    positiveControlStrength(adjustments.detail.sharpeningAmount, 150, 0.28)
+  );
   if (vignetteIsActive(adjustments.effects.vignette)) {
     shoulderStrength = Math.max(
       shoulderStrength,
@@ -74,6 +79,7 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
       halationIsActive(adjustments.effects.halation)
       || lensBlurIsActive(adjustments.effects.lensBlur)
       || pointColorIsActive(adjustments.pointColor)
+      || detailIsActive(adjustments.detail)
       || vignetteIsActive(adjustments.effects.vignette)
   };
 };
