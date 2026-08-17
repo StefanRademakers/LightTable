@@ -1138,7 +1138,9 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
   }
   if (kind == 12u) {
     let levels = max(2.0, photoshopValue(95u));
-    return floor(clamp(rgb, vec3f(0.0), vec3f(1.0)) * levels) / max(levels - 1.0, 1.0);
+    let encoded = clamp(photoshopLinearSrgbToEncodedDocument(rgb), vec3f(0.0), vec3f(1.0));
+    let buckets = clamp(ceil(encoded * levels) - vec3f(1.0), vec3f(0.0), vec3f(levels - 1.0));
+    return photoshopEncodedDocumentToLinearSrgb(buckets / (levels - 1.0));
   }
   if (kind == 13u) {
     let level = photoshopValue(96u) / 255.0;

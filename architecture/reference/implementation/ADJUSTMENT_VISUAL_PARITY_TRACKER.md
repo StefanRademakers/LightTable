@@ -350,3 +350,24 @@ exact on both measured corpora and does not affect Grade.
 | --- | --- | ---: | ---: | ---: | ---: |
 | Hue/lightness diagnostic ramp | sRGB / 8-bit | 1 | 0.000% | 0.000% | 100.000% |
 | `D:\people.jpg` | sRGB / 16-bit | 1 | 0.000% | 0.000% | 100.000% |
+
+## Posterize
+
+Status: accepted.
+
+Photoshop 27.11 assigns each encoded document channel to one of the authored
+number of discrete buckets. A value exactly on a bucket boundary remains in the
+lower bucket, expressed by `ceil(channel * levels) - 1`, clamped to the valid
+bucket range. LightTable previously applied `floor(channel * levels)` in linear
+RGB, which moved both the boundaries and the displayed output levels.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Cases <= 5% RMSE |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 9 | 0.120% | 0.222% | 99.880% | 9 / 9 |
+| `D:\people.jpg` | sRGB / 16-bit | 9 | 0.427% | 3.004% | 99.573% | 9 / 9 |
+
+The corpus covers 2, 3, 4, 8, 16, 32, 64, 128, and 255 levels. The 16-bit
+Level 3 residual comes from pixels immediately around the one-third and
+two-thirds code boundaries; all other photographic cases are within two output
+code values. LightTable retains continuous float bucket values instead of
+injecting an ungrounded 8-bit epsilon into its 16-bit compositor.

@@ -383,6 +383,11 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).not.toContain('if (kind == 11u) { return vec3f(1.0) - rgb; }');
   });
 
+  it('evaluates Photoshop Posterize with encoded lower-inclusive buckets', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('ceil(encoded * levels) - vec3f(1.0)');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(buckets / (levels - 1.0))');
+  });
+
   it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');
