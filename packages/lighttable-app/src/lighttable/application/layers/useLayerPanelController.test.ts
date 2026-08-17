@@ -231,6 +231,20 @@ describe('createLayerPanelController', () => {
     ).toBe(true);
   });
 
+  it('can bypass a neutral Local Grade before its first authored change', () => {
+    const document = createImageDocument('test', 100, 100, 'asset');
+    const harness = setup(document);
+    const layerId = document.activeLayerId!;
+
+    harness.controller.setLocalGradeEnabled(layerId, false);
+    const layer = findDocumentLayer(harness.document(), layerId);
+
+    expect(layer?.type === 'raster' && layer.adjustmentStack
+      ? adjustmentStackHasLocalProcessing(layer.adjustmentStack, 'grade')
+        && !adjustmentStackLocalProcessingIsEnabled(layer.adjustmentStack, 'grade')
+      : false).toBe(true);
+  });
+
   it('creates a neutral attached Curves node without manufacturing local Grade', () => {
     const document = createImageDocument('test', 100, 100, 'asset');
     const harness = setup(document);

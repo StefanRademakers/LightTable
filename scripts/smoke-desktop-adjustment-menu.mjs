@@ -129,7 +129,7 @@ try {
 
   await page.getByRole('treeitem', { name: /Global Grade/ }).click();
   const globalGradeRow = page.getByRole('treeitem', { name: /Global Grade/ });
-  const gradePanel = page.getByRole('complementary', { name: 'Grade - All properties' });
+  const gradePanel = page.getByRole('complementary', { name: 'Global Grade properties' });
   const gradeMasterSwitch = gradePanel.getByRole('switch', { name: 'Disable Global Grade' });
   await gradeMasterSwitch.waitFor({ state: 'visible' });
   if (await gradePanel.getByText('Gradient Map', { exact: true }).count()) {
@@ -325,6 +325,8 @@ try {
   await page.getByRole('menu', { name: 'New fill or processing layer' })
     .getByRole('menuitem', { name: 'New Grade layer', exact: true })
     .click();
+  await page.getByRole('complementary', { name: 'Grade Layer properties' })
+    .waitFor({ state: 'visible' });
   const colorGradingToggle = page.getByRole('button', { name: 'Color Grading', exact: true });
   await colorGradingToggle.scrollIntoViewIfNeeded();
   if (await colorGradingToggle.getAttribute('aria-expanded') !== 'true') {
@@ -369,6 +371,9 @@ try {
     || activeSelectionStyles.tool.border !== activeSelectionStyles.layer.border) {
     throw new Error(`Active tool/layer styles diverge: ${JSON.stringify(activeSelectionStyles)}.`);
   }
+  await page.getByRole('treeitem', { name: /Background/ }).click();
+  await page.getByRole('complementary', { name: 'Local Grade properties' })
+    .waitFor({ state: 'visible' });
   await page.screenshot({ path: levelsScreenshotPath });
   if (pageErrors.length || consoleErrors.length) {
     throw new Error(`Renderer errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);

@@ -14,7 +14,7 @@ import {
 const commands = () => {
   const noop = vi.fn();
   return {
-    resetAll: noop, toggleVisibility: noop, resetGroup: noop,
+    resetAll: noop, toggleMasterEnabled: noop, toggleVisibility: noop, resetGroup: noop,
     beginAdjustment: noop, endAdjustment: noop, updateAdjustment: noop,
     resetAdjustment: noop, updateColorMixer: noop, resetColorMixer: noop,
     updateColorGradingWheel: noop, updateColorGradingLuminance: noop,
@@ -36,6 +36,7 @@ describe('LevelsPropertiesPanel', () => {
         visibility: createDefaultGroupVisibility(),
         histogram: null,
         resetModifierActive: false,
+        masterEnabled: true,
         colorMixerScopeContainerRef: { current: null },
         colorMixerHueCanvasRef: noop
       }}

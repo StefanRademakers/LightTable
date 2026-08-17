@@ -304,8 +304,12 @@ export const createLayerPanelController = (
     setStyleStackEnabled: (layerId, enabled) =>
       mutate((current) => setLayerStyleStackEnabled(current, layerId, enabled)),
     setLocalGradeEnabled: (layerId, enabled) =>
-      mutate((current) =>
-        setRasterLayerLocalProcessingEnabled(current, layerId, enabled, 'grade')),
+      mutate((current) => setRasterLayerLocalProcessingEnabled(
+        ensureRasterLayerLocalProcessing(current, layerId, 'grade'),
+        layerId,
+        enabled,
+        'grade'
+      )),
     setLocalCurvesEnabled: (layerId, enabled) =>
       mutate((current) =>
         setRasterLayerLocalProcessingEnabled(current, layerId, enabled, 'curves')),

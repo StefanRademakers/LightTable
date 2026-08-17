@@ -5,6 +5,7 @@ import {
   createDefaultLayerStyleStack
 } from '../../editor/styles/layerStyleDefaults';
 import {
+  gradePropertiesTitle,
   propertiesInspectorView,
   propertiesTargetIsValid,
   reconcilePropertiesTarget,
@@ -132,5 +133,26 @@ describe('properties inspector target', () => {
     expect(propertiesTargetIsValid(document, stale)).toBe(true);
     expect(reconcilePropertiesTarget(document, stale)).toBe(stale);
     expect(propertiesInspectorView(document, stale)).toBe('grade');
+  });
+
+  it('names the shared Grade editor by its processing owner', () => {
+    const raster = layer({ id: 'raster' as LayerNode['id'], type: 'raster', adjustmentStack: null });
+    const rasterDocument = documentWith(raster);
+    expect(gradePropertiesTitle(rasterDocument, { kind: 'document-processing', owner: 'grade' }))
+      .toBe('Global Grade');
+    expect(gradePropertiesTitle(rasterDocument, { kind: 'layer', layerId: raster.id }))
+      .toBe('Local Grade');
+    expect(gradePropertiesTitle(rasterDocument, {
+      kind: 'processing', layerId: raster.id, owner: 'grade'
+    })).toBe('Local Grade');
+
+    const grade = layer({
+      id: 'grade' as LayerNode['id'],
+      type: 'adjustment',
+      adjustmentKind: 'grade',
+      adjustmentStack: { id: 'grade-stack', revision: 1, modules: [] }
+    });
+    expect(gradePropertiesTitle(documentWith(grade), { kind: 'layer', layerId: grade.id }))
+      .toBe('Grade Layer');
   });
 });

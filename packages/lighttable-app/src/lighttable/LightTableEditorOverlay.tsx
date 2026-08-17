@@ -49,7 +49,11 @@ import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
-import { materializeBasicAdjustments } from './processing/adjustmentStack';
+import {
+  adjustmentStackHasLocalProcessing,
+  adjustmentStackLocalProcessingIsEnabled,
+  materializeBasicAdjustments
+} from './processing/adjustmentStack';
 import { attachedAdjustmentOwnerId } from './processing/attachedAdjustment';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
@@ -95,6 +99,7 @@ import { LayersWorkspacePanel } from './composition/workspace/LayersWorkspacePan
 import { ChannelsWorkspacePanel } from './composition/workspace/ChannelsWorkspacePanel';
 import { createEditorWorkspacePanels } from './composition/workspace/createEditorWorkspacePanels';
 import {
+  gradePropertiesTitle,
   propertiesInspectorView,
   reconcilePropertiesTarget,
   type PropertiesInspectorTarget
@@ -4161,6 +4166,39 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }), [executeRegisteredCommand, layerPanelController]);
   selectLayerRef.current = layerPanelController.select;
 
+  const reconciledPropertiesTarget = reconcilePropertiesTarget(imageDocument, propertiesTarget);
+  const gradeContextLayer = imageDocument && 'layerId' in reconciledPropertiesTarget
+    ? findDocumentLayer(imageDocument, reconciledPropertiesTarget.layerId)
+    : null;
+  const gradeMasterEnabled = reconciledPropertiesTarget.kind === 'document-processing'
+    && reconciledPropertiesTarget.owner === 'grade'
+    ? groupVisibility.globalGrade
+    : gradeContextLayer?.type === 'adjustment'
+      ? gradeContextLayer.visible
+      : gradeContextLayer?.type === 'raster'
+        && gradeContextLayer.adjustmentStack
+        && adjustmentStackHasLocalProcessing(gradeContextLayer.adjustmentStack, 'grade')
+        ? adjustmentStackLocalProcessingIsEnabled(gradeContextLayer.adjustmentStack, 'grade')
+        : true;
+  const toggleGradeMasterEnabled = () => {
+    if (reconciledPropertiesTarget.kind === 'document-processing'
+      && reconciledPropertiesTarget.owner === 'grade') {
+      documentProjectionController.applyGroupVisibilitySnapshot({
+        ...groupVisibilityRef.current,
+        globalGrade: !groupVisibilityRef.current.globalGrade
+      });
+      return;
+    }
+    if (!gradeContextLayer) return;
+    if (gradeContextLayer.type === 'adjustment') {
+      commandLayerPanelController.setVisibility([gradeContextLayer.id], !gradeContextLayer.visible);
+      return;
+    }
+    if (gradeContextLayer.type === 'raster') {
+      commandLayerPanelController.setLocalGradeEnabled(gradeContextLayer.id, !gradeMasterEnabled);
+    }
+  };
+
   const effectiveDocumentGuides = guideDraft ?? imageDocument?.guides ?? [];
   useEffect(() => {
     setGuideDraft(null);
@@ -6038,18 +6076,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 }
               },
               grade: {
+                gradeTitle: gradePropertiesTitle(imageDocument, propertiesTarget),
                 model: {
                   adjustmentStore: adjustmentPresentationStore,
                   metadata,
                   visibility: groupVisibility,
                   histogram,
                   resetModifierActive: shiftPressed,
+                  masterEnabled: gradeMasterEnabled,
                   colorMixerScopeContainerRef,
                   colorMixerHueCanvasRef: attachColorMixerHueCanvas,
                   colorLookupAssets: imageDocument?.assets.colorLookups ?? []
                 },
                   commands: {
                   resetAll,
+                  toggleMasterEnabled: toggleGradeMasterEnabled,
                   toggleVisibility: toggleGroupVisibility,
                   resetGroup,
                   beginAdjustment: beginAdjustmentTransaction,

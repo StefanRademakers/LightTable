@@ -42,6 +42,8 @@ export type PropertiesInspectorView =
   | 'effects'
   | 'text';
 
+export type GradePropertiesTitle = 'Global Grade' | 'Grade Layer' | 'Local Grade';
+
 const stackFor = (layer: LayerNode) => (
   layer.type === 'raster' || layer.type === 'adjustment'
     ? layer.adjustmentStack
@@ -112,4 +114,27 @@ export const propertiesInspectorView = (
   if (layer.type === 'raster') return 'grade';
   if (layer.type !== 'adjustment') return 'empty';
   return layer.adjustmentKind ?? adjustmentPropertiesViewForStack(layer.adjustmentStack);
+};
+
+/** Names the shared Grade editor by ownership, not by its control inventory. */
+export const gradePropertiesTitle = (
+  document: ImageDocument | null,
+  target: PropertiesInspectorTarget
+): GradePropertiesTitle => {
+  if (!document) return 'Local Grade';
+  const reconciled = reconcilePropertiesTarget(document, target);
+  if (reconciled.kind === 'document-processing' && reconciled.owner === 'grade') {
+    return 'Global Grade';
+  }
+  if (reconciled.kind === 'processing' && reconciled.owner === 'grade') {
+    return 'Local Grade';
+  }
+  if ('layerId' in reconciled) {
+    const layer = findDocumentLayer(document, reconciled.layerId);
+    if (layer?.type === 'adjustment'
+      && (layer.adjustmentKind ?? adjustmentPropertiesViewForStack(layer.adjustmentStack)) === 'grade') {
+      return 'Grade Layer';
+    }
+  }
+  return 'Local Grade';
 };

@@ -53,6 +53,7 @@ export interface GradePanelModel {
   readonly visibility: GroupVisibility;
   readonly histogram: RgbHistogram | null;
   readonly resetModifierActive: boolean;
+  readonly masterEnabled: boolean;
   readonly colorMixerScopeContainerRef: React.RefObject<HTMLDivElement | null>;
   readonly colorMixerHueCanvasRef: React.RefCallback<HTMLCanvasElement>;
   readonly colorLookupAssets?: readonly { readonly id: string; readonly name: string }[];
@@ -60,6 +61,7 @@ export interface GradePanelModel {
 
 export interface GradePanelCommands {
   readonly resetAll: () => void;
+  readonly toggleMasterEnabled: () => void;
   readonly toggleVisibility: (group: keyof GroupVisibility) => void;
   readonly resetGroup: (group: GradeGroup) => void;
   readonly beginAdjustment: () => void;
@@ -102,6 +104,7 @@ export interface GradePanelCommands {
 export interface GradePanelProps {
   readonly model: GradePanelModel;
   readonly commands: GradePanelCommands;
+  readonly gradeTitle?: 'Global Grade' | 'Grade Layer' | 'Local Grade';
 }
 
 const DEFAULT_EXPANDED: Readonly<Record<GradeGroup, boolean>> = {
@@ -179,7 +182,7 @@ const GroupHeader = ({
   </div>
 );
 
-export const GradePanel = ({ model, commands }: GradePanelProps) => {
+export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: GradePanelProps) => {
   const [expanded, setExpanded] = useState(DEFAULT_EXPANDED);
   const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
@@ -508,11 +511,11 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
   };
 
   return (
-    <aside className="lighttable-panel lighttable-grade-panel" aria-label="Grade - All properties">
+    <aside className="lighttable-panel lighttable-grade-panel" aria-label={`${gradeTitle} properties`}>
       <section className="lighttable-group lighttable-master-group">
         <div className="lighttable-group__header">
           <div className="lighttable-master-group__label">
-            <strong>Grade - All</strong>
+            <strong>{gradeTitle}</strong>
           </div>
           <div className="lighttable-group__actions">
             <ButtonBase
@@ -525,9 +528,9 @@ export const GradePanel = ({ model, commands }: GradePanelProps) => {
               <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
             </ButtonBase>
             <SwitchControl
-              checked={visibility.globalGrade}
-              onCheckedChange={() => commands.toggleVisibility('globalGrade')}
-              label={visibility.globalGrade ? 'Disable Global Grade' : 'Enable Global Grade'}
+              checked={model.masterEnabled}
+              onCheckedChange={commands.toggleMasterEnabled}
+              label={model.masterEnabled ? `Disable ${gradeTitle}` : `Enable ${gradeTitle}`}
             />
           </div>
         </div>

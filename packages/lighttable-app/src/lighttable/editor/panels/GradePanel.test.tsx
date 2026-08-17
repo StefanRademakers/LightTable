@@ -16,11 +16,12 @@ const props = (globalGrade: boolean): GradePanelProps => {
       visibility: { ...createDefaultGroupVisibility(), globalGrade },
       histogram: null,
       resetModifierActive: false,
+      masterEnabled: globalGrade,
       colorMixerScopeContainerRef: { current: null },
       colorMixerHueCanvasRef: noop
     },
     commands: {
-      resetAll: noop, toggleVisibility: noop, resetGroup: noop,
+      resetAll: noop, toggleMasterEnabled: noop, toggleVisibility: noop, resetGroup: noop,
       beginAdjustment: noop, endAdjustment: noop, updateAdjustment: noop,
       resetAdjustment: noop, updateColorMixer: noop, resetColorMixer: noop,
       updateColorGradingWheel: noop, updateColorGradingLuminance: noop,
@@ -34,11 +35,12 @@ const props = (globalGrade: boolean): GradePanelProps => {
 
 describe('GradePanel', () => {
   it('uses Global Grade visibility for its master switch and omits Gradient Map', () => {
-    const enabled = renderToStaticMarkup(<GradePanel {...props(true)} />);
-    const disabled = renderToStaticMarkup(<GradePanel {...props(false)} />);
+    const enabled = renderToStaticMarkup(<GradePanel {...props(true)} gradeTitle="Global Grade" />);
+    const disabled = renderToStaticMarkup(<GradePanel {...props(false)} gradeTitle="Global Grade" />);
 
     expect(enabled).toContain('aria-label="Disable Global Grade"');
-    expect(enabled).toContain('aria-label="Grade - All properties"');
+    expect(enabled).toContain('aria-label="Global Grade properties"');
+    expect(enabled).toContain('<strong>Global Grade</strong>');
     expect(enabled).toContain('aria-checked="true"');
     expect(disabled).toContain('aria-label="Enable Global Grade"');
     expect(disabled).toContain('aria-checked="false"');
@@ -50,5 +52,13 @@ describe('GradePanel', () => {
 
     expect(markup).toContain('aria-label="Gradient Map properties"');
     expect(markup).toContain('<strong>Gradient Map</strong>');
+  });
+
+  it.each(['Grade Layer', 'Local Grade'] as const)('presents the %s ownership context', (gradeTitle) => {
+    const markup = renderToStaticMarkup(<GradePanel {...props(true)} gradeTitle={gradeTitle} />);
+
+    expect(markup).toContain(`aria-label="${gradeTitle} properties"`);
+    expect(markup).toContain(`<strong>${gradeTitle}</strong>`);
+    expect(markup).toContain(`aria-label="Disable ${gradeTitle}"`);
   });
 });
