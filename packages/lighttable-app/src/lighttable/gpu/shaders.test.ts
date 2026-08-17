@@ -10,6 +10,7 @@ import {
   DOCUMENT_THUMBNAIL_WGSL,
   FULLSCREEN_VERTEX_WGSL,
   GAUSSIAN_BLUR_WGSL,
+  GLOBAL_GRADE_MIX_WGSL,
   HISTOGRAM_WGSL,
   MASK_VIEWPORT_BLIT_WGSL,
   OUTPUT_TRANSFORM_WGSL,
@@ -94,6 +95,7 @@ const renderShaders = [
   ['downsample', DOWNSAMPLE_WGSL],
   ['gaussian blur', GAUSSIAN_BLUR_WGSL],
   ['creative grade', CREATIVE_GRADE_WGSL],
+  ['Global Grade strength mix', GLOBAL_GRADE_MIX_WGSL],
   ['lens blur depth refinement', LENS_BLUR_DEPTH_REFINE_WGSL],
   ['lens blur downsample', LENS_BLUR_DOWNSAMPLE_WGSL],
   ['lens blur gather', LENS_BLUR_GATHER_WGSL],
@@ -115,6 +117,11 @@ const renderShaders = [
 ] as const;
 
 describe('LightTable WGSL modules', () => {
+  it('mixes Global Grade once after its complete pipeline', () => {
+    expect(GLOBAL_GRADE_MIX_WGSL).toContain('return mix(source, graded, clamp(settings.strength');
+    expect(BASIC_CORRECTION_WGSL).not.toContain('settings.strength');
+    expect(CREATIVE_GRADE_WGSL).not.toContain('settings.strength');
+  });
   it('avoids compound assignment to swizzles for older Dawn validators', () => {
     const allShaders = renderShaders.map(([, shader]) => shader).join('\n');
     expect(allShaders).not.toMatch(/\.[rgbaxyzw]{2,4}\s*[+\-*/]=/);

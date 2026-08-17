@@ -15,6 +15,8 @@ import { createDefaultLensBlurSettings, LENS_BLUR_QUALITIES } from './effects/le
 export interface LightTableRecipe {
   sourceFileKey: string;
   settings: BasicAdjustments;
+  /** Mix for the document-final Global Grade pass. Layer grades use layer opacity. */
+  globalGradeStrength?: number;
   documentFormat?: 'embedded-layered-png';
 }
 
@@ -47,10 +49,14 @@ const parseEffectSettings = <Settings extends object>(raw: unknown, defaults: Se
 export const createLightTableRecipe = (
   sourceFileKey: string,
   settings: BasicAdjustments,
-  documentFormat?: LightTableRecipe['documentFormat']
+  documentFormat?: LightTableRecipe['documentFormat'],
+  globalGradeStrength = 100
 ): LightTableRecipe => ({
   sourceFileKey,
   settings: cloneAdjustments(settings),
+  ...(globalGradeStrength === 100 ? {} : {
+    globalGradeStrength: Math.min(100, Math.max(0, globalGradeStrength))
+  }),
   ...(documentFormat ? { documentFormat } : {})
 });
 
@@ -220,7 +226,16 @@ export const parseLightTableRecipe = (metadataJson: unknown): LightTableRecipe |
   const documentFormat = candidate.documentFormat === 'embedded-layered-png'
     ? candidate.documentFormat
     : undefined;
-  return sourceFileKey && settings ? { sourceFileKey, settings, ...(documentFormat ? { documentFormat } : {}) } : null;
+  const globalGradeStrength = typeof candidate.globalGradeStrength === 'number'
+    && Number.isFinite(candidate.globalGradeStrength)
+    ? Math.min(100, Math.max(0, candidate.globalGradeStrength))
+    : undefined;
+  return sourceFileKey && settings ? {
+    sourceFileKey,
+    settings,
+    ...(globalGradeStrength === undefined ? {} : { globalGradeStrength }),
+    ...(documentFormat ? { documentFormat } : {})
+  } : null;
 };
 
 export const resolveLightTableRecipe = async (

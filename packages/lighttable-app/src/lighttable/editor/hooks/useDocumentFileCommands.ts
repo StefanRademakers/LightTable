@@ -46,6 +46,7 @@ export interface DocumentFileCommandsOptions {
   readonly getEffectiveLayeredAdjustments: (
     document: ImageDocument
   ) => BasicAdjustments;
+  readonly getGlobalGradeStrength?: () => number;
   readonly getPreservedSourceAssets: () => readonly PreservedSourceAssetBlob[];
   readonly getFontAssets: () => Promise<readonly FontAssetBlob[]> | readonly FontAssetBlob[];
   readonly hydrateLocalFile: (
@@ -147,6 +148,7 @@ export const useDocumentFileCommands = (
       documentAdjustments: current.getDocumentAdjustments(),
       effectiveLayeredAdjustments:
         current.getEffectiveLayeredAdjustments(imageDocument),
+      globalGradeStrength: current.getGlobalGradeStrength?.() ?? 100,
       preservedSourceAssets: current.getPreservedSourceAssets(),
       fontAssets: await current.getFontAssets()
     }, runtime);

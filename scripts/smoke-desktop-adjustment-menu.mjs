@@ -8,6 +8,7 @@ const workspace = path.resolve(import.meta.dirname, '..');
 const output = path.join(workspace, 'tmp', 'adjustment-menu-smoke');
 const reportPath = path.join(output, 'report.json');
 const screenshotPath = path.join(output, 'adjustment-menu.png');
+const globalGradeScreenshotPath = path.join(output, 'global-grade-controls.png');
 const levelsScreenshotPath = path.join(output, 'levels-properties.png');
 const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(workspace);
@@ -125,6 +126,25 @@ try {
   if (globalActiveBackground !== 'rgb(36, 86, 163)') {
     throw new Error(`Active global row has the wrong background: ${globalActiveBackground}.`);
   }
+
+  await page.getByRole('treeitem', { name: /Global Grade/ }).click();
+  const globalStrength = layersPanel.getByRole('slider', { name: 'Strength', exact: true });
+  await globalStrength.waitFor({ state: 'visible' });
+  await layersPanel.getByRole('combobox', { name: 'Global Grade look or preset' })
+    .waitFor({ state: 'visible' });
+  const layerListTopWithGlobalGrade = await layerListTop();
+  if (Math.abs(layerListTopWithCompositeLayer - layerListTopWithGlobalGrade) > 0.5) {
+    throw new Error(`Global Grade made the layer stack jump: ${layerListTopWithCompositeLayer} -> ${layerListTopWithGlobalGrade}.`);
+  }
+  await layersPanel.screenshot({ path: globalGradeScreenshotPath });
+  await layersPanel.getByRole('button', { name: 'Copy Global Grade' }).click();
+  await layersPanel.getByRole('button', { name: 'Paste Global Grade' })
+    .waitFor({ state: 'visible' });
+  if (await layersPanel.getByRole('button', { name: 'Paste Global Grade' }).isDisabled()) {
+    throw new Error('The shared Grade clipboard did not enable Global Grade paste.');
+  }
+  await page.getByRole('treeitem', { name: /Background/ }).click();
+  await layersPanel.getByLabel('Layer blend mode').waitFor({ state: 'visible' });
 
   const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
   await trigger.click();

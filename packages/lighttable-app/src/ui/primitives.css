@@ -165,6 +165,29 @@ select option:checked {
   background: var(--lt-surface-control-hover);
 }
 
+.square-icon-button--compact {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+.square-icon-button--compact img,
+.square-icon-button--compact svg {
+  width: 13px;
+  height: 13px;
+}
+
+.square-icon-button--quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.square-icon-button--quiet:hover:not(:disabled) {
+  border-color: var(--lt-border-strong);
+  background: var(--lt-surface-control);
+}
+
 .lighttable-search-field {
   width: 100%;
   height: var(--lt-control-height);

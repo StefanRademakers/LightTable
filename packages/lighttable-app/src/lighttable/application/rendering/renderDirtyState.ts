@@ -46,10 +46,8 @@ export interface AdjustmentRenderChange {
 export const resolveAdjustmentInvalidationStage = (
   change: AdjustmentRenderChange
 ): CorrectionRenderStage | null => {
-  const gradeOrOutputChanged = change.uniformChanged
-    || change.curveChanged
-    || change.outputChanged;
-  if (!gradeOrOutputChanged) return change.effectStage;
+  if (change.uniformChanged || change.curveChanged) return 'source-geometry';
+  if (!change.outputChanged) return change.effectStage;
   if (change.effectStage === 'source-geometry' || change.effectStage === 'linear-spatial') {
     return change.effectStage;
   }

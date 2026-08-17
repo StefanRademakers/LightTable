@@ -5,6 +5,7 @@ import {
   DOWNSAMPLE_WGSL,
   FULLSCREEN_VERTEX_WGSL,
   GAUSSIAN_BLUR_WGSL,
+  GLOBAL_GRADE_MIX_WGSL,
   HISTOGRAM_WGSL,
   CHANNEL_VIEWPORT_BLIT_WGSL,
   MASK_VIEWPORT_BLIT_WGSL,
@@ -21,6 +22,7 @@ export interface CorePipelineBundle {
   downsample: GPURenderPipeline;
   blur: GPURenderPipeline;
   creative: GPURenderPipeline;
+  globalGradeMix: GPURenderPipeline;
   output: GPURenderPipeline;
   precisionSourceResolve: GPURenderPipeline;
   displayResolve: GPURenderPipeline;
@@ -103,6 +105,11 @@ export const getCorePipelineBundle = (
     creative: createRenderPipeline(
       'LightTable creative grade',
       CREATIVE_GRADE_WGSL,
+      'rgba16float'
+    ),
+    globalGradeMix: createRenderPipeline(
+      'LightTable Global Grade strength mix',
+      GLOBAL_GRADE_MIX_WGSL,
       'rgba16float'
     ),
     output: createRenderPipeline(

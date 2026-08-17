@@ -34,6 +34,7 @@ export interface ExportLightTableDocumentOptions {
   flatAdjustments: BasicAdjustments;
   documentAdjustments: BasicAdjustments;
   effectiveLayeredAdjustments: BasicAdjustments;
+  globalGradeStrength?: number;
   preservedSourceAssets: readonly PreservedSourceAssetBlob[];
   fontAssets?: readonly FontAssetBlob[];
 }
@@ -79,6 +80,7 @@ export const exportLightTableDocument = async ({
   flatAdjustments,
   documentAdjustments,
   effectiveLayeredAdjustments,
+  globalGradeStrength = 100,
   preservedSourceAssets,
   fontAssets = []
 }: ExportLightTableDocumentOptions, runtime: ExportLightTableRuntimeOptions = {}): Promise<ExportedLightTableDocument> => {
@@ -90,7 +92,7 @@ export const exportLightTableDocument = async ({
   if (canExportAsFlatRecipe(document)) {
     return {
       file: new File([preview], outputName, { type: 'image/png' }),
-      recipe: createLightTableRecipe(recipeSourceKey, flatAdjustments)
+      recipe: createLightTableRecipe(recipeSourceKey, flatAdjustments, undefined, globalGradeStrength)
     };
   }
 
@@ -114,7 +116,8 @@ export const exportLightTableDocument = async ({
     recipe: createLightTableRecipe(
       recipeSourceKey,
       effectiveLayeredAdjustments,
-      'embedded-layered-png'
+      'embedded-layered-png',
+      globalGradeStrength
     )
   };
 };

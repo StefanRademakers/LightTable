@@ -1525,6 +1525,33 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/** Exact document-only opacity mix after the complete Global Grade pipeline. */
+export const GLOBAL_GRADE_MIX_WGSL = /* wgsl */ `
+struct GlobalGradeMixSettings {
+  whites: f32,
+  shoulderStrength: f32,
+  enabled: f32,
+  vignette: f32,
+  sourceWidth: f32,
+  sourceHeight: f32,
+  strength: f32,
+  padding: f32,
+}
+
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var gradedTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> settings: GlobalGradeMixSettings;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let dimensions = vec2i(textureDimensions(sourceTexture));
+  let coordinate = clamp(vec2i(floor(input.uv * vec2f(dimensions))), vec2i(0), dimensions - vec2i(1));
+  let source = textureLoad(sourceTexture, coordinate, 0);
+  let graded = textureLoad(gradedTexture, coordinate, 0);
+  return mix(source, graded, clamp(settings.strength, 0.0, 1.0));
+}
+`;
+
 export const OUTPUT_TRANSFORM_WGSL = /* wgsl */ `
 struct OutputSettings {
   whites: f32,

@@ -1,5 +1,5 @@
 import type { GradientPaintInstance } from '@lighttable/paint-core';
-import type { BasicAdjustments, LightTableImageMetadata } from '../types';
+import { createDefaultAdjustments, type BasicAdjustments, type LightTableImageMetadata } from '../types';
 import { CURVE_LUT_SIZE } from '../curves';
 import {
   DocumentEffectRuntime,
@@ -78,7 +78,10 @@ import { ViewportPresentationController } from '../application/rendering/viewpor
 import type { ViewportRenderRect } from '../application/rendering/viewportRenderState';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
-import type { AdjustmentStack } from '../processing/adjustmentStack';
+import {
+  adjustmentStackOwnerHasAuthoredSettings,
+  type AdjustmentStack
+} from '../processing/adjustmentStack';
 import { DocumentAdjustmentState } from '../processing/documentAdjustmentState';
 import type { WebGpuScopeOptions } from './WebGpuScopeEngine';
 import {
@@ -194,6 +197,8 @@ export class WebGpuEngine {
   private pendingTextInteractionTrace: TextInteractionTraceIdentity | null = null;
   private readonly imageResources = new DocumentImageGpuResources();
   private readonly adjustmentState = new DocumentAdjustmentState();
+  /** Document-only mix. Grade layers and attached grades use layer compositing instead. */
+  private globalGradeStrength = 1;
   private readonly viewportPresentation: ViewportPresentationController;
   private coreResources: DocumentCoreGpuResources | null = null;
 
@@ -249,6 +254,7 @@ export class WebGpuEngine {
   private downsamplePipeline: GPURenderPipeline | null = null;
   private blurPipeline: GPURenderPipeline | null = null;
   private creativePipeline: GPURenderPipeline | null = null;
+  private globalGradeMixPipeline: GPURenderPipeline | null = null;
   private outputPipeline: GPURenderPipeline | null = null;
   private effectRuntime: DocumentEffectRuntime | null = null;
   private layerEffectRenderer: LayerEffectRenderer | null = null;
@@ -386,6 +392,7 @@ export class WebGpuEngine {
     this.downsamplePipeline = pipelines.downsample;
     this.blurPipeline = pipelines.blur;
     this.creativePipeline = pipelines.creative;
+    this.globalGradeMixPipeline = pipelines.globalGradeMix;
     this.outputPipeline = pipelines.output;
     this.sourceLoader = new DocumentSourceGpuLoader(
       this.device,
@@ -1664,6 +1671,19 @@ export class WebGpuEngine {
     this.applyMaterializedAdjustments();
   }
 
+  setGlobalGradeStrength(percent: number) {
+    const next = Math.min(1, Math.max(0, percent / 100));
+    if (next === this.globalGradeStrength) return;
+    this.globalGradeStrength = next;
+    const payloadChange = this.syncAdjustmentPayload();
+    const outputChanged = this.writeOutputSettings();
+    if (!payloadChange?.uniformChanged && !outputChanged) return;
+    this.renderDirty.invalidateCorrectionFrom('source-geometry');
+    this.renderDirty.invalidate('histogram');
+    this.scopeRuntime.markImageDirty();
+    this.requestRender();
+  }
+
   setAdjustmentStack(stack: AdjustmentStack) {
     if (!this.adjustmentState.replaceStack(stack)) return;
     this.applyMaterializedAdjustments();
@@ -2103,20 +2123,27 @@ export class WebGpuEngine {
 
   private writeOutputSettings(): boolean {
     if (!this.coreResources) return false;
-    const settings = calculateOutputTransformSettings(this.adjustmentState.current);
+    const currentAdjustments = this.adjustmentState.current;
+    const strength = this.globalGradeStrength;
+    const settings = calculateOutputTransformSettings(currentAdjustments);
+    const lensOnly = calculateOutputTransformSettings({
+      ...createDefaultAdjustments(),
+      effects: currentAdjustments.effects
+    });
     const visualizingDepth = Boolean(
       this.adjustmentState.current.effects.lensBlur.enabled &&
       this.lensBlurDepthVisualization &&
       this.effectRuntime?.hasDepth
     );
     const next = new Float32Array([
-      visualizingDepth ? 0 : settings.whites,
-      visualizingDepth ? 0 : settings.shoulderStrength,
-      visualizingDepth ? 0 : (settings.active ? 1 : 0),
-      visualizingDepth ? 0 : settings.vignette,
+      visualizingDepth ? 0 : settings.whites * strength,
+      visualizingDepth ? 0 : lensOnly.shoulderStrength
+        + (settings.shoulderStrength - lensOnly.shoulderStrength) * strength,
+      visualizingDepth ? 0 : (lensOnly.active || (settings.active && strength > 0) ? 1 : 0),
+      visualizingDepth ? 0 : settings.vignette * strength,
       this.metadata?.width ?? 1,
       this.metadata?.height ?? 1,
-      0,
+      strength,
       0
     ]);
     return this.coreResources.writeOutputSettings(next);
@@ -2187,7 +2214,8 @@ export class WebGpuEngine {
     if (this.destroyed || !this.metadata || !this.imageResources.correctedTexture || !this.imageResources.downsampleTexture ||
       !this.imageResources.blurTexture || !this.imageResources.creativeTexture || !this.imageResources.displayTexture ||
       !this.imageResources.finalTexture || !this.basicPipeline || !this.downsamplePipeline ||
-      !this.blurPipeline || !this.creativePipeline || !this.outputPipeline || !this.coreResources ||
+      !this.blurPipeline || !this.creativePipeline || !this.globalGradeMixPipeline ||
+      !this.outputPipeline || !this.coreResources ||
       !this.imageResources.sourceTexture ||
       !this.effectRuntime || !this.documentRenderer || !this.imageDocument ||
       !this.displayResolvePipeline || !this.blitPipeline || !this.maskBlitPipeline ||
@@ -2267,9 +2295,73 @@ export class WebGpuEngine {
         this.renderDirty.correctionStageRequired('source-geometry')
         || !this.sourceGeometryTexture
       ) {
+        const gradeEnabled = this.globalGradeStrength > 0
+          && adjustmentStackOwnerHasAuthoredSettings(this.adjustmentState.current, 'grade');
+        let gradedTexture = documentTexture;
+        if (gradeEnabled) {
+          const basicBindGroup = this.device.createBindGroup({
+            layout: this.basicPipeline.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: documentTexture.createView() },
+              { binding: 1, resource: this.coreResources.sampler },
+              { binding: 2, resource: { buffer: this.coreResources.adjustmentBuffer } }
+            ]
+          });
+          this.drawFullscreenPass(
+            encoder,
+            this.basicPipeline,
+            basicBindGroup,
+            this.imageResources.correctedTexture.createView()
+          );
+          if (Math.abs(this.adjustmentState.current.clarity) > 0.00001
+            || Math.abs(this.adjustmentState.current.dehaze) > 0.00001) {
+            this.drawFullscreenPass(
+              encoder,
+              this.downsamplePipeline,
+              this.imageResources.downsampleBindGroup,
+              this.imageResources.downsampleTexture.createView()
+            );
+            this.drawFullscreenPass(
+              encoder,
+              this.blurPipeline,
+              this.imageResources.blurHorizontalBindGroup,
+              this.imageResources.blurTexture.createView()
+            );
+            this.drawFullscreenPass(
+              encoder,
+              this.blurPipeline,
+              this.imageResources.blurVerticalBindGroup,
+              this.imageResources.downsampleTexture.createView()
+            );
+          }
+          this.drawFullscreenPass(
+            encoder,
+            this.creativePipeline,
+            this.imageResources.creativeBindGroup,
+            this.imageResources.creativeTexture.createView()
+          );
+          gradedTexture = this.imageResources.creativeTexture;
+          if (this.globalGradeStrength < 1) {
+            const mixBindGroup = this.device.createBindGroup({
+              layout: this.globalGradeMixPipeline.getBindGroupLayout(0),
+              entries: [
+                { binding: 0, resource: documentTexture.createView() },
+                { binding: 1, resource: this.imageResources.creativeTexture.createView() },
+                { binding: 2, resource: { buffer: this.coreResources.outputSettingsBuffer } }
+              ]
+            });
+            this.drawFullscreenPass(
+              encoder,
+              this.globalGradeMixPipeline,
+              mixBindGroup,
+              this.imageResources.correctedTexture.createView()
+            );
+            gradedTexture = this.imageResources.correctedTexture;
+          }
+        }
         this.sourceGeometryTexture = this.renderTelemetry.measure(
           'source-geometry',
-          () => this.effectRuntime!.encodeSourceGeometry(encoder, documentTexture)
+          () => this.effectRuntime!.encodeSourceGeometry(encoder, gradedTexture)
         );
       }
       const sourceGeometryTexture = this.sourceGeometryTexture;

@@ -125,7 +125,7 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 137,
+      "productionUsageCount": 139,
       "internalUsageCount": 0,
       "contextCount": 35,
       "overrideCount": 0,
@@ -237,7 +237,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 21,
+          "count": 23,
           "kind": "product"
         },
         {
@@ -311,11 +311,16 @@
     {
       "id": "square-icon-button",
       "metadataDeclared": true,
-      "productionUsageCount": 1,
+      "productionUsageCount": 4,
       "internalUsageCount": 1,
-      "contextCount": 1,
+      "contextCount": 2,
       "overrideCount": 0,
       "locations": [
+        {
+          "path": "lighttable/editor/ui/LayerPanel.tsx",
+          "count": 3,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/ui/LightTableEditorShell.tsx",
           "count": 1,
@@ -385,7 +390,7 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 27,
+      "productionUsageCount": 28,
       "internalUsageCount": 1,
       "contextCount": 13,
       "overrideCount": 1,
@@ -422,7 +427,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 1,
+          "count": 2,
           "kind": "product"
         },
         {
@@ -706,7 +711,7 @@
     {
       "id": "adjustment-slider",
       "metadataDeclared": true,
-      "productionUsageCount": 34,
+      "productionUsageCount": 35,
       "internalUsageCount": 5,
       "contextCount": 11,
       "overrideCount": 0,
@@ -753,7 +758,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 2,
+          "count": 3,
           "kind": "product"
         },
         {

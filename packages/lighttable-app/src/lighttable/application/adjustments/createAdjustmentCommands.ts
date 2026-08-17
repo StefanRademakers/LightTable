@@ -40,7 +40,7 @@ import {
   createDefaultLensDistortionSettings,
   DEFAULT_LENS_DISTORTION_SETTINGS
 } from '../../effects/lensDistortion/settings';
-import { copyLightTableGrade } from '../../lightTableGradeClipboard';
+import { copyLightTableGrade, pasteGradeSettings } from '../../lightTableGradeClipboard';
 import {
   createDefaultAdjustments,
   DEFAULT_BASIC_ADJUSTMENTS,
@@ -153,6 +153,7 @@ export interface AdjustmentCommands {
   readonly resetAll: () => void;
   readonly toggleGroupVisibility: (group: keyof GroupVisibility) => void;
   readonly resetGroup: (group: keyof GroupVisibility) => void;
+  readonly resetGrade: () => void;
   readonly copyGrade: () => void;
   readonly pasteGrade: (name: string, settings: BasicAdjustments) => void;
 }
@@ -561,9 +562,18 @@ export const createAdjustmentCommands = (
     ports.publishGradeStatus('Grade copied');
   };
 
+  const resetGrade = () => {
+    ports.endAdjustment();
+    ports.changeAdjustments(
+      (current) => pasteGradeSettings(current, createDefaultAdjustments()),
+      'grade'
+    );
+    ports.publishGradeStatus('Global Grade reset');
+  };
+
   const pasteGrade = (name: string, settings: BasicAdjustments) => {
     ports.endAdjustment();
-    ports.changeAdjustments(() => settings, 'all');
+    ports.changeAdjustments((current) => pasteGradeSettings(current, settings), 'grade');
     ports.publishGradeStatus(`Loaded ${name}`);
   };
 
@@ -610,6 +620,7 @@ export const createAdjustmentCommands = (
     resetAll,
     toggleGroupVisibility,
     resetGroup,
+    resetGrade,
     copyGrade,
     pasteGrade
   };

@@ -18,10 +18,13 @@ describe('resolveAdjustmentInvalidationStage', () => {
 
   it.each([
     ['uniform', { ...unchanged, uniformChanged: true }],
-    ['curve', { ...unchanged, curveChanged: true }],
-    ['output', { ...unchanged, outputChanged: true }]
-  ])('starts %s changes at the output stage', (_name, change) => {
-    expect(resolveAdjustmentInvalidationStage(change)).toBe('output');
+    ['curve', { ...unchanged, curveChanged: true }]
+  ])('starts %s changes at the document Grade stage', (_name, change) => {
+    expect(resolveAdjustmentInvalidationStage(change)).toBe('source-geometry');
+  });
+
+  it('keeps output-only settings at the output stage', () => {
+    expect(resolveAdjustmentInvalidationStage({ ...unchanged, outputChanged: true })).toBe('output');
   });
 
   it('preserves an earlier effect stage', () => {
@@ -29,7 +32,7 @@ describe('resolveAdjustmentInvalidationStage', () => {
       ...unchanged,
       effectStage: 'linear-spatial',
       uniformChanged: true
-    })).toBe('linear-spatial');
+    })).toBe('source-geometry');
   });
 
   it('uses output before a later display-post effect', () => {
@@ -37,7 +40,7 @@ describe('resolveAdjustmentInvalidationStage', () => {
       ...unchanged,
       effectStage: 'display-post',
       curveChanged: true
-    })).toBe('output');
+    })).toBe('source-geometry');
   });
 
   it('renders an effect-only change from its own stage', () => {

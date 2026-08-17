@@ -40,6 +40,14 @@ export interface LayersWorkspacePanelProps {
   documentProcessingVisibility: Readonly<{ grade: boolean; lensFx: boolean }>;
   onDocumentProcessingVisibility: (owner: 'grade' | 'lens-fx', visible: boolean) => void;
   onInspectDocumentProcessing: (owner: 'grade' | 'lens-fx') => void;
+  globalGradeStrength: number;
+  copiedGradeName: string | null;
+  onGlobalGradeStrength: (strength: number) => void;
+  onGlobalGradeStrengthInteractionStart: () => void;
+  onGlobalGradeStrengthInteractionEnd: () => void;
+  onResetGlobalGrade: () => void;
+  onCopyGlobalGrade: () => void;
+  onPasteGlobalGrade: () => void;
   onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
 }
 
@@ -71,6 +79,14 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   documentProcessingVisibility,
   onDocumentProcessingVisibility,
   onInspectDocumentProcessing,
+  globalGradeStrength,
+  copiedGradeName,
+  onGlobalGradeStrength,
+  onGlobalGradeStrengthInteractionStart,
+  onGlobalGradeStrengthInteractionEnd,
+  onResetGlobalGrade,
+  onCopyGlobalGrade,
+  onPasteGlobalGrade,
   onInspectAttachedAdjustment
 }) => {
   if (!document) {
@@ -151,6 +167,14 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         documentProcessingVisibility={documentProcessingVisibility}
         onDocumentProcessingVisibility={onDocumentProcessingVisibility}
         onInspectDocumentProcessing={onInspectDocumentProcessing}
+        globalGradeStrength={globalGradeStrength}
+        copiedGradeName={copiedGradeName}
+        onGlobalGradeStrength={onGlobalGradeStrength}
+        onGlobalGradeStrengthInteractionStart={onGlobalGradeStrengthInteractionStart}
+        onGlobalGradeStrengthInteractionEnd={onGlobalGradeStrengthInteractionEnd}
+        onResetGlobalGrade={onResetGlobalGrade}
+        onCopyGlobalGrade={onCopyGlobalGrade}
+        onPasteGlobalGrade={onPasteGlobalGrade}
         onInspectAttachedAdjustment={onInspectAttachedAdjustment}
       />
     </div>

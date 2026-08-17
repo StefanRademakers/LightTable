@@ -3022,6 +3022,34 @@
   pointer-events: none;
 }
 
+.lighttable-layers__composite-controls--global-grade {
+  gap: 0;
+}
+
+.lighttable-global-grade-controls__preset-row {
+  min-height: 25px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+
+.lighttable-global-grade-controls__preset-row .form-input {
+  width: 100%;
+  height: 25px;
+  min-height: 25px;
+}
+
+.lighttable-global-grade-controls__clipboard-row {
+  height: 20px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+}
+
 .lighttable-layers__locks {
   min-height: 24px;
   flex: 0 0 auto;

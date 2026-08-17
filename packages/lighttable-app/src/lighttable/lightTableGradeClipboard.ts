@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { parseLightTableSettings } from './lightTableRecipe';
-import { cloneAdjustments, type BasicAdjustments } from './types';
+import { cloneAdjustments, createDefaultAdjustments, type BasicAdjustments } from './types';
 
 const STORAGE_KEY = 'storybuilder:lighttable:grade-clipboard';
 const CHANGE_EVENT = 'storybuilder:lighttable-grade-clipboard-change';
@@ -13,6 +13,21 @@ export interface LightTableGradeClipboard {
 }
 
 const cloneSettings = (settings: BasicAdjustments): BasicAdjustments => cloneAdjustments(settings);
+
+/** Lens FX is a separate document pass and never travels with a Grade recipe. */
+export const gradeClipboardSettings = (settings: BasicAdjustments): BasicAdjustments => ({
+  ...cloneSettings(settings),
+  effects: createDefaultAdjustments().effects
+});
+
+/** Applies a copied Grade while preserving the destination's independent Lens FX pass. */
+export const pasteGradeSettings = (
+  destination: BasicAdjustments,
+  copied: BasicAdjustments
+): BasicAdjustments => ({
+  ...cloneSettings(copied),
+  effects: cloneSettings(destination).effects
+});
 
 export const readLightTableGrade = (): LightTableGradeClipboard | null => {
   if (typeof window === 'undefined') return null;
@@ -39,7 +54,7 @@ export const copyLightTableGrade = (settings: BasicAdjustments, name = 'Copied g
     type: 'lighttable-grade',
     name: name.trim() || 'Copied grade',
     copiedAt: new Date().toISOString(),
-    settings: cloneSettings(settings)
+    settings: gradeClipboardSettings(settings)
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(grade));
   window.dispatchEvent(new Event(CHANGE_EVENT));

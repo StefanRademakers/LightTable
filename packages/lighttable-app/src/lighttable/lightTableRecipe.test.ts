@@ -18,6 +18,17 @@ describe('parseLightTableRecipe', () => {
     expect(recipe?.documentFormat).toBe('embedded-layered-png');
   });
 
+  it('restores and clamps the separate Global Grade strength', () => {
+    const recipe = parseLightTableRecipe({
+      lighttable: {
+        sourceFileKey: 'media/graded.png',
+        globalGradeStrength: 62,
+        settings: { exposureEV: 1 }
+      }
+    });
+    expect(recipe?.globalGradeStrength).toBe(62);
+  });
+
   it('restores recognized settings and fills current defaults', () => {
     const recipe = parseLightTableRecipe({
       lighttable: {

@@ -603,6 +603,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scopesColumnRef = useRef<HTMLElement | null>(null);
   const engineRef = useRef<DocumentRendererPort | null>(null);
+  const [globalGradeStrength, setGlobalGradeStrengthState] = React.useState(
+    () => initialRecipe?.globalGradeStrength ?? 100
+  );
+  const globalGradeStrengthRef = useRef(globalGradeStrength);
+  const globalGradeStrengthGestureRef = useRef<number | null>(null);
   const thumbnailTimerRef = useRef<number | null>(null);
   const thumbnailGenerationRef = useRef(0);
   const publishDocumentThumbnail = useCallback(async (renderer: DocumentRendererPort) => {
@@ -2478,6 +2483,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [textFontRegistry]);
 
   const beforeDocumentOpen = useCallback(() => {
+    const startingGlobalGradeStrength = initialRecipe?.globalGradeStrength ?? 100;
+    globalGradeStrengthRef.current = startingGlobalGradeStrength;
+    setGlobalGradeStrengthState(startingGlobalGradeStrength);
+    globalGradeStrengthGestureRef.current = null;
     finishTextEditingRef.current();
     fontHydrationGenerationRef.current += 1;
     if (!documentSession) {
@@ -3024,6 +3033,37 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus,
     setError
   };
+  const publishGlobalGradeStrength = React.useCallback((strength: number) => {
+    const next = Math.min(100, Math.max(0, strength));
+    globalGradeStrengthRef.current = next;
+    setGlobalGradeStrengthState(next);
+    engineRef.current?.setGlobalGradeStrength(next);
+  }, []);
+  const beginGlobalGradeStrength = React.useCallback(() => {
+    globalGradeStrengthGestureRef.current = globalGradeStrengthRef.current;
+  }, []);
+  const endGlobalGradeStrength = React.useCallback(() => {
+    const before = globalGradeStrengthGestureRef.current;
+    globalGradeStrengthGestureRef.current = null;
+    const after = globalGradeStrengthRef.current;
+    if (before === null || before === after) return;
+    pushHistoryEntry({
+      type: 'adjustment.global-grade-strength',
+      label: 'Global Grade Strength',
+      undo: () => publishGlobalGradeStrength(before),
+      redo: () => publishGlobalGradeStrength(after)
+    });
+  }, [publishGlobalGradeStrength, pushHistoryEntry]);
+  const resetGlobalGrade = React.useCallback(() => {
+    adjustmentCommands.resetGrade();
+    publishGlobalGradeStrength(100);
+  }, [adjustmentCommands, publishGlobalGradeStrength]);
+
+  useEffect(() => {
+    if (rendererSnapshot.status === 'ready' || rendererSnapshot.status === 'suspended') {
+      engineRef.current?.setGlobalGradeStrength(globalGradeStrengthRef.current);
+    }
+  }, [rendererSnapshot.generation, rendererSnapshot.status]);
   const rasterGradientControllerRef = useRef<RasterGradientCommandController | null>(null);
   rasterGradientControllerRef.current ??= new RasterGradientCommandController(
     () => rasterGradientPortsRef.current
@@ -4421,6 +4461,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getFlatAdjustments: () => adjustmentsRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
     getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
+    getGlobalGradeStrength: () => globalGradeStrengthRef.current,
     getPreservedSourceAssets: () => preservedSourceAssetsRef.current,
     getFontAssets: async () => {
       const embeddedFonts = imageDocumentRef.current?.assets.fonts
@@ -4861,6 +4902,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       isolatedMaskLayerId={isolatedMaskLayerId}
       openMaskEditingOnDoubleClick={toolPreferences?.openMaskEditingOnDoubleClick ?? true}
       controller={commandLayerPanelController}
+      globalGradeStrength={globalGradeStrength}
+      copiedGradeName={copiedGrade?.name ?? null}
+      onGlobalGradeStrength={publishGlobalGradeStrength}
+      onGlobalGradeStrengthInteractionStart={beginGlobalGradeStrength}
+      onGlobalGradeStrengthInteractionEnd={endGlobalGradeStrength}
+      onResetGlobalGrade={resetGlobalGrade}
+      onCopyGlobalGrade={copyCurrentGrade}
+      onPasteGlobalGrade={pasteCurrentGrade}
       editingTextLayerId={textEditing.layerId}
       onEditText={(layerId) => {
         pointTextController.cancel();

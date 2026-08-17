@@ -5,6 +5,7 @@ import { AnchoredViewportMenu } from '../../../ui/AnchoredViewportMenu';
 import { lightTableIcon } from '../../../assets/icons';
 import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
 import { FormSelect } from '../../../ui/FormSelect';
+import { SquareIconButton } from '../../../ui/SquareIconButton';
 import {
   layerSupportsContentCompositing,
   layerSupportsLayerStyles
@@ -117,6 +118,14 @@ interface LayerPanelProps {
   documentProcessingVisibility: Readonly<{ grade: boolean; lensFx: boolean }>;
   onDocumentProcessingVisibility: (owner: 'grade' | 'lens-fx', visible: boolean) => void;
   onInspectDocumentProcessing: (owner: 'grade' | 'lens-fx') => void;
+  globalGradeStrength: number;
+  copiedGradeName: string | null;
+  onGlobalGradeStrength: (strength: number) => void;
+  onGlobalGradeStrengthInteractionStart: () => void;
+  onGlobalGradeStrengthInteractionEnd: () => void;
+  onResetGlobalGrade: () => void;
+  onCopyGlobalGrade: () => void;
+  onPasteGlobalGrade: () => void;
   onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
 }
 
@@ -269,6 +278,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   documentProcessingVisibility,
   onDocumentProcessingVisibility,
   onInspectDocumentProcessing,
+  globalGradeStrength,
+  copiedGradeName,
+  onGlobalGradeStrength,
+  onGlobalGradeStrengthInteractionStart,
+  onGlobalGradeStrengthInteractionEnd,
+  onResetGlobalGrade,
+  onCopyGlobalGrade,
+  onPasteGlobalGrade,
   onInspectAttachedAdjustment
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
@@ -694,13 +711,72 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     <section className="lighttable-layers" aria-label="Layers">
       <div
         className={`lighttable-layers__composite-controls${
-          globalLensFxActive || globalGradeActive
+          globalLensFxActive
             ? ' lighttable-layers__composite-controls--reserved'
+            : globalGradeActive
+              ? ' lighttable-layers__composite-controls--global-grade'
             : ''
         }`}
-        aria-hidden={globalLensFxActive || globalGradeActive}
+        aria-hidden={globalLensFxActive}
       >
-      {activeLayer ? (
+      {globalGradeActive ? (
+        <>
+          <div className="lighttable-global-grade-controls__preset-row">
+            <FormSelect
+              aria-label="Global Grade look or preset"
+              value="custom"
+              onChange={(event) => {
+                if (event.currentTarget.value === 'neutral') onResetGlobalGrade();
+                if (event.currentTarget.value === 'copied') onPasteGlobalGrade();
+              }}
+            >
+              <option value="custom">Look / Preset</option>
+              <option value="neutral">Neutral</option>
+              {copiedGradeName ? <option value="copied">{copiedGradeName}</option> : null}
+            </FormSelect>
+            <SquareIconButton
+              size="compact"
+              appearance="quiet"
+              icon={<img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />}
+              onClick={onResetGlobalGrade}
+              title="Reset Global Grade"
+              aria-label="Reset Global Grade"
+            />
+          </div>
+          <AdjustmentSlider
+            label="Strength"
+            layout="layer-row"
+            value={globalGradeStrength}
+            min={0}
+            max={100}
+            format={(value) => `${Math.round(value)}%`}
+            resetValue={100}
+            onReset={() => onGlobalGradeStrength(100)}
+            onChange={onGlobalGradeStrength}
+            onInteractionStart={onGlobalGradeStrengthInteractionStart}
+            onInteractionEnd={onGlobalGradeStrengthInteractionEnd}
+          />
+          <div className="lighttable-global-grade-controls__clipboard-row">
+            <SquareIconButton
+              size="compact"
+              appearance="quiet"
+              icon={<img src={lightTableIcon('copy.png')} alt="" aria-hidden="true" />}
+              onClick={onCopyGlobalGrade}
+              title="Copy Global Grade"
+              aria-label="Copy Global Grade"
+            />
+            <SquareIconButton
+              size="compact"
+              appearance="quiet"
+              icon={<img src={lightTableIcon('paste_grade.svg')} alt="" aria-hidden="true" />}
+              onClick={onPasteGlobalGrade}
+              disabled={!copiedGradeName}
+              title="Paste Global Grade"
+              aria-label="Paste Global Grade"
+            />
+          </div>
+        </>
+      ) : activeLayer ? (
         <>
           <div className="lighttable-layers__blend-lock-row">
             <FormSelect

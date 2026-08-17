@@ -91,6 +91,17 @@ describe('createAdjustmentCommands', () => {
     expect(harness.endAdjustment).toHaveBeenCalled();
   });
 
+  it('resets Grade without clearing the independent Lens FX pass', () => {
+    const harness = createHarness();
+    harness.commands.updateAdjustment('exposureEV', 2);
+    harness.commands.updateLensDistortion('amount', 35);
+
+    harness.commands.resetGrade();
+
+    expect(harness.adjustments().exposureEV).toBe(0);
+    expect(harness.adjustments().effects.lensDistortion.amount).toBe(35);
+  });
+
   it('publishes visibility and lens viewport changes through host-neutral ports', () => {
     const harness = createHarness();
 
