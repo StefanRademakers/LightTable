@@ -111,6 +111,22 @@ describe('Photoshop adjustment export adapter', () => {
     });
   });
 
+  it('roundtrips Photoshop Hue/Saturation color ranges and falloff boundaries', () => {
+    const values = createDefaultAdjustments();
+    values.photoshopAdjustment.kind = 'hue-saturation';
+    values.photoshopAdjustment.hueSaturationRanges.reds = {
+      boundaries: [300, 330, 20, 50], hue: 40, saturation: -60, lightness: 80
+    };
+    const stack = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(values),
+      'hue-saturation'
+    );
+    expect(binaryRoundTrip(exportAdjustmentStackToPsd('hue-saturation', stack)!)).toMatchObject({
+      type: 'hue/saturation',
+      reds: { a: 300, b: 330, c: 20, d: 50, hue: 40, saturation: -60, lightness: 80 }
+    });
+  });
+
   it('roundtrips composite and per-channel Levels together', () => {
     const values = createDefaultAdjustments();
     values.photoshopAdjustment.kind = 'levels';

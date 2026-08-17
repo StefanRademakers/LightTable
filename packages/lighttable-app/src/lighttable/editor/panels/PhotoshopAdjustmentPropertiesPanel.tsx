@@ -93,17 +93,46 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
   if (kind === 'levels') {
     return <LevelsPropertiesPanel model={model} commands={commands} settings={settings} />;
   }
+  const selectedHueRange = kind === 'hue-saturation' && !settings.colorize
+    && settings.hueSaturationChannel !== 'master'
+    ? settings.hueSaturationRanges[settings.hueSaturationChannel]
+    : null;
   const scalarValue = (spec: SliderSpec, index: number) => {
+    if (selectedHueRange) {
+      if (spec.key === 'hue') return selectedHueRange.hue;
+      if (spec.key === 'hueSaturation') return selectedHueRange.saturation;
+      if (spec.key === 'hueLightness') return selectedHueRange.lightness;
+    }
     const value = settings[spec.key];
     if (typeof value === 'number') return value;
     return 0;
   };
   const resetValue = (spec: SliderSpec, index: number) => {
+    if (selectedHueRange && (spec.key === 'hue' || spec.key === 'hueSaturation' || spec.key === 'hueLightness')) {
+      return 0;
+    }
     const value = defaults[spec.key];
     if (typeof value === 'number') return value;
     return 0;
   };
   const updateScalar = (spec: SliderSpec, index: number, value: number) => {
+    if (selectedHueRange) {
+      const field = spec.key === 'hue' ? 'hue'
+        : spec.key === 'hueSaturation' ? 'saturation'
+          : spec.key === 'hueLightness' ? 'lightness' : null;
+      if (field) {
+        const channel = settings.hueSaturationChannel;
+        if (channel === 'master') return;
+        update({
+          ...settings,
+          hueSaturationRanges: {
+            ...settings.hueSaturationRanges,
+            [channel]: { ...selectedHueRange, [field]: value }
+          }
+        });
+        return;
+      }
+    }
     update({ ...settings, [spec.key]: value });
   };
   const renderArraySliders = (
@@ -165,6 +194,16 @@ export const PhotoshopAdjustmentPropertiesPanel = ({
       <div className="lighttable-panel__controls">
         <section className="lighttable-group">
           <div className="lighttable-group__controls lighttable-property-stack">
+            {kind === 'hue-saturation' && !settings.colorize ? (
+              <PanelSelectField label="Range" value={settings.hueSaturationChannel}
+                options={['master', 'reds', 'yellows', 'greens', 'cyans', 'blues', 'magentas'].map((value) => ({
+                  value, label: `${value[0].toUpperCase()}${value.slice(1)}`
+                }))}
+                onChange={(hueSaturationChannel) => update({
+                  ...settings,
+                  hueSaturationChannel: hueSaturationChannel as PhotoshopAdjustmentSettings['hueSaturationChannel']
+                })} />
+            ) : null}
             {sliders.map((slider, index) => (
               <AdjustmentSlider
                 key={`${slider.key}-${slider.label}`}

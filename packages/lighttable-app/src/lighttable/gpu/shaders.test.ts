@@ -121,7 +121,8 @@ describe('LightTable WGSL modules', () => {
 
   it('uses the Photoshop document-space HSL route without replacing perceptual Grade color', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('fn photoshopRgbToHsl');
-    expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(photoshopHslToRgb(hsl))');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn photoshopApplyHueSaturation');
+    expect(CREATIVE_GRADE_WGSL).toContain('return photoshopEncodedDocumentToLinearSrgb(adjusted);');
     expect(CREATIVE_GRADE_WGSL).toContain('fn applyPerceptualColor');
     expect(CREATIVE_GRADE_WGSL).toContain('var lab = linearRgbToOklab(rgb);');
   });

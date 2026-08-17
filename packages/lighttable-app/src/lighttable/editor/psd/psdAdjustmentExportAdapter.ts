@@ -121,7 +121,15 @@ const photoshopAdjustment = (
         hue: settings.hue,
         saturation: settings.hueSaturation,
         lightness: settings.hueLightness
-      }
+      },
+      ...Object.fromEntries((['reds', 'yellows', 'greens', 'cyans', 'blues', 'magentas'] as const).map((channel) => {
+        const range = settings.hueSaturationRanges[channel];
+        return [channel, {
+          a: range.boundaries[0], b: range.boundaries[1],
+          c: range.boundaries[2], d: range.boundaries[3],
+          hue: range.hue, saturation: range.saturation, lightness: range.lightness
+        }];
+      }))
     };
     case 'color-balance': return {
       type: 'color balance',

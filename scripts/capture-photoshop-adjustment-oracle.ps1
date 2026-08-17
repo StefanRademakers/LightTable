@@ -168,7 +168,16 @@ $hueSaturationCases = @(
   @{ id='lightness-pos-100'; hue=0; saturation=0; lightness=100; colorize=$false },
   @{ id='combined-positive-80'; hue=144; saturation=80; lightness=80; colorize=$false },
   @{ id='combined-negative-80'; hue=-144; saturation=-80; lightness=-80; colorize=$false },
-  @{ id='colorize-80'; hue=288; saturation=80; lightness=0; colorize=$true }
+  @{ id='colorize-80'; hue=288; saturation=80; lightness=0; colorize=$true },
+  @{ id='range-red-combined-80'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=1; rangeHue=144; rangeSaturation=80; rangeLightness=80 },
+  @{ id='range-red-hue-pos-80'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=1; rangeHue=144; rangeSaturation=0; rangeLightness=0 },
+  @{ id='range-red-saturation-pos-80'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=1; rangeHue=0; rangeSaturation=80; rangeLightness=0 },
+  @{ id='range-red-lightness-pos-80'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=1; rangeHue=0; rangeSaturation=0; rangeLightness=80 },
+  @{ id='range-yellow-saturation-neg-100'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=2; rangeHue=0; rangeSaturation=-100; rangeLightness=0 },
+  @{ id='range-green-lightness-pos-80'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=3; rangeHue=0; rangeSaturation=0; rangeLightness=80 },
+  @{ id='range-cyan-hue-neg-80'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=4; rangeHue=-144; rangeSaturation=0; rangeLightness=0 },
+  @{ id='range-blue-saturation-pos-100'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=5; rangeHue=0; rangeSaturation=100; rangeLightness=0 },
+  @{ id='range-magenta-lightness-neg-80'; hue=0; saturation=0; lightness=0; colorize=$false; rangeIndex=6; rangeHue=0; rangeSaturation=0; rangeLightness=-80 }
 )
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
@@ -292,6 +301,29 @@ try {
   adjustmentLayer.putObject(s2t('type'), s2t('curves'), adjustment);
 "@
     } elseif ($Adjustment -eq 'hue-saturation') {
+      $rangeDescriptors = ''
+      if ($case.ContainsKey('rangeIndex')) {
+        $rangeBoundaries = @(
+          @(315, 345, 15, 45),
+          @(15, 45, 75, 105),
+          @(75, 105, 135, 165),
+          @(135, 165, 195, 225),
+          @(195, 225, 255, 285),
+          @(255, 285, 315, 345)
+        )[$case.rangeIndex - 1]
+        $rangeDescriptors = @"
+  var rangeHue = new ActionDescriptor();
+  rangeHue.putInteger(c2t('LclR'), $($case.rangeIndex));
+  rangeHue.putInteger(c2t('BgnR'), $($rangeBoundaries[0]));
+  rangeHue.putInteger(c2t('BgnS'), $($rangeBoundaries[1]));
+  rangeHue.putInteger(c2t('EndS'), $($rangeBoundaries[2]));
+  rangeHue.putInteger(c2t('EndR'), $($rangeBoundaries[3]));
+  rangeHue.putInteger(c2t('H   '), $($case.rangeHue));
+  rangeHue.putInteger(c2t('Strt'), $($case.rangeSaturation));
+  rangeHue.putInteger(c2t('Lght'), $($case.rangeLightness));
+  hueAdjustments.putObject(c2t('Hst2'), rangeHue);
+"@
+      }
       $adjustmentDescriptor = @"
   var adjustment = new ActionDescriptor();
   adjustment.putEnumerated(s2t('presetKind'), s2t('presetKindType'), s2t('presetKindCustom'));
@@ -302,6 +334,7 @@ try {
   masterHue.putInteger(c2t('Strt'), $($case.saturation));
   masterHue.putInteger(c2t('Lght'), $($case.lightness));
   hueAdjustments.putObject(c2t('Hst2'), masterHue);
+$rangeDescriptors
   adjustment.putList(c2t('Adjs'), hueAdjustments);
   adjustmentLayer.putObject(s2t('type'), s2t('hueSaturation'), adjustment);
 "@

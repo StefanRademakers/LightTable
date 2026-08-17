@@ -6,6 +6,7 @@ import {
   LINEAR_COMPOSITE_FLAG_INDEX,
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET
 } from './adjustmentUniform';
 
@@ -102,5 +103,17 @@ describe('LightTable adjustment uniform packing', () => {
       PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
       PHOTOSHOP_LEVELS_CHANNELS_OFFSET + 5
     ))).toEqual([12, 1.25, 238, 4, 249]);
+  });
+
+  it('packs Photoshop Hue/Saturation range boundaries and values', () => {
+    const settings = createDefaultAdjustments();
+    settings.photoshopAdjustment.hueSaturationRanges.reds = {
+      boundaries: [300, 330, 20, 50], hue: 40, saturation: -60, lightness: 80
+    };
+    const packed = buildAdjustmentUniform(settings, 100, 100, true);
+    expect(Array.from(packed.slice(
+      PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
+      PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET + 7
+    ))).toEqual([300, 330, 20, 50, 40, -60, 80]);
   });
 });

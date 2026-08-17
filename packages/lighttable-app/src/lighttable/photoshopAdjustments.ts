@@ -32,12 +32,30 @@ export interface LevelsChannelSettings {
   output: [number, number];
 }
 export type LevelsChannels = Record<LevelsChannel, LevelsChannelSettings>;
+export type HueSaturationChannel = 'master' | 'reds' | 'yellows' | 'greens' | 'cyans' | 'blues' | 'magentas';
+export type HueSaturationRangeChannel = Exclude<HueSaturationChannel, 'master'>;
+export interface HueSaturationRangeSettings {
+  boundaries: [number, number, number, number];
+  hue: number;
+  saturation: number;
+  lightness: number;
+}
+export type HueSaturationRanges = Record<HueSaturationRangeChannel, HueSaturationRangeSettings>;
 
 const createDefaultLevelsChannels = (): LevelsChannels => ({
   rgb: { input: [0, 1, 255], output: [0, 255] },
   red: { input: [0, 1, 255], output: [0, 255] },
   green: { input: [0, 1, 255], output: [0, 255] },
   blue: { input: [0, 1, 255], output: [0, 255] }
+});
+
+const createDefaultHueSaturationRanges = (): HueSaturationRanges => ({
+  reds: { boundaries: [315, 345, 15, 45], hue: 0, saturation: 0, lightness: 0 },
+  yellows: { boundaries: [15, 45, 75, 105], hue: 0, saturation: 0, lightness: 0 },
+  greens: { boundaries: [75, 105, 135, 165], hue: 0, saturation: 0, lightness: 0 },
+  cyans: { boundaries: [135, 165, 195, 225], hue: 0, saturation: 0, lightness: 0 },
+  blues: { boundaries: [195, 225, 255, 285], hue: 0, saturation: 0, lightness: 0 },
+  magentas: { boundaries: [255, 285, 315, 345], hue: 0, saturation: 0, lightness: 0 }
 });
 
 /**
@@ -60,6 +78,8 @@ export interface PhotoshopAdjustmentSettings {
   hueSaturation: number;
   hueLightness: number;
   colorize: boolean;
+  hueSaturationChannel: HueSaturationChannel;
+  hueSaturationRanges: HueSaturationRanges;
   colorBalanceTone: 'shadows' | 'midtones' | 'highlights';
   colorBalanceShadows: RgbTriplet;
   colorBalanceMidtones: RgbTriplet;
@@ -100,6 +120,8 @@ export const createDefaultPhotoshopAdjustment = (
   hueSaturation: 0,
   hueLightness: 0,
   colorize: false,
+  hueSaturationChannel: 'master',
+  hueSaturationRanges: createDefaultHueSaturationRanges(),
   colorBalanceTone: 'midtones',
   colorBalanceShadows: [0, 0, 0],
   colorBalanceMidtones: [0, 0, 0],
@@ -128,6 +150,7 @@ export const clonePhotoshopAdjustment = (
   value: PhotoshopAdjustmentSettings
 ): PhotoshopAdjustmentSettings => {
   const defaults = createDefaultLevelsChannels();
+  const defaultHueSaturationRanges = createDefaultHueSaturationRanges();
   const legacy = value as PhotoshopAdjustmentSettings & {
     levelsInput?: RgbTriplet;
     levelsOutput?: [number, number];
@@ -146,5 +169,16 @@ export const clonePhotoshopAdjustment = (
       output: legacy.levelsOutput
     };
   }
-  return structuredClone({ ...value, levels });
+  const hueSaturationRanges = Object.fromEntries(
+    Object.entries(defaultHueSaturationRanges).map(([channel, defaultsForRange]) => [
+      channel,
+      { ...defaultsForRange, ...(value.hueSaturationRanges?.[channel as HueSaturationRangeChannel] ?? {}) }
+    ])
+  ) as HueSaturationRanges;
+  return structuredClone({
+    ...value,
+    levels,
+    hueSaturationChannel: value.hueSaturationChannel ?? 'master',
+    hueSaturationRanges
+  });
 };

@@ -281,15 +281,29 @@ const importedPhotoshopSettings = (
         settings.hueSaturation = settings.colorize ? master.c : master.saturation;
         settings.hueLightness = settings.colorize ? master.d : master.lightness;
       }
-      const hasRanges = [source.reds, source.yellows, source.greens, source.cyans, source.blues, source.magentas]
-        .some((range) => Boolean(range && (range.hue !== 0 || range.saturation !== 0 || range.lightness !== 0)));
+      const rangeChannels = ['reds', 'yellows', 'greens', 'cyans', 'blues', 'magentas'] as const;
+      for (const channel of rangeChannels) {
+        const range = source[channel];
+        if (!range) continue;
+        settings.hueSaturationRanges[channel] = {
+          boundaries: [range.a, range.b, range.c, range.d],
+          hue: range.hue,
+          saturation: range.saturation,
+          lightness: range.lightness
+        };
+      }
+      const authoredRange = rangeChannels.find((channel) => {
+        const range = settings.hueSaturationRanges[channel];
+        return range.hue !== 0 || range.saturation !== 0 || range.lightness !== 0;
+      });
+      const hasRanges = Boolean(authoredRange);
+      settings.hueSaturationChannel = authoredRange ?? 'master';
       return {
         kind: settings.kind, settings,
-        support: hasRanges ? 'approximate' : 'native',
+        support: 'native',
         reason: hasRanges
-          ? 'Master Hue / Saturation is editable; Photoshop color-range overrides remain preserved.'
-          : 'Photoshop master Hue / Saturation is mapped to the native LightTable node.',
-        ...(hasRanges ? { warning: 'Photoshop Hue / Saturation range overrides remain preserved but are not independently editable yet.' } : {})
+          ? 'Photoshop master and color-range Hue / Saturation settings are mapped to the native LightTable node.'
+          : 'Photoshop master Hue / Saturation is mapped to the native LightTable node.'
       };
     }
     case 'color balance': {

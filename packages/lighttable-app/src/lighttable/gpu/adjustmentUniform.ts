@@ -6,12 +6,13 @@ import {
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_SIZE
 } from './photoshopBrightnessContrastLut';
 
-export const ADJUSTMENT_UNIFORM_FLOATS = 320;
+export const ADJUSTMENT_UNIFORM_FLOATS = 368;
 export const LINEAR_COMPOSITE_FLAG_INDEX = 18;
 export const PHOTOSHOP_PAYLOAD_OFFSET = 128;
 export const PHOTOSHOP_LEVELS_CHANNELS_OFFSET = 233;
 export const PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET = 248;
 export const PHOTOSHOP_BLEND_PROFILE_OFFSET = 313;
+export const PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET = 314;
 
 export interface ColorLookupUniform {
   readonly enabled: boolean;
@@ -152,6 +153,13 @@ export const buildAdjustmentUniform = (
     packed.set(transfer, PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET);
   }
   packed[PHOTOSHOP_BLEND_PROFILE_OFFSET] = photoshopBlendProfile === 'adobe-rgb-1998' ? 1 : 0;
+  packed.set(
+    (['reds', 'yellows', 'greens', 'cyans', 'blues', 'magentas'] as const).flatMap((channel) => {
+      const range = photoshop.hueSaturationRanges[channel];
+      return [...range.boundaries, range.hue, range.saturation, range.lightness];
+    }),
+    PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET
+  );
   packed.set([
     ...(colorLookup?.domainMin ?? [0, 0, 0]),
     ...(colorLookup?.domainMax ?? [1, 1, 1])

@@ -151,7 +151,7 @@ composite-plus-red curve. The previous shared monotone implementation scored
 
 ## Hue / Saturation
 
-Status: accepted for Master and Colorize; selective color ranges remain open.
+Status: accepted, including Master, Colorize, and selective color ranges.
 
 Photoshop 27.11 processes Hue / Saturation in encoded document RGB. Its Master
 response is not LightTable's perceptual Grade saturation: Lightness first fades
@@ -180,8 +180,22 @@ corpus reduces it to 0.231% RMSE, so no arbitrary hue offset is warranted.
 
 Photoshop also stores Reds, Yellows, Greens, Cyans, Blues, and Magentas as
 independent range adjustments. Each uses four hue boundaries: a fully selected
-inner interval plus a soft falloff interval on either side, wrapping around the
-hue circle for Reds. Those controls are preserved in imported PSD metadata but
-are not yet editable or rendered by this accepted Master implementation. They
-require a dedicated hue-ramp oracle before implementation; a hard range mask or
-invented smoothing curve is not acceptable.
+inner interval plus a linear falloff interval on either side, wrapping around
+the hue circle for Reds. The model, contextual range selector, GPU payload, and
+PSD import/export preserve all six ranges and their authored boundaries. They
+add no render pass or texture lookup; the fragment shader evaluates only six
+small piecewise-linear weights. Adobe's current
+[Hue/Saturation adjustment schema](https://developer.adobe.com/firefly-services/docs/photoshop/guides/photoshop-v2-beta/v1-to-v2/layer-operations-adjustments)
+independently documents the same ramp/sustain boundaries and six local-range
+channel identifiers.
+
+The hue/lightness ramp exposed a separate local-Lightness rule: positive values
+move channels toward that pixel's brightest channel, while negative values move
+them toward its darkest channel. This protects the selected color range from a
+Master-style fade to white or black. Implementing this measured behavior raised
+the six-range `D:\kleur.jpg` corpus from 96.194% parity with one failed case to
+99.219% parity with every case passing. A diagnostic Reds ramp scores 99.331%
+over isolated Hue, Saturation, Lightness, and combined +80 cases. The strongest
+combined Reds photograph remains the largest residual at 3.955% RMSE, inside
+the per-case gate; single-range operations measure between 99.448% and 99.981%
+parity. No fitted correction curve is applied to that residual.

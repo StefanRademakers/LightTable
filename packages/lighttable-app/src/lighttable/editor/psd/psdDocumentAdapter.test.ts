@@ -650,6 +650,29 @@ describe('importPsdDocument', () => {
     });
   });
 
+  it('restores editable Photoshop Hue/Saturation color ranges and falloff boundaries', () => {
+    const result = importPsdDocument(decoded([raster('red-range', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: {
+        type: 'hue/saturation',
+        master: { a: 0, b: -144, c: 25, d: 0, hue: 0, saturation: 0, lightness: 0 },
+        reds: { a: 300, b: 330, c: 20, d: 50, hue: 40, saturation: -60, lightness: 80 }
+      }
+    })]), 'red-range.psd');
+    const layer = result.document.layers[0];
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer.');
+    expect(materializeBasicAdjustments(layer.adjustmentStack).photoshopAdjustment).toMatchObject({
+      hueSaturationChannel: 'reds',
+      hueSaturationRanges: {
+        reds: { boundaries: [300, 330, 20, 50], hue: 40, saturation: -60, lightness: 80 }
+      }
+    });
+    expect(result.compatibility).toContainEqual(expect.objectContaining({
+      feature: 'adjustment', support: 'native'
+    }));
+  });
+
   it('restores an embedded Photoshop .cube LUT as a document asset', async () => {
     const sourceText = [
       'TITLE "Imported Cinematic"',

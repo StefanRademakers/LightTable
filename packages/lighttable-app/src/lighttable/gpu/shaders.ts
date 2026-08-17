@@ -2,6 +2,7 @@ import { GRADIENT_MAP_WGSL } from './gradientMapShader';
 import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
   PHOTOSHOP_PAYLOAD_OFFSET
 } from './adjustmentUniform';
@@ -12,6 +13,8 @@ const PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_RELATIVE_OFFSET =
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 const PHOTOSHOP_LEVELS_CHANNELS_RELATIVE_OFFSET =
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
+const PHOTOSHOP_HUE_SATURATION_RANGES_RELATIVE_OFFSET =
+  PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 export const FULLSCREEN_VERTEX_WGSL = /* wgsl */ `
 struct VertexOutput {
   @builtin(position) position: vec4f,
@@ -309,7 +312,7 @@ struct Adjustments {
   gradientMapControls: vec4f,
   gradientMapColors: array<vec4f, 8>,
   gradientMapOpacity: array<vec4f, 8>,
-  photoshop: array<vec4f, 48>,
+  photoshop: array<vec4f, 60>,
 }
 
 @group(0) @binding(0) var correctedTexture: texture_2d<f32>;
@@ -698,6 +701,53 @@ fn photoshopHslToRgb(hsl: vec3f) -> vec3f {
   );
 }
 
+fn photoshopHueRangeWeight(hueDegrees: f32, boundaries: vec4f) -> f32 {
+  let position = fract((hueDegrees - boundaries.x) / 360.0) * 360.0;
+  let beginSustain = fract((boundaries.y - boundaries.x) / 360.0) * 360.0;
+  let endSustain = fract((boundaries.z - boundaries.x) / 360.0) * 360.0;
+  let endRamp = fract((boundaries.w - boundaries.x) / 360.0) * 360.0;
+  if (position > endRamp) { return 0.0; }
+  if (position < beginSustain) { return position / max(beginSustain, 0.000001); }
+  if (position <= endSustain) { return 1.0; }
+  return (endRamp - position) / max(endRamp - endSustain, 0.000001);
+}
+
+fn photoshopApplyHueSaturation(
+  encoded: vec3f,
+  hueAmount: f32,
+  saturationAmount: f32,
+  lightnessAmount: f32,
+  colorize: bool,
+  localRange: bool
+) -> vec3f {
+  var lightAdjusted = select(
+    encoded + (vec3f(1.0) - encoded) * lightnessAmount,
+    encoded * (1.0 + lightnessAmount),
+    lightnessAmount < 0.0
+  );
+  if (localRange) {
+    let darkest = min(encoded.r, min(encoded.g, encoded.b));
+    let lightest = max(encoded.r, max(encoded.g, encoded.b));
+    lightAdjusted = select(
+      mix(encoded, vec3f(lightest), lightnessAmount),
+      mix(encoded, vec3f(darkest), -lightnessAmount),
+      lightnessAmount < 0.0
+    );
+  }
+  var hsl = photoshopRgbToHsl(clamp(lightAdjusted, vec3f(0.0), vec3f(1.0)));
+  if (colorize) {
+    hsl = vec3f(fract(hueAmount / 360.0), clamp(saturationAmount, 0.0, 1.0), hsl.z);
+  } else {
+    let saturated = select(
+      hsl.y / max(0.000001, 1.0 - saturationAmount),
+      hsl.y * (1.0 + saturationAmount),
+      saturationAmount < 0.0
+    );
+    hsl = vec3f(fract(hsl.x + hueAmount / 360.0), clamp(saturated, 0.0, 1.0), hsl.z);
+  }
+  return photoshopHslToRgb(hsl);
+}
+
 fn samplePhotoshopBrightnessContrastLut(value: f32) -> f32 {
   let code = clamp(value, 0.0, 1.0) * 255.0;
   var left = 63u;
@@ -832,26 +882,41 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     let lightnessAmount = photoshopValue(14u) / 100.0;
     let colorize = photoshopValue(15u) > 0.5;
     if (!colorize && abs(hueAmount) < 0.00001 && abs(saturationAmount) < 0.00001 && abs(lightnessAmount) < 0.00001) {
-      return rgb;
+      var rangesNeutral = true;
+      for (var neutralIndex = 0u; neutralIndex < 6u; neutralIndex += 1u) {
+        let neutralBase = ${PHOTOSHOP_HUE_SATURATION_RANGES_RELATIVE_OFFSET}u + neutralIndex * 7u;
+        rangesNeutral = rangesNeutral
+          && abs(photoshopValue(neutralBase + 4u)) < 0.00001
+          && abs(photoshopValue(neutralBase + 5u)) < 0.00001
+          && abs(photoshopValue(neutralBase + 6u)) < 0.00001;
+      }
+      if (rangesNeutral) { return rgb; }
     }
     let encoded = photoshopLinearSrgbToEncodedDocument(rgb);
-    let lightAdjusted = select(
-      encoded + (vec3f(1.0) - encoded) * lightnessAmount,
-      encoded * (1.0 + lightnessAmount),
-      lightnessAmount < 0.0
-    );
-    var hsl = photoshopRgbToHsl(clamp(lightAdjusted, vec3f(0.0), vec3f(1.0)));
-    if (colorize) {
-      hsl = vec3f(fract(hueAmount / 360.0), clamp(saturationAmount, 0.0, 1.0), hsl.z);
-    } else {
-      let saturated = select(
-        hsl.y / max(0.000001, 1.0 - saturationAmount),
-        hsl.y * (1.0 + saturationAmount),
-        saturationAmount < 0.0
-      );
-      hsl = vec3f(fract(hsl.x + hueAmount / 360.0), clamp(saturated, 0.0, 1.0), hsl.z);
+    var adjusted = photoshopApplyHueSaturation(encoded, hueAmount, saturationAmount, lightnessAmount, colorize, false);
+    if (!colorize) {
+      let selectionHsl = photoshopRgbToHsl(clamp(encoded, vec3f(0.0), vec3f(1.0)));
+      for (var rangeIndex = 0u; rangeIndex < 6u; rangeIndex += 1u) {
+        let base = ${PHOTOSHOP_HUE_SATURATION_RANGES_RELATIVE_OFFSET}u + rangeIndex * 7u;
+        let boundaries = vec4f(
+          photoshopValue(base), photoshopValue(base + 1u),
+          photoshopValue(base + 2u), photoshopValue(base + 3u)
+        );
+        let weight = photoshopHueRangeWeight(selectionHsl.x * 360.0, boundaries)
+          * select(0.0, 1.0, selectionHsl.y > 0.000001);
+        if (weight > 0.0) {
+          adjusted = photoshopApplyHueSaturation(
+            adjusted,
+            photoshopValue(base + 4u) * weight,
+            photoshopValue(base + 5u) / 100.0 * weight,
+            photoshopValue(base + 6u) / 100.0 * weight,
+            false,
+            true
+          );
+        }
+      }
     }
-    return photoshopEncodedDocumentToLinearSrgb(photoshopHslToRgb(hsl));
+    return photoshopEncodedDocumentToLinearSrgb(adjusted);
   }
   if (kind == 5u) {
     let y = clamp(luminance(rgb), 0.0, 1.0);
