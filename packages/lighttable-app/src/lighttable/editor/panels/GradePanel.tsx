@@ -219,7 +219,11 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
   const pointColorSampleCountRef = useRef(0);
   const [colorGradingMode, setColorGradingMode] = useState<ColorGradingMode>('all');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('master');
-  const [detailRefineExpanded, setDetailRefineExpanded] = useState(false);
+  const [detailSubgroupsExpanded, setDetailSubgroupsExpanded] = useState({
+    sharpening: false,
+    luminanceNoise: false,
+    colorNoise: false
+  });
   const [histogramPreview, setHistogramPreview] = useState<Partial<
     Record<GradeHistogramControlKey, number>
   >>({});
@@ -338,8 +342,10 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     const sliders = [...DETAIL_SHARPENING_SLIDERS, ...DETAIL_NOISE_SLIDERS];
     const sliderFor = (key: keyof DetailAdjustments, label?: string) => {
       const slider = sliders.find((candidate) => candidate.key === key)!;
-      const dependentDisabled = key.startsWith('luminance')
-        ? key !== 'luminanceNoiseReduction' && adjustments.detail.luminanceNoiseReduction <= 0
+      const dependentDisabled = key.startsWith('sharpening')
+        ? key !== 'sharpeningAmount' && adjustments.detail.sharpeningAmount <= 0
+        : key.startsWith('luminance')
+          ? key !== 'luminanceNoiseReduction' && adjustments.detail.luminanceNoiseReduction <= 0
         : key.startsWith('color')
           ? key !== 'colorNoiseReduction' && adjustments.detail.colorNoiseReduction <= 0
           : false;
@@ -361,6 +367,35 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
         />
       );
     };
+    const subgroup = (
+      key: keyof typeof detailSubgroupsExpanded,
+      label: string,
+      primary: React.ReactNode,
+      advanced: React.ReactNode
+    ) => {
+      const subgroupExpanded = detailSubgroupsExpanded[key];
+      return (
+        <div className="lighttable-detail-controls__subgroup">
+          <ButtonBase
+            type="button"
+            className="lighttable-detail-controls__subgroup-toggle"
+            aria-expanded={subgroupExpanded}
+            onClick={() => setDetailSubgroupsExpanded((current) => ({
+              ...current,
+              [key]: !current[key]
+            }))}
+          >
+            <img src={lightTableIcon(subgroupExpanded ? 'area_open.png' : 'area_closed.png')}
+              alt="" aria-hidden="true" />
+            <strong>{label}</strong>
+          </ButtonBase>
+          {primary}
+          {subgroupExpanded ? (
+            <div className="lighttable-detail-controls__advanced">{advanced}</div>
+          ) : null}
+        </div>
+      );
+    };
     return (
       <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
         <GroupHeader
@@ -374,30 +409,34 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
         />
         {expanded[group] ? (
           <div className="lighttable-group__controls lighttable-detail-controls">
-            {sliderFor('sharpeningAmount', 'Sharpening')}
-            {sliderFor('luminanceNoiseReduction', 'Luminance Noise')}
-            {sliderFor('colorNoiseReduction', 'Color Noise')}
-            <ButtonBase
-              type="button"
-              className="lighttable-detail-controls__refine"
-              aria-expanded={detailRefineExpanded}
-              onClick={() => setDetailRefineExpanded((current) => !current)}
-            >
-              <img src={lightTableIcon(detailRefineExpanded ? 'area_open.png' : 'area_closed.png')}
-                alt="" aria-hidden="true" />
-              <strong>Refine</strong>
-            </ButtonBase>
-            {detailRefineExpanded ? (
-              <div className="lighttable-detail-controls__advanced">
+            {subgroup(
+              'sharpening',
+              'Sharpening',
+              sliderFor('sharpeningAmount', 'Amount'),
+              <>
                 {sliderFor('sharpeningRadius')}
-                {sliderFor('sharpeningDetail', 'Sharpening Detail')}
+                {sliderFor('sharpeningDetail', 'Detail')}
                 {sliderFor('sharpeningMasking')}
-                {sliderFor('luminanceDetail')}
-                {sliderFor('luminanceContrast')}
-                {sliderFor('colorDetail')}
-                {sliderFor('colorSmoothness')}
-              </div>
-            ) : null}
+              </>
+            )}
+            {subgroup(
+              'luminanceNoise',
+              'Noise Reduction',
+              sliderFor('luminanceNoiseReduction', 'Luminance'),
+              <>
+                {sliderFor('luminanceDetail', 'Detail')}
+                {sliderFor('luminanceContrast', 'Contrast')}
+              </>
+            )}
+            {subgroup(
+              'colorNoise',
+              'Color Noise Reduction',
+              sliderFor('colorNoiseReduction', 'Color'),
+              <>
+                {sliderFor('colorDetail', 'Detail')}
+                {sliderFor('colorSmoothness', 'Smoothness')}
+              </>
+            )}
           </div>
         ) : null}
       </section>
