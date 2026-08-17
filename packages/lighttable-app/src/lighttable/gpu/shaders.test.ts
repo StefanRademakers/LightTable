@@ -131,6 +131,7 @@ describe('LightTable WGSL modules', () => {
   it('evaluates current Photoshop Color and Vibrance as two coupled LUT stages', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('@binding(6) var colorVibranceWhiteBalanceLut');
     expect(CREATIVE_GRADE_WGSL).toContain('@binding(7) var colorVibranceColorLut');
+    expect(CREATIVE_GRADE_WGSL).toContain('@binding(8) var colorBalanceTransferLut');
     expect(CREATIVE_GRADE_WGSL).toContain('fn applyPhotoshopColorVibrance');
     expect(CREATIVE_GRADE_WGSL.indexOf('colorVibranceWhiteBalanceLut, encoded'))
       .toBeLessThan(CREATIVE_GRADE_WGSL.indexOf('colorVibranceColorLut, encoded'));

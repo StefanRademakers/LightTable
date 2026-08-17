@@ -1497,6 +1497,7 @@ export class WebGpuEngine {
       correctedTexture: this.imageResources.correctedTexture,
       downsampleTexture: this.imageResources.downsampleTexture,
       identityColorLookupTexture: coreResources.identityColorLookupTexture,
+      photoshopColorBalanceTransferTexture: coreResources.photoshopColorBalanceTransferTexture,
       resolveColorLookup: (id) => this.colorLookupAssets.get(id)
     });
 
@@ -1533,7 +1534,8 @@ export class WebGpuEngine {
           { binding: 4, resource: coreResources.curveTexture.createView() },
           { binding: 5, resource: coreResources.identityColorLookupTexture.createView() },
           { binding: 6, resource: coreResources.identityColorLookupTexture.createView() },
-          { binding: 7, resource: coreResources.identityColorLookupTexture.createView() }
+          { binding: 7, resource: coreResources.identityColorLookupTexture.createView() },
+          { binding: 8, resource: coreResources.photoshopColorBalanceTransferTexture.createView() }
       ]
     });
     this.adjustmentLayerRenderer.configure({

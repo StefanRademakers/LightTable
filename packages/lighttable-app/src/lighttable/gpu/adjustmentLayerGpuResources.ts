@@ -40,6 +40,7 @@ export interface AdjustmentLayerGpuDependencies {
   correctedTexture: GPUTexture;
   downsampleTexture: GPUTexture;
   identityColorLookupTexture: GPUTexture;
+  photoshopColorBalanceTransferTexture: GPUTexture;
   resolveColorLookup: (id: string | null) => ResolvedColorLookup | null;
 }
 
@@ -148,7 +149,8 @@ export class AdjustmentLayerGpuResources {
           { binding: 6, resource: (colorVibranceWhiteBalanceTexture
             ?? dependencies.identityColorLookupTexture).createView() },
           { binding: 7, resource: (colorVibranceColorTexture
-            ?? dependencies.identityColorLookupTexture).createView() }
+            ?? dependencies.identityColorLookupTexture).createView() },
+          { binding: 8, resource: dependencies.photoshopColorBalanceTransferTexture.createView() }
         ]
       }),
       payloadWriter: new AdjustmentGpuPayloadWriter(this.device, {

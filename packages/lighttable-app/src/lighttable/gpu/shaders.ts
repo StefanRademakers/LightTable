@@ -329,6 +329,7 @@ struct Adjustments {
 @group(0) @binding(5) var colorLookupLut: texture_3d<f32>;
 @group(0) @binding(6) var colorVibranceWhiteBalanceLut: texture_3d<f32>;
 @group(0) @binding(7) var colorVibranceColorLut: texture_3d<f32>;
+@group(0) @binding(8) var colorBalanceTransferLut: texture_2d<f32>;
 
 fn luminance(rgb: vec3f) -> f32 {
   return dot(rgb, vec3f(0.2126, 0.7152, 0.0722));
@@ -923,6 +924,26 @@ fn photoshopColorBalanceChannel(value: f32, tone: u32, amount: f32) -> f32 {
   return classic;
 }
 
+fn photoshopMeasuredColorBalanceChannel(value: f32, tone: u32, amount: f32) -> f32 {
+  let code = clamp(value, 0.0, 1.0) * 255.0;
+  let parameterPosition = (clamp(amount, -100.0, 100.0) + 100.0) / 10.0;
+  let row = f32(tone * 21u) + parameterPosition;
+  return textureSampleLevel(
+    colorBalanceTransferLut,
+    sourceSampler,
+    vec2f((code + 0.5) / 256.0, (row + 0.5) / 63.0),
+    0.0
+  ).r;
+}
+
+fn photoshopApplyMeasuredColorBalanceTone(color: vec3f, amounts: vec3f, tone: u32) -> vec3f {
+  return vec3f(
+    photoshopMeasuredColorBalanceChannel(color.r, tone, amounts.r),
+    photoshopMeasuredColorBalanceChannel(color.g, tone, amounts.g),
+    photoshopMeasuredColorBalanceChannel(color.b, tone, amounts.b)
+  );
+}
+
 fn photoshopApplyColorBalanceTone(color: vec3f, amounts: vec3f, tone: u32) -> vec3f {
   return vec3f(
     photoshopColorBalanceChannel(color.r, tone, amounts.r),
@@ -1154,9 +1175,16 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
       midtones -= vec3f((midtoneMinimum + midtoneMaximum) * 0.5);
       highlights = (highlights - vec3f(min(highlights.r, min(highlights.g, highlights.b)))) * 0.775;
     }
-    var adjusted = photoshopApplyColorBalanceTone(encoded, shadows, 0u);
-    adjusted = photoshopApplyColorBalanceTone(adjusted, midtones, 1u);
-    adjusted = photoshopApplyColorBalanceTone(adjusted, highlights, 2u);
+    var adjusted = encoded;
+    if (photoshopValue(25u) > 0.5) {
+      adjusted = photoshopApplyColorBalanceTone(adjusted, shadows, 0u);
+      adjusted = photoshopApplyColorBalanceTone(adjusted, midtones, 1u);
+      adjusted = photoshopApplyColorBalanceTone(adjusted, highlights, 2u);
+    } else {
+      adjusted = photoshopApplyMeasuredColorBalanceTone(adjusted, shadows, 0u);
+      adjusted = photoshopApplyMeasuredColorBalanceTone(adjusted, midtones, 1u);
+      adjusted = photoshopApplyMeasuredColorBalanceTone(adjusted, highlights, 2u);
+    }
     return photoshopEncodedDocumentToLinearSrgb(adjusted);
   }
   if (kind == 6u) {

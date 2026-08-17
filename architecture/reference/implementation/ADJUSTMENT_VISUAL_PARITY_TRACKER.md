@@ -202,8 +202,8 @@ parity. No fitted correction curve is applied to that residual.
 
 ## Color Balance
 
-Status: measured improvement accepted; photographic extreme-case audit remains
-open.
+Status: measured independent-transfer improvement accepted; the Preserve
+Luminosity multi-tone audit remains open.
 
 Photoshop 27.11 does not implement Color Balance as a linear RGB offset. The
 measured encoded-document response uses sign-dependent toe, midpoint, and
@@ -221,13 +221,21 @@ luminance after clipping. For each three-axis tonal vector, Photoshop removes a
 neutral component using the strongest channel as the shadow anchor, the
 min/max midpoint as the midtone anchor, and the weakest channel as the highlight
 anchor. This explains the measured opponent-channel response and avoids the old
-single-lightness-mask approximation. Grade remains unchanged, and the node adds
-no pass, texture, readback, or CPU work.
+single-lightness-mask approximation. Grade remains unchanged. Preserve
+Luminosity continues to use this established analytic path. With Preserve
+Luminosity disabled, a shared 16 KiB `r8unorm` texture supplies Photoshop 27's
+measured 21-knot toe, midpoint, and shoulder families. It adds no compositor
+pass, per-node allocation, readback, or per-frame CPU work.
 
 | Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Cases <= 5% RMSE |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Hue/lightness diagnostic ramp | sRGB / 8-bit | 37 | 1.792% | 12.532% | 98.208% | 36 / 37 |
-| `D:\people.jpg` | sRGB / 16-bit | 37 | 2.242% | 14.258% | 97.758% | 32 / 37 |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 37 | 1.473% | 12.532% | 98.527% | 36 / 37 |
+| `D:\people.jpg` | sRGB / 16-bit | 37 | 1.743% | 14.258% | 98.257% | 33 / 37 |
+
+The measured no-preserve single-tone cases are now within 0.1% RMSE; the
+combined no-preserve midtone is 0.166% on the diagnostic and 0.022% on the
+photograph. The remaining 2.2-2.4% all-tone no-preserve residual identifies
+tone-family composition order rather than an individual transfer curve.
 
 The diagnostic corpus passes the full tracker gate. The 16-bit photograph
 passes the overall 95-percent visual-parity requirement but not yet the strict

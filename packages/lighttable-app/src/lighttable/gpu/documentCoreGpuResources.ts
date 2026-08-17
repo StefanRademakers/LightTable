@@ -3,6 +3,11 @@ import type { DocumentBitDepth, DocumentBlendProfile } from '../editor/document/
 import { CURVE_LUT_SIZE } from '../curves';
 import { ADJUSTMENT_UNIFORM_FLOATS } from './adjustmentUniform';
 import { AdjustmentGpuPayloadWriter } from './AdjustmentGpuPayloadWriter';
+import {
+  decodePhotoshopColorBalanceTransfer,
+  PHOTOSHOP_COLOR_BALANCE_TRANSFER_ROWS,
+  PHOTOSHOP_COLOR_BALANCE_TRANSFER_WIDTH
+} from './photoshopColorBalanceTransfer';
 
 const createUniformBuffer = (device: GPUDevice, label: string, floats: number) =>
   device.createBuffer({
@@ -27,6 +32,7 @@ export class DocumentCoreGpuResources {
   readonly blurVerticalBuffer: GPUBuffer;
   readonly curveTexture: GPUTexture;
   readonly identityColorLookupTexture: GPUTexture;
+  readonly photoshopColorBalanceTransferTexture: GPUTexture;
 
   private readonly adjustmentPayloadWriter: AdjustmentGpuPayloadWriter;
   private lastOutputSettings: Float32Array | null = null;
@@ -92,6 +98,18 @@ export class DocumentCoreGpuResources {
       { bytesPerRow: 2 * 4 * Float32Array.BYTES_PER_ELEMENT, rowsPerImage: 2 },
       { width: 2, height: 2, depthOrArrayLayers: 2 }
     );
+    this.photoshopColorBalanceTransferTexture = device.createTexture({
+      label: 'Photoshop Color Balance transfer curves',
+      size: [PHOTOSHOP_COLOR_BALANCE_TRANSFER_WIDTH, PHOTOSHOP_COLOR_BALANCE_TRANSFER_ROWS],
+      format: 'r8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    });
+    device.queue.writeTexture(
+      { texture: this.photoshopColorBalanceTransferTexture },
+      decodePhotoshopColorBalanceTransfer(),
+      { bytesPerRow: PHOTOSHOP_COLOR_BALANCE_TRANSFER_WIDTH },
+      { width: PHOTOSHOP_COLOR_BALANCE_TRANSFER_WIDTH, height: PHOTOSHOP_COLOR_BALANCE_TRANSFER_ROWS }
+    );
     this.adjustmentPayloadWriter = new AdjustmentGpuPayloadWriter(device, {
       uniformBuffer: this.adjustmentBuffer,
       curveTexture: this.curveTexture
@@ -143,6 +161,7 @@ export class DocumentCoreGpuResources {
     this.blurVerticalBuffer.destroy();
     this.curveTexture.destroy();
     this.identityColorLookupTexture.destroy();
+    this.photoshopColorBalanceTransferTexture.destroy();
     this.lastOutputSettings = null;
   }
 

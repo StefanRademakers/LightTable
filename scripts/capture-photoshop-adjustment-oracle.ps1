@@ -218,6 +218,20 @@ $colorBalanceCases = @(
   @{ id='midtones-combined-no-preserve'; shadows=@(0,0,0); midtones=@(80,-80,80); highlights=@(0,0,0); preserveLuminosity=$false },
   @{ id='all-tones-no-preserve'; shadows=@(-80,80,-80); midtones=@(80,-80,80); highlights=@(-80,80,-80); preserveLuminosity=$false }
 )
+$colorBalanceCalibrationCases = @()
+foreach ($tone in @('shadows', 'midtones', 'highlights')) {
+  foreach ($amount in (-100..100 | Where-Object { $_ % 10 -eq 0 })) {
+    $settings = @{
+      id="transfer-$tone-$amount"
+      shadows=@(0,0,0)
+      midtones=@(0,0,0)
+      highlights=@(0,0,0)
+      preserveLuminosity=$false
+    }
+    $settings[$tone] = @($amount,0,0)
+    $colorBalanceCalibrationCases += $settings
+  }
+}
 $photoFilterCases = @(
   @{ id='warm-density-1-preserve'; color=@(255,140,40); density=1; preserveLuminosity=$true },
   @{ id='warm-density-20-preserve'; color=@(255,140,40); density=20; preserveLuminosity=$true },
@@ -448,7 +462,9 @@ elseif ($Adjustment -eq 'vibrance') { $vibranceCases }
 elseif ($Adjustment -eq 'color-vibrance') {
   if ($Corpus -eq 'calibration') { $colorVibranceCalibrationCases } else { $colorVibranceCases }
 }
-elseif ($Adjustment -eq 'color-balance') { $colorBalanceCases }
+elseif ($Adjustment -eq 'color-balance') {
+  if ($Corpus -eq 'calibration') { $colorBalanceCalibrationCases } else { $colorBalanceCases }
+}
 elseif ($Adjustment -eq 'black-white') { $blackWhiteCases }
 elseif ($Adjustment -eq 'photo-filter') { $photoFilterCases }
 elseif ($Adjustment -eq 'channel-mixer') { $channelMixerCases }
