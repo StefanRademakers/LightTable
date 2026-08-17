@@ -89,6 +89,9 @@ describe('Photoshop adjustment export adapter', () => {
     expect(binaryRoundTrip(authored('color-lookup'))).toMatchObject({
       type: 'color lookup', lutFormat: 'cube', lut3DFileName: 'LightTable-teal-orange.cube'
     });
+    expect(binaryRoundTrip(authored('photo-filter'))).toMatchObject({
+      type: 'photo filter', density: 0.25
+    });
   });
 
   it('roundtrips Photoshop Colorize using its native Hue/Saturation descriptor encoding', () => {

@@ -33,6 +33,9 @@ try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') process.stderr.write(`[renderer] ${message.text()}\n`);
+  });
   const driver = await attachLightTableAutomation(page, 'adjustment-parity');
   for (const [index, entry] of manifest.entries()) {
     const result = { id: entry.id, source: entry.psd, output: path.join(output, `${entry.id}.png`) };

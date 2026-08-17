@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance')]
+  [ValidateSet('exposure', 'brightness-contrast', 'levels', 'curves', 'hue-saturation', 'color-balance', 'photo-filter')]
   [string]$Adjustment = 'exposure',
   [ValidateSet('validation', 'calibration')]
   [string]$Corpus = 'validation',
@@ -218,12 +218,43 @@ $colorBalanceCases = @(
   @{ id='midtones-combined-no-preserve'; shadows=@(0,0,0); midtones=@(80,-80,80); highlights=@(0,0,0); preserveLuminosity=$false },
   @{ id='all-tones-no-preserve'; shadows=@(-80,80,-80); midtones=@(80,-80,80); highlights=@(-80,80,-80); preserveLuminosity=$false }
 )
+$photoFilterCases = @(
+  @{ id='warm-density-1-preserve'; color=@(255,140,40); density=1; preserveLuminosity=$true },
+  @{ id='warm-density-20-preserve'; color=@(255,140,40); density=20; preserveLuminosity=$true },
+  @{ id='warm-density-50-preserve'; color=@(255,140,40); density=50; preserveLuminosity=$true },
+  @{ id='warm-density-80-preserve'; color=@(255,140,40); density=80; preserveLuminosity=$true },
+  @{ id='warm-density-100-preserve'; color=@(255,140,40); density=100; preserveLuminosity=$true },
+  @{ id='warm-density-20-no-preserve'; color=@(255,140,40); density=20; preserveLuminosity=$false },
+  @{ id='warm-density-1-no-preserve'; color=@(255,140,40); density=1; preserveLuminosity=$false },
+  @{ id='warm-density-50-no-preserve'; color=@(255,140,40); density=50; preserveLuminosity=$false },
+  @{ id='warm-density-80-no-preserve'; color=@(255,140,40); density=80; preserveLuminosity=$false },
+  @{ id='warm-density-100-no-preserve'; color=@(255,140,40); density=100; preserveLuminosity=$false },
+  @{ id='red-density-20-preserve'; color=@(255,0,0); density=20; preserveLuminosity=$true },
+  @{ id='red-density-80-preserve'; color=@(255,0,0); density=80; preserveLuminosity=$true },
+  @{ id='red-density-20-no-preserve'; color=@(255,0,0); density=20; preserveLuminosity=$false },
+  @{ id='red-density-80-no-preserve'; color=@(255,0,0); density=80; preserveLuminosity=$false },
+  @{ id='red-density-100-no-preserve'; color=@(255,0,0); density=100; preserveLuminosity=$false },
+  @{ id='blue-density-20-preserve'; color=@(0,80,255); density=20; preserveLuminosity=$true },
+  @{ id='blue-density-80-preserve'; color=@(0,80,255); density=80; preserveLuminosity=$true },
+  @{ id='blue-density-20-no-preserve'; color=@(0,80,255); density=20; preserveLuminosity=$false },
+  @{ id='blue-density-80-no-preserve'; color=@(0,80,255); density=80; preserveLuminosity=$false },
+  @{ id='blue-density-100-no-preserve'; color=@(0,80,255); density=100; preserveLuminosity=$false },
+  @{ id='green-density-100-preserve'; color=@(0,255,80); density=100; preserveLuminosity=$true },
+  @{ id='green-density-100-no-preserve'; color=@(0,255,80); density=100; preserveLuminosity=$false },
+  @{ id='gray-density-80-preserve'; color=@(128,128,128); density=80; preserveLuminosity=$true },
+  @{ id='gray-density-80-no-preserve'; color=@(128,128,128); density=80; preserveLuminosity=$false },
+  @{ id='white-density-100-preserve'; color=@(255,255,255); density=100; preserveLuminosity=$true },
+  @{ id='white-density-100-no-preserve'; color=@(255,255,255); density=100; preserveLuminosity=$false },
+  @{ id='black-density-100-preserve'; color=@(0,0,0); density=100; preserveLuminosity=$true },
+  @{ id='black-density-100-no-preserve'; color=@(0,0,0); density=100; preserveLuminosity=$false }
+)
 $cases = if ($Adjustment -eq 'brightness-contrast') {
   if ($Corpus -eq 'calibration') { $brightnessContrastCalibrationCases } else { $brightnessContrastCases }
 } elseif ($Adjustment -eq 'levels') { $levelsCases }
 elseif ($Adjustment -eq 'curves') { $curvesCases }
 elseif ($Adjustment -eq 'hue-saturation') { $hueSaturationCases }
 elseif ($Adjustment -eq 'color-balance') { $colorBalanceCases }
+elseif ($Adjustment -eq 'photo-filter') { $photoFilterCases }
 else { $exposureCases }
 if (-not [string]::IsNullOrWhiteSpace($CasePattern)) {
   $cases = @($cases | Where-Object { $_.id -match $CasePattern })
@@ -392,6 +423,18 @@ $rangeDescriptors
   adjustment.putList(c2t('HghL'), highlights);
   adjustment.putBoolean(c2t('PrsL'), $(if ($case.preserveLuminosity) { 'true' } else { 'false' }));
   adjustmentLayer.putObject(s2t('type'), s2t('colorBalance'), adjustment);
+"@
+    } elseif ($Adjustment -eq 'photo-filter') {
+      $adjustmentDescriptor = @"
+  var adjustment = new ActionDescriptor();
+  var filterColor = new ActionDescriptor();
+  filterColor.putDouble(c2t('Rd  '), $($case.color[0]));
+  filterColor.putDouble(c2t('Grn '), $($case.color[1]));
+  filterColor.putDouble(c2t('Bl  '), $($case.color[2]));
+  adjustment.putObject(c2t('Clr '), s2t('RGBColor'), filterColor);
+  adjustment.putInteger(c2t('Dnst'), $($case.density));
+  adjustment.putBoolean(c2t('PrsL'), $(if ($case.preserveLuminosity) { 'true' } else { 'false' }));
+  adjustmentLayer.putObject(s2t('type'), s2t('photoFilter'), adjustment);
 "@
     } else {
       $adjustmentDescriptor = @"

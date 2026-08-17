@@ -634,6 +634,29 @@ describe('importPsdDocument', () => {
       .toBe(kind);
   });
 
+  it('restores normalized Lab colors and fractional density from Photoshop Photo Filter', () => {
+    const result = importPsdDocument(decoded([raster('photo-filter-lab', {
+      kind: 'adjustment',
+      pixels: null,
+      adjustment: {
+        type: 'photo filter',
+        color: { l: 0.703, a: 0.3162992125984252, b: 0.5348818897637795 },
+        density: 0.8,
+        preserveLuminosity: false
+      }
+    })]), 'photo-filter-lab.psd');
+    const layer = result.document.layers[0];
+    if (layer.type !== 'adjustment') throw new Error('Expected an adjustment layer.');
+    const settings = materializeBasicAdjustments(layer.adjustmentStack).photoshopAdjustment;
+
+    expect(settings.kind).toBe('photo-filter');
+    expect(settings.photoFilterDensity).toBe(80);
+    expect(settings.preserveLuminosity).toBe(false);
+    expect(settings.photoFilterColor.r).toBeCloseTo(1, 2);
+    expect(settings.photoFilterColor.g).toBeCloseTo(140 / 255, 2);
+    expect(settings.photoFilterColor.b).toBeCloseTo(40 / 255, 2);
+  });
+
   it('restores Photoshop Hue/Saturation Colorize parameters', () => {
     const result = importPsdDocument(decoded([raster('colorize', {
       kind: 'adjustment',

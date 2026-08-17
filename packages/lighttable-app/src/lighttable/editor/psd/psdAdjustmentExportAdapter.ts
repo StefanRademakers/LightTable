@@ -160,7 +160,7 @@ const photoshopAdjustment = (
     };
     case 'photo-filter': return {
       type: 'photo filter', color: color(settings.photoFilterColor),
-      density: settings.photoFilterDensity,
+      density: settings.photoFilterDensity / 100,
       preserveLuminosity: settings.preserveLuminosity
     };
     case 'channel-mixer': return {

@@ -174,6 +174,35 @@ const rgbColor = (value: PsdColor | undefined, sourceProfile: DocumentBlendProfi
     }, sourceProfile);
     return { red: converted.r, green: converted.g, blue: converted.b };
   }
+  if ('l' in value && 'a' in value && 'b' in value) {
+    // PSD Photo Filter descriptors commonly canonicalize their authored RGB
+    // color to normalized CIE Lab. ag-psd exposes L as 0..1 and a/b as signed
+    // 16-bit Lab fractions (positive / 127, negative / 128).
+    const lightness = value.l * 100;
+    const labA = value.a * (value.a < 0 ? 128 : 127);
+    const labB = value.b * (value.b < 0 ? 128 : 127);
+    const fy = (lightness + 16) / 116;
+    const fx = fy + labA / 500;
+    const fz = fy - labB / 200;
+    const delta = 6 / 29;
+    const inverseLab = (component: number) => component > delta
+      ? component ** 3
+      : 3 * delta ** 2 * (component - 4 / 29);
+    const x50 = 0.96422 * inverseLab(fx);
+    const y50 = inverseLab(fy);
+    const z50 = 0.82521 * inverseLab(fz);
+    const x = 0.9555766 * x50 - 0.0230393 * y50 + 0.0631636 * z50;
+    const y = -0.0282895 * x50 + 1.0099416 * y50 + 0.0210077 * z50;
+    const z = 0.0122982 * x50 - 0.020483 * y50 + 1.3299098 * z50;
+    const encode = (component: number) => component <= 0.0031308
+      ? component * 12.92
+      : 1.055 * Math.max(component, 0) ** (1 / 2.4) - 0.055;
+    return {
+      red: clamp(encode(3.2404542 * x - 1.5371385 * y - 0.4985314 * z), 0, 1),
+      green: clamp(encode(-0.969266 * x + 1.8760108 * y + 0.041556 * z), 0, 1),
+      blue: clamp(encode(0.0556434 * x - 0.2040259 * y + 1.0572252 * z), 0, 1)
+    };
+  }
   return null;
 };
 
@@ -330,7 +359,8 @@ const importedPhotoshopSettings = (
       const settings = result('photo-filter');
       const filter = rgbColor(source.color, sourceProfile);
       if (filter) settings.photoFilterColor = { r: filter.red, g: filter.green, b: filter.blue, a: 1 };
-      settings.photoFilterDensity = source.density ?? 25;
+      const density = source.density ?? 0.25;
+      settings.photoFilterDensity = density <= 1 ? density * 100 : density;
       settings.preserveLuminosity = source.preserveLuminosity ?? true;
       return { kind: settings.kind, settings, support: 'native', reason: 'Photoshop Photo Filter is mapped to the native LightTable node.' };
     }

@@ -240,3 +240,37 @@ luminosity protection in its
 [Color Balance guide](https://helpx.adobe.com/uk/photoshop/using/applying-color-balance-adjustment.html);
 the historic transfer-family reference is GIMP's
 [original Color Balance implementation](https://raw.githubusercontent.com/GNOME/gimp/GIMP_1_0_4/app/color_balance.c).
+
+## Photo Filter
+
+Status: accepted.
+
+Photoshop 27.11 models Photo Filter as optical transmittance in its D50 profile
+connection space. Source and filter colors are transformed to linear D50 XYZ;
+Density linearly interpolates the filter's three XYZ transmissions from the D50
+white point. The filtered XYZ value is transformed back to document RGB. This
+accounts for the cross-channel response on saturated colors that an RGB
+multiply cannot reproduce.
+
+`Preserve Luminosity` first clips that filtered RGB result to gamut, then applies
+Photoshop's encoded-document `SetLum` / `ClipColor` operation with the classic
+0.30 / 0.59 / 0.11 blend luminosity. The ordering matters at high density and
+on primary colors. No fitted falloff curve, extra render pass, lookup texture,
+or readback is used.
+
+PSD interchange was part of the measured defect. Photoshop commonly stores the
+Photo Filter color as normalized CIE Lab and Density as a 0..1 fraction.
+LightTable now converts that Lab descriptor through D50 to sRGB, imports the
+fraction into its 1..100 UI range, and exports the inverse representation.
+
+| Corpus | Profile / depth | Cases | Mean RGB RMSE | Worst RGB RMSE | Visual parity | Cases <= 5% RMSE |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Hue/lightness diagnostic ramp | sRGB / 8-bit | 15 | 0.219% | 0.311% | 99.781% | 15 / 15 |
+| `D:\people.jpg` | sRGB / 16-bit | 28 | 0.188% | 0.250% | 99.812% | 28 / 28 |
+
+The corpus covers Density 1, 20, 50, 80, and 100; preserve on and off; warm,
+red, blue, green, neutral gray, white, and black filters. Every photographic
+case is within two output code values by the tracker metric. Adobe describes
+Photo Filter as a photographic color-transmission simulation, Density as its
+strength, and Preserve Luminosity as protection of image luminosity in the
+[Photo Filter guide](https://helpx.adobe.com/sg/photoshop/using/applying-color-balance-adjustment.html).

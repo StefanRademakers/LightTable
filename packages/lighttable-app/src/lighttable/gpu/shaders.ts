@@ -622,6 +622,30 @@ fn preservePhotoshopLuminance(source: vec3f, adjusted: vec3f) -> vec3f {
   return adjusted * sourceY / adjustedY;
 }
 
+fn photoshopBlendLuminosity(color: vec3f) -> f32 {
+  return dot(color, vec3f(0.30, 0.59, 0.11));
+}
+
+fn photoshopClipBlendColor(color: vec3f) -> vec3f {
+  let luminosity = photoshopBlendLuminosity(color);
+  let minimum = min(color.r, min(color.g, color.b));
+  let maximum = max(color.r, max(color.g, color.b));
+  var clipped = color;
+  if (minimum < 0.0) {
+    clipped = vec3f(luminosity) + (clipped - vec3f(luminosity))
+      * luminosity / max(luminosity - minimum, 0.000001);
+  }
+  if (maximum > 1.0) {
+    clipped = vec3f(luminosity) + (clipped - vec3f(luminosity))
+      * (1.0 - luminosity) / max(maximum - luminosity, 0.000001);
+  }
+  return clipped;
+}
+
+fn photoshopSetBlendLuminosity(color: vec3f, targetLuminosity: f32) -> vec3f {
+  return photoshopClipBlendColor(color + vec3f(targetLuminosity - photoshopBlendLuminosity(color)));
+}
+
 fn photoshopLinearToEncodedChannel(value: f32) -> f32 {
   if (value <= 0.0031308) { return value * 12.92; }
   return 1.055 * pow(value, 1.0 / 2.4) - 0.055;
@@ -661,6 +685,22 @@ fn photoshopEncodedDocumentToLinearSrgb(encoded: vec3f) -> vec3f {
     photoshopEncodedToLinearChannel(encoded.r),
     photoshopEncodedToLinearChannel(encoded.g),
     photoshopEncodedToLinearChannel(encoded.b)
+  );
+}
+
+fn photoshopLinearSrgbToD50Xyz(rgb: vec3f) -> vec3f {
+  return vec3f(
+    dot(rgb, vec3f(0.43607464, 0.38506491, 0.14308038)),
+    dot(rgb, vec3f(0.22250452, 0.71687864, 0.06061694)),
+    dot(rgb, vec3f(0.01393217, 0.09710450, 0.71417326))
+  );
+}
+
+fn photoshopD50XyzToLinearSrgb(xyz: vec3f) -> vec3f {
+  return vec3f(
+    dot(xyz, vec3f(3.13385693, -1.61686703, -0.49061471)),
+    dot(xyz, vec3f(-0.97876877, 1.91614159, 0.03345403)),
+    dot(xyz, vec3f(0.07194530, -0.22899134, 1.40524274))
   );
 }
 
@@ -1016,9 +1056,34 @@ fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
     return result;
   }
   if (kind == 7u) {
-    let filterColor = vec3f(photoshopValue(37u), photoshopValue(38u), photoshopValue(39u));
-    let adjusted = mix(rgb, filterColor * max(luminance(rgb), 0.05), photoshopValue(41u) / 100.0);
-    return select(adjusted, preservePhotoshopLuminance(rgb, adjusted), photoshopValue(25u) > 0.5);
+    let encodedFilter = vec3f(photoshopValue(37u), photoshopValue(38u), photoshopValue(39u));
+    let linearFilter = photoshopEncodedDocumentToLinearSrgb(encodedFilter);
+    let density = clamp(photoshopValue(41u) / 100.0, 0.0, 1.0);
+
+    // Photoshop models the filter as physical transmittance in its D50 profile
+    // connection space. Density interpolates each XYZ transmission from white;
+    // this is why saturated source colors are coupled across RGB channels.
+    let d50White = vec3f(0.96422, 1.0, 0.82521);
+    let filterXyz = photoshopLinearSrgbToD50Xyz(linearFilter);
+    let transmission = mix(vec3f(1.0), filterXyz / d50White, density);
+    let filtered = photoshopD50XyzToLinearSrgb(
+      photoshopLinearSrgbToD50Xyz(rgb) * transmission
+    );
+    if (photoshopValue(25u) <= 0.5) { return filtered; }
+
+    // Preserve Luminosity is Photoshop's non-separable SetLum/ClipColor
+    // operation in the encoded document space, not a linear-light scale.
+    let encodedSource = photoshopLinearSrgbToEncodedDocument(rgb);
+    let encodedFiltered = clamp(
+      photoshopLinearSrgbToEncodedDocument(filtered),
+      vec3f(0.0),
+      vec3f(1.0)
+    );
+    let preserved = photoshopSetBlendLuminosity(
+      encodedFiltered,
+      photoshopBlendLuminosity(encodedSource)
+    );
+    return photoshopEncodedDocumentToLinearSrgb(preserved);
   }
   if (kind == 8u) {
     let red = dot(rgb, vec3f(photoshopValue(43u), photoshopValue(44u), photoshopValue(45u)) / 100.0) + photoshopValue(46u) / 100.0;

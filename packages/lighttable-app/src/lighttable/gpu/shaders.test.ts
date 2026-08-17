@@ -356,6 +356,15 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('photoshopEncodedDocumentToLinearSrgb(adjusted)');
   });
 
+  it('evaluates Photoshop Photo Filter as D50 transmittance before luminosity preservation', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('fn photoshopLinearSrgbToD50Xyz');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn photoshopD50XyzToLinearSrgb');
+    expect(CREATIVE_GRADE_WGSL).toContain('filterXyz / d50White');
+    expect(CREATIVE_GRADE_WGSL).toContain('let encodedFiltered = clamp(');
+    expect(CREATIVE_GRADE_WGSL).toContain('photoshopSetBlendLuminosity(');
+    expect(CREATIVE_GRADE_WGSL).not.toMatch(/\btarget\s*:/);
+  });
+
   it('transforms layer pixels and masks through their independent document transforms', () => {
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_COMPOSITE_WGSL).toContain('inverseRow1: vec4f');
