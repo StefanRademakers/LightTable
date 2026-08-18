@@ -67,21 +67,24 @@ try {
     mimeByExtension.get(path.extname(source).toLowerCase()) ?? 'application/octet-stream'
   );
   if (!sourceArtifact?.id) throw new Error('Detail source registration failed.');
+  const opened = await driver.executeWorkspace('file.openArtifact', {
+    artifactId: sourceArtifact.id
+  });
+  const documentId = opened.value?.documentId;
+  if (!documentId) throw new Error('Detail source open did not return a document ID.');
+  await driver.waitForDocument(documentId, 120_000);
+  const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
+  await trigger.click();
+  await page.getByRole('menu', { name: 'New fill or processing layer' })
+    .getByRole('menuitem', { name: 'New Grade layer', exact: true }).click();
+  await page.getByLabel('Grade Layer properties', { exact: true }).last()
+    .waitFor({ state: 'visible', timeout: 30_000 });
 
+  let previous = 0;
   for (const entry of cases) {
-    const opened = await driver.executeWorkspace('file.openArtifact', {
-      artifactId: sourceArtifact.id
-    });
-    const documentId = opened.value?.documentId;
-    if (!documentId) throw new Error('Detail source open did not return a document ID.');
-    await driver.waitForDocument(documentId, 120_000);
-    const gradePanel = page.locator('aside.lighttable-grade-panel');
-    if (!await gradePanel.isVisible().catch(() => false)) {
-      await page.getByRole('treeitem', { name: /Global Grade/ }).click();
-    }
-    await gradePanel.waitFor({ state: 'visible', timeout: 30_000 });
-    if (entry.luminanceNoiseReduction !== 0) {
+    if (previous !== entry.luminanceNoiseReduction) {
       await setLuminanceNoiseReduction(page, entry.luminanceNoiseReduction);
+      previous = entry.luminanceNoiseReduction;
     }
     const exported = await driver.execute(documentId, 'file.exportPng', {}, {
       requireCompleted: false

@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "section": "local-detail",
+  "groupLabel": "Texture / Clarity / Dehaze",
+  "unresolvedControls": [
+    {
+      "key": "texture",
+      "label": "Texture",
+      "reason": "Camera Raw Filter descriptors Txtr and texture were both proven inert in Camera Raw 18.5."
+    }
+  ],
+  "controls": [
+    {
+      "key": "clarity",
+      "label": "Clarity",
+      "cameraRawDescriptor": "Cl12",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    },
+    {
+      "key": "dehaze",
+      "label": "Dehaze",
+      "cameraRawDescriptor": "Dhze",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    }
+  ]
+}

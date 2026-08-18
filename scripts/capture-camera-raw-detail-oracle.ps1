@@ -98,7 +98,7 @@ $report = [ordered]@{
   photoshopVersion = $photoshop.Version
   photoshopPath = $photoshop.Path
   cameraRawVersion = if ($cameraRawPlugin) { $cameraRawPlugin.VersionInfo.ProductVersion } else { $null }
-  isolation = 'Only the LNR descriptor differs between neutral and luminance-100.'
+  isolation = 'Each output opens the source afresh and authors exactly one Camera Raw LNR value.'
   cases = $results
 }
 $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath `

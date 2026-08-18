@@ -41,3 +41,20 @@ test('Grade Color oracle covers signed Camera Raw color controls and endpoints',
     }
   }
 });
+
+test('Grade local-detail oracle covers proven Clarity and Dehaze descriptors', async () => {
+  const suite = JSON.parse(await readFile(
+    path.join(import.meta.dirname, 'grade-local-detail-parity-cases.json'), 'utf8'
+  ));
+  assert.equal(suite.section, 'local-detail');
+  assert.equal(suite.groupLabel, 'Texture / Clarity / Dehaze');
+  assert.deepEqual(suite.controls.map(({ cameraRawDescriptor }) => cameraRawDescriptor), [
+    'Cl12', 'Dhze'
+  ]);
+  assert.equal(suite.unresolvedControls[0].key, 'texture');
+  for (const control of suite.controls) {
+    for (const value of [-100, -80, -50, 50, 80, 100]) {
+      assert.ok(control.values.includes(value), `${control.key} includes ${value}`);
+    }
+  }
+});

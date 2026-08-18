@@ -256,3 +256,32 @@ their low correlations show that a scalar increase would amplify the wrong
 chromatic response. These controls remain characterization findings pending a
 grounded chromatic-adaptation model and visual review of the generated contact
 sheets.
+
+## Spatial-detail corpus baseline
+
+The corpus oracle also covers Clarity (`Cl12`) and Dehaze (`Dhze`) at signed
+25, 50, 80 and 100 values. Both descriptors were proven active on every
+source. Two plausible Texture descriptors, `Txtr` and the `texture` string ID,
+were separately proven inert in Camera Raw Filter 18.5. Texture therefore
+remains an explicitly unresolved automation control instead of being reported
+under a guessed descriptor.
+
+| Control | Active sources | Minimum source correlation | Mean magnitude ratio | Worst delta RMSE |
+| --- | ---: | ---: | ---: | ---: |
+| Clarity | 10/10 | 0.2697 | 0.378 | 12.25% |
+| Dehaze | 10/10 | 0.0404 | 0.336 | 38.92% |
+
+The broad per-source magnitude ranges and low correlations show that the
+current compact local-contrast and dark-channel-inspired implementations are
+useful creative controls, but not Camera Raw parity implementations. Scaling
+their existing output would not recover Camera Raw's radius, tonal masks or
+scene adaptation and is therefore rejected as an ungrounded change.
+
+The standalone Luminance Noise Reduction oracle was migrated from the removed
+Global Grade pseudo-row to a normal topmost Grade Layer and now decodes its
+source only once. Its earlier result reproduced: at Amount 100, Camera Raw and
+LightTable retain nearly identical high-frequency energy (0.7357 versus
+0.7365), while LightTable's total effect magnitude is 1.595 times Camera Raw
+with correlation 0.6505. This is evidence that the remaining gap is in
+multi-scale threshold/reconstruction distribution rather than one overall
+strength value; no scalar retuning was accepted.
