@@ -180,6 +180,79 @@ describe('PSD export projection', () => {
     expect(projection.psd.children?.[1]?.children).toBeUndefined();
   });
 
+  it('keeps an editable Grade Curves folder at its exact root sibling position', () => {
+    const source = createImageDocument('Root order', 2, 2, 'background');
+    const values = createDefaultAdjustments();
+    values.curves.master = [{ x: 0, y: 0 }, { x: 1, y: 0.8 }];
+    const withGrade = createAdjustmentLayer(
+      source,
+      createAdjustmentStackFromBasicAdjustments(values),
+      'Middle Grade',
+      undefined,
+      'grade'
+    );
+    const document = createPlacedRasterLayer(withGrade, {
+      name: 'Top Pixels', width: 1, height: 1, x: 0, y: 0
+    });
+
+    const projection = projectDocumentToPsd(document, pixels(2, 2), document.layers
+      .filter((node) => node.type === 'raster')
+      .map((node) => ({ layerId: node.id, pixels: pixels(node.width, node.height) })));
+
+    expect(projection.psd.children?.map(({ name }) => name)).toEqual([
+      'Background', 'Middle Grade', 'Top Pixels'
+    ]);
+    expect(projection.psd.children?.[1]).toMatchObject({
+      blendMode: 'pass through', opened: false,
+      children: [{ name: 'Curves', adjustment: { type: 'curves' } }]
+    });
+    expect(projection.blockingWarnings).toEqual([]);
+  });
+
+  it('preserves nested Grade Curves order and visibility inside a pass-through group', () => {
+    const source = createImageDocument('Nested order', 2, 2, 'background');
+    const valuesA = createDefaultAdjustments();
+    valuesA.curves.master = [{ x: 0, y: 0.1 }, { x: 1, y: 1 }];
+    const first = createAdjustmentLayer(
+      source,
+      createAdjustmentStackFromBasicAdjustments(valuesA),
+      'Curves A',
+      undefined,
+      'grade'
+    );
+    const valuesB = createDefaultAdjustments();
+    valuesB.curves.master = [{ x: 0, y: 0 }, { x: 1, y: 0.9 }];
+    const second = createAdjustmentLayer(
+      first,
+      createAdjustmentStackFromBasicAdjustments(valuesB),
+      'Curves B',
+      undefined,
+      'grade'
+    );
+    second.layers[1]!.visible = false;
+    const group = createGroupLayer('Processing group');
+    group.compositing = 'pass-through';
+    group.children = second.layers;
+    const document = { ...second, layers: [group] };
+
+    const projection = projectDocumentToPsd(document, pixels(2, 2), [{
+      layerId: source.layers[0]!.id,
+      pixels: pixels(2, 2)
+    }]);
+    const exportedGroup = projection.psd.children?.[0];
+
+    expect(exportedGroup).toMatchObject({
+      name: 'Processing group',
+      blendMode: 'pass through',
+      children: [
+        { name: 'Background' },
+        { name: 'Curves A', hidden: true, children: [{ name: 'Curves' }] },
+        { name: 'Curves B', children: [{ name: 'Curves' }] }
+      ]
+    });
+    expect(projection.blockingWarnings).toEqual([]);
+  });
+
   it('reports that editable Face Warp semantics are baked for PSD compatibility', () => {
     const document = createImageDocument('Face warp', 32, 24, 'background');
     const layer = document.layers[0]!;

@@ -190,6 +190,12 @@ Implemented foundation - 18 August 2026
   owner-layer readback already contains the effect, and no second PSD
   adjustment child is emitted, so the result preserves appearance without
   double application.
+- Projection fixtures now prove Curves-only Grade Layers retain their exact
+  sibling position between raster layers and retain ordered, independently
+  hidden processing folders inside a pass-through group. This closes the
+  root/midstack and nested-order unit gates for the first editable Grade
+  decomposition; Photoshop rebuild evidence remains version-blocked by
+  task_203.
 
 Still open: further editable decomposition of compound Grade Layers, position-local
 fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group
