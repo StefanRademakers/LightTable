@@ -127,6 +127,12 @@ import { sampleMedianDepth } from './analysis/depth/normalization';
 import { useEditorDialogController } from './editor/ui/useEditorDialogController';
 import { BackgroundRemovalDialog } from './editor/ui/BackgroundRemovalDialog';
 import { createResizePlan, resizeImageDocumentSemantics, type ImageSizeRequest } from './application/imageSize/imageSizeModel';
+import {
+  createDocumentGeometryPlan,
+  projectDocumentGeometry,
+  projectSelectionGeometry,
+  type DocumentGeometryRequest
+} from './application/documentGeometry/documentGeometryModel';
 import { LightTableEditorShell } from './editor/ui/LightTableEditorShell';
 import {
   ParagraphTextCreationController,
@@ -1910,6 +1916,53 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }
       if (!reportError) throw reason;
       setError(reason instanceof Error ? reason.message : 'The image could not be resized.');
+    }
+  };
+  const commitDocumentGeometry = (request: DocumentGeometryRequest, reportError = true) => {
+    finishOpenHistoryTransactions();
+    const before = imageDocumentRef.current;
+    if (!before) return;
+    let gpuGeometry: ReturnType<DocumentRendererPort['applyDocumentGeometryPixels']> | null = null;
+    try {
+      const plan = createDocumentGeometryPlan(before, request);
+      const matrix = plan.oldDocumentToNewDocument;
+      if (plan.targetWidth === before.width && plan.targetHeight === before.height
+        && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1
+        && matrix.tx === 0 && matrix.ty === 0) {
+        editorDialogs.closeCanvasSize();
+        return;
+      }
+      const beforeSelection = editorSessionRef.current.selection;
+      const after = projectDocumentGeometry(before, plan);
+      const afterSelection = projectSelectionGeometry(beforeSelection, plan);
+      gpuGeometry = engineRef.current?.applyDocumentGeometryPixels(before, plan) ?? null;
+      const apply = (document: ImageDocument, selection: typeof beforeSelection) => {
+        engineRef.current?.resizeDocumentSurface(document);
+        applyDocumentSnapshot(document);
+        setEditorSession((current) => ({ ...current, selection }));
+      };
+      apply(after, afterSelection);
+      pushHistoryEntry({
+        type: `document.${request.operation}`,
+        label: request.operation === 'canvas-size' ? 'Canvas Size'
+          : request.operation === 'crop' ? 'Crop'
+            : request.operation === 'flip' ? 'Flip Canvas' : 'Image Rotation',
+        documentMutation: true,
+        undo: () => { gpuGeometry?.apply('before'); apply(before, beforeSelection); },
+        redo: () => { gpuGeometry?.apply('after'); apply(after, afterSelection); },
+        dispose: () => gpuGeometry?.dispose()
+      });
+      editorDialogs.closeCanvasSize();
+      setZoomMode('fit');
+      setView({ scale: 1, panX: 0, panY: 0 });
+    } catch (reason) {
+      if (gpuGeometry) {
+        gpuGeometry.apply('before');
+        engineRef.current?.resizeDocumentSurface(before);
+        applyDocumentSnapshot(before);
+      }
+      if (!reportError) throw reason;
+      setError(reason instanceof Error ? reason.message : 'Document geometry could not be changed.');
     }
   };
   const textToShapeControllerRef = useRef<TextToShapeCommandController | null>(null);
@@ -4275,6 +4328,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!commandPorts) return;
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
       resizeImage: (request) => commitImageSize(request, false),
+      applyDocumentGeometry: (request) => commitDocumentGeometry(request, false),
       setZoom: (viewport) => {
         if (viewport.zoomMode === 'fit') applyFitZoom();
         else if (viewport.zoomMode === '100') applyActualZoom();
@@ -5067,6 +5121,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     image: {
       openSize: editorDialogs.openImageSize,
+      openCanvasSize: editorDialogs.openCanvasSize,
+      openArbitraryRotation: editorDialogs.openArbitraryRotation,
+      applyDocumentGeometry: commitDocumentGeometry,
       duplicate: () => {
         setDuplicateImageError(null);
         editorDialogs.openDuplicateImage();
@@ -5895,6 +5952,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             dirtyDocuments: Boolean(workspaceDocuments?.some(({ dirty }) => dirty)),
             document: imageDocument,
             onResizeImage: commitImageSize,
+            onApplyDocumentGeometry: commitDocumentGeometry,
             duplicateImageBusy,
             duplicateImageError,
             duplicateImageSourceName: documentSession?.getSnapshot().title ?? initialSourceName,

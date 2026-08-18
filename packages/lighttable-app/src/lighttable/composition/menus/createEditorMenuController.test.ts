@@ -62,7 +62,7 @@ describe('createEditorMenuController', () => {
         invert: vi.fn(),
         removeObject: vi.fn(), removeBackground: vi.fn()
       },
-      image: { openSize: vi.fn(), duplicate: vi.fn(), applyCurves: vi.fn() },
+      image: { openSize: vi.fn(), openCanvasSize: vi.fn(), openArbitraryRotation: vi.fn(), applyDocumentGeometry: vi.fn(), duplicate: vi.fn(), applyCurves: vi.fn() },
       layers: {
         panel,
         duplicate: vi.fn(),
@@ -145,7 +145,7 @@ describe('createEditorMenuController', () => {
         pasteSelectedContent: vi.fn(), pasteGrade: vi.fn(), copyGrade: vi.fn()
       },
       selection: { selectAll: vi.fn(), clear: vi.fn(), invert: vi.fn(), removeObject: vi.fn(), removeBackground: vi.fn() },
-      image: { openSize: vi.fn(), duplicate: vi.fn(), applyCurves: vi.fn() },
+      image: { openSize: vi.fn(), openCanvasSize: vi.fn(), openArbitraryRotation: vi.fn(), applyDocumentGeometry: vi.fn(), duplicate: vi.fn(), applyCurves: vi.fn() },
       layers: {
         panel: {} as LayerPanelController,
         duplicate: vi.fn(), rasterizeText: vi.fn(), convertTextToShape,

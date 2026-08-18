@@ -5,7 +5,7 @@ const record = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
 const commandIds = new Set<string>([
-  'document.create', 'document.duplicate', 'document.resizeImage', 'view.setZoom', 'layer.createRaster', 'layer.placeArtifact',
+  'document.create', 'document.duplicate', 'document.resizeImage', 'document.applyGeometry', 'view.setZoom', 'layer.createRaster', 'layer.placeArtifact',
   'layer.rename', 'layer.setVisibility', 'layer.setFillOpacity', 'layer.style.setEnabled',
   'layer.effect.setEnabled', 'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
   'vector.create', 'vector.update', 'vector.remove', 'layer.effect.add', 'layer.effect.update',

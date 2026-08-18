@@ -34,6 +34,7 @@ import { startAtomicCommandBatchTask } from './atomicCommandBatchTask';
 import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSample,
   parseCreateDocumentOptions } from './lightTableCommandValidation';
 import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
+import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import { parseSemanticFaceWarpCommand, type SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 export * from './lightTableCommandContract';
 
@@ -69,6 +70,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     const resize = this.resolve(documentId).resizeImage;
     if (!resize) throw new Error('Image Size is unavailable in the target document.');
     return resize(request);
+  }
+
+  applyDocumentGeometry(documentId: DocumentSessionId, request: Parameters<NonNullable<DocumentLightTableCommandPorts['applyDocumentGeometry']>>[0]) {
+    const apply = this.resolve(documentId).applyDocumentGeometry;
+    if (!apply) throw new Error('Document geometry is unavailable in the target document.');
+    return apply(request);
   }
 
   createRasterLayer(documentId: DocumentSessionId) {
@@ -466,6 +473,7 @@ export class LightTableCommandService {
       availability('document.create', Boolean(this.workspacePorts), 'Document creation is unavailable in this host.'),
       availability('document.duplicate', Boolean(this.workspacePorts), 'Document duplication is unavailable in this host.'),
       availability('document.resizeImage', Boolean(this.ports.resizeImage), 'Image Size is unavailable in this host.'),
+      availability('document.applyGeometry', Boolean(this.ports.applyDocumentGeometry), 'Document geometry is unavailable in this host.'),
       availability('view.setZoom', true, ''),
       availability('layer.createRaster', true, ''),
       availability('layer.placeArtifact', true, ''),
@@ -629,6 +637,24 @@ export class LightTableCommandService {
         return { requestId: value.requestId, status: 'completed', value: {
           width: resize.width, height: resize.height, resolutionPpi: resize.resolutionPpi
         }, revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
+      }
+    }
+
+    if (value.command === 'document.applyGeometry') {
+      const geometry = parseDocumentGeometryRequest(value.parameters);
+      if ('message' in geometry) {
+        return this.reject(value.requestId, 'invalid-parameters', geometry.message, snapshot);
+      }
+      if (!this.ports.applyDocumentGeometry) {
+        return this.reject(value.requestId, 'command-unavailable', 'Document geometry is unavailable in this host.', snapshot);
+      }
+      try {
+        await this.ports.applyDocumentGeometry(documentRequest.documentId, geometry);
+        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: { operation: geometry.operation },
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
         return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
       }

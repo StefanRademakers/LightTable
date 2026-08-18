@@ -1,7 +1,9 @@
 import type { ImageDocument, LayerNode, Rect } from '../../editor/document/documentTypes';
 import type { AffineMatrix } from '../../editor/geometry/affine';
+import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import {
   multiplyMatrices,
+  invertMatrix,
   rotationMatrix,
   transformPoint,
   translationMatrix
@@ -31,6 +33,50 @@ export interface DocumentGeometryPlan {
 export const MAX_DOCUMENT_GEOMETRY_DIMENSION = 16_384;
 const VALID_ANCHORS = new Set<CanvasAnchor>([0, 0.5, 1]);
 const EPSILON = 1e-9;
+
+export const parseDocumentGeometryRequest = (
+  value: unknown
+): DocumentGeometryRequest | { readonly message: string } => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { message: 'Document geometry parameters must be an object.' };
+  }
+  const input = value as Record<string, unknown>;
+  if (input.operation === 'canvas-size') {
+    if (!Number.isInteger(input.width) || !Number.isInteger(input.height)
+      || !VALID_ANCHORS.has(input.anchorX as CanvasAnchor)
+      || !VALID_ANCHORS.has(input.anchorY as CanvasAnchor)) {
+      return { message: 'Canvas Size requires integer dimensions and a valid 3 x 3 anchor.' };
+    }
+    return { operation: 'canvas-size', width: Number(input.width), height: Number(input.height),
+      anchorX: input.anchorX as CanvasAnchor, anchorY: input.anchorY as CanvasAnchor };
+  }
+  if (input.operation === 'crop') {
+    const bounds = input.bounds;
+    if (typeof bounds !== 'object' || bounds === null || Array.isArray(bounds)) {
+      return { message: 'Crop requires document-space bounds.' };
+    }
+    const rect = bounds as Record<string, unknown>;
+    if (![rect.x, rect.y, rect.width, rect.height].every((number) => typeof number === 'number' && Number.isFinite(number))) {
+      return { message: 'Crop bounds must contain finite x, y, width and height values.' };
+    }
+    return { operation: 'crop', bounds: { x: Number(rect.x), y: Number(rect.y), width: Number(rect.width), height: Number(rect.height) } };
+  }
+  if (input.operation === 'flip' && (input.axis === 'horizontal' || input.axis === 'vertical')) {
+    return { operation: 'flip', axis: input.axis };
+  }
+  if (input.operation === 'rotate') {
+    if (input.rotation === 'clockwise-90' || input.rotation === 'counter-clockwise-90' || input.rotation === '180') {
+      return { operation: 'rotate', rotation: input.rotation };
+    }
+    if (typeof input.rotation === 'object' && input.rotation !== null && !Array.isArray(input.rotation)) {
+      const degrees = (input.rotation as Record<string, unknown>).degrees;
+      if (typeof degrees === 'number' && Number.isFinite(degrees)) {
+        return { operation: 'rotate', rotation: { degrees } };
+      }
+    }
+  }
+  return { message: 'Document geometry operation is invalid.' };
+};
 
 const assertDimension = (value: number, name: string) => {
   if (!Number.isInteger(value) || value < 1 || value > MAX_DOCUMENT_GEOMETRY_DIMENSION) {
@@ -157,19 +203,26 @@ export const createDocumentGeometryPlan = (
   };
 };
 
-const projectRoot = (node: LayerNode, matrix: AffineMatrix, now: number): LayerNode => ({
+const projectRoot = (node: LayerNode, matrix: AffineMatrix, now: number): LayerNode => {
+  const inverse = invertMatrix(matrix);
+  if (!inverse) throw new Error('Document geometry mapping is not invertible.');
+  return ({
   ...node,
   transform: multiplyMatrices(matrix, node.transform),
   mask: node.mask ? {
     ...node.mask,
-    transform: multiplyMatrices(matrix, node.mask.transform),
+    // Mask pixels are physically transferred into the new document-sized
+    // surface. Conjugating retains an authored independent mask transform
+    // without applying the document mapping a second time.
+    transform: multiplyMatrices(matrix, multiplyMatrices(node.mask.transform, inverse)),
     revision: node.mask.revision + 1,
     dirtyBounds: null
   } : null,
   geometryRevision: node.geometryRevision + 1,
   revision: node.revision + 1,
   modifiedAt: now
-});
+  });
+};
 
 export const projectDocumentGeometry = (
   document: ImageDocument,
@@ -199,3 +252,17 @@ export const projectDocumentGeometry = (
     modifiedAt: now
   };
 };
+
+/** Projects replayable selection semantics through the same authoritative document matrix. */
+export const projectSelectionGeometry = (
+  selection: readonly SelectionOperation[],
+  plan: DocumentGeometryPlan
+): SelectionOperation[] => selection.map((operation) => ({
+  ...operation,
+  source: operation.source ? structuredClone(operation.source) : undefined,
+  shape: { ...operation.shape, points: operation.shape.points.map((point) => ({ ...point })) },
+  transform: multiplyMatrices(
+    plan.oldDocumentToNewDocument,
+    operation.transform ?? { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
+  )
+}));

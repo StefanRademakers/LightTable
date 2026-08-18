@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { identityAffineMatrix } from '../../editor/geometry/affine';
-import { createDocumentGeometryPlan, projectDocumentGeometry } from './documentGeometryModel';
+import { createDocumentGeometryPlan, projectDocumentGeometry, projectSelectionGeometry } from './documentGeometryModel';
 
 describe('document geometry model', () => {
   it.each([
@@ -47,7 +47,7 @@ describe('document geometry model', () => {
     const next = projectDocumentGeometry(document, plan);
     expect(next).toMatchObject({ width: 50, height: 100 });
     expect(next.layers[0]!.transform).toEqual(plan.oldDocumentToNewDocument);
-    expect(next.layers[0]!.mask?.transform).toEqual(plan.oldDocumentToNewDocument);
+    expect(next.layers[0]!.mask?.transform).toEqual(identityAffineMatrix());
     expect(next.guides).toEqual([
       { id: 'h', orientation: 'vertical', position: 40 },
       { id: 'v', orientation: 'horizontal', position: 20 }
@@ -59,5 +59,15 @@ describe('document geometry model', () => {
       operation: 'crop', bounds: { x: 10, y: 15, width: 40, height: 30 }
     });
     expect(plan).toMatchObject({ targetWidth: 40, targetHeight: 30, oldDocumentToNewDocument: { tx: -10, ty: -15 } });
+  });
+
+  it('projects selection replay through the identical document mapping', () => {
+    const plan = createDocumentGeometryPlan({ width: 100, height: 80 }, {
+      operation: 'canvas-size', width: 120, height: 100, anchorX: 0.5, anchorY: 0.5
+    });
+    const [selection] = projectSelectionGeometry([{
+      mode: 'replace', shape: { kind: 'rectangle', points: [{ x: 2, y: 3 }, { x: 8, y: 9 }] }
+    }], plan);
+    expect(selection?.transform).toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 10 });
   });
 });

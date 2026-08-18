@@ -16,6 +16,7 @@ import type { LightTableViewState } from '../../types';
 import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';
 import type { SnapSettings } from '../../application/tools/snapping/snapSettings';
 import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
+import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
 
 export interface EditorMenuControllerOptions {
   readonly projection: EditorMenuProjectionInput;
@@ -59,6 +60,9 @@ export interface EditorMenuControllerOptions {
   };
   readonly image: {
     openSize(): void;
+    openCanvasSize(): void;
+    openArbitraryRotation(): void;
+    applyDocumentGeometry(request: DocumentGeometryRequest): void;
     duplicate(): void;
     applyCurves(): void;
     applyAdjustment?(kind: AdjustmentLayerKind): void;
@@ -191,6 +195,9 @@ export const createEditorMenuController = ({
         else layers.panel.createAdjustmentLayerOfKind(kind);
       }),
       openImageSize: image.openSize,
+      openCanvasSize: image.openCanvasSize,
+      openArbitraryRotation: image.openArbitraryRotation,
+      applyDocumentGeometry: image.applyDocumentGeometry,
       duplicateImage: image.duplicate,
       assignSrgbProfile: image.assignSrgbProfile ?? (() => undefined),
       beginAutoAlign: autoAlign.begin,

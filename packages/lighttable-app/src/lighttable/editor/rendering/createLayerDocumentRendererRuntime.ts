@@ -40,6 +40,7 @@ import {
 import { TextLayerRenderer } from '../../text/rendering/TextLayerRenderer';
 import { TextLayerRenderCoordinator } from '../../text/rendering/TextLayerRenderCoordinator';
 import { ImageResizeGpuService } from './ImageResizeGpuService';
+import { DocumentGeometryGpuService } from './DocumentGeometryGpuService';
 import { LayerPresentationPicker } from './LayerPresentationPicker';
 export type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
 import { walkLayerTree } from '../document/layerTree';
@@ -74,6 +75,7 @@ export interface LayerDocumentRendererRuntime {
   textLayerCoordinator: TextLayerRenderCoordinator;
   resizeSurface(width: number, height: number): void;
   imageResize: ImageResizeGpuService;
+  documentGeometry: DocumentGeometryGpuService;
   layerPresentationPicker: LayerPresentationPicker;
 }
 
@@ -504,6 +506,14 @@ export const createLayerDocumentRendererRuntime = (
       compositeTargets.destroy();
     }
   });
+  const documentGeometry = new DocumentGeometryGpuService({
+    device, layers: layerResources, selection: selectionTextures,
+    invalidateAll: () => {
+      renderResources.invalidateAllStyles();
+      compositor.destroyCaches();
+      compositeTargets.destroy();
+    }
+  });
 
   return {
     textureCodec,
@@ -532,6 +542,7 @@ export const createLayerDocumentRendererRuntime = (
     textLayerRenderer,
     textLayerCoordinator,
     imageResize,
+    documentGeometry,
     layerPresentationPicker,
     resizeSurface: (width, height) => {
       resources.setDimensions(width, height);

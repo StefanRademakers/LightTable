@@ -93,6 +93,21 @@ describe('createEditorMenuOptions', () => {
       ]);
   });
 
+  it('separates canvas geometry from layer transforms in the Image menu', () => {
+    const menuCommands = commands();
+    const image = createEditorMenuOptions('image', state(), labels, menuCommands);
+    expect(image.find(({ value }) => value === 'canvas-size')).toMatchObject({
+      label: 'Canvas Size...', shortcut: 'Ctrl+Alt+C', disabled: false
+    });
+    const rotation = image.find(({ value }) => value === 'image-rotation')?.children;
+    expect(rotation?.map(({ label }) => label)).toEqual([
+      '180°', '90° Clockwise', '90° Counter Clockwise', 'Arbitrary...',
+      'Flip Canvas Horizontal', 'Flip Canvas Vertical'
+    ]);
+    rotation?.find(({ value }) => value === 'flip-canvas-horizontal')?.onClick?.();
+    expect(menuCommands.applyDocumentGeometry).toHaveBeenCalledWith({ operation: 'flip', axis: 'horizontal' });
+  });
+
   it('routes Image Duplicate through the document command and disables it without a document', () => {
     const menuCommands = commands();
     const image = createEditorMenuOptions('image', state(), labels, menuCommands);

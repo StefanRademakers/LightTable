@@ -594,6 +594,14 @@ export class WebGpuEngine {
     return this.documentRenderer.resizeImagePixels(document, plan, noiseReduction);
   }
 
+  applyDocumentGeometryPixels(
+    document: ImageDocument,
+    plan: import('../application/documentGeometry/documentGeometryModel').DocumentGeometryPlan
+  ) {
+    if (!this.documentRenderer) throw new Error('Document renderer is unavailable.');
+    return this.documentRenderer.applyDocumentGeometryPixels(document, plan);
+  }
+
   /**
    * Crosses a just-committed automation document into GPU-owned runtimes even
    * when the application reused the same document object during one event

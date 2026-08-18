@@ -3,6 +3,7 @@ import { TextInputDialog } from '../../../ui/TextInputDialog';
 import type { ReferenceDifferenceMetrics } from '../../application/rendering/rendererTypes';
 import type { DocumentFontAsset, ImageDocument, LayerId, PhotoshopImportReport } from '../document/documentTypes';
 import type { ImageSizeRequest } from '../../application/imageSize/imageSizeModel';
+import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
 import { PsdImportReportDialog } from '../psd/PsdImportReportDialog';
 import type { EditorDialogController } from './useEditorDialogController';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
@@ -17,6 +18,8 @@ import { ImageSizeDialog } from './ImageSizeDialog';
 import { ThirdPartyLicensesDialog } from './ThirdPartyLicensesDialog';
 import { NewGuideDialog } from './NewGuideDialog';
 import { DuplicateImageDialog } from './DuplicateImageDialog';
+import { CanvasSizeDialog } from './CanvasSizeDialog';
+import { ArbitraryRotationDialog } from './ArbitraryRotationDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -58,6 +61,8 @@ export interface EditorDialogsProps {
   readonly document: ImageDocument | null;
   readonly imageSizeBusy?: boolean;
   readonly onResizeImage: (request: ImageSizeRequest) => void;
+  readonly documentGeometryBusy?: boolean;
+  readonly onApplyDocumentGeometry: (request: DocumentGeometryRequest) => void;
   readonly duplicateImageBusy?: boolean;
   readonly duplicateImageError?: string | null;
   readonly duplicateImageSourceName: string;
@@ -88,6 +93,8 @@ export const EditorDialogs = ({
   document,
   imageSizeBusy,
   onResizeImage,
+  documentGeometryBusy,
+  onApplyDocumentGeometry,
   duplicateImageBusy,
   duplicateImageError,
   duplicateImageSourceName,
@@ -95,6 +102,19 @@ export const EditorDialogs = ({
   onCreateGuide
 }: EditorDialogsProps) => (
   <>
+    <ArbitraryRotationDialog open={controller.arbitraryRotationOpen} busy={documentGeometryBusy}
+      onCancel={controller.closeArbitraryRotation}
+      onCommit={(degrees) => {
+        onApplyDocumentGeometry({ operation: 'rotate', rotation: { degrees } });
+        controller.closeArbitraryRotation();
+      }} />
+    <CanvasSizeDialog
+      open={controller.canvasSizeOpen}
+      document={document}
+      busy={documentGeometryBusy}
+      onCancel={controller.closeCanvasSize}
+      onCommit={onApplyDocumentGeometry}
+    />
     <DuplicateImageDialog
       open={controller.duplicateImageOpen}
       sourceName={duplicateImageSourceName}

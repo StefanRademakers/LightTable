@@ -40,6 +40,7 @@ import {
   type TextRenderPresentationSnapshot
 } from './createLayerDocumentRendererRuntime';
 import type { ResizePlan } from '../document/imageResizeTypes';
+import type { DocumentGeometryPlan } from '../../application/documentGeometry/documentGeometryModel';
 import type {
   PaintBrushStrokePlan,
   SampledBrushStrokePlan
@@ -110,6 +111,10 @@ export class LayerDocumentRenderer {
 
   resizeImagePixels(document: ImageDocument, plan: ResizePlan, noiseReduction: number) {
     return this.runtime.imageResize.resize(document, plan, noiseReduction);
+  }
+
+  applyDocumentGeometryPixels(document: ImageDocument, plan: DocumentGeometryPlan) {
+    return this.runtime.documentGeometry.transfer(document, plan);
   }
 
   configureTextFonts(port: TextFontRuntimePort | null) {

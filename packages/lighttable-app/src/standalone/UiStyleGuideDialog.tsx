@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { lightTableIcon } from '../assets/icons';
 import { ActionButton } from '../ui/ActionButton';
+import { AnchorGridControl } from '../ui/AnchorGridControl';
 import { ColorSwatchField } from '../ui/ColorSwatchField';
 import { FormInput } from '../ui/FormInput';
 import { FormSelect } from '../ui/FormSelect';
@@ -14,6 +15,7 @@ import { SquareIconButton } from '../ui/SquareIconButton';
 import { SwitchControl } from '../ui/SwitchControl';
 import { useDialogAccessibility } from '../ui/useDialogAccessibility';
 import type { UiInspectionTarget } from '../ui/uiInspection';
+import type { CanvasAnchor } from '../lighttable/application/documentGeometry/documentGeometryModel';
 import { UiColorPickerPrototype } from './UiColorPickerPrototype';
 import { UiCoverageSpecimen } from './UiCoverageSpecimen';
 import {
@@ -109,6 +111,7 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
   const [noneExpanded, setNoneExpanded] = useState(false);
   const [angle, setAngle] = useState(315);
   const [search, setSearch] = useState('');
+  const [anchor, setAnchor] = useState<{ x: CanvasAnchor; y: CanvasAnchor }>({ x: 0.5, y: 0.5 });
 
   useEffect(() => {
     if (open && inspection) setCategory('coverage');
@@ -348,6 +351,10 @@ export const UiStyleGuideDialog: React.FC<UiStyleGuideDialogProps> = ({
               {category === 'layout' ? <>
                 <Sample title="Spacing scale, property widths and workspace geometry" wide>
                   <UiLayoutGeometrySpecimens />
+                </Sample>
+                <Sample title="3 × 3 anchor control">
+                  <AnchorGridControl x={anchor.x} y={anchor.y}
+                    onChange={(x, y) => setAnchor({ x, y })} />
                 </Sample>
               </> : null}
               {category === 'coverage' ? <Sample title="Canonical controls and customness signals" wide>

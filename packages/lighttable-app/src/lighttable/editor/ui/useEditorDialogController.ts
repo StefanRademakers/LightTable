@@ -20,6 +20,8 @@ export const useEditorDialogController = () => {
   const [featherOpen, setFeatherOpen] = useState(false);
   const [fillOpen, setFillOpen] = useState(false);
   const [imageSizeOpen, setImageSizeOpen] = useState(false);
+  const [canvasSizeOpen, setCanvasSizeOpen] = useState(false);
+  const [arbitraryRotationOpen, setArbitraryRotationOpen] = useState(false);
   const [duplicateImageOpen, setDuplicateImageOpen] = useState(false);
   const [newGuideOpen, setNewGuideOpen] = useState(false);
   const [psdReportOpen, setPsdReportOpen] = useState(false);
@@ -36,6 +38,8 @@ export const useEditorDialogController = () => {
     setFeatherOpen(false);
     setFillOpen(false);
     setImageSizeOpen(false);
+    setCanvasSizeOpen(false);
+    setArbitraryRotationOpen(false);
     setDuplicateImageOpen(false);
     setNewGuideOpen(false);
     setPsdReportOpen(false);
@@ -52,6 +56,8 @@ export const useEditorDialogController = () => {
     featherOpen,
     fillOpen,
     imageSizeOpen,
+    canvasSizeOpen,
+    arbitraryRotationOpen,
     duplicateImageOpen,
     newGuideOpen,
     psdReportOpen,
@@ -68,6 +74,10 @@ export const useEditorDialogController = () => {
     closeFill: useCallback(() => setFillOpen(false), []),
     openImageSize: useCallback(() => setImageSizeOpen(true), []),
     closeImageSize: useCallback(() => setImageSizeOpen(false), []),
+    openCanvasSize: useCallback(() => setCanvasSizeOpen(true), []),
+    closeCanvasSize: useCallback(() => setCanvasSizeOpen(false), []),
+    openArbitraryRotation: useCallback(() => setArbitraryRotationOpen(true), []),
+    closeArbitraryRotation: useCallback(() => setArbitraryRotationOpen(false), []),
     openDuplicateImage: useCallback(() => setDuplicateImageOpen(true), []),
     closeDuplicateImage: useCallback(() => setDuplicateImageOpen(false), []),
     openNewGuide: useCallback(() => setNewGuideOpen(true), []),

@@ -27,6 +27,7 @@ const setup = () => {
   session.setReady();
   const ports: LightTableCommandPorts = {
     resizeImage: vi.fn(),
+    applyDocumentGeometry: vi.fn(),
     setZoom: vi.fn((_documentId, viewport) => session.updateViewport(() => viewport)),
     createRasterLayer: vi.fn(),
     placeArtifact: vi.fn(),
@@ -245,6 +246,15 @@ describe('LightTableCommandService registry', () => {
     ));
     expect(result).toMatchObject({ status: 'completed', value: { width: 40, height: 30, resolutionPpi: 300 } });
     expect(state.ports.resizeImage).toHaveBeenCalledWith(state.session.id, parameters);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('routes canonical document geometry through the mounted document port', async () => {
+    const state = setup();
+    const parameters = { operation: 'canvas-size', width: 100, height: 90, anchorX: 0.5, anchorY: 1 };
+    const result = await state.service.execute(request('document.applyGeometry', state.session.id, parameters));
+    expect(result).toMatchObject({ status: 'completed', value: { operation: 'canvas-size' } });
+    expect(state.ports.applyDocumentGeometry).toHaveBeenCalledWith(state.session.id, parameters);
     state.service.dispose(); state.workspace.dispose();
   });
 

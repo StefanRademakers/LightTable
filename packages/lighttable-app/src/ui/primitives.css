@@ -165,6 +165,53 @@ select option:checked {
   background: var(--lt-surface-control-hover);
 }
 
+.canvas-size-dialog { width: min(430px, 92vw); }
+.canvas-size-dialog__current,
+.canvas-size-dialog__relative,
+.canvas-size-dialog__anchor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lt-space-3);
+}
+.canvas-size-dialog__current { color: var(--lt-text-muted); }
+.canvas-size-dialog__current strong { color: var(--lt-text); font-weight: var(--lt-weight-medium); }
+.canvas-size-dialog__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: var(--lt-space-2);
+  align-items: end;
+}
+.canvas-size-dialog__fields label { display: grid; gap: var(--lt-space-1); }
+.canvas-size-dialog__unit { min-height: 28px; display: flex; align-items: center; color: var(--lt-text-muted); }
+.anchor-grid-control {
+  display: grid;
+  grid-template-columns: repeat(3, 24px);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-control-radius);
+  background: var(--lt-surface-control);
+}
+.anchor-grid-control button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: inherit;
+}
+.anchor-grid-control button:hover,
+.anchor-grid-control button.is-selected { background: var(--lt-surface-layer-row-selected); }
+.anchor-grid-control button span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .square-icon-button--compact {
   width: 20px;
   height: 20px;

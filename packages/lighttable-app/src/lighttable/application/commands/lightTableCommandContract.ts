@@ -10,12 +10,13 @@ import type { VectorElement } from '@lighttable/vector-core';
 import type { AtomicCommandBatch } from './atomicCommandBatchContract';
 import type { AutomationTaskEvent } from './automationTaskEventStore';
 import type { ImageSizeRequest } from '../imageSize/imageSizeModel';
+import type { DocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
 
 export type LightTableCommandId =
-  | 'document.create' | 'document.duplicate' | 'document.resizeImage' | 'view.setZoom' | 'layer.createRaster' | 'layer.placeArtifact'
+  | 'document.create' | 'document.duplicate' | 'document.resizeImage' | 'document.applyGeometry' | 'view.setZoom' | 'layer.createRaster' | 'layer.placeArtifact'
   | 'layer.rename' | 'layer.setVisibility' | 'layer.setFillOpacity'
   | 'layer.style.setEnabled' | 'layer.effect.setEnabled' | 'file.openArtifact'
   | 'text.create' | 'text.replaceRange' | 'text.format' | 'text.setLayout'
@@ -171,6 +172,7 @@ export interface LightTableWorkspaceCommandPorts {
 
 export interface LightTableCommandPorts {
   resizeImage?(documentId: DocumentSessionId, request: ImageSizeRequest): void | Promise<void>;
+  applyDocumentGeometry?(documentId: DocumentSessionId, request: DocumentGeometryRequest): void | Promise<void>;
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(documentId: DocumentSessionId): void | Promise<void>;
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;
@@ -199,6 +201,7 @@ export interface LightTableCommandPorts {
 
 export interface DocumentLightTableCommandPorts {
   resizeImage?(request: ImageSizeRequest): void | Promise<void>;
+  applyDocumentGeometry?(request: DocumentGeometryRequest): void | Promise<void>;
   setZoom(viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(): void | Promise<void>;
   placeArtifact(file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;

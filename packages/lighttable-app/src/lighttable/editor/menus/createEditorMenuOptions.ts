@@ -6,6 +6,7 @@ import {
   adjustmentLayerMenuDefinitionGroups,
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
+import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
 
 export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'layer' | 'type' | 'ai' | 'view' | 'help';
 
@@ -98,6 +99,9 @@ export interface EditorMenuCommands {
   applyCurves: () => void;
   applyAdjustment: (kind: AdjustmentLayerKind) => void;
   openImageSize: () => void;
+  openCanvasSize: () => void;
+  openArbitraryRotation: () => void;
+  applyDocumentGeometry: (request: DocumentGeometryRequest) => void;
   duplicateImage: () => void;
   assignSrgbProfile: () => void;
   beginAutoAlign: () => void;
@@ -443,6 +447,35 @@ export const createEditorMenuOptions = (
       shortcut: labels.primaryShortcut('Alt+I'),
       onClick: commands.openImageSize,
       disabled: !state.hasDocument || state.saving
+    }, {
+      value: 'canvas-size',
+      label: 'Canvas Size...',
+      shortcut: labels.primaryShortcut('Alt+C'),
+      onClick: commands.openCanvasSize,
+      disabled: !state.hasDocument || state.saving
+    }, {
+      value: 'image-rotation',
+      label: 'Image Rotation',
+      disabled: !state.hasDocument || state.saving,
+      children: [{
+        value: 'image-rotation-180', label: '180°',
+        onClick: () => commands.applyDocumentGeometry({ operation: 'rotate', rotation: '180' })
+      }, {
+        value: 'image-rotation-clockwise-90', label: '90° Clockwise',
+        onClick: () => commands.applyDocumentGeometry({ operation: 'rotate', rotation: 'clockwise-90' })
+      }, {
+        value: 'image-rotation-counter-clockwise-90', label: '90° Counter Clockwise',
+        onClick: () => commands.applyDocumentGeometry({ operation: 'rotate', rotation: 'counter-clockwise-90' })
+      }, {
+        value: 'image-rotation-arbitrary', label: 'Arbitrary...',
+        onClick: commands.openArbitraryRotation
+      }, {
+        value: 'flip-canvas-horizontal', label: 'Flip Canvas Horizontal', separatorBefore: true,
+        onClick: () => commands.applyDocumentGeometry({ operation: 'flip', axis: 'horizontal' })
+      }, {
+        value: 'flip-canvas-vertical', label: 'Flip Canvas Vertical',
+        onClick: () => commands.applyDocumentGeometry({ operation: 'flip', axis: 'vertical' })
+      }]
     }, {
       value: 'image-adjustments',
       label: 'Adjustments',

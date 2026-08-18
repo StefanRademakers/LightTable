@@ -142,6 +142,7 @@
     "smoke:desktop:project-lifecycle": "node scripts/smoke-desktop-project-lifecycle.mjs",
     "smoke:desktop:project-home": "node scripts/smoke-desktop-project-home.mjs",
     "smoke:desktop:duplicate-image": "node scripts/smoke-desktop-duplicate-image.mjs",
+    "smoke:desktop:document-geometry": "node scripts/smoke-desktop-document-geometry.mjs",
     "smoke:desktop:project-preferences": "node scripts/smoke-desktop-project-preferences.mjs",
     "fixture:face-warp:checkerboard": "node scripts/create-face-warp-checkerboard-fixture.mjs",
     "smoke:desktop:face-warp": "node scripts/smoke-desktop-face-warp.mjs",
