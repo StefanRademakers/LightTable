@@ -1,5 +1,6 @@
 import { GRADIENT_MAP_WGSL } from './gradientMapShader';
 import { ADJUSTMENTS_WGSL } from './adjustmentShaderLayout';
+import { POINT_COLOR_SELECTION_WGSL } from './pointColorSelection';
 import { PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES } from './photoshopColorVibranceLut.generated';
 import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
@@ -438,6 +439,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 
 export const CREATIVE_GRADE_WGSL = /* wgsl */ `
 ${ADJUSTMENTS_WGSL}
+${POINT_COLOR_SELECTION_WGSL}
 
 @group(0) @binding(0) var correctedTexture: texture_2d<f32>;
 @group(0) @binding(1) var blurredLuminanceTexture: texture_2d<f32>;
@@ -645,11 +647,6 @@ fn pointColorMagnitude() -> f32 {
   return magnitude;
 }
 
-fn pointColorAxisWeight(distance: f32, radius: f32) -> f32 {
-  let normalized = distance / max(radius, 0.00001);
-  return 1.0 - smoothstep(0.55, 1.0, normalized);
-}
-
 fn applyPointColor(rgb: vec3f) -> vec3f {
   if (pointColorMagnitude() < 0.00001) {
     return rgb;
@@ -668,15 +665,8 @@ fn applyPointColor(rgb: vec3f) -> vec3f {
     }
     let adjustment = pointColorSample(index, 1u);
     let selection = pointColorSample(index, 2u);
-    let reach = 0.35 + clamp(selection.x / 100.0, 0.0, 1.0) * 1.65;
-    let hueRadius = min(3.1415926536, mix(0.035, 3.1415926536, clamp(selection.y / 100.0, 0.0, 1.0)) * reach);
-    let chromaRadius = mix(0.008, 0.35, clamp(selection.z / 100.0, 0.0, 1.0)) * reach;
-    let lightnessRadius = mix(0.015, 0.75, clamp(selection.w / 100.0, 0.0, 1.0)) * reach;
     let hueDelta = atan2(sin(hue - sample.z), cos(hue - sample.z));
-    let weight =
-      pointColorAxisWeight(abs(hueDelta), hueRadius)
-      * pointColorAxisWeight(abs(chroma - sample.y), chromaRadius)
-      * pointColorAxisWeight(abs(lab.x - sample.x), lightnessRadius);
+    let weight = pointColorSelectionWeight(lab, sample, selection);
     if (weight < 0.00001) {
       continue;
     }

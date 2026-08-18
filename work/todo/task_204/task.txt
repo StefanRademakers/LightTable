@@ -78,6 +78,25 @@ Tests
   drag H/S/L ranges and capture the viewport plus a simultaneous clean export.
 - Visual corpus: hue wedge, saturation/lightness grid, skin, red wraparound,
   neutral ramp and overlapping samples.
+
+Implemented foundation - 18 August 2026
+========================================
+
+- The Point Color H/C/L selection-weight function is now one shared WGSL
+  source instead of private arithmetic embedded in `applyPointColor`.
+- Grade evaluation consumes that shared function unchanged, so this extraction
+  introduces no image-algorithm movement. The future diagnostic pass can import
+  the exact same code rather than reproducing an approximation.
+- A CPU oracle covers the exact sample center, hue wraparound at +/-pi,
+  excluded versus maximum ranges, and the full/feathered/excluded axis regions.
+- The current `Variance` control changes the color displacement inside the
+  selected region; it does not change selection weight. Visualize Range must
+  therefore remain stable while Variance moves unless later Camera Raw parity
+  evidence justifies changing the actual Point Color model.
+
+Still open: expose the `lt.color-mixer` node-input texture, build the bounded
+presentation-only pass, add transient editor state/control lifecycle, enforce
+viewport/export/scope separation, and capture the product visual corpus.
 - Compare the final mask against current Camera Raw after task_203 provides a
   safe version-pinned oracle; document any semantic difference.
 
