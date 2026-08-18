@@ -32,32 +32,52 @@ describe('Higgsfield OAuth compatibility', () => {
       iss: 'https://clerk.higgsfield.ai'
     });
 
-    expect(resolveHiggsfieldAuthorizationCallback(callback, discovery())).toBe('authorization-code');
+    expect(resolveHiggsfieldAuthorizationCallback(
+      callback,
+      'https://mcp.higgsfield.ai/mcp',
+      discovery()
+    )).toBe('authorization-code');
   });
 
   it.each([
-    ['an undeclared upstream', discovery({ resourceMetadata: undefined })],
-    ['a different facade', discovery({ authorizationServerUrl: 'https://other.example' })],
-    ['different issuer metadata', discovery({
+    ['a different facade', 'https://mcp.higgsfield.ai/mcp', discovery({ authorizationServerUrl: 'https://other.example' })],
+    ['different issuer metadata', 'https://mcp.higgsfield.ai/mcp', discovery({
       authorizationServerMetadata: {
         issuer: 'https://other.example',
         authorization_endpoint: 'https://other.example/authorize',
         token_endpoint: 'https://other.example/token',
         response_types_supported: ['code']
       }
-    })]
-  ])('leaves the callback intact for %s so the SDK rejects it', (_label, state) => {
+    })],
+    ['a different MCP endpoint', 'https://other.example/mcp', discovery()]
+  ])('leaves the callback intact for %s so the SDK rejects it', (_label, endpoint, state) => {
     const callback = new URLSearchParams({ code: 'authorization-code', iss: 'https://clerk.higgsfield.ai' });
-    expect(resolveHiggsfieldAuthorizationCallback(callback, state)).toBe(callback);
+    expect(resolveHiggsfieldAuthorizationCallback(callback, endpoint, state)).toBe(callback);
+  });
+
+  it('accepts the known issuer when optional provider metadata was not persisted', () => {
+    const callback = new URLSearchParams({ code: 'authorization-code', iss: 'https://clerk.higgsfield.ai' });
+    expect(resolveHiggsfieldAuthorizationCallback(
+      callback,
+      'https://mcp.higgsfield.ai/mcp'
+    )).toBe('authorization-code');
   });
 
   it('leaves unknown issuer mismatches intact for SDK validation', () => {
     const callback = new URLSearchParams({ code: 'authorization-code', iss: 'https://attacker.example' });
-    expect(resolveHiggsfieldAuthorizationCallback(callback, discovery())).toBe(callback);
+    expect(resolveHiggsfieldAuthorizationCallback(
+      callback,
+      'https://mcp.higgsfield.ai/mcp',
+      discovery()
+    )).toBe(callback);
   });
 
   it('does not bypass validation for error-shaped callbacks', () => {
     const callback = new URLSearchParams({ error: 'access_denied', iss: 'https://clerk.higgsfield.ai' });
-    expect(resolveHiggsfieldAuthorizationCallback(callback, discovery())).toBe(callback);
+    expect(resolveHiggsfieldAuthorizationCallback(
+      callback,
+      'https://mcp.higgsfield.ai/mcp',
+      discovery()
+    )).toBe(callback);
   });
 });
