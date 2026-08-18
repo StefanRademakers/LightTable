@@ -18,12 +18,14 @@ test('Grade Camera Raw corpus has stable unique sources and complete required ro
 test('generated Grade diagnostics declare known generators and portable file names', () => {
   const known = new Set([
     'grayscale-ramp', 'tonal-steps', 'color-target', 'frequency-detail',
-    'multiscale-noise'
+    'multiscale-noise', 'wide-gamut-color'
   ]);
   for (const source of manifest.sources.filter(({ kind }) => kind === 'generated')) {
     assert.ok(known.has(source.generator), source.generator);
     assert.equal(path.basename(source.file), source.file);
+    assert.ok(['sRGB', 'Display P3'].includes(source.profile), `${source.id} declares profile`);
   }
+  assert.equal(manifest.sources.find(({ id }) => id === 'wide-gamut-color')?.profile, 'Display P3');
 });
 
 test('Grade Color oracle covers signed Camera Raw color controls and endpoints', async () => {
@@ -117,4 +119,52 @@ test('Grade Color Mixer oracle covers every HSL range, descriptor and endpoint',
       assert.equal(control.defaultValue, 0);
     }
   }
+});
+
+test('Grade Color Grading oracle covers every Camera Raw wheel and transition control', async () => {
+  const suite = JSON.parse(await readFile(
+    path.join(import.meta.dirname, 'grade-color-grading-parity-cases.json'), 'utf8'
+  ));
+  assert.equal(suite.section, 'color-grading');
+  assert.equal(suite.groupLabel, 'Color Grading');
+  assert.equal(suite.analysisMinimumCameraRawMagnitude, 0.002);
+  assert.equal(suite.controls.length, 14);
+
+  const controls = new Map(suite.controls.map((control) => [control.key, control]));
+  const expectedDescriptors = new Map([
+    ['global-hue', 'CgGH'], ['global-saturation', 'CgGS'],
+    ['shadows-hue', 'STSH'], ['shadows-saturation', 'STSS'],
+    ['midtones-hue', 'CgMH'], ['midtones-saturation', 'CgMS'],
+    ['highlights-hue', 'STHH'], ['highlights-saturation', 'STHS'],
+    ['global-luminance', 'CgGL'], ['shadows-luminance', 'CgSL'],
+    ['midtones-luminance', 'CgML'], ['highlights-luminance', 'CgHL'],
+    ['blending', 'CgBl'], ['balance', 'STB ']
+  ]);
+  for (const [key, descriptor] of expectedDescriptors) {
+    assert.equal(controls.get(key)?.cameraRawDescriptor, descriptor, key);
+    assert.ok(controls.get(key)?.cameraRawPrerequisites.some((entry) => (
+      entry.descriptor === 'CgBl' && entry.value === 50
+    )), `${key} explicitly authors Camera Raw's visible Blending default`);
+  }
+
+  for (const scope of ['global', 'shadows', 'midtones', 'highlights']) {
+    const hue = controls.get(`${scope}-hue`);
+    const saturation = controls.get(`${scope}-saturation`);
+    const luminance = controls.get(`${scope}-luminance`);
+    assert.deepEqual(hue.values, [60, 120, 180, 240, 300]);
+    assert.deepEqual(saturation.values, [25, 50, 80, 100]);
+    assert.deepEqual(luminance.values, [-100, -80, -50, 50, 80, 100]);
+    assert.equal(hue.lightTable.gradingMode, scope);
+    assert.equal(saturation.lightTable.gradingMode, scope);
+    assert.equal(luminance.lightTable.gradingMode, scope);
+    assert.ok(hue.cameraRawPrerequisites.length > 0, `${scope} hue needs saturation`);
+    assert.ok(saturation.cameraRawPrerequisites.length > 0, `${scope} saturation needs hue`);
+  }
+
+  assert.deepEqual(controls.get('blending').values, [0, 25, 75, 100]);
+  assert.equal(controls.get('blending').defaultValue, 50);
+  assert.deepEqual(controls.get('balance').values, [-100, -80, -50, 50, 80, 100]);
+  assert.equal(controls.get('balance').defaultValue, 0);
+  assert.equal(controls.get('blending').lightTablePrerequisites.length, 2);
+  assert.equal(controls.get('balance').lightTablePrerequisites.length, 2);
 });

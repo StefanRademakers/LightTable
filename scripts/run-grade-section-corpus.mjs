@@ -15,9 +15,26 @@ const rootArgument = process.argv.find((value) => value.startsWith('--root='));
 const sourceArgument = process.argv.find((value) => value.startsWith('--source='));
 const force = process.argv.includes('--force');
 const externalRoot = path.resolve(rootArgument?.slice('--root='.length) ?? corpusManifest.externalRoot);
+const packagedExecutable = path.join(
+  workspace,
+  'apps',
+  'desktop',
+  'out',
+  'LightTable-win32-x64',
+  'LightTable.exe'
+);
 const inventoryPath = path.join(externalRoot, 'inventory.json');
 const run = (command, args) => {
-  const result = spawnSync(command, args, { cwd: workspace, stdio: 'inherit', shell: false });
+  const result = spawnSync(command, args, {
+    cwd: workspace,
+    stdio: 'inherit',
+    shell: false,
+    env: {
+      ...process.env,
+      LIGHTTABLE_AUTOMATION_HEADLESS: '1',
+      ...(process.platform === 'win32' ? { LIGHTTABLE_TEST_EXECUTABLE: packagedExecutable } : {})
+    }
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}.`);
 };
@@ -25,6 +42,9 @@ const exists = async (file) => access(file).then(() => true, () => false);
 if (!await exists(inventoryPath)) run(process.execPath, [
   path.join(import.meta.dirname, 'generate-grade-camera-raw-corpus.mjs'), `--root=${externalRoot}`
 ]);
+if (process.platform === 'win32' && !await exists(packagedExecutable)) {
+  throw new Error(`Packaged LightTable executable is missing: ${packagedExecutable}. Run npm run package:desktop:verify first.`);
+}
 const inventory = JSON.parse(await readFile(inventoryPath, 'utf8'));
 const selected = sourceArgument
   ? new Set(sourceArgument.slice('--source='.length).split(',').map((value) => value.trim()).filter(Boolean))
@@ -43,11 +63,29 @@ for (const source of sources) {
     '-Source', source.file, '-Root', captureRoot, '-CasePath', casesPath
   ]);
   else process.stdout.write('Camera Raw capture already exists; use --force to replace it.\n');
-  if (force || !await exists(lightTableReport)) run(process.execPath, [
-    path.join(import.meta.dirname, 'capture-lighttable-grade-light-oracle.mjs'),
-    `--source=${source.file}`, `--root=${captureRoot}`, `--cases=${casesPath}`, '--resume-partial'
-  ]);
-  else process.stdout.write('LightTable capture already exists; use --force to replace it.\n');
+  if (force || !await exists(lightTableReport)) {
+    let batch = 0;
+    let lastCaptureError = null;
+    do {
+      batch += 1;
+      try {
+        run(process.execPath, [
+          path.join(import.meta.dirname, 'capture-lighttable-grade-light-oracle.mjs'),
+          `--source=${source.file}`, `--root=${captureRoot}`, `--cases=${casesPath}`,
+          '--resume-partial', '--max-new-captures=16'
+        ]);
+        lastCaptureError = null;
+      } catch (error) {
+        lastCaptureError = error;
+        process.stderr.write(`LightTable batch ${batch} stopped before its checkpoint; relaunching from validated partials.\n`);
+      }
+      if (batch >= 16 && !await exists(lightTableReport)) {
+        throw new Error(`LightTable capture did not complete after ${batch} bounded attempts.`, {
+          cause: lastCaptureError
+        });
+      }
+    } while (!await exists(lightTableReport));
+  } else process.stdout.write('LightTable capture already exists; use --force to replace it.\n');
   run(process.execPath, [path.join(import.meta.dirname, 'analyze-grade-light-parity.mjs'), `--root=${captureRoot}`]);
   run(process.execPath, [path.join(import.meta.dirname, 'create-grade-parity-contact-sheets.mjs'), `--root=${captureRoot}`]);
 }

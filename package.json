@@ -112,6 +112,8 @@
     "analyze:grade-curves-space": "node scripts/analyze-camera-raw-curve-space.mjs",
     "capture:grade-color-mixer-corpus": "npm run package:desktop:verify && node scripts/run-grade-section-corpus.mjs --cases=scripts/grade-color-mixer-parity-cases.json",
     "analyze:grade-color-mixer-corpus": "node scripts/analyze-grade-light-corpus.mjs --section=color-mixer",
+    "capture:grade-color-grading-corpus": "npm run package:desktop:verify && node scripts/run-grade-section-corpus.mjs --cases=scripts/grade-color-grading-parity-cases.json",
+    "analyze:grade-color-grading-corpus": "node scripts/analyze-grade-light-corpus.mjs --section=color-grading",
     "smoke:desktop:grade-look": "node scripts/smoke-desktop-grade-look.mjs",
     "regress:adjustment-parity": "node scripts/run-adjustment-parity-regression.mjs",
     "regress:grade-visual": "node scripts/capture-grade-visual-regression.mjs",

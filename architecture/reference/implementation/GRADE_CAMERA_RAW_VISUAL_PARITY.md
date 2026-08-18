@@ -9,6 +9,9 @@ find useful differences in response, range, clipping protection and processing
 order. A measured difference is a finding, not an automatic implementation
 requirement.
 
+The cross-feature rules learned from this work are normative in
+[`architecture/VISUAL_PARITY_ENGINEERING.md`](../../VISUAL_PARITY_ENGINEERING.md).
+
 The first oracle covers the `Light` section. Later sections should use the same
 isolation and evidence rules in this order: Color, Texture / Clarity / Dehaze,
 Detail, Color Mixer, Point Color, Color Grading and Custom Curves.
@@ -322,7 +325,7 @@ as hidden Grade sections.
 | Detail | Conditional four-scale wavelet NR before fused Sharpening | Luminance NR characterized; remaining controls and combinations open |
 | Color Mixer | Shared periodic eight-range implementation with red wraparound tests | All 24 Camera Raw HSL descriptors proven; full corpus characterized |
 | Point Color | Up to eight independent samples; neutral and overlap behavior tested | Camera Raw automation and Visualize Range oracle open |
-| Color Grading | Normalized 3-way masks, Blend/Balance and endpoint guards tested | Camera Raw wheel descriptor/oracle open |
+| Color Grading | Normalized 3-way masks, Blend/Balance and endpoint guards tested | All 14 Camera Raw controls proven and ten-source sRGB/16-bit corpus characterized; Display-P3 extension open |
 | B&W Mix | Native fused eight-range photographic mix; Photoshop six-channel adjustment remains separate | Runtime/persistence proven; Camera Raw response corpus remains open |
 | Look / Profile | Native Grade Look with embedded `.cube` asset, live Strength and exact zero bypass | Creative user-selected Look is implemented; Camera Raw profile matching remains open |
 
@@ -471,6 +474,46 @@ working-space and luminance-preservation behavior. The current periodic OKLCH
 mixer remains unchanged until a grounded range-model comparison improves the
 complete corpus rather than one chart or photograph.
 
+### Color Grading descriptor and mask characterization
+
+Camera Raw 18.5's four color wheels and transition controls are pixel-active
+through `CgGH`/`CgGS` (Global), `STSH`/`STSS` (Shadows),
+`CgMH`/`CgMS` (Midtones), `STHH`/`STHS` (Highlights), the four matching
+luminance keys, `CgBl` (Blending) and `STB ` (Balance). Hue was sampled around
+the wheel, saturation at 25/50/80/100, and signed luminance and Balance at
+50/80/100 endpoints. Dependent controls use explicit active baselines.
+
+The complete ten-source corpus produced:
+
+| Control | Minimum source correlation | Mean magnitude LT / ACR | Per-source magnitude range | Worst delta RMSE |
+| --- | ---: | ---: | ---: | ---: |
+| Global Hue | 0.7571 | 1.126 | 0.65-2.55 | 11.02% |
+| Global Saturation | 0.4992 | 0.889 | 0.40-1.19 | 23.32% |
+| Shadows Hue | 0.4674 | 0.447 | 0.21-0.92 | 10.29% |
+| Shadows Saturation | 0.2557 | 0.739 | 0.15-1.41 | 8.21% |
+| Midtones Hue | 0.6885 | 1.055 | 0.56-5.42 | 10.43% |
+| Midtones Saturation | 0.3898 | 0.841 | 0.56-1.59 | 18.92% |
+| Highlights Hue | 0.5235 | 0.783 | 0.26-1.92 | 9.21% |
+| Highlights Saturation | 0.6360 | 1.368 | 0.84-1.92 | 10.39% |
+| Global Luminance | 0.6125 | 2.597 | 1.10-3.48 | 17.46% |
+| Shadows Luminance | 0.2544 | 0.444 | 0.13-0.67 | 7.78% |
+| Midtones Luminance | 0.4740 | 2.091 | 0.83-2.86 | 13.91% |
+| Highlights Luminance | 0.4071 | 1.739 | 0.73-2.40 | 10.31% |
+| Blending | -0.2362 | 1.613 | 0.37-3.81 | 3.84% |
+| Balance | 0.0621 | 0.905 | 0.46-4.72 | 12.99% |
+
+The contact sheets make the model mismatch visible: Camera Raw and LightTable
+divide and overlap shadows, midtones and highlights differently, and Balance
+redistributes those masks rather than applying one uniform strength. The broad
+source-dependent ratios and low correlations reject scalar retuning. No
+renderer constant and no LUT was changed from these results. A future accepted
+change requires a grounded tonal-mask/overlap model that improves the complete
+corpus, followed by recapture of earlier Color and Mixer sections.
+
+The canonical source manifest now also contains an explicitly tagged Display-P3
+color target and records ICC hashes. This ten-source result predates that
+addition; the P3 capture is a required extension, not silently counted here.
+
 ### Native Black & White Mix readiness
 
 Grade now owns a distinct photographic Black & White Mix over Red, Orange,
@@ -518,4 +561,6 @@ GPU resource path and PNG export. On the color fixture it measured mean RGB
 `202.83, 164.22, 165.32` at 50%, and exact neutral again at 0%. The midpoint
 therefore interpolates visually between bypass and full effect, while the
 zero endpoint proves that this module cannot silently alter an unselected
-Grade.
+Grade. The same packaged route copies the embedded LUT from one open document
+to another, remaps its asset id and verifies the destination at Strength 62
+after the asynchronous GPU upload has settled.

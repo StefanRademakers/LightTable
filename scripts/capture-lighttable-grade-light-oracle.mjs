@@ -3,12 +3,15 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const sourceArgument = process.argv.find((value) => value.startsWith('--source='));
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
 const casesArgument = process.argv.find((value) => value.startsWith('--cases='));
 const resumePartial = process.argv.includes('--resume-partial');
+const maxNewCapturesArgument = process.argv.find((value) => value.startsWith('--max-new-captures='));
+const maxNewCaptures = Math.max(0, Number(maxNewCapturesArgument?.slice('--max-new-captures='.length) ?? 0));
 const refreshControlArgument = process.argv.find((value) => value.startsWith('--refresh-control='));
 const refreshControl = refreshControlArgument?.slice('--refresh-control='.length) ?? null;
 const source = path.resolve(sourceArgument?.slice('--source='.length) ?? 'D:\\people.jpg');
@@ -17,10 +20,10 @@ const root = path.resolve(rootArgument?.slice('--root='.length)
 const outputDirectory = path.join(root, 'lighttable');
 const casePath = path.resolve(casesArgument?.slice('--cases='.length)
   ?? path.join(import.meta.dirname, 'grade-light-parity-cases.json'));
-const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspace);
 const userData = path.join(root, 'runtime', `lighttable-${process.pid}`);
 await Promise.all([
-  access(source), access(executable), access(casePath),
+  access(source), access(launch.executablePath), access(casePath),
   mkdir(outputDirectory, { recursive: true }), mkdir(userData, { recursive: true })
 ]);
 
@@ -31,6 +34,11 @@ const settingForControl = (control, value) => ({
   groupLabel: control.groupLabel ?? suite.groupLabel ?? suite.section,
   subgroupLabel: control.subgroupLabel ?? null,
   rangeIndex: control.rangeIndex ?? null,
+  gradingMode: control.lightTable?.gradingMode ?? null,
+  wheelHue: control.lightTable?.wheelHue === 'value'
+    ? value : (control.lightTable?.wheelHue ?? null),
+  wheelSaturation: control.lightTable?.wheelSaturation === 'value'
+    ? value : (control.lightTable?.wheelSaturation ?? null),
   label: control.sliderLabel ?? control.label,
   value,
   defaultValue: control.defaultValue ?? 0
@@ -41,10 +49,9 @@ const cases = [{
 }];
 for (const control of suite.controls) {
   const prerequisites = (control.lightTablePrerequisites ?? []).map((entry) => ({
+    ...entry,
     groupLabel: entry.groupLabel ?? control.groupLabel ?? suite.groupLabel ?? suite.section,
     subgroupLabel: entry.subgroupLabel ?? null,
-    label: entry.label,
-    value: entry.value,
     defaultValue: entry.defaultValue ?? 0
   }));
   const baselineId = prerequisites.length ? `${control.key}-baseline` : 'neutral';
@@ -63,11 +70,16 @@ const mimeByExtension = new Map([
   ['.tif', 'image/tiff'], ['.tiff', 'image/tiff']
 ]);
 
-const setGradeControl = async (page, setting, target = setting.value) => {
-  const { groupLabel, subgroupLabel, rangeIndex, label } = setting;
+const setGradeControl = async (page, setting, target = setting.value, resetting = false) => {
+  const {
+    groupLabel, subgroupLabel, rangeIndex, gradingMode,
+    wheelHue, wheelSaturation, label
+  } = setting;
   const group = page.locator('.lighttable-group').filter({
     has: page.getByRole('button', { name: groupLabel, exact: true })
   });
+  const groupToggle = group.getByRole('button', { name: groupLabel, exact: true });
+  if (await groupToggle.getAttribute('aria-expanded') === 'false') await groupToggle.click();
   let container = group;
   if (subgroupLabel) {
     const subgroup = group.locator('.lighttable-detail-controls__subgroup').filter({
@@ -87,6 +99,38 @@ const setGradeControl = async (page, setting, target = setting.value) => {
       throw new Error(`Color Mixer range settled at ${actualRange}, expected ${rangeIndex}.`);
     }
   }
+  if (gradingMode) {
+    const modeLabel = gradingMode[0].toUpperCase() + gradingMode.slice(1);
+    const mode = group.getByRole('radio', { name: modeLabel, exact: true });
+    await mode.click();
+    if (wheelHue !== null && wheelHue !== undefined) {
+      const wheel = group.getByRole('slider', { name: `${modeLabel} color tint`, exact: true });
+      await wheel.scrollIntoViewIfNeeded();
+      const bounds = await wheel.boundingBox();
+      if (!bounds) throw new Error(`${modeLabel} color wheel has no bounds.`);
+      const effectiveHue = resetting ? (setting.defaultWheelHue ?? 0) : wheelHue;
+      const effectiveSaturation = resetting ? (setting.defaultWheelSaturation ?? 0) : wheelSaturation;
+      const hue = ((effectiveHue % 360) + 360) % 360;
+      const saturation = Math.min(100, Math.max(0, effectiveSaturation ?? 0));
+      const angle = hue * Math.PI / 180;
+      // The component normalizes against exactly half the rendered disc. Stay
+      // a fraction inside the edge so 100% remains a valid hit target.
+      const radius = Math.min(bounds.width, bounds.height) * 0.497 * saturation / 100;
+      await page.mouse.click(
+        bounds.x + bounds.width / 2 + Math.cos(angle) * radius,
+        bounds.y + bounds.height / 2 - Math.sin(angle) * radius
+      );
+      await wheel.waitFor({ state: 'visible' });
+      const text = await wheel.getAttribute('aria-valuetext') ?? '';
+      const match = text.match(/(-?\d+) degrees, (-?\d+) percent/);
+      const actualSaturation = Number(match?.[2]);
+      const hueMatches = saturation <= 1 || Math.abs(Number(match?.[1]) - hue) <= 2;
+      if (!match || !hueMatches || Math.abs(actualSaturation - saturation) > 2) {
+        throw new Error(`${modeLabel} wheel settled at ${text}, expected ${hue} degrees, ${saturation} percent.`);
+      }
+      return;
+    }
+  }
   const slider = container.locator(`input[type="range"][aria-label="${label}"]`);
   await slider.waitFor({ state: 'attached', timeout: 30_000 });
   await slider.scrollIntoViewIfNeeded();
@@ -100,17 +144,23 @@ const setGradeControl = async (page, setting, target = setting.value) => {
   if (actual !== target) throw new Error(`${label} settled at ${actual}, expected ${target}.`);
 };
 
-const environment = { ...process.env, LIGHTTABLE_AUTOMATION_USER_DATA: userData };
+const environment = {
+  ...process.env,
+  LIGHTTABLE_AUTOMATION_USER_DATA: userData,
+  LIGHTTABLE_AUTOMATION_HEADLESS: '1'
+};
 delete environment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath: executable,
-  args: [path.join(workspace, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspace,
   env: environment,
   timeout: 30_000
 });
 
 const results = [];
+let captureComplete = true;
+let newCaptureCount = 0;
 try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
@@ -144,7 +194,7 @@ try {
     // Keep a single decoded document alive for speed and deterministically
     // restore the previous slider before authoring the next isolated case.
     for (const setting of [...previousSettings].reverse()) {
-      await setGradeControl(page, setting, setting.defaultValue);
+      await setGradeControl(page, setting, setting.defaultValue, true);
     }
     previousSettings = [];
     const output = path.join(outputDirectory, `${entry.id}.png`);
@@ -153,6 +203,10 @@ try {
       results.push({ ...entry, output });
       process.stdout.write(`LightTable ${entry.id}: reused partial capture\n`);
       continue;
+    }
+    if (maxNewCaptures > 0 && newCaptureCount >= maxNewCaptures) {
+      captureComplete = false;
+      break;
     }
     for (const setting of entry.settings) await setGradeControl(page, setting);
     const exported = await driver.execute(documentId, 'file.exportPng', {}, {
@@ -163,20 +217,37 @@ try {
     const png = await driver.readArtifact(task.artifact.id);
     if (!png) throw new Error('Grade Light PNG export artifact cannot be read.');
     await writeFile(output, png.bytes);
+    newCaptureCount += 1;
     results.push({ ...entry, output });
     process.stdout.write(`LightTable ${entry.id}: ${output}\n`);
     previousSettings = entry.settings;
   }
   if (pageErrors.length) throw new Error(`LightTable runtime errors: ${pageErrors.join('\n')}`);
 } finally {
-  await app.close().catch(() => {});
+  let closeTimer;
+  const gracefulClose = app.close().catch(() => {});
+  await Promise.race([
+    gracefulClose,
+    new Promise((resolve) => {
+      closeTimer = setTimeout(() => {
+        app.process().kill();
+        resolve();
+      }, 5_000);
+      closeTimer.unref?.();
+    })
+  ]);
+  if (closeTimer) clearTimeout(closeTimer);
 }
 
-await writeFile(path.join(outputDirectory, 'capture-report.json'), `${JSON.stringify({
-  schema: 1,
-  generatedAt: new Date().toISOString(),
-  section: suite.section,
-  source,
-  isolation: 'One decoded source and one topmost Grade Layer are reused; the prior control is verified at neutral before exactly one Light control is authored.',
-  cases: results
-}, null, 2)}\n`);
+if (captureComplete) {
+  await writeFile(path.join(outputDirectory, 'capture-report.json'), `${JSON.stringify({
+    schema: 1,
+    generatedAt: new Date().toISOString(),
+    section: suite.section,
+    source,
+    isolation: 'One decoded source and one topmost Grade Layer are reused; the prior control is verified at neutral before exactly one Grade control is authored. Long corpora relaunch the renderer between bounded batches.',
+    cases: results
+  }, null, 2)}\n`);
+} else {
+  process.stdout.write(`LightTable partial checkpoint: ${newCaptureCount} new capture(s); relaunch required.\n`);
+}

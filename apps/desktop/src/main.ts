@@ -559,7 +559,9 @@ async function createWindow(): Promise<void> {
     void agentAccessBridge?.disable();
     void agentTunnel?.disconnect(false);
   });
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    if (process.env.LIGHTTABLE_AUTOMATION_HEADLESS !== '1') window.show();
+  });
   window.on('enter-full-screen', () => {
     window.webContents.send('lighttable:fullscreen-changed', true);
   });

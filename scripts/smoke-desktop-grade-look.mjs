@@ -1,5 +1,5 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir } from 'node:fs/promises';
+import { access, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
@@ -9,10 +9,13 @@ const workspace = path.resolve(import.meta.dirname, '..');
 const source = path.resolve(process.argv[2] ?? 'D:/colors.png');
 const lut = path.resolve(process.argv[3]
   ?? path.join(workspace, 'packages/lighttable-app/src/assets/luts/FGCineCold.cube'));
+const destinationSource = path.resolve(process.argv[4] ?? 'D:/people.jpg');
 const output = path.join(workspace, 'tmp', 'grade-look');
 const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(workspace);
-await Promise.all([access(source), access(lut), mkdir(userData, { recursive: true })]);
+await Promise.all([
+  access(source), access(lut), access(destinationSource), mkdir(userData, { recursive: true })
+]);
 
 const environment = {
   ...process.env,
@@ -64,9 +67,9 @@ try {
   if (!documentId) throw new Error('No active document after opening the Look fixture.');
   await driver.waitForDocument(documentId, 120_000);
 
-  const exportMean = async () => {
-    const request = await driver.execute(documentId, 'file.exportPng', {}, { requireCompleted: false });
-    const task = await driver.waitForTask(documentId, request.taskId, 120_000);
+  const exportMean = async (targetDocumentId = documentId) => {
+    const request = await driver.execute(targetDocumentId, 'file.exportPng', {}, { requireCompleted: false });
+    const task = await driver.waitForTask(targetDocumentId, request.taskId, 120_000);
     const artifact = task.artifact && await driver.readArtifact(task.artifact.id);
     if (!artifact) throw new Error('Grade Look smoke export produced no artifact.');
     return decodeMean(page, artifact.bytes);
@@ -114,9 +117,56 @@ try {
     throw new Error(`Zero-strength Look is not an exact visual bypass: ${distance(neutral, bypass).toFixed(3)}; `
       + `neutral=${neutral.map((value) => value.toFixed(2))}; zero=${bypass.map((value) => value.toFixed(2))}.`);
   }
+
+  await strength.fill('62');
+  if (await strength.inputValue() !== '62') {
+    throw new Error(`Source Look Strength settled at ${await strength.inputValue()}, expected 62.`);
+  }
+  await page.waitForTimeout(200);
+  await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Copy grade', exact: true }).click();
+  await page.waitForTimeout(200);
+  const copiedStrength = await page.evaluate(() => {
+    const raw = window.localStorage.getItem('storybuilder:lighttable:grade-clipboard');
+    return raw ? JSON.parse(raw).settings?.gradeLook?.strength : null;
+  });
+  if (copiedStrength !== 62) {
+    throw new Error(`Grade clipboard stored Look Strength ${copiedStrength}, expected 62.`);
+  }
+
+  const destinationBytes = await readFile(destinationSource);
+  const destinationArtifact = await driver.registerInputArtifact(
+    destinationBytes,
+    path.basename(destinationSource),
+    /\.png$/i.test(destinationSource) ? 'image/png' : 'image/jpeg'
+  );
+  const openedDestination = await driver.executeWorkspace('file.openArtifact', {
+    artifactId: destinationArtifact.id
+  });
+  const destinationDocumentId = openedDestination.value?.documentId;
+  if (!destinationDocumentId) throw new Error('Cross-document Look smoke did not open its destination.');
+  await driver.waitForDocument(destinationDocumentId, 120_000);
+  const destinationNeutral = await exportMean(destinationDocumentId);
+
+  await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Paste grade:/ }).click();
+  const destinationLook = page.locator('.lighttable-grade-panel:visible .lighttable-group')
+    .filter({ hasText: 'Look' }).first();
+  const destinationStrength = destinationLook.getByRole('slider', { name: 'Strength', exact: true });
+  await destinationStrength.waitFor({ state: 'attached', timeout: 30_000 });
+  await page.waitForTimeout(200);
+  const destinationLookMean = await exportMean(destinationDocumentId);
+  const destinationStrengthValue = await destinationStrength.inputValue();
+  if (destinationStrengthValue !== '62') {
+    throw new Error(`Cross-document Look Strength settled at ${destinationStrengthValue}, expected 62; `
+      + `effect distance=${distance(destinationNeutral, destinationLookMean).toFixed(3)}.`);
+  }
+  if (distance(destinationNeutral, destinationLookMean) < 1) {
+    throw new Error('Cross-document Grade paste did not apply the embedded Look.');
+  }
   process.stdout.write(`Grade Look smoke passed: neutral=${neutral.map((value) => value.toFixed(2))}; `
     + `full=${full.map((value) => value.toFixed(2))}; half=${half.map((value) => value.toFixed(2))}; `
-    + `zero=${bypass.map((value) => value.toFixed(2))}.\n`);
+    + `zero=${bypass.map((value) => value.toFixed(2))}; cross-document strength=62.\n`);
 } finally {
   await app.close().catch(() => undefined);
 }

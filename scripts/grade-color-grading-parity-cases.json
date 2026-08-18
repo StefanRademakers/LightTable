@@ -1,0 +1,126 @@
+{
+  "schema": 1,
+  "section": "color-grading",
+  "groupLabel": "Color Grading",
+  "analysisMinimumCameraRawMagnitude": 0.002,
+  "controls": [
+    {
+      "key": "global-hue", "label": "Global Hue", "cameraRawDescriptor": "CgGH",
+      "cameraRawValueType": "integer", "defaultValue": 0, "values": [60, 120, 180, 240, 300],
+      "cameraRawPrerequisites": [{ "descriptor": "CgGS", "valueType": "integer", "value": 50 }, { "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "gradingMode": "global", "wheelHue": 0, "wheelSaturation": 50, "value": 50 }],
+      "lightTable": { "gradingMode": "global", "wheelHue": "value", "wheelSaturation": 50 }
+    },
+    {
+      "key": "global-saturation", "label": "Global Saturation", "cameraRawDescriptor": "CgGS",
+      "cameraRawValueType": "integer", "defaultValue": 0, "values": [25, 50, 80, 100],
+      "cameraRawPrerequisites": [{ "descriptor": "CgGH", "valueType": "integer", "value": 120 }, { "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "gradingMode": "global", "wheelHue": 120, "wheelSaturation": 0, "value": 120 }],
+      "lightTable": { "gradingMode": "global", "wheelHue": 120, "wheelSaturation": "value" }
+    },
+    {
+      "key": "shadows-hue", "label": "Shadows Hue", "cameraRawDescriptor": "STSH",
+      "cameraRawValueType": "integer", "defaultValue": 0, "values": [60, 120, 180, 240, 300],
+      "cameraRawPrerequisites": [{ "descriptor": "STSS", "valueType": "integer", "value": 50 }, { "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "gradingMode": "shadows", "wheelHue": 0, "wheelSaturation": 50, "value": 50 }],
+      "lightTable": { "gradingMode": "shadows", "wheelHue": "value", "wheelSaturation": 50 }
+    },
+    {
+      "key": "shadows-saturation", "label": "Shadows Saturation", "cameraRawDescriptor": "STSS",
+      "cameraRawValueType": "integer", "defaultValue": 0, "values": [25, 50, 80, 100],
+      "cameraRawPrerequisites": [{ "descriptor": "STSH", "valueType": "integer", "value": 240 }, { "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "gradingMode": "shadows", "wheelHue": 240, "wheelSaturation": 0, "value": 240 }],
+      "lightTable": { "gradingMode": "shadows", "wheelHue": 240, "wheelSaturation": "value" }
+    },
+    {
+      "key": "midtones-hue", "label": "Midtones Hue", "cameraRawDescriptor": "CgMH",
+      "cameraRawValueType": "integer", "defaultValue": 0, "values": [60, 120, 180, 240, 300],
+      "cameraRawPrerequisites": [{ "descriptor": "CgMS", "valueType": "integer", "value": 50 }, { "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "gradingMode": "midtones", "wheelHue": 0, "wheelSaturation": 50, "value": 50 }],
+      "lightTable": { "gradingMode": "midtones", "wheelHue": "value", "wheelSaturation": 50 }
+    },
+    {
+      "key": "midtones-saturation", "label": "Midtones Saturation", "cameraRawDescriptor": "CgMS",
+      "cameraRawValueType": "integer", "defaultValue": 0, "values": [25, 50, 80, 100],
+      "cameraRawPrerequisites": [{ "descriptor": "CgMH", "valueType": "integer", "value": 120 }, { "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "gradingMode": "midtones", "wheelHue": 120, "wheelSaturation": 0, "value": 120 }],
+      "lightTable": { "gradingMode": "midtones", "wheelHue": 120, "wheelSaturation": "value" }
+    },
+    {
+      "key": "highlights-hue", "label": "Highlights Hue", "cameraRawDescriptor": "STHH",
+      "cameraRawValueType": "integer", "defaultValue": 0, "values": [60, 120, 180, 240, 300],
+      "cameraRawPrerequisites": [{ "descriptor": "STHS", "valueType": "integer", "value": 50 }, { "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "gradingMode": "highlights", "wheelHue": 0, "wheelSaturation": 50, "value": 50 }],
+      "lightTable": { "gradingMode": "highlights", "wheelHue": "value", "wheelSaturation": 50 }
+    },
+    {
+      "key": "highlights-saturation", "label": "Highlights Saturation", "cameraRawDescriptor": "STHS",
+      "cameraRawValueType": "integer", "defaultValue": 0, "values": [25, 50, 80, 100],
+      "cameraRawPrerequisites": [{ "descriptor": "STHH", "valueType": "integer", "value": 45 }, { "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "gradingMode": "highlights", "wheelHue": 45, "wheelSaturation": 0, "value": 45 }],
+      "lightTable": { "gradingMode": "highlights", "wheelHue": 45, "wheelSaturation": "value" }
+    },
+    {
+      "key": "global-luminance", "label": "Global Luminance", "sliderLabel": "Luminance",
+      "cameraRawDescriptor": "CgGL", "cameraRawValueType": "integer", "defaultValue": 0,
+      "values": [-100, -80, -50, 50, 80, 100],
+      "cameraRawPrerequisites": [{ "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "label": "Blending", "value": 50, "defaultValue": 50 }],
+      "lightTable": { "gradingMode": "global" }
+    },
+    {
+      "key": "shadows-luminance", "label": "Shadows Luminance", "sliderLabel": "Luminance",
+      "cameraRawDescriptor": "CgSL", "cameraRawValueType": "integer", "defaultValue": 0,
+      "values": [-100, -80, -50, 50, 80, 100],
+      "cameraRawPrerequisites": [{ "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "label": "Blending", "value": 50, "defaultValue": 50 }],
+      "lightTable": { "gradingMode": "shadows" }
+    },
+    {
+      "key": "midtones-luminance", "label": "Midtones Luminance", "sliderLabel": "Luminance",
+      "cameraRawDescriptor": "CgML", "cameraRawValueType": "integer", "defaultValue": 0,
+      "values": [-100, -80, -50, 50, 80, 100],
+      "cameraRawPrerequisites": [{ "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "label": "Blending", "value": 50, "defaultValue": 50 }],
+      "lightTable": { "gradingMode": "midtones" }
+    },
+    {
+      "key": "highlights-luminance", "label": "Highlights Luminance", "sliderLabel": "Luminance",
+      "cameraRawDescriptor": "CgHL", "cameraRawValueType": "integer", "defaultValue": 0,
+      "values": [-100, -80, -50, 50, 80, 100],
+      "cameraRawPrerequisites": [{ "descriptor": "CgBl", "valueType": "integer", "value": 50 }],
+      "lightTablePrerequisites": [{ "label": "Blending", "value": 50, "defaultValue": 50 }],
+      "lightTable": { "gradingMode": "highlights" }
+    },
+    {
+      "key": "blending", "label": "Blending", "cameraRawDescriptor": "CgBl",
+      "cameraRawValueType": "integer", "defaultValue": 50, "values": [0, 25, 75, 100],
+      "cameraRawPrerequisites": [
+        { "descriptor": "STSH", "valueType": "integer", "value": 240 },
+        { "descriptor": "STSS", "valueType": "integer", "value": 50 },
+        { "descriptor": "STHH", "valueType": "integer", "value": 45 },
+        { "descriptor": "STHS", "valueType": "integer", "value": 50 },
+        { "descriptor": "CgBl", "valueType": "integer", "value": 50 }
+      ],
+      "lightTablePrerequisites": [
+        { "gradingMode": "shadows", "wheelHue": 240, "wheelSaturation": 50, "value": 50 },
+        { "gradingMode": "highlights", "wheelHue": 45, "wheelSaturation": 50, "value": 50 }
+      ]
+    },
+    {
+      "key": "balance", "label": "Balance", "cameraRawDescriptor": "STB ",
+      "cameraRawValueType": "integer", "defaultValue": 0, "values": [-100, -80, -50, 50, 80, 100],
+      "cameraRawPrerequisites": [
+        { "descriptor": "STSH", "valueType": "integer", "value": 240 },
+        { "descriptor": "STSS", "valueType": "integer", "value": 50 },
+        { "descriptor": "STHH", "valueType": "integer", "value": 45 },
+        { "descriptor": "STHS", "valueType": "integer", "value": 50 },
+        { "descriptor": "CgBl", "valueType": "integer", "value": 50 }
+      ],
+      "lightTablePrerequisites": [
+        { "gradingMode": "shadows", "wheelHue": 240, "wheelSaturation": 50, "value": 50 },
+        { "gradingMode": "highlights", "wheelHue": 45, "wheelSaturation": 50, "value": 50 }
+      ]
+    }
+  ]
+}

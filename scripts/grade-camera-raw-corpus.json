@@ -12,7 +12,8 @@
     "photograph-high-key",
     "photograph-skin",
     "photograph-colorful",
-    "precision-16-bit"
+    "precision-16-bit",
+    "wide-gamut"
   ],
   "sources": [
     {
@@ -20,6 +21,7 @@
       "kind": "generated",
       "generator": "grayscale-ramp",
       "file": "grayscale-ramp.png",
+      "profile": "sRGB",
       "roles": ["luminance-ramp", "smooth-gradient"]
     },
     {
@@ -27,6 +29,7 @@
       "kind": "generated",
       "generator": "tonal-steps",
       "file": "tonal-steps.png",
+      "profile": "sRGB",
       "roles": ["near-clipping", "luminance-ramp"]
     },
     {
@@ -34,13 +37,23 @@
       "kind": "generated",
       "generator": "color-target",
       "file": "color-target.png",
+      "profile": "sRGB",
       "roles": ["color-target", "smooth-gradient"]
+    },
+    {
+      "id": "wide-gamut-color",
+      "kind": "generated",
+      "generator": "wide-gamut-color",
+      "file": "wide-gamut-color.png",
+      "profile": "Display P3",
+      "roles": ["color-target", "smooth-gradient", "wide-gamut"]
     },
     {
       "id": "frequency-detail",
       "kind": "generated",
       "generator": "frequency-detail",
       "file": "frequency-detail.png",
+      "profile": "sRGB",
       "roles": ["frequency-detail"]
     },
     {
@@ -48,6 +61,7 @@
       "kind": "generated",
       "generator": "multiscale-noise",
       "file": "multiscale-noise.png",
+      "profile": "sRGB",
       "roles": ["synthetic-noise", "frequency-detail"]
     },
     {

@@ -11,7 +11,7 @@ const root = path.resolve(rootArgument?.slice('--root='.length) ?? manifest.exte
 const sourceDirectory = path.join(root, 'sources');
 await mkdir(sourceDirectory, { recursive: true });
 
-const rgb8 = async (width, height, pixel, target) => {
+const rgb8 = async (width, height, pixel, target, profile = 'srgb') => {
   const data = Buffer.allocUnsafe(width * height * 3);
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -23,7 +23,7 @@ const rgb8 = async (width, height, pixel, target) => {
     }
   }
   await sharp(data, { raw: { width, height, channels: 3 } })
-    .withIccProfile('srgb', { attach: true }).png({ compressionLevel: 9 }).toFile(target);
+    .withIccProfile(profile, { attach: true }).png({ compressionLevel: 9 }).toFile(target);
 };
 
 const generators = {
@@ -69,6 +69,24 @@ const generators = {
       return wheel.map((value) => Math.round(gray + (value - gray) * saturation));
     }, target);
   },
+  'wide-gamut-color': (target) => rgb8(1024, 384, (x, y, width, height) => {
+    if (y < height / 3) {
+      const patches = [
+        [255, 0, 0], [255, 128, 0], [255, 255, 0], [0, 255, 0],
+        [0, 255, 255], [0, 0, 255], [128, 0, 255], [255, 0, 255]
+      ];
+      return patches[Math.min(7, Math.floor(x / (width / 8)))];
+    }
+    const hue = x / (width - 1) * 6;
+    const sector = Math.floor(hue) % 6;
+    const fraction = hue - Math.floor(hue);
+    const a = Math.round(255 * (1 - fraction));
+    const b = Math.round(255 * fraction);
+    const wheel = [[255, b, 0], [a, 255, 0], [0, 255, b], [0, a, 255], [b, 0, 255], [255, 0, a]][sector];
+    const row = (y - height / 3) / (height * 2 / 3 - 1);
+    const scale = 1 - row * 0.7;
+    return wheel.map((value) => Math.round(128 + (value - 128) * scale));
+  }, target, 'p3'),
   'frequency-detail': (target) => rgb8(1024, 512, (x, y, width, height) => {
     const band = Math.floor(y / (height / 4));
     const frequencies = [2, 8, 24, 64];
@@ -120,7 +138,11 @@ for (const source of manifest.sources) {
     space: metadata.space,
     depth: metadata.depth,
     channels: metadata.channels,
-    hasProfile: Boolean(metadata.icc?.length)
+    hasProfile: Boolean(metadata.icc?.length),
+    declaredProfile: source.profile ?? null,
+    iccSha256: metadata.icc?.length
+      ? createHash('sha256').update(metadata.icc).digest('hex')
+      : null
   });
 }
 
