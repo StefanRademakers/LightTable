@@ -104,12 +104,12 @@ for (const source of sources) {
         lastCaptureError = error;
         process.stderr.write(`LightTable batch ${batch} stopped before its checkpoint; relaunching from validated partials.\n`);
       }
-      if (batch >= 16 && !await exists(lightTableReport)) {
+      if (batch >= 16 && !await reportIsCurrent(lightTableReport, source)) {
         throw new Error(`LightTable capture did not complete after ${batch} bounded attempts.`, {
           cause: lastCaptureError
         });
       }
-    } while (!await exists(lightTableReport));
+    } while (!await reportIsCurrent(lightTableReport, source));
   } else if (captureLightTable) {
     process.stdout.write('Current LightTable capture already exists; use --force to replace it.\n');
   }

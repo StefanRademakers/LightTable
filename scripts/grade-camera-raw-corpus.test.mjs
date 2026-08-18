@@ -67,6 +67,7 @@ test('Grade corpus routes require source identity, packaged rendering and frame 
     assert.match(runner, /LIGHTTABLE_TEST_EXECUTABLE/u);
     assert.match(runner, /--packaged/u);
   }
+  assert.match(sectionRunner, /while \(!await reportIsCurrent\(lightTableReport, source\)\)/u);
   for (const capture of [sectionCapture, curvesCapture]) {
     assert.match(capture, /requirePackaged: process\.argv\.includes\('--packaged'\)/u);
     assert.match(capture, /waitForRenderedDocument/u);
