@@ -214,6 +214,11 @@ Implemented foundation - 18 August 2026
   and packaged Editable PSD roundtrips pass for both `D:\TextTest.psd` and
   `D:\shapes.psd`. These prove the current LightTable host/import/export route;
   they do not replace the blocked version-pinned Photoshop oracle.
+- Successful command/API PSD exports now retain structured compatibility
+  findings on their opaque artifact metadata. Automation can therefore tell a
+  fully editable artifact from an appearance-correct but degraded one without
+  receiving binary payloads or scraping console text. Blocking findings still
+  terminate the task and publish no artifact.
 
 Still open: further editable decomposition of compound Grade Layers, position-local
 fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group

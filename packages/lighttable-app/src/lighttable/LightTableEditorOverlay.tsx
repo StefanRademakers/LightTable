@@ -14,6 +14,7 @@ import { resetDocumentOpenPresentation } from './application/documents/resetDocu
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
 import { exportEditorPngArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
+import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
@@ -981,7 +982,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const exportPngArtifactRef = useRef<() => Promise<File>>(async () => {
     throw new Error('The PNG export controller is not ready.');
   });
-  const exportPsdArtifactRef = useRef<() => Promise<File>>(async () => {
+  const exportPsdArtifactRef = useRef<() => Promise<ExportedPsdDocument>>(async () => {
     throw new Error('The PSD export controller is not ready.');
   });
   const beginAutomationGestureRef = useRef<(

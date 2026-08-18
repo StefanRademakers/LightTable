@@ -470,6 +470,43 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('retains successful PSD compatibility findings on the opaque artifact', async () => {
+    const state = setup();
+    state.ports.exportPsdArtifact = vi.fn(async () => ({
+      file: new File(['psd'], 'degraded.psd', { type: 'image/vnd.adobe.photoshop' }),
+      findings: [{
+        severity: 'degraded-editability' as const,
+        code: 'face-warp-baked' as const,
+        path: 'layers[0]',
+        message: 'Face Warp was baked.'
+      }],
+      warnings: ['layers[0]: Face Warp was baked.'],
+      editableTextLayers: 0,
+      editableVectorLayers: 0
+    }));
+
+    const accepted = await state.service.execute(request(
+      'file.exportPsd', state.session.id, {}
+    ));
+    expect(accepted.status).toBe('accepted');
+    if (accepted.status !== 'accepted') throw new Error('Expected an export task.');
+    await vi.waitFor(() => expect(
+      state.service.queryTask(state.session.id, accepted.taskId)?.status
+    ).toBe('completed'));
+
+    expect(state.service.queryTask(state.session.id, accepted.taskId)?.artifact)
+      .toMatchObject({
+        kind: 'psd-export',
+        compatibilityFindings: [{
+          severity: 'degraded-editability',
+          code: 'face-warp-baked',
+          path: 'layers[0]'
+        }]
+      });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('opens registered input artifacts through the explicit workspace host port', async () => {
     const state = setup();
     const openArtifact = vi.fn(async () => state.session.id);

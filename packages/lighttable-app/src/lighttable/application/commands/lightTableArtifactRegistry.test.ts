@@ -20,4 +20,26 @@ describe('LightTableArtifactRegistry', () => {
     expect(registry.release(artifact.id)).toBe(true);
     expect(registry.resolve(artifact.id)).toBeNull();
   });
+
+  it('publishes structured PSD compatibility findings without exposing the file', () => {
+    const registry = new LightTableArtifactRegistry();
+    const artifact = registry.register(
+      new File(['psd'], 'degraded.psd', { type: 'image/vnd.adobe.photoshop' }),
+      'psd-export',
+      [{
+        severity: 'degraded-editability',
+        code: 'face-warp-baked',
+        path: 'layers[0]',
+        message: 'Face Warp was baked.'
+      }]
+    );
+
+    expect(artifact.compatibilityFindings).toEqual([{
+      severity: 'degraded-editability',
+      code: 'face-warp-baked',
+      path: 'layers[0]',
+      message: 'Face Warp was baked.'
+    }]);
+    expect(Object.keys(artifact)).not.toContain('file');
+  });
 });

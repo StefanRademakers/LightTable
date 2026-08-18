@@ -1,3 +1,5 @@
+import type { PsdExportCompatibilityFinding } from '../documents/psdExportProtocol';
+
 export type LightTableArtifactKind = 'input' | 'native-document' | 'png-export' | 'psd-export';
 
 export interface LightTableArtifactMetadata {
@@ -7,6 +9,7 @@ export interface LightTableArtifactMetadata {
   readonly mediaType: string;
   readonly byteLength: number;
   readonly createdAt: number;
+  readonly compatibilityFindings?: readonly PsdExportCompatibilityFinding[];
 }
 
 interface ArtifactRecord {
@@ -35,7 +38,11 @@ export class LightTableArtifactRegistry {
     this.maximumArtifactBytes = options.maximumArtifactBytes ?? 512 * 1024 * 1024;
   }
 
-  register(file: File, kind: LightTableArtifactKind): LightTableArtifactMetadata {
+  register(
+    file: File,
+    kind: LightTableArtifactKind,
+    compatibilityFindings: readonly PsdExportCompatibilityFinding[] = []
+  ): LightTableArtifactMetadata {
     if (file.size > this.maximumArtifactBytes) {
       throw new Error(`Artifact exceeds the ${this.maximumArtifactBytes}-byte limit.`);
     }
@@ -50,7 +57,10 @@ export class LightTableArtifactRegistry {
       name: file.name,
       mediaType: file.type || 'application/octet-stream',
       byteLength: file.size,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      ...(compatibilityFindings.length
+        ? { compatibilityFindings: structuredClone(compatibilityFindings) }
+        : {})
     });
     this.records.set(metadata.id, { metadata, file });
     return metadata;

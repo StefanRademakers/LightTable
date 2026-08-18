@@ -16,6 +16,10 @@ user. Appearance-preserving raster fallbacks may proceed but return a structured
 `degraded-editability` finding; supported layers remain genuinely editable.
 The merged composite is always present.
 
+The same findings are attached to successful opaque `psd-export` artifacts in
+the command API. This keeps automation and parity tooling on the same policy as
+the product export route without exposing file bytes through JSON contracts.
+
 `Photoshop PSD (Maximum Appearance)...` is a separate, explicit intent for a
 document that cannot be represented honestly as editable PSD. It skips all
 layer/LUT readback and writes the already settled canonical composite once as

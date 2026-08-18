@@ -1,6 +1,6 @@
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { DocumentRendererPort } from '../../infrastructure/rendering/webGpuDocumentRenderer';
-import { exportPsdDocument } from './PsdExportClient';
+import { exportPsdDocument, type ExportedPsdDocument } from './PsdExportClient';
 
 const exportFileName = (sourceName: string, suffix: string): string =>
   `${sourceName.replace(/\.[^.]+$/, '') || 'image'}-${suffix}`;
@@ -23,7 +23,7 @@ export const exportEditorPsdArtifact = async (
   renderer: DocumentRendererPort | null,
   document: ImageDocument | null,
   sourceName: string
-): Promise<File> => {
+): Promise<ExportedPsdDocument> => {
   if (!renderer || !document) throw new Error('The document renderer is not ready.');
   // Automation may request an export in the same event turn as a committed
   // document transaction. Cross that state into the renderer explicitly;
@@ -41,11 +41,11 @@ export const exportEditorPsdArtifact = async (
     throw new Error('Exact text sources could not be retained for PSD layer export.');
   }
   const assets = await renderer.exportPsdLayerAssets(document);
-  return (await exportPsdDocument(
+  return exportPsdDocument(
     document,
     composite,
     assets.filter((asset) => 'layerId' in asset),
     assets.filter((asset) => 'lutId' in asset),
     sourceName
-  )).file;
+  );
 };

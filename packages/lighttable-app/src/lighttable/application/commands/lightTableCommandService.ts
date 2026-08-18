@@ -815,9 +815,11 @@ export class LightTableCommandService {
       : psd ? 'psd-export' : 'png-export';
     const running = session.tasks.run('export', native ? 'Export native document'
       : psd ? 'Export Photoshop artifact' : 'Export PNG artifact', async (task) => {
-      const file = await operation(request.documentId);
+      const exported = await operation(request.documentId);
       task.throwIfCanceled();
-      return this.artifacts.register(file, kind);
+      const file = exported instanceof File ? exported : exported.file;
+      const findings = psd && !(exported instanceof File) ? exported.findings : [];
+      return this.artifacts.register(file, kind, findings);
     });
     const taskId = session.tasks.getSnapshot().activeTaskIds.at(-1);
     if (!taskId) return this.reject(request.requestId, 'execution-failed', 'The export task did not start.', snapshot);

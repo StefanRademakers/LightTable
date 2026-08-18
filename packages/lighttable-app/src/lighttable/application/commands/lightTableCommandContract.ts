@@ -3,6 +3,7 @@ import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 import type { RenderTelemetrySnapshot } from '../rendering/renderTelemetry';
 import type { LightTableArtifactMetadata } from './lightTableArtifactRegistry';
+import type { ExportedPsdDocument } from '../documents/PsdExportClient';
 import type { SemanticTextCommand } from './semanticTextCommandContract';
 import type { SemanticVectorCommand } from './semanticVectorCommandContract';
 import type { SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
@@ -189,7 +190,7 @@ export interface LightTableCommandPorts {
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
-  exportPsdArtifact(documentId: DocumentSessionId): File | Promise<File>;
+  exportPsdArtifact(documentId: DocumentSessionId): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
   beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
   finishGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
@@ -216,7 +217,8 @@ export interface DocumentLightTableCommandPorts {
   executeFaceWarpCommand?(command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
-  exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>; exportPsdArtifact(): File | Promise<File>;
+  exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>;
+  exportPsdArtifact(): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
   beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
   finishGesture(kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
