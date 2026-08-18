@@ -79,6 +79,22 @@ Implemented infrastructure
   `conflicting-active-version`, Photoshop 26.11.6 through
   `Photoshop.Application.190`, and two unsaved documents. This proves the
   blocker without mutating either document.
+- The generic adjustment regression now packages the current desktop source
+  before capture and routes every child through that exact executable; an old
+  development `.vite` bundle can no longer masquerade as current evidence.
+- Capture waits for the active renderer to present the canonical document
+  revision and submit a document composite. It records launch mode and alpha
+  evidence and rejects a transparent export when Photoshop contains pixels.
+- Layered raster/mask asset upload invalidates the compositor's topmost
+  processing cache. This fixed the actual first-document transparent export,
+  rather than hiding it with a delay in the oracle.
+- Fresh current-product Exposure recaptures now pass on the ramp, portrait and
+  pool corpora at 99.912%, 99.914% and 99.908% respectively, all with 100% case
+  coverage. The earlier apparent 82-89% regressions were invalid transparent
+  captures and did not justify an Exposure algorithm change.
+- The packaged LightTable B&W side is complete for all eleven sources and all
+  57 cases per source with matching manifest/source/ICC evidence. The Adobe
+  half remains blocked by the safe preflight state above.
 
 Execution order after repair
 ============================

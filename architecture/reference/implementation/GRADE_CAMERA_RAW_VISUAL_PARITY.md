@@ -336,7 +336,7 @@ as hidden Grade sections.
 | Color Mixer | Shared periodic eight-range implementation with red wraparound tests | All 24 Camera Raw HSL descriptors proven; full corpus characterized |
 | Point Color | Up to eight independent samples; neutral and overlap behavior tested | Camera Raw automation and Visualize Range oracle open |
 | Color Grading | Normalized 3-way masks, Blend/Balance and endpoint guards tested | All 14 Camera Raw controls proven and ten-source sRGB/16-bit corpus characterized; Display-P3 extension open |
-| B&W Mix | Native fused eight-range photographic mix; Photoshop six-channel adjustment remains separate | Runtime/persistence proven; Camera Raw response corpus remains open |
+| B&W Mix | Native fused eight-range photographic mix; Photoshop six-channel adjustment remains separate | Packaged LightTable side complete on 11 sources / 627 cases; Camera Raw response corpus remains open |
 | Look / Profile | Native Grade Look with embedded `.cube` asset, live Strength and exact zero bypass | Creative user-selected Look is implemented; Camera Raw profile matching remains open |
 
 Performance invariants are covered by executable tests: neutral Noise
@@ -561,14 +561,18 @@ Raw magnitude parity. Descriptor recovery and the signed multi-source B&W
 corpus remain required before changing the current response scale.
 
 The versioned B&W manifest covers all eight ranges at signed 50%, 80% and
-100% values. Its packaged LightTable route completed 57 isolated captures on
-the diagnostic color target; a fresh treatment baseline and Red -100 case were
-also replayed successfully after the capture runner became resumable. The
-candidate Camera Raw keys are deliberately marked unverified: Photoshop 2026
-was visible and responsive but did not publish its automation object, including
-after a bounded 90-second `/Automation` launch. No comparison metric or parity
-claim is accepted until task 203 proves that external route and the descriptors
-are pixel-active.
+100% values. Its packaged LightTable route now contains all 57 isolated cases
+for every one of the eleven canonical sources: 627 current-product outputs.
+Every source report carries the same case-manifest SHA-256 plus exact source,
+ICC, dimensions, depth and channel evidence. The color-target set was rebuilt
+from an empty staging root in four bounded batches before replacing its older
+pre-manifest evidence; no old output was relabelled as a fresh capture.
+
+The candidate Camera Raw keys are deliberately marked unverified: Photoshop
+2026 was visible and responsive but did not publish its automation object,
+including after a bounded 90-second `/Automation` launch. No comparison metric
+or parity claim is accepted until task 203 proves that external route and the
+descriptors are pixel-active.
 
 ### Native Grade Look and Strength
 
