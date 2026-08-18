@@ -26,9 +26,9 @@ The four statuses have narrow meanings:
 ## Current inventory
 
 The generated matrix currently covers 5 layer kinds, 26 blend modes, 10 layer
-style kinds, 14 processing modules, native/off-canvas geometry, masks,
+style kinds, 20 processing modules, native/off-canvas geometry, masks,
 clipping, fill opacity, vector elements, six live shapes, solid/gradient vector
-paint, solid/noise gradient assets and retained unsupported previews. It has 73
+paint, solid/noise gradient assets and retained unsupported previews. It has 79
 capability rows; use the JSON rather than copying that list into another
 document.
 

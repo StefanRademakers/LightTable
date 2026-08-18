@@ -209,6 +209,10 @@ Implemented foundation - 18 August 2026
   adjustment node and Local Contrast. Its PSD wording now matches actual
   policy: verified descriptor, appearance-safe owner bake, or a blocking
   finding—never a silent free-layer omission.
+- The complete generated interchange evidence audit passes across 79 rows,
+  and packaged Editable PSD roundtrips pass for both `D:\TextTest.psd` and
+  `D:\shapes.psd`. These prove the current LightTable host/import/export route;
+  they do not replace the blocked version-pinned Photoshop oracle.
 
 Still open: further editable decomposition of compound Grade Layers, position-local
 fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group
