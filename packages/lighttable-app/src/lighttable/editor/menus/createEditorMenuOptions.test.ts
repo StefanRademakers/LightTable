@@ -58,6 +58,19 @@ const labels = {
 };
 
 describe('createEditorMenuOptions', () => {
+  it('keeps fixed target transforms distinct from canvas geometry', () => {
+    const menuCommands = commands();
+    const edit = createEditorMenuOptions('edit', state(), labels, menuCommands);
+    const transform = edit.find(({ value }) => value === 'edit-transform')?.children;
+    expect(transform?.map(({ label }) => label)).toEqual([
+      'Rotate 180°', 'Rotate 90° Clockwise', 'Rotate 90° Counter Clockwise',
+      'Flip Horizontal', 'Flip Vertical'
+    ]);
+    transform?.find(({ value }) => value === 'transform-flip-horizontal')?.onClick?.();
+    expect(menuCommands.applyFixedTransform).toHaveBeenCalledWith('flip-horizontal');
+    expect(menuCommands.applyDocumentGeometry).not.toHaveBeenCalled();
+  });
+
   it('exposes the complete current adjustment catalog with Photoshop shortcuts', () => {
     const menuCommands = commands();
     const image = createEditorMenuOptions('image', state(), labels, menuCommands);

@@ -74,8 +74,29 @@ try {
   if (cropUndone?.canvas?.width !== before.canvas.width || cropUndone.canvas.height !== before.canvas.height) {
     throw new Error(`Crop undo did not restore source bounds: ${JSON.stringify({ before, cropUndone })}`);
   }
+  await page.keyboard.press('Escape');
+  const layersBeforeFixed = await driver.queryLayers(documentId);
+  await page.locator('.shots-app-menu__button').filter({ hasText: /^Edit$/ }).click();
+  await page.getByRole('menuitem', { name: 'Transform', exact: true }).hover();
+  await page.getByRole('menuitem', { name: 'Flip Horizontal', exact: true }).click();
+  let fixed = await driver.queryDocument(documentId);
+  for (let attempt = 0; attempt < 80 && fixed?.history.undoDepth !== 1; attempt += 1) {
+    await page.waitForTimeout(25); fixed = await driver.queryDocument(documentId);
+  }
+  const layersAfterFixed = await driver.queryLayers(documentId);
+  if (fixed?.canvas?.width !== before.canvas.width || fixed.canvas.height !== before.canvas.height
+    || fixed.history.undoDepth !== 1
+    || JSON.stringify(layersAfterFixed?.[0]?.transform) === JSON.stringify(layersBeforeFixed?.[0]?.transform)) {
+    throw new Error(`Fixed layer transform changed the wrong scope: ${JSON.stringify({ fixed, layersBeforeFixed, layersAfterFixed })}`);
+  }
+  await driver.execute(documentId, 'history.undo', {});
+  const layersFixedUndone = await driver.queryLayers(documentId);
+  if (JSON.stringify(layersFixedUndone?.[0]?.transform) !== JSON.stringify(layersBeforeFixed?.[0]?.transform)) {
+    throw new Error('Fixed layer transform undo did not restore the canonical layer transform.');
+  }
   if (errors.length) throw new Error(`Renderer errors: ${JSON.stringify(errors)}`);
   await page.screenshot({ path: path.join(output, 'document-geometry.png') });
-  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ before, expanded, rotated, restored, cropped, cropUndone, errors }, null, 2)}\n`);
+  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ before, expanded, rotated, restored, cropped, cropUndone,
+    fixed, layersBeforeFixed, layersAfterFixed, layersFixedUndone, errors }, null, 2)}\n`);
   process.stdout.write(`Desktop document geometry smoke passed. Report: ${path.join(output, 'report.json')}\n`);
 } finally { await app.close().catch(() => {}); }

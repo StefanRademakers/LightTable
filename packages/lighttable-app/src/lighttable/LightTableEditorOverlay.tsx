@@ -5125,7 +5125,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       copyMergedContent,
       pasteSelectedContent,
       pasteGrade: pasteCurrentGrade,
-      copyGrade: copyCurrentGrade
+      copyGrade: copyCurrentGrade,
+      applyFixedTransform: (operation) => { void transformSession.applyFixed(operation); }
     },
     selection: {
       selectAll: selectAllContent,

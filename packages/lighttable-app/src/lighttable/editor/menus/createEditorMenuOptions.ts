@@ -7,6 +7,7 @@ import {
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
 import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
+import type { FixedTransformOperation } from '../../application/tools/transform/useTransformSessionController';
 
 export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'layer' | 'type' | 'ai' | 'view' | 'help';
 
@@ -82,6 +83,7 @@ export interface EditorMenuCommands {
   copyMergedContent: () => void;
   pasteSelectedContent: () => void;
   pasteGrade: () => void;
+  applyFixedTransform: (operation: FixedTransformOperation) => void;
   copyGrade: () => void;
   selectAll: () => void;
   clearSelection: () => void;
@@ -306,6 +308,24 @@ export const createEditorMenuOptions = (
         label: state.copiedGradeName ? `Paste grade: ${state.copiedGradeName}` : 'Paste grade',
         onClick: commands.pasteGrade,
         disabled: !state.hasMetadata || !state.copiedGradeName || state.saving
+      },
+      {
+        value: 'edit-transform',
+        label: 'Transform',
+        separatorBefore: true,
+        disabled: (!layer && !state.hasSelection) || state.saving,
+        children: [
+          { value: 'transform-rotate-180', label: 'Rotate 180°',
+            onClick: () => commands.applyFixedTransform('rotate-180') },
+          { value: 'transform-rotate-clockwise-90', label: 'Rotate 90° Clockwise',
+            onClick: () => commands.applyFixedTransform('rotate-clockwise-90') },
+          { value: 'transform-rotate-counter-clockwise-90', label: 'Rotate 90° Counter Clockwise',
+            onClick: () => commands.applyFixedTransform('rotate-counter-clockwise-90') },
+          { value: 'transform-flip-horizontal', label: 'Flip Horizontal', separatorBefore: true,
+            onClick: () => commands.applyFixedTransform('flip-horizontal') },
+          { value: 'transform-flip-vertical', label: 'Flip Vertical',
+            onClick: () => commands.applyFixedTransform('flip-vertical') }
+        ]
       },
       {
         value: 'assign-profile',

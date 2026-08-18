@@ -17,6 +17,7 @@ import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentPr
 import type { SnapSettings } from '../../application/tools/snapping/snapSettings';
 import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
+import type { FixedTransformOperation } from '../../application/tools/transform/useTransformSessionController';
 
 export interface EditorMenuControllerOptions {
   readonly projection: EditorMenuProjectionInput;
@@ -50,6 +51,7 @@ export interface EditorMenuControllerOptions {
     pasteSelectedContent(): void;
     pasteGrade(): void;
     copyGrade(): void;
+    applyFixedTransform(operation: FixedTransformOperation): void;
   };
   readonly selection: {
     selectAll(): void;
@@ -177,6 +179,7 @@ export const createEditorMenuController = ({
       pasteSelectedContent: edit.pasteSelectedContent,
       pasteGrade: edit.pasteGrade,
       copyGrade: edit.copyGrade,
+      applyFixedTransform: edit.applyFixedTransform,
       selectAll: selection.selectAll,
       clearSelection: selection.clear,
       invertSelection: selection.invert,

@@ -54,7 +54,8 @@ describe('createEditorMenuController', () => {
         copyMergedContent: vi.fn(),
         pasteSelectedContent: vi.fn(),
         pasteGrade: vi.fn(),
-        copyGrade: vi.fn()
+        copyGrade: vi.fn(),
+        applyFixedTransform: vi.fn()
       },
       selection: {
         selectAll: vi.fn(),
@@ -142,7 +143,7 @@ describe('createEditorMenuController', () => {
       },
       edit: {
         copySelectedContent: vi.fn(), copyMergedContent: vi.fn(),
-        pasteSelectedContent: vi.fn(), pasteGrade: vi.fn(), copyGrade: vi.fn()
+        pasteSelectedContent: vi.fn(), pasteGrade: vi.fn(), copyGrade: vi.fn(), applyFixedTransform: vi.fn()
       },
       selection: { selectAll: vi.fn(), clear: vi.fn(), invert: vi.fn(), removeObject: vi.fn(), removeBackground: vi.fn() },
       image: { openSize: vi.fn(), openCanvasSize: vi.fn(), openArbitraryRotation: vi.fn(), applyDocumentGeometry: vi.fn(), beginCrop: vi.fn(), duplicate: vi.fn(), applyCurves: vi.fn() },

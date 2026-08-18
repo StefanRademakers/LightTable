@@ -28,6 +28,9 @@ import {
   matrixApproximatelyEqual,
   multiplyMatrices,
   identityMatrix,
+  aroundPoint,
+  rotationMatrix,
+  scaleMatrix,
   transformedBounds
 } from '../../../editor/tools/transform/affine';
 import { layerDocumentSnapBounds } from '../snapping/layerSnapGeometry';
@@ -92,7 +95,12 @@ export interface TransformSessionController {
   repeat(duplicate?: boolean): void;
   nudge(x: number, y: number): void;
   setDuplicate(duplicate: boolean): void;
+  applyFixed(operation: FixedTransformOperation): Promise<void>;
 }
+
+export type FixedTransformOperation =
+  | 'rotate-180' | 'rotate-clockwise-90' | 'rotate-counter-clockwise-90'
+  | 'flip-horizontal' | 'flip-vertical';
 
 /**
  * React adapter for the renderer-backed transform transaction.
@@ -124,6 +132,7 @@ export const useTransformSessionController = (
     layerIds: readonly LayerId[];
     requestedSelectionKey: string;
     matrix: AffineMatrix;
+    bounds: { x: number; y: number; width: number; height: number };
   } | null>(null);
   const maskRef = useRef<{
     before: ImageDocument;
@@ -132,6 +141,7 @@ export const useTransformSessionController = (
     maskTransform: AffineMatrix;
     linked: boolean;
     matrix: AffineMatrix;
+    bounds: { x: number; y: number; width: number; height: number };
   } | null>(null);
 
   const isActive = useCallback(
@@ -300,7 +310,8 @@ export const useTransformSessionController = (
         layerTransform: { ...activeLayer.transform },
         maskTransform: { ...activeLayer.mask.transform },
         linked: activeLayer.mask.linked,
-        matrix: identityMatrix()
+        matrix: identityMatrix(),
+        bounds: transformedBounds(activeLayer.mask.transform, measured.coreBounds)
       };
       setState({
         layerId: activeLayer.id,
@@ -338,7 +349,8 @@ export const useTransformSessionController = (
         before: document,
         layerIds: groupIds,
         requestedSelectionKey,
-        matrix: identityMatrix()
+        matrix: identityMatrix(),
+        bounds
       };
       setState({
         layerId: document.activeLayerId!,
@@ -449,6 +461,26 @@ export const useTransformSessionController = (
     const next = controllerRef.current?.updateProjective(quad);
     if (next) setState(next);
   }, []);
+
+  const applyFixed = useCallback(async (operation: FixedTransformOperation) => {
+    if (isActive()) finish(true);
+    await begin();
+    const active = controllerRef.current?.state;
+    const bounds = active?.sourceBounds ?? groupRef.current?.bounds ?? maskRef.current?.bounds;
+    if (!bounds) return;
+    const pivot = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+    const delta = aroundPoint(
+      operation === 'rotate-180' ? rotationMatrix(Math.PI)
+        : operation === 'rotate-clockwise-90' ? rotationMatrix(Math.PI / 2)
+          : operation === 'rotate-counter-clockwise-90' ? rotationMatrix(-Math.PI / 2)
+            : operation === 'flip-horizontal' ? scaleMatrix(-1, 1)
+              : scaleMatrix(1, -1),
+      pivot
+    );
+    update(delta);
+    finish(true);
+    dependenciesRef.current.setStatus(operation.startsWith('rotate') ? 'Layer rotated' : 'Layer flipped');
+  }, [begin, finish, isActive, update]);
 
   const nudge = useCallback((x: number, y: number) => {
     if (maskRef.current) {
@@ -631,6 +663,7 @@ export const useTransformSessionController = (
         const next = controllerRef.current.state;
         if (next) setState(next);
       }
-    }
+    },
+    applyFixed
   };
 };
