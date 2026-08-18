@@ -203,6 +203,12 @@ Implemented foundation - 18 August 2026
   semantic signature comparison and physical host save all completed without
   renderer errors. The external Photoshop rebuild remains a separate oracle
   gate rather than being inferred from this LightTable roundtrip.
+- The generated interchange contract and its registry-count gate now cover all
+  20 current processing modules (previously 15). The five newly inventoried
+  modules are Face Warp, Grade Look, Black & White Mix, the shared Photoshop
+  adjustment node and Local Contrast. Its PSD wording now matches actual
+  policy: verified descriptor, appearance-safe owner bake, or a blocking
+  finding—never a silent free-layer omission.
 
 Still open: further editable decomposition of compound Grade Layers, position-local
 fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group

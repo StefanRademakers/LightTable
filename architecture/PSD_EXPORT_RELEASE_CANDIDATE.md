@@ -76,5 +76,7 @@ The parameterized effects procedure and current residuals are documented in
 - pattern-backed layer styles and the documented extreme spread/choke/bevel
   calibration cases.
 
-These gaps are not silently flattened. The export error identifies the layer or
-feature that prevented a verified editable projection.
+These gaps are never silently flattened. A structured compatibility finding
+identifies the exact layer path and feature. Appearance/scope loss stops the
+export; a canonical raster fallback may proceed only as an explicit
+`degraded-editability` result.

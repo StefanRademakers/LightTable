@@ -198,7 +198,7 @@ export const createLayeredInterchangeMatrix = async () => {
     ...lifecycleCells('partial', ['templates10', 'soloContext'],
       'The native processing module is editable; only verified Photoshop adjustment projections are semantic.', 'partial'),
     'psd-export-reopen': partial(['templates10'],
-      'PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists.')
+      'PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted.')
   }, { dependencySensitive: true }));
   for (const kind of inventory.vectorElements) rows.push(row(`vector-element:${kind}`, 'vector-element', kind,
     lifecycleCells('partial', ['psdFocused', 'photoshopBridge'],

@@ -72,20 +72,25 @@
       "stroke"
     ],
     "processing": [
+      "lt.face-warp",
       "lt.warp",
       "lt.white-balance",
       "lt.light",
       "lt.global-color",
+      "lt.grade-look",
       "lt.color-mixer",
       "lt.color-grading",
+      "lt.black-white-mix",
       "lt.curves",
       "lt.gradient-map",
+      "lt.photoshop-adjustment",
+      "lt.local-contrast",
       "lt.detail",
-      "lt.vignette",
       "lt.lens-distortion",
       "lt.chromatic-aberration",
       "lt.lens-blur",
       "lt.halation",
+      "lt.vignette",
       "lt.grain"
     ],
     "vectorElements": [
@@ -3025,6 +3030,69 @@
       }
     },
     {
+      "id": "processing:lt.face-warp",
+      "family": "processing",
+      "capability": "lt.face-warp",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
       "id": "processing:lt.warp",
       "family": "processing",
       "capability": "lt.warp",
@@ -3075,7 +3143,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3138,7 +3206,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3201,7 +3269,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3264,7 +3332,70 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.grade-look",
+      "family": "processing",
+      "capability": "lt.grade-look",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3327,7 +3458,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3390,7 +3521,70 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.black-white-mix",
+      "family": "processing",
+      "capability": "lt.black-white-mix",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3453,7 +3647,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3516,7 +3710,133 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.photoshop-adjustment",
+      "family": "processing",
+      "capability": "lt.photoshop-adjustment",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.local-contrast",
+      "family": "processing",
+      "capability": "lt.local-contrast",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3579,70 +3899,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
-        },
-        "visual-parity": {
-          "status": "partial",
-          "evidence": [
-            "templates10",
-            "soloContext"
-          ],
-          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
-        }
-      }
-    },
-    {
-      "id": "processing:lt.vignette",
-      "family": "processing",
-      "capability": "lt.vignette",
-      "dependencySensitive": true,
-      "evidenceViews": [
-        "solo",
-        "context"
-      ],
-      "cells": {
-        "create": {
-          "status": "supported",
-          "evidence": [
-            "lifecycle"
-          ],
-          "reason": "The canonical LightTable model can create this feature."
-        },
-        "import": {
-          "status": "partial",
-          "evidence": [
-            "templates10",
-            "soloContext"
-          ],
-          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
-        },
-        "edit": {
-          "status": "supported",
-          "evidence": [
-            "lifecycle"
-          ],
-          "reason": "The authoritative semantic payload is editable."
-        },
-        "undo": {
-          "status": "supported",
-          "evidence": [
-            "lifecycle"
-          ],
-          "reason": "Edits use document history transactions."
-        },
-        "native-save-reopen": {
-          "status": "supported",
-          "evidence": [
-            "lifecycle"
-          ],
-          "reason": "The native format serializes the canonical payload."
-        },
-        "psd-export-reopen": {
-          "status": "partial",
-          "evidence": [
-            "templates10"
-          ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3705,7 +3962,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3768,7 +4025,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3831,7 +4088,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3894,7 +4151,70 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
+        },
+        "visual-parity": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        }
+      }
+    },
+    {
+      "id": "processing:lt.vignette",
+      "family": "processing",
+      "capability": "lt.vignette",
+      "dependencySensitive": true,
+      "evidenceViews": [
+        "solo",
+        "context"
+      ],
+      "cells": {
+        "create": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The canonical LightTable model can create this feature."
+        },
+        "import": {
+          "status": "partial",
+          "evidence": [
+            "templates10",
+            "soloContext"
+          ],
+          "reason": "The native processing module is editable; only verified Photoshop adjustment projections are semantic."
+        },
+        "edit": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The authoritative semantic payload is editable."
+        },
+        "undo": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "Edits use document history transactions."
+        },
+        "native-save-reopen": {
+          "status": "supported",
+          "evidence": [
+            "lifecycle"
+          ],
+          "reason": "The native format serializes the canonical payload."
+        },
+        "psd-export-reopen": {
+          "status": "partial",
+          "evidence": [
+            "templates10"
+          ],
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
@@ -3957,7 +4277,7 @@
           "evidence": [
             "templates10"
           ],
-          "reason": "PSD export preserves source metadata or bakes a preview when no proven Photoshop adapter exists."
+          "reason": "PSD export emits a verified descriptor, uses an appearance-safe owner-layer bake, or blocks before publishing; unsupported free processing is never silently omitted."
         },
         "visual-parity": {
           "status": "partial",
