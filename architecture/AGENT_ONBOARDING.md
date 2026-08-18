@@ -140,3 +140,11 @@ be run, and do not hide pre-existing failures as if they were introduced by the
 current change. Do not move work to `done/` when its defining external or user
 flow remains untested; record it as `manual validation required` in `todo/`
 instead.
+
+The owner leads product direction and expects decision-grade information, not
+agreement for its own sake. Follow the evidence and decision hierarchy in
+[`work/README.md`](../work/README.md): conclusion first, then facts,
+interpretation, uncertainty, consequences, options and a reasoned
+recommendation. Challenge weak product or technical choices directly. Count
+tests and research as supporting work only; the complete user flow and the
+quality it protects remain the result.
