@@ -54,11 +54,12 @@ test('Grade corpus capture sides can resume independently without ambiguous flag
 });
 
 test('Grade corpus routes require source identity, packaged rendering and frame evidence', async () => {
-  const [sectionRunner, lightRunner, curvesRunner, cameraCapture, sectionCapture, curvesCapture] = await Promise.all([
+  const [sectionRunner, lightRunner, curvesRunner, cameraCapture, cameraCurvesCapture, sectionCapture, curvesCapture] = await Promise.all([
     readFile(path.join(import.meta.dirname, 'run-grade-section-corpus.mjs'), 'utf8'),
     readFile(path.join(import.meta.dirname, 'run-grade-light-corpus.mjs'), 'utf8'),
     readFile(path.join(import.meta.dirname, 'run-grade-curves-corpus.mjs'), 'utf8'),
     readFile(path.join(import.meta.dirname, 'capture-camera-raw-grade-light-oracle.ps1'), 'utf8'),
+    readFile(path.join(import.meta.dirname, 'capture-camera-raw-grade-curves-oracle.ps1'), 'utf8'),
     readFile(path.join(import.meta.dirname, 'capture-lighttable-grade-light-oracle.mjs'), 'utf8'),
     readFile(path.join(import.meta.dirname, 'capture-lighttable-grade-curves-oracle.mjs'), 'utf8')
   ]);
@@ -77,8 +78,10 @@ test('Grade corpus routes require source identity, packaged rendering and frame 
   assert.match(sectionCapture, /defaultGroupLabel/u);
   assert.match(sectionCapture, /sourceSha256/u);
   assert.match(sectionCapture, /caseManifestSha256/u);
-  assert.match(cameraCapture, /sourceEvidence/u);
-  assert.match(cameraCapture, /Get-FileHash[^\r\n]+sourcePath/u);
+  for (const capture of [cameraCapture, cameraCurvesCapture]) {
+    assert.match(capture, /sourceEvidence/u);
+    assert.match(capture, /Get-FileHash[^\r\n]+sourcePath/u);
+  }
 });
 
 test('Grade analysis rejects stale or reordered opposite-side reports', () => {

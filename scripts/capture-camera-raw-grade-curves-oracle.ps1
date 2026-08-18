@@ -36,6 +36,11 @@ function ConvertTo-JsString([string]$value) {
 
 $suite = Get-Content -LiteralPath $casePath -Raw | ConvertFrom-Json
 $caseManifestSha256 = (Get-FileHash -LiteralPath $casePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$sourceItem = Get-Item -LiteralPath $sourcePath
+$sourceEvidence = [ordered]@{
+  sha256 = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+  byteLength = $sourceItem.Length
+}
 $photoshop = Get-PhotoshopAutomation
 $channelDescriptors = @{ master = 'Crv '; red = 'CrvR'; green = 'CrvG'; blue = 'CrvB' }
 $results = @()
@@ -74,6 +79,7 @@ foreach ($case in $suite.cases) {
 $cameraRawPlugin = Get-Item -LiteralPath 'C:\Program Files\Common Files\Adobe\Plug-Ins\CC\File Formats\Camera Raw.8bi' -ErrorAction SilentlyContinue
 [ordered]@{
   schema = 1; generatedAt = (Get-Date).ToUniversalTime().ToString('o'); section = $suite.section; source = $sourcePath
+  sourceEvidence = $sourceEvidence
   caseManifestSha256 = $caseManifestSha256
   photoshopVersion = $photoshop.Version; photoshopPath = $photoshop.Path
   cameraRawVersion = if ($cameraRawPlugin) { $cameraRawPlugin.VersionInfo.ProductVersion } else { $null }
