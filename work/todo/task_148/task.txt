@@ -1,9 +1,0 @@
-D:\mediavibe\LightTable\mcp2
-check die directory.... Daar staat genoeg in denk ik om de todo te kunnen maken/ volgen.
-ik heb in een andere applicatie ook een genai panel
-en daar heb ik higgsfield ingebouwd maar ook meer workflows voor openart...
-
-wat mij betreft bouwen we ook de video versies in maar die videos samen dan naar disc (bepalen later de goeie afwikkeling)
-houdt wel rekening met onze al werkende ai providers an local ai etc...
-
-En we hebben heel veel moeite gehad om die file uploads vanaf local te doen! Niet breken...

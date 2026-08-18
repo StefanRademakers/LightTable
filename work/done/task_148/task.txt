@@ -1,0 +1,18 @@
+D:\mediavibe\LightTable\mcp2
+check die directory.... Daar staat genoeg in denk ik om de todo te kunnen maken/ volgen.
+ik heb in een andere applicatie ook een genai panel
+en daar heb ik higgsfield ingebouwd maar ook meer workflows voor openart...
+
+wat mij betreft bouwen we ook de video versies in maar die videos samen dan naar disc (bepalen later de goeie afwikkeling)
+houdt wel rekening met onze al werkende ai providers an local ai etc...
+
+En we hebben heel veel moeite gehad om die file uploads vanaf local te doen! Niet breken...
+
+Completed 2026-08-18:
+- Added a provider-neutral generation runtime registry without weakening OpenArt or Local AI.
+- Added encrypted Higgsfield OAuth credentials, strict live contract discovery, native media upload/confirmation, read-only cost lookup, paid-boundary recovery, and image/video generation polling.
+- Added Image Create/Edit, Video Create, References, and ordered first/last-frame modes using existing UI primitives.
+- Persisted validated image and video results atomically in project AI History; video remains a project asset instead of being opened as an image document.
+- Added content-revision-aware provider publication caching so local upload reuse remains safe.
+- Updated architecture documentation, boundary verification, fixtures, unit tests, and desktop GenAI asset smoke coverage.
+- Live credit-spending provider submission remains an explicit manual owner test; automated verification never spends provider credits.
