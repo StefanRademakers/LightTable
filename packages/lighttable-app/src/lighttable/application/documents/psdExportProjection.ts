@@ -216,18 +216,14 @@ export const projectDocumentToPsd = (
     }
     if (node.type === 'adjustment') {
       if (node.adjustmentKind === 'grade') {
-        const maskIsNeutral = !node.mask || (
-          node.mask.enabled
+        const maskIsPristineWhite = Boolean(node.mask
+          && node.mask.enabled
           && node.mask.revision === 0
           && node.mask.pixelRevision === 0
           && node.mask.density === 1
-          && node.mask.feather === 0
-        );
-        const usesSafePassThroughBoundary = node.opacity === 1
-          && node.fillOpacity === 1
-          && node.blendMode === 'normal'
-          && !node.clipping
-          && maskIsNeutral
+          && node.mask.feather === 0);
+        const maskAvailable = !node.mask || maskIsPristineWhite || Boolean(asset?.mask);
+        const usesSafePassThroughBoundary = maskAvailable
           && (!node.styleStack.enabled
             || !node.styleStack.effects.some((effect) => effect.enabled));
         const modules = usesSafePassThroughBoundary
@@ -240,19 +236,22 @@ export const projectDocumentToPsd = (
             // the adjustment children affect the same lower sibling composite
             // as the ordinary LightTable processing layer.
             blendMode: 'pass through',
-            // Newly created adjustment layers own a pristine white mask.
-            // Omitting that neutral mask keeps the pass-through group from
-            // acquiring Photoshop isolation semantics.
+            opacity: 1,
+            fillOpacity: 1,
+            clipping: false,
+            // Boundary semantics belong to the one projected adjustment
+            // child. Keeping the wrapper neutral avoids group isolation.
             mask: undefined,
             opened: false,
             children: modules.map((module, moduleIndex) => ({
               id: numericLayerId(`${node.id}:grade:${module.moduleType}:${moduleIndex}`),
               name: module.name,
               hidden: false,
-              opacity: 1,
+              opacity: node.opacity,
               fillOpacity: 1,
-              blendMode: 'normal',
-              clipping: false,
+              blendMode: psdBlendMode(node.blendMode),
+              clipping: node.clipping,
+              mask: maskIsPristineWhite ? undefined : common.mask,
               adjustment: module.adjustment,
               timestamp: node.modifiedAt / 1000
             }))

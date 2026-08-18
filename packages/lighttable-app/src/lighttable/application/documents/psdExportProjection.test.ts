@@ -152,7 +152,7 @@ describe('PSD export projection', () => {
     });
   });
 
-  it('keeps unsupported or non-default Grade boundaries fail-closed', () => {
+  it('keeps unsupported Grade Layer Styles fail-closed', () => {
     const document = createImageDocument('Unsupported Grade', 2, 2, 'background');
     const settings = createDefaultAdjustments();
     settings.exposureEV = 1;
@@ -164,7 +164,10 @@ describe('PSD export projection', () => {
       'grade'
     );
     const grade = authored.layers[1]!;
-    grade.opacity = 0.5;
+    const shadow = createDefaultLayerStyle('drop-shadow');
+    shadow.enabled = true;
+    grade.styleStack.enabled = true;
+    grade.styleStack.effects = [shadow];
 
     const projection = projectDocumentToPsd(authored, pixels(2, 2), [{
       layerId: authored.layers[0]!.id,
@@ -178,6 +181,72 @@ describe('PSD export projection', () => {
       'layers[1]: this Grade Layer contains processing or layer settings without a proven editable Photoshop projection.'
     );
     expect(projection.psd.children?.[1]?.children).toBeUndefined();
+  });
+
+  it('moves Curves Grade opacity, blend, clipping and mask to its editable child', () => {
+    const document = createImageDocument('Grade boundary', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.curves.master = [{ x: 0, y: 0 }, { x: 1, y: 0.75 }];
+    const authored = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'Masked Grade',
+      undefined,
+      'grade'
+    );
+    const grade = authored.layers[1]!;
+    grade.opacity = 0.42;
+    grade.fillOpacity = 0.3;
+    grade.blendMode = 'multiply';
+    grade.clipping = true;
+    if (!grade.mask) throw new Error('Expected the Grade fixture to own a mask.');
+    grade.mask.revision = 1;
+    grade.mask.pixelRevision = 1;
+    grade.mask.density = 0.65;
+    grade.mask.feather = 2;
+    const maskPixels = pixels(2, 2, [128, 128, 128, 255]);
+
+    const projection = projectDocumentToPsd(authored, pixels(2, 2), [
+      { layerId: authored.layers[0]!.id, pixels: pixels(2, 2) },
+      { layerId: grade.id, mask: maskPixels }
+    ]);
+    const folder = projection.psd.children?.[1];
+    const child = folder?.children?.[0];
+
+    expect(folder).toMatchObject({
+      name: 'Masked Grade', blendMode: 'pass through', opacity: 1,
+      fillOpacity: 1, clipping: false, mask: undefined
+    });
+    expect(child).toMatchObject({
+      name: 'Curves', opacity: 0.42, fillOpacity: 1,
+      blendMode: 'multiply', clipping: true,
+      mask: {
+        userMaskDensity: 0.65,
+        userMaskFeather: 2,
+        imageData: maskPixels
+      }
+    });
+    expect(projection.blockingWarnings).toEqual([]);
+
+    const decoded = readPsd(writePsdUint8Array(projection.psd, {
+      noBackground: true, trimImageData: true
+    }), {
+      useImageData: true,
+      skipLayerImageData: true,
+      skipCompositeImageData: true,
+      skipThumbnail: true
+    });
+    expect(decoded.children?.[1]).toMatchObject({
+      blendMode: 'pass through', opacity: 1,
+      children: [{
+        name: 'Curves', blendMode: 'multiply', clipping: true,
+        adjustment: { type: 'curves' },
+        mask: { userMaskFeather: 2 }
+      }]
+    });
+    const decodedChild = decoded.children?.[1]?.children?.[0];
+    expect(decodedChild?.opacity).toBeCloseTo(0.42, 2);
+    expect(decodedChild?.mask?.userMaskDensity).toBeCloseTo(0.65, 2);
   });
 
   it('keeps an editable Grade Curves folder at its exact root sibling position', () => {
