@@ -11,7 +11,10 @@ const section = sectionArgument?.slice('--section='.length) ?? 'light';
 const casesManifest = JSON.parse(await readFile(
   path.join(import.meta.dirname, `grade-${section}-parity-cases.json`), 'utf8'
 ));
-const controlDefinitions = new Map(casesManifest.controls.map((control) => [control.key, control]));
+const declaredControls = casesManifest.controls ?? casesManifest.cases
+  .filter(({ id }) => id !== 'neutral')
+  .map(({ key, label }) => ({ key, label }));
+const controlDefinitions = new Map(declaredControls.map((control) => [control.key, control]));
 const root = path.resolve(rootArgument?.slice('--root='.length) ?? manifest.externalRoot);
 const captureRoot = path.join(root, 'captures', section);
 const sourceDirectories = await readdir(captureRoot, { withFileTypes: true });

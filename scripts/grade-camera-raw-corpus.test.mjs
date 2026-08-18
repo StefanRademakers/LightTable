@@ -75,3 +75,22 @@ test('Grade Detail oracle isolates dependent controls against active baselines',
     assert.notEqual(control.values.length, 0, `${control.key} has cases`);
   }
 });
+
+test('Grade Curves oracle covers master, channels, endpoints and stacked curves', async () => {
+  const suite = JSON.parse(await readFile(
+    path.join(import.meta.dirname, 'grade-curves-parity-cases.json'), 'utf8'
+  ));
+  assert.equal(suite.section, 'curves');
+  assert.equal(suite.cases[0].id, 'neutral');
+  const keys = new Set(suite.cases.map(({ key }) => key));
+  for (const key of ['master', 'red', 'green', 'blue', 'stack']) assert.ok(keys.has(key), key);
+  assert.ok(suite.cases.some(({ curves }) => curves.master?.[0]?.[1] > 0), 'black endpoint lift');
+  assert.ok(suite.cases.some(({ curves }) => curves.master?.at(-1)?.[1] < 255), 'white endpoint reduction');
+  assert.ok(suite.cases.some(({ curves }) => curves.master && curves.red), 'master and channel stack');
+  for (const entry of suite.cases) {
+    for (const points of Object.values(entry.curves)) {
+      assert.ok(points.length >= 2, `${entry.id} has complete curve`);
+      assert.ok(points.every(([x, y]) => x >= 0 && x <= 255 && y >= 0 && y <= 255), entry.id);
+    }
+  }
+});

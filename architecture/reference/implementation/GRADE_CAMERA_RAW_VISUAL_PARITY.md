@@ -315,7 +315,7 @@ as hidden Grade sections.
 | --- | --- | --- |
 | Light | Shared, fixed-order, exact neutral bypass | Contrast/Blacks/negative Whites accepted; remaining adaptive controls characterized |
 | Color | CAT16 white balance and shared perceptual color path | Full signed corpus characterized; no speculative scalar accepted |
-| Curves | Shared native LUT/editor/shader | Automation and multi-point parity still open |
+| Curves | Shared native LUT/editor/shader | Master and RGB point curves characterized; Refine Saturation remains open |
 | Texture / Clarity / Dehaze | Shared creative shader; spatial analysis only for Clarity/Dehaze | Clarity/Dehaze characterized; Texture descriptor unresolved |
 | Detail | Conditional four-scale wavelet NR before fused Sharpening | Luminance NR characterized; remaining controls and combinations open |
 | Color Mixer | Shared periodic eight-range implementation with red wraparound tests | Camera Raw Action Manager descriptors not yet proven |
@@ -334,6 +334,48 @@ shader contract test.
 This matrix is intentionally not a 95% parity claim. B&W Mix, Profile/Look,
 several Adobe descriptors, cross-section captures and owner visual review are
 still required by Task 141 before that claim can be made honestly.
+
+### Point Curves corpus
+
+Camera Raw 18.5's point-curve descriptor is a flat `ActionList` of integer
+input/output pairs. The active four-character keys are `Crv `, `CrvR`, `CrvG`
+and `CrvB` for Master, Red, Green and Blue. String forms and the XMP property
+name `ToneCurvePV2012` are accepted by the Filter boundary but pixel-inert.
+The oracle therefore validates output pixels rather than treating a successful
+Action Manager call as proof.
+
+The ten-source suite covers endpoint lifts, endpoint reductions, strong
+midpoint moves, an S-curve, a near-flat curve, isolated R/G/B curves and a
+Master-plus-Red stack. It authors LightTable through the real shared
+`CurvesEditor`, then compares both products against their own neutral render.
+
+| Curve family | Active sources | Mean source correlation | Minimum source correlation | Mean magnitude LT / ACR | Worst delta RMSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Master | 10/10 | 0.9824 | 0.9075 | 1.012 | 25.72% |
+| Red | 10/10 | 0.8379 | 0.3254 | 0.544 | 11.40% |
+| Green | 10/10 | 0.8339 | 0.6552 | 0.688 | 7.49% |
+| Blue | 10/10 | 0.9431 | 0.8250 | 0.819 | 3.94% |
+| Master then Red | 10/10 | 0.8947 | 0.6744 | 0.858 | 20.15% |
+
+Master is already close in direction and aggregate effect magnitude. Its high
+worst-case error belongs to the deliberately saturated color target, not a
+general range deficit. The individual Camera Raw channels are stronger and
+behave differently on saturated colors. A research-only model comparison used
+Camera Raw's own neutral outputs to test the same monotone S-curve in direct
+encoded sRGB and in ProPhoto primaries with either an sRGB or 1.8-gamma shaper:
+
+| Candidate channel space | Aggregate correlation | Magnitude candidate / ACR | RMSE |
+| --- | ---: | ---: | ---: |
+| Encoded sRGB | 0.8477 | 0.603 | 5.00% |
+| ProPhoto + sRGB shaper | 0.7335 | 1.887 | 11.46% |
+| ProPhoto + gamma 1.8 | 0.6768 | 2.234 | 14.75% |
+
+Adobe [documents that Lightroom's Develop preview uses ProPhoto RGB](https://helpx.adobe.com/uk/lightroom-classic/help/color-management.html), but that
+does not establish the internal position or transfer domain of Camera Raw's
+channel curves. The measured ProPhoto candidates are materially worse and are
+rejected. LightTable's existing overshoot-safe monotone Grade curve and
+encoded-sRGB channel boundary remain unchanged. Camera Raw Refine Saturation
+and the internal channel working stage remain separate open investigations.
 
 ### Complete Detail descriptor and baseline oracle
 

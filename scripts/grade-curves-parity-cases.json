@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "section": "curves",
+  "cases": [
+    { "id": "neutral", "key": "neutral", "label": "Neutral", "value": 0, "curves": {} },
+    { "id": "master-lift-black-80", "key": "master", "label": "Master lift black", "value": 80, "curves": { "master": [[0, 204], [255, 255]] } },
+    { "id": "master-lower-white-80", "key": "master", "label": "Master lower white", "value": -80, "curves": { "master": [[0, 0], [255, 51]] } },
+    { "id": "master-mid-up-80", "key": "master", "label": "Master midpoint up", "value": 80, "curves": { "master": [[0, 0], [128, 230], [255, 255]] } },
+    { "id": "master-mid-down-80", "key": "master", "label": "Master midpoint down", "value": -80, "curves": { "master": [[0, 0], [128, 26], [255, 255]] } },
+    { "id": "master-s-curve", "key": "master", "label": "Master S-curve", "value": 100, "curves": { "master": [[0, 0], [64, 32], [192, 224], [255, 255]] } },
+    { "id": "master-near-flat", "key": "master", "label": "Master near-flat", "value": -100, "curves": { "master": [[0, 120], [128, 128], [255, 136]] } },
+    { "id": "red-s-curve", "key": "red", "label": "Red S-curve", "value": 100, "curves": { "red": [[0, 0], [64, 32], [192, 224], [255, 255]] } },
+    { "id": "green-s-curve", "key": "green", "label": "Green S-curve", "value": 100, "curves": { "green": [[0, 0], [64, 32], [192, 224], [255, 255]] } },
+    { "id": "blue-s-curve", "key": "blue", "label": "Blue S-curve", "value": 100, "curves": { "blue": [[0, 0], [64, 32], [192, 224], [255, 255]] } },
+    { "id": "master-red-stack", "key": "stack", "label": "Master and red", "value": 100, "curves": { "master": [[0, 0], [128, 204], [255, 255]], "red": [[0, 0], [128, 64], [255, 255]] } }
+  ]
+}
