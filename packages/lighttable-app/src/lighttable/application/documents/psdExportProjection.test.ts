@@ -23,7 +23,8 @@ import {
   createGradientFillLayer,
   setLayerBlendMode,
   setLayerClipping,
-  setLayerFillOpacity
+  setLayerFillOpacity,
+  setLayerOpacity
 } from '../../editor/document/documentCommands';
 import { createDefaultAdjustments } from '../../types';
 import { createPlacedRasterLayer } from '../../editor/document/placedRasterLayerCommand';
@@ -150,6 +151,106 @@ describe('PSD export projection', () => {
       opened: false,
       children: [{ name: 'Curves', adjustment: { type: 'curves' } }]
     });
+  });
+
+  it('exports an exact compound Grade stack in compositor order', () => {
+    const document = createImageDocument('Compound Grade', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.curves.master = [{ x: 0, y: 0 }, { x: 0.5, y: 0.65 }, { x: 1, y: 1 }];
+    settings.gradientMap!.enabled = true;
+    settings.gradientMap!.photoshopCompatible = true;
+    settings.photoshopAdjustment.kind = 'exposure';
+    settings.photoshopAdjustment.exposure = 0.75;
+    const authored = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'Compound Grade',
+      undefined,
+      'grade'
+    );
+
+    const projection = projectDocumentToPsd(authored, pixels(2, 2), [{
+      layerId: authored.layers[0]!.id,
+      pixels: pixels(2, 2)
+    }]);
+    const folder = projection.psd.children?.[1];
+
+    expect(projection.blockingWarnings).toEqual([]);
+    expect(folder).toMatchObject({
+      name: 'Compound Grade',
+      blendMode: 'pass through',
+      opened: false,
+      children: [
+        { name: 'Curves', adjustment: { type: 'curves' } },
+        { name: 'Gradient Map', adjustment: { type: 'gradient map' } },
+        { name: 'Exposure', adjustment: { type: 'exposure', exposure: 0.75 } }
+      ]
+    });
+    const decoded = readPsd(writePsdUint8Array(projection.psd, {
+      noBackground: true,
+      trimImageData: true
+    }), {
+      useImageData: true,
+      skipLayerImageData: true,
+      skipCompositeImageData: true,
+      skipThumbnail: true
+    });
+    expect(decoded.children?.[1]?.children?.map((child) => child.adjustment?.type))
+      .toEqual(['curves', 'gradient map', 'exposure']);
+  });
+
+  it('fails closed when a compound Grade boundary cannot be moved to one child', () => {
+    const document = createImageDocument('Compound boundary', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.curves.master = [{ x: 0, y: 0 }, { x: 1, y: 0.8 }];
+    settings.photoshopAdjustment.kind = 'exposure';
+    settings.photoshopAdjustment.exposure = 1;
+    const layered = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'Compound Grade',
+      undefined,
+      'grade'
+    );
+    const gradeId = layered.layers[1]!.id;
+    const authored = setLayerOpacity(layered, gradeId, 0.5);
+
+    const projection = projectDocumentToPsd(authored, pixels(2, 2), [{
+      layerId: authored.layers[0]!.id,
+      pixels: pixels(2, 2)
+    }]);
+
+    expect(projection.findings).toContainEqual(expect.objectContaining({
+      severity: 'blocking',
+      code: 'grade-unprojectable',
+      path: 'layers[1]'
+    }));
+    expect(projection.psd.children?.[1]?.children).toBeUndefined();
+  });
+
+  it('does not relabel a creative Gradient Map as Photoshop-compatible', () => {
+    const document = createImageDocument('Creative Gradient Map', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.gradientMap!.enabled = true;
+    settings.gradientMap!.photoshopCompatible = false;
+    const authored = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'Creative Gradient Map',
+      undefined,
+      'grade'
+    );
+
+    const projection = projectDocumentToPsd(authored, pixels(2, 2), [{
+      layerId: authored.layers[0]!.id,
+      pixels: pixels(2, 2)
+    }]);
+
+    expect(projection.findings).toContainEqual(expect.objectContaining({
+      severity: 'blocking',
+      code: 'grade-unprojectable'
+    }));
+    expect(projection.psd.children?.[1]?.children).toBeUndefined();
   });
 
   it('keeps unsupported Grade Layer Styles fail-closed', () => {

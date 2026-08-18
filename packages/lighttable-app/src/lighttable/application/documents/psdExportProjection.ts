@@ -230,7 +230,11 @@ export const projectDocumentToPsd = (
         const modules = usesSafePassThroughBoundary
           ? exportGradeStackModulesToPsd(node.adjustmentStack, resolveColorLookup)
           : null;
-        if (modules) {
+        const compoundBoundaryIsNeutral = node.opacity === 1
+          && node.fillOpacity === 1
+          && node.blendMode === 'normal'
+          && (!node.mask || maskIsPristineWhite);
+        if (modules && (modules.length <= 1 || compoundBoundaryIsNeutral)) {
           return {
             ...common,
             // A normal empty folder isolates its children. Pass-through lets

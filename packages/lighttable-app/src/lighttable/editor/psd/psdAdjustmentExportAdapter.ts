@@ -6,7 +6,10 @@ import type {
   LevelsAdjustmentChannel
 } from 'ag-psd';
 import { createColorLookupDeviceLinkProfile } from '../../processing/colorLookupIccProfile';
-import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
+import {
+  adjustmentLayerDefinition,
+  type AdjustmentLayerKind
+} from '../../processing/adjustmentLayerCatalog';
 import {
   adjustmentStackForModuleTypes,
   createAdjustmentStackFromBasicAdjustments,
@@ -262,16 +265,34 @@ export const exportGradeStackModulesToPsd = (
   const authored = stack.modules.filter((module) => module.enabled
     && JSON.stringify(module.settings) !== neutralGradeModuleSettings.get(module.type));
   if (new Set(authored.map(({ type }) => type)).size !== authored.length) return null;
-  if (authored.some(({ type }) => type !== 'lt.curves')) return null;
-  return authored.map((module) => ({
-    moduleType: module.type,
-    name: 'Curves',
-    adjustment: exportAdjustmentStackToPsd(
-      'curves',
-      adjustmentStackForModuleTypes(stack, [module.type]),
-      resolveColorLookup
-    )!
-  }));
+  if (authored.some(({ type }) => ![
+    'lt.curves',
+    'lt.gradient-map',
+    'lt.photoshop-adjustment'
+  ].includes(type))) return null;
+  const projections = authored.map((module): PsdGradeModuleProjection | null => {
+    const isolated = adjustmentStackForModuleTypes(stack, [module.type]);
+    if (module.type === 'lt.curves') return {
+      moduleType: module.type,
+      name: 'Curves',
+      adjustment: exportAdjustmentStackToPsd('curves', isolated, resolveColorLookup)!
+    };
+    if (module.type === 'lt.gradient-map') {
+      if (!materializeBasicAdjustments(isolated).gradientMap?.photoshopCompatible) return null;
+      const adjustment = exportAdjustmentStackToPsd('gradient-map', isolated, resolveColorLookup);
+      return adjustment ? { moduleType: module.type, name: 'Gradient Map', adjustment } : null;
+    }
+    const kind = materializeBasicAdjustments(isolated).photoshopAdjustment.kind;
+    const adjustment = exportAdjustmentStackToPsd(kind, isolated, resolveColorLookup);
+    return adjustment ? {
+      moduleType: `${module.type}:${kind}`,
+      name: adjustmentLayerDefinition(kind).name,
+      adjustment
+    } : null;
+  });
+  return projections.every((projection) => projection !== null)
+    ? projections as readonly PsdGradeModuleProjection[]
+    : null;
 };
 
 /** Projects every currently-authored Photoshop-family node to a native PSD descriptor. */

@@ -219,6 +219,13 @@ Implemented foundation - 18 August 2026
   fully editable artifact from an appearance-correct but degraded one without
   receiving binary payloads or scraping console text. Blocking findings still
   terminate the task and publish no artifact.
+- A neutral compound Grade Layer can now decompose, in evaluator order, into
+  editable Curves, Photoshop-compatible Gradient Map and one native Photoshop
+  adjustment child inside the existing collapsed pass-through folder. The
+  projector reuses the already proven descriptor adapters and roundtrips the
+  ordered children through ag-psd. If a compound layer has opacity, Fill,
+  blend or an authored mask, export remains fail-closed: those boundary
+  semantics cannot be moved to one child without changing the combined result.
 
 Still open: further editable decomposition of compound Grade Layers, position-local
 fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group
