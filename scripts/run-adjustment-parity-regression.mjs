@@ -22,13 +22,31 @@ const packagedExecutable = path.join(
 );
 
 if (capture && process.platform === 'win32') {
-  const packaged = spawnSync('npm.cmd', ['run', 'package:desktop:verify'], {
-    cwd: workspace,
-    encoding: 'utf8',
-    stdio: 'inherit'
-  });
+  // A `.cmd` file is not a native executable. Recent Node releases can return
+  // `{ status: null, error: EINVAL }` when it is passed directly to spawnSync,
+  // which used to make a current-product capture fail before packaging even
+  // started. An npm-launched script already publishes the exact CLI module;
+  // execute that module with the current Node binary and retain a shell-backed
+  // fallback for direct `node scripts/...` invocations.
+  const npmCli = process.env.npm_execpath;
+  const packaged = spawnSync(
+    npmCli ? process.execPath : 'npm.cmd',
+    npmCli
+      ? [npmCli, 'run', 'package:desktop:verify']
+      : ['run', 'package:desktop:verify'],
+    {
+      cwd: workspace,
+      encoding: 'utf8',
+      stdio: 'inherit',
+      shell: !npmCli
+    }
+  );
   if (packaged.status !== 0) {
-    throw new Error(`Current desktop packaging failed with exit code ${packaged.status}.`);
+    const cause = packaged.error?.message
+      ?? (packaged.signal ? `terminated by ${packaged.signal}` : 'unknown process failure');
+    throw new Error(
+      `Current desktop packaging failed with exit code ${packaged.status}: ${cause}.`
+    );
   }
   process.env.LIGHTTABLE_TEST_EXECUTABLE = packagedExecutable;
 }
