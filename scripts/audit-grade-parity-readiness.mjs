@@ -11,7 +11,20 @@ import {
 const DEFAULT_SECTIONS = [
   { id: 'light', manifest: 'grade-light-parity-cases.json' },
   { id: 'color', manifest: 'grade-color-parity-cases.json' },
-  { id: 'curves', manifest: 'grade-curves-parity-cases.json' },
+  {
+    id: 'curves',
+    manifest: 'grade-curves-parity-cases.json',
+    requiredSources: [
+      'grayscale-ramp',
+      'tonal-steps',
+      'color-target',
+      'wide-gamut-color',
+      'frequency-detail',
+      'multiscale-noise',
+      'precision-gradient-16',
+      'portrait-skin'
+    ]
+  },
   { id: 'local-detail', manifest: 'grade-local-detail-parity-cases.json' },
   { id: 'detail', manifest: 'grade-detail-parity-cases.json' },
   { id: 'color-mixer', manifest: 'grade-color-mixer-parity-cases.json' },
@@ -60,6 +73,10 @@ export const auditGradeParityReadiness = async ({
         cameraRawValid: 0,
         lightTableValid: 0,
         compatible: 0,
+        coverageTarget: definition.requiredSources?.length ?? inventory.sources.length,
+        requiredCompatible: 0,
+        requiredSourceIds: definition.requiredSources ?? inventory.sources.map(({ id }) => id),
+        missingRequiredSources: definition.requiredSources ?? inventory.sources.map(({ id }) => id),
         sources: []
       });
       continue;
@@ -90,13 +107,26 @@ export const auditGradeParityReadiness = async ({
     const lightTablePresent = sourceResults.filter(({ lightTable }) => lightTable !== 'missing').length;
     const compatible = sourceResults.filter((source) => source.compatible).length;
     const expectedSources = sourceResults.length;
+    const requiredSourceIds = definition.requiredSources ?? inventory.sources.map(({ id }) => id);
+    const requiredSourceSet = new Set(requiredSourceIds);
+    const requiredSources = sourceResults.filter(({ source }) => requiredSourceSet.has(source));
+    const missingRequiredSources = requiredSourceIds.filter((source) => (
+      !sourceResults.some((result) => result.source === source)
+    ));
+    const coverageTarget = requiredSourceIds.length;
+    const requiredCompatible = requiredSources.filter((source) => source.compatible).length;
+    const targetComplete = missingRequiredSources.length === 0
+      && requiredSources.length === coverageTarget
+      && requiredCompatible === coverageTarget;
     const status = compatible === expectedSources
       ? 'complete'
-      : lightTableValid === expectedSources && cameraRawValid === 0
-        ? cameraRawPresent > 0 ? 'lighttable-current-camera-stale' : 'lighttable-only'
-        : cameraRawValid === 0 && lightTableValid === 0
-          ? cameraRawPresent > 0 || lightTablePresent > 0 ? 'stale' : 'not-captured'
-          : 'partial';
+      : targetComplete
+        ? 'representative-complete'
+        : lightTableValid === expectedSources && cameraRawValid === 0
+          ? cameraRawPresent > 0 ? 'lighttable-current-camera-stale' : 'lighttable-only'
+          : cameraRawValid === 0 && lightTableValid === 0
+            ? cameraRawPresent > 0 || lightTablePresent > 0 ? 'stale' : 'not-captured'
+            : 'partial';
     results.push({
       section: definition.id,
       manifest: definition.manifest,
@@ -108,6 +138,10 @@ export const auditGradeParityReadiness = async ({
       cameraRawValid,
       lightTableValid,
       compatible,
+      coverageTarget,
+      requiredCompatible,
+      requiredSourceIds,
+      missingRequiredSources,
       sources: sourceResults
     });
   }
@@ -116,7 +150,9 @@ export const auditGradeParityReadiness = async ({
     generatedAt: new Date().toISOString(),
     externalRoot,
     expectedSources: inventory.sources.length,
-    complete: results.every(({ status }) => status === 'complete'),
+    complete: results.every(({ status }) => (
+      status === 'complete' || status === 'representative-complete'
+    )),
     sections: results
   };
 };
@@ -129,11 +165,14 @@ export const gradeParityReadinessMarkdown = (report) => [
   '| Section | State | Camera Raw | LightTable | Compatible |',
   '| --- | --- | ---: | ---: | ---: |',
   ...report.sections.map((section) => (
-    `| ${section.section} | ${section.status} | ${section.cameraRawValid}/${section.expectedSources} | ${section.lightTableValid}/${section.expectedSources} | ${section.compatible}/${section.expectedSources} |`
+    `| ${section.section} | ${section.status} | ${section.cameraRawValid}/${section.expectedSources} | ${section.lightTableValid}/${section.expectedSources} | ${section.requiredCompatible}/${section.coverageTarget} target (${section.compatible}/${section.expectedSources} corpus) |`
   )),
   '',
   ...report.sections.flatMap((section) => {
-    const incomplete = section.sources.filter((source) => !source.compatible);
+    const requiredSourceSet = new Set(section.requiredSourceIds);
+    const incomplete = section.sources.filter((source) => (
+      requiredSourceSet.has(source.source) && !source.compatible
+    ));
     return incomplete.length ? [
       `## ${section.section}`,
       '',

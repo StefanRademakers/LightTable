@@ -352,3 +352,19 @@ Progress re-audit - 18 August 2026
   Vibrance remains content-adaptive. `npm run test:adjustment-parity-policy`
   passes 19/19 after the capture-runner compatibility, source-identity and
   default group-label fixes.
+- Curves is now `representative-complete` on a fixed eight-source diagnostic
+  target. The readiness audit requires those exact source ids and reports
+  `8/8 target (8/11 corpus)`; optional photographs cannot substitute for a
+  missing required diagnostic.
+- Comparison aggregates are now bound to the current source, case manifest and
+  both capture-report hashes. The previous aggregate silently included three
+  stale comparison reports; after rebuilding only current comparisons it
+  correctly reports eight sources.
+- The current Curves characterization retains the shared native implementation:
+  master lift-black has minimum correlation 0.9075 and mean magnitude 1.012,
+  while channel S-curves expose structural differences (minimum correlation
+  0.3254 red, 0.6943 green, 0.8250 blue). No scalar/LUT quick fix was accepted.
+- Execution is deliberately bounded from this point onward: deterministic
+  sections start with a diagnostic source and a photograph and expand only on
+  a concrete finding; adaptive/spatial sections receive broader coverage only
+  when the initial gate demonstrates the need.

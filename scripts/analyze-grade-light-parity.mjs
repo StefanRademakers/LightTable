@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -9,10 +10,18 @@ const root = path.resolve(rootArgument?.slice('--root='.length)
 const cameraRawDirectory = path.join(root, 'camera-raw');
 const lightTableDirectory = path.join(root, 'lighttable');
 const parseJson = (value) => JSON.parse(value.replace(/^\uFEFF/u, ''));
-const [cameraRawReport, lightTableReport] = await Promise.all([
-  readFile(path.join(cameraRawDirectory, 'capture-report.json'), 'utf8').then(parseJson),
-  readFile(path.join(lightTableDirectory, 'capture-report.json'), 'utf8').then(parseJson)
+const [cameraRawReportBytes, lightTableReportBytes] = await Promise.all([
+  readFile(path.join(cameraRawDirectory, 'capture-report.json')),
+  readFile(path.join(lightTableDirectory, 'capture-report.json'))
 ]);
+const cameraRawReport = parseJson(cameraRawReportBytes.toString('utf8'));
+const lightTableReport = parseJson(lightTableReportBytes.toString('utf8'));
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+if (cameraRawReport.section !== lightTableReport.section
+  || cameraRawReport.caseManifestSha256 !== lightTableReport.caseManifestSha256
+  || cameraRawReport.sourceEvidence?.sha256 !== lightTableReport.sourceEvidence?.sha256) {
+  throw new Error('Camera Raw and LightTable capture provenance does not match.');
+}
 
 const cameraRawCases = new Map(cameraRawReport.cases.map((entry) => [entry.id, entry]));
 const lightTableCases = new Map(lightTableReport.cases.map((entry) => [entry.id, entry]));
@@ -160,6 +169,12 @@ const report = {
   versions: {
     photoshop: cameraRawReport.photoshopVersion,
     cameraRaw: cameraRawReport.cameraRawVersion
+  },
+  inputs: {
+    caseManifestSha256: cameraRawReport.caseManifestSha256,
+    sourceSha256: cameraRawReport.sourceEvidence.sha256,
+    cameraRawReportSha256: sha256(cameraRawReportBytes),
+    lightTableReportSha256: sha256(lightTableReportBytes)
   },
   neutralRmse: normalizedRmse(cameraRawNeutral.data, lightTableNeutral.data),
   controls,

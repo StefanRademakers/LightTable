@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -8,9 +9,12 @@ const manifest = JSON.parse(await readFile(
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
 const sectionArgument = process.argv.find((value) => value.startsWith('--section='));
 const section = sectionArgument?.slice('--section='.length) ?? 'light';
-const casesManifest = JSON.parse(await readFile(
-  path.join(import.meta.dirname, `grade-${section}-parity-cases.json`), 'utf8'
-));
+const casesManifestBytes = await readFile(
+  path.join(import.meta.dirname, `grade-${section}-parity-cases.json`)
+);
+const casesManifest = JSON.parse(casesManifestBytes.toString('utf8'));
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const caseManifestSha256 = sha256(casesManifestBytes);
 const declaredControls = casesManifest.controls ?? casesManifest.cases
   .filter(({ id }) => id !== 'neutral')
   .map(({ key, label }) => ({ key, label }));
@@ -23,7 +27,16 @@ const reports = [];
 for (const directory of sourceDirectories.filter((entry) => entry.isDirectory())) {
   const reportFile = path.join(captureRoot, directory.name, 'comparison-report.json');
   try {
-    const report = JSON.parse(await readFile(reportFile, 'utf8'));
+    const [reportText, cameraRawReportBytes, lightTableReportBytes] = await Promise.all([
+      readFile(reportFile, 'utf8'),
+      readFile(path.join(captureRoot, directory.name, 'camera-raw', 'capture-report.json')),
+      readFile(path.join(captureRoot, directory.name, 'lighttable', 'capture-report.json'))
+    ]);
+    const report = JSON.parse(reportText);
+    const inputsAreCurrent = report.inputs?.caseManifestSha256 === caseManifestSha256
+      && report.inputs?.cameraRawReportSha256 === sha256(cameraRawReportBytes)
+      && report.inputs?.lightTableReportSha256 === sha256(lightTableReportBytes);
+    if (!inputsAreCurrent) continue;
     reports.push({ id: directory.name, report });
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;

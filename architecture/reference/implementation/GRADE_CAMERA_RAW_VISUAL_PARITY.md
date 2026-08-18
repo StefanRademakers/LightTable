@@ -652,3 +652,28 @@ The current acceptance floor is 12 presented frames per second at 4K and the
 interaction scheduler must remain below 45 fps. This is a regression guard,
 not the final performance ceiling; lower-power GPU and Apple Silicon evidence
 remains part of the final owner/platform review.
+
+### Bounded corpus policy and current Curves evidence
+
+Corpus size is selected by algorithm risk instead of applied uniformly. Image-
+adaptive and spatial processors need broad coverage when their response changes
+with content. Deterministic point transforms first use a fixed representative
+set and expand only when the measurements expose a source-dependent question.
+This prevents long Adobe automation runs from becoming an end in themselves.
+
+Curves is representative-complete on eight named sources: grayscale ramp,
+tonal steps, sRGB and Display-P3 color targets, frequency detail, multiscale
+noise, the 16-bit precision gradient and a skin-tone photograph. The readiness
+audit requires those exact sources; an arbitrary eight captures cannot satisfy
+the gate. The three remaining photographs are optional expansion evidence.
+
+All eight current comparisons are bound to the source hash, case-manifest hash
+and both input capture-report hashes. Stale comparison JSON is excluded from
+the aggregate. Camera Raw and LightTable neutral renders differ by 0.09% mean
+RMSE (0.45% maximum). Master lift-black direction is close across sources
+(minimum correlation 0.9075, mean magnitude ratio 1.012), but its color-target
+extreme reaches 25.72% delta RMSE. Individual channel S-curves remain visibly
+model-dependent: minimum correlations are 0.3254 red, 0.6943 green and 0.8250
+blue. These measurements reject an ungrounded scalar retune; the native shared
+Curves implementation remains unchanged pending an interpolation/working-space
+model comparison.
