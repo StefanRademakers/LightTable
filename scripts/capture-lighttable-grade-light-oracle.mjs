@@ -34,6 +34,10 @@ await Promise.all([
 const caseManifestBytes = await readFile(casePath);
 const caseManifestSha256 = createHash('sha256').update(caseManifestBytes).digest('hex');
 const suite = JSON.parse(caseManifestBytes.toString('utf8'));
+const defaultGroupLabel = suite.groupLabel ?? suite.section
+  .split('-')
+  .map((part) => part ? `${part[0].toUpperCase()}${part.slice(1)}` : part)
+  .join(' ');
 const sourceBytes = await readFile(source);
 const sourceMetadata = await sharp(sourceBytes).metadata();
 const sourceEvidence = {
@@ -52,7 +56,7 @@ const sourceEvidence = {
 const caseId = (key, value) => `${key}-${value < 0 ? 'minus' : 'plus'}-${Math.abs(value)}`
   .replaceAll('.', '_');
 const settingForControl = (control, value) => ({
-  groupLabel: control.groupLabel ?? suite.groupLabel ?? suite.section,
+  groupLabel: control.groupLabel ?? defaultGroupLabel,
   subgroupLabel: control.subgroupLabel ?? null,
   rangeIndex: control.rangeIndex ?? null,
   blackWhiteRangeIndex: control.blackWhiteRangeIndex ?? null,
@@ -77,7 +81,7 @@ for (const control of suite.controls) {
     ...(control.lightTablePrerequisites ?? [])
   ].map((entry) => ({
     ...entry,
-    groupLabel: entry.groupLabel ?? control.groupLabel ?? suite.groupLabel ?? suite.section,
+    groupLabel: entry.groupLabel ?? control.groupLabel ?? defaultGroupLabel,
     subgroupLabel: entry.subgroupLabel ?? null,
     defaultValue: entry.defaultValue ?? 0
   }));

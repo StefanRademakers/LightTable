@@ -72,6 +72,7 @@ test('LightTable Grade corpus routes require packaged rendering and frame eviden
     assert.match(capture, /renderedDocumentRevision/u);
     assert.match(capture, /captureEvidence/u);
   }
+  assert.match(sectionCapture, /defaultGroupLabel/u);
   assert.match(sectionCapture, /sourceSha256/u);
   assert.match(sectionCapture, /caseManifestSha256/u);
 });

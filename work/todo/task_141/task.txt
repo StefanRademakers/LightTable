@@ -339,3 +339,12 @@ Progress re-audit - 18 August 2026
   current LightTable local-detail and B&W corpora are complete. Point Color
   and Look/Profile still need dedicated case manifests, and no section yet has
   eleven current, case-compatible Camera Raw and LightTable reports.
+- The current packaged LightTable Light corpus is now complete across all
+  eleven sources and all 49 cases per source (539/539 captures). The runner
+  resumed safely from per-case hash checkpoints after the one-hour process
+  limit and did not recapture the ten completed sources.
+- The independent readiness audit classifies Light as
+  `lighttable-current-camera-stale`: LightTable is valid for 11/11 sources,
+  Camera Raw is valid for 0/11 because the pinned Adobe oracle cannot yet be
+  recaptured safely. `npm run test:adjustment-parity-policy` passes 19/19 after
+  the capture-runner compatibility and default group-label fixes.
