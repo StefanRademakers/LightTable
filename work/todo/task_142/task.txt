@@ -231,3 +231,9 @@ Still open: further editable decomposition of compound Grade Layers, position-lo
 fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group
 semantics for those projections, 16-bit writer support, and the version-pinned
 Photoshop rebuild matrix after task_203 restores the Adobe oracle.
+
+- PSD export now reports its actual encoding boundary as a structured
+  `degraded-fidelity` finding. Exporting a 16- or 32-bit LightTable document
+  explicitly states that the current ag-psd writer quantizes to 8 bits/channel
+  only at the PSD boundary; the live compositor and `.lt` source remain at
+  their authored precision. Eight-bit documents receive no such warning.

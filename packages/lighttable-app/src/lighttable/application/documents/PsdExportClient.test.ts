@@ -37,8 +37,10 @@ describe('PSD export compatibility policy', () => {
       editableVectorLayers: 0
     });
 
+    const document = createImageDocument('Document', 2, 2, 'background');
+    document.colorSettings.bitDepth = 8;
     const exported = await exportPsdDocument(
-      createImageDocument('Document', 2, 2, 'background'),
+      document,
       new Blob(['composite']),
       [],
       [],
@@ -48,6 +50,40 @@ describe('PSD export compatibility policy', () => {
     expect(exported.file.name).toBe('document.psd');
     expect(exported.warnings).toEqual(['layers[0]: Face Warp was baked.']);
     expect(exported.findings[0]?.severity).toBe('degraded-editability');
+  });
+
+  it('reports the actual 8-bit PSD writer boundary for a 16-bit document', async () => {
+    vi.stubGlobal('Worker', WorkerStub);
+    responseFor = (request) => ({
+      requestId: request.requestId,
+      status: 'success',
+      bytes: new Uint8Array([56, 66, 80, 83]),
+      findings: [],
+      warnings: [],
+      blockingWarnings: [],
+      editableTextLayers: 0,
+      editableVectorLayers: 0
+    });
+
+    const document = createImageDocument('16-bit document', 2, 2, 'background');
+    document.colorSettings.bitDepth = 16;
+    const exported = await exportPsdDocument(
+      document,
+      new Blob(['composite']),
+      [],
+      [],
+      'document.png'
+    );
+
+    expect(exported.findings).toContainEqual({
+      severity: 'degraded-fidelity',
+      code: 'psd-8-bit-export',
+      path: 'document.colorSettings.bitDepth',
+      message: 'The current PSD writer encodes 8 bits/channel; this 16-bit LightTable document is quantized only at the PSD boundary.'
+    });
+    expect(exported.warnings).toEqual([
+      'document.colorSettings.bitDepth: The current PSD writer encodes 8 bits/channel; this 16-bit LightTable document is quantized only at the PSD boundary.'
+    ]);
   });
 
   it('stops an editable export when appearance cannot be preserved', async () => {

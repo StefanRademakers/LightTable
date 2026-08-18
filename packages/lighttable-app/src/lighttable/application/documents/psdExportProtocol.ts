@@ -7,7 +7,7 @@ import type {
 export type PsdExportIntent = 'editable' | 'maximum-appearance';
 
 export interface PsdExportCompatibilityFinding {
-  readonly severity: 'degraded-editability' | 'blocking';
+  readonly severity: 'degraded-editability' | 'degraded-fidelity' | 'blocking';
   readonly code:
     | 'affine-raster-unbaked'
     | 'attached-adjustment-baked'
@@ -15,6 +15,7 @@ export interface PsdExportCompatibilityFinding {
     | 'grade-unprojectable'
     | 'layer-style-pattern-resource'
     | 'native-adjustment-unprojectable'
+    | 'psd-8-bit-export'
     | 'smart-object-source-missing'
     | 'text-preserved-descriptor'
     | 'text-raster-backed'

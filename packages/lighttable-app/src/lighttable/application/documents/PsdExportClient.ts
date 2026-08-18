@@ -49,12 +49,25 @@ export const exportPsdDocument = async (
         `Photoshop export was stopped to prevent appearance loss:\n${response.blockingWarnings.join('\n')}`
       );
     }
+    const bitDepthFinding: PsdExportCompatibilityFinding | null =
+      document.colorSettings.bitDepth > 8 ? {
+        severity: 'degraded-fidelity',
+        code: 'psd-8-bit-export',
+        path: 'document.colorSettings.bitDepth',
+        message: `The current PSD writer encodes 8 bits/channel; this ${document.colorSettings.bitDepth}-bit LightTable document is quantized only at the PSD boundary.`
+      } : null;
+    const findings = bitDepthFinding
+      ? [bitDepthFinding, ...response.findings]
+      : response.findings;
+    const warnings = bitDepthFinding
+      ? [`${bitDepthFinding.path}: ${bitDepthFinding.message}`, ...response.warnings]
+      : response.warnings;
     const base = fileNameBase.replace(/\.[^.]+$/, '') || 'document';
     const name = `${base}${intent === 'maximum-appearance' ? '-appearance' : ''}.psd`;
     return {
       file: new File([Uint8Array.from(response.bytes).buffer], name, { type: 'image/vnd.adobe.photoshop' }),
-      findings: response.findings,
-      warnings: response.warnings,
+      findings,
+      warnings,
       editableTextLayers: response.editableTextLayers,
       editableVectorLayers: response.editableVectorLayers
     };
