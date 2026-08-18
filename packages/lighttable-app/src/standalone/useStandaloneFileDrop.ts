@@ -31,7 +31,8 @@ export interface StandaloneFileDropState {
  */
 export const useStandaloneFileDrop = (
   onOpen: (file: File, decodeMode?: StandaloneDecodeMode) => unknown,
-  onAccepted?: (files: readonly File[]) => void
+  onAccepted?: (files: readonly File[]) => void,
+  enabled = true
 ): StandaloneFileDropState => {
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,10 @@ export const useStandaloneFileDrop = (
   const clearError = useCallback(() => setError(null), []);
 
   useEffect(() => {
+    if (!enabled) {
+      setActive(false);
+      return;
+    }
     let depth = 0;
 
     const reset = () => {
@@ -98,7 +103,7 @@ export const useStandaloneFileDrop = (
       window.removeEventListener('drop', onDrop);
       window.removeEventListener('blur', reset);
     };
-  }, [onAccepted, onOpen]);
+  }, [enabled, onAccepted, onOpen]);
 
   return { active, error, clearError };
 };

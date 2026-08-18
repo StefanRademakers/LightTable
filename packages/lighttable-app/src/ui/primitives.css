@@ -818,6 +818,109 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   background: var(--lt-surface-panel);
 }
 
+.lighttable-project-home {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 36px 40px minmax(0, 1fr) 28px;
+  color: var(--ui-text, #f1f4f8);
+  background: #111417;
+  font: 400 12px/1.4 Inter, system-ui, sans-serif;
+}
+
+.lighttable-project-home__options {
+  border-bottom: 1px solid #3b4148;
+  background: #30353b;
+}
+
+.lighttable-project-home .shots-app-menu__button:disabled {
+  opacity: .4;
+}
+
+.lighttable-project-home__body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(300px, 28vw);
+}
+
+.lighttable-project-home__main {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  background: #15181b;
+}
+
+.lighttable-project-home__hero {
+  max-width: 520px;
+  padding: 36px;
+  text-align: center;
+  color: #c8cdd4;
+}
+
+.lighttable-project-home__hero > img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  opacity: .9;
+}
+
+.lighttable-project-home__hero h1 {
+  margin: 14px 0 6px;
+  color: #f4f6f8;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.lighttable-project-home__hero p { margin: 0; }
+
+.lighttable-project-home__actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.lighttable-project-home__warning {
+  margin-top: 14px !important;
+  color: #ff8585;
+}
+
+.lighttable-project-home__assets {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid #3b4148;
+  background: #292e34;
+}
+
+.lighttable-project-home__assets > header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #3b4148;
+  background: #20242a;
+}
+
+.lighttable-project-home__assets h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lighttable-project-home__assets .genai-history { min-height: 100%; }
+
+.lighttable-project-home__status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 12px;
+  border-top: 1px solid #343a41;
+  background: #171a1e;
+  color: #8490a0;
+}
+
 .lighttable-launcher__navigation {
   border-right: 1px solid var(--lt-border-subtle);
 }

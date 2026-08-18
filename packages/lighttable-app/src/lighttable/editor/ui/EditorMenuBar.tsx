@@ -19,6 +19,7 @@ export interface EditorMenuBarProps {
   ) => Array<ContextMenuOption<string>>;
   readonly projectName?: string;
   readonly onRevealProject?: () => void;
+  readonly enabledFor?: (id: EditorMenuId) => boolean;
 }
 
 const MENU_ITEMS: ReadonlyArray<{
@@ -44,7 +45,8 @@ const MENU_ITEMS: ReadonlyArray<{
 export const EditorMenuBar = ({
   optionsFor,
   projectName,
-  onRevealProject
+  onRevealProject,
+  enabledFor = () => true
 }: EditorMenuBarProps) => {
   const [openMenu, setOpenMenu] = useState<OpenEditorMenu | null>(null);
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -81,6 +83,7 @@ export const EditorMenuBar = ({
             ref={(node) => { buttonRefs.current[index] = node; }}
             type="button"
             role="menuitem"
+            disabled={!enabledFor(id)}
             className={`shots-app-menu__button${openMenu?.id === id ? ' shots-app-menu__button--active' : ''}`}
             aria-haspopup="menu"
             aria-expanded={openMenu?.id === id}

@@ -25,7 +25,8 @@ import {
 import { useStandaloneFileDrop } from './useStandaloneFileDrop';
 import { requestWorkspaceDocumentClose } from './requestWorkspaceDocumentClose';
 import {
-  imagePickerAccept
+  imagePickerAccept,
+  isSupportedImageFile
 } from '../lighttable/image-io/supportedImageFormats';
 import { createBlankPngFile } from './createBlankPngFile';
 import { NewDocumentDialog } from './NewDocumentDialog';
@@ -50,6 +51,9 @@ import {
   loadApplicationPreferences,
   saveApplicationPreferences
 } from './applicationPreferences';
+import { ProjectHomeSurface } from './ProjectHomeSurface';
+import { resolveWorkspaceSurface } from './workspaceSurface';
+import type { GenAiAssetReference } from '@lighttable/genai-core';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -220,6 +224,7 @@ export function LightTableStandaloneApp({
   const [projectCreating, setProjectCreating] = useState(false);
   const [projectLocation, setProjectLocation] = useState<LightTableProjectLocation | null>(null);
   const [projectError, setProjectError] = useState<string | null>(null);
+  const [projectImporting, setProjectImporting] = useState(false);
   const [documentThumbnailUrls, setDocumentThumbnailUrls] = useState<Record<string, string>>({});
   const documentThumbnailUrlsRef = useRef(documentThumbnailUrls);
   documentThumbnailUrlsRef.current = documentThumbnailUrls;
@@ -282,6 +287,7 @@ export function LightTableStandaloneApp({
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [screenMode, setScreenMode] = useState<EditorScreenMode>('normal');
   const launcherRecordedRef = useRef(false);
+  const projectRestoreStartedRef = useRef(false);
 
   useEffect(() => () => commandService.dispose(), [commandService]);
   useEffect(() => host.installAutomationDriver?.(commandService), [commandService, host]);
@@ -292,6 +298,8 @@ export function LightTableStandaloneApp({
     host.funnel?.record('launcher.viewed');
   }, [host, snapshot.documentOrder.length]);
   useEffect(() => {
+    if (projectRestoreStartedRef.current) return;
+    projectRestoreStartedRef.current = true;
     let cancelled = false;
     void host.listSystemFonts?.().then((fonts) => {
       if (!cancelled) controller.workspace.registerSystemFontReferences(fonts);
@@ -362,7 +370,57 @@ export function LightTableStandaloneApp({
     if (!host.rememberRecentFiles) return;
     void host.rememberRecentFiles(files).then(refreshRecentFiles).catch(() => undefined);
   }, [host, refreshRecentFiles]);
-  const fileDrop = useStandaloneFileDrop(openDocument, rememberDroppedFiles);
+  const projectHomeActive = Boolean(activeProject && snapshot.documentOrder.length === 0);
+  const fileDrop = useStandaloneFileDrop(
+    openDocument,
+    rememberDroppedFiles,
+    !projectHomeActive
+  );
+
+  const importProjectFiles = useCallback(async (files: readonly File[]) => {
+    if (!activeProject || !host.genAi || projectImporting) return;
+    const supported = files.filter((file) => isSupportedImageFile(file, file.name, 'automatic'));
+    if (!supported.length) {
+      setProjectError('Unsupported media. No project files were changed.');
+      return;
+    }
+    setProjectImporting(true);
+    setProjectError(null);
+    try {
+      for (const file of supported) {
+        await host.genAi.importProjectAsset(activeProject.id, {
+          name: file.name,
+          mediaType: file.type || 'application/octet-stream',
+          bytes: new Uint8Array(await file.arrayBuffer())
+        });
+      }
+      await host.genAi.refreshProjectAssets(activeProject.id);
+      if (supported.length !== files.length) {
+        setProjectError(
+          `Imported ${supported.length} supported file${supported.length === 1 ? '' : 's'}; `
+          + `${files.length - supported.length} unsupported file${files.length - supported.length === 1 ? '' : 's'} skipped.`
+        );
+      }
+    } catch (reason) {
+      setProjectError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setProjectImporting(false);
+    }
+  }, [activeProject, host.genAi, projectImporting]);
+
+  const openProjectAsset = useCallback(async (asset: GenAiAssetReference) => {
+    if (!activeProject || !host.genAi) return;
+    setOpening(true);
+    try {
+      const payload = await host.genAi.loadProjectAsset(activeProject.id, asset.id);
+      if (!payload) throw new Error(`${asset.label} is no longer available.`);
+      openDocument(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
+    } catch (reason) {
+      setProjectError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setOpening(false);
+    }
+  }, [activeProject, host.genAi, openDocument]);
 
   const refreshRecentProjects = useCallback(async () => {
     try {
@@ -465,6 +523,14 @@ export function LightTableStandaloneApp({
       try {
         const project = await host.projects?.current() ?? null;
         if (!cancelled) setActiveProject(project);
+        if (project?.lastUsedDocument && !cancelled && snapshot.documentOrder.length === 0) {
+          const file = await host.projects?.openLastUsedDocument(project) ?? null;
+          if (cancelled) return;
+          if (file) openDocument(file);
+          else setProjectError(
+            `${project.lastUsedDocument.name} is unavailable. The project opened in Project Home.`
+          );
+        }
       } catch (reason) {
         if (!cancelled) {
           setActiveProject(null);
@@ -474,7 +540,7 @@ export function LightTableStandaloneApp({
       if (!cancelled) await refreshRecentProjects();
     })();
     return () => { cancelled = true; };
-  }, [host.projects, refreshRecentProjects]);
+  }, [host.projects, openDocument, refreshRecentProjects, snapshot.documentOrder.length]);
 
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'
@@ -652,6 +718,11 @@ export function LightTableStandaloneApp({
     });
   }, [closeWorkspaceDocument, documents, host]);
 
+  const browseProjectImport = useCallback(async () => {
+    const file = await host.openFile?.();
+    if (file) await importProjectFiles([file]);
+  }, [host, importProjectFiles]);
+
   const workspaceDocuments = useMemo(
     () => documents.map(({ id, title, dirty }) => ({
       id, title, dirty, thumbnailUrl: documentThumbnailUrls[id] ?? documentSourcePreviewUrls[id]
@@ -659,7 +730,51 @@ export function LightTableStandaloneApp({
     [documentSourcePreviewUrls, documentThumbnailUrls, documents]
   );
 
-  if (snapshot.documentOrder.length === 0) {
+  const activeLifecycle = snapshot.activeDocumentId
+    ? snapshot.documents[snapshot.activeDocumentId]?.lifecycle ?? null
+    : null;
+  const workspaceSurface = resolveWorkspaceSurface({
+    projectId: activeProject?.id ?? null,
+    activeDocumentId: snapshot.activeDocumentId,
+    lifecycle: activeLifecycle
+  });
+
+  if (workspaceSurface.kind === 'project-home' && activeProject) {
+    return <>
+      <ProjectHomeSurface
+        project={activeProject}
+        service={host.genAi}
+        surface={workspaceSurface}
+        importing={projectImporting}
+        error={projectError}
+        onBrowse={() => void browseProjectImport()}
+        onNewDocument={requestNewDocument}
+        onOpenFile={() => void requestHostDocument()}
+        onOpenAsset={(asset) => void openProjectAsset(asset)}
+        onImportFiles={(files) => void importProjectFiles(files)}
+        onCloseProject={() => {
+          void host.projects?.close();
+          setActiveProject(null);
+        }}
+        onRevealProject={() => void host.projects?.reveal(activeProject)}
+      />
+      <NewDocumentDialog open={newDialogOpen} clipboard={host.clipboard} creating={creating}
+        onCancel={() => setNewDialogOpen(false)} onCreate={(size) => void createDocument(size)} />
+      <NewProjectDialog open={newProjectOpen} creating={projectCreating}
+        location={projectLocation} error={projectError}
+        onChooseLocation={() => void chooseProjectLocation()}
+        onCancel={() => setNewProjectOpen(false)}
+        onCreate={(name) => void createProject(name)} />
+      <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
+        onCancel={() => setSettingsOpen(false)} onSave={(next) => {
+          saveApplicationPreferences(next);
+          setPreferences(next);
+          setSettingsOpen(false);
+        }} />
+    </>;
+  }
+
+  if (workspaceSurface.kind === 'launcher') {
     const recoverableRecords = newestRecoveryRecords(recoveryListing);
     const pageTitle: Record<LauncherPage, string> = {
       'new-document': 'New Document',
@@ -681,6 +796,10 @@ export function LightTableStandaloneApp({
               if (host.openFile) void requestHostDocument();
               else launcherFileInputRef.current?.click();
             }}>Open</ButtonBase>
+            <ButtonBase type="button" disabled={projectCreating || !host.projects}
+              onClick={requestNewProject}>New Project</ButtonBase>
+            <ButtonBase type="button" disabled={opening || !host.projects}
+              onClick={() => void openProject()}>Open Project</ButtonBase>
             <ButtonBase type="button" className={launcherPage === 'new-document' ? 'is-active' : undefined}
               aria-current={launcherPage === 'new-document' ? 'page' : undefined}
               onClick={() => setLauncherPage('new-document')}>New Document</ButtonBase>
@@ -749,6 +868,17 @@ export function LightTableStandaloneApp({
             </div>
           </section>
         </div>
+        <NewProjectDialog open={newProjectOpen} creating={projectCreating}
+          location={projectLocation} error={projectError}
+          onChooseLocation={() => void chooseProjectLocation()}
+          onCancel={() => setNewProjectOpen(false)}
+          onCreate={(name) => void createProject(name)} />
+        <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
+          onCancel={() => setSettingsOpen(false)} onSave={(next) => {
+            saveApplicationPreferences(next);
+            setPreferences(next);
+            setSettingsOpen(false);
+          }} />
       </main>
     );
   }

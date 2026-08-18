@@ -53,7 +53,7 @@ try {
   await window.waitForLoadState('domcontentloaded');
   await window.waitForTimeout(1_500);
   if (!await sourceTab.isVisible().catch(() => false)) {
-    const open = window.getByRole('button', { name: 'Open file' });
+    const open = window.getByRole('button', { name: 'Open', exact: true });
     if (!await open.isVisible().catch(() => false)) {
       throw new Error(`Launcher did not become available: ${await window.locator('body').innerText()}`);
     }
@@ -65,6 +65,7 @@ try {
   const documentDialog = window.getByRole('dialog', { name: 'New document' });
   await documentDialog.waitFor({ state: 'visible' });
   await documentDialog.getByRole('button', { name: 'Create' }).click();
+  await documentDialog.waitFor({ state: 'detached', timeout: 30_000 });
   await window.waitForFunction(() => document.querySelectorAll('[role="tab"]').length >= 2);
   const visibleEditor = () => window.locator('.lighttable-backdrop:not(.lighttable-backdrop--inactive)');
   const documentCount = await visibleEditor().locator('.lighttable-document-tab').count();
@@ -95,7 +96,8 @@ try {
     throw new Error('Reopening a project changed the set of open documents.');
   }
   await window.reload({ waitUntil: 'domcontentloaded' });
-  await window.getByText(`Project: ${projectName}`, { exact: true }).waitFor({ timeout: 30_000 });
+  await window.locator('.lighttable-project-home').getByRole('heading', { name: projectName })
+    .waitFor({ timeout: 30_000 });
   if (pageErrors.length || consoleErrors.length) {
     throw new Error(`Runtime errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
   }
