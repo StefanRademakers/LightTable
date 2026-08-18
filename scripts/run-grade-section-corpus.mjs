@@ -7,6 +7,7 @@ import {
   gradeCorpusReportsHaveSameCases,
   parseGradeCorpusReport
 } from './grade-corpus-report-compatibility.mjs';
+import { packagedDesktopExecutable } from './desktop-test-startup.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const corpusManifest = JSON.parse(await readFile(
@@ -23,14 +24,7 @@ const refreshControl = refreshControlArgument?.slice('--refresh-control='.length
 const force = process.argv.includes('--force');
 const { captureCameraRaw, captureLightTable } = parseGradeCorpusRunMode(process.argv);
 const externalRoot = path.resolve(rootArgument?.slice('--root='.length) ?? corpusManifest.externalRoot);
-const packagedExecutable = path.join(
-  workspace,
-  'apps',
-  'desktop',
-  'out',
-  'LightTable-win32-x64',
-  'LightTable.exe'
-);
+const packagedExecutable = packagedDesktopExecutable(workspace);
 const inventoryPath = path.join(externalRoot, 'inventory.json');
 const run = (command, args) => {
   const result = spawnSync(command, args, {
@@ -40,7 +34,7 @@ const run = (command, args) => {
     env: {
       ...process.env,
       LIGHTTABLE_AUTOMATION_HEADLESS: '1',
-      ...(process.platform === 'win32' ? { LIGHTTABLE_TEST_EXECUTABLE: packagedExecutable } : {})
+      LIGHTTABLE_TEST_EXECUTABLE: packagedExecutable
     }
   });
   if (result.error) throw result.error;
@@ -58,7 +52,7 @@ const reportsAreCompatible = async (cameraReport, lightTableReport) => {
 if (!await exists(inventoryPath)) run(process.execPath, [
   path.join(import.meta.dirname, 'generate-grade-camera-raw-corpus.mjs'), `--root=${externalRoot}`
 ]);
-if (process.platform === 'win32' && !await exists(packagedExecutable)) {
+if (!await exists(packagedExecutable)) {
   throw new Error(`Packaged LightTable executable is missing: ${packagedExecutable}. Run npm run package:desktop:verify first.`);
 }
 const inventory = JSON.parse(await readFile(inventoryPath, 'utf8'));
@@ -90,7 +84,7 @@ for (const source of sources) {
         run(process.execPath, [
           path.join(import.meta.dirname, 'capture-lighttable-grade-light-oracle.mjs'),
           `--source=${source.file}`, `--root=${captureRoot}`, `--cases=${casesPath}`,
-          '--resume-partial', '--max-new-captures=16',
+          '--packaged', '--resume-partial', '--max-new-captures=16',
           ...(refreshControl ? [`--refresh-control=${refreshControl}`] : [])
         ]);
         lastCaptureError = null;

@@ -52,6 +52,29 @@ test('Grade corpus capture sides can resume independently without ambiguous flag
   );
 });
 
+test('LightTable Grade corpus routes require packaged rendering and frame evidence', async () => {
+  const [sectionRunner, lightRunner, curvesRunner, sectionCapture, curvesCapture] = await Promise.all([
+    readFile(path.join(import.meta.dirname, 'run-grade-section-corpus.mjs'), 'utf8'),
+    readFile(path.join(import.meta.dirname, 'run-grade-light-corpus.mjs'), 'utf8'),
+    readFile(path.join(import.meta.dirname, 'run-grade-curves-corpus.mjs'), 'utf8'),
+    readFile(path.join(import.meta.dirname, 'capture-lighttable-grade-light-oracle.mjs'), 'utf8'),
+    readFile(path.join(import.meta.dirname, 'capture-lighttable-grade-curves-oracle.mjs'), 'utf8')
+  ]);
+  for (const runner of [sectionRunner, lightRunner, curvesRunner]) {
+    assert.match(runner, /packagedDesktopExecutable/u);
+    assert.match(runner, /LIGHTTABLE_TEST_EXECUTABLE/u);
+    assert.match(runner, /--packaged/u);
+  }
+  for (const capture of [sectionCapture, curvesCapture]) {
+    assert.match(capture, /requirePackaged: process\.argv\.includes\('--packaged'\)/u);
+    assert.match(capture, /waitForRenderedDocument/u);
+    assert.match(capture, /renderedDocumentRevision/u);
+    assert.match(capture, /captureEvidence/u);
+  }
+  assert.match(sectionCapture, /sourceSha256/u);
+  assert.match(sectionCapture, /caseManifestSha256/u);
+});
+
 test('Grade analysis rejects stale or reordered opposite-side reports', () => {
   const report = (...ids) => ({ caseManifestSha256: 'manifest-a',
     cases: ids.map((id) => ({ id })) });

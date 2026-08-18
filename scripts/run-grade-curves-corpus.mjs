@@ -7,6 +7,7 @@ import {
   gradeCorpusReportsHaveSameCases,
   parseGradeCorpusReport
 } from './grade-corpus-report-compatibility.mjs';
+import { packagedDesktopExecutable } from './desktop-test-startup.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const corpus = JSON.parse(await readFile(path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'));
@@ -17,8 +18,18 @@ const selectedArgument = argument('source');
 const selected = selectedArgument ? new Set(selectedArgument.split(',').map((value) => value.trim()).filter(Boolean)) : null;
 const force = process.argv.includes('--force');
 const { captureCameraRaw, captureLightTable } = parseGradeCorpusRunMode(process.argv);
+const packagedExecutable = packagedDesktopExecutable(workspace);
 const run = (command, args) => {
-  const result = spawnSync(command, args, { cwd: workspace, stdio: 'inherit', shell: false });
+  const result = spawnSync(command, args, {
+    cwd: workspace,
+    stdio: 'inherit',
+    shell: false,
+    env: {
+      ...process.env,
+      LIGHTTABLE_AUTOMATION_HEADLESS: '1',
+      LIGHTTABLE_TEST_EXECUTABLE: packagedExecutable
+    }
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}.`);
 };
@@ -33,6 +44,9 @@ const reportsAreCompatible = async (cameraReport, lightTableReport) => {
 };
 const inventoryPath = path.join(root, 'inventory.json');
 if (!await exists(inventoryPath)) run(process.execPath, [path.join(import.meta.dirname, 'generate-grade-camera-raw-corpus.mjs'), `--root=${root}`]);
+if (!await exists(packagedExecutable)) {
+  throw new Error(`Packaged LightTable executable is missing: ${packagedExecutable}. Run npm run package:desktop:verify first.`);
+}
 const inventory = JSON.parse(await readFile(inventoryPath, 'utf8'));
 const sources = inventory.sources.filter(({ id }) => !selected || selected.has(id));
 if (!sources.length) throw new Error('No Grade Curves corpus sources were selected.');
@@ -47,7 +61,7 @@ for (const source of sources) {
     else process.stdout.write('Camera Raw capture already exists; use --force to replace it.\n');
   }
   if (captureLightTable) {
-    if (force || !await exists(lightTableReport)) run(process.execPath, [path.join(import.meta.dirname, 'capture-lighttable-grade-curves-oracle.mjs'), `--source=${source.file}`, `--root=${captureRoot}`, `--cases=${casesPath}`]);
+    if (force || !await exists(lightTableReport)) run(process.execPath, [path.join(import.meta.dirname, 'capture-lighttable-grade-curves-oracle.mjs'), `--source=${source.file}`, `--root=${captureRoot}`, `--cases=${casesPath}`, '--packaged']);
     else process.stdout.write('LightTable capture already exists; use --force to replace it.\n');
   }
   if (await reportsAreCompatible(cameraReport, lightTableReport)) {

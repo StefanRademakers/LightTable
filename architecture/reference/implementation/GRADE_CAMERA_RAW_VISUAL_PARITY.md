@@ -77,6 +77,27 @@ Camera Raw result, LightTable result, a four-times-amplified difference between
 their neutral-relative effects and a split view. These sheets are review
 evidence, not accepted visual baselines.
 
+### Production-render capture invariant
+
+The LightTable side of every Grade section corpus must run the current packaged
+desktop executable. Packaging followed by a development-Electron launch is not
+valid product evidence. Before each non-neutral export, automation resets render
+telemetry, authors the controls, and waits until the active document has
+submitted a new `document-composite` frame whose presented revision is not
+behind canonical state. Reports record the launch mode, presented revision,
+output dimensions and output SHA-256 per case.
+
+Bounded section batches checkpoint a sidecar beside every PNG. A later process
+may reuse a partial only when its case ID, source SHA-256, case-manifest SHA-256
+and packaged launch mode all match. An unproven PNG is recaptured instead of
+being silently relabelled as current evidence.
+
+The August 2026 production-route proof recaptured all eleven Curves cases for
+`grayscale-ramp` through `production-packaged`. Every case produced a distinct
+rendered revision and a non-empty 1024 x 256 PNG with a recorded hash. This
+proves the strengthened capture boundary; it does not convert the existing
+Curves characterization into a new Camera Raw parity claim.
+
 The first new end-to-end tonal-steps run reconfirmed Photoshop 27.9.1 and
 Camera Raw 18.5. It measured 0.03% neutral RMSE. Previously accepted Contrast
 and Blacks remained close (maximum delta RMSE 0.62% and 0.40% respectively),

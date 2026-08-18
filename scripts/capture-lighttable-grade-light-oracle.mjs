@@ -22,7 +22,9 @@ const root = path.resolve(rootArgument?.slice('--root='.length)
 const outputDirectory = path.join(root, 'lighttable');
 const casePath = path.resolve(casesArgument?.slice('--cases='.length)
   ?? path.join(import.meta.dirname, 'grade-light-parity-cases.json'));
-const launch = await resolveDesktopTestLaunch(workspace);
+const launch = await resolveDesktopTestLaunch(workspace, {
+  requirePackaged: process.argv.includes('--packaged')
+});
 const userData = path.join(root, 'runtime', `lighttable-${process.pid}`);
 await Promise.all([
   access(source), access(launch.executablePath), access(casePath),
@@ -204,6 +206,20 @@ const app = await electron.launch({
 const results = [];
 let captureComplete = true;
 let newCaptureCount = 0;
+const readValidatedPartial = async (output, entry) => {
+  const evidencePath = `${output}.capture.json`;
+  try {
+    const evidence = JSON.parse(await readFile(evidencePath, 'utf8'));
+    if (evidence.caseId !== entry.id
+      || evidence.sourceSha256 !== sourceEvidence.sha256
+      || evidence.caseManifestSha256 !== caseManifestSha256
+      || evidence.lightTableLaunchMode !== launch.mode) return null;
+    await access(output);
+    return evidence;
+  } catch {
+    return null;
+  }
+};
 try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
@@ -221,7 +237,7 @@ try {
   });
   const documentId = opened.value?.documentId;
   if (!documentId) throw new Error('Grade Light source open did not return a document ID.');
-  await driver.waitForDocument(documentId, 120_000);
+  let readiness = await driver.waitForRenderedDocument(documentId, 120_000);
   let gradePanel = page.getByLabel('Grade Layer properties', { exact: true }).last();
   if (!await gradePanel.isVisible().catch(() => false)) {
     const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
@@ -234,6 +250,10 @@ try {
 
   let previousSettings = [];
   for (const entry of cases) {
+    const needsRenderedMutation = previousSettings.length > 0 || entry.settings.length > 0;
+    if (needsRenderedMutation && !await driver.resetRenderTelemetry(documentId)) {
+      throw new Error('Grade section render telemetry could not be reset before mutation.');
+    }
     // Keep a single decoded document alive for speed and deterministically
     // restore the previous slider before authoring the next isolated case.
     for (const setting of [...previousSettings].reverse()) {
@@ -241,9 +261,17 @@ try {
     }
     previousSettings = [];
     const output = path.join(outputDirectory, `${entry.id}.png`);
-    if (resumePartial && entry.key !== refreshControl
-      && await access(output).then(() => true, () => false)) {
-      results.push({ ...entry, output });
+    const validatedPartial = resumePartial && (!refreshControl || entry.key !== refreshControl)
+      ? await readValidatedPartial(output, entry)
+      : null;
+    if (validatedPartial) {
+      results.push({
+        ...entry,
+        output,
+        lightTableLaunchMode: validatedPartial.lightTableLaunchMode,
+        renderedDocumentRevision: validatedPartial.renderedDocumentRevision,
+        captureEvidence: validatedPartial.captureEvidence
+      });
       process.stdout.write(`LightTable ${entry.id}: reused partial capture\n`);
       continue;
     }
@@ -252,6 +280,9 @@ try {
       break;
     }
     for (const setting of entry.settings) await setGradeControl(page, setting);
+    if (needsRenderedMutation) {
+      readiness = await driver.waitForRenderedDocument(documentId, 120_000);
+    }
     const exported = await driver.execute(documentId, 'file.exportPng', {}, {
       requireCompleted: false
     });
@@ -261,7 +292,30 @@ try {
     if (!png) throw new Error('Grade Light PNG export artifact cannot be read.');
     await writeFile(output, png.bytes);
     newCaptureCount += 1;
-    results.push({ ...entry, output });
+    const outputMetadata = await sharp(png.bytes).metadata();
+    results.push({
+      ...entry,
+      output,
+      lightTableLaunchMode: launch.mode,
+      renderedDocumentRevision: readiness.telemetry.presentedDocumentRevision,
+      captureEvidence: {
+        sha256: createHash('sha256').update(png.bytes).digest('hex'),
+        byteLength: png.bytes.byteLength,
+        width: outputMetadata.width ?? null,
+        height: outputMetadata.height ?? null,
+        channels: outputMetadata.channels ?? null,
+        hasAlpha: outputMetadata.hasAlpha ?? null
+      }
+    });
+    await writeFile(`${output}.capture.json`, `${JSON.stringify({
+      schema: 1,
+      caseId: entry.id,
+      sourceSha256: sourceEvidence.sha256,
+      caseManifestSha256,
+      lightTableLaunchMode: launch.mode,
+      renderedDocumentRevision: readiness.telemetry.presentedDocumentRevision,
+      captureEvidence: results.at(-1).captureEvidence
+    }, null, 2)}\n`, 'utf8');
     process.stdout.write(`LightTable ${entry.id}: ${output}\n`);
     previousSettings = entry.settings;
   }
@@ -284,12 +338,13 @@ try {
 
 if (captureComplete) {
   await writeFile(path.join(outputDirectory, 'capture-report.json'), `${JSON.stringify({
-    schema: 2,
+    schema: 3,
     generatedAt: new Date().toISOString(),
     section: suite.section,
     source,
     sourceEvidence,
     caseManifestSha256,
+    lightTableLaunchMode: launch.mode,
     isolation: 'One decoded source and one topmost Grade Layer are reused; the prior control is verified at neutral before exactly one Grade control is authored. Long corpora relaunch the renderer between bounded batches.',
     cases: results
   }, null, 2)}\n`);

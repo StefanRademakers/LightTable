@@ -7,6 +7,7 @@ import {
   gradeCorpusReportsHaveSameCases,
   parseGradeCorpusReport
 } from './grade-corpus-report-compatibility.mjs';
+import { packagedDesktopExecutable } from './desktop-test-startup.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(await readFile(
@@ -20,9 +21,19 @@ const force = process.argv.includes('--force');
 const { captureCameraRaw, captureLightTable } = parseGradeCorpusRunMode(process.argv);
 const externalRoot = path.resolve(rootArgument?.slice('--root='.length) ?? manifest.externalRoot);
 const inventoryPath = path.join(externalRoot, 'inventory.json');
+const packagedExecutable = packagedDesktopExecutable(workspace);
 
 const run = (command, args) => {
-  const result = spawnSync(command, args, { cwd: workspace, stdio: 'inherit', shell: false });
+  const result = spawnSync(command, args, {
+    cwd: workspace,
+    stdio: 'inherit',
+    shell: false,
+    env: {
+      ...process.env,
+      LIGHTTABLE_AUTOMATION_HEADLESS: '1',
+      LIGHTTABLE_TEST_EXECUTABLE: packagedExecutable
+    }
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}.`);
 };
@@ -39,6 +50,9 @@ const reportsAreCompatible = async (cameraReport, lightTableReport) => {
 if (!await exists(inventoryPath)) run(process.execPath, [
   path.join(import.meta.dirname, 'generate-grade-camera-raw-corpus.mjs'), `--root=${externalRoot}`
 ]);
+if (!await exists(packagedExecutable)) {
+  throw new Error(`Packaged LightTable executable is missing: ${packagedExecutable}. Run npm run package:desktop:verify first.`);
+}
 const inventory = JSON.parse(await readFile(inventoryPath, 'utf8'));
 const selected = sourceArgument
   ? new Set(sourceArgument.slice('--source='.length).split(',').map((value) => value.trim()).filter(Boolean))
@@ -63,7 +77,7 @@ for (const source of sources) {
   if (captureLightTable && (force || refreshControl || !await exists(lightTableReport))) {
     run(process.execPath, [
       path.join(import.meta.dirname, 'capture-lighttable-grade-light-oracle.mjs'),
-      `--source=${source.file}`, `--root=${captureRoot}`, '--resume-partial',
+      `--source=${source.file}`, `--root=${captureRoot}`, '--packaged', '--resume-partial',
       ...(refreshControl ? [`--refresh-control=${refreshControl}`] : [])
     ]);
   } else if (captureLightTable) {

@@ -13,7 +13,9 @@ const source = path.resolve(argument('source') ?? 'D:\\people.jpg');
 const root = path.resolve(argument('root') ?? 'D:\\mediavibe\\LightTableTests\\GradeCurvesParity');
 const casePath = path.resolve(argument('cases') ?? path.join(import.meta.dirname, 'grade-curves-parity-cases.json'));
 const outputDirectory = path.join(root, 'lighttable');
-const launch = await resolveDesktopTestLaunch(workspace);
+const launch = await resolveDesktopTestLaunch(workspace, {
+  requirePackaged: process.argv.includes('--packaged')
+});
 const userData = path.join(root, 'runtime', `lighttable-${process.pid}`);
 await Promise.all([access(source), access(casePath), access(launch.executablePath), mkdir(outputDirectory, { recursive: true }), mkdir(userData, { recursive: true })]);
 const caseManifestBytes = await readFile(casePath);
@@ -50,7 +52,7 @@ try {
   const opened = await driver.executeWorkspace('file.openArtifact', { artifactId: artifact.id });
   const documentId = opened.value?.documentId;
   if (!documentId) throw new Error('Curves source open did not return a document ID.');
-  await driver.waitForDocument(documentId, 120_000);
+  let readiness = await driver.waitForRenderedDocument(documentId, 120_000);
   const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
   await trigger.click();
   await page.getByRole('menu', { name: 'New fill or processing layer' }).getByRole('menuitem', { name: 'New Grade layer', exact: true }).click();
@@ -98,22 +100,46 @@ try {
     }
   };
 
-  for (const entry of suite.cases) {
+  for (const [caseIndex, entry] of suite.cases.entries()) {
+    const needsRenderedMutation = caseIndex > 0 || entry.id !== 'neutral';
+    if (needsRenderedMutation && !await driver.resetRenderTelemetry(documentId)) {
+      throw new Error('Curves render telemetry could not be reset before mutation.');
+    }
     await resetAll();
     for (const [channel, points] of Object.entries(entry.curves)) await setCurve(channel, points);
+    if (needsRenderedMutation) {
+      readiness = await driver.waitForRenderedDocument(documentId, 120_000);
+    }
     const exported = await driver.execute(documentId, 'file.exportPng', {}, { requireCompleted: false });
     const task = await driver.waitForTask(documentId, exported.taskId, 120_000);
     const png = await driver.readArtifact(task.artifact.id);
     const output = path.join(outputDirectory, `${entry.id}.png`);
     await writeFile(output, png.bytes);
-    results.push({ ...entry, baselineId: 'neutral', isBaseline: entry.id === 'neutral', output });
+    const outputMetadata = await sharp(png.bytes).metadata();
+    results.push({
+      ...entry,
+      baselineId: 'neutral',
+      isBaseline: entry.id === 'neutral',
+      output,
+      lightTableLaunchMode: launch.mode,
+      renderedDocumentRevision: readiness.telemetry.presentedDocumentRevision,
+      captureEvidence: {
+        sha256: createHash('sha256').update(png.bytes).digest('hex'),
+        byteLength: png.bytes.byteLength,
+        width: outputMetadata.width ?? null,
+        height: outputMetadata.height ?? null,
+        channels: outputMetadata.channels ?? null,
+        hasAlpha: outputMetadata.hasAlpha ?? null
+      }
+    });
     process.stdout.write(`LightTable ${entry.id}: ${output}\n`);
   }
   if (pageErrors.length) throw new Error(`LightTable runtime errors: ${pageErrors.join('\n')}`);
 } finally { await app.close().catch(() => {}); }
 
 await writeFile(path.join(outputDirectory, 'capture-report.json'), `${JSON.stringify({
-  schema: 1, generatedAt: new Date().toISOString(), section: suite.section, source,
+  schema: 2, generatedAt: new Date().toISOString(), section: suite.section, source,
   sourceEvidence, caseManifestSha256,
+  lightTableLaunchMode: launch.mode,
   isolation: 'One decoded source and one topmost Grade Layer are reused; all four channels reset before each declared curve case.', cases: results
 }, null, 2)}\n`);
