@@ -843,3 +843,12 @@ Explicit non-goals for the initial delivery
 - artboards or multiple canvases;
 - combining Image Size and Canvas Size into one ambiguous dialog;
 - silently baking unsupported semantics merely to simplify PSD export.
+
+Completion re-audit - 18 August 2026
+=====================================
+
+- `npm run smoke:desktop:document-geometry` passed against the packaged
+  desktop application and produced
+  `tmp/document-geometry-smoke/report.json`.
+- The smoke revalidates canvas size, crop, fixed document and layer transforms,
+  undo/redo, and preservation of editable/off-canvas scene state.

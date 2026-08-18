@@ -16,3 +16,8 @@ Completed 2026-08-18:
 - Added content-revision-aware provider publication caching so local upload reuse remains safe.
 - Updated architecture documentation, boundary verification, fixtures, unit tests, and desktop GenAI asset smoke coverage.
 - Live credit-spending provider submission remains an explicit manual owner test; automated verification never spends provider credits.
+
+Re-audited 2026-08-18:
+- `npm run smoke:desktop:genai-assets` passed against the packaged desktop app.
+- Project asset refresh and persisted AI History remain healthy without making
+  a paid provider submission.

@@ -405,3 +405,12 @@ Explicit non-goals
 - implementing document GPU hibernation from parked task 146;
 - redesigning the established UI kit or workspace geometry.
 
+Completion re-audit - 18 August 2026
+=====================================
+
+- `npm run smoke:desktop:project-home` passed and produced
+  `tmp/project-home-smoke/report.json`.
+- `npm run smoke:desktop:project-lifecycle` passed with two open documents,
+  covering the project shell, document activation and return lifecycle.
+- Both checks ran against the packaged desktop boundary; no stale renderer
+  errors or project/document ownership failures were reported.

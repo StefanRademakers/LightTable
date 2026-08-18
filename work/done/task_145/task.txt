@@ -235,3 +235,11 @@ Explicit non-goals
 - Duplicate Merged Layers Only in the first implementation;
 - flattening, rasterizing or baking unsupported editable content;
 - changing document geometry or processing order.
+
+Completion re-audit - 18 August 2026
+=====================================
+
+- `npm run smoke:desktop:duplicate-image` passed against the packaged desktop
+  app and produced `tmp/duplicate-image-smoke/report.json`.
+- The smoke includes a flat single-layer raster source, confirming Duplicate
+  Image is not dependent on a multi-layer document.
