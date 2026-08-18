@@ -466,7 +466,8 @@ describe('LightTableCommandService registry', () => {
     const service = new LightTableCommandService(
       state.workspace, state.ports, {
         openArtifact,
-        createDocument: vi.fn(async () => state.session.id)
+        createDocument: vi.fn(async () => state.session.id),
+        duplicateDocument: vi.fn(async () => state.session.id)
       }
     );
     const artifact = service.registerInputArtifact(new File(
@@ -491,7 +492,8 @@ describe('LightTableCommandService registry', () => {
     const state = setup();
     const createDocument = vi.fn(async () => 'created-document' as never);
     const service = new LightTableCommandService(state.workspace, state.ports, {
-      openArtifact: vi.fn(), createDocument
+      openArtifact: vi.fn(), createDocument,
+      duplicateDocument: vi.fn(async () => state.session.id)
     });
     const parameters = { name: 'Poster', width: 1200, height: 800, resolutionPpi: 300,
       bitDepth: 16, profile: 'adobe-rgb-1998', background: { kind: 'solid', color: '#112233' } };
@@ -507,6 +509,23 @@ describe('LightTableCommandService registry', () => {
     });
     expect(stale).toMatchObject({ status: 'rejected', code: 'stale-workspace-revision' });
     expect(createDocument).toHaveBeenCalledTimes(1);
+    service.dispose(); state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('duplicates a ready document through the workspace fork port without mutating its revision', async () => {
+    const state = setup();
+    const duplicateDocument = vi.fn(async () => 'duplicate-document' as never);
+    const service = new LightTableCommandService(state.workspace, state.ports, {
+      openArtifact: vi.fn(), createDocument: vi.fn(), duplicateDocument
+    });
+    const before = state.session.getSnapshot();
+    const result = await service.execute(request('document.duplicate', state.session.id, {
+      name: 'Source copy'
+    }));
+    expect(result).toMatchObject({ status: 'completed', value: { documentId: 'duplicate-document' } });
+    expect(duplicateDocument).toHaveBeenCalledWith(state.session.id, 'Source copy');
+    expect(state.session.getSnapshot().documentRevision).toBe(before.documentRevision);
+    expect(state.session.getSnapshot().history.currentStateId).toBe(before.history.currentStateId);
     service.dispose(); state.service.dispose(); state.workspace.dispose();
   });
 
@@ -531,7 +550,7 @@ describe('LightTableCommandService registry', () => {
   it('rejects invalid document and placement resources without invoking mutation ports', async () => {
     const state = setup();
     const service = new LightTableCommandService(state.workspace, state.ports, {
-      openArtifact: vi.fn(), createDocument: vi.fn()
+      openArtifact: vi.fn(), createDocument: vi.fn(), duplicateDocument: vi.fn()
     });
     expect(await service.execute({ protocolVersion: 1, requestId: 'huge', command: 'document.create',
       parameters: { name: 'Huge', width: 32768, height: 32768, resolutionPpi: 72,

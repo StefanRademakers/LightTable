@@ -59,6 +59,7 @@ export interface EditorMenuControllerOptions {
   };
   readonly image: {
     openSize(): void;
+    duplicate(): void;
     applyCurves(): void;
     applyAdjustment?(kind: AdjustmentLayerKind): void;
     assignSrgbProfile?(): void;
@@ -190,6 +191,7 @@ export const createEditorMenuController = ({
         else layers.panel.createAdjustmentLayerOfKind(kind);
       }),
       openImageSize: image.openSize,
+      duplicateImage: image.duplicate,
       assignSrgbProfile: image.assignSrgbProfile ?? (() => undefined),
       beginAutoAlign: autoAlign.begin,
       applyAutoAlign: autoAlign.apply,

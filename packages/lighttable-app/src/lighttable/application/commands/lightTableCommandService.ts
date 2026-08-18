@@ -464,6 +464,7 @@ export class LightTableCommandService {
     });
     return [
       availability('document.create', Boolean(this.workspacePorts), 'Document creation is unavailable in this host.'),
+      availability('document.duplicate', Boolean(this.workspacePorts), 'Document duplication is unavailable in this host.'),
       availability('document.resizeImage', Boolean(this.ports.resizeImage), 'Image Size is unavailable in this host.'),
       availability('view.setZoom', true, ''),
       availability('layer.createRaster', true, ''),
@@ -542,6 +543,30 @@ export class LightTableCommandService {
         };
       } catch (reason) {
         return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason));
+      }
+    }
+    if (value.command === 'document.duplicate') {
+      if (!value.documentId) {
+        return this.reject(value.requestId, 'document-required', 'Duplicate requires a documentId.');
+      }
+      const source = this.document(value.documentId);
+      if (!source) return this.reject(value.requestId, 'document-not-found', 'The source document is not open.');
+      if (source.lifecycle !== 'ready' || !source.document) {
+        return this.reject(value.requestId, 'document-not-ready', 'The source document is not ready.', source);
+      }
+      if (!this.workspacePorts) {
+        return this.reject(value.requestId, 'command-unavailable', 'Document duplication is unavailable in this host.', source);
+      }
+      if (!isRecord(value.parameters) || typeof value.parameters.name !== 'string'
+        || !value.parameters.name.trim() || value.parameters.name.trim().length > 255
+        || /[\u0000-\u001f\u007f]/.test(value.parameters.name)) {
+        return this.reject(value.requestId, 'invalid-parameters', 'Duplicate requires a valid document name.', source);
+      }
+      try {
+        const documentId = await this.workspacePorts.duplicateDocument(value.documentId, value.parameters.name.trim());
+        return { requestId: value.requestId, status: 'completed', value: { documentId }, revisions: this.revisions() };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), source);
       }
     }
     if (!value.documentId) {

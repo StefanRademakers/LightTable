@@ -66,4 +66,23 @@ describe('LightTable document export policy', () => {
     expect(output.recipe.documentFormat).toBeUndefined();
     expect(renderer.exportLayerAssets).not.toHaveBeenCalled();
   });
+
+  it('forces a native authored boundary for duplicating a plain one-layer image', async () => {
+    const document = createImageDocument('Flat', 16, 9, 'asset');
+    const renderer = rendererFixture();
+    vi.mocked(renderer.exportLayerAssets).mockResolvedValue([{
+      layerId: document.layers[0]!.id,
+      pixels: new Blob(['layer'], { type: 'image/png' }),
+      mask: null
+    }]);
+    const settings = createDefaultAdjustments();
+    const output = await exportLightTableDocument({
+      document, renderer, recipeSourceKey: 'source-key', fileNameBase: 'source.jpg',
+      flatAdjustments: settings, documentAdjustments: settings,
+      effectiveLayeredAdjustments: settings, preservedSourceAssets: []
+    }, { forceLayered: true });
+
+    expect(output.recipe.documentFormat).toBe('embedded-layered-png');
+    expect(renderer.exportLayerAssets).toHaveBeenCalledWith(document);
+  });
 });

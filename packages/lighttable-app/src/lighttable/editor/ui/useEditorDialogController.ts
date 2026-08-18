@@ -20,6 +20,7 @@ export const useEditorDialogController = () => {
   const [featherOpen, setFeatherOpen] = useState(false);
   const [fillOpen, setFillOpen] = useState(false);
   const [imageSizeOpen, setImageSizeOpen] = useState(false);
+  const [duplicateImageOpen, setDuplicateImageOpen] = useState(false);
   const [newGuideOpen, setNewGuideOpen] = useState(false);
   const [psdReportOpen, setPsdReportOpen] = useState(false);
   const [formatSupportOpen, setFormatSupportOpen] = useState(false);
@@ -35,6 +36,7 @@ export const useEditorDialogController = () => {
     setFeatherOpen(false);
     setFillOpen(false);
     setImageSizeOpen(false);
+    setDuplicateImageOpen(false);
     setNewGuideOpen(false);
     setPsdReportOpen(false);
     setFormatSupportOpen(false);
@@ -50,6 +52,7 @@ export const useEditorDialogController = () => {
     featherOpen,
     fillOpen,
     imageSizeOpen,
+    duplicateImageOpen,
     newGuideOpen,
     psdReportOpen,
     formatSupportOpen,
@@ -65,6 +68,8 @@ export const useEditorDialogController = () => {
     closeFill: useCallback(() => setFillOpen(false), []),
     openImageSize: useCallback(() => setImageSizeOpen(true), []),
     closeImageSize: useCallback(() => setImageSizeOpen(false), []),
+    openDuplicateImage: useCallback(() => setDuplicateImageOpen(true), []),
+    closeDuplicateImage: useCallback(() => setDuplicateImageOpen(false), []),
     openNewGuide: useCallback(() => setNewGuideOpen(true), []),
     closeNewGuide: useCallback(() => setNewGuideOpen(false), []),
     requestTextToShape: useCallback(

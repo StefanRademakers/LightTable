@@ -93,6 +93,17 @@ describe('createEditorMenuOptions', () => {
       ]);
   });
 
+  it('routes Image Duplicate through the document command and disables it without a document', () => {
+    const menuCommands = commands();
+    const image = createEditorMenuOptions('image', state(), labels, menuCommands);
+    const duplicate = image.find(({ value }) => value === 'duplicate-image');
+    expect(duplicate).toMatchObject({ label: 'Duplicate...', disabled: false, separatorBefore: true });
+    duplicate?.onClick?.();
+    expect(menuCommands.duplicateImage).toHaveBeenCalledOnce();
+    expect(createEditorMenuOptions('image', state({ hasDocument: false }), labels, commands())
+      .find(({ value }) => value === 'duplicate-image')?.disabled).toBe(true);
+  });
+
   it('moves document color commands into Photoshop-compatible Edit and Image menus', () => {
     const menuCommands = commands();
     const colorState = state({ documentColor: { bitDepth: 16, profileState: 'assumed' } });

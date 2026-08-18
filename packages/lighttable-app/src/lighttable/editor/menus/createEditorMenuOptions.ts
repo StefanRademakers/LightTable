@@ -98,6 +98,7 @@ export interface EditorMenuCommands {
   applyCurves: () => void;
   applyAdjustment: (kind: AdjustmentLayerKind) => void;
   openImageSize: () => void;
+  duplicateImage: () => void;
   assignSrgbProfile: () => void;
   beginAutoAlign: () => void;
   applyAutoAlign: () => void;
@@ -470,6 +471,12 @@ export const createEditorMenuOptions = (
           ? 'Current document mode.'
           : 'Bit-depth conversion is not available yet.'
       }]
+    }, {
+      value: 'duplicate-image',
+      label: 'Duplicate...',
+      separatorBefore: true,
+      onClick: commands.duplicateImage,
+      disabled: !state.hasDocument || state.saving
     }];
   }
 

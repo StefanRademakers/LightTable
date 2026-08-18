@@ -15,7 +15,7 @@ import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract'
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
 
 export type LightTableCommandId =
-  | 'document.create' | 'document.resizeImage' | 'view.setZoom' | 'layer.createRaster' | 'layer.placeArtifact'
+  | 'document.create' | 'document.duplicate' | 'document.resizeImage' | 'view.setZoom' | 'layer.createRaster' | 'layer.placeArtifact'
   | 'layer.rename' | 'layer.setVisibility' | 'layer.setFillOpacity'
   | 'layer.style.setEnabled' | 'layer.effect.setEnabled' | 'file.openArtifact'
   | 'text.create' | 'text.replaceRange' | 'text.format' | 'text.setLayout'
@@ -166,6 +166,7 @@ export interface LightTableArtifactPlacement { readonly name?: string; readonly 
 export interface LightTableWorkspaceCommandPorts {
   openArtifact(file: File): DocumentSessionId | Promise<DocumentSessionId>;
   createDocument(options: LightTableCreateDocumentOptions): DocumentSessionId | Promise<DocumentSessionId>;
+  duplicateDocument(documentId: DocumentSessionId, name: string): DocumentSessionId | Promise<DocumentSessionId>;
 }
 
 export interface LightTableCommandPorts {

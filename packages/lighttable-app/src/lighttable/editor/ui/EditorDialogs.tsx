@@ -16,6 +16,7 @@ import { CommandHelpDialog } from './CommandHelpDialog';
 import { ImageSizeDialog } from './ImageSizeDialog';
 import { ThirdPartyLicensesDialog } from './ThirdPartyLicensesDialog';
 import { NewGuideDialog } from './NewGuideDialog';
+import { DuplicateImageDialog } from './DuplicateImageDialog';
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -57,6 +58,10 @@ export interface EditorDialogsProps {
   readonly document: ImageDocument | null;
   readonly imageSizeBusy?: boolean;
   readonly onResizeImage: (request: ImageSizeRequest) => void;
+  readonly duplicateImageBusy?: boolean;
+  readonly duplicateImageError?: string | null;
+  readonly duplicateImageSourceName: string;
+  readonly onDuplicateImage: (name: string) => void;
   readonly onCreateGuide: (guide: Omit<import('../document/documentTypes').DocumentGuide, 'id'>) => void;
 }
 
@@ -83,9 +88,21 @@ export const EditorDialogs = ({
   document,
   imageSizeBusy,
   onResizeImage,
+  duplicateImageBusy,
+  duplicateImageError,
+  duplicateImageSourceName,
+  onDuplicateImage,
   onCreateGuide
 }: EditorDialogsProps) => (
   <>
+    <DuplicateImageDialog
+      open={controller.duplicateImageOpen}
+      sourceName={duplicateImageSourceName}
+      busy={Boolean(duplicateImageBusy)}
+      error={duplicateImageError}
+      onCancel={controller.closeDuplicateImage}
+      onConfirm={onDuplicateImage}
+    />
     <NewGuideDialog open={controller.newGuideOpen} onCancel={controller.closeNewGuide}
       onCommit={(guide) => { controller.closeNewGuide(); onCreateGuide(guide); }} />
     <ImageSizeDialog

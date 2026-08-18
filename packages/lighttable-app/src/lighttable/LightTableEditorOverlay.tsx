@@ -910,6 +910,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [editorSession.gradient, setEditorSession]);
   const [selectionDraft, setSelectionDraft] = useState<SelectionShape | null>(null);
   const editorDialogs = useEditorDialogController();
+  const [duplicateImageBusy, setDuplicateImageBusy] = useState(false);
+  const [duplicateImageError, setDuplicateImageError] = useState<string | null>(null);
   const [selectionClipboardAvailable, setSelectionClipboardAvailable] = useState(false);
   const [temporaryPanActive, setTemporaryPanActive] = useState(false);
   const [temporaryEraseActive, setTemporaryEraseActive] = useState(false);
@@ -4753,9 +4755,30 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     workspaceOrder: Math.max(0, workspaceDocuments?.findIndex(({ id }) => id === workspaceDocumentId) ?? 0),
     getCanonicalRevision: () => documentSession?.getSnapshot().documentRevision ?? commandHistory.getSnapshot().currentStateId,
     setStatus: setGradeStatus });
-  exportNativeArtifactRef.current = async () => (await exportOutput()).file;
+  exportNativeArtifactRef.current = async () => (await exportOutput({ forceLayered: true })).file;
   exportPngArtifactRef.current = () => exportEditorPngArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
   exportPsdArtifactRef.current = () => exportEditorPsdArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
+
+  const duplicateImage = useCallback(async (name: string) => {
+    if (!commandService || duplicateImageBusy) return;
+    setDuplicateImageBusy(true);
+    setDuplicateImageError(null);
+    try {
+      const result = await commandService.execute({
+        protocolVersion: 1,
+        requestId: `duplicate-document-${crypto.randomUUID()}`,
+        command: 'document.duplicate',
+        documentId: workspaceDocumentId,
+        parameters: { name }
+      });
+      if (result.status === 'rejected') throw new Error(result.message);
+      editorDialogs.closeDuplicateImage();
+    } catch (reason) {
+      setDuplicateImageError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setDuplicateImageBusy(false);
+    }
+  }, [commandService, duplicateImageBusy, editorDialogs, workspaceDocumentId]);
 
   const editorMenuController = createEditorMenuController({
     aiProviders: {
@@ -5044,6 +5067,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     image: {
       openSize: editorDialogs.openImageSize,
+      duplicate: () => {
+        setDuplicateImageError(null);
+        editorDialogs.openDuplicateImage();
+      },
       applyCurves: () => applyCurvesRef.current(),
       applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
       assignSrgbProfile: () => {
@@ -5868,6 +5895,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             dirtyDocuments: Boolean(workspaceDocuments?.some(({ dirty }) => dirty)),
             document: imageDocument,
             onResizeImage: commitImageSize,
+            duplicateImageBusy,
+            duplicateImageError,
+            duplicateImageSourceName: documentSession?.getSnapshot().title ?? initialSourceName,
+            onDuplicateImage: (name) => { void duplicateImage(name); },
             onCreateGuide: (guide) => {
               const before = imageDocumentRef.current;
               if (!before) return;

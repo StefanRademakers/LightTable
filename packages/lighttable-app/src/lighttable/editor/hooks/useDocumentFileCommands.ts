@@ -10,7 +10,8 @@ import {
   buildLightTableOutputName,
   exportLightTableDocument,
   type DocumentExportRenderer,
-  type ExportedLightTableDocument
+  type ExportedLightTableDocument,
+  type ExportLightTableRuntimeOptions
 } from '../../application/documents/exportLightTableDocument';
 import type { DocumentTaskRegistry } from '../../application/tasks/documentTaskRegistry';
 import type {
@@ -79,7 +80,7 @@ export interface DocumentFileCommandsOptions {
 
 export interface DocumentFileCommands {
   readonly saving: boolean;
-  exportOutput(options?: { readonly lightweightPreview?: boolean }): Promise<ExportedLightTableDocument>;
+  exportOutput(options?: ExportLightTableRuntimeOptions): Promise<ExportedLightTableDocument>;
   save(): Promise<void>;
   exportPng(): Promise<void>;
   exportJpeg(): Promise<void>;
@@ -131,7 +132,7 @@ export const useDocumentFileCommands = (
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
 
-  const exportOutput = useCallback(async (runtime: { readonly lightweightPreview?: boolean } = {}) => {
+  const exportOutput = useCallback(async (runtime: ExportLightTableRuntimeOptions = {}) => {
     const current = optionsRef.current;
     const renderer = current.getRenderer();
     if (!renderer) throw new Error('LightTable is not ready yet.');

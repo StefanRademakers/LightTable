@@ -47,6 +47,8 @@ export interface ExportedLightTableDocument {
 export interface ExportLightTableRuntimeOptions {
   /** Recovery prioritizes canonical layer state over an expensive full-size thumbnail. */
   readonly lightweightPreview?: boolean;
+  /** Workspace forks require authored pixels even for a single flat raster node. */
+  readonly forceLayered?: boolean;
 }
 
 const lightweightPreview = async (
@@ -89,7 +91,7 @@ export const exportLightTableDocument = async ({
     : await renderer.exportPng();
   const outputName = buildLightTableOutputName(fileNameBase);
 
-  if (canExportAsFlatRecipe(document)) {
+  if (!runtime.forceLayered && canExportAsFlatRecipe(document)) {
     return {
       file: new File([preview], outputName, { type: 'image/png' }),
       recipe: createLightTableRecipe(recipeSourceKey, flatAdjustments, undefined, globalGradeStrength)
