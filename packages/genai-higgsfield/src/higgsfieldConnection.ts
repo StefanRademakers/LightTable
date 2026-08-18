@@ -36,6 +36,46 @@ type McpModule = typeof import('@modelcontextprotocol/client');
 const issuerKey = (context?: OAuthClientInformationContext): string => context?.issuer ?? '';
 const emptyRecord = (): HiggsfieldCredentialRecord => ({ clients: {}, tokens: {} });
 
+const HIGGSFIELD_AUTHORIZATION_ISSUER = 'https://mcp.higgsfield.ai';
+const HIGGSFIELD_UPSTREAM_ISSUER = 'https://clerk.higgsfield.ai';
+
+interface HiggsfieldAuthorizationHint {
+  readonly flow?: unknown;
+  readonly authorization_server?: unknown;
+  readonly upstream_authorization_server?: unknown;
+}
+
+/**
+ * Higgsfield's OAuth facade currently returns Clerk's issuer in the authorization
+ * response while its own validated metadata names the MCP facade as issuer. The
+ * protected-resource metadata explicitly declares that exact upstream relation.
+ *
+ * Keep the exception provider-local and fail closed: only omit the callback issuer
+ * when the persisted discovery document proves the exact facade/upstream pairing.
+ * Every other callback is passed to the MCP SDK unchanged for RFC 9207 validation.
+ */
+export const resolveHiggsfieldAuthorizationCallback = (
+  callback: URLSearchParams,
+  discovery?: OAuthDiscoveryState
+): URLSearchParams | string => {
+  const issuer = callback.get('iss');
+  const code = callback.get('code');
+  if (issuer !== HIGGSFIELD_UPSTREAM_ISSUER || !code) return callback;
+  if (discovery?.authorizationServerUrl !== HIGGSFIELD_AUTHORIZATION_ISSUER) return callback;
+  if (discovery.authorizationServerMetadata?.issuer !== HIGGSFIELD_AUTHORIZATION_ISSUER) return callback;
+
+  const resourceMetadata = discovery.resourceMetadata as
+    | { readonly higgsfield_auth_hints?: { readonly options?: readonly HiggsfieldAuthorizationHint[] } }
+    | undefined;
+  const declaresUpstream = resourceMetadata?.higgsfield_auth_hints?.options?.some((option) =>
+    option.flow === 'authorization_code_pkce'
+      && option.authorization_server === HIGGSFIELD_AUTHORIZATION_ISSUER
+      && option.upstream_authorization_server === HIGGSFIELD_UPSTREAM_ISSUER
+  ) === true;
+
+  return declaresUpstream ? code : callback;
+};
+
 class HiggsfieldOAuthProvider implements OAuthClientProvider {
   readonly clientMetadata: OAuthClientMetadata;
 
@@ -145,7 +185,13 @@ export class HiggsfieldConnection {
         if (!(reason instanceof sdk.UnauthorizedError)) throw reason;
         const callback = await session.callback;
         if (callback.get('state') !== state) throw new Error('Higgsfield rejected the authorization callback state.');
-        await initial.transport.finishAuth(callback);
+        const discovery = (await this.options.store.load())?.discovery;
+        const authorizationCallback = resolveHiggsfieldAuthorizationCallback(callback, discovery);
+        if (typeof authorizationCallback === 'string') {
+          await initial.transport.finishAuth(authorizationCallback);
+        } else {
+          await initial.transport.finishAuth(authorizationCallback);
+        }
         const authenticated = this.createClient(sdk, provider);
         await authenticated.client.connect(authenticated.transport);
         this.client = authenticated.client;
