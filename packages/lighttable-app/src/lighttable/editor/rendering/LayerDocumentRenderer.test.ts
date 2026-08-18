@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { TextLayerEditingLayout } from '../../text/rendering/TextLayerRenderCoordinator';
-import { projectTextEditingGeometryPreview } from './LayerDocumentRenderer';
+import { LayerDocumentRenderer, projectTextEditingGeometryPreview } from './LayerDocumentRenderer';
 
 describe('text editing geometry preview', () => {
   it('replaces canonical local geometry while retaining the parent transform', () => {
@@ -16,5 +16,32 @@ describe('text editing geometry preview', () => {
       a: 0, b: 2, c: -2, d: 0, tx: 90, ty: 130
     });
     expect(projected).not.toBe(presentation);
+  });
+});
+
+describe('layer document asset loading', () => {
+  it('invalidates a processing suffix cached before raster upload', async () => {
+    const load = vi.fn(async () => {});
+    const destroyCaches = vi.fn();
+    const renderer = Object.create(LayerDocumentRenderer.prototype) as {
+      runtime: {
+        documentAssets: { load: typeof load };
+        compositor: { destroyCaches: typeof destroyCaches };
+      };
+      loadDocumentAssets: LayerDocumentRenderer['loadDocumentAssets'];
+    };
+    renderer.runtime = {
+      documentAssets: { load },
+      compositor: { destroyCaches }
+    };
+    const assets = [{}] as Parameters<LayerDocumentRenderer['loadDocumentAssets']>[0];
+
+    await renderer.loadDocumentAssets(assets);
+
+    expect(load).toHaveBeenCalledWith(assets);
+    expect(destroyCaches).toHaveBeenCalledOnce();
+    expect(load.mock.invocationCallOrder[0]).toBeLessThan(
+      destroyCaches.mock.invocationCallOrder[0]
+    );
   });
 });

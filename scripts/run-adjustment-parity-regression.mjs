@@ -17,6 +17,21 @@ const filter = filterArgument ? new RegExp(filterArgument.slice('--filter='.leng
 const selected = suite.corpora.filter((entry) => !filter
   || filter.test(entry.adjustment) || filter.test(entry.root));
 const report = [];
+const packagedExecutable = path.join(
+  workspace, 'apps', 'desktop', 'out', 'LightTable-win32-x64', 'LightTable.exe'
+);
+
+if (capture && process.platform === 'win32') {
+  const packaged = spawnSync('npm.cmd', ['run', 'package:desktop:verify'], {
+    cwd: workspace,
+    encoding: 'utf8',
+    stdio: 'inherit'
+  });
+  if (packaged.status !== 0) {
+    throw new Error(`Current desktop packaging failed with exit code ${packaged.status}.`);
+  }
+  process.env.LIGHTTABLE_TEST_EXECUTABLE = packagedExecutable;
+}
 
 const run = (script, args) => spawnSync(process.execPath, [path.join(workspace, 'scripts', script), ...args], {
   cwd: workspace,

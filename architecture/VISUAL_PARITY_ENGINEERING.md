@@ -125,6 +125,30 @@ Arbitrary short sleeps create both false failures and false confidence. React
 state should settle editor presentation; live drag rendering must use the
 direct preview path and must not wait for React commits.
 
+For layered documents, three different boundaries must not be conflated:
+
+1. the canonical document and its layer tree are published;
+2. persisted raster/mask/LUT assets have reached their GPU resources;
+3. the renderer view owns the same canonical revision and has submitted a
+   real document composite.
+
+An export requested between those boundaries can be structurally valid but
+still read a transparent allocation. Processing-suffix caches make this more
+subtle: asset upload changes pixels without changing immutable layer-node
+identity, so every post-initialize asset load must invalidate cached
+composites explicitly. Oracle captures wait for the active renderer revision
+and a document-composite execution, then reject a fully transparent export
+when the reference contains visible pixels.
+
+### Capture the build that was just tested
+
+Launching Electron against an existing development `.vite` directory does not
+prove current source. The directory can contain a successful but older bundle.
+Renderer parity regression therefore packages the desktop application first
+and passes that exact packaged executable to every child capture. Reports
+record the launch mode; a stored report or a development-bundle capture is not
+accepted as current-build product evidence.
+
 ## Reading corpus results
 
 A fixed scalar correction is justified only when effect direction is already

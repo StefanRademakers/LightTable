@@ -347,6 +347,12 @@ export class LayerDocumentRenderer {
 
   async loadDocumentAssets(assets: DocumentAssetBlob[]) {
     await this.runtime.documentAssets.load(assets);
+    // The document is initialized before its persisted raster assets are
+    // decoded. A topmost processing suffix may therefore have cached the
+    // transparent allocation used during that first composite. Asset upload
+    // changes pixels without changing immutable layer-node identities, so the
+    // cache contract cannot detect it on its own.
+    this.runtime.compositor.destroyCaches();
   }
 
   mergeLayerDown(

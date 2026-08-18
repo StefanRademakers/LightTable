@@ -154,6 +154,48 @@ export class LightTableAutomationClient {
     return document;
   }
 
+  /**
+   * Wait for an active document to own a usable GPU composite.
+   *
+   * `lifecycle: ready` only means that the canonical document has been
+   * published. The renderer may still be waiting for its first animation
+   * frame, in which case an immediate export can read the newly allocated,
+   * transparent final texture. A submitted frame is the semantic boundary
+   * exact pixel consumers need; queue ordering then makes the export readback
+   * wait behind that composite without an arbitrary delay.
+   */
+  async waitForRenderedDocument(documentId, timeout = 30_000) {
+    const deadline = Date.now() + timeout;
+    let workspace = null;
+    let document = null;
+    let telemetry = null;
+    while (Date.now() < deadline) {
+      [workspace, document, telemetry] = await Promise.all([
+        this.queryWorkspace(),
+        this.queryDocument(documentId),
+        this.queryRenderTelemetry(documentId)
+      ]);
+      if (document?.lifecycle === 'failed' || document?.lifecycle === 'disposed') break;
+      if (workspace?.activeDocumentId === documentId
+        && document?.lifecycle === 'ready'
+        && document.renderer?.status === 'ready'
+        && document.renderer.active
+        && Boolean(document.canvas)
+        && document.tasks?.activeCount === 0
+        && telemetry?.presentedDocumentRevision === document.canonicalRevision
+        && (telemetry?.submittedFrames ?? 0) > 0
+        && (telemetry?.stages?.['document-composite']?.executions ?? 0) > 0) {
+        return { document, telemetry };
+      }
+      await this.page.waitForTimeout(16);
+    }
+    throw new Error(`Document ${documentId} did not publish a rendered frame: ${JSON.stringify({
+      activeDocumentId: workspace?.activeDocumentId ?? null,
+      document,
+      telemetry
+    })}`);
+  }
+
   async waitForLayers(documentId, timeout = 30_000) {
     const deadline = Date.now() + timeout;
     let layers = await this.queryLayers(documentId);
