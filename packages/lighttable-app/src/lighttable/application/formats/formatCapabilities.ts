@@ -40,7 +40,7 @@ export const LIGHTTABLE_FORMAT_CAPABILITIES: readonly FormatCapability[] = Objec
   {
     id: 'psd', label: 'Photoshop PSD', extensions: ['.psd'],
     open: 'supported', editable: 'partial', export: 'partial',
-    summary: 'Semantic import plus fail-closed 8-bit RGB export for the Photoshop-verified editable subset.'
+    summary: 'Semantic import; appearance-safe 8-bit RGB Editable export for the verified subset, plus an explicit flattened Maximum Appearance export.'
   },
   {
     id: 'psb', label: 'Photoshop PSB', extensions: ['.psb'],
