@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "section": "color",
+  "groupLabel": "Color",
+  "controls": [
+    {
+      "key": "temperature",
+      "label": "Temperature",
+      "cameraRawDescriptor": "Temp",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    },
+    {
+      "key": "tint",
+      "label": "Tint",
+      "cameraRawDescriptor": "Tint",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    },
+    {
+      "key": "vibrance",
+      "label": "Vibrance",
+      "cameraRawDescriptor": "Vibr",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    },
+    {
+      "key": "saturation",
+      "label": "Saturation",
+      "cameraRawDescriptor": "Strt",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, -25, 25, 50, 80, 100]
+    }
+  ]
+}

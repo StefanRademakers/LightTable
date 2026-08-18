@@ -101,6 +101,8 @@
     "prepare:grade-camera-raw-corpus": "node scripts/generate-grade-camera-raw-corpus.mjs",
     "capture:grade-light-corpus": "npm run package:desktop:verify && node scripts/run-grade-light-corpus.mjs",
     "analyze:grade-light-corpus": "node scripts/analyze-grade-light-corpus.mjs",
+    "capture:grade-color-corpus": "npm run package:desktop:verify && node scripts/run-grade-section-corpus.mjs --cases=scripts/grade-color-parity-cases.json",
+    "analyze:grade-color-corpus": "node scripts/analyze-grade-light-corpus.mjs --section=color",
     "regress:adjustment-parity": "node scripts/run-adjustment-parity-regression.mjs",
     "regress:grade-visual": "node scripts/capture-grade-visual-regression.mjs",
     "capture:grade-visual-baseline": "node scripts/capture-grade-visual-regression.mjs --accept",

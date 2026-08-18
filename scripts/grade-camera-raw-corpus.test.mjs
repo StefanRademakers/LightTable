@@ -25,3 +25,19 @@ test('generated Grade diagnostics declare known generators and portable file nam
     assert.equal(path.basename(source.file), source.file);
   }
 });
+
+test('Grade Color oracle covers signed Camera Raw color controls and endpoints', async () => {
+  const suite = JSON.parse(await readFile(
+    path.join(import.meta.dirname, 'grade-color-parity-cases.json'), 'utf8'
+  ));
+  assert.equal(suite.section, 'color');
+  assert.equal(suite.groupLabel, 'Color');
+  assert.deepEqual(suite.controls.map(({ cameraRawDescriptor }) => cameraRawDescriptor), [
+    'Temp', 'Tint', 'Vibr', 'Strt'
+  ]);
+  for (const control of suite.controls) {
+    for (const value of [-100, -80, -50, 50, 80, 100]) {
+      assert.ok(control.values.includes(value), `${control.key} includes ${value}`);
+    }
+  }
+});

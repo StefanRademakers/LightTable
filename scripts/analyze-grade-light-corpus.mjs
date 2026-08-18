@@ -6,8 +6,10 @@ const manifest = JSON.parse(await readFile(
   path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'
 ));
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
+const sectionArgument = process.argv.find((value) => value.startsWith('--section='));
+const section = sectionArgument?.slice('--section='.length) ?? 'light';
 const root = path.resolve(rootArgument?.slice('--root='.length) ?? manifest.externalRoot);
-const captureRoot = path.join(root, 'captures', 'light');
+const captureRoot = path.join(root, 'captures', section);
 const sourceDirectories = await readdir(captureRoot, { withFileTypes: true });
 const reports = [];
 for (const directory of sourceDirectories.filter((entry) => entry.isDirectory())) {
@@ -34,9 +36,21 @@ for (const source of reports) {
   }
 }
 const aggregate = [...controls].map(([key, entries]) => {
-  const cases = entries.flatMap(({ source, control }) => control.cases.map((entry) => ({ source, ...entry })));
+  const activeEntries = entries.filter(({ control }) => control.summary.descriptorValidated);
+  const inactiveSources = entries
+    .filter(({ control }) => !control.summary.descriptorValidated)
+    .map(({ source }) => source);
+  if (!activeEntries.length) {
+    throw new Error(`Camera Raw descriptor for ${key} had no measurable effect on any corpus source.`);
+  }
+  const cases = activeEntries.flatMap(({ source, control }) => control.cases
+    .filter((entry) => entry.descriptorHasEffect)
+    .map((entry) => ({ source, ...entry })));
   const signs = Object.fromEntries(['negative', 'positive'].map((sign) => {
     const selected = cases.filter(({ value }) => sign === 'negative' ? value < 0 : value > 0);
+    if (!selected.length) {
+      return [sign, null];
+    }
     const worst = selected.reduce((current, entry) => (
       !current || entry.effect.deltaRmse > current.effect.deltaRmse ? entry : current
     ), null);
@@ -51,17 +65,18 @@ const aggregate = [...controls].map(([key, entries]) => {
       worstCase: { source: worst.source, id: worst.id, value: worst.value }
     }];
   }));
-  const worstSource = entries.reduce((current, entry) => (
+  const worstSource = activeEntries.reduce((current, entry) => (
     !current || entry.control.summary.maximumDeltaRmse > current.control.summary.maximumDeltaRmse
       ? entry : current
   ), null);
   return {
     key,
     label: entries[0].control.label,
-    sources: entries.length,
-    minimumSourceCorrelation: Math.min(...entries.map(({ control }) => control.summary.meanCorrelation)),
-    meanSourceCorrelation: entries.reduce((sum, { control }) => sum + control.summary.meanCorrelation, 0) / entries.length,
-    meanSourceMagnitudeRatio: entries.reduce((sum, { control }) => sum + control.summary.meanMagnitudeRatio, 0) / entries.length,
+    sources: activeEntries.length,
+    inactiveSources,
+    minimumSourceCorrelation: Math.min(...activeEntries.map(({ control }) => control.summary.meanCorrelation)),
+    meanSourceCorrelation: activeEntries.reduce((sum, { control }) => sum + control.summary.meanCorrelation, 0) / activeEntries.length,
+    meanSourceMagnitudeRatio: activeEntries.reduce((sum, { control }) => sum + control.summary.meanMagnitudeRatio, 0) / activeEntries.length,
     maximumDeltaRmse: worstSource.control.summary.maximumDeltaRmse,
     worstSource: worstSource.source,
     signs
@@ -80,21 +95,25 @@ const report = {
   controls: aggregate
 };
 await mkdir(root, { recursive: true });
-await writeFile(path.join(root, 'light-corpus-summary.json'), `${JSON.stringify(report, null, 2)}\n`);
+await writeFile(path.join(root, `${section}-corpus-summary.json`), `${JSON.stringify(report, null, 2)}\n`);
 const percent = (value) => `${(value * 100).toFixed(2)}%`;
 const markdown = [
-  '# Grade Light corpus summary', '',
+  `# Grade ${section} corpus summary`, '',
   `Sources: ${report.completedSources}  `,
   `Photoshop: ${photoshop}  `,
   `Camera Raw: ${cameraRaw}  `,
   `Neutral RMSE mean / max: ${percent(report.neutralRmse.mean)} / ${percent(report.neutralRmse.maximum)}`,
   '',
-  '| Control | Min source corr. | Mean magnitude | Negative magnitude range | Positive magnitude range | Worst RMSE | Worst source |',
-  '| --- | ---: | ---: | ---: | ---: | ---: | --- |',
-  ...aggregate.map((control) => `| ${control.label} | ${control.minimumSourceCorrelation.toFixed(4)} | ${control.meanSourceMagnitudeRatio.toFixed(3)} | ${control.signs.negative.magnitudeRange.map((value) => value.toFixed(2)).join('–')} | ${control.signs.positive.magnitudeRange.map((value) => value.toFixed(2)).join('–')} | ${percent(control.maximumDeltaRmse)} | ${control.worstSource} |`),
+  '| Control | Active sources | Min source corr. | Mean magnitude | Negative magnitude range | Positive magnitude range | Worst RMSE | Worst source |',
+  '| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
+  ...aggregate.map((control) => `| ${control.label} | ${control.sources}/${reports.length} | ${control.minimumSourceCorrelation.toFixed(4)} | ${control.meanSourceMagnitudeRatio.toFixed(3)} | ${control.signs.negative?.magnitudeRange.map((value) => value.toFixed(2)).join('–') ?? '—'} | ${control.signs.positive?.magnitudeRange.map((value) => value.toFixed(2)).join('–') ?? '—'} | ${percent(control.maximumDeltaRmse)} | ${control.worstSource} |`),
+  '',
+  ...aggregate
+    .filter((control) => control.inactiveSources.length)
+    .map((control) => `${control.label}: Camera Raw descriptor inactive on ${control.inactiveSources.join(', ')}.`),
   '',
   'Magnitude ranges spanning substantially different ratios across sources are evidence against a fixed scalar correction.',
   ''
 ].join('\n');
-await writeFile(path.join(root, 'light-corpus-summary.md'), markdown);
+await writeFile(path.join(root, `${section}-corpus-summary.md`), markdown);
 process.stdout.write(`${markdown}\n`);

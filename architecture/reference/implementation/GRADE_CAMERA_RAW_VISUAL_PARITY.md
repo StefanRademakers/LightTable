@@ -231,3 +231,28 @@ range to 0.01–0.67 of Camera Raw, with mean effect correlation 0.5117. The wid
 range and remaining worst-case error confirm that Camera Raw positive Whites is
 distribution-dependent and must not be “fixed” with a scalar gain. Negative
 Whites retained mean magnitude 1.010 and its existing measured curve family.
+
+## Color corpus baseline
+
+The same version-pinned oracle now covers Temperature, Tint, Vibrance and
+Saturation at signed 25, 50, 80 and 100 settings across all ten corpus
+sources. Photoshop 27.9.1 / Camera Raw 18.5 produced an active response on
+seven color-bearing sources. Camera Raw produced no measurable response for
+the three generated achromatic sources; those inactive source/control pairs
+are reported but excluded from correlation and magnitude aggregates.
+
+| Control | Active sources | Minimum source correlation | Mean magnitude ratio | Worst delta RMSE |
+| --- | ---: | ---: | ---: | ---: |
+| Temperature | 7/10 | 0.4544 | 0.542 | 33.97% |
+| Tint | 7/10 | 0.3916 | 0.598 | 17.81% |
+| Vibrance | 7/10 | 0.7371 | 1.302 | 13.56% |
+| Saturation | 7/10 | 0.9281 | 0.973 | 8.32% |
+
+Saturation is already the strongest Color match and should not be replaced by
+a speculative curve. Vibrance has similar average strength but remains
+content-adaptive: the positive magnitude ratio spans 0.60–3.82 across active
+sources. Temperature and Tint are structural gaps rather than range errors;
+their low correlations show that a scalar increase would amplify the wrong
+chromatic response. These controls remain characterization findings pending a
+grounded chromatic-adaptation model and visual review of the generated contact
+sheets.

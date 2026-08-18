@@ -143,7 +143,7 @@ const controls = [...groupedCases.values()].map((entries) => ({
 const report = {
   schema: 1,
   generatedAt: new Date().toISOString(),
-  section: 'light',
+  section: cameraRawReport.section,
   source: cameraRawReport.source,
   dimensions: dimensions(cameraRawNeutral),
   versions: {
@@ -159,7 +159,7 @@ await writeFile(path.join(root, 'comparison-report.json'), `${JSON.stringify(rep
 
 const percent = (value) => `${(value * 100).toFixed(2)}%`;
 const markdown = [
-  '# Grade Light parity characterization',
+  `# Grade ${report.section} parity characterization`,
   '',
   `Source: \`${report.source}\`  `,
   `Photoshop: ${report.versions.photoshop}  `,

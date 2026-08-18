@@ -1,13 +1,16 @@
 param(
   [string]$Source = 'D:\people.jpg',
-  [string]$Root = 'D:\mediavibe\LightTableTests\GradeLightParity'
+  [string]$Root = 'D:\mediavibe\LightTableTests\GradeLightParity',
+  [string]$CasePath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $sourcePath = [IO.Path]::GetFullPath($Source)
 $rootPath = [IO.Path]::GetFullPath($Root)
 $outputPath = Join-Path $rootPath 'camera-raw'
-$casePath = Join-Path $PSScriptRoot 'grade-light-parity-cases.json'
+$casePath = if ($CasePath) { [IO.Path]::GetFullPath($CasePath) } else {
+  Join-Path $PSScriptRoot 'grade-light-parity-cases.json'
+}
 $stablePhotoshopPath = 'C:\Program Files\Adobe\Adobe Photoshop 2026\Photoshop.exe'
 
 if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {

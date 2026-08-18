@@ -7,6 +7,7 @@ import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 const workspace = path.resolve(import.meta.dirname, '..');
 const sourceArgument = process.argv.find((value) => value.startsWith('--source='));
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
+const casesArgument = process.argv.find((value) => value.startsWith('--cases='));
 const resumePartial = process.argv.includes('--resume-partial');
 const refreshControlArgument = process.argv.find((value) => value.startsWith('--refresh-control='));
 const refreshControl = refreshControlArgument?.slice('--refresh-control='.length) ?? null;
@@ -14,7 +15,8 @@ const source = path.resolve(sourceArgument?.slice('--source='.length) ?? 'D:\\pe
 const root = path.resolve(rootArgument?.slice('--root='.length)
   ?? 'D:\\mediavibe\\LightTableTests\\GradeLightParity');
 const outputDirectory = path.join(root, 'lighttable');
-const casePath = path.join(import.meta.dirname, 'grade-light-parity-cases.json');
+const casePath = path.resolve(casesArgument?.slice('--cases='.length)
+  ?? path.join(import.meta.dirname, 'grade-light-parity-cases.json'));
 const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
 const userData = path.join(root, 'runtime', `lighttable-${process.pid}`);
 await Promise.all([
@@ -36,9 +38,9 @@ const mimeByExtension = new Map([
   ['.tif', 'image/tiff'], ['.tiff', 'image/tiff']
 ]);
 
-const setLightControl = async (page, label, target) => {
+const setGradeControl = async (page, groupLabel, label, target) => {
   const group = page.locator('.lighttable-group').filter({
-    has: page.getByRole('button', { name: 'Light', exact: true })
+    has: page.getByRole('button', { name: groupLabel, exact: true })
   });
   const slider = group.locator(`input[type="range"][aria-label="${label}"]`);
   await slider.waitFor({ state: 'attached', timeout: 30_000 });
@@ -96,7 +98,7 @@ try {
   for (const entry of cases) {
     // Keep a single decoded document alive for speed and deterministically
     // restore the previous slider before authoring the next isolated case.
-    if (previous?.key) await setLightControl(page, previous.label, 0);
+    if (previous?.key) await setGradeControl(page, suite.groupLabel ?? suite.section, previous.label, 0);
     previous = null;
     const output = path.join(outputDirectory, `${entry.id}.png`);
     if (resumePartial && entry.key !== refreshControl
@@ -105,7 +107,7 @@ try {
       process.stdout.write(`LightTable ${entry.id}: reused partial capture\n`);
       continue;
     }
-    if (entry.key) await setLightControl(page, entry.label, entry.value);
+    if (entry.key) await setGradeControl(page, suite.groupLabel ?? suite.section, entry.label, entry.value);
     const exported = await driver.execute(documentId, 'file.exportPng', {}, {
       requireCompleted: false
     });
