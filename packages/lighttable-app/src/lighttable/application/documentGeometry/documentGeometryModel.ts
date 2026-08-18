@@ -234,7 +234,10 @@ export const projectDocumentGeometry = (
   const now = Date.now();
   const guidePoint = (orientation: 'horizontal' | 'vertical', position: number) => orientation === 'horizontal'
     ? { x: 0, y: position } : { x: position, y: 0 };
-  const guides = document.guides.map((guide) => {
+  // The current guide model only represents horizontal and vertical lines.
+  // Orthogonal operations can project those exactly; arbitrary rotation cannot.
+  // Drop guides for that operation instead of silently approximating angled lines.
+  const guides = plan.sampling === 'filtered-affine' ? [] : document.guides.map((guide) => {
     const point = transformPoint(plan.oldDocumentToNewDocument, guidePoint(guide.orientation, guide.position));
     const swapsAxes = Math.abs(plan.oldDocumentToNewDocument.b) > 0.5;
     const orientation = swapsAxes

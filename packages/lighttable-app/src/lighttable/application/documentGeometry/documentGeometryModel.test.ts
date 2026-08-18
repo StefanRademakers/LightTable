@@ -35,6 +35,16 @@ describe('document geometry model', () => {
     expect(plan.sampling).toBe('filtered-affine');
   });
 
+  it('drops guides when arbitrary rotation cannot represent them exactly', () => {
+    const document = createImageDocument('Geometry', 100, 50, 'source');
+    document.guides = [{ id: 'h', orientation: 'horizontal', position: 10 }];
+    const plan = createDocumentGeometryPlan(document, {
+      operation: 'rotate', rotation: { degrees: 12 }
+    });
+
+    expect(projectDocumentGeometry(document, plan).guides).toEqual([]);
+  });
+
   it('projects root transforms, masks and guides while preserving nested local geometry', () => {
     const document = createImageDocument('Geometry', 100, 50, 'source');
     const root = document.layers[0]!;
