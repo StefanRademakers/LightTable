@@ -1,0 +1,83 @@
+Task 203 - Make Photoshop oracle automation reliable
+
+Goal
+====
+
+Make the Photoshop 2026 automation bootstrap deterministic enough for long,
+resumable visual-parity captures without changing, closing or losing a user's
+already open Photoshop documents.
+
+Why this is separate
+====================
+
+Task 141 owns Grade versus Camera Raw visual analysis and task 142 owns PSD
+interchange. Both currently depend on Photoshop publishing the
+`Photoshop.Application` automation object. A visible Photoshop 2026 process and
+document can exist while that object remains unavailable, including after a
+90-second `/Automation` launch attempt. That infrastructure failure must not be
+misreported as an unrecognized Camera Raw descriptor or failed image algorithm.
+
+Current blocked evidence
+========================
+
+- Native LightTable B&W Mix capture is proven through the packaged product
+  route, including treatment selection, range selection and an extreme value.
+- Camera Raw B&W Mix descriptors remain unaccepted because Photoshop did not
+  publish its automation object.
+- The generated Display-P3 extension and any fresh full adjustment recapture
+  need the same reliable external bootstrap.
+
+Investigation
+=============
+
+1. Record Photoshop version, process command line, integrity level, interactive
+   session and COM registration state for working and failing launches.
+2. Determine whether an already-running non-automation Photoshop instance
+   prevents `/Automation` registration and whether Adobe exposes a supported
+   attach/launch alternative.
+3. Check architecture and host constraints: Windows PowerShell versus pwsh,
+   32/64-bit registration, elevation mismatch and first-launch dialogs.
+4. Prefer Adobe-supported automation. Evaluate a UXP/ExtendScript bridge only
+   if COM cannot be made reliable; do not add brittle UI-coordinate automation
+   as the parity authority.
+5. Preserve the existing user's session. Never kill Photoshop, close arbitrary
+   documents, dismiss unknown dialogs or save over source files automatically.
+
+Implementation contract
+=======================
+
+- Add a read-only preflight that distinguishes: process absent, version wrong,
+  automation object absent, modal UI blocking, and oracle ready.
+- Use one explicitly owned oracle document at a time and close only that
+  document without saving.
+- Give every capture a checkpoint and make reruns resume from completed files.
+- Emit a machine-readable failure report before exiting.
+- Bound startup and per-case waits; a hang must not strand Photoshop or the
+  LightTable runner.
+- Keep large captures outside the repository.
+
+Execution order after repair
+============================
+
+1. Prove one neutral and one extreme B&W Mix case on `color-target.png`.
+2. Complete the eight-range B&W Camera Raw corpus and analyze it against the
+   already captured LightTable corpus.
+3. Capture the Display-P3 Color Grading extension.
+4. After the final shared compositor/profile changes, run a fresh packaged
+   `npm run regress:adjustment-parity -- --capture --regressions-only` over all
+   accepted adjustment corpora.
+5. Run the final all-section Grade recapture required by task 141.
+
+Acceptance criteria
+===================
+
+- Ten consecutive preflight/attach cycles succeed on the reference machine.
+- A deliberately unavailable automation object fails with a precise diagnostic
+  and no product/user-state mutation.
+- Interrupted captures resume without overwriting accepted references.
+- Existing open Photoshop documents retain their pixels, history, save state
+  and selection.
+- B&W and Display-P3 blocked captures complete through the same version-pinned
+  route.
+- The complete current-build adjustment recapture finishes without missing or
+  capture-failed corpora.
