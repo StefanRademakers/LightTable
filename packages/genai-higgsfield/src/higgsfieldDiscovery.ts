@@ -33,7 +33,9 @@ const collectRecords = (payload: unknown): readonly Record<string, unknown>[] =>
     : Array.isArray(root?.items) ? root.items
       : Array.isArray(root?.models) ? root.models
         : Array.isArray(nested?.items) ? nested.items
-          : Array.isArray(nested?.models) ? nested.models : [];
+          : Array.isArray(nested?.models) ? nested.models
+            : typeof (root?.id ?? root?.model_id ?? root?.modelId) === 'string' ? [root]
+              : typeof (nested?.id ?? nested?.model_id ?? nested?.modelId) === 'string' ? [nested] : [];
   return values.map(object).filter((entry): entry is Record<string, unknown> => Boolean(entry));
 };
 
@@ -48,7 +50,8 @@ const modelModes = (model: Record<string, unknown>): readonly string[] => {
     .filter((role): role is string => typeof role === 'string');
   if (type === 'video') {
     const modes = ['text2video'];
-    if (roles.length) modes.push(roles.some((role) => role.includes('start') || role.includes('end')) ? 'frames2video' : 'references2video');
+    if (roles.some((role) => role.includes('start') || role.includes('end'))) modes.push('frames2video');
+    if (roles.some((role) => role.includes('reference'))) modes.push('references2video');
     return modes;
   }
   if (type === 'image') return roles.length ? ['text2image', 'image2image'] : ['text2image'];
@@ -160,8 +163,11 @@ export const normalizeHiggsfieldWorkflow = (
   const medias = Array.isArray(model.medias) ? model.medias : [];
   if (medias.length) fields.push({
     key: 'references', role: 'references', label: requestedMode.includes('frame') ? 'Frames' : 'References',
-    kind: 'asset', required: false, advanced: false,
-    sourceSchema: { type: 'array', medias }
+    kind: 'asset', required: requestedMode === 'frames2video', advanced: false,
+    sourceSchema: {
+      type: 'array', medias,
+      ...(requestedMode === 'frames2video' ? { minItems: 1, maxItems: 2 } : { maxItems: 10 })
+    }
   });
   return {
     id: `higgsfield:${modelId}:${requestedMode}` as GenAiWorkflowId,

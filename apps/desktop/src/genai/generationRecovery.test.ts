@@ -17,4 +17,10 @@ describe('generation restart recovery', () => {
     expect(generationRecoveryAction(job('unknown-submit'))).toBe('none');
     expect(generationRecoveryAction(job('succeeded', 'remote-1'))).toBe('none');
   });
+
+  it('marks interrupted pre-submit work as safe-to-repeat but never repeats it automatically', () => {
+    expect(generationRecoveryAction(job('queued'))).toBe('mark-interrupted-preparation');
+    expect(generationRecoveryAction(job('preparing-inputs'))).toBe('mark-interrupted-preparation');
+    expect(generationRecoveryAction(job('ready-to-submit'))).toBe('mark-interrupted-preparation');
+  });
 });

@@ -545,15 +545,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   // the corresponding Edit/Create provider before loading its workflow.
   const [selectedGenAiProviderId, setSelectedGenAiProviderId] = React.useState(createGenAiProviderId);
   React.useEffect(() => {
-    setSelectedGenAiProviderId((currentProviderId) => currentProviderId === editGenAiProviderId
-      ? editGenAiProviderId : createGenAiProviderId);
-  }, [createGenAiProviderId, editGenAiProviderId]);
+    setSelectedGenAiProviderId(createGenAiProviderId);
+  }, [createGenAiProviderId]);
   const [genAiProviderSnapshots, setGenAiProviderSnapshots] = React.useState<
     readonly import('@lighttable/genai-core').GenAiProviderSnapshot[]
   >([]);
   const fallbackGenAiProvider: import('@lighttable/genai-core').GenAiProviderSnapshot = {
     id: selectedGenAiProviderId,
-    label: selectedGenAiProviderId === 'lighttable-local' ? 'Free Local AI' : 'OpenArt',
+    label: selectedGenAiProviderId === 'lighttable-local' ? 'Free Local AI'
+      : selectedGenAiProviderId === 'higgsfield' ? 'Higgsfield' : 'OpenArt',
     status: 'disconnected'
   };
   const genAiProvider = genAiProviderSnapshots.find(({ id }) => id === selectedGenAiProviderId)

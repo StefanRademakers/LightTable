@@ -43,7 +43,11 @@ export const buildHiggsfieldGenerationParams = (
   workflow: GenAiWorkflowDefinition,
   references: readonly HiggsfieldResolvedReference[]
 ): Readonly<Record<string, unknown>> => {
-  const params: Record<string, unknown> = { model: request.modelId };
+  const params: Record<string, unknown> = {
+    model: request.modelId,
+    count: request.output?.count ?? 1,
+    get_cost: false
+  };
   const promptField = workflow.fields.find(({ role }) => role === 'prompt');
   params[promptField?.key ?? 'prompt'] = request.providerPrompt || request.prompt;
   for (const field of workflow.fields) {
@@ -62,19 +66,23 @@ export const buildHiggsfieldGenerationParams = (
 };
 
 export const extractHiggsfieldGenerationId = (payload: unknown): string => {
-  const candidates = new Set<string>();
+  const explicitCandidates = new Set<string>();
+  const fallbackCandidates = new Set<string>();
   visit(payload, (record) => {
-    for (const key of ['generation_id', 'generationId', 'job_id', 'jobId', 'id']) {
+    for (const key of ['generation_id', 'generationId', 'job_id', 'jobId']) {
       const value = record[key];
-      if (typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{5,255}$/u.test(value)) candidates.add(value);
+      if (typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{5,255}$/u.test(value)) explicitCandidates.add(value);
     }
     for (const key of ['ids', 'generation_ids', 'generationIds']) {
       const value = record[key];
       if (Array.isArray(value)) for (const id of value) {
-        if (typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{5,255}$/u.test(id)) candidates.add(id);
+        if (typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{5,255}$/u.test(id)) explicitCandidates.add(id);
       }
     }
+    const fallback = record.id;
+    if (typeof fallback === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{5,255}$/u.test(fallback)) fallbackCandidates.add(fallback);
   });
+  const candidates = explicitCandidates.size ? explicitCandidates : fallbackCandidates;
   if (candidates.size !== 1) {
     throw new Error(candidates.size
       ? 'Higgsfield returned multiple conflicting generation identifiers.'
@@ -122,7 +130,8 @@ export const normalizeHiggsfieldCompletion = (payload: unknown): HiggsfieldCompl
   });
   if (['failed', 'error'].includes(status)) return { state: 'failed', urls: [], ...(error ? { error } : {}) };
   if (['cancelled', 'canceled'].includes(status)) return { state: 'cancelled', urls: [] };
-  if (['completed', 'complete', 'succeeded', 'success'].includes(status) || urls.size) {
+  if (['completed', 'complete', 'succeeded', 'success', 'done', 'finished'].includes(status)
+    || (!status && urls.size)) {
     return { state: 'succeeded', urls: [...urls] };
   }
   return { state: 'running', urls: [] };

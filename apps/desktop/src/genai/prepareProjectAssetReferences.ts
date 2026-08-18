@@ -1,8 +1,9 @@
 import type { GenAiAssetId, GenAiAssetPayload } from '@lighttable/genai-core';
+import { createHash } from 'node:crypto';
 import type { ProjectAssetRemoteLink } from './projectAssetRemoteLinks';
 
 export interface PublishedProviderReference {
-  readonly url: string;
+  readonly url?: string;
   readonly mediaType: string;
   readonly expiresAt?: number;
   readonly providerAssetId?: string;
@@ -26,15 +27,24 @@ export const prepareProjectAssetReferences = async (
   ports: PrepareProjectAssetReferencesPorts
 ): Promise<readonly ProjectAssetRemoteLink[]> => {
   const requested = [...new Set(assetIds)];
-  let links = await ports.resolve(requested);
-  const available = new Set(links.map((link) => link.assetId));
+  const assets = new Map<GenAiAssetId, GenAiAssetPayload>();
   for (const assetId of requested) {
-    if (available.has(assetId)) continue;
     const asset = await ports.read(assetId);
     if (!asset) throw new Error('A selected visual reference no longer exists in this project.');
-    if (!asset.mediaType.startsWith('image/')) {
-      throw new Error(`${asset.name} is not a supported image reference.`);
-    }
+    if (!/^(image|video|audio)\//u.test(asset.mediaType)) throw new Error(`${asset.name} is not a supported media reference.`);
+    assets.set(assetId, asset);
+  }
+  let links = await ports.resolve(requested);
+  for (const assetId of requested) {
+    const asset = assets.get(assetId)!;
+    const sourceRevision = {
+      byteLength: asset.bytes.byteLength,
+      sha256: createHash('sha256').update(asset.bytes).digest('hex')
+    };
+    const reusable = links.find((link) => link.assetId === assetId
+      && link.sourceRevision?.byteLength === sourceRevision.byteLength
+      && link.sourceRevision?.sha256 === sourceRevision.sha256);
+    if (reusable) continue;
     let publication: PublishedProviderReference;
     try {
       publication = await ports.publish(asset);
@@ -45,16 +55,25 @@ export const prepareProjectAssetReferences = async (
     await ports.record({
       assetId,
       providerId,
-      url: publication.url,
+      ...(publication.url ? { url: publication.url } : {}),
+      ...(publication.providerAssetId ? { providerAssetId: publication.providerAssetId } : {}),
       mediaType: publication.mediaType,
+      sourceRevision,
       expiresAt: publication.expiresAt === undefined
         ? undefined
         : new Date(publication.expiresAt).toISOString()
     });
   }
   links = await ports.resolve(requested);
-  if (new Set(links.map((link) => link.assetId)).size !== requested.length) {
+  const valid = links.filter((link) => {
+    const asset = assets.get(link.assetId as GenAiAssetId);
+    if (!asset || !link.sourceRevision) return false;
+    return link.sourceRevision.byteLength === asset.bytes.byteLength
+      && link.sourceRevision.sha256 === createHash('sha256').update(asset.bytes).digest('hex');
+  });
+  if (new Set(valid.map((link) => link.assetId)).size !== requested.length) {
     throw new Error('One or more visual references could not be published securely.');
   }
-  return links;
+  const byId = new Map(valid.map((link) => [link.assetId, link]));
+  return requested.map((assetId) => byId.get(assetId)!).filter(Boolean);
 };

@@ -22,11 +22,14 @@ describe('Higgsfield generation normalization', () => {
 
   it('accepts only one unambiguous generation id', () => {
     expect(extractHiggsfieldGenerationId({ structuredContent: { results: [{ generation_id: 'job_123456' }] } })).toBe('job_123456');
+    expect(extractHiggsfieldGenerationId({ model: { id: 'seedance_2_0' }, generation_id: 'job_123456' })).toBe('job_123456');
     expect(() => extractHiggsfieldGenerationId({ ids: ['job_123456', 'job_654321'] })).toThrow(/multiple conflicting/u);
   });
 
   it('normalizes completion media without inventing a status endpoint', () => {
     expect(normalizeHiggsfieldCompletion({ status: 'completed', results: [{ resource_url: 'https://media.test/out.mp4' }] }))
       .toEqual({ state: 'succeeded', urls: ['https://media.test/out.mp4'] });
+    expect(normalizeHiggsfieldCompletion({ status: 'running', preview_url: 'https://media.test/preview.mp4' }))
+      .toEqual({ state: 'running', urls: [] });
   });
 });

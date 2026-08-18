@@ -72,7 +72,10 @@ import { DesktopOpenArtCredentialStore } from './genai/openArtCredentialStore';
 import { createLoopbackOAuthSession } from './genai/loopbackOAuthSession';
 import { OpenArtConnectionController } from './genai/openArtConnectionController';
 import { OpenArtCatalogStore } from './genai/openArtCatalogStore';
+import { DesktopHiggsfieldCredentialStore } from './genai/higgsfieldCredentialStore';
+import { HiggsfieldConnectionController } from './genai/higgsfieldConnectionController';
 import { GenAiProviderRegistry } from './genai/providerRegistry';
+import { GenerationRuntimeRegistry } from './genai/generationRuntimeRegistry';
 import { LocalAiConnectionController } from './genai/localAiConnectionController';
 import { LocalAiProcessManager } from './genai/localAiProcessManager';
 import { LocalAiGenerationController } from './genai/localAiGenerationController';
@@ -99,6 +102,7 @@ import {
   isGenerationTrackingTimeout
 } from './genai/generationTrackingPolicy';
 import { OPENART_PROVIDER_ID } from '@lighttable/genai-openart';
+import { HIGGSFIELD_PROVIDER_ID } from '@lighttable/genai-higgsfield';
 import { LOCAL_AI_PROVIDER_ID } from '@lighttable/genai-local';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -111,7 +115,9 @@ let pendingUpdate: { readonly manifest: SignedUpdateManifest; readonly filePath:
 let agentAccessBridge: AgentAccessBridge | null = null;
 let agentTunnel: AgentTunnelController | null = null;
 let openArtConnection: OpenArtConnectionController | null = null;
+let higgsfieldConnection: HiggsfieldConnectionController | null = null;
 let genAiProviderRegistry: GenAiProviderRegistry | null = null;
+let generationRuntimeRegistry: GenerationRuntimeRegistry | null = null;
 let localAiProcessManager: LocalAiProcessManager | null = null;
 let localAiConnection: LocalAiConnectionController | null = null;
 let localAiGeneration: LocalAiGenerationController | null = null;
@@ -625,6 +631,17 @@ void app.whenReady().then(async () => {
       openExternal: async (url) => { await shell.openExternal(url); }
     }
   });
+  higgsfieldConnection = new HiggsfieldConnectionController({
+    version: app.getVersion(),
+    store: new DesktopHiggsfieldCredentialStore(
+      path.join(app.getPath('userData'), 'genai', 'higgsfield-credentials.bin'),
+      credentialProtector
+    ),
+    host: {
+      createAuthorizationSession: (state) => createLoopbackOAuthSession(state, undefined, 'higgsfield'),
+      openExternal: async (url) => { await shell.openExternal(url); }
+    }
+  });
   localAiProcessManager = new LocalAiProcessManager({
     serviceEntryPath: app.isPackaged
       ? path.join(process.resourcesPath, 'local-ai-provider', 'src', 'cli.mjs')
@@ -657,11 +674,85 @@ void app.whenReady().then(async () => {
   });
   genAiProviderRegistry = new GenAiProviderRegistry();
   genAiProviderRegistry.register(openArtConnection);
+  genAiProviderRegistry.register(higgsfieldConnection);
+  generationRuntimeRegistry = new GenerationRuntimeRegistry();
   localAiConnection = new LocalAiConnectionController(localAiProcessManager);
   localAiGeneration = new LocalAiGenerationController(localAiConnection);
   genAiProviderRegistry.register(localAiConnection);
   httpAiConnections.set(localAiConnection.providerId, localAiConnection);
   httpAiGenerations.set(localAiConnection.providerId, localAiGeneration);
+  const registerLocalGenerationRuntime = (
+    providerId: import('@lighttable/genai-core').GenAiProviderId,
+    generation: LocalAiGenerationController
+  ) => generationRuntimeRegistry!.register({
+    providerId,
+    async prepare(request, context) {
+      return {
+        references: await Promise.all(request.references.map(async (reference) => {
+          const payload = await context.read(reference.id);
+          if (!payload) throw new Error(`The local AI reference "${reference.label}" is unavailable.`);
+          if (!payload.mediaType.startsWith('image/')) throw new Error(`Local AI cannot use "${reference.label}" as an image.`);
+          return { assetId: reference.id, mediaType: payload.mediaType, payload };
+        }))
+      };
+    },
+    async submit(jobId, request, prepared) {
+      const status = await generation.submit(request, prepared.references.map((item, index) => ({
+        reference: request.references[index]!, payload: item.payload!
+      })));
+      return { jobId, providerJobId: status.jobId, status: 'submitted' };
+    },
+    async wait(providerJobId, _request, signal) {
+      let status = await generation.status(providerJobId);
+      while (!['completed', 'cancelled', 'failed'].includes(status.status)) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 125);
+          signal.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+        });
+        status = await generation.status(providerJobId);
+      }
+      if (status.status === 'cancelled') throw new Error('Local AI generation was cancelled.');
+      if (status.status === 'failed') throw new Error(status.error?.message ?? 'Local AI generation failed.');
+      const complete = await generation.result(providerJobId);
+      return complete.images.map((image) => ({ mediaType: image.mediaType, bytes: image.bytes }));
+    }
+  });
+  generationRuntimeRegistry.register({
+    providerId: OPENART_PROVIDER_ID as import('@lighttable/genai-core').GenAiProviderId,
+    prepare: (request, context) => context.preparePublications(
+      OPENART_PROVIDER_ID as import('@lighttable/genai-core').GenAiProviderId,
+      request.references.map(({ id }) => id),
+      (asset) => openArtConnection!.uploadReference(asset)
+    ).then((references) => ({ references })),
+    submit: (jobId, request, prepared) => openArtConnection!.submitGeneration(request,
+      prepared.references.map((reference) => ({
+        assetId: reference.assetId, url: reference.url!, mediaType: reference.mediaType
+      })), jobId),
+    async wait(providerJobId, _request, signal) {
+      const output = await openArtConnection!.waitForGeneration(providerJobId, signal);
+      return [{ url: output.url, mediaType: output.mediaType }];
+    }
+  });
+  generationRuntimeRegistry.register({
+    providerId: HIGGSFIELD_PROVIDER_ID as import('@lighttable/genai-core').GenAiProviderId,
+    prepare: (request, context) => context.preparePublications(
+      HIGGSFIELD_PROVIDER_ID as import('@lighttable/genai-core').GenAiProviderId,
+      request.references.map(({ id }) => id),
+      (asset) => higgsfieldConnection!.uploadReference(asset)
+    ).then((references) => ({ references })),
+    submit: (jobId, request, prepared) => higgsfieldConnection!.submitGeneration(request,
+      prepared.references.map((reference) => ({
+        assetId: reference.assetId, providerAssetId: reference.providerAssetId,
+        url: reference.url, mediaType: reference.mediaType,
+        purpose: request.references.find(({ id }) => id === reference.assetId)?.purpose
+      })), jobId),
+    async wait(providerJobId, request, signal) {
+      const kind = request.kind === 'video' || request.workflowId.includes('video') ? 'video' : 'image';
+      const result = await higgsfieldConnection!.waitForGeneration(providerJobId, kind, signal);
+      return result.urls.map((url) => ({ url, mediaType: result.mediaType }));
+    }
+  });
+  registerLocalGenerationRuntime(localAiConnection.providerId, localAiGeneration);
   genAiProviderRegistry.subscribe((snapshot) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('lighttable:genai-provider-changed', snapshot);
@@ -676,6 +767,7 @@ void app.whenReady().then(async () => {
     }).catch(() => undefined);
   });
   void openArtConnection.restore();
+  void higgsfieldConnection.restore();
   const credentialStore = new DesktopAgentAccessCredentialStore(
     path.join(app.getPath('userData'), 'agent-access', 'credentials.bin'), credentialProtector
   );
@@ -762,6 +854,7 @@ void app.whenReady().then(async () => {
       if (desired.has(providerId)) continue;
       await connection.disconnect();
       genAiProviderRegistry.unregister(providerId as import('@lighttable/genai-core').GenAiProviderId);
+      generationRuntimeRegistry?.unregister(providerId as import('@lighttable/genai-core').GenAiProviderId);
       if (providerId !== LOCAL_AI_PROVIDER_ID) {
         httpAiConnections.delete(providerId);
         httpAiGenerations.delete(providerId);
@@ -776,11 +869,17 @@ void app.whenReady().then(async () => {
           { providerId: config.id as import('@lighttable/genai-core').GenAiProviderId, label: config.displayName }
         );
         httpAiConnections.set(config.id, connection);
-        httpAiGenerations.set(config.id, new LocalAiGenerationController(connection));
+        const generation = new LocalAiGenerationController(connection);
+        httpAiGenerations.set(config.id, generation);
         genAiProviderRegistry.register(connection);
+        registerLocalGenerationRuntime(connection.providerId, generation);
       }
       if (!genAiProviderRegistry.has(config.id as import('@lighttable/genai-core').GenAiProviderId)) {
         genAiProviderRegistry.register(connection);
+      }
+      const configuredGeneration = httpAiGenerations.get(config.id);
+      if (configuredGeneration && !generationRuntimeRegistry?.has(connection.providerId)) {
+        registerLocalGenerationRuntime(connection.providerId, configuredGeneration);
       }
       if (config.id === LOCAL_AI_PROVIDER_ID && config.localProcess?.autoStart) {
         // A managed provider owns a private dynamic port and token. Do not run it
@@ -873,6 +972,7 @@ void app.whenReady().then(async () => {
     );
   });
   const completingGenAiJobs = new Set<string>();
+  const submittingGenAiProjects = new Set<string>();
   const genAiJobAbortControllers = new Map<string, AbortController>();
   const publishGenAiJob = (
     projectId: string,
@@ -906,87 +1006,16 @@ void app.whenReady().then(async () => {
     timeout.unref();
     return timeout;
   };
-  const finishOpenArtGeneration = async (
-    manifestPath: string,
-    project: Awaited<ReturnType<typeof openProjectManifest>>,
-    jobId: import('@lighttable/genai-core').GenAiJobId,
-    providerJobId: string
-  ): Promise<void> => {
-    const completionKey = `${manifestPath}\0${jobId}`;
-    if (completingGenAiJobs.has(completionKey)) return;
-    const job = (await listProjectGenerationJobs(manifestPath)).find(({ id }) => id === jobId);
-    if (!job || await failTimedOutGenAiJob(manifestPath, project.summary.id, job)) return;
-    if (!openArtConnection || openArtConnection.snapshot().status !== 'connected') return;
-    completingGenAiJobs.add(completionKey);
-    const abortController = new AbortController();
-    genAiJobAbortControllers.set(completionKey, abortController);
-    const trackingTimeout = startGenAiTrackingDeadline(job, abortController);
-    try {
-      const remote = await openArtConnection.waitForGeneration(providerJobId, abortController.signal);
-      const response = await fetch(remote.url, { signal: abortController.signal });
-      if (!response.ok) throw new Error(`OpenArt output download failed (${response.status}).`);
-      const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLocaleLowerCase('en-US') ?? remote.mediaType;
-      if (!['image/png', 'image/jpeg', 'image/webp'].includes(contentType)) {
-        throw new Error(`OpenArt returned an unsupported output type (${contentType}).`);
-      }
-      const declaredLength = Number(response.headers.get('content-length') ?? 0);
-      if (declaredLength > 256 * 1024 * 1024) throw new Error('OpenArt output exceeds the 256 MiB safety limit.');
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      abortController.signal.throwIfAborted();
-      if (!bytes.length || bytes.byteLength > 256 * 1024 * 1024) throw new Error('OpenArt returned an invalid output file.');
-      const extension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/webp' ? 'webp' : 'png';
-      const safeProviderId = providerJobId.replace(/[^A-Za-z0-9_-]/gu, '-').slice(0, 96) || String(jobId);
-      const fileName = `OpenArt-${safeProviderId}.${extension}`;
-      const historyDirectory = resolveProjectStoragePath(project.summary.rootPath, project.manifest, 'aiHistory');
-      await mkdir(historyDirectory, { recursive: true });
-      const outputPath = path.join(historyDirectory, fileName);
-      await atomicWriteFile({ targetPath: outputPath, bytes });
-      await recordSavedProjectAsset({ manifestPath, filePath: outputPath });
-      const { index } = await readProjectAssetIndex(manifestPath);
-      const indexed = index.assets.find((asset) => asset.path.endsWith(`/History/${fileName}`) || asset.name === fileName);
-      if (!indexed) throw new Error('The generated image was saved but could not be indexed.');
-      await recordProjectAssetRemoteLink(manifestPath, {
-        assetId: indexed.id, providerId: OPENART_PROVIDER_ID,
-        providerJobId, url: remote.url, mediaType: contentType
-      });
-      const result = {
-        assetId: indexed.id as import('@lighttable/genai-core').GenAiAssetId,
-        mediaType: contentType,
-        fileName,
-        ...(indexed.thumbnail ? { previewId: indexed.id } : {})
-      };
-      abortController.signal.throwIfAborted();
-      const complete = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
-        ...job, status: 'succeeded', updatedAt: Date.now(), results: [result]
-      }));
-      publishGenAiJob(project.summary.id, complete);
-      mainWindow?.webContents.send('lighttable:genai-project-assets-changed', project.summary.id);
-    } catch (reason) {
-      if (abortController.signal.aborted && !isGenerationTrackingTimeout(abortController.signal.reason)) return;
-      const failure = isGenerationTrackingTimeout(abortController.signal.reason)
-        ? abortController.signal.reason : reason;
-      const failed = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
-        ...job, status: 'failed', updatedAt: Date.now(),
-        error: failure instanceof Error ? failure.message : String(failure)
-      }));
-      publishGenAiJob(project.summary.id, failed);
-    } finally {
-      clearTimeout(trackingTimeout);
-      if (genAiJobAbortControllers.get(completionKey) === abortController) {
-        genAiJobAbortControllers.delete(completionKey);
-      }
-      completingGenAiJobs.delete(completionKey);
-    }
-  };
-  const finishLocalAiGeneration = async (
+  const finishProviderGeneration = async (
     manifestPath: string,
     project: Awaited<ReturnType<typeof openProjectManifest>>,
     jobId: import('@lighttable/genai-core').GenAiJobId,
     providerJobId: string,
-    providerId: string
-  ) => {
-    const generation = httpAiGenerations.get(providerId);
-    if (!generation) throw new Error('The local AI generation controller is unavailable.');
+    providerId: import('@lighttable/genai-core').GenAiProviderId
+  ): Promise<void> => {
+    const runtime = generationRuntimeRegistry?.has(providerId)
+      ? generationRuntimeRegistry.runtime(providerId) : undefined;
+    if (!runtime) return;
     const completionKey = `${manifestPath}\0${jobId}`;
     if (completingGenAiJobs.has(completionKey)) return;
     const job = (await listProjectGenerationJobs(manifestPath)).find(({ id }) => id === jobId);
@@ -996,81 +1025,75 @@ void app.whenReady().then(async () => {
     genAiJobAbortControllers.set(completionKey, abortController);
     const trackingTimeout = startGenAiTrackingDeadline(job, abortController);
     try {
-      let status = await generation.status(providerJobId);
-      while (!['completed', 'cancelled', 'failed'].includes(status.status)) {
-        await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(resolve, 125);
-          abortController.signal.addEventListener('abort', () => {
-            clearTimeout(timer);
-            reject(abortController.signal.reason);
-          }, { once: true });
-        });
-        status = await generation.status(providerJobId);
-      }
-      if (status.status === 'cancelled') throw new Error('Local AI generation was cancelled.');
-      if (status.status === 'failed') throw new Error(status.error?.message ?? 'Local AI generation failed.');
-
-      const completed = await generation.result(providerJobId);
-      abortController.signal.throwIfAborted();
+      const outputs = await runtime.wait(providerJobId, job.request, abortController.signal);
+      if (!outputs.length) throw new Error('The provider completed without an output.');
       const historyDirectory = resolveProjectStoragePath(project.summary.rootPath, project.manifest, 'aiHistory');
       await mkdir(historyDirectory, { recursive: true });
-      const safeProviderId = providerJobId.replace(/[^A-Za-z0-9_-]/gu, '-').slice(0, 96) || String(jobId);
+      const safeProviderJobId = providerJobId.replace(/[^A-Za-z0-9_-]/gu, '-').slice(0, 96) || String(jobId);
+      const providerLabel = providerId === HIGGSFIELD_PROVIDER_ID ? 'Higgsfield'
+        : providerId === OPENART_PROVIDER_ID ? 'OpenArt' : 'LocalAI';
       const results: import('@lighttable/genai-core').GenAiGenerationResult[] = [];
-      for (const [index, image] of completed.images.entries()) {
+      for (const [index, output] of outputs.entries()) {
         abortController.signal.throwIfAborted();
-        if (!image.bytes.length || image.bytes.byteLength > 256 * 1024 * 1024) {
-          throw new Error('Local AI returned an invalid output file.');
+        let mediaType = output.mediaType.split(';')[0]!.trim().toLocaleLowerCase('en-US');
+        let bytes = output.bytes;
+        if (!bytes && output.url) {
+          if (!/^https:\/\//iu.test(output.url)) throw new Error('The provider returned an unsafe output URL.');
+          const response = await fetch(output.url, { signal: abortController.signal });
+          if (!response.ok) throw new Error(`${providerLabel} output download failed (${response.status}).`);
+          const responseMediaType = response.headers.get('content-type')?.split(';')[0]?.trim().toLocaleLowerCase('en-US');
+          if (responseMediaType && /^(image\/(png|jpeg|webp)|video\/(mp4|webm))$/u.test(responseMediaType)) {
+            mediaType = responseMediaType;
+          }
+          const declaredLength = Number(response.headers.get('content-length') ?? 0);
+          if (declaredLength > 512 * 1024 * 1024) throw new Error(`${providerLabel} output exceeds the 512 MiB safety limit.`);
+          bytes = new Uint8Array(await response.arrayBuffer());
         }
-        const extension = image.mediaType === 'image/jpeg' ? 'jpg'
-          : image.mediaType === 'image/webp' ? 'webp' : 'png';
-        const suffix = completed.images.length > 1 ? `-${index + 1}` : '';
-        const fileName = `LocalAI-${safeProviderId}${suffix}.${extension}`;
+        if (!bytes?.length || bytes.byteLength > 512 * 1024 * 1024) throw new Error(`${providerLabel} returned an invalid output file.`);
+        const extension = mediaType === 'image/jpeg' ? 'jpg' : mediaType === 'image/webp' ? 'webp'
+          : mediaType === 'video/webm' ? 'webm' : mediaType.startsWith('video/') ? 'mp4' : 'png';
+        const signatureOk = extension === 'png' ? bytes[0] === 0x89 && bytes[1] === 0x50
+          : extension === 'jpg' ? bytes[0] === 0xff && bytes[1] === 0xd8
+            : extension === 'webp' ? String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF'
+              && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
+              : extension === 'webm' ? bytes[0] === 0x1a && bytes[1] === 0x45
+                : bytes.byteLength >= 12 && String.fromCharCode(...bytes.slice(4, 8)) === 'ftyp';
+        if (!signatureOk) throw new Error(`${providerLabel} output signature does not match ${mediaType}.`);
+        const suffix = outputs.length > 1 ? `-${index + 1}` : '';
+        const fileName = `${providerLabel}-${safeProviderJobId}${suffix}.${extension}`;
         const outputPath = path.join(historyDirectory, fileName);
-        await atomicWriteFile({ targetPath: outputPath, bytes: image.bytes });
+        await atomicWriteFile({ targetPath: outputPath, bytes });
         await recordSavedProjectAsset({ manifestPath, filePath: outputPath });
         const { index: assetIndex } = await readProjectAssetIndex(manifestPath);
         const indexed = assetIndex.assets.find((asset) => asset.path.endsWith(`/History/${fileName}`) || asset.name === fileName);
-        if (!indexed) throw new Error('The local AI image was saved but could not be indexed.');
+        if (!indexed) throw new Error('The generated media was saved but could not be indexed.');
+        if (output.url) await recordProjectAssetRemoteLink(manifestPath, {
+          assetId: indexed.id, providerId, providerJobId, url: output.url, mediaType
+        });
         results.push({
           assetId: indexed.id as import('@lighttable/genai-core').GenAiAssetId,
-          mediaType: image.mediaType,
-          fileName,
-          ...(indexed.thumbnail ? { previewId: indexed.id } : {})
+          mediaType, fileName, ...(indexed.thumbnail ? { previewId: indexed.id } : {})
         });
       }
-      abortController.signal.throwIfAborted();
-      const saved = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
-        ...job, status: 'succeeded', updatedAt: Date.now(), results
+      const saved = await updateProjectGenerationJob(manifestPath, jobId, (current) => ({
+        ...current, status: 'succeeded', updatedAt: Date.now(), results
       }));
       publishGenAiJob(project.summary.id, saved);
       mainWindow?.webContents.send('lighttable:genai-project-assets-changed', project.summary.id);
     } catch (reason) {
       if (abortController.signal.aborted && !isGenerationTrackingTimeout(abortController.signal.reason)) return;
-      const failure = isGenerationTrackingTimeout(abortController.signal.reason)
-        ? abortController.signal.reason : reason;
-      const failed = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
-        ...job, status: 'failed', updatedAt: Date.now(),
+      const failure = isGenerationTrackingTimeout(abortController.signal.reason) ? abortController.signal.reason : reason;
+      const failed = await updateProjectGenerationJob(manifestPath, jobId, (current) => ({
+        ...current, status: 'failed', updatedAt: Date.now(),
         error: failure instanceof Error ? failure.message : String(failure)
       }));
       publishGenAiJob(project.summary.id, failed);
     } finally {
       clearTimeout(trackingTimeout);
-      if (genAiJobAbortControllers.get(completionKey) === abortController) {
-        genAiJobAbortControllers.delete(completionKey);
-      }
+      if (genAiJobAbortControllers.get(completionKey) === abortController) genAiJobAbortControllers.delete(completionKey);
       completingGenAiJobs.delete(completionKey);
     }
   };
-  const resolveLocalAiInputs = async (
-    manifestPath: string,
-    request: import('@lighttable/genai-core').GenAiGenerationRequest
-  ) => Promise.all(request.references.map(async (reference) => {
-    const asset = await readProjectAsset(manifestPath, reference.id);
-    if (!asset) throw new Error(`The local AI reference "${reference.label}" is unavailable.`);
-    const mediaType = desktopMediaTypeForFileName(asset.name);
-    if (!mediaType?.startsWith('image/')) throw new Error(`Local AI cannot use "${reference.label}" as an image.`);
-    return { reference, payload: { ...asset, mediaType } };
-  }));
   ipcMain.handle('lighttable:genai-generation-submit', async (
     event,
     projectId: unknown,
@@ -1082,6 +1105,9 @@ void app.whenReady().then(async () => {
     }
     const project = await openProjectManifest(activeProjectManifestPath);
     if (project.summary.id !== projectId) throw new Error('The requested GenAI project is not active.');
+    if (submittingGenAiProjects.has(projectId)) throw new Error('A generation is already being submitted for this project.');
+    submittingGenAiProjects.add(projectId);
+    try {
     const generationRequest = request as import('@lighttable/genai-core').GenAiGenerationRequest;
     const manifestPath = activeProjectManifestPath;
     const now = Date.now();
@@ -1089,59 +1115,91 @@ void app.whenReady().then(async () => {
     await upsertProjectGenerationJob(manifestPath, {
       id: jobId,
       request: generationRequest,
-      status: 'submitting',
+      status: 'queued',
       createdAt: now,
       updatedAt: now,
       results: []
     });
-    let submission: import('@lighttable/genai-core').GenAiGenerationSubmission;
+    const runtime = generationRuntimeRegistry?.has(generationRequest.providerId)
+      ? generationRuntimeRegistry.runtime(generationRequest.providerId) : undefined;
+    if (!runtime) {
+      const failed = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
+        ...job, status: 'failed', updatedAt: Date.now(),
+        error: `Unsupported GenAI provider: ${generationRequest.providerId}.`
+      }));
+      publishGenAiJob(project.summary.id, failed);
+      throw new Error(`Unsupported GenAI provider: ${generationRequest.providerId}.`);
+    }
+    const preparationContext: import('./genai/generationRuntimeRegistry').GenerationPreparationContext = {
+      read: async (assetId) => {
+        const asset = await readProjectAsset(manifestPath, assetId);
+        if (!asset) return null;
+        return { ...asset, mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream' };
+      },
+      preparePublications: async (preparedProviderId, assetIds, publish) => (await prepareProjectAssetReferences(
+        assetIds, preparedProviderId, {
+          resolve: (ids) => resolveProjectAssetRemoteLinks(manifestPath, ids, preparedProviderId),
+          read: async (assetId) => {
+            const asset = await readProjectAsset(manifestPath, assetId);
+            if (!asset) return null;
+            return { ...asset, mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream' };
+          },
+          publish,
+          record: (link) => recordProjectAssetRemoteLink(manifestPath, link)
+        }
+      )).map((link) => ({
+        assetId: link.assetId as import('@lighttable/genai-core').GenAiAssetId,
+        url: link.url,
+        providerAssetId: link.providerAssetId,
+        mediaType: link.mediaType
+      }))
+    };
+    let prepared: import('./genai/generationRuntimeRegistry').PreparedGeneration;
     try {
-      if (generationRequest.providerId === OPENART_PROVIDER_ID) {
-        if (!openArtConnection) throw new Error('OpenArt is unavailable.');
-        const remoteReferences = await prepareProjectAssetReferences(
-          generationRequest.references.map((reference) => reference.id), OPENART_PROVIDER_ID, {
-            resolve: (assetIds) => resolveProjectAssetRemoteLinks(manifestPath, assetIds, OPENART_PROVIDER_ID),
-            read: async (assetId) => {
-              const asset = await readProjectAsset(manifestPath, assetId);
-              if (!asset) return null;
-              return { ...asset, mediaType: desktopMediaTypeForFileName(asset.name) ?? 'application/octet-stream' };
-            },
-            publish: (asset) => openArtConnection!.uploadReference(asset),
-            record: (link) => recordProjectAssetRemoteLink(manifestPath, link)
-          }
-        );
-        submission = await openArtConnection.submitGeneration(generationRequest, remoteReferences.map((link) => ({
-          assetId: link.assetId, url: link.url, mediaType: link.mediaType
-        })), jobId);
-      } else if (httpAiGenerations.has(generationRequest.providerId)) {
-        const generation = httpAiGenerations.get(generationRequest.providerId)!;
-        const localStatus = await generation.submit(
-          generationRequest,
-          await resolveLocalAiInputs(manifestPath, generationRequest)
-        );
-        submission = { jobId, providerJobId: localStatus.jobId, status: 'submitted' };
-      } else {
-        throw new Error(`Unsupported GenAI provider: ${generationRequest.providerId}.`);
-      }
+      const preparing = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
+        ...job, status: 'preparing-inputs', updatedAt: Date.now()
+      }));
+      publishGenAiJob(project.summary.id, preparing);
+      prepared = await runtime.prepare(generationRequest, preparationContext);
+      const ready = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
+        ...job, status: 'ready-to-submit', updatedAt: Date.now()
+      }));
+      publishGenAiJob(project.summary.id, ready);
     } catch (reason) {
       const failed = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
-        ...job, status: 'unknown-submit', updatedAt: Date.now(),
+        ...job, status: 'failed', updatedAt: Date.now(),
         error: reason instanceof Error ? reason.message : String(reason)
       }));
       publishGenAiJob(project.summary.id, failed);
+      submittingGenAiProjects.delete(projectId);
+      throw reason;
+    }
+    let submission: import('@lighttable/genai-core').GenAiGenerationSubmission;
+    try {
+      const submitting = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
+        ...job, status: 'submitting', updatedAt: Date.now()
+      }));
+      publishGenAiJob(project.summary.id, submitting);
+      submission = await runtime.submit(jobId, generationRequest, prepared);
+    } catch (reason) {
+      const ambiguous = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
+        ...job, status: 'unknown-submit', updatedAt: Date.now(),
+        error: reason instanceof Error ? reason.message : String(reason)
+      }));
+      publishGenAiJob(project.summary.id, ambiguous);
+      submittingGenAiProjects.delete(projectId);
       throw reason;
     }
     const running = await updateProjectGenerationJob(manifestPath, jobId, (job) => ({
       ...job, status: 'running', providerJobId: submission.providerJobId, updatedAt: Date.now()
     }));
     publishGenAiJob(project.summary.id, running);
-    if (httpAiGenerations.has(generationRequest.providerId)) {
-      void finishLocalAiGeneration(manifestPath, project, jobId, submission.providerJobId,
-        generationRequest.providerId);
-    } else {
-      void finishOpenArtGeneration(manifestPath, project, jobId, submission.providerJobId);
-    }
+    submittingGenAiProjects.delete(projectId);
+    void finishProviderGeneration(manifestPath, project, jobId, submission.providerJobId, generationRequest.providerId);
     return submission;
+    } finally {
+      submittingGenAiProjects.delete(projectId);
+    }
   });
   ipcMain.handle('lighttable:genai-jobs-list', async (event, projectId: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
@@ -1153,12 +1211,7 @@ void app.whenReady().then(async () => {
       if (await failTimedOutGenAiJob(activeProjectManifestPath, project.summary.id, job)) continue;
       const recovery = generationRecoveryAction(job);
       if (recovery === 'resume-known-job' && job.providerJobId) {
-        if (httpAiGenerations.has(job.request.providerId)) {
-          void finishLocalAiGeneration(activeProjectManifestPath, project, job.id, job.providerJobId,
-            job.request.providerId);
-        } else {
-          void finishOpenArtGeneration(activeProjectManifestPath, project, job.id, job.providerJobId);
-        }
+        void finishProviderGeneration(activeProjectManifestPath, project, job.id, job.providerJobId, job.request.providerId);
       } else if (recovery === 'mark-ambiguous-submit') {
         const ambiguous = await updateProjectGenerationJob(activeProjectManifestPath, job.id, (current) => ({
           ...current,
@@ -1167,6 +1220,14 @@ void app.whenReady().then(async () => {
           error: 'LightTable restarted before the provider job identifier was stored. This job will not be retried automatically.'
         }));
         publishGenAiJob(project.summary.id, ambiguous);
+      } else if (recovery === 'mark-interrupted-preparation') {
+        const interrupted = await updateProjectGenerationJob(activeProjectManifestPath, job.id, (current) => ({
+          ...current,
+          status: 'failed',
+          updatedAt: Date.now(),
+          error: 'LightTable restarted before this job reached the paid submit boundary. Start it again when ready.'
+        }));
+        publishGenAiJob(project.summary.id, interrupted);
       }
     }
     jobs = await listProjectGenerationJobs(activeProjectManifestPath);
@@ -1206,12 +1267,7 @@ void app.whenReady().then(async () => {
       ...job, status: 'running', updatedAt: Date.now(), error: undefined
     }));
     publishGenAiJob(project.summary.id, running);
-    if (httpAiGenerations.has(current.request.providerId)) {
-      void finishLocalAiGeneration(manifestPath, project, running.id, current.providerJobId,
-        current.request.providerId);
-    } else {
-      void finishOpenArtGeneration(manifestPath, project, running.id, current.providerJobId);
-    }
+    void finishProviderGeneration(manifestPath, project, running.id, current.providerJobId, current.request.providerId);
     return running;
   });
   const genAiResultPath = async (projectId: unknown, jobId: unknown) => {
@@ -1378,10 +1434,11 @@ void app.whenReady().then(async () => {
       throw new Error('Invalid project asset import.');
     }
     const extensionByMediaType: Readonly<Record<string, string>> = {
-      'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/tiff': '.tiff'
+      'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/tiff': '.tiff',
+      'video/mp4': '.mp4', 'video/webm': '.webm'
     };
     const extension = extensionByMediaType[asset.mediaType.toLocaleLowerCase('en-US')];
-    if (!extension) throw new Error('Only PNG, JPEG, WebP and TIFF references are supported.');
+    if (!extension) throw new Error('Only PNG, JPEG, WebP, TIFF, MP4 and WebM references are supported.');
     const rawBase = path.basename(asset.name, path.extname(asset.name)).trim()
       .replace(/[<>:"/\\|?*\u0000-\u001f]/gu, '-').replace(/[. ]+$/gu, '').slice(0, 120) || 'reference';
     const { manifest, summary } = await openProjectManifest(manifestPath);

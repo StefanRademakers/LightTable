@@ -16,6 +16,12 @@ describe('Higgsfield discovery', () => {
       ]));
   });
 
+  it('accepts a single model payload from the native discovery facade', () => {
+    expect(normalizeHiggsfieldModels(video)).toEqual([
+      expect.objectContaining({ id: 'seedance_2_0', capabilities: ['text2video', 'frames2video'] })
+    ]);
+  });
+
   it('maps video parameters, ratios and references without provider terms in shared roles', () => {
     const workflow = normalizeHiggsfieldWorkflow(video, 'seedance_2_0', 'frames2video');
     expect(workflow.fields).toEqual(expect.arrayContaining([
@@ -25,5 +31,7 @@ describe('Higgsfield discovery', () => {
       expect.objectContaining({ key: 'aspect_ratio', role: 'aspect-ratio' }),
       expect.objectContaining({ key: 'references', role: 'references' })
     ]));
+    expect(workflow.fields.find(({ role }) => role === 'references')?.sourceSchema)
+      .toMatchObject({ minItems: 1, maxItems: 2 });
   });
 });

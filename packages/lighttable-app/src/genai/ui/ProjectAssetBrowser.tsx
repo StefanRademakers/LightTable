@@ -145,8 +145,12 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
     {layout.items.map((item) => {
       const tile = byKey.get(item.key)!;
       if (tile.kind === 'pending') {
-        const state = tile.job.status === 'queued' || tile.job.status === 'submitting'
-          ? 'Queued' : tile.job.status === 'succeeded' ? 'Finalizing' : 'Running';
+        const state = tile.job.status === 'queued' ? 'Queued'
+          : tile.job.status === 'preparing-inputs' ? 'Preparing media'
+            : tile.job.status === 'ready-to-submit' ? 'Ready'
+              : tile.job.status === 'submitting' ? 'Submitting'
+                : tile.job.status === 'unknown-submit' ? 'Needs review'
+                  : tile.job.status === 'succeeded' ? 'Finalizing' : 'Running';
         return <article key={tile.key} className="genai-history__card" style={{
           transform: `translate(${item.x}px, ${item.y}px)`, width: item.width, height: item.height + FOOTER
         }} onContextMenu={(event) => onJobContextMenu(event, tile.job)}>
@@ -163,7 +167,8 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
       return <article key={asset.id} className="genai-history__card" draggable style={{
         transform: `translate(${item.x}px, ${item.y}px)`, width: item.width, height: item.height + FOOTER
       }} onDragStart={(event) => writeProjectAssetDrag(event.dataTransfer, asset.id, asset.label)}
-        onDoubleClick={() => onOpen?.(asset)} onContextMenu={(event) => onContextMenu(event, asset)}>
+        onDoubleClick={() => { if (!asset.mediaType.startsWith('video/')) onOpen?.(asset); }}
+        onContextMenu={(event) => onContextMenu(event, asset)}>
         <div className="genai-history__preview" style={{ height: item.height }}>
           {preview ? <img className="genai-history__thumbnail" src={preview} alt="" draggable={false} onLoad={(event) => {
             const image = event.currentTarget;

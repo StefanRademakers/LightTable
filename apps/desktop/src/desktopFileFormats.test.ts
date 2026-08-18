@@ -13,6 +13,8 @@ describe('desktop file formats', () => {
 
   it('preserves the PDF media type across the desktop bridge', () => {
     expect(desktopMediaTypeForFileName('FormulierPersoneel.PDF')).toBe('application/pdf');
+    expect(desktopMediaTypeForFileName('generated-video.MP4')).toBe('video/mp4');
+    expect(desktopMediaTypeForFileName('generated-video.webm')).toBe('video/webm');
     expect(desktopMediaTypeForFileName('unknown.bin')).toBe('');
   });
 });

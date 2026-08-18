@@ -5,6 +5,7 @@ import process from 'node:process';
 const roots = [
   'packages/genai-core/src',
   'packages/genai-openart/src',
+  'packages/genai-higgsfield/src',
   'packages/text-core/src',
   'packages/pdf-core/src',
   'packages/vector-core/src',
@@ -55,6 +56,18 @@ function verifyGenAiOpenArtBoundary(relativePath, source) {
     }
   }
 }
+
+function verifyGenAiHiggsfieldBoundary(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.startsWith('packages/genai-higgsfield/src/')) return;
+  const forbiddenDependencies = [
+    'react', 'react-dom', 'electron', 'document.', 'window.', 'navigator.',
+    'node:fs', '@lighttable/app', '@lighttable/desktop'
+  ];
+  for (const token of forbiddenDependencies) {
+    if (source.includes(token)) failures.push(`${relativePath}: genai-higgsfield must not depend on ${token}`);
+  }
+}
 const rendererFacadePath =
   'packages/lighttable-app/src/lighttable/editor/rendering/LayerDocumentRenderer.ts';
 const rendererFacadeImports = new Set([
@@ -72,6 +85,7 @@ const rendererFacadeImports = new Set([
   '../tools/transform/transformTypes',
   '../tools/transform/affine',
   '../../text/rendering/TextLayerRenderCoordinator',
+  '../../application/documentGeometry/documentGeometryModel',
   './LayerThumbnailService',
   './RasterDocumentOperations',
   './createLayerDocumentRendererRuntime',
@@ -199,6 +213,7 @@ async function scan(relativeDirectory) {
     verifyRendererFacadeImports(relativePath, source);
     verifyGenAiCoreBoundary(relativePath, source);
     verifyGenAiOpenArtBoundary(relativePath, source);
+    verifyGenAiHiggsfieldBoundary(relativePath, source);
     verifyTextCoreBoundary(relativePath, source);
     verifyPdfCoreBoundary(relativePath, source);
     verifyVectorCoreBoundary(relativePath, source);

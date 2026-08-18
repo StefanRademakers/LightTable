@@ -170,6 +170,8 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
   const hasFeaturedSettings = Boolean(aspectField || resolutionField || qualityField);
   const referenceField = workflow?.fields.find(({ role }) => role === 'references');
   const referenceKey = referenceField?.key ?? 'visualReferences';
+  const referenceLimit = typeof referenceField?.sourceSchema.maxItems === 'number'
+    ? referenceField.sourceSchema.maxItems : 10;
   const selectedReferences = Array.isArray(values[referenceKey])
     ? values[referenceKey] as GenAiAssetReference[] : [];
   const referencePublicationError = isReferencePublicationError(generationError) ? generationError : undefined;
@@ -180,7 +182,14 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
   }));
   const countKey = countField?.key ?? 'imageCount';
   const count = Number(values[countKey] ?? countField?.defaultValue ?? 1);
-  const mode = (selectedMode ?? workflow?.mode) === 'image2image' ? 'image2image' : 'text2image';
+  const mode = selectedMode ?? workflow?.mode ?? 'text2image';
+  const videoMode = mode.includes('video');
+  const modeLabels: Readonly<Record<string, string>> = {
+    text2image: 'Image Create', image2image: 'Image Edit',
+    text2video: 'Video Create', references2video: 'References', frames2video: 'Frames'
+  };
+  const modeOptions = (model?.capabilities ?? []).filter((capability) => modeLabels[capability])
+    .map((value) => ({ value, label: modeLabels[value]! }));
   const [referenceDragActive, setReferenceDragActive] = React.useState(false);
   const referenceHover = React.useRef(false);
   const [referencePreview, setReferencePreview] = React.useState<{
@@ -247,18 +256,15 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
     </div></div> : loading && !workflow ? <div className="lighttable-panel__empty">Loading image model…</div>
       : workflow || setupError ? <form className="genai-panel__form" onSubmit={(event) => { event.preventDefault(); onGenerate?.(); }}>
           <div className="genai-panel__body">
-            <SegmentedControl className="genai-panel__mode-switch" ariaLabel="Image generation mode"
-              value={mode} onChange={onModeChange ?? (() => undefined)} options={[
-                { value: 'image2image', label: 'Image Edit', disabled: !model?.capabilities.includes('image2image') },
-                { value: 'text2image', label: 'Image Create', disabled: !model?.capabilities.includes('text2image') }
-              ]} />
+            <SegmentedControl className="genai-panel__mode-switch" ariaLabel="Generation mode"
+              value={mode} onChange={onModeChange ?? (() => undefined)} options={modeOptions} />
             <FormSelect className="genai-panel__workflow" value={selectedModelId ?? workflow?.modelId ?? ''}
               aria-label="Generation model" onChange={(event) => onModelChange?.(event.currentTarget.value as GenAiModelSummary['id'])}>
               {models.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}
             </FormSelect>
             {setupError ? <p className="genai-panel__error" role="alert">{setupError}</p> : null}
             <section className={`genai-panel__reference-well${referenceDragActive ? ' is-drag-target' : ''}`}
-              aria-label="Visual references"
+              aria-label={videoMode ? 'Media references' : 'Visual references'}
               onPointerEnter={() => { referenceHover.current = true; }}
               onPointerLeave={() => { referenceHover.current = false; }}
               onDragEnter={(event) => {
@@ -289,7 +295,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                   if (option) insertReference(option);
                 } else if (documentId) void onImportDocumentReference?.(documentId);
               }}>
-              <header><strong>▧ &nbsp; Visual references</strong><span>{references.length}/10</span></header>
+              <header><strong>▧ &nbsp; {mode === 'frames2video' ? 'Frames' : 'References'}</strong><span>{references.length}/{referenceLimit}</span></header>
               {references.length ? <div className="genai-panel__reference-items">{references.map(({ token, asset }) => {
                 return <div className="genai-panel__reference-item" key={asset.id}
                   onPointerEnter={(event) => {
@@ -326,13 +332,16 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
                 {referencePublicationError}
               </p> : null}
             </section>
-            <label className="genai-panel__base-image">
+            {!videoMode ? <label className="genai-panel__base-image">
               <input type="checkbox" checked={baseImageSelected}
                 onChange={(event) => onBaseImageSelectedChange?.(event.currentTarget.checked)} />
               <span>Add base image</span>
-            </label>
+            </label> : null}
             <GenAiPromptComposer value={prompt} onChange={updatePrompt}
-              mentions={mentionOptions} previews={assetPreviews} requestPreview={onRequestAssetPreview} />
+              mentions={mentionOptions} previews={assetPreviews} requestPreview={onRequestAssetPreview}
+              placeholder={videoMode
+                ? 'Describe the video. Type @ to reference a project asset.'
+                : 'Describe the image. Type @ to reference a project asset.'} />
             {basicFields.length ? <section className="genai-panel__settings" aria-label="Generation settings">
               {basicFields.map((field) => <label className="genai-panel__field" key={field.key}><span>{field.label}</span>
                 <FieldControl field={field} value={values[field.key]} update={(value) => onFieldChange?.(field.key, value)} />
@@ -351,7 +360,7 @@ export const GenAiPanel = (props: GenAiPanelProps) => {
             {submission ? <div className="genai-panel__result" role="status">
               {submission.result && assetPreviews[submission.result.assetId]
                 ? <img src={assetPreviews[submission.result.assetId]} alt="Generated result" /> : null}
-              <span>{submission.status === 'succeeded' ? `Saved · ${submission.result?.fileName ?? 'AiRenders/History'}` : `OpenArt job · ${submission.providerJobId}`}</span>
+              <span>{submission.status === 'succeeded' ? `Saved · ${submission.result?.fileName ?? 'AiRenders/History'}` : `${providerName} job · ${submission.providerJobId}`}</span>
             </div> : null}
           </div>
           {hasFeaturedSettings ? <div className="genai-panel__featured-settings">

@@ -117,13 +117,13 @@ export const useGenAiSetupController = (
     let current = true;
     setLoading(true); setError(undefined);
     void service.listModels(provider.id).then((nextModels) => {
-      const enabledModels = nextModels.filter(({ capabilities }) =>
-        capabilities.some((mode) => mode === 'text2image' || mode === 'image2image')
-      );
+      const enabledModels = nextModels.filter(({ capabilities }) => capabilities.some((mode) =>
+        ['text2image', 'image2image', 'text2video', 'references2video', 'frames2video'].includes(mode)
+      ));
       const model = enabledModels.find(({ id }) => id === persistedSetup?.modelId)
         ?? enabledModels.find(({ id }) => id === DEFAULT_IMAGE_MODEL_ID)
         ?? enabledModels[0];
-      if (!model) throw new Error(`${provider.label} exposes no supported image model.`);
+      if (!model) throw new Error(`${provider.label} exposes no supported image or video model.`);
       const mode = persistedSetup?.modelId === model.id && model.capabilities.includes(persistedSetup.mode)
         ? persistedSetup.mode
         : model.capabilities.includes('text2image') ? 'text2image' : model.capabilities[0];
@@ -291,7 +291,7 @@ export const useGenAiSetupController = (
   }, [mentionOptions, workflow]);
   const importAssetReference = React.useCallback(async (file: File) => {
     if (!service) {
-      setGenerationError('Local reference images are unavailable in this host.');
+      setGenerationError('Local media references are unavailable in this host.');
       return undefined;
     }
     try {
@@ -404,12 +404,22 @@ export const useGenAiSetupController = (
       const outputSize = outputValue('output-size');
       const quality = outputValue('quality');
       const outputCount = outputValue('output-count');
+      const video = workflow.mode.includes('video');
+      const references = resolvedMentions.references.map((reference, index) => ({
+        ...reference,
+        refUid: reference.refUid ?? `${reference.id}:${workflow.mode}:${index}`,
+        purpose: workflow.mode === 'frames2video'
+          ? index === 0 ? 'first_frame' as const : 'last_frame' as const
+          : workflow.mode === 'references2video' ? 'visual_reference' as const : reference.purpose
+      }));
       const next = await service.submitGeneration(projectId, {
         providerId: provider.id,
         modelId: selectedModelId,
         workflowId: workflow.id,
         prompt,
         providerPrompt: resolvedMentions.providerPrompt,
+        kind: video ? 'video' : 'image',
+        operation: video ? 'video.create' : workflow.mode === 'image2image' ? 'image.edit' : 'image.create',
         promptBindings: resolvedMentions.bindings,
         output: {
           ...(typeof aspectRatio === 'string' ? { aspectRatio } : {}),
@@ -418,7 +428,7 @@ export const useGenAiSetupController = (
           ...(typeof outputCount === 'number' ? { count: outputCount } : {})
         },
         fields: values,
-        references: resolvedMentions.references
+        references
       });
       setSubmission(next);
       if (next.result) {

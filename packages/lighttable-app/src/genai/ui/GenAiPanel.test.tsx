@@ -56,6 +56,27 @@ describe('GenAiPanel visual references', () => {
     });
   }
 
+  it('renders provider-discovered video modes with the shared controls and no image-only base option', () => {
+    const videoModel = {
+      ...model, id: 'seedance_2_0' as GenAiModelId, providerId: 'higgsfield' as GenAiProviderId,
+      label: 'Seedance 2.0', capabilities: ['text2video', 'frames2video', 'references2video']
+    };
+    const videoWorkflow = {
+      ...workflow('frames2video'), id: 'higgsfield:seedance_2_0:frames2video' as GenAiWorkflowId,
+      providerId: videoModel.providerId, modelId: videoModel.id,
+      fields: workflow('frames2video').fields.map((field) => field.role === 'references'
+        ? { ...field, sourceSchema: { type: 'array', minItems: 1, maxItems: 2 } } : field)
+    };
+    const markup = renderToStaticMarkup(<GenAiPanel providerName="Higgsfield" status="connected"
+      projectName="Project" models={[videoModel]} workflow={videoWorkflow} selectedModelId={videoModel.id}
+      selectedMode="frames2video" values={{ prompt: 'Animate', visualReferences: [asset] }} />);
+    expect(markup).toContain('aria-label="Generation mode"');
+    expect(markup).toContain('Video Create');
+    expect(markup).toContain('Frames');
+    expect(markup).toContain('1/2');
+    expect(markup).not.toContain('Add base image');
+  });
+
   it('keeps the current form visible during a background workflow refresh', () => {
     const markup = renderToStaticMarkup(<GenAiPanel providerName="OpenArt" status="connected"
       projectName="Project" models={[model]} workflow={workflow('text2image')} selectedModelId={modelId}

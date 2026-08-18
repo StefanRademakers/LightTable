@@ -10,6 +10,15 @@ describe('createLoopbackOAuthSession', () => {
     await session.close();
   });
 
+  it('uses a provider-specific callback path without changing state validation', async () => {
+    const session = await createLoopbackOAuthSession('expected', 2_000, 'higgsfield');
+    expect(session.redirectUrl).toContain('/oauth/higgsfield/callback');
+    const response = await fetch(`${session.redirectUrl}?code=abc&state=expected`);
+    expect(response.status).toBe(200);
+    expect((await session.callback).get('code')).toBe('abc');
+    await session.close();
+  });
+
   it('rejects a mismatched callback state', async () => {
     const session = await createLoopbackOAuthSession('expected', 2_000);
     const callback = session.callback.catch((reason: Error) => reason.message);

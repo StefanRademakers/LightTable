@@ -1,7 +1,9 @@
 import { createServer, type Server } from 'node:http';
-import type { OpenArtAuthorizationSession } from '@lighttable/genai-openart';
-
-const CALLBACK_PATH = '/oauth/openart/callback';
+interface LoopbackAuthorizationSession {
+  readonly redirectUrl: string;
+  readonly callback: Promise<URLSearchParams>;
+  close(): Promise<void> | void;
+}
 const DEFAULT_TIMEOUT_MS = 120_000;
 
 const closeServer = (server: Server): Promise<void> => new Promise((resolve) => {
@@ -14,8 +16,11 @@ const closeServer = (server: Server): Promise<void> => new Promise((resolve) => 
 
 export const createLoopbackOAuthSession = async (
   expectedState: string,
-  timeoutMs = DEFAULT_TIMEOUT_MS
-): Promise<OpenArtAuthorizationSession> => {
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  provider = 'openart'
+): Promise<LoopbackAuthorizationSession> => {
+  if (!/^[a-z][a-z0-9-]{1,31}$/u.test(provider)) throw new Error('Invalid OAuth provider callback name.');
+  const callbackPath = `/oauth/${provider}/callback`;
   let resolveCallback!: (value: URLSearchParams) => void;
   let rejectCallback!: (reason: Error) => void;
   let settled = false;
@@ -35,12 +40,12 @@ export const createLoopbackOAuthSession = async (
         return;
       }
       const url = new URL(request.url, 'http://127.0.0.1');
-      if (url.pathname !== CALLBACK_PATH || url.searchParams.get('state') !== expectedState) {
+      if (url.pathname !== callbackPath || url.searchParams.get('state') !== expectedState) {
         response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
         response.end('LightTable could not validate this authorization callback.');
         if (!settled) {
           settled = true;
-          rejectCallback(new Error('OpenArt authorization callback state mismatch.'));
+          rejectCallback(new Error(`${provider} authorization callback state mismatch.`));
         }
         return;
       }
@@ -71,20 +76,20 @@ export const createLoopbackOAuthSession = async (
   const timeout = setTimeout(() => {
     if (!settled) {
       settled = true;
-      rejectCallback(new Error('OpenArt authorization timed out. Please try again.'));
+      rejectCallback(new Error(`${provider} authorization timed out. Please try again.`));
     }
     void closeServer(server);
   }, timeoutMs);
   timeout.unref();
 
   return {
-    redirectUrl: `http://127.0.0.1:${address.port}${CALLBACK_PATH}`,
+    redirectUrl: `http://127.0.0.1:${address.port}${callbackPath}`,
     callback,
     async close() {
       clearTimeout(timeout);
       if (!settled) {
         settled = true;
-        rejectCallback(new Error('OpenArt authorization was restarted.'));
+        rejectCallback(new Error(`${provider} authorization was restarted.`));
       }
       await closeServer(server);
     }

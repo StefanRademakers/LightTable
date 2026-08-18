@@ -4,14 +4,21 @@ import { atomicWriteFile } from '../atomicFileWriter';
 import { openProjectManifest, resolveProjectStoragePath } from '../projectService';
 
 const FORMAT = 'lighttable-genai-remote-links';
-const VERSION = 1;
+const VERSION = 2;
+
+export interface ProjectAssetSourceRevision {
+  readonly byteLength: number;
+  readonly sha256: string;
+}
 
 export interface ProjectAssetRemoteLink {
   readonly assetId: string;
   readonly providerId: string;
   readonly providerJobId?: string;
-  readonly url: string;
+  readonly url?: string;
+  readonly providerAssetId?: string;
   readonly mediaType: string;
+  readonly sourceRevision?: ProjectAssetSourceRevision;
   readonly expiresAt?: string;
   readonly updatedAt: string;
 }
@@ -46,7 +53,8 @@ export const resolveProjectAssetRemoteLinks = async (
 ): Promise<readonly ProjectAssetRemoteLink[]> => {
   const requested = new Set(assetIds);
   return (await load(manifestPath)).links.filter((link) =>
-    requested.has(link.assetId) && link.providerId === providerId && /^https:\/\//iu.test(link.url)
+    requested.has(link.assetId) && link.providerId === providerId
+    && (Boolean(link.providerAssetId) || Boolean(link.url && /^https:\/\//iu.test(link.url)))
     && (!link.expiresAt || Date.parse(link.expiresAt) > Date.now() + 30_000)
   );
 };
@@ -55,7 +63,8 @@ export const recordProjectAssetRemoteLink = async (
   manifestPath: string,
   link: Omit<ProjectAssetRemoteLink, 'updatedAt'>
 ): Promise<void> => {
-  if (!/^https:\/\//iu.test(link.url)) throw new Error('A provider asset link must use HTTPS.');
+  if (!link.providerAssetId && !link.url) throw new Error('A provider publication requires a provider asset ID or HTTPS URL.');
+  if (link.url && !/^https:\/\//iu.test(link.url)) throw new Error('A provider asset link must use HTTPS.');
   const current = await load(manifestPath);
   const next: RemoteLinkIndex = {
     format: FORMAT,

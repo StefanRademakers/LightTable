@@ -35,7 +35,7 @@ try {
   const sourceTab = window.getByRole('tab', { name: /image\.png/i });
   await window.waitForTimeout(1_500);
   if (!await sourceTab.isVisible().catch(() => false)) {
-    const open = window.getByRole('button', { name: 'Open file' });
+    const open = window.getByRole('button', { name: 'Open', exact: true });
     if (!await open.isVisible().catch(() => false)) {
       throw new Error(`Launcher did not become available: ${await window.locator('body').innerText()}`);
     }
@@ -74,7 +74,7 @@ try {
   await assetEvent;
 
   const assets = await window.evaluate(
-    (projectId) => window.lightTableDesktop.listGenAiProjectAssets(projectId),
+    async (projectId) => (await window.lightTableDesktop.loadGenAiProjectAssetCatalog(projectId)).assets,
     project.id
   );
   const reference = assets.find((asset) => asset.label === 'reference-lighttable.png');

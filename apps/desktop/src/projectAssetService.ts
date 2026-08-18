@@ -50,7 +50,7 @@ const enqueueAssetIndexMutation = async <T>(manifestPath: string, operation: () 
   }
 };
 const PROJECT_ASSET_EXTENSIONS = new Set([
-  '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.psd', '.psb', '.pdf'
+  '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.psd', '.psb', '.pdf', '.mp4', '.webm'
 ]);
 
 const normalizedProjectRelativePath = (rootPath: string, filePath: string): string | null => {

@@ -8,6 +8,7 @@ export interface GenAiPromptComposerProps {
   readonly mentions: readonly GenAiAssetMentionOption[];
   readonly previews: Readonly<Record<string, string>>;
   readonly requestPreview: (assetId: GenAiAssetId) => void;
+  readonly placeholder?: string;
 }
 
 const escapeHtml = (value: string): string => value
@@ -111,7 +112,8 @@ const mentionSearch = (value: string, caret: number | null) => {
   return match ? { start: caret - match[1].length, query: match[1].slice(1) } : null;
 };
 
-export const GenAiPromptComposer = ({ value, onChange, mentions, previews, requestPreview }: GenAiPromptComposerProps) => {
+export const GenAiPromptComposer = ({ value, onChange, mentions, previews, requestPreview,
+  placeholder = 'Describe the image. Type @ to reference a project asset.' }: GenAiPromptComposerProps) => {
   const editorRef = React.useRef<HTMLDivElement>(null);
   const focused = React.useRef(false);
   const [caret, setCaret] = React.useState<number | null>(0);
@@ -184,7 +186,7 @@ export const GenAiPromptComposer = ({ value, onChange, mentions, previews, reque
       <div className="genai-prompt-composer__editor">
         <div ref={editorRef} id="lighttable-genai-prompt" className="genai-prompt-composer__input"
           contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true"
-          data-placeholder="Describe the image. Type @ to reference a project asset."
+          data-placeholder={placeholder}
           onFocus={() => { focused.current = true; setCaret(selectionOffset(editorRef.current!)); }}
           onBlur={finishEditing}
           onInput={syncEditingDom}

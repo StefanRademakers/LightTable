@@ -98,7 +98,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
     providers: current.genAi.providers.filter((provider) => provider.id !== providerId)
   } }));
   const configuredProviderOptions = [
-    ...genAiProviders.filter(({ id }) => id === 'openart'),
+    ...genAiProviders.filter(({ id }) => id === 'openart' || id === 'higgsfield'),
     ...draft.genAi.providers.filter(({ enabled }) => enabled).map((provider) => ({
       id: provider.id as GenAiProviderSnapshot['id'],
       label: provider.displayName,

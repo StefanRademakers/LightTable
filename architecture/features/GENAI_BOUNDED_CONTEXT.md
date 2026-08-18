@@ -1,7 +1,7 @@
 # GenAI bounded context
 
-Status: **implemented provider boundary with project-backed generation**,
-updated 2026-08-14.
+Status: **implemented provider boundary with project-backed image and video generation**,
+updated 2026-08-18.
 
 ## Decision
 
@@ -22,6 +22,11 @@ panel or job model.
 @lighttable/genai-openart
   OpenArt MCP catalog and generation adapter
   provider response normalization
+          ^
+          |
+@lighttable/genai-higgsfield
+  Higgsfield MCP contract negotiation and schema projection
+  image/video request and response normalization
           ^
           |
 @lighttable/genai-local
@@ -47,7 +52,7 @@ opposite direction are forbidden.
 
 - `genai-core` is TypeScript-only and may not import React, Electron, browser
   globals, Node filesystem/network modules, editor code or provider packages.
-- `genai-openart` may import `genai-core` and the MCP client. It may not import
+- `genai-openart` and `genai-higgsfield` may import `genai-core` and the MCP client. They may not import
   React, Electron, editor, document or rendering code.
 - `desktop` owns credentials, provider transports, OAuth, absolute paths and
   file writes. Tokens and absolute paths never cross IPC into React state.
@@ -73,6 +78,8 @@ provider client or unrestricted filesystem capability.
   provider-neutral job store; closing either panel never stops a job.
 - Every successful output is atomically stored in the active project's logical
   `aiHistory` location (default `AiRenders/History`) before editor mutation.
+- Video output is retained in AI History as MP4 or WebM and is not opened as an
+  image document. Reveal remains available while a video workspace is deferred.
 - Image-edit results are then placed as the top layer of the active document.
 - Image-create results are then opened as a new document.
 - Remote completion, durable local storage and editor placement are distinct
@@ -96,24 +103,23 @@ payload must also contain the matching media object, for example:
 }
 ```
 
-OpenArt's MCP generation contract accepts reachable media URLs. Its
-`openart_upload_pick` command is a host-specific interactive upload widget; it
-does not accept native file bytes or a local path. StoryBuilder therefore
-publishes its S3-backed project media through a short-lived presigned download
-URL before constructing `visualReferences`.
+OpenArt's MCP generation contract accepts reachable media URLs. LightTable
+discovers and uses OpenArt's native signed-upload tools; interactive host upload
+widgets, local paths and renderer-owned network publication are not used.
 
 LightTable follows the same boundary through a desktop-owned reference
 publisher. React supplies only opaque project asset IDs. The desktop resolves
-and validates the asset, publishes it through a configured first-party relay
-or reuses a still-valid provider link, and hands only HTTPS links to the
-provider adapter. Local paths, `file:` URLs, localhost URLs and data URLs are
-never submitted. Until a local asset has a reachable link, generation fails
-before the paid provider call instead of silently dropping the reference.
+and validates the bytes, hashes their content revision, then either reuses a
+provider-scoped publication or publishes again. OpenArt uses its discovered
+signed-upload contract and retains the resulting HTTPS URL. Higgsfield's native
+contract uses `media_upload`, a signed PUT and `media_confirm`, then submits the
+confirmed provider media ID. Local paths, `file:` URLs, localhost URLs and data
+URLs are never submitted. Until every reference has a valid transport identity,
+generation fails before the paid provider call instead of silently dropping it.
 
-Provider links are stored in a private derived project index, not in the
-document format. Generated OpenArt results retain their remote link for direct
-reuse while it remains valid. Locally authored assets require the reference
-publisher/relay and may not be mistaken for already-uploaded provider assets.
+Provider links and confirmed media IDs are stored in a private derived project
+index, not in the document format. They are reusable only by the same provider,
+for unchanged bytes and while any expiry remains valid.
 
 The checked-in OpenArt export under `mcp/` is bootstrap and test evidence.
 Runtime schema discovery remains authoritative when available. Cached catalog
@@ -123,9 +129,9 @@ unknown fields can be diagnosed without silently discarding them.
 ## Current implementation
 
 The native GenAI panel discovers provider models and workflow schemas, supports
-Image Create/Edit, base images, pasted/dropped/local visual references and
+Image Create/Edit plus Video Create/References/Frames, base images, pasted/dropped/local visual references and
 provider-defined fields without hard-coding each model form. Desktop owns
-OpenArt authentication, reference publication, project asset/job persistence,
+OpenArt and Higgsfield authentication, reference publication, project asset/job persistence,
 result delivery and the managed local-provider process. Local workflows support
 create/edit/inpaint; Remove Object submits a full-frame base plus selection mask
 through the same provider-neutral boundary.
@@ -136,6 +142,11 @@ reference preparation, provider authentication and local provider lifecycle can
 operate standalone. This coupling is audited in
 [Project-mode feature gating](PROJECT_MODE_FEATURE_GATING.md) and remains an
 explicit product decision.
+
+Desktop execution uses a provider runtime registry with separate preparation,
+paid submission and tracking phases. A restart never repeats a paid call:
+preparation is marked interrupted, an uncertain submit becomes
+`unknown-submit`, and only a persisted provider job ID may resume polling.
 
 ## Boundary enforcement
 

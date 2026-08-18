@@ -38,10 +38,25 @@ const stableHash = (source: string): string => {
   return (hash >>> 0).toString(16).padStart(8, '0');
 };
 
+const hasFields = (
+  tools: ReadonlyMap<string, HiggsfieldToolDescription>,
+  name: string,
+  fields: readonly string[]
+): boolean => {
+  const properties = tools.get(name)?.inputSchema?.properties ?? {};
+  return fields.every((field) => field in properties);
+};
+
 export const classifyHiggsfieldContract = (catalog: unknown): HiggsfieldCapabilities => {
   const tools = new Map(asTools(catalog).map((tool) => [tool.name, tool]));
   const native = ['models_explore', 'generate_image', 'generate_video', 'media_upload', 'media_confirm', 'job_status']
-    .every((name) => tools.has(name));
+    .every((name) => tools.has(name))
+    && hasFields(tools, 'models_explore', ['action', 'model_id'])
+    && hasFields(tools, 'generate_image', ['params'])
+    && hasFields(tools, 'generate_video', ['params'])
+    && hasFields(tools, 'media_upload', ['method', 'filename', 'content_type'])
+    && hasFields(tools, 'media_confirm', ['type', 'media_id'])
+    && hasFields(tools, 'job_status', ['jobId']);
   const catalogFamily = ['models_list', 'models_get', 'generate_image', 'generate_video']
     .every((name) => tools.has(name));
   const family: HiggsfieldContractFamily = native ? 'native-v1' : catalogFamily ? 'catalog-v1' : 'unsupported';
@@ -54,10 +69,10 @@ export const classifyHiggsfieldContract = (catalog: unknown): HiggsfieldCapabili
     family,
     tools,
     canDiscover: native || catalogFamily,
-    canGenerateImage: tools.has('generate_image') && (tools.has('job_status') || tools.has('show_generations')),
-    canGenerateVideo: tools.has('generate_video') && (tools.has('job_status') || tools.has('show_generations')),
-    canPublishBytes: tools.has('media_upload') && tools.has('media_confirm'),
-    canPoll: tools.has('job_status'),
+    canGenerateImage: native && tools.has('generate_image') && tools.has('job_status'),
+    canGenerateVideo: native && tools.has('generate_video') && tools.has('job_status'),
+    canPublishBytes: native && tools.has('media_upload') && tools.has('media_confirm'),
+    canPoll: native && tools.has('job_status'),
     canEstimateImage: tools.has('estimate_image_cost'),
     canEstimateVideo: tools.has('estimate_video_cost'),
     fingerprint: `higgsfield:${family}:${stableHash(JSON.stringify(shape))}`

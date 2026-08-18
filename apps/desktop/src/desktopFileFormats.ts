@@ -27,7 +27,9 @@ const MEDIA_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
   tiff: 'image/tiff',
   psd: 'image/vnd.adobe.photoshop',
   psb: 'image/vnd.adobe.photoshop',
-  pdf: 'application/pdf'
+  pdf: 'application/pdf',
+  mp4: 'video/mp4',
+  webm: 'video/webm'
 };
 
 export const desktopMediaTypeForFileName = (fileName: string): string => {

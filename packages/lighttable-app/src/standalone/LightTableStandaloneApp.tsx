@@ -429,6 +429,10 @@ export function LightTableStandaloneApp({
 
   const openProjectAsset = useCallback(async (asset: GenAiAssetReference) => {
     if (!activeProject || !host.genAi) return;
+    if (asset.mediaType.startsWith('video/')) {
+      setProjectError('Video output is saved in AI History. Use Reveal in the context menu to open its file location.');
+      return;
+    }
     setOpening(true);
     try {
       const payload = await host.genAi.loadProjectAsset(activeProject.id, asset.id);

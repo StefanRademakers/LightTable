@@ -63,6 +63,9 @@ export const buildLocalAiRequest = (
 ): { readonly request: LocalAiImageJobRequestV1; readonly inputs: readonly LocalAiBinaryInput[] } => {
   const operation = request.operation
     ?? (request.workflowId.endsWith(':image.create') ? 'image.create' : 'image.edit');
+  if (operation !== 'image.create' && operation !== 'image.edit' && operation !== 'image.inpaint') {
+    throw new Error(`Local AI does not support ${operation} generation.`);
+  }
   const dimensions = outputDimensions(request.output?.aspectRatio, request.output?.size);
   const inputById = new Map(resolved.map((entry) => [entry.reference.id, entry]));
   const ordered = request.references.map((reference) => {

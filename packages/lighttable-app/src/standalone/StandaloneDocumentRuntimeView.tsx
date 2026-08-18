@@ -121,6 +121,7 @@ export function StandaloneDocumentRuntimeView({
   const importGeneratedResult = useCallback(async (job: GenAiGenerationJob, forceOpen = false) => {
     const result = job.results[0];
     if (!result || !activeProject || !host.genAi) return;
+    if (result.mediaType.startsWith('video/')) return;
     const payload = await host.genAi.loadProjectAsset(activeProject.id, result.assetId);
     if (!payload) return;
     const file = new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType });
@@ -146,6 +147,7 @@ export function StandaloneDocumentRuntimeView({
   }, [importGeneratedResult]);
   const handleOpenGenAiAsset = useCallback(async (asset: import('@lighttable/genai-core').GenAiAssetReference) => {
     if (!activeProject || !host.genAi) return;
+    if (asset.mediaType.startsWith('video/')) return;
     const payload = await host.genAi.loadProjectAsset(activeProject.id, asset.id);
     if (!payload) return;
     onOpen(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
