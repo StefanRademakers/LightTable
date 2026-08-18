@@ -574,3 +574,28 @@ zero endpoint proves that this module cannot silently alter an unselected
 Grade. The same packaged route copies the embedded LUT from one open document
 to another, remaps its asset id and verifies the destination at Strength 62
 after the asynchronous GPU upload has settled.
+
+### Packaged 4K interaction baseline
+
+`npm run audit:desktop:grade-interaction` generates a 3840 x 2160 diagnostic,
+opens it through the packaged desktop product route and performs real pointer
+drags on both a fused tonal control and the conditional wavelet Detail path.
+The window must remain presented: Chromium intentionally throttles a never-
+shown background window and that would measure automation policy instead of
+editor interaction.
+
+On the reference RTX 5090 system, two consecutive runs each delivered 50 live
+GPU updates from 50 pointer moves without a main-thread task above 250 ms. The
+first accepted run measured Exposure at 24.03 fps and Luminance Noise Reduction
+at 24.02 fps. Both used the topmost processing suffix cache. Activating wavelet
+noise reduction raised estimated GPU texture residency from 547,465,152 to
+746,530,752 bytes: exactly three 4K `rgba16float` scratch textures
+(`3840 * 2160 * 8 * 3`), matching the bounded runtime design. Neutral Detail
+still returns the input texture without encoding the eight wavelet passes; the
+scratch textures remain resident for reuse until the document runtime is
+destroyed.
+
+The current acceptance floor is 12 presented frames per second at 4K and the
+interaction scheduler must remain below 45 fps. This is a regression guard,
+not the final performance ceiling; lower-power GPU and Apple Silicon evidence
+remains part of the final owner/platform review.
