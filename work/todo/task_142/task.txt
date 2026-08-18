@@ -242,3 +242,7 @@ Photoshop rebuild matrix after task_203 restores the Adobe oracle.
   Appearance. It no longer falls through to the generic native-adjustment
   warning, which could incorrectly suggest that a normal Photoshop adjustment
   descriptor was merely missing.
+- Re-audit after these changes: both packaged PSD roundtrips (`TextTest.psd`
+  and `shapes.psd`) pass; all 79 interchange rows pass; the complete app suite
+  passes 2,487 tests across 445 files; app typecheck and the production source
+  boundary pass.
