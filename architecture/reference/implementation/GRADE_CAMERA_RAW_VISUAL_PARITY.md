@@ -259,18 +259,18 @@ Whites retained mean magnitude 1.010 and its existing measured curve family.
 ## Color corpus baseline
 
 The same version-pinned oracle now covers Temperature, Tint, Vibrance and
-Saturation at signed 25, 50, 80 and 100 settings across all ten corpus
+Saturation at signed 25, 50, 80 and 100 settings across all eleven corpus
 sources. Photoshop 27.9.1 / Camera Raw 18.5 produced an active response on
-seven color-bearing sources. Camera Raw produced no measurable response for
+eight color-bearing sources. Camera Raw produced no measurable response for
 the three generated achromatic sources; those inactive source/control pairs
 are reported but excluded from correlation and magnitude aggregates.
 
 | Control | Active sources | Minimum source correlation | Mean magnitude ratio | Worst delta RMSE |
 | --- | ---: | ---: | ---: | ---: |
-| Temperature | 7/10 | 0.4544 | 0.542 | 33.97% |
-| Tint | 7/10 | 0.3916 | 0.598 | 17.81% |
-| Vibrance | 7/10 | 0.7371 | 1.302 | 13.56% |
-| Saturation | 7/10 | 0.9281 | 0.973 | 8.32% |
+| Temperature | 8/11 | 0.3885 | 0.553 | 33.97% |
+| Tint | 8/11 | 0.3916 | 0.603 | 17.81% |
+| Vibrance | 8/11 | 0.7371 | 1.353 | 15.54% |
+| Saturation | 8/11 | 0.9281 | 0.980 | 8.32% |
 
 Saturation is already the strongest Color match and should not be replaced by
 a speculative curve. Vibrance has similar average strength but remains
@@ -280,6 +280,12 @@ their low correlations show that a scalar increase would amplify the wrong
 chromatic response. These controls remain characterization findings pending a
 grounded chromatic-adaptation model and visual review of the generated contact
 sheets.
+
+The 18 August recapture binds every Camera Raw and LightTable report to the
+exact source SHA-256 and current case-manifest SHA-256. The independent
+readiness audit accepts all eleven source pairs as case-compatible for both
+Light and Color. This replaces the earlier ten-source characterization; no
+stale report participates in the aggregate.
 
 ## Spatial-detail corpus baseline
 
