@@ -265,6 +265,27 @@ describe('LightTable WGSL modules', () => {
       .toBeGreaterThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyColorMixer(rgb);'));
   });
 
+  it('locks the complete fused Grade processing order', () => {
+    const operations = [
+      'var rgb = applyDetailNode(corrected.rgb, input.uv);',
+      'if (abs(adjustments.texture) > 0.00001)',
+      'if (abs(adjustments.clarity) > 0.00001)',
+      'if (abs(adjustments.dehaze) > 0.00001)',
+      'rgb = applyColorMixer(rgb);',
+      'rgb = applyPointColor(rgb);',
+      'rgb = applyPerceptualColor(rgb);',
+      'rgb = applyColorGrading(rgb);',
+      'rgb = applyLift(rgb);',
+      'rgb = applyCustomCurves(rgb);',
+      'rgb = applyGradientMap(rgb, input.uv * vec2f(textureDimensions(correctedTexture)));',
+      'rgb = applyPhotoshopAdjustment(rgb);'
+    ];
+    const positions = operations.map((operation) => CREATIVE_GRADE_WGSL.indexOf(operation));
+
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((left, right) => left - right));
+  });
+
   it('allows global mixer saturation through the low-chroma protection path', () => {
     expect(CREATIVE_GRADE_WGSL).not.toContain('if (chromaProtection <= 0.00001)');
     expect(CREATIVE_GRADE_WGSL).toContain('let saturationProtection = mix(1.0, chromaProtection, saturationSelection)');

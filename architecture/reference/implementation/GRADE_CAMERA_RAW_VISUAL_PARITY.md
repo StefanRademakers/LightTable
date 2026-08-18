@@ -286,3 +286,51 @@ LightTable retain nearly identical high-frequency energy (0.7357 versus
 with correlation 0.6505. This is evidence that the remaining gap is in
 multi-scale threshold/reconstruction distribution rather than one overall
 strength value; no scalar retuning was accepted.
+
+## Internal processing and readiness audit
+
+The August 2026 audit separated visual-parity evidence from implementation
+readiness. A normal Grade Layer and attached Grade share the same renderer and
+fixed photographic order. Independent layer nodes remain ordered by the layer
+stack; the module inventory inside one fused Grade node is not presented as an
+arbitrarily reorderable graph.
+
+```text
+Temperature / Tint
+-> Exposure + Highlights / Shadows / Whites / Blacks / Contrast
+-> conditional wavelet luminance and color noise reduction
+-> Sharpening
+-> Texture -> Clarity -> Dehaze
+-> Color Mixer -> Point Color
+-> Saturation / Vibrance
+-> Color Grading
+-> Lift -> Curves
+```
+
+Gradient Map and Photoshop adjustment payloads use the same final creative
+shader only when their focused node owns those settings. They are not exposed
+as hidden Grade sections.
+
+| Area | Implementation state | Camera Raw evidence state |
+| --- | --- | --- |
+| Light | Shared, fixed-order, exact neutral bypass | Contrast/Blacks/negative Whites accepted; remaining adaptive controls characterized |
+| Color | CAT16 white balance and shared perceptual color path | Full signed corpus characterized; no speculative scalar accepted |
+| Curves | Shared native LUT/editor/shader | Automation and multi-point parity still open |
+| Texture / Clarity / Dehaze | Shared creative shader; spatial analysis only for Clarity/Dehaze | Clarity/Dehaze characterized; Texture descriptor unresolved |
+| Detail | Conditional four-scale wavelet NR before fused Sharpening | Luminance NR characterized; remaining controls and combinations open |
+| Color Mixer | Shared periodic eight-range implementation with red wraparound tests | Camera Raw Action Manager descriptors not yet proven |
+| Point Color | Up to eight independent samples; neutral and overlap behavior tested | Camera Raw automation and Visualize Range oracle open |
+| Color Grading | Normalized 3-way masks, Blend/Balance and endpoint guards tested | Camera Raw wheel descriptor/oracle open |
+| B&W Mix | Separate Photoshop six-channel adjustment exists | True eight-range Grade B&W Mix is not implemented |
+| Look / Profile | Document LUT infrastructure exists through Color Lookup | Grade Profile/Look selection and Strength are not implemented |
+
+Performance invariants are covered by executable tests: neutral Noise
+Reduction performs zero allocations and zero wavelet submissions; active
+Noise Reduction performs four horizontal and four reconstruction passes into
+three retained `rgba16float` textures; neutral Clarity/Dehaze avoids their
+downsample/blur input. The complete fused creative order is also locked by a
+shader contract test.
+
+This matrix is intentionally not a 95% parity claim. B&W Mix, Profile/Look,
+several Adobe descriptors, cross-section captures and owner visual review are
+still required by Task 141 before that claim can be made honestly.

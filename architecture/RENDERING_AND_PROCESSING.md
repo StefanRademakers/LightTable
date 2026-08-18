@@ -173,7 +173,9 @@ not excuses to invalidate the full graph today.
 A processing definition declares a stable type, settings schema, category,
 allowed owner scopes, color/data domain, alpha behavior, coordinate space and
 optional PSD semantic candidates. An instance adds identity, enabled state,
-revision and serializable settings. Stack order is authoritative.
+revision and serializable settings. Stack order is authoritative between
+independently executed nodes. The serialized module inventory inside the
+current compound Grade node is not yet an arbitrary user-reorderable graph.
 
 Current concepts include white balance, light, global color, color mixer,
 color grading, curves, detail, vignette, lens distortion, chromatic
@@ -203,6 +205,30 @@ and does not activate the multipass wavelet work set by itself.
 `BasicAdjustments` shader paths, and not every operation is yet a standalone
 generic executor. `WebGpuEngine` and `LayerDocumentRenderer` still expose
 broad transitional surfaces.
+
+The compound Grade renderer has this fixed photographic order:
+
+```text
+Temperature / Tint
+-> Exposure + tonal controls (except Lift)
+-> wavelet luminance/color noise reduction (conditional multipass)
+-> Sharpening
+-> Texture -> Clarity -> Dehaze
+-> Color Mixer -> Point Color
+-> global Saturation / Vibrance
+-> Color Grading
+-> Lift
+-> Curves
+-> focused Gradient Map or Photoshop adjustment payload when present
+```
+
+This order is shared by Grade Layers and attached Grade. It is intentionally
+fused for interactive speed. Noise reduction is evaluated before sharpening;
+neutral luminance and color noise values allocate and submit no wavelet work.
+Clarity and Dehaze alone request the cached spatial-analysis input. Texture
+and Sharpening use bounded neighbourhood samples in the creative pass and do
+not start the downsample/blur chain. A future extraction into standalone
+executors must reproduce this result before it may advertise reordering.
 
 **Target:** every ordered operation is evaluated through a registered executor
 contract that supports fullscreen, neighborhood, multipass, analysis-backed
