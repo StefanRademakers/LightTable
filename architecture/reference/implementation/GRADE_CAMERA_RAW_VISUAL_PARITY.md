@@ -677,3 +677,25 @@ model-dependent: minimum correlations are 0.3254 red, 0.6943 green and 0.8250
 blue. These measurements reject an ungrounded scalar retune; the native shared
 Curves implementation remains unchanged pending an interpolation/working-space
 model comparison.
+
+### Bounded Local Detail and Detail diagnostics
+
+The first Local Detail gate uses frequency-detail and portrait-skin rather than
+recapturing all eleven sources. Both independently show the same structural
+result. Texture is substantially weaker than Camera Raw (mean magnitude ratio
+0.254, minimum correlation 0.2319); Clarity is also weaker (0.483, 0.5878), and
+Dehaze differs in both scale and tonal model (0.410, 0.6250) with 27.44% worst
+extreme delta RMSE. Additional unchanged-source captures would refine those
+numbers but would not justify a scalar correction, so they are deferred until
+there is a grounded radius/mask/working-space candidate to compare.
+
+Detail received one current multiscale-noise diagnostic across all dependent
+baselines. Luminance Noise Reduction is the strongest current match
+(correlation 0.9057, magnitude ratio 1.384, 1.73% worst delta RMSE). Sharpening
+Amount, Radius, Detail and Masking are much weaker and differently distributed
+(correlations 0.2711-0.5590; magnitude ratios 0.085-0.232). Noise refinement
+also proves model differences: Color Smoothness reaches correlation -0.0086
+despite an active Camera Raw descriptor. This is sufficient to reject slider-
+scale tuning. A real-photo Detail recapture is reserved for validating a
+specific new wavelet/kernel or edge-mask implementation, not as a prerequisite
+to state the current diagnosis.

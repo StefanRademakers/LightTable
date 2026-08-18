@@ -368,3 +368,13 @@ Progress re-audit - 18 August 2026
   sections start with a diagnostic source and a photograph and expand only on
   a concrete finding; adaptive/spatial sections receive broader coverage only
   when the initial gate demonstrates the need.
+- The bounded Local Detail gate is complete on frequency-detail and
+  portrait-skin. Texture, Clarity and Dehaze all show consistent structural
+  differences; Dehaze reaches 27.44% worst extreme RMSE. No extra corpus or
+  scalar retune is justified before a concrete radius/mask/model candidate.
+- Detail has one current full multiscale-noise diagnostic. Luminance denoise is
+  directionally close (correlation 0.9057), while sharpening and refinement
+  controls expose different kernels/masks. The attempted combined two-source
+  run hit the ten-minute harness bound after finishing the diagnostic source;
+  it was stopped and resumed from validated partials in 2.6 seconds. A portrait
+  rerun is deferred until it can validate a specific implementation change.
