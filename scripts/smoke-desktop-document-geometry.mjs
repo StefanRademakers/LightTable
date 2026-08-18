@@ -94,9 +94,22 @@ try {
   if (JSON.stringify(layersFixedUndone?.[0]?.transform) !== JSON.stringify(layersBeforeFixed?.[0]?.transform)) {
     throw new Error('Fixed layer transform undo did not restore the canonical layer transform.');
   }
+  await driver.execute(documentId, 'document.applyGeometry', {
+    operation: 'rotate', rotation: { degrees: 33 }
+  });
+  const arbitrary = await driver.queryDocument(documentId);
+  if (!arbitrary?.canvas || arbitrary.canvas.width <= before.canvas.width || arbitrary.canvas.height <= before.canvas.height
+    || arbitrary.history.undoDepth !== 1) {
+    throw new Error(`Arbitrary rotation did not use deterministic expanded bounds: ${JSON.stringify({ before, arbitrary })}`);
+  }
+  await driver.execute(documentId, 'history.undo', {});
+  const arbitraryUndone = await driver.queryDocument(documentId);
+  if (arbitraryUndone?.canvas?.width !== before.canvas.width || arbitraryUndone.canvas.height !== before.canvas.height) {
+    throw new Error(`Arbitrary rotation undo did not restore source bounds: ${JSON.stringify({ before, arbitraryUndone })}`);
+  }
   if (errors.length) throw new Error(`Renderer errors: ${JSON.stringify(errors)}`);
   await page.screenshot({ path: path.join(output, 'document-geometry.png') });
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ before, expanded, rotated, restored, cropped, cropUndone,
-    fixed, layersBeforeFixed, layersAfterFixed, layersFixedUndone, errors }, null, 2)}\n`);
+    fixed, layersBeforeFixed, layersAfterFixed, layersFixedUndone, arbitrary, arbitraryUndone, errors }, null, 2)}\n`);
   process.stdout.write(`Desktop document geometry smoke passed. Report: ${path.join(output, 'report.json')}\n`);
 } finally { await app.close().catch(() => {}); }
