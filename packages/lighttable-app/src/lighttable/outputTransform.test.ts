@@ -5,7 +5,6 @@ import { calculateOutputTransformSettings } from './outputTransform';
 describe('LightTable output transform settings', () => {
   it('keeps a neutral grade inactive', () => {
     expect(calculateOutputTransformSettings(createDefaultAdjustments())).toEqual({
-      whites: 0,
       shoulderStrength: 0,
       active: false,
       vignette: createDefaultAdjustments().effects.vignette

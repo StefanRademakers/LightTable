@@ -169,6 +169,12 @@ describe('LightTable WGSL modules', () => {
     expect(OUTPUT_TRANSFORM_WGSL).toContain('fn displayShoulder');
     expect(OUTPUT_TRANSFORM_WGSL).toContain('fn chromaFitForChannel');
     expect(OUTPUT_TRANSFORM_WGSL).not.toContain('fn softGamut');
+    expect(OUTPUT_TRANSFORM_WGSL).not.toContain('applyWhitesToDisplay');
+  });
+
+  it('evaluates both Whites directions inside the owning Grade tone pass', () => {
+    expect(BASIC_CORRECTION_WGSL).toContain('if (whitesAmount < -0.00001 && newY < 1.0)');
+    expect(BASIC_CORRECTION_WGSL).toContain('if (whitesAmount > 0.00001 && newY < 1.0)');
   });
 
   it('keeps creative linear output separate from display encoding', () => {

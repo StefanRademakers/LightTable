@@ -2161,7 +2161,7 @@ export class WebGpuEngine {
       this.effectRuntime?.hasDepth
     );
     const next = new Float32Array([
-      visualizingDepth ? 0 : settings.whites * strength,
+      0,
       visualizingDepth ? 0 : lensOnly.shoulderStrength
         + (settings.shoulderStrength - lensOnly.shoulderStrength) * strength,
       visualizingDepth ? 0 : (lensOnly.active || (settings.active && strength > 0) ? 1 : 0),

@@ -9,6 +9,8 @@ const manifest = JSON.parse(await readFile(
 ));
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
 const sourceArgument = process.argv.find((value) => value.startsWith('--source='));
+const refreshControlArgument = process.argv.find((value) => value.startsWith('--refresh-control='));
+const refreshControl = refreshControlArgument?.slice('--refresh-control='.length) ?? null;
 const force = process.argv.includes('--force');
 const externalRoot = path.resolve(rootArgument?.slice('--root='.length) ?? manifest.externalRoot);
 const inventoryPath = path.join(externalRoot, 'inventory.json');
@@ -42,10 +44,11 @@ for (const source of sources) {
       '-Source', source.file, '-Root', captureRoot
     ]);
   } else process.stdout.write('Camera Raw capture already exists; use --force to replace it.\n');
-  if (force || !await exists(lightTableReport)) {
+  if (force || refreshControl || !await exists(lightTableReport)) {
     run(process.execPath, [
       path.join(import.meta.dirname, 'capture-lighttable-grade-light-oracle.mjs'),
-      `--source=${source.file}`, `--root=${captureRoot}`
+      `--source=${source.file}`, `--root=${captureRoot}`, '--resume-partial',
+      ...(refreshControl ? [`--refresh-control=${refreshControl}`] : [])
     ]);
   } else process.stdout.write('LightTable capture already exists; use --force to replace it.\n');
   run(process.execPath, [path.join(import.meta.dirname, 'analyze-grade-light-parity.mjs'), `--root=${captureRoot}`]);

@@ -359,6 +359,13 @@ fn applyToneControls(rgb: vec3f) -> vec3f {
     let encodedY = linearToSrgbScalar(newY);
     newY = srgbToLinearChannel(sampleNegativeWhitesCurve(encodedY, -whitesAmount));
   }
+  if (whitesAmount > 0.00001 && newY < 1.0) {
+    // Evaluate protected Whites inside its Grade owner so stack position,
+    // masks and opacity remain truthful. Scene-linear superwhites stay intact.
+    let whiteMask = smoothstep(0.42, 0.92, newY);
+    let strength = whitesAmount * whitesAmount * (3.0 - 2.0 * whitesAmount);
+    newY += whiteMask * strength * (1.0 - newY);
+  }
   let contrastAmount = adjustments.contrast / 100.0;
   // The calibrated curve describes the display-referred 0..1 interval. Keep
   // scene-linear superwhites intact so 16-bit/HDR headroom remains available
@@ -1776,7 +1783,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 
 export const OUTPUT_TRANSFORM_WGSL = /* wgsl */ `
 struct OutputSettings {
-  whites: f32,
+  padding0: f32,
   shoulderStrength: f32,
   enabled: f32,
   vignetteAmount: f32,
@@ -1808,16 +1815,6 @@ fn displayShoulder(value: f32, strength: f32) -> f32 {
   return knee + headroom * distance / (distance + headroom);
 }
 
-fn applyWhitesToDisplay(sceneY: f32, displayY: f32) -> f32 {
-  let amount = settings.whites / 100.0;
-  // Negative Whites is calibrated in the basic perceptual tone pass. Positive
-  // Whites remains here because its highlight protection is output-dependent.
-  if (amount <= 0.00001) { return displayY; }
-  let whiteMask = smoothstep(0.42, 0.92, sceneY);
-  let strength = amount * amount * (3.0 - 2.0 * amount);
-  return displayY + whiteMask * strength * (1.0 - displayY);
-}
-
 fn chromaFitForChannel(channel: f32, grey: f32) -> f32 {
   let chroma = channel - grey;
   if (chroma > 0.0) { return (1.0 - grey) / max(chroma, 1e-6); }
@@ -1829,7 +1826,7 @@ fn sceneToDisplay(rgb: vec3f) -> vec3f {
   if (settings.enabled < 0.5) { return rgb; }
   let sceneY = max(luminance(rgb), 0.0);
   if (sceneY <= 1e-7) { return vec3f(0.0); }
-  let displayY = applyWhitesToDisplay(sceneY, displayShoulder(sceneY, settings.shoulderStrength));
+  let displayY = displayShoulder(sceneY, settings.shoulderStrength);
   let exposureScaled = rgb * (displayY / sceneY);
   let fit = clamp(min(
     chromaFitForChannel(exposureScaled.r, displayY),

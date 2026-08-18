@@ -211,3 +211,23 @@ improve despite the untouched positive half:
 | Grayscale ramp | LightTable / Camera Raw magnitude | 0.360 | 0.680 |
 | Photograph | Effect correlation | 0.7230 | 0.8805 |
 | Photograph | LightTable / Camera Raw magnitude | 0.474 | 0.800 |
+
+### Positive Whites processing ownership
+
+The truthful processing-layer migration exposed a separate correctness defect:
+positive Whites still lived in the retired document-final output transform.
+Consequently a normal topmost Grade Layer—and therefore every mid-stack,
+grouped or masked Grade Layer—produced exactly zero positive Whites effect.
+Negative Whites already evaluated inside the owning Grade tone pass.
+
+The existing protected positive response now evaluates conditionally in that
+same tone pass. Values above scene-linear 1.0 remain untouched, neutral remains
+an exact bypass, and the hidden output-transform application has been removed.
+This restores truthful layer order and a usable control; it is not presented as
+finished Camera Raw parity.
+
+Across the ten-source corpus the positive response moved from a zero magnitude
+range to 0.01–0.67 of Camera Raw, with mean effect correlation 0.5117. The wide
+range and remaining worst-case error confirm that Camera Raw positive Whites is
+distribution-dependent and must not be “fixed” with a scalar gain. Negative
+Whites retained mean magnitude 1.010 and its existing measured curve family.

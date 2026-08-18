@@ -7,6 +7,9 @@ import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 const workspace = path.resolve(import.meta.dirname, '..');
 const sourceArgument = process.argv.find((value) => value.startsWith('--source='));
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
+const resumePartial = process.argv.includes('--resume-partial');
+const refreshControlArgument = process.argv.find((value) => value.startsWith('--refresh-control='));
+const refreshControl = refreshControlArgument?.slice('--refresh-control='.length) ?? null;
 const source = path.resolve(sourceArgument?.slice('--source='.length) ?? 'D:\\people.jpg');
 const root = path.resolve(rootArgument?.slice('--root='.length)
   ?? 'D:\\mediavibe\\LightTableTests\\GradeLightParity');
@@ -94,6 +97,14 @@ try {
     // Keep a single decoded document alive for speed and deterministically
     // restore the previous slider before authoring the next isolated case.
     if (previous?.key) await setLightControl(page, previous.label, 0);
+    previous = null;
+    const output = path.join(outputDirectory, `${entry.id}.png`);
+    if (resumePartial && entry.key !== refreshControl
+      && await access(output).then(() => true, () => false)) {
+      results.push({ ...entry, output });
+      process.stdout.write(`LightTable ${entry.id}: reused partial capture\n`);
+      continue;
+    }
     if (entry.key) await setLightControl(page, entry.label, entry.value);
     const exported = await driver.execute(documentId, 'file.exportPng', {}, {
       requireCompleted: false
@@ -102,7 +113,6 @@ try {
     if (!task.artifact) throw new Error('Grade Light PNG export did not publish an artifact.');
     const png = await driver.readArtifact(task.artifact.id);
     if (!png) throw new Error('Grade Light PNG export artifact cannot be read.');
-    const output = path.join(outputDirectory, `${entry.id}.png`);
     await writeFile(output, png.bytes);
     results.push({ ...entry, output });
     process.stdout.write(`LightTable ${entry.id}: ${output}\n`);

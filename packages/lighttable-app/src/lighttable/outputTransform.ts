@@ -16,7 +16,6 @@ const maxValue = (values: readonly number[]) => Math.max(...values);
 const sumAbsolute = (values: readonly number[]) => values.reduce((total, value) => total + Math.abs(value), 0);
 
 export interface OutputTransformSettings {
-  whites: number;
   shoulderStrength: number;
   active: boolean;
   vignette: VignetteSettings;
@@ -68,7 +67,6 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
     Math.abs(adjustments.vibrance) + Math.abs(adjustments.saturation);
 
   return {
-    whites: adjustments.whites,
     shoulderStrength: Math.min(1, Math.max(0, shoulderStrength)),
     vignette: cloneVignetteSettings(adjustments.effects.vignette),
     active: scalarMagnitude +
