@@ -15,6 +15,7 @@ const declaredControls = casesManifest.controls ?? casesManifest.cases
   .filter(({ id }) => id !== 'neutral')
   .map(({ key, label }) => ({ key, label }));
 const controlDefinitions = new Map(declaredControls.map((control) => [control.key, control]));
+const minimumCameraRawMagnitude = casesManifest.analysisMinimumCameraRawMagnitude ?? 0;
 const root = path.resolve(rootArgument?.slice('--root='.length) ?? manifest.externalRoot);
 const captureRoot = path.join(root, 'captures', section);
 const sourceDirectories = await readdir(captureRoot, { withFileTypes: true });
@@ -43,15 +44,21 @@ for (const source of reports) {
   }
 }
 const aggregate = [...controls].map(([key, entries]) => {
-  const activeEntries = entries.filter(({ control }) => control.summary.descriptorValidated);
+  const entriesWithStableCases = entries.map((entry) => ({
+    ...entry,
+    stableCases: entry.control.cases.filter((item) => (
+      item.descriptorHasEffect
+      && item.effect.cameraRawMagnitude >= minimumCameraRawMagnitude
+    ))
+  }));
+  const activeEntries = entriesWithStableCases.filter(({ stableCases }) => stableCases.length);
   const inactiveSources = entries
-    .filter(({ control }) => !control.summary.descriptorValidated)
+    .filter(({ source }) => !activeEntries.some((entry) => entry.source === source))
     .map(({ source }) => source);
   if (!activeEntries.length) {
     throw new Error(`Camera Raw descriptor for ${key} had no measurable effect on any corpus source.`);
   }
-  const cases = activeEntries.flatMap(({ source, control }) => control.cases
-    .filter((entry) => entry.descriptorHasEffect)
+  const cases = activeEntries.flatMap(({ source, stableCases }) => stableCases
     .map((entry) => ({ source, ...entry })));
   const signs = Object.fromEntries(['negative', 'positive'].map((sign) => {
     const selected = cases.filter(({ value }) => sign === 'negative' ? value < 0 : value > 0);
@@ -72,9 +79,16 @@ const aggregate = [...controls].map(([key, entries]) => {
       worstCase: { source: worst.source, id: worst.id, value: worst.value }
     }];
   }));
-  const worstSource = activeEntries.reduce((current, entry) => (
-    !current || entry.control.summary.maximumDeltaRmse > current.control.summary.maximumDeltaRmse
-      ? entry : current
+  const sourceSummaries = activeEntries.map((entry) => ({
+    ...entry,
+    meanCorrelation: entry.stableCases.reduce((sum, item) => sum + item.effect.correlation, 0)
+      / entry.stableCases.length,
+    meanMagnitudeRatio: entry.stableCases.reduce((sum, item) => sum + item.effect.magnitudeRatio, 0)
+      / entry.stableCases.length,
+    maximumDeltaRmse: Math.max(...entry.stableCases.map((item) => item.effect.deltaRmse))
+  }));
+  const worstSource = sourceSummaries.reduce((current, entry) => (
+    !current || entry.maximumDeltaRmse > current.maximumDeltaRmse ? entry : current
   ), null);
   return {
     key,
@@ -82,10 +96,10 @@ const aggregate = [...controls].map(([key, entries]) => {
     subgroupLabel: controlDefinitions.get(key)?.subgroupLabel ?? null,
     sources: activeEntries.length,
     inactiveSources,
-    minimumSourceCorrelation: Math.min(...activeEntries.map(({ control }) => control.summary.meanCorrelation)),
-    meanSourceCorrelation: activeEntries.reduce((sum, { control }) => sum + control.summary.meanCorrelation, 0) / activeEntries.length,
-    meanSourceMagnitudeRatio: activeEntries.reduce((sum, { control }) => sum + control.summary.meanMagnitudeRatio, 0) / activeEntries.length,
-    maximumDeltaRmse: worstSource.control.summary.maximumDeltaRmse,
+    minimumSourceCorrelation: Math.min(...sourceSummaries.map(({ meanCorrelation }) => meanCorrelation)),
+    meanSourceCorrelation: sourceSummaries.reduce((sum, { meanCorrelation }) => sum + meanCorrelation, 0) / sourceSummaries.length,
+    meanSourceMagnitudeRatio: sourceSummaries.reduce((sum, { meanMagnitudeRatio }) => sum + meanMagnitudeRatio, 0) / sourceSummaries.length,
+    maximumDeltaRmse: worstSource.maximumDeltaRmse,
     worstSource: worstSource.source,
     signs
   };
@@ -96,6 +110,7 @@ const report = {
   generatedAt: new Date().toISOString(),
   versions: { photoshop, cameraRaw },
   completedSources: reports.length,
+  minimumCameraRawMagnitude,
   neutralRmse: {
     maximum: Math.max(...reports.map(({ report: item }) => item.neutralRmse)),
     mean: reports.reduce((sum, { report: item }) => sum + item.neutralRmse, 0) / reports.length
@@ -111,6 +126,9 @@ const markdown = [
   `Photoshop: ${photoshop}  `,
   `Camera Raw: ${cameraRaw}  `,
   `Neutral RMSE mean / max: ${percent(report.neutralRmse.mean)} / ${percent(report.neutralRmse.maximum)}`,
+  ...(minimumCameraRawMagnitude > 0
+    ? [`Reliable Camera Raw effect floor: ${percent(minimumCameraRawMagnitude)} RMS`]
+    : []),
   '',
   '| Control | Active sources | Min source corr. | Mean magnitude | Negative magnitude range | Positive magnitude range | Worst RMSE | Worst source |',
   '| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',

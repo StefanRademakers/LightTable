@@ -318,7 +318,7 @@ as hidden Grade sections.
 | Curves | Shared native LUT/editor/shader | Master and RGB point curves characterized; Refine Saturation remains open |
 | Texture / Clarity / Dehaze | Shared creative shader; spatial analysis only for Clarity/Dehaze | Clarity/Dehaze characterized; Texture descriptor unresolved |
 | Detail | Conditional four-scale wavelet NR before fused Sharpening | Luminance NR characterized; remaining controls and combinations open |
-| Color Mixer | Shared periodic eight-range implementation with red wraparound tests | Camera Raw Action Manager descriptors not yet proven |
+| Color Mixer | Shared periodic eight-range implementation with red wraparound tests | All 24 Camera Raw HSL descriptors proven; full corpus characterized |
 | Point Color | Up to eight independent samples; neutral and overlap behavior tested | Camera Raw automation and Visualize Range oracle open |
 | Color Grading | Normalized 3-way masks, Blend/Balance and endpoint guards tested | Camera Raw wheel descriptor/oracle open |
 | B&W Mix | Separate Photoshop six-channel adjustment exists | True eight-range Grade B&W Mix is not implemented |
@@ -437,3 +437,34 @@ ranges locate the gap in scale thresholds, edge/chroma discrimination and
 reconstruction. The next accepted Detail renderer change therefore requires a
 kernel/model comparison and new before/after corpus evidence; none of the
 current constants is retuned from these measurements alone.
+
+### Color Mixer descriptor oracle
+
+Camera Raw 18.5 exposes all 24 HSL mixer controls through active four-character
+Action Manager descriptors. Hue uses `HA_R`, `HA_O`, `HA_Y`, `HA_G`, `HA_A`,
+`HA_B`, `HA_P`, and `HA_M`; Saturation and Luminance use the same suffixes with
+the `SA_` and `LA_` prefixes. Every descriptor was pixel-validated at signed
+50, 80, and 100 endpoints. LightTable is driven through its real range selector
+and shared slider controls, not by mutating document state in the test.
+
+The complete ten-source corpus uses a 0.2% Camera Raw RMS signal floor per
+case. That keeps hue ranges which are genuinely absent from a source out of
+correlation and ratio aggregates; quantization noise around `1e-5` must not be
+reported as a 1000x strength mismatch. The three achromatic diagnostic sources
+remain deliberately inactive. Depending on the range, four to six sources
+carry reliable signal.
+
+| Family | Mean correlation across ranges | Mean magnitude LT / ACR | Range of per-control mean magnitude | Worst delta RMSE |
+| --- | ---: | ---: | ---: | ---: |
+| Hue | 0.593 | 1.327 | 0.275-5.687 | 13.81% |
+| Saturation | 0.660 | 1.191 | 0.430-3.085 | 13.77% |
+| Luminance | 0.721 | 2.005 | 0.950-4.871 | 20.02% |
+
+Orange Saturation is the closest isolated control (mean correlation 0.836,
+magnitude 1.05). Blue Hue and Saturation are materially too weak, while
+Magenta is much too strong and Luminance is generally stronger than Camera
+Raw. The remaining low correlations prove that these are not scalar-only
+range errors: Adobe and LightTable use different hue segmentation, overlap,
+working-space and luminance-preservation behavior. The current periodic OKLCH
+mixer remains unchanged until a grounded range-model comparison improves the
+complete corpus rather than one chart or photograph.

@@ -30,7 +30,8 @@ const caseId = (key, value) => `${key}-${value < 0 ? 'minus' : 'plus'}-${Math.ab
 const settingForControl = (control, value) => ({
   groupLabel: control.groupLabel ?? suite.groupLabel ?? suite.section,
   subgroupLabel: control.subgroupLabel ?? null,
-  label: control.label,
+  rangeIndex: control.rangeIndex ?? null,
+  label: control.sliderLabel ?? control.label,
   value,
   defaultValue: control.defaultValue ?? 0
 });
@@ -63,7 +64,7 @@ const mimeByExtension = new Map([
 ]);
 
 const setGradeControl = async (page, setting, target = setting.value) => {
-  const { groupLabel, subgroupLabel, label } = setting;
+  const { groupLabel, subgroupLabel, rangeIndex, label } = setting;
   const group = page.locator('.lighttable-group').filter({
     has: page.getByRole('button', { name: groupLabel, exact: true })
   });
@@ -75,6 +76,16 @@ const setGradeControl = async (page, setting, target = setting.value) => {
     const toggle = subgroup.getByRole('button', { name: subgroupLabel, exact: true });
     if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
     container = subgroup;
+  }
+  if (rangeIndex !== null && rangeIndex !== undefined) {
+    const range = group.getByRole('slider', { name: 'Color Mixer hue range', exact: true });
+    await range.focus();
+    await range.press('Home');
+    for (let index = 0; index < rangeIndex; index += 1) await range.press('ArrowRight');
+    const actualRange = Number(await range.getAttribute('aria-valuenow'));
+    if (actualRange !== rangeIndex) {
+      throw new Error(`Color Mixer range settled at ${actualRange}, expected ${rangeIndex}.`);
+    }
   }
   const slider = container.locator(`input[type="range"][aria-label="${label}"]`);
   await slider.waitFor({ state: 'attached', timeout: 30_000 });

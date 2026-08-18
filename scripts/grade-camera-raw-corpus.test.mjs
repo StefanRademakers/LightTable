@@ -94,3 +94,27 @@ test('Grade Curves oracle covers master, channels, endpoints and stacked curves'
     }
   }
 });
+
+test('Grade Color Mixer oracle covers every HSL range, descriptor and endpoint', async () => {
+  const suite = JSON.parse(await readFile(
+    path.join(import.meta.dirname, 'grade-color-mixer-parity-cases.json'), 'utf8'
+  ));
+  assert.equal(suite.section, 'color-mixer');
+  assert.equal(suite.groupLabel, 'Color Mixer');
+  assert.equal(suite.analysisMinimumCameraRawMagnitude, 0.002);
+  assert.equal(suite.controls.length, 24);
+  const ranges = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
+  const channels = [['hue', 'HA_'], ['saturation', 'SA_'], ['luminance', 'LA_']];
+  const suffixes = ['R', 'O', 'Y', 'G', 'A', 'B', 'P', 'M'];
+  for (const [channel, prefix] of channels) {
+    const controls = suite.controls.filter((control) => control.channel === channel);
+    assert.deepEqual(controls.map(({ range }) => range), ranges);
+    assert.deepEqual(controls.map(({ rangeIndex }) => rangeIndex), ranges.map((_, index) => index));
+    assert.deepEqual(controls.map(({ cameraRawDescriptor }) => cameraRawDescriptor),
+      suffixes.map((suffix) => `${prefix}${suffix}`));
+    for (const control of controls) {
+      assert.deepEqual(control.values, [-100, -80, -50, 50, 80, 100]);
+      assert.equal(control.defaultValue, 0);
+    }
+  }
+});

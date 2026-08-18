@@ -1,0 +1,488 @@
+{
+  "schema": 1,
+  "section": "color-mixer",
+  "groupLabel": "Color Mixer",
+  "analysisMinimumCameraRawMagnitude": 0.002,
+  "controls": [
+    {
+      "key": "hue-red",
+      "label": "Reds Hue",
+      "channel": "hue",
+      "sliderLabel": "Hue",
+      "range": "red",
+      "rangeIndex": 0,
+      "rangeLabel": "Reds",
+      "cameraRawDescriptor": "HA_R",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "hue-orange",
+      "label": "Oranges Hue",
+      "channel": "hue",
+      "sliderLabel": "Hue",
+      "range": "orange",
+      "rangeIndex": 1,
+      "rangeLabel": "Oranges",
+      "cameraRawDescriptor": "HA_O",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "hue-yellow",
+      "label": "Yellows Hue",
+      "channel": "hue",
+      "sliderLabel": "Hue",
+      "range": "yellow",
+      "rangeIndex": 2,
+      "rangeLabel": "Yellows",
+      "cameraRawDescriptor": "HA_Y",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "hue-green",
+      "label": "Greens Hue",
+      "channel": "hue",
+      "sliderLabel": "Hue",
+      "range": "green",
+      "rangeIndex": 3,
+      "rangeLabel": "Greens",
+      "cameraRawDescriptor": "HA_G",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "hue-aqua",
+      "label": "Aquas Hue",
+      "channel": "hue",
+      "sliderLabel": "Hue",
+      "range": "aqua",
+      "rangeIndex": 4,
+      "rangeLabel": "Aquas",
+      "cameraRawDescriptor": "HA_A",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "hue-blue",
+      "label": "Blues Hue",
+      "channel": "hue",
+      "sliderLabel": "Hue",
+      "range": "blue",
+      "rangeIndex": 5,
+      "rangeLabel": "Blues",
+      "cameraRawDescriptor": "HA_B",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "hue-purple",
+      "label": "Purples Hue",
+      "channel": "hue",
+      "sliderLabel": "Hue",
+      "range": "purple",
+      "rangeIndex": 6,
+      "rangeLabel": "Purples",
+      "cameraRawDescriptor": "HA_P",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "hue-magenta",
+      "label": "Magentas Hue",
+      "channel": "hue",
+      "sliderLabel": "Hue",
+      "range": "magenta",
+      "rangeIndex": 7,
+      "rangeLabel": "Magentas",
+      "cameraRawDescriptor": "HA_M",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "saturation-red",
+      "label": "Reds Saturation",
+      "channel": "saturation",
+      "sliderLabel": "Saturation",
+      "range": "red",
+      "rangeIndex": 0,
+      "rangeLabel": "Reds",
+      "cameraRawDescriptor": "SA_R",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "saturation-orange",
+      "label": "Oranges Saturation",
+      "channel": "saturation",
+      "sliderLabel": "Saturation",
+      "range": "orange",
+      "rangeIndex": 1,
+      "rangeLabel": "Oranges",
+      "cameraRawDescriptor": "SA_O",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "saturation-yellow",
+      "label": "Yellows Saturation",
+      "channel": "saturation",
+      "sliderLabel": "Saturation",
+      "range": "yellow",
+      "rangeIndex": 2,
+      "rangeLabel": "Yellows",
+      "cameraRawDescriptor": "SA_Y",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "saturation-green",
+      "label": "Greens Saturation",
+      "channel": "saturation",
+      "sliderLabel": "Saturation",
+      "range": "green",
+      "rangeIndex": 3,
+      "rangeLabel": "Greens",
+      "cameraRawDescriptor": "SA_G",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "saturation-aqua",
+      "label": "Aquas Saturation",
+      "channel": "saturation",
+      "sliderLabel": "Saturation",
+      "range": "aqua",
+      "rangeIndex": 4,
+      "rangeLabel": "Aquas",
+      "cameraRawDescriptor": "SA_A",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "saturation-blue",
+      "label": "Blues Saturation",
+      "channel": "saturation",
+      "sliderLabel": "Saturation",
+      "range": "blue",
+      "rangeIndex": 5,
+      "rangeLabel": "Blues",
+      "cameraRawDescriptor": "SA_B",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "saturation-purple",
+      "label": "Purples Saturation",
+      "channel": "saturation",
+      "sliderLabel": "Saturation",
+      "range": "purple",
+      "rangeIndex": 6,
+      "rangeLabel": "Purples",
+      "cameraRawDescriptor": "SA_P",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "saturation-magenta",
+      "label": "Magentas Saturation",
+      "channel": "saturation",
+      "sliderLabel": "Saturation",
+      "range": "magenta",
+      "rangeIndex": 7,
+      "rangeLabel": "Magentas",
+      "cameraRawDescriptor": "SA_M",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "luminance-red",
+      "label": "Reds Luminance",
+      "channel": "luminance",
+      "sliderLabel": "Luminance",
+      "range": "red",
+      "rangeIndex": 0,
+      "rangeLabel": "Reds",
+      "cameraRawDescriptor": "LA_R",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "luminance-orange",
+      "label": "Oranges Luminance",
+      "channel": "luminance",
+      "sliderLabel": "Luminance",
+      "range": "orange",
+      "rangeIndex": 1,
+      "rangeLabel": "Oranges",
+      "cameraRawDescriptor": "LA_O",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "luminance-yellow",
+      "label": "Yellows Luminance",
+      "channel": "luminance",
+      "sliderLabel": "Luminance",
+      "range": "yellow",
+      "rangeIndex": 2,
+      "rangeLabel": "Yellows",
+      "cameraRawDescriptor": "LA_Y",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "luminance-green",
+      "label": "Greens Luminance",
+      "channel": "luminance",
+      "sliderLabel": "Luminance",
+      "range": "green",
+      "rangeIndex": 3,
+      "rangeLabel": "Greens",
+      "cameraRawDescriptor": "LA_G",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "luminance-aqua",
+      "label": "Aquas Luminance",
+      "channel": "luminance",
+      "sliderLabel": "Luminance",
+      "range": "aqua",
+      "rangeIndex": 4,
+      "rangeLabel": "Aquas",
+      "cameraRawDescriptor": "LA_A",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "luminance-blue",
+      "label": "Blues Luminance",
+      "channel": "luminance",
+      "sliderLabel": "Luminance",
+      "range": "blue",
+      "rangeIndex": 5,
+      "rangeLabel": "Blues",
+      "cameraRawDescriptor": "LA_B",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "luminance-purple",
+      "label": "Purples Luminance",
+      "channel": "luminance",
+      "sliderLabel": "Luminance",
+      "range": "purple",
+      "rangeIndex": 6,
+      "rangeLabel": "Purples",
+      "cameraRawDescriptor": "LA_P",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    },
+    {
+      "key": "luminance-magenta",
+      "label": "Magentas Luminance",
+      "channel": "luminance",
+      "sliderLabel": "Luminance",
+      "range": "magenta",
+      "rangeIndex": 7,
+      "rangeLabel": "Magentas",
+      "cameraRawDescriptor": "LA_M",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [
+        -100,
+        -80,
+        -50,
+        50,
+        80,
+        100
+      ]
+    }
+  ]
+}
