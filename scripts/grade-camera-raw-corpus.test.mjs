@@ -168,3 +168,24 @@ test('Grade Color Grading oracle covers every Camera Raw wheel and transition co
   assert.equal(controls.get('blending').lightTablePrerequisites.length, 2);
   assert.equal(controls.get('balance').lightTablePrerequisites.length, 2);
 });
+
+test('Grade Black & White oracle covers all eight Camera Raw mixer ranges', async () => {
+  const suite = JSON.parse(await readFile(
+    path.join(import.meta.dirname, 'grade-black-white-parity-cases.json'), 'utf8'
+  ));
+  assert.equal(suite.section, 'black-white');
+  assert.equal(suite.cameraRawDescriptorStatus, 'candidate-unverified-automation-blocked');
+  assert.equal(suite.groupLabel, 'Black & White Mix');
+  assert.equal(suite.controls.length, 8);
+  assert.deepEqual(suite.controls.map(({ cameraRawDescriptor }) => cameraRawDescriptor), [
+    'GrayMixerRed', 'GrayMixerOrange', 'GrayMixerYellow', 'GrayMixerGreen',
+    'GrayMixerAqua', 'GrayMixerBlue', 'GrayMixerPurple', 'GrayMixerMagenta'
+  ]);
+  assert.equal(suite.cameraRawPrerequisites[0].descriptor, 'ConvertToGrayscale');
+  assert.equal(suite.cameraRawPrerequisites[0].value, true);
+  assert.equal(suite.lightTablePrerequisites[0].treatment, 'black-white');
+  for (const [index, control] of suite.controls.entries()) {
+    assert.equal(control.blackWhiteRangeIndex, index);
+    assert.deepEqual(control.values, [-100, -80, -50, 50, 80, 100]);
+  }
+});

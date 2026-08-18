@@ -538,6 +538,16 @@ RGB `200.09, 159.25, 160.61` to exact monochrome mean
 Raw magnitude parity. Descriptor recovery and the signed multi-source B&W
 corpus remain required before changing the current response scale.
 
+The versioned B&W manifest covers all eight ranges at signed 50%, 80% and
+100% values. Its packaged LightTable route completed 57 isolated captures on
+the diagnostic color target; a fresh treatment baseline and Red -100 case were
+also replayed successfully after the capture runner became resumable. The
+candidate Camera Raw keys are deliberately marked unverified: Photoshop 2026
+was visible and responsive but did not publish its automation object, including
+after a bounded 90-second `/Automation` launch. No comparison metric or parity
+claim is accepted until task 203 proves that external route and the descriptors
+are pixel-active.
+
 ### Native Grade Look and Strength
 
 Grade now owns a first-class Look section backed by an embedded document

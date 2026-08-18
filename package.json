@@ -114,6 +114,8 @@
     "analyze:grade-color-mixer-corpus": "node scripts/analyze-grade-light-corpus.mjs --section=color-mixer",
     "capture:grade-color-grading-corpus": "npm run package:desktop:verify && node scripts/run-grade-section-corpus.mjs --cases=scripts/grade-color-grading-parity-cases.json",
     "analyze:grade-color-grading-corpus": "node scripts/analyze-grade-light-corpus.mjs --section=color-grading",
+    "capture:grade-black-white-corpus": "npm run package:desktop:verify && node scripts/run-grade-section-corpus.mjs --cases=scripts/grade-black-white-parity-cases.json",
+    "analyze:grade-black-white-corpus": "node scripts/analyze-grade-light-corpus.mjs --section=black-white",
     "smoke:desktop:grade-look": "node scripts/smoke-desktop-grade-look.mjs",
     "regress:adjustment-parity": "node scripts/run-adjustment-parity-regression.mjs",
     "regress:grade-visual": "node scripts/capture-grade-visual-regression.mjs",

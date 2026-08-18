@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "section": "black-white",
+  "cameraRawDescriptorStatus": "candidate-unverified-automation-blocked",
+  "groupLabel": "Black & White Mix",
+  "analysisMinimumCameraRawMagnitude": 0.002,
+  "cameraRawPrerequisites": [
+    {
+      "descriptor": "ConvertToGrayscale",
+      "descriptorType": "string",
+      "valueType": "boolean",
+      "value": true
+    }
+  ],
+  "lightTablePrerequisites": [
+    {
+      "groupLabel": "Black & White Mix",
+      "treatment": "black-white",
+      "defaultTreatment": "color"
+    }
+  ],
+  "controls": [
+    {
+      "key": "red-luminance",
+      "label": "Red",
+      "sliderLabel": "Reds",
+      "blackWhiteRangeIndex": 0,
+      "cameraRawDescriptor": "GrayMixerRed",
+      "cameraRawDescriptorType": "string",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, 50, 80, 100]
+    },
+    {
+      "key": "orange-luminance",
+      "label": "Orange",
+      "sliderLabel": "Oranges",
+      "blackWhiteRangeIndex": 1,
+      "cameraRawDescriptor": "GrayMixerOrange",
+      "cameraRawDescriptorType": "string",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, 50, 80, 100]
+    },
+    {
+      "key": "yellow-luminance",
+      "label": "Yellow",
+      "sliderLabel": "Yellows",
+      "blackWhiteRangeIndex": 2,
+      "cameraRawDescriptor": "GrayMixerYellow",
+      "cameraRawDescriptorType": "string",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, 50, 80, 100]
+    },
+    {
+      "key": "green-luminance",
+      "label": "Green",
+      "sliderLabel": "Greens",
+      "blackWhiteRangeIndex": 3,
+      "cameraRawDescriptor": "GrayMixerGreen",
+      "cameraRawDescriptorType": "string",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, 50, 80, 100]
+    },
+    {
+      "key": "aqua-luminance",
+      "label": "Aqua",
+      "sliderLabel": "Aquas",
+      "blackWhiteRangeIndex": 4,
+      "cameraRawDescriptor": "GrayMixerAqua",
+      "cameraRawDescriptorType": "string",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, 50, 80, 100]
+    },
+    {
+      "key": "blue-luminance",
+      "label": "Blue",
+      "sliderLabel": "Blues",
+      "blackWhiteRangeIndex": 5,
+      "cameraRawDescriptor": "GrayMixerBlue",
+      "cameraRawDescriptorType": "string",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, 50, 80, 100]
+    },
+    {
+      "key": "purple-luminance",
+      "label": "Purple",
+      "sliderLabel": "Purples",
+      "blackWhiteRangeIndex": 6,
+      "cameraRawDescriptor": "GrayMixerPurple",
+      "cameraRawDescriptorType": "string",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, 50, 80, 100]
+    },
+    {
+      "key": "magenta-luminance",
+      "label": "Magenta",
+      "sliderLabel": "Magentas",
+      "blackWhiteRangeIndex": 7,
+      "cameraRawDescriptor": "GrayMixerMagenta",
+      "cameraRawDescriptorType": "string",
+      "cameraRawValueType": "integer",
+      "values": [-100, -80, -50, 50, 80, 100]
+    }
+  ]
+}

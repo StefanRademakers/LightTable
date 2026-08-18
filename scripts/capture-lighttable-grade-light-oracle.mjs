@@ -34,6 +34,9 @@ const settingForControl = (control, value) => ({
   groupLabel: control.groupLabel ?? suite.groupLabel ?? suite.section,
   subgroupLabel: control.subgroupLabel ?? null,
   rangeIndex: control.rangeIndex ?? null,
+  blackWhiteRangeIndex: control.blackWhiteRangeIndex ?? null,
+  treatment: control.lightTable?.treatment ?? null,
+  defaultTreatment: control.lightTable?.defaultTreatment ?? null,
   gradingMode: control.lightTable?.gradingMode ?? null,
   wheelHue: control.lightTable?.wheelHue === 'value'
     ? value : (control.lightTable?.wheelHue ?? null),
@@ -48,7 +51,10 @@ const cases = [{
   baselineId: 'neutral', isBaseline: true, settings: []
 }];
 for (const control of suite.controls) {
-  const prerequisites = (control.lightTablePrerequisites ?? []).map((entry) => ({
+  const prerequisites = [
+    ...(suite.lightTablePrerequisites ?? []),
+    ...(control.lightTablePrerequisites ?? [])
+  ].map((entry) => ({
     ...entry,
     groupLabel: entry.groupLabel ?? control.groupLabel ?? suite.groupLabel ?? suite.section,
     subgroupLabel: entry.subgroupLabel ?? null,
@@ -72,7 +78,7 @@ const mimeByExtension = new Map([
 
 const setGradeControl = async (page, setting, target = setting.value, resetting = false) => {
   const {
-    groupLabel, subgroupLabel, rangeIndex, gradingMode,
+    groupLabel, subgroupLabel, rangeIndex, blackWhiteRangeIndex, treatment, defaultTreatment, gradingMode,
     wheelHue, wheelSaturation, label
   } = setting;
   const group = page.locator('.lighttable-group').filter({
@@ -89,6 +95,16 @@ const setGradeControl = async (page, setting, target = setting.value, resetting 
     if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
     container = subgroup;
   }
+  if (treatment) {
+    const desired = resetting ? (defaultTreatment ?? 'color') : treatment;
+    const label = desired === 'black-white' ? 'B&W' : 'Color';
+    const button = group.getByRole('radio', { name: label, exact: true });
+    await button.click();
+    if (await button.getAttribute('aria-checked') !== 'true') {
+      throw new Error(`Image treatment did not settle at ${label}.`);
+    }
+    return;
+  }
   if (rangeIndex !== null && rangeIndex !== undefined) {
     const range = group.getByRole('slider', { name: 'Color Mixer hue range', exact: true });
     await range.focus();
@@ -97,6 +113,14 @@ const setGradeControl = async (page, setting, target = setting.value, resetting 
     const actualRange = Number(await range.getAttribute('aria-valuenow'));
     if (actualRange !== rangeIndex) {
       throw new Error(`Color Mixer range settled at ${actualRange}, expected ${rangeIndex}.`);
+    }
+  }
+  if (blackWhiteRangeIndex !== null && blackWhiteRangeIndex !== undefined) {
+    const range = group.getByLabel('Black and White color range', { exact: true })
+      .getByRole('button').nth(blackWhiteRangeIndex);
+    await range.click();
+    if (!String(await range.getAttribute('class')).includes('square-icon-button--active')) {
+      throw new Error(`Black & White range did not settle at ${blackWhiteRangeIndex}.`);
     }
   }
   if (gradingMode) {

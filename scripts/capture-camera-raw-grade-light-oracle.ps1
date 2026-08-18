@@ -76,7 +76,10 @@ $cases = @([pscustomobject]@{
   settings = @()
 })
 foreach ($control in $suite.controls) {
-  $prerequisites = @($control.cameraRawPrerequisites | Where-Object { $null -ne $_ })
+  $prerequisites = @(
+    @($suite.cameraRawPrerequisites | Where-Object { $null -ne $_ }) +
+    @($control.cameraRawPrerequisites | Where-Object { $null -ne $_ })
+  )
   $baselineId = 'neutral'
   if ($prerequisites.Count -gt 0) {
     $baselineId = "$($control.key)-baseline"
@@ -113,13 +116,20 @@ foreach ($case in $cases) {
   $target = Join-Path $outputPath "$($case.id).png"
   $descriptorStatement = if (@($case.settings).Count -gt 0) {
     (@($case.settings) | ForEach-Object {
-      $method = if ($_.valueType -eq 'double') { 'putDouble' } else { 'putInteger' }
+      $method = switch ($_.valueType) {
+        'boolean' { 'putBoolean' }
+        'double' { 'putDouble' }
+        default { 'putInteger' }
+      }
       $idFunction = if ($_.descriptorType -eq 'string') {
         'stringIDToTypeID'
       } else {
         'charIDToTypeID'
       }
-      "settings.$method($idFunction('$($_.descriptor)'), $($_.value));"
+      $valueExpression = if ($_.valueType -eq 'boolean') {
+        if ($_.value) { 'true' } else { 'false' }
+      } else { $_.value }
+      "settings.$method($idFunction('$($_.descriptor)'), $valueExpression);"
     }) -join "`n    "
   } else {
     # A known neutral PV2012 key makes the process version explicit without
