@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "section": "point-color",
+  "captureStrategy": "dedicated-eyedropper-workflow",
+  "cameraRawEvidenceStatus": "oracle-open",
+  "fixture": "generated-hue-lightness-field",
+  "cases": [
+    { "id": "neutral-sample", "operation": "sample", "sample": [0.25, 0.25] },
+    { "id": "hue-plus-80", "control": "Hue Shift", "value": 80 },
+    { "id": "hue-reset", "control": "Hue Shift", "value": 0, "exactBaseline": "neutral-sample" },
+    { "id": "saturation-minus-80", "control": "Saturation Shift", "value": -80 },
+    { "id": "luminance-plus-80", "control": "Luminance Shift", "value": 80 },
+    { "id": "variance-plus-80", "control": "Variance", "value": 80, "prerequisite": "hue-plus-80" },
+    { "id": "narrow-hue-range", "control": "Hue Range", "value": 5, "prerequisite": "hue-plus-80" },
+    { "id": "visualize-range", "operation": "visualize-range", "exportMustRemainClean": true },
+    { "id": "overlapping-samples", "operation": "sample", "sample": [0.5, 0.5], "maximumSamples": 8 },
+    { "id": "remove-all", "operation": "remove-all", "exactBaseline": "source" }
+  ]
+}

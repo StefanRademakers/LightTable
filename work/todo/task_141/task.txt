@@ -378,3 +378,12 @@ Progress re-audit - 18 August 2026
   run hit the ten-minute harness bound after finishing the diagnostic source;
   it was stopped and resumed from validated partials in 2.6 seconds. A portrait
   rerun is deferred until it can validate a specific implementation change.
+- Point Color and Look/Profile no longer report missing infrastructure. Both
+  have versioned dedicated manifests and hash-bound packaged desktop evidence.
+- Point Color proves H/S/L Shift, Variance, range narrowing, overlapping
+  samples, viewport-only Visualize Range, exact reset and exact remove-all
+  restoration. Its honest readiness state is
+  `native-complete-camera-raw-open`; the Adobe oracle remains open.
+- Grade Look proves neutral/full/half/zero Strength and embedded LUT copy to a
+  second document at 62%. It is classified `intentional-difference`: a user-
+  selected creative LUT is not misrepresented as a Camera Raw camera profile.

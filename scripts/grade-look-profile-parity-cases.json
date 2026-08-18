@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "section": "look-profile",
+  "captureStrategy": "dedicated-embedded-lut-workflow",
+  "cameraRawEvidenceStatus": "intentional-semantic-difference",
+  "reason": "A user-selected embedded 3D LUT and Camera Raw camera profile are not the same operation.",
+  "fixtureLut": "packages/lighttable-app/src/assets/luts/FGCineCold.cube",
+  "cases": [
+    { "id": "neutral-grade-layer", "strength": 100, "asset": null, "exactBypass": true },
+    { "id": "look-full", "strength": 100, "asset": "fixture" },
+    { "id": "look-half", "strength": 50, "asset": "fixture", "mustInterpolate": true },
+    { "id": "look-zero", "strength": 0, "asset": "fixture", "exactBypass": true },
+    { "id": "cross-document-copy", "strength": 62, "asset": "fixture", "embedAsset": true }
+  ]
+}

@@ -361,10 +361,10 @@ as hidden Grade sections.
 | Texture / Clarity / Dehaze | Shared creative shader; spatial analysis only for Clarity/Dehaze | Clarity/Dehaze characterized; `CrTx` pixel-active and full LightTable corpus captured, current Camera Raw recapture pending |
 | Detail | Conditional four-scale wavelet NR before fused Sharpening | Luminance NR characterized; remaining controls and combinations open |
 | Color Mixer | Shared periodic eight-range implementation with red wraparound tests | All 24 Camera Raw HSL descriptors proven; full corpus characterized |
-| Point Color | Up to eight independent samples; neutral and overlap behavior tested | Camera Raw automation and Visualize Range oracle open |
+| Point Color | Dedicated packaged workflow proves H/S/L, Variance, range, overlap, remove-all and viewport-only visualization | Native complete; Camera Raw Point Color oracle open |
 | Color Grading | Normalized 3-way masks, Blend/Balance and endpoint guards tested | All 14 Camera Raw controls proven and ten-source sRGB/16-bit corpus characterized; Display-P3 extension open |
 | B&W Mix | Native fused eight-range photographic mix; Photoshop six-channel adjustment remains separate | Packaged LightTable side complete on 11 sources / 627 cases; Camera Raw response corpus remains open |
-| Look / Profile | Native Grade Look with embedded `.cube` asset, live Strength and exact zero bypass | Creative user-selected Look is implemented; Camera Raw profile matching remains open |
+| Look / Profile | Native Grade Look with embedded `.cube` asset, live Strength, exact zero bypass and cross-document copy | Intentional semantic difference: arbitrary creative LUT is not a Camera Raw camera profile |
 
 Performance invariants are covered by executable tests: neutral Noise
 Reduction performs zero allocations and zero wavelet submissions; active
@@ -627,6 +627,22 @@ zero endpoint proves that this module cannot silently alter an unselected
 Grade. The same packaged route copies the embedded LUT from one open document
 to another, remaps its asset id and verifies the destination at Strength 62
 after the asynchronous GPU upload has settled.
+
+The Look workflow now has a versioned dedicated manifest and writes hash-bound
+evidence only after the packaged desktop route passes. The readiness audit
+accepts it as `intentional-difference`, not as a false Camera Raw parity result.
+It records neutral, full, half, zero and cross-document cases and requires the
+exact manifest hash. A development Electron run cannot publish passing evidence.
+
+Point Color uses its own eyedropper workflow manifest because sample coordinates,
+overlapping points and Visualize Range cannot be represented honestly by the
+generic slider corpus. Its packaged smoke proves Hue, Saturation and Luminance
+Shift, Variance, a narrowed Hue Range, two samples, viewport-only visualization,
+exact Hue reset and exact source restoration after all samples are removed. The
+clean and restored export share SHA-256
+`d1273265a5d727ea5207c727ddaa9a8240efcddc7ef1ce67d6bb1baaeaae2562`.
+The readiness state is deliberately `native-complete-camera-raw-open`: native
+product behavior is proven, while Adobe Point Color automation remains open.
 
 ### Packaged 4K interaction baseline
 

@@ -127,3 +127,52 @@ test('representative coverage requires the named sources rather than any matchin
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('dedicated native evidence distinguishes an open oracle from an intentional difference', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'lt-grade-readiness-native-'));
+  const workspace = path.join(root, 'workspace');
+  const externalRoot = path.join(root, 'corpus');
+  try {
+    await Promise.all([
+      mkdir(path.join(workspace, 'scripts'), { recursive: true }),
+      mkdir(externalRoot, { recursive: true })
+    ]);
+    await writeFile(path.join(externalRoot, 'inventory.json'), JSON.stringify({ sources: [] }));
+    const definitions = [
+      {
+        id: 'point-color', manifest: 'grade-point-color-parity-cases.json',
+        dedicatedEvidence: true, evidenceStatus: 'native-complete-camera-raw-open'
+      },
+      {
+        id: 'look-profile', manifest: 'grade-look-profile-parity-cases.json',
+        dedicatedEvidence: true, evidenceStatus: 'intentional-difference'
+      }
+    ];
+    for (const definition of definitions) {
+      const manifest = Buffer.from(JSON.stringify({ schema: 1, section: definition.id }));
+      const manifestHash = createHash('sha256').update(manifest).digest('hex');
+      await writeFile(path.join(workspace, 'scripts', definition.manifest), manifest);
+      const evidenceDirectory = path.join(
+        externalRoot, 'captures', definition.id, 'native'
+      );
+      await mkdir(evidenceDirectory, { recursive: true });
+      await writeFile(path.join(evidenceDirectory, 'capture-report.json'), JSON.stringify({
+        section: definition.id,
+        caseManifestSha256: manifestHash,
+        packagedDesktop: true,
+        passed: true
+      }));
+    }
+    const report = await auditGradeParityReadiness({ workspace, externalRoot, sections: definitions });
+    assert.equal(report.sections[0].status, 'native-complete-camera-raw-open');
+    assert.equal(report.sections[1].status, 'intentional-difference');
+    assert.equal(report.complete, false, 'the open Point Color oracle remains an honest blocker');
+
+    const lookOnly = await auditGradeParityReadiness({
+      workspace, externalRoot, sections: [definitions[1]]
+    });
+    assert.equal(lookOnly.complete, true, 'an explicit semantic difference is a valid terminal state');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

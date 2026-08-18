@@ -1,5 +1,6 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
@@ -12,10 +13,21 @@ const lut = path.resolve(process.argv[3]
 const destinationSource = path.resolve(process.argv[4] ?? 'D:/people.jpg');
 const output = path.join(workspace, 'tmp', 'grade-look');
 const userData = path.join(output, `user-data-${process.pid}`);
-const launch = await resolveDesktopTestLaunch(workspace);
+const launch = await resolveDesktopTestLaunch(workspace, { requirePackaged: true });
+const corpus = JSON.parse(await readFile(
+  path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'
+));
+const caseManifestBytes = await readFile(
+  path.join(import.meta.dirname, 'grade-look-profile-parity-cases.json')
+);
+const evidenceDirectory = path.join(
+  path.resolve(corpus.externalRoot), 'captures', 'look-profile', 'native'
+);
 await Promise.all([
-  access(source), access(lut), access(destinationSource), mkdir(userData, { recursive: true })
+  access(source), access(lut), access(destinationSource),
+  mkdir(userData, { recursive: true }), mkdir(evidenceDirectory, { recursive: true })
 ]);
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 const environment = {
   ...process.env,
@@ -164,6 +176,26 @@ try {
   if (distance(destinationNeutral, destinationLookMean) < 1) {
     throw new Error('Cross-document Grade paste did not apply the embedded Look.');
   }
+  await writeFile(path.join(evidenceDirectory, 'capture-report.json'), `${JSON.stringify({
+    schema: 1,
+    generatedAt: new Date().toISOString(),
+    section: 'look-profile',
+    caseManifestSha256: sha256(caseManifestBytes),
+    packagedDesktop: launch.mode === 'production-packaged',
+    passed: true,
+    inputs: {
+      source: { file: source, sha256: sha256(await readFile(source)) },
+      lut: { file: lut, sha256: sha256(await readFile(lut)) },
+      destination: { file: destinationSource, sha256: sha256(await readFile(destinationSource)) }
+    },
+    cases: [
+      { id: 'neutral-grade-layer', mean: neutral },
+      { id: 'look-full', mean: full },
+      { id: 'look-half', mean: half },
+      { id: 'look-zero', mean: bypass },
+      { id: 'cross-document-copy', strength: 62, mean: destinationLookMean }
+    ]
+  }, null, 2)}\n`);
   process.stdout.write(`Grade Look smoke passed: neutral=${neutral.map((value) => value.toFixed(2))}; `
     + `full=${full.map((value) => value.toFixed(2))}; half=${half.map((value) => value.toFixed(2))}; `
     + `zero=${bypass.map((value) => value.toFixed(2))}; cross-document strength=62.\n`);

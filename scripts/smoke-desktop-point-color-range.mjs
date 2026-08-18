@@ -1,6 +1,6 @@
 import { _electron as electron } from 'playwright-core';
 import { createHash } from 'node:crypto';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
@@ -11,7 +11,19 @@ const workspace = path.resolve(import.meta.dirname, '..');
 const output = path.join(workspace, 'tmp', 'point-color-range-smoke');
 const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(workspace, { requirePackaged: true });
-await mkdir(userData, { recursive: true });
+const corpus = JSON.parse(await readFile(
+  path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'
+));
+const caseManifestBytes = await readFile(
+  path.join(import.meta.dirname, 'grade-point-color-parity-cases.json')
+);
+const evidenceDirectory = path.join(
+  path.resolve(corpus.externalRoot), 'captures', 'point-color', 'native'
+);
+await Promise.all([
+  mkdir(userData, { recursive: true }),
+  mkdir(evidenceDirectory, { recursive: true })
+]);
 
 const sourceBytes = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="512">
   <defs>
@@ -122,7 +134,16 @@ try {
   const captureViewport = async () => {
     const bounds = await viewport.boundingBox();
     if (!bounds) throw new Error('Point Color smoke lost the viewport bounds.');
-    return page.screenshot({ clip: bounds });
+    let lastError;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await page.screenshot({ clip: bounds, animations: 'disabled', timeout: 45_000 });
+      } catch (error) {
+        lastError = error;
+        if (attempt === 0) await page.waitForTimeout(250);
+      }
+    }
+    throw lastError;
   };
   const preview = await captureViewport();
   const previewImage = sharp(preview);
@@ -192,9 +213,90 @@ try {
   if (await visualize.getAttribute('aria-checked') !== 'false') {
     throw new Error('Visualize Range did not exit deterministically.');
   }
+
+  const renderControl = async (label, value) => {
+    const slider = mixer.getByRole('slider', { name: label, exact: true });
+    await driver.resetRenderTelemetry(documentId);
+    await slider.fill(String(value));
+    if (await slider.inputValue() !== String(value)) {
+      throw new Error(`${label} did not settle at ${value}.`);
+    }
+    await page.waitForFunction(async (id) => {
+      const telemetry = window.__lightTableAutomation?.queryRenderTelemetry?.(id);
+      return (telemetry?.submittedFrames ?? 0) > 0;
+    }, documentId, { timeout: 30_000 });
+    return exportPng();
+  };
+  const requireChanged = (label, left, right) => {
+    if (left.equals(right)) throw new Error(`${label} produced no visible export change.`);
+  };
+
+  await renderControl('Hue Range', 50);
+  const hueEffect = await renderControl('Hue Shift', 80);
+  requireChanged('Hue Shift', cleanExport, hueEffect);
+  const hueReset = await renderControl('Hue Shift', 0);
+  if (!cleanExport.equals(hueReset)) throw new Error('Reset Hue Shift is not an exact bypass.');
+  const saturationEffect = await renderControl('Saturation Shift', -80);
+  requireChanged('Saturation Shift', cleanExport, saturationEffect);
+  await renderControl('Saturation Shift', 0);
+  const luminanceEffect = await renderControl('Luminance Shift', 80);
+  requireChanged('Luminance Shift', cleanExport, luminanceEffect);
+  await renderControl('Luminance Shift', 0);
+  const broadHue = await renderControl('Hue Shift', 80);
+  const varianceEffect = await renderControl('Variance', 80);
+  requireChanged('Variance', broadHue, varianceEffect);
+  const narrowHue = await renderControl('Hue Range', 5);
+  requireChanged('Hue Range', varianceEffect, narrowHue);
+
+  await mixer.getByRole('button', { name: 'Sample Point Color from image', exact: true }).click();
+  const secondPoint = await viewport.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const x = bounds.left + bounds.width * 0.75;
+    const y = bounds.top + bounds.height * 0.25;
+    return document.elementFromPoint(x, y)?.closest('.lighttable-viewport') === element
+      ? { x, y }
+      : null;
+  });
+  if (!secondPoint) throw new Error('Point Color smoke found no second sample point.');
+  await page.mouse.click(secondPoint.x, secondPoint.y);
+  await page.waitForFunction(() => (
+    document.querySelectorAll('[aria-label="Select sampled color"]').length === 2
+  ), undefined, { timeout: 30_000 });
+  const overlapEffect = await renderControl('Hue Shift', -80);
+  requireChanged('Overlapping Point Color samples', narrowHue, overlapEffect);
+
+  const remove = mixer.getByRole('button', { name: 'Remove sampled color', exact: true });
+  await remove.click();
+  await mixer.getByRole('button', { name: 'Select sampled color', exact: true }).first().click();
+  await remove.click();
+  const removedAll = await exportPng();
+  if (!cleanExport.equals(removedAll)) {
+    throw new Error('Removing all Point Color samples did not restore the exact baseline.');
+  }
   if (runtimeErrors.length > 0) {
     throw new Error(`Point Color smoke emitted runtime errors: ${JSON.stringify(runtimeErrors)}`);
   }
+  await writeFile(path.join(evidenceDirectory, 'capture-report.json'), `${JSON.stringify({
+    schema: 1,
+    generatedAt: new Date().toISOString(),
+    section: 'point-color',
+    caseManifestSha256: hash(caseManifestBytes),
+    packagedDesktop: launch.mode === 'production-packaged',
+    passed: true,
+    sourceEvidence: { sha256: hash(sourceBytes), byteLength: sourceBytes.byteLength },
+    cases: [
+      { id: 'neutral-sample', sha256: hash(cleanExport) },
+      { id: 'hue-plus-80', sha256: hash(hueEffect) },
+      { id: 'hue-reset', sha256: hash(hueReset) },
+      { id: 'saturation-minus-80', sha256: hash(saturationEffect) },
+      { id: 'luminance-plus-80', sha256: hash(luminanceEffect) },
+      { id: 'variance-plus-80', sha256: hash(varianceEffect) },
+      { id: 'narrow-hue-range', sha256: hash(narrowHue) },
+      { id: 'visualize-range', exportSha256: hash(diagnosticExport), viewportSha256: hash(preview) },
+      { id: 'overlapping-samples', sha256: hash(overlapEffect) },
+      { id: 'remove-all', sha256: hash(removedAll) }
+    ]
+  }, null, 2)}\n`);
   process.stdout.write(`Point Color range smoke passed; clean export ${hash(cleanExport)}.\n`);
 } finally {
   await app.close().catch(() => undefined);

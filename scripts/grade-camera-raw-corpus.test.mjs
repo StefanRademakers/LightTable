@@ -288,3 +288,25 @@ test('Grade Black & White oracle covers all eight Camera Raw mixer ranges', asyn
     assert.deepEqual(control.values, [-100, -80, -50, 50, 80, 100]);
   }
 });
+
+test('Point Color and Look use explicit dedicated workflow manifests', async () => {
+  const [pointColor, look, pointSmoke, lookSmoke] = await Promise.all([
+    readFile(path.join(import.meta.dirname, 'grade-point-color-parity-cases.json'), 'utf8').then(JSON.parse),
+    readFile(path.join(import.meta.dirname, 'grade-look-profile-parity-cases.json'), 'utf8').then(JSON.parse),
+    readFile(path.join(import.meta.dirname, 'smoke-desktop-point-color-range.mjs'), 'utf8'),
+    readFile(path.join(import.meta.dirname, 'smoke-desktop-grade-look.mjs'), 'utf8')
+  ]);
+  assert.equal(pointColor.captureStrategy, 'dedicated-eyedropper-workflow');
+  assert.equal(pointColor.cameraRawEvidenceStatus, 'oracle-open');
+  assert.ok(pointColor.cases.some(({ id }) => id === 'overlapping-samples'));
+  assert.ok(pointColor.cases.some(({ id }) => id === 'visualize-range'));
+  assert.equal(look.captureStrategy, 'dedicated-embedded-lut-workflow');
+  assert.equal(look.cameraRawEvidenceStatus, 'intentional-semantic-difference');
+  assert.ok(look.cases.some(({ id }) => id === 'cross-document-copy'));
+  for (const smoke of [pointSmoke, lookSmoke]) {
+    assert.match(smoke, /requirePackaged: true/u);
+    assert.match(smoke, /caseManifestSha256/u);
+    assert.match(smoke, /packagedDesktop/u);
+    assert.match(smoke, /capture-report\.json/u);
+  }
+});
