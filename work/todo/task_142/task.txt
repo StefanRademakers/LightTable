@@ -198,6 +198,11 @@ Implemented foundation - 18 August 2026
   root/midstack and nested-order unit gates for the first editable Grade
   decomposition; Photoshop rebuild evidence remains version-blocked by
   task_203.
+- The packaged desktop PSD roundtrip now targets the explicit Editable menu
+  intent and passes against `D:\TextTest.psd`: command export, in-memory reopen,
+  semantic signature comparison and physical host save all completed without
+  renderer errors. The external Photoshop rebuild remains a separate oracle
+  gate rather than being inferred from this LightTable roundtrip.
 
 Still open: further editable decomposition of compound Grade Layers, position-local
 fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group
