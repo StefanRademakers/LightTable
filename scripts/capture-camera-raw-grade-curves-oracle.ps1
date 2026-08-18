@@ -35,6 +35,7 @@ function ConvertTo-JsString([string]$value) {
 }
 
 $suite = Get-Content -LiteralPath $casePath -Raw | ConvertFrom-Json
+$caseManifestSha256 = (Get-FileHash -LiteralPath $casePath -Algorithm SHA256).Hash.ToLowerInvariant()
 $photoshop = Get-PhotoshopAutomation
 $channelDescriptors = @{ master = 'Crv '; red = 'CrvR'; green = 'CrvG'; blue = 'CrvB' }
 $results = @()
@@ -73,6 +74,7 @@ foreach ($case in $suite.cases) {
 $cameraRawPlugin = Get-Item -LiteralPath 'C:\Program Files\Common Files\Adobe\Plug-Ins\CC\File Formats\Camera Raw.8bi' -ErrorAction SilentlyContinue
 [ordered]@{
   schema = 1; generatedAt = (Get-Date).ToUniversalTime().ToString('o'); section = $suite.section; source = $sourcePath
+  caseManifestSha256 = $caseManifestSha256
   photoshopVersion = $photoshop.Version; photoshopPath = $photoshop.Path
   cameraRawVersion = if ($cameraRawPlugin) { $cameraRawPlugin.VersionInfo.ProductVersion } else { $null }
   isolation = 'Each output opens the source afresh and authors only the declared Camera Raw point-curve lists.'

@@ -1,8 +1,11 @@
 import { _electron as electron } from 'playwright-core';
+import { createHash } from 'node:crypto';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import sharp from 'sharp';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const argument = (name) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -10,14 +13,31 @@ const source = path.resolve(argument('source') ?? 'D:\\people.jpg');
 const root = path.resolve(argument('root') ?? 'D:\\mediavibe\\LightTableTests\\GradeCurvesParity');
 const casePath = path.resolve(argument('cases') ?? path.join(import.meta.dirname, 'grade-curves-parity-cases.json'));
 const outputDirectory = path.join(root, 'lighttable');
-const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspace);
 const userData = path.join(root, 'runtime', `lighttable-${process.pid}`);
-await Promise.all([access(source), access(casePath), access(executable), mkdir(outputDirectory, { recursive: true }), mkdir(userData, { recursive: true })]);
-const suite = JSON.parse(await readFile(casePath, 'utf8'));
+await Promise.all([access(source), access(casePath), access(launch.executablePath), mkdir(outputDirectory, { recursive: true }), mkdir(userData, { recursive: true })]);
+const caseManifestBytes = await readFile(casePath);
+const caseManifestSha256 = createHash('sha256').update(caseManifestBytes).digest('hex');
+const suite = JSON.parse(caseManifestBytes.toString('utf8'));
+const sourceBytes = await readFile(source);
+const sourceMetadata = await sharp(sourceBytes).metadata();
+const sourceEvidence = {
+  sha256: createHash('sha256').update(sourceBytes).digest('hex'),
+  byteLength: sourceBytes.byteLength,
+  format: sourceMetadata.format ?? null,
+  width: sourceMetadata.width ?? null,
+  height: sourceMetadata.height ?? null,
+  depth: sourceMetadata.depth ?? null,
+  channels: sourceMetadata.channels ?? null,
+  hasProfile: Boolean(sourceMetadata.hasProfile),
+  iccSha256: sourceMetadata.icc
+    ? createHash('sha256').update(sourceMetadata.icc).digest('hex')
+    : null
+};
 const mimeByExtension = new Map([['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'], ['.png', 'image/png'], ['.tif', 'image/tiff'], ['.tiff', 'image/tiff']]);
 const environment = { ...process.env, LIGHTTABLE_AUTOMATION_USER_DATA: userData };
 delete environment.ELECTRON_RUN_AS_NODE;
-const app = await electron.launch({ executablePath: executable, args: [path.join(workspace, 'apps', 'desktop')], cwd: workspace, env: environment, timeout: 30_000 });
+const app = await electron.launch({ executablePath: launch.executablePath, args: launch.args, cwd: workspace, env: environment, timeout: 30_000 });
 const results = [];
 
 try {
@@ -94,5 +114,6 @@ try {
 
 await writeFile(path.join(outputDirectory, 'capture-report.json'), `${JSON.stringify({
   schema: 1, generatedAt: new Date().toISOString(), section: suite.section, source,
+  sourceEvidence, caseManifestSha256,
   isolation: 'One decoded source and one topmost Grade Layer are reused; all four channels reset before each declared curve case.', cases: results
 }, null, 2)}\n`);
