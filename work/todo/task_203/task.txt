@@ -95,6 +95,12 @@ Implemented infrastructure
 - The packaged LightTable B&W side is complete for all eleven sources and all
   57 cases per source with matching manifest/source/ICC evidence. The Adobe
   half remains blocked by the safe preflight state above.
+- The final shared-compositor adjustment recapture completed through the
+  current packaged product on 18 August 2026: all 48 canonical corpora passed,
+  all 699 cases were captured, every corpus had 100% case coverage, and there
+  were zero open, failed, regressed, missing or capture-failed results. The
+  lowest aggregate parity was 97.264%; the largest baseline movement was only
+  0.00049 percentage points.
 
 Execution order after repair
 ============================
@@ -103,9 +109,9 @@ Execution order after repair
 2. Complete the eight-range B&W Camera Raw corpus and analyze it against the
    already captured LightTable corpus.
 3. Capture the Display-P3 Color Grading extension.
-4. After the final shared compositor/profile changes, run a fresh packaged
-   `npm run regress:adjustment-parity -- --capture --regressions-only` over all
-   accepted adjustment corpora.
+4. [Complete 18 August 2026] After the final shared compositor/profile changes,
+   run a fresh packaged `npm run regress:adjustment-parity -- --capture
+   --regressions-only` over all accepted adjustment corpora.
 5. Run the final all-section Grade recapture required by task 141.
 
 Acceptance criteria

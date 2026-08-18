@@ -30,14 +30,32 @@ The machine-readable canonical corpus selection lives in
 and real-image evidence; exploratory probe directories are not release gates.
 Run `npm run regress:adjustment-parity -- --regressions-only` to compare the
 existing captures against their accepted baselines, or add `--capture` to
-recapture LightTable output before comparing it. The latter expects the current
-desktop application to have been packaged first. This suite covers the
+recapture LightTable output before comparing it. On Windows the capture route
+packages and verifies the current desktop source first, then pins every child
+capture to that exact executable. This suite covers the
 Photoshop-shaped adjustment nodes. Native Grade is protected separately by
 `grade-visual-suite.json` and `npm run regress:grade-visual`. That harness opens
 a real photograph, drives the production Grade sliders through their accessible
 UI labels, exports through the production compositor, and compares six neutral,
 isolated-group, extreme, and combined cases against the explicitly accepted
 external baseline. It introduces no test-only mutation path in the app.
+
+### Current-product full recapture — 18 August 2026
+
+After the layered-asset/compositor-cache repair, all 48 canonical adjustment
+corpora were freshly rendered through the verified packaged desktop product.
+The run covered 699 cases and completed with 48 passed, zero open, failed,
+regressed, missing or capture-failed corpora. Every corpus retained 100% case
+coverage. The lowest aggregate result was the two-case 16-bit portrait
+Color-and-Vibrance corpus at 97.264%; the largest movement from its accepted
+baseline was 0.00049 percentage points. This proves that the shared cache fix
+did not disturb the accepted Photoshop-shaped adjustment results.
+
+The machine report is external/ephemeral at
+`tmp/adjustment-parity-regression/report.json`; the versioned suite, thresholds
+and these durable findings remain in the repository. The report records
+`capture: true` and was generated after the product packaging gate, so it is
+not a report-only re-analysis of old LightTable PNGs.
 
 ## Exposure
 
