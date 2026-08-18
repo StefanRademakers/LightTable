@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { parseGradeCorpusRunMode } from './grade-corpus-run-mode.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(await readFile(
@@ -12,6 +13,7 @@ const sourceArgument = process.argv.find((value) => value.startsWith('--source='
 const refreshControlArgument = process.argv.find((value) => value.startsWith('--refresh-control='));
 const refreshControl = refreshControlArgument?.slice('--refresh-control='.length) ?? null;
 const force = process.argv.includes('--force');
+const { captureCameraRaw, captureLightTable } = parseGradeCorpusRunMode(process.argv);
 const externalRoot = path.resolve(rootArgument?.slice('--root='.length) ?? manifest.externalRoot);
 const inventoryPath = path.join(externalRoot, 'inventory.json');
 
@@ -37,22 +39,30 @@ for (const source of sources) {
   const cameraReport = path.join(captureRoot, 'camera-raw', 'capture-report.json');
   const lightTableReport = path.join(captureRoot, 'lighttable', 'capture-report.json');
   process.stdout.write(`\n=== Grade Light corpus: ${source.id} ===\n`);
-  if (force || !await exists(cameraReport)) {
+  if (captureCameraRaw && (force || !await exists(cameraReport))) {
     run('powershell', [
       '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
       path.join(import.meta.dirname, 'capture-camera-raw-grade-light-oracle.ps1'),
       '-Source', source.file, '-Root', captureRoot
     ]);
-  } else process.stdout.write('Camera Raw capture already exists; use --force to replace it.\n');
-  if (force || refreshControl || !await exists(lightTableReport)) {
+  } else if (captureCameraRaw) {
+    process.stdout.write('Camera Raw capture already exists; use --force to replace it.\n');
+  }
+  if (captureLightTable && (force || refreshControl || !await exists(lightTableReport))) {
     run(process.execPath, [
       path.join(import.meta.dirname, 'capture-lighttable-grade-light-oracle.mjs'),
       `--source=${source.file}`, `--root=${captureRoot}`, '--resume-partial',
       ...(refreshControl ? [`--refresh-control=${refreshControl}`] : [])
     ]);
-  } else process.stdout.write('LightTable capture already exists; use --force to replace it.\n');
-  run(process.execPath, [path.join(import.meta.dirname, 'analyze-grade-light-parity.mjs'), `--root=${captureRoot}`]);
-  run(process.execPath, [path.join(import.meta.dirname, 'create-grade-parity-contact-sheets.mjs'), `--root=${captureRoot}`]);
+  } else if (captureLightTable) {
+    process.stdout.write('LightTable capture already exists; use --force to replace it.\n');
+  }
+  if (await exists(cameraReport) && await exists(lightTableReport)) {
+    run(process.execPath, [path.join(import.meta.dirname, 'analyze-grade-light-parity.mjs'), `--root=${captureRoot}`]);
+    run(process.execPath, [path.join(import.meta.dirname, 'create-grade-parity-contact-sheets.mjs'), `--root=${captureRoot}`]);
+  } else {
+    process.stdout.write('Both oracle reports are required before analysis; capture retained for a later resume.\n');
+  }
 }
 
 process.stdout.write(`\nCompleted Grade Light corpus for ${sources.length} source(s).\n`);

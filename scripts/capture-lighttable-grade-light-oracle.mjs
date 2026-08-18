@@ -1,7 +1,9 @@
 import { _electron as electron } from 'playwright-core';
+import { createHash } from 'node:crypto';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import sharp from 'sharp';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
 
@@ -28,6 +30,21 @@ await Promise.all([
 ]);
 
 const suite = JSON.parse(await readFile(casePath, 'utf8'));
+const sourceBytes = await readFile(source);
+const sourceMetadata = await sharp(sourceBytes).metadata();
+const sourceEvidence = {
+  sha256: createHash('sha256').update(sourceBytes).digest('hex'),
+  byteLength: sourceBytes.byteLength,
+  format: sourceMetadata.format ?? null,
+  width: sourceMetadata.width ?? null,
+  height: sourceMetadata.height ?? null,
+  depth: sourceMetadata.depth ?? null,
+  channels: sourceMetadata.channels ?? null,
+  hasProfile: Boolean(sourceMetadata.hasProfile),
+  iccSha256: sourceMetadata.icc
+    ? createHash('sha256').update(sourceMetadata.icc).digest('hex')
+    : null
+};
 const caseId = (key, value) => `${key}-${value < 0 ? 'minus' : 'plus'}-${Math.abs(value)}`
   .replaceAll('.', '_');
 const settingForControl = (control, value) => ({
@@ -265,10 +282,11 @@ try {
 
 if (captureComplete) {
   await writeFile(path.join(outputDirectory, 'capture-report.json'), `${JSON.stringify({
-    schema: 1,
+    schema: 2,
     generatedAt: new Date().toISOString(),
     section: suite.section,
     source,
+    sourceEvidence,
     isolation: 'One decoded source and one topmost Grade Layer are reused; the prior control is verified at neutral before exactly one Grade control is authored. Long corpora relaunch the renderer between bounded batches.',
     cases: results
   }, null, 2)}\n`);

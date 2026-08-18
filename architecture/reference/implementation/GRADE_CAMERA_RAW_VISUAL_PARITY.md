@@ -510,9 +510,21 @@ renderer constant and no LUT was changed from these results. A future accepted
 change requires a grounded tonal-mask/overlap model that improves the complete
 corpus, followed by recapture of earlier Color and Mixer sections.
 
-The canonical source manifest now also contains an explicitly tagged Display-P3
-color target and records ICC hashes. This ten-source result predates that
-addition; the P3 capture is a required extension, not silently counted here.
+The canonical source manifest also contains an explicitly tagged Display-P3
+color target and records ICC hashes. The packaged LightTable side of that
+extension is complete: all 85 isolated Color Grading outputs were captured from
+the P3 source through the production UI, GPU compositor and PNG export route.
+Its capture report embeds the exact source SHA-256 and ICC SHA-256, so it cannot
+be mixed with a regenerated or differently tagged source. The Camera Raw side
+is still required before P3 parity metrics can be accepted and is not silently
+counted in the ten-source table above.
+
+The corpus runners support `--lighttable-only` and `--camera-raw-only`. This is
+an evidence-preserving resume mechanism, not permission to analyze one-sided
+captures: analysis and contact sheets run only after both capture reports are
+present. It allows the packaged product route to finish while the version-pinned
+Adobe automation preflight is unavailable, without replacing or weakening the
+missing oracle.
 
 ### Native Black & White Mix readiness
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
+import { parseGradeCorpusRunMode } from './grade-corpus-run-mode.mjs';
 
 const manifest = JSON.parse(await readFile(
   path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'
@@ -26,6 +27,25 @@ test('generated Grade diagnostics declare known generators and portable file nam
     assert.ok(['sRGB', 'Display P3'].includes(source.profile), `${source.id} declares profile`);
   }
   assert.equal(manifest.sources.find(({ id }) => id === 'wide-gamut-color')?.profile, 'Display P3');
+});
+
+test('Grade corpus capture sides can resume independently without ambiguous flags', () => {
+  assert.deepEqual(parseGradeCorpusRunMode([]), {
+    captureCameraRaw: true,
+    captureLightTable: true
+  });
+  assert.deepEqual(parseGradeCorpusRunMode(['--lighttable-only']), {
+    captureCameraRaw: false,
+    captureLightTable: true
+  });
+  assert.deepEqual(parseGradeCorpusRunMode(['--camera-raw-only']), {
+    captureCameraRaw: true,
+    captureLightTable: false
+  });
+  assert.throws(
+    () => parseGradeCorpusRunMode(['--lighttable-only', '--camera-raw-only']),
+    /either --lighttable-only or --camera-raw-only/u
+  );
 });
 
 test('Grade Color oracle covers signed Camera Raw color controls and endpoints', async () => {

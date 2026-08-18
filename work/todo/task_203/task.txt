@@ -26,6 +26,16 @@ Current blocked evidence
   publish its automation object.
 - The generated Display-P3 extension and any fresh full adjustment recapture
   need the same reliable external bootstrap.
+- The generic `Photoshop.Application` and versioned `.200` registration on the
+  reference machine currently resolve to Photoshop Beta 27.11, while the
+  stable 27.9 executable is not registered as an independent COM server.
+- A version-pinned read-only Beta activation fails after about 30 seconds with
+  `CO_E_SERVER_EXEC_FAILURE` while Photoshop 2025 owns the running Photoshop
+  application instance. That 2025 instance contains unsaved user documents and
+  must not be killed or repurposed as the 27.9/27.11 oracle.
+- The packaged LightTable half of the Display-P3 Color Grading extension is now
+  complete (85/85 cases) with source and ICC hashes embedded in its report.
+  The runner can resume the Adobe half independently.
 
 Investigation
 =============
