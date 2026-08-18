@@ -127,9 +127,16 @@ An ordinary request authorizes the requested change only. The explicit command
 to work all todos activates the persistent queue contract in
 [`work/README.md`](../work/README.md): finish tasks in order, verify, update
 durable architecture, commit the milestone, move it to `work/done/` and
-continue until the queue is empty or genuinely blocked.
+continue until the queue is empty, genuinely blocked, or the mandatory
+eight-hour owner checkpoint is due. Persistence follows the autonomous-result
+loop in that contract: implement, exercise the real flow, assess the net
+product result, and redirect when a metric or approach stops serving the
+product goal. A new autonomous period begins only after owner review or an
+explicit instruction to continue.
 
 At handoff, report the outcome, evidence run, known limitations and affected
 files. Do not claim success from code inspection alone when a relevant test can
 be run, and do not hide pre-existing failures as if they were introduced by the
-current change.
+current change. Do not move work to `done/` when its defining external or user
+flow remains untested; record it as `manual validation required` in `todo/`
+instead.
