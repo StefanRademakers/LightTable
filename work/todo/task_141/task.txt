@@ -309,3 +309,25 @@ after the final processing-order changes, the representative corpus reaches an
 honest approximately 95% visual-result parity target, performance contracts are
 met, and the owner can manually compare the final contact sheets without hidden
 known gaps.
+
+Progress re-audit - 18 August 2026
+==================================
+
+- The packaged native Grade regression reproduces all six accepted baselines
+  at 100%: neutral, both Light extremes, Color, Effects and combined Grade.
+- The 4K continuous interaction audit passes.
+- Grade Look passes neutral/zero bypass, live strength interpolation and
+  cross-document copy/paste at strength 62.
+- Point Color range visualization passes and produces an unchanged canonical
+  export (`d1273265a5d727ea5207c727ddaa9a8240efcddc7ef1ce67d6bb1baaeaae2562`).
+- Existing Camera Raw reports were re-analysed for Light, Color, Detail,
+  Curves, Color Mixer and Color Grading. They still support the documented
+  conclusion that several remaining gaps are structural or image-adaptive and
+  must not be patched with scalar gains.
+- A fresh Adobe capture is currently unsafe: Photoshop 2025 26.11.6 owns COM
+  with three unsaved user documents, while the pinned oracle requires
+  Photoshop 2026 27.9 / Camera Raw 18.5. The preflight correctly refused to
+  replace or automate that process. No user document was touched.
+- The separate Photoshop-adjustment parity suite remains green across all 48
+  corpora; its lowest score is 97.264%. That result does not substitute for the
+  still-open Camera Raw Grade corpus.
