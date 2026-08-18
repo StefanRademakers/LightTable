@@ -73,6 +73,20 @@ describe('parseLightTableRecipe', () => {
     expect(recipe?.settings.colorGrading.balance).toBe(18);
   });
 
+  it('restores and clamps a native Grade Look independently from Color Lookup', () => {
+    const recipe = parseLightTableRecipe({
+      lighttable: {
+        sourceFileKey: 'media/look.png',
+        settings: {
+          gradeLook: { assetId: 'lut-cinema', strength: 125 }
+        }
+      }
+    });
+
+    expect(recipe?.settings.gradeLook).toEqual({ assetId: 'lut-cinema', strength: 100 });
+    expect(recipe?.settings.photoshopAdjustment.colorLookupAssetId).toBeNull();
+  });
+
   it('restores opt-in Halation settings', () => {
     const recipe = parseLightTableRecipe({
       lighttable: {

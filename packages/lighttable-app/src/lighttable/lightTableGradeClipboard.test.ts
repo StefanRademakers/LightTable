@@ -47,4 +47,19 @@ describe('LightTable grade clipboard', () => {
     expect(pasted.contrast).toBe(30);
     expect(pasted.effects.lensDistortion).toEqual(destination.effects.lensDistortion);
   });
+
+  it('carries Grade Look bytes across documents without storing binary data in localStorage', () => {
+    const source = createDefaultAdjustments();
+    source.gradeLook = { assetId: 'lut-cinema', strength: 62 };
+    const lut = new Blob(['TITLE "Cinema"\nLUT_3D_SIZE 2\n']);
+
+    copyLightTableGrade(source, 'Look source', {
+      assetId: 'lut-cinema', name: 'Cinema', source: lut
+    });
+    const copied = readLightTableGrade();
+
+    expect(copied?.gradeLookAsset?.source).toBe(lut);
+    expect(copied?.settings.gradeLook).toEqual({ assetId: 'lut-cinema', strength: 62 });
+    expect([...storage.values()][0]).not.toContain('LUT_3D_SIZE');
+  });
 });

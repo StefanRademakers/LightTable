@@ -33,6 +33,7 @@ export type GradeModuleGroup =
   | 'colorMixer'
   | 'colorGrading'
   | 'blackWhiteMix'
+  | 'look'
   | 'curves'
   | 'effects'
   | 'detail';
@@ -43,6 +44,7 @@ const GRADE_MODULE_TYPES: Readonly<Record<GradeModuleGroup, readonly string[]>> 
   colorMixer: ['lt.color-mixer'],
   colorGrading: ['lt.color-grading'],
   blackWhiteMix: ['lt.black-white-mix'],
+  look: ['lt.grade-look'],
   curves: ['lt.curves'],
   effects: ['lt.local-contrast'],
   detail: ['lt.detail']

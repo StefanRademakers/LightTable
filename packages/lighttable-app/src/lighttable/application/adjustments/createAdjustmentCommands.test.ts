@@ -120,6 +120,16 @@ describe('createAdjustmentCommands', () => {
     expect(harness.adjustments().blackWhiteMix.enabled).toBe(false);
   });
 
+  it('authors a Grade Look and retains an exact zero-strength bypass', () => {
+    const harness = createHarness();
+    harness.commands.setGradeLookAsset('lut-cinema');
+    harness.commands.updateGradeLookStrength(0);
+
+    expect(harness.adjustments().gradeLook).toEqual({ assetId: 'lut-cinema', strength: 0 });
+    harness.commands.resetGroup('look');
+    expect(harness.adjustments().gradeLook).toEqual({ assetId: null, strength: 100 });
+  });
+
   it('authors and resets Detail without disturbing Texture controls', () => {
     const harness = createHarness();
     harness.commands.updateAdjustment('texture', 32);

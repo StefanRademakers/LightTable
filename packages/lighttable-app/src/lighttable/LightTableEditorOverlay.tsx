@@ -113,7 +113,11 @@ import {
 import { EditorDocumentSurface } from './composition/workspace/EditorDocumentSurface';
 import { EditorOverlayLayer } from './composition/workspace/EditorOverlayLayer';
 import { type DocumentRendererPort } from './infrastructure/rendering/webGpuDocumentRenderer';
-import { pasteGradeSettings, useLightTableGradeClipboard } from './lightTableGradeClipboard';
+import {
+  copyLightTableGrade,
+  pasteGradeSettings,
+  useLightTableGradeClipboard
+} from './lightTableGradeClipboard';
 import {
   resolveLightTableEditorSourceKey,
   resolveLightTableSaveSourceKey,
@@ -2272,7 +2276,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const beginAdjustmentTransaction = adjustmentTransactionController.begin;
   const endAdjustmentTransaction = adjustmentTransactionController.end;
   const changeAdjustments = adjustmentTransactionController.change;
-  const loadColorLookup = async (file: File) => {
+  const loadCubeAsset = async (file: File, purpose: 'photoshop-color-lookup' | 'grade-look') => {
     if (!/\.cube$/i.test(file.name)) throw new Error('Choose a 3D .cube LUT file.');
     if (file.size <= 0 || file.size > 32 * 1024 * 1024) {
       throw new Error('A .cube LUT must be between 1 byte and 32 MiB.');
@@ -2295,7 +2299,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             ? active.id
             : null;
         })();
-    const nextAdjustments = {
+    const nextAdjustments = purpose === 'grade-look' ? {
+      ...beforeAdjustments,
+      gradeLook: {
+        ...beforeAdjustments.gradeLook,
+        assetId
+      }
+    } : {
       ...beforeAdjustments,
       photoshopAdjustment: {
         ...beforeAdjustments.photoshopAdjustment,
@@ -2330,13 +2340,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       document: withAsset,
       documentAdjustments: documentAdjustmentsRef.current
     });
-    if (!projection.document) throw new Error('The selected layer cannot own this Color Lookup.');
+    if (!projection.document) throw new Error(
+      `The selected layer cannot own this ${purpose === 'grade-look' ? 'Grade Look' : 'Color Lookup'}.`
+    );
     const afterDocument = projection.document;
     applyDocumentSnapshot(afterDocument);
     publishAdjustmentPresentation(nextAdjustments, 'grade');
     pushHistoryEntry({
-      type: 'adjustment.color-lookup',
-      label: 'Load Color Lookup',
+      type: purpose === 'grade-look' ? 'adjustment.grade-look' : 'adjustment.color-lookup',
+      label: purpose === 'grade-look' ? 'Load Grade Look' : 'Load Color Lookup',
       documentMutation: true,
       undo: () => {
         applyDocumentSnapshot(beforeDocument);
@@ -2349,6 +2361,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
     setGradeStatus(`Loaded ${parsed.title || file.name} · ${parsed.size}³ LUT`);
   };
+  const loadColorLookup = (file: File) => loadCubeAsset(file, 'photoshop-color-lookup');
+  const loadGradeLook = (file: File) => loadCubeAsset(file, 'grade-look');
   const lensBlurEnabled = useAdjustmentPresentationSelector(
     adjustmentPresentationStore,
     (current) => current.effects.lensBlur.enabled
@@ -2460,10 +2474,73 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     toggleGroupVisibility,
     resetGroup
   } = adjustmentCommands;
-  const copyCurrentGrade = adjustmentCommands.copyGrade;
-  const pasteCurrentGrade = () => {
-    if (copiedGrade) {
-      adjustmentCommands.pasteGrade(copiedGrade.name, copiedGrade.settings);
+  const copyCurrentGrade = async () => {
+    try {
+      const document = imageDocumentRef.current;
+      const renderer = engineRef.current;
+      const settings = cloneAdjustments(adjustmentsRef.current);
+      const assetId = settings.gradeLook.assetId;
+      let gradeLookAsset: NonNullable<typeof copiedGrade>['gradeLookAsset'];
+      if (assetId && document && renderer) {
+        const assets = await renderer.exportLayerAssets(document);
+        const source = assets.find((asset) => 'lutId' in asset && asset.lutId === assetId);
+        const metadata = document.assets.colorLookups.find((asset) => asset.id === assetId);
+        if (source && 'lutId' in source && metadata) {
+          gradeLookAsset = { assetId, name: metadata.name, source: source.source };
+        }
+      }
+      copyLightTableGrade(settings, document?.name ?? 'Copied grade', gradeLookAsset);
+      setGradeStatus('Grade copied');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not copy the Grade.');
+    }
+  };
+  const pasteCurrentGrade = async () => {
+    if (!copiedGrade) return;
+    try {
+      let settings = cloneAdjustments(copiedGrade.settings);
+      const document = imageDocumentRef.current;
+      const renderer = engineRef.current;
+      const copiedAssetId = settings.gradeLook.assetId;
+      if (copiedAssetId && document && renderer) {
+        if (copiedGrade.gradeLookAsset?.assetId === copiedAssetId) {
+          const source = copiedGrade.gradeLookAsset.source;
+          const parsed = parseCubeLut(await source.text());
+          const assetId = `lut-${crypto.randomUUID()}` as DocumentAssetId;
+          await renderer.loadLayerAssets([{ lutId: assetId, source }]);
+          applyDocumentSnapshot({
+            ...document,
+            assets: {
+              ...document.assets,
+              colorLookups: [...document.assets.colorLookups, {
+                id: assetId,
+                name: parsed.title || copiedGrade.gradeLookAsset.name,
+                size: parsed.size,
+                domainMin: parsed.domainMin,
+                domainMax: parsed.domainMax,
+                byteLength: source.size,
+                revision: 0
+              }]
+            },
+            revision: document.revision + 1,
+            modifiedAt: Date.now()
+          });
+          settings = {
+            ...settings,
+            gradeLook: { ...settings.gradeLook, assetId }
+          };
+        } else if (!document.assets.colorLookups.some((asset) => asset.id === copiedAssetId)) {
+          // A persisted text-only clipboard cannot safely refer to another
+          // document's missing binary LUT. Paste the remaining Grade honestly.
+          settings = {
+            ...settings,
+            gradeLook: { ...settings.gradeLook, assetId: null }
+          };
+        }
+      }
+      adjustmentCommands.pasteGrade(copiedGrade.name, settings);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not paste the Grade.');
     }
   };
 
@@ -4444,6 +4521,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         colorMixer: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'colorMixer'),
         colorGrading: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'colorGrading'),
         blackWhiteMix: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'blackWhiteMix'),
+        look: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'look'),
         curves: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'curves'),
         effects: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'effects'),
         detail: adjustmentStackGradeGroupIsEnabled(gradeOwnerStack, 'detail')
@@ -6428,6 +6506,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   setBlackWhiteMixEnabled,
                   updateBlackWhiteMix,
                   resetBlackWhiteMix,
+                  setGradeLookAsset: adjustmentCommands.setGradeLookAsset,
+                  updateGradeLookStrength: adjustmentCommands.updateGradeLookStrength,
+                  resetGradeLook: adjustmentCommands.resetGradeLook,
                   addPointColorSample,
                   updatePointColorSample,
                   resetPointColorSample,
@@ -6445,7 +6526,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetGradientMap,
                   updatePhotoshopAdjustment,
                   resetPhotoshopAdjustment,
-                  loadColorLookup
+                  loadColorLookup,
+                  loadGradeLook
                 }
                 },
               effects: {

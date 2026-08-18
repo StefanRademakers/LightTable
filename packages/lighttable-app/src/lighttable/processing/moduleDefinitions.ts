@@ -55,6 +55,7 @@ export type CurrentAdjustmentSettingsPath =
   | 'pointColor'
   | 'colorGrading'
   | 'blackWhiteMix'
+  | 'gradeLook'
   | 'curves'
   | 'gradientMap'
   | 'photoshopAdjustment'
@@ -154,6 +155,17 @@ export const CURRENT_PROCESSING_MODULES = [
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
     psdCandidates: ['vibrance', 'hue-saturation']
+  },
+  {
+    type: 'lt.grade-look',
+    label: 'Look',
+    category: 'color',
+    settingsPaths: ['gradeLook'],
+    allowedScopes: CREATIVE_GRADE_SCOPES,
+    inputDomain: 'perceptual',
+    outputDomain: 'linear-rgb',
+    alphaBehavior: 'preserve',
+    notes: 'Native Grade creative .cube look and strength; shares assets and GPU sampling with Color Lookup without sharing Photoshop semantics.'
   },
   {
     type: 'lt.color-mixer',

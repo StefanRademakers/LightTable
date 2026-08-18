@@ -5,13 +5,14 @@ import { createDefaultColorGrading } from '../../colorGrading';
 import { createDefaultColorMixer } from '../../colorMixer';
 import { createDefaultPointColor } from '../../pointColor';
 import { createDefaultBlackWhiteMix } from '../../blackWhiteMix';
+import { createDefaultGradeLook } from '../../gradeLook';
 import { createDefaultCurves } from '../../curves';
 import type { BasicAdjustments } from '../../types';
 import { createDefaultAdjustments } from '../../types';
 
 export type NumericAdjustmentKey = Exclude<
   keyof BasicAdjustments,
-  'colorMixer' | 'pointColor' | 'colorGrading' | 'blackWhiteMix' | 'curves' | 'gradientMap' | 'photoshopAdjustment' | 'detail' | 'effects'
+  'colorMixer' | 'pointColor' | 'colorGrading' | 'blackWhiteMix' | 'gradeLook' | 'curves' | 'gradientMap' | 'photoshopAdjustment' | 'detail' | 'effects'
 >;
 
 export interface GroupVisibility {
@@ -22,6 +23,7 @@ export interface GroupVisibility {
   readonly colorMixer: boolean;
   readonly colorGrading: boolean;
   readonly blackWhiteMix: boolean;
+  readonly look: boolean;
   readonly curves: boolean;
   readonly effects: boolean;
   readonly detail: boolean;
@@ -58,6 +60,7 @@ export const createDefaultGroupVisibility = (): GroupVisibility => ({
   colorMixer: true,
   colorGrading: true,
   blackWhiteMix: true,
+  look: true,
   curves: true,
   effects: true,
   detail: true
@@ -89,6 +92,7 @@ export const applyGroupVisibility = (
   }
   if (!visibility.colorGrading) next.colorGrading = createDefaultColorGrading();
   if (!visibility.blackWhiteMix) next.blackWhiteMix = createDefaultBlackWhiteMix();
+  if (!visibility.look) next.gradeLook = createDefaultGradeLook();
   if (!visibility.curves) next.curves = createDefaultCurves();
   if (!visibility.effects) zero(EFFECTS_SLIDER_KEYS);
   if (!visibility.detail) next.detail = createDefaultAdjustments().detail;

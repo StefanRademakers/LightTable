@@ -3,6 +3,7 @@ import { createDefaultAdjustments } from '../types';
 import {
   ADJUSTMENT_UNIFORM_FLOATS,
   BLACK_WHITE_MIX_PAYLOAD_OFFSET,
+  GRADE_LOOK_PAYLOAD_OFFSET,
   buildAdjustmentUniform,
   DETAIL_PAYLOAD_OFFSET,
   LINEAR_COMPOSITE_FLAG_INDEX,
@@ -210,5 +211,24 @@ describe('LightTable adjustment uniform packing', () => {
       BLACK_WHITE_MIX_PAYLOAD_OFFSET,
       BLACK_WHITE_MIX_PAYLOAD_OFFSET + 12
     ))).toEqual([-100, -75, -50, -25, 25, 50, 75, 100, 1, 0, 0, 0]);
+  });
+
+  it('packs Grade Look domain and strength outside the Photoshop payload', () => {
+    const settings = createDefaultAdjustments();
+    settings.gradeLook = { assetId: 'lut-cinema', strength: 62 };
+    const packed = buildAdjustmentUniform(
+      settings, 100, 50, true, null, 'srgb', 16,
+      { enabled: true, strength: 62, domainMin: [-0.1, 0, 0.1], domainMax: [1.1, 1, 0.9] }
+    );
+
+    const values = Array.from(packed.slice(GRADE_LOOK_PAYLOAD_OFFSET, GRADE_LOOK_PAYLOAD_OFFSET + 8));
+    expect(values.slice(0, 3)).toEqual(expect.arrayContaining([
+      expect.closeTo(-0.1, 5), expect.closeTo(0, 5), expect.closeTo(0.1, 5)
+    ]));
+    expect(values[3]).toBeCloseTo(0.62, 5);
+    expect(values.slice(4, 7)).toEqual(expect.arrayContaining([
+      expect.closeTo(1.1, 5), expect.closeTo(1, 5), expect.closeTo(0.9, 5)
+    ]));
+    expect(values[7]).toBe(1);
   });
 });

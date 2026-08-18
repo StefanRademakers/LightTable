@@ -12,8 +12,9 @@ export const POINT_COLOR_MAX_SAMPLES = 8;
 export const DETAIL_PAYLOAD_OFFSET =
   POINT_COLOR_PAYLOAD_OFFSET + POINT_COLOR_SAMPLE_FLOATS * POINT_COLOR_MAX_SAMPLES;
 export const BLACK_WHITE_MIX_PAYLOAD_OFFSET = DETAIL_PAYLOAD_OFFSET + 12;
+export const GRADE_LOOK_PAYLOAD_OFFSET = BLACK_WHITE_MIX_PAYLOAD_OFFSET + 12;
 export const ADJUSTMENT_UNIFORM_FLOATS =
-  BLACK_WHITE_MIX_PAYLOAD_OFFSET + 12;
+  GRADE_LOOK_PAYLOAD_OFFSET + 8;
 export const LINEAR_COMPOSITE_FLAG_INDEX = 18;
 export const PHOTOSHOP_PAYLOAD_OFFSET = 128;
 export const PHOTOSHOP_LEVELS_CHANNELS_OFFSET = 233;
@@ -29,6 +30,10 @@ export interface ColorLookupUniform {
   readonly domainMax: readonly [number, number, number];
 }
 
+export interface GradeLookUniform extends ColorLookupUniform {
+  readonly strength: number;
+}
+
 /**
  * Packs the shared Adjustments uniform used by the basic and creative passes.
  * Keep this layout aligned with both WGSL Adjustments structs in shaders.ts.
@@ -40,7 +45,8 @@ export const buildAdjustmentUniform = (
   inputIsLinearComposite: boolean,
   colorLookup: ColorLookupUniform | null = null,
   photoshopBlendProfile: DocumentBlendProfile = 'srgb',
-  documentBitDepth: DocumentBitDepth = 16
+  documentBitDepth: DocumentBitDepth = 16,
+  gradeLook: GradeLookUniform | null = null
 ) => {
   const gradientMap = value.gradientMap;
   const colorStops = [...(gradientMap?.colorStops ?? [])]
@@ -209,6 +215,12 @@ export const buildAdjustmentUniform = (
     0,
     0
   ], BLACK_WHITE_MIX_PAYLOAD_OFFSET);
+  packed.set([
+    ...(gradeLook?.domainMin ?? [0, 0, 0]),
+    gradeLook?.enabled ? Math.min(1, Math.max(0, gradeLook.strength / 100)) : 0,
+    ...(gradeLook?.domainMax ?? [1, 1, 1]),
+    gradeLook?.enabled ? 1 : 0
+  ], GRADE_LOOK_PAYLOAD_OFFSET);
   packed.set([
     ...(colorLookup?.domainMin ?? [0, 0, 0]),
     ...(colorLookup?.domainMax ?? [1, 1, 1])

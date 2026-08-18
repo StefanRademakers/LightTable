@@ -14,6 +14,7 @@ import {
   createDefaultPhotoshopAdjustment,
   type PhotoshopAdjustmentSettings
 } from './photoshopAdjustments';
+import { cloneGradeLook, createDefaultGradeLook, type GradeLookAdjustments } from './gradeLook';
 
 export interface GradientMapStop {
   position: number;
@@ -73,6 +74,7 @@ export interface BasicAdjustments {
   pointColor: PointColorAdjustments;
   colorGrading: ColorGradingAdjustments;
   blackWhiteMix: BlackWhiteMixAdjustments;
+  gradeLook: GradeLookAdjustments;
   curves: CurvesAdjustments;
   /** Optional during alpha-format reads; defaults always materialize it. */
   gradientMap?: GradientMapAdjustments;
@@ -125,6 +127,7 @@ export const DEFAULT_BASIC_ADJUSTMENTS: Readonly<BasicAdjustments> = Object.free
   pointColor: createDefaultPointColor(),
   colorGrading: createDefaultColorGrading(),
   blackWhiteMix: createDefaultBlackWhiteMix(),
+  gradeLook: createDefaultGradeLook(),
   curves: createDefaultCurves(),
   gradientMap: createDefaultGradientMap(),
   photoshopAdjustment: createDefaultPhotoshopAdjustment(),
@@ -138,6 +141,7 @@ export const cloneAdjustments = (adjustments: BasicAdjustments): BasicAdjustment
   detail: cloneDetail(adjustments.detail ?? createDefaultDetail()),
   colorGrading: cloneColorGrading(adjustments.colorGrading),
   blackWhiteMix: cloneBlackWhiteMix(adjustments.blackWhiteMix ?? createDefaultBlackWhiteMix()),
+  gradeLook: cloneGradeLook(adjustments.gradeLook ?? createDefaultGradeLook()),
   curves: cloneCurves(adjustments.curves),
   gradientMap: structuredClone(adjustments.gradientMap ?? createDefaultGradientMap()),
   photoshopAdjustment: clonePhotoshopAdjustment(
@@ -153,6 +157,7 @@ export const createDefaultAdjustments = (): BasicAdjustments => ({
   detail: cloneDetail(DEFAULT_BASIC_ADJUSTMENTS.detail),
   colorGrading: cloneColorGrading(DEFAULT_BASIC_ADJUSTMENTS.colorGrading),
   blackWhiteMix: cloneBlackWhiteMix(DEFAULT_BASIC_ADJUSTMENTS.blackWhiteMix),
+  gradeLook: cloneGradeLook(DEFAULT_BASIC_ADJUSTMENTS.gradeLook),
   curves: cloneCurves(DEFAULT_BASIC_ADJUSTMENTS.curves),
   gradientMap: structuredClone(DEFAULT_BASIC_ADJUSTMENTS.gradientMap ?? createDefaultGradientMap()),
   photoshopAdjustment: clonePhotoshopAdjustment(DEFAULT_BASIC_ADJUSTMENTS.photoshopAdjustment),

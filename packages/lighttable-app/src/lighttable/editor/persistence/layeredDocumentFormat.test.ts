@@ -645,7 +645,7 @@ describe('LightTable layered PNG format', () => {
       '0 0 1', '1 0 1', '0 1 1', '1 1 1', ''
     ].join('\n');
     const lutSource = new Blob([lutText], { type: 'application/x-cube' });
-    const document = createImageDocument('LUT roundtrip', 2, 2, 'source');
+    let document = createImageDocument('LUT roundtrip', 2, 2, 'source');
     document.assets.colorLookups.push({
       id: lutId,
       name: 'Roundtrip LUT',
@@ -655,6 +655,13 @@ describe('LightTable layered PNG format', () => {
       byteLength: lutSource.size,
       revision: 0
     });
+    const grade = createDefaultAdjustments();
+    grade.gradeLook = { assetId: lutId, strength: 62 };
+    document = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(grade),
+      'Cinematic Look'
+    );
     const file = buildLayeredDocumentFile(
       new Blob([PREVIEW_PNG], { type: 'image/png' }),
       document,
@@ -673,6 +680,11 @@ describe('LightTable layered PNG format', () => {
     expect(parsed?.colorLookupAssets).toHaveLength(1);
     expect(parsed?.colorLookupAssets[0]?.lutId).toBe(lutId);
     expect(await parsed?.colorLookupAssets[0]?.source.text()).toBe(lutText);
+    const parsedLook = parsed?.document.layers.find((layer) => layer.name === 'Cinematic Look');
+    expect(parsedLook?.type).toBe('adjustment');
+    expect(parsedLook?.type === 'adjustment'
+      ? parsedLook.adjustmentStack.modules.find((module) => module.type === 'lt.grade-look')?.settings
+      : null).toMatchObject({ gradeLook: { assetId: lutId, strength: 62 } });
   });
 
   it('keeps distinct real PNG preview and layer payloads byte-exact', async () => {

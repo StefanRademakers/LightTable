@@ -164,6 +164,15 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('if (kind == 15u)');
   });
 
+  it('keeps the native Grade Look distinct and before the photographic B&W mix', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('@binding(9) var gradeLookLut');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn sampleGradeLook');
+    expect(CREATIVE_GRADE_WGSL.indexOf('rgb = sampleGradeLook(rgb);'))
+      .toBeLessThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyBlackWhiteMix(rgb);'));
+    expect(CREATIVE_GRADE_WGSL.indexOf('rgb = applyPhotoshopAdjustment(rgb);'))
+      .toBeGreaterThan(CREATIVE_GRADE_WGSL.indexOf('rgb = sampleGradeLook(rgb);'));
+  });
+
   it('uses one shared smooth scene-to-display transform instead of the old gamut clamp', () => {
     expect(OUTPUT_TRANSFORM_WGSL).toContain('fn sceneToDisplay');
     expect(OUTPUT_TRANSFORM_WGSL).toContain('fn displayShoulder');

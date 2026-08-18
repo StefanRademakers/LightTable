@@ -14,6 +14,7 @@ import { createDefaultChromaticAberrationSettings } from './effects/chromaticAbe
 import { createDefaultLensDistortionSettings } from './effects/lensDistortion/settings';
 import { createDefaultLensBlurSettings, LENS_BLUR_QUALITIES } from './effects/lensBlur/settings';
 import { createDefaultVignetteSettings } from './effects/vignette/settings';
+import { createDefaultGradeLook } from './gradeLook';
 
 export interface LightTableRecipe {
   sourceFileKey: string;
@@ -95,7 +96,7 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
   const settings = createDefaultAdjustments();
   let recognizedSettings = 0;
   (Object.keys(settings) as Array<keyof BasicAdjustments>).forEach((key) => {
-    if (key === 'colorMixer' || key === 'pointColor' || key === 'colorGrading' || key === 'blackWhiteMix' || key === 'curves'
+    if (key === 'colorMixer' || key === 'pointColor' || key === 'colorGrading' || key === 'blackWhiteMix' || key === 'gradeLook' || key === 'curves'
       || key === 'gradientMap' || key === 'photoshopAdjustment' || key === 'detail'
       || key === 'effects') return;
     const settingValue = value[key];
@@ -173,6 +174,21 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
     if (Array.isArray(luminance) && luminance.length === 8
       && luminance.every((entry) => typeof entry === 'number' && Number.isFinite(entry))) {
       settings.blackWhiteMix.luminance = [...luminance] as BlackWhiteMixValues;
+      recognizedSettings += 1;
+    }
+  }
+
+  const rawGradeLook = value.gradeLook;
+  if (isObject(rawGradeLook)) {
+    const assetId = rawGradeLook.assetId;
+    const strength = rawGradeLook.strength;
+    if ((assetId === null || typeof assetId === 'string')
+      && typeof strength === 'number' && Number.isFinite(strength)) {
+      settings.gradeLook = {
+        ...createDefaultGradeLook(),
+        assetId,
+        strength: Math.min(100, Math.max(0, strength))
+      };
       recognizedSettings += 1;
     }
   }

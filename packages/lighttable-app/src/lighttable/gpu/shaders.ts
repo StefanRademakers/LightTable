@@ -448,6 +448,7 @@ ${ADJUSTMENTS_WGSL}
 @group(0) @binding(6) var colorVibranceWhiteBalanceLut: texture_3d<f32>;
 @group(0) @binding(7) var colorVibranceColorLut: texture_3d<f32>;
 @group(0) @binding(8) var colorBalanceTransferLut: texture_2d<f32>;
+@group(0) @binding(9) var gradeLookLut: texture_3d<f32>;
 
 fn luminance(rgb: vec3f) -> f32 {
   return dot(rgb, vec3f(0.2126, 0.7152, 0.0722));
@@ -1280,6 +1281,30 @@ fn sampleExternalColorLookup(source: vec3f) -> vec3f {
   );
 }
 
+fn sampleGradeLook(source: vec3f) -> vec3f {
+  if (adjustments.gradeLook[1].w < 0.5 || adjustments.gradeLook[0].w <= 0.00001) {
+    return source;
+  }
+  let encoded = vec3f(
+    photoshopLinearToEncodedChannel(source.r),
+    photoshopLinearToEncodedChannel(source.g),
+    photoshopLinearToEncodedChannel(source.b)
+  );
+  let domainMin = adjustments.gradeLook[0].xyz;
+  let domainMax = adjustments.gradeLook[1].xyz;
+  let position = clamp(
+    (encoded - domainMin) / max(domainMax - domainMin, vec3f(0.000001)),
+    vec3f(0.0), vec3f(1.0)
+  );
+  let mapped = sampleUnitColorLookup(gradeLookLut, position);
+  let mappedLinear = vec3f(
+    photoshopEncodedToLinearChannel(mapped.r),
+    photoshopEncodedToLinearChannel(mapped.g),
+    photoshopEncodedToLinearChannel(mapped.b)
+  );
+  return mix(source, mappedLinear, clamp(adjustments.gradeLook[0].w, 0.0, 1.0));
+}
+
 fn sampleUnitColorLookup(lut: texture_3d<f32>, encoded: vec3f) -> vec3f {
   let dimensions = textureDimensions(lut);
   let scaled = clamp(encoded, vec3f(0.0), vec3f(1.0)) * vec3f(dimensions - vec3u(1u));
@@ -1785,6 +1810,9 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   // Global Saturation/Vibrance is the final colour balance. Keeping it after
   // the Mixer prevents global desaturation from changing hue classification.
   rgb = applyPerceptualColor(rgb);
+  // A Grade Look is an explicit creative transform, never a hidden parity LUT.
+  // It precedes B&W conversion so a selected monochrome treatment remains neutral.
+  rgb = sampleGradeLook(rgb);
   rgb = applyBlackWhiteMix(rgb);
   rgb = applyColorGrading(rgb);
   rgb = applyLift(rgb);

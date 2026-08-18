@@ -37,5 +37,6 @@ struct Adjustments {
   pointColor: array<vec4f, 24>,
   detail: array<vec4f, 3>,
   blackWhiteMix: array<vec4f, 3>,
+  gradeLook: array<vec4f, 2>,
 }
 `;

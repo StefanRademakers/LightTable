@@ -5,6 +5,7 @@ import { cloneVignetteSettings, vignetteIsActive, type VignetteSettings } from '
 import { pointColorIsActive } from './pointColor';
 import { detailIsActive } from './detail';
 import type { BasicAdjustments } from './types';
+import { gradeLookIsActive } from './gradeLook';
 
 const positiveControlStrength = (value: number, fullScale: number, maximum: number) => {
   const normalized = Math.min(1, Math.max(0, value) / fullScale);
@@ -75,6 +76,7 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
       sumAbsolute(adjustments.colorMixer.luminance) + sumAbsolute(adjustments.colorGrading.saturation) +
       sumAbsolute(adjustments.colorGrading.luminance) + curveActiveMask(adjustments.curves) > 0.00001 ||
       adjustments.blackWhiteMix.enabled ||
+      gradeLookIsActive(adjustments.gradeLook) ||
       halationIsActive(adjustments.effects.halation)
       || lensBlurIsActive(adjustments.effects.lensBlur)
       || pointColorIsActive(adjustments.pointColor)

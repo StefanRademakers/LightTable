@@ -1,7 +1,11 @@
 import { buildCurveLut, cloneCurves, CURVE_CHANNELS, CURVE_LUT_SIZE, type CurvesAdjustments } from '../curves';
 import type { BasicAdjustments } from '../types';
 import type { DocumentBitDepth, DocumentBlendProfile } from '../editor/document/documentTypes';
-import { buildAdjustmentUniform, type ColorLookupUniform } from './adjustmentUniform';
+import {
+  buildAdjustmentUniform,
+  type ColorLookupUniform,
+  type GradeLookUniform
+} from './adjustmentUniform';
 import {
   buildPhotoshopColorVibranceLuts,
   PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
@@ -63,7 +67,8 @@ export class AdjustmentGpuPayloadWriter {
     inputIsLinearComposite: boolean,
     colorLookup: ColorLookupUniform | null = null,
     photoshopBlendProfile: DocumentBlendProfile = 'srgb',
-    documentBitDepth: DocumentBitDepth = 16
+    documentBitDepth: DocumentBitDepth = 16,
+    gradeLook: GradeLookUniform | null = null
   ): AdjustmentGpuPayloadChange {
     const uniform = buildAdjustmentUniform(
       adjustments,
@@ -72,7 +77,8 @@ export class AdjustmentGpuPayloadWriter {
       inputIsLinearComposite,
       colorLookup,
       photoshopBlendProfile,
-      documentBitDepth
+      documentBitDepth,
+      gradeLook
     );
     const uniformChanged = !floatArraysEqual(this.lastUniform, uniform);
     if (uniformChanged) {

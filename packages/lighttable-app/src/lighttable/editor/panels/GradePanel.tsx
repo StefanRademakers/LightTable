@@ -57,6 +57,7 @@ import {
   GradeHistogramControl,
   type GradeHistogramControlKey
 } from './GradeHistogramControl';
+import { PanelFileField, PanelSelectField } from '../../../ui/PanelControls';
 
 type GradeGroup = Exclude<keyof GroupVisibility, 'globalGrade' | 'globalLensFx'>;
 
@@ -94,6 +95,9 @@ export interface GradePanelCommands {
   readonly setBlackWhiteMixEnabled: (enabled: boolean) => void;
   readonly updateBlackWhiteMix: (index: number, value: number) => void;
   readonly resetBlackWhiteMix: (index: number) => void;
+  readonly setGradeLookAsset: (assetId: string | null) => void;
+  readonly updateGradeLookStrength: (strength: number) => void;
+  readonly resetGradeLook: () => void;
   readonly addPointColorSample: (
     id: string, lightness: number, chroma: number, hue: number
   ) => void;
@@ -130,6 +134,7 @@ export interface GradePanelCommands {
   readonly updatePhotoshopAdjustment: (value: PhotoshopAdjustmentSettings) => void;
   readonly resetPhotoshopAdjustment: () => void;
   readonly loadColorLookup?: (file: File) => Promise<void>;
+  readonly loadGradeLook?: (file: File) => Promise<void>;
 }
 
 export interface GradePanelProps {
@@ -139,6 +144,7 @@ export interface GradePanelProps {
 }
 
 const DEFAULT_EXPANDED: Readonly<Record<GradeGroup, boolean>> = {
+  look: true,
   light: true,
   color: true,
   effects: true,
@@ -860,6 +866,62 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     );
   };
 
+  const renderLook = () => {
+    const group = 'look' as const;
+    const visible = visibility[group];
+    return (
+      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
+        <GroupHeader
+          label="Look"
+          expanded={expanded[group]}
+          visible={visible}
+          resetModifierActive={resetModifierActive}
+          setExpanded={(next) => setGroupExpanded(group, next)}
+          reset={commands.resetGradeLook}
+          toggleVisibility={() => commands.toggleVisibility(group)}
+        />
+        {expanded[group] ? (
+          <div className="lighttable-group__controls">
+            <PanelSelectField
+              label="Look"
+              value={adjustments.gradeLook.assetId ?? 'none'}
+              options={[
+                { value: 'none', label: 'None' },
+                ...(model.colorLookupAssets ?? []).map((asset) => ({
+                  value: asset.id,
+                  label: asset.name
+                }))
+              ]}
+              onChange={(value) => commands.setGradeLookAsset(value === 'none' ? null : value)}
+            />
+            <AdjustmentSlider
+              label="Strength"
+              value={adjustments.gradeLook.strength}
+              min={0}
+              max={100}
+              format={(value) => `${Math.round(value)}%`}
+              resetValue={100}
+              disabled={!metadata || !visible || !adjustments.gradeLook.assetId}
+              resetModifierActive={resetModifierActive}
+              onChange={commands.updateGradeLookStrength}
+              onReset={() => commands.updateGradeLookStrength(100)}
+              onInteractionStart={commands.beginAdjustment}
+              onInteractionEnd={commands.endAdjustment}
+            />
+            <PanelFileField
+              label="3D LUT"
+              buttonLabel="Load .cube..."
+              accept=".cube"
+              disabled={!commands.loadGradeLook}
+              title="Choose or drop a 3D .cube Look"
+              onFile={(file) => commands.loadGradeLook?.(file)}
+            />
+          </div>
+        ) : null}
+      </section>
+    );
+  };
+
   const renderCurves = () => {
     const group = 'curves' as const;
     const visible = visibility[group];
@@ -919,6 +981,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
         </div>
       </section>
       <div className="lighttable-panel__controls">
+        {renderLook()}
         {renderAdjustmentGroup('light', 'Light', LIGHT_SLIDERS)}
         {renderAdjustmentGroup('color', 'Color', COLOR_SLIDERS)}
         {renderAdjustmentGroup('effects', 'Texture / Clarity / Dehaze', EFFECTS_SLIDERS)}

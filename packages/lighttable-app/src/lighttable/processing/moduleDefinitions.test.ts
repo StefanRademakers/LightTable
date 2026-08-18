@@ -24,6 +24,7 @@ const EXPECTED_SETTINGS_PATHS = [
   'pointColor',
   'colorGrading',
   'blackWhiteMix',
+  'gradeLook',
   'curves',
   'gradientMap',
   'photoshopAdjustment',

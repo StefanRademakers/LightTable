@@ -107,7 +107,11 @@ export class AdjustmentLayerRenderer {
       true,
       runtime.colorLookupUniform,
       dependencies.blendProfile,
-      dependencies.bitDepth
+      dependencies.bitDepth,
+      runtime.gradeLookUniform ? {
+        ...runtime.gradeLookUniform,
+        strength: adjustments.gradeLook.strength
+      } : null
     );
 
     const basicBindGroup = this.device.createBindGroup({

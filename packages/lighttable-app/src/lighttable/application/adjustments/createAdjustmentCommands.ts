@@ -84,6 +84,7 @@ import {
   cloneBlackWhiteMix,
   createDefaultBlackWhiteMix
 } from '../../blackWhiteMix';
+import { createDefaultGradeLook } from '../../gradeLook';
 
 export interface AdjustmentCommandPorts {
   readonly beginAdjustment: () => void;
@@ -153,6 +154,9 @@ export interface AdjustmentCommands {
   readonly setBlackWhiteMixEnabled: (enabled: boolean) => void;
   readonly updateBlackWhiteMix: (index: number, value: number) => void;
   readonly resetBlackWhiteMix: (index: number) => void;
+  readonly setGradeLookAsset: (assetId: string | null) => void;
+  readonly updateGradeLookStrength: (strength: number) => void;
+  readonly resetGradeLook: () => void;
   readonly addPointColorSample: (
     id: string, lightness: number, chroma: number, hue: number
   ) => void;
@@ -535,6 +539,30 @@ export const createAdjustmentCommands = (
     });
   };
 
+  const setGradeLookAsset = (assetId: string | null) => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      gradeLook: { ...current.gradeLook, assetId }
+    }), 'grade');
+  };
+
+  const updateGradeLookStrength = (strength: number) => {
+    ports.beginAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      gradeLook: { ...current.gradeLook, strength: Math.min(100, Math.max(0, strength)) }
+    }), 'grade');
+  };
+
+  const resetGradeLook = () => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      gradeLook: createDefaultGradeLook()
+    }), 'grade');
+  };
+
   const addPointColorSample = (
     id: string,
     lightness: number,
@@ -723,6 +751,9 @@ export const createAdjustmentCommands = (
       if (group === 'blackWhiteMix') {
         return { ...current, blackWhiteMix: createDefaultBlackWhiteMix() };
       }
+      if (group === 'look') {
+        return { ...current, gradeLook: createDefaultGradeLook() };
+      }
       if (group === 'curves') {
         return {
           ...current,
@@ -803,6 +834,9 @@ export const createAdjustmentCommands = (
     setBlackWhiteMixEnabled,
     updateBlackWhiteMix,
     resetBlackWhiteMix,
+    setGradeLookAsset,
+    updateGradeLookStrength,
+    resetGradeLook,
     addPointColorSample,
     updatePointColorSample,
     resetPointColorSample,

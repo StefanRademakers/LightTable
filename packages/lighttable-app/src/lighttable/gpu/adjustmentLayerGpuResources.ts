@@ -13,7 +13,7 @@ import {
   materializeBasicAdjustments
 } from '../processing/adjustmentStack';
 import { attachedAdjustmentProcessingOwner } from '../processing/attachedAdjustment';
-import type { ColorLookupUniform } from './adjustmentUniform';
+import type { ColorLookupUniform, GradeLookUniform } from './adjustmentUniform';
 import { PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE } from './photoshopColorVibranceLut';
 
 export interface AdjustmentLayerGpuRuntime {
@@ -24,6 +24,8 @@ export interface AdjustmentLayerGpuRuntime {
   payloadWriter: AdjustmentGpuPayloadWriter;
   colorLookupAssetId: string | null;
   colorLookupUniform: ColorLookupUniform | null;
+  gradeLookAssetId: string | null;
+  gradeLookUniform: GradeLookUniform | null;
   photoshopAdjustmentKind: string;
   colorVibranceWhiteBalanceTexture: GPUTexture | null;
   colorVibranceColorTexture: GPUTexture | null;
@@ -90,11 +92,14 @@ export class AdjustmentLayerGpuResources {
     const photoshopAdjustment = materializeBasicAdjustments(layer.adjustmentStack!)
       .photoshopAdjustment;
     const colorLookupAssetId = photoshopAdjustment.colorLookupAssetId;
+    const adjustments = materializeBasicAdjustments(layer.adjustmentStack!);
+    const gradeLookAssetId = adjustments.gradeLook.assetId;
     const photoshopAdjustmentKind = photoshopAdjustment.kind;
     const current = this.runtimes.get(layer.id);
     if (
       current
       && current.colorLookupAssetId === colorLookupAssetId
+      && current.gradeLookAssetId === gradeLookAssetId
       && current.photoshopAdjustmentKind === photoshopAdjustmentKind
     ) return current;
     if (current) {
@@ -117,6 +122,7 @@ export class AdjustmentLayerGpuResources {
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
     });
     const colorLookup = dependencies.resolveColorLookup(colorLookupAssetId);
+    const gradeLook = dependencies.resolveColorLookup(gradeLookAssetId);
     const createColorVibranceTexture = (label: string, format: GPUTextureFormat) => this.device.createTexture({
       label,
       size: [
@@ -152,7 +158,9 @@ export class AdjustmentLayerGpuResources {
             ?? dependencies.identityColorLookupTexture).createView() },
           { binding: 7, resource: (colorVibranceColorTexture
             ?? dependencies.identityColorLookupTexture).createView() },
-          { binding: 8, resource: dependencies.photoshopColorBalanceTransferTexture.createView() }
+          { binding: 8, resource: dependencies.photoshopColorBalanceTransferTexture.createView() },
+          { binding: 9, resource: (gradeLook?.texture
+            ?? dependencies.identityColorLookupTexture).createView() }
         ]
       });
     const runtime = {
@@ -170,6 +178,7 @@ export class AdjustmentLayerGpuResources {
         ...(colorVibranceColorTexture ? { colorVibranceColorTexture } : {})
       }),
       colorLookupAssetId,
+      gradeLookAssetId,
       photoshopAdjustmentKind,
       colorVibranceWhiteBalanceTexture,
       colorVibranceColorTexture,
@@ -177,6 +186,12 @@ export class AdjustmentLayerGpuResources {
         enabled: true,
         domainMin: colorLookup.domainMin,
         domainMax: colorLookup.domainMax
+      } : null,
+      gradeLookUniform: gradeLook ? {
+        enabled: true,
+        strength: adjustments.gradeLook.strength,
+        domainMin: gradeLook.domainMin,
+        domainMax: gradeLook.domainMax
       } : null
     };
     this.runtimes.set(layer.id, runtime);
@@ -194,7 +209,7 @@ export class AdjustmentLayerGpuResources {
 
   invalidateColorLookupAsset(assetId: string): void {
     for (const [layerId, runtime] of this.runtimes) {
-      if (runtime.colorLookupAssetId !== assetId) continue;
+      if (runtime.colorLookupAssetId !== assetId && runtime.gradeLookAssetId !== assetId) continue;
       this.destroyRuntime(runtime);
       this.runtimes.delete(layerId);
     }

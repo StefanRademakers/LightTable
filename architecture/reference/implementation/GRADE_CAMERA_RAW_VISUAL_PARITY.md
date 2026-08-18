@@ -303,6 +303,8 @@ Temperature / Tint
 -> Texture -> Clarity -> Dehaze
 -> Color Mixer -> Point Color
 -> Saturation / Vibrance
+-> explicit user-selected Grade Look
+-> Black & White Mix
 -> Color Grading
 -> Lift -> Curves
 ```
@@ -322,7 +324,7 @@ as hidden Grade sections.
 | Point Color | Up to eight independent samples; neutral and overlap behavior tested | Camera Raw automation and Visualize Range oracle open |
 | Color Grading | Normalized 3-way masks, Blend/Balance and endpoint guards tested | Camera Raw wheel descriptor/oracle open |
 | B&W Mix | Native fused eight-range photographic mix; Photoshop six-channel adjustment remains separate | Runtime/persistence proven; Camera Raw response corpus remains open |
-| Look / Profile | Document LUT infrastructure exists through Color Lookup | Grade Profile/Look selection and Strength are not implemented |
+| Look / Profile | Native Grade Look with embedded `.cube` asset, live Strength and exact zero bypass | Creative user-selected Look is implemented; Camera Raw profile matching remains open |
 
 Performance invariants are covered by executable tests: neutral Noise
 Reduction performs zero allocations and zero wavelet submissions; active
@@ -331,7 +333,7 @@ three retained `rgba16float` textures; neutral Clarity/Dehaze avoids their
 downsample/blur input. The complete fused creative order is also locked by a
 shader contract test.
 
-This matrix is intentionally not a 95% parity claim. B&W Mix, Profile/Look,
+This matrix is intentionally not a 95% parity claim. B&W Mix, Camera Raw profiles,
 several Adobe descriptors, cross-section captures and owner visual review are
 still required by Task 141 before that claim can be made honestly.
 
@@ -492,3 +494,28 @@ RGB `200.09, 159.25, 160.61` to exact monochrome mean
 `172.93, 172.93, 172.93`. This proves the complete product route, not Camera
 Raw magnitude parity. Descriptor recovery and the signed multi-source B&W
 corpus remain required before changing the current response scale.
+
+### Native Grade Look and Strength
+
+Grade now owns a first-class Look section backed by an embedded document
+`.cube` asset and a 0-100% Strength control. This is deliberately separate
+from the Photoshop Color Lookup adjustment: both reuse the parser, asset
+storage and 3D texture upload, but each owns an independent shader binding and
+processing module. A Look is therefore always an explicit creative choice by
+the user. It is never authored or selected automatically to hide a parity
+difference elsewhere in Grade.
+
+The Look is evaluated after Color Mixer, Point Color and the global perceptual
+color controls, and before B&W Mix and Color Grading. Zero Strength is an exact
+shader bypass. Grade copy/paste carries the LUT bytes in the session clipboard
+so the Look can move across open documents; the persisted text-only clipboard
+intentionally omits binary data and drops a missing Look rather than retaining
+an invalid asset reference.
+
+The packaged desktop smoke covers the real file chooser, embedded LUT load,
+GPU resource path and PNG export. On the color fixture it measured mean RGB
+`200.09, 159.25, 160.61` at neutral, `205.33, 168.93, 167.35` at full Strength,
+`202.83, 164.22, 165.32` at 50%, and exact neutral again at 0%. The midpoint
+therefore interpolates visually between bypass and full effect, while the
+zero endpoint proves that this module cannot silently alter an unselected
+Grade.

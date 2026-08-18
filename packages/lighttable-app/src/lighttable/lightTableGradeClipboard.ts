@@ -10,7 +10,16 @@ export interface LightTableGradeClipboard {
   name: string;
   copiedAt: string;
   settings: BasicAdjustments;
+  /** Session-only source bytes used to carry an embedded Look across documents. */
+  gradeLookAsset?: {
+    readonly assetId: string;
+    readonly name: string;
+    readonly source: Blob;
+  };
 }
+
+let sessionGradeLookAsset: LightTableGradeClipboard['gradeLookAsset'];
+let sessionGradeCopiedAt = '';
 
 const cloneSettings = (settings: BasicAdjustments): BasicAdjustments => cloneAdjustments(settings);
 
@@ -38,25 +47,39 @@ export const readLightTableGrade = (): LightTableGradeClipboard | null => {
     if (candidate.type !== 'lighttable-grade') return null;
     const settings = parseLightTableSettings(candidate.settings);
     if (!settings) return null;
+    const copiedAt = typeof candidate.copiedAt === 'string' ? candidate.copiedAt : '';
     return {
       type: 'lighttable-grade',
       name: typeof candidate.name === 'string' && candidate.name.trim() ? candidate.name.trim() : 'Copied grade',
-      copiedAt: typeof candidate.copiedAt === 'string' ? candidate.copiedAt : '',
-      settings
+      copiedAt,
+      settings,
+      ...(sessionGradeLookAsset && sessionGradeCopiedAt === copiedAt
+        ? { gradeLookAsset: sessionGradeLookAsset }
+        : {})
     };
   } catch {
     return null;
   }
 };
 
-export const copyLightTableGrade = (settings: BasicAdjustments, name = 'Copied grade'): LightTableGradeClipboard => {
+export const copyLightTableGrade = (
+  settings: BasicAdjustments,
+  name = 'Copied grade',
+  gradeLookAsset?: LightTableGradeClipboard['gradeLookAsset']
+): LightTableGradeClipboard => {
   const grade: LightTableGradeClipboard = {
     type: 'lighttable-grade',
     name: name.trim() || 'Copied grade',
     copiedAt: new Date().toISOString(),
-    settings: gradeClipboardSettings(settings)
+    settings: gradeClipboardSettings(settings),
+    ...(gradeLookAsset ? { gradeLookAsset } : {})
   };
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(grade));
+  sessionGradeLookAsset = gradeLookAsset;
+  sessionGradeCopiedAt = grade.copiedAt;
+  // Binary LUT data intentionally remains session-only. Persisting a multi-MiB
+  // .cube in localStorage would make an otherwise tiny Grade clipboard brittle.
+  const { gradeLookAsset: _sessionOnlyAsset, ...serializable } = grade;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializable));
   window.dispatchEvent(new Event(CHANGE_EVENT));
   return grade;
 };

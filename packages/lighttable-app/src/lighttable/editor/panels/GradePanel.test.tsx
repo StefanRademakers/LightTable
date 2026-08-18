@@ -27,6 +27,7 @@ const props = (globalGrade: boolean): GradePanelProps => {
       resetAdjustment: noop, updateDetail: noop, resetDetailControl: noop, resetDetail: noop,
       updateColorMixer: noop, resetColorMixer: noop,
       setBlackWhiteMixEnabled: noop, updateBlackWhiteMix: noop, resetBlackWhiteMix: noop,
+      setGradeLookAsset: noop, updateGradeLookStrength: noop, resetGradeLook: noop,
       addPointColorSample: noop, updatePointColorSample: noop,
       resetPointColorSample: noop, removePointColorSample: noop, togglePointColorPicker: noop,
       updateColorGradingWheel: noop, updateColorGradingLuminance: noop,
@@ -52,6 +53,8 @@ describe('GradePanel', () => {
     expect(enabled).not.toContain('Gradient Map');
     expect(enabled).toContain('Point Color');
     expect(enabled).toContain('Black &amp; White Mix');
+    expect(enabled).toContain('<strong>Look</strong>');
+    expect(enabled).toContain('Load .cube...');
     expect(enabled).toContain('Texture / Clarity / Dehaze');
     expect(enabled).toContain('Sharpening');
     expect(enabled).toContain('Noise Reduction');
