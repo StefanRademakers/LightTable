@@ -284,6 +284,34 @@ describe('PSD export projection', () => {
     expect(projection.psd.children?.[1]?.children).toBeUndefined();
   });
 
+  it('reports an unsupported Lens FX Layer explicitly instead of implying an editable adjustment', () => {
+    const source = createImageDocument('Lens FX export', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.effects.lensDistortion.enabled = true;
+    settings.effects.lensDistortion.amount = 45;
+    const stack = selectAdjustmentLayerModules(
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'lens-fx'
+    );
+    const document = createAdjustmentLayer(source, stack, 'Lens FX', undefined, 'lens-fx');
+
+    const projection = projectDocumentToPsd(document, pixels(2, 2), [{
+      layerId: source.layers[0]!.id,
+      pixels: pixels(2, 2)
+    }]);
+
+    expect(projection.blockingWarnings).toEqual([
+      'layers[1]: this Lens FX Layer has no proven Photoshop Smart Filter projection; use Maximum Appearance PSD to preserve its rendered result.'
+    ]);
+    expect(projection.findings).toContainEqual({
+      severity: 'blocking',
+      code: 'lens-fx-unprojectable',
+      path: 'layers[1]',
+      message: 'this Lens FX Layer has no proven Photoshop Smart Filter projection; use Maximum Appearance PSD to preserve its rendered result.'
+    });
+    expect(projection.psd.children?.[1]?.adjustment).toBeUndefined();
+  });
+
   it('moves Curves Grade opacity, blend and mask to its editable child', () => {
     const document = createImageDocument('Grade boundary', 2, 2, 'background');
     const settings = createDefaultAdjustments();

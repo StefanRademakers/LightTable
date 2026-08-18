@@ -14,6 +14,7 @@ export interface PsdExportCompatibilityFinding {
     | 'face-warp-baked'
     | 'grade-unprojectable'
     | 'layer-style-pattern-resource'
+    | 'lens-fx-unprojectable'
     | 'native-adjustment-unprojectable'
     | 'psd-8-bit-export'
     | 'smart-object-source-missing'

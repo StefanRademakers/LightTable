@@ -214,7 +214,7 @@ export const projectDocumentToPsd = (
     if (node.type === 'group') {
       return { ...common, opened: true, children: projectNodes(node.children, `${path}.children`) };
     }
-    if (node.type === 'adjustment') {
+      if (node.type === 'adjustment') {
       if (node.adjustmentKind === 'grade') {
         const maskIsPristineWhite = Boolean(node.mask
           && node.mask.enabled
@@ -264,6 +264,11 @@ export const projectDocumentToPsd = (
         }
         report('blocking', 'grade-unprojectable', path,
           'this Grade Layer contains processing or layer settings without a proven editable Photoshop projection.');
+        return common;
+      }
+      if (node.adjustmentKind === 'lens-fx') {
+        report('blocking', 'lens-fx-unprojectable', path,
+          'this Lens FX Layer has no proven Photoshop Smart Filter projection; use Maximum Appearance PSD to preserve its rendered result.');
         return common;
       }
       if (node.photoshop?.adjustment && node.revision === 0) {

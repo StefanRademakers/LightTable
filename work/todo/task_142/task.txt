@@ -237,3 +237,8 @@ Photoshop rebuild matrix after task_203 restores the Adobe oracle.
   explicitly states that the current ag-psd writer quantizes to 8 bits/channel
   only at the PSD boundary; the live compositor and `.lt` source remain at
   their authored precision. Eight-bit documents receive no such warning.
+- Editable export now identifies a free Lens FX Layer with the dedicated
+  blocking code `lens-fx-unprojectable` and directs the user to Maximum
+  Appearance. It no longer falls through to the generic native-adjustment
+  warning, which could incorrectly suggest that a normal Photoshop adjustment
+  descriptor was merely missing.
