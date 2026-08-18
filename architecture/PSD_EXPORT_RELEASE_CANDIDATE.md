@@ -10,9 +10,11 @@ uses the native save route; the web host downloads the same bytes. Automation
 exposes the same strict operation as `file.exportPsd` and publishes a
 `psd-export` artifact.
 
-The writer is an adapter. PSD-only descriptors are never renderer authority,
-and known lossy projections stop export before a file is handed to the user.
-The merged composite is always present, while supported layers remain editable.
+The writer is an adapter. PSD-only descriptors are never renderer authority.
+Known appearance or scope loss stops export before a file is handed to the
+user. Appearance-preserving raster fallbacks may proceed but return a structured
+`degraded-editability` finding; supported layers remain genuinely editable.
+The merged composite is always present.
 
 `Photoshop PSD (Maximum Appearance)...` is a separate, explicit intent for a
 document that cannot be represented honestly as editable PSD. It skips all

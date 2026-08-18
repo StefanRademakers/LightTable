@@ -76,7 +76,9 @@ self.onmessage = async (event: MessageEvent<PsdExportRequest>) => {
       requestId: request.requestId,
       status: 'success',
       bytes,
+      findings: projection.findings,
       warnings: projection.warnings,
+      blockingWarnings: projection.blockingWarnings,
       editableTextLayers: projection.editableTextLayers,
       editableVectorLayers: projection.editableVectorLayers
     } satisfies PsdExportResponse, { transfer: [bytes.buffer] });

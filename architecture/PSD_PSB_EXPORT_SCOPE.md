@@ -21,9 +21,13 @@ canonical representation and a Photoshop reopen oracle:
   references survive Photoshop reopen without a semantic downgrade;
 - supported layer effects only after descriptor and rendered parity gates pass.
 
-The Editable writer is fail-closed. Unsupported native adjustment layers, smart objects,
-patterns, gradients, effects, text constructs, color modes or interleaving
-are collected during projection and stop the current editable export.
+The Editable writer is appearance-fail-closed. Projection produces structured
+compatibility findings with a stable code, layer-tree path and severity.
+Anything that could change the visible result or scope stops export. A fallback
+whose canonical raster pixels already preserve appearance may export with a
+`degraded-editability` finding instead: for example baked attached processing,
+Face Warp or raster-backed text/vector content. The product never labels those
+constructs as editable Photoshop semantics.
 
 A Curves-only native Grade Layer is the first verified compound-layer
 decomposition. It becomes a collapsed pass-through folder at the exact tree
@@ -76,7 +80,8 @@ limits than Photoshop when those limits are disclosed before opening/export.
 - `Quick Export PNG`: flattened PNG deliverable.
 - `Export PDF`: current preflighted PDF modes.
 - `Photoshop PSD (Editable)...`: enabled for ready documents and runs the same
-  fail-closed semantic projection used by command automation.
+  appearance-fail-closed projection used by command automation; non-blocking
+  losses of editability remain inspectable compatibility findings.
 - `Photoshop PSD (Maximum Appearance)...`: writes one exact rendered layer and
   never presents that flattened result as editable parity.
 

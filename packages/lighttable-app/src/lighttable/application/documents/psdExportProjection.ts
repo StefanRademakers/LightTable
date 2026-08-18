@@ -13,7 +13,7 @@ import {
   exportGradeStackModulesToPsd
 } from '../../editor/psd/psdAdjustmentExportAdapter';
 import { walkLayerTree } from '../../editor/document/layerTree';
-import type { PsdExportIntent } from './psdExportProtocol';
+import type { PsdExportCompatibilityFinding, PsdExportIntent } from './psdExportProtocol';
 
 export interface PsdExportPixelAsset {
   readonly layerId: LayerId;
@@ -29,7 +29,9 @@ export interface PsdExportLutAsset {
 
 export interface PsdExportProjectionResult {
   readonly psd: Psd;
+  readonly findings: readonly PsdExportCompatibilityFinding[];
   readonly warnings: readonly string[];
+  readonly blockingWarnings: readonly string[];
   readonly editableTextLayers: number;
   readonly editableVectorLayers: number;
 }
@@ -104,7 +106,9 @@ export const projectDocumentToPsd = (
         }],
         imageResources
       },
+      findings: [],
       warnings: [],
+      blockingWarnings: [],
       editableTextLayers: 0,
       editableVectorLayers: 0
     };
@@ -116,7 +120,13 @@ export const projectDocumentToPsd = (
     const data = byLut.get(assetId);
     return metadata && data ? { name: metadata.name, data } : null;
   };
-  const warnings: string[] = [];
+  const findings: PsdExportCompatibilityFinding[] = [];
+  const report = (
+    severity: PsdExportCompatibilityFinding['severity'],
+    code: PsdExportCompatibilityFinding['code'],
+    path: string,
+    message: string
+  ) => findings.push({ severity, code, path, message });
   let editableTextLayers = 0;
   let editableVectorLayers = 0;
   const allocatedLayerIds = new Set<number>();
@@ -143,13 +153,21 @@ export const projectDocumentToPsd = (
       const nodePath = `${path}[${index}]`;
       const base = project(node, nodePath);
       if (node.type !== 'raster') return [base];
-      const attached = (node.attachedAdjustments ?? []).flatMap((adjustment) => {
+      const attached = (node.attachedAdjustments ?? []).flatMap((adjustment, adjustmentIndex) => {
         const descriptor = exportAdjustmentStackToPsd(
           adjustment.adjustmentKind,
           adjustment.adjustmentStack,
           resolveColorLookup
         );
-        if (!descriptor) return [];
+        if (!descriptor) {
+          report(
+            'degraded-editability',
+            'attached-adjustment-baked',
+            `${nodePath}.attachedAdjustments[${adjustmentIndex}]`,
+            `${adjustment.name} was baked into the owner layer pixels because it has no exact Photoshop descriptor.`
+          );
+          return [];
+        }
         return [{
           id: numericLayerId(`${node.id}:attached:${adjustment.id}`),
           name: adjustment.name,
@@ -171,7 +189,8 @@ export const projectDocumentToPsd = (
       effect.kind === 'pattern-overlay'
       || (effect.kind === 'stroke' && effect.fill.type === 'pattern')
     ))) {
-      warnings.push(`${path}: pattern-based Layer Styles require PSD pattern-resource export.`);
+      report('blocking', 'layer-style-pattern-resource', path,
+        'pattern-based Layer Styles require PSD pattern-resource export.');
     }
     const common: Layer = {
       id: numericLayerId(node.id),
@@ -239,7 +258,8 @@ export const projectDocumentToPsd = (
             }))
           };
         }
-        warnings.push(`${path}: this Grade Layer contains processing or layer settings without a proven editable Photoshop projection.`);
+        report('blocking', 'grade-unprojectable', path,
+          'this Grade Layer contains processing or layer settings without a proven editable Photoshop projection.');
         return common;
       }
       if (node.photoshop?.adjustment && node.revision === 0) {
@@ -252,7 +272,8 @@ export const projectDocumentToPsd = (
         );
         if (adjustment) common.adjustment = adjustment;
         else {
-          warnings.push(`${path}: this adjustment has no unchanged, exact Photoshop descriptor.`);
+          report('blocking', 'native-adjustment-unprojectable', path,
+            'this adjustment has no unchanged, exact Photoshop descriptor.');
         }
       }
       return common;
@@ -261,16 +282,16 @@ export const projectDocumentToPsd = (
     if (asset?.pixels) common.imageData = asset.pixels;
     if (node.type === 'raster') {
       if (node.adjustmentStack?.modules.some((module) => module.type === 'lt.face-warp')) {
-        warnings.push(
-          `${path}: LightTable Face Warp was baked into the PSD layer pixels; `
-          + 'editable Face Warp semantics remain in the LightTable document.'
-        );
+        report('degraded-editability', 'face-warp-baked', path,
+          'LightTable Face Warp was baked into the PSD layer pixels; editable Face Warp semantics remain in the LightTable document.');
       }
       if (node.photoshop?.sourceKind === 'smart-object') {
-        warnings.push(`${path}: Smart Object source data is not embedded by the PSD writer yet.`);
+        report('degraded-editability', 'smart-object-source-missing', path,
+          'Smart Object source data is not embedded by the PSD writer yet.');
       }
       if (!translationOnly(node) && !asset?.bounds) {
-        warnings.push(`${path}: affine raster transform could not be baked; local pixels were retained.`);
+        report('blocking', 'affine-raster-unbaked', path,
+          'affine raster transform could not be baked; local pixels were retained.');
       }
       common.left = Math.round(asset?.bounds?.x ?? node.transform.tx + node.offsetX);
       common.top = Math.round(asset?.bounds?.y ?? node.transform.ty + node.offsetY);
@@ -287,9 +308,11 @@ export const projectDocumentToPsd = (
         editableTextLayers += 1;
       } else if (node.photoshop?.preserved.text) {
         common.text = structuredClone(node.photoshop.preserved.text) as Layer['text'];
-        warnings.push(`${path}: unsupported native text mode used its preserved Photoshop descriptor.`);
+        report('degraded-editability', 'text-preserved-descriptor', path,
+          'unsupported native text mode used its preserved Photoshop descriptor.');
       } else {
-        warnings.push(`${path}: text remains raster-backed because its layout cannot yet be represented by ag-psd.`);
+        report('degraded-editability', 'text-raster-backed', path,
+          'text remains raster-backed because its layout cannot yet be represented by ag-psd.');
       }
       common.left = Math.round(asset?.bounds?.x ?? node.derivedPreview?.transform.tx ?? 0);
       common.top = Math.round(asset?.bounds?.y ?? node.derivedPreview?.transform.ty ?? 0);
@@ -309,15 +332,19 @@ export const projectDocumentToPsd = (
       common.vectorMask = structuredClone(node.photoshop.preserved.vectorMask) as Layer['vectorMask'];
       common.vectorFill = structuredClone(node.photoshop.preserved.vectorFill) as Layer['vectorFill'];
       common.vectorStroke = structuredClone(node.photoshop.preserved.vectorStroke) as Layer['vectorStroke'];
-      warnings.push(`${path}: mixed vector styles used preserved Photoshop vector descriptors.`);
+      report('degraded-editability', 'vector-preserved-descriptor', path,
+        'mixed vector styles used preserved Photoshop vector descriptors.');
     } else {
-      warnings.push(`${path}: mixed vector styles remain raster-backed in this PSD.`);
+      report('degraded-editability', 'vector-raster-backed', path,
+        'mixed vector styles remain raster-backed in this PSD.');
     }
     common.left = Math.round(asset?.bounds?.x ?? node.derivedPreview?.transform.tx ?? 0);
     common.top = Math.round(asset?.bounds?.y ?? node.derivedPreview?.transform.ty ?? 0);
     return common;
   };
 
+  const warningText = (finding: PsdExportCompatibilityFinding) =>
+    `${finding.path}: ${finding.message}`;
   return {
     psd: {
       width: document.width,
@@ -331,7 +358,9 @@ export const projectDocumentToPsd = (
         : {}),
       imageResources
     },
-    warnings,
+    findings,
+    warnings: findings.map(warningText),
+    blockingWarnings: findings.filter(({ severity }) => severity === 'blocking').map(warningText),
     editableTextLayers,
     editableVectorLayers
   };

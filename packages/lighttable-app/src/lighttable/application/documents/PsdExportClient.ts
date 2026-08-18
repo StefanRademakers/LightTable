@@ -4,6 +4,7 @@ import type {
   LayerAssetBlobs
 } from '../../editor/persistence/layeredDocumentFormat';
 import type {
+  PsdExportCompatibilityFinding,
   PsdExportIntent,
   PsdExportRequest,
   PsdExportResponse
@@ -11,6 +12,7 @@ import type {
 
 export interface ExportedPsdDocument {
   readonly file: File;
+  readonly findings: readonly PsdExportCompatibilityFinding[];
   readonly warnings: readonly string[];
   readonly editableTextLayers: number;
   readonly editableVectorLayers: number;
@@ -42,15 +44,16 @@ export const exportPsdDocument = async (
       } satisfies PsdExportRequest);
     });
     if (response.status === 'error') throw new Error(response.message);
-    if (response.warnings.length > 0) {
+    if (response.blockingWarnings.length > 0) {
       throw new Error(
-        `Photoshop export was stopped to prevent compatibility loss:\n${response.warnings.join('\n')}`
+        `Photoshop export was stopped to prevent appearance loss:\n${response.blockingWarnings.join('\n')}`
       );
     }
     const base = fileNameBase.replace(/\.[^.]+$/, '') || 'document';
     const name = `${base}${intent === 'maximum-appearance' ? '-appearance' : ''}.psd`;
     return {
       file: new File([Uint8Array.from(response.bytes).buffer], name, { type: 'image/vnd.adobe.photoshop' }),
+      findings: response.findings,
       warnings: response.warnings,
       editableTextLayers: response.editableTextLayers,
       editableVectorLayers: response.editableVectorLayers

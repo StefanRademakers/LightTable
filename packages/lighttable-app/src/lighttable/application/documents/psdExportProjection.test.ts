@@ -61,6 +61,7 @@ describe('PSD export projection', () => {
     );
 
     expect(projection.warnings).toEqual([]);
+    expect(projection.blockingWarnings).toEqual([]);
     expect(projection.editableTextLayers).toBe(0);
     expect(projection.editableVectorLayers).toBe(0);
     expect(projection.psd.children).toHaveLength(1);
@@ -117,6 +118,7 @@ describe('PSD export projection', () => {
     const folder = projection.psd.children?.[1];
 
     expect(projection.warnings).toEqual([]);
+    expect(projection.blockingWarnings).toEqual([]);
     expect(folder).toMatchObject({
       name: 'Grade',
       blendMode: 'pass through',
@@ -172,6 +174,9 @@ describe('PSD export projection', () => {
     expect(projection.warnings).toContain(
       'layers[1]: this Grade Layer contains processing or layer settings without a proven editable Photoshop projection.'
     );
+    expect(projection.blockingWarnings).toContain(
+      'layers[1]: this Grade Layer contains processing or layer settings without a proven editable Photoshop projection.'
+    );
     expect(projection.psd.children?.[1]?.children).toBeUndefined();
   });
 
@@ -201,6 +206,13 @@ describe('PSD export projection', () => {
       'layers[0]: LightTable Face Warp was baked into the PSD layer pixels; '
       + 'editable Face Warp semantics remain in the LightTable document.'
     );
+    expect(projection.blockingWarnings).toEqual([]);
+    expect(projection.findings).toContainEqual({
+      severity: 'degraded-editability',
+      code: 'face-warp-baked',
+      path: 'layers[0]',
+      message: 'LightTable Face Warp was baked into the PSD layer pixels; editable Face Warp semantics remain in the LightTable document.'
+    });
   });
 
   it('exports the canonical document resolution resource', () => {
@@ -596,6 +608,36 @@ describe('PSD export projection', () => {
           shadowOutput: 3, highlightOutput: 250
         }
       }
+    });
+    expect(projection.findings).toEqual([]);
+  });
+
+  it('reports unsupported attached processing as a non-blocking baked fallback', () => {
+    const source = createImageDocument('Attached Grade', 2, 2, 'background');
+    const raster = source.layers[0]!;
+    if (raster.type !== 'raster') throw new Error('Expected raster fixture.');
+    const values = createDefaultAdjustments();
+    values.exposureEV = 1;
+    const document = addRasterLayerAttachedAdjustment(source, raster.id, {
+      id: 'attached-grade', adjustmentKind: 'grade', name: 'Local Grade',
+      enabled: true, revision: 1,
+      adjustmentStack: createAdjustmentStackFromBasicAdjustments(values)
+    });
+
+    const projection = projectDocumentToPsd(document, pixels(2, 2), [{
+      layerId: raster.id, pixels: pixels(2, 2, [32, 64, 96, 255])
+    }]);
+
+    expect(projection.psd.children).toHaveLength(1);
+    expect(projection.psd.children?.[0]).toMatchObject({
+      name: 'Background', imageData: { width: 2, height: 2 }
+    });
+    expect(projection.blockingWarnings).toEqual([]);
+    expect(projection.findings).toContainEqual({
+      severity: 'degraded-editability',
+      code: 'attached-adjustment-baked',
+      path: 'layers[0].attachedAdjustments[0]',
+      message: 'Local Grade was baked into the owner layer pixels because it has no exact Photoshop descriptor.'
     });
   });
 });

@@ -179,6 +179,17 @@ Implemented foundation - 18 August 2026
   Photoshop Curves adjustment. The adapter is deliberately restricted to
   default layer boundary settings and a pristine white mask; unsupported
   modules or boundary semantics still stop Editable export.
+- PSD compatibility findings are now structured with a stable code, tree path
+  and severity. Appearance-preserving losses of editability no longer abort an
+  Editable export: baked attached/local processing, Face Warp, raster-backed
+  text/vector fallbacks and missing Smart Object source packages are reported
+  as `degraded-editability`. Missing pixels or an unproven free processing-layer
+  projection remain `blocking` and stop before a file is published.
+- Unsupported attached/local adjustments now emit an explicit
+  `attached-adjustment-baked` finding at their owner path. Their canonical
+  owner-layer readback already contains the effect, and no second PSD
+  adjustment child is emitted, so the result preserves appearance without
+  double application.
 
 Still open: further editable decomposition of compound Grade Layers, position-local
 fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group

@@ -193,6 +193,37 @@ describe('LayerDocumentAssetService', () => {
     );
   });
 
+  it('bakes unsupported attached processing exactly once into PSD base pixels', async () => {
+    const ports = createPorts();
+    const service = new LayerDocumentAssetService(ports);
+    const document = documentWith();
+    const layer = document.layers[0] as RasterLayer;
+    const values = createDefaultAdjustments();
+    values.exposureEV = 1;
+    layer.attachedAdjustments = [{
+      id: 'attached-grade', adjustmentKind: 'grade', name: 'Local Grade',
+      enabled: true, revision: 1,
+      adjustmentStack: createAdjustmentStackFromBasicAdjustments(values)
+    }];
+    const encodeAdjustment = vi.fn((_encoder, source) => source);
+
+    await service.exportPsd(document, encodeAdjustment);
+
+    expect(ports.encodeProcessedRasterLayer).toHaveBeenCalledOnce();
+    expect(ports.encodeProcessedRasterLayer).toHaveBeenCalledWith(
+      document,
+      expect.objectContaining({
+        id: layer.id,
+        attachedAdjustments: [expect.objectContaining({ id: 'attached-grade' })]
+      }),
+      encodeAdjustment,
+      expect.objectContaining({ width: 64, height: 32 })
+    );
+    expect(ports.encodeTexture).not.toHaveBeenCalledWith(
+      layer.id, texture, false, expect.anything()
+    );
+  });
+
   it('exports and loads semantic preview pixels through their derived GPU destination', async () => {
     const previewTexture = { label: 'preview' } as GPUTexture;
     const ports = createPorts();
