@@ -72,6 +72,7 @@ export interface GradePanelModel {
   readonly colorMixerHueCanvasRef: React.RefCallback<HTMLCanvasElement>;
   readonly colorLookupAssets?: readonly { readonly id: string; readonly name: string }[];
   readonly pointColorPickerActive: boolean;
+  readonly pointColorRangeVisualizationActive: boolean;
 }
 
 export interface GradePanelCommands {
@@ -109,6 +110,7 @@ export interface GradePanelCommands {
   readonly resetPointColorSample: (id: string) => void;
   readonly removePointColorSample: (id: string) => void;
   readonly togglePointColorPicker: () => void;
+  readonly setPointColorRangeVisualization: (sample: PointColorSample | null) => void;
   readonly updateColorGradingWheel: (
     zone: ColorGradingZone,
     hue: number,
@@ -258,6 +260,35 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
       setSelectedPointColorId(samples[samples.length - 1]!.id);
     }
   }, [adjustments.pointColor.samples, selectedPointColorId]);
+
+  const selectedPointColorSample = adjustments.pointColor.samples.find(
+    (sample) => sample.id === selectedPointColorId
+  ) ?? null;
+
+  useEffect(() => {
+    if (!model.pointColorRangeVisualizationActive) return;
+    if (
+      colorMixerView !== 'point'
+      || !model.masterEnabled
+      || !visibility.colorMixer
+      || !selectedPointColorSample
+    ) {
+      commands.setPointColorRangeVisualization(null);
+      return;
+    }
+    commands.setPointColorRangeVisualization(selectedPointColorSample);
+  }, [
+    colorMixerView,
+    commands.setPointColorRangeVisualization,
+    model.masterEnabled,
+    model.pointColorRangeVisualizationActive,
+    selectedPointColorSample,
+    visibility.colorMixer
+  ]);
+
+  useEffect(() => () => commands.setPointColorRangeVisualization(null), [
+    commands.setPointColorRangeVisualization
+  ]);
 
   useEffect(() => () => {
     if (histogramPreviewFrameRef.current !== null) {
@@ -455,9 +486,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
   };
 
   const renderPointColor = () => {
-    const selected = adjustments.pointColor.samples.find(
-      (sample) => sample.id === selectedPointColorId
-    ) ?? null;
+    const selected = selectedPointColorSample;
     const disabled = !metadata || !visibility.colorMixer || !selected;
     const update = (
       key: Exclude<keyof PointColorSample, 'id' | 'lightness' | 'chroma' | 'hue'>,
@@ -525,6 +554,17 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
             icon={<img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" />}
           />
         </div>
+        {selected ? <div className="lighttable-point-color__visualize-range">
+          <span>Visualize Range</span>
+          <SwitchControl
+            checked={model.pointColorRangeVisualizationActive}
+            disabled={disabled}
+            onCheckedChange={(checked) => {
+              commands.setPointColorRangeVisualization(checked ? selected : null);
+            }}
+            label="Visualize Point Color range"
+          />
+        </div> : null}
         {controls.map((control) => (
           <AdjustmentSlider
             density="spaced"

@@ -79,8 +79,8 @@ Tests
 - Visual corpus: hue wedge, saturation/lightness grid, skin, red wraparound,
   neutral ramp and overlapping samples.
 
-Implemented foundation - 18 August 2026
-========================================
+Completed - 18 August 2026
+==========================
 
 - The Point Color H/C/L selection-weight function is now one shared WGSL
   source instead of private arithmetic embedded in `applyPointColor`.
@@ -93,12 +93,40 @@ Implemented foundation - 18 August 2026
   selected region; it does not change selection weight. Visualize Range must
   therefore remain stable while Variance moves unless later Camera Raw parity
   evidence justifies changing the actual Point Color model.
+- Grade processing now exposes an alternate `pointColorInput` fragment entry
+  point after shared Detail/Texture/Clarity/Dehaze and Color Mixer processing,
+  but before Point Color. Normal Grade evaluation still uses the unchanged
+  full entry point.
+- The document compositor captures that exact boundary only for the selected
+  global, adjustment-layer or attached Grade owner. It retains one bounded
+  `rgba16float` presentation texture and performs no CPU readback.
+- A presentation-only viewport pipeline evaluates the shared selection-weight
+  function and renders white/gray/black. It has precedence over other viewport
+  isolation modes without replacing final, export, histogram or scope inputs.
+- Point Color now exposes a UI-kit `Visualize Range` switch only when a sample
+  exists. Sample/range changes redraw the viewport, while owner changes
+  invalidate the one compositor stage needed to refresh the node boundary.
+- The transient state exits on sample removal, disabled Grade/Color Mixer,
+  editor-context changes, panel unmount and document teardown. It is absent
+  from serialization and history.
+- GPU memory accounting includes the lazy diagnostic texture; disabling the
+  mode performs no additional pass and retains no per-sample resources.
+- `smoke:desktop:point-color-range` exercises the packaged product route: it
+  creates a Grade layer and Point Color sample through the real UI, validates
+  a grayscale feathered diagnostic, changes Hue Range, checks deterministic
+  exit, and proves the PNG export before/during visualization is byte-identical.
+- The existing packaged 4K Grade interaction audit remains green, as do the
+  full app suite, shader/pipeline assertions, typecheck and desktop packaging
+  boundary verification.
 
-Still open: expose the `lt.color-mixer` node-input texture, build the bounded
-presentation-only pass, add transient editor state/control lifecycle, enforce
-viewport/export/scope separation, and capture the product visual corpus.
-- Compare the final mask against current Camera Raw after task_203 provides a
-  safe version-pinned oracle; document any semantic difference.
+Deferred external evidence
+==========================
+
+The version-pinned Camera Raw visual corpus remains part of task_141 and is
+blocked on task_203's safe Photoshop oracle. That comparison may justify a
+future Point Color algorithm change, but it is not an unfinished part of this
+diagnostic architecture: the preview now always shows LightTable's exact
+current selection weight.
 
 Definition of done
 ==================

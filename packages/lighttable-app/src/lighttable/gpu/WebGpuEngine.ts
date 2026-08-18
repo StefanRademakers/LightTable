@@ -137,6 +137,7 @@ import type { TextEditingOverlay } from '@lighttable/text-rendering';
 import { TextEditingOverlayBackend } from '@lighttable/text-webgpu';
 import { ColorLookupAssetStore } from './ColorLookupAssetStore';
 import { WaveletDetailRuntime } from './WaveletDetailRuntime';
+import type { PointColorSample } from '../pointColor';
 
 const FACE_WARP_MESH_THEME: VectorEditingOverlayTheme = {
   pathColor: [0.1, 0.82, 0.95, 1],
@@ -256,6 +257,7 @@ export class WebGpuEngine {
   private downsamplePipeline: GPURenderPipeline | null = null;
   private blurPipeline: GPURenderPipeline | null = null;
   private creativePipeline: GPURenderPipeline | null = null;
+  private pointColorInputPipeline: GPURenderPipeline | null = null;
   private globalGradeMixPipeline: GPURenderPipeline | null = null;
   private outputPipeline: GPURenderPipeline | null = null;
   private effectRuntime: DocumentEffectRuntime | null = null;
@@ -268,6 +270,7 @@ export class WebGpuEngine {
   private maskBlitPipeline: GPURenderPipeline | null = null;
   private channelBlitPipeline: GPURenderPipeline | null = null;
   private differencePipeline: GPURenderPipeline | null = null;
+  private pointColorRangePipeline: GPURenderPipeline | null = null;
   private differenceMetricsPipeline: GPUComputePipeline | null = null;
   private metadata: LightTableImageMetadata | null = null;
   private before = false;
@@ -278,6 +281,13 @@ export class WebGpuEngine {
   private isolatedMaskNearestBindGroup: GPUBindGroup | null = null;
   private isolatedMaskPresentationBuffer: GPUBuffer | null = null;
   private isolatedCompositeChannel: CompositeColorChannel | null = null;
+  private pointColorRangeVisualization: {
+    readonly ownerId: string | null;
+    readonly sample: PointColorSample;
+  } | null = null;
+  private pointColorRangeBuffer: GPUBuffer | null = null;
+  private pointColorRangeBindGroup: GPUBindGroup | null = null;
+  private pointColorRangeNearestBindGroup: GPUBindGroup | null = null;
   private lensBlurDepthVisualization = false;
   private warpDebugVisualization: WarpDebugView = 'result';
   private firstFramePending = false;
@@ -395,6 +405,7 @@ export class WebGpuEngine {
     this.downsamplePipeline = pipelines.downsample;
     this.blurPipeline = pipelines.blur;
     this.creativePipeline = pipelines.creative;
+    this.pointColorInputPipeline = pipelines.pointColorInput;
     this.waveletDetailRuntime = new WaveletDetailRuntime(
       this.device,
       coreResources.sampler,
@@ -454,6 +465,7 @@ export class WebGpuEngine {
     this.maskBlitPipeline = pipelines.maskBlit;
     this.channelBlitPipeline = pipelines.channelBlit;
     this.differencePipeline = pipelines.difference;
+    this.pointColorRangePipeline = pipelines.pointColorRange;
     this.differenceMetricsPipeline = pipelines.differenceMetrics;
     this.histogramRuntime = new DocumentHistogramRuntime(
       this.device,
@@ -1501,6 +1513,7 @@ export class WebGpuEngine {
   private createImageResources(width: number, height: number) {
     if (!this.imageResources.sourceTexture || !this.coreResources ||
       !this.basicPipeline || !this.downsamplePipeline || !this.blurPipeline || !this.creativePipeline ||
+      !this.pointColorInputPipeline || !this.pointColorRangePipeline ||
       !this.outputPipeline || !this.effectRuntime || !this.displayResolvePipeline ||
       !this.blitPipeline || !this.channelBlitPipeline || !this.differencePipeline ||
       !this.histogramRuntime || !this.waveletDetailRuntime || !this.metadata) return;
@@ -1602,6 +1615,7 @@ export class WebGpuEngine {
       downsamplePipeline: this.downsamplePipeline,
       blurPipeline: this.blurPipeline,
       creativePipeline: this.creativePipeline,
+      pointColorInputPipeline: this.pointColorInputPipeline!,
       correctedTexture: this.imageResources.correctedTexture,
       downsampleTexture: this.imageResources.downsampleTexture,
       blurTexture: this.imageResources.blurTexture,
@@ -1815,6 +1829,72 @@ export class WebGpuEngine {
       );
     }
     this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  /**
+   * Presents one Point Color sample's exact node-input weight. This state is
+   * intentionally absent from the document model, history, export and scopes.
+   */
+  setPointColorRangeVisualization(ownerId: string | null, sample: PointColorSample | null) {
+    const previousOwnerId = this.pointColorRangeVisualization?.ownerId;
+    if (!sample) {
+      if (!this.pointColorRangeVisualization) return;
+      this.pointColorRangeVisualization = null;
+      this.adjustmentLayerRenderer.setPointColorInputCapture(null);
+      this.renderDirty.invalidate('viewport');
+      this.requestRender();
+      return;
+    }
+    if (!this.metadata || !this.pointColorRangePipeline || !this.coreResources) return;
+    if (!this.imageResources.pointColorInputTexture) {
+      this.pointColorRangeBindGroup = null;
+      this.pointColorRangeNearestBindGroup = null;
+      this.imageResources.pointColorInputTexture = this.device.createTexture({
+        label: 'LightTable Point Color node input diagnostic',
+        size: [this.metadata.width, this.metadata.height],
+        format: 'rgba16float',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+      });
+    }
+    if (!this.pointColorRangeBuffer) {
+      this.pointColorRangeBuffer = this.device.createBuffer({
+        label: 'LightTable Point Color range presentation',
+        size: 12 * Float32Array.BYTES_PER_ELEMENT,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+    }
+    this.device.queue.writeBuffer(this.pointColorRangeBuffer, 0, new Float32Array([
+      sample.lightness, sample.chroma, sample.hue, 1,
+      sample.hueShift, sample.saturationShift, sample.luminanceShift, sample.variance,
+      sample.range, sample.hueRange, sample.saturationRange, sample.luminanceRange
+    ]));
+    const createBindGroup = (sampler: GPUSampler) => this.device.createBindGroup({
+      layout: this.pointColorRangePipeline!.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.imageResources.pointColorInputTexture!.createView() },
+        { binding: 1, resource: sampler },
+        { binding: 2, resource: { buffer: this.coreResources!.viewBuffer } },
+        { binding: 3, resource: { buffer: this.pointColorRangeBuffer! } }
+      ]
+    });
+    if (!this.pointColorRangeBindGroup) {
+      this.pointColorRangeBindGroup = createBindGroup(this.coreResources.sampler);
+      this.pointColorRangeNearestBindGroup = createBindGroup(this.coreResources.nearestSampler);
+    }
+    this.pointColorRangeVisualization = { ownerId, sample: { ...sample } };
+    this.adjustmentLayerRenderer.setPointColorInputCapture(ownerId === null ? null : {
+      ownerId,
+      target: this.imageResources.pointColorInputTexture
+    });
+    if (previousOwnerId !== ownerId || previousOwnerId === undefined) {
+      // A new owner must expose its exact pre-Point input once. Subsequent
+      // range/sample edits reuse that retained boundary and redraw only view.
+      if (ownerId === null) this.renderDirty.invalidate('adjustments');
+      else this.renderDirty.invalidate('document');
+    } else {
+      this.renderDirty.invalidate('viewport');
+    }
     this.requestRender();
   }
 
@@ -2231,7 +2311,10 @@ export class WebGpuEngine {
       effectBytes: (this.effectRuntime?.estimatedTextureBytes() ?? 0)
         + (this.layerEffectRenderer?.estimatedTextureBytes() ?? 0)
         + (this.waveletDetailRuntime?.estimatedTextureBytes() ?? 0)
-    }) + (this.vectorEditingOverlayBackend?.cacheMetrics().bytes ?? 0);
+    }) + (this.vectorEditingOverlayBackend?.cacheMetrics().bytes ?? 0)
+      + (this.imageResources.pointColorInputTexture
+        ? this.metadata.width * this.metadata.height * 8
+        : 0);
   }
 
   private reportGpuMemoryEstimate() {
@@ -2329,8 +2412,10 @@ export class WebGpuEngine {
       ) {
         const gradeEnabled = this.globalGradeStrength > 0
           && adjustmentStackOwnerHasAuthoredSettings(this.adjustmentState.current, 'grade');
+        const captureGlobalPointColorInput = this.pointColorRangeVisualization?.ownerId === null
+          && Boolean(this.imageResources.pointColorInputTexture);
         let gradedTexture = documentTexture;
-        if (gradeEnabled) {
+        if (gradeEnabled || captureGlobalPointColorInput) {
           const basicBindGroup = this.device.createBindGroup({
             layout: this.basicPipeline.getBindGroupLayout(0),
             entries: [
@@ -2382,16 +2467,27 @@ export class WebGpuEngine {
               this.imageResources.downsampleTexture.createView()
             );
           }
-          this.drawFullscreenPass(
-            encoder,
-            this.creativePipeline,
-            detailTexture === this.imageResources.correctedTexture
-              ? this.imageResources.creativeBindGroup
-              : this.createGlobalCreativeBindGroup(detailTexture),
-            this.imageResources.creativeTexture.createView()
-          );
-          gradedTexture = this.imageResources.creativeTexture;
-          if (this.globalGradeStrength < 1) {
+          const creativeBindGroup = detailTexture === this.imageResources.correctedTexture
+            ? this.imageResources.creativeBindGroup
+            : this.createGlobalCreativeBindGroup(detailTexture);
+          if (gradeEnabled) {
+            this.drawFullscreenPass(
+              encoder,
+              this.creativePipeline,
+              creativeBindGroup,
+              this.imageResources.creativeTexture.createView()
+            );
+            gradedTexture = this.imageResources.creativeTexture;
+          }
+          if (captureGlobalPointColorInput) {
+            this.drawFullscreenPass(
+              encoder,
+              this.pointColorInputPipeline!,
+              creativeBindGroup,
+              this.imageResources.pointColorInputTexture!.createView()
+            );
+          }
+          if (gradeEnabled && this.globalGradeStrength < 1) {
             const mixBindGroup = this.device.createBindGroup({
               layout: this.globalGradeMixPipeline.getBindGroupLayout(0),
               entries: [
@@ -2538,7 +2634,17 @@ export class WebGpuEngine {
       const isolatedMaskBindGroup = useNearestSampling
         ? this.isolatedMaskNearestBindGroup
         : this.isolatedMaskBindGroup;
-      if (isolatedMaskBindGroup) {
+      const pointColorRangeBindGroup = useNearestSampling
+        ? this.pointColorRangeNearestBindGroup
+        : this.pointColorRangeBindGroup;
+      if (this.pointColorRangeVisualization && pointColorRangeBindGroup) {
+        this.drawFullscreenPass(
+          encoder,
+          this.pointColorRangePipeline!,
+          pointColorRangeBindGroup,
+          canvasView
+        );
+      } else if (isolatedMaskBindGroup) {
         this.drawFullscreenPass(
           encoder,
           this.maskBlitPipeline,
@@ -2879,6 +2985,8 @@ export class WebGpuEngine {
     this.isolatedMaskNearestBindGroup = null;
     this.isolatedMaskPresentationBuffer?.destroy();
     this.isolatedMaskPresentationBuffer = null;
+    this.pointColorRangeBuffer?.destroy();
+    this.pointColorRangeBuffer = null;
     this.viewportPresentation.dispose();
     this.device.removeEventListener('uncapturederror', this.deviceErrorListener);
     this.unsubscribeDeviceLost();
@@ -3156,6 +3264,9 @@ export class WebGpuEngine {
     this.isolatedMaskBindGroup = null;
     this.isolatedMaskNearestBindGroup = null;
     this.isolatedCompositeChannel = null;
+    this.pointColorRangeVisualization = null;
+    this.pointColorRangeBindGroup = null;
+    this.pointColorRangeNearestBindGroup = null;
     this.brushCursorOverlay = null;
     this.penRubberBand = null;
     this.penEditingOverlay = null;

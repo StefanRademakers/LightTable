@@ -1761,13 +1761,11 @@ fn applyDetailNode(centerRgb: vec3f, uv: vec2f) -> vec3f {
   return centerRgb * (max(0.0, resultY) / centerY);
 }
 
-@fragment
-fn main(input: VertexOutput) -> @location(0) vec4f {
-  let corrected = textureSample(correctedTexture, sourceSampler, input.uv);
-  var rgb = applyDetailNode(corrected.rgb, input.uv);
+fn applyCreativeBeforePointColor(centerRgb: vec3f, uv: vec2f) -> vec3f {
+  var rgb = applyDetailNode(centerRgb, uv);
   var y = max(luminance(rgb), 1e-6);
   if (abs(adjustments.texture) > 0.00001) {
-    let localFineBase = textureScaleBase(input.uv, y);
+    let localFineBase = textureScaleBase(uv, y);
     let textureProtection = smoothstep(0.008, 0.08, y) * (1.0 - smoothstep(0.82, 1.45, y));
     let fineDifference = clamp((y - localFineBase) / max(localFineBase + 0.04, 0.04), -0.42, 0.42);
     let newY = max(0.0, y * exp2(fineDifference * (adjustments.texture / 100.0) * 1.65 * textureProtection));
@@ -1775,7 +1773,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     y = max(luminance(rgb), 1e-6);
   }
   if (abs(adjustments.clarity) > 0.00001) {
-    let localBase = textureSample(blurredLuminanceTexture, sourceSampler, input.uv).r;
+    let localBase = textureSample(blurredLuminanceTexture, sourceSampler, uv).r;
     let midtoneProtection = smoothstep(0.015, 0.12, y) * (1.0 - smoothstep(0.72, 1.35, y));
     let localDifference = (y - localBase) / max(localBase + 0.08, 0.08);
     let newY = max(0.0, y * exp2(localDifference * (adjustments.clarity / 100.0) * 0.85 * midtoneProtection));
@@ -1786,8 +1784,8 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     // This is a compact dark-channel-inspired creative Dehaze, not a RAW-stage
     // atmospheric solver. It intentionally works on the already-shaped LDR
     // signal so moving it earlier requires a separate pre-tone analysis pass.
-    let localBase = textureSample(blurredLuminanceTexture, sourceSampler, input.uv).r;
-    let hazeMask = localDarkChannel(input.uv) * smoothstep(0.04, 0.42, localBase);
+    let localBase = textureSample(blurredLuminanceTexture, sourceSampler, uv).r;
+    let hazeMask = localDarkChannel(uv) * smoothstep(0.04, 0.42, localBase);
     let strength = (adjustments.dehaze / 100.0) * 0.82;
     let transmission = clamp(1.0 - strength * hazeMask, 0.36, 1.82);
     // Keep signed channel excursions alive for later Lift/Curves and gamut
@@ -1796,6 +1794,13 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     rgb = (rgb - vec3f(1.0)) / transmission + vec3f(1.0);
   }
   rgb = applyColorMixer(rgb);
+  return rgb;
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let corrected = textureSample(correctedTexture, sourceSampler, input.uv);
+  var rgb = applyCreativeBeforePointColor(corrected.rgb, input.uv);
   rgb = applyPointColor(rgb);
   // Global Saturation/Vibrance is the final colour balance. Keeping it after
   // the Mixer prevents global desaturation from changing hue classification.
@@ -1810,6 +1815,13 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   rgb = applyGradientMap(rgb, input.uv * vec2f(textureDimensions(correctedTexture)));
   rgb = applyPhotoshopAdjustment(rgb);
   return vec4f(rgb, corrected.a);
+}
+
+/** Captures the exact lt.color-mixer/Point Color input only while its range diagnostic is active. */
+@fragment
+fn pointColorInput(input: VertexOutput) -> @location(0) vec4f {
+  let corrected = textureSample(correctedTexture, sourceSampler, input.uv);
+  return vec4f(applyCreativeBeforePointColor(corrected.rgb, input.uv), corrected.a);
 }
 `;
 
@@ -2034,6 +2046,65 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   // Explicit LOD is valid even though the image bounds branch varies per fragment.
   let image = textureSampleLevel(imageTexture, imageSampler, imageUv, 0.0);
   return vec4f(mix(canvasBackground, image.rgb, image.a), 1.0);
+}
+`;
+
+/**
+ * Presentation-only Point Color range view. The input texture is captured at
+ * the exact Point Color node boundary; document output and observers never
+ * consume this diagnostic.
+ */
+export const POINT_COLOR_RANGE_VIEWPORT_WGSL = /* wgsl */ `
+${POINT_COLOR_SELECTION_WGSL}
+
+struct ViewUniforms {
+  viewportWidth: f32,
+  viewportHeight: f32,
+  rectX: f32,
+  rectY: f32,
+  rectWidth: f32,
+  rectHeight: f32,
+  checkerSize: f32,
+  padding: f32,
+}
+
+struct PointColorRangeSample {
+  sample: vec4f,
+  adjustment: vec4f,
+  selection: vec4f,
+}
+
+@group(0) @binding(0) var pointColorInputTexture: texture_2d<f32>;
+@group(0) @binding(1) var pointColorSampler: sampler;
+@group(0) @binding(2) var<uniform> view: ViewUniforms;
+@group(0) @binding(3) var<uniform> pointColorRange: PointColorRangeSample;
+
+fn linearRgbToOklab(rgb: vec3f) -> vec3f {
+  let lms = mat3x3f(
+    vec3f(0.4122214708, 0.2119034982, 0.0883024619),
+    vec3f(0.5363325363, 0.6806995451, 0.2817188376),
+    vec3f(0.0514459929, 0.1073969566, 0.6299787005)
+  ) * rgb;
+  let root = sign(lms) * pow(abs(lms), vec3f(1.0 / 3.0));
+  return mat3x3f(
+    vec3f(0.2104542553, 1.9779984951, 0.0259040371),
+    vec3f(0.7936177850, -2.4285922050, 0.7827717662),
+    vec3f(-0.0040720468, 0.4505937099, -0.8086757660)
+  ) * root;
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let pixel = input.uv * vec2f(view.viewportWidth, view.viewportHeight);
+  let imageUv = (pixel - vec2f(view.rectX, view.rectY)) / vec2f(view.rectWidth, view.rectHeight);
+  if (any(imageUv < vec2f(0.0)) || any(imageUv > vec2f(1.0))) {
+    return vec4f(${VIEWPORT_PASTEBOARD_BACKGROUND}, 1.0);
+  }
+  let source = textureSampleLevel(pointColorInputTexture, pointColorSampler, imageUv, 0.0);
+  let lab = linearRgbToOklab(source.rgb);
+  let weight = pointColorSelectionWeight(lab, pointColorRange.sample, pointColorRange.selection)
+    * source.a;
+  return vec4f(vec3f(weight), 1.0);
 }
 `;
 

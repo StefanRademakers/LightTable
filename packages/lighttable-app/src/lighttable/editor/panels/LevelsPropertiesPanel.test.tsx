@@ -22,6 +22,7 @@ const commands = () => {
     setGradeLookAsset: noop, updateGradeLookStrength: noop, resetGradeLook: noop,
     addPointColorSample: noop, updatePointColorSample: noop,
     resetPointColorSample: noop, removePointColorSample: noop, togglePointColorPicker: noop,
+    setPointColorRangeVisualization: noop,
     updateColorGradingWheel: noop, updateColorGradingLuminance: noop,
     updateColorGradingControl: noop, resetColorGradingControl: noop,
     resetColorGradingZone: noop, resetColorGradingLuminance: noop,
@@ -44,7 +45,8 @@ describe('LevelsPropertiesPanel', () => {
         masterEnabled: true,
         colorMixerScopeContainerRef: { current: null },
         colorMixerHueCanvasRef: noop,
-        pointColorPickerActive: false
+        pointColorPickerActive: false,
+        pointColorRangeVisualizationActive: false
       }}
       commands={commands()}
     />);

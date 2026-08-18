@@ -15,6 +15,7 @@ import {
   HISTOGRAM_WGSL,
   MASK_VIEWPORT_BLIT_WGSL,
   OUTPUT_TRANSFORM_WGSL,
+  POINT_COLOR_RANGE_VIEWPORT_WGSL,
   REFERENCE_DIFFERENCE_METRICS_WGSL,
   VIEWPORT_BLIT_WGSL
 } from './shaders';
@@ -120,6 +121,7 @@ const renderShaders = [
   ['flatten display to linear', DISPLAY_TO_LINEAR_WGSL],
   ['document thumbnail', DOCUMENT_THUMBNAIL_WGSL],
   ['viewport blit', VIEWPORT_BLIT_WGSL],
+  ['Point Color range viewport', POINT_COLOR_RANGE_VIEWPORT_WGSL],
   ['mask viewport blit', MASK_VIEWPORT_BLIT_WGSL],
   ['warp', WARP_RENDER_WGSL],
   ['warp displacement debug', WARP_DISPLACEMENT_DEBUG_WGSL],
@@ -287,9 +289,16 @@ describe('LightTable WGSL modules', () => {
       .toBeGreaterThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyColorMixer(rgb);'));
   });
 
+  it('uses the exact pre-Point boundary for the presentation-only range view', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('fn applyCreativeBeforePointColor');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn pointColorInput');
+    expect(POINT_COLOR_RANGE_VIEWPORT_WGSL).toContain('pointColorSelectionWeight(');
+    expect(POINT_COLOR_RANGE_VIEWPORT_WGSL).toContain('var pointColorInputTexture');
+  });
+
   it('locks the complete fused Grade processing order', () => {
     const operations = [
-      'var rgb = applyDetailNode(corrected.rgb, input.uv);',
+      'var rgb = applyDetailNode(centerRgb, uv);',
       'if (abs(adjustments.texture) > 0.00001)',
       'if (abs(adjustments.clarity) > 0.00001)',
       'if (abs(adjustments.dehaze) > 0.00001)',

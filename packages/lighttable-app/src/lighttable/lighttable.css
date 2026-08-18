@@ -4937,6 +4937,15 @@
   border-radius: 50%;
 }
 
+.lighttable-point-color__visualize-range {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  margin-bottom: var(--lt-space-2);
+  color: var(--lt-text-primary);
+}
+
 .lighttable-color-mixer__picker {
   position: relative;
   width: 100%;

@@ -20,6 +20,7 @@ import { useAdjustmentTransactionController } from './application/adjustments/us
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import { linearRgbToOklab, srgbToLinear } from './colorMath';
+import type { PointColorSample } from './pointColor';
 import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
   type AdjustmentPresentationDomain } from './application/adjustments/adjustmentPresentationStore';
 import { createDocumentProjectionController } from './application/documents/documentProjectionController';
@@ -789,6 +790,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [sourceIdentity, setSourceIdentity] = useState('');
   const [focusPickerActive, setFocusPickerActive] = useState(false);
   const [pointColorPickerActive, setPointColorPickerActive] = useState(false);
+  const [pointColorRangeVisualization, setPointColorRangeVisualization] = useState<{
+    readonly ownerId: string | null;
+    readonly sample: PointColorSample;
+  } | null>(null);
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
@@ -2898,6 +2903,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     showDifference,
     isolatedMaskLayerId,
     isolatedCompositeChannel,
+    pointColorRangeVisualization,
     lensBlurViewportMode,
     warpDebugView: editorSession.warp.debugView,
     vectorSelection: editorSession.vectorSelection,
@@ -4519,6 +4525,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       : null;
   const gradeUsesDocumentVisibility = reconciledPropertiesTarget.kind === 'document-processing'
     && reconciledPropertiesTarget.owner === 'grade';
+  const updatePointColorRangeVisualization = useCallback((sample: PointColorSample | null) => {
+    if (!sample) {
+      setPointColorRangeVisualization(null);
+      return;
+    }
+    if (!gradeUsesDocumentVisibility && !gradeOwnerId) {
+      setPointColorRangeVisualization(null);
+      return;
+    }
+    setPointColorRangeVisualization({
+      ownerId: gradeUsesDocumentVisibility ? null : gradeOwnerId,
+      sample: { ...sample }
+    });
+  }, [gradeOwnerId, gradeUsesDocumentVisibility]);
   const gradeSectionVisibility = gradeUsesDocumentVisibility
     ? groupVisibility
     : {
@@ -6496,7 +6516,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   colorMixerScopeContainerRef,
                   colorMixerHueCanvasRef: attachColorMixerHueCanvas,
                   colorLookupAssets: imageDocument?.assets.colorLookups ?? [],
-                  pointColorPickerActive
+                  pointColorPickerActive,
+                  pointColorRangeVisualizationActive: pointColorRangeVisualization !== null
                 },
                   commands: {
                   resetAll,
@@ -6523,6 +6544,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                   resetPointColorSample,
                   removePointColorSample,
                   togglePointColorPicker: () => setPointColorPickerActive((current) => !current),
+                  setPointColorRangeVisualization: updatePointColorRangeVisualization,
                   updateColorGradingWheel,
                   updateColorGradingLuminance,
                   updateColorGradingControl,

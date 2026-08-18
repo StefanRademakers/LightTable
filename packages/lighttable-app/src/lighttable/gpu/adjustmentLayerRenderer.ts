@@ -45,6 +45,7 @@ export interface AdjustmentLayerRendererDependencies {
   downsamplePipeline: GPURenderPipeline;
   blurPipeline: GPURenderPipeline;
   creativePipeline: GPURenderPipeline;
+  pointColorInputPipeline: GPURenderPipeline;
   correctedTexture: GPUTexture;
   downsampleTexture: GPUTexture;
   blurTexture: GPUTexture;
@@ -59,6 +60,11 @@ export interface AdjustmentLayerRendererDependencies {
   waveletDetailRuntime: WaveletDetailRuntime;
 }
 
+export interface PointColorInputCapture {
+  readonly ownerId: string;
+  readonly target: GPUTexture;
+}
+
 /**
  * Encodes one Adjustment Layer using document-generation GPU resources.
  *
@@ -68,6 +74,7 @@ export interface AdjustmentLayerRendererDependencies {
  */
 export class AdjustmentLayerRenderer {
   private dependencies: AdjustmentLayerRendererDependencies | null = null;
+  private pointColorInputCapture: PointColorInputCapture | null = null;
 
   constructor(
     private readonly device: GPUDevice,
@@ -85,6 +92,11 @@ export class AdjustmentLayerRenderer {
 
   reset(): void {
     this.dependencies = null;
+    this.pointColorInputCapture = null;
+  }
+
+  setPointColorInputCapture(capture: PointColorInputCapture | null): void {
+    this.pointColorInputCapture = capture;
   }
 
   encode(
@@ -168,15 +180,25 @@ export class AdjustmentLayerRenderer {
       );
     }
 
+    const creativeBindGroup = detailTexture === dependencies.correctedTexture
+      ? runtime.creativeBindGroup
+      : runtime.createCreativeBindGroup(detailTexture, dependencies.downsampleTexture);
     encodeFullscreenPass(
       encoder,
       dependencies.creativePipeline,
-      detailTexture === dependencies.correctedTexture
-        ? runtime.creativeBindGroup
-        : runtime.createCreativeBindGroup(detailTexture, dependencies.downsampleTexture),
+      creativeBindGroup,
       dependencies.creativeTexture.createView(),
       { label: `LightTable Adjustment Layer creative: ${layer.name}` }
     );
+    if (this.pointColorInputCapture?.ownerId === layer.id) {
+      encodeFullscreenPass(
+        encoder,
+        dependencies.pointColorInputPipeline,
+        creativeBindGroup,
+        this.pointColorInputCapture.target.createView(),
+        { label: `LightTable Point Color input: ${layer.name}` }
+      );
+    }
     return dependencies.creativeTexture;
   }
 }

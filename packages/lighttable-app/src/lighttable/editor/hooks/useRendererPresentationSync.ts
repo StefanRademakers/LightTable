@@ -13,11 +13,13 @@ import type {
   SelectionShape
 } from '../selection/selectionTypes';
 import type { LayerId } from '../document/documentTypes';
+import type { PointColorSample } from '../../pointColor';
 
 export interface RendererPresentationPort {
   setDifference(enabled: boolean): void;
   setMaskIsolation(layerId: LayerId | null): void;
   setCompositeChannelIsolation(channel: CompositeColorChannel | null): void;
+  setPointColorRangeVisualization(ownerId: string | null, sample: PointColorSample | null): void;
   setScopeOptions(
     histogramVisible: boolean,
     options: WebGpuScopeOptions
@@ -54,6 +56,10 @@ interface RendererPresentationSyncOptions<
   readonly showDifference: boolean;
   readonly isolatedMaskLayerId: LayerId | null;
   readonly isolatedCompositeChannel: CompositeColorChannel | null;
+  readonly pointColorRangeVisualization: {
+    readonly ownerId: string | null;
+    readonly sample: PointColorSample;
+  } | null;
   readonly lensBlurViewportMode: LensBlurViewportMode;
   readonly warpDebugView: WarpDebugView;
   readonly vectorSelection: VectorEditorSelection;
@@ -80,6 +86,7 @@ export const useRendererPresentationSync = <
   showDifference,
   isolatedMaskLayerId,
   isolatedCompositeChannel,
+  pointColorRangeVisualization,
   lensBlurViewportMode,
   warpDebugView,
   vectorSelection,
@@ -104,6 +111,13 @@ export const useRendererPresentationSync = <
   useEffect(() => {
     rendererRef.current?.setCompositeChannelIsolation(isolatedCompositeChannel);
   }, [isolatedCompositeChannel, rendererRef]);
+
+  useEffect(() => {
+    rendererRef.current?.setPointColorRangeVisualization(
+      pointColorRangeVisualization?.ownerId ?? null,
+      pointColorRangeVisualization?.sample ?? null
+    );
+  }, [pointColorRangeVisualization, rendererRef]);
 
   useEffect(() => {
     rendererRef.current?.setLensBlurDepthVisualization(

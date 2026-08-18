@@ -159,6 +159,7 @@
     "smoke:desktop:fill-ux:build": "npm run package:desktop:verify && npm run smoke:desktop:fill-ux --",
     "smoke:desktop:gradient-tool": "node scripts/smoke-desktop-gradient-tool.mjs",
     "smoke:desktop:color-picker": "node scripts/smoke-desktop-color-picker.mjs",
+    "smoke:desktop:point-color-range": "node scripts/smoke-desktop-point-color-range.mjs",
     "smoke:desktop:magic-wand": "node scripts/smoke-desktop-magic-wand.mjs",
     "smoke:desktop:object-selection": "node scripts/smoke-desktop-object-selection.mjs",
     "smoke:desktop:tab-thumbnails": "node scripts/smoke-desktop-tab-thumbnails.mjs",

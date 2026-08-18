@@ -15,6 +15,7 @@ export class DocumentImageGpuResources {
   creativeTexture: GPUTexture | null = null;
   displayTexture: GPUTexture | null = null;
   finalTexture: GPUTexture | null = null;
+  pointColorInputTexture: GPUTexture | null = null;
 
   downsampleBindGroup: GPUBindGroup | null = null;
   blurHorizontalBindGroup: GPUBindGroup | null = null;
@@ -37,7 +38,8 @@ export class DocumentImageGpuResources {
       this.blurTexture,
       this.creativeTexture,
       this.displayTexture,
-      this.finalTexture
+      this.finalTexture,
+      this.pointColorInputTexture
     ];
     const destroyed = new Set<DestroyableGpuResource>();
     for (const resource of resources) {
@@ -53,6 +55,7 @@ export class DocumentImageGpuResources {
     this.creativeTexture = null;
     this.displayTexture = null;
     this.finalTexture = null;
+    this.pointColorInputTexture = null;
     this.clearBindGroups();
   }
 

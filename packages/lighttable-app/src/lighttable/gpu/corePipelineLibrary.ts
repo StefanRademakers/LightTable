@@ -11,6 +11,7 @@ import {
   CHANNEL_VIEWPORT_BLIT_WGSL,
   MASK_VIEWPORT_BLIT_WGSL,
   OUTPUT_TRANSFORM_WGSL,
+  POINT_COLOR_RANGE_VIEWPORT_WGSL,
   PRECISION_SOURCE_RESOLVE_WGSL,
   REFERENCE_DIFFERENCE_METRICS_WGSL,
   VIEWPORT_BLIT_WGSL,
@@ -23,6 +24,7 @@ export interface CorePipelineBundle {
   downsample: GPURenderPipeline;
   blur: GPURenderPipeline;
   creative: GPURenderPipeline;
+  pointColorInput: GPURenderPipeline;
   globalGradeMix: GPURenderPipeline;
   output: GPURenderPipeline;
   precisionSourceResolve: GPURenderPipeline;
@@ -32,6 +34,7 @@ export interface CorePipelineBundle {
   maskBlit: GPURenderPipeline;
   channelBlit: GPURenderPipeline;
   difference: GPURenderPipeline;
+  pointColorRange: GPURenderPipeline;
   differenceMetrics: GPUComputePipeline;
   histogram: GPUComputePipeline;
 }
@@ -63,7 +66,8 @@ export const getCorePipelineBundle = (
   const createRenderPipeline = (
     label: string,
     fragmentCode: string,
-    format: GPUTextureFormat
+    format: GPUTextureFormat,
+    entryPoint = 'main'
   ) => device.createRenderPipeline({
     label,
     layout: 'auto',
@@ -73,7 +77,7 @@ export const getCorePipelineBundle = (
         label: `${label} fragment shader`,
         code: `${FULLSCREEN_VERTEX_WGSL}\n${fragmentCode}`
       }),
-      entryPoint: 'main',
+      entryPoint,
       targets: [{ format }]
     },
     primitive: { topology: 'triangle-list' }
@@ -108,6 +112,12 @@ export const getCorePipelineBundle = (
       'LightTable creative grade',
       CREATIVE_GRADE_WGSL,
       'rgba16float'
+    ),
+    pointColorInput: createRenderPipeline(
+      'LightTable Point Color node input',
+      CREATIVE_GRADE_WGSL,
+      'rgba16float',
+      'pointColorInput'
     ),
     globalGradeMix: createRenderPipeline(
       'LightTable Global Grade strength mix',
@@ -161,6 +171,11 @@ export const getCorePipelineBundle = (
     difference: createRenderPipeline(
       'LightTable viewport difference',
       VIEWPORT_DIFFERENCE_WGSL,
+      canvasFormat
+    ),
+    pointColorRange: createRenderPipeline(
+      'LightTable Point Color range viewport',
+      POINT_COLOR_RANGE_VIEWPORT_WGSL,
       canvasFormat
     ),
     differenceMetrics: device.createComputePipeline({
