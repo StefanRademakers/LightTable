@@ -335,3 +335,24 @@ is required; topmost usage remains fast through proven scheduling and caching;
 midstack interaction reuses valid lower composites; live preview, flatten and
 export share the same evaluator; and the complete correctness, performance,
 memory and hardware gates pass without a semantic shortcut.
+
+Completion evidence - 18 August 2026 re-audit
+==============================================
+
+- Ordinary Grade/Lens FX layer ownership, ordered midstack evaluation,
+  topmost-prefix caching and layer-owned persistence are covered by the
+  compositor, render-state, layer-panel, hydration and layered-format suites.
+- The current packaged adjustment-menu smoke creates the ordinary processing
+  layers through the production UI and completes without renderer errors.
+- The current packaged Lens FX smoke proves every enabled effect materially
+  changes the production render and every disabled effect returns to exact
+  bypass. Lens Distortion continuous drag publishes all sampled values while
+  the processing-suffix cache retains the lower composite.
+- Re-audit exposed and fixed one presentation leak: Lens Blur `Depth` had been
+  encoded into the canonical final texture. It now samples the selected
+  layer-owned refined-depth texture through a viewport-only pipeline. The same
+  smoke proves `Lens Blur Depth View` export RMSE is exactly zero, while the
+  interactive focus visualization still updates during drag.
+- Typecheck, the complete app suite and the production desktop distribution
+  boundary pass after this correction. The diagnostic adds no document node,
+  serialization field, undo entry or export/scopes input.

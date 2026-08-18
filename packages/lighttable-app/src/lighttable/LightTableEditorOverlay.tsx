@@ -2898,6 +2898,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return () => renderer.setTextEditingOverlay(null);
   }, [active, paragraphCreationOverlay, textEditing.status]);
 
+  const lensBlurDepthVisualizationOwnerId = propertiesView === 'lens-fx'
+    ? propertiesTarget.kind === 'attached-processing'
+      ? attachedAdjustmentOwnerId(propertiesTarget.layerId, propertiesTarget.adjustmentId)
+      : 'layerId' in propertiesTarget
+        ? propertiesTarget.layerId
+        : null
+    : null;
   useRendererPresentationSync({
     rendererRef: engineRef,
     showDifference,
@@ -2905,6 +2912,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     isolatedCompositeChannel,
     pointColorRangeVisualization,
     lensBlurViewportMode,
+    lensBlurDepthVisualizationOwnerId,
     warpDebugView: editorSession.warp.debugView,
     vectorSelection: editorSession.vectorSelection,
     vectorEditingOverlayVisible: isVectorEditorTool(editorSession.activeTool),

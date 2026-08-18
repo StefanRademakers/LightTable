@@ -271,6 +271,7 @@ export class WebGpuEngine {
   private channelBlitPipeline: GPURenderPipeline | null = null;
   private differencePipeline: GPURenderPipeline | null = null;
   private pointColorRangePipeline: GPURenderPipeline | null = null;
+  private depthBlitPipeline: GPURenderPipeline | null = null;
   private differenceMetricsPipeline: GPUComputePipeline | null = null;
   private metadata: LightTableImageMetadata | null = null;
   private before = false;
@@ -288,7 +289,10 @@ export class WebGpuEngine {
   private pointColorRangeBuffer: GPUBuffer | null = null;
   private pointColorRangeBindGroup: GPUBindGroup | null = null;
   private pointColorRangeNearestBindGroup: GPUBindGroup | null = null;
-  private lensBlurDepthVisualization = false;
+  private lensBlurDepthVisualizationOwnerId: string | null = null;
+  private lensBlurDepthTexture: GPUTexture | null = null;
+  private lensBlurDepthBindGroup: GPUBindGroup | null = null;
+  private lensBlurDepthNearestBindGroup: GPUBindGroup | null = null;
   private warpDebugVisualization: WarpDebugView = 'result';
   private firstFramePending = false;
   private layerStyleInitialization: Promise<void> | null = null;
@@ -466,6 +470,7 @@ export class WebGpuEngine {
     this.channelBlitPipeline = pipelines.channelBlit;
     this.differencePipeline = pipelines.difference;
     this.pointColorRangePipeline = pipelines.pointColorRange;
+    this.depthBlitPipeline = pipelines.depthBlit;
     this.differenceMetricsPipeline = pipelines.differenceMetrics;
     this.histogramRuntime = new DocumentHistogramRuntime(
       this.device,
@@ -2176,12 +2181,14 @@ export class WebGpuEngine {
     return this.documentRenderer.setDevelopmentTextFixtureEnabled(enabled);
   }
 
-  setLensBlurDepthVisualization(visualize: boolean) {
-    if (this.lensBlurDepthVisualization === visualize) return;
-    this.lensBlurDepthVisualization = visualize;
-    this.effectRuntime?.setDepthVisualization(visualize);
-    this.writeOutputSettings();
-    this.renderDirty.invalidateCorrectionFrom('linear-spatial');
+  setLensBlurDepthVisualization(visualize: boolean, ownerId: string | null = null) {
+    const nextOwnerId = visualize ? ownerId : null;
+    if (this.lensBlurDepthVisualizationOwnerId === nextOwnerId) return;
+    this.lensBlurDepthVisualizationOwnerId = nextOwnerId;
+    this.lensBlurDepthTexture = null;
+    this.lensBlurDepthBindGroup = null;
+    this.lensBlurDepthNearestBindGroup = null;
+    this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
 
@@ -2236,16 +2243,11 @@ export class WebGpuEngine {
       ...createDefaultAdjustments(),
       effects: currentAdjustments.effects
     });
-    const visualizingDepth = Boolean(
-      this.adjustmentState.current.effects.lensBlur.enabled &&
-      this.lensBlurDepthVisualization &&
-      this.effectRuntime?.hasDepth
-    );
     const next = new Float32Array([
       0,
-      visualizingDepth ? 0 : lensOnly.shoulderStrength
+      lensOnly.shoulderStrength
         + (settings.shoulderStrength - lensOnly.shoulderStrength) * strength,
-      visualizingDepth ? 0 : (lensOnly.active || (settings.active && strength > 0) ? 1 : 0),
+      lensOnly.active || (settings.active && strength > 0) ? 1 : 0,
       0,
       this.imageDocument?.width ?? this.metadata?.width ?? 1,
       this.imageDocument?.height ?? this.metadata?.height ?? 1,
@@ -2511,11 +2513,6 @@ export class WebGpuEngine {
         );
       }
       const sourceGeometryTexture = this.sourceGeometryTexture;
-      const visualizingDepth = Boolean(
-        this.adjustmentState.current.effects.lensBlur.enabled &&
-        this.lensBlurDepthVisualization &&
-        this.effectRuntime.hasDepth
-      );
       if (
         this.renderDirty.correctionStageRequired('linear-spatial')
         || !this.linearSpatialTexture
@@ -2525,7 +2522,7 @@ export class WebGpuEngine {
           () => this.effectRuntime!.encodeLinearSpatial(
             encoder,
             sourceGeometryTexture,
-            { visualizeDepth: visualizingDepth }
+            { visualizeDepth: false }
           )
         );
       }
@@ -2556,7 +2553,7 @@ export class WebGpuEngine {
           () => this.effectRuntime!.encodeDisplayPost(
             encoder,
             this.imageResources.displayTexture!,
-            visualizingDepth
+            false
           )
         );
       }
@@ -2637,11 +2634,41 @@ export class WebGpuEngine {
       const pointColorRangeBindGroup = useNearestSampling
         ? this.pointColorRangeNearestBindGroup
         : this.pointColorRangeBindGroup;
+      const lensBlurDepthTexture = this.layerEffectRenderer?.depthPresentationTexture(
+        this.lensBlurDepthVisualizationOwnerId
+      ) ?? null;
+      if (lensBlurDepthTexture && lensBlurDepthTexture !== this.lensBlurDepthTexture) {
+        this.lensBlurDepthTexture = lensBlurDepthTexture;
+        const createDepthBindGroup = (sampler: GPUSampler) => this.device.createBindGroup({
+          layout: this.depthBlitPipeline!.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: lensBlurDepthTexture.createView() },
+            { binding: 1, resource: sampler },
+            { binding: 2, resource: { buffer: this.coreResources!.viewBuffer } }
+          ]
+        });
+        this.lensBlurDepthBindGroup = createDepthBindGroup(this.coreResources.sampler);
+        this.lensBlurDepthNearestBindGroup = createDepthBindGroup(this.coreResources.nearestSampler);
+      } else if (!lensBlurDepthTexture) {
+        this.lensBlurDepthTexture = null;
+        this.lensBlurDepthBindGroup = null;
+        this.lensBlurDepthNearestBindGroup = null;
+      }
+      const lensBlurDepthBindGroup = useNearestSampling
+        ? this.lensBlurDepthNearestBindGroup
+        : this.lensBlurDepthBindGroup;
       if (this.pointColorRangeVisualization && pointColorRangeBindGroup) {
         this.drawFullscreenPass(
           encoder,
           this.pointColorRangePipeline!,
           pointColorRangeBindGroup,
+          canvasView
+        );
+      } else if (lensBlurDepthBindGroup) {
+        this.drawFullscreenPass(
+          encoder,
+          this.depthBlitPipeline!,
+          lensBlurDepthBindGroup,
           canvasView
         );
       } else if (isolatedMaskBindGroup) {
@@ -3267,6 +3294,10 @@ export class WebGpuEngine {
     this.pointColorRangeVisualization = null;
     this.pointColorRangeBindGroup = null;
     this.pointColorRangeNearestBindGroup = null;
+    this.lensBlurDepthVisualizationOwnerId = null;
+    this.lensBlurDepthTexture = null;
+    this.lensBlurDepthBindGroup = null;
+    this.lensBlurDepthNearestBindGroup = null;
     this.brushCursorOverlay = null;
     this.penRubberBand = null;
     this.penEditingOverlay = null;

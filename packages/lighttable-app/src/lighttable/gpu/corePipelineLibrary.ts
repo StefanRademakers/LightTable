@@ -3,6 +3,7 @@ import {
   CREATIVE_GRADE_WGSL,
   DISPLAY_RESOLVE_WGSL,
   DISPLAY_TO_LINEAR_WGSL,
+  DEPTH_VIEWPORT_BLIT_WGSL,
   DOWNSAMPLE_WGSL,
   FULLSCREEN_VERTEX_WGSL,
   GAUSSIAN_BLUR_WGSL,
@@ -35,6 +36,7 @@ export interface CorePipelineBundle {
   channelBlit: GPURenderPipeline;
   difference: GPURenderPipeline;
   pointColorRange: GPURenderPipeline;
+  depthBlit: GPURenderPipeline;
   differenceMetrics: GPUComputePipeline;
   histogram: GPUComputePipeline;
 }
@@ -176,6 +178,11 @@ export const getCorePipelineBundle = (
     pointColorRange: createRenderPipeline(
       'LightTable Point Color range viewport',
       POINT_COLOR_RANGE_VIEWPORT_WGSL,
+      canvasFormat
+    ),
+    depthBlit: createRenderPipeline(
+      'LightTable Lens Blur depth viewport',
+      DEPTH_VIEWPORT_BLIT_WGSL,
       canvasFormat
     ),
     differenceMetrics: device.createComputePipeline({

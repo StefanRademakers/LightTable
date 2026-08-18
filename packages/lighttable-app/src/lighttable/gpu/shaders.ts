@@ -2108,6 +2108,35 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/** Presentation-only normalized Lens Blur depth; never enters document output. */
+export const DEPTH_VIEWPORT_BLIT_WGSL = /* wgsl */ `
+struct ViewUniforms {
+  viewportWidth: f32,
+  viewportHeight: f32,
+  rectX: f32,
+  rectY: f32,
+  rectWidth: f32,
+  rectHeight: f32,
+  checkerSize: f32,
+  padding: f32,
+}
+
+@group(0) @binding(0) var depthTexture: texture_2d<f32>;
+@group(0) @binding(1) var depthSampler: sampler;
+@group(0) @binding(2) var<uniform> view: ViewUniforms;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let pixel = input.uv * vec2f(view.viewportWidth, view.viewportHeight);
+  let imageUv = (pixel - vec2f(view.rectX, view.rectY)) / vec2f(view.rectWidth, view.rectHeight);
+  if (any(imageUv < vec2f(0.0)) || any(imageUv > vec2f(1.0))) {
+    return vec4f(${VIEWPORT_PASTEBOARD_BACKGROUND}, 1.0);
+  }
+  let depth = clamp(textureSampleLevel(depthTexture, depthSampler, imageUv, 0.0).r, 0.0, 1.0);
+  return vec4f(vec3f(depth), 1.0);
+}
+`;
+
 /** Presentation-neutral final-composite reduction used for document tabs. */
 export const DOCUMENT_THUMBNAIL_WGSL = /* wgsl */ `
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;

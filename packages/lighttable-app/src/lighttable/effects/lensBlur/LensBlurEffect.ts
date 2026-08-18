@@ -174,6 +174,10 @@ export class LensBlurEffect implements LightTableGpuEffect<LensBlurSettings> {
     return this.rawDepthTexture !== null;
   }
 
+  get depthPresentationTexture() {
+    return this.refinedDepthTexture;
+  }
+
   resize(width: number, height: number) {
     this.destroyRenderTargets();
     this.width = Math.max(1, width);

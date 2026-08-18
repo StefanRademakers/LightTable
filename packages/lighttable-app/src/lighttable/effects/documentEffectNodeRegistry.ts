@@ -40,6 +40,8 @@ export interface DocumentGpuEffect {
   /** Preferred render cadence while this active effect is upstream-dirty. */
   interactionFrameIntervalMs?(): number;
   setDepthVisualization?(visible: boolean): void;
+  /** Presentation-only normalized depth owned by this effect, when available. */
+  readonly depthPresentationTexture?: GPUTexture | null;
   setWarpDebugVisualization?(view: WarpDebugView): void;
   readonly hasDepth?: boolean;
 }

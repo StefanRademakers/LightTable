@@ -235,6 +235,12 @@ export class DocumentEffectRuntime {
     return this.orderedNodes.some((node) => node.effect.hasDepth === true);
   }
 
+  get depthPresentationTexture(): GPUTexture | null {
+    return this.orderedNodes.find(
+      (node) => node.effect.depthPresentationTexture
+    )?.effect.depthPresentationTexture ?? null;
+  }
+
   estimatedTextureBytes(): number {
     let bytes = 0;
     this.forEachEffect((effect) => { bytes += effect.estimatedTextureBytes(); });

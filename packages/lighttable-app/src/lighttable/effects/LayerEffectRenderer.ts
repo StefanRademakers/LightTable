@@ -114,6 +114,11 @@ export class LayerEffectRenderer {
     return this.runtimeFor(layer)?.encodeDisplayPost(encoder, source, false) ?? source;
   }
 
+  /** Returns an already-rendered depth surface without creating an owner runtime. */
+  depthPresentationTexture(ownerId: string | null): GPUTexture | null {
+    return ownerId ? this.runtimes.get(ownerId)?.depthPresentationTexture ?? null : null;
+  }
+
   private runtimeFor(
     layer: AdjustmentLayer | RasterLayer
   ): DocumentEffectRuntime | null {

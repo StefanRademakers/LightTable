@@ -24,7 +24,7 @@ export interface RendererPresentationPort {
     histogramVisible: boolean,
     options: WebGpuScopeOptions
   ): void;
-  setLensBlurDepthVisualization(enabled: boolean): void;
+  setLensBlurDepthVisualization(enabled: boolean, ownerId?: string | null): void;
   setWarpDebugVisualization(view: WarpDebugView): void;
   setVectorEditingSelection(selection: VectorEditorSelection): void;
   setSelectionEditingOverlay(
@@ -61,6 +61,7 @@ interface RendererPresentationSyncOptions<
     readonly sample: PointColorSample;
   } | null;
   readonly lensBlurViewportMode: LensBlurViewportMode;
+  readonly lensBlurDepthVisualizationOwnerId: string | null;
   readonly warpDebugView: WarpDebugView;
   readonly vectorSelection: VectorEditorSelection;
   readonly vectorEditingOverlayVisible: boolean;
@@ -88,6 +89,7 @@ export const useRendererPresentationSync = <
   isolatedCompositeChannel,
   pointColorRangeVisualization,
   lensBlurViewportMode,
+  lensBlurDepthVisualizationOwnerId,
   warpDebugView,
   vectorSelection,
   vectorEditingOverlayVisible,
@@ -121,9 +123,10 @@ export const useRendererPresentationSync = <
 
   useEffect(() => {
     rendererRef.current?.setLensBlurDepthVisualization(
-      lensBlurViewportMode === 'depth'
+      lensBlurViewportMode === 'depth',
+      lensBlurViewportMode === 'depth' ? lensBlurDepthVisualizationOwnerId : null
     );
-  }, [lensBlurViewportMode, rendererRef]);
+  }, [lensBlurDepthVisualizationOwnerId, lensBlurViewportMode, rendererRef]);
 
   useEffect(() => {
     rendererRef.current?.setWarpDebugVisualization(warpDebugView);
