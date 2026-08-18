@@ -331,3 +331,11 @@ Progress re-audit - 18 August 2026
 - The separate Photoshop-adjustment parity suite remains green across all 48
   corpora; its lowest score is 97.264%. That result does not substitute for the
   still-open Camera Raw Grade corpus.
+- `npm run audit:grade-parity-readiness` now creates a hash-verified JSON and
+  readable Markdown completion matrix under `tmp/grade-parity-readiness`.
+  It rejects stale case manifests and source hashes rather than treating old
+  captures as current evidence. The first audit exposed that most older
+  section captures are stale after manifest growth to eleven sources; only
+  current LightTable local-detail and B&W corpora are complete. Point Color
+  and Look/Profile still need dedicated case manifests, and no section yet has
+  eleven current, case-compatible Camera Raw and LightTable reports.
