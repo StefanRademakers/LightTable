@@ -3,6 +3,10 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { parseGradeCorpusRunMode } from './grade-corpus-run-mode.mjs';
+import {
+  gradeCorpusReportsHaveSameCases,
+  parseGradeCorpusReport
+} from './grade-corpus-report-compatibility.mjs';
 
 const manifest = JSON.parse(await readFile(
   path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'
@@ -48,6 +52,24 @@ test('Grade corpus capture sides can resume independently without ambiguous flag
   );
 });
 
+test('Grade analysis rejects stale or reordered opposite-side reports', () => {
+  const report = (...ids) => ({ caseManifestSha256: 'manifest-a',
+    cases: ids.map((id) => ({ id })) });
+  assert.equal(gradeCorpusReportsHaveSameCases(report('neutral', 'plus-100'),
+    report('neutral', 'plus-100')), true);
+  assert.equal(gradeCorpusReportsHaveSameCases(report('neutral'),
+    report('neutral', 'plus-100')), false);
+  assert.equal(gradeCorpusReportsHaveSameCases(report('neutral', 'plus-100'),
+    report('plus-100', 'neutral')), false);
+  assert.equal(gradeCorpusReportsHaveSameCases({}, report('neutral')), false);
+  assert.equal(gradeCorpusReportsHaveSameCases(report('neutral'), {
+    ...report('neutral'), caseManifestSha256: 'manifest-b'
+  }), false);
+  assert.equal(gradeCorpusReportsHaveSameCases({ cases: [{ id: 'neutral' }] },
+    { cases: [{ id: 'neutral' }] }), false);
+  assert.deepEqual(parseGradeCorpusReport('\uFEFF{"cases":[]}'), { cases: [] });
+});
+
 test('Grade Color oracle covers signed Camera Raw color controls and endpoints', async () => {
   const suite = JSON.parse(await readFile(
     path.join(import.meta.dirname, 'grade-color-parity-cases.json'), 'utf8'
@@ -64,16 +86,17 @@ test('Grade Color oracle covers signed Camera Raw color controls and endpoints',
   }
 });
 
-test('Grade local-detail oracle covers proven Clarity and Dehaze descriptors', async () => {
+test('Grade local-detail oracle covers proven Texture, Clarity and Dehaze descriptors', async () => {
   const suite = JSON.parse(await readFile(
     path.join(import.meta.dirname, 'grade-local-detail-parity-cases.json'), 'utf8'
   ));
   assert.equal(suite.section, 'local-detail');
   assert.equal(suite.groupLabel, 'Texture / Clarity / Dehaze');
   assert.deepEqual(suite.controls.map(({ cameraRawDescriptor }) => cameraRawDescriptor), [
-    'Cl12', 'Dhze'
+    'CrTx', 'Cl12', 'Dhze'
   ]);
-  assert.equal(suite.unresolvedControls[0].key, 'texture');
+  assert.equal(suite.descriptorEvidence[0].status,
+    'pixel-active-photoshop-26.11.6-current-oracle-recapture-required');
   for (const control of suite.controls) {
     for (const value of [-100, -80, -50, 50, 80, 100]) {
       assert.ok(control.values.includes(value), `${control.key} includes ${value}`);

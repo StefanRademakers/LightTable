@@ -29,7 +29,9 @@ await Promise.all([
   mkdir(outputDirectory, { recursive: true }), mkdir(userData, { recursive: true })
 ]);
 
-const suite = JSON.parse(await readFile(casePath, 'utf8'));
+const caseManifestBytes = await readFile(casePath);
+const caseManifestSha256 = createHash('sha256').update(caseManifestBytes).digest('hex');
+const suite = JSON.parse(caseManifestBytes.toString('utf8'));
 const sourceBytes = await readFile(source);
 const sourceMetadata = await sharp(sourceBytes).metadata();
 const sourceEvidence = {
@@ -287,6 +289,7 @@ if (captureComplete) {
     section: suite.section,
     source,
     sourceEvidence,
+    caseManifestSha256,
     isolation: 'One decoded source and one topmost Grade Layer are reused; the prior control is verified at neutral before exactly one Grade control is authored. Long corpora relaunch the renderer between bounded batches.',
     cases: results
   }, null, 2)}\n`);

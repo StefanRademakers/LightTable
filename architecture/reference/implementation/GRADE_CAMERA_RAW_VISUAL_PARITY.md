@@ -262,13 +262,23 @@ sheets.
 
 ## Spatial-detail corpus baseline
 
-The corpus oracle also covers Clarity (`Cl12`) and Dehaze (`Dhze`) at signed
-25, 50, 80 and 100 values. Both descriptors were proven active on every
-source. Texture descriptors `Txtr`, lowercase `texture`, and canonical
-`Texture` with both integer and double values were separately proven inert in
-Camera Raw Filter 18.5. Texture therefore
-remains an explicitly unresolved automation control instead of being reported
-under a guessed descriptor.
+The corpus oracle covers Clarity (`Cl12`) and Dehaze (`Dhze`) at signed 25, 50,
+80 and 100 values. Both descriptors were proven active on every source.
+Texture is now identified as the four-character descriptor `CrTx`. An isolated
+Photoshop 26.11.6 probe changed 80.64% of channel codes at +100 and 78.77% at
+-100 on the frequency-detail target; `Txtr`, string `texture`, string
+`Texture`, and string `CrTx` were exact no-ops. Adobe's current
+[Camera Raw masking reference](https://helpx.adobe.com/uk/camera-raw/using/masking.html)
+independently defines Texture as detail smoothing/accentuation which should not
+change color or tonality.
+
+This descriptor recovery is exploratory evidence, not a substituted oracle
+version. The current packaged LightTable route is complete for all eleven
+sources and all eight signed Texture settings. Every report records the same
+case-manifest hash plus its exact source and ICC hashes. Camera Raw 27.9/18.5
+must still recapture `CrTx` before Texture correlation or magnitude is accepted.
+The earlier same-ID report made with inert candidates is rejected by manifest
+hash and cannot enter analysis.
 
 | Control | Active sources | Minimum source correlation | Mean magnitude ratio | Worst delta RMSE |
 | --- | ---: | ---: | ---: | ---: |
@@ -321,7 +331,7 @@ as hidden Grade sections.
 | Light | Shared, fixed-order, exact neutral bypass | Contrast/Blacks/negative Whites accepted; remaining adaptive controls characterized |
 | Color | CAT16 white balance and shared perceptual color path | Full signed corpus characterized; no speculative scalar accepted |
 | Curves | Shared native LUT/editor/shader | Master and RGB point curves characterized; Refine Saturation remains open |
-| Texture / Clarity / Dehaze | Shared creative shader; spatial analysis only for Clarity/Dehaze | Clarity/Dehaze characterized; Texture descriptor unresolved |
+| Texture / Clarity / Dehaze | Shared creative shader; spatial analysis only for Clarity/Dehaze | Clarity/Dehaze characterized; `CrTx` pixel-active and full LightTable corpus captured, current Camera Raw recapture pending |
 | Detail | Conditional four-scale wavelet NR before fused Sharpening | Luminance NR characterized; remaining controls and combinations open |
 | Color Mixer | Shared periodic eight-range implementation with red wraparound tests | All 24 Camera Raw HSL descriptors proven; full corpus characterized |
 | Point Color | Up to eight independent samples; neutral and overlap behavior tested | Camera Raw automation and Visualize Range oracle open |

@@ -3,6 +3,10 @@ import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { parseGradeCorpusRunMode } from './grade-corpus-run-mode.mjs';
+import {
+  gradeCorpusReportsHaveSameCases,
+  parseGradeCorpusReport
+} from './grade-corpus-report-compatibility.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(await readFile(
@@ -23,6 +27,14 @@ const run = (command, args) => {
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}.`);
 };
 const exists = async (file) => access(file).then(() => true, () => false);
+const reportsAreCompatible = async (cameraReport, lightTableReport) => {
+  if (!await exists(cameraReport) || !await exists(lightTableReport)) return false;
+  const [cameraRaw, lightTable] = await Promise.all([
+    readFile(cameraReport, 'utf8').then(parseGradeCorpusReport),
+    readFile(lightTableReport, 'utf8').then(parseGradeCorpusReport)
+  ]);
+  return gradeCorpusReportsHaveSameCases(cameraRaw, lightTable);
+};
 
 if (!await exists(inventoryPath)) run(process.execPath, [
   path.join(import.meta.dirname, 'generate-grade-camera-raw-corpus.mjs'), `--root=${externalRoot}`
@@ -57,11 +69,11 @@ for (const source of sources) {
   } else if (captureLightTable) {
     process.stdout.write('LightTable capture already exists; use --force to replace it.\n');
   }
-  if (await exists(cameraReport) && await exists(lightTableReport)) {
+  if (await reportsAreCompatible(cameraReport, lightTableReport)) {
     run(process.execPath, [path.join(import.meta.dirname, 'analyze-grade-light-parity.mjs'), `--root=${captureRoot}`]);
     run(process.execPath, [path.join(import.meta.dirname, 'create-grade-parity-contact-sheets.mjs'), `--root=${captureRoot}`]);
   } else {
-    process.stdout.write('Both oracle reports are required before analysis; capture retained for a later resume.\n');
+    process.stdout.write('Matching oracle case reports are required before analysis; capture retained for a later resume.\n');
   }
 }
 

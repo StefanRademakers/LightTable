@@ -65,6 +65,7 @@ function Get-CaseId([string]$key, [double]$value) {
 }
 
 $suite = Get-Content -LiteralPath $casePath -Raw | ConvertFrom-Json
+$caseManifestSha256 = (Get-FileHash -LiteralPath $casePath -Algorithm SHA256).Hash.ToLowerInvariant()
 $photoshop = Get-PhotoshopAutomation
 $cases = @([pscustomobject]@{
   id = 'neutral'
@@ -175,6 +176,7 @@ $report = [ordered]@{
   generatedAt = (Get-Date).ToUniversalTime().ToString('o')
   section = $suite.section
   source = $sourcePath
+  caseManifestSha256 = $caseManifestSha256
   photoshopVersion = $photoshop.Version
   photoshopPath = $photoshop.Path
   cameraRawVersion = if ($cameraRawPlugin) { $cameraRawPlugin.VersionInfo.ProductVersion } else { $null }

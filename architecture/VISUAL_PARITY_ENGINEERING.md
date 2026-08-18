@@ -180,6 +180,12 @@ Revalidation has two levels which must not be confused:
    output and compares that image with the accepted reference. This is the
    required evidence after a renderer-affecting change.
 
+Both sides of a paired corpus must also embed the exact case-manifest SHA-256.
+Matching filenames or case IDs are insufficient: a descriptor, prerequisite or
+working-mode change can preserve the IDs while changing the authored operation.
+Analysis must reject missing or unequal manifest hashes rather than compare new
+product pixels with a stale oracle.
+
 During Grade development, rerun the affected section after every focused
 change. After the final Grade processing order is established, recapture all
 previous Grade sections and the important combined cases once more; a finding
