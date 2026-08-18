@@ -11,3 +11,15 @@ export const gradeCorpusReportsHaveSameCases = (cameraRawReport, lightTableRepor
     && cameraRawIds.length === lightTableIds.length
     && cameraRawIds.every((id, index) => id === lightTableIds[index]);
 };
+
+export const gradeCorpusReportMatchesCapture = (
+  report,
+  { section, caseManifestSha256, sourceSha256 }
+) => Boolean(
+  report
+  && report.section === section
+  && report.caseManifestSha256 === caseManifestSha256
+  && report.sourceEvidence?.sha256 === sourceSha256
+  && Array.isArray(report.cases)
+  && report.cases.length > 0
+);

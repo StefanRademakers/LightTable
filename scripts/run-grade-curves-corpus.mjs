@@ -1,10 +1,12 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { parseGradeCorpusRunMode } from './grade-corpus-run-mode.mjs';
 import {
   gradeCorpusReportsHaveSameCases,
+  gradeCorpusReportMatchesCapture,
   parseGradeCorpusReport
 } from './grade-corpus-report-compatibility.mjs';
 import { packagedDesktopExecutable } from './desktop-test-startup.mjs';
@@ -12,6 +14,7 @@ import { packagedDesktopExecutable } from './desktop-test-startup.mjs';
 const workspace = path.resolve(import.meta.dirname, '..');
 const corpus = JSON.parse(await readFile(path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'));
 const casesPath = path.join(import.meta.dirname, 'grade-curves-parity-cases.json');
+const caseManifestSha256 = createHash('sha256').update(await readFile(casesPath)).digest('hex');
 const argument = (name) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 const root = path.resolve(argument('root') ?? corpus.externalRoot);
 const selectedArgument = argument('source');
@@ -42,6 +45,15 @@ const reportsAreCompatible = async (cameraReport, lightTableReport) => {
   ]);
   return gradeCorpusReportsHaveSameCases(cameraRaw, lightTable);
 };
+const reportIsCurrent = async (file, source) => {
+  if (!await exists(file)) return false;
+  try {
+    return gradeCorpusReportMatchesCapture(
+      parseGradeCorpusReport(await readFile(file, 'utf8')),
+      { section: 'curves', caseManifestSha256, sourceSha256: source.sha256 }
+    );
+  } catch { return false; }
+};
 const inventoryPath = path.join(root, 'inventory.json');
 if (!await exists(inventoryPath)) run(process.execPath, [path.join(import.meta.dirname, 'generate-grade-camera-raw-corpus.mjs'), `--root=${root}`]);
 if (!await exists(packagedExecutable)) {
@@ -57,12 +69,12 @@ for (const source of sources) {
   const lightTableReport = path.join(captureRoot, 'lighttable', 'capture-report.json');
   process.stdout.write(`\n=== Grade Curves corpus: ${source.id} ===\n`);
   if (captureCameraRaw) {
-    if (force || !await exists(cameraReport)) run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(import.meta.dirname, 'capture-camera-raw-grade-curves-oracle.ps1'), '-Source', source.file, '-Root', captureRoot, '-CasePath', casesPath]);
-    else process.stdout.write('Camera Raw capture already exists; use --force to replace it.\n');
+    if (force || !await reportIsCurrent(cameraReport, source)) run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(import.meta.dirname, 'capture-camera-raw-grade-curves-oracle.ps1'), '-Source', source.file, '-Root', captureRoot, '-CasePath', casesPath]);
+    else process.stdout.write('Current Camera Raw capture already exists; use --force to replace it.\n');
   }
   if (captureLightTable) {
-    if (force || !await exists(lightTableReport)) run(process.execPath, [path.join(import.meta.dirname, 'capture-lighttable-grade-curves-oracle.mjs'), `--source=${source.file}`, `--root=${captureRoot}`, `--cases=${casesPath}`, '--packaged']);
-    else process.stdout.write('LightTable capture already exists; use --force to replace it.\n');
+    if (force || !await reportIsCurrent(lightTableReport, source)) run(process.execPath, [path.join(import.meta.dirname, 'capture-lighttable-grade-curves-oracle.mjs'), `--source=${source.file}`, `--root=${captureRoot}`, `--cases=${casesPath}`, '--packaged']);
+    else process.stdout.write('Current LightTable capture already exists; use --force to replace it.\n');
   }
   if (await reportsAreCompatible(cameraReport, lightTableReport)) {
     run(process.execPath, [path.join(import.meta.dirname, 'analyze-grade-light-parity.mjs'), `--root=${captureRoot}`]);

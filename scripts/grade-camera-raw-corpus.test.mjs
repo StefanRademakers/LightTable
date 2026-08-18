@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { parseGradeCorpusRunMode } from './grade-corpus-run-mode.mjs';
 import {
+  gradeCorpusReportMatchesCapture,
   gradeCorpusReportsHaveSameCases,
   parseGradeCorpusReport
 } from './grade-corpus-report-compatibility.mjs';
@@ -91,6 +92,24 @@ test('Grade analysis rejects stale or reordered opposite-side reports', () => {
   assert.equal(gradeCorpusReportsHaveSameCases({ cases: [{ id: 'neutral' }] },
     { cases: [{ id: 'neutral' }] }), false);
   assert.deepEqual(parseGradeCorpusReport('\uFEFF{"cases":[]}'), { cases: [] });
+});
+
+test('Grade runners reject stale same-side reports before deciding to reuse them', () => {
+  const report = {
+    section: 'light',
+    caseManifestSha256: 'manifest-a',
+    sourceEvidence: { sha256: 'source-a' },
+    cases: [{ id: 'neutral' }]
+  };
+  const expected = {
+    section: 'light', caseManifestSha256: 'manifest-a', sourceSha256: 'source-a'
+  };
+  assert.equal(gradeCorpusReportMatchesCapture(report, expected), true);
+  assert.equal(gradeCorpusReportMatchesCapture({ ...report, caseManifestSha256: 'old' }, expected), false);
+  assert.equal(gradeCorpusReportMatchesCapture({
+    ...report, sourceEvidence: { sha256: 'other' }
+  }, expected), false);
+  assert.equal(gradeCorpusReportMatchesCapture({ ...report, cases: [] }, expected), false);
 });
 
 test('Grade Color oracle covers signed Camera Raw color controls and endpoints', async () => {
