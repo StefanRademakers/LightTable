@@ -193,6 +193,14 @@ suite rather than trusting its stored reports. Shared implementation must never
 silently collapse semantic differences such as Grade's monotone Curves and
 Photoshop Curves' measured natural spline.
 
+Run `npm run preflight:photoshop-oracle` before an Adobe capture. The preflight
+is read-only by default and must identify the active executable, version,
+ProgID, registration target and open-document save states. It may launch the
+version-pinned oracle only when explicitly requested and when no conflicting
+Photoshop process owns automation. A conflicting instance or unsaved user
+document is a capture-infrastructure failure, never permission to kill the
+process, reuse the wrong Adobe version or relabel stored evidence.
+
 ## Acceptance checklist
 
 Before accepting a visual processing change:

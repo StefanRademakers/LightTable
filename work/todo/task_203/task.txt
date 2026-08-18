@@ -66,6 +66,20 @@ Implementation contract
   LightTable runner.
 - Keep large captures outside the repository.
 
+Implemented infrastructure
+==========================
+
+- `npm run preflight:photoshop-oracle` is a read-only, machine-readable gate.
+  It reports the registered COM server, running executable, active ProgID,
+  exact Photoshop version and the saved state of every open document.
+- The preflight never launches Photoshop unless `-- -Launch` is supplied.
+  When another version owns automation it exits before launch and writes an
+  optional JSON report through `-- -ReportPath <path>`.
+- On the current reference state it deterministically reports
+  `conflicting-active-version`, Photoshop 26.11.6 through
+  `Photoshop.Application.190`, and two unsaved documents. This proves the
+  blocker without mutating either document.
+
 Execution order after repair
 ============================
 

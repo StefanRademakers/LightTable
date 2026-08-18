@@ -89,6 +89,7 @@
     "analyze:lighttable-tone-brush-oracle": "node scripts/tone-brush-oracle.mjs --command analyze-lighttable",
     "analyze:tone-brush-color-oracle": "node scripts/tone-brush-oracle.mjs --command analyze-color",
     "capture:photoshop-adjustment-oracle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/capture-photoshop-adjustment-oracle.ps1",
+    "preflight:photoshop-oracle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/preflight-photoshop-automation.ps1",
     "capture:lighttable-adjustment-oracle": "node scripts/capture-lighttable-adjustment-oracle.mjs",
     "analyze:adjustment-oracle": "node scripts/analyze-adjustment-oracle.mjs",
     "capture:camera-raw-detail-oracle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/capture-camera-raw-detail-oracle.ps1",
