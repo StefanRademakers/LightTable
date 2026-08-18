@@ -54,6 +54,7 @@ import {
 import { ProjectHomeSurface } from './ProjectHomeSurface';
 import { resolveWorkspaceSurface } from './workspaceSurface';
 import type { GenAiAssetReference } from '@lighttable/genai-core';
+import { duplicateLayeredDocumentArtifact } from '../lighttable/application/documents/duplicateLayeredDocumentArtifact';
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -152,6 +153,7 @@ export function LightTableStandaloneApp({
     documents,
     openDocument,
     openRecoveredDocument,
+    openDuplicatedDocument,
     closeDocument: closeWorkspaceDocument,
     activateDocument
   } = useStandaloneDocumentWorkspace(host.systemFontProvider);
@@ -200,9 +202,26 @@ export function LightTableStandaloneApp({
           throw reason;
         }
         return opened.value.id;
+      },
+      duplicateDocument: async (documentId, name) => {
+        const source = controller.getDocument(documentId);
+        if (!source || source.getSnapshot().lifecycle !== 'ready') {
+          throw new Error('The source document is not ready.');
+        }
+        const captured = await commandPorts.exportNativeArtifact(documentId);
+        const artifact = await duplicateLayeredDocumentArtifact(captured, name);
+        const opened = openDuplicatedDocument(artifact, name);
+        if (!opened.ok) throw new Error(`The duplicate could not be opened: ${opened.error.code}.`);
+        try {
+          await waitForReadyDocument(opened.value);
+        } catch (reason) {
+          controller.close(opened.value.id, { discardChanges: true });
+          throw reason;
+        }
+        return opened.value.id;
       }
     }),
-    [commandPorts, controller, openDocument]
+    [commandPorts, controller, openDocument, openDuplicatedDocument]
   );
   const [opening, setOpening] = useState(false);
   const [creating, setCreating] = useState(false);

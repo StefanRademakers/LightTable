@@ -100,6 +100,21 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
     return opened;
   }, [controller]);
 
+  const openDuplicatedDocument = useCallback((file: File, title: string) => {
+    const opened = controller.open({
+      source: {
+        id: `duplicate:${crypto.randomUUID()}`,
+        name: title,
+        mediaType: file.type || 'image/png',
+        byteLength: file.size
+      },
+      title,
+      payload: { file, decodeMode: 'automatic' }
+    });
+    if (opened.ok) opened.value.markChanged();
+    return opened;
+  }, [controller]);
+
   const closeDocument = useCallback((
     id: DocumentSessionId,
     discardChanges = false
@@ -115,6 +130,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
     documents,
     openDocument,
     openRecoveredDocument,
+    openDuplicatedDocument,
     closeDocument,
     activateDocument
   };
