@@ -590,6 +590,46 @@ fn applyColorMixer(rgb: vec3f) -> vec3f {
   ));
 }
 
+fn blackWhiteMixValue(index: u32) -> f32 {
+  if (index < 4u) {
+    return adjustments.blackWhiteMix[0][index];
+  }
+  return adjustments.blackWhiteMix[1][index - 4u];
+}
+
+fn blackWhiteMixCurve(hue: f32) -> f32 {
+  let centers = array<f32, 8>(
+    0.5102, 0.9211, 1.9160, 2.4870,
+    -2.8846, -1.6747, -1.0368, -0.2838
+  );
+  var weightedValue = 0.0;
+  var totalWeight = 0.0;
+  for (var index = 0u; index < 8u; index += 1u) {
+    let distance = 1.0 - cos(hue - centers[index]);
+    if (distance < 0.0000001) {
+      return blackWhiteMixValue(index);
+    }
+    let weight = 1.0 / max(distance, 0.0000001);
+    weightedValue += blackWhiteMixValue(index) * weight;
+    totalWeight += weight;
+  }
+  return weightedValue / max(totalWeight, 0.0000001);
+}
+
+fn applyBlackWhiteMix(rgb: vec3f) -> vec3f {
+  if (adjustments.blackWhiteMix[2].x < 0.5) {
+    return rgb;
+  }
+  let lab = linearRgbToOklab(rgb);
+  let chroma = length(lab.yz);
+  let hue = atan2(lab.z, lab.y);
+  let chromaProtection = smoothstep(0.008, 0.06, chroma);
+  let rangeValue = blackWhiteMixCurve(hue) / 100.0;
+  let sourceY = max(luminance(rgb), 0.0);
+  let adjustedY = max(0.0, sourceY * exp2(rangeValue * 1.35 * chromaProtection));
+  return vec3f(adjustedY);
+}
+
 fn pointColorSample(index: u32, row: u32) -> vec4f {
   return adjustments.pointColor[index * 3u + row];
 }
@@ -1745,6 +1785,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   // Global Saturation/Vibrance is the final colour balance. Keeping it after
   // the Mixer prevents global desaturation from changing hue classification.
   rgb = applyPerceptualColor(rgb);
+  rgb = applyBlackWhiteMix(rgb);
   rgb = applyColorGrading(rgb);
   rgb = applyLift(rgb);
   rgb = applyCustomCurves(rgb);

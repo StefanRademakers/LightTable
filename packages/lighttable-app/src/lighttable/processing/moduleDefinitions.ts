@@ -54,6 +54,7 @@ export type CurrentAdjustmentSettingsPath =
   | 'colorMixer'
   | 'pointColor'
   | 'colorGrading'
+  | 'blackWhiteMix'
   | 'curves'
   | 'gradientMap'
   | 'photoshopAdjustment'
@@ -176,6 +177,17 @@ export const CURRENT_PROCESSING_MODULES = [
     outputDomain: 'linear-rgb',
     alphaBehavior: 'preserve',
     psdCandidates: ['color-balance']
+  },
+  {
+    type: 'lt.black-white-mix',
+    label: 'Black & White Mix',
+    category: 'color',
+    settingsPaths: ['blackWhiteMix'],
+    allowedScopes: CREATIVE_GRADE_SCOPES,
+    inputDomain: 'perceptual',
+    outputDomain: 'linear-rgb',
+    alphaBehavior: 'preserve',
+    notes: 'Native eight-range photographic B&W mix; intentionally distinct from Photoshop six-channel Black & White.'
   },
   {
     type: 'lt.curves',

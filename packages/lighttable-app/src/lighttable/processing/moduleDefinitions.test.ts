@@ -23,6 +23,7 @@ const EXPECTED_SETTINGS_PATHS = [
   'colorMixer',
   'pointColor',
   'colorGrading',
+  'blackWhiteMix',
   'curves',
   'gradientMap',
   'photoshopAdjustment',

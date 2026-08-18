@@ -106,6 +106,20 @@ describe('createAdjustmentCommands', () => {
     expect(harness.adjustments().pointColor.samples).toEqual([]);
   });
 
+  it('authors and resets the native eight-range Black & White Mix', () => {
+    const harness = createHarness();
+    harness.commands.setBlackWhiteMixEnabled(true);
+    harness.commands.updateBlackWhiteMix(1, 48);
+
+    expect(harness.adjustments().blackWhiteMix.enabled).toBe(true);
+    expect(harness.adjustments().blackWhiteMix.luminance[1]).toBe(48);
+
+    harness.commands.resetBlackWhiteMix(1);
+    expect(harness.adjustments().blackWhiteMix.luminance[1]).toBe(0);
+    harness.commands.resetGroup('blackWhiteMix');
+    expect(harness.adjustments().blackWhiteMix.enabled).toBe(false);
+  });
+
   it('authors and resets Detail without disturbing Texture controls', () => {
     const harness = createHarness();
     harness.commands.updateAdjustment('texture', 32);

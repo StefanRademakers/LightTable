@@ -38,6 +38,7 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
   }
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(maxValue(adjustments.colorMixer.luminance), 100, 0.72));
   shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(maxValue(adjustments.colorGrading.luminance), 100, 0.72));
+  shoulderStrength = Math.max(shoulderStrength, positiveControlStrength(maxValue(adjustments.blackWhiteMix.luminance), 100, 0.72));
   shoulderStrength = Math.max(
     shoulderStrength,
     positiveControlStrength(
@@ -73,6 +74,7 @@ export const calculateOutputTransformSettings = (adjustments: BasicAdjustments):
       sumAbsolute(adjustments.colorMixer.hue) + sumAbsolute(adjustments.colorMixer.saturation) +
       sumAbsolute(adjustments.colorMixer.luminance) + sumAbsolute(adjustments.colorGrading.saturation) +
       sumAbsolute(adjustments.colorGrading.luminance) + curveActiveMask(adjustments.curves) > 0.00001 ||
+      adjustments.blackWhiteMix.enabled ||
       halationIsActive(adjustments.effects.halation)
       || lensBlurIsActive(adjustments.effects.lensBlur)
       || pointColorIsActive(adjustments.pointColor)

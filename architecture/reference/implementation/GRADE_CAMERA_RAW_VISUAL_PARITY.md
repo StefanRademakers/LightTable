@@ -321,7 +321,7 @@ as hidden Grade sections.
 | Color Mixer | Shared periodic eight-range implementation with red wraparound tests | All 24 Camera Raw HSL descriptors proven; full corpus characterized |
 | Point Color | Up to eight independent samples; neutral and overlap behavior tested | Camera Raw automation and Visualize Range oracle open |
 | Color Grading | Normalized 3-way masks, Blend/Balance and endpoint guards tested | Camera Raw wheel descriptor/oracle open |
-| B&W Mix | Separate Photoshop six-channel adjustment exists | True eight-range Grade B&W Mix is not implemented |
+| B&W Mix | Native fused eight-range photographic mix; Photoshop six-channel adjustment remains separate | Runtime/persistence proven; Camera Raw response corpus remains open |
 | Look / Profile | Document LUT infrastructure exists through Color Lookup | Grade Profile/Look selection and Strength are not implemented |
 
 Performance invariants are covered by executable tests: neutral Noise
@@ -468,3 +468,27 @@ range errors: Adobe and LightTable use different hue segmentation, overlap,
 working-space and luminance-preservation behavior. The current periodic OKLCH
 mixer remains unchanged until a grounded range-model comparison improves the
 complete corpus rather than one chart or photograph.
+
+### Native Black & White Mix readiness
+
+Grade now owns a distinct photographic Black & White Mix over Red, Orange,
+Yellow, Green, Aqua, Blue, Purple and Magenta. Adobe likewise presents B&W as
+a grayscale conversion whose individual source-color ranges determine their
+resulting gray tones; Camera Raw shows the B&W Mixer instead of the Color Mixer
+when B&W treatment is selected. See Adobe's current
+[Camera Raw color and tonal adjustment reference](https://helpx.adobe.com/ca/camera-raw/using/make-color-tonal-adjustments-camera.html).
+
+The LightTable implementation deliberately does not reuse or relabel the
+Photoshop six-channel Black & White adjustment. It reuses the native Color
+Mixer's periodic perceptual eight-range selection, converts to monochrome in
+the fused creative pass after Color Mixer, Point Color and global color, then
+leaves Color Grading available for subsequent toning. Disabled treatment is an
+exact shader bypass and adds no render pass.
+
+State, recipe persistence, copy/paste, module ownership, section bypass,
+uniform packing and processing order are covered by the app suite. A packaged
+desktop pixel smoke verifies that the neutral color fixture changes from mean
+RGB `200.09, 159.25, 160.61` to exact monochrome mean
+`172.93, 172.93, 172.93`. This proves the complete product route, not Camera
+Raw magnitude parity. Descriptor recovery and the signed multi-source B&W
+corpus remain required before changing the current response scale.

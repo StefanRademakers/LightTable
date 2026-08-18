@@ -11,8 +11,9 @@ export const POINT_COLOR_SAMPLE_FLOATS = 12;
 export const POINT_COLOR_MAX_SAMPLES = 8;
 export const DETAIL_PAYLOAD_OFFSET =
   POINT_COLOR_PAYLOAD_OFFSET + POINT_COLOR_SAMPLE_FLOATS * POINT_COLOR_MAX_SAMPLES;
+export const BLACK_WHITE_MIX_PAYLOAD_OFFSET = DETAIL_PAYLOAD_OFFSET + 12;
 export const ADJUSTMENT_UNIFORM_FLOATS =
-  DETAIL_PAYLOAD_OFFSET + 12;
+  BLACK_WHITE_MIX_PAYLOAD_OFFSET + 12;
 export const LINEAR_COMPOSITE_FLAG_INDEX = 18;
 export const PHOTOSHOP_PAYLOAD_OFFSET = 128;
 export const PHOTOSHOP_LEVELS_CHANNELS_OFFSET = 233;
@@ -201,6 +202,13 @@ export const buildAdjustmentUniform = (
     0,
     0
   ], DETAIL_PAYLOAD_OFFSET);
+  packed.set([
+    ...value.blackWhiteMix.luminance,
+    value.blackWhiteMix.enabled ? 1 : 0,
+    0,
+    0,
+    0
+  ], BLACK_WHITE_MIX_PAYLOAD_OFFSET);
   packed.set([
     ...(colorLookup?.domainMin ?? [0, 0, 0]),
     ...(colorLookup?.domainMax ?? [1, 1, 1])

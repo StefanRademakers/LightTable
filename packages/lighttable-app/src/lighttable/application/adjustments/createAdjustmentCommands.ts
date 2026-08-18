@@ -80,6 +80,10 @@ import {
   type PhotoshopAdjustmentSettings
 } from '../../photoshopAdjustments';
 import { createDefaultDetail, type DetailAdjustments } from '../../detail';
+import {
+  cloneBlackWhiteMix,
+  createDefaultBlackWhiteMix
+} from '../../blackWhiteMix';
 
 export interface AdjustmentCommandPorts {
   readonly beginAdjustment: () => void;
@@ -146,6 +150,9 @@ export interface AdjustmentCommands {
     value: number
   ) => void;
   readonly resetColorMixer: (channel: ColorMixerChannel, index: number) => void;
+  readonly setBlackWhiteMixEnabled: (enabled: boolean) => void;
+  readonly updateBlackWhiteMix: (index: number, value: number) => void;
+  readonly resetBlackWhiteMix: (index: number) => void;
   readonly addPointColorSample: (
     id: string, lightness: number, chroma: number, hue: number
   ) => void;
@@ -496,6 +503,38 @@ export const createAdjustmentCommands = (
     });
   };
 
+  const setBlackWhiteMixEnabled = (enabled: boolean) => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => ({
+      ...current,
+      blackWhiteMix: { ...cloneBlackWhiteMix(current.blackWhiteMix), enabled }
+    }));
+  };
+
+  const updateBlackWhiteMix = (index: number, value: number) => {
+    ports.beginAdjustment();
+    ports.changeAdjustments((current) => {
+      const luminance = [...current.blackWhiteMix.luminance] as ColorMixerValues;
+      luminance[index] = value;
+      return {
+        ...current,
+        blackWhiteMix: { ...cloneBlackWhiteMix(current.blackWhiteMix), luminance }
+      };
+    });
+  };
+
+  const resetBlackWhiteMix = (index: number) => {
+    ports.endAdjustment();
+    ports.changeAdjustments((current) => {
+      const luminance = [...current.blackWhiteMix.luminance] as ColorMixerValues;
+      luminance[index] = 0;
+      return {
+        ...current,
+        blackWhiteMix: { ...cloneBlackWhiteMix(current.blackWhiteMix), luminance }
+      };
+    });
+  };
+
   const addPointColorSample = (
     id: string,
     lightness: number,
@@ -681,6 +720,9 @@ export const createAdjustmentCommands = (
       if (group === 'colorGrading') {
         return { ...current, colorGrading: createDefaultColorGrading() };
       }
+      if (group === 'blackWhiteMix') {
+        return { ...current, blackWhiteMix: createDefaultBlackWhiteMix() };
+      }
       if (group === 'curves') {
         return {
           ...current,
@@ -758,6 +800,9 @@ export const createAdjustmentCommands = (
     setLensBlurViewportMode,
     updateColorMixer,
     resetColorMixer,
+    setBlackWhiteMixEnabled,
+    updateBlackWhiteMix,
+    resetBlackWhiteMix,
     addPointColorSample,
     updatePointColorSample,
     resetPointColorSample,

@@ -203,6 +203,24 @@ describe('parseLightTableRecipe', () => {
     });
   });
 
+  it('restores the native eight-range Black & White Mix', () => {
+    const recipe = parseLightTableRecipe({
+      lighttable: {
+        sourceFileKey: 'black-white.lighttable.png',
+        settings: {
+          blackWhiteMix: {
+            enabled: true,
+            luminance: [-20, 35, 10, -5, 18, -40, 12, 8]
+          }
+        }
+      }
+    });
+
+    expect(recipe?.settings.blackWhiteMix.enabled).toBe(true);
+    expect(recipe?.settings.blackWhiteMix.luminance)
+      .toEqual([-20, 35, 10, -5, 18, -40, 12, 8]);
+  });
+
   it('restores Custom Curve control points', () => {
     const recipe = parseLightTableRecipe({
       lighttable: {

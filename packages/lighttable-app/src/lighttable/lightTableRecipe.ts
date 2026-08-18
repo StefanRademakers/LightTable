@@ -6,6 +6,7 @@ import {
 import { type ColorMixerChannel, type ColorMixerValues } from './colorMixer';
 import { MAX_POINT_COLOR_SAMPLES, type PointColorSample } from './pointColor';
 import { type ColorGradingValues } from './colorGrading';
+import { type ColorMixerValues as BlackWhiteMixValues } from './colorMixer';
 import { CURVE_CHANNELS, normalizeCurvePoints, type CurvePoint } from './curves';
 import { createDefaultGrainSettings } from './effects/grain/settings';
 import { createDefaultHalationSettings } from './effects/halation/settings';
@@ -94,7 +95,7 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
   const settings = createDefaultAdjustments();
   let recognizedSettings = 0;
   (Object.keys(settings) as Array<keyof BasicAdjustments>).forEach((key) => {
-    if (key === 'colorMixer' || key === 'pointColor' || key === 'colorGrading' || key === 'curves'
+    if (key === 'colorMixer' || key === 'pointColor' || key === 'colorGrading' || key === 'blackWhiteMix' || key === 'curves'
       || key === 'gradientMap' || key === 'photoshopAdjustment' || key === 'detail'
       || key === 'effects') return;
     const settingValue = value[key];
@@ -159,6 +160,20 @@ export const parseLightTableSettings = (value: unknown): BasicAdjustments | null
         settings.colorGrading[control] = controlValue;
         recognizedSettings += 1;
       }
+    }
+  }
+
+  const rawBlackWhiteMix = value.blackWhiteMix;
+  if (isObject(rawBlackWhiteMix)) {
+    if (typeof rawBlackWhiteMix.enabled === 'boolean') {
+      settings.blackWhiteMix.enabled = rawBlackWhiteMix.enabled;
+      recognizedSettings += 1;
+    }
+    const luminance = rawBlackWhiteMix.luminance;
+    if (Array.isArray(luminance) && luminance.length === 8
+      && luminance.every((entry) => typeof entry === 'number' && Number.isFinite(entry))) {
+      settings.blackWhiteMix.luminance = [...luminance] as BlackWhiteMixValues;
+      recognizedSettings += 1;
     }
   }
 

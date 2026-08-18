@@ -91,6 +91,9 @@ export interface GradePanelCommands {
     value: number
   ) => void;
   readonly resetColorMixer: (channel: ColorMixerChannel, index: number) => void;
+  readonly setBlackWhiteMixEnabled: (enabled: boolean) => void;
+  readonly updateBlackWhiteMix: (index: number, value: number) => void;
+  readonly resetBlackWhiteMix: (index: number) => void;
   readonly addPointColorSample: (
     id: string, lightness: number, chroma: number, hue: number
   ) => void;
@@ -142,6 +145,7 @@ const DEFAULT_EXPANDED: Readonly<Record<GradeGroup, boolean>> = {
   detail: true,
   colorMixer: true,
   colorGrading: true,
+  blackWhiteMix: true,
   curves: true
 };
 
@@ -214,6 +218,7 @@ const GroupHeader = ({
 export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: GradePanelProps) => {
   const [expanded, setExpanded] = useState(DEFAULT_EXPANDED);
   const [selectedColorMixerRange, setSelectedColorMixerRange] = useState(0);
+  const [selectedBlackWhiteRange, setSelectedBlackWhiteRange] = useState(0);
   const [colorMixerView, setColorMixerView] = useState<'mixer' | 'point'>('mixer');
   const [selectedPointColorId, setSelectedPointColorId] = useState<string | null>(null);
   const pointColorSampleCountRef = useRef(0);
@@ -794,6 +799,67 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
     );
   };
 
+  const renderBlackWhiteMix = () => {
+    const group = 'blackWhiteMix' as const;
+    const visible = visibility[group];
+    const range = COLOR_MIXER_RANGES[selectedBlackWhiteRange];
+    return (
+      <section className={`lighttable-group${visible ? '' : ' lighttable-group--disabled'}`}>
+        <GroupHeader
+          label="Black & White Mix"
+          expanded={expanded[group]}
+          visible={visible}
+          resetModifierActive={resetModifierActive}
+          setExpanded={(next) => setGroupExpanded(group, next)}
+          reset={() => commands.resetGroup(group)}
+          toggleVisibility={() => commands.toggleVisibility(group)}
+        />
+        {expanded[group] ? (
+          <div className="lighttable-group__controls lighttable-black-white-mix">
+            <SegmentedControl
+              value={adjustments.blackWhiteMix.enabled ? 'black-white' : 'color'}
+              onChange={(value) => commands.setBlackWhiteMixEnabled(value === 'black-white')}
+              ariaLabel="Image treatment"
+              options={[
+                { value: 'color', label: 'Color', disabled: !metadata || !visible },
+                { value: 'black-white', label: 'B&W', disabled: !metadata || !visible }
+              ]}
+            />
+            <div className="lighttable-point-color__samples" aria-label="Black and White color range">
+              {COLOR_MIXER_RANGES.map((candidate, index) => (
+                <SquareIconButton
+                  key={candidate.label}
+                  size="compact"
+                  active={index === selectedBlackWhiteRange}
+                  disabled={!metadata || !visible || !adjustments.blackWhiteMix.enabled}
+                  aria-label={`Select ${candidate.label}`}
+                  title={candidate.label}
+                  onClick={() => setSelectedBlackWhiteRange(index)}
+                  icon={<span className="lighttable-point-color__swatch" style={{ background: candidate.color }} />}
+                />
+              ))}
+            </div>
+            <AdjustmentSlider
+              density="spaced"
+              label={range.label}
+              value={adjustments.blackWhiteMix.luminance[selectedBlackWhiteRange]}
+              min={-100}
+              max={100}
+              resetValue={0}
+              trackBackground={colorMixerTrack('luminance', selectedBlackWhiteRange)}
+              disabled={!metadata || !visible || !adjustments.blackWhiteMix.enabled}
+              resetModifierActive={resetModifierActive}
+              onChange={(value) => commands.updateBlackWhiteMix(selectedBlackWhiteRange, value)}
+              onReset={() => commands.resetBlackWhiteMix(selectedBlackWhiteRange)}
+              onInteractionStart={commands.beginAdjustment}
+              onInteractionEnd={commands.endAdjustment}
+            />
+          </div>
+        ) : null}
+      </section>
+    );
+  };
+
   const renderCurves = () => {
     const group = 'curves' as const;
     const visible = visibility[group];
@@ -858,6 +924,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
         {renderAdjustmentGroup('effects', 'Texture / Clarity / Dehaze', EFFECTS_SLIDERS)}
         {renderDetail()}
         {renderColorMixer()}
+        {renderBlackWhiteMix()}
         {renderColorGrading()}
         {renderCurves()}
       </div>

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultAdjustments } from '../types';
 import {
   ADJUSTMENT_UNIFORM_FLOATS,
+  BLACK_WHITE_MIX_PAYLOAD_OFFSET,
   buildAdjustmentUniform,
   DETAIL_PAYLOAD_OFFSET,
   LINEAR_COMPOSITE_FLAG_INDEX,
@@ -197,5 +198,17 @@ describe('LightTable adjustment uniform packing', () => {
     ));
     [0.7, 0.12, 0.8, 1, 15, -20, 10, -30, 60, 40, 50, 70]
       .forEach((expected, index) => expect(values[index]).toBeCloseTo(expected, 5));
+  });
+
+  it('packs the native B&W mix independently from Photoshop Black & White', () => {
+    const settings = createDefaultAdjustments();
+    settings.blackWhiteMix.enabled = true;
+    settings.blackWhiteMix.luminance = [-100, -75, -50, -25, 25, 50, 75, 100];
+    const packed = buildAdjustmentUniform(settings, 100, 50, true);
+
+    expect(Array.from(packed.slice(
+      BLACK_WHITE_MIX_PAYLOAD_OFFSET,
+      BLACK_WHITE_MIX_PAYLOAD_OFFSET + 12
+    ))).toEqual([-100, -75, -50, -25, 25, 50, 75, 100, 1, 0, 0, 0]);
   });
 });

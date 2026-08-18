@@ -5,6 +5,11 @@ import { cloneEffects, createDefaultEffects, type LightTableEffects } from './ef
 import { clonePointColor, createDefaultPointColor, type PointColorAdjustments } from './pointColor';
 import { cloneDetail, createDefaultDetail, type DetailAdjustments } from './detail';
 import {
+  cloneBlackWhiteMix,
+  createDefaultBlackWhiteMix,
+  type BlackWhiteMixAdjustments
+} from './blackWhiteMix';
+import {
   clonePhotoshopAdjustment,
   createDefaultPhotoshopAdjustment,
   type PhotoshopAdjustmentSettings
@@ -67,6 +72,7 @@ export interface BasicAdjustments {
   colorMixer: ColorMixerAdjustments;
   pointColor: PointColorAdjustments;
   colorGrading: ColorGradingAdjustments;
+  blackWhiteMix: BlackWhiteMixAdjustments;
   curves: CurvesAdjustments;
   /** Optional during alpha-format reads; defaults always materialize it. */
   gradientMap?: GradientMapAdjustments;
@@ -118,6 +124,7 @@ export const DEFAULT_BASIC_ADJUSTMENTS: Readonly<BasicAdjustments> = Object.free
   colorMixer: createDefaultColorMixer(),
   pointColor: createDefaultPointColor(),
   colorGrading: createDefaultColorGrading(),
+  blackWhiteMix: createDefaultBlackWhiteMix(),
   curves: createDefaultCurves(),
   gradientMap: createDefaultGradientMap(),
   photoshopAdjustment: createDefaultPhotoshopAdjustment(),
@@ -130,6 +137,7 @@ export const cloneAdjustments = (adjustments: BasicAdjustments): BasicAdjustment
   pointColor: clonePointColor(adjustments.pointColor ?? createDefaultPointColor()),
   detail: cloneDetail(adjustments.detail ?? createDefaultDetail()),
   colorGrading: cloneColorGrading(adjustments.colorGrading),
+  blackWhiteMix: cloneBlackWhiteMix(adjustments.blackWhiteMix ?? createDefaultBlackWhiteMix()),
   curves: cloneCurves(adjustments.curves),
   gradientMap: structuredClone(adjustments.gradientMap ?? createDefaultGradientMap()),
   photoshopAdjustment: clonePhotoshopAdjustment(
@@ -144,6 +152,7 @@ export const createDefaultAdjustments = (): BasicAdjustments => ({
   pointColor: clonePointColor(DEFAULT_BASIC_ADJUSTMENTS.pointColor),
   detail: cloneDetail(DEFAULT_BASIC_ADJUSTMENTS.detail),
   colorGrading: cloneColorGrading(DEFAULT_BASIC_ADJUSTMENTS.colorGrading),
+  blackWhiteMix: cloneBlackWhiteMix(DEFAULT_BASIC_ADJUSTMENTS.blackWhiteMix),
   curves: cloneCurves(DEFAULT_BASIC_ADJUSTMENTS.curves),
   gradientMap: structuredClone(DEFAULT_BASIC_ADJUSTMENTS.gradientMap ?? createDefaultGradientMap()),
   photoshopAdjustment: clonePhotoshopAdjustment(DEFAULT_BASIC_ADJUSTMENTS.photoshopAdjustment),

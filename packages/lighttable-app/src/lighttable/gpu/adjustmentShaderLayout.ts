@@ -36,5 +36,6 @@ struct Adjustments {
   photoshop: array<vec4f, 60>,
   pointColor: array<vec4f, 24>,
   detail: array<vec4f, 3>,
+  blackWhiteMix: array<vec4f, 3>,
 }
 `;

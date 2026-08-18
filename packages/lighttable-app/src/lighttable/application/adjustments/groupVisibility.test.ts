@@ -22,17 +22,20 @@ describe('adjustment group visibility', () => {
     adjustments.temperature = 42;
     adjustments.texture = 35;
     adjustments.colorMixer.saturation[4] = 60;
+    adjustments.blackWhiteMix.enabled = true;
 
     const result = applyGroupVisibility(adjustments, {
       ...createDefaultGroupVisibility(),
       light: false,
-      colorMixer: false
+      colorMixer: false,
+      blackWhiteMix: false
     });
 
     expect(result.exposureEV).toBe(0);
     expect(result.temperature).toBe(42);
     expect(result.texture).toBe(35);
     expect(result.colorMixer.saturation).toEqual(new Array(8).fill(0));
+    expect(result.blackWhiteMix.enabled).toBe(false);
   });
 
   it('does not mutate the canonical adjustment object', () => {

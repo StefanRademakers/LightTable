@@ -254,7 +254,20 @@ describe('LightTable WGSL modules', () => {
   it('evaluates the three Color Mixer channels from one shared periodic selection', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('fn colorMixerValues');
     expect(CREATIVE_GRADE_WGSL).not.toContain('fn colorMixerCurve');
-    expect(CREATIVE_GRADE_WGSL.match(/1\.0 - cos\(hue - centers\[index\]\)/g)).toHaveLength(1);
+    const mixerFunction = CREATIVE_GRADE_WGSL.slice(
+      CREATIVE_GRADE_WGSL.indexOf('fn colorMixerValues'),
+      CREATIVE_GRADE_WGSL.indexOf('fn colorMixerNodeRange')
+    );
+    expect(mixerFunction.match(/1\.0 - cos\(hue - centers\[index\]\)/g)).toHaveLength(1);
+  });
+
+  it('evaluates the native eight-range B&W mix after global color and before grading', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('fn applyBlackWhiteMix');
+    expect(CREATIVE_GRADE_WGSL).toContain('adjustments.blackWhiteMix[2].x < 0.5');
+    expect(CREATIVE_GRADE_WGSL.indexOf('rgb = applyBlackWhiteMix(rgb);'))
+      .toBeGreaterThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyPerceptualColor(rgb);'));
+    expect(CREATIVE_GRADE_WGSL.indexOf('rgb = applyBlackWhiteMix(rgb);'))
+      .toBeLessThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyColorGrading(rgb);'));
   });
 
   it('evaluates Point Color as an order-independent three-dimensional selection', () => {
@@ -274,6 +287,7 @@ describe('LightTable WGSL modules', () => {
       'rgb = applyColorMixer(rgb);',
       'rgb = applyPointColor(rgb);',
       'rgb = applyPerceptualColor(rgb);',
+      'rgb = applyBlackWhiteMix(rgb);',
       'rgb = applyColorGrading(rgb);',
       'rgb = applyLift(rgb);',
       'rgb = applyCustomCurves(rgb);',
