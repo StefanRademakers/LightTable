@@ -4,6 +4,7 @@ import path from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const suitePath = path.join(
@@ -17,12 +18,39 @@ const source = path.resolve(sourceArgument?.slice('--source='.length) ?? 'D:\\pe
 const root = path.resolve(rootArgument?.slice('--root='.length)
   ?? 'D:\\mediavibe\\LightTableTests\\AdjustmentParity\\grade-native');
 const outputDirectory = path.join(root, accept ? 'baseline' : 'current');
-const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspace, {
+  requirePackaged: process.argv.includes('--packaged')
+});
 const userData = path.join(root, 'runtime', `lighttable-${process.pid}`);
 await Promise.all([
-  access(source), access(executable), mkdir(outputDirectory, { recursive: true }),
+  access(source), access(launch.executablePath), mkdir(outputDirectory, { recursive: true }),
   mkdir(userData, { recursive: true })
 ]);
+
+const sourceMetadata = await sharp(source).metadata();
+
+const captureEvidence = async (bytes) => {
+  const [metadata, stats] = await Promise.all([
+    sharp(bytes).metadata(),
+    sharp(bytes).ensureAlpha().stats()
+  ]);
+  if (metadata.width !== sourceMetadata.width || metadata.height !== sourceMetadata.height) {
+    throw new Error(
+      `Grade PNG dimensions ${metadata.width}x${metadata.height} do not match source `
+      + `${sourceMetadata.width}x${sourceMetadata.height}.`
+    );
+  }
+  const alpha = metadata.hasAlpha ? stats.channels.at(-1) : { min: 255, max: 255 };
+  if ((alpha?.max ?? 0) === 0) {
+    throw new Error('Grade PNG export is fully transparent.');
+  }
+  return {
+    width: metadata.width,
+    height: metadata.height,
+    alphaMin: alpha?.min ?? null,
+    alphaMax: alpha?.max ?? null
+  };
+};
 
 const setSlider = async (page, label, target) => {
   const slider = page.locator(
@@ -69,8 +97,8 @@ const comparePng = async (baselinePath, currentPath) => {
 const environment = { ...process.env, LIGHTTABLE_AUTOMATION_USER_DATA: userData };
 delete environment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath: executable,
-  args: [path.join(workspace, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspace,
   env: environment,
   timeout: 30_000
@@ -92,7 +120,7 @@ try {
     });
     const documentId = opened.value?.documentId;
     if (!documentId) throw new Error('Grade source open did not return a document ID.');
-    await driver.waitForDocument(documentId, 120_000);
+    let readiness = await driver.waitForRenderedDocument(documentId, 120_000);
     let gradePanel = page.getByLabel('Grade Layer properties', { exact: true }).last();
     if (!await gradePanel.isVisible().catch(() => false)) {
       const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
@@ -102,8 +130,15 @@ try {
       gradePanel = page.getByLabel('Grade Layer properties', { exact: true }).last();
     }
     await gradePanel.waitFor({ state: 'visible', timeout: 30_000 });
-    for (const [label, value] of Object.entries(entry.settings)) {
-      await setSlider(page, label, value);
+    const settings = Object.entries(entry.settings);
+    if (settings.length > 0) {
+      if (!await driver.resetRenderTelemetry(documentId)) {
+        throw new Error('Grade render telemetry could not be reset before mutation.');
+      }
+      for (const [label, value] of settings) {
+        await setSlider(page, label, value);
+      }
+      readiness = await driver.waitForRenderedDocument(documentId, 120_000);
     }
     const exported = await driver.execute(documentId, 'file.exportPng', {}, {
       requireCompleted: false
@@ -114,7 +149,14 @@ try {
     if (!png) throw new Error('Grade PNG export artifact cannot be read.');
     const output = path.join(outputDirectory, `${entry.id}.png`);
     await writeFile(output, png.bytes);
-    const result = { id: entry.id, settings: entry.settings, output };
+    const result = {
+      id: entry.id,
+      settings: entry.settings,
+      output,
+      lightTableLaunchMode: launch.mode,
+      renderedDocumentRevision: readiness.telemetry.presentedDocumentRevision,
+      captureEvidence: await captureEvidence(png.bytes)
+    };
     if (!accept) {
       Object.assign(result, await comparePng(path.join(root, 'baseline', `${entry.id}.png`), output));
       result.passed = result.parityPercent >= suite.minimumParityPercent;
@@ -133,6 +175,7 @@ const report = {
   generatedAt: new Date().toISOString(),
   source,
   accepted: accept,
+  lightTableLaunchMode: launch.mode,
   minimumParityPercent: suite.minimumParityPercent,
   passed: accept || results.every(({ passed }) => passed),
   cases: results

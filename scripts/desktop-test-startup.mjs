@@ -2,8 +2,35 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
-export const resolveDesktopTestLaunch = async (workspaceRoot) => {
-  const packagedExecutable = process.env.LIGHTTABLE_TEST_EXECUTABLE;
+export const packagedDesktopExecutable = (
+  workspaceRoot,
+  platform = process.platform,
+  architecture = process.arch
+) => {
+  if (platform === 'win32') {
+    return path.join(
+      workspaceRoot, 'apps', 'desktop', 'out',
+      `LightTable-win32-${architecture}`, 'LightTable.exe'
+    );
+  }
+  if (platform === 'darwin') {
+    return path.join(
+      workspaceRoot, 'apps', 'desktop', 'out',
+      `LightTable-darwin-${architecture}`, 'LightTable.app', 'Contents', 'MacOS', 'LightTable'
+    );
+  }
+  return path.join(
+    workspaceRoot, 'apps', 'desktop', 'out',
+    `LightTable-linux-${architecture}`, 'LightTable'
+  );
+};
+
+export const resolveDesktopTestLaunch = async (
+  workspaceRoot,
+  { requirePackaged = false } = {}
+) => {
+  const packagedExecutable = process.env.LIGHTTABLE_TEST_EXECUTABLE
+    ?? (requirePackaged ? packagedDesktopExecutable(workspaceRoot) : null);
   const executablePath = packagedExecutable
     ? path.resolve(packagedExecutable)
     : path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');

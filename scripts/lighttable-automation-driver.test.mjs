@@ -29,6 +29,39 @@ test('render readiness waits beyond canonical document readiness for a submitted
   assert.equal(result.telemetry.submittedFrames, 1);
 });
 
+test('render readiness accepts a locally edited presentation ahead of canonical state', async () => {
+  const client = new LightTableAutomationClient({ waitForTimeout: async () => {} });
+  client.queryWorkspace = async () => ({ activeDocumentId: 'document-1' });
+  client.queryDocument = async () => ({ ...readyDocument, canonicalRevision: 7 });
+  client.queryRenderTelemetry = async () => ({
+    submittedFrames: 1,
+    presentedDocumentRevision: 8,
+    stages: { 'document-composite': { executions: 1 } }
+  });
+
+  const result = await client.waitForRenderedDocument('document-1', 1_000);
+  assert.equal(result.telemetry.presentedDocumentRevision, 8);
+});
+
+test('render readiness rejects a presentation behind canonical state', async () => {
+  let lifecycle = 'ready';
+  const client = new LightTableAutomationClient({
+    waitForTimeout: async () => { lifecycle = 'disposed'; }
+  });
+  client.queryWorkspace = async () => ({ activeDocumentId: 'document-1' });
+  client.queryDocument = async () => ({ ...readyDocument, lifecycle });
+  client.queryRenderTelemetry = async () => ({
+    submittedFrames: 1,
+    presentedDocumentRevision: 6,
+    stages: { 'document-composite': { executions: 1 } }
+  });
+
+  await assert.rejects(
+    client.waitForRenderedDocument('document-1', 1_000),
+    /did not publish a rendered frame/
+  );
+});
+
 test('render readiness rejects presentation-only frames without a document composite', async () => {
   let lifecycle = 'ready';
   const client = new LightTableAutomationClient({

@@ -182,7 +182,11 @@ export class LightTableAutomationClient {
         && document.renderer.active
         && Boolean(document.canvas)
         && document.tasks?.activeCount === 0
-        && telemetry?.presentedDocumentRevision === document.canonicalRevision
+        // The mounted editor can legitimately be ahead of the persisted
+        // session revision while a local layer/adjustment edit is live. A
+        // presented revision behind canonical is stale; one at or ahead of it
+        // is a valid rendered editor state.
+        && (telemetry?.presentedDocumentRevision ?? -1) >= document.canonicalRevision
         && (telemetry?.submittedFrames ?? 0) > 0
         && (telemetry?.stages?.['document-composite']?.executions ?? 0) > 0) {
         return { document, telemetry };
