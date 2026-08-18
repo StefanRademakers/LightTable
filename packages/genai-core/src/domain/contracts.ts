@@ -47,7 +47,14 @@ export type GenAiFieldRole =
   | 'aspect-ratio'
   | 'output-size'
   | 'quality'
-  | 'output-count';
+  | 'output-count'
+  | 'duration'
+  | 'sound'
+  | 'input-variant'
+  | 'first-frame'
+  | 'last-frame'
+  | 'source-video'
+  | 'source-audio';
 
 export interface GenAiFieldDefinition {
   readonly key: string;
@@ -90,7 +97,25 @@ export interface GenAiAssetReference {
   readonly modifiedAt?: string;
   /** Providers for which the desktop host has a reachable, non-local media URL. */
   readonly publishedProviderIds?: readonly GenAiProviderId[];
+  /** Stable identity of this occurrence when one asset has multiple roles. */
+  readonly refUid?: string;
+  /** Provider-neutral semantic role; adapters map this to live provider fields. */
+  readonly purpose?: GenAiReferencePurpose;
 }
+
+export type GenAiMediaKind = 'image' | 'video' | 'audio';
+export type GenAiReferencePurpose =
+  | 'visual_reference'
+  | 'style_reference'
+  | 'character_reference'
+  | 'composition_reference'
+  | 'first_frame'
+  | 'last_frame'
+  | 'source_video'
+  | 'source_audio'
+  | 'element'
+  | 'base_image'
+  | 'selection_mask';
 
 export interface GenAiProjectAssetSection {
   /** Stable portable project-relative directory path. */
@@ -119,6 +144,8 @@ export interface GenAiRequestedOutput {
 }
 
 export type GenAiImageOperation = 'image.create' | 'image.edit' | 'image.inpaint';
+export type GenAiVideoOperation = 'video.create' | 'video.edit' | 'video.extend';
+export type GenAiGenerationOperation = GenAiImageOperation | GenAiVideoOperation;
 export type GenAiGenerationIntent = 'general-create' | 'general-edit' | 'remove-object'
   | 'generative-fill' | 'replace-object' | 'replace-background' | 'expand-canvas'
   | 'create-variation' | `custom:${string}`;
@@ -135,7 +162,8 @@ export interface GenAiGenerationRequest {
   readonly modelId: GenAiModelId;
   readonly workflowId: GenAiWorkflowId;
   /** Explicit editor semantics. Adapters translate these to provider vocabulary. */
-  readonly operation?: GenAiImageOperation;
+  readonly operation?: GenAiGenerationOperation;
+  readonly kind?: GenAiMediaKind;
   readonly intent?: GenAiGenerationIntent;
   readonly baseImageAssetId?: GenAiAssetId;
   readonly selection?: GenAiSelectionInput;
@@ -164,6 +192,8 @@ export interface GenAiCostEstimate {
 
 export type GenAiJobStatus =
   | 'queued'
+  | 'preparing-inputs'
+  | 'ready-to-submit'
   | 'submitting'
   | 'running'
   | 'succeeded'
