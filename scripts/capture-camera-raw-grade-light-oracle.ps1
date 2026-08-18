@@ -71,20 +71,39 @@ $cases = @([pscustomobject]@{
   key = $null
   label = 'Neutral'
   value = 0
-  cameraRawDescriptor = $null
-  cameraRawDescriptorType = $null
-  cameraRawValueType = $null
+  baselineId = 'neutral'
+  isBaseline = $true
+  settings = @()
 })
 foreach ($control in $suite.controls) {
+  $prerequisites = @($control.cameraRawPrerequisites | Where-Object { $null -ne $_ })
+  $baselineId = 'neutral'
+  if ($prerequisites.Count -gt 0) {
+    $baselineId = "$($control.key)-baseline"
+    $cases += [pscustomobject]@{
+      id = $baselineId
+      key = $control.key
+      label = "$($control.label) baseline"
+      value = $null
+      baselineId = $baselineId
+      isBaseline = $true
+      settings = $prerequisites
+    }
+  }
   foreach ($value in $control.values) {
     $cases += [pscustomobject]@{
       id = Get-CaseId $control.key $value
       key = $control.key
       label = $control.label
       value = $value
-      cameraRawDescriptor = $control.cameraRawDescriptor
-      cameraRawDescriptorType = $control.cameraRawDescriptorType
-      cameraRawValueType = $control.cameraRawValueType
+      baselineId = $baselineId
+      isBaseline = $false
+      settings = @($prerequisites) + @([pscustomobject]@{
+        descriptor = $control.cameraRawDescriptor
+        descriptorType = $control.cameraRawDescriptorType
+        valueType = $control.cameraRawValueType
+        value = $value
+      })
     }
   }
 }
@@ -92,14 +111,16 @@ foreach ($control in $suite.controls) {
 $results = @()
 foreach ($case in $cases) {
   $target = Join-Path $outputPath "$($case.id).png"
-  $descriptorStatement = if ($case.cameraRawDescriptor) {
-    $method = if ($case.cameraRawValueType -eq 'double') { 'putDouble' } else { 'putInteger' }
-    $idFunction = if ($case.cameraRawDescriptorType -eq 'string') {
-      'stringIDToTypeID'
-    } else {
-      'charIDToTypeID'
-    }
-    "settings.$method($idFunction('$($case.cameraRawDescriptor)'), $($case.value));"
+  $descriptorStatement = if (@($case.settings).Count -gt 0) {
+    (@($case.settings) | ForEach-Object {
+      $method = if ($_.valueType -eq 'double') { 'putDouble' } else { 'putInteger' }
+      $idFunction = if ($_.descriptorType -eq 'string') {
+        'stringIDToTypeID'
+      } else {
+        'charIDToTypeID'
+      }
+      "settings.$method($idFunction('$($_.descriptor)'), $($_.value));"
+    }) -join "`n    "
   } else {
     # A known neutral PV2012 key makes the process version explicit without
     # changing the pixels. An empty descriptor can inherit Camera Raw defaults.
@@ -127,7 +148,9 @@ foreach ($case in $cases) {
     key = $case.key
     label = $case.label
     value = $case.value
-    descriptor = $case.cameraRawDescriptor
+    baselineId = $case.baselineId
+    isBaseline = $case.isBaseline
+    descriptors = @($case.settings | ForEach-Object { $_.descriptor })
     output = $target
     dimensions = $dimensions
   }

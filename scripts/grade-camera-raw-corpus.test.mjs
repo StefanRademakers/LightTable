@@ -58,3 +58,20 @@ test('Grade local-detail oracle covers proven Clarity and Dehaze descriptors', a
     }
   }
 });
+
+test('Grade Detail oracle isolates dependent controls against active baselines', async () => {
+  const suite = JSON.parse(await readFile(
+    path.join(import.meta.dirname, 'grade-detail-parity-cases.json'), 'utf8'
+  ));
+  assert.equal(suite.section, 'detail');
+  assert.equal(suite.groupLabel, 'Detail');
+  assert.deepEqual(suite.controls.map(({ cameraRawDescriptor }) => cameraRawDescriptor), [
+    'Shrp', 'ShpR', 'ShpD', 'ShpM', 'LNR ', 'LNRD', 'LNRC', 'CNR ', 'CNRD', 'CNRS'
+  ]);
+  const dependent = suite.controls.filter(({ cameraRawPrerequisites }) => cameraRawPrerequisites);
+  assert.equal(dependent.length, 7);
+  for (const control of dependent) {
+    assert.ok(control.lightTablePrerequisites?.length, `${control.key} has a LightTable baseline`);
+    assert.notEqual(control.values.length, 0, `${control.key} has cases`);
+  }
+});

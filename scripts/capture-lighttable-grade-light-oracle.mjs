@@ -27,22 +27,56 @@ await Promise.all([
 const suite = JSON.parse(await readFile(casePath, 'utf8'));
 const caseId = (key, value) => `${key}-${value < 0 ? 'minus' : 'plus'}-${Math.abs(value)}`
   .replaceAll('.', '_');
-const cases = [
-  { id: 'neutral', key: null, label: 'Neutral', value: 0 },
-  ...suite.controls.flatMap((control) => control.values.map((value) => ({
-    id: caseId(control.key, value), key: control.key, label: control.label, value
-  })))
-];
+const settingForControl = (control, value) => ({
+  groupLabel: control.groupLabel ?? suite.groupLabel ?? suite.section,
+  subgroupLabel: control.subgroupLabel ?? null,
+  label: control.label,
+  value,
+  defaultValue: control.defaultValue ?? 0
+});
+const cases = [{
+  id: 'neutral', key: null, label: 'Neutral', value: 0,
+  baselineId: 'neutral', isBaseline: true, settings: []
+}];
+for (const control of suite.controls) {
+  const prerequisites = (control.lightTablePrerequisites ?? []).map((entry) => ({
+    groupLabel: entry.groupLabel ?? control.groupLabel ?? suite.groupLabel ?? suite.section,
+    subgroupLabel: entry.subgroupLabel ?? null,
+    label: entry.label,
+    value: entry.value,
+    defaultValue: entry.defaultValue ?? 0
+  }));
+  const baselineId = prerequisites.length ? `${control.key}-baseline` : 'neutral';
+  if (prerequisites.length) cases.push({
+    id: baselineId, key: control.key, label: `${control.label} baseline`, value: null,
+    baselineId, isBaseline: true, settings: prerequisites
+  });
+  for (const value of control.values) cases.push({
+    id: caseId(control.key, value), key: control.key, label: control.label, value,
+    baselineId, isBaseline: false,
+    settings: [...prerequisites, settingForControl(control, value)]
+  });
+}
 const mimeByExtension = new Map([
   ['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'], ['.png', 'image/png'],
   ['.tif', 'image/tiff'], ['.tiff', 'image/tiff']
 ]);
 
-const setGradeControl = async (page, groupLabel, label, target) => {
+const setGradeControl = async (page, setting, target = setting.value) => {
+  const { groupLabel, subgroupLabel, label } = setting;
   const group = page.locator('.lighttable-group').filter({
     has: page.getByRole('button', { name: groupLabel, exact: true })
   });
-  const slider = group.locator(`input[type="range"][aria-label="${label}"]`);
+  let container = group;
+  if (subgroupLabel) {
+    const subgroup = group.locator('.lighttable-detail-controls__subgroup').filter({
+      has: page.getByRole('button', { name: subgroupLabel, exact: true })
+    });
+    const toggle = subgroup.getByRole('button', { name: subgroupLabel, exact: true });
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    container = subgroup;
+  }
+  const slider = container.locator(`input[type="range"][aria-label="${label}"]`);
   await slider.waitFor({ state: 'attached', timeout: 30_000 });
   await slider.scrollIntoViewIfNeeded();
   await slider.evaluate((input, value) => {
@@ -94,12 +128,14 @@ try {
   }
   await gradePanel.waitFor({ state: 'visible', timeout: 30_000 });
 
-  let previous = null;
+  let previousSettings = [];
   for (const entry of cases) {
     // Keep a single decoded document alive for speed and deterministically
     // restore the previous slider before authoring the next isolated case.
-    if (previous?.key) await setGradeControl(page, suite.groupLabel ?? suite.section, previous.label, 0);
-    previous = null;
+    for (const setting of [...previousSettings].reverse()) {
+      await setGradeControl(page, setting, setting.defaultValue);
+    }
+    previousSettings = [];
     const output = path.join(outputDirectory, `${entry.id}.png`);
     if (resumePartial && entry.key !== refreshControl
       && await access(output).then(() => true, () => false)) {
@@ -107,7 +143,7 @@ try {
       process.stdout.write(`LightTable ${entry.id}: reused partial capture\n`);
       continue;
     }
-    if (entry.key) await setGradeControl(page, suite.groupLabel ?? suite.section, entry.label, entry.value);
+    for (const setting of entry.settings) await setGradeControl(page, setting);
     const exported = await driver.execute(documentId, 'file.exportPng', {}, {
       requireCompleted: false
     });
@@ -118,7 +154,7 @@ try {
     await writeFile(output, png.bytes);
     results.push({ ...entry, output });
     process.stdout.write(`LightTable ${entry.id}: ${output}\n`);
-    previous = entry;
+    previousSettings = entry.settings;
   }
   if (pageErrors.length) throw new Error(`LightTable runtime errors: ${pageErrors.join('\n')}`);
 } finally {

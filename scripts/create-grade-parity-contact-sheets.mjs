@@ -26,7 +26,7 @@ if (cameraNeutral.info.width !== lightNeutral.info.width
 }
 
 const controls = new Map();
-for (const entry of cameraRawReport.cases.filter(({ id }) => id !== 'neutral')) {
+for (const entry of cameraRawReport.cases.filter(({ id, isBaseline }) => id !== 'neutral' && !isBaseline)) {
   const entries = controls.get(entry.key) ?? [];
   entries.push(entry);
   controls.set(entry.key, entries);
@@ -64,10 +64,17 @@ for (const [key, allEntries] of controls) {
       sharp(lightFile).removeAlpha().raw().toBuffer(),
       fit(cameraFile), fit(lightFile)
     ]);
+    const baselineId = entry.baselineId ?? 'neutral';
+    const [cameraBaseline, lightBaseline] = baselineId === 'neutral'
+      ? [cameraNeutral.data, lightNeutral.data]
+      : await Promise.all([
+          sharp(path.join(root, 'camera-raw', `${baselineId}.png`)).removeAlpha().raw().toBuffer(),
+          sharp(path.join(root, 'lighttable', `${baselineId}.png`)).removeAlpha().raw().toBuffer()
+        ]);
     const difference = Buffer.allocUnsafe(camera.length);
     for (let index = 0; index < difference.length; index += 1) {
-      const cameraEffect = camera[index] - cameraNeutral.data[index];
-      const lightEffect = light[index] - lightNeutral.data[index];
+      const cameraEffect = camera[index] - cameraBaseline[index];
+      const lightEffect = light[index] - lightBaseline[index];
       difference[index] = Math.min(255, Math.abs(cameraEffect - lightEffect) * 4);
     }
     const differenceTile = await sharp(difference, {

@@ -97,22 +97,33 @@ const cases = [];
 for (const id of ids.filter((value) => value !== 'neutral')) {
   const cameraRawCase = cameraRawCases.get(id);
   const lightTableCase = lightTableCases.get(id);
+  if (cameraRawCase.isBaseline || lightTableCase.isBaseline) continue;
+  const baselineId = cameraRawCase.baselineId ?? 'neutral';
+  if (baselineId !== (lightTableCase.baselineId ?? 'neutral')) {
+    throw new Error(`Camera Raw and LightTable baselines differ for ${id}.`);
+  }
   const [cameraRawTarget, lightTableTarget] = await Promise.all([
     image(cameraRawDirectory, id), image(lightTableDirectory, id)
   ]);
+  const [cameraRawBaseline, lightTableBaseline] = baselineId === 'neutral'
+    ? [cameraRawNeutral, lightTableNeutral]
+    : await Promise.all([
+        image(cameraRawDirectory, baselineId), image(lightTableDirectory, baselineId)
+      ]);
   if (dimensions(cameraRawTarget) !== dimensions(cameraRawNeutral)
     || dimensions(lightTableTarget) !== dimensions(lightTableNeutral)) {
     throw new Error(`Dimensions differ for ${id}.`);
   }
   const effect = effectMetrics(
-    cameraRawNeutral.data, cameraRawTarget.data,
-    lightTableNeutral.data, lightTableTarget.data
+    cameraRawBaseline.data, cameraRawTarget.data,
+    lightTableBaseline.data, lightTableTarget.data
   );
   cases.push({
     id,
     key: cameraRawCase.key,
     label: cameraRawCase.label,
     value: cameraRawCase.value,
+    baselineId,
     directTargetRmse: normalizedRmse(cameraRawTarget.data, lightTableTarget.data),
     effect,
     descriptorHasEffect: effect.cameraRawMagnitude > 1e-7,
@@ -152,7 +163,7 @@ const report = {
   },
   neutralRmse: normalizedRmse(cameraRawNeutral.data, lightTableNeutral.data),
   controls,
-  note: 'Characterization only. Metrics compare each product effect against its own neutral render.'
+  note: 'Characterization only. Metrics compare each product effect against its own declared neutral or prerequisite baseline.'
 };
 await mkdir(root, { recursive: true });
 await writeFile(path.join(root, 'comparison-report.json'), `${JSON.stringify(report, null, 2)}\n`);

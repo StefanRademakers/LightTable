@@ -334,3 +334,39 @@ shader contract test.
 This matrix is intentionally not a 95% parity claim. B&W Mix, Profile/Look,
 several Adobe descriptors, cross-section captures and owner visual review are
 still required by Task 141 before that claim can be made honestly.
+
+### Complete Detail descriptor and baseline oracle
+
+Camera Raw 18.5's complete Detail family was recovered and pixel-validated
+through the Filter Action Manager interface. The active four-character IDs
+are `Shrp`, `ShpR`, `ShpD`, `ShpM`, `LNR `, `LNRD`, `LNRC`, `CNR `, `CNRD`
+and `CNRS`. The equivalent long XMP property names are accepted by Photoshop
+but inert in this Filter boundary and are therefore not used.
+
+The oracle supports prerequisite baselines. Radius, Sharpening Detail and
+Masking are compared against Amount 100 in both products. Luminance Detail and
+Contrast are compared against Luminance 100; Color Detail and Smoothness are
+compared against Color 100. This prevents a dependent control from being
+misreported as inactive or from being compared against the wrong neutral.
+
+The initial multiscale-noise target proves all ten descriptors active. It
+shows that Sharpening is structurally different and substantially weaker in
+LightTable, while primary Luminance NR is already close in direction but too
+strong. These single-target figures are characterization only:
+
+| Control | Correlation | Magnitude LT / ACR | Worst delta RMSE |
+| --- | ---: | ---: | ---: |
+| Sharpening Amount | 0.5495 | 0.189 | 8.70% |
+| Radius | 0.2711 | 0.232 | 4.92% |
+| Sharpening Detail | 0.3388 | 0.171 | 6.28% |
+| Masking | 0.5590 | 0.085 | 7.40% |
+| Luminance NR | 0.9057 | 1.384 | 1.73% |
+| Luminance Detail | 0.5710 | 0.722 | 2.39% |
+| Luminance Contrast | 0.1678 | 0.948 | 0.26% |
+| Color NR | 0.8225 | 0.601 | 2.49% |
+| Color Detail | 0.2804 | 1.971 | 2.20% |
+| Color Smoothness | -0.0086 | 2.407 | 0.40% |
+
+No renderer constant was changed from this one source. The full corpus must
+establish whether the gaps belong to scale selection, threshold response,
+edge masks or reconstruction before an implementation change is accepted.

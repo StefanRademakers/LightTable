@@ -1,0 +1,139 @@
+{
+  "schema": 1,
+  "section": "detail",
+  "groupLabel": "Detail",
+  "controls": [
+    {
+      "key": "sharpeningAmount",
+      "label": "Amount",
+      "subgroupLabel": "Sharpening",
+      "cameraRawDescriptor": "Shrp",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [25, 50, 80, 100, 150]
+    },
+    {
+      "key": "sharpeningRadius",
+      "label": "Radius",
+      "subgroupLabel": "Sharpening",
+      "cameraRawDescriptor": "ShpR",
+      "cameraRawValueType": "double",
+      "defaultValue": 1,
+      "cameraRawPrerequisites": [
+        { "descriptor": "Shrp", "valueType": "integer", "value": 100 }
+      ],
+      "lightTablePrerequisites": [
+        { "subgroupLabel": "Sharpening", "label": "Amount", "value": 100, "defaultValue": 0 }
+      ],
+      "values": [0.5, 1.5, 2, 3]
+    },
+    {
+      "key": "sharpeningDetail",
+      "label": "Detail",
+      "subgroupLabel": "Sharpening",
+      "cameraRawDescriptor": "ShpD",
+      "cameraRawValueType": "integer",
+      "defaultValue": 25,
+      "cameraRawPrerequisites": [
+        { "descriptor": "Shrp", "valueType": "integer", "value": 100 }
+      ],
+      "lightTablePrerequisites": [
+        { "subgroupLabel": "Sharpening", "label": "Amount", "value": 100, "defaultValue": 0 }
+      ],
+      "values": [0, 50, 80, 100]
+    },
+    {
+      "key": "sharpeningMasking",
+      "label": "Masking",
+      "subgroupLabel": "Sharpening",
+      "cameraRawDescriptor": "ShpM",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "cameraRawPrerequisites": [
+        { "descriptor": "Shrp", "valueType": "integer", "value": 100 }
+      ],
+      "lightTablePrerequisites": [
+        { "subgroupLabel": "Sharpening", "label": "Amount", "value": 100, "defaultValue": 0 }
+      ],
+      "values": [25, 50, 80, 100]
+    },
+    {
+      "key": "luminanceNoiseReduction",
+      "label": "Luminance",
+      "subgroupLabel": "Noise Reduction",
+      "cameraRawDescriptor": "LNR ",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [25, 50, 80, 100]
+    },
+    {
+      "key": "luminanceDetail",
+      "label": "Detail",
+      "subgroupLabel": "Noise Reduction",
+      "cameraRawDescriptor": "LNRD",
+      "cameraRawValueType": "integer",
+      "defaultValue": 50,
+      "cameraRawPrerequisites": [
+        { "descriptor": "LNR ", "valueType": "integer", "value": 100 }
+      ],
+      "lightTablePrerequisites": [
+        { "subgroupLabel": "Noise Reduction", "label": "Luminance", "value": 100, "defaultValue": 0 }
+      ],
+      "values": [0, 25, 75, 100]
+    },
+    {
+      "key": "luminanceContrast",
+      "label": "Contrast",
+      "subgroupLabel": "Noise Reduction",
+      "cameraRawDescriptor": "LNRC",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "cameraRawPrerequisites": [
+        { "descriptor": "LNR ", "valueType": "integer", "value": 100 }
+      ],
+      "lightTablePrerequisites": [
+        { "subgroupLabel": "Noise Reduction", "label": "Luminance", "value": 100, "defaultValue": 0 }
+      ],
+      "values": [25, 50, 80, 100]
+    },
+    {
+      "key": "colorNoiseReduction",
+      "label": "Color",
+      "subgroupLabel": "Color Noise Reduction",
+      "cameraRawDescriptor": "CNR ",
+      "cameraRawValueType": "integer",
+      "defaultValue": 0,
+      "values": [25, 50, 80, 100]
+    },
+    {
+      "key": "colorDetail",
+      "label": "Detail",
+      "subgroupLabel": "Color Noise Reduction",
+      "cameraRawDescriptor": "CNRD",
+      "cameraRawValueType": "integer",
+      "defaultValue": 50,
+      "cameraRawPrerequisites": [
+        { "descriptor": "CNR ", "valueType": "integer", "value": 100 }
+      ],
+      "lightTablePrerequisites": [
+        { "subgroupLabel": "Color Noise Reduction", "label": "Color", "value": 100, "defaultValue": 0 }
+      ],
+      "values": [0, 25, 75, 100]
+    },
+    {
+      "key": "colorSmoothness",
+      "label": "Smoothness",
+      "subgroupLabel": "Color Noise Reduction",
+      "cameraRawDescriptor": "CNRS",
+      "cameraRawValueType": "integer",
+      "defaultValue": 50,
+      "cameraRawPrerequisites": [
+        { "descriptor": "CNR ", "valueType": "integer", "value": 100 }
+      ],
+      "lightTablePrerequisites": [
+        { "subgroupLabel": "Color Noise Reduction", "label": "Color", "value": 100, "defaultValue": 0 }
+      ],
+      "values": [0, 25, 75, 100]
+    }
+  ]
+}
