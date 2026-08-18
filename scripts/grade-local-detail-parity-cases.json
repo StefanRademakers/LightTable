@@ -6,7 +6,7 @@
     {
       "key": "texture",
       "label": "Texture",
-      "reason": "Camera Raw Filter descriptors Txtr and texture were both proven inert in Camera Raw 18.5."
+      "reason": "Camera Raw Filter descriptors Txtr, texture and canonical Texture (integer/double) were proven inert in Camera Raw 18.5."
     }
   ],
   "controls": [

@@ -261,8 +261,9 @@ sheets.
 
 The corpus oracle also covers Clarity (`Cl12`) and Dehaze (`Dhze`) at signed
 25, 50, 80 and 100 values. Both descriptors were proven active on every
-source. Two plausible Texture descriptors, `Txtr` and the `texture` string ID,
-were separately proven inert in Camera Raw Filter 18.5. Texture therefore
+source. Texture descriptors `Txtr`, lowercase `texture`, and canonical
+`Texture` with both integer and double values were separately proven inert in
+Camera Raw Filter 18.5. Texture therefore
 remains an explicitly unresolved automation control instead of being reported
 under a guessed descriptor.
 
