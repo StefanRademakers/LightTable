@@ -94,6 +94,87 @@ describe('PSD export projection', () => {
     expect(decoded.children?.[0]?.adjustment).toBeUndefined();
   });
 
+  it('exports a Curves-only Grade Layer as a collapsed pass-through folder', () => {
+    const document = createImageDocument('Grade Curves', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.curves.master = [
+      { x: 0, y: 0 },
+      { x: 0.5, y: 0.7 },
+      { x: 1, y: 1 }
+    ];
+    const authored = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'Grade',
+      undefined,
+      'grade'
+    );
+
+    const projection = projectDocumentToPsd(authored, pixels(2, 2), [{
+      layerId: authored.layers[0]!.id,
+      pixels: pixels(2, 2)
+    }]);
+    const folder = projection.psd.children?.[1];
+
+    expect(projection.warnings).toEqual([]);
+    expect(folder).toMatchObject({
+      name: 'Grade',
+      blendMode: 'pass through',
+      opened: false,
+      children: [{
+        name: 'Curves',
+        adjustment: {
+          type: 'curves',
+          rgb: [
+            { input: 0, output: 0 },
+            { input: 128, output: 179 },
+            { input: 255, output: 255 }
+          ]
+        }
+      }]
+    });
+    const decoded = readPsd(writePsdUint8Array(projection.psd, {
+      noBackground: true,
+      trimImageData: true
+    }), {
+      useImageData: true,
+      skipLayerImageData: true,
+      skipCompositeImageData: true,
+      skipThumbnail: true
+    });
+    expect(decoded.children?.[1]).toMatchObject({
+      name: 'Grade',
+      blendMode: 'pass through',
+      opened: false,
+      children: [{ name: 'Curves', adjustment: { type: 'curves' } }]
+    });
+  });
+
+  it('keeps unsupported or non-default Grade boundaries fail-closed', () => {
+    const document = createImageDocument('Unsupported Grade', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.exposureEV = 1;
+    const authored = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'Grade',
+      undefined,
+      'grade'
+    );
+    const grade = authored.layers[1]!;
+    grade.opacity = 0.5;
+
+    const projection = projectDocumentToPsd(authored, pixels(2, 2), [{
+      layerId: authored.layers[0]!.id,
+      pixels: pixels(2, 2)
+    }]);
+
+    expect(projection.warnings).toContain(
+      'layers[1]: this Grade Layer contains processing or layer settings without a proven editable Photoshop projection.'
+    );
+    expect(projection.psd.children?.[1]?.children).toBeUndefined();
+  });
+
   it('reports that editable Face Warp semantics are baked for PSD compatibility', () => {
     const document = createImageDocument('Face warp', 32, 24, 'background');
     const layer = document.layers[0]!;

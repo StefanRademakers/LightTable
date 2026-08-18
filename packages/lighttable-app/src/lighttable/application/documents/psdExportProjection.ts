@@ -8,7 +8,10 @@ import type {
 import { exportLayerStyleStackToPsd } from '../../editor/psd/layerStylePsdExportAdapter';
 import { exportTextLayerToPsd } from '../../editor/psd/psdTextExportAdapter';
 import { exportVectorLayerToPsd } from '../../editor/psd/psdVectorExportAdapter';
-import { exportAdjustmentStackToPsd } from '../../editor/psd/psdAdjustmentExportAdapter';
+import {
+  exportAdjustmentStackToPsd,
+  exportGradeStackModulesToPsd
+} from '../../editor/psd/psdAdjustmentExportAdapter';
 import { walkLayerTree } from '../../editor/document/layerTree';
 import type { PsdExportIntent } from './psdExportProtocol';
 
@@ -193,6 +196,52 @@ export const projectDocumentToPsd = (
       return { ...common, opened: true, children: projectNodes(node.children, `${path}.children`) };
     }
     if (node.type === 'adjustment') {
+      if (node.adjustmentKind === 'grade') {
+        const maskIsNeutral = !node.mask || (
+          node.mask.enabled
+          && node.mask.revision === 0
+          && node.mask.pixelRevision === 0
+          && node.mask.density === 1
+          && node.mask.feather === 0
+        );
+        const usesSafePassThroughBoundary = node.opacity === 1
+          && node.fillOpacity === 1
+          && node.blendMode === 'normal'
+          && !node.clipping
+          && maskIsNeutral
+          && (!node.styleStack.enabled
+            || !node.styleStack.effects.some((effect) => effect.enabled));
+        const modules = usesSafePassThroughBoundary
+          ? exportGradeStackModulesToPsd(node.adjustmentStack, resolveColorLookup)
+          : null;
+        if (modules) {
+          return {
+            ...common,
+            // A normal empty folder isolates its children. Pass-through lets
+            // the adjustment children affect the same lower sibling composite
+            // as the ordinary LightTable processing layer.
+            blendMode: 'pass through',
+            // Newly created adjustment layers own a pristine white mask.
+            // Omitting that neutral mask keeps the pass-through group from
+            // acquiring Photoshop isolation semantics.
+            mask: undefined,
+            opened: false,
+            children: modules.map((module, moduleIndex) => ({
+              id: numericLayerId(`${node.id}:grade:${module.moduleType}:${moduleIndex}`),
+              name: module.name,
+              hidden: false,
+              opacity: 1,
+              fillOpacity: 1,
+              blendMode: 'normal',
+              clipping: false,
+              adjustment: module.adjustment,
+              timestamp: node.modifiedAt / 1000
+            }))
+          };
+        }
+        warnings.push(`${path}: this Grade Layer contains processing or layer settings without a proven editable Photoshop projection.`);
+        return common;
+      }
       if (node.photoshop?.adjustment && node.revision === 0) {
         common.adjustment = structuredClone(node.photoshop.adjustment) as Layer['adjustment'];
       } else {

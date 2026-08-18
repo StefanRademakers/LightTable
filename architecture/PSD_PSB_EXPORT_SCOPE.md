@@ -25,6 +25,14 @@ The Editable writer is fail-closed. Unsupported native adjustment layers, smart 
 patterns, gradients, effects, text constructs, color modes or interleaving
 are collected during projection and stop the current editable export.
 
+A Curves-only native Grade Layer is the first verified compound-layer
+decomposition. It becomes a collapsed pass-through folder at the exact tree
+position with one editable Photoshop Curves child. Pass-through is required so
+the child affects the same lower sibling composite as the LightTable processing
+layer. This adapter accepts only default opacity, fill, blend, clipping and a
+pristine white mask; it omits that no-op mask to avoid forcing Photoshop group
+isolation. Any other authored Grade module or boundary remains fail-closed.
+
 Maximum Appearance is the explicit alternative. It writes the authoritative
 rendered composite as one full-canvas raster layer named `LightTable Appearance`
 and retains no active Grade, Lens FX, adjustment, mask or layer descriptor that

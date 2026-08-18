@@ -174,8 +174,13 @@ Implemented foundation - 18 August 2026
 - Projection and ag-psd roundtrip tests prove that a document containing a
   Grade Layer becomes one raster layer with no adjustment descriptor in this
   intent. Editable projection remains the default for command automation.
+- A Grade Layer with only native `lt.curves` authored now projects at its exact
+  tree position as a collapsed pass-through folder containing one editable
+  Photoshop Curves adjustment. The adapter is deliberately restricted to
+  default layer boundary settings and a pristine white mask; unsupported
+  modules or boundary semantics still stop Editable export.
 
-Still open: editable decomposition of compound Grade Layers, position-local
+Still open: further editable decomposition of compound Grade Layers, position-local
 fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group
 semantics for those projections, 16-bit writer support, and the version-pinned
 Photoshop rebuild matrix after task_203 restores the Adobe oracle.

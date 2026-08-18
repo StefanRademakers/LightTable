@@ -7,7 +7,13 @@ import type {
 } from 'ag-psd';
 import { createColorLookupDeviceLinkProfile } from '../../processing/colorLookupIccProfile';
 import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
-import { materializeBasicAdjustments, type AdjustmentStack } from '../../processing/adjustmentStack';
+import {
+  adjustmentStackForModuleTypes,
+  createAdjustmentStackFromBasicAdjustments,
+  materializeBasicAdjustments,
+  type AdjustmentStack
+} from '../../processing/adjustmentStack';
+import { createDefaultAdjustments } from '../../types';
 import {
   isPhotoshopAdjustmentKind,
   type PhotoshopAdjustmentSettings
@@ -232,6 +238,41 @@ export type ColorLookupPsdResolver = (
 ) => { readonly name: string; readonly data: Uint8Array } | null;
 
 const noColorLookupAsset: ColorLookupPsdResolver = () => null;
+
+export interface PsdGradeModuleProjection {
+  readonly moduleType: string;
+  readonly name: string;
+  readonly adjustment: PsdAdjustment;
+}
+
+const neutralGradeModuleSettings = new Map(
+  createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()).modules
+    .map((module) => [module.type, JSON.stringify(module.settings)])
+);
+
+/**
+ * Decomposes only Grade modules with proven native Photoshop semantics.
+ * `null` means at least one enabled authored module is not representable;
+ * an empty array is a genuinely neutral Grade Layer.
+ */
+export const exportGradeStackModulesToPsd = (
+  stack: AdjustmentStack,
+  resolveColorLookup: ColorLookupPsdResolver = noColorLookupAsset
+): readonly PsdGradeModuleProjection[] | null => {
+  const authored = stack.modules.filter((module) => module.enabled
+    && JSON.stringify(module.settings) !== neutralGradeModuleSettings.get(module.type));
+  if (new Set(authored.map(({ type }) => type)).size !== authored.length) return null;
+  if (authored.some(({ type }) => type !== 'lt.curves')) return null;
+  return authored.map((module) => ({
+    moduleType: module.type,
+    name: 'Curves',
+    adjustment: exportAdjustmentStackToPsd(
+      'curves',
+      adjustmentStackForModuleTypes(stack, [module.type]),
+      resolveColorLookup
+    )!
+  }));
+};
 
 /** Projects every currently-authored Photoshop-family node to a native PSD descriptor. */
 export const exportAdjustmentStackToPsd = (
