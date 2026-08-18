@@ -915,6 +915,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }));
   }, [editorSession.gradient, setEditorSession]);
   const [selectionDraft, setSelectionDraft] = useState<SelectionShape | null>(null);
+  const [cropBounds, setCropBounds] = useState<Rect | null>(null);
   const editorDialogs = useEditorDialogController();
   const [duplicateImageBusy, setDuplicateImageBusy] = useState(false);
   const [duplicateImageError, setDuplicateImageError] = useState<string | null>(null);
@@ -1964,6 +1965,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       if (!reportError) throw reason;
       setError(reason instanceof Error ? reason.message : 'Document geometry could not be changed.');
     }
+  };
+  const beginCrop = () => {
+    const document = imageDocumentRef.current;
+    if (!document) return;
+    finishOpenHistoryTransactions();
+    setCropBounds({ x: 0, y: 0, width: document.width, height: document.height });
+  };
+  const cancelCrop = () => setCropBounds(null);
+  const commitCrop = () => {
+    if (!cropBounds) return;
+    const bounds = { ...cropBounds };
+    setCropBounds(null);
+    commitDocumentGeometry({ operation: 'crop', bounds });
   };
   const textToShapeControllerRef = useRef<TextToShapeCommandController | null>(null);
   textToShapeControllerRef.current ??= new TextToShapeCommandController(() => ({
@@ -4680,6 +4694,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
 
   const activatePersistentTool = (requestedTool: ToolId) => {
+    if (cropBounds) setCropBounds(null);
     const shortcutGroup = toolShortcutGroupFor(requestedTool);
     if (shortcutGroup) {
       preferredToolByShortcutRef.current[shortcutGroup.key] = requestedTool;
@@ -5124,6 +5139,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       openCanvasSize: editorDialogs.openCanvasSize,
       openArbitraryRotation: editorDialogs.openArbitraryRotation,
       applyDocumentGeometry: commitDocumentGeometry,
+      beginCrop,
       duplicate: () => {
         setDuplicateImageError(null);
         editorDialogs.openDuplicateImage();
@@ -6174,6 +6190,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                         layoutPublicationRevision={textRenderPresentation.publicationRevision}
                       />
                     ) : null,
+                    cropBounds,
+                    documentWidth: imageDocument?.width ?? 0,
+                    documentHeight: imageDocument?.height ?? 0,
+                    onCropChange: setCropBounds,
+                    onCropCommit: commitCrop,
+                    onCropCancel: cancelCrop,
                     onWheel: viewportInteraction.onWheel,
                     onPointerDown: viewportInteraction.onPointerDown,
                     onPointerMove: viewportInteraction.onPointerMove,

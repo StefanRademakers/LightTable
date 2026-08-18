@@ -212,6 +212,35 @@ select option:checked {
   background: currentColor;
 }
 
+.crop-interaction-overlay { position: absolute; inset: 0; z-index: 28; pointer-events: none; }
+.crop-interaction-overlay__options {
+  position: absolute; top: var(--lt-space-4); left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: var(--lt-space-4); padding: var(--lt-space-2);
+  border: 1px solid var(--lt-border-subtle); border-radius: var(--lt-radius-md);
+  background: var(--lt-surface-panel); pointer-events: auto;
+}
+.crop-interaction-overlay__frame {
+  position: absolute; box-sizing: border-box; border: 1px solid var(--lt-accent);
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 55%); pointer-events: auto; cursor: move;
+}
+.crop-interaction-overlay__third { position: absolute; display: block; background: rgb(255 255 255 / 45%); pointer-events: none; }
+.crop-interaction-overlay__third--v1, .crop-interaction-overlay__third--v2 { top: 0; bottom: 0; width: 1px; }
+.crop-interaction-overlay__third--v1 { left: 33.333%; } .crop-interaction-overlay__third--v2 { left: 66.666%; }
+.crop-interaction-overlay__third--h1, .crop-interaction-overlay__third--h2 { left: 0; right: 0; height: 1px; }
+.crop-interaction-overlay__third--h1 { top: 33.333%; } .crop-interaction-overlay__third--h2 { top: 66.666%; }
+.crop-interaction-overlay__handle {
+  position: absolute; width: 10px; height: 10px; padding: 0; border: 1px solid var(--lt-accent);
+  background: var(--color-text); transform: translate(-50%, -50%);
+}
+.crop-interaction-overlay__handle--nw { left: 0; top: 0; cursor: nwse-resize; }
+.crop-interaction-overlay__handle--n { left: 50%; top: 0; cursor: ns-resize; }
+.crop-interaction-overlay__handle--ne { left: 100%; top: 0; cursor: nesw-resize; }
+.crop-interaction-overlay__handle--e { left: 100%; top: 50%; cursor: ew-resize; }
+.crop-interaction-overlay__handle--se { left: 100%; top: 100%; cursor: nwse-resize; }
+.crop-interaction-overlay__handle--s { left: 50%; top: 100%; cursor: ns-resize; }
+.crop-interaction-overlay__handle--sw { left: 0; top: 100%; cursor: nesw-resize; }
+.crop-interaction-overlay__handle--w { left: 0; top: 50%; cursor: ew-resize; }
+
 .square-icon-button--compact {
   width: 20px;
   height: 20px;

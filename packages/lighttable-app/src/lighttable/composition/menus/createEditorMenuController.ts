@@ -63,6 +63,7 @@ export interface EditorMenuControllerOptions {
     openCanvasSize(): void;
     openArbitraryRotation(): void;
     applyDocumentGeometry(request: DocumentGeometryRequest): void;
+    beginCrop(): void;
     duplicate(): void;
     applyCurves(): void;
     applyAdjustment?(kind: AdjustmentLayerKind): void;
@@ -198,6 +199,7 @@ export const createEditorMenuController = ({
       openCanvasSize: image.openCanvasSize,
       openArbitraryRotation: image.openArbitraryRotation,
       applyDocumentGeometry: image.applyDocumentGeometry,
+      beginCrop: image.beginCrop,
       duplicateImage: image.duplicate,
       assignSrgbProfile: image.assignSrgbProfile ?? (() => undefined),
       beginAutoAlign: autoAlign.begin,

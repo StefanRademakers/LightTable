@@ -102,6 +102,7 @@ export interface EditorMenuCommands {
   openCanvasSize: () => void;
   openArbitraryRotation: () => void;
   applyDocumentGeometry: (request: DocumentGeometryRequest) => void;
+  beginCrop: () => void;
   duplicateImage: () => void;
   assignSrgbProfile: () => void;
   beginAutoAlign: () => void;
@@ -476,6 +477,11 @@ export const createEditorMenuOptions = (
         value: 'flip-canvas-vertical', label: 'Flip Canvas Vertical',
         onClick: () => commands.applyDocumentGeometry({ operation: 'flip', axis: 'vertical' })
       }]
+    }, {
+      value: 'image-crop',
+      label: 'Crop',
+      onClick: commands.beginCrop,
+      disabled: !state.hasDocument || state.saving
     }, {
       value: 'image-adjustments',
       label: 'Adjustments',

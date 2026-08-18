@@ -50,8 +50,32 @@ try {
   if (restored?.canvas?.width !== before.canvas.width || restored.canvas.height !== before.canvas.height) {
     throw new Error(`Geometry undo did not restore source dimensions: ${JSON.stringify({ before, restored })}`);
   }
+  const imageMenu = page.locator('.shots-app-menu__button').filter({ hasText: /^Image$/ });
+  await imageMenu.click();
+  await page.getByRole('menuitem', { name: 'Crop', exact: true }).click();
+  const cropFrame = page.locator('.crop-interaction-overlay__frame');
+  await cropFrame.waitFor({ state: 'visible' });
+  const northWest = page.getByRole('button', { name: 'Crop nw handle' });
+  const handleBox = await northWest.boundingBox();
+  if (!handleBox) throw new Error('Crop north-west handle is unavailable.');
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x + handleBox.width / 2 + 12, handleBox.y + handleBox.height / 2 + 8, { steps: 4 });
+  await page.mouse.up();
+  await page.keyboard.press('Enter');
+  await cropFrame.waitFor({ state: 'detached' });
+  const cropped = await driver.queryDocument(documentId);
+  if (!cropped?.canvas || (cropped.canvas.width >= before.canvas.width && cropped.canvas.height >= before.canvas.height)
+    || cropped.history.undoDepth !== before.history.undoDepth + 1) {
+    throw new Error(`Interactive Crop did not create one smaller document state: ${JSON.stringify({ before, cropped })}`);
+  }
+  await driver.execute(documentId, 'history.undo', {});
+  const cropUndone = await driver.queryDocument(documentId);
+  if (cropUndone?.canvas?.width !== before.canvas.width || cropUndone.canvas.height !== before.canvas.height) {
+    throw new Error(`Crop undo did not restore source bounds: ${JSON.stringify({ before, cropUndone })}`);
+  }
   if (errors.length) throw new Error(`Renderer errors: ${JSON.stringify(errors)}`);
   await page.screenshot({ path: path.join(output, 'document-geometry.png') });
-  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ before, expanded, rotated, restored, errors }, null, 2)}\n`);
+  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ before, expanded, rotated, restored, cropped, cropUndone, errors }, null, 2)}\n`);
   process.stdout.write(`Desktop document geometry smoke passed. Report: ${path.join(output, 'report.json')}\n`);
 } finally { await app.close().catch(() => {}); }

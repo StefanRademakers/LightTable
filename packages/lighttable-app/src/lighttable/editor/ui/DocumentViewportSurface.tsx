@@ -18,6 +18,7 @@ import type {
 import type { ToolId } from '../session/editorSession';
 import type { SnapFeature, SnapMatch } from '../../application/tools/snapping/snapEngine';
 import { LayoutGuideInteractionLayer } from './LayoutGuideInteractionLayer';
+import { CropInteractionOverlay } from '../tools/crop/CropInteractionOverlay';
 
 export interface DocumentViewportSurfaceProps {
   viewportRef: React.RefObject<HTMLDivElement | null>;
@@ -63,6 +64,12 @@ export interface DocumentViewportSurfaceProps {
   onGuideDraft?: (guides: readonly DocumentGuide[] | null) => void;
   onGuideCommit?: (guides: readonly DocumentGuide[]) => void;
   inputBridge?: React.ReactNode;
+  cropBounds?: Rect | null;
+  documentWidth?: number;
+  documentHeight?: number;
+  onCropChange?: (bounds: Rect) => void;
+  onCropCommit?: () => void;
+  onCropCancel?: () => void;
 }
 
 /**
@@ -115,7 +122,13 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   guidesLocked = false,
   onGuideDraft,
   onGuideCommit,
-  inputBridge
+  inputBridge,
+  cropBounds = null,
+  documentWidth = 0,
+  documentHeight = 0,
+  onCropChange,
+  onCropCommit,
+  onCropCancel
 }) => {
   const effectiveTool = temporaryPanActive
     ? 'view'
@@ -144,6 +157,11 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
       onContextMenu={onContextMenu}
     >
       <canvas ref={canvasRef} className="lighttable-viewport__canvas" />
+      {cropBounds && onCropChange && onCropCommit && onCropCancel ? (
+        <CropInteractionOverlay bounds={cropBounds} documentWidth={documentWidth}
+          documentHeight={documentHeight} imageRect={imageRect} scale={scale}
+          onChange={onCropChange} onCommit={onCropCommit} onCancel={onCropCancel} />
+      ) : null}
       {(rulersVisible || (guidesVisible && documentGuides.length > 0))
         && onGuideDraft && onGuideCommit ? (
           <LayoutGuideInteractionLayer
