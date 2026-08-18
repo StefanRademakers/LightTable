@@ -42,6 +42,7 @@ export interface EditorMenuControllerOptions {
     exportPng(): void;
     exportJpeg(): void;
     exportPsd(): void;
+    exportPsdMaximumAppearance(): void;
     pdfExportPreflight(): void;
     openFormatSupport(): void;
   };
@@ -172,6 +173,7 @@ export const createEditorMenuController = ({
       exportPng: file.exportPng,
       exportJpeg: file.exportJpeg,
       exportPsd: file.exportPsd,
+      exportPsdMaximumAppearance: file.exportPsdMaximumAppearance,
       pdfExportPreflight: file.pdfExportPreflight,
       openFormatSupport: file.openFormatSupport,
       copySelectedContent: edit.copySelectedContent,

@@ -37,17 +37,23 @@ self.onmessage = async (event: MessageEvent<PsdExportRequest>) => {
   try {
     const composite = await decode(request.composite);
     if (!composite) throw new Error('PSD export requires a rendered composite.');
-    const assets = await Promise.all(request.layerAssets.map(async (asset) => ({
+    const assets = request.intent === 'editable' ? await Promise.all(request.layerAssets.map(async (asset) => ({
       layerId: asset.layerId,
       bounds: asset.bounds,
       pixels: await decode(asset.pixels),
       mask: asset.mask ? await decode(asset.mask) : undefined
-    })));
-    const lutAssets = await Promise.all(request.colorLookupAssets.map(async (asset) => ({
+    }))) : [];
+    const lutAssets = request.intent === 'editable' ? await Promise.all(request.colorLookupAssets.map(async (asset) => ({
       lutId: asset.lutId,
       data: new Uint8Array(await asset.source.arrayBuffer())
-    })));
-    const projection = projectDocumentToPsd(request.document, composite, assets, lutAssets);
+    }))) : [];
+    const projection = projectDocumentToPsd(
+      request.document,
+      composite,
+      assets,
+      lutAssets,
+      request.intent
+    );
     const psb = request.document.width > 30_000 || request.document.height > 30_000;
     const encoded = writePsdColorVibranceDescriptors(writePsdUint8Array(projection.psd, {
       psb,

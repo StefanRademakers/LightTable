@@ -41,6 +41,59 @@ const pixels = (width: number, height: number, rgba = [0, 0, 0, 0]) => {
 };
 
 describe('PSD export projection', () => {
+  it('projects Maximum Appearance as one exact raster without active processing', () => {
+    const document = createImageDocument('Appearance', 3, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.exposureEV = 2;
+    const withGrade = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'Grade'
+    );
+    const composite = pixels(3, 2, [21, 34, 55, 255]);
+
+    const projection = projectDocumentToPsd(
+      withGrade,
+      composite,
+      [],
+      [],
+      'maximum-appearance'
+    );
+
+    expect(projection.warnings).toEqual([]);
+    expect(projection.editableTextLayers).toBe(0);
+    expect(projection.editableVectorLayers).toBe(0);
+    expect(projection.psd.children).toHaveLength(1);
+    expect(projection.psd.children?.[0]).toMatchObject({
+      name: 'LightTable Appearance',
+      opacity: 1,
+      fillOpacity: 1,
+      blendMode: 'normal',
+      left: 0,
+      top: 0,
+      imageData: composite
+    });
+    expect(projection.psd.children?.[0]?.adjustment).toBeUndefined();
+    const decoded = readPsd(writePsdUint8Array(projection.psd, {
+      noBackground: true,
+      trimImageData: true
+    }), {
+      useImageData: true,
+      skipLayerImageData: true,
+      skipCompositeImageData: true,
+      skipThumbnail: true
+    });
+    expect(decoded.children).toHaveLength(1);
+    expect(decoded.children?.[0]).toMatchObject({
+      name: 'LightTable Appearance',
+      left: 0,
+      top: 0,
+      right: 3,
+      bottom: 2
+    });
+    expect(decoded.children?.[0]?.adjustment).toBeUndefined();
+  });
+
   it('reports that editable Face Warp semantics are baked for PSD compatibility', () => {
     const document = createImageDocument('Face warp', 32, 24, 'background');
     const layer = document.layers[0]!;

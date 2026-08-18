@@ -46,6 +46,7 @@ describe('createEditorMenuController', () => {
         exportPng: vi.fn(),
         exportJpeg: vi.fn(),
         exportPsd: vi.fn(),
+        exportPsdMaximumAppearance: vi.fn(),
         pdfExportPreflight: vi.fn(),
         openFormatSupport: vi.fn()
       },
@@ -138,6 +139,7 @@ describe('createEditorMenuController', () => {
       file: {
         newDocument: vi.fn(), open: vi.fn(), place: vi.fn(), recentFiles: [],
         openRecent: vi.fn(), clearRecent: vi.fn(), save: vi.fn(), exportPng: vi.fn(), exportJpeg: vi.fn(), exportPsd: vi.fn(),
+        exportPsdMaximumAppearance: vi.fn(),
         pdfExportPreflight: vi.fn(),
         openFormatSupport: vi.fn()
       },

@@ -24,6 +24,7 @@ import type {
   PreservedSourceAssetBlob
 } from '../persistence/layeredDocumentFormat';
 import { exportPsdDocument } from '../../application/documents/PsdExportClient';
+import type { PsdExportIntent } from '../../application/documents/psdExportProtocol';
 import {
   pickSupportedImageFile
 } from '../../image-io/supportedImageFormats';
@@ -85,6 +86,7 @@ export interface DocumentFileCommands {
   exportPng(): Promise<void>;
   exportJpeg(): Promise<void>;
   exportPsd(): Promise<void>;
+  exportPsdMaximumAppearance(): Promise<void>;
   openLocalFile(
     file: File | null,
     decodeMode: DocumentOpenMode
@@ -266,7 +268,7 @@ export const useDocumentFileCommands = (
     if (result.status === 'failed') current.setError(result.error.message || 'JPEG export failed.');
   }, []);
 
-  const exportPsd = useCallback(async () => {
+  const exportPsdWithIntent = useCallback(async (intent: PsdExportIntent) => {
     const current = optionsRef.current;
     current.setError(null);
     const result = await current.taskRegistry.run(
@@ -278,11 +280,11 @@ export const useDocumentFileCommands = (
         if (!renderer || !imageDocument || !current.hasMetadata) {
           throw new Error('LightTable is not ready yet.');
         }
-        const [composite, exportedAssets] = await Promise.all([
-          renderer.exportPng(),
-          renderer.exportPsdLayerAssets?.(imageDocument)
-            ?? renderer.exportLayerAssets(imageDocument)
-        ]);
+        const composite = await renderer.exportPng();
+        const exportedAssets = intent === 'editable'
+          ? await (renderer.exportPsdLayerAssets?.(imageDocument)
+            ?? renderer.exportLayerAssets(imageDocument))
+          : [];
         task.throwIfCanceled();
         const layerAssets = exportedAssets.filter(
           (asset): asset is LayerAssetBlobs => 'layerId' in asset
@@ -295,7 +297,8 @@ export const useDocumentFileCommands = (
           composite,
           layerAssets,
           colorLookupAssets,
-          current.fileNameBase
+          current.fileNameBase,
+          intent
         );
         task.throwIfCanceled();
         if (current.onExportFile) await current.onExportFile(exported.file);
@@ -309,6 +312,14 @@ export const useDocumentFileCommands = (
       current.setError(result.error.message || 'Photoshop export failed.');
     }
   }, []);
+  const exportPsd = useCallback(
+    () => exportPsdWithIntent('editable'),
+    [exportPsdWithIntent]
+  );
+  const exportPsdMaximumAppearance = useCallback(
+    () => exportPsdWithIntent('maximum-appearance'),
+    [exportPsdWithIntent]
+  );
 
   const openLocalFile = useCallback(async (
     file: File | null,
@@ -394,6 +405,7 @@ export const useDocumentFileCommands = (
     exportPng,
     exportJpeg,
     exportPsd,
+    exportPsdMaximumAppearance,
     openLocalFile,
     handleFastFileInput: (event) => handleFileInput(event, 'fast'),
     handlePrecisionFileInput: (event) =>

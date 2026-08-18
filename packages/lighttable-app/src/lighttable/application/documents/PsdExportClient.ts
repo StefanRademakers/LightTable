@@ -3,7 +3,11 @@ import type {
   ColorLookupAssetBlob,
   LayerAssetBlobs
 } from '../../editor/persistence/layeredDocumentFormat';
-import type { PsdExportRequest, PsdExportResponse } from './psdExportProtocol';
+import type {
+  PsdExportIntent,
+  PsdExportRequest,
+  PsdExportResponse
+} from './psdExportProtocol';
 
 export interface ExportedPsdDocument {
   readonly file: File;
@@ -19,7 +23,8 @@ export const exportPsdDocument = async (
   composite: Blob,
   layerAssets: readonly LayerAssetBlobs[],
   colorLookupAssets: readonly ColorLookupAssetBlob[],
-  fileNameBase: string
+  fileNameBase: string,
+  intent: PsdExportIntent = 'editable'
 ): Promise<ExportedPsdDocument> => {
   if (document.width > 30_000 || document.height > 30_000) {
     throw new Error('PSB export remains validation-gated; PSD supports at most 30,000 px per side.');
@@ -33,7 +38,7 @@ export const exportPsdDocument = async (
       };
       worker.onerror = (event) => reject(new Error(event.message || 'The PSD export worker failed.'));
       worker.postMessage({
-        requestId, document, composite, layerAssets, colorLookupAssets
+        requestId, document, composite, layerAssets, colorLookupAssets, intent
       } satisfies PsdExportRequest);
     });
     if (response.status === 'error') throw new Error(response.message);
@@ -42,7 +47,8 @@ export const exportPsdDocument = async (
         `Photoshop export was stopped to prevent compatibility loss:\n${response.warnings.join('\n')}`
       );
     }
-    const name = `${fileNameBase.replace(/\.[^.]+$/, '') || 'document'}.psd`;
+    const base = fileNameBase.replace(/\.[^.]+$/, '') || 'document';
+    const name = `${base}${intent === 'maximum-appearance' ? '-appearance' : ''}.psd`;
     return {
       file: new File([Uint8Array.from(response.bytes).buffer], name, { type: 'image/vnd.adobe.photoshop' }),
       warnings: response.warnings,

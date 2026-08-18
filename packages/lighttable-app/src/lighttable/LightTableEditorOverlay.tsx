@@ -4852,6 +4852,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     exportPng: handleExportPng,
     exportJpeg: handleExportJpeg,
     exportPsd: handleExportPsd,
+    exportPsdMaximumAppearance: handleExportPsdMaximumAppearance,
     handleFastFileInput: handleLocalFile,
     handlePrecisionFileInput: handleAdvancedLocalFile,
     chooseLocalFile,
@@ -4984,6 +4985,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
       exportJpeg: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportJpeg(); },
       exportPsd: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsd(); },
+      exportPsdMaximumAppearance: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsdMaximumAppearance(); },
       openFormatSupport: editorDialogs.openFormatSupport,
       pdfExportPreflight: () => {
         finishTextEditingRef.current();

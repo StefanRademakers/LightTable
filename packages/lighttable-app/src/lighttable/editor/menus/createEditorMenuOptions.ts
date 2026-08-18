@@ -77,6 +77,7 @@ export interface EditorMenuCommands {
   exportPng: () => void;
   exportJpeg: () => void;
   exportPsd: () => void;
+  exportPsdMaximumAppearance: () => void;
   pdfExportPreflight: () => void;
   openFormatSupport: () => void;
   copySelectedContent: () => void;
@@ -232,7 +233,8 @@ export const createEditorMenuOptions = (
         label: 'Export',
         children: [
           { value: 'export-jpeg', label: 'JPG...', disabled: !state.hasMetadata || state.saving, onClick: commands.exportJpeg },
-          { value: 'export-psd', label: 'Photoshop PSD...', disabled: !state.hasDocument || state.saving, onClick: commands.exportPsd },
+          { value: 'export-psd', label: 'Photoshop PSD (Editable)...', disabled: !state.hasDocument || state.saving, onClick: commands.exportPsd },
+          { value: 'export-psd-appearance', label: 'Photoshop PSD (Maximum Appearance)...', disabled: !state.hasDocument || state.saving, onClick: commands.exportPsdMaximumAppearance },
           { value: 'export-pdf', label: 'PDF...', disabled: !state.hasDocument || state.saving, onClick: commands.pdfExportPreflight },
           { value: 'format-support', label: 'Format Support...', separatorBefore: true, onClick: commands.openFormatSupport }
         ]

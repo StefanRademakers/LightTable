@@ -10,6 +10,7 @@ import { exportTextLayerToPsd } from '../../editor/psd/psdTextExportAdapter';
 import { exportVectorLayerToPsd } from '../../editor/psd/psdVectorExportAdapter';
 import { exportAdjustmentStackToPsd } from '../../editor/psd/psdAdjustmentExportAdapter';
 import { walkLayerTree } from '../../editor/document/layerTree';
+import type { PsdExportIntent } from './psdExportProtocol';
 
 export interface PsdExportPixelAsset {
   readonly layerId: LayerId;
@@ -66,8 +67,45 @@ export const projectDocumentToPsd = (
   document: ImageDocument,
   composite: PixelData,
   assets: readonly PsdExportPixelAsset[],
-  lutAssets: readonly PsdExportLutAsset[] = []
+  lutAssets: readonly PsdExportLutAsset[] = [],
+  intent: PsdExportIntent = 'editable'
 ): PsdExportProjectionResult => {
+  const imageResources: NonNullable<Psd['imageResources']> = {
+    captionDigest: 'LightTable PSD export',
+    resolutionInfo: {
+      horizontalResolution: document.resolutionPpi,
+      horizontalResolutionUnit: 'PPI',
+      widthUnit: 'Inches',
+      verticalResolution: document.resolutionPpi,
+      verticalResolutionUnit: 'PPI',
+      heightUnit: 'Inches'
+    }
+  };
+  if (intent === 'maximum-appearance') {
+    return {
+      psd: {
+        width: document.width,
+        height: document.height,
+        bitsPerChannel: 8,
+        colorMode: 3,
+        imageData: composite,
+        children: [{
+          id: numericLayerIdHash('lighttable:maximum-appearance'),
+          name: 'LightTable Appearance',
+          opacity: 1,
+          fillOpacity: 1,
+          blendMode: 'normal',
+          left: 0,
+          top: 0,
+          imageData: composite
+        }],
+        imageResources
+      },
+      warnings: [],
+      editableTextLayers: 0,
+      editableVectorLayers: 0
+    };
+  }
   const byLayer = new Map(assets.map((asset) => [asset.layerId, asset]));
   const byLut = new Map(lutAssets.map((asset) => [asset.lutId, asset.data]));
   const resolveColorLookup = (assetId: string) => {
@@ -242,17 +280,7 @@ export const projectDocumentToPsd = (
       ...(document.photoshopDocument?.engineData
         ? { engineData: document.photoshopDocument.engineData }
         : {}),
-      imageResources: {
-        captionDigest: 'LightTable PSD export',
-        resolutionInfo: {
-          horizontalResolution: document.resolutionPpi,
-          horizontalResolutionUnit: 'PPI',
-          widthUnit: 'Inches',
-          verticalResolution: document.resolutionPpi,
-          verticalResolutionUnit: 'PPI',
-          heightUnit: 'Inches'
-        }
-      }
+      imageResources
     },
     warnings,
     editableTextLayers,

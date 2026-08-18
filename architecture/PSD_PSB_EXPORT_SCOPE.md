@@ -2,9 +2,9 @@
 
 Status: PSD release candidate implemented, 2026-08-05; PSB remains gated.
 
-LightTable now writes the verified 8-bit RGB PSD subset through `Export
-Photoshop PSD...`. `Save LightTable` remains the native editable save operation;
-PSD export does not replace it or mark the native document clean.
+LightTable now writes two explicit 8-bit RGB PSD intents through the Export
+submenu. `Save LightTable` remains the native editable save operation; neither
+PSD export replaces it or marks the native document clean.
 
 ## First export milestone
 
@@ -21,12 +21,17 @@ canonical representation and a Photoshop reopen oracle:
   references survive Photoshop reopen without a semantic downgrade;
 - supported layer effects only after descriptor and rendered parity gates pass.
 
-The writer is fail-closed. Unsupported native adjustment layers, smart objects,
+The Editable writer is fail-closed. Unsupported native adjustment layers, smart objects,
 patterns, gradients, effects, text constructs, color modes or interleaving
-are collected during projection and stop the current editable export. A future
-preflight may offer an explicitly flattened deliverable, but LightTable does
-not silently rasterize individual unsupported layers while presenting the
-result as editable parity.
+are collected during projection and stop the current editable export.
+
+Maximum Appearance is the explicit alternative. It writes the authoritative
+rendered composite as one full-canvas raster layer named `LightTable Appearance`
+and retains no active Grade, Lens FX, adjustment, mask or layer descriptor that
+could apply processing twice. It deliberately sacrifices layer editability and
+uses an `-appearance.psd` filename suffix. Layer assets and LUT assets are not
+read back for this intent, because the one canonical composite is its complete
+contract.
 
 ## Preservation and round-trip policy
 
@@ -62,9 +67,10 @@ limits than Photoshop when those limits are disclosed before opening/export.
 - `Save LightTable`: editable native document.
 - `Quick Export PNG`: flattened PNG deliverable.
 - `Export PDF`: current preflighted PDF modes.
-- `Export Photoshop PSD...`: enabled for ready documents, runs the same
-  fail-closed projection used by command automation and never replaces the
-  native save command.
+- `Photoshop PSD (Editable)...`: enabled for ready documents and runs the same
+  fail-closed semantic projection used by command automation.
+- `Photoshop PSD (Maximum Appearance)...`: writes one exact rendered layer and
+  never presents that flattened result as editable parity.
 
 The runtime format-capability registry, File menu and Format Support dialog
 must derive the same availability and limitation text. Documentation alone

@@ -4,10 +4,13 @@ import type {
   LayerAssetBlobs
 } from '../../editor/persistence/layeredDocumentFormat';
 
+export type PsdExportIntent = 'editable' | 'maximum-appearance';
+
 export interface PsdExportRequest {
   readonly requestId: number;
   readonly document: ImageDocument;
   readonly composite: Blob;
+  readonly intent: PsdExportIntent;
   readonly layerAssets: readonly LayerAssetBlobs[];
   readonly colorLookupAssets: readonly ColorLookupAssetBlob[];
 }

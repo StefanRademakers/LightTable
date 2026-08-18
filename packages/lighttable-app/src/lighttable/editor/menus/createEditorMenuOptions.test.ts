@@ -222,13 +222,16 @@ describe('createEditorMenuOptions', () => {
     const options = createEditorMenuOptions('file', state(), labels, menuCommands);
     const children = options.find(({ value }) => value === 'export')?.children;
     expect(children?.map(({ label }) => label)).toEqual([
-      'JPG...', 'Photoshop PSD...', 'PDF...', 'Format Support...'
+      'JPG...', 'Photoshop PSD (Editable)...',
+      'Photoshop PSD (Maximum Appearance)...', 'PDF...', 'Format Support...'
     ]);
     children?.[0]?.onClick?.();
     children?.[1]?.onClick?.();
     children?.[2]?.onClick?.();
+    children?.[3]?.onClick?.();
     expect(menuCommands.exportJpeg).toHaveBeenCalledOnce();
     expect(menuCommands.exportPsd).toHaveBeenCalledOnce();
+    expect(menuCommands.exportPsdMaximumAppearance).toHaveBeenCalledOnce();
     expect(menuCommands.pdfExportPreflight).toHaveBeenCalledOnce();
   });
 

@@ -4,14 +4,22 @@ Status: release candidate, 2026-08-05.
 
 ## Product route
 
-`File > Export Photoshop PSD...` projects the canonical LightTable document in
-a lazy module worker and writes through the active host. Electron uses the
-native save route; the web host downloads the same bytes. Automation exposes
-the same operation as `file.exportPsd` and publishes a `psd-export` artifact.
+`File > Export > Photoshop PSD (Editable)...` projects the canonical LightTable
+document in a lazy module worker and writes through the active host. Electron
+uses the native save route; the web host downloads the same bytes. Automation
+exposes the same strict operation as `file.exportPsd` and publishes a
+`psd-export` artifact.
 
 The writer is an adapter. PSD-only descriptors are never renderer authority,
 and known lossy projections stop export before a file is handed to the user.
 The merged composite is always present, while supported layers remain editable.
+
+`Photoshop PSD (Maximum Appearance)...` is a separate, explicit intent for a
+document that cannot be represented honestly as editable PSD. It skips all
+layer/LUT readback and writes the already settled canonical composite once as
+`LightTable Appearance`. No processing descriptor survives above the baked
+pixels, so Grade and Lens FX cannot be applied twice. The resulting filename
+ends in `-appearance.psd`.
 
 ## Release-candidate coverage
 
@@ -61,7 +69,8 @@ The parameterized effects procedure and current residuals are documented in
 - PSD pattern-resource emission for pattern fills/styles;
 - newly authored arbitrary text-on-path TextFrameSet generation;
 - independent simultaneous user and vector mask export;
-- a user-facing compatibility preflight with an explicit flattened-copy choice;
+- a richer compatibility preflight explaining which editable constructs caused
+  the user to choose Maximum Appearance;
 - pattern-backed layer styles and the documented extreme spread/choke/bevel
   calibration cases.
 

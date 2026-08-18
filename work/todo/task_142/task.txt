@@ -158,3 +158,24 @@ in PSD. Verified modules remain editable, unsupported processing has a local and
 honestly named appearance fallback, masks/scope/order are preserved or reported,
 and both export intents avoid double application. Photoshop rebuilds after a
 lower-layer edit without exposing a hidden global-processing discrepancy.
+
+Implemented foundation - 18 August 2026
+========================================
+
+- Editable PSD remains fail-closed when an exact descriptor is unavailable.
+- Attached Photoshop-compatible adjustments are excluded from baked raster
+  pixels and emitted once as clipped editable layers; unsupported attached
+  processing remains locally baked, avoiding double application in both cases.
+- The product now exposes a separate `Photoshop PSD (Maximum Appearance)...`
+  export. It writes exactly one `LightTable Appearance` raster from the
+  canonical composite, emits no active processing descriptors and skips layer
+  and LUT readback. Its `-appearance.psd` suffix makes the loss of editability
+  visible outside the application.
+- Projection and ag-psd roundtrip tests prove that a document containing a
+  Grade Layer becomes one raster layer with no adjustment descriptor in this
+  intent. Editable projection remains the default for command automation.
+
+Still open: editable decomposition of compound Grade Layers, position-local
+fallbacks for unsupported free Grade/Lens FX Layers, masks/opacity/blend/group
+semantics for those projections, 16-bit writer support, and the version-pinned
+Photoshop rebuild matrix after task_203 restores the Adobe oracle.
