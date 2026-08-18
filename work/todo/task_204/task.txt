@@ -1,0 +1,91 @@
+Task 204 - Point Color Visualize Range as a node-input viewport diagnostic
+
+Goal
+====
+
+Implement an accurate Camera Raw-style Visualize Range mode for LightTable
+Point Color without contaminating document output, export, scopes, undo or the
+stored Grade recipe. The diagnostic must visualize the selected Point Color
+sample's actual H/S/L/Variance selection weight at the input of the Point Color
+processing node, not an approximation measured from the final composite.
+
+Why this is separate
+====================
+
+Point Color itself already processes up to eight samples in the shared
+`lt.color-mixer` module. A correct range preview crosses editor state, node
+evaluation and viewport presentation. Adding a final-output mask would be
+shorter but wrong whenever prior/later Grade modules, adjustment layers,
+opacity, masks or blend modes change the displayed color. This task is a
+standalone dependency of task_141's Point Color acceptance gate.
+
+Product behavior
+================
+
+- Show `Visualize Range` only when Point Color is selected and a sample exists.
+- The control is transient UI state; it is not serialized into LT/PSD recipes.
+- Enabling it renders the selected sample's scalar selection weight as a clear
+  grayscale range mask in the document viewport.
+- White means fully selected, black means excluded and gray shows feathering.
+- Range sliders update the mask continuously during pointer drag.
+- Changing the selected sample immediately changes the diagnostic.
+- Removing the selected sample, disabling Point Color, changing editor context,
+  hiding Properties, switching documents or closing the document exits the
+  diagnostic deterministically.
+- Export PNG/JPEG/PSD, thumbnails, scopes, histograms, sampling and Copy Merged
+  always use the real reconstructed image and never the diagnostic pixels.
+- Undo/redo changes authored Point Color data normally but the transient
+  preview itself creates no undo entry.
+
+Architecture
+============
+
+1. Extract the Point Color selection-weight math from the current shader into
+   one shared WGSL function used by both adjustment evaluation and preview.
+2. Make the processing evaluator expose the texture at the input boundary of
+   `lt.color-mixer`/Point Color without a CPU readback or duplicate document
+   reconstruction. Reuse a resident intermediate when available.
+3. Add a presentation-only GPU pass that consumes that node-input texture,
+   selected sample parameters and the shared weight function.
+4. Keep the preview state in the editor/renderer presentation contract, similar
+   in ownership to mask/channel isolation, not in BasicAdjustments.
+5. Invalidate only the viewport diagnostic for sample selection and range
+   changes. Do not dirty unrelated compositor stages or rebuild pipelines.
+6. Define deterministic precedence with existing Before/Difference, channel
+   isolation, mask isolation, selection overlays and transform overlays.
+
+Performance contract
+====================
+
+- No CPU pixel readback.
+- No per-drag pipeline creation or bind-group-layout creation.
+- No additional pass when Visualize Range is off.
+- No retained per-sample textures; one bounded presentation resource is enough.
+- Continuous 4K slider interaction must remain within the existing interaction
+  budget and issue every live GPU update.
+
+Tests
+=====
+
+- Unit-test shared range weights for hue wraparound, neutral chroma, exact
+  center, every range endpoint, Variance extremes and zero/maximum radii.
+- Renderer test: toggling preview invalidates viewport only.
+- Renderer test: exported and scoped textures remain unchanged while preview is
+  enabled.
+- Editor test: the control is disabled without a selected sample and exits on
+  sample removal/document switch.
+- Product-route automation: create two overlapping samples, enable preview,
+  drag H/S/L ranges and capture the viewport plus a simultaneous clean export.
+- Visual corpus: hue wedge, saturation/lightness grid, skin, red wraparound,
+  neutral ramp and overlapping samples.
+- Compare the final mask against current Camera Raw after task_203 provides a
+  safe version-pinned oracle; document any semantic difference.
+
+Definition of done
+==================
+
+The preview accurately represents the selected Point Color range at its node
+input, remains strictly presentation-only, survives all relevant context and
+interaction edge cases, costs nothing while disabled, passes automated and 4K
+performance checks, and has owner-reviewable contact sheets. Update task_141's
+Point Color matrix only after these gates pass.
