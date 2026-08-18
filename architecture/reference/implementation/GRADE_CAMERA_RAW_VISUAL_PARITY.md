@@ -13,6 +13,10 @@ The first oracle covers the `Light` section. Later sections should use the same
 isolation and evidence rules in this order: Color, Texture / Clarity / Dehaze,
 Detail, Color Mixer, Point Color, Color Grading and Custom Curves.
 
+Since the truthful processing-layer migration, the LightTable reference is a
+normal Grade Layer placed at the top of the root layer stack. It is global by
+position and never through a hidden Global Grade singleton.
+
 ## Protocol
 
 The reference host is Photoshop 2026 version 27.9.1 with Camera Raw 18.5. Every
@@ -44,6 +48,36 @@ npm run capture:camera-raw-grade-light-oracle
 npm run capture:lighttable-grade-light-oracle
 npm run analyze:grade-light-parity
 ```
+
+## Extended corpus and review tooling
+
+The versioned corpus manifest is `scripts/grade-camera-raw-corpus.json`. It
+covers generated luminance ramps, near-black/near-white steps, smooth color
+targets, skin patches, multiple spatial frequencies, deterministic luminance
+and chroma noise, low/high-key photographs, colorful/backlit photographs and
+a real 16-bit TIFF. Generated sources and the complete inventory—including
+content hashes, dimensions, profiles and bit depth—remain outside the
+repository under `D:\mediavibe\LightTableTests\GradeCameraRawCorpus`.
+
+Run:
+
+```text
+npm run prepare:grade-camera-raw-corpus
+npm run capture:grade-light-corpus
+npm run capture:grade-light-corpus -- --source=tonal-steps
+npm run contact-sheet:grade-parity -- --root=<one capture root>
+```
+
+The corpus runner is resumable by source; `--force` deliberately replaces
+existing Adobe and LightTable captures. Each control contact sheet shows the
+Camera Raw result, LightTable result, a four-times-amplified difference between
+their neutral-relative effects and a split view. These sheets are review
+evidence, not accepted visual baselines.
+
+The first new end-to-end tonal-steps run reconfirmed Photoshop 27.9.1 and
+Camera Raw 18.5. It measured 0.03% neutral RMSE. Previously accepted Contrast
+and Blacks remained close (maximum delta RMSE 0.62% and 0.40% respectively),
+while Highlights, Shadows and Whites remained open and structurally different.
 
 All six Camera Raw descriptors must produce a non-zero effect. The Camera Raw
 Filter Action Manager IDs are `Ex12`, `Cr12`, `Hi12`, `Sh12`, `Wh12` and

@@ -79,10 +79,13 @@ try {
   const documentId = opened.value?.documentId;
   if (!documentId) throw new Error('Grade Light source open did not return a document ID.');
   await driver.waitForDocument(documentId, 120_000);
-  let gradePanel = page.getByLabel('Global Grade properties', { exact: true }).last();
+  let gradePanel = page.getByLabel('Grade Layer properties', { exact: true }).last();
   if (!await gradePanel.isVisible().catch(() => false)) {
-    await page.getByRole('treeitem', { name: /Global Grade/ }).last().click();
-    gradePanel = page.getByLabel('Global Grade properties', { exact: true }).last();
+    const trigger = page.getByRole('button', { name: 'New fill or processing layer' });
+    await trigger.click();
+    await page.getByRole('menu', { name: 'New fill or processing layer' })
+      .getByRole('menuitem', { name: 'New Grade layer', exact: true }).click();
+    gradePanel = page.getByLabel('Grade Layer properties', { exact: true }).last();
   }
   await gradePanel.waitFor({ state: 'visible', timeout: 30_000 });
 
@@ -115,6 +118,6 @@ await writeFile(path.join(outputDirectory, 'capture-report.json'), `${JSON.strin
   generatedAt: new Date().toISOString(),
   section: suite.section,
   source,
-  isolation: 'One decoded source is reused; the prior control is verified at neutral before exactly one Light control is authored.',
+  isolation: 'One decoded source and one topmost Grade Layer are reused; the prior control is verified at neutral before exactly one Light control is authored.',
   cases: results
 }, null, 2)}\n`);

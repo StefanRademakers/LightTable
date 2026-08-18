@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "externalRoot": "D:\\mediavibe\\LightTableTests\\GradeCameraRawCorpus",
+  "requiredRoles": [
+    "luminance-ramp",
+    "near-clipping",
+    "smooth-gradient",
+    "color-target",
+    "frequency-detail",
+    "synthetic-noise",
+    "photograph-low-key",
+    "photograph-high-key",
+    "photograph-skin",
+    "photograph-colorful",
+    "precision-16-bit"
+  ],
+  "sources": [
+    {
+      "id": "grayscale-ramp",
+      "kind": "generated",
+      "generator": "grayscale-ramp",
+      "file": "grayscale-ramp.png",
+      "roles": ["luminance-ramp", "smooth-gradient"]
+    },
+    {
+      "id": "tonal-steps",
+      "kind": "generated",
+      "generator": "tonal-steps",
+      "file": "tonal-steps.png",
+      "roles": ["near-clipping", "luminance-ramp"]
+    },
+    {
+      "id": "color-target",
+      "kind": "generated",
+      "generator": "color-target",
+      "file": "color-target.png",
+      "roles": ["color-target", "smooth-gradient"]
+    },
+    {
+      "id": "frequency-detail",
+      "kind": "generated",
+      "generator": "frequency-detail",
+      "file": "frequency-detail.png",
+      "roles": ["frequency-detail"]
+    },
+    {
+      "id": "multiscale-noise",
+      "kind": "generated",
+      "generator": "multiscale-noise",
+      "file": "multiscale-noise.png",
+      "roles": ["synthetic-noise", "frequency-detail"]
+    },
+    {
+      "id": "precision-gradient-16",
+      "kind": "existing",
+      "file": "D:\\flowers_16bity.tif",
+      "roles": ["precision-16-bit", "smooth-gradient", "near-clipping"]
+    },
+    {
+      "id": "portrait-skin",
+      "kind": "existing",
+      "file": "D:\\people.jpg",
+      "roles": ["photograph-skin", "photograph-low-key"]
+    },
+    {
+      "id": "high-key-color",
+      "kind": "existing",
+      "file": "D:\\colors.png",
+      "roles": ["photograph-high-key", "photograph-colorful"]
+    },
+    {
+      "id": "low-key-scene",
+      "kind": "existing",
+      "file": "D:\\2NW1SHS2.jpg",
+      "roles": ["photograph-low-key", "photograph-skin"]
+    },
+    {
+      "id": "backlit-scene",
+      "kind": "existing",
+      "file": "D:\\kantoor_still_shot12.png",
+      "roles": ["photograph-high-key", "photograph-colorful"]
+    }
+  ]
+}
