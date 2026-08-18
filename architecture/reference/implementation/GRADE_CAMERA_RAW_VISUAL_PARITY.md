@@ -367,6 +367,31 @@ strong. These single-target figures are characterization only:
 | Color Detail | 0.2804 | 1.971 | 2.20% |
 | Color Smoothness | -0.0086 | 2.407 | 0.40% |
 
-No renderer constant was changed from this one source. The full corpus must
-establish whether the gaps belong to scale selection, threshold response,
-edge masks or reconstruction before an implementation change is accepted.
+No renderer constant was changed from this one source. The complete ten-source
+corpus subsequently produced the following aggregate characterization. A
+control is counted active only where Camera Raw changed the source, so the
+three achromatic targets do not contaminate the color-noise figures.
+
+| Control | Active sources | Minimum source correlation | Mean magnitude LT / ACR | Worst delta RMSE |
+| --- | ---: | ---: | ---: | ---: |
+| Sharpening / Amount | 10/10 | 0.0945 | 0.109 | 12.35% |
+| Sharpening / Radius | 10/10 | 0.0880 | 0.205 | 8.90% |
+| Sharpening / Detail | 10/10 | 0.0619 | 0.113 | 6.38% |
+| Sharpening / Masking | 10/10 | 0.2123 | 0.139 | 10.49% |
+| Noise Reduction / Luminance | 10/10 | -0.0056 | 1.736 | 6.57% |
+| Noise Reduction / Luminance Detail | 10/10 | 0.1540 | 0.844 | 9.37% |
+| Noise Reduction / Luminance Contrast | 10/10 | 0.0691 | 0.735 | 0.40% |
+| Color Noise Reduction / Color | 7/10 | 0.1545 | 0.805 | 26.46% |
+| Color Noise Reduction / Detail | 7/10 | 0.1694 | 1.250 | 17.10% |
+| Color Noise Reduction / Smoothness | 7/10 | -0.0419 | 0.820 | 0.90% |
+
+This rules out a responsible scalar-only fix. LightTable Sharpening is much
+weaker on average, but its per-source magnitude spans 0.02–0.49 of Camera Raw
+and its minimum correlations are low. Increasing Amount would amplify a
+different spatial response and worsen halos on sources that already respond
+more strongly. Luminance and color noise reduction are closer in aggregate
+strength, but their remaining low correlations and broad source-dependent
+ranges locate the gap in scale thresholds, edge/chroma discrimination and
+reconstruction. The next accepted Detail renderer change therefore requires a
+kernel/model comparison and new before/after corpus evidence; none of the
+current constants is retuned from these measurements alone.

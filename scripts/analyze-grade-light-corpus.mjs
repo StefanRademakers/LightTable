@@ -8,6 +8,10 @@ const manifest = JSON.parse(await readFile(
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
 const sectionArgument = process.argv.find((value) => value.startsWith('--section='));
 const section = sectionArgument?.slice('--section='.length) ?? 'light';
+const casesManifest = JSON.parse(await readFile(
+  path.join(import.meta.dirname, `grade-${section}-parity-cases.json`), 'utf8'
+));
+const controlDefinitions = new Map(casesManifest.controls.map((control) => [control.key, control]));
 const root = path.resolve(rootArgument?.slice('--root='.length) ?? manifest.externalRoot);
 const captureRoot = path.join(root, 'captures', section);
 const sourceDirectories = await readdir(captureRoot, { withFileTypes: true });
@@ -72,6 +76,7 @@ const aggregate = [...controls].map(([key, entries]) => {
   return {
     key,
     label: entries[0].control.label,
+    subgroupLabel: controlDefinitions.get(key)?.subgroupLabel ?? null,
     sources: activeEntries.length,
     inactiveSources,
     minimumSourceCorrelation: Math.min(...activeEntries.map(({ control }) => control.summary.meanCorrelation)),
@@ -106,11 +111,11 @@ const markdown = [
   '',
   '| Control | Active sources | Min source corr. | Mean magnitude | Negative magnitude range | Positive magnitude range | Worst RMSE | Worst source |',
   '| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
-  ...aggregate.map((control) => `| ${control.label} | ${control.sources}/${reports.length} | ${control.minimumSourceCorrelation.toFixed(4)} | ${control.meanSourceMagnitudeRatio.toFixed(3)} | ${control.signs.negative?.magnitudeRange.map((value) => value.toFixed(2)).join('–') ?? '—'} | ${control.signs.positive?.magnitudeRange.map((value) => value.toFixed(2)).join('–') ?? '—'} | ${percent(control.maximumDeltaRmse)} | ${control.worstSource} |`),
+  ...aggregate.map((control) => `| ${control.subgroupLabel ? `${control.subgroupLabel} / ` : ''}${control.label} | ${control.sources}/${reports.length} | ${control.minimumSourceCorrelation.toFixed(4)} | ${control.meanSourceMagnitudeRatio.toFixed(3)} | ${control.signs.negative?.magnitudeRange.map((value) => value.toFixed(2)).join('–') ?? '—'} | ${control.signs.positive?.magnitudeRange.map((value) => value.toFixed(2)).join('–') ?? '—'} | ${percent(control.maximumDeltaRmse)} | ${control.worstSource} |`),
   '',
   ...aggregate
     .filter((control) => control.inactiveSources.length)
-    .map((control) => `${control.label}: Camera Raw descriptor inactive on ${control.inactiveSources.join(', ')}.`),
+    .map((control) => `${control.subgroupLabel ? `${control.subgroupLabel} / ` : ''}${control.label}: Camera Raw descriptor inactive on ${control.inactiveSources.join(', ')}.`),
   '',
   'Magnitude ranges spanning substantially different ratios across sources are evidence against a fixed scalar correction.',
   ''
