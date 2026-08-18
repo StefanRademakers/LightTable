@@ -183,7 +183,7 @@ describe('PSD export projection', () => {
     expect(projection.psd.children?.[1]?.children).toBeUndefined();
   });
 
-  it('moves Curves Grade opacity, blend, clipping and mask to its editable child', () => {
+  it('moves Curves Grade opacity, blend and mask to its editable child', () => {
     const document = createImageDocument('Grade boundary', 2, 2, 'background');
     const settings = createDefaultAdjustments();
     settings.curves.master = [{ x: 0, y: 0 }, { x: 1, y: 0.75 }];
@@ -198,7 +198,7 @@ describe('PSD export projection', () => {
     grade.opacity = 0.42;
     grade.fillOpacity = 0.3;
     grade.blendMode = 'multiply';
-    grade.clipping = true;
+    grade.clipping = false;
     if (!grade.mask) throw new Error('Expected the Grade fixture to own a mask.');
     grade.mask.revision = 1;
     grade.mask.pixelRevision = 1;
@@ -219,7 +219,7 @@ describe('PSD export projection', () => {
     });
     expect(child).toMatchObject({
       name: 'Curves', opacity: 0.42, fillOpacity: 1,
-      blendMode: 'multiply', clipping: true,
+      blendMode: 'multiply', clipping: false,
       mask: {
         userMaskDensity: 0.65,
         userMaskFeather: 2,
@@ -239,7 +239,7 @@ describe('PSD export projection', () => {
     expect(decoded.children?.[1]).toMatchObject({
       blendMode: 'pass through', opacity: 1,
       children: [{
-        name: 'Curves', blendMode: 'multiply', clipping: true,
+        name: 'Curves', blendMode: 'multiply', clipping: false,
         adjustment: { type: 'curves' },
         mask: { userMaskFeather: 2 }
       }]
@@ -247,6 +247,30 @@ describe('PSD export projection', () => {
     const decodedChild = decoded.children?.[1]?.children?.[0];
     expect(decodedChild?.opacity).toBeCloseTo(0.42, 2);
     expect(decodedChild?.mask?.userMaskDensity).toBeCloseTo(0.65, 2);
+  });
+
+  it('keeps a clipped Grade Curves layer fail-closed until cross-folder clipping is proven', () => {
+    const document = createImageDocument('Clipped Grade', 2, 2, 'background');
+    const settings = createDefaultAdjustments();
+    settings.curves.master = [{ x: 0, y: 0 }, { x: 1, y: 0.75 }];
+    const authored = createAdjustmentLayer(
+      document,
+      createAdjustmentStackFromBasicAdjustments(settings),
+      'Clipped Grade',
+      undefined,
+      'grade'
+    );
+    authored.layers[1]!.clipping = true;
+
+    const projection = projectDocumentToPsd(authored, pixels(2, 2), [{
+      layerId: authored.layers[0]!.id,
+      pixels: pixels(2, 2)
+    }]);
+
+    expect(projection.blockingWarnings).toContain(
+      'layers[1]: this Grade Layer contains processing or layer settings without a proven editable Photoshop projection.'
+    );
+    expect(projection.psd.children?.[1]?.children).toBeUndefined();
   });
 
   it('keeps an editable Grade Curves folder at its exact root sibling position', () => {

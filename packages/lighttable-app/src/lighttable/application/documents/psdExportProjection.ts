@@ -224,6 +224,7 @@ export const projectDocumentToPsd = (
           && node.mask.feather === 0);
         const maskAvailable = !node.mask || maskIsPristineWhite || Boolean(asset?.mask);
         const usesSafePassThroughBoundary = maskAvailable
+          && !node.clipping
           && (!node.styleStack.enabled
             || !node.styleStack.effects.some((effect) => effect.enabled));
         const modules = usesSafePassThroughBoundary
@@ -250,7 +251,7 @@ export const projectDocumentToPsd = (
               opacity: node.opacity,
               fillOpacity: 1,
               blendMode: psdBlendMode(node.blendMode),
-              clipping: node.clipping,
+              clipping: false,
               mask: maskIsPristineWhite ? undefined : common.mask,
               adjustment: module.adjustment,
               timestamp: node.modifiedAt / 1000

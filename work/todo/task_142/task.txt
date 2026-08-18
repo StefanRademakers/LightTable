@@ -176,11 +176,12 @@ Implemented foundation - 18 August 2026
   intent. Editable projection remains the default for command automation.
 - A Grade Layer with only native `lt.curves` authored now projects at its exact
   tree position as a collapsed pass-through folder containing one editable
-  Photoshop Curves adjustment. Its wrapper is neutral; opacity, blend mode,
-  clipping and an authored raster mask are projected onto the single Curves
-  child. The no-op initial white mask is omitted to avoid Photoshop group
-  isolation. Active Layer Styles, unavailable mask pixels and unsupported
-  modules still stop Editable export.
+  Photoshop Curves adjustment. Its wrapper is neutral; opacity, blend mode and
+  an authored raster mask are projected onto the single Curves child. The no-op
+  initial white mask is omitted to avoid Photoshop group isolation. Clipping
+  remains fail-closed until cross-folder clipping against an external base is
+  proven in Photoshop. Active Layer Styles, unavailable mask pixels and
+  unsupported modules also stop Editable export.
 - PSD compatibility findings are now structured with a stable code, tree path
   and severity. Appearance-preserving losses of editability no longer abort an
   Editable export: baked attached/local processing, Face Warp, raster-backed

@@ -33,10 +33,12 @@ A Curves-only native Grade Layer is the first verified compound-layer
 decomposition. It becomes a collapsed pass-through folder at the exact tree
 position with one editable Photoshop Curves child. Pass-through is required so
 the child affects the same lower sibling composite as the LightTable processing
-layer. The wrapper stays neutral; opacity, blend mode, clipping and a non-neutral
-raster mask move to that single Curves child and survive an ag-psd roundtrip.
-The no-op initial white mask is omitted. Active Layer Styles, unavailable mask
-pixels or any other authored Grade module remain fail-closed.
+layer. The wrapper stays neutral; opacity, blend mode and a non-neutral raster
+mask move to that single Curves child and survive an ag-psd roundtrip. Clipping
+remains gated until Photoshop proves that a child inside the wrapper can retain
+the external clipping base.
+The no-op initial white mask is omitted. Clipping, active Layer Styles,
+unavailable mask pixels or any other authored Grade module remain fail-closed.
 
 Maximum Appearance is the explicit alternative. It writes the authoritative
 rendered composite as one full-canvas raster layer named `LightTable Appearance`
