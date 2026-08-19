@@ -33,3 +33,16 @@ Definition of done
 Automatic Agent Access never publishes a known Fetch-forbidden port, lifecycle
 tests prove rejected listeners are closed, desktop typecheck/tests pass and the
 task moves to `work/done` in the focused implementation commit.
+
+Completion evidence (2026-08-19)
+================================
+
+- Centralized the Fetch/Chromium forbidden-port policy used by Agent Access.
+- Automatic selection now makes up to eight bounded attempts. A listener on a
+  forbidden assigned port is fully closed before a fresh server is created;
+  explicit owner-selected ports retain their previous behavior.
+- Added a deterministic automatic-port seam and lifecycle test proving the
+  rejected listener can immediately be rebound before the accepted bridge is
+  shut down.
+- Desktop typecheck passed. The focused bridge suite passed 7 tests; the full
+  desktop suite passed three consecutive runs (32 files, 137 tests each).

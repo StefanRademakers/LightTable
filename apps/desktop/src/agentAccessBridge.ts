@@ -27,12 +27,31 @@ export type AgentAccessRendererInvoker = (method: string, parameters: unknown) =
 
 const INVOKE_BODY_LIMIT = 1024 * 1024;
 const ARTIFACT_BODY_LIMIT = 32 * 1024 * 1024;
+const AUTOMATIC_PORT_ATTEMPTS = 8;
+// Fetch Standard bad-port list, mirrored by Chromium and Node/Undici. Agent
+// Access clients use Fetch, so publishing one of these listening ports creates
+// a bridge that is healthy at the TCP layer but unreachable by its clients.
+const FETCH_FORBIDDEN_PORTS = new Set([
+  1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77,
+  79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123,
+  135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530,
+  531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719,
+  1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666,
+  6667, 6668, 6669, 6679, 6697, 10080
+]);
 const INVOKE_METHODS = new Set([
   'workspace.query', 'document.query', 'layer.list', 'layer.effects', 'text.query',
   'vector.query', 'command.capabilities', 'task.query', 'task.events',
   'artifact.list', 'artifact.query', 'artifact.release', 'gesture.begin',
   'gesture.update', 'gesture.finish', 'command.execute'
 ]);
+
+export const isFetchForbiddenPort = (port: number): boolean => FETCH_FORBIDDEN_PORTS.has(port);
+
+export interface AgentAccessBridgeOptions {
+  /** Test seam for deterministic automatic-port lifecycle coverage. */
+  readonly automaticPortCandidates?: readonly number[];
+}
 
 const json = (response: ServerResponse, status: number, value: unknown): void => {
   const bytes = Buffer.from(JSON.stringify(value));
@@ -79,7 +98,8 @@ export class AgentAccessBridge {
     private readonly credentialStore: AgentAccessCredentialStore,
     private readonly invokeRenderer: AgentAccessRendererInvoker,
     private readonly version: string,
-    private readonly capabilities: readonly string[]
+    private readonly capabilities: readonly string[],
+    private readonly options: AgentAccessBridgeOptions = {}
   ) {}
 
   status(): AgentAccessStatus {
@@ -104,47 +124,64 @@ export class AgentAccessBridge {
     }
     this.publish({ supported: true, enabled: false, state: 'starting' });
     this.credentials = await this.credentialStore.loadOrCreate();
-    const server = createServer((request, response) => void this.handle(request, response));
-    server.on('connection', (socket) => {
-      this.sockets.add(socket);
-      socket.once('close', () => this.sockets.delete(socket));
-    });
-    try {
-      await new Promise<void>((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(port, '127.0.0.1', resolve);
+    const automatic = port === 0;
+    const candidates = this.options.automaticPortCandidates ?? [];
+    for (let attempt = 0; attempt < (automatic ? AUTOMATIC_PORT_ATTEMPTS : 1); attempt += 1) {
+      const server = createServer((request, response) => void this.handle(request, response));
+      server.on('connection', (socket) => {
+        this.sockets.add(socket);
+        socket.once('close', () => this.sockets.delete(socket));
       });
-      const address = server.address();
-      if (!address || typeof address === 'string') throw new Error('Local bridge address is unavailable.');
-      this.server = server;
-      return this.publish({
-        supported: true, enabled: true, state: 'running',
-        address: `http://127.0.0.1:${address.port}`, port: address.port,
-        deviceId: this.credentials.deviceId, token: this.credentials.token
-      });
-    } catch (reason) {
-      server.closeAllConnections();
-      server.close();
-      return this.publish({
-        supported: true, enabled: false, state: 'error',
-        deviceId: this.credentials.deviceId,
-        error: reason instanceof Error ? reason.message : String(reason)
-      });
+      try {
+        const candidate = automatic ? (candidates[attempt] ?? 0) : port;
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', reject);
+          server.listen(candidate, '127.0.0.1', resolve);
+        });
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Local bridge address is unavailable.');
+        if (automatic && isFetchForbiddenPort(address.port)) {
+          await this.closeServer(server);
+          continue;
+        }
+        this.server = server;
+        return this.publish({
+          supported: true, enabled: true, state: 'running',
+          address: `http://127.0.0.1:${address.port}`, port: address.port,
+          deviceId: this.credentials.deviceId, token: this.credentials.token
+        });
+      } catch (reason) {
+        server.closeAllConnections();
+        server.close();
+        return this.publish({
+          supported: true, enabled: false, state: 'error',
+          deviceId: this.credentials.deviceId,
+          error: reason instanceof Error ? reason.message : String(reason)
+        });
+      }
     }
+    return this.publish({
+      supported: true, enabled: false, state: 'error',
+      deviceId: this.credentials.deviceId,
+      error: 'Unable to select a Fetch-compatible local port.'
+    });
   }
 
   async disable(): Promise<AgentAccessStatus> {
     const server = this.server;
     this.server = null;
-    if (server) {
-      await new Promise<void>((resolve) => {
-        server.close(() => resolve());
-        for (const socket of this.sockets) socket.destroy();
-      });
-    }
+    if (server) await this.closeServer(server);
     return this.publish({
       supported: true, enabled: false, state: 'stopped',
       ...(this.credentials ? { deviceId: this.credentials.deviceId } : {})
+    });
+  }
+
+  private closeServer(server: Server): Promise<void> {
+    return new Promise((resolve) => {
+      server.close(() => resolve());
+      server.closeAllConnections();
+      for (const socket of this.sockets) socket.destroy();
     });
   }
 

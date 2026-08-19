@@ -1,6 +1,10 @@
 import { createServer } from 'node:http';
 import { describe, expect, it } from 'vitest';
-import { AgentAccessBridge, type AgentAccessCredentialStore } from './agentAccessBridge';
+import {
+  AgentAccessBridge,
+  isFetchForbiddenPort,
+  type AgentAccessCredentialStore
+} from './agentAccessBridge';
 
 const credentials = { deviceId: 'a'.repeat(24), token: 't'.repeat(43) };
 const store = (): AgentAccessCredentialStore => ({
@@ -9,6 +13,31 @@ const store = (): AgentAccessCredentialStore => ({
 });
 
 describe('AgentAccessBridge', () => {
+  it('recognizes Fetch-forbidden ports without treating normal app ports as unsafe', () => {
+    expect(isFetchForbiddenPort(6000)).toBe(true);
+    expect(isFetchForbiddenPort(6667)).toBe(true);
+    expect(isFetchForbiddenPort(5174)).toBe(false);
+    expect(isFetchForbiddenPort(49_152)).toBe(false);
+  });
+
+  it('closes and replaces a Fetch-forbidden automatic listener before publishing', async () => {
+    const forbiddenPort = 6667;
+    const bridge = new AgentAccessBridge(store(), async () => null, '0.1.0', [], {
+      automaticPortCandidates: [forbiddenPort, 0]
+    });
+    const status = await bridge.enable();
+    expect(status).toMatchObject({ enabled: true, state: 'running' });
+    expect(status.port).not.toBe(forbiddenPort);
+
+    const replacement = createServer();
+    await new Promise<void>((resolve, reject) => {
+      replacement.once('error', reject);
+      replacement.listen(forbiddenPort, '127.0.0.1', resolve);
+    });
+    await new Promise<void>((resolve) => replacement.close(() => resolve()));
+    await bridge.disable();
+  });
+
   it('binds loopback, exposes only public health metadata and invokes an authenticated driver', async () => {
     const calls: Array<{ method: string; parameters: unknown }> = [];
     const bridge = new AgentAccessBridge(store(), async (method, parameters) => {
