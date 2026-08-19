@@ -64,6 +64,7 @@
     "smoke:desktop:diagnostics": "node scripts/smoke-desktop-diagnostics.mjs",
     "smoke:desktop:diagnostics:build": "npm run package:desktop:verify && npm run smoke:desktop:diagnostics --",
     "smoke:desktop:accessibility": "node scripts/smoke-desktop-accessibility.mjs",
+    "smoke:desktop:source-save": "node scripts/smoke-desktop-source-save.mjs",
     "smoke:desktop:accessibility:build": "npm run package:desktop:verify && npm run smoke:desktop:accessibility --",
     "smoke:desktop:recents": "node scripts/smoke-desktop-recents.mjs",
     "smoke:desktop:recents:build": "npm run package:desktop:verify && npm run smoke:desktop:recents --",

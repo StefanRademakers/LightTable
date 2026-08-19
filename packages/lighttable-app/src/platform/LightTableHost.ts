@@ -38,6 +38,11 @@ export interface LightTableMediaBrowser {
 export interface LightTableSaveRequest {
   file: File;
   recipe: unknown;
+  /** Replace only the exact desktop source previously authorized by an open operation. */
+  replaceSource?: {
+    readonly path: string;
+    readonly format: 'png' | 'jpeg';
+  };
   projectManifestPath?: string;
   transaction?: {
     readonly id: string;

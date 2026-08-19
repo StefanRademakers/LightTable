@@ -44,6 +44,10 @@ export interface DesktopFilePayload {
 export interface DesktopSavePayload {
   suggestedName: string;
   bytes: Uint8Array;
+  replaceSource?: {
+    readonly path: string;
+    readonly format: 'png' | 'jpeg';
+  };
   projectManifestPath?: string;
   transaction?: {
     readonly id: string;

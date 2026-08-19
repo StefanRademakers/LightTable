@@ -32,6 +32,7 @@ import type { LightTableRecipe } from '../../lightTableRecipe';
 import type { BasicAdjustments } from '../../types';
 import type { LightTableSaveResult } from '../../../platform/LightTableHost';
 import { executeDocumentSaveTransaction } from '../../application/documents/documentSaveTransaction';
+import { planSourceFormatSave } from '../../application/documents/planSourceFormatSave';
 
 export interface DocumentFileCommandsOptions {
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
@@ -40,6 +41,7 @@ export interface DocumentFileCommandsOptions {
   readonly commandHistory: DocumentCommandHistory;
   readonly effectiveSourceFileKey: string | null;
   readonly fileNameBase: string;
+  readonly sourceFile: File | null;
   readonly hasMetadata: boolean;
   readonly getDocument: () => ImageDocument | null;
   readonly getRenderer: () => DocumentExportRenderer | null;
@@ -60,11 +62,13 @@ export interface DocumentFileCommandsOptions {
   readonly cancelAutoAlign: () => void;
   readonly onSave: (
     file: File,
-    recipe: LightTableRecipe,
-    transaction: { readonly id: string; readonly documentId: string; readonly revision: number }
+    recipe: LightTableRecipe | null,
+    transaction: { readonly id: string; readonly documentId: string; readonly revision: number },
+    replaceSource?: { readonly path: string; readonly format: 'png' | 'jpeg' }
   ) => Promise<LightTableSaveResult> | LightTableSaveResult;
   readonly onExportFile?: (file: File) => Promise<unknown> | unknown;
   readonly getDocumentRevision?: () => number;
+  readonly getIsDirty?: () => boolean;
   readonly commitSavedRevision?: (revision: number) => void;
   readonly onSaveCommitted?: () => Promise<void> | void;
   readonly onRequestOpenWorkspaceDocument?: (
@@ -120,6 +124,12 @@ const encodeJpegFromPng = async (png: Blob): Promise<Blob> => {
   }
 };
 
+type PreparedDocumentSave = {
+  readonly file: File;
+  readonly recipe: LightTableRecipe | null;
+  readonly replaceSource?: { readonly path: string; readonly format: 'png' | 'jpeg' };
+};
+
 /**
  * Owns File-menu orchestration for one document view.
  *
@@ -161,6 +171,26 @@ export const useDocumentFileCommands = (
     const current = optionsRef.current;
     if (!current.hasMetadata || !current.effectiveSourceFileKey
       || savingRef.current) return;
+    if (current.getIsDirty && !current.getIsDirty()) {
+      const cleanDocument = current.getDocument();
+      const sourcePath = current.sourceFile
+        ? (current.sourceFile as File & { readonly lightTableSourcePath?: string })
+          .lightTableSourcePath
+        : undefined;
+      if (cleanDocument && planSourceFormatSave({
+        document: cleanDocument,
+        source: current.sourceFile ? {
+          name: current.sourceFile.name,
+          type: current.sourceFile.type,
+          sourcePath
+        } : null,
+        flatAdjustments: current.getFlatAdjustments(),
+        documentAdjustments: current.getDocumentAdjustments()
+      }).kind === 'replace-source') {
+        current.setStatus?.('No changes to save');
+        return;
+      }
+    }
     savingRef.current = true;
     setSaving(true);
     current.setError(null);
@@ -182,12 +212,49 @@ export const useDocumentFileCommands = (
           isCurrent: () => task.isCurrent()
             && current.commandHistory.getSnapshot().currentStateId === historyRevision
             && (current.getDocumentRevision?.() ?? historyRevision) === documentRevision,
-          prepare: exportOutput,
-          buildRequest: (output) => ({ file: output.file, recipe: output.recipe }),
+          prepare: async (): Promise<PreparedDocumentSave> => {
+            const document = current.getDocument();
+            const renderer = current.getRenderer();
+            if (!document || !renderer) throw new Error('LightTable is not ready yet.');
+            const sourcePath = current.sourceFile
+              ? (current.sourceFile as File & { readonly lightTableSourcePath?: string })
+                .lightTableSourcePath
+              : undefined;
+            const plan = planSourceFormatSave({
+              document,
+              source: current.sourceFile ? {
+                name: current.sourceFile.name,
+                type: current.sourceFile.type,
+                sourcePath
+              } : null,
+              flatAdjustments: current.getFlatAdjustments(),
+              documentAdjustments: current.getDocumentAdjustments()
+            });
+            if (plan.kind === 'replace-source') {
+              const png = await renderer.exportPng();
+              const blob = plan.format === 'jpeg' ? await encodeJpegFromPng(png) : png;
+              return {
+                file: new File([blob], plan.sourceName, { type: plan.mediaType }),
+                recipe: null,
+                replaceSource: { path: plan.sourcePath, format: plan.format }
+              };
+            }
+            const output = await exportOutput();
+            return {
+              file: output.file,
+              recipe: output.recipe
+            };
+          },
+          buildRequest: (output) => ({
+            file: output.file,
+            recipe: output.recipe,
+            replaceSource: output.replaceSource
+          }),
           write: (request) => Promise.resolve(current.onSave(
             request.file,
-            request.recipe as LightTableRecipe,
-            request.transaction!
+            request.recipe as LightTableRecipe | null,
+            request.transaction!,
+            request.replaceSource
           )),
           commit: () => {
             if (current.commitSavedRevision) current.commitSavedRevision(documentRevision);

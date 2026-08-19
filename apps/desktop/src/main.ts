@@ -15,6 +15,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DesktopSavePayload } from './desktopBridge';
+import { SourceReplacementAuthority } from './sourceReplacementAuthority';
 import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
 import {
   activateProjectAssetCatalog,
@@ -376,12 +377,22 @@ const rememberRecentProject = (project: DesktopProjectSummary): Promise<void> =>
     openedAt: Date.now()
   })));
 
-const readDesktopFilePayload = async (filePath: string) => ({
-  name: path.basename(filePath),
-  type: desktopMediaTypeForFileName(filePath),
-  bytes: new Uint8Array(await readFile(filePath)),
-  sourcePath: path.resolve(filePath)
-});
+const sourceReplacementAuthority = new SourceReplacementAuthority();
+
+const readDesktopFilePayload = async (filePath: string) => {
+  const sourcePath = path.resolve(filePath);
+  const sourceStats = await stat(sourcePath);
+  sourceReplacementAuthority.authorize(sourcePath, {
+    size: sourceStats.size,
+    modifiedAtMs: sourceStats.mtimeMs
+  });
+  return {
+    name: path.basename(sourcePath),
+    type: desktopMediaTypeForFileName(sourcePath),
+    bytes: new Uint8Array(await readFile(sourcePath)),
+    sourcePath
+  };
+};
 
 const ISOLATION_HEADERS = {
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -1849,6 +1860,11 @@ void app.whenReady().then(async () => {
       typeof payload.suggestedName !== 'string' ||
       !(payload.bytes instanceof Uint8Array) ||
       payload.bytes.byteLength > 2_147_483_647 ||
+      (payload.replaceSource !== undefined && (
+        !payload.replaceSource
+        || typeof payload.replaceSource.path !== 'string'
+        || (payload.replaceSource.format !== 'png' && payload.replaceSource.format !== 'jpeg')
+      )) ||
       (payload.projectManifestPath !== undefined && (
         typeof payload.projectManifestPath !== 'string'
         || payload.projectManifestPath.length > 32_768
@@ -1864,31 +1880,52 @@ void app.whenReady().then(async () => {
       throw new Error('Invalid LightTable save request.');
     }
 
-    const options: Electron.SaveDialogOptions = {
-      title: 'Save from LightTable',
-      defaultPath: payload.suggestedName
-    };
-    const automationSaveFile = process.env.LIGHTTABLE_AUTOMATION_SAVE_FILE;
-    const result = automationSaveFile
-      ? { canceled: false, filePath: path.resolve(automationSaveFile) }
-      : mainWindow
-        ? await dialog.showSaveDialog(mainWindow, options)
-        : await dialog.showSaveDialog(options);
-    if (result.canceled || !result.filePath) return { status: 'canceled' };
     try {
+      let targetPath: string;
+      if (payload.replaceSource) {
+        const sourceStats = await stat(payload.replaceSource.path);
+        targetPath = sourceReplacementAuthority.resolve(payload.replaceSource, {
+          size: sourceStats.size,
+          modifiedAtMs: sourceStats.mtimeMs
+        });
+      } else {
+        const options: Electron.SaveDialogOptions = {
+          title: 'Save from LightTable',
+          defaultPath: payload.suggestedName
+        };
+        const automationSaveFile = process.env.LIGHTTABLE_AUTOMATION_SAVE_FILE;
+        const result = automationSaveFile
+          ? { canceled: false, filePath: path.resolve(automationSaveFile) }
+          : mainWindow
+            ? await dialog.showSaveDialog(mainWindow, options)
+            : await dialog.showSaveDialog(options);
+        if (result.canceled || !result.filePath) return { status: 'canceled' };
+        targetPath = result.filePath;
+      }
       const committed = await atomicWriteFile({
-        targetPath: result.filePath,
+        targetPath,
         bytes: payload.bytes
       });
+      if (payload.replaceSource) {
+        try {
+          const savedStats = await stat(targetPath);
+          sourceReplacementAuthority.authorize(targetPath, {
+            size: savedStats.size,
+            modifiedAtMs: savedStats.mtimeMs
+          });
+        } catch (reason) {
+          console.warn('[LightTable desktop] Saved the source but could not refresh its save authority.', reason);
+        }
+      }
       try {
-        await rememberRecentFile(result.filePath);
+        await rememberRecentFile(targetPath);
       } catch (reason) {
         console.warn('[LightTable desktop] Saved the document but could not update recents.', reason);
       }
       if (payload.projectManifestPath) {
         scheduleSavedProjectAsset({
           manifestPath: payload.projectManifestPath,
-          filePath: result.filePath
+          filePath: targetPath
         });
       }
       return { status: 'committed', durability: committed.durability };

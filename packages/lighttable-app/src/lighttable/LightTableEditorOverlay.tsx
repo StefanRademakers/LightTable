@@ -432,8 +432,9 @@ export interface LightTableEditorOverlayProps {
   onClose: () => void;
   onSave: (
     file: File,
-    recipe: LightTableRecipe,
-    transaction: { readonly id: string; readonly documentId: string; readonly revision: number }
+    recipe: LightTableRecipe | null,
+    transaction: { readonly id: string; readonly documentId: string; readonly revision: number },
+    replaceSource?: { readonly path: string; readonly format: 'png' | 'jpeg' }
   ) => Promise<LightTableSaveResult> | LightTableSaveResult;
   onExportFile?: (file: File) => Promise<unknown> | unknown;
   workspaceDocumentId?: string;
@@ -4948,6 +4949,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commandHistory,
     effectiveSourceFileKey,
     fileNameBase,
+    sourceFile: initialSourceBlob instanceof File ? initialSourceBlob : null,
     hasMetadata: Boolean(metadata),
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
@@ -4973,6 +4975,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     onExportFile,
     getDocumentRevision: () => documentSession?.getSnapshot().documentRevision
       ?? commandHistory.getSnapshot().currentStateId,
+    getIsDirty: () => documentSession?.getSnapshot().dirty
+      ?? commandHistory.getSnapshot().dirty,
     commitSavedRevision: (revision) => {
       if (documentSession) documentSession.markSaved(revision);
       else commandHistory.markSaved();

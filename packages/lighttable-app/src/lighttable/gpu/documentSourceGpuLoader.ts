@@ -85,7 +85,16 @@ export class DocumentSourceGpuLoader {
           name,
           width: descriptor.width,
           height: descriptor.height,
-          contentType: descriptor.contentType
+          contentType: descriptor.contentType,
+          decoder: 'browser',
+          sourceBitDepth: descriptor.sourceBitDepth,
+          sourceFormat: descriptor.contentType === 'image/png'
+            ? 'PNG'
+            : descriptor.contentType === 'image/jpeg'
+              ? 'JPEG'
+              : descriptor.contentType === 'image/webp' ? 'WebP' : descriptor.contentType,
+          sourceInterpretation: '8-bit RGBA sRGB',
+          sourceProfile: 'no embedded ICC; assumed sRGB'
         }
       };
     } finally {

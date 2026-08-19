@@ -237,10 +237,11 @@ const desktopHost: LightTableHost = {
   confirmDiscardChanges(documentTitle) {
     return window.lightTableDesktop.confirmDiscardChanges(documentTitle);
   },
-  async save({ file, transaction, projectManifestPath }) {
+  async save({ file, transaction, projectManifestPath, replaceSource }) {
     return window.lightTableDesktop.saveFile({
       suggestedName: file.name,
       bytes: new Uint8Array(await file.arrayBuffer()),
+      replaceSource,
       projectManifestPath,
       transaction
     });

@@ -59,6 +59,23 @@ including future 3D, AI and LightTable-specific GPU workflows.
   must report the actual result.
 - Host cancellation is a normal result, not an application error.
 
+On desktop, ordinary Save replaces an opened PNG or JPEG in its original
+format only when the current model is exactly representable as one neutral,
+full-canvas 8-bit raster. This is a current-state capability gate, not an edit-
+history rule: live Grade/Lens Fx, adjustment nodes, masks, effects, transforms,
+extra layers or retained document-only assets select the LightTable document
+writer; Flatten Image bakes those semantics and can make the source-format gate
+eligible again. JPEG replacement is necessarily lossy. TIFF, WebP, PSD and
+precision-preserving source replacement remain unavailable until their writers
+meet the same explicit capability contract.
+
+The renderer may request source replacement only for the exact path returned
+by a trusted desktop open operation. The main process bounds that authority,
+checks that path and format agree, refuses replacement after an external file
+change, and publishes bytes through the normal atomic writer. Web and hosted
+files continue through Save As/download because they do not own a replaceable
+filesystem target.
+
 ## Clipboard
 
 Keep the in-app LightTable-to-LightTable path fast and semantically rich, while

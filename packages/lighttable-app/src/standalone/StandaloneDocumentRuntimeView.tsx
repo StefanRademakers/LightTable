@@ -236,9 +236,10 @@ export function StandaloneDocumentRuntimeView({
           }
         }}
         onClose={() => onClose(id)}
-        onSave={(output, recipe, transaction) => host.save({
+        onSave={(output, recipe, transaction, replaceSource) => host.save({
           file: output,
           recipe,
+          replaceSource,
           projectManifestPath: activeProject?.manifestPath,
           transaction
         })}
