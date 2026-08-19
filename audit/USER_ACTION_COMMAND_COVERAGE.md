@@ -5,8 +5,8 @@ Generated from the central editor menu on 2026-08-19. This is the first checked 
 ## Current measured surface
 
 - 102 unique static executable menu actions plus 4 dynamic families;
-- 15 already routed through semantic commands;
-- 1 has a semantic command but still bypasses it in this UI path;
+- 16 already routed through semantic commands;
+- 0 have a semantic command but still bypass it in this UI path;
 - 17 host/workspace operations;
 - 34 presentation-only operations;
 - 39 genuine semantic command gaps;
@@ -73,7 +73,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `merge-down` | gap | No semantic layer-merge command exists. | 677 |
 | `move-down` | gap | No semantic layer-order command exists. | 671 |
 | `move-up` | gap | No semantic layer-order command exists. | 664 |
-| `new-document` | command-owner | `document.create` | 179 |
+| `new-document` | command | `document.create` | 179 |
 | `new-guide` | presentation | Creates a document-view guide, not image content. | 808 |
 | `new-layer` | command | `layer.createRaster` | 547 |
 | `new-project` | host | Changes host project lifecycle state. | 243 |

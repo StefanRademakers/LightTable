@@ -55,7 +55,7 @@
     { "id": "merge-down", "classification": "gap", "reason": "No semantic layer-merge command exists." },
     { "id": "move-down", "classification": "gap", "reason": "No semantic layer-order command exists." },
     { "id": "move-up", "classification": "gap", "reason": "No semantic layer-order command exists." },
-    { "id": "new-document", "classification": "command-owner", "command": "document.create" },
+    { "id": "new-document", "classification": "command", "command": "document.create" },
     { "id": "new-guide", "classification": "presentation", "reason": "Creates a document-view guide, not image content." },
     { "id": "new-layer", "classification": "command", "command": "layer.createRaster" },
     { "id": "new-project", "classification": "host", "reason": "Changes host project lifecycle state." },
