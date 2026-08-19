@@ -28,6 +28,7 @@ import {
   type OpenArtResolvedReference
 } from '@lighttable/genai-openart';
 import type { OpenArtConnectionHost } from '@lighttable/genai-openart';
+import { abortableDelay } from './abortableDelay';
 import type { OpenArtCatalogStore } from './openArtCatalogStore';
 import type { DesktopGenAiProviderController } from './providerRegistry';
 
@@ -530,15 +531,6 @@ const findExpiry = (value: unknown): number | undefined => {
   }
   return undefined;
 };
-
-const abortableDelay = (durationMs: number, signal?: AbortSignal): Promise<void> => new Promise((resolve, reject) => {
-  if (signal?.aborted) { reject(signal.reason); return; }
-  const timeout = setTimeout(resolve, durationMs);
-  signal?.addEventListener('abort', () => {
-    clearTimeout(timeout);
-    reject(signal.reason);
-  }, { once: true });
-});
 
 const findHistoryId = (value: unknown, depth = 0): string | null => {
   if (depth > 6 || !value || typeof value !== 'object') return null;

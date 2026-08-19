@@ -69,6 +69,7 @@ import {
 } from './agentTunnelAdapters';
 import { loadRendererUrlWithRetry } from './rendererNavigation';
 import { DesktopOpenArtCredentialStore } from './genai/openArtCredentialStore';
+import { abortableDelay } from './genai/abortableDelay';
 import { createLoopbackOAuthSession } from './genai/loopbackOAuthSession';
 import { OpenArtConnectionController } from './genai/openArtConnectionController';
 import { OpenArtCatalogStore } from './genai/openArtCatalogStore';
@@ -707,10 +708,7 @@ void app.whenReady().then(async () => {
     async wait(providerJobId, _request, signal) {
       let status = await generation.status(providerJobId);
       while (!['completed', 'cancelled', 'failed'].includes(status.status)) {
-        await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(resolve, 125);
-          signal.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
-        });
+        await abortableDelay(125, signal);
         status = await generation.status(providerJobId);
       }
       if (status.status === 'cancelled') throw new Error('Local AI generation was cancelled.');

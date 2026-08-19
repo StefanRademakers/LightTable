@@ -43,3 +43,20 @@ Definition of done
 All three polling paths use the tested primitive, no completed wait retains an
 abort listener, cancellation behavior remains exact, verification passes and
 the complete task package moves to `work/done` with the implementation commit.
+
+Completed - 19 August 2026
+==========================
+
+- Added one desktop-owned `abortableDelay` lifecycle primitive and routed
+  OpenArt, Higgsfield and local-AI polling through it without changing their
+  retry counts, backoff, provider calls or job transitions.
+- The primitive removes its listener and timer on normal completion and abort,
+  preserves the original abort reason and schedules no work for a signal that
+  is already aborted.
+- The regression models one real polling job: 250 sequential waits reuse one
+  signal and prove cleanup after every individual round. It does not inflate a
+  static listener threshold with artificial concurrent waits.
+- Desktop tests pass (31 files, 132 tests), full workspace tests pass, all
+  TypeScript workspaces pass and the GenAI boundary verifier passes.
+- No paid or authenticated provider call was made. That external boundary is
+  unchanged and is not required to prove this local listener lifecycle.

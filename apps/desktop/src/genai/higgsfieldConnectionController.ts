@@ -31,6 +31,7 @@ import {
   type HiggsfieldResolvedReference,
   type HiggsfieldToolDescription
 } from '@lighttable/genai-higgsfield';
+import { abortableDelay } from './abortableDelay';
 import type { DesktopGenAiProviderController } from './providerRegistry';
 
 const providerId = HIGGSFIELD_PROVIDER_ID as GenAiProviderId;
@@ -287,10 +288,7 @@ export class HiggsfieldConnectionController implements DesktopGenAiProviderContr
     return payload;
   }
   private async waitBeforePoll(attempt: number, signal?: AbortSignal): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(resolve, Math.min(8_000, 500 * 1.35 ** attempt));
-      signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
-    });
+    await abortableDelay(Math.min(8_000, 500 * 1.35 ** attempt), signal);
   }
   private async refreshCapabilities() {
     this.capabilities = classifyHiggsfieldContract(await this.connection.listTools());
