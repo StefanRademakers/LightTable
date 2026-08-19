@@ -32,3 +32,22 @@ Definition of done
 
 The `ws` advisories are absent, tunnel behavior remains green and the task
 package moves to `work/done` in the same focused commit.
+
+Completion evidence (2026-08-19)
+================================
+
+- Reviewed the upstream `ws` 8.21 release line. Version 8.21.0 introduced
+  bounded fragment/buffer accounting for the reported remote memory-exhaustion
+  issue, 8.21.1 tightened empty-fragment accounting and defaults, and 8.21.3
+  contains the subsequent protocol bug fix. Both runtime consumers now require
+  `ws@^8.21.3`, and the lockfile resolves exactly 8.21.3.
+- No application code or tunnel policy changed. TLS policy, one-time pairing,
+  authentication, reconnect, message bounds, artifact bounds and shutdown keep
+  their existing implementations.
+- MCP typecheck and all 17 MCP tests passed, including the long reconnect,
+  cross-talk and orphan-request soak. Desktop typecheck and all 137 desktop
+  tests passed.
+- `npm audit --omit=dev` no longer reports `ws`: 0 critical, 0 moderate and
+  0 low findings remain. Two high findings remain and are not concealed:
+  `@huggingface/transformers` and `sharp`, both currently reported without an
+  available fix. Architecture-boundary verification also passed.
