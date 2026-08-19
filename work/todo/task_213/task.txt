@@ -1,0 +1,64 @@
+Task 213 - Repair Color and Vibrance Temperature/Tint parity evidence and model
+
+Goal
+
+Replace the unsupported CAT16 Temperature/Tint implementation with one model
+that matches the measured Photoshop Color and Vibrance behavior on rendered
+RGB images, while preserving the independently good Vibrance and Saturation
+implementation.
+
+Why this task exists
+
+Task 211 removed 6.14 MB of shipped calibration data successfully, but its
+acceptance evidence was incomplete. The reported 99.253% diagnostic covered
+only positive Vibrance and Saturation on one portrait. Temperature and Tint
+were both zero in every case used for that number.
+
+A complete 40-case portrait comparison against Photoshop Beta 27.11 shows:
+
+- Temperature: 18.462% mean RGB RMSE; 33.001% at -100.
+- Tint: 8.223% mean RGB RMSE; 15.960% at +100.
+- Vibrance: 2.053% mean RGB RMSE across signed cases.
+- Saturation: 0.292% mean RGB RMSE across signed cases.
+
+The percentage formerly called parity was `100 * (1 - normalized RGB RMSE)`.
+It was not a perceptual score or the percentage of matching pixels and must not
+be used as a complete Color and Vibrance claim.
+
+Measured model facts
+
+- Photoshop keeps exact black and white fixed while strongly tinting shadows
+  and midtones at Temperature/Tint extremes.
+- Temperature and Tint are coupled; axis deltas and sequential axis transforms
+  both fail badly on the measured 21 x 21 grid.
+- On the same JPEG portrait, Photoshop Color and Vibrance and Camera Raw 18.5
+  have 0.99986-0.99998 effect correlation and 0.99979-1.00018 effect magnitude
+  ratio at signed Temperature/Tint endpoints. Treat them as the same rendered-
+  pixel behavior unless later evidence disproves that boundary.
+- Adobe documents -100..100 Temperature for JPEG/TIFF as an approximation,
+  not a true Kelvin scale. Do not map this control directly to CCT and call it
+  parity.
+
+Acceptance
+
+- Keep the exact neutral bypass.
+- Do not change Vibrance or Saturation response while repairing Temperature
+  and Tint.
+- Establish provenance-bound Photoshop Beta and Camera Raw endpoint evidence.
+- Cover neutral, signed 20/80/100 single controls, combined signed/crossed
+  white-balance cases, held-out intermediate values, a color lattice, smooth
+  gradients, and at least two photographs.
+- Report RGB RMSE/MAE, maximum code error, threshold coverage and perceptual
+  deltas per case. Do not collapse four sliders into one parity percentage.
+- Reject a candidate with severe local errors even when its aggregate improves.
+- Reuse a shared rendered-pixel Temperature/Tint core with native Grade when
+  the semantics match; keep RAW camera white balance separate.
+- Keep shipped calibration/model data materially below the removed 6.14 MB and
+  justify any remaining data by visible and held-out improvement.
+- Exercise packaged Electron/WebGPU output before completion.
+
+Current state
+
+Research and safe capture infrastructure are in progress. No production shader
+change has been accepted yet. Task 211's bundle reduction and Vibrance/
+Saturation work remain useful; its full-node parity implication is withdrawn.

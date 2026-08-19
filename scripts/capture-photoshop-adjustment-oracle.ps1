@@ -9,7 +9,8 @@ param(
   [int]$BitDepth = 8,
   [string]$CasePattern = '',
   [string]$Source = 'D:\mediavibe\LightTableTests\ToneBrush\source\grayscale-ramp.png',
-  [string]$Output = ''
+  [string]$Output = '',
+  [string]$ExpectedPhotoshopVersion = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -533,14 +534,43 @@ if (-not [string]::IsNullOrWhiteSpace($CasePattern)) {
 }
 
 $photoshop = $null
+$photoshopVersion = $null
+$photoshopProcess = $null
+$initialDocuments = @()
 $results = @()
 try {
   try { $photoshop = [Runtime.InteropServices.Marshal]::GetActiveObject('Photoshop.Application') }
   catch { $photoshop = New-Object -ComObject Photoshop.Application }
-  $photoshop.DisplayDialogs = 3
-  while ($photoshop.Documents.Count -gt 0) {
-    $photoshop.ActiveDocument.Close(2)
+  $photoshopVersion = [string]$photoshop.Version
+  if ((-not [string]::IsNullOrWhiteSpace($ExpectedPhotoshopVersion)) -and
+    (-not $photoshopVersion.StartsWith($ExpectedPhotoshopVersion, [StringComparison]::OrdinalIgnoreCase))) {
+    throw "Photoshop oracle version $photoshopVersion does not match required version $ExpectedPhotoshopVersion."
   }
+  $initialDocuments = @(for ($index = 1; $index -le $photoshop.Documents.Count; $index++) {
+    $document = $photoshop.Documents.Item($index)
+    [ordered]@{
+      name = [string]$document.Name
+      saved = [bool]$document.Saved
+      path = try { [string]$document.FullName } catch { $null }
+    }
+  })
+  $photoshopProcess = @(Get-Process -Name Photoshop -ErrorAction SilentlyContinue | ForEach-Object {
+    if (-not $_.Path) { return }
+    $version = (Get-Item -LiteralPath $_.Path).VersionInfo
+    if ($photoshopVersion.StartsWith([string]$version.ProductVersion, [StringComparison]::OrdinalIgnoreCase)) {
+      [ordered]@{
+        processId = $_.Id
+        executablePath = $_.Path
+        productVersion = $version.ProductVersion
+        fileVersion = $version.FileVersion
+        executableSha256 = (Get-FileHash -LiteralPath $_.Path -Algorithm SHA256).Hash
+      }
+    }
+  } | Select-Object -First 1)
+  if ($photoshopProcess.Count -ne 1) {
+    throw "Cannot resolve the Photoshop $photoshopVersion process and executable."
+  }
+  $photoshop.DisplayDialogs = 3
   foreach ($case in $cases) {
     $target = Join-Path $outputPath "$($case.id).png"
     $psdTarget = Join-Path $psdPath "$($case.id).psd"
@@ -926,7 +956,6 @@ $adjustmentDescriptor
       foreach ($key in $case.Keys) { if ($key -ne 'id') { $result[$key] = $case[$key] } }
       $results += [pscustomobject]$result
     } catch {
-      try { if ($photoshop.Documents.Count -gt 0) { $photoshop.ActiveDocument.Close(2) } } catch {}
       $result = [ordered]@{ id=$case.id; adjustment=$Adjustment; profile=$Profile; bitDepth=$BitDepth; status='failed'; error=$_.Exception.Message }
       foreach ($key in $case.Keys) { if ($key -ne 'id') { $result[$key] = $case[$key] } }
       $results += [pscustomobject]$result
@@ -938,7 +967,24 @@ $adjustmentDescriptor
 
 $manifest = Join-Path ([IO.Directory]::GetParent($outputPath).FullName) 'photoshop-manifest.json'
 ConvertTo-Json -InputObject @($results) -Depth 5 | Set-Content -LiteralPath $manifest -Encoding utf8
+$provenance = Join-Path ([IO.Directory]::GetParent($outputPath).FullName) 'photoshop-provenance.json'
+[ordered]@{
+  schema = 1
+  capturedAt = [DateTimeOffset]::Now.ToString('o')
+  progId = 'Photoshop.Application'
+  photoshopVersion = $photoshopVersion
+  process = $photoshopProcess[0]
+  source = [ordered]@{
+    path = $sourcePath
+    sha256 = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
+    profile = $Profile
+    bitDepth = $BitDepth
+  }
+  adjustment = $Adjustment
+  caseCount = @($results).Count
+  initialDocuments = $initialDocuments
+} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $provenance -Encoding utf8
 $results | Format-Table -AutoSize
 $failures = @($results | Where-Object { $_.status -ne 'captured' })
 if ($failures.Count) { throw "Photoshop adjustment oracle failed; see $manifest" }
-Write-Host "Photoshop $Adjustment $Corpus oracle: $manifest"
+Write-Host "Photoshop $Adjustment $Corpus oracle: $manifest (provenance: $provenance)"
