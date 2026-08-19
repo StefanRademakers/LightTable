@@ -399,7 +399,14 @@ export class WebGpuEngine {
   }
 
   private createStaticResources() {
-    const coreResources = new DocumentCoreGpuResources(this.device);
+    const coreResources = new DocumentCoreGpuResources(
+      this.device,
+      () => {
+        this.syncAdjustmentPayload();
+        this.markDocumentDirty();
+      },
+      (featureId, message) => this.callbacks.onFeatureError?.(featureId, message)
+    );
     this.coreResources = coreResources;
     this.syncAdjustmentPayload();
     this.viewportPresentation.syncCurrentState();
@@ -1610,8 +1617,8 @@ export class WebGpuEngine {
           { binding: 3, resource: { buffer: coreResources.adjustmentBuffer } },
           { binding: 4, resource: coreResources.curveTexture.createView() },
           { binding: 5, resource: coreResources.identityColorLookupTexture.createView() },
-          { binding: 6, resource: coreResources.identityColorLookupTexture.createView() },
-          { binding: 7, resource: coreResources.identityColorLookupTexture.createView() },
+          { binding: 6, resource: coreResources.colorVibranceCompatibilityTexture.createView() },
+          { binding: 7, resource: coreResources.colorVibranceColorTexture.createView() },
           { binding: 8, resource: coreResources.photoshopColorBalanceTransferTexture.createView() },
           { binding: 9, resource: coreResources.identityColorLookupTexture.createView() }
       ]
@@ -2822,8 +2829,8 @@ export class WebGpuEngine {
         { binding: 3, resource: { buffer: this.coreResources.adjustmentBuffer } },
         { binding: 4, resource: this.coreResources.curveTexture.createView() },
         { binding: 5, resource: this.coreResources.identityColorLookupTexture.createView() },
-        { binding: 6, resource: this.coreResources.identityColorLookupTexture.createView() },
-        { binding: 7, resource: this.coreResources.identityColorLookupTexture.createView() },
+        { binding: 6, resource: this.coreResources.colorVibranceCompatibilityTexture.createView() },
+        { binding: 7, resource: this.coreResources.colorVibranceColorTexture.createView() },
         { binding: 8, resource: this.coreResources.photoshopColorBalanceTransferTexture.createView() },
         { binding: 9, resource: this.coreResources.identityColorLookupTexture.createView() }
       ]
@@ -2833,6 +2840,14 @@ export class WebGpuEngine {
   async exportPng(options: WebGpuPngExportOptions = {}) {
     if (!this.metadata || !this.imageResources.finalTexture) throw new Error('No processed image is available for export.');
     if (this.documentRenderer && !await this.documentRenderer.waitForTextSourcesForExport()) throw new Error('Text sources changed or could not be prepared for export.');
+    const coreAssetsReady = this.coreResources
+      ? await this.coreResources.waitForAdjustmentAssets(this.adjustmentState.current)
+      : false;
+    const layerAssetsReady = await this.adjustmentLayerResources.waitForAdjustmentAssets();
+    if (coreAssetsReady || layerAssetsReady) {
+      this.syncAdjustmentPayload();
+      this.markDocumentDirty();
+    }
     this.settleInteractiveRenderQuality();
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();

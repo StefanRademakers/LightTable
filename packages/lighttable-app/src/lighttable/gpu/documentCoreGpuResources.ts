@@ -8,6 +8,12 @@ import {
   PHOTOSHOP_COLOR_BALANCE_TRANSFER_ROWS,
   PHOTOSHOP_COLOR_BALANCE_TRANSFER_WIDTH
 } from './photoshopColorBalanceTransfer';
+import {
+  loadPhotoshopColorVibranceCompatibility,
+  loadedPhotoshopColorVibranceCompatibility,
+  PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE,
+  PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE
+} from './photoshopColorVibranceCompatibility';
 
 const createUniformBuffer = (device: GPUDevice, label: string, floats: number) =>
   device.createBuffer({
@@ -32,13 +38,20 @@ export class DocumentCoreGpuResources {
   readonly blurVerticalBuffer: GPUBuffer;
   readonly curveTexture: GPUTexture;
   readonly identityColorLookupTexture: GPUTexture;
+  readonly colorVibranceCompatibilityTexture: GPUTexture;
+  readonly colorVibranceColorTexture: GPUTexture;
   readonly photoshopColorBalanceTransferTexture: GPUTexture;
 
   private readonly adjustmentPayloadWriter: AdjustmentGpuPayloadWriter;
   private lastOutputSettings: Float32Array | null = null;
+  private compatibilityLoadPromise: Promise<void> | null = null;
   private destroyed = false;
 
-  constructor(private readonly device: GPUDevice) {
+  constructor(
+    private readonly device: GPUDevice,
+    private readonly requestRender: () => void = () => {},
+    private readonly reportError: (featureId: string, message: string) => void = () => {}
+  ) {
     this.sampler = device.createSampler({
       magFilter: 'linear',
       minFilter: 'linear',
@@ -98,6 +111,28 @@ export class DocumentCoreGpuResources {
       { bytesPerRow: 2 * 4 * Float32Array.BYTES_PER_ELEMENT, rowsPerImage: 2 },
       { width: 2, height: 2, depthOrArrayLayers: 2 }
     );
+    this.colorVibranceCompatibilityTexture = device.createTexture({
+      label: 'LightTable Grade Color and Vibrance white balance compatibility',
+      size: [
+        PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE,
+        PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE,
+        PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE
+      ],
+      dimension: '3d',
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    });
+    this.colorVibranceColorTexture = device.createTexture({
+      label: 'LightTable Grade Color and Vibrance coupled color',
+      size: [
+        PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE,
+        PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE,
+        PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE
+      ],
+      dimension: '3d',
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    });
     this.photoshopColorBalanceTransferTexture = device.createTexture({
       label: 'Photoshop Color Balance transfer curves',
       size: [PHOTOSHOP_COLOR_BALANCE_TRANSFER_WIDTH, PHOTOSHOP_COLOR_BALANCE_TRANSFER_ROWS],
@@ -112,7 +147,10 @@ export class DocumentCoreGpuResources {
     );
     this.adjustmentPayloadWriter = new AdjustmentGpuPayloadWriter(device, {
       uniformBuffer: this.adjustmentBuffer,
-      curveTexture: this.curveTexture
+      curveTexture: this.curveTexture,
+      colorVibranceCompatibilityTexture: this.colorVibranceCompatibilityTexture,
+      colorVibranceColorTexture: this.colorVibranceColorTexture,
+      colorVibranceOwner: 'grade'
     });
   }
 
@@ -124,6 +162,9 @@ export class DocumentCoreGpuResources {
     photoshopBlendProfile: DocumentBlendProfile = 'srgb',
     documentBitDepth: DocumentBitDepth = 16
   ) {
+    if (this.usesColorVibranceCompatibility(adjustments)) {
+      void this.requestColorVibranceCompatibility().catch(() => {});
+    }
     return this.adjustmentPayloadWriter.sync(
       adjustments,
       width,
@@ -133,6 +174,16 @@ export class DocumentCoreGpuResources {
       photoshopBlendProfile,
       documentBitDepth
     );
+  }
+
+  /** Prevents exact-pixel consumers from exporting the temporary analytic fallback frame. */
+  async waitForAdjustmentAssets(adjustments: BasicAdjustments): Promise<boolean> {
+    if (!this.usesColorVibranceCompatibility(adjustments)) return false;
+    await this.requestColorVibranceCompatibility();
+    // The loader publishes bytes before every consumer's continuation has
+    // necessarily uploaded its GPU volumes. Exact-pixel consumers must always
+    // resync after this boundary, even when the shared bytes were already hot.
+    return true;
   }
 
   writeViewport(uniforms: Float32Array<ArrayBuffer>) {
@@ -161,6 +212,8 @@ export class DocumentCoreGpuResources {
     this.blurVerticalBuffer.destroy();
     this.curveTexture.destroy();
     this.identityColorLookupTexture.destroy();
+    this.colorVibranceCompatibilityTexture.destroy();
+    this.colorVibranceColorTexture.destroy();
     this.photoshopColorBalanceTransferTexture.destroy();
     this.lastOutputSettings = null;
   }
@@ -169,5 +222,26 @@ export class DocumentCoreGpuResources {
     const buffer = createUniformBuffer(this.device, 'LightTable blur direction', 4);
     this.device.queue.writeBuffer(buffer, 0, new Float32Array([x, y, 0, 0]));
     return buffer;
+  }
+
+  private usesColorVibranceCompatibility(adjustments: BasicAdjustments) {
+    return Math.abs(adjustments.temperature) > 0.00001 || Math.abs(adjustments.tint) > 0.00001;
+  }
+
+  private requestColorVibranceCompatibility(): Promise<void> {
+    if (loadedPhotoshopColorVibranceCompatibility()) return Promise.resolve();
+    if (this.compatibilityLoadPromise) return this.compatibilityLoadPromise;
+    this.compatibilityLoadPromise = loadPhotoshopColorVibranceCompatibility().then(() => {
+      if (!this.destroyed) this.requestRender();
+    }).catch((error: unknown) => {
+      this.reportError(
+        'color-vibrance-compatibility',
+        error instanceof Error ? error.message : String(error)
+      );
+      throw error;
+    }).finally(() => {
+      this.compatibilityLoadPromise = null;
+    });
+    return this.compatibilityLoadPromise;
   }
 }

@@ -392,6 +392,16 @@ extremen 2,197%; de zichtbare zwakste daarvan is +80 op 3,451%. Dit is een
 grote verbetering, geen pixel-identieke Photoshop-claim. De grootste lokale
 modelrisico's zijn nu Vibrance −100 en sterk warm/verzadigd gecombineerd +80.
 
+De eerste taak-213-oplevering bleek nog niet volledig geïntegreerd: native
+Grade gebruikte dezelfde vier zichtbare controls maar behield intern CAT16.
+Dat is gecorrigeerd voor document Grade, Grade layers en lokale rastergrades.
+Een actuele packaged Camera Raw 18.5-corpus met 11 bronnen en 363 outputs per
+product brengt Temperature van 33,97% naar 4,42% worst-case delta-RMSE en de
+minimum broncorrelatie van 0,3885 naar 0,9849. Tint gaat van 17,81% naar 6,41%
+en van 0,3916 naar 0,9209. De grootste resterende Color-sectierisico's zijn nu
+native Vibrance op wide-gamut-color (15,54% worst RMSE) en Saturation op de
+color-target (8,32%); die bestaande modellen zijn bewust niet verslechterd.
+
 ### R6 — Actuele production dependency-audit is niet groen
 
 **Ernst: hoog · Zekerheid: bewezen door npm advisorydata op 2026-08-19**

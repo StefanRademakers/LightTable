@@ -59,6 +59,11 @@ Acceptance
 
 Current state
 
-Completed on 2026-08-19. The accepted implementation and exact remaining
-limitations are recorded in result.md. Task 211's compact isolated Vibrance/
-Saturation work remains; its full-node parity implication stays withdrawn.
+Reopened on 2026-08-19 because the first completion only connected the measured
+core to the Photoshop-shaped Color and Vibrance adjustment. The visually
+equivalent Color group in native Grade still used the rejected CAT16 path.
+
+Completed after correction on 2026-08-19. The implementation now shares the measured rendered-pixel
+Temperature/Tint core with document Grade, Grade layers and local raster grades.
+The exact evidence and remaining native Vibrance/Saturation limitations are
+recorded in result.md.

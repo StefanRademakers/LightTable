@@ -32,6 +32,7 @@ export interface AdjustmentLayerGpuRuntime {
   gradeLookAssetId: string | null;
   gradeLookUniform: GradeLookUniform | null;
   photoshopAdjustmentKind: string;
+  colorVibranceOwner: 'grade' | 'photoshop-adjustment' | null;
   colorVibranceCompatibilityTexture: GPUTexture | null;
   colorVibranceColorTexture: GPUTexture | null;
 }
@@ -85,7 +86,8 @@ export function collectAdjustmentLayerIds(nodes: readonly LayerNode[]): Set<Laye
 export class AdjustmentLayerGpuResources {
   private readonly runtimes = new Map<LayerId, AdjustmentLayerGpuRuntime>();
   private dependencies: AdjustmentLayerGpuDependencies | null = null;
-  private compatibilityLoadRequested = false;
+  private compatibilityLoadPromise: Promise<void> | null = null;
+  private compatibilityRequired = false;
 
   constructor(private readonly device: GPUDevice) {}
 
@@ -103,25 +105,23 @@ export class AdjustmentLayerGpuResources {
     const adjustments = materializeBasicAdjustments(layer.adjustmentStack!);
     const gradeLookAssetId = adjustments.gradeLook.assetId;
     const photoshopAdjustmentKind = photoshopAdjustment.kind;
-    if (photoshopAdjustmentKind === 'color-vibrance'
-      && !loadedPhotoshopColorVibranceCompatibility()
-      && !this.compatibilityLoadRequested) {
-      this.compatibilityLoadRequested = true;
-      void loadPhotoshopColorVibranceCompatibility().then(() => {
-        this.compatibilityLoadRequested = false;
-        for (const [layerId, runtime] of this.runtimes) {
-          if (runtime.photoshopAdjustmentKind !== 'color-vibrance') continue;
-          this.destroyRuntime(runtime);
-          this.runtimes.delete(layerId);
-        }
-        this.dependencies?.requestRender();
-      }).catch((error: unknown) => {
-        this.compatibilityLoadRequested = false;
-        this.dependencies?.reportError(
-          'color-vibrance-compatibility',
-          error instanceof Error ? error.message : String(error)
-        );
-      });
+    const nativeGradeLayer = layer.type === 'raster' || layer.adjustmentKind === 'grade';
+    const colorVibranceOwner = photoshopAdjustment.kind === 'color-vibrance'
+      ? 'photoshop-adjustment' as const
+      : nativeGradeLayer
+        ? 'grade' as const
+        : null;
+    const colorVibranceWhiteBalanceActive = colorVibranceOwner === 'photoshop-adjustment'
+      ? Math.abs(photoshopAdjustment.colorVibranceTemperature) > 0.00001
+        || Math.abs(photoshopAdjustment.colorVibranceTint) > 0.00001
+      : colorVibranceOwner === 'grade'
+        && (Math.abs(adjustments.temperature) > 0.00001 || Math.abs(adjustments.tint) > 0.00001);
+    // Warm the external volumes when a native Grade layer is first realized.
+    // Waiting for the first T/T gesture lets its first frame and an immediate
+    // export observe the analytic fallback while later values use the LUT.
+    if (nativeGradeLayer || colorVibranceWhiteBalanceActive) {
+      this.compatibilityRequired = true;
+      void this.requestColorVibranceCompatibility().catch(() => {});
     }
     const current = this.runtimes.get(layer.id);
     if (
@@ -129,6 +129,7 @@ export class AdjustmentLayerGpuResources {
       && current.colorLookupAssetId === colorLookupAssetId
       && current.gradeLookAssetId === gradeLookAssetId
       && current.photoshopAdjustmentKind === photoshopAdjustmentKind
+      && current.colorVibranceOwner === colorVibranceOwner
     ) return current;
     if (current) {
       this.destroyRuntime(current);
@@ -151,7 +152,7 @@ export class AdjustmentLayerGpuResources {
     });
     const colorLookup = dependencies.resolveColorLookup(colorLookupAssetId);
     const gradeLook = dependencies.resolveColorLookup(gradeLookAssetId);
-    const colorVibranceCompatibilityTexture = photoshopAdjustmentKind === 'color-vibrance'
+    const colorVibranceCompatibilityTexture = colorVibranceOwner
       && loadedPhotoshopColorVibranceCompatibility()
       ? this.device.createTexture({
         label: `LightTable Color and Vibrance compatibility: ${layer.name}`,
@@ -210,11 +211,13 @@ export class AdjustmentLayerGpuResources {
         uniformBuffer,
         curveTexture,
         ...(colorVibranceCompatibilityTexture ? { colorVibranceCompatibilityTexture } : {}),
-        ...(colorVibranceColorTexture ? { colorVibranceColorTexture } : {})
+        ...(colorVibranceColorTexture ? { colorVibranceColorTexture } : {}),
+        ...(colorVibranceOwner ? { colorVibranceOwner } : {})
       }),
       colorLookupAssetId,
       gradeLookAssetId,
       photoshopAdjustmentKind,
+      colorVibranceOwner,
       colorVibranceCompatibilityTexture,
       colorVibranceColorTexture,
       colorLookupUniform: colorLookup ? {
@@ -231,6 +234,14 @@ export class AdjustmentLayerGpuResources {
     };
     this.runtimes.set(layer.id, runtime);
     return runtime;
+  }
+
+  /** Makes exact-pixel consumers wait until lazy Color/Vibrance volumes can be realized. */
+  async waitForAdjustmentAssets(): Promise<boolean> {
+    if (!this.compatibilityRequired) return false;
+    await this.requestColorVibranceCompatibility();
+    this.invalidateColorVibranceRuntimes();
+    return true;
   }
 
   syncDocument(document: ImageDocument) {
@@ -269,7 +280,35 @@ export class AdjustmentLayerGpuResources {
     for (const runtime of this.runtimes.values()) this.destroyRuntime(runtime);
     this.runtimes.clear();
     this.dependencies = null;
-    this.compatibilityLoadRequested = false;
+    this.compatibilityLoadPromise = null;
+    this.compatibilityRequired = false;
+  }
+
+  private requestColorVibranceCompatibility(): Promise<void> {
+    if (loadedPhotoshopColorVibranceCompatibility()) return Promise.resolve();
+    if (this.compatibilityLoadPromise) return this.compatibilityLoadPromise;
+    this.compatibilityLoadPromise = loadPhotoshopColorVibranceCompatibility().then(() => {
+      this.invalidateColorVibranceRuntimes();
+      this.dependencies?.requestRender();
+    }).catch((error: unknown) => {
+      this.dependencies?.reportError(
+        'color-vibrance-compatibility',
+        error instanceof Error ? error.message : String(error)
+      );
+      throw error;
+    }).finally(() => {
+      this.compatibilityLoadPromise = null;
+    });
+    return this.compatibilityLoadPromise;
+  }
+
+  private invalidateColorVibranceRuntimes() {
+    for (const [layerId, runtime] of this.runtimes) {
+      if (runtime.colorVibranceOwner !== 'grade'
+        && runtime.photoshopAdjustmentKind !== 'color-vibrance') continue;
+      this.destroyRuntime(runtime);
+      this.runtimes.delete(layerId);
+    }
   }
 
   private destroyRuntime(runtime: AdjustmentLayerGpuRuntime) {

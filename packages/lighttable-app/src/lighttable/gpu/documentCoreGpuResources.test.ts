@@ -37,7 +37,7 @@ describe('DocumentCoreGpuResources', () => {
 
     expect(device.createSampler).toHaveBeenCalledTimes(2);
     expect(device.createBuffer).toHaveBeenCalledTimes(6);
-    expect(device.createTexture).toHaveBeenCalledTimes(3);
+    expect(device.createTexture).toHaveBeenCalledTimes(5);
 
     resources.destroy();
     resources.destroy();

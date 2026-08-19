@@ -397,7 +397,6 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   // The legacy single-image input remains supported for isolated shader tests.
   let alpha = max(encoded.a, 1e-6);
   var rgb = select(srgbToLinear(encoded.rgb), encoded.rgb / alpha, adjustments.padding1.x > 0.5);
-  rgb = applyChromaticAdaptation(rgb, adjustments.temperature, adjustments.tint);
   rgb *= exp2(adjustments.exposureEV);
   rgb = applyToneControls(rgb);
   return vec4f(rgb, encoded.a);
@@ -598,22 +597,6 @@ fn colorVibranceChromaticAdaptation(rgb: vec3f, temperature: f32, tint: f32) -> 
     (cat16 * colorVibranceLinearRgbToXyz(rgb)) * targetLms / max(sourceLms, vec3f(1e-6))
   );
   return colorVibranceXyzToLinearRgb(adaptedXyz);
-}
-
-fn applyPerceptualColor(rgb: vec3f) -> vec3f {
-  if (abs(adjustments.saturation) < 0.00001 && abs(adjustments.vibrance) < 0.00001) {
-    return rgb;
-  }
-  var lab = linearRgbToOklab(rgb);
-  let chroma = length(lab.yz);
-  let saturationScale = max(0.0, 1.0 + adjustments.saturation / 100.0);
-  let lowChromaWeight = 1.0 - smoothstep(0.04, 0.32, chroma);
-  let vibranceScale = max(0.0, 1.0 + (adjustments.vibrance / 100.0) * (0.35 + lowChromaWeight * 0.75));
-  // Some Dawn/WGSL versions reject compound assignment on writable swizzles.
-  // Rebuilding the vector is equivalent and portable across those implementations.
-  let chromaScale = saturationScale * vibranceScale;
-  lab = vec3f(lab.x, lab.y * chromaScale, lab.z * chromaScale);
-  return oklabToLinearRgb(lab);
 }
 
 fn colorMixerMagnitude() -> f32 {
@@ -1526,24 +1509,23 @@ fn colorVibranceGamutMap(lab: vec3f) -> vec3f {
   return clamp(neutral + (candidateRgb - neutral) * amount, vec3f(0.0), vec3f(1.0));
 }
 
-fn applyPhotoshopColorVibrance(source: vec3f) -> vec3f {
-  let temperature = clamp(
-    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET}u), -100.0, 100.0
-  );
-  let tint = clamp(
-    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET + 1}u), -100.0, 100.0
-  );
-  let vibrance = clamp(
-    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET + 2}u), -100.0, 100.0
-  );
-  let saturation = clamp(
-    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET + 3}u), -100.0, 100.0
-  );
+fn applySharedColorVibrance(
+  source: vec3f,
+  temperatureInput: f32,
+  tintInput: f32,
+  vibranceInput: f32,
+  saturationInput: f32,
+  compatibilityReady: bool
+) -> vec3f {
+  let temperature = clamp(temperatureInput, -100.0, 100.0);
+  let tint = clamp(tintInput, -100.0, 100.0);
+  let vibrance = clamp(vibranceInput, -100.0, 100.0);
+  let saturation = clamp(saturationInput, -100.0, 100.0);
   if (abs(temperature) < 0.00001 && abs(tint) < 0.00001
     && abs(vibrance) < 0.00001 && abs(saturation) < 0.00001) { return source; }
 
   var rgb = source;
-  if (photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_RELATIVE_OFFSET}u) > 0.5) {
+  if (compatibilityReady) {
     let whiteBalanceActive = abs(temperature) >= 0.00001 || abs(tint) >= 0.00001;
     let colorActive = abs(vibrance) >= 0.00001 || abs(saturation) >= 0.00001;
     if (whiteBalanceActive) {
@@ -1560,8 +1542,8 @@ fn applyPhotoshopColorVibrance(source: vec3f) -> vec3f {
       rgb = photoshopEncodedDocumentToLinearSrgb(clamp(encoded, vec3f(0.0), vec3f(1.0)));
     }
   } else {
-    // The compact Adobe-compatibility asset is loaded only when this layer kind
-    // exists. Retain the analytic CAT16 approximation during that short load.
+    // Retain the analytic CAT16 approximation only during the asynchronous
+    // compatibility load. It is not the authored rendered-pixel model.
     let mappedTemperature = select(temperature, temperature * 1.5, temperature < 0.0);
     rgb = colorVibranceChromaticAdaptation(source, mappedTemperature, tint);
   }
@@ -1584,6 +1566,42 @@ fn applyPhotoshopColorVibrance(source: vec3f) -> vec3f {
   let scale = vibranceScale * saturationScale;
   lab = vec3f(lab.x, lab.y * scale, lab.z * scale);
   return colorVibranceGamutMap(lab);
+}
+
+fn applyGradeColorVibrance(source: vec3f) -> vec3f {
+  var rgb = applySharedColorVibrance(
+    source,
+    adjustments.temperature,
+    adjustments.tint,
+    0.0,
+    0.0,
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_RELATIVE_OFFSET}u) > 0.5
+  );
+  if (abs(adjustments.saturation) < 0.00001 && abs(adjustments.vibrance) < 0.00001) {
+    return rgb;
+  }
+  var lab = linearRgbToOklab(rgb);
+  let chroma = length(lab.yz);
+  let saturationScale = max(0.0, 1.0 + adjustments.saturation / 100.0);
+  let lowChromaWeight = 1.0 - smoothstep(0.04, 0.32, chroma);
+  let vibranceScale = max(
+    0.0,
+    1.0 + (adjustments.vibrance / 100.0) * (0.35 + lowChromaWeight * 0.75)
+  );
+  let chromaScale = saturationScale * vibranceScale;
+  lab = vec3f(lab.x, lab.y * chromaScale, lab.z * chromaScale);
+  return oklabToLinearRgb(lab);
+}
+
+fn applyPhotoshopColorVibrance(source: vec3f) -> vec3f {
+  return applySharedColorVibrance(
+    source,
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET}u),
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET + 1}u),
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET + 2}u),
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET + 3}u),
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_RELATIVE_OFFSET}u) > 0.5
+  );
 }
 
 fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {
@@ -2019,9 +2037,9 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   let corrected = textureSample(correctedTexture, sourceSampler, input.uv);
   var rgb = applyCreativeBeforePointColor(corrected.rgb, input.uv);
   rgb = applyPointColor(rgb);
-  // Global Saturation/Vibrance is the final colour balance. Keeping it after
-  // the Mixer prevents global desaturation from changing hue classification.
-  rgb = applyPerceptualColor(rgb);
+  // Grade Color and the Color and Vibrance Adjustment Layer share this exact
+  // rendered-pixel core; only their stack ownership differs.
+  rgb = applyGradeColorVibrance(rgb);
   // A Grade Look is an explicit creative transform, never a hidden parity LUT.
   // It precedes B&W conversion so a selected monochrome treatment remains neutral.
   rgb = sampleGradeLook(rgb);

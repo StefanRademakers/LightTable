@@ -149,11 +149,12 @@ describe('LightTable WGSL modules', () => {
     expect(allShaders).not.toMatch(/\.[rgbaxyzw]{2,4}\s*[+\-*/]=/);
   });
 
-  it('uses the Photoshop document-space HSL route without replacing perceptual Grade color', () => {
+  it('uses the Photoshop document-space HSL route without replacing shared Grade Color', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('fn photoshopRgbToHsl');
     expect(CREATIVE_GRADE_WGSL).toContain('fn photoshopApplyHueSaturation');
     expect(CREATIVE_GRADE_WGSL).toContain('return photoshopEncodedDocumentToLinearSrgb(adjusted);');
-    expect(CREATIVE_GRADE_WGSL).toContain('fn applyPerceptualColor');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn applySharedColorVibrance');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn applyGradeColorVibrance');
     expect(CREATIVE_GRADE_WGSL).toContain('var lab = linearRgbToOklab(rgb);');
   });
 
@@ -171,6 +172,20 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('fn colorVibranceGamutMap');
     expect(CREATIVE_GRADE_WGSL).toContain('colorVibranceChromaticAdaptation(source, mappedTemperature, tint)');
     expect(CREATIVE_GRADE_WGSL).toContain('if (kind == 15u)');
+  });
+
+  it('routes native Grade and the Color and Vibrance adjustment through one shared implementation', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('fn applySharedColorVibrance(');
+    expect(CREATIVE_GRADE_WGSL).toMatch(
+      /fn applyGradeColorVibrance[\s\S]*?return applySharedColorVibrance\(/
+    );
+    expect(CREATIVE_GRADE_WGSL).toMatch(
+      /fn applyPhotoshopColorVibrance[\s\S]*?return applySharedColorVibrance\(/
+    );
+    expect(CREATIVE_GRADE_WGSL).toMatch(
+      /fn applyGradeColorVibrance[\s\S]*?adjustments\.tint,[\s\S]*?0\.0,[\s\S]*?0\.0,/
+    );
+    expect(BASIC_CORRECTION_WGSL).not.toContain('rgb = applyChromaticAdaptation(');
   });
 
   it('keeps the native Grade Look distinct and before the photographic B&W mix', () => {
@@ -227,13 +242,13 @@ describe('LightTable WGSL modules', () => {
     expect(LENS_BLUR_COMPOSITE_WGSL).toContain('foreground.rgb + rgb * (1.0 - foreground.a)');
   });
 
-  it('classifies Color Mixer hues before applying global Saturation and Vibrance', () => {
+  it('classifies Color Mixer hues before applying shared global Color', () => {
     expect(CREATIVE_GRADE_WGSL.indexOf('rgb = applyColorMixer(rgb);'))
-      .toBeLessThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyPerceptualColor(rgb);'));
+      .toBeLessThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyGradeColorVibrance(rgb);'));
   });
 
   it('applies Color Grading after global color in the creative grade', () => {
-    const globalColor = CREATIVE_GRADE_WGSL.indexOf('rgb = applyPerceptualColor(rgb);');
+    const globalColor = CREATIVE_GRADE_WGSL.indexOf('rgb = applyGradeColorVibrance(rgb);');
     const grading = CREATIVE_GRADE_WGSL.indexOf('rgb = applyColorGrading(rgb);');
     expect(globalColor).toBeLessThan(grading);
     expect(OUTPUT_TRANSFORM_WGSL).toContain('let vignetted = applyVignette(source.rgb, input.uv);');
@@ -283,7 +298,7 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('fn applyBlackWhiteMix');
     expect(CREATIVE_GRADE_WGSL).toContain('adjustments.blackWhiteMix[2].x < 0.5');
     expect(CREATIVE_GRADE_WGSL.indexOf('rgb = applyBlackWhiteMix(rgb);'))
-      .toBeGreaterThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyPerceptualColor(rgb);'));
+      .toBeGreaterThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyGradeColorVibrance(rgb);'));
     expect(CREATIVE_GRADE_WGSL.indexOf('rgb = applyBlackWhiteMix(rgb);'))
       .toBeLessThan(CREATIVE_GRADE_WGSL.indexOf('rgb = applyColorGrading(rgb);'));
   });
@@ -311,7 +326,7 @@ describe('LightTable WGSL modules', () => {
       'if (abs(adjustments.dehaze) > 0.00001)',
       'rgb = applyColorMixer(rgb);',
       'rgb = applyPointColor(rgb);',
-      'rgb = applyPerceptualColor(rgb);',
+      'rgb = applyGradeColorVibrance(rgb);',
       'rgb = applyBlackWhiteMix(rgb);',
       'rgb = applyColorGrading(rgb);',
       'rgb = applyLift(rgb);',
@@ -442,14 +457,14 @@ describe('LightTable WGSL modules', () => {
     expect(BASIC_CORRECTION_WGSL).toContain('rgb *= exp2(adjustments.exposureEV)');
   });
 
-  it('evaluates Photoshop Vibrance separately from native Grade color', () => {
+  it('keeps legacy Photoshop Vibrance separate from shared Grade Color and Vibrance', () => {
     const offset = PHOTOSHOP_VIBRANCE_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
     expect(CREATIVE_GRADE_WGSL).toContain(`photoshopValue(${offset}u)`);
     expect(CREATIVE_GRADE_WGSL).toContain(`photoshopValue(${offset + 1}u)`);
     expect(CREATIVE_GRADE_WGSL).toContain('let endpointScale = select(');
     expect(CREATIVE_GRADE_WGSL).toContain('0.2882153 * rgb.r + 0.7127024 * rgb.g');
     expect(CREATIVE_GRADE_WGSL).toContain('return applyPhotoshopVibrance(rgb)');
-    expect(CREATIVE_GRADE_WGSL).toContain('rgb = applyPerceptualColor(rgb)');
+    expect(CREATIVE_GRADE_WGSL).toContain('rgb = applyGradeColorVibrance(rgb)');
   });
 
   it('evaluates Photoshop Brightness/Contrast in the encoded document profile', () => {

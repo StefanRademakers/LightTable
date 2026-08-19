@@ -4,7 +4,7 @@ Actuele productiestaat na taak 213:
 
 | Adjustment layer | LUT | Grootte |
 | --- | --- | ---: |
-| Grade | Ja, runtime curve | 16 KB; optionele user Grade Look variabel |
+| Grade | Ja, runtime curve + gedeeld lazy T/T-asset | 16 KB curve; gedeeld 1,69 MB binair op disk; circa 22 KB GPU per Grade-owner; optionele user Grade Look variabel |
 | Lens Fx | Nee | — |
 | Color and Vibrance | Ja, lazy compatibility-asset | 1,69 MB binair op disk; circa 22 KB GPU per actieve laag |
 | Brightness / Contrast | Ja, embedded 1D | 4,18 KB TypeScript / 975 bytes meetdata |
@@ -31,7 +31,9 @@ Actuele productiestaat na taak 213:
 De adjustment gebruikt een gemeten Photoshop-compatibility-asset van 1.686.678
 bytes. Het bestand staat als los `.bin`-asset onder `src/assets/color-vibrance/`
 en komt niet in TypeScript, Base64 of de initiale JavaScriptflow terecht. Het
-wordt pas opgehaald wanneer een Color and Vibrance-laag bestaat.
+wordt pas opgehaald wanneer een Color and Vibrance-laag of native Grade layer
+wordt gerealiseerd. Daardoor gebruikt ook het eerste Temperature/Tint-extreem
+geen tijdelijk CAT16-exportframe.
 
 - Temperature/Tint: een gekoppeld 21 × 21 slideroppervlak met per positie een
   compacte 9³ RGB-volume en expliciete tijdelijke headroom;

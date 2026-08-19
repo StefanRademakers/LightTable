@@ -19,6 +19,7 @@ export interface AdjustmentGpuPayloadTargets {
   readonly curveTexture: GPUTexture;
   readonly colorVibranceCompatibilityTexture?: GPUTexture;
   readonly colorVibranceColorTexture?: GPUTexture;
+  readonly colorVibranceOwner?: 'grade' | 'photoshop-adjustment';
 }
 
 export interface AdjustmentGpuPayloadChange {
@@ -73,6 +74,12 @@ export class AdjustmentGpuPayloadWriter {
     documentBitDepth: DocumentBitDepth = 16,
     gradeLook: GradeLookUniform | null = null
   ): AdjustmentGpuPayloadChange {
+    const compatibilityBytes = loadedPhotoshopColorVibranceCompatibility();
+    const compatibilityReady = Boolean(
+      compatibilityBytes
+      && this.targets.colorVibranceCompatibilityTexture
+      && this.targets.colorVibranceColorTexture
+    );
     const uniform = buildAdjustmentUniform(
       adjustments,
       width,
@@ -82,7 +89,7 @@ export class AdjustmentGpuPayloadWriter {
       photoshopBlendProfile,
       documentBitDepth,
       gradeLook,
-      Boolean(this.targets.colorVibranceCompatibilityTexture && this.targets.colorVibranceColorTexture)
+      compatibilityReady
     );
     const uniformChanged = !floatArraysEqual(this.lastUniform, uniform);
     if (uniformChanged) {
@@ -101,21 +108,25 @@ export class AdjustmentGpuPayloadWriter {
       this.lastCurves = cloneCurves(adjustments.curves);
     }
 
-    const compatibilityBytes = loadedPhotoshopColorVibranceCompatibility();
-    if (adjustments.photoshopAdjustment.kind === 'color-vibrance'
-      && compatibilityBytes && this.targets.colorVibranceCompatibilityTexture
+    const photoshopSettings = adjustments.photoshopAdjustment.kind === 'color-vibrance'
+      ? adjustments.photoshopAdjustment
+      : null;
+    const parameters = this.targets.colorVibranceOwner === 'grade'
+      ? [adjustments.temperature, adjustments.tint, adjustments.vibrance, adjustments.saturation]
+      : photoshopSettings
+        ? [
+          photoshopSettings.colorVibranceTemperature, photoshopSettings.colorVibranceTint,
+          photoshopSettings.colorVibranceVibrance, photoshopSettings.colorVibranceSaturation
+        ]
+        : null;
+    if (parameters && compatibilityBytes && this.targets.colorVibranceCompatibilityTexture
       && this.targets.colorVibranceColorTexture) {
-      const settings = adjustments.photoshopAdjustment;
-      const parameters = [
-        settings.colorVibranceTemperature, settings.colorVibranceTint,
-        settings.colorVibranceVibrance, settings.colorVibranceSaturation
-      ];
       if (!this.lastColorVibranceParameters
         || parameters.some((value, index) => value !== this.lastColorVibranceParameters?.[index])) {
         this.device.queue.writeTexture(
           { texture: this.targets.colorVibranceCompatibilityTexture },
           buildPhotoshopColorVibranceCompatibility(
-            compatibilityBytes, settings.colorVibranceTemperature, settings.colorVibranceTint
+            compatibilityBytes, parameters[0]!, parameters[1]!
           ),
           {
             bytesPerRow: PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE * 4,
@@ -130,7 +141,7 @@ export class AdjustmentGpuPayloadWriter {
         this.device.queue.writeTexture(
           { texture: this.targets.colorVibranceColorTexture },
           buildPhotoshopColorVibranceColorCompatibility(
-            compatibilityBytes, settings.colorVibranceVibrance, settings.colorVibranceSaturation
+            compatibilityBytes, parameters[2]!, parameters[3]!
           ),
           {
             bytesPerRow: PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE * 4,

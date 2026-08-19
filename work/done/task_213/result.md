@@ -51,7 +51,8 @@ pixels. The contact sheets are visually close but this is not pixel parity.
 - Packaged Electron/WebGPU rendered all 40 primary cases, 13 synthetic cases,
   and the two second-photograph cases.
 - App typecheck passed.
-- 446 app test files / 2,490 tests passed.
+- 446 app test files / 2,491 tests passed in the corrective run; the complete
+  workspace test command also passed.
 - Desktop package and distribution-boundary verification passed.
 - Web production build and delivery audit passed at 2.981.265 bytes initial
   JavaScript and 302.244 bytes CSS; the compatibility binary is classified lazy.
@@ -64,3 +65,34 @@ Darktable was used as design reference, not copied: its code reinforced the
 separation between RAW illuminant adaptation, display-referred correction and
 perceptual gamut handling. It also helped reject treating this rendered-pixel
 Photoshop adjustment as a direct Kelvin/CAT16 control.
+
+## Native Grade correction
+
+The first completion was incomplete: it repaired the Photoshop-shaped
+adjustment layer but left native Grade Temperature/Tint on the rejected CAT16
+implementation. The correction now routes document Grade, Grade layers and
+local raster grades through the same measured rendered-pixel white-balance
+core. Native Grade keeps its existing Camera Raw-oriented Vibrance/Saturation
+formula; a trial that also shared the Photoshop color model regressed
+Saturation and was removed.
+
+The lazy binary starts loading when a native Grade layer is realized, rather
+than on its first Temperature/Tint gesture. This avoids a correctness race in
+which the first extreme frame/export used the analytic fallback while later
+values used the measured model. PNG export also waits at the lazy-asset
+boundary and forces a final payload sync before readback.
+
+Current packaged Camera Raw 18.5 corpus, 11 sources and 33 isolated cases per
+source (363 outputs per product):
+
+| Control | Active sources | Minimum source correlation | Mean magnitude | Worst delta RMSE | Worst source |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Temperature | 8/11 | 0.9849 | 1.018 | 4.42% | wide-gamut-color |
+| Tint | 8/11 | 0.9209 | 1.072 | 6.41% | wide-gamut-color |
+| Vibrance | 8/11 | 0.7371 | 1.353 | 15.54% | wide-gamut-color |
+| Saturation | 8/11 | 0.9281 | 0.980 | 8.32% | color-target |
+
+Before this correction, Temperature had 33.97% worst RMSE and 0.3885 minimum
+source correlation; Tint had 17.81% and 0.3916. Vibrance and Saturation are
+unchanged and remain open native Grade model risks. No aggregate parity
+percentage is claimed.
