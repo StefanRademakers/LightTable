@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-19. This is the first checked 
 ## Current measured surface
 
 - 102 unique static executable menu actions plus 4 dynamic families;
-- 5 already routed through semantic commands;
-- 10 have a semantic command but still bypass it in this UI path;
+- 15 already routed through semantic commands;
+- 1 has a semantic command but still bypasses it in this UI path;
 - 17 host/workspace operations;
 - 34 presentation-only operations;
-- 40 genuine semantic command gaps;
+- 39 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -29,7 +29,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `assign-profile-srgb` | gap | No semantic color-profile command exists. | 338 |
 | `auto-align` | gap | No semantic auto-align command exists. | 608 |
 | `cancel-auto-align` | gap | No semantic auto-align command exists. | 603 |
-| `canvas-size` | command-owner | `document.applyGeometry` | 474 |
+| `canvas-size` | command | `document.applyGeometry` | 474 |
 | `clear-guides` | presentation | Changes document-view guides, not image content. | 810 |
 | `clear-recent` | host | Changes host-maintained recent-file state. | 209 |
 | `clear-recent-projects` | host | Changes host-maintained recent-project state. | 262 |
@@ -42,7 +42,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `copy-merged-content` | gap | No semantic pixel-clipboard command exists. | 288 |
 | `copy-selected-content` | gap | No semantic pixel-clipboard command exists. | 281 |
 | `delete-layer` | gap | No semantic layer-delete command exists. | 709 |
-| `duplicate-image` | command-owner | `document.duplicate` | 536 |
+| `duplicate-image` | command | `document.duplicate` | 536 |
 | `duplicate-layer` | gap | No semantic layer-duplicate command exists. | 553 |
 | `edit-layer-mask` | presentation | Changes the active editing channel. | 639 |
 | `edit-layer-pixels` | presentation | Changes the active editing channel. | 633 |
@@ -56,16 +56,16 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `fit` | command | `view.setZoom` | 743 |
 | `flatten-group` | gap | No semantic group-flatten command exists. | 684 |
 | `flatten-image` | gap | No semantic image-flatten command exists. | 690 |
-| `flip-canvas-horizontal` | command-owner | `document.applyGeometry` | 496 |
-| `flip-canvas-vertical` | command-owner | `document.applyGeometry` | 499 |
+| `flip-canvas-horizontal` | command | `document.applyGeometry` | 496 |
+| `flip-canvas-vertical` | command | `document.applyGeometry` | 499 |
 | `format-support` | presentation | Opens format-support information. | 240 |
 | `guided-sample` | host | Starts an application-level guided workflow. | 731 |
-| `image-crop` | gap | Begins an interactive crop session; commit is not a semantic command path. | 503 |
-| `image-rotation-180` | command-owner | `document.applyGeometry` | 484 |
-| `image-rotation-arbitrary` | command-owner | `document.applyGeometry` | 493 |
-| `image-rotation-clockwise-90` | command-owner | `document.applyGeometry` | 487 |
-| `image-rotation-counter-clockwise-90` | command-owner | `document.applyGeometry` | 490 |
-| `image-size` | command-owner | `document.resizeImage` | 468 |
+| `image-crop` | command | `document.applyGeometry` | 503 |
+| `image-rotation-180` | command | `document.applyGeometry` | 484 |
+| `image-rotation-arbitrary` | command | `document.applyGeometry` | 493 |
+| `image-rotation-clockwise-90` | command | `document.applyGeometry` | 487 |
+| `image-rotation-counter-clockwise-90` | command | `document.applyGeometry` | 490 |
+| `image-size` | command | `document.resizeImage` | 468 |
 | `invert-layer-colors` | gap | No semantic raster-invert command exists. | 582 |
 | `invert-selection` | gap | No semantic selection command exists. | 411 |
 | `layer-via-copy` | gap | No semantic layer-via-copy command exists. | 569 |

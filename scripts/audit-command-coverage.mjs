@@ -107,6 +107,7 @@ for (const entry of [...mapping.actions, ...mapping.dynamicActions]) {
   groups.set(entry.classification, entries);
 }
 const gapEntries = groups.get('gap') ?? [];
+const ownerCount = groups.get('command-owner')?.length ?? 0;
 const rows = mapping.actions.map((entry) => {
   const target = commandClassifications.has(entry.classification) ? `\`${entry.command}\`` : entry.reason;
   return `| \`${entry.id}\` | ${entry.classification} | ${target} | ${staticActions.get(entry.id).join(', ')} |`;
@@ -122,7 +123,7 @@ const report = `# User action / command coverage\n\n`
   + `## Current measured surface\n\n`
   + `- ${ids.length} unique static executable menu actions plus ${dynamicActions.length} dynamic families;\n`
   + `- ${groups.get('command')?.length ?? 0} already routed through semantic commands;\n`
-  + `- ${groups.get('command-owner')?.length ?? 0} have a semantic command but still bypass it in this UI path;\n`
+  + `- ${ownerCount} ${ownerCount === 1 ? 'has' : 'have'} a semantic command but still ${ownerCount === 1 ? 'bypasses' : 'bypass'} it in this UI path;\n`
   + `- ${groups.get('host')?.length ?? 0} host/workspace operations;\n`
   + `- ${groups.get('presentation')?.length ?? 0} presentation-only operations;\n`
   + `- ${gapEntries.length} genuine semantic command gaps;\n`

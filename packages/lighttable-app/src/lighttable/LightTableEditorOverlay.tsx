@@ -1976,6 +1976,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setError(reason instanceof Error ? reason.message : 'Document geometry could not be changed.');
     }
   };
+  const runImageSizeCommand = (request: ImageSizeRequest) => {
+    if (!executeRegisteredCommand('document.resizeImage', request)) commitImageSize(request);
+  };
+  const runDocumentGeometryCommand = (request: DocumentGeometryRequest) => {
+    if (!executeRegisteredCommand('document.applyGeometry', request)) commitDocumentGeometry(request);
+  };
   const beginCrop = () => {
     const document = imageDocumentRef.current;
     if (!document) return;
@@ -1987,7 +1993,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!cropBounds) return;
     const bounds = { ...cropBounds };
     setCropBounds(null);
-    commitDocumentGeometry({ operation: 'crop', bounds });
+    runDocumentGeometryCommand({ operation: 'crop', bounds });
   };
   const textToShapeControllerRef = useRef<TextToShapeCommandController | null>(null);
   textToShapeControllerRef.current ??= new TextToShapeCommandController(() => ({
@@ -5258,7 +5264,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       openSize: editorDialogs.openImageSize,
       openCanvasSize: editorDialogs.openCanvasSize,
       openArbitraryRotation: editorDialogs.openArbitraryRotation,
-      applyDocumentGeometry: commitDocumentGeometry,
+      applyDocumentGeometry: runDocumentGeometryCommand,
       beginCrop,
       duplicate: () => {
         setDuplicateImageError(null);
@@ -6088,8 +6094,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             release: releaseService,
             dirtyDocuments: Boolean(workspaceDocuments?.some(({ dirty }) => dirty)),
             document: imageDocument,
-            onResizeImage: commitImageSize,
-            onApplyDocumentGeometry: commitDocumentGeometry,
+            onResizeImage: runImageSizeCommand,
+            onApplyDocumentGeometry: runDocumentGeometryCommand,
             duplicateImageBusy,
             duplicateImageError,
             duplicateImageSourceName: documentSession?.getSnapshot().title ?? initialSourceName,
