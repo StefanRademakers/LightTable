@@ -75,7 +75,8 @@ describe('LightTableCommandService action recording', () => {
 
     expect(state.service.actionRecordingSnapshot()).toMatchObject({
       status: 'stopped', name: 'UI trace',
-      steps: [{ command: 'layer.createRaster', parameters: {}, outcome: 'completed', replayable: true }]
+      steps: [{ command: 'layer.createRaster', origin: 'ui', parameters: {},
+        outcome: 'completed', replayable: true }]
     });
     expect(changed).toHaveBeenCalled();
     expect(state.ports.createRasterLayer).toHaveBeenCalledTimes(2);
@@ -83,6 +84,22 @@ describe('LightTableCommandService action recording', () => {
       status: 'completed', results: [{ command: 'layer.createRaster', status: 'completed' }]
     });
     unsubscribe();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('does not record playback back into an active recording', async () => {
+    const state = setup();
+    state.service.startActionRecording('No recursion');
+    await state.service.execute(request('layer.createRaster', state.session.id));
+
+    await state.service.playActionRecording();
+
+    expect(state.service.actionRecordingSnapshot().steps).toHaveLength(1);
+    expect(state.service.actionRecordingSnapshot().steps[0]).toMatchObject({
+      command: 'layer.createRaster', origin: 'ui'
+    });
+    expect(state.ports.createRasterLayer).toHaveBeenCalledTimes(2);
     state.service.dispose();
     state.workspace.dispose();
   });

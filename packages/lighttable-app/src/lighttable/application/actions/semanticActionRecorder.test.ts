@@ -20,10 +20,19 @@ describe('SemanticActionRecorder', () => {
     expect(recorder.snapshot()).toMatchObject({ status: 'stopped', name: 'Build card' });
     expect(recorder.snapshot().byteLength).toBeGreaterThan(0);
     expect(recorder.snapshot().steps).toEqual([expect.objectContaining({
-      sequence: 1, command: 'layer.rename', outcome: 'completed', replayable: true,
+      sequence: 1, command: 'layer.rename', origin: 'ui', outcome: 'completed', replayable: true,
       parameters: { layerId: 'layer-1', name: 'Title' }, durationMs: 6
     })]);
     vi.restoreAllMocks();
+  });
+
+  it('retains trusted execution origin for debugging', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start();
+    recorder.record(request('layer.rename', { layerId: 'layer-1', name: 'Agent title' }),
+      completed('request-layer.rename'), Date.now(), recorder.snapshot().id, 'mcp');
+
+    expect(recorder.snapshot().steps[0]?.origin).toBe('mcp');
   });
 
   it('keeps rejected and history commands visible without making them replayable', () => {

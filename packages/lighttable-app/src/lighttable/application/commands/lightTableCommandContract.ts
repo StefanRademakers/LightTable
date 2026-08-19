@@ -36,6 +36,13 @@ export interface LightTableCommandRequest {
   readonly expectedWorkspaceRevision?: number;
 }
 
+/** Trusted call-site metadata; never accepted from command parameters or remote payloads. */
+export type LightTableCommandOrigin = 'ui' | 'actions-playback' | 'mcp' | 'internal';
+export interface LightTableCommandExecutionContext {
+  readonly origin: LightTableCommandOrigin;
+  readonly recording: 'record' | 'ignore';
+}
+
 export interface LightTableRevisionSet {
   readonly workspace: number;
   readonly document?: number;

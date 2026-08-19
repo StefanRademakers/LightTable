@@ -7,15 +7,18 @@ const recording = (): ActionRecordingSnapshot => ({
   byteLength: 10, limitReached: false,
   steps: [{
     sequence: 1, requestId: 'recorded-1', command: 'layer.createRaster', documentId: 'document-1',
+    origin: 'ui',
     parameters: {}, outcome: 'completed', result: {}, startedAt: 1, durationMs: 1,
     replayable: true, note: null
   }, {
     sequence: 2, requestId: 'recorded-2', command: 'layer.rename', documentId: 'document-1',
+    origin: 'ui',
     parameters: { layerId: { $lighttableResult: { step: 1, path: 'layerId' } }, name: 'Title' },
     outcome: 'completed', result: { layerId: 'old-layer', name: 'Title' }, startedAt: 2, durationMs: 1,
     replayable: true, note: null
   }, {
     sequence: 3, requestId: 'recorded-3', command: 'history.undo', documentId: 'document-1',
+    origin: 'ui',
     parameters: {}, outcome: 'completed', result: {}, startedAt: 2, durationMs: 1,
     replayable: false, note: 'diagnostic'
   }]

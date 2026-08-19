@@ -66,7 +66,10 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       command: 'layer.rename', documentId: 'document-1',
       commandRequestId: 'rename-1', commandParameters: { layerId: 'layer-1', name: 'Renamed' }
     }))).toMatchObject({ status: 'completed' });
-    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({ command: 'layer.rename' }));
+    expect(driver.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'layer.rename' }),
+      { origin: 'mcp', recording: 'record' }
+    );
     expect(await adapter.invoke(request('command.execute', { command: 'document.duplicate' })))
       .toMatchObject({ status: 'rejected', code: 'command-not-allowed' });
     adapter.revoke();
@@ -91,10 +94,10 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     }));
     expect(driver.execute).toHaveBeenNthCalledWith(1, expect.objectContaining({
       command: 'document.create', expectedWorkspaceRevision: 4
-    }));
+    }), { origin: 'mcp', recording: 'record' });
     expect(driver.execute).toHaveBeenNthCalledWith(2, expect.objectContaining({
       command: 'layer.placeArtifact', documentId: 'document-1', expectedDocumentRevision: 2
-    }));
+    }), { origin: 'mcp', recording: 'record' });
   });
 
   it('exposes bounded text queries and semantic text edits', async () => {
@@ -112,7 +115,10 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       documentId: 'document-1', commandRequestId: 'format-1',
       commandParameters: { layerId: 'text-1', style: { fontSize: 72 } } })))
       .toMatchObject({ status: 'completed' });
-    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({ command: 'text.format' }));
+    expect(driver.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'text.format' }),
+      { origin: 'mcp', recording: 'record' }
+    );
   });
 
   it('exposes bounded vector queries and semantic vector/style edits', async () => {
@@ -163,7 +169,10 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
         name: 'Build', operations: [{ operationId: 'rename', command: 'layer.rename',
           parameters: { layerId: 'layer-1', name: 'Hero' } }]
       } }))).toMatchObject({ status: 'completed' });
-    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({ command: 'command.batch' }));
+    expect(driver.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'command.batch' }),
+      { origin: 'mcp', recording: 'record' }
+    );
   });
 
   it('expires and bounds sessions and their activity history', async () => {

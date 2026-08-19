@@ -101,6 +101,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
               </div>
               <dl>
                 <div><dt>Document</dt><dd><code>{step.documentId ?? 'workspace'}</code></dd></div>
+                <div><dt>Origin</dt><dd>{step.origin}</dd></div>
                 <div><dt>Replayable</dt><dd>{step.replayable ? 'yes' : 'no'}</dd></div>
               </dl>
               {step.note ? <p>{step.note}</p> : null}

@@ -4,6 +4,7 @@ import type { RecordedActionStep } from './semanticActionRecorder';
 
 const createStep: RecordedActionStep = {
   sequence: 1, requestId: 'create', command: 'layer.createRaster', documentId: 'document-1',
+  origin: 'ui',
   parameters: {}, outcome: 'completed', result: { layerId: 'generated-layer-1' },
   startedAt: 1, durationMs: 1, replayable: true, note: null
 };

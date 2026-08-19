@@ -141,6 +141,13 @@ renderer-owned automation driver through narrow IPC. The renderer enforces the
 Agent Access command profile before reaching that full internal driver and
 filters command capability discovery through the same profile.
 
+Command origin is trusted call-site context rather than part of the serialized
+command parameters. Normal UI calls default to `ui`, the authenticated adapter
+marks remote execution as `mcp`, and Actions playback uses
+`actions-playback` with recording disabled. This prevents playback from
+recording itself while keeping agent edits visible in an explicitly active
+recorder. A remote caller cannot claim a different origin through its payload.
+
 ## Hetzner deployment example
 
 Install Node.js 20 or newer, copy the repository or a production package, run

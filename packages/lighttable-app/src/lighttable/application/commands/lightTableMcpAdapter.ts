@@ -189,7 +189,7 @@ export class AuthenticatedLightTableMcpAdapter {
           ...(typeof parameters.expectedWorkspaceRevision === 'number'
             ? { expectedWorkspaceRevision: parameters.expectedWorkspaceRevision }
             : {})
-        });
+        }, { origin: 'mcp', recording: 'record' });
       }
       default: return undefined;
     }

@@ -1,5 +1,6 @@
 import type {
   LightTableCommandRequest,
+  LightTableCommandOrigin,
   LightTableCommandResult
 } from '../commands/lightTableCommandContract';
 import { bindRecordedParameters } from './actionResultBindings';
@@ -7,6 +8,7 @@ import { bindRecordedParameters } from './actionResultBindings';
 export interface RecordedActionStep {
   readonly sequence: number;
   readonly requestId: string;
+  readonly origin: LightTableCommandOrigin;
   readonly command: string;
   readonly documentId: string | null;
   readonly parameters: unknown;
@@ -83,7 +85,7 @@ export class SemanticActionRecorder {
   }
 
   record(request: LightTableCommandRequest, result: LightTableCommandResult, startedAt: number,
-    recordingId = this.snapshotValue.id): void {
+    recordingId = this.snapshotValue.id, origin: LightTableCommandOrigin = 'ui'): void {
     if (!recordingId || this.snapshotValue.id !== recordingId
       || this.snapshotValue.status === 'idle' || this.snapshotValue.limitReached) return;
     const rawParameters = cloneBounded(request.parameters);
@@ -109,6 +111,7 @@ export class SemanticActionRecorder {
     const step: RecordedActionStep = {
       sequence: this.snapshotValue.steps.length + 1,
       requestId: request.requestId,
+      origin,
       command: request.command,
       documentId: request.documentId ?? null,
       parameters: parameters.value,

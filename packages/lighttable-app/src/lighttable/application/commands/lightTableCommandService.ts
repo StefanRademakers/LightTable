@@ -20,7 +20,8 @@ import {
   type AutomationEventQueryResult, type AutomationTaskQueryResult, type CommandCapabilitySummary, type DocumentLightTableCommandPorts,
   type DocumentQueryResult, type EditableTextQueryResult, type EditableVectorQueryResult, type LayerEffectsQueryResult, type LightTableArtifactPlacement,
   type LightTableCommandErrorCode, type LightTableCommandId, type LightTableCommandPorts,
-  type LightTableCommandRequest, type LightTableCommandResult, type LightTableCreateDocumentOptions,
+  type LightTableCommandExecutionContext, type LightTableCommandRequest, type LightTableCommandResult,
+  type LightTableCreateDocumentOptions,
   type LightTableGestureKind, type LightTableGestureResult, type LightTableGestureSample,
   type LightTableRevisionSet, type LightTableWorkspaceCommandPorts, type WorkspaceQueryResult
 } from './lightTableCommandContract';
@@ -217,7 +218,9 @@ export class LightTableCommandService {
   private gestureSequence = 0;
   private readonly taskEvents = new AutomationTaskEventStore();
   private readonly actionRecorder = new SemanticActionRecorder();
-  private readonly actionPlayback = new SemanticActionPlaybackController((request) => this.execute(request));
+  private readonly actionPlayback = new SemanticActionPlaybackController((request) => this.execute(request, {
+    origin: 'actions-playback', recording: 'ignore'
+  }));
 
   constructor(
     private readonly workspace: WorkspaceSession,
@@ -538,14 +541,18 @@ export class LightTableCommandService {
     ];
   }
 
-  async execute(requestValue: unknown): Promise<LightTableCommandResult> {
+  async execute(requestValue: unknown, context: LightTableCommandExecutionContext = {
+    origin: 'ui', recording: 'record'
+  }): Promise<LightTableCommandResult> {
     const startedAt = Date.now();
-    const recordingId = this.actionRecorder.snapshot().status === 'recording'
+    const recordingId = context.recording === 'record' && this.actionRecorder.snapshot().status === 'recording'
       ? this.actionRecorder.snapshot().id
       : null;
     const parsed = this.parseRequest(requestValue);
     const result = await this.executeCommand(requestValue);
-    if (!('rejection' in parsed)) this.actionRecorder.record(parsed.value, result, startedAt, recordingId);
+    if (!('rejection' in parsed) && context.recording === 'record') {
+      this.actionRecorder.record(parsed.value, result, startedAt, recordingId, context.origin);
+    }
     return result;
   }
 
@@ -1120,5 +1127,5 @@ export interface LightTableAutomationDriver {
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): boolean;
-  execute(request: unknown): Promise<LightTableCommandResult>;
+  execute(request: unknown, context?: LightTableCommandExecutionContext): Promise<LightTableCommandResult>;
 }

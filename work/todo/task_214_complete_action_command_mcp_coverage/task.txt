@@ -176,6 +176,10 @@ Implemented evidence (2026-08-19)
   Actions displays that same projection and MCP exposes it through the
   read-only `lighttable_commands` discovery tool. Catalog/property drift fails
   generation instead of silently desynchronizing the two surfaces.
+- Command execution now carries trusted origin and recording policy outside the
+  public payload. UI and MCP executions can be traced as separate origins;
+  Actions playback is explicitly ignored by the recorder and cannot recursively
+  append itself to an active recording.
 - Rejected and history/control executions remain visible but non-replayable.
 - The packaged desktop smoke records a normal Layer-menu creation followed by
   an Actions-panel undo and verifies both recorder steps.
