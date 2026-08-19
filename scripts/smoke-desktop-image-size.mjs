@@ -62,6 +62,21 @@ try {
       expected: before.canvas, width: await width.inputValue(), height: await height.inputValue()
     })}`);
   }
+  const dialogLayout = await dialog.evaluate((element) => {
+    const dialogStyle = getComputedStyle(element);
+    const bodyStyle = getComputedStyle(element.querySelector('.image-size-dialog__body'));
+    const rowStyle = getComputedStyle(element.querySelector('.image-size-dialog__row'));
+    return {
+      width: dialogStyle.width,
+      bodyDisplay: bodyStyle.display,
+      rowDisplay: rowStyle.display,
+      rowColumns: rowStyle.gridTemplateColumns
+    };
+  });
+  if (dialogLayout.width !== '470px' || dialogLayout.bodyDisplay !== 'grid'
+    || dialogLayout.rowDisplay !== 'grid' || !dialogLayout.rowColumns.startsWith('110px ')) {
+    throw new Error(`Image Size dialog layout regressed: ${JSON.stringify(dialogLayout)}`);
+  }
   const dialogSelectStyle = await dialog.getByRole('combobox', { name: 'Resampling method' }).evaluate((element) => {
     const style = getComputedStyle(element);
     return {
@@ -72,8 +87,8 @@ try {
     };
   });
   if (JSON.stringify(dialogSelectStyle) !== JSON.stringify({
-    height: '25px', paddingLeft: '4px', paddingRight: '4px', borderRadius: '3px'
-  })) throw new Error(`Dialog selects diverged from compact editor controls: ${JSON.stringify(dialogSelectStyle)}`);
+    height: '28px', paddingLeft: '8px', paddingRight: '20px', borderRadius: '8px'
+  })) throw new Error(`Dialog selects diverged from canonical form controls: ${JSON.stringify(dialogSelectStyle)}`);
   await page.screenshot({ path: screenshotPath });
   await width.fill(`${before.canvas.width}/2`);
   await width.press('Enter');

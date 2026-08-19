@@ -1,0 +1,17 @@
+Task 201 - Restore the Image Size dialog layout
+
+Goal
+====
+
+Restore the degraded Image Size dialog layout shown in `image_1.png`, while
+using LightTable's current canonical modal, input, select, switch and button
+controls as illustrated by `image_2.png`.
+
+Definition of done
+==================
+
+- The summary, labels, value fields, units, switches and footer form one clear,
+  aligned dialog again.
+- Current shared LightTable controls remain the styling owners.
+- Image Size behavior, command routing and undo remain intact.
+- The packaged desktop flow and a real dialog screenshot are verified.
