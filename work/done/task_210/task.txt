@@ -1,0 +1,51 @@
+Task 210 - Restore the shared UI primitive boundary
+
+Goal
+====
+
+Remove the editor-domain dependency from the reusable anchor-grid primitive
+without changing its accepted values or any canvas-size behavior.
+
+Current evidence
+================
+
+- `npm run audit:ui-boundary` fails only because `src/ui/AnchorGridControl.tsx`
+  imports `CanvasAnchor` from the LightTable document-geometry domain.
+- The dependency is type-only, but it makes the generic UI layer depend on one
+  application consumer and defeats the repository's enforced ownership rule.
+- Once that first failure is removed, the inventory exposes two earlier,
+  unrecorded exceptions: native crop drag handles and contextual segmented-
+  control layout. The former is interaction geometry rather than a normal
+  action button; the latter changes layout in product contexts, not component
+  behavior. Both need narrow, reviewed baselines instead of unsuitable control
+  substitution or a broad budget increase.
+
+Implementation contract
+=======================
+
+- Keep the exact public value set `0 | 0.5 | 1` and existing DOM behavior.
+- Give the UI primitive its own structural value contract; do not move editor
+  business rules into `src/ui` and do not weaken the audit.
+- Prove the existing canvas dialog remains type-compatible.
+- Preserve explicit per-file/per-component inventory exceptions; do not raise
+  global native-control or selector budgets.
+
+Definition of done
+==================
+
+UI boundary, UI inventory, app tests and app typecheck pass, and this task moves
+to `work/done` in the same focused commit.
+
+Completion evidence (2026-08-19)
+================================
+
+- `AnchorGridControl` now owns the structural `0 | 0.5 | 1` UI value contract
+  and no longer imports the LightTable editor domain. Existing `CanvasAnchor`
+  consumers remain structurally type-compatible and runtime markup is unchanged.
+- Reviewed and recorded two narrow inventory exceptions: native crop handles,
+  which are pointer geometry rather than ordinary action buttons, and contextual
+  segmented-control layout. No global customness budget was increased.
+- Regenerated the current usage inventory. It records 25 canonical controls and
+  the existing ceiling of eight deep selectors.
+- App typecheck passed; all 445 app test files and 2,487 tests passed. The UI
+  boundary and current-inventory checks both pass.

@@ -1,7 +1,9 @@
 {
   "schema": 1,
   "nativeCandidates": {
-    "button": {},
+    "button": {
+      "lighttable/editor/tools/crop/CropInteractionOverlay.tsx": 1
+    },
     "select": {},
     "range": {
       "lighttable/editor/panels/LevelsPropertiesPanel.tsx": 1
@@ -19,6 +21,7 @@
     "form-select|lighttable/lighttable.css|form-input",
     "color-swatch|lighttable/lighttable.css|color-swatch-field",
     "color-picker|lighttable/lighttable.css|lighttable-color-picker-prototype",
-    "panel-section|lighttable/lighttable.css|lighttable-group"
+    "panel-section|lighttable/lighttable.css|lighttable-group",
+    "segmented-control|lighttable/lighttable.css|segmented-control"
   ]
 }

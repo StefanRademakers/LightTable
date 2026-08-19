@@ -4,9 +4,9 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 65,
+      "productionUsageCount": 76,
       "internalUsageCount": 5,
-      "contextCount": 19,
+      "contextCount": 25,
       "overrideCount": 0,
       "locations": [
         {
@@ -40,8 +40,18 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/tools/crop/CropInteractionOverlay.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/AboutUpdateDialog.tsx",
           "count": 3,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/ArbitraryRotationDialog.tsx",
+          "count": 2,
           "kind": "product"
         },
         {
@@ -50,8 +60,18 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/CommandHelpDialog.tsx",
           "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/DuplicateImageDialog.tsx",
+          "count": 2,
           "kind": "product"
         },
         {
@@ -85,6 +105,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/ToolOptionsContextMenu.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "standalone/AgentAccessSettingsDialog.tsx",
           "count": 11,
           "kind": "product"
@@ -102,6 +127,11 @@
         {
           "path": "standalone/PreferencesDialog.tsx",
           "count": 13,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/ProjectHomeSurface.tsx",
+          "count": 2,
           "kind": "product"
         },
         {
@@ -125,9 +155,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 137,
+      "productionUsageCount": 129,
       "internalUsageCount": 0,
-      "contextCount": 35,
+      "contextCount": 37,
       "overrideCount": 0,
       "locations": [
         {
@@ -176,8 +206,13 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/GradeHistogramControl.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 3,
+          "count": 4,
           "kind": "product"
         },
         {
@@ -237,7 +272,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 23,
+          "count": 21,
           "kind": "product"
         },
         {
@@ -296,8 +331,13 @@
           "kind": "product"
         },
         {
+          "path": "standalone/LauncherJustifiedGallery.tsx",
+          "count": 2,
+          "kind": "product"
+        },
+        {
           "path": "standalone/LightTableStandaloneApp.tsx",
-          "count": 19,
+          "count": 9,
           "kind": "product"
         },
         {
@@ -311,14 +351,14 @@
     {
       "id": "square-icon-button",
       "metadataDeclared": true,
-      "productionUsageCount": 4,
+      "productionUsageCount": 6,
       "internalUsageCount": 1,
       "contextCount": 2,
       "overrideCount": 0,
       "locations": [
         {
-          "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 3,
+          "path": "lighttable/editor/panels/GradePanel.tsx",
+          "count": 5,
           "kind": "product"
         },
         {
@@ -337,13 +377,18 @@
     {
       "id": "form-input",
       "metadataDeclared": true,
-      "productionUsageCount": 10,
+      "productionUsageCount": 11,
       "internalUsageCount": 4,
-      "contextCount": 4,
+      "contextCount": 5,
       "overrideCount": 1,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/DuplicateImageDialog.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -390,7 +435,7 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 28,
+      "productionUsageCount": 27,
       "internalUsageCount": 1,
       "contextCount": 13,
       "overrideCount": 1,
@@ -427,7 +472,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 2,
+          "count": 1,
           "kind": "product"
         },
         {
@@ -494,14 +539,24 @@
     {
       "id": "numeric-expression",
       "metadataDeclared": true,
-      "productionUsageCount": 8,
+      "productionUsageCount": 11,
       "internalUsageCount": 0,
-      "contextCount": 3,
+      "contextCount": 5,
       "overrideCount": 0,
       "locations": [
         {
           "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
           "count": 4,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/ArbitraryRotationDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
+          "count": 2,
           "kind": "product"
         },
         {
@@ -520,11 +575,16 @@
     {
       "id": "panel-select",
       "metadataDeclared": true,
-      "productionUsageCount": 7,
+      "productionUsageCount": 8,
       "internalUsageCount": 0,
-      "contextCount": 2,
+      "contextCount": 3,
       "overrideCount": 0,
       "locations": [
+        {
+          "path": "lighttable/editor/panels/GradePanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
           "count": 1,
@@ -541,11 +601,16 @@
     {
       "id": "panel-file",
       "metadataDeclared": true,
-      "productionUsageCount": 1,
+      "productionUsageCount": 2,
       "internalUsageCount": 0,
-      "contextCount": 1,
+      "contextCount": 2,
       "overrideCount": 0,
       "locations": [
+        {
+          "path": "lighttable/editor/panels/GradePanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
           "count": 1,
@@ -599,10 +664,10 @@
     {
       "id": "segmented-control",
       "metadataDeclared": true,
-      "productionUsageCount": 11,
+      "productionUsageCount": 13,
       "internalUsageCount": 0,
       "contextCount": 10,
-      "overrideCount": 0,
+      "overrideCount": 1,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
@@ -621,7 +686,7 @@
         },
         {
           "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 1,
+          "count": 3,
           "kind": "product"
         },
         {
@@ -655,14 +720,21 @@
           "kind": "product"
         }
       ],
-      "overrides": []
+      "overrides": [
+        {
+          "path": "lighttable/lighttable.css",
+          "roots": [
+            "segmented-control"
+          ]
+        }
+      ]
     },
     {
       "id": "switch-control",
       "metadataDeclared": true,
-      "productionUsageCount": 16,
+      "productionUsageCount": 19,
       "internalUsageCount": 0,
-      "contextCount": 8,
+      "contextCount": 9,
       "overrideCount": 0,
       "locations": [
         {
@@ -672,12 +744,17 @@
         },
         {
           "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 2,
+          "count": 3,
           "kind": "product"
         },
         {
           "path": "lighttable/editor/panels/GradientMapPropertiesPanel.tsx",
           "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/CanvasSizeDialog.tsx",
+          "count": 1,
           "kind": "product"
         },
         {
@@ -702,7 +779,7 @@
         },
         {
           "path": "standalone/PreferencesDialog.tsx",
-          "count": 6,
+          "count": 7,
           "kind": "product"
         }
       ],
@@ -711,7 +788,7 @@
     {
       "id": "adjustment-slider",
       "metadataDeclared": true,
-      "productionUsageCount": 35,
+      "productionUsageCount": 39,
       "internalUsageCount": 5,
       "contextCount": 11,
       "overrideCount": 0,
@@ -733,7 +810,7 @@
         },
         {
           "path": "lighttable/editor/panels/GradePanel.tsx",
-          "count": 5,
+          "count": 9,
           "kind": "product"
         },
         {
@@ -743,7 +820,7 @@
         },
         {
           "path": "lighttable/editor/panels/LensFxPanel.tsx",
-          "count": 6,
+          "count": 7,
           "kind": "product"
         },
         {
@@ -758,7 +835,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 3,
+          "count": 2,
           "kind": "product"
         },
         {
@@ -949,9 +1026,9 @@
     {
       "id": "context-menu",
       "metadataDeclared": true,
-      "productionUsageCount": 5,
+      "productionUsageCount": 6,
       "internalUsageCount": 0,
-      "contextCount": 4,
+      "contextCount": 5,
       "overrideCount": 0,
       "locations": [
         {
@@ -972,6 +1049,11 @@
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
           "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/LauncherJustifiedGallery.tsx",
+          "count": 1,
           "kind": "product"
         }
       ],
@@ -996,7 +1078,7 @@
     {
       "id": "confirm-dialog",
       "metadataDeclared": true,
-      "productionUsageCount": 4,
+      "productionUsageCount": 3,
       "internalUsageCount": 0,
       "contextCount": 3,
       "overrideCount": 0,
@@ -1008,7 +1090,7 @@
         },
         {
           "path": "lighttable/editor/ui/EditorDialogs.tsx",
-          "count": 2,
+          "count": 1,
           "kind": "product"
         },
         {
@@ -1045,9 +1127,14 @@
     {
       "id": "button",
       "label": "Raw buttons",
-      "count": 0,
-      "fileCount": 0,
-      "locations": []
+      "count": 1,
+      "fileCount": 1,
+      "locations": [
+        {
+          "path": "lighttable/editor/tools/crop/CropInteractionOverlay.tsx",
+          "count": 1
+        }
+      ]
     },
     {
       "id": "select",

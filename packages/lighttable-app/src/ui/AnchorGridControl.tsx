@@ -1,14 +1,14 @@
-import type { CanvasAnchor } from '../lighttable/application/documentGeometry/documentGeometryModel';
+export type AnchorGridPosition = 0 | 0.5 | 1;
 
 export interface AnchorGridControlProps {
-  readonly x: CanvasAnchor;
-  readonly y: CanvasAnchor;
-  readonly onChange: (x: CanvasAnchor, y: CanvasAnchor) => void;
+  readonly x: AnchorGridPosition;
+  readonly y: AnchorGridPosition;
+  readonly onChange: (x: AnchorGridPosition, y: AnchorGridPosition) => void;
   readonly disabled?: boolean;
   readonly ariaLabel?: string;
 }
 
-const POSITIONS: readonly CanvasAnchor[] = [0, 0.5, 1];
+const POSITIONS: readonly AnchorGridPosition[] = [0, 0.5, 1];
 
 /** Canonical 3 x 3 origin/anchor picker shared by geometry and layout workflows. */
 export const AnchorGridControl = ({
