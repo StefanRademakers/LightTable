@@ -1,10 +1,12 @@
-Task 207 - Separate generated artifacts from source and bundle budgets
+Task 207 - Make structural audits reflect product and ownership risk
 
 Goal
 ====
 
-Make the structural quality gate useful again without hiding the real delivery
-cost of generated LUTs, models, Wasm or application chunks.
+Make structural audits useful decision support: distinguish cohesive large
+systems from mixed-authority orchestration, and connect generated LUTs, models,
+Wasm and application chunks to measured delivery/runtime cost rather than an
+arbitrary line target.
 
 Current evidence
 ================
@@ -19,16 +21,21 @@ Implementation contract
 =======================
 
 - Classify generated source by a narrow, auditable rule; do not broadly ignore
-  large files.
+  large files or treat a lower line count as an improvement by itself.
 - Retain byte/checksum accountability for generated artifacts.
-- Add deterministic budgets/reporting for initial JS, CSS and lazy heavyweight
-  assets from the production web build.
-- Keep handwritten source ratchets intact and report new hotspots separately.
+- Report initial JS, CSS and lazy heavyweight assets from the production web
+  build together with their load boundary and user-flow reason.
+- For handwritten hotspots, report responsibility groups, fan-out and lifecycle
+  ownership alongside size. Do not require extraction when the file is large
+  but cohesive, and do not approve a mixed-authority file merely because it is
+  below a numeric ceiling.
+- Any enforced delivery budget must be based on a named startup/user-flow goal
+  and measured baseline, not selected only to make the current build pass.
 - Do not change LUT math or render output in this task.
 
 Definition of done
 ==================
 
-Generated data no longer corrupts handwritten line metrics, its delivery cost
-is explicitly reported/budgeted, relevant script tests pass and the task moves
-to `work/done` with its implementation.
+Generated data no longer corrupts handwritten complexity signals, delivery cost
+and ownership concentration are reported in product terms, relevant script
+tests pass and the task moves to `work/done` with its implementation.
