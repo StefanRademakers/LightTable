@@ -129,9 +129,9 @@ reference was fetched directly from Adobe.
 - General conditional scripting. Start with a small declarative condition set
   only when real workflows justify it.
 
-## First implemented slice
+## Implemented foundation
 
-The first slice intentionally proves the architecture before recording:
+The first slice established command discovery:
 
 - command definitions now carry category, label, description, scope, effect,
   invocation type and explicit rollout reasons;
@@ -144,6 +144,25 @@ The first slice intentionally proves the architecture before recording:
   typed parameter editors;
 - no document, history, renderer or MCP implementation was added to the panel.
 
+The second slice adds bounded semantic recording without adding a parallel
+executor:
+
+- recording observes `LightTableCommandService.execute`, so UI, local Actions
+  and future MCP callers have one capture point;
+- each observed step contains the command, document target, transport-safe
+  parameters, outcome, bounded result, timing and replayability status;
+- rejected commands remain visible for debugging but are not replayable;
+- undo, redo and task cancellation remain diagnostic steps rather than saved
+  design instructions;
+- recordings are capped at 256 steps, 256 KiB per captured value and 2 MiB in
+  total so the panel cannot become an unbounded document log;
+- the packaged desktop smoke records a layer creation triggered through the
+  normal Layer menu plus an undo triggered from Actions, then inspects both
+  command-service steps in the recorder.
+
+This is not playback yet. There are no saved sets, target variables, gesture
+coalescing, parameter editing or one-history-entry action transactions.
+
 ## Next implementation order
 
 1. Generate parameter descriptors from the same validated command contracts.
@@ -151,9 +170,10 @@ The first slice intentionally proves the architecture before recording:
    structured command; verify UI and local Actions yield equivalent state.
 3. Inventory all menus, shortcuts, panels, context menus and tools against the
    catalog, including justified query/gesture/presentation classifications.
-4. Add named local action sets and ordered semantic steps.
-5. Add preflight plus atomic playback/rollback and one-History-entry behavior.
-6. Add recording only after normal UI entry points publish the same semantic
-   command executions.
+4. Add named local action sets, target variables and ordered semantic steps.
+5. Normalize bounded gestures before admitting paint/slider/transform streams
+   to saved actions.
+6. Add preflight plus step-debug playback, atomic rollback and optional
+   one-History-entry behavior.
 7. Admit categories to Agent Access/MCP only after their local Actions flow,
    validation, undo and representative rendered result have passed.

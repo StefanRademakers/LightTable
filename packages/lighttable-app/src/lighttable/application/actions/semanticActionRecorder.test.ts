@@ -1,0 +1,43 @@
+import { describe, expect, it, vi } from 'vitest';
+import { SemanticActionRecorder } from './semanticActionRecorder';
+
+const request = (command: string, parameters: unknown = {}) => ({
+  protocolVersion: 1, requestId: `request-${command}`, command, documentId: 'document-1', parameters
+});
+const completed = (requestId: string, value: unknown = {}) => ({
+  requestId, status: 'completed' as const, value, revisions: { workspace: 1, document: 2 }
+});
+
+describe('SemanticActionRecorder', () => {
+  it('records completed semantic commands with transport-safe parameters and results', () => {
+    vi.spyOn(Date, 'now').mockReturnValueOnce(100).mockReturnValueOnce(107);
+    const recorder = new SemanticActionRecorder();
+    recorder.start('Build card');
+    recorder.record(request('layer.rename', { layerId: 'layer-1', name: 'Title' }),
+      completed('request-layer.rename', { layerId: 'layer-1' }), 101);
+    recorder.stop();
+
+    expect(recorder.snapshot()).toMatchObject({ status: 'stopped', name: 'Build card' });
+    expect(recorder.snapshot().byteLength).toBeGreaterThan(0);
+    expect(recorder.snapshot().steps).toEqual([expect.objectContaining({
+      sequence: 1, command: 'layer.rename', outcome: 'completed', replayable: true,
+      parameters: { layerId: 'layer-1', name: 'Title' }, durationMs: 6
+    })]);
+    vi.restoreAllMocks();
+  });
+
+  it('keeps rejected and history commands visible without making them replayable', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start();
+    recorder.record(request('history.undo'), completed('request-history.undo'), Date.now());
+    recorder.record(request('layer.rename'), {
+      requestId: 'request-layer.rename', status: 'rejected', code: 'invalid-parameters',
+      message: 'Rename requires a layer.', revisions: { workspace: 1 }
+    }, Date.now());
+
+    expect(recorder.snapshot().steps.map(({ replayable, note }) => ({ replayable, note }))).toEqual([
+      { replayable: false, note: 'Control/history commands are diagnostic only.' },
+      { replayable: false, note: 'Rejected commands are retained for debugging but are not replayable.' }
+    ]);
+  });
+});

@@ -36,6 +36,10 @@ import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSamp
 import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
 import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import { parseSemanticFaceWarpCommand, type SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
+import {
+  SemanticActionRecorder,
+  type ActionRecordingSnapshot
+} from '../actions/semanticActionRecorder';
 export * from './lightTableCommandContract';
 
 /**
@@ -208,6 +212,7 @@ export class LightTableCommandService {
   }>();
   private gestureSequence = 0;
   private readonly taskEvents = new AutomationTaskEventStore();
+  private readonly actionRecorder = new SemanticActionRecorder();
 
   constructor(
     private readonly workspace: WorkspaceSession,
@@ -264,6 +269,11 @@ export class LightTableCommandService {
 
   subscribeTaskEvents = (listener: () => void): (() => void) => this.taskEvents.subscribe(listener);
   taskEventRevision = (): number => this.taskEvents.snapshot();
+  actionRecordingSnapshot = (): ActionRecordingSnapshot => this.actionRecorder.snapshot();
+  subscribeActionRecording = (listener: () => void): (() => void) => this.actionRecorder.subscribe(listener);
+  startActionRecording = (name?: string): ActionRecordingSnapshot => this.actionRecorder.start(name);
+  stopActionRecording = (): ActionRecordingSnapshot => this.actionRecorder.stop();
+  clearActionRecording = (): ActionRecordingSnapshot => this.actionRecorder.clear();
 
   queryRenderTelemetry(documentId: DocumentSessionId): RenderTelemetrySnapshot | null {
     return this.document(documentId)?.lifecycle === 'ready'
@@ -511,6 +521,17 @@ export class LightTableCommandService {
   }
 
   async execute(requestValue: unknown): Promise<LightTableCommandResult> {
+    const startedAt = Date.now();
+    const recordingId = this.actionRecorder.snapshot().status === 'recording'
+      ? this.actionRecorder.snapshot().id
+      : null;
+    const parsed = this.parseRequest(requestValue);
+    const result = await this.executeCommand(requestValue);
+    if (!('rejection' in parsed)) this.actionRecorder.record(parsed.value, result, startedAt, recordingId);
+    return result;
+  }
+
+  private async executeCommand(requestValue: unknown): Promise<LightTableCommandResult> {
     const request = this.parseRequest(requestValue);
     if ('rejection' in request) return request.rejection;
     const { value } = request;

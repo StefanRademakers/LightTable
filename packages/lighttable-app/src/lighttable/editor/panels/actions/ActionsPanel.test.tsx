@@ -13,11 +13,18 @@ describe('ActionsPanel', () => {
         invocation: 'direct', agentAccess: true, externalMcp: 'execute'
       }]}
       onExecute={() => null}
+      recording={{ status: 'idle', id: null, name: 'Untitled Action', startedAt: null,
+        stoppedAt: null, steps: [], byteLength: 0, limitReached: false }}
+      onStartRecording={() => undefined}
+      onStopRecording={() => undefined}
+      onClearRecording={() => undefined}
     />);
 
     expect(markup).toContain('1 of 1 commands');
     expect(markup).toContain('New raster layer');
     expect(markup).toContain('layer.createRaster');
+    expect(markup).toContain('Recorder');
+    expect(markup).toContain('Record');
     expect(markup).not.toContain('textarea');
   });
 });

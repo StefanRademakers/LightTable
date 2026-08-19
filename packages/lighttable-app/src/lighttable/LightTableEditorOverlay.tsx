@@ -19,6 +19,7 @@ import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFon
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
+import type { ActionRecordingSnapshot } from './application/actions/semanticActionRecorder';
 import { linearRgbToOklab, srgbToLinear } from './colorMath';
 import type { PointColorSample } from './pointColor';
 import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
@@ -357,6 +358,12 @@ import './lighttable.css';
 
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
+const EMPTY_ACTION_RECORDING: ActionRecordingSnapshot = {
+  status: 'idle', id: null, name: 'Untitled Action', startedAt: null, stoppedAt: null,
+  steps: [], byteLength: 0, limitReached: false
+};
+const subscribeToNothing = () => () => undefined;
+const emptyActionRecording = () => EMPTY_ACTION_RECORDING;
 const downloadEditorFile = (file: File): void => {
   const url = URL.createObjectURL(file);
   const anchor = document.createElement('a');
@@ -750,6 +757,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agentEvents = useAgentActivity(commandService, workspaceDocumentId);
+  const actionRecording = useSyncExternalStore(
+    commandService?.subscribeActionRecording ?? subscribeToNothing,
+    commandService?.actionRecordingSnapshot ?? emptyActionRecording,
+    commandService?.actionRecordingSnapshot ?? emptyActionRecording
+  );
   const executeRegisteredCommand = useCallback((
     command: LightTableCommandId,
     parameters: unknown
@@ -6585,7 +6597,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } },
               actions: {
                 capabilities: commandService?.queryCapabilities(workspaceDocumentId as DocumentSessionId) ?? null,
-                onExecute: executeRegisteredCommand
+                onExecute: executeRegisteredCommand,
+                recording: actionRecording,
+                onStartRecording: () => { commandService?.startActionRecording(); },
+                onStopRecording: () => { commandService?.stopActionRecording(); },
+                onClearRecording: () => { commandService?.clearActionRecording(); }
               },
               genAi: {
                 interactionActive: active,

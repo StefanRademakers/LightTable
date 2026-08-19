@@ -154,3 +154,19 @@ Non-goals
 - Automatically making every internal/debug command remotely callable.
 - Treating a command count or generated schema as proof that the user flow works.
 - Reimplementing editor behavior in the Actions UI or MCP server.
+
+Implemented evidence (2026-08-19)
+=================================
+
+- The generated command catalog and docked Actions command browser are live.
+- The checked editor-menu inventory covers 102 static actions and four dynamic
+  action families without treating the count as functional completion.
+- Normal UI Image Size, canvas geometry, crop commit, rotation and flip paths
+  now execute through their existing semantic commands.
+- A bounded semantic recorder observes `LightTableCommandService.execute` and
+  displays command, document target, parameters, outcome, result and timing.
+- Rejected and history/control executions remain visible but non-replayable.
+- The packaged desktop smoke records a normal Layer-menu creation followed by
+  an Actions-panel undo and verifies both recorder steps.
+- Playback, variables, gesture coalescing, saved action sets and broad MCP
+  artist coverage remain open; this task is not complete.

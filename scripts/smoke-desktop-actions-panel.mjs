@@ -42,18 +42,19 @@ try {
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   const panel = window.getByRole('complementary', { name: 'Actions' });
   await panel.getByText(/commands$/).waitFor();
+  const recorder = panel.locator('.lighttable-action-recorder');
+  await recorder.getByRole('button', { name: 'Record' }).click();
+  await recorder.getByText('recording', { exact: true }).waitFor();
 
   const layerRows = window.getByRole('treeitem');
   const before = await layerRows.count();
-  const create = panel.locator('details').filter({ hasText: 'layer.createRaster' });
-  await create.locator('summary').click();
-  await create.getByRole('button', { name: 'Run' }).click();
-  await panel.getByRole('status').filter({ hasText: 'layer.createRaster: completed' })
-    .waitFor({ timeout: 15_000 });
+  await window.getByRole('menuitem', { name: 'Layer' }).click();
+  await window.getByRole('menuitem', { name: 'New Raster Layer' }).click();
   await window.waitForFunction(
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
     before + 1
   );
+  await recorder.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
 
   const undo = panel.locator('details').filter({ hasText: 'history.undo' });
   await undo.locator('summary').click();
@@ -66,6 +67,13 @@ try {
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
     before
   );
+  const undoStep = recorder.locator('li').filter({ hasText: 'history.undo' });
+  await undoStep.waitFor();
+  await undoStep.locator('summary').click();
+  await undoStep.getByText('Replayable').waitFor();
+  await undoStep.getByText('no', { exact: true }).waitFor();
+  await recorder.getByRole('button', { name: 'Stop' }).click();
+  await recorder.getByText('stopped', { exact: true }).waitFor();
 
   await window.screenshot({ path: screenshot });
   if (pageErrors.length) throw new Error(`Actions panel page errors: ${pageErrors.join(' | ')}`);

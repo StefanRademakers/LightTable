@@ -62,6 +62,27 @@ const request = (command: string, documentId: string, parameters: unknown = {}) 
   parameters
 });
 
+describe('LightTableCommandService action recording', () => {
+  it('observes the same command execution path used by normal callers', async () => {
+    const state = setup();
+    const changed = vi.fn();
+    const unsubscribe = state.service.subscribeActionRecording(changed);
+    state.service.startActionRecording('UI trace');
+
+    await state.service.execute(request('layer.createRaster', state.session.id));
+    state.service.stopActionRecording();
+
+    expect(state.service.actionRecordingSnapshot()).toMatchObject({
+      status: 'stopped', name: 'UI trace',
+      steps: [{ command: 'layer.createRaster', parameters: {}, outcome: 'completed', replayable: true }]
+    });
+    expect(changed).toHaveBeenCalled();
+    unsubscribe();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+});
+
 describe('LightTableCommandService queries', () => {
   it('exposes document-scoped render telemetry without making it document state', () => {
     const state = setup();

@@ -15,7 +15,9 @@ import type {
   CommandCapabilitySummary,
   LightTableCommandResult
 } from '../../../application/commands/lightTableCommandContract';
+import type { ActionRecordingSnapshot } from '../../../application/actions/semanticActionRecorder';
 import { ActionCatalogRow } from './ActionCatalogRow';
+import { ActionRecorderView } from './ActionRecorderView';
 import './actionsPanel.css';
 
 export interface ActionsPanelProps {
@@ -24,12 +26,20 @@ export interface ActionsPanelProps {
     command: LightTableCommandId,
     parameters: unknown
   ) => Promise<LightTableCommandResult> | null;
+  readonly recording: ActionRecordingSnapshot;
+  readonly onStartRecording: () => void;
+  readonly onStopRecording: () => void;
+  readonly onClearRecording: () => void;
   readonly definitions?: readonly LightTableCommandDefinition[];
 }
 
 export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   capabilities,
   onExecute,
+  recording,
+  onStartRecording,
+  onStopRecording,
+  onClearRecording,
   definitions = LIGHTTABLE_COMMAND_DEFINITIONS
 }) => {
   const [query, setQuery] = useState('');
@@ -76,6 +86,8 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
         </option>)}
       </FormSelect>
     </header>
+    <ActionRecorderView recording={recording} onStart={onStartRecording}
+      onStop={onStopRecording} onClear={onClearRecording} />
     {result ? <p className="lighttable-actions-panel__result" role="status">{result}</p> : null}
     <div className="lighttable-actions-panel__list">
       {groups.length === 0 ? <p className="lighttable-panel__empty">No matching actions.</p> : null}

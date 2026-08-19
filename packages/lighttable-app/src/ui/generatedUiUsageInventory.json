@@ -160,9 +160,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 129,
+      "productionUsageCount": 132,
       "internalUsageCount": 0,
-      "contextCount": 37,
+      "contextCount": 38,
       "overrideCount": 0,
       "locations": [
         {
@@ -193,6 +193,11 @@
         {
           "path": "lighttable/CurvesEditor.tsx",
           "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
+          "count": 3,
           "kind": "product"
         },
         {

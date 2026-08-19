@@ -48,6 +48,63 @@
   font-size: var(--lt-type-small);
 }
 
+.lighttable-action-recorder {
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.lighttable-action-recorder > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+}
+
+.lighttable-action-recorder > header > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lighttable-action-recorder__status { color: var(--lt-text-secondary); font-size: var(--lt-type-small); }
+.lighttable-action-recorder__status.is-recording { color: var(--lt-danger); }
+.lighttable-action-recorder__controls { display: flex; gap: 6px; }
+.lighttable-action-recorder__empty,
+.lighttable-action-recorder__warning { margin: 0; padding: 0 12px 10px; color: var(--lt-text-secondary); }
+.lighttable-action-recorder__warning { color: var(--lt-warning); }
+
+.lighttable-action-recorder__steps {
+  max-height: 260px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.lighttable-action-recorder__steps li { border-top: 1px solid var(--lt-border); }
+.lighttable-action-recorder__steps summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.lighttable-action-recorder__steps summary > span:last-child { color: var(--lt-text-secondary); font-size: var(--lt-type-small); }
+.lighttable-action-recorder__steps summary .is-rejected { color: var(--lt-danger); }
+.lighttable-action-recorder__steps details > :not(summary) { margin-right: 12px; margin-left: 12px; }
+.lighttable-action-recorder__steps dl { margin-top: 4px; }
+.lighttable-action-recorder__steps dl div { display: flex; gap: 8px; }
+.lighttable-action-recorder__steps dd { margin: 0; }
+.lighttable-action-recorder__steps h4 { margin-bottom: 4px; }
+.lighttable-action-recorder__steps pre {
+  max-height: 160px;
+  padding: 7px;
+  overflow: auto;
+  background: var(--lt-surface-inset);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .lighttable-actions-panel__action {
   border-bottom: 1px solid var(--lt-border);
 }
