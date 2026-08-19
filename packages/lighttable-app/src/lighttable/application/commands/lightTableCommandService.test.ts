@@ -71,12 +71,17 @@ describe('LightTableCommandService action recording', () => {
 
     await state.service.execute(request('layer.createRaster', state.session.id));
     state.service.stopActionRecording();
+    await state.service.playActionRecording();
 
     expect(state.service.actionRecordingSnapshot()).toMatchObject({
       status: 'stopped', name: 'UI trace',
       steps: [{ command: 'layer.createRaster', parameters: {}, outcome: 'completed', replayable: true }]
     });
     expect(changed).toHaveBeenCalled();
+    expect(state.ports.createRasterLayer).toHaveBeenCalledTimes(2);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'completed', results: [{ command: 'layer.createRaster', status: 'completed' }]
+    });
     unsubscribe();
     state.service.dispose();
     state.workspace.dispose();

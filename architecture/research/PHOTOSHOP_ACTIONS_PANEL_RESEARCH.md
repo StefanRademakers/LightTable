@@ -1,6 +1,6 @@
 # Photoshop Actions research and LightTable direction
 
-Status: research applied to the first LightTable Actions vertical slice, 2026-08-19
+Status: research reapplied through the first record/play vertical slice, 2026-08-19
 
 ## Question
 
@@ -16,6 +16,8 @@ behavior; LightTable code and command tests remain authoritative for our app.
 - [Use the Actions panel](https://helpx.adobe.com/photoshop/desktop/automate-tasks/automation-settings-and-presets/use-the-actions-panel.html)
 - [Record an action](https://helpx.adobe.com/photoshop/desktop/automate-tasks/create-record-actions/record-an-action.html)
 - [Play and manage actions](https://helpx.adobe.com/photoshop/using/playing-actions.html)
+- [Add commands to an action](https://helpx.adobe.com/photoshop/desktop/automate-tasks/create-record-actions/add-commands-to-an-action.html)
+- [Change settings during playback](https://helpx.adobe.com/photoshop/desktop/automate-tasks/create-record-actions/change-settings-when-playing-an-action.html)
 - [Batch-process files](https://helpx.adobe.com/photoshop/desktop/automate-tasks/process-a-batch-of-files/batch-process-files.html)
 - [Insert a non-recordable menu command](https://helpx.adobe.com/photoshop/desktop/automate-tasks/create-record-actions/insert-a-non-recordable-menu-command.html)
 - [Add conditional actions](https://helpx.adobe.com/photoshop/using/conditional-actions-creative-cloud.html)
@@ -35,6 +37,7 @@ reference was fetched directly from Adobe.
   and panel adjustments.
 - Actions can be grouped into sets. The panel exposes the action and its steps,
   supports editing a step, and offers Stop, Record and Play controls.
+- Recording can append at the selected action or insert after a selected step.
 - A recorded action can have a name, function-key shortcut and display color.
 - Photoshop also provides a compact Button mode for fast playback, but the
   editable step hierarchy is the important authoring model.
@@ -46,6 +49,9 @@ reference was fetched directly from Adobe.
   change that behavior.
 - Individual commands can be excluded, reordered, rerecorded or have their
   settings changed.
+- Playback can run the complete action, continue from a selected command or run
+  one command. Step-by-step speed redraws between commands specifically to make
+  execution observable and debuggable.
 - A step can request a dialog during playback instead of always replaying the
   recorded values silently.
 - Stops can pause an action and present instructions. Conditional steps choose
@@ -90,13 +96,14 @@ reference was fetched directly from Adobe.
 
 ### Adopt
 
-1. A visible, searchable Actions panel with product categories.
-2. Expandable command details: stable ID, description, scope, effect class,
-   current availability and Agent/MCP rollout state.
+1. A visible Actions panel whose primary hierarchy is actions and steps.
+2. A separate Commands view for stable IDs, descriptions, capabilities and
+   Agent/MCP rollout state; the registry is a construction/debug aid, not an
+   action hierarchy.
 3. Local Play through exactly the same typed application command service used
    by UI automation and adapters.
-4. Later: named sets, ordered steps, Stop/Play/Record controls and one logical
-   History entry for one successful action playback.
+4. Stop/Play/Record controls and per-step playback; later add named sets and one
+   logical History entry for one successful action playback.
 5. Later: explicit interactive/modal steps, stops and bounded conditions rather
    than hidden prompts during unattended playback.
 6. Later: batch source/destination policy as a separate host-owned workflow,
@@ -137,14 +144,14 @@ The first slice established command discovery:
   invocation type and explicit rollout reasons;
 - a pure catalog projection joins those definitions to live command capability
   results and handles search/category filtering;
-- the dockable Actions panel displays that projection;
+- the dockable panel displays that projection under a separate Commands view;
 - only parameter-free commands can currently Play locally, and they execute
   through `LightTableCommandService`;
 - parameterized commands remain discoverable but cannot be run until they have
   typed parameter editors;
 - no document, history, renderer or MCP implementation was added to the panel.
 
-The second slice adds bounded semantic recording without adding a parallel
+The second slice added bounded semantic recording without adding a parallel
 executor:
 
 - recording observes `LightTableCommandService.execute`, so UI, local Actions
@@ -160,8 +167,24 @@ executor:
   normal Layer menu plus an undo triggered from Actions, then inspects both
   command-service steps in the recorder.
 
-This is not playback yet. There are no saved sets, target variables, gesture
-coalescing, parameter editing or one-history-entry action transactions.
+The third slice separates the product concepts and adds debug playback:
+
+- Actions is the default view and shows human-readable recorded steps;
+- Commands is a separate tab containing discovery, filtering and direct command
+  tests;
+- Play re-executes all replayable steps through `LightTableCommandService`;
+- Play step executes one recorded command and reports rejection inline;
+- playback stops on the first rejected command and can be stopped between
+  steps;
+- accepted asynchronous tasks are retained for diagnostics but excluded from
+  playback until task completion can be awaited safely;
+- the packaged desktop smoke records through the normal Layer menu, switches to
+  Commands for Undo, returns to Actions and replays the layer creation.
+
+There are still no saved sets, target variables, gesture coalescing, parameter
+editing, preflight or one-history-entry action transactions. Playback currently
+uses recorded stable IDs directly, so multi-step create-then-edit workflows are
+not portable until result bindings exist.
 
 ## Next implementation order
 
@@ -170,10 +193,10 @@ coalescing, parameter editing or one-history-entry action transactions.
    structured command; verify UI and local Actions yield equivalent state.
 3. Inventory all menus, shortcuts, panels, context menus and tools against the
    catalog, including justified query/gesture/presentation classifications.
-4. Add named local action sets, target variables and ordered semantic steps.
+4. Add named local action sets, result/target variables and ordered semantic steps.
 5. Normalize bounded gestures before admitting paint/slider/transform streams
    to saved actions.
-6. Add preflight plus step-debug playback, atomic rollback and optional
-   one-History-entry behavior.
+6. Add preflight, atomic rollback and optional one-History-entry behavior around
+   the existing step-debug playback.
 7. Admit categories to Agent Access/MCP only after their local Actions flow,
    validation, undo and representative rendered result have passed.

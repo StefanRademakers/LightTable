@@ -41,7 +41,7 @@ try {
   await window.getByRole('menuitem', { name: 'View' }).click();
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   const panel = window.getByRole('complementary', { name: 'Actions' });
-  await panel.getByText(/commands$/).waitFor();
+  await panel.getByRole('radio', { name: 'Actions' }).waitFor();
   const recorder = panel.locator('.lighttable-action-recorder');
   await recorder.getByRole('button', { name: 'Record' }).click();
   await recorder.getByText('recording', { exact: true }).waitFor();
@@ -56,6 +56,8 @@ try {
   );
   await recorder.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
 
+  await panel.getByRole('radio', { name: 'Commands' }).click();
+  await panel.getByText(/commands$/).waitFor();
   const undo = panel.locator('details').filter({ hasText: 'history.undo' });
   await undo.locator('summary').click();
   const undoButton = undo.getByRole('button', { name: 'Run' });
@@ -67,6 +69,7 @@ try {
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
     before
   );
+  await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoStep = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoStep.waitFor();
   await undoStep.locator('summary').click();
@@ -74,6 +77,13 @@ try {
   await undoStep.getByText('no', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
+  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
+  await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
+    .waitFor({ timeout: 15_000 });
+  await window.waitForFunction(
+    (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
+    before + 1
+  );
 
   await window.screenshot({ path: screenshot });
   if (pageErrors.length) throw new Error(`Actions panel page errors: ${pageErrors.join(' | ')}`);

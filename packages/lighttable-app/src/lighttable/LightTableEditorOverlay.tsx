@@ -20,6 +20,7 @@ import { useAdjustmentTransactionController } from './application/adjustments/us
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import type { ActionRecordingSnapshot } from './application/actions/semanticActionRecorder';
+import type { ActionPlaybackSnapshot } from './application/actions/semanticActionPlayback';
 import { linearRgbToOklab, srgbToLinear } from './colorMath';
 import type { PointColorSample } from './pointColor';
 import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
@@ -364,6 +365,10 @@ const EMPTY_ACTION_RECORDING: ActionRecordingSnapshot = {
 };
 const subscribeToNothing = () => () => undefined;
 const emptyActionRecording = () => EMPTY_ACTION_RECORDING;
+const EMPTY_ACTION_PLAYBACK: ActionPlaybackSnapshot = {
+  status: 'idle', currentSequence: null, results: []
+};
+const emptyActionPlayback = () => EMPTY_ACTION_PLAYBACK;
 const downloadEditorFile = (file: File): void => {
   const url = URL.createObjectURL(file);
   const anchor = document.createElement('a');
@@ -761,6 +766,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commandService?.subscribeActionRecording ?? subscribeToNothing,
     commandService?.actionRecordingSnapshot ?? emptyActionRecording,
     commandService?.actionRecordingSnapshot ?? emptyActionRecording
+  );
+  const actionPlayback = useSyncExternalStore(
+    commandService?.subscribeActionPlayback ?? subscribeToNothing,
+    commandService?.actionPlaybackSnapshot ?? emptyActionPlayback,
+    commandService?.actionPlaybackSnapshot ?? emptyActionPlayback
   );
   const executeRegisteredCommand = useCallback((
     command: LightTableCommandId,
@@ -6599,9 +6609,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 capabilities: commandService?.queryCapabilities(workspaceDocumentId as DocumentSessionId) ?? null,
                 onExecute: executeRegisteredCommand,
                 recording: actionRecording,
+                playback: actionPlayback,
                 onStartRecording: () => { commandService?.startActionRecording(); },
                 onStopRecording: () => { commandService?.stopActionRecording(); },
-                onClearRecording: () => { commandService?.clearActionRecording(); }
+                onClearRecording: () => { commandService?.clearActionRecording(); },
+                onPlay: () => { void commandService?.playActionRecording(); },
+                onPlayStep: (sequence) => { void commandService?.playActionStep(sequence); },
+                onStopPlayback: () => { commandService?.stopActionPlayback(); }
               },
               genAi: {
                 interactionActive: active,

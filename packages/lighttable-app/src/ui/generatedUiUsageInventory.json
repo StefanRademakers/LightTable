@@ -160,7 +160,7 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 132,
+      "productionUsageCount": 135,
       "internalUsageCount": 0,
       "contextCount": 38,
       "overrideCount": 0,
@@ -197,7 +197,7 @@
         },
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 3,
+          "count": 6,
           "kind": "product"
         },
         {
@@ -466,7 +466,7 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/panels/actions/ActionsPanel.tsx",
+          "path": "lighttable/editor/panels/actions/CommandCatalogView.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -549,7 +549,7 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/panels/actions/ActionsPanel.tsx",
+          "path": "lighttable/editor/panels/actions/CommandCatalogView.tsx",
           "count": 1,
           "kind": "product"
         }
@@ -684,9 +684,9 @@
     {
       "id": "segmented-control",
       "metadataDeclared": true,
-      "productionUsageCount": 13,
+      "productionUsageCount": 14,
       "internalUsageCount": 0,
-      "contextCount": 10,
+      "contextCount": 11,
       "overrideCount": 1,
       "locations": [
         {
@@ -701,6 +701,11 @@
         },
         {
           "path": "lighttable/CurvesEditor.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionsPanel.tsx",
           "count": 1,
           "kind": "product"
         },

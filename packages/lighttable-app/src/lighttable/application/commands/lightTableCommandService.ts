@@ -40,6 +40,10 @@ import {
   SemanticActionRecorder,
   type ActionRecordingSnapshot
 } from '../actions/semanticActionRecorder';
+import {
+  SemanticActionPlaybackController,
+  type ActionPlaybackSnapshot
+} from '../actions/semanticActionPlayback';
 export * from './lightTableCommandContract';
 
 /**
@@ -213,6 +217,7 @@ export class LightTableCommandService {
   private gestureSequence = 0;
   private readonly taskEvents = new AutomationTaskEventStore();
   private readonly actionRecorder = new SemanticActionRecorder();
+  private readonly actionPlayback = new SemanticActionPlaybackController((request) => this.execute(request));
 
   constructor(
     private readonly workspace: WorkspaceSession,
@@ -271,9 +276,22 @@ export class LightTableCommandService {
   taskEventRevision = (): number => this.taskEvents.snapshot();
   actionRecordingSnapshot = (): ActionRecordingSnapshot => this.actionRecorder.snapshot();
   subscribeActionRecording = (listener: () => void): (() => void) => this.actionRecorder.subscribe(listener);
-  startActionRecording = (name?: string): ActionRecordingSnapshot => this.actionRecorder.start(name);
+  startActionRecording = (name?: string): ActionRecordingSnapshot => {
+    this.actionPlayback.clear();
+    return this.actionRecorder.start(name);
+  };
   stopActionRecording = (): ActionRecordingSnapshot => this.actionRecorder.stop();
-  clearActionRecording = (): ActionRecordingSnapshot => this.actionRecorder.clear();
+  clearActionRecording = (): ActionRecordingSnapshot => {
+    this.actionPlayback.clear();
+    return this.actionRecorder.clear();
+  };
+  actionPlaybackSnapshot = (): ActionPlaybackSnapshot => this.actionPlayback.snapshot();
+  subscribeActionPlayback = (listener: () => void): (() => void) => this.actionPlayback.subscribe(listener);
+  playActionRecording = (): Promise<ActionPlaybackSnapshot> => this.actionPlayback.play(this.actionRecorder.snapshot());
+  playActionStep = (sequence: number): Promise<ActionPlaybackSnapshot> => (
+    this.actionPlayback.playStep(this.actionRecorder.snapshot(), sequence)
+  );
+  stopActionPlayback = (): void => this.actionPlayback.stop();
 
   queryRenderTelemetry(documentId: DocumentSessionId): RenderTelemetrySnapshot | null {
     return this.document(documentId)?.lifecycle === 'ready'

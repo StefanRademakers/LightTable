@@ -95,9 +95,11 @@ export class SemanticActionRecorder {
       return;
     }
     const successful = result.status === 'completed' || result.status === 'accepted';
-    const replayable = successful && parameters.complete && !NON_REPLAYABLE_COMMANDS.has(request.command);
+    const replayable = result.status === 'completed' && parameters.complete
+      && !NON_REPLAYABLE_COMMANDS.has(request.command);
     const note = successful
-      ? parameters.complete ? NON_REPLAYABLE_COMMANDS.has(request.command) ? 'Control/history commands are diagnostic only.' : null
+      ? result.status === 'accepted' ? 'Async task playback is not implemented yet.'
+        : parameters.complete ? NON_REPLAYABLE_COMMANDS.has(request.command) ? 'Control/history commands are diagnostic only.' : null
         : 'Parameters exceeded the recorder transport boundary.'
       : 'Rejected commands are retained for debugging but are not replayable.';
     const step: RecordedActionStep = {

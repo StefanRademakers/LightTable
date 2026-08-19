@@ -5,20 +5,16 @@
 }
 
 .lighttable-actions-panel__header {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--lt-border);
 }
 
-.lighttable-actions-panel__summary {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
+.lighttable-actions-panel__tabs { flex: 1; max-width: 210px; }
 
-.lighttable-actions-panel__summary span,
 .lighttable-actions-panel__action code,
 .lighttable-actions-panel__parameters,
 .lighttable-actions-panel__reason {
@@ -49,10 +45,13 @@
 }
 
 .lighttable-action-recorder {
-  border-bottom: 1px solid var(--lt-border);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.lighttable-action-recorder > header {
+.lighttable-action-recorder__action-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -60,28 +59,43 @@
   padding: 9px 12px;
 }
 
-.lighttable-action-recorder > header > div:first-child {
+.lighttable-action-recorder__action-header > div:first-child {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lighttable-action-recorder__action-header > div:first-child span {
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-action-recorder__status { color: var(--lt-text-secondary); font-size: var(--lt-type-small); }
 .lighttable-action-recorder__status.is-recording { color: var(--lt-danger); }
-.lighttable-action-recorder__controls { display: flex; gap: 6px; }
+.lighttable-action-recorder__controls {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-block: 1px solid var(--lt-border);
+}
 .lighttable-action-recorder__empty,
 .lighttable-action-recorder__warning { margin: 0; padding: 0 12px 10px; color: var(--lt-text-secondary); }
 .lighttable-action-recorder__warning { color: var(--lt-warning); }
+.lighttable-action-recorder__playback { margin: 0; padding: 7px 12px; color: var(--lt-text-secondary); }
+.lighttable-action-recorder__playback.is-failed { color: var(--lt-danger); }
+.lighttable-action-recorder__playback.is-completed { color: var(--lt-success); }
 
 .lighttable-action-recorder__steps {
-  max-height: 260px;
+  flex: 1;
+  min-height: 0;
   margin: 0;
   padding: 0;
   overflow: auto;
   list-style: none;
 }
 
-.lighttable-action-recorder__steps li { border-top: 1px solid var(--lt-border); }
+.lighttable-action-recorder__steps li { border-bottom: 1px solid var(--lt-border); }
+.lighttable-action-recorder__steps li.is-current { background: var(--lt-surface-panel-raised); }
 .lighttable-action-recorder__steps summary {
   display: flex;
   justify-content: space-between;
@@ -91,6 +105,17 @@
 }
 .lighttable-action-recorder__steps summary > span:last-child { color: var(--lt-text-secondary); font-size: var(--lt-type-small); }
 .lighttable-action-recorder__steps summary .is-rejected { color: var(--lt-danger); }
+.lighttable-action-recorder__step-name { display: flex; min-width: 0; gap: 8px; }
+.lighttable-action-recorder__step-name > span { display: grid; min-width: 0; }
+.lighttable-action-recorder__step-name code { color: var(--lt-text-secondary); font-size: var(--lt-type-small); }
+.lighttable-action-recorder__step-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+}
+.lighttable-action-recorder__step-controls span { color: var(--lt-text-secondary); font-size: var(--lt-type-small); }
 .lighttable-action-recorder__steps details > :not(summary) { margin-right: 12px; margin-left: 12px; }
 .lighttable-action-recorder__steps dl { margin-top: 4px; }
 .lighttable-action-recorder__steps dl div { display: flex; gap: 8px; }
@@ -103,6 +128,25 @@
   background: var(--lt-surface-inset);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.lighttable-command-catalog {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lighttable-command-catalog__filters {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.lighttable-command-catalog__filters > span {
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-actions-panel__action {
