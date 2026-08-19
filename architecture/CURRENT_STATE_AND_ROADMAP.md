@@ -82,6 +82,12 @@ The product-wide UI/UX capability inventory and decision filters are maintained
 in `PRODUCT_UX_INSPIRATION_AND_GAPS.md`; Photoshop-specific evidence remains in
 `PHOTOSHOP_PARITY_AND_MISSING_FEATURES.md`.
 
+The long-term agent/Actions/MCP destination and its acceptance ladder are
+canonical in
+[`AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
+That target does not promote its headless, branching, teach-mode or autonomous
+reconstruction concepts to current capabilities.
+
 1. Finish scene-transform authority adoption and tight bounds throughout paint,
    masks, transform, clipboard, merge and nested groups.
 2. Continue breaking the editor/GPU facades into typed, testable owners without
@@ -99,7 +105,10 @@ in `PRODUCT_UX_INSPIRATION_AND_GAPS.md`; Photoshop-specific evidence remains in
 8. Extend the established semantic command surface into transforms, masks,
    selections, adjustments and remaining tool semantics so UI, plugins and MCP
    remain consumers of one undoable application boundary.
-9. Define the pre-1.0 LightTable file-format contract, precision/export policy
+9. Prove representative UI, Actions and MCP equivalence, then add bounded
+   structural/preview feedback sufficient for an agent to inspect and correct
+   native editable work without automating screen coordinates.
+10. Define the pre-1.0 LightTable file-format contract, precision/export policy
    and migration policy only when the model is solid enough to freeze.
 
 ## Not a goal

@@ -539,6 +539,11 @@ selection rectangle and layer translation and commit as one undo operation.
 
 ### MCP and a future plugin ABI
 
+The canonical product destination is
+[`AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
+It defines the future editable-first observe/act/preview/correct workflow;
+everything below describes the current or partial implementation boundary.
+
 [`lightTableMcpAdapter.ts`](../packages/lighttable-app/src/lighttable/application/commands/lightTableMcpAdapter.ts)
 defines and tests an authenticated, transport-neutral adapter over the same
 command driver. It opens no socket. Electron main authenticates/bounds requests

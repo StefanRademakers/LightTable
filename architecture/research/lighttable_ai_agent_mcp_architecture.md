@@ -4,6 +4,11 @@
 
 This document is **architectural guidance**, not a fixed implementation contract.
 
+The reconciled canonical product target now lives in
+[`../AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
+Use this research for detailed implementation questions; when wording or scope
+differs, the canonical target and current code/contracts take precedence.
+
 Lighttable is already close to being MCP-compatible because its functionality is increasingly exposed through separated commands, actions, document operations, render operations, and stable application services.
 
 The coding agent must first inspect the current Lighttable architecture and reuse existing systems wherever possible. Do not create a second command system, a parallel document model, or AI-specific editor logic unless there is a strong technical reason.

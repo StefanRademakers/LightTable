@@ -35,6 +35,7 @@ the task genuinely spans every system.
 ## Contract catalog
 
 - [Product and principles](PRODUCT_AND_PRINCIPLES.md)
+- [Agent-native creative runtime target](AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
 - [Product, market and engineering assessment](LIGHTTABLE_PRODUCT_AND_MARKET_ASSESSMENT_2026-08-06.md)
 - [System map](SYSTEM_MAP.md)
 - [Document and scene model](DOCUMENT_AND_SCENE_MODEL.md)
