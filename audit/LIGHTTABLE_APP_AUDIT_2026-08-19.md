@@ -37,9 +37,10 @@ of documentsemantiek te herschrijven:
   volledige Color/Vibrance-calibratiebibliotheek uit de initiale editorchunk
   verwijderd; de definitieve nieuwe buildmeting staat bij R5.
 - De 68.191-regelige Color/Vibrance-LUT was verklaarbare gegenereerde bron, maar
-  nog steeds een verkeerde productarchitectuur. Omdat alpha 0.1 geen bestaande
-  documenten hoeft te behouden, is hij vervangen door geteste CAT16/OKLab-
-  wiskunde met expliciete huidachtige en gamutbescherming.
+  nog steeds een verkeerde productarchitectuur. De eerste CAT16-vervanging bleek
+  bij Temperature/Tint-extremen zichtbaar onjuist. Taak 213 vervangt die claim
+  door een complete vier-sliderreferentie en een los lazy compatibility-asset;
+  geïsoleerde Vibrance/Saturation behoudt de compacte analytische route.
 - De commandocatalogus legt expliciet vast dat **alle gebruikersfunctionaliteit
   uiteindelijk agentbereikbaar** moet worden. De huidige Agent Access- en externe
   MCP-profielen zijn een gecontroleerde tussenstand. Ontbrekende Face Warp- en
@@ -52,9 +53,10 @@ of documentsemantiek te herschrijven:
   lifecycle-eigenaarschap, fan-out en productblast-radius in plaats van alleen
   regelaantallen. Extractie is pas winst als een capability daarna zelfstandig
   testbaar en owned is; bestandssplitsing zonder zo'n grens is geen vooruitgang.
-- Color/Vibrance is niet lazy gemaakt maar geheel LUT-vrij gemaakt. De oude
-  captures blijven onderzoeksdata; Photoshop-gelijkheid is niet langer het
-  productcontract voor deze alpha-adjustment.
+- Color/Vibrance gebruikt opnieuw gemeten data, maar nu begrensd en lazy: 1,69
+  MB los binair in plaats van 8,59 MB gegenereerde TypeScript / 6,14 MB data in
+  de initiale bundle. Photoshop-gelijkheid wordt per slider en combinatie
+  gerapporteerd; één samengevouwen paritypercentage is geen bewijs meer.
 - Een echte twee-/twaalfuurs soak, integrated-GPU-/Apple-Siliconkwalificatie en
   representatieve gebruikerstests zijn niet vervangen door meer unit tests.
 - Grade/Camera Raw, PSD-editability en taak 201 blijven actieve producttrajecten.
@@ -359,25 +361,36 @@ Die lijsten zijn niet gelijk:
 
 Gevolg: remote PSD-export wordt als geldig MCP-commando gepresenteerd, maar behoort bij de desktopgrens te worden afgewezen. Er is geen end-to-end contracttest die de externe enum gelijkstelt aan de adaptercapabilities.
 
-### R5 — Color and Vibrance-bootstraprisico is opgelost
+### R5 — Color and Vibrance-bootstraprisico is opgelost; modelrisico sterk verlaagd
 
 **Status: gesloten · Zekerheid: gemeten en via packaged WebGPU geverifieerd**
 
-Alle 490 ingebedde meetvolumes zijn verwijderd: 8.591.289 bytes gegenereerde
-TypeScript en 6.136.221 bytes binaire modeldata. De adjustment gebruikt nu
-CAT16-white-pointadaptatie en OKLab-chroma met expliciete respons voor gedempte
-kleuren, een zacht huidachtig OKLCH-masker en continue gamutprojectie. Er zijn
-geen eigen 3D-textures, Base64-decodering of slider-time uploads meer.
+Alle 490 in TypeScript/Base64 ingebedde meetvolumes blijven verwijderd:
+8.591.289 bytes gegenereerde bron en 6.136.221 bytes binaire modeldata verdwenen
+uit de initiale codeflow. De complete vier-slidertest bewees vervolgens dat de
+CAT16 Temperature/Tint-vervanging niet klopte. De actuele adjustment gebruikt
+daarom een apart, lazy binair compatibility-asset van 1.686.678 bytes: 72,5%
+kleiner dan de oude binaire data en niet onderdeel van de initiële JavaScript.
 
-De hoofdchunk meet nu 2.848.006 bytes raw / 752.442 bytes gzip. De volledige
-initiale JavaScriptflow meet 2.975.571 bytes. Daarmee is de oude 11,09 MB-meting
-alleen nog een historische baseline, niet de huidige productkost.
+Na laden staan per actieve Color and Vibrance-laag alleen een 9³ Temperature/
+Tint-volume en een 17³ gekoppeld kleurvolume op de GPU, samen circa 22 KB.
+Geïsoleerde Vibrance/Saturation blijft via de analytische OKLab-route lopen;
+de gemeten tweede trap wordt alleen bij actieve Temperature/Tint gebruikt.
 
-De 27-case extremenset is een stabiliteitsdiagnostic en scoort bewust geen
-Photoshop-pariteitsgate: CAT16 Temperature/Tint wijkt vooral bij grote waarden
-af. De geïsoleerde portretset scoort 99,253%, maar bevat slechts zes cases. De
-resterende Color/Vibrance-vraag is daarom modelvalidatie op uiteenlopende
-huidtinten en verzadigde niet-huidobjecten, niet meer bundle- of LUT-opslag.
+De volledige initiale JavaScriptflow meet nu 2.981.265 bytes raw / 790.549 bytes
+gzip. Het compatibility-asset staat daar aantoonbaar buiten als lazy bestand.
+Daarmee is de oude 11,09 MB-meting alleen nog een historische baseline, niet de
+huidige productkost.
+
+De oude 99,253%-claim is ingetrokken: twee sliders ontbraken volledig. De
+provenance-gebonden 40-case portretmatrix rapporteert nu afzonderlijk RGB-RMSE,
+MAE, maximum codefout, pixeldekking en OKLab-afstand. Gemiddelde RGB-RMSE is
+1,663% voor Temperature, 1,633% voor Tint, 2,053% voor Vibrance, 0,292% voor
+Saturation en 1,362% voor de twee gecombineerde ±80-cases. Dertien held-out
+gevallen middelen 1,770%. Op een tweede foto middelen de gecombineerde ±80-
+extremen 2,197%; de zichtbare zwakste daarvan is +80 op 3,451%. Dit is een
+grote verbetering, geen pixel-identieke Photoshop-claim. De grootste lokale
+modelrisico's zijn nu Vibrance −100 en sterk warm/verzadigd gecombineerd +80.
 
 ### R6 — Actuele production dependency-audit is niet groen
 

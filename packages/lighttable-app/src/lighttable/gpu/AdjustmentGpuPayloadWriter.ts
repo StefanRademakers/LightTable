@@ -6,10 +6,19 @@ import {
   type ColorLookupUniform,
   type GradeLookUniform
 } from './adjustmentUniform';
+import {
+  buildPhotoshopColorVibranceCompatibility,
+  buildPhotoshopColorVibranceColorCompatibility,
+  loadedPhotoshopColorVibranceCompatibility,
+  PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE,
+  PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE
+} from './photoshopColorVibranceCompatibility';
 
 export interface AdjustmentGpuPayloadTargets {
   readonly uniformBuffer: GPUBuffer;
   readonly curveTexture: GPUTexture;
+  readonly colorVibranceCompatibilityTexture?: GPUTexture;
+  readonly colorVibranceColorTexture?: GPUTexture;
 }
 
 export interface AdjustmentGpuPayloadChange {
@@ -47,6 +56,7 @@ const curvesEqual = (left: CurvesAdjustments | null, right: CurvesAdjustments) =
 export class AdjustmentGpuPayloadWriter {
   private lastUniform: Float32Array | null = null;
   private lastCurves: CurvesAdjustments | null = null;
+  private lastColorVibranceParameters: readonly number[] | null = null;
 
   constructor(
     private readonly device: GPUDevice,
@@ -71,7 +81,8 @@ export class AdjustmentGpuPayloadWriter {
       colorLookup,
       photoshopBlendProfile,
       documentBitDepth,
-      gradeLook
+      gradeLook,
+      Boolean(this.targets.colorVibranceCompatibilityTexture && this.targets.colorVibranceColorTexture)
     );
     const uniformChanged = !floatArraysEqual(this.lastUniform, uniform);
     if (uniformChanged) {
@@ -88,6 +99,51 @@ export class AdjustmentGpuPayloadWriter {
         { width: CURVE_LUT_SIZE, height: 1 }
       );
       this.lastCurves = cloneCurves(adjustments.curves);
+    }
+
+    const compatibilityBytes = loadedPhotoshopColorVibranceCompatibility();
+    if (adjustments.photoshopAdjustment.kind === 'color-vibrance'
+      && compatibilityBytes && this.targets.colorVibranceCompatibilityTexture
+      && this.targets.colorVibranceColorTexture) {
+      const settings = adjustments.photoshopAdjustment;
+      const parameters = [
+        settings.colorVibranceTemperature, settings.colorVibranceTint,
+        settings.colorVibranceVibrance, settings.colorVibranceSaturation
+      ];
+      if (!this.lastColorVibranceParameters
+        || parameters.some((value, index) => value !== this.lastColorVibranceParameters?.[index])) {
+        this.device.queue.writeTexture(
+          { texture: this.targets.colorVibranceCompatibilityTexture },
+          buildPhotoshopColorVibranceCompatibility(
+            compatibilityBytes, settings.colorVibranceTemperature, settings.colorVibranceTint
+          ),
+          {
+            bytesPerRow: PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE * 4,
+            rowsPerImage: PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE
+          },
+          {
+            width: PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE,
+            height: PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE,
+            depthOrArrayLayers: PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE
+          }
+        );
+        this.device.queue.writeTexture(
+          { texture: this.targets.colorVibranceColorTexture },
+          buildPhotoshopColorVibranceColorCompatibility(
+            compatibilityBytes, settings.colorVibranceVibrance, settings.colorVibranceSaturation
+          ),
+          {
+            bytesPerRow: PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE * 4,
+            rowsPerImage: PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE
+          },
+          {
+            width: PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE,
+            height: PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE,
+            depthOrArrayLayers: PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE
+          }
+        );
+        this.lastColorVibranceParameters = parameters;
+      }
     }
 
     return { uniformChanged, curveChanged };

@@ -3,8 +3,13 @@ import { ADJUSTMENTS_WGSL } from './adjustmentShaderLayout';
 import { POINT_COLOR_SELECTION_WGSL } from './pointColorSelection';
 import { COLOR_VIBRANCE_SKIN_MODEL } from './colorVibranceModel';
 import {
+  PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES,
+  PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_QUANTIZATION
+} from './photoshopColorVibranceCompatibility';
+import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_OFFSET,
   PHOTOSHOP_COLOR_VIBRANCE_OFFSET,
   PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET,
   PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
@@ -27,6 +32,8 @@ const PHOTOSHOP_VIBRANCE_RELATIVE_OFFSET =
   PHOTOSHOP_VIBRANCE_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 const PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET =
   PHOTOSHOP_COLOR_VIBRANCE_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
+const PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_RELATIVE_OFFSET =
+  PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 export const FULLSCREEN_VERTEX_WGSL = /* wgsl */ `
 struct VertexOutput {
   @builtin(position) position: vec4f,
@@ -450,6 +457,8 @@ ${POINT_COLOR_SELECTION_WGSL}
 @group(0) @binding(3) var<uniform> adjustments: Adjustments;
 @group(0) @binding(4) var curveLut: texture_2d<f32>;
 @group(0) @binding(5) var colorLookupLut: texture_3d<f32>;
+@group(0) @binding(6) var colorVibranceCompatibilityLut: texture_3d<f32>;
+@group(0) @binding(7) var colorVibranceColorLut: texture_3d<f32>;
 @group(0) @binding(8) var colorBalanceTransferLut: texture_2d<f32>;
 @group(0) @binding(9) var gradeLookLut: texture_3d<f32>;
 
@@ -1431,6 +1440,32 @@ fn sampleUnitColorLookup(lut: texture_3d<f32>, encoded: vec3f) -> vec3f {
   return mix(mix(z0y0, z0y1, fraction.y), mix(z1y0, z1y1, fraction.y), fraction.z);
 }
 
+fn sampleExtendedUnitColorLookup(lut: texture_3d<f32>, encoded: vec3f) -> vec3f {
+  let dimensions = textureDimensions(lut);
+  let scaled = encoded * vec3f(dimensions - vec3u(1u));
+  let lowerFloat = clamp(floor(scaled), vec3f(0.0), vec3f(dimensions - vec3u(2u)));
+  let lower = vec3u(lowerFloat);
+  let upper = lower + vec3u(1u);
+  let fraction = scaled - lowerFloat;
+  let z0y0 = mix(
+    textureLoad(lut, vec3u(lower.x, lower.y, lower.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, lower.y, lower.z), 0).rgb, fraction.x
+  );
+  let z0y1 = mix(
+    textureLoad(lut, vec3u(lower.x, upper.y, lower.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, upper.y, lower.z), 0).rgb, fraction.x
+  );
+  let z1y0 = mix(
+    textureLoad(lut, vec3u(lower.x, lower.y, upper.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, lower.y, upper.z), 0).rgb, fraction.x
+  );
+  let z1y1 = mix(
+    textureLoad(lut, vec3u(lower.x, upper.y, upper.z), 0).rgb,
+    textureLoad(lut, vec3u(upper.x, upper.y, upper.z), 0).rgb, fraction.x
+  );
+  return mix(mix(z0y0, z0y1, fraction.y), mix(z1y0, z1y1, fraction.y), fraction.z);
+}
+
 fn colorVibranceHueDistance(left: f32, right: f32) -> f32 {
   let distance = abs(left - right);
   return min(distance, 6.28318530718 - distance);
@@ -1507,11 +1542,29 @@ fn applyPhotoshopColorVibrance(source: vec3f) -> vec3f {
   if (abs(temperature) < 0.00001 && abs(tint) < 0.00001
     && abs(vibrance) < 0.00001 && abs(saturation) < 0.00001) { return source; }
 
-  // Temperature and Tint are a coupled white-point move, not RGB channel
-  // offsets. Reuse LightTable's CAT16 path; its cool range is asymmetric, so
-  // map this symmetric UI's negative half onto that complete range.
-  let mappedTemperature = select(temperature, temperature * 1.5, temperature < 0.0);
-  var rgb = colorVibranceChromaticAdaptation(source, mappedTemperature, tint);
+  var rgb = source;
+  if (photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_RELATIVE_OFFSET}u) > 0.5) {
+    let whiteBalanceActive = abs(temperature) >= 0.00001 || abs(tint) >= 0.00001;
+    let colorActive = abs(vibrance) >= 0.00001 || abs(saturation) >= 0.00001;
+    if (whiteBalanceActive) {
+      let encoded = sampleUnitColorLookup(
+        colorVibranceCompatibilityLut,
+        photoshopLinearSrgbToEncodedDocument(source)
+      ) * ${PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_QUANTIZATION}
+        - vec3f(${PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES}.0 / 255.0);
+      if (colorActive) {
+        return photoshopEncodedDocumentToLinearSrgb(
+          sampleExtendedUnitColorLookup(colorVibranceColorLut, encoded)
+        );
+      }
+      rgb = photoshopEncodedDocumentToLinearSrgb(clamp(encoded, vec3f(0.0), vec3f(1.0)));
+    }
+  } else {
+    // The compact Adobe-compatibility asset is loaded only when this layer kind
+    // exists. Retain the analytic CAT16 approximation during that short load.
+    let mappedTemperature = select(temperature, temperature * 1.5, temperature < 0.0);
+    rgb = colorVibranceChromaticAdaptation(source, mappedTemperature, tint);
+  }
   if (abs(vibrance) < 0.00001 && abs(saturation) < 0.00001) {
     return max(rgb, vec3f(0.0));
   }

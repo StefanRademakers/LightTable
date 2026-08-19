@@ -24,6 +24,7 @@ export const PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET = 314;
 export const PHOTOSHOP_VIBRANCE_OFFSET = 356;
 export const PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET = 362;
 export const PHOTOSHOP_COLOR_VIBRANCE_OFFSET = 363;
+export const PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_OFFSET = 367;
 
 export interface ColorLookupUniform {
   readonly enabled: boolean;
@@ -47,7 +48,8 @@ export const buildAdjustmentUniform = (
   colorLookup: ColorLookupUniform | null = null,
   photoshopBlendProfile: DocumentBlendProfile = 'srgb',
   documentBitDepth: DocumentBitDepth = 16,
-  gradeLook: GradeLookUniform | null = null
+  gradeLook: GradeLookUniform | null = null,
+  colorVibranceCompatibility = false
 ) => {
   const gradientMap = value.gradientMap;
   const colorStops = [...(gradientMap?.colorStops ?? [])]
@@ -194,6 +196,7 @@ export const buildAdjustmentUniform = (
     photoshop.colorVibranceVibrance,
     photoshop.colorVibranceSaturation
   ], PHOTOSHOP_COLOR_VIBRANCE_OFFSET);
+  packed[PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_OFFSET] = colorVibranceCompatibility ? 1 : 0;
   value.pointColor.samples.slice(0, POINT_COLOR_MAX_SAMPLES).forEach((sample, index) => {
     packed.set([
       sample.lightness, sample.chroma, sample.hue, 1,

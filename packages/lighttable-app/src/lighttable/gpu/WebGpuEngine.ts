@@ -1573,7 +1573,9 @@ export class WebGpuEngine {
       downsampleTexture: this.imageResources.downsampleTexture,
       identityColorLookupTexture: coreResources.identityColorLookupTexture,
       photoshopColorBalanceTransferTexture: coreResources.photoshopColorBalanceTransferTexture,
-      resolveColorLookup: (id) => this.colorLookupAssets.get(id)
+      resolveColorLookup: (id) => this.colorLookupAssets.get(id),
+      requestRender: () => this.markDocumentDirty(),
+      reportError: (featureId, message) => this.callbacks.onFeatureError?.(featureId, message)
     });
 
     this.imageResources.downsampleBindGroup = this.device.createBindGroup({

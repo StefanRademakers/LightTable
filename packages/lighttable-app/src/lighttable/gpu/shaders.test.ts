@@ -26,6 +26,7 @@ import {
 import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
   PHOTOSHOP_PAYLOAD_OFFSET,
   PHOTOSHOP_VIBRANCE_OFFSET
@@ -156,11 +157,16 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('var lab = linearRgbToOklab(rgb);');
   });
 
-  it('evaluates Color and Vibrance analytically with skin and gamut protection', () => {
-    expect(CREATIVE_GRADE_WGSL).not.toContain('colorVibranceWhiteBalanceLut');
-    expect(CREATIVE_GRADE_WGSL).not.toContain('colorVibranceColorLut');
+  it('uses the measured Photoshop compatibility path conditionally while retaining the analytic fallback and protected isolated color path', () => {
+    expect(CREATIVE_GRADE_WGSL).toContain('@binding(6) var colorVibranceCompatibilityLut');
+    expect(CREATIVE_GRADE_WGSL).toContain('@binding(7) var colorVibranceColorLut');
     expect(CREATIVE_GRADE_WGSL).toContain('@binding(8) var colorBalanceTransferLut');
     expect(CREATIVE_GRADE_WGSL).toContain('fn applyPhotoshopColorVibrance');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn sampleExtendedUnitColorLookup');
+    expect(CREATIVE_GRADE_WGSL).toContain(
+      `photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET}u) > 0.5`
+    );
+    expect(CREATIVE_GRADE_WGSL).toContain('sampleExtendedUnitColorLookup(colorVibranceColorLut, encoded)');
     expect(CREATIVE_GRADE_WGSL).toContain('fn colorVibranceSkinProtection');
     expect(CREATIVE_GRADE_WGSL).toContain('fn colorVibranceGamutMap');
     expect(CREATIVE_GRADE_WGSL).toContain('colorVibranceChromaticAdaptation(source, mappedTemperature, tint)');

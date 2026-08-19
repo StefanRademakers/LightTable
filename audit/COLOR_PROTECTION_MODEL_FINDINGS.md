@@ -75,16 +75,17 @@ RGB after oversaturation.
 
 ## Current decision
 
-Task 211 uses the research directly in the alpha Color and Vibrance adjustment:
-CAT16 Temperature/Tint, adaptive OKLab chroma, a soft OKLCH skin-like mask and
-continuous neutral-axis gamut projection. The old oracle model is not preserved
-merely for compatibility. Its captures remain useful diagnostics, and a new
-isolated portrait set demonstrates the distinction between protected Vibrance
-and global Saturation.
+Task 213 corrected an important overclaim from task 211. CAT16 Temperature/Tint
+was compact and explainable, but visibly failed the actual Photoshop extremes.
+Color and Vibrance now uses a bounded, lazy measured compatibility asset for
+Temperature/Tint and for the combined four-slider pipeline. The isolated
+Vibrance/Saturation path deliberately keeps the adaptive OKLab chroma, soft
+OKLCH skin-like mask and continuous neutral-axis gamut projection that already
+performed well.
 
 The protection constants and CPU reference now live in
 `gpu/colorVibranceModel.ts`; the WGSL evaluator consumes the same constants.
-This makes the model reusable for task 212, but not automatically correct for
-native Grade. The current evidence contains too few skin tones and too few
-highly saturated non-skin red/orange objects to justify that broader default
-without another targeted corpus.
+This keeps the protection model reusable for task 212, but does not make the
+Photoshop compatibility data a native Grade design. The current evidence still
+contains too few skin tones and too few highly saturated non-skin red/orange
+objects to justify that broader default without another targeted corpus.

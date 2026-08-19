@@ -11,6 +11,7 @@
   "assetRules": [
     { "pattern": "^index-.*\\.js$", "loadBoundary": "initial", "userFlow": "editor shell and core editing" },
     { "pattern": "^index-.*\\.css$", "loadBoundary": "initial", "userFlow": "editor shell and all current panel/tool styling" },
+    { "pattern": "^photoshop-temperature-tint-v2-.*\\.bin$", "loadBoundary": "lazy", "userFlow": "Photoshop Color and Vibrance adjustment compatibility" },
     { "pattern": "^ort-wasm-.*\\.wasm$", "loadBoundary": "lazy", "userFlow": "local AI model inference" },
     { "pattern": "^vision_wasm_module_internal-.*\\.(?:wasm|js)$", "loadBoundary": "lazy", "userFlow": "Face Warp landmark analysis" },
     { "pattern": "^face_landmarker-.*\\.task$", "loadBoundary": "lazy", "userFlow": "Face Warp landmark analysis" },

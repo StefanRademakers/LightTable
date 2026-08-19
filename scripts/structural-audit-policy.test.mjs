@@ -28,5 +28,8 @@ test('heavy delivery assets map to the user flow that justifies loading them', a
   assert.deepEqual(classifyWebAsset('index-HASH.js', policy.assetRules), {
     loadBoundary: 'initial', userFlow: 'editor shell and core editing'
   });
+  assert.deepEqual(classifyWebAsset('photoshop-temperature-tint-v2-HASH.bin', policy.assetRules), {
+    loadBoundary: 'lazy', userFlow: 'Photoshop Color and Vibrance adjustment compatibility'
+  });
   assert.equal(classifyWebAsset('mystery-model.bin', policy.assetRules), null);
 });

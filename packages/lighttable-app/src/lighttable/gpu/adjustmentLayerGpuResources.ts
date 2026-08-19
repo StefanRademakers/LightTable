@@ -14,6 +14,12 @@ import {
 } from '../processing/adjustmentStack';
 import { attachedAdjustmentProcessingOwner } from '../processing/attachedAdjustment';
 import type { ColorLookupUniform, GradeLookUniform } from './adjustmentUniform';
+import {
+  loadPhotoshopColorVibranceCompatibility,
+  loadedPhotoshopColorVibranceCompatibility,
+  PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE,
+  PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE
+} from './photoshopColorVibranceCompatibility';
 
 export interface AdjustmentLayerGpuRuntime {
   uniformBuffer: GPUBuffer;
@@ -26,6 +32,8 @@ export interface AdjustmentLayerGpuRuntime {
   gradeLookAssetId: string | null;
   gradeLookUniform: GradeLookUniform | null;
   photoshopAdjustmentKind: string;
+  colorVibranceCompatibilityTexture: GPUTexture | null;
+  colorVibranceColorTexture: GPUTexture | null;
 }
 
 interface ResolvedColorLookup {
@@ -42,6 +50,8 @@ export interface AdjustmentLayerGpuDependencies {
   identityColorLookupTexture: GPUTexture;
   photoshopColorBalanceTransferTexture: GPUTexture;
   resolveColorLookup: (id: string | null) => ResolvedColorLookup | null;
+  requestRender: () => void;
+  reportError: (featureId: string, message: string) => void;
 }
 
 export function collectAdjustmentLayerIds(nodes: readonly LayerNode[]): Set<LayerId> {
@@ -75,6 +85,7 @@ export function collectAdjustmentLayerIds(nodes: readonly LayerNode[]): Set<Laye
 export class AdjustmentLayerGpuResources {
   private readonly runtimes = new Map<LayerId, AdjustmentLayerGpuRuntime>();
   private dependencies: AdjustmentLayerGpuDependencies | null = null;
+  private compatibilityLoadRequested = false;
 
   constructor(private readonly device: GPUDevice) {}
 
@@ -92,6 +103,26 @@ export class AdjustmentLayerGpuResources {
     const adjustments = materializeBasicAdjustments(layer.adjustmentStack!);
     const gradeLookAssetId = adjustments.gradeLook.assetId;
     const photoshopAdjustmentKind = photoshopAdjustment.kind;
+    if (photoshopAdjustmentKind === 'color-vibrance'
+      && !loadedPhotoshopColorVibranceCompatibility()
+      && !this.compatibilityLoadRequested) {
+      this.compatibilityLoadRequested = true;
+      void loadPhotoshopColorVibranceCompatibility().then(() => {
+        this.compatibilityLoadRequested = false;
+        for (const [layerId, runtime] of this.runtimes) {
+          if (runtime.photoshopAdjustmentKind !== 'color-vibrance') continue;
+          this.destroyRuntime(runtime);
+          this.runtimes.delete(layerId);
+        }
+        this.dependencies?.requestRender();
+      }).catch((error: unknown) => {
+        this.compatibilityLoadRequested = false;
+        this.dependencies?.reportError(
+          'color-vibrance-compatibility',
+          error instanceof Error ? error.message : String(error)
+        );
+      });
+    }
     const current = this.runtimes.get(layer.id);
     if (
       current
@@ -120,6 +151,33 @@ export class AdjustmentLayerGpuResources {
     });
     const colorLookup = dependencies.resolveColorLookup(colorLookupAssetId);
     const gradeLook = dependencies.resolveColorLookup(gradeLookAssetId);
+    const colorVibranceCompatibilityTexture = photoshopAdjustmentKind === 'color-vibrance'
+      && loadedPhotoshopColorVibranceCompatibility()
+      ? this.device.createTexture({
+        label: `LightTable Color and Vibrance compatibility: ${layer.name}`,
+        size: [
+          PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE,
+          PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE,
+          PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE
+        ],
+        dimension: '3d',
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+      })
+      : null;
+    const colorVibranceColorTexture = colorVibranceCompatibilityTexture
+      ? this.device.createTexture({
+        label: `LightTable Color and Vibrance coupled color: ${layer.name}`,
+        size: [
+          PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE,
+          PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE,
+          PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE
+        ],
+        dimension: '3d',
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+      })
+      : null;
     const createCreativeBindGroup = (source: GPUTexture, spatialInput: GPUTexture) =>
       this.device.createBindGroup({
         layout: dependencies.creativePipeline.getBindGroupLayout(0),
@@ -130,6 +188,10 @@ export class AdjustmentLayerGpuResources {
           { binding: 3, resource: { buffer: uniformBuffer } },
           { binding: 4, resource: curveTexture.createView() },
           { binding: 5, resource: (colorLookup?.texture
+            ?? dependencies.identityColorLookupTexture).createView() },
+          { binding: 6, resource: (colorVibranceCompatibilityTexture
+            ?? dependencies.identityColorLookupTexture).createView() },
+          { binding: 7, resource: (colorVibranceColorTexture
             ?? dependencies.identityColorLookupTexture).createView() },
           { binding: 8, resource: dependencies.photoshopColorBalanceTransferTexture.createView() },
           { binding: 9, resource: (gradeLook?.texture
@@ -146,11 +208,15 @@ export class AdjustmentLayerGpuResources {
       createCreativeBindGroup,
       payloadWriter: new AdjustmentGpuPayloadWriter(this.device, {
         uniformBuffer,
-        curveTexture
+        curveTexture,
+        ...(colorVibranceCompatibilityTexture ? { colorVibranceCompatibilityTexture } : {}),
+        ...(colorVibranceColorTexture ? { colorVibranceColorTexture } : {})
       }),
       colorLookupAssetId,
       gradeLookAssetId,
       photoshopAdjustmentKind,
+      colorVibranceCompatibilityTexture,
+      colorVibranceColorTexture,
       colorLookupUniform: colorLookup ? {
         enabled: true,
         domainMin: colorLookup.domainMin,
@@ -189,6 +255,12 @@ export class AdjustmentLayerGpuResources {
     for (const runtime of this.runtimes.values()) {
       bytes += ADJUSTMENT_UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMENT
         + CURVE_LUT_SIZE * 4 * Float32Array.BYTES_PER_ELEMENT;
+      if (runtime.colorVibranceCompatibilityTexture) {
+        bytes += PHOTOSHOP_COLOR_VIBRANCE_COMPATIBILITY_SIZE ** 3 * 4;
+      }
+      if (runtime.colorVibranceColorTexture) {
+        bytes += PHOTOSHOP_COLOR_VIBRANCE_COLOR_SIZE ** 3 * 4;
+      }
     }
     return bytes;
   }
@@ -197,10 +269,13 @@ export class AdjustmentLayerGpuResources {
     for (const runtime of this.runtimes.values()) this.destroyRuntime(runtime);
     this.runtimes.clear();
     this.dependencies = null;
+    this.compatibilityLoadRequested = false;
   }
 
   private destroyRuntime(runtime: AdjustmentLayerGpuRuntime) {
     runtime.uniformBuffer.destroy();
     runtime.curveTexture.destroy();
+    runtime.colorVibranceCompatibilityTexture?.destroy();
+    runtime.colorVibranceColorTexture?.destroy();
   }
 }

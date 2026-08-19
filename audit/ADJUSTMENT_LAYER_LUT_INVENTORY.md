@@ -1,12 +1,12 @@
 # Adjustment layers en LUT-gebruik
 
-Actuele productiestaat na taak 211:
+Actuele productiestaat na taak 213:
 
 | Adjustment layer | LUT | Grootte |
 | --- | --- | ---: |
 | Grade | Ja, runtime curve | 16 KB; optionele user Grade Look variabel |
 | Lens Fx | Nee | — |
-| Color and Vibrance | Nee | Geen embedded data; analytische CAT16/OKLab-shader |
+| Color and Vibrance | Ja, lazy compatibility-asset | 1,69 MB binair op disk; circa 22 KB GPU per actieve laag |
 | Brightness / Contrast | Ja, embedded 1D | 4,18 KB TypeScript / 975 bytes meetdata |
 | Levels | Nee | — |
 | Curves | Ja, runtime | 16 KB per curve-texture |
@@ -28,21 +28,26 @@ Actuele productiestaat na taak 211:
 
 ## Color and Vibrance
 
-De huidige adjustment gebruikt geen LUT, Base64-modeldata, eigen 3D-textures of
-slider-time texture-upload. De vier sliderwaarden reizen mee in de bestaande
-adjustment-uniform. Het gedrag leeft in `gpu/shaders.ts`; de gedeelde parameters
-en CPU-referentie staan in `gpu/colorVibranceModel.ts`.
+De adjustment gebruikt een gemeten Photoshop-compatibility-asset van 1.686.678
+bytes. Het bestand staat als los `.bin`-asset onder `src/assets/color-vibrance/`
+en komt niet in TypeScript, Base64 of de initiale JavaScriptflow terecht. Het
+wordt pas opgehaald wanneer een Color and Vibrance-laag bestaat.
 
-- Temperature/Tint: gekoppelde CAT16-white-pointadaptatie;
-- Vibrance/Saturation: OKLab-chromarespons;
-- Vibrancebescherming: lage verzadiging plus zacht OKLCH hue × chroma ×
-  lightness-masker;
-- gamut: continue projectie vanaf de neutrale as.
+- Temperature/Tint: een gekoppeld 21 × 21 slideroppervlak met per positie een
+  compacte 9³ RGB-volume en expliciete tijdelijke headroom;
+- gecombineerde Temperature/Tint plus Vibrance/Saturation: een tweede 17³
+  kleurvolume over zeven signed sliderknopen per as;
+- geïsoleerde Vibrance/Saturation: de bestaande analytische OKLab-route met
+  huidachtige en gamutbescherming blijft behouden;
+- zolang het asset nog laadt: de analytische CAT16-route is alleen fallback,
+  niet langer bewijs van Photoshop-gelijkheid.
 
 De vroegere 8,59 MB gegenereerde TypeScript met 490 meetvolumes is verwijderd.
 Dat getal is alleen een historische baseline, geen actuele asset of runtimekost.
-De huidige hoofdchunk is 2.848.006 bytes; de volledige initiale JavaScriptflow
-is 2.975.571 bytes volgens de webdelivery-audit.
+De actuele webdelivery-audit blijft groen op 2,98 MB initiale JavaScript en
+302,2 KB CSS. Het compatibility-bestand wordt als afzonderlijk lazy asset
+gebouwd. Ten opzichte van de vroegere 6.136.221 bytes binaire modeldata is het
+72,5% kleiner; de 8,59 MB gegenereerde TypeScript/Base64-bron blijft verwijderd.
 
 Niet iedere LUT is problematisch. De relevante vragen zijn of de data nodig is,
 wanneer ze geladen wordt, hoe groot de runtimekopie is, of sliderupdates uploads

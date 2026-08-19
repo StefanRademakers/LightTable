@@ -135,7 +135,7 @@ describe('LightTable adjustment uniform packing', () => {
     expect(packed[10]).toBe(0);
   });
 
-  it('packs all Color and Vibrance controls for its analytic evaluator', () => {
+  it('packs Color and Vibrance controls and its explicit compatibility readiness flag', () => {
     const settings = createDefaultAdjustments();
     settings.photoshopAdjustment.kind = 'color-vibrance';
     settings.photoshopAdjustment.colorVibranceTemperature = -91;
@@ -145,6 +145,9 @@ describe('LightTable adjustment uniform packing', () => {
     const packed = buildAdjustmentUniform(settings, 100, 50, true);
     expect(packed[128]).toBe(15);
     expect(Array.from(packed.slice(363, 367))).toEqual([-91, 37, -44, 63]);
+    expect(packed[367]).toBe(0);
+    expect(buildAdjustmentUniform(settings, 100, 50, true, null, 'srgb', 16, null, true)[367])
+      .toBe(1);
   });
 
   it('packs Levels channel and the built-in Color Lookup preset', () => {

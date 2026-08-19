@@ -59,6 +59,6 @@ Acceptance
 
 Current state
 
-Research and safe capture infrastructure are in progress. No production shader
-change has been accepted yet. Task 211's bundle reduction and Vibrance/
-Saturation work remain useful; its full-node parity implication is withdrawn.
+Completed on 2026-08-19. The accepted implementation and exact remaining
+limitations are recorded in result.md. Task 211's compact isolated Vibrance/
+Saturation work remains; its full-node parity implication stays withdrawn.
