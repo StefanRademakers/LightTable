@@ -131,6 +131,7 @@ export interface EditorMenuCommands {
   toggleDifference: () => void;
   toggleScreenMode: () => void;
   showDebugPanel: () => void;
+  showActionsPanel: () => void;
   showGenAiPanel: () => void;
   showAiHistoryPanel?: () => void;
   connectOpenArtProvider?: () => void;
@@ -834,6 +835,11 @@ export const createEditorMenuOptions = (
       value: 'show-ai-history-panel',
       label: 'Assets panel',
       onClick: commands.showAiHistoryPanel ?? commands.showGenAiPanel
+    },
+    {
+      value: 'show-actions-panel',
+      label: 'Actions panel',
+      onClick: commands.showActionsPanel
     },
     {
       value: 'show-debug-panel',

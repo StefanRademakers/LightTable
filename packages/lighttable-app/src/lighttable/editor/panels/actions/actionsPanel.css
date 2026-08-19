@@ -1,0 +1,96 @@
+.lighttable-actions-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lighttable-actions-panel__header {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.lighttable-actions-panel__summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lighttable-actions-panel__summary span,
+.lighttable-actions-panel__action code,
+.lighttable-actions-panel__parameters,
+.lighttable-actions-panel__reason {
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-small);
+}
+
+.lighttable-actions-panel__list {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.lighttable-actions-panel__list h3 {
+  margin: 0;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--lt-border);
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-small);
+  font-weight: var(--lt-weight-semibold);
+}
+
+.lighttable-actions-panel__result {
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--lt-border);
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-small);
+}
+
+.lighttable-actions-panel__action {
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.lighttable-actions-panel__action summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.lighttable-actions-panel__action summary > span:first-child {
+  display: grid;
+  min-width: 0;
+}
+
+.lighttable-actions-panel__action summary > span:last-child {
+  flex: none;
+  font-size: var(--lt-type-small);
+}
+
+.lighttable-actions-panel__action .is-available { color: var(--lt-success); }
+.lighttable-actions-panel__action .is-unavailable { color: var(--lt-text-disabled); }
+
+.lighttable-actions-panel__action-body {
+  padding: 0 12px 12px;
+}
+
+.lighttable-actions-panel__action-body > p { margin: 0 0 9px; }
+
+.lighttable-actions-panel__action-body dl {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 10px;
+}
+
+.lighttable-actions-panel__action-body dl > div {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.4fr) 1fr;
+  gap: 8px;
+}
+
+.lighttable-actions-panel__action-body dt { color: var(--lt-text-secondary); }
+.lighttable-actions-panel__action-body dd { margin: 0; }

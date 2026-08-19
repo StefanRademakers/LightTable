@@ -486,6 +486,7 @@ export class LightTableCommandService {
       availability('layer.setFillOpacity', true, ''),
       availability('layer.style.setEnabled', true, ''),
       availability('layer.effect.setEnabled', true, ''),
+      availability('file.openArtifact', Boolean(this.workspacePorts), 'Artifact open is unavailable in this host.'),
       availability('text.create', true, ''),
       availability('text.replaceRange', true, ''),
       availability('text.format', true, ''),

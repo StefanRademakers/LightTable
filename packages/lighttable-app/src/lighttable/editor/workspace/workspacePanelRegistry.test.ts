@@ -13,6 +13,7 @@ describe('workspacePanelRegistry', () => {
       channels: 'channels',
       debug: 'debug',
       agent: 'agent',
+      actions: 'actions',
       genAi: 'genAi',
       aiHistory: 'aiHistory'
     };
@@ -27,6 +28,7 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.actions,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
     ]);
     expect(panels.map((panel) => panel.content)).toEqual([
@@ -37,6 +39,7 @@ describe('workspacePanelRegistry', () => {
       content.aiHistory,
       content.genAi,
       content.agent,
+      content.actions,
       content.debug
     ]);
     expect(panels.map((panel) => panel.contentKey)).toEqual([
@@ -47,6 +50,7 @@ describe('workspacePanelRegistry', () => {
       'aiHistory',
       'genAi',
       'agent',
+      'actions',
       'debug'
     ]);
     expect(panels.find(({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.properties)?.title)
@@ -74,6 +78,7 @@ describe('workspacePanelRegistry', () => {
       channels: null,
       debug: null,
       agent: null,
+      actions: null,
       genAi: null,
       aiHistory: null
     });
@@ -98,6 +103,7 @@ describe('workspacePanelRegistry', () => {
       channels: null,
       debug: null,
       agent: null,
+      actions: null,
       genAi: null,
       aiHistory: null
     });
@@ -124,6 +130,7 @@ describe('workspacePanelRegistry', () => {
       channels: null,
       debug: null,
       agent: null,
+      actions: null,
       genAi: null,
       aiHistory: null
     });

@@ -101,6 +101,7 @@ export interface EditorMenuControllerOptions {
   };
   readonly workspace: {
     showDebugPanel(): void;
+    showActionsPanel(): void;
     showGenAiPanel(): void;
     showAiHistoryPanel?(): void;
     connectOpenArtProvider?(): void;
@@ -284,6 +285,7 @@ export const createEditorMenuController = ({
       toggleGuideLock: () => updateSnap((current) => ({ ...current, guidesLocked: !current.guidesLocked })),
       clearGuides: viewport.clearGuides,
       showDebugPanel: workspace.showDebugPanel,
+      showActionsPanel: workspace.showActionsPanel,
       showGenAiPanel: workspace.showGenAiPanel,
       showAiHistoryPanel: workspace.showAiHistoryPanel,
       connectOpenArtProvider: workspace.connectOpenArtProvider,

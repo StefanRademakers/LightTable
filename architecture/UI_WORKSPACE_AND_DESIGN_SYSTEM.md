@@ -52,7 +52,14 @@ The built-in fresh-workspace profile currently creates:
 - a floating `Layers` group within the document host at roughly 260 x 370;
 - `Channels` and `Scopes` as initially inactive tabs in that group;
 - a 250-pixel `Properties` group docked to the right of the document host;
-- `Assets`, `GenAI`, `Agent` and `Debug` as tabs in the Properties group.
+- `Assets`, `GenAI`, `Agent`, `Actions` and `Debug` as tabs in the Properties group.
+
+`Actions` is the local discovery and proving surface for the semantic command
+catalog. It groups commands by product category and shows live availability,
+scope, effect class and current Agent/MCP rollout. Direct parameter-free
+commands can be played through the normal application command service;
+parameter commands remain read-only until a typed editor exists. The panel is
+not a JSON console, document-state owner or alternate automation executor.
 
 A valid persisted Dockview layout takes precedence over these fresh-workspace
 positions. This is workspace preference only: switching documents must not

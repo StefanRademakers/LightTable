@@ -18,6 +18,7 @@ import {
 import { LayerStylesPanel } from '../../editor/panels/LayerStylesPanel';
 import { PropertiesPanel } from '../../editor/panels/PropertiesPanel';
 import { AgentActivityPanel } from '../../editor/panels/AgentActivityPanel';
+import { ActionsPanel } from '../../editor/panels/actions/ActionsPanel';
 import { GenAiPanel } from '../../../genai/ui/GenAiPanel';
 import { ProjectAssetBrowser } from '../../../genai/ui/ProjectAssetBrowser';
 import type { LayerStyleEditorController } from '../../application/styles/useLayerStyleEditorController';
@@ -43,6 +44,7 @@ export interface EditorWorkspacePanelBindings {
   };
   text: React.ComponentProps<typeof TextPropertiesPanel> | null;
   agent: React.ComponentProps<typeof AgentActivityPanel>;
+  actions: React.ComponentProps<typeof ActionsPanel>;
   genAi: React.ComponentProps<typeof GenAiPanel>;
   aiHistory: React.ComponentProps<typeof ProjectAssetBrowser>;
 }
@@ -65,6 +67,7 @@ export const createEditorWorkspacePanels = ({
   effects,
   text,
   agent,
+  actions,
   genAi,
   aiHistory
 }: EditorWorkspacePanelBindings): LightTableWorkspacePanelRegistration[] =>
@@ -98,6 +101,7 @@ export const createEditorWorkspacePanels = ({
       />
     ),
     agent: <AgentActivityPanel {...agent} />,
+    actions: <ActionsPanel {...actions} />,
     genAi: <GenAiPanel {...genAi} />,
     aiHistory: <ProjectAssetBrowser {...aiHistory} />
   });

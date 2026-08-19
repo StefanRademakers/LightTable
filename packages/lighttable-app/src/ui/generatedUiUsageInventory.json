@@ -4,9 +4,9 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 76,
+      "productionUsageCount": 77,
       "internalUsageCount": 5,
-      "contextCount": 25,
+      "contextCount": 26,
       "overrideCount": 0,
       "locations": [
         {
@@ -17,6 +17,11 @@
         {
           "path": "lighttable/application/tools/faceWarp/FaceWarpToolOptions.tsx",
           "count": 4,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionCatalogRow.tsx",
+          "count": 1,
           "kind": "product"
         },
         {
@@ -435,9 +440,9 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 27,
+      "productionUsageCount": 28,
       "internalUsageCount": 1,
-      "contextCount": 13,
+      "contextCount": 14,
       "overrideCount": 1,
       "locations": [
         {
@@ -452,6 +457,11 @@
         },
         {
           "path": "lighttable/application/tools/warp/WarpToolOptions.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionsPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -523,13 +533,18 @@
     {
       "id": "search-field",
       "metadataDeclared": true,
-      "productionUsageCount": 1,
+      "productionUsageCount": 2,
       "internalUsageCount": 0,
-      "contextCount": 1,
+      "contextCount": 2,
       "overrideCount": 0,
       "locations": [
         {
           "path": "genai/ui/ProjectAssetBrowser.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionsPanel.tsx",
           "count": 1,
           "kind": "product"
         }

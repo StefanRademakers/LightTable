@@ -8,6 +8,7 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   channels: 'lighttable.channels',
   debug: 'lighttable.debug',
   agent: 'lighttable.agent-activity',
+  actions: 'lighttable.actions',
   genAi: 'lighttable.genai',
   aiHistory: 'lighttable.ai-history'
 } as const;
@@ -45,6 +46,7 @@ export interface DefaultLightTableWorkspacePanelContent {
   channels: ReactNode;
   debug: ReactNode;
   agent: ReactNode;
+  actions: ReactNode;
   genAi: ReactNode;
   aiHistory: ReactNode;
 }
@@ -148,6 +150,17 @@ export const createDefaultLightTableWorkspacePanels = (
     },
     initiallyInactive: true,
     requiredForSavedLayout: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.actions,
+    contentKey: 'actions',
+    title: 'Actions',
+    content: content.actions,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
+      direction: 'within'
+    },
+    initiallyInactive: true
   },
   {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.debug,

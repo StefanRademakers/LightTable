@@ -5312,6 +5312,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     workspace: {
       showDebugPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.debug),
+      showActionsPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.actions),
       showGenAiPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi),
       showAiHistoryPanel: () => workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory),
       connectOpenArtProvider: () => {
@@ -6576,6 +6577,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               text: textPropertiesPanel,
               agent: { events: agentEvents,
                 onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } },
+              actions: {
+                capabilities: commandService?.queryCapabilities(workspaceDocumentId as DocumentSessionId) ?? null,
+                onExecute: executeRegisteredCommand
+              },
               genAi: {
                 interactionActive: active,
                 providerName: genAiProvider.label,

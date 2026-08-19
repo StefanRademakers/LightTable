@@ -110,6 +110,10 @@ application, Agent Access and external MCP profiles. Generated JavaScript and
 TypeScript projections feed the application validator, transport-neutral
 adapter and MCP Zod enums; a check fails when generated projections are stale
 or an external command is absent from the downstream Agent Access profile.
+The same entries now carry product category, label, description, scope, effect
+class and local invocation metadata. The docked Actions panel consumes that
+projection plus live capability results, so local discovery and MCP exposure
+cannot acquire separate naming or categorization lists.
 
 The profiles intentionally describe current rollout state. Generic MCP
 execution is narrower than the complete application command set, while

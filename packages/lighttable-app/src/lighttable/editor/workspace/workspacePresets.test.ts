@@ -12,6 +12,7 @@ const panels = () => createDefaultLightTableWorkspacePanels({
   channels: null,
   debug: null,
   agent: null,
+  actions: null,
   genAi: null,
   aiHistory: null
 });
@@ -19,7 +20,7 @@ const panels = () => createDefaultLightTableWorkspacePanels({
 describe('workspace presets', () => {
   it('keeps the canonical Photo Edit inspector order', () => {
     expect(panelsForWorkspacePreset(panels(), 'photo-edit').slice(3).map(({ title }) => title))
-      .toEqual(['Properties', 'Assets', 'GenAI', 'Agent', 'Debug']);
+      .toEqual(['Properties', 'Assets', 'GenAI', 'Agent', 'Actions', 'Debug']);
   });
 
   it('places GenAI and Agent left and activates Assets on the right', () => {

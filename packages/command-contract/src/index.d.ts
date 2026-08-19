@@ -40,6 +40,10 @@ export declare const LIGHTTABLE_COMMAND_IDS: readonly [
 
 export type LightTableCommandId = typeof LIGHTTABLE_COMMAND_IDS[number];
 
+export type LightTableCommandCategory = 'document' | 'image' | 'view' | 'layer' | 'effects' | 'file' | 'text' | 'vector' | 'automation' | 'history';
+export interface LightTableCommandDefinition { readonly id: LightTableCommandId; readonly category: LightTableCommandCategory; readonly label: string; readonly description: string; readonly scope: 'workspace' | 'document'; readonly effect: 'presentation' | 'edit' | 'external-io' | 'control'; readonly invocation: 'direct' | 'parameters'; readonly agentAccess: boolean; readonly agentAccessReason?: string; readonly externalMcp: 'execute' | 'dedicated' | null; readonly externalMcpReason?: string; }
+export declare const LIGHTTABLE_COMMAND_DEFINITIONS: readonly LightTableCommandDefinition[];
+
 export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'document.create',
   'view.setZoom',
