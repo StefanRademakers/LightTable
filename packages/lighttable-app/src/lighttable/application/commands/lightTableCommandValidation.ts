@@ -1,20 +1,11 @@
-import type { LightTableCommandId, LightTableCreateDocumentOptions,
+import type { LightTableCreateDocumentOptions,
   LightTableGestureKind, LightTableGestureSample } from './lightTableCommandContract';
+import { isLightTableCommandId } from '@lighttable/command-contract';
 
 const record = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
-const commandIds = new Set<string>([
-  'document.create', 'document.duplicate', 'document.resizeImage', 'document.applyGeometry', 'view.setZoom', 'layer.createRaster', 'layer.placeArtifact',
-  'layer.rename', 'layer.setVisibility', 'layer.setFillOpacity', 'layer.style.setEnabled',
-  'layer.effect.setEnabled', 'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
-  'vector.create', 'vector.update', 'vector.remove', 'layer.effect.add', 'layer.effect.update',
-  'faceWarp.applyOperation',
-  'layer.effect.remove', 'layer.effect.move', 'command.batch', 'task.cancel', 'file.openArtifact',
-  'file.exportNative', 'file.exportPng', 'file.exportPsd', 'history.undo', 'history.redo'
-]);
-
-export const isLightTableCommandId = (value: string): value is LightTableCommandId => commandIds.has(value);
+export { isLightTableCommandId };
 export const isLightTableGestureKind = (value: unknown): value is LightTableGestureKind => (
   value === 'brush-stroke' || value === 'selection-rectangle' || value === 'layer-translate'
 );

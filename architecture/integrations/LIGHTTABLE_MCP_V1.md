@@ -104,21 +104,29 @@ DOM selectors or a parallel MCP-only scene format remain forbidden.
 
 ### Exposure-list ownership
 
-The current runtime has related but non-identical capability projections:
+[`packages/command-contract/catalog.json`](../../packages/command-contract/catalog.json)
+is the machine-readable authority for semantic command IDs and their explicit
+application, Agent Access and external MCP profiles. Generated JavaScript and
+TypeScript projections feed the application validator, transport-neutral
+adapter and MCP Zod enums; a check fails when generated projections are stale
+or an external command is absent from the downstream Agent Access profile.
 
-- `LightTableCommandId` is the complete application command union;
-- `AuthenticatedLightTableMcpAdapter` has a tested transport-neutral allowlist,
-  but the production Agent Access bridge does not currently instantiate it;
-- `apps/mcp-server` has a generic command enum plus bespoke document, text,
-  vector, style, import, preview and design tools.
+The profiles intentionally describe current rollout state. Generic MCP
+execution is narrower than the complete application command set, while
+document creation and artifact-open are reserved for dedicated tools with
+stronger input validation. PSD export is part of the proven remote design
+workflow. Resize, document duplication/geometry and Face Warp are not exposed
+yet; they are future capability slices rather than permanent exclusions.
 
-The Electron main bridge authenticates and bounds requests, then invokes the
-renderer-owned automation driver through narrow IPC. This is still one command,
-document, history and renderer authority, but the exposure metadata can drift.
-Currently the adapter includes resize and Face Warp but omits PSD export, while
-the MCP generic list includes PSD export but omits resize/Face Warp; document
-creation is a bespoke MCP tool. Consolidate or generate these projections
-before treating the surface as a stable third-party plugin ABI.
+The product target is agent access to all user-facing functionality. Expansion
+must keep going through semantic commands, capability discovery and the normal
+document/history/render authorities, with validation and representative proof
+per slice. A broad pass-through to arbitrary internal state is not that target.
+
+Electron main authenticates and bounds requests, then invokes the
+renderer-owned automation driver through narrow IPC. The renderer enforces the
+Agent Access command profile before reaching that full internal driver and
+filters command capability discovery through the same profile.
 
 ## Hetzner deployment example
 

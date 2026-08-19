@@ -13,19 +13,13 @@ import type { AutomationTaskEvent } from './automationTaskEventStore';
 import type { ImageSizeRequest } from '../imageSize/imageSizeModel';
 import type { DocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
+import {
+  LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+  type LightTableCommandId
+} from '@lighttable/command-contract';
 
-export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1 as const;
-
-export type LightTableCommandId =
-  | 'document.create' | 'document.duplicate' | 'document.resizeImage' | 'document.applyGeometry' | 'view.setZoom' | 'layer.createRaster' | 'layer.placeArtifact'
-  | 'layer.rename' | 'layer.setVisibility' | 'layer.setFillOpacity'
-  | 'layer.style.setEnabled' | 'layer.effect.setEnabled' | 'file.openArtifact'
-  | 'text.create' | 'text.replaceRange' | 'text.format' | 'text.setLayout'
-  | 'vector.create' | 'vector.update' | 'vector.remove'
-  | 'faceWarp.applyOperation'
-  | 'layer.effect.add' | 'layer.effect.update' | 'layer.effect.remove' | 'layer.effect.move'
-  | 'command.batch' | 'task.cancel'
-  | 'file.exportNative' | 'file.exportPng' | 'file.exportPsd' | 'history.undo' | 'history.redo';
+export { LIGHTTABLE_COMMAND_PROTOCOL_VERSION };
+export type { LightTableCommandId };
 
 export type LightTableCommandErrorCode =
   | 'invalid-request' | 'unsupported-protocol' | 'unknown-command' | 'document-required'

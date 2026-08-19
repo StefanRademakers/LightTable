@@ -540,20 +540,22 @@ selection rectangle and layer translation and commit as one undo operation.
 ### MCP and a future plugin ABI
 
 [`lightTableMcpAdapter.ts`](../packages/lighttable-app/src/lighttable/application/commands/lightTableMcpAdapter.ts)
-defines and tests an authenticated, transport-neutral allowlist over the same
-command driver. It opens no socket. **Current runtime note:** the production
-desktop Agent Access bridge does not instantiate this class; Electron main
-authenticates/bounds the request and invokes the renderer driver through narrow
-IPC, while [`apps/mcp-server`](../apps/mcp-server) maps remote MCP tools onto
-that bridge/outbound tunnel.
+defines and tests an authenticated, transport-neutral adapter over the same
+command driver. It opens no socket. Electron main authenticates/bounds requests
+and invokes the renderer driver through narrow IPC, while
+[`apps/mcp-server`](../apps/mcp-server) maps remote MCP tools onto that
+bridge/outbound tunnel.
 
-This has produced three related exposure lists: all `LightTableCommandId`
-values, the adapter allowlist and the MCP server's generic/bespoke tools. They
-are not identical today—for example the adapter exposes resize/Face Warp but
-omits PSD export, while the generic MCP command list exposes PSD but not those
-two and document creation uses a bespoke tool. Treat this as deliberate
-adapter capability only when tested; otherwise consolidate capability metadata
-before calling the command surface a plugin ABI.
+[`packages/command-contract/catalog.json`](../packages/command-contract/catalog.json)
+owns the complete command IDs plus explicit Agent Access and external MCP
+profiles. Generated validators/enums prevent string-list drift. The profiles
+are deliberately unequal: document creation and artifact-open are used only by
+dedicated validated MCP tools; PSD export is part of the proven remote design
+workflow; resize, document duplication/geometry and Face Warp are not exposed
+yet. These are incremental rollout states, not permanent exclusions: the
+product target is semantic agent access to all user-facing functionality.
+The actual Electron renderer bridge enforces this Agent Access profile and
+filters capability discovery before requests reach the full automation driver.
 
 Desktop Agent Access uses user-visible pairing, read/edit scopes, revocation,
 bounded artifacts and an outbound TLS/WSS connection; it does not expose an

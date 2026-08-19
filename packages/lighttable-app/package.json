@@ -21,6 +21,7 @@
     "@fontsource/noto-sans": "5.2.8",
     "@fontsource/source-serif-4": "5.2.8",
     "@huggingface/transformers": "^3.8.1",
+    "@lighttable/command-contract": "0.0.1",
     "@lighttable/paint-core": "0.0.1",
     "@lighttable/genai-core": "0.0.1",
     "@lighttable/pdf-core": "0.0.1",

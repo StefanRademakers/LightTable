@@ -1,6 +1,11 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { McpServer } from '@modelcontextprotocol/server';
+import {
+  LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS,
+  LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS,
+  LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS
+} from '@lighttable/command-contract';
 import { z } from 'zod';
 
 const response = (value) => ({
@@ -10,6 +15,15 @@ const response = (value) => ({
 const failure = (error) => ({ isError: true, content: [{ type: 'text',
   text: error instanceof Error ? error.message : String(error) }] });
 const editable = (context) => context?.http?.authInfo?.scopes?.includes('lighttable:edit') === true;
+const dedicatedCommandIds = new Set(LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS);
+const dedicatedCommand = (command) => {
+  if (!dedicatedCommandIds.has(command)) {
+    throw new Error(`Dedicated MCP command ${command} is absent from the command catalog.`);
+  }
+  return command;
+};
+const createDocumentCommand = dedicatedCommand('document.create');
+const openArtifactCommand = dedicatedCommand('file.openArtifact');
 const srgbToLinear = (value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 const hexLinearRgba = (hex) => [1, 3, 5]
   .map((offset) => srgbToLinear(Number.parseInt(hex.slice(offset, offset + 2), 16) / 255)).concat(1);
@@ -83,14 +97,6 @@ const downloadImage = async (value, fetchImpl = fetch, redirects = 0) => {
   return { bytes, mediaType, suggestedName: decodeURIComponent(url.pathname.split('/').at(-1) || 'agent-image') };
 };
 
-const commandIds = ['view.setZoom', 'layer.createRaster', 'layer.placeArtifact', 'layer.rename', 'layer.setVisibility',
-  'layer.setFillOpacity', 'layer.style.setEnabled', 'layer.effect.setEnabled',
-  'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
-  'vector.create', 'vector.update', 'vector.remove',
-  'layer.effect.add', 'layer.effect.update', 'layer.effect.remove', 'layer.effect.move',
-  'command.batch', 'task.cancel',
-  'file.exportNative', 'file.exportPng', 'file.exportPsd', 'history.undo', 'history.redo'];
-
 export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) => {
   const server = new McpServer({ name: 'LightTable', version: '0.1.0' });
   server.registerTool('lighttable_workspace', {
@@ -129,7 +135,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
   server.registerTool('lighttable_execute', {
     title: 'Execute an undoable LightTable command',
     description: 'Executes one validated semantic command against an explicit document ID. Pass expectedDocumentRevision to reject stale edits.',
-    inputSchema: z.object({ documentId: z.string().min(1), command: z.enum(commandIds),
+    inputSchema: z.object({ documentId: z.string().min(1), command: z.enum(LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS),
       expectedDocumentRevision: z.number().int().nonnegative().optional(),
       parameters: z.record(z.string(), z.unknown()).default({}) }),
     annotations: { readOnlyHint: false, destructiveHint: false }
@@ -144,7 +150,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       timeoutMs: z.number().int().min(100).max(10_000).default(5_000),
       expectedDocumentRevision: z.number().int().nonnegative().optional(),
       operations: z.array(z.object({ operationId: z.string().min(1).max(128),
-        command: z.enum(commandIds.filter((id) => id !== 'command.batch' && id !== 'task.cancel')),
+        command: z.enum(LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS),
         parameters: z.record(z.string(), z.unknown()).default({}) })).min(1).max(64) })
   }, withResult(({ documentId, name, timeoutMs, operations, expectedDocumentRevision }) =>
     client.invoke('command.execute', { documentId, command: 'command.batch',
@@ -173,7 +179,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     })
   }, withResult(({ name, width, height, resolutionPpi, bitDepth, profile, backgroundColor }) =>
     client.invoke('command.execute', {
-      command: 'document.create', commandRequestId: crypto.randomUUID(),
+      command: createDocumentCommand, commandRequestId: crypto.randomUUID(),
       commandParameters: { name, width, height, resolutionPpi, bitDepth: Number(bitDepth), profile,
         background: backgroundColor ? { kind: 'solid', color: backgroundColor } : { kind: 'transparent' } }
     }), { edit: true }));
@@ -184,7 +190,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       assetId: z.string().min(1).max(256).optional(), title: z.string().min(1).max(256).default('MAKE SOMETHING BOLD'),
       body: z.string().min(1).max(2_000).default('Editable type, vectors, gradients and effects—built as real LightTable layers.') })
   }, withResult(async ({ name, assetId, title, body }) => {
-    await client.invoke('command.execute', { command: 'document.create', commandRequestId: crypto.randomUUID(),
+    await client.invoke('command.execute', { command: createDocumentCommand, commandRequestId: crypto.randomUUID(),
       commandParameters: { name, width: 1080, height: 1350, resolutionPpi: 72, bitDepth: 8,
         profile: 'srgb', background: { kind: 'solid', color: '#101424' } } });
     const workspace = await client.invoke('workspace.query'); const documentId = workspace.activeDocumentId;
@@ -390,7 +396,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     if (documentId && image.mediaType === 'image/avif') throw new Error('Placed images must be PNG, JPEG or WebP.');
     const result = await client.invoke('command.execute', {
       ...(documentId ? { documentId } : {}),
-      command: documentId ? 'layer.placeArtifact' : 'file.openArtifact',
+      command: documentId ? 'layer.placeArtifact' : openArtifactCommand,
       commandRequestId: crypto.randomUUID(), commandParameters: {
         artifactId: artifact.id, ...(name ? { name } : {}), ...(x === undefined ? {} : { x }), ...(y === undefined ? {} : { y })
       }

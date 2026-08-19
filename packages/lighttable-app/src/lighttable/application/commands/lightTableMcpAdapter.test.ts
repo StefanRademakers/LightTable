@@ -67,7 +67,7 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       commandRequestId: 'rename-1', commandParameters: { layerId: 'layer-1', name: 'Renamed' }
     }))).toMatchObject({ status: 'completed' });
     expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({ command: 'layer.rename' }));
-    expect(await adapter.invoke(request('command.execute', { command: 'file.openArtifact' })))
+    expect(await adapter.invoke(request('command.execute', { command: 'document.duplicate' })))
       .toMatchObject({ status: 'rejected', code: 'command-not-allowed' });
     adapter.revoke();
     expect(await adapter.invoke(request('artifact.list')))
@@ -134,7 +134,7 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       } }))).toMatchObject({ status: 'completed' });
   });
 
-  it('allows the canonical Face Warp command without a transport-specific schema', async () => {
+  it('keeps Face Warp outside the current remote rollout profile', async () => {
     const driver = createDriver();
     const adapter = new AuthenticatedLightTableMcpAdapter({
       driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
@@ -146,11 +146,8 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
           kind: 'set-protection', faceId: 'face-1', feature: 'lips', locked: true
         }
       }
-    }))).toMatchObject({ status: 'completed' });
-    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({
-      command: 'faceWarp.applyOperation',
-      parameters: expect.objectContaining({ layerId: 'portrait' })
-    }));
+    }))).toMatchObject({ status: 'rejected', code: 'command-not-allowed' });
+    expect(driver.execute).not.toHaveBeenCalled();
   });
 
   it('forwards atomic batches, cancellation and event cursors', async () => {

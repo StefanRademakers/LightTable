@@ -1,0 +1,21 @@
+{
+  "name": "@lighttable/command-contract",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "files": [
+    "catalog.json",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.mjs"
+    },
+    "./catalog.json": "./catalog.json"
+  },
+  "scripts": {
+    "test": "node ../../scripts/generate-command-contract.mjs --check && node --test test",
+    "typecheck": "node --check src/index.mjs"
+  }
+}

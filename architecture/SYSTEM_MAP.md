@@ -7,8 +7,10 @@ apps/web                 Browser host and bootstrap
 apps/desktop             Electron main, preload and renderer host
 apps/local-ai-provider   Managed desktop local-inference process
 apps/mcp-server          Remote MCP/OAuth adapter over semantic commands
+packages/command-contract Machine-readable semantic command and exposure profiles
 packages/lighttable-app  Shared application, editor, UI and WebGPU engine
 packages/genai-core      Provider-neutral GenAI models, workflows, jobs and presentation contracts
+packages/genai-higgsfield Higgsfield adapter, normalization and provider fixtures
 packages/genai-local     Host-neutral local-provider protocol and contracts
 packages/genai-openart   OpenArt adapter, schema normalization and provider fixtures
 packages/paint-core      Host-neutral paint gesture and dab contracts

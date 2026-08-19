@@ -1,0 +1,41 @@
+{
+  "protocolVersion": 1,
+  "agentAccessPolicy": {
+    "target": "all-user-facing-functionality",
+    "rollout": "capability-gated-incremental"
+  },
+  "commands": [
+    { "id": "document.create", "agentAccess": true, "externalMcp": "dedicated" },
+    { "id": "document.duplicate", "agentAccess": false, "externalMcp": null },
+    { "id": "document.resizeImage", "agentAccess": false, "externalMcp": null },
+    { "id": "document.applyGeometry", "agentAccess": false, "externalMcp": null },
+    { "id": "view.setZoom", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.createRaster", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.placeArtifact", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.rename", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.setVisibility", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.setFillOpacity", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.style.setEnabled", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.effect.setEnabled", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "file.openArtifact", "agentAccess": true, "externalMcp": "dedicated" },
+    { "id": "text.create", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "text.replaceRange", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "text.format", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "text.setLayout", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "vector.create", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "vector.update", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "vector.remove", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "faceWarp.applyOperation", "agentAccess": false, "externalMcp": null },
+    { "id": "layer.effect.add", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.effect.update", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.effect.remove", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "layer.effect.move", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "command.batch", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "task.cancel", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "file.exportNative", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "file.exportPng", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "file.exportPsd", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "history.undo", "agentAccess": true, "externalMcp": "execute" },
+    { "id": "history.redo", "agentAccess": true, "externalMcp": "execute" }
+  ]
+}

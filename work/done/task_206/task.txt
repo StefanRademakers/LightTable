@@ -1,0 +1,85 @@
+Task 206 - Make semantic command exposure one verified catalog
+
+Goal
+====
+
+Remove drift between the internal LightTable command contract, desktop Agent
+Access adapter and external MCP schema without silently expanding any remote
+capability or weakening validation.
+
+Current evidence
+================
+
+- Command IDs are repeated in the TypeScript contract, validation set,
+  authenticated desktop adapter and JavaScript MCP server.
+- The external server advertises and its completed social-design workflow uses
+  `file.exportPsd`; URL import uses `file.openArtifact` when no target document
+  is supplied.
+- The transport-neutral `AuthenticatedLightTableMcpAdapter` rejects those two
+  commands, but production Agent Access does not instantiate that adapter. The
+  Electron renderer currently forwards every valid internal command instead.
+- The result is not merely unequal lists: the documented allowlist is not the
+  authority in the shipping path, capability discovery reports internal rather
+  than remotely permitted commands, and a compromised/misconfigured server can
+  request commands outside its advertised tool surface.
+
+Implementation contract
+=======================
+
+- Preserve separate explicit capability profiles for internal, local Agent
+  Access and external MCP use.
+- Generate or import validators/enums from one stable machine-readable catalog.
+- Enforce the Agent Access profile in the actual Electron-to-renderer command
+  route and filter capability discovery through the same profile.
+- Treat profiles as current rollout state, not permanent product exclusions:
+  the target is all user-facing functionality through semantic, capability-
+  discoverable agent commands, added with validation and representative proof.
+- Preserve the already shipped and end-to-end-proven PSD export and bounded
+  artifact-import workflows. Do not add resize, document geometry/duplication
+  or Face Warp in this catalog repair merely to make lists equal; each remains
+  a future exposure slice, not a rejected product direction.
+- Add a contract test proving every externally advertised command is accepted
+  by the downstream desktop profile.
+- Keep generic MCP commands distinct from commands used only by dedicated,
+  more strongly validated tools such as document creation and URL import.
+
+Definition of done
+==================
+
+No unsupported command is advertised, profile differences are explicit and
+tested, MCP/desktop tests pass and the task package moves to `work/done` in the
+same focused commit.
+
+Completion evidence (2026-08-19)
+================================
+
+- Added `@lighttable/command-contract`: one machine-readable catalog records
+  every semantic command plus current Agent Access, generic MCP and dedicated
+  MCP rollout state. Generated runtime/type projections are reproducible and
+  fail verification when stale or when MCP outruns its downstream profile.
+- The catalog records the product direction explicitly: all user-facing
+  functionality is the target, delivered incrementally through semantic,
+  capability-discoverable commands rather than unrestricted state mutation.
+- Application command typing/validation, the transport-neutral adapter and MCP
+  Zod enums now consume the generated contract.
+- Extracted the shipping renderer bridge into a tested owner. It enforces the
+  current Agent Access profile and filters capability discovery before the full
+  internal automation driver. Proven PSD export and artifact-open flows remain
+  available; not-yet-productized commands remain closed for this slice.
+- Updated the MCP/quickstart/system-map documentation to describe the actual
+  runtime authority and future expansion direction.
+
+Verification
+============
+
+- `npm run verify:command-contract`
+- `npm run typecheck`
+- `npm run verify:boundary`
+- `npm test -w @lighttable/command-contract`
+- `npm test -w @lighttable/mcp-server` (17 tests)
+- `npm run test -w @lighttable/app -- --run src/lighttable/application/commands/lightTableMcpAdapter.test.ts` (8 tests)
+- `npm run test -w @lighttable/desktop` (32 files, 135 tests)
+- Full `npm test` passed all non-desktop suites; one desktop run selected an
+  ephemeral Fetch-forbidden port and failed before the request. The immediate
+  complete desktop rerun passed. This exposed a separate runtime risk and is
+  tracked as its own remediation rather than hidden as a green full run.

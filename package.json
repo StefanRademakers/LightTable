@@ -9,6 +9,8 @@
   ],
   "scripts": {
     "context:agent": "node scripts/agent-context.mjs",
+    "generate:command-contract": "node scripts/generate-command-contract.mjs",
+    "verify:command-contract": "node scripts/generate-command-contract.mjs --check",
     "generate:ui-inventory": "node scripts/generate-ui-usage-inventory.mjs",
     "audit:ui-boundary": "node scripts/audit-ui-boundary.mjs && node scripts/generate-ui-usage-inventory.mjs --check",
     "setup:text-wasm": "node scripts/text-wasm.mjs setup",

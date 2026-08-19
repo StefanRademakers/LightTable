@@ -1,0 +1,35 @@
+Task 209 - Prevent unusable ephemeral Agent Access ports
+
+Goal
+====
+
+Ensure an automatically selected Agent Access port is reachable by the same
+Fetch-based clients used by LightTable and its tests.
+
+Current evidence
+================
+
+- A full-suite run on 2026-08-19 started `AgentAccessBridge` successfully but
+  Node Fetch rejected its ephemeral address with `Error: bad port`.
+- The complete desktop suite passed immediately afterward, proving the failure
+  depends on the OS-selected port rather than command behavior.
+- Browsers/Fetch block a defined set of unsafe ports. Binding to port `0` can
+  therefore produce a listening server that the supported client cannot use.
+
+Implementation contract
+=======================
+
+- Keep explicit owner-selected ports unchanged and retain loopback-only bind.
+- For automatic selection, retry a bounded number of times when the assigned
+  port is Fetch-forbidden; close every rejected listener before retrying.
+- Centralize/test the port policy without weakening authentication, origin,
+  body-size or shutdown behavior.
+- Do not solve this by retrying arbitrary client failures or disabling Fetch's
+  network safety policy.
+
+Definition of done
+==================
+
+Automatic Agent Access never publishes a known Fetch-forbidden port, lifecycle
+tests prove rejected listeners are closed, desktop typecheck/tests pass and the
+task moves to `work/done` in the focused implementation commit.

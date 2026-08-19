@@ -2,8 +2,8 @@ import type { DocumentSessionId } from '../documents/documentSession';
 import type { LayerId } from '../../editor/document/documentTypes';
 import type {
   LightTableAutomationDriver,
-  LightTableCommandId
 } from './lightTableCommandService';
+import { isLightTableAgentAccessCommandId } from '@lighttable/command-contract';
 
 export const LIGHTTABLE_MCP_PROTOCOL_VERSION = 1 as const;
 
@@ -66,37 +66,6 @@ export interface AuthenticatedLightTableMcpAdapterOptions {
   readonly now?: () => number;
   readonly requestLimit?: number;
 }
-
-const allowedCommands = new Set<LightTableCommandId>([
-  'document.create',
-  'document.resizeImage',
-  'view.setZoom',
-  'layer.createRaster',
-  'layer.placeArtifact',
-  'layer.rename',
-  'layer.setVisibility',
-  'layer.setFillOpacity',
-  'layer.style.setEnabled',
-  'layer.effect.setEnabled',
-  'text.create',
-  'text.replaceRange',
-  'text.format',
-  'text.setLayout',
-  'vector.create',
-  'vector.update',
-  'vector.remove',
-  'faceWarp.applyOperation',
-  'layer.effect.add',
-  'layer.effect.update',
-  'layer.effect.remove',
-  'layer.effect.move',
-  'command.batch',
-  'task.cancel',
-  'file.exportNative',
-  'file.exportPng',
-  'history.undo',
-  'history.redo'
-]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -205,7 +174,7 @@ export class AuthenticatedLightTableMcpAdapter {
       );
       case 'command.execute': {
         const command = parameters.command;
-        if (typeof command !== 'string' || !allowedCommands.has(command as LightTableCommandId)) {
+        if (!isLightTableAgentAccessCommandId(command)) {
           throw new CommandNotAllowedError('This command is not exposed to external control.');
         }
         return this.options.driver.execute({

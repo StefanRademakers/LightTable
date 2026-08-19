@@ -67,6 +67,7 @@ export {
   type LightTableMcpRequest,
   type LightTableMcpResult
 } from './lighttable/application/commands/lightTableMcpAdapter';
+export { isLightTableAgentAccessCommandId } from '@lighttable/command-contract';
 export {
   DocumentTaskRegistry,
   type DocumentTaskContext,
