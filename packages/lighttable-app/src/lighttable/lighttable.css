@@ -608,11 +608,6 @@
   align-items: stretch;
 }
 
-.lighttable__app-menu--open {
-  position: relative;
-  z-index: 2001;
-}
-
 .lighttable__project-name {
   align-self: center;
   margin-left: 8px;

@@ -73,7 +73,7 @@ export const EditorMenuBar = ({
   return (
     <>
       <div
-        className={`shots-app-menu lighttable__app-menu${openMenu ? ' lighttable__app-menu--open' : ''}`}
+        className="shots-app-menu lighttable__app-menu"
         role="menubar"
         aria-label="LightTable menu"
       >
@@ -136,6 +136,7 @@ export const EditorMenuBar = ({
         onClose={() => setOpenMenu(null)}
         options={options}
         className="lighttable-editor-menu"
+        backdropTop={openMenu?.y}
       />
     </>
   );

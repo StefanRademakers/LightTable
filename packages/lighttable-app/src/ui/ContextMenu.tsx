@@ -25,6 +25,8 @@ interface ContextMenuProps<T extends string> {
   placement?: 'auto' | 'above' | 'below';
   className?: string;
   width?: number;
+  /** Leaves a top application-menubar strip interactive while the menu is open. */
+  backdropTop?: number;
 }
 
 export function ContextMenu<T extends string>({
@@ -35,7 +37,8 @@ export function ContextMenu<T extends string>({
   options,
   placement = 'auto',
   className,
-  width
+  width,
+  backdropTop = 0
 }: ContextMenuProps<T>) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const closeSubmenuTimeoutRef = useRef<number | null>(null);
@@ -308,7 +311,11 @@ export function ContextMenu<T extends string>({
 
   return createPortal(
     <>
-      <div className="context-menu-backdrop" onClick={onClose} />
+      <div
+        className="context-menu-backdrop"
+        style={backdropTop > 0 ? { top: backdropTop } : undefined}
+        onClick={onClose}
+      />
       {renderOptions(options)}
     </>,
     document.body
