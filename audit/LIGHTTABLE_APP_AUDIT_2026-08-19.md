@@ -106,7 +106,9 @@ De belangrijkste redenen:
 2. De architectuurdocumentatie en UI-boundary-audit zijn niet groen.
 3. Er zit een concrete listener-accumulatie in drie AI-pollingpaden.
 4. Het externe MCP-commandocontract is aantoonbaar uit synchronisatie met de desktop-adapter.
-5. De initiële webchunk is 11,09 MB minified / 4,80 MB gzip en bevat een 8,6 MB gegenereerde Color/Vibrance-LUT.
+5. De oorspronkelijke initiale webchunk bevatte een 8,6 MB gegenereerde
+   Color/Vibrance-bibliotheek; dit risico is inmiddels opgelost en de actuele
+   hoofdchunk meet 2,85 MB raw / 0,76 MB gzip.
 6. De actuele productie-dependency-audit meldt drie high-severity kwetsbare packages.
 7. Bescheiden hardware, Apple Silicon, web-hosting en een actuele meeruurs-soak zijn niet gekwalificeerd.
 8. Belangrijke zichtbare productclaims — vooral Grade/Camera Raw en volledig bewerkbare PSD-uitwisseling — hebben nog open acceptatiewerk.
@@ -289,7 +291,6 @@ Dit voorkomt een groot deel van de klassieke editorproblemen: dubbele waarheid, 
 
 | Bestand | Regels volgens audit | Observatie |
 | --- | ---: | --- |
-| `photoshopColorVibranceLut.generated.ts` | 68.191 | Gegenereerd artifact; audit maakt dit onderscheid niet |
 | `LightTableEditorOverlay.tsx` | 6.656 | Bestaande cap 4.350; 171 lokale imports |
 | `WebGpuEngine.ts` | 3.322 | Bestaande cap 2.290; 59 lokale imports |
 | `gpu/shaders.ts` | 2.367 | Bestaande cap 1.055 |
@@ -358,38 +359,25 @@ Die lijsten zijn niet gelijk:
 
 Gevolg: remote PSD-export wordt als geldig MCP-commando gepresenteerd, maar behoort bij de desktopgrens te worden afgewezen. Er is geen end-to-end contracttest die de externe enum gelijkstelt aan de adaptercapabilities.
 
-### R5 — Webdownload en parsekosten zijn te groot voor de betaalbare/laagdrempelige belofte
+### R5 — Color and Vibrance-bootstraprisico is opgelost
 
-**Ernst: hoog voor web · Zekerheid: bewezen**
+**Status: gesloten · Zekerheid: gemeten en via packaged WebGPU geverifieerd**
 
-**Status na taak 211: opgelost voor Color and Vibrance.** De auditbaseline
-hieronder blijft als historische meting staan. Alle 490 ingebedde volumes zijn
-verwijderd: 8.591.289 bytes gegenereerde TypeScript en 6.136.221 bytes binaire
-modeldata. De adjustment gebruikt nu gekoppelde CAT16-white-pointadaptatie en
-OKLab-chroma met lage-verzadigingsrespons, een zacht hue x chroma x lightness-
-masker voor huidachtige kleuren en continue gamutprojectie. Ook de twee 3D-
-textures per actieve laag en slider-time uploads zijn verdwenen.
+Alle 490 ingebedde meetvolumes zijn verwijderd: 8.591.289 bytes gegenereerde
+TypeScript en 6.136.221 bytes binaire modeldata. De adjustment gebruikt nu
+CAT16-white-pointadaptatie en OKLab-chroma met expliciete respons voor gedempte
+kleuren, een zacht huidachtig OKLCH-masker en continue gamutprojectie. Er zijn
+geen eigen 3D-textures, Base64-decodering of slider-time uploads meer.
 
-De definitieve productie-hoofdchunk meet 2.848,00 kB minified / 760,26 kB gzip
-en 594.077 bytes Brotli: 74,3% minder raw en 84,2% minder gzip dan de baseline.
-Alle 27
-extreme diagnostische gevallen renderen via packaged Electron/WebGPU. De
-Photoshop-score van die set is bewust geen gate meer (88,487% door afwijkende
-CAT16-extremen). Een geïsoleerde portretset voor Vibrance en Saturation scoort
-99,253% en laat zien dat Vibrance huid duidelijk rustiger houdt dan globale
-Saturation. De resterende productvraag is diversiteit van de huid-/objectcorpus,
-niet levering of verborgen LUT-opslag.
+De hoofdchunk meet nu 2.848.006 bytes raw / 752.442 bytes gzip. De volledige
+initiale JavaScriptflow meet 2.975.571 bytes. Daarmee is de oude 11,09 MB-meting
+alleen nog een historische baseline, niet de huidige productkost.
 
-De productie-webbuild rapporteert:
-
-- hoofd-JavaScriptchunk: **11.093,37 kB minified / 4.797,58 kB gzip**;
-- hoofd-CSS: **302,24 kB / 48,84 kB gzip**;
-- alle gebouwde assets samen: **68.051.731 bytes** (~64,9 MiB), waarvan veel modellen/WASM lazy geladen kunnen worden;
-- losse zware assets omvatten ONNX-runtime (~21,6 MB), MediaPipe vision WASM (~11,8 MB), text-layout WASM (~6,6 MB) en vips WASM (~5,1 MB).
-
-De gegenereerde `photoshopColorVibranceLut.generated.ts` is 8.591.289 bytes en de unieke LUT-data is daadwerkelijk in de 11,09 MB hoofdchunk aangetroffen. Daarmee betaalt iedere webgebruiker vooraf voor specifieke Photoshop 27 Color/Vibrance-pariteit, ook als die functie niet wordt gebruikt.
-
-Dit raakt time-to-interactive, parsegeheugen, caching en datakosten. Het is ook strategisch scheef: een nichepariteitsartifact belast de eerste ervaring van iedere gebruiker.
+De 27-case extremenset is een stabiliteitsdiagnostic en scoort bewust geen
+Photoshop-pariteitsgate: CAT16 Temperature/Tint wijkt vooral bij grote waarden
+af. De geïsoleerde portretset scoort 99,253%, maar bevat slechts zes cases. De
+resterende Color/Vibrance-vraag is daarom modelvalidatie op uiteenlopende
+huidtinten en verzadigde niet-huidobjecten, niet meer bundle- of LUT-opslag.
 
 ### R6 — Actuele production dependency-audit is niet groen
 
@@ -566,7 +554,8 @@ De beste positionering is niet “alles wat Photoshop kan, goedkoper”. Een gel
 2. Draai een exact-commit tweeuurs release-soak en daarna de 12-uursvariant.
 3. Kwalificeer minimaal één geïntegreerde Windows-GPU, één Apple Silicon-cel en de webhost/browsers die echt ondersteund worden.
 4. Splits Overlay, WebGpuEngine en desktop main langs bestaande capabilitygrenzen, met behoud van dezelfde semantische autoriteit.
-5. Haal de Color/Vibrance-LUT uit de initiële appchunk: lazy asset, binary resource of featurechunk, met checksum/versionering en paritytest.
+5. Breid de Color/Vibrance-corpus uit met uiteenlopende huidtinten en verzadigde
+   niet-huidobjecten voordat dezelfde bescherming een native Grade-default wordt.
 6. Voeg bundlebudgetten toe voor initiële JS, CSS, lazy workers/WASM en modellen.
 
 ### P2 — Productfocus en betaalbaarheid bewaken

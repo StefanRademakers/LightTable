@@ -586,10 +586,11 @@ is used.
 
 ## Color and Vibrance
 
-Status: accepted as a separate Photoshop 27 semantic node; it does not replace
-or alter native Grade. Photoshop stores this newer adjustment in the same
-`vibA` PSD block as classic Vibrance, distinguished by `useLegacy: false` and
-the additional `temperature` and `tint` descriptor fields.
+Status: accepted as LightTable's alpha Color and Vibrance behavior, with PSD
+descriptor roundtrip but without a Photoshop visual-parity claim. It does not
+replace or alter native Grade. Photoshop stores the corresponding newer
+adjustment in the same `vibA` PSD block as classic Vibrance, distinguished by
+`useLegacy: false` and the additional `temperature` and `tint` fields.
 
 The captured corpus established useful design properties but is no longer the
 runtime architecture. Temperature and Tint are evaluated together as a CAT16
@@ -606,7 +607,11 @@ have been removed completely: 8,591,289 bytes of generated TypeScript and
 dedicated 3D textures and performs no CPU reconstruction or slider-time texture
 upload. Its four values travel in the existing adjustment uniform.
 
-Compatibility scores remain diagnostic rather than a product gate. The final
+This section is an explicit exception to the tracker's general 95% Photoshop
+gate: alpha 0.1 has no shipped LightTable documents whose old rendering must be
+preserved, and the compact native behavior was selected over reproducing the
+captured oracle at all costs. Compatibility scores remain diagnostics rather
+than acceptance gates. The final
 27-case hue/lightness run scores 88.487% against Photoshop because CAT16
 Temperature/Tint intentionally differs at large values. A dedicated portrait
 set that isolates neutral, Vibrance +20/+80/+100 and Saturation +80/+100 scores
