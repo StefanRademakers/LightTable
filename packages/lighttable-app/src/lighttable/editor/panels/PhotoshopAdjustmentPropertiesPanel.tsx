@@ -16,6 +16,7 @@ import {
   PanelFileField,
   PanelSelectField
 } from '../../../ui/PanelControls';
+import { COLOR_TEMPERATURE_RANGE } from '../config/adjustmentControls';
 
 interface SliderSpec {
   readonly key: keyof PhotoshopAdjustmentSettings;
@@ -43,7 +44,7 @@ const FAMILY_SLIDERS: Partial<Record<PhotoshopAdjustmentKind, readonly SliderSpe
     { key: 'vibranceSaturation', label: 'Saturation', min: -100, max: 100, format: percent, track: 'saturation' }
   ],
   'color-vibrance': [
-    { key: 'colorVibranceTemperature', label: 'Temperature', min: -100, max: 100, track: 'temperature' },
+    { key: 'colorVibranceTemperature', label: 'Temperature', ...COLOR_TEMPERATURE_RANGE, track: 'temperature' },
     { key: 'colorVibranceTint', label: 'Tint', min: -100, max: 100, track: 'tint' },
     { key: 'colorVibranceVibrance', label: 'Vibrance', min: -100, max: 100, format: percent, track: 'vibrance' },
     { key: 'colorVibranceSaturation', label: 'Saturation', min: -100, max: 100, format: percent, track: 'saturation' }

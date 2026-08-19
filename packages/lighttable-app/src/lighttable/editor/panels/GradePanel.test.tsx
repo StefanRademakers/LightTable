@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDefaultGroupVisibility } from '../../application/adjustments/groupVisibility';
 import { AdjustmentPresentationStore } from '../../application/adjustments/adjustmentPresentationStore';
 import { createDefaultAdjustments } from '../../types';
+import { COLOR_SLIDERS, COLOR_TEMPERATURE_RANGE } from '../config/adjustmentControls';
 import { GradePanel, type GradePanelProps } from './GradePanel';
 import { GradientMapPropertiesPanel } from './GradientMapPropertiesPanel';
 
@@ -42,6 +43,14 @@ const props = (globalGrade: boolean): GradePanelProps => {
 };
 
 describe('GradePanel', () => {
+  it('centers native Grade Temperature on the shared Color and Vibrance range', () => {
+    const temperature = COLOR_SLIDERS.find(({ key }) => key === 'temperature');
+
+    expect(temperature).toMatchObject(COLOR_TEMPERATURE_RANGE);
+    expect(createDefaultAdjustments().temperature).toBe(0);
+    expect((temperature!.min + temperature!.max) / 2).toBe(0);
+  });
+
   it('uses Global Grade visibility for its master switch and omits Gradient Map', () => {
     const enabled = renderToStaticMarkup(<GradePanel {...props(true)} gradeTitle="Global Grade" />);
     const disabled = renderToStaticMarkup(<GradePanel {...props(false)} gradeTitle="Global Grade" />);

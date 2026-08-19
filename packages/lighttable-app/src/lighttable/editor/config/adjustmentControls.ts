@@ -47,8 +47,10 @@ export type LensBlurNumericKey = Exclude<
 >;
 export type LensBlurSliderDefinition = SliderDefinition<LensBlurNumericKey>;
 
+export const COLOR_TEMPERATURE_RANGE = { min: -100, max: 100 } as const;
+
 const SLIDERS: ReadonlyArray<SliderDefinition> = [
-  { key: 'temperature', label: 'Temperature', min: -150, max: 100, track: 'temperature' },
+  { key: 'temperature', label: 'Temperature', ...COLOR_TEMPERATURE_RANGE, track: 'temperature' },
   { key: 'tint', label: 'Tint', min: -100, max: 100, track: 'tint' },
   { key: 'exposureEV', label: 'Exposure', min: -5, max: 5, step: 0.01, format: (value) => `${value.toFixed(2)} EV`, track: 'luminance' },
   { key: 'contrast', label: 'Contrast', min: -100, max: 100, track: 'luminance' },
