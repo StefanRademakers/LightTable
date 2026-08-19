@@ -10,6 +10,11 @@ Every edit enters the same typed commands and bounded gestures used by desktop
 automation. Stable document/layer IDs, explicit document revisions and normal
 history remain authoritative.
 
+This document owns the current MCP implementation boundary. The broader,
+multi-milestone product outcome is the
+[`Agent-native creative runtime target`](../goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md);
+do not infer that target capability from this v1 integration status.
+
 The remote endpoint uses MCP Streamable HTTP. Authentication uses an OAuth
 authorization-code flow with PKCE S256, dynamic client registration, protected
 resource metadata, rotating refresh tokens and separate `lighttable:read` and

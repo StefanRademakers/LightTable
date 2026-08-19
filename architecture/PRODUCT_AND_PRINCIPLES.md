@@ -15,6 +15,11 @@ masking and compositing useful regions, reversible processing, and eventually
 AI operations that behave like first-class document operations rather than
 one-shot exports.
 
+The canonical long-term outcome for shared UI, Actions, MCP and agent-driven
+editable workflows is
+[`goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
+It is a product goal, not a claim about current autonomous capability.
+
 ## Non-negotiable principles
 
 - Web and Electron run the same editor package and document engine.

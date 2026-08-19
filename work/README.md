@@ -15,6 +15,11 @@ Product and engineering contracts do not live here. Durable system knowledge
 belongs in [`architecture/`](../architecture/README.md); this directory records
 concrete work and its evidence.
 
+Multi-milestone product outcomes live under
+[`architecture/goals/`](../architecture/goals/README.md). A todo may implement
+one bounded slice of a goal, but must link that goal and state which parts it
+does not complete. Parked work is not a product roadmap by itself.
+
 Candidate-specific or superseded task packages are removed from the active
 queue once their reusable knowledge is captured in `architecture/`. Git history
 retains the original package; `done/` is reserved for work that actually met
