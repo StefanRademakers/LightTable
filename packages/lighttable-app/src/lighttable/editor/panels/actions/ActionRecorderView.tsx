@@ -19,7 +19,12 @@ export interface ActionRecorderViewProps {
   readonly onStopPlayback: () => void;
 }
 
-const formatted = (value: unknown): string => JSON.stringify(value, null, 2);
+const formatted = (value: unknown): string => JSON.stringify(value, (_key, candidate) => {
+  const binding = candidate?.$lighttableResult;
+  return binding && Number.isInteger(binding.step) && typeof binding.path === 'string'
+    ? `$step${binding.step}.${binding.path}`
+    : candidate;
+}, 2);
 
 export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
   recording,

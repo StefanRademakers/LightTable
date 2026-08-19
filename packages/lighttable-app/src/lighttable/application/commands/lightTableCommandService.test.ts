@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRasterLayer, createTextLayer } from '../../editor/document/documentCommands';
+import { createRasterLayer, createTextLayer, renameLayer } from '../../editor/document/documentCommands';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createVectorLiveShape } from '@lighttable/vector-core';
@@ -83,6 +83,39 @@ describe('LightTableCommandService action recording', () => {
       status: 'completed', results: [{ command: 'layer.createRaster', status: 'completed' }]
     });
     unsubscribe();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('rebinds a create-then-rename action to the layer created by each playback', async () => {
+    const state = setup();
+    state.ports.createRasterLayer = vi.fn(() => {
+      state.session.setDocument(createRasterLayer(state.session.getSnapshot().document!));
+    });
+    state.ports.renameLayer = vi.fn((_documentId, layerId, name) => {
+      state.session.setDocument(renameLayer(state.session.getSnapshot().document!, layerId, name));
+    });
+    state.service.startActionRecording('Create title layer');
+    const created = await state.service.execute(request('layer.createRaster', state.session.id));
+    expect(created).toMatchObject({ status: 'completed', value: { layerId: expect.any(String) } });
+    if (created.status !== 'completed') throw new Error('Create failed.');
+    const recordedLayerId = (created.value as { layerId: string }).layerId;
+    await state.service.execute(request('layer.rename', state.session.id, {
+      layerId: recordedLayerId, name: 'Title'
+    }));
+    state.service.stopActionRecording();
+
+    expect(state.service.actionRecordingSnapshot().steps[1]?.parameters).toEqual({
+      layerId: { $lighttableResult: { step: 1, path: 'layerId' } }, name: 'Title'
+    });
+    await state.service.playActionRecording();
+
+    const renameCalls = vi.mocked(state.ports.renameLayer).mock.calls;
+    expect(renameCalls).toHaveLength(2);
+    expect(renameCalls[1]?.[1]).not.toBe(recordedLayerId);
+    expect(renameCalls[1]?.slice(1)).toEqual([
+      state.session.getSnapshot().document!.activeLayerId, 'Title'
+    ]);
     state.service.dispose();
     state.workspace.dispose();
   });

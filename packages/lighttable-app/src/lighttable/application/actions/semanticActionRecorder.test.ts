@@ -40,4 +40,18 @@ describe('SemanticActionRecorder', () => {
       { replayable: false, note: 'Rejected commands are retained for debugging but are not replayable.' }
     ]);
   });
+
+  it('binds later stable-ID parameters to earlier command results', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start();
+    recorder.record(request('layer.createRaster'),
+      completed('request-layer.createRaster', { layerId: 'recorded-layer-id' }), Date.now());
+    recorder.record(request('layer.rename', { layerId: 'recorded-layer-id', name: 'Title' }),
+      completed('request-layer.rename', { layerId: 'recorded-layer-id', name: 'Title' }), Date.now());
+
+    expect(recorder.snapshot().steps[1]?.parameters).toEqual({
+      layerId: { $lighttableResult: { step: 1, path: 'layerId' } },
+      name: 'Title'
+    });
+  });
 });

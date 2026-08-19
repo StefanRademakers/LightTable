@@ -55,6 +55,12 @@ try {
     before + 1
   );
   await recorder.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
+  await window.getByRole('menuitem', { name: 'Layer' }).click();
+  await window.getByRole('menuitem', { name: 'Rename Layer' }).click();
+  const focusedLayerName = window.locator('input[aria-label="Layer name"]:focus');
+  await focusedLayerName.fill('Recorded Title');
+  await focusedLayerName.press('Enter');
+  await recorder.locator('li').filter({ hasText: 'layer.rename' }).waitFor();
 
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
@@ -65,16 +71,22 @@ try {
   await undoButton.click();
   await panel.getByRole('status').filter({ hasText: 'history.undo: completed' })
     .waitFor({ timeout: 15_000 });
+  await undoButton.click();
   await window.waitForFunction(
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
     before
   );
   await panel.getByRole('radio', { name: 'Actions' }).click();
-  const undoStep = recorder.locator('li').filter({ hasText: 'history.undo' });
-  await undoStep.waitFor();
+  const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
+  await undoSteps.first().waitFor();
+  if (await undoSteps.count() !== 2) throw new Error('Expected two recorded Undo diagnostics.');
+  const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
   await undoStep.getByText('no', { exact: true }).waitFor();
+  const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
+  await renameStep.locator('summary').click();
+  await renameStep.getByText('$step1.layerId', { exact: false }).waitFor();
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
@@ -83,6 +95,12 @@ try {
   await window.waitForFunction(
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
     before + 1
+  );
+  await window.waitForFunction(
+    (expected) => [...document.querySelectorAll('input[aria-label="Layer name"]')]
+      .some((input) => input.value === expected),
+    'Recorded Title',
+    { timeout: 15_000 }
   );
 
   await window.screenshot({ path: screenshot });

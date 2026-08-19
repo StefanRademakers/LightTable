@@ -2,6 +2,7 @@ import type {
   LightTableCommandRequest,
   LightTableCommandResult
 } from '../commands/lightTableCommandContract';
+import { bindRecordedParameters } from './actionResultBindings';
 
 export interface RecordedActionStep {
   readonly sequence: number;
@@ -85,7 +86,10 @@ export class SemanticActionRecorder {
     recordingId = this.snapshotValue.id): void {
     if (!recordingId || this.snapshotValue.id !== recordingId
       || this.snapshotValue.status === 'idle' || this.snapshotValue.limitReached) return;
-    const parameters = cloneBounded(request.parameters);
+    const rawParameters = cloneBounded(request.parameters);
+    const parameters = rawParameters.complete
+      ? cloneBounded(bindRecordedParameters(rawParameters.value, this.snapshotValue.steps))
+      : rawParameters;
     const resultValue = cloneBounded(result.status === 'completed' ? result.value
       : result.status === 'accepted' ? { taskId: result.taskId }
         : { code: result.code, message: result.message });

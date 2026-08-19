@@ -4,11 +4,12 @@ import type {
   LightTableCommandResult
 } from '../commands/lightTableCommandContract';
 import type { ActionRecordingSnapshot, RecordedActionStep } from './semanticActionRecorder';
+import { resolveActionParameters } from './actionResultBindings';
 
 export interface ActionPlaybackStepResult {
   readonly sequence: number;
   readonly command: string;
-  readonly status: LightTableCommandResult['status'];
+  readonly status: LightTableCommandResult['status'] | 'binding-error';
   readonly message: string | null;
   readonly durationMs: number;
 }
@@ -59,6 +60,7 @@ export class SemanticActionPlaybackController {
     if (this.snapshotValue.status === 'running') return this.snapshotValue;
     this.stopRequested = false;
     this.publish({ status: 'running', currentSequence: null, results: [] });
+    const producedResults = new Map<number, unknown>();
     for (const step of steps) {
       if (this.stopRequested) {
         this.publish({ ...this.snapshotValue, status: 'stopped', currentSequence: null });
@@ -66,12 +68,22 @@ export class SemanticActionPlaybackController {
       }
       this.publish({ ...this.snapshotValue, currentSequence: step.sequence });
       const startedAt = Date.now();
+      const parameters = resolveActionParameters(step.parameters, producedResults);
+      if ('error' in parameters) {
+        const result: ActionPlaybackStepResult = {
+          sequence: step.sequence, command: step.command, status: 'binding-error',
+          message: parameters.error, durationMs: Math.max(0, Date.now() - startedAt)
+        };
+        this.publish({ status: 'failed', currentSequence: step.sequence,
+          results: [...this.snapshotValue.results, result] });
+        return this.snapshotValue;
+      }
       const result = await this.execute({
         protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
         requestId: `action-play-${recording.id ?? 'unsaved'}-${step.sequence}-${startedAt}`,
         command: step.command,
         ...(step.documentId ? { documentId: step.documentId } : {}),
-        parameters: step.parameters
+        parameters: parameters.value
       });
       const entry: ActionPlaybackStepResult = {
         sequence: step.sequence,
@@ -85,6 +97,7 @@ export class SemanticActionPlaybackController {
         this.publish({ status: 'failed', currentSequence: step.sequence, results });
         return this.snapshotValue;
       }
+      if (result.status === 'completed') producedResults.set(step.sequence, result.value);
       this.publish({ ...this.snapshotValue, results });
     }
     this.publish({ ...this.snapshotValue, status: 'completed', currentSequence: null });

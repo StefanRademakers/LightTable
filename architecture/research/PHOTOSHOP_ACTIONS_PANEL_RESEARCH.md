@@ -181,10 +181,22 @@ The third slice separates the product concepts and adds debug playback:
 - the packaged desktop smoke records through the normal Layer menu, switches to
   Commands for Undo, returns to Actions and replays the layer creation.
 
-There are still no saved sets, target variables, gesture coalescing, parameter
-editing, preflight or one-history-entry action transactions. Playback currently
-uses recorded stable IDs directly, so multi-step create-then-edit workflows are
-not portable until result bindings exist.
+The fourth slice makes the first create-then-edit workflow portable:
+
+- `layer.createRaster` now returns the stable ID of the layer it actually
+  created;
+- the recorder recognizes later parameters that use an earlier stable `*Id`
+  result and stores a result reference such as `$step1.layerId`;
+- playback resolves that reference from the result produced during the current
+  run and fails before mutation when the result is unavailable;
+- the packaged desktop smoke records Create Raster Layer followed by Rename
+  Layer, removes the original through Undo, then proves playback creates and
+  renames a different layer ID.
+
+There are still no saved sets, user-named variables, gesture coalescing,
+parameter editing, whole-action preflight or one-history-entry action
+transactions. Automatic result binding currently covers stable singular `*Id`
+fields; document rebinding and more complex result projections remain open.
 
 ## Next implementation order
 
@@ -193,7 +205,8 @@ not portable until result bindings exist.
    structured command; verify UI and local Actions yield equivalent state.
 3. Inventory all menus, shortcuts, panels, context menus and tools against the
    catalog, including justified query/gesture/presentation classifications.
-4. Add named local action sets, result/target variables and ordered semantic steps.
+4. Extend automatic identity bindings into user-named result/target variables
+   and named local action sets.
 5. Normalize bounded gestures before admitting paint/slider/transform streams
    to saved actions.
 6. Add preflight, atomic rollback and optional one-History-entry behavior around

@@ -897,12 +897,18 @@ export class LightTableCommandService {
         await this.ports.setZoom(request.documentId, viewport);
         return { value: { viewport } };
       }
-      case 'layer.createRaster':
+      case 'layer.createRaster': {
         if (!isRecord(parameters) || Object.keys(parameters).length > 0) {
           return this.invalidParameters('Create raster parameters must be an empty object.');
         }
+        const beforeIds = new Set(walkLayerTree(snapshot.document!.layers).map(({ node }) => node.id));
         await this.ports.createRasterLayer(request.documentId);
-        return { value: { created: true } };
+        const after = this.document(request.documentId)?.document;
+        const created = after
+          ? walkLayerTree(after.layers).find(({ node }) => !beforeIds.has(node.id))?.node ?? null
+          : null;
+        return { value: { created: true, layerId: created?.id ?? null } };
+      }
       case 'layer.rename': {
         if (!isRecord(parameters)) return this.invalidParameters('Rename parameters must be an object.');
         const layerId = typeof parameters.layerId === 'string'
