@@ -540,7 +540,7 @@ selection rectangle and layer translation and commit as one undo operation.
 ### MCP and a future plugin ABI
 
 The canonical product destination is
-[`AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
+[`goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
 It defines the future editable-first observe/act/preview/correct workflow;
 everything below describes the current or partial implementation boundary.
 

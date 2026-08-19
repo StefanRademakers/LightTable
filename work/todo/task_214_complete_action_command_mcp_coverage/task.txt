@@ -10,7 +10,7 @@ and the external MCP adapter without creating parallel editor behavior.
 
 This task is the active foundation slice for the canonical long-term product
 goal in
-[`architecture/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
 It does not by itself deliver autonomous visual reasoning, creative branching,
 teach mode, headless execution or editable reference reconstruction.
 

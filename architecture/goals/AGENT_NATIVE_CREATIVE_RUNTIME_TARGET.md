@@ -3,7 +3,7 @@
 Status: **canonical long-term product target**. This document describes the
 destination, not current feature availability. Current/partial/target claims
 must remain separated in
-[`CURRENT_STATE_AND_ROADMAP.md`](CURRENT_STATE_AND_ROADMAP.md).
+[`CURRENT_STATE_AND_ROADMAP.md`](../CURRENT_STATE_AND_ROADMAP.md).
 
 ## Product outcome
 
@@ -175,7 +175,7 @@ AI generation remains a provider capability rather than an alternate editor.
 Its output enters the normal asset/layer system with provenance, then uses the
 same transform, mask, Grade, effect, history and export operations as imported
 content. See
-[`features/GENAI_BOUNDED_CONTEXT.md`](features/GENAI_BOUNDED_CONTEXT.md).
+[`../features/GENAI_BOUNDED_CONTEXT.md`](../features/GENAI_BOUNDED_CONTEXT.md).
 
 ## Current relationship to the target
 
@@ -236,17 +236,17 @@ never replace inspection of representative images and editable structure.
 ## Ownership and related contracts
 
 - Current implementation boundary and rollout:
-  [`integrations/LIGHTTABLE_MCP_V1.md`](integrations/LIGHTTABLE_MCP_V1.md)
+  [`../integrations/LIGHTTABLE_MCP_V1.md`](../integrations/LIGHTTABLE_MCP_V1.md)
 - Embedded permission/session boundary:
-  [`integrations/EMBEDDED_AGENT_ACCESS.md`](integrations/EMBEDDED_AGENT_ACCESS.md)
+  [`../integrations/EMBEDDED_AGENT_ACCESS.md`](../integrations/EMBEDDED_AGENT_ACCESS.md)
 - Detailed supporting research and implementation questions:
-  [`research/lighttable_ai_agent_mcp_architecture.md`](research/lighttable_ai_agent_mcp_architecture.md)
+  [`../research/lighttable_ai_agent_mcp_architecture.md`](../research/lighttable_ai_agent_mcp_architecture.md)
 - Performance constraints:
-  [`PERFORMANCE_CONTRACT.md`](PERFORMANCE_CONTRACT.md)
+  [`../PERFORMANCE_CONTRACT.md`](../PERFORMANCE_CONTRACT.md)
 - Document and scene authority:
-  [`DOCUMENT_AND_SCENE_MODEL.md`](DOCUMENT_AND_SCENE_MODEL.md)
+  [`../DOCUMENT_AND_SCENE_MODEL.md`](../DOCUMENT_AND_SCENE_MODEL.md)
 - Active command/Actions/MCP coverage work:
-  [`../work/todo/task_214_complete_action_command_mcp_coverage/task.txt`](../work/todo/task_214_complete_action_command_mcp_coverage/task.txt)
+  [`../../work/todo/task_214_complete_action_command_mcp_coverage/task.txt`](../../work/todo/task_214_complete_action_command_mcp_coverage/task.txt)
 
 The owner-supplied `D:\mcp_future_usage_target.md` was reconciled into this
 contract on 2026-08-20. Its ambition is accepted with the terminology,

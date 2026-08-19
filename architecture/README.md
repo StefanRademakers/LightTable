@@ -35,7 +35,8 @@ the task genuinely spans every system.
 ## Contract catalog
 
 - [Product and principles](PRODUCT_AND_PRINCIPLES.md)
-- [Agent-native creative runtime target](AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+- [Long-term product goals](goals/README.md)
+- [Agent-native creative runtime target](goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
 - [Product, market and engineering assessment](LIGHTTABLE_PRODUCT_AND_MARKET_ASSESSMENT_2026-08-06.md)
 - [System map](SYSTEM_MAP.md)
 - [Document and scene model](DOCUMENT_AND_SCENE_MODEL.md)
@@ -81,6 +82,8 @@ the task genuinely spans every system.
 
 ## Directory roles
 
+- `goals/`: canonical multi-milestone product outcomes; not current-state
+  claims or executable task queues.
 - `contracts/`: narrow invariants shared by multiple systems.
 - `features/`: active feature-level architecture and specifications.
 - `integrations/`: host-adapter contracts and verification plans.

@@ -5,7 +5,7 @@
 This document is **architectural guidance**, not a fixed implementation contract.
 
 The reconciled canonical product target now lives in
-[`../AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
+[`../goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
 Use this research for detailed implementation questions; when wording or scope
 differs, the canonical target and current code/contracts take precedence.
 

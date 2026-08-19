@@ -84,7 +84,7 @@ in `PRODUCT_UX_INSPIRATION_AND_GAPS.md`; Photoshop-specific evidence remains in
 
 The long-term agent/Actions/MCP destination and its acceptance ladder are
 canonical in
-[`AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
+[`goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md).
 That target does not promote its headless, branching, teach-mode or autonomous
 reconstruction concepts to current capabilities.
 
