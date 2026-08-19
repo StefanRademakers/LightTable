@@ -17,8 +17,10 @@ concrete work and its evidence.
 
 Multi-milestone product outcomes live under
 [`architecture/goals/`](../architecture/goals/README.md). A todo may implement
-one bounded slice of a goal, but must link that goal and state which parts it
-does not complete. Parked work is not a product roadmap by itself.
+one controlled contribution to a goal, but must link that goal and state which
+parts it does not complete. Smaller work packages are not progress by
+themselves; the sequence must keep advancing or materially de-risking the
+complete product outcome. Parked work is not a product roadmap by itself.
 
 Candidate-specific or superseded task packages are removed from the active
 queue once their reusable knowledge is captured in `architecture/`. Git history

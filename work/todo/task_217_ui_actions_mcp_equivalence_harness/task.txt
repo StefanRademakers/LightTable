@@ -1,0 +1,59 @@
+Task 217 - UI, Actions and MCP equivalence harness
+
+Goal
+====
+
+Prove that representative artist operations invoked through normal UI,
+recorded Actions and the real MCP-to-desktop path reach the same semantic owner
+and produce equivalent editable state, history and rendered output.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Depends on
+==========
+
+- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt) for
+  shared schemas/examples.
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt) for
+  any gesture included in the first workflow.
+
+First artist workflow
+=====================
+
+On fresh equivalent documents:
+
+1. create a vector shape;
+2. set fill and stroke;
+3. transform and rename its layer;
+4. create and format editable text;
+5. use a result binding rather than a recorded generated ID;
+6. undo/redo a logical edit;
+7. render and export a preview.
+
+Required comparisons
+====================
+
+- normalized canonical document/scene state;
+- stable relationships while ignoring legitimately regenerated IDs;
+- history depth, labels and undo/redo outcome;
+- capability/revision and structured result semantics;
+- rendered pixels using a declared visual tolerance and difference artifact;
+- rejection behavior for invalid parameters and stale revisions.
+
+Definition of done
+==================
+
+- The three routes pass through the real application command owners.
+- The complete workflow passes in packaged desktop, including real MCP bridge.
+- Failures show the exact divergent state/history/render stage.
+- No single aggregate score is used as proof; representative images and
+  editable structure are both reviewed.
+
+Non-goals
+=========
+
+- Claiming whole-application equivalence from one workflow.
+- Reimplementing the UI path in a synthetic test-only adapter.

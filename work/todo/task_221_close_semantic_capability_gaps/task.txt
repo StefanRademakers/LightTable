@@ -1,0 +1,57 @@
+Task 221 - Close semantic artist capability gaps
+
+Goal
+====
+
+Implement the meaningful artist operations identified by Task 214 through the
+existing application/document/history/render owners so normal UI, Actions and
+MCP can share them. This is outcome-driven category migration, not wrapper
+generation to increase a command count.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Execution method
+================
+
+Move one useful category/workflow vertically through:
+
+```text
+real UI operation
+  -> semantic command/query/gesture owner
+  -> schema and capability projection
+  -> Actions record/play behavior
+  -> reviewed MCP admission where appropriate
+  -> equivalent state/history/render proof
+```
+
+Initial category order is chosen from Task 214 evidence and artist value, not
+file size or easiest implementation. Expected domains include layer structure,
+transforms, masks/selections, paint, text/vector completeness, adjustments and
+Grade/Lens FX, assets/projects and generation placement.
+
+Rules
+=====
+
+- Reuse existing controllers and canonical document operations.
+- Preserve working UI semantics, undo boundaries and dirty-only rendering.
+- Do not turn ephemeral panel state into a command without an agent/user need.
+- Do not send raw high-frequency UI events through the command service.
+- Do not admit a category to MCP before permissions, schemas and representative
+  evidence are ready.
+- Split category implementation further only when ownership or verification
+  genuinely differs; smaller tasks are not an objective by themselves.
+
+Definition of done
+==================
+
+- Task 214's inventory has no unexplained semantic capability gaps.
+- Every implemented category has at least one representative complete artist
+  flow, not merely isolated executor unit tests.
+- Normal UI reaches the same owner and retains product behavior/performance.
+- Unsupported or intentionally local-only operations remain explicit.
+- Remaining target-only capabilities are documented as future product work,
+  not hidden inside an inflated coverage percentage.

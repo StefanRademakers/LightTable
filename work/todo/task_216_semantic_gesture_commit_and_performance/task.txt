@@ -1,0 +1,52 @@
+Task 216 - Semantic gesture commit and automation performance
+
+Goal
+====
+
+Ensure sliders, transforms, color drags, paint and selection interactions stay
+responsive while Actions and MCP observe one meaningful committed operation
+instead of raw UI-event storms.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- Inventory high-frequency interactions and their current preview/history
+  owners.
+- Standardize begin/update/finish/cancel gesture semantics and execution origin.
+- Keep preview updates transient; publish and record one final semantic result.
+- Coalesce keyboard repeats and numeric/slider edits without losing final value.
+- Bound sample count, payload bytes, duration and concurrent sessions.
+- Define disconnect, pointer-cancel, document-close and stale-revision behavior.
+- Prevent playback/MCP updates from recursively recording or creating history
+  spam.
+- Instrument command count, render submissions, history entries, recorder bytes
+  and commit latency for representative gestures.
+
+Representative proof
+====================
+
+- Adjustment slider drag with many preview values and one recorded commit.
+- Layer transform drag with cancel and commit paths.
+- Brush or selection stroke with bounded samples and one undo operation.
+- UI responsiveness and dirty-only rendering remain at least as good as before
+  the semantic route.
+
+Definition of done
+==================
+
+- Representative gestures record/replay one semantic step where replay is
+  meaningful.
+- Preview remains responsive and does not wait on MCP serialization.
+- History and renderer telemetry prove bounded publication.
+- Cancel/disconnect leaves the document in a defined recoverable state.
+
+Non-goals
+=========
+
+- Sending every pointer sample through the ordinary command catalog.
+- Treating a synthetic timing number as product responsiveness proof.

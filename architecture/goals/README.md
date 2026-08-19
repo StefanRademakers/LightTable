@@ -12,9 +12,11 @@ A goal must:
 - link to the current architecture owners and active implementation tasks;
 - preserve performance, security, editability and truthfulness constraints.
 
-Goals do not replace `work/todo/`. Concrete, bounded implementation slices
-remain in the work queue and may change as evidence improves. A goal remains
-open across those slices until its representative end-to-end outcome is proven.
+Goals do not replace `work/todo/`. Controlled, evidence-bearing execution
+steps remain in the work queue and may change as evidence improves. Making work
+smaller is not the objective: every step must advance or materially de-risk the
+goal's representative end-to-end outcome. A goal remains open until that
+outcome is proven.
 
 ## Active goals
 

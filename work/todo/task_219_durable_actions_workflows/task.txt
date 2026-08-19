@@ -1,0 +1,50 @@
+Task 219 - Durable Actions workflows and task-aware playback
+
+Goal
+====
+
+Turn the current development recorder into a useful, inspectable workflow
+system without creating a second editor or hiding agent activity.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Depends on
+==========
+
+- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt) for
+  schema-driven property editing and examples.
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt) for
+  shared-route equivalence evidence.
+
+Required work
+=============
+
+- Add named Action sets/actions with deterministic ordering and selection.
+- Persist a versioned bounded format with migration/incompatibility reporting.
+- Build property editing from shared schemas, not command-specific React logic.
+- Support user-named variables and explicit target/result bindings.
+- Add play action, play from step, play step, stop and clear result states.
+- Await supported async tasks, show progress/cancellation and fail closed on
+  timeout or missing result artifacts.
+- Define ordinary stepwise history versus explicitly atomic playback.
+- Show origin, parameters, results, duration, errors and a short optional
+  user-facing rationale; never persist private model reasoning.
+- Keep recorder/action size, nesting and payloads bounded.
+
+Definition of done
+==================
+
+- A named multi-step workflow survives restart and replays on a fresh document
+  using stable bindings.
+- Async and rejected steps have understandable visible outcomes.
+- Playback does not record itself and normal UI behavior remains unchanged.
+- The saved format and migration behavior are tested but not declared 1.0-stable.
+
+Non-goals
+=========
+
+- Teach mode or automatic skill parameterization.
+- A parallel Actions-only mutation implementation.

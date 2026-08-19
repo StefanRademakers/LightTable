@@ -1,0 +1,57 @@
+Task 220 - Reviewed MCP capability admission and remote proof
+
+Goal
+====
+
+Admit completed semantic capability categories to Agent Access and external
+MCP through explicit permissions, shared schemas and real remote-to-desktop
+evidence. Local command existence alone is not remote approval.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Depends on
+==========
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+  coverage ownership.
+- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt) shared
+  schemas.
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+  equivalence harness.
+- [`Task 218`](../task_218_agent_observation_preview_and_events/task.txt)
+  observation/preview where an edit needs visual feedback.
+
+Required work
+=============
+
+- Review categories for read/edit/generate/export/overwrite/filesystem/network
+  authority and explicit user consent.
+- Generate remote tool schemas/discovery from the admitted command contracts.
+- Keep withheld commands machine-readable with exact admission blockers.
+- Enforce capability availability, revisions, bounded artifacts, rate limits,
+  concurrency, cancellation, reconnect and structured errors at the desktop
+  boundary.
+- Verify dedicated coarse workflow tools still resolve to catalog commands.
+- Add real MCP-to-packaged-desktop proofs for each admitted effect class:
+  read, immediate edit, gesture commit, atomic batch, async task and artifact.
+- Record agent origin/activity without accepting spoofed origin metadata.
+
+Definition of done
+==================
+
+- Everything advertised remotely is accepted by the desktop profile and has a
+  proven canonical executor.
+- Every withheld capability has a reviewed reason; missing/false is not enough.
+- Representative scope denial, stale revision, cancellation, reconnect and
+  oversized payload cases fail safely.
+- The report separates protocol/security proof from creative product quality.
+
+Non-goals
+=========
+
+- Automatically exposing every new local command.
+- Granting unrestricted desktop, filesystem or network control.
+- Treating OAuth/tool enumeration alone as artist capability proof.

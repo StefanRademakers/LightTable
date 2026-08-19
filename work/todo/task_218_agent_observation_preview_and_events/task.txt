@@ -1,0 +1,51 @@
+Task 218 - Bounded agent observation, preview and events
+
+Goal
+====
+
+Give an agent enough bounded structural and visual feedback to inspect a
+document, connect a preview to an exact revision, observe changes and make one
+measured correction without polling or transferring full document payloads.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- Define bounded document summary, scene graph and targeted object queries.
+- Include explicit coordinate spaces, bounds, type, visibility, relevant
+  properties, resource availability and truncation/cursor metadata.
+- Add revision-bound whole-document preview and evaluate bounded region/layer
+  previews without moving the user's viewport.
+- Reuse unchanged preview artifacts and avoid repeated full-resolution renders.
+- Extend reconnect-safe events for document, selection, layer, render, history
+  and task publication where they materially reduce polling.
+- Enforce read permissions, artifact limits, privacy redaction and resource
+  lifetime/release.
+- Keep visual comparison optional and diagnostic; it may not become another
+  misleading universal parity score.
+
+Representative proof
+====================
+
+An MCP client inspects structure and preview at revision N, performs one native
+edit with an expected revision, waits for render publication, requests the new
+preview at revision N+1 and identifies the changed object/region.
+
+Definition of done
+==================
+
+- Observation payloads remain bounded on large/deep documents.
+- Preview artifacts identify exact document/render context and are released.
+- Events avoid blind polling and survive reconnect through cursors.
+- The proof uses the real renderer and remote bridge.
+
+Non-goals
+=========
+
+- Returning the complete serialized document by default.
+- Disturbing the active viewport to create an agent preview.
+- Autonomous reference decomposition in this task.

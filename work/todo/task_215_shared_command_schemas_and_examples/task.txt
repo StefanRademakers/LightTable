@@ -1,0 +1,63 @@
+Task 215 - Shared command schemas and executable examples
+
+Goal
+====
+
+Promote the current top-level parameter-property inventory into versioned,
+machine-readable input and result contracts consumed by the command service,
+Actions and MCP. Add small executable examples that teach both people and
+agents how properties work together.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Depends on
+==========
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt) for
+  truthful command ownership and category coverage.
+
+Required work
+=============
+
+- Define modular schemas by product category; do not create one huge registry
+  file.
+- Model required/optional fields, conditional variants, ranges, limits,
+  coordinate spaces, stable targets, task results and error results.
+- Keep domain validation for rules that cannot be expressed safely in schema,
+  but prevent contradictory duplicate validation truth.
+- Generate Actions property controls and MCP discovery/input projections from
+  the same source.
+- Add versioned examples for direct, conditional, ID-bound and async commands.
+- Cache compiled validators; schema adoption may not enter pointer-preview hot
+  paths or materially slow ordinary UI commands.
+- Define migration behavior for recorded/saved Actions when schemas change in
+  alpha.
+
+Representative proof
+====================
+
+- Layer rename/fill visibility as simple scalar/ID cases.
+- Text create/format and vector create/update as conditional nested cases.
+- Export as an async artifact-result case.
+- Invalid, oversized and contradictory input is rejected consistently through
+  local Actions and MCP before mutation.
+
+Definition of done
+==================
+
+- Every admitted command has a complete shared input/result contract or an
+  explicit machine-readable schema-blocking reason.
+- Actions and MCP show the same property names, defaults, limits and examples.
+- Runtime validation and advertised schemas cannot silently diverge.
+- Generated files pass drift checks and remain split into maintainable modules.
+- Representative real command executions pass; schema count alone is not done.
+
+Non-goals
+=========
+
+- Free-form arbitrary JSON/state mutation.
+- Freezing a public 1.0 API during alpha.
+- Building the complete Actions workflow UX in this task.
