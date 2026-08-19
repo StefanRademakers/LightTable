@@ -1,0 +1,156 @@
+Task 214 - Complete user-action, command and MCP coverage
+
+Goal
+====
+
+Make every meaningful LightTable user action available through one typed,
+categorized application command contract. The same contract must support the
+normal UI, a local Actions surface used for discovery and testing, Agent Access
+and the external MCP adapter without creating parallel editor behavior.
+
+Why this is open
+================
+
+- The verified command catalog currently contains only a rollout subset of the
+  application's user-facing functionality.
+- `document.duplicate`, `document.resizeImage`, `document.applyGeometry` and
+  `faceWarp.applyOperation` already exist as internal semantic commands but are
+  not exposed through Agent Access or MCP.
+- Many other UI actions still terminate in component callbacks or feature
+  controllers and have no entry in the central command catalog at all.
+- Existing documentation states that full user-facing command coverage is the
+  product direction, but no active todo currently owns that outcome.
+- "Actions" is currently mostly UI terminology. There is no complete local,
+  categorized action registry that can exercise the same command path before a
+  capability is admitted to Agent Access or MCP.
+
+Product contract
+================
+
+1. One semantic implementation
+
+- A user action has one stable namespaced command ID, validated input/result,
+  availability projection and execution owner.
+- UI, Actions, tests, Agent Access and MCP invoke that command; none duplicates
+  document mutation, rendering, history or host-I/O behavior.
+- Continuous pointer streams remain bounded gesture transactions. Opening a
+  panel or changing ephemeral UI presentation is only a command where an agent
+  genuinely needs that capability.
+
+2. Categorized discovery
+
+Every command declares durable metadata sufficient for both people and agents:
+
+- category and optional subgroup;
+- user-facing label and concise description;
+- application/workspace/document scope;
+- read, edit, destructive or external-I/O effect class;
+- required target and capability/precondition information;
+- synchronous result or cancellable task behavior;
+- undo/history semantics;
+- Agent Access and MCP rollout policy with an explicit exclusion reason.
+
+Initial categories should follow product concepts, not current React owners:
+`file`, `document`, `image`, `layer`, `selection`, `mask`, `paint`, `text`,
+`vector`, `adjustment`, `filter/effect`, `transform`, `view`, `history`,
+`project/assets`, `genai` and `application`.
+
+3. Actions as the proving surface
+
+- Add a development-first Actions browser/command palette backed only by the
+  generated command catalog and live capability query.
+- It can filter by category, search labels/IDs, show parameter requirements and
+  explain why an action is unavailable.
+- Executing an Action must call the same application command service as MCP.
+- Do not build a second action executor or allow arbitrary JSON/state mutation.
+- Promote the surface to a normal user feature only after its UX is useful; its
+  first purpose is complete discovery and cheap local command validation.
+
+4. Safe MCP rollout
+
+- Full application-command coverage is the target; remote exposure remains an
+  explicit, reviewed capability profile rather than becoming automatic merely
+  because a command exists.
+- Every withheld command has a machine-readable reason and tracked admission
+  requirement. `false`/missing without explanation is not acceptable.
+- MCP categories and schemas are generated from the same source catalog.
+- Dedicated tools may wrap coarse workflows, but their mutations still resolve
+  to catalog commands and must not fork application logic.
+- Large pixels/files use opaque artifacts; gestures stay bounded; external I/O
+  and destructive actions retain confirmation and scope policy.
+
+Execution phases
+================
+
+Phase A - truthful coverage inventory
+
+- Enumerate user actions from menus, shortcuts, toolbar/tool options, panels,
+  dialogs, context menus, layer rows, canvas tools and project/GenAI surfaces.
+- Map each action to: existing catalog command, internal-only semantic command,
+  reusable controller without command, UI-only callback, gesture, query, or
+  intentionally non-automatable presentation state.
+- Generate a checked coverage report. Counts alone are not completion: each
+  row must point to its real UI entry and execution owner.
+- Detect catalog commands with no consumer and user actions with no mapping.
+
+Phase B - catalog and Actions foundation
+
+- Extend the machine-readable catalog with categories, descriptions, effect
+  class, availability/target metadata and explicit rollout reasons.
+- Generate typed projections rather than maintaining parallel lists.
+- Add the local Actions browser and prove a representative read-only action,
+  undoable edit, async artifact action and gesture-backed action end to end.
+
+Phase C - close command gaps by product category
+
+- Convert UI-only callbacks category by category to commands that call existing
+  controllers.
+- Preserve already working UI behavior and document/history semantics.
+- Add representative contract and real-flow coverage per category; avoid one
+  shallow test for every trivial wrapper when a boundary test proves the rule.
+- Track unsupported functionality honestly instead of inventing no-op commands.
+
+Phase D - Agent Access and MCP admission
+
+- Review completed command categories for remote safety and usefulness.
+- Expose approved commands through generated Agent Access/MCP profiles and
+  schemas, with the same capability/precondition response as Actions and UI.
+- Add contract checks proving everything advertised externally is accepted by
+  the desktop profile and reaches the canonical executor.
+- Exercise representative external end-to-end flows for every effect class,
+  including undo, stale revision rejection, cancellation and scoped artifacts.
+
+Phase E - drift gate
+
+- CI fails when a registered user action lacks a command mapping, when a command
+  lacks category/rollout metadata, or when an external schema outruns the
+  downstream desktop profile.
+- Keep a small allowlist for genuinely non-command presentation actions, each
+  with a reason and owner; prevent it becoming a dumping ground.
+
+Definition of done
+==================
+
+- The generated coverage report accounts for every meaningful user action in
+  the application and has no unexplained gaps.
+- The local Actions surface discovers and executes the same categorized command
+  contract used by Agent Access and MCP.
+- All supported user operations have semantic commands or bounded gestures;
+  normal UI paths use those same owners.
+- Every command has an explicit remote rollout state and reason. All commands
+  judged safe/useful for remote operation are exposed and exercised through the
+  real MCP-to-desktop path.
+- Representative UI, Actions and MCP executions produce equivalent canonical
+  state, history and rendered output where applicable.
+- Web and packaged desktop verification pass, and documentation describes the
+  measured coverage and remaining intentional exclusions without claiming
+  parity from catalog counts alone.
+
+Non-goals
+=========
+
+- Exposing React callbacks, DOM selectors, GPU objects or unrestricted document
+  patches as public automation APIs.
+- Automatically making every internal/debug command remotely callable.
+- Treating a command count or generated schema as proof that the user flow works.
+- Reimplementing editor behavior in the Actions UI or MCP server.
