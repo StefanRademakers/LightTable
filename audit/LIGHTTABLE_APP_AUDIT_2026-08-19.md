@@ -4,7 +4,7 @@
 
 ## Her-audit na de eerste verbeterslag
 
-> **Actuele bewijsstand:** commit `b14a68692d0732e684e4f6b92c7d46e809a6226f`,
+> **Actuele bewijsstand:** commit `713a09e1` voor de Color/Vibrance-verbeterslag,
 > nog steeds op een door ander actief werk vuile checkout. Waar deze sectie een
 > oorspronkelijke bevinding tegenspreekt, is deze sectie leidend. De oude tekst
 > blijft staan zodat zichtbaar is welk risico werkelijk is gesloten en welk
@@ -68,6 +68,8 @@ of documentsemantiek te herschrijven:
 - `bdaba9b1` - ownership- en webdeliveryrisico meetbaar gemaakt.
 - `6d031e52` - WebSocket-runtime naar de gepatchte lijn gebracht.
 - `b14a6869` - UI primitive-boundary en inventorygate hersteld.
+- `713a09e1` - brute-force Color/Vibrance-LUT vervangen door een compact,
+  verklaarbaar en op extremen getest kleurmodel.
 
 Mijn actuele conclusie is daardoor scherper dan de oorspronkelijke: de meest
 direct bereikbare lifecycle-, contract- en netwerkbreuken zijn gesloten en de
