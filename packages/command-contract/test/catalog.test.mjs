@@ -4,6 +4,7 @@ import {
   LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS,
   LIGHTTABLE_COMMAND_DEFINITIONS,
   LIGHTTABLE_COMMAND_IDS,
+  LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES,
   LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS,
   LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS
 } from '../src/index.mjs';
@@ -16,6 +17,15 @@ test('every command has categorized Actions metadata and explicit rollout state'
     assert.ok(command.description.length > 0);
     if (!command.agentAccess) assert.ok(command.agentAccessReason?.length > 0);
     if (command.externalMcp === null) assert.ok(command.externalMcpReason?.length > 0);
+  }
+});
+
+test('every command has exactly one synchronized parameter property map', () => {
+  assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES), [...LIGHTTABLE_COMMAND_IDS]);
+  for (const command of LIGHTTABLE_COMMAND_DEFINITIONS) {
+    const properties = LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES[command.id];
+    assert.equal(typeof properties, 'object');
+    assert.equal(Object.keys(properties).length === 0, command.invocation === 'direct');
   }
 });
 

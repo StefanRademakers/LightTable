@@ -2,6 +2,9 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { McpServer } from '@modelcontextprotocol/server';
 import {
+  LIGHTTABLE_COMMAND_DEFINITIONS,
+  LIGHTTABLE_COMMAND_IDS,
+  LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES,
   LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS,
   LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS,
   LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS
@@ -132,6 +135,19 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     title: 'List available document commands', description: 'Reports which typed LightTable commands are currently valid and why unavailable commands are disabled.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
   }, withResult(({ documentId }) => client.invoke('command.capabilities', { documentId })));
+  server.registerTool('lighttable_commands', {
+    title: 'Discover LightTable commands',
+    description: 'Returns the canonical command metadata and parameter properties shared with the local Actions browser.',
+    inputSchema: z.object({ command: z.enum(LIGHTTABLE_COMMAND_IDS).optional() }),
+    annotations: { readOnlyHint: true }
+  }, withResult(({ command }) => {
+    const definitions = command
+      ? LIGHTTABLE_COMMAND_DEFINITIONS.filter(({ id }) => id === command)
+      : LIGHTTABLE_COMMAND_DEFINITIONS;
+    return { protocolVersion: 1, commands: definitions.map((definition) => ({
+      ...definition, parameters: LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES[definition.id]
+    })) };
+  }));
   server.registerTool('lighttable_execute', {
     title: 'Execute an undoable LightTable command',
     description: 'Executes one validated semantic command against an explicit document ID. Pass expectedDocumentRevision to reject stale edits.',

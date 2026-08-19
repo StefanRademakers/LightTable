@@ -48,6 +48,13 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_batch'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_task_events'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_cancel_task'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_commands'));
+  const commandCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'layer.rename'
+  } });
+  assert.deepEqual(commandCatalog.structuredContent.commands[0].parameters, {
+    layerId: 'string', name: 'string'
+  });
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');

@@ -3,6 +3,8 @@
 
 import commandCatalog from '../catalog.json' with { type: 'json' };
 
+import parameterProperties from '../parameter-properties.json' with { type: 'json' };
+
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1;
 
 export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
@@ -41,6 +43,8 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
 ]);
 
 export const LIGHTTABLE_COMMAND_DEFINITIONS = Object.freeze(commandCatalog.commands);
+
+export const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES = Object.freeze(parameterProperties);
 
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'document.create',

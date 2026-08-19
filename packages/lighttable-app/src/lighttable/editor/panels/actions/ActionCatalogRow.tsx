@@ -1,5 +1,8 @@
 import React from 'react';
-import type { LightTableCommandId } from '@lighttable/command-contract';
+import {
+  LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES,
+  type LightTableCommandId
+} from '@lighttable/command-contract';
 import { ActionButton } from '../../../../ui/ActionButton';
 import {
   ACTION_CATEGORY_LABELS,
@@ -21,6 +24,7 @@ export const ActionCatalogRow: React.FC<ActionCatalogRowProps> = ({
   onRun
 }) => {
   const { definition, available, unavailableReason } = item;
+  const parameters = Object.entries(LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES[definition.id]);
   return <details className="lighttable-actions-panel__action">
     <summary>
       <span>
@@ -39,6 +43,14 @@ export const ActionCatalogRow: React.FC<ActionCatalogRowProps> = ({
         <div><dt>Effect</dt><dd>{definition.effect}</dd></div>
         <div><dt>Exposure</dt><dd>{actionExposureLabel(definition)}</dd></div>
       </dl>
+      <div className="lighttable-actions-panel__parameters">
+        <strong>Properties</strong>
+        {parameters.length > 0
+          ? <dl>{parameters.map(([name, type]) => <div key={name}>
+              <dt><code>{name}</code></dt><dd>{type}</dd>
+            </div>)}</dl>
+          : <p>None</p>}
+      </div>
       {!available && unavailableReason
         ? <p className="lighttable-actions-panel__reason">{unavailableReason}</p>
         : null}
@@ -53,7 +65,7 @@ export const ActionCatalogRow: React.FC<ActionCatalogRowProps> = ({
             {running ? 'Running…' : 'Run'}
           </ActionButton>
         : <p className="lighttable-actions-panel__parameters">
-            Parameters required; the typed editor for this command is not implemented yet.
+            Property editing is not implemented yet; recorded executions remain replayable.
           </p>}
     </div>
   </details>;

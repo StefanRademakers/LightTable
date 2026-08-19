@@ -115,6 +115,15 @@ class and local invocation metadata. The docked Actions panel consumes that
 projection plus live capability results, so local discovery and MCP exposure
 cannot acquire separate naming or categorization lists.
 
+[`packages/command-contract/parameter-properties.json`](../../packages/command-contract/parameter-properties.json)
+is the checked top-level property inventory for those commands. Generation
+fails when a catalog command has no matching property entry or an orphaned
+entry remains. Both the local Commands view and the read-only
+`lighttable_commands` MCP discovery tool consume the generated projection.
+These signatures are discovery metadata, not full JSON Schema: command-service
+parsers remain the runtime validation authority until the property inventory is
+promoted to complete shared machine-validation schemas.
+
 The profiles intentionally describe current rollout state. Generic MCP
 execution is narrower than the complete application command set, while
 document creation and artifact-open are reserved for dedicated tools with

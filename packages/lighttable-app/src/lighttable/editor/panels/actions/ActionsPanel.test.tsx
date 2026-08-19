@@ -43,6 +43,8 @@ describe('ActionsPanel', () => {
     expect(markup).toContain('1 of 1 commands');
     expect(markup).toContain('New raster layer');
     expect(markup).toContain('layer.createRaster');
+    expect(markup).toContain('Properties');
+    expect(markup).toContain('None');
     expect(markup).not.toContain('textarea');
   });
 });

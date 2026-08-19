@@ -172,9 +172,14 @@ Implemented evidence (2026-08-19)
 - Stable `*Id` results are automatically rebound between recorded steps. The
   real desktop flow proves Create Raster Layer -> Rename Layer replays against
   a newly generated layer ID rather than the ID from the recording session.
+- Every catalog command now has one checked top-level parameter-property entry.
+  Actions displays that same projection and MCP exposes it through the
+  read-only `lighttable_commands` discovery tool. Catalog/property drift fails
+  generation instead of silently desynchronizing the two surfaces.
 - Rejected and history/control executions remain visible but non-replayable.
 - The packaged desktop smoke records a normal Layer-menu creation followed by
   an Actions-panel undo and verifies both recorder steps.
 - User-named result/target variables, gesture coalescing, saved action sets,
-  atomic one-history playback and broad MCP artist coverage remain open; this
-  task is not complete.
+  atomic one-history playback, generated property editors, full shared JSON
+  Schema validation and broad MCP artist coverage remain open; this task is not
+  complete.

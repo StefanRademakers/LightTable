@@ -5,6 +5,7 @@
   "type": "module",
   "files": [
     "catalog.json",
+    "parameter-properties.json",
     "src"
   ],
   "exports": {
@@ -12,7 +13,8 @@
       "types": "./src/index.d.ts",
       "default": "./src/index.mjs"
     },
-    "./catalog.json": "./catalog.json"
+    "./catalog.json": "./catalog.json",
+    "./parameter-properties.json": "./parameter-properties.json"
   },
   "scripts": {
     "test": "node ../../scripts/generate-command-contract.mjs --check && node --test test",
