@@ -1,0 +1,45 @@
+Task 205 - Bound AbortSignal listeners during GenAI polling
+
+Goal
+====
+
+Prevent normal OpenArt, Higgsfield and local-AI polling delays from retaining
+one abort listener per completed wait while preserving cancellation, timeout,
+paid-submit recovery and provider behavior.
+
+Current evidence
+================
+
+- OpenArt `abortableDelay` registers `{ once: true }` but does not detach the
+  listener when its timer resolves normally.
+- Higgsfield `waitBeforePoll` has the same lifecycle and may run 240 rounds.
+- The desktop local-AI status loop repeats the pattern every 125 ms for the
+  complete job duration.
+- Existing tests cover provider behavior and cancellation, but not listener
+  retention across many successful delay rounds.
+
+Implementation contract
+=======================
+
+- Use one small desktop-owned abortable delay primitive with deterministic
+  cleanup on resolve, abort and synchronous already-aborted input.
+- Preserve the original AbortSignal `reason` on cancellation.
+- Do not move provider transport or job state into the renderer.
+- Do not change retry counts, backoff timings, provider calls or persisted job
+  transitions.
+- Add fake-timer tests that prove listener count returns to zero after normal
+  completion and after abort.
+
+Verification
+============
+
+- Targeted desktop tests.
+- Desktop typecheck.
+- Full workspace tests and boundary verification.
+
+Definition of done
+==================
+
+All three polling paths use the tested primitive, no completed wait retains an
+abort listener, cancellation behavior remains exact, verification passes and
+the complete task package moves to `work/done` with the implementation commit.

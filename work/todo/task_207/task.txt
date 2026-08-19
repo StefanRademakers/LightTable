@@ -1,0 +1,34 @@
+Task 207 - Separate generated artifacts from source and bundle budgets
+
+Goal
+====
+
+Make the structural quality gate useful again without hiding the real delivery
+cost of generated LUTs, models, Wasm or application chunks.
+
+Current evidence
+================
+
+- `audit:source-structure` treats a 68,191-line generated LUT like handwritten
+  source, creating noise in the hotspot gate.
+- The same 8.6 MB LUT is present in the 11.09 MB initial web JavaScript chunk,
+  which is a genuine product cost the line-count audit cannot express.
+- Multiple handwritten files exceed existing ratchets and must remain visible.
+
+Implementation contract
+=======================
+
+- Classify generated source by a narrow, auditable rule; do not broadly ignore
+  large files.
+- Retain byte/checksum accountability for generated artifacts.
+- Add deterministic budgets/reporting for initial JS, CSS and lazy heavyweight
+  assets from the production web build.
+- Keep handwritten source ratchets intact and report new hotspots separately.
+- Do not change LUT math or render output in this task.
+
+Definition of done
+==================
+
+Generated data no longer corrupts handwritten line metrics, its delivery cost
+is explicitly reported/budgeted, relevant script tests pass and the task moves
+to `work/done` with its implementation.

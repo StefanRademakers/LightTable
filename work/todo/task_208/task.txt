@@ -1,0 +1,34 @@
+Task 208 - Remove the reachable ws production advisories
+
+Goal
+====
+
+Upgrade the WebSocket implementation used by the Agent Access tunnel to a
+non-vulnerable compatible release while preserving reconnect, authentication,
+message bounds and shutdown behavior.
+
+Current evidence
+================
+
+- `npm audit --omit=dev` reports `ws@8.18.3` for memory exhaustion and memory
+  disclosure advisories.
+- The package is directly used by both the external MCP device tunnel and the
+  desktop outbound adapter.
+- npm reports a fixed compatible version is available.
+
+Implementation contract
+=======================
+
+- Update only the required dependency and lockfile entries.
+- Review release/API impact before changing application code.
+- Preserve production TLS policy, one-time pairing, reconnect and bounded
+  artifact behavior.
+- Run MCP unit/soak tests, desktop tunnel tests, typecheck and production audit.
+- Record remaining `sharp`/Transformers advisory reachability separately; do
+  not claim the complete dependency graph clean if it is not.
+
+Definition of done
+==================
+
+The `ws` advisories are absent, tunnel behavior remains green and the task
+package moves to `work/done` in the same focused commit.

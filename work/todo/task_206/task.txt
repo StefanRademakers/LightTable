@@ -1,0 +1,38 @@
+Task 206 - Make semantic command exposure one verified catalog
+
+Goal
+====
+
+Remove drift between the internal LightTable command contract, desktop Agent
+Access adapter and external MCP schema without silently expanding any remote
+capability or weakening validation.
+
+Current evidence
+================
+
+- Command IDs are repeated in the TypeScript contract, validation set,
+  authenticated desktop adapter and JavaScript MCP server.
+- The external server advertises `file.exportPsd`, while the desktop adapter
+  rejects it.
+- The desktop adapter supports commands that the external server does not
+  advertise. Some differences may be intentional capability policy.
+
+Implementation contract
+=======================
+
+- Preserve separate explicit capability profiles for internal, local Agent
+  Access and external MCP use.
+- Generate or import validators/enums from one stable machine-readable catalog.
+- Preserve every currently intentional restriction until owner/product policy
+  explicitly changes it.
+- Add a contract test proving every externally advertised command is accepted
+  by the downstream desktop profile.
+- Do not expose document creation, file access or Face Warp remotely merely to
+  make the lists equal.
+
+Definition of done
+==================
+
+No unsupported command is advertised, profile differences are explicit and
+tested, MCP/desktop tests pass and the task package moves to `work/done` in the
+same focused commit.
