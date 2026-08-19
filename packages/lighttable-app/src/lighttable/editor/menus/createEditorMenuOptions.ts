@@ -73,6 +73,7 @@ export interface EditorMenuCommands {
   openRecentProject: (recentId: string) => void;
   clearRecentProjects: () => void;
   closeProject: () => void;
+  exitApplication?: () => void;
   save: () => void;
   exportPng: () => void;
   exportJpeg: () => void;
@@ -273,6 +274,13 @@ export const createEditorMenuOptions = (
         disabled: state.saving || !commands.activeProject,
         onClick: commands.closeProject
       }] : []),
+      {
+        value: 'exit-application',
+        label: 'Exit',
+        separatorBefore: true,
+        onClick: commands.exitApplication,
+        disabled: !commands.exitApplication
+      }
     ];
   }
 
@@ -396,21 +404,21 @@ export const createEditorMenuOptions = (
     return [
       {
         value: 'select-all',
-        label: 'Select all',
+        label: 'All',
         shortcut: labels.primaryShortcut('A'),
         onClick: commands.selectAll,
         disabled: !state.hasMetadata || state.saving
       },
       {
         value: 'select-none',
-        label: 'Select none',
+        label: 'Deselect',
         shortcut: labels.primaryShortcut('D'),
         onClick: commands.clearSelection,
         disabled: !state.hasSelection || state.saving
       },
       {
         value: 'invert-selection',
-        label: 'Invert selection',
+        label: 'Inverse',
         shortcut: labels.primaryShortcut('I', true),
         onClick: commands.invertSelection,
         disabled: !state.hasMetadata || state.saving
@@ -423,12 +431,16 @@ export const createEditorMenuOptions = (
         disabled: !state.hasSelection || state.saving
       },
       {
-        value: 'feather-selection',
-        label: 'Feather...',
-        shortcut: 'Shift+F6',
+        value: 'select-modify',
+        label: 'Modify',
         separatorBefore: true,
-        onClick: commands.featherSelection,
-        disabled: !state.hasSelection || state.saving
+        children: [{
+          value: 'feather-selection',
+          label: 'Feather...',
+          shortcut: 'Shift+F6',
+          onClick: commands.featherSelection,
+          disabled: !state.hasSelection || state.saving
+        }]
       },
       {
         value: 'remove-object',
@@ -466,9 +478,37 @@ export const createEditorMenuOptions = (
         disabled: !state.hasDocument || state.saving
       })));
     return [{
+      value: 'image-mode',
+      label: 'Mode',
+      disabled: !state.documentColor,
+      children: [{
+        value: 'image-mode-rgb',
+        label: checkedLabel('RGB Color', Boolean(state.documentColor)),
+        disabled: true
+      }, {
+        value: 'image-mode-8-bit',
+        label: checkedLabel('8 Bits/Channel', state.documentColor?.bitDepth === 8),
+        disabled: true,
+        disabledReason: state.documentColor?.bitDepth === 8
+          ? 'Current document mode.'
+          : 'Bit-depth conversion is not available yet.'
+      }, {
+        value: 'image-mode-16-bit',
+        label: checkedLabel('16 Bits/Channel', state.documentColor?.bitDepth === 16),
+        disabled: true,
+        disabledReason: state.documentColor?.bitDepth === 16
+          ? 'Current document mode.'
+          : 'Bit-depth conversion is not available yet.'
+      }]
+    }, {
+      value: 'image-adjustments',
+      label: 'Adjustments',
+      children: imageAdjustments
+    }, {
       value: 'image-size',
       label: 'Image Size...',
       shortcut: labels.primaryShortcut('Alt+I'),
+      separatorBefore: true,
       onClick: commands.openImageSize,
       disabled: !state.hasDocument || state.saving
     }, {
@@ -506,34 +546,6 @@ export const createEditorMenuOptions = (
       onClick: commands.beginCrop,
       disabled: !state.hasDocument || state.saving
     }, {
-      value: 'image-adjustments',
-      label: 'Adjustments',
-      children: imageAdjustments
-    }, {
-      value: 'image-mode',
-      label: 'Mode',
-      separatorBefore: true,
-      disabled: !state.documentColor,
-      children: [{
-        value: 'image-mode-rgb',
-        label: checkedLabel('RGB Color', Boolean(state.documentColor)),
-        disabled: true
-      }, {
-        value: 'image-mode-8-bit',
-        label: checkedLabel('8 Bits/Channel', state.documentColor?.bitDepth === 8),
-        disabled: true,
-        disabledReason: state.documentColor?.bitDepth === 8
-          ? 'Current document mode.'
-          : 'Bit-depth conversion is not available yet.'
-      }, {
-        value: 'image-mode-16-bit',
-        label: checkedLabel('16 Bits/Channel', state.documentColor?.bitDepth === 16),
-        disabled: true,
-        disabledReason: state.documentColor?.bitDepth === 16
-          ? 'Current document mode.'
-          : 'Bit-depth conversion is not available yet.'
-      }]
-    }, {
       value: 'duplicate-image',
       label: 'Duplicate...',
       separatorBefore: true,
@@ -545,10 +557,20 @@ export const createEditorMenuOptions = (
   if (menu === 'layer') {
     return [
       {
-        value: 'new-layer',
-        label: 'New Raster Layer',
-        onClick: commands.createRasterLayer,
-        disabled: !state.hasDocument
+        value: 'layer-new',
+        label: 'New',
+        children: [{
+          value: 'new-layer',
+          label: 'New Raster Layer',
+          onClick: commands.createRasterLayer,
+          disabled: !state.hasDocument
+        }, {
+          value: 'layer-via-copy',
+          label: 'Layer via Copy',
+          shortcut: labels.primaryShortcut('J'),
+          onClick: commands.layerViaCopy,
+          disabled: !layer || layer.type !== 'raster' || state.saving
+        }]
       },
       {
         value: 'duplicate-layer',
@@ -556,28 +578,33 @@ export const createEditorMenuOptions = (
         onClick: commands.duplicateLayer,
         disabled: !layer || (layer.type !== 'raster' && layer.type !== 'text')
       },
-      ...(layer?.type === 'text' ? [{
-        value: 'convert-text-to-shape',
-        label: 'Convert to Shape...',
-        onClick: commands.convertTextToShape,
-        disabled: layer.locked
-      }, {
-        value: 'rasterize-text',
-        label: 'Rasterize Type',
-        onClick: commands.rasterizeText
-      }] : []),
       {
-        value: 'layer-via-copy',
-        label: 'Layer via Copy',
-        shortcut: labels.primaryShortcut('J'),
-        onClick: commands.layerViaCopy,
-        disabled: !layer || layer.type !== 'raster' || state.saving
+        value: 'layer-delete',
+        label: 'Delete',
+        children: [{
+          value: 'delete-layer',
+          label: 'Delete Layer',
+          onClick: commands.deleteLayer,
+          disabled: !layer?.canDelete
+        }]
       },
       {
         value: 'rename-layer',
         label: 'Rename Layer',
+        separatorBefore: true,
         onClick: commands.renameLayer,
         disabled: !layer
+      },
+      {
+        value: 'blend-mode',
+        label: 'Blend Mode',
+        disabled: !layer,
+        children: state.blendModes.map((mode) => ({
+          value: `blend-${mode.id}`,
+          label: checkedLabel(mode.label, mode.selected),
+          separatorBefore: mode.separatorBefore,
+          onClick: () => commands.setBlendMode(mode.id)
+        }))
       },
       {
         value: 'invert-layer-colors',
@@ -593,11 +620,86 @@ export const createEditorMenuOptions = (
         onClick: commands.removeBackground,
         disabled: !layer || layer.type !== 'raster' || layer.locked || state.saving
       },
+      {
+        value: 'clipping-mask',
+        label: layer?.clipping ? 'Release Clipping Mask' : 'Create Clipping Mask',
+        separatorBefore: true,
+        onClick: commands.toggleClipping,
+        disabled: !layer || (!layer.clipping && layer.activeIndex <= 0)
+      },
+      {
+        value: 'edit-layer-pixels',
+        label: checkedLabel('Edit Layer Pixels', state.activeChannel === 'pixels'),
+        onClick: commands.editPixels,
+        disabled: !layer || layer.type !== 'raster'
+      },
+      {
+        value: 'layer-mask',
+        label: 'Layer Mask',
+        separatorBefore: true,
+        children: [{
+          value: 'add-mask',
+          label: 'Add Layer Mask',
+          onClick: commands.addMask,
+          disabled: !layer || layer.type === 'group' || layer.hasMask
+        }, {
+          value: 'edit-layer-mask',
+          label: checkedLabel('Edit Layer Mask', state.activeChannel === 'mask'),
+          onClick: commands.editMask,
+          disabled: !layer?.hasMask
+        }, {
+          value: 'toggle-mask',
+          label: layer?.maskEnabled ? 'Disable Layer Mask' : 'Enable Layer Mask',
+          onClick: commands.toggleMask,
+          disabled: !layer?.hasMask
+        }, {
+          value: 'remove-mask',
+          label: 'Remove Layer Mask',
+          onClick: commands.removeMask,
+          disabled: !layer?.hasMask
+        }]
+      },
+      ...(layer?.type === 'text' ? [{
+        value: 'convert-text-to-shape',
+        label: 'Convert to Shape...',
+        separatorBefore: true,
+        onClick: commands.convertTextToShape,
+        disabled: layer.locked
+      }, {
+        value: 'rasterize',
+        label: 'Rasterize',
+        children: [{
+          value: 'rasterize-text',
+          label: 'Rasterize Type',
+          onClick: commands.rasterizeText
+        }]
+      }] : []),
+      {
+        value: 'toggle-visibility',
+        label: layer?.visible ? 'Hide Layer' : 'Show Layer',
+        separatorBefore: true,
+        onClick: commands.toggleLayerVisibility,
+        disabled: !layer
+      },
+      {
+        value: 'arrange',
+        label: 'Arrange',
+        children: [{
+          value: 'move-up',
+          label: 'Move Layer Up',
+          onClick: commands.moveLayerUp,
+          disabled: !layer || layer.activeIndex >= layer.siblingCount - 1
+        }, {
+          value: 'move-down',
+          label: 'Move Layer Down',
+          onClick: commands.moveLayerDown,
+          disabled: !layer || layer.activeIndex <= 0
+        }]
+      },
       ...(state.autoAlignPreview ? [
         {
           value: 'apply-auto-align',
           label: 'Apply Auto Align',
-          separatorBefore: true,
           onClick: commands.applyAutoAlign
         },
         {
@@ -608,76 +710,21 @@ export const createEditorMenuOptions = (
       ] : [{
         value: 'auto-align',
         label: 'Auto Align to Locked Layer',
-        separatorBefore: true,
         onClick: commands.beginAutoAlign,
         disabled: !state.autoAlignAvailable
       }]),
       {
-        value: 'clipping-mask',
-        label: layer?.clipping ? 'Release Clipping Mask' : 'Create Clipping Mask',
+        value: 'toggle-lock',
+        label: layer?.locked ? 'Unlock Layer' : 'Lock Layer',
         separatorBefore: true,
-        onClick: commands.toggleClipping,
-        disabled: !layer || (!layer.clipping && layer.activeIndex <= 0)
-      },
-      {
-        value: 'blend-mode',
-        label: 'Blend Mode',
-        disabled: !layer,
-        children: state.blendModes.map((mode) => ({
-          value: `blend-${mode.id}`,
-          label: checkedLabel(mode.label, mode.selected),
-          separatorBefore: mode.separatorBefore,
-          onClick: () => commands.setBlendMode(mode.id)
-        }))
-      },
-      {
-        value: 'edit-layer-pixels',
-        label: checkedLabel('Edit Layer Pixels', state.activeChannel === 'pixels'),
-        onClick: commands.editPixels,
-        disabled: !layer || layer.type !== 'raster'
-      },
-      {
-        value: 'edit-layer-mask',
-        label: checkedLabel('Edit Layer Mask', state.activeChannel === 'mask'),
-        onClick: commands.editMask,
-        disabled: !layer?.hasMask
-      },
-      {
-        value: 'add-mask',
-        label: 'Add Layer Mask',
-        separatorBefore: true,
-        onClick: commands.addMask,
-        disabled: !layer || layer.type === 'group' || layer.hasMask
-      },
-      {
-        value: 'toggle-mask',
-        label: layer?.maskEnabled ? 'Disable Layer Mask' : 'Enable Layer Mask',
-        onClick: commands.toggleMask,
-        disabled: !layer?.hasMask
-      },
-      {
-        value: 'remove-mask',
-        label: 'Remove Layer Mask',
-        onClick: commands.removeMask,
-        disabled: !layer?.hasMask
-      },
-      {
-        value: 'move-up',
-        label: 'Move Layer Up',
-        separatorBefore: true,
-        onClick: commands.moveLayerUp,
-        disabled: !layer || layer.activeIndex >= layer.siblingCount - 1
-      },
-      {
-        value: 'move-down',
-        label: 'Move Layer Down',
-        onClick: commands.moveLayerDown,
-        disabled: !layer || layer.activeIndex <= 0
+        onClick: commands.toggleLayerLock,
+        disabled: !layer
       },
       {
         value: 'merge-down',
         label: 'Merge Down',
         shortcut: labels.primaryShortcut('E'),
+        separatorBefore: true,
         onClick: commands.mergeDown,
         disabled: !layer || layer.type !== 'raster' || layer.activeIndex <= 0 || !layer.belowIsRaster
       },
@@ -692,26 +739,6 @@ export const createEditorMenuOptions = (
         label: 'Flatten Image...',
         onClick: commands.flattenImage,
         disabled: !state.canFlattenImage
-      },
-      {
-        value: 'toggle-visibility',
-        label: layer?.visible ? 'Hide Layer' : 'Show Layer',
-        separatorBefore: true,
-        onClick: commands.toggleLayerVisibility,
-        disabled: !layer
-      },
-      {
-        value: 'toggle-lock',
-        label: layer?.locked ? 'Unlock Layer' : 'Lock Layer',
-        onClick: commands.toggleLayerLock,
-        disabled: !layer
-      },
-      {
-        value: 'delete-layer',
-        label: 'Delete Layer',
-        separatorBefore: true,
-        onClick: commands.deleteLayer,
-        disabled: !layer?.canDelete
       }
     ];
   }
@@ -762,11 +789,31 @@ export const createEditorMenuOptions = (
       disabled: !state.hasMetadata
     },
     {
+      value: 'screen-mode',
+      label: 'Screen Mode',
+      separatorBefore: true,
+      children: [{
+        value: 'toggle-screen-mode',
+        label: 'Toggle screen mode',
+        shortcut: 'F',
+        onClick: commands.toggleScreenMode
+      }]
+    },
+    {
       value: 'extras',
       label: checkedLabel('Extras', snap.extrasVisible !== false),
       shortcut: labels.primaryShortcut('H'),
       separatorBefore: true,
       onClick: commands.toggleExtras
+    },
+    {
+      value: 'show-overlays',
+      label: 'Show',
+      children: [
+        { value: 'show-grid', label: checkedLabel('Grid', snap.gridVisible), onClick: commands.toggleGrid },
+        { value: 'show-guides', label: checkedLabel('Guides', snap.guidesVisible), onClick: commands.toggleGuides },
+        { value: 'show-smart-guides', label: checkedLabel('Smart Guides', snap.smartGuidesVisible), onClick: commands.toggleSmartGuides }
+      ]
     },
     {
       value: 'rulers',
@@ -790,15 +837,6 @@ export const createEditorMenuOptions = (
         { value: 'snap-document', label: checkedLabel('Document Bounds', snap.targets.documentBounds), onClick: () => commands.toggleSnapTarget?.('documentBounds') },
         { value: 'snap-all', label: 'All', separatorBefore: true, onClick: () => commands.setAllSnapTargets?.(true) },
         { value: 'snap-none', label: 'None', onClick: () => commands.setAllSnapTargets?.(false) }
-      ]
-    },
-    {
-      value: 'show-overlays',
-      label: 'Show',
-      children: [
-        { value: 'show-grid', label: checkedLabel('Grid', snap.gridVisible), onClick: commands.toggleGrid },
-        { value: 'show-guides', label: checkedLabel('Guides', snap.guidesVisible), onClick: commands.toggleGuides },
-        { value: 'show-smart-guides', label: checkedLabel('Smart Guides', snap.smartGuidesVisible), onClick: commands.toggleSmartGuides }
       ]
     },
     {
@@ -850,13 +888,6 @@ export const createEditorMenuOptions = (
       value: 'ui-style-guide',
       label: 'UI Style Guide...',
       onClick: commands.openStyleGuide
-    }] : []),
-    {
-      value: 'toggle-screen-mode',
-      label: 'Toggle screen mode',
-      shortcut: 'F',
-      separatorBefore: true,
-      onClick: commands.toggleScreenMode
-    }
+    }] : [])
   ];
 };

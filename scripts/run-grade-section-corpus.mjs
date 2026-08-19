@@ -10,6 +10,10 @@ import {
   parseGradeCorpusReport
 } from './grade-corpus-report-compatibility.mjs';
 import { packagedDesktopExecutable } from './desktop-test-startup.mjs';
+import {
+  buildGradeLightTableCases,
+  gradeCorpusLightTableCasePlanSha256
+} from './grade-corpus-case-plan.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const corpusManifest = JSON.parse(await readFile(
@@ -20,6 +24,9 @@ if (!casesArgument) throw new Error('Grade section corpus requires --cases=<mani
 const casesPath = path.resolve(casesArgument.slice('--cases='.length));
 const suite = JSON.parse(await readFile(casesPath, 'utf8'));
 const caseManifestSha256 = createHash('sha256').update(await readFile(casesPath)).digest('hex');
+const lightTableCasePlanSha256 = gradeCorpusLightTableCasePlanSha256(
+  buildGradeLightTableCases(suite)
+);
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
 const sourceArgument = process.argv.find((value) => value.startsWith('--source='));
 const refreshControlArgument = process.argv.find((value) => value.startsWith('--refresh-control='));
@@ -52,12 +59,17 @@ const reportsAreCompatible = async (cameraReport, lightTableReport) => {
   ]);
   return gradeCorpusReportsHaveSameCases(cameraRaw, lightTable);
 };
-const reportIsCurrent = async (file, source) => {
+const reportIsCurrent = async (file, source, allowLightTablePlan = false) => {
   if (!await exists(file)) return false;
   try {
     return gradeCorpusReportMatchesCapture(
       parseGradeCorpusReport(await readFile(file, 'utf8')),
-      { section: suite.section, caseManifestSha256, sourceSha256: source.sha256 }
+      {
+        section: suite.section,
+        caseManifestSha256,
+        sourceSha256: source.sha256,
+        lightTableCasePlanSha256: allowLightTablePlan ? lightTableCasePlanSha256 : null
+      }
     );
   } catch { return false; }
 };
@@ -87,7 +99,7 @@ for (const source of sources) {
     ]);
     else process.stdout.write('Current Camera Raw capture already exists; use --force to replace it.\n');
   }
-  if (captureLightTable && (force || refreshControl || !await reportIsCurrent(lightTableReport, source))) {
+  if (captureLightTable && (force || refreshControl || !await reportIsCurrent(lightTableReport, source, true))) {
     let batch = 0;
     let lastCaptureError = null;
     do {
@@ -104,12 +116,12 @@ for (const source of sources) {
         lastCaptureError = error;
         process.stderr.write(`LightTable batch ${batch} stopped before its checkpoint; relaunching from validated partials.\n`);
       }
-      if (batch >= 16 && !await reportIsCurrent(lightTableReport, source)) {
+      if (batch >= 16 && !await reportIsCurrent(lightTableReport, source, true)) {
         throw new Error(`LightTable capture did not complete after ${batch} bounded attempts.`, {
           cause: lastCaptureError
         });
       }
-    } while (!await reportIsCurrent(lightTableReport, source));
+    } while (!await reportIsCurrent(lightTableReport, source, true));
   } else if (captureLightTable) {
     process.stdout.write('Current LightTable capture already exists; use --force to replace it.\n');
   }

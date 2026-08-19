@@ -228,6 +228,9 @@ const desktopHost: LightTableHost = {
   setFullscreen(enabled) {
     return window.lightTableDesktop.setFullscreen(enabled);
   },
+  closeApplication() {
+    return window.lightTableDesktop.closeApplication();
+  },
   subscribeFullscreen(listener) {
     return window.lightTableDesktop.onFullscreenChange(listener);
   },

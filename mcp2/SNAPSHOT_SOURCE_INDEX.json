@@ -1,0 +1,48 @@
+{
+  "format": "lighttable-genai-provider-knowledge-sources",
+  "version": 1,
+  "generatedAt": "2026-08-18",
+  "sources": [
+    {
+      "providerId": "openart",
+      "snapshotAt": "2026-08-11",
+      "root": "../mcp/openart-lighttable-mcp-export-2026-08-11",
+      "modelCatalog": "../mcp/openart-lighttable-mcp-export-2026-08-11/models.json",
+      "workflowIndex": "../mcp/openart-lighttable-mcp-export-2026-08-11/model-mode-index.json",
+      "toolCatalog": "../mcp/openart-lighttable-mcp-export-2026-08-11/tools.json",
+      "pricing": "../mcp/openart-lighttable-mcp-export-2026-08-11/pricing-defaults.json",
+      "capturedModels": 16,
+      "capturedModelModes": 41,
+      "runtimeAuthority": [
+        "openart_model_list",
+        "openart_model_form_get",
+        "openart_model_cost"
+      ]
+    },
+    {
+      "providerId": "higgsfield",
+      "snapshotAt": "2026-08-14T16:37:00+02:00",
+      "root": "../../StoryBuilderOnline/mcp/higgsfield-lighttable-mcp-export-14-08-2026",
+      "modelCatalog": "../../StoryBuilderOnline/mcp/higgsfield-lighttable-mcp-export-14-08-2026/models.json",
+      "workflowIndex": "../../StoryBuilderOnline/mcp/higgsfield-lighttable-mcp-export-14-08-2026/model-mode-index.json",
+      "toolCatalog": "../../StoryBuilderOnline/mcp/higgsfield-lighttable-mcp-export-14-08-2026/tools.json",
+      "pricing": "../../StoryBuilderOnline/mcp/higgsfield-lighttable-mcp-export-14-08-2026/pricing.json",
+      "normalizedSchemas": "../../StoryBuilderOnline/mcp/higgsfield-lighttable-mcp-export-14-08-2026/schemas/normalized",
+      "rawSchemas": "../../StoryBuilderOnline/mcp/higgsfield-lighttable-mcp-export-14-08-2026/schemas/raw",
+      "capturedModels": 86,
+      "capturedByOutputType": {
+        "image": 32,
+        "video": 33,
+        "audio": 6,
+        "3d": 15
+      },
+      "runtimeAuthority": [
+        "negotiated MCP tool catalog",
+        "models_list/models_get when exposed",
+        "models_explore when exposed by a tested native facade",
+        "standalone cost estimator when exposed"
+      ]
+    }
+  ],
+  "warning": "These are dated evidence snapshots. Do not use them as a static production model catalog or assume that catalog visibility implies an executable generation transport."
+}

@@ -7,6 +7,10 @@ import {
   gradeCorpusReportsHaveSameCases,
   parseGradeCorpusReport
 } from './grade-corpus-report-compatibility.mjs';
+import {
+  buildGradeLightTableCases,
+  gradeCorpusLightTableCasePlanSha256
+} from './grade-corpus-case-plan.mjs';
 
 const DEFAULT_SECTIONS = [
   { id: 'light', manifest: 'grade-light-parity-cases.json' },
@@ -55,11 +59,22 @@ const readReport = async (file) => {
   }
 };
 
-const validateReport = (report, section, source, manifestHash) => {
+const validateReport = (
+  report,
+  section,
+  source,
+  manifestHash,
+  { lightTableCasePlanSha256 = null } = {}
+) => {
   if (!report) return 'missing';
   if (report.invalid) return `invalid-json: ${report.invalid}`;
   if (report.section !== section) return `wrong-section: ${report.section ?? 'none'}`;
-  if (report.caseManifestSha256 !== manifestHash) return 'stale-case-manifest';
+  if (report.caseManifestSha256 !== manifestHash
+    && (lightTableCasePlanSha256 === null
+      || (report.lightTableCasePlanSha256
+        ?? gradeCorpusLightTableCasePlanSha256(report.cases)) !== lightTableCasePlanSha256)) {
+    return 'stale-case-manifest';
+  }
   if (report.sourceEvidence?.sha256 !== source.sha256) return 'stale-source';
   if (!Array.isArray(report.cases) || report.cases.length === 0) return 'missing-cases';
   return 'valid';
@@ -91,7 +106,12 @@ export const auditGradeParityReadiness = async ({
       });
       continue;
     }
-    const manifestHash = sha256(await readFile(manifestPath));
+    const manifestBytes = await readFile(manifestPath);
+    const manifestHash = sha256(manifestBytes);
+    const sectionManifest = JSON.parse(manifestBytes.toString('utf8'));
+    const lightTableCasePlanSha256 = Array.isArray(sectionManifest.controls)
+      ? gradeCorpusLightTableCasePlanSha256(buildGradeLightTableCases(sectionManifest))
+      : null;
     if (definition.dedicatedEvidence) {
       const evidence = await readReport(path.join(
         externalRoot, 'captures', definition.id, 'native', 'capture-report.json'
@@ -130,7 +150,9 @@ export const auditGradeParityReadiness = async ({
         readReport(path.join(root, 'lighttable', 'capture-report.json'))
       ]);
       const cameraRawState = validateReport(cameraRaw, definition.id, source, manifestHash);
-      const lightTableState = validateReport(lightTable, definition.id, source, manifestHash);
+      const lightTableState = validateReport(lightTable, definition.id, source, manifestHash, {
+        lightTableCasePlanSha256
+      });
       const compatible = cameraRawState === 'valid'
         && lightTableState === 'valid'
         && gradeCorpusReportsHaveSameCases(cameraRaw, lightTable);

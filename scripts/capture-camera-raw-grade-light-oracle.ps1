@@ -1,7 +1,8 @@
 param(
   [string]$Source = 'D:\people.jpg',
   [string]$Root = 'D:\mediavibe\LightTableTests\GradeLightParity',
-  [string]$CasePath = ''
+  [string]$CasePath = '',
+  [string[]]$CaseIds = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -115,6 +116,22 @@ foreach ($control in $suite.controls) {
       })
     }
   }
+}
+
+if ($CaseIds.Count -gt 0) {
+  $requested = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase
+  )
+  [void]$requested.Add('neutral')
+  foreach ($caseId in $CaseIds) {
+    $match = @($cases | Where-Object { $_.id -eq $caseId })
+    if ($match.Count -ne 1) {
+      throw "Unknown or ambiguous Grade oracle case id: $caseId"
+    }
+    [void]$requested.Add($match[0].id)
+    [void]$requested.Add($match[0].baselineId)
+  }
+  $cases = @($cases | Where-Object { $requested.Contains($_.id) })
 }
 
 $results = @()

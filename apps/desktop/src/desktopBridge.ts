@@ -161,6 +161,7 @@ export interface LightTableDesktopBridge {
   removeRecentProject(recentId: string): Promise<void>;
   clearRecentProjects(): Promise<void>;
   setFullscreen(enabled: boolean): Promise<void>;
+  closeApplication(): Promise<void>;
   onFullscreenChange(listener: (enabled: boolean) => void): () => void;
   onHorizontalWheel(listener: (input: DesktopHorizontalWheelInput) => void): () => void;
   confirmDiscardChanges(documentTitle: string): Promise<boolean>;

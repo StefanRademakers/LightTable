@@ -3,6 +3,11 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
+import { gradeCorpusReportsHaveSameCases } from './grade-corpus-report-compatibility.mjs';
+import {
+  gradeCorpusLightTableCasePlanSha256,
+  gradeCorpusSharedCasePlanSha256
+} from './grade-corpus-case-plan.mjs';
 
 const rootArgument = process.argv.find((value) => value.startsWith('--root='));
 const root = path.resolve(rootArgument?.slice('--root='.length)
@@ -18,8 +23,8 @@ const cameraRawReport = parseJson(cameraRawReportBytes.toString('utf8'));
 const lightTableReport = parseJson(lightTableReportBytes.toString('utf8'));
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 if (cameraRawReport.section !== lightTableReport.section
-  || cameraRawReport.caseManifestSha256 !== lightTableReport.caseManifestSha256
-  || cameraRawReport.sourceEvidence?.sha256 !== lightTableReport.sourceEvidence?.sha256) {
+  || cameraRawReport.sourceEvidence?.sha256 !== lightTableReport.sourceEvidence?.sha256
+  || !gradeCorpusReportsHaveSameCases(cameraRawReport, lightTableReport)) {
   throw new Error('Camera Raw and LightTable capture provenance does not match.');
 }
 
@@ -171,7 +176,11 @@ const report = {
     cameraRaw: cameraRawReport.cameraRawVersion
   },
   inputs: {
-    caseManifestSha256: cameraRawReport.caseManifestSha256,
+    cameraRawCaseManifestSha256: cameraRawReport.caseManifestSha256,
+    lightTableCaseManifestSha256: lightTableReport.caseManifestSha256,
+    sharedCasePlanSha256: gradeCorpusSharedCasePlanSha256(cameraRawReport.cases),
+    lightTableCasePlanSha256: lightTableReport.lightTableCasePlanSha256
+      ?? gradeCorpusLightTableCasePlanSha256(lightTableReport.cases),
     sourceSha256: cameraRawReport.sourceEvidence.sha256,
     cameraRawReportSha256: sha256(cameraRawReportBytes),
     lightTableReportSha256: sha256(lightTableReportBytes)

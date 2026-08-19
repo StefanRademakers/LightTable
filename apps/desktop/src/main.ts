@@ -1560,6 +1560,11 @@ void app.whenReady().then(async () => {
     mainWindow?.setFullScreen(enabled);
   });
 
+  ipcMain.handle('lighttable:close-application', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    setImmediate(() => app.quit());
+  });
+
   ipcMain.handle('lighttable:list-recent-files', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     await recentFileOperations.settled();

@@ -1342,6 +1342,11 @@ export class WebGpuEngine {
     return this.documentRenderer?.measureSelectedLayerContent(layer) ?? null;
   }
 
+  async measureSelectionBounds() {
+    await this.selectionQueue;
+    return this.documentRenderer?.measureSelectionBounds() ?? null;
+  }
+
   async measureLayerContent(layer: RasterLayer) {
     return this.documentRenderer?.measureLayerContent(layer) ?? null;
   }

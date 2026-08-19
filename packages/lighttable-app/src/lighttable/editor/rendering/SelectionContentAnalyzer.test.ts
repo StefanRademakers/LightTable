@@ -34,6 +34,47 @@ const layer = (): RasterLayer => ({
 afterEach(() => vi.unstubAllGlobals());
 
 describe('SelectionContentAnalyzer', () => {
+  it('measures the canonical selection mask independently of layer content', async () => {
+    vi.stubGlobal('GPUBufferUsage', { COPY_DST: 1, MAP_READ: 2 });
+    vi.stubGlobal('GPUMapMode', { READ: 1 });
+    const bytesPerRow = 256;
+    const coverage = new Uint8Array(bytesPerRow * 3);
+    coverage[bytesPerRow + 1] = 255;
+    coverage[bytesPerRow + 2] = 64;
+    const copyTextureToBuffer = vi.fn();
+    const analyzer = new SelectionContentAnalyzer({
+      device: {
+        createBuffer: vi.fn(() => ({
+          mapState: 'unmapped',
+          mapAsync: vi.fn(async () => undefined),
+          getMappedRange: vi.fn(() => coverage.buffer),
+          unmap: vi.fn(),
+          destroy: vi.fn()
+        })),
+        createCommandEncoder: vi.fn(() => ({
+          copyTextureToBuffer,
+          finish: vi.fn(() => ({}))
+        })),
+        queue: { submit: vi.fn() }
+      } as unknown as GPUDevice,
+      textures: { active: true, mask: {} } as never,
+      dimensions: () => ({ width: 4, height: 3 }),
+      generation: () => 1,
+      pipelines: vi.fn() as never,
+      ensureTargets: vi.fn(),
+      rasterRuntime: vi.fn(),
+      createCoverageTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+
+    await expect(analyzer.measureSelection()).resolves.toEqual({
+      coreBounds: { x: 1, y: 1, width: 1, height: 1 },
+      supportBounds: { x: 1, y: 1, width: 2, height: 1 },
+      peakCoverage: 1
+    });
+    expect(copyTextureToBuffer).toHaveBeenCalledOnce();
+  });
+
   it('measures tight layer-local coverage instead of expanding to the document surface', async () => {
     vi.stubGlobal('GPUBufferUsage', { COPY_DST: 1, MAP_READ: 2, UNIFORM: 4 });
     vi.stubGlobal('GPUMapMode', { READ: 1 });

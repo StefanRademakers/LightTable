@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { ActionButton } from '../../../../ui/ActionButton';
 import type { Rect } from '../../document/documentTypes';
 
 type CropHandle = 'move' | 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
@@ -69,11 +68,6 @@ export const CropInteractionOverlay = ({
   };
   const handles: CropHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
   return <div className="crop-interaction-overlay" aria-label="Crop preview">
-    <div className="crop-interaction-overlay__options">
-      <span>{Math.round(bounds.width)} × {Math.round(bounds.height)} px</span>
-      <ActionButton size="compact" onClick={onCancel}>Cancel</ActionButton>
-      <ActionButton size="compact" onClick={onCommit}>Crop</ActionButton>
-    </div>
     <div className="crop-interaction-overlay__frame" style={style}
       onPointerDown={(event) => begin('move', event)} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
       <i className="crop-interaction-overlay__third crop-interaction-overlay__third--v1" />

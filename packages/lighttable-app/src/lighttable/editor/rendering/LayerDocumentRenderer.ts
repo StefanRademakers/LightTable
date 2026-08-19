@@ -775,6 +775,10 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionContentAnalyzer.measure(layer, true);
   }
 
+  async measureSelectionBounds(): Promise<SelectionCoverageBounds | null> {
+    return this.runtime.selectionContentAnalyzer.measureSelection();
+  }
+
   async measureLayerContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
     return this.runtime.selectionContentAnalyzer.measure(layer, false);
   }

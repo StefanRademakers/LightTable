@@ -284,6 +284,8 @@ export interface LightTableHost {
   clearRecentFiles?(): Promise<void>;
   /** Enter or leave the host window's native/browser fullscreen presentation. */
   setFullscreen?(enabled: boolean): Promise<void>;
+  /** Close the owning desktop application after renderer-side discard checks. */
+  closeApplication?(): Promise<void>;
   /** Observe fullscreen exits initiated by the OS, browser or Escape key. */
   subscribeFullscreen?(listener: (enabled: boolean) => void): () => void;
   /**

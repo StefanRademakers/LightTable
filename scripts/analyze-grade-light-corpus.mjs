@@ -2,6 +2,10 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import {
+  buildGradeLightTableCases,
+  gradeCorpusLightTableCasePlanSha256
+} from './grade-corpus-case-plan.mjs';
 
 const manifest = JSON.parse(await readFile(
   path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'
@@ -15,6 +19,9 @@ const casesManifestBytes = await readFile(
 const casesManifest = JSON.parse(casesManifestBytes.toString('utf8'));
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const caseManifestSha256 = sha256(casesManifestBytes);
+const lightTableCasePlanSha256 = Array.isArray(casesManifest.controls)
+  ? gradeCorpusLightTableCasePlanSha256(buildGradeLightTableCases(casesManifest))
+  : null;
 const declaredControls = casesManifest.controls ?? casesManifest.cases
   .filter(({ id }) => id !== 'neutral')
   .map(({ key, label }) => ({ key, label }));
@@ -33,7 +40,12 @@ for (const directory of sourceDirectories.filter((entry) => entry.isDirectory())
       readFile(path.join(captureRoot, directory.name, 'lighttable', 'capture-report.json'))
     ]);
     const report = JSON.parse(reportText);
-    const inputsAreCurrent = report.inputs?.caseManifestSha256 === caseManifestSha256
+    const inputsAreCurrent = (report.inputs?.cameraRawCaseManifestSha256
+      ?? report.inputs?.caseManifestSha256) === caseManifestSha256
+      && (lightTableCasePlanSha256 === null
+        ? (report.inputs?.lightTableCaseManifestSha256
+          ?? report.inputs?.caseManifestSha256) === caseManifestSha256
+        : report.inputs?.lightTableCasePlanSha256 === lightTableCasePlanSha256)
       && report.inputs?.cameraRawReportSha256 === sha256(cameraRawReportBytes)
       && report.inputs?.lightTableReportSha256 === sha256(lightTableReportBytes);
     if (!inputsAreCurrent) continue;

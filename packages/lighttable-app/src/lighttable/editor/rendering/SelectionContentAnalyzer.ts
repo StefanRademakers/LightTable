@@ -33,6 +33,41 @@ interface SelectionContentAnalyzerOptions {
 export class SelectionContentAnalyzer {
   constructor(private readonly options: SelectionContentAnalyzerOptions) {}
 
+  async measureSelection(): Promise<SelectionCoverageBounds | null> {
+    const { device, textures, ensureTargets } = this.options;
+    ensureTargets();
+    if (!textures.active || !textures.mask) return null;
+    const { width, height } = this.options.dimensions();
+    const generation = this.options.generation();
+    const bytesPerRow = Math.ceil(width / 256) * 256;
+    const readBuffer = device.createBuffer({
+      label: 'LightTable selection bounds readback',
+      size: bytesPerRow * height,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+    });
+
+    try {
+      const encoder = device.createCommandEncoder({ label: 'LightTable measure selection bounds' });
+      encoder.copyTextureToBuffer(
+        { texture: textures.mask },
+        { buffer: readBuffer, bytesPerRow, rowsPerImage: height },
+        [width, height]
+      );
+      device.queue.submit([encoder.finish()]);
+      await readBuffer.mapAsync(GPUMapMode.READ);
+      if (generation !== this.options.generation()) return null;
+      return selectionCoverageBounds(
+        new Uint8Array(readBuffer.getMappedRange()),
+        width,
+        height,
+        bytesPerRow
+      );
+    } finally {
+      if (readBuffer.mapState === 'mapped') readBuffer.unmap();
+      readBuffer.destroy();
+    }
+  }
+
   async measureMask(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
     const { device, ensureTargets, rasterRuntime } = this.options;
     ensureTargets();

@@ -1126,20 +1126,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [activeGenAiProjectId, editGenAiProviderId, genAiService, imageDocumentRef,
     initialSourceName, selectedGenAiProviderId]);
 
+  const viewportMetadata = useMemo(() => metadata ? {
+    ...metadata,
+    width: imageDocument?.width ?? metadata.width,
+    height: imageDocument?.height ?? metadata.height
+  } : null, [imageDocument?.height, imageDocument?.width, metadata]);
   const fitScale = useMemo(() => {
-    if (!metadata) return 1;
-    return Math.min(viewportSize.width / metadata.width, viewportSize.height / metadata.height) * 0.94;
-  }, [metadata, viewportSize.height, viewportSize.width]);
+    if (!viewportMetadata) return 1;
+    return Math.min(
+      viewportSize.width / viewportMetadata.width,
+      viewportSize.height / viewportMetadata.height
+    ) * 0.94;
+  }, [viewportMetadata, viewportSize.height, viewportSize.width]);
   const activeScale = zoomMode === 'fit' ? fitScale : zoomMode === '100' ? 1 : view.scale;
   const imageRect = useMemo(() => resolveViewportImageRect(
-    metadata?.width ?? 1,
-    metadata?.height ?? 1,
+    viewportMetadata?.width ?? 1,
+    viewportMetadata?.height ?? 1,
     viewportSize.width,
     viewportSize.height,
     activeScale,
     view.panX,
     view.panY
-  ), [activeScale, metadata, view.panX, view.panY, viewportSize.height, viewportSize.width]);
+  ), [activeScale, viewportMetadata, view.panX, view.panY, viewportSize.height, viewportSize.width]);
   const {
     dockResizeActiveRef,
     handleDockResizeInteractionChange
@@ -2008,6 +2016,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const document = imageDocumentRef.current;
     if (!document) return;
     finishOpenHistoryTransactions();
+    const selection = editorSessionRef.current.selection;
+    if (selection.length) {
+      const renderer = engineRef.current;
+      if (!renderer) return;
+      void renderer.measureSelectionBounds().then((coverage) => {
+        if (imageDocumentRef.current !== document
+          || editorSessionRef.current.selection !== selection) return;
+        if (!coverage) {
+          setError('The active selection has no crop area.');
+          return;
+        }
+        runDocumentGeometryCommand({ operation: 'crop', bounds: coverage.supportBounds });
+      }).catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'The selection bounds could not be measured.');
+      });
+      return;
+    }
     setCropBounds({ x: 0, y: 0, width: document.width, height: document.height });
   };
   const cancelCrop = () => setCropBounds(null);
@@ -2992,14 +3017,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     panX: number,
     panY: number
   ) => {
-    if (!metadata) return;
+    if (!viewportMetadata) return;
     engineRef.current?.resizeViewport(
       viewportSize.width,
       viewportSize.height,
       Math.max(1, window.devicePixelRatio || 1),
       resolveViewportImageRect(
-        metadata.width,
-        metadata.height,
+        viewportMetadata.width,
+        viewportMetadata.height,
         viewportSize.width,
         viewportSize.height,
         scale,
@@ -3007,7 +3032,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         panY
       )
     );
-  }, [metadata, viewportSize.height, viewportSize.width]);
+  }, [viewportMetadata, viewportSize.height, viewportSize.width]);
   const applyExactZoom = useCallback((percent: number) => {
     const nextView = zoomViewToScaleAtPoint({
       cursor: {
@@ -5463,7 +5488,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
 
   const statusBar = buildEditorStatus({
-    metadata,
+    metadata: viewportMetadata,
     document: imageDocument,
     scale: activeScale,
     startupTimings,

@@ -8,6 +8,10 @@ import {
   gradeCorpusReportsHaveSameCases,
   parseGradeCorpusReport
 } from './grade-corpus-report-compatibility.mjs';
+import {
+  buildGradeLightTableCases,
+  gradeCorpusLightTableCasePlanSha256
+} from './grade-corpus-case-plan.mjs';
 
 const manifest = JSON.parse(await readFile(
   path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'
@@ -70,7 +74,7 @@ test('Grade corpus routes require source identity, packaged rendering and frame 
     assert.match(runner, /LIGHTTABLE_TEST_EXECUTABLE/u);
     assert.match(runner, /--packaged/u);
   }
-  assert.match(sectionRunner, /while \(!await reportIsCurrent\(lightTableReport, source\)\)/u);
+  assert.match(sectionRunner, /while \(!await reportIsCurrent\(lightTableReport, source, true\)\)/u);
   for (const capture of [sectionCapture, curvesCapture]) {
     assert.match(capture, /requirePackaged: process\.argv\.includes\('--packaged'\)/u);
     assert.match(capture, /waitForRenderedDocument/u);
@@ -84,15 +88,17 @@ test('Grade corpus routes require source identity, packaged rendering and frame 
     assert.match(capture, /sourceEvidence/u);
     assert.match(capture, /Get-FileHash[^\r\n]+sourcePath/u);
   }
+  assert.match(cameraCapture, /\[string\[\]\]\$CaseIds/u);
+  assert.match(cameraCapture, /Unknown or ambiguous Grade oracle case id/u);
   assert.match(comparison, /cameraRawReportSha256/u);
   assert.match(comparison, /lightTableReportSha256/u);
   assert.match(aggregate, /inputsAreCurrent/u);
-  assert.match(aggregate, /caseManifestSha256/u);
+  assert.match(aggregate, /lightTableCasePlanSha256/u);
 });
 
-test('Grade analysis rejects stale or reordered opposite-side reports', () => {
+test('Grade analysis accepts descriptor-only manifest changes but rejects changed shared cases', () => {
   const report = (...ids) => ({ caseManifestSha256: 'manifest-a',
-    cases: ids.map((id) => ({ id })) });
+    cases: ids.map((id) => ({ id, label: id, baselineId: 'neutral' })) });
   assert.equal(gradeCorpusReportsHaveSameCases(report('neutral', 'plus-100'),
     report('neutral', 'plus-100')), true);
   assert.equal(gradeCorpusReportsHaveSameCases(report('neutral'),
@@ -102,9 +108,10 @@ test('Grade analysis rejects stale or reordered opposite-side reports', () => {
   assert.equal(gradeCorpusReportsHaveSameCases({}, report('neutral')), false);
   assert.equal(gradeCorpusReportsHaveSameCases(report('neutral'), {
     ...report('neutral'), caseManifestSha256: 'manifest-b'
+  }), true);
+  assert.equal(gradeCorpusReportsHaveSameCases(report('neutral'), {
+    ...report('neutral'), cases: [{ ...report('neutral').cases[0], label: 'changed' }]
   }), false);
-  assert.equal(gradeCorpusReportsHaveSameCases({ cases: [{ id: 'neutral' }] },
-    { cases: [{ id: 'neutral' }] }), false);
   assert.deepEqual(parseGradeCorpusReport('\uFEFF{"cases":[]}'), { cases: [] });
 });
 
@@ -124,6 +131,37 @@ test('Grade runners reject stale same-side reports before deciding to reuse them
     ...report, sourceEvidence: { sha256: 'other' }
   }, expected), false);
   assert.equal(gradeCorpusReportMatchesCapture({ ...report, cases: [] }, expected), false);
+});
+
+test('LightTable report reuse is bound to its render plan, not Adobe descriptor metadata', () => {
+  const suite = {
+    section: 'black-white',
+    groupLabel: 'Black & White Mix',
+    cameraRawPrerequisites: [{ descriptor: 'CtoG', value: true }],
+    lightTablePrerequisites: [{ treatment: 'black-white' }],
+    controls: [{
+      key: 'red-luminance', label: 'Red', sliderLabel: 'Reds',
+      blackWhiteRangeIndex: 0, values: [-100, 100],
+      cameraRawDescriptor: 'GM_R', cameraRawDescriptorType: 'char'
+    }]
+  };
+  const cases = buildGradeLightTableCases(suite);
+  const lightTableCasePlanSha256 = gradeCorpusLightTableCasePlanSha256(cases);
+  const report = {
+    section: 'black-white', caseManifestSha256: 'old-descriptor-manifest',
+    sourceEvidence: { sha256: 'source-a' }, cases
+  };
+  const expected = {
+    section: 'black-white', caseManifestSha256: 'new-descriptor-manifest',
+    sourceSha256: 'source-a', lightTableCasePlanSha256
+  };
+  assert.equal(gradeCorpusReportMatchesCapture(report, expected), true);
+  assert.equal(gradeCorpusReportMatchesCapture({
+    ...report,
+    cases: report.cases.map((entry) => entry.id === 'red-luminance-plus-100'
+      ? { ...entry, settings: [{ ...entry.settings[0], value: 80 }] }
+      : entry)
+  }, expected), false);
 });
 
 test('Grade Color oracle covers signed Camera Raw color controls and endpoints', async () => {
@@ -273,14 +311,15 @@ test('Grade Black & White oracle covers all eight Camera Raw mixer ranges', asyn
     path.join(import.meta.dirname, 'grade-black-white-parity-cases.json'), 'utf8'
   ));
   assert.equal(suite.section, 'black-white');
-  assert.equal(suite.cameraRawDescriptorStatus, 'candidate-unverified-automation-blocked');
+  assert.equal(suite.cameraRawDescriptorStatus, 'char-ids-recovered-pixel-probe-required');
   assert.equal(suite.groupLabel, 'Black & White Mix');
   assert.equal(suite.controls.length, 8);
   assert.deepEqual(suite.controls.map(({ cameraRawDescriptor }) => cameraRawDescriptor), [
-    'GrayMixerRed', 'GrayMixerOrange', 'GrayMixerYellow', 'GrayMixerGreen',
-    'GrayMixerAqua', 'GrayMixerBlue', 'GrayMixerPurple', 'GrayMixerMagenta'
+    'GM_R', 'GM_O', 'GM_Y', 'GM_G', 'GM_A', 'GM_B', 'GM_P', 'GM_M'
   ]);
-  assert.equal(suite.cameraRawPrerequisites[0].descriptor, 'ConvertToGrayscale');
+  assert.ok(suite.controls.every(({ cameraRawDescriptorType }) => cameraRawDescriptorType === 'char'));
+  assert.equal(suite.cameraRawPrerequisites[0].descriptor, 'CtoG');
+  assert.equal(suite.cameraRawPrerequisites[0].descriptorType, 'char');
   assert.equal(suite.cameraRawPrerequisites[0].value, true);
   assert.equal(suite.lightTablePrerequisites[0].treatment, 'black-white');
   for (const [index, control] of suite.controls.entries()) {

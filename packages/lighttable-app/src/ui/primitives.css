@@ -213,12 +213,6 @@ select option:checked {
 }
 
 .crop-interaction-overlay { position: absolute; inset: 0; z-index: 28; pointer-events: none; }
-.crop-interaction-overlay__options {
-  position: absolute; top: var(--lt-space-4); left: 50%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: var(--lt-space-4); padding: var(--lt-space-2);
-  border: 1px solid var(--lt-border-subtle); border-radius: var(--lt-radius-md);
-  background: var(--lt-surface-panel); pointer-events: auto;
-}
 .crop-interaction-overlay__frame {
   position: absolute; box-sizing: border-box; border: 1px solid var(--lt-accent);
   box-shadow: 0 0 0 100vmax rgb(0 0 0 / 55%); pointer-events: auto; cursor: move;

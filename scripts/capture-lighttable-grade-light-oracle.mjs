@@ -6,6 +6,12 @@ import process from 'node:process';
 import sharp from 'sharp';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
+import {
+  buildGradeLightTableCases,
+  defaultGradeGroupLabel,
+  gradeCorpusLightTableCasePlanSha256,
+  gradeCorpusSharedCasePlanSha256
+} from './grade-corpus-case-plan.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const sourceArgument = process.argv.find((value) => value.startsWith('--source='));
@@ -34,10 +40,7 @@ await Promise.all([
 const caseManifestBytes = await readFile(casePath);
 const caseManifestSha256 = createHash('sha256').update(caseManifestBytes).digest('hex');
 const suite = JSON.parse(caseManifestBytes.toString('utf8'));
-const defaultGroupLabel = suite.groupLabel ?? suite.section
-  .split('-')
-  .map((part) => part ? `${part[0].toUpperCase()}${part.slice(1)}` : part)
-  .join(' ');
+const defaultGroupLabel = defaultGradeGroupLabel(suite);
 const sourceBytes = await readFile(source);
 const sourceMetadata = await sharp(sourceBytes).metadata();
 const sourceEvidence = {
@@ -53,49 +56,9 @@ const sourceEvidence = {
     ? createHash('sha256').update(sourceMetadata.icc).digest('hex')
     : null
 };
-const caseId = (key, value) => `${key}-${value < 0 ? 'minus' : 'plus'}-${Math.abs(value)}`
-  .replaceAll('.', '_');
-const settingForControl = (control, value) => ({
-  groupLabel: control.groupLabel ?? defaultGroupLabel,
-  subgroupLabel: control.subgroupLabel ?? null,
-  rangeIndex: control.rangeIndex ?? null,
-  blackWhiteRangeIndex: control.blackWhiteRangeIndex ?? null,
-  treatment: control.lightTable?.treatment ?? null,
-  defaultTreatment: control.lightTable?.defaultTreatment ?? null,
-  gradingMode: control.lightTable?.gradingMode ?? null,
-  wheelHue: control.lightTable?.wheelHue === 'value'
-    ? value : (control.lightTable?.wheelHue ?? null),
-  wheelSaturation: control.lightTable?.wheelSaturation === 'value'
-    ? value : (control.lightTable?.wheelSaturation ?? null),
-  label: control.sliderLabel ?? control.label,
-  value,
-  defaultValue: control.defaultValue ?? 0
-});
-const cases = [{
-  id: 'neutral', key: null, label: 'Neutral', value: 0,
-  baselineId: 'neutral', isBaseline: true, settings: []
-}];
-for (const control of suite.controls) {
-  const prerequisites = [
-    ...(suite.lightTablePrerequisites ?? []),
-    ...(control.lightTablePrerequisites ?? [])
-  ].map((entry) => ({
-    ...entry,
-    groupLabel: entry.groupLabel ?? control.groupLabel ?? defaultGroupLabel,
-    subgroupLabel: entry.subgroupLabel ?? null,
-    defaultValue: entry.defaultValue ?? 0
-  }));
-  const baselineId = prerequisites.length ? `${control.key}-baseline` : 'neutral';
-  if (prerequisites.length) cases.push({
-    id: baselineId, key: control.key, label: `${control.label} baseline`, value: null,
-    baselineId, isBaseline: true, settings: prerequisites
-  });
-  for (const value of control.values) cases.push({
-    id: caseId(control.key, value), key: control.key, label: control.label, value,
-    baselineId, isBaseline: false,
-    settings: [...prerequisites, settingForControl(control, value)]
-  });
-}
+const cases = buildGradeLightTableCases(suite);
+const sharedCasePlanSha256 = gradeCorpusSharedCasePlanSha256(cases);
+const lightTableCasePlanSha256 = gradeCorpusLightTableCasePlanSha256(cases);
 const mimeByExtension = new Map([
   ['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'], ['.png', 'image/png'],
   ['.tif', 'image/tiff'], ['.tiff', 'image/tiff']
@@ -216,7 +179,8 @@ const readValidatedPartial = async (output, entry) => {
     const evidence = JSON.parse(await readFile(evidencePath, 'utf8'));
     if (evidence.caseId !== entry.id
       || evidence.sourceSha256 !== sourceEvidence.sha256
-      || evidence.caseManifestSha256 !== caseManifestSha256
+      || (evidence.caseManifestSha256 !== caseManifestSha256
+        && evidence.lightTableCasePlanSha256 !== lightTableCasePlanSha256)
       || evidence.lightTableLaunchMode !== launch.mode) return null;
     await access(output);
     return evidence;
@@ -316,6 +280,7 @@ try {
       caseId: entry.id,
       sourceSha256: sourceEvidence.sha256,
       caseManifestSha256,
+      lightTableCasePlanSha256,
       lightTableLaunchMode: launch.mode,
       renderedDocumentRevision: readiness.telemetry.presentedDocumentRevision,
       captureEvidence: results.at(-1).captureEvidence
@@ -348,6 +313,8 @@ if (captureComplete) {
     source,
     sourceEvidence,
     caseManifestSha256,
+    sharedCasePlanSha256,
+    lightTableCasePlanSha256,
     lightTableLaunchMode: launch.mode,
     isolation: 'One decoded source and one topmost Grade Layer are reused; the prior control is verified at neutral before exactly one Grade control is authored. Long corpora relaunch the renderer between bounded batches.',
     cases: results

@@ -4,9 +4,9 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 77,
+      "productionUsageCount": 75,
       "internalUsageCount": 5,
-      "contextCount": 26,
+      "contextCount": 25,
       "overrideCount": 0,
       "locations": [
         {
@@ -42,11 +42,6 @@
         {
           "path": "lighttable/editor/psd/PsdImportReportDialog.tsx",
           "count": 4,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/tools/crop/CropInteractionOverlay.tsx",
-          "count": 2,
           "kind": "product"
         },
         {

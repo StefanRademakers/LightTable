@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { ContextMenuOption } from '../../../ui/ContextMenu';
 import {
   createEditorMenuOptions,
   type EditorMenuCommands,
@@ -57,6 +58,18 @@ const labels = {
   primaryShortcut: (key: string, shift = false) => `Ctrl+${shift ? 'Shift+' : ''}${key}`
 };
 
+const findMenuOption = (
+  options: readonly ContextMenuOption<string>[],
+  value: string
+): ContextMenuOption<string> | undefined => {
+  for (const option of options) {
+    if (option.value === value) return option;
+    const nested = findMenuOption(option.children ?? [], value);
+    if (nested) return nested;
+  }
+  return undefined;
+};
+
 describe('createEditorMenuOptions', () => {
   it('keeps fixed target transforms distinct from canvas geometry', () => {
     const menuCommands = commands();
@@ -109,6 +122,16 @@ describe('createEditorMenuOptions', () => {
   it('separates canvas geometry from layer transforms in the Image menu', () => {
     const menuCommands = commands();
     const image = createEditorMenuOptions('image', state(), labels, menuCommands);
+    expect(image.map(({ value }) => value)).toEqual([
+      'image-mode',
+      'image-adjustments',
+      'image-size',
+      'canvas-size',
+      'image-rotation',
+      'image-crop',
+      'duplicate-image'
+    ]);
+    expect(image.find(({ value }) => value === 'image-size')?.separatorBefore).toBe(true);
     expect(image.find(({ value }) => value === 'canvas-size')).toMatchObject({
       label: 'Canvas Size...', shortcut: 'Ctrl+Alt+C', disabled: false
     });
@@ -289,9 +312,18 @@ describe('createEditorMenuOptions', () => {
     );
 
     expect(options.find((option) => option.value === 'select-none')?.disabled).toBe(false);
-    expect(options.find((option) => option.value === 'feather-selection')?.disabled).toBe(false);
+    expect(findMenuOption(options, 'feather-selection')?.disabled).toBe(false);
     expect(options.find((option) => option.value === 'invert-selection'))
-      .toMatchObject({ label: 'Invert selection', shortcut: 'Ctrl+Shift+I' });
+      .toMatchObject({ label: 'Inverse', shortcut: 'Ctrl+Shift+I' });
+    expect(options.map(({ value }) => value)).toEqual([
+      'select-all',
+      'select-none',
+      'invert-selection',
+      'clear-selection',
+      'select-modify',
+      'remove-object',
+      'remove-background'
+    ]);
   });
 
   it('routes Select and Layer background removal through one command', () => {
@@ -337,12 +369,31 @@ describe('createEditorMenuOptions', () => {
       menuCommands
     );
 
-    expect(options.find((option) => option.value === 'merge-down')?.disabled).toBe(true);
-    expect(options.find((option) => option.value === 'delete-layer')?.disabled).toBe(true);
+    expect(findMenuOption(options, 'merge-down')?.disabled).toBe(true);
+    expect(findMenuOption(options, 'delete-layer')?.disabled).toBe(true);
     const blend = options.find((option) => option.value === 'blend-mode');
     expect(blend?.children?.[0].label).toBe('Normal ✓');
     blend?.children?.[1].onClick?.();
     expect(menuCommands.setBlendMode).toHaveBeenCalledWith('multiply');
+    expect(options.map(({ value }) => value)).toEqual([
+      'layer-new',
+      'duplicate-layer',
+      'layer-delete',
+      'rename-layer',
+      'blend-mode',
+      'invert-layer-colors',
+      'remove-background',
+      'clipping-mask',
+      'edit-layer-pixels',
+      'layer-mask',
+      'toggle-visibility',
+      'arrange',
+      'auto-align',
+      'toggle-lock',
+      'merge-down',
+      'flatten-group',
+      'flatten-image'
+    ]);
   });
 
   it('offers apply/cancel commands only while auto-align has a preview', () => {
@@ -370,14 +421,14 @@ describe('createEditorMenuOptions', () => {
 
     expect(options.find((option) => option.value === 'duplicate-layer')?.disabled).toBe(false);
     expect(options.find((option) => option.value === 'rename-layer')?.disabled).toBe(false);
-    expect(options.find((option) => option.value === 'convert-text-to-shape'))
+    expect(findMenuOption(options, 'convert-text-to-shape'))
       .toMatchObject({ label: 'Convert to Shape...', disabled: false });
-    expect(options.find((option) => option.value === 'rasterize-text')?.label).toBe('Rasterize Type');
+    expect(findMenuOption(options, 'rasterize-text')?.label).toBe('Rasterize Type');
     expect(options.find((option) => option.value === 'edit-layer-pixels')?.disabled).toBe(true);
-    expect(options.find((option) => option.value === 'delete-layer')?.disabled).toBe(true);
-    options.find((option) => option.value === 'rasterize-text')?.onClick?.();
+    expect(findMenuOption(options, 'delete-layer')?.disabled).toBe(true);
+    findMenuOption(options, 'rasterize-text')?.onClick?.();
     expect(menuCommands.rasterizeText).toHaveBeenCalledOnce();
-    options.find((option) => option.value === 'convert-text-to-shape')?.onClick?.();
+    findMenuOption(options, 'convert-text-to-shape')?.onClick?.();
     expect(menuCommands.convertTextToShape).toHaveBeenCalledOnce();
   });
 
@@ -425,12 +476,24 @@ describe('createEditorMenuOptions', () => {
     expect(options.find((option) => option.value === 'fit')?.shortcut).toBe('Ctrl+0');
     expect(options.find((option) => option.value === 'actual-size')?.shortcut).toBe('Ctrl+1');
     expect(options.find((option) => option.value === 'show-original')).toBeUndefined();
-    expect(options.find((option) => option.value === 'toggle-screen-mode'))
+    expect(findMenuOption(options, 'toggle-screen-mode'))
       .toMatchObject({ label: 'Toggle screen mode', shortcut: 'F' });
     expect(options.find((option) => option.value === 'ui-style-guide'))
       .toMatchObject({ label: 'UI Style Guide...' });
     options.find((option) => option.value === 'ui-style-guide')?.onClick?.();
     expect(menuCommands.openStyleGuide).toHaveBeenCalledOnce();
+    expect(options.map(({ value }) => value).slice(0, 10)).toEqual([
+      'fit',
+      'actual-size',
+      'show-difference',
+      'screen-mode',
+      'extras',
+      'show-overlays',
+      'rulers',
+      'snap',
+      'snap-to',
+      'guides'
+    ]);
   });
 
   it('omits the optional UI devtools contribution from the base View menu', () => {

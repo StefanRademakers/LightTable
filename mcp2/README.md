@@ -21,6 +21,10 @@ It is not a second runtime, a copied provider SDK or an instruction to rewrite t
 5. [PAID_JOBS_COST_AND_RECOVERY.md](PAID_JOBS_COST_AND_RECOVERY.md) — the non-negotiable credit-safety rules.
 6. [HIGGSFIELD_IMPLEMENTATION_PLAN.md](HIGGSFIELD_IMPLEMENTATION_PLAN.md) — a staged addition that preserves OpenArt and local AI.
 7. [VERIFICATION_MATRIX.md](VERIFICATION_MATRIX.md) — credit-free tests and the smallest live smoke matrix.
+8. [PANEL_PARITY_GUIDE.md](PANEL_PARITY_GUIDE.md) — capability-driven panel composition and control mapping.
+9. [WORKFLOW_SEMANTICS.md](WORKFLOW_SEMANTICS.md) — create/edit, references/frames and media-role behavior.
+10. [CATALOG_SNAPSHOT.md](CATALOG_SNAPSHOT.md) — complete dated model inventory for both captured providers.
+11. [SNAPSHOT_SOURCE_INDEX.json](SNAPSHOT_SOURCE_INDEX.json) — machine-readable locations and snapshot metadata.
 
 ## Authority and freshness
 

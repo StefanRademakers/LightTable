@@ -38,6 +38,7 @@ export interface EditorMenuControllerOptions {
     openRecentProject?(recentId: string): void;
     clearRecentProjects?(): void;
     closeProject?(): void;
+    exitApplication?(): void;
     save(): void;
     exportPng(): void;
     exportJpeg(): void;
@@ -170,6 +171,7 @@ export const createEditorMenuController = ({
       openRecentProject: file.openRecentProject ?? (() => undefined),
       clearRecentProjects: file.clearRecentProjects ?? (() => undefined),
       closeProject: file.closeProject ?? (() => undefined),
+      exitApplication: file.exitApplication,
       save: file.save,
       exportPng: file.exportPng,
       exportJpeg: file.exportJpeg,

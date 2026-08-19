@@ -51,30 +51,84 @@ try {
     throw new Error(`Geometry undo did not restore source dimensions: ${JSON.stringify({ before, restored })}`);
   }
   const imageMenu = page.locator('.shots-app-menu__button').filter({ hasText: /^Image$/ });
+  const dismissOpenMenu = async () => {
+    const backdrop = page.locator('.context-menu-backdrop');
+    if (!await backdrop.waitFor({ state: 'visible', timeout: 1_000 }).then(() => true, () => false)) return;
+    await backdrop.evaluate((element) => element.click());
+    await backdrop.waitFor({ state: 'detached' });
+  };
   await imageMenu.click();
   await page.getByRole('menuitem', { name: 'Crop', exact: true }).click();
+  await dismissOpenMenu();
   const cropFrame = page.locator('.crop-interaction-overlay__frame');
   await cropFrame.waitFor({ state: 'visible' });
-  const northWest = page.getByRole('button', { name: 'Crop nw handle' });
-  const handleBox = await northWest.boundingBox();
-  if (!handleBox) throw new Error('Crop north-west handle is unavailable.');
+  if (await page.locator('.crop-interaction-overlay__options').count()) {
+    throw new Error('Crop still exposes the redundant floating options bar.');
+  }
+  const initialCropBox = await cropFrame.boundingBox();
+  const east = page.getByRole('button', { name: 'Crop e handle' });
+  const handleBox = await east.boundingBox();
+  if (!handleBox || !initialCropBox) throw new Error('Crop east handle is unavailable.');
   await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(handleBox.x + handleBox.width / 2 + 12, handleBox.y + handleBox.height / 2 + 8, { steps: 4 });
+  await page.mouse.move(initialCropBox.x + initialCropBox.width * 0.4,
+    handleBox.y + handleBox.height / 2, { steps: 8 });
   await page.mouse.up();
   await page.keyboard.press('Enter');
   await cropFrame.waitFor({ state: 'detached' });
   const cropped = await driver.queryDocument(documentId);
   if (!cropped?.canvas || (cropped.canvas.width >= before.canvas.width && cropped.canvas.height >= before.canvas.height)
+    || cropped.canvas.width >= cropped.canvas.height
     || cropped.history.undoDepth !== before.history.undoDepth + 1) {
     throw new Error(`Interactive Crop did not create one smaller document state: ${JSON.stringify({ before, cropped })}`);
   }
+  await imageMenu.click();
+  await page.getByRole('menuitem', { name: 'Crop', exact: true }).click();
+  await dismissOpenMenu();
+  await cropFrame.waitFor({ state: 'visible' });
+  const portraitFrame = await cropFrame.boundingBox();
+  if (!portraitFrame || Math.abs(
+    portraitFrame.width / portraitFrame.height - cropped.canvas.width / cropped.canvas.height
+  ) > 0.02) {
+    throw new Error(`Cropped viewport stretched the document aspect ratio: ${JSON.stringify({ cropped, portraitFrame })}`);
+  }
+  await page.keyboard.press('Escape');
+  await cropFrame.waitFor({ state: 'detached' });
   await driver.execute(documentId, 'history.undo', {});
   const cropUndone = await driver.queryDocument(documentId);
   if (cropUndone?.canvas?.width !== before.canvas.width || cropUndone.canvas.height !== before.canvas.height) {
     throw new Error(`Crop undo did not restore source bounds: ${JSON.stringify({ before, cropUndone })}`);
   }
+
+  await imageMenu.click();
+  await page.getByRole('menuitem', { name: 'Crop', exact: true }).click();
+  await dismissOpenMenu();
+  await cropFrame.waitFor({ state: 'visible' });
+  const restoredFrame = await cropFrame.boundingBox();
   await page.keyboard.press('Escape');
+  if (!restoredFrame) throw new Error('Restored document bounds are unavailable.');
+  await page.keyboard.press('m');
+  await page.locator('.lighttable-tool-options__identity')
+    .filter({ hasText: 'Rectangular selection' }).waitFor({ state: 'visible' });
+  await page.mouse.move(restoredFrame.x + restoredFrame.width * 0.2, restoredFrame.y + restoredFrame.height * 0.15);
+  await page.mouse.down();
+  await page.mouse.move(restoredFrame.x + restoredFrame.width * 0.55, restoredFrame.y + restoredFrame.height * 0.85, { steps: 8 });
+  await page.mouse.up();
+  await imageMenu.click();
+  await page.getByRole('menuitem', { name: 'Crop', exact: true }).click();
+  await dismissOpenMenu();
+  let selectionCropped = await driver.queryDocument(documentId);
+  for (let attempt = 0; attempt < 80 && selectionCropped?.history.undoDepth !== 1; attempt += 1) {
+    await page.waitForTimeout(25);
+    selectionCropped = await driver.queryDocument(documentId);
+  }
+  if (!selectionCropped?.canvas || selectionCropped.canvas.width >= before.canvas.width
+    || selectionCropped.canvas.height >= before.canvas.height
+    || await cropFrame.count()) {
+    throw new Error(`Crop did not immediately use active selection bounds: ${JSON.stringify({ before, selectionCropped })}`);
+  }
+  await driver.execute(documentId, 'history.undo', {});
+  await page.keyboard.press('Control+d');
   const layersBeforeFixed = await driver.queryLayers(documentId);
   await page.locator('.shots-app-menu__button').filter({ hasText: /^Edit$/ }).click();
   await page.getByRole('menuitem', { name: 'Transform', exact: true }).hover();
@@ -109,7 +163,7 @@ try {
   }
   if (errors.length) throw new Error(`Renderer errors: ${JSON.stringify(errors)}`);
   await page.screenshot({ path: path.join(output, 'document-geometry.png') });
-  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ before, expanded, rotated, restored, cropped, cropUndone,
+  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ before, expanded, rotated, restored, cropped, cropUndone, selectionCropped,
     fixed, layersBeforeFixed, layersAfterFixed, layersFixedUndone, arbitrary, arbitraryUndone, errors }, null, 2)}\n`);
   process.stdout.write(`Desktop document geometry smoke passed. Report: ${path.join(output, 'report.json')}\n`);
 } finally { await app.close().catch(() => {}); }

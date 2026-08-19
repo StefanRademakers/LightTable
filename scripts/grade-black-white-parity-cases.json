@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "section": "black-white",
-  "cameraRawDescriptorStatus": "candidate-unverified-automation-blocked",
+  "cameraRawDescriptorStatus": "char-ids-recovered-pixel-probe-required",
   "groupLabel": "Black & White Mix",
   "analysisMinimumCameraRawMagnitude": 0.002,
   "cameraRawPrerequisites": [
     {
-      "descriptor": "ConvertToGrayscale",
-      "descriptorType": "string",
+      "descriptor": "CtoG",
+      "descriptorType": "char",
       "valueType": "boolean",
       "value": true
     }
@@ -25,8 +25,8 @@
       "label": "Red",
       "sliderLabel": "Reds",
       "blackWhiteRangeIndex": 0,
-      "cameraRawDescriptor": "GrayMixerRed",
-      "cameraRawDescriptorType": "string",
+      "cameraRawDescriptor": "GM_R",
+      "cameraRawDescriptorType": "char",
       "cameraRawValueType": "integer",
       "values": [-100, -80, -50, 50, 80, 100]
     },
@@ -35,8 +35,8 @@
       "label": "Orange",
       "sliderLabel": "Oranges",
       "blackWhiteRangeIndex": 1,
-      "cameraRawDescriptor": "GrayMixerOrange",
-      "cameraRawDescriptorType": "string",
+      "cameraRawDescriptor": "GM_O",
+      "cameraRawDescriptorType": "char",
       "cameraRawValueType": "integer",
       "values": [-100, -80, -50, 50, 80, 100]
     },
@@ -45,8 +45,8 @@
       "label": "Yellow",
       "sliderLabel": "Yellows",
       "blackWhiteRangeIndex": 2,
-      "cameraRawDescriptor": "GrayMixerYellow",
-      "cameraRawDescriptorType": "string",
+      "cameraRawDescriptor": "GM_Y",
+      "cameraRawDescriptorType": "char",
       "cameraRawValueType": "integer",
       "values": [-100, -80, -50, 50, 80, 100]
     },
@@ -55,8 +55,8 @@
       "label": "Green",
       "sliderLabel": "Greens",
       "blackWhiteRangeIndex": 3,
-      "cameraRawDescriptor": "GrayMixerGreen",
-      "cameraRawDescriptorType": "string",
+      "cameraRawDescriptor": "GM_G",
+      "cameraRawDescriptorType": "char",
       "cameraRawValueType": "integer",
       "values": [-100, -80, -50, 50, 80, 100]
     },
@@ -65,8 +65,8 @@
       "label": "Aqua",
       "sliderLabel": "Aquas",
       "blackWhiteRangeIndex": 4,
-      "cameraRawDescriptor": "GrayMixerAqua",
-      "cameraRawDescriptorType": "string",
+      "cameraRawDescriptor": "GM_A",
+      "cameraRawDescriptorType": "char",
       "cameraRawValueType": "integer",
       "values": [-100, -80, -50, 50, 80, 100]
     },
@@ -75,8 +75,8 @@
       "label": "Blue",
       "sliderLabel": "Blues",
       "blackWhiteRangeIndex": 5,
-      "cameraRawDescriptor": "GrayMixerBlue",
-      "cameraRawDescriptorType": "string",
+      "cameraRawDescriptor": "GM_B",
+      "cameraRawDescriptorType": "char",
       "cameraRawValueType": "integer",
       "values": [-100, -80, -50, 50, 80, 100]
     },
@@ -85,8 +85,8 @@
       "label": "Purple",
       "sliderLabel": "Purples",
       "blackWhiteRangeIndex": 6,
-      "cameraRawDescriptor": "GrayMixerPurple",
-      "cameraRawDescriptorType": "string",
+      "cameraRawDescriptor": "GM_P",
+      "cameraRawDescriptorType": "char",
       "cameraRawValueType": "integer",
       "values": [-100, -80, -50, 50, 80, 100]
     },
@@ -95,8 +95,8 @@
       "label": "Magenta",
       "sliderLabel": "Magentas",
       "blackWhiteRangeIndex": 7,
-      "cameraRawDescriptor": "GrayMixerMagenta",
-      "cameraRawDescriptorType": "string",
+      "cameraRawDescriptor": "GM_M",
+      "cameraRawDescriptorType": "char",
       "cameraRawValueType": "integer",
       "values": [-100, -80, -50, 50, 80, 100]
     }

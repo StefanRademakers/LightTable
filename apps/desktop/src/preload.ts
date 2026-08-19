@@ -33,6 +33,7 @@ const bridge: LightTableDesktopBridge = {
   clearRecentProjects: () => ipcRenderer.invoke('lighttable:project-clear-recent'),
   setFullscreen: (enabled: boolean) =>
     ipcRenderer.invoke('lighttable:set-fullscreen', enabled),
+  closeApplication: () => ipcRenderer.invoke('lighttable:close-application'),
   onFullscreenChange: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, enabled: boolean) => listener(enabled);
     ipcRenderer.on('lighttable:fullscreen-changed', handler);

@@ -1,0 +1,72 @@
+<div id="cv-response-analysis">
+  <div class="cv-section">
+    <h3>Gemeten hue-respons bij middelmatige verzadiging</h3>
+    <svg id="cv-hue-chart" role="img" aria-label="Gemeten chromaversterking per kleurhoek voor Photoshop Color and Vibrance Vibrance plus 100 en Saturation plus 100"></svg>
+  </div>
+  <div class="cv-section">
+    <h3>Vibrance is een familie van verzadigingscurves</h3>
+    <svg id="cv-saturation-chart" role="img" aria-label="Gemeten chromaversterking van Vibrance plus 100 bij vijf kleurhoeken en oplopende invoerverzadiging"></svg>
+  </div>
+  <div class="cv-section">
+    <h3>Temperature en Tint op een neutrale grijsramp</h3>
+    <div class="cv-two">
+      <svg id="cv-temp-chart" role="img" aria-label="RGB-uitvoer voor Temperature plus 100 op een neutrale invoerramp"></svg>
+      <svg id="cv-tint-chart" role="img" aria-label="RGB-uitvoer voor Tint plus 100 op een neutrale invoerramp"></svg>
+    </div>
+  </div>
+</div>
+<style>
+  #cv-response-analysis { color: var(--foreground); display: grid; gap: 24px; width: 100%; }
+  #cv-response-analysis .cv-section { min-width: 0; }
+  #cv-response-analysis h3 { margin: 0 0 8px; font-weight: 500; }
+  #cv-response-analysis svg { display: block; width: 100%; height: auto; overflow: visible; }
+  #cv-response-analysis .cv-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  #cv-response-analysis .axis, #cv-response-analysis .grid { stroke: var(--border); vector-effect: non-scaling-stroke; }
+  #cv-response-analysis .grid { opacity: .65; }
+  #cv-response-analysis text { fill: var(--muted-foreground); font-size: 11px; }
+  #cv-response-analysis .label { fill: var(--foreground); font-weight: 500; }
+  #cv-response-analysis .skin-band { fill: var(--accent); opacity: .35; }
+  #cv-response-analysis .line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+  #cv-response-analysis .dot { stroke: var(--background); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  @media (max-width: 560px) { #cv-response-analysis .cv-two { grid-template-columns: 1fr; } }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('cv-response-analysis');
+  const ns = 'http://www.w3.org/2000/svg';
+  const hueRows = [{"h":0,"v":1.3875,"s":1.7233},{"h":10,"v":1.3816,"s":1.7268},{"h":20,"v":1.4177,"s":1.6925},{"h":30,"v":1.5208,"s":1.6191},{"h":40,"v":1.5112,"s":1.5025},{"h":50,"v":1.4388,"s":1.4029},{"h":60,"v":1.3676,"s":1.361},{"h":70,"v":1.3929,"s":1.428},{"h":80,"v":1.4219,"s":1.5019},{"h":90,"v":1.4493,"s":1.5794},{"h":100,"v":1.4806,"s":1.5789},{"h":110,"v":1.4896,"s":1.5107},{"h":120,"v":1.4232,"s":1.4433},{"h":130,"v":1.5709,"s":1.5905},{"h":140,"v":1.7282,"s":1.7652},{"h":150,"v":1.7025,"s":1.7689},{"h":160,"v":1.5743,"s":1.5753},{"h":170,"v":1.4247,"s":1.4299},{"h":180,"v":1.3238,"s":1.3515},{"h":190,"v":1.3941,"s":1.4398},{"h":200,"v":1.5926,"s":1.5537},{"h":210,"v":1.7724,"s":1.5794},{"h":220,"v":1.8415,"s":1.5152},{"h":230,"v":1.8314,"s":1.4296},{"h":240,"v":1.6128,"s":1.386},{"h":250,"v":1.5778,"s":1.3947},{"h":260,"v":1.546,"s":1.4286},{"h":270,"v":1.5361,"s":1.4762},{"h":280,"v":1.5216,"s":1.5338},{"h":290,"v":1.4988,"s":1.5868},{"h":300,"v":1.4659,"s":1.5707},{"h":310,"v":1.539,"s":1.6345},{"h":320,"v":1.5906,"s":1.685},{"h":330,"v":1.6136,"s":1.7184},{"h":340,"v":1.5892,"s":1.7242},{"h":350,"v":1.4738,"s":1.7163},{"h":360,"v":1.3875,"s":1.7233}];
+  const curveRows = {"20":[[0.1,2.1354],[0.2,1.8043],[0.3,1.6032],[0.4,1.5444],[0.5,1.448],[0.6,1.3753],[0.7,1.283],[0.8,1.1939],[0.9,1.1205]],"40":[[0.1,2.5303],[0.2,2.4161],[0.3,2.144],[0.4,1.9686],[0.5,1.6455],[0.6,1.4015],[0.7,1.2362],[0.8,1.1324],[0.9,1.0731]],"140":[[0.1,2.7473],[0.2,2.7417],[0.3,2.4125],[0.4,2.0704],[0.5,1.8266],[0.6,1.6267],[0.7,1.4477],[0.8,1.3179],[0.9,1.2243]],"220":[[0.1,2.7605],[0.2,2.814],[0.3,2.6263],[0.4,2.2309],[0.5,1.9475],[0.6,1.7528],[0.7,1.6043],[0.8,1.4904],[0.9,1.3618]],"310":[[0.1,2.5231],[0.2,2.5655],[0.3,2.3737],[0.4,2.0795],[0.5,1.685],[0.6,1.4201],[0.7,1.2467],[0.8,1.1384],[0.9,1.0747]]};
+  const ramps = {temp:[[0,0,0,0],[16,47,34,11],[32,87,65,22],[48,120,91,35],[64,152,116,49],[80,181,139,64],[96,204,159,81],[112,222,176,98],[128,235,189,117],[143,244,200,134],[159,252,211,152],[175,255,220,169],[191,255,229,186],[207,255,236,203],[223,255,243,221],[239,255,250,240],[255,255,255,255]],tint:[[0,0,0,0],[16,25,13,41],[32,48,25,78],[48,69,40,108],[64,90,55,137],[80,109,71,163],[96,127,88,185],[112,144,106,202],[128,159,124,215],[143,172,141,225],[159,185,158,234],[175,197,174,241],[191,209,191,246],[207,221,206,251],[223,233,222,254],[239,245,239,255],[255,255,255,255]]};
+  const make = (tag, attrs = {}, text = '') => { const el = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k, v)); if (text) el.textContent = text; return el; };
+  const setup = (id, width, height) => { const svg = root.querySelector(id); svg.setAttribute('viewBox', `0 0 ${width} ${height}`); return svg; };
+  const axes = (svg, box, xTicks, yTicks, xMap, yMap, xSuffix = '', ySuffix = '') => {
+    yTicks.forEach(v => { const y=yMap(v); svg.append(make('line',{x1:box.l,y1:y,x2:box.r,y2:y,class:'grid'})); svg.append(make('text',{x:box.l-8,y:y+4,'text-anchor':'end'},`${v}${ySuffix}`)); });
+    xTicks.forEach(v => { const x=xMap(v); svg.append(make('line',{x1:x,y1:box.t,x2:x,y2:box.b,class:'grid'})); svg.append(make('text',{x,y:box.b+18,'text-anchor':'middle'},`${v}${xSuffix}`)); });
+    svg.append(make('line',{x1:box.l,y1:box.b,x2:box.r,y2:box.b,class:'axis'})); svg.append(make('line',{x1:box.l,y1:box.t,x2:box.l,y2:box.b,class:'axis'}));
+  };
+  const path = (rows, x, y) => rows.map((d,i)=>`${i?'L':'M'}${x(d[0]).toFixed(1)},${y(d[1]).toFixed(1)}`).join(' ');
+  {
+    const svg=setup('#cv-hue-chart',700,270),b={l:48,r:680,t:18,b:218},x=v=>b.l+(v/360)*(b.r-b.l),y=v=>b.b-((v-1.2)/.75)*(b.b-b.t);
+    svg.append(make('rect',{x:x(0),y:b.t,width:x(50)-x(0),height:b.b-b.t,class:'skin-band'}));
+    svg.append(make('rect',{x:x(330),y:b.t,width:x(360)-x(330),height:b.b-b.t,class:'skin-band'}));
+    axes(svg,b,[0,60,120,180,240,300,360],[1.2,1.4,1.6,1.8],x,y,'°','×');
+    [['v','Vibrance +100','var(--viz-series-1)'],['s','Saturation +100','var(--viz-series-2)']].forEach(([key,label,color],i)=>{ const rows=hueRows.map(d=>[d.h,d[key]]); svg.append(make('path',{d:path(rows,x,y),class:'line',stroke:color})); svg.append(make('text',{x:b.l+8,y:b.t+16+i*17,class:'label',fill:color},label)); });
+    svg.append(make('text',{x:x(22),y:b.t+16,'text-anchor':'middle'},'huidkleurgebied')); svg.append(make('text',{x:(b.l+b.r)/2,y:260,'text-anchor':'middle'},'HSV-kleurhoek van de invoer')); svg.append(make('text',{x:14,y:(b.t+b.b)/2,transform:`rotate(-90 14 ${(b.t+b.b)/2})`,'text-anchor':'middle'},'OKLab-chromamultiplier'));
+  }
+  {
+    const svg=setup('#cv-saturation-chart',700,285),b={l:48,r:680,t:18,b:230},x=v=>b.l+((v-.1)/.8)*(b.r-b.l),y=v=>b.b-((v-1)/2)*(b.b-b.t);
+    axes(svg,b,[.1,.3,.5,.7,.9],[1,1.5,2,2.5,3],x,y,'','×');
+    const series=[['20','20° huid/oranje','var(--viz-series-1)'],['40','40° warm','var(--viz-series-2)'],['140','140° groen','var(--viz-series-3)'],['220','220° blauw','var(--viz-series-4)'],['310','310° magenta','var(--viz-series-5)']];
+    series.forEach(([key,label,color],i)=>{ svg.append(make('path',{d:path(curveRows[key],x,y),class:'line',stroke:color})); const last=curveRows[key][8]; svg.append(make('text',{x:x(last[0])-2,y:y(last[1])+i*11-18,'text-anchor':'end',class:'label',fill:color},label)); });
+    svg.append(make('text',{x:(b.l+b.r)/2,y:275,'text-anchor':'middle'},'HSV-invoerverzadiging')); svg.append(make('text',{x:14,y:(b.t+b.b)/2,transform:`rotate(-90 14 ${(b.t+b.b)/2})`,'text-anchor':'middle'},'OKLab-chromamultiplier'));
+  }
+  const rampChart = (id, rows, label) => {
+    const svg=setup(id,340,300),b={l:42,r:326,t:24,b:250},x=v=>b.l+v/255*(b.r-b.l),y=v=>b.b-v/255*(b.b-b.t);
+    axes(svg,b,[0,64,128,192,255],[0,64,128,192,255],x,y);
+    [[1,'R','var(--viz-series-1)'],[2,'G','var(--viz-series-3)'],[3,'B','var(--viz-series-4)']].forEach(([c,name,color],i)=>{ svg.append(make('path',{d:path(rows.map(r=>[r[0],r[c]]),x,y),class:'line',stroke:color})); svg.append(make('text',{x:b.l+10+i*22,y:b.t+15,class:'label',fill:color},name)); });
+    svg.append(make('path',{d:`M${x(0)},${y(0)}L${x(255)},${y(255)}`,class:'line',stroke:'var(--muted-foreground)','stroke-dasharray':'4 4'}));
+    svg.append(make('text',{x:(b.l+b.r)/2,y:292,'text-anchor':'middle'},'neutrale invoercode')); svg.append(make('text',{x:8,y:(b.t+b.b)/2,transform:`rotate(-90 8 ${(b.t+b.b)/2})`,'text-anchor':'middle'},'uitvoercode')); svg.append(make('text',{x:b.l,y:14,class:'label'},label));
+  };
+  rampChart('#cv-temp-chart',ramps.temp,'Temperature +100'); rampChart('#cv-tint-chart',ramps.tint,'Tint +100');
+})();
+</script>
