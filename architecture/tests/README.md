@@ -33,10 +33,19 @@ The parity profile requires the local Photoshop oracle corpora. Override them
 with `--effects-root`, `--blend-root`, and the numeric blend gate with
 `--max-rmse`. A missing oracle is a failure, never a silent skip.
 
-The quick/full profiles also run the source-structure ratchet. Known large
-integration modules have explicit ceilings; new production files above 1,000
-lines and growth above those ceilings fail. Lower exceptions after extraction;
-never raise them simply to admit more behavior.
+The quick/full profiles also run the ownership-aware source-structure audit.
+The 1,000-line signal triggers a required human-readable ownership review; it
+is not a success target. Reviews distinguish mixed authority from cohesive
+heavy systems and record responsibilities, fan-out, lifecycle ownership,
+product risk and the extraction decision. Material growth reopens that review.
+Generated sources require an exact marker, generator, byte/hash accountability
+and load-boundary reason rather than polluting the handwritten ranking.
+
+After the production web build, the delivery audit records raw, gzip and Brotli
+cost for initial JavaScript/CSS and every heavyweight lazy asset, with the user
+flow that owns it. Its current budget is a regression band around a dated
+measured baseline and the named startup goal; passing it does not mean the
+current 11 MB-class entry payload is good enough.
 
 ## Test-writing contract
 

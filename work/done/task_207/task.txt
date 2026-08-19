@@ -39,3 +39,36 @@ Definition of done
 Generated data no longer corrupts handwritten complexity signals, delivery cost
 and ownership concentration are reported in product terms, relevant script
 tests pass and the task moves to `work/done` with its implementation.
+
+Completion evidence (2026-08-19)
+================================
+
+- Replaced line-cap exceptions with ownership reviews. Eighteen current
+  hotspots now record mixed-authority versus cohesive-heavy classification,
+  responsibility groups, import fan-out, lifecycle owners, product risk and a
+  concrete extraction/retention decision. Size triggers review; material growth
+  reopens it, but fewer lines alone cannot satisfy the policy.
+- Classified the 68,191-line Color/Vibrance LUT only by exact path, exact
+  generated marker and verified generator. It is removed from handwritten
+  rankings while retaining 8,591,289 bytes, SHA-256, gzip/Brotli cost, initial
+  load boundary and its Grade user-flow reason in the report.
+- Added a production web-delivery audit. The fresh build measures 11,222,464
+  raw bytes initial JavaScript (4,302,331 Brotli-q6 in the preceding measured
+  run) and 302,244 raw bytes initial CSS. Heavy Wasm/model/worker assets map to
+  explicit lazy user flows; an unknown heavy asset or a feature-only asset that
+  becomes initial fails the audit.
+- The delivery regression band is based on that dated build and a named startup
+  goal. Documentation explicitly says passing is not evidence that the current
+  11 MB-class entry is optimal.
+- The quick/full quality profile now runs delivery analysis after the production
+  web build, and structural policy tests are part of the root unit suite.
+
+Verification
+============
+
+- `npm run audit:source-structure`
+- `npm run audit:architecture-docs`
+- `npm run test:structural-audit-policy` (2 tests)
+- `npm run build:web`
+- `npm run audit:web-delivery`
+- `node --check` for all three changed audit scripts

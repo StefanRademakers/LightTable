@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-08-19",
+  "startupGoal": "Opening the editor shell must not fetch feature-only ML models, vision runtimes, image codecs or format workers before the user invokes those flows.",
+  "baseline": {
+    "initialJavaScriptRawBytes": 11222464,
+    "initialCssRawBytes": 302244
+  },
+  "maximumRegressionRatio": 1.05,
+  "heavyAssetThresholdBytes": 100000,
+  "assetRules": [
+    { "pattern": "^index-.*\\.js$", "loadBoundary": "initial", "userFlow": "editor shell and core editing, including calibrated Grade data" },
+    { "pattern": "^index-.*\\.css$", "loadBoundary": "initial", "userFlow": "editor shell and all current panel/tool styling" },
+    { "pattern": "^ort-wasm-.*\\.wasm$", "loadBoundary": "lazy", "userFlow": "local AI model inference" },
+    { "pattern": "^vision_wasm_module_internal-.*\\.(?:wasm|js)$", "loadBoundary": "lazy", "userFlow": "Face Warp landmark analysis" },
+    { "pattern": "^face_landmarker-.*\\.task$", "loadBoundary": "lazy", "userFlow": "Face Warp landmark analysis" },
+    { "pattern": "^blaze_face_.*\\.tflite$", "loadBoundary": "lazy", "userFlow": "Face Warp face detection" },
+    { "pattern": "^faceWarpDetector\\.worker-.*\\.js$", "loadBoundary": "lazy", "userFlow": "Face Warp detection worker" },
+    { "pattern": "^text_layout_wasm_bg-.*\\.wasm$", "loadBoundary": "lazy", "userFlow": "editable multilingual text shaping" },
+    { "pattern": "^harfbuzz-subset-.*\\.wasm$", "loadBoundary": "lazy", "userFlow": "font subsetting for editable text export" },
+    { "pattern": "^(?:vips-|wasmVips\\.worker-|vips-es6-).*$", "loadBoundary": "lazy", "userFlow": "high-fidelity image decode and processing" },
+    { "pattern": "^(?:pdf\\.worker\\.min-|pdf-|es-).*(?:\\.js|\\.mjs)$", "loadBoundary": "lazy", "userFlow": "PDF import and document mapping" },
+    { "pattern": "^slimSam\\.worker-.*\\.js$", "loadBoundary": "lazy", "userFlow": "object selection" },
+    { "pattern": "^depthWorker-.*\\.js$", "loadBoundary": "lazy", "userFlow": "depth-aware editing" },
+    { "pattern": "^backgroundRemoval\\.worker-.*\\.js$", "loadBoundary": "lazy", "userFlow": "background removal" },
+    { "pattern": "^psd(?:Export)?\\.worker-.*\\.js$", "loadBoundary": "lazy", "userFlow": "PSD import or export" },
+    { "pattern": "^woff2-decode-.*\\.js$", "loadBoundary": "lazy", "userFlow": "font inspection and recovery" }
+  ]
+}

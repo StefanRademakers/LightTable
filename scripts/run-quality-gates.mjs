@@ -32,6 +32,7 @@ if (profile === 'quick' || profile === 'full') {
   addNpm('typecheck', ['run', 'typecheck']);
   addNpm('unit-tests', ['test']);
   addNpm('web-production-build', ['run', 'build:web']);
+  addNpm('web-delivery', ['run', 'audit:web-delivery']);
 }
 
 if (profile === 'desktop' || profile === 'full') {

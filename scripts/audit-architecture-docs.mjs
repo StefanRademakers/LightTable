@@ -37,16 +37,17 @@ for (const file of markdownFiles) {
 
 const baselinePath = path.join(architectureRoot, 'tests', 'source-structure-baseline.json');
 const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
-for (const [sourcePath, maximum] of Object.entries(baseline.allowedLargeFiles)) {
+if (baseline.schemaVersion !== 2 || !baseline.generatedFiles || !baseline.reviewedHotspots) {
+  failures.push('source-structure baseline is not the ownership-aware schema v2');
+}
+for (const sourcePath of [
+  ...Object.keys(baseline.generatedFiles ?? {}),
+  ...Object.keys(baseline.reviewedHotspots ?? {})
+]) {
   const absolute = path.join(workspace, sourcePath);
   const source = await readFile(absolute, 'utf8').catch(() => null);
   if (source === null) {
     failures.push(`source-structure baseline references missing ${sourcePath}`);
-    continue;
-  }
-  const lines = source.split(/\r?\n/u).length;
-  if (lines > maximum) {
-    failures.push(`${sourcePath} has ${lines} lines, above documented cap ${maximum}`);
   }
 }
 

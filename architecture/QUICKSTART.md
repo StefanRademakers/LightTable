@@ -501,11 +501,11 @@ be proven by at least two consumers and likely separates:
 The current large `LightTableEditorOverlay`, `LayerDocumentRenderer` and
 `WebGpuEngine` façades are the main warning signs. Extract cohesive owners;
 do not replace them with a vague universal manager or a premature public SDK.
-The architecture audit currently flags `LightTableEditorOverlay.tsx`,
-`WebGpuEngine.ts`, `layerShaders.ts`, `documentCommands.ts`,
-`layeredDocumentFormat.ts`, `LayerPanel.tsx` and `shaders.ts` above their
-documented source-size budgets. These are ownership signals, not an invitation
-to raise the budgets or perform cosmetic file splitting.
+The ownership-aware source audit distinguishes mixed-authority hotspots such
+as `LightTableEditorOverlay.tsx`, `WebGpuEngine.ts`, desktop `main.ts` and
+`LayerPanel.tsx` from cohesive-heavy shader, persistence and format owners.
+Size triggers review and material growth reopens it; a lower line count is not
+proof of better architecture.
 
 ## Semantic commands, stable IDs and external control
 
