@@ -608,6 +608,11 @@
   align-items: stretch;
 }
 
+.lighttable__app-menu--open {
+  position: relative;
+  z-index: 2001;
+}
+
 .lighttable__project-name {
   align-self: center;
   margin-left: 8px;
@@ -3172,6 +3177,20 @@
   width: 26px;
   height: 26px;
   flex: 0 0 26px;
+}
+
+/* Desktop menu-bar menus share the denser rhythm of the layer-creation flyout. */
+.lighttable-editor-menu {
+  gap: 1px;
+  padding: var(--lt-menu-padding);
+}
+
+.lighttable-editor-menu .context-menu__item {
+  height: var(--lt-control-height);
+}
+
+.lighttable-editor-menu .context-menu__separator {
+  margin-block: 3px 1px;
 }
 
 .lighttable-layers__create-flyout {

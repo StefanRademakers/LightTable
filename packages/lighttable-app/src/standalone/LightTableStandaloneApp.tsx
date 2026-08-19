@@ -741,6 +741,14 @@ export function LightTableStandaloneApp({
     });
   }, [closeWorkspaceDocument, documents, host]);
 
+  const exitApplication = useCallback(async () => {
+    if (!host.closeApplication) return;
+    for (const document of documents) {
+      if (document.dirty && !await host.confirmDiscardChanges(document.title)) return;
+    }
+    await host.closeApplication();
+  }, [documents, host]);
+
   const browseProjectImport = useCallback(async () => {
     const file = await host.openFile?.();
     if (file) await importProjectFiles([file]);
@@ -961,6 +969,7 @@ export function LightTableStandaloneApp({
             void host.projects?.close();
             setActiveProject(null);
           }}
+          onExitApplication={host.closeApplication ? () => { void exitApplication(); } : undefined}
           onRevealProject={() => {
             if (activeProject) void host.projects?.reveal(activeProject);
           }}

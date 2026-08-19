@@ -73,7 +73,7 @@ export const EditorMenuBar = ({
   return (
     <>
       <div
-        className="shots-app-menu lighttable__app-menu"
+        className={`shots-app-menu lighttable__app-menu${openMenu ? ' lighttable__app-menu--open' : ''}`}
         role="menubar"
         aria-label="LightTable menu"
       >
@@ -89,6 +89,9 @@ export const EditorMenuBar = ({
             aria-expanded={openMenu?.id === id}
             onClick={(event) => {
               openFromButton(id, event.currentTarget);
+            }}
+            onPointerEnter={(event) => {
+              if (openMenu && openMenu.id !== id) openFromButton(id, event.currentTarget);
             }}
             onKeyDown={(event) => {
               if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
@@ -132,6 +135,7 @@ export const EditorMenuBar = ({
         y={openMenu?.y ?? 0}
         onClose={() => setOpenMenu(null)}
         options={options}
+        className="lighttable-editor-menu"
       />
     </>
   );

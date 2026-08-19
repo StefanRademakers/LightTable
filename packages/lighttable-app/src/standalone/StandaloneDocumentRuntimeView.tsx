@@ -56,6 +56,7 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly onOpenRecentProject: (recentId: string) => void;
   readonly onClearRecentProjects: () => void;
   readonly onCloseProject: () => void;
+  readonly onExitApplication?: () => void;
   readonly onRevealProject: () => void;
   readonly onRequestNew: () => void;
   readonly onStartGuidedSample?: () => void;
@@ -101,6 +102,7 @@ export function StandaloneDocumentRuntimeView({
   onOpenRecentProject,
   onClearRecentProjects,
   onCloseProject,
+  onExitApplication,
   onRevealProject,
   onRequestNew,
   onStartGuidedSample,
@@ -214,6 +216,7 @@ export function StandaloneDocumentRuntimeView({
         onOpenRecentProject={onOpenRecentProject}
         onClearRecentProjects={onClearRecentProjects}
         onCloseProject={onCloseProject}
+        onExitApplication={onExitApplication}
         onRevealProject={onRevealProject}
         onRequestNewWorkspaceDocument={onRequestNew}
         onStartGuidedSample={onStartGuidedSample}

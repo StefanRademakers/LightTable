@@ -232,9 +232,13 @@ describe('createEditorMenuOptions', () => {
       { label: 'Open Recent', shortcut: undefined },
       { label: 'Saving...', shortcut: 'Ctrl+S' },
       { label: 'Export PNG', shortcut: 'Ctrl+Shift+S' },
-      { label: 'Export', shortcut: undefined }
+      { label: 'Export', shortcut: undefined },
+      { label: 'Exit', shortcut: undefined }
     ]);
-    expect(options.filter(({ value }) => value !== 'export').every((option) => option.disabled)).toBe(true);
+    expect(options.filter(({ value }) => value !== 'export' && value !== 'exit-application')
+      .every((option) => option.disabled)).toBe(true);
+    expect(options.find(({ value }) => value === 'exit-application'))
+      .toMatchObject({ label: 'Exit', separatorBefore: true, disabled: false });
     expect(options.find(({ value }) => value === 'export')?.children?.slice(0, 3)
       .every((option) => option.disabled)).toBe(true);
     expect(options.find(({ value }) => value === 'export')?.children?.at(-1)?.disabled).not.toBe(true);
@@ -294,10 +298,11 @@ describe('createEditorMenuOptions', () => {
     expect(options.map(({ value }) => value)).toEqual([
       'new-document', 'open-image', 'place-image', 'open-recent',
       'save-corrected', 'export-png', 'export',
-      'new-project', 'open-project', 'open-recent-project', 'close-project'
+      'new-project', 'open-project', 'open-recent-project', 'close-project',
+      'exit-application'
     ]);
     expect(options.filter(({ separatorBefore }) => separatorBefore).map(({ value }) => value))
-      .toEqual(['export-png', 'new-project']);
+      .toEqual(['export-png', 'new-project', 'exit-application']);
     expect(options.find(({ value }) => value === 'close-project')?.label).toBe('Close Project (Campaign)');
     options.find(({ value }) => value === 'open-recent-project')?.children?.[0]?.onClick?.();
     expect(menuCommands.openRecentProject).toHaveBeenCalledWith('recent-project-1');
@@ -358,6 +363,17 @@ describe('createEditorMenuOptions', () => {
     expect(values.indexOf('copy-merged-content')).toBeLessThan(values.indexOf('paste-selected-content'));
     expect(values.indexOf('copy-grade')).toBeLessThan(values.indexOf('paste-grade'));
     expect(options.find(({ value }) => value === 'copy-grade')?.separatorBefore).toBe(true);
+    expect(values).toEqual([
+      'copy-selected-content',
+      'copy-merged-content',
+      'paste-selected-content',
+      'copy-grade',
+      'paste-grade',
+      'edit-transform',
+      'assign-profile',
+      'convert-profile',
+      'settings'
+    ]);
   });
 
   it('guards invalid layer operations and forwards valid blend commands', () => {
@@ -394,6 +410,14 @@ describe('createEditorMenuOptions', () => {
       'flatten-group',
       'flatten-image'
     ]);
+    expect(options.find(({ value }) => value === 'layer-new')?.children?.map(({ value }) => value))
+      .toEqual(['new-layer', 'layer-via-copy']);
+    expect(options.find(({ value }) => value === 'layer-delete')?.children?.map(({ value }) => value))
+      .toEqual(['delete-layer']);
+    expect(options.find(({ value }) => value === 'layer-mask')?.children?.map(({ value }) => value))
+      .toEqual(['add-mask', 'edit-layer-mask', 'toggle-mask', 'remove-mask']);
+    expect(options.find(({ value }) => value === 'arrange')?.children?.map(({ value }) => value))
+      .toEqual(['move-up', 'move-down']);
   });
 
   it('offers apply/cancel commands only while auto-align has a preview', () => {

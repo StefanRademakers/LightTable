@@ -461,6 +461,7 @@ export interface LightTableEditorOverlayProps {
   onOpenRecentProject?: (recentId: string) => void;
   onClearRecentProjects?: () => void;
   onCloseProject?: () => void;
+  onExitApplication?: () => void;
   onRevealProject?: () => void;
   onOpenWorkspaceDocument?: (file: File, decodeMode: DocumentOpenMode) => void;
   onDocumentReady?: () => void;
@@ -532,6 +533,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   onOpenRecentProject,
   onClearRecentProjects,
   onCloseProject,
+  onExitApplication,
   onRevealProject,
   onOpenWorkspaceDocument,
   onDocumentReady,
@@ -5063,6 +5065,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       openRecentProject: (recentId) => onOpenRecentProject?.(recentId),
       clearRecentProjects: () => onClearRecentProjects?.(),
       closeProject: () => onCloseProject?.(),
+      exitApplication: onExitApplication,
       save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
       exportJpeg: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportJpeg(); },
