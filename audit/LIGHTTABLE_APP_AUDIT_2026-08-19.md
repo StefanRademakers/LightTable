@@ -2,6 +2,81 @@
 
 > **Status:** niet-canonieke, onafhankelijke momentopname. Dit document staat bewust buiten `architecture/`. Het beschrijft wat tijdens deze audit aantoonbaar was, wat sterk wordt vermoed en wat nog door runtime- of gebruikersonderzoek bewezen moet worden.
 
+## Her-audit na de eerste verbeterslag
+
+> **Actuele bewijsstand:** commit `b14a68692d0732e684e4f6b92c7d46e809a6226f`,
+> nog steeds op een door ander actief werk vuile checkout. Waar deze sectie een
+> oorspronkelijke bevinding tegenspreekt, is deze sectie leidend. De oude tekst
+> blijft staan zodat zichtbaar is welk risico werkelijk is gesloten en welk
+> risico alleen beter is gemeten.
+
+De eerste verbeterslag heeft zes concrete problemen gesloten zonder de editor-
+of documentsemantiek te herschrijven:
+
+| Oorspronkelijke bevinding | Nieuwe staat | Bewijs |
+| --- | --- | --- |
+| R3, abort-listeners blijven na normale polls hangen | **Opgelost** | Een gedeelde delay ruimt timer en listener af bij resolve en abort; 250 normale rondes en cancelpaden zijn getest. |
+| R4, drie drijvende commandolijsten | **Opgelost voor de actuele exposure** | Een machineleesbare commandocatalogus genereert runtimeprofielen en types; desktop en externe MCP valideren dezelfde profielen en contracttests bewaken subsetrelaties. |
+| Agent Access kan een door Fetch verboden ephemeral port publiceren | **Opgelost** | Automatische poortkeuze weigert zulke poorten, sluit de listener en probeert begrensd opnieuw; drie volledige desktoptestruns waren groen. |
+| R6, direct bereikbare `ws`-advisories | **Opgelost** | Beide tunnelconsumenten vereisen en gebruiken `ws@8.21.3`; reconnect-, auth-, hostile-message- en shutdowntests zijn groen. |
+| R1/R11, bron- en architectuur-audits werken niet als actuele gate | **Opgelost als meet- en driftgate** | Gegenereerde bron is apart accountable, 18 handgeschreven hotspots hebben ownership-/productrisicoreviews, docs worden tegen de workspace geverifieerd en allebei de gates zijn groen. Grote coordinatieknooppunten zijn daarmee gemeten, niet automatisch gezond verklaard. |
+| R10, `src/ui` importeert editorbusinesslogica | **Opgelost** | De anchor-picker bezit nu zijn eigen structurele waardencontract. UI-boundary en de actuele usage-inventory zijn groen zonder globale budgetverruiming. |
+
+### Wat de her-audit nu bewijst
+
+- Workspace-typecheck, alle workspace-tests, de webproductiebouw, de desktop-
+  packagebouw, distributiegrens en alle vier structurele audits slagen.
+- De productie-dependencyaudit ging van drie naar **twee high findings**: alleen
+  `@huggingface/transformers` en `sharp`, beide zonder beschikbare npm-fix.
+  Een verse Windows-package bevat **nul** `sharp`, `@img/sharp` of native
+  libvips-packageentries. Transformers draait in drie losse, lazy rendererworkers.
+  Dat verlaagt de bewezen shipped reachability sterk, maar de installgraph blijft
+  bewust rood totdat upstream of een andere dependencykeuze het oplost.
+- Het webdeliverybudget is nu reproduceerbaar en flow-aware. De actuele initiale
+  JavaScriptlast is 11.222.464 bytes raw, 4.759.276 gzip en 4.302.331 Brotli;
+  CSS is 302.244 bytes raw en 39.747 Brotli. Zware ML-, vision-, PSD-, PDF- en
+  text-assets zijn aantoonbaar lazy. De Color/Vibrance-data zit nog wel in de
+  initiale editorchunk en blijft het grootste concrete gebruikerskostenrisico.
+- De 68.191-regelige Color/Vibrance-LUT wordt niet langer als handgeschreven
+  spaghetti geteld. Hij heeft een bekende generator, exacte hash, byte- en
+  compressiemetingen en een benoemde laadgrens. Dat maakt de omvang verklaarbaar,
+  maar niet gratis: ongeveer 8,59 MB gegenereerde bron / 3,64 MB Brotli is nog
+  steeds een te grote verplichte bootstrapkost voor een specialistische flow.
+- De commandocatalogus legt expliciet vast dat **alle gebruikersfunctionaliteit
+  uiteindelijk agentbereikbaar** moet worden. De huidige Agent Access- en externe
+  MCP-profielen zijn een gecontroleerde tussenstand. Ontbrekende Face Warp- en
+  andere commando's zijn rolloutwerk, geen permanent ontwerpdoel.
+
+### Wat ik bewust niet heb "opgelost" met cosmetische refactors
+
+- `LightTableEditorOverlay`, `WebGpuEngine` en desktop `main.ts` blijven grote
+  coordinatieknooppunten. De structurele audit beoordeelt nu samenhang,
+  lifecycle-eigenaarschap, fan-out en productblast-radius in plaats van alleen
+  regelaantallen. Extractie is pas winst als een capability daarna zelfstandig
+  testbaar en owned is; bestandssplitsing zonder zo'n grens is geen vooruitgang.
+- De Color/Vibrance-LUT lazy maken verandert de synchrone GPU-resource-
+  initialisatie en paritykritische dataflow. Dat is waardevol vervolgwerk, maar
+  geen veilige opportunistische wijziging in deze vuile, actieve werkstaat.
+- Een echte twee-/twaalfuurs soak, integrated-GPU-/Apple-Siliconkwalificatie en
+  representatieve gebruikerstests zijn niet vervangen door meer unit tests.
+- Grade/Camera Raw, PSD-editability en taak 201 blijven actieve producttrajecten.
+  Hun lokale wijzigingen zijn niet door deze audit overgenomen of gecommit.
+
+### Commits van deze verbeterslag
+
+- `f7c4a602` - AI-pollinglisteners lifecycle-safe gemaakt.
+- `7d59c0dc` - canonieke, gegenereerde commandoprofielen ingevoerd.
+- `ac964f65` - onbruikbare automatische Agent Access-poorten voorkomen.
+- `bdaba9b1` - ownership- en webdeliveryrisico meetbaar gemaakt.
+- `6d031e52` - WebSocket-runtime naar de gepatchte lijn gebracht.
+- `b14a6869` - UI primitive-boundary en inventorygate hersteld.
+
+Mijn actuele conclusie is daardoor scherper dan de oorspronkelijke: de meest
+direct bereikbare lifecycle-, contract- en netwerkbreuken zijn gesloten en de
+kwaliteitsgates functioneren weer. Het resterende werk zit vooral in aantoonbare
+productkosten en releasebewijs: bootstrapgewicht, grote coordinatieblast-radii,
+hardware/soaks, interchangepariteit en de breedte van agentexposure.
+
 ## 1. Samenvatting in gewone mensentaal
 
 LightTable is geen prototype en ook geen verzameling losse Photoshop-knoppen. De app heeft een serieus, grotendeels coherent fundament voor een lokale professionele beeldeditor:
