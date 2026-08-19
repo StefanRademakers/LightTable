@@ -1,10 +1,11 @@
 import { GRADIENT_MAP_WGSL } from './gradientMapShader';
 import { ADJUSTMENTS_WGSL } from './adjustmentShaderLayout';
 import { POINT_COLOR_SELECTION_WGSL } from './pointColorSelection';
-import { PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES } from './photoshopColorVibranceLut.generated';
+import { COLOR_VIBRANCE_SKIN_MODEL } from './colorVibranceModel';
 import {
   PHOTOSHOP_BLEND_PROFILE_OFFSET,
   PHOTOSHOP_BRIGHTNESS_CONTRAST_LUT_OFFSET,
+  PHOTOSHOP_COLOR_VIBRANCE_OFFSET,
   PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET,
   PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET,
   PHOTOSHOP_LEVELS_CHANNELS_OFFSET,
@@ -24,6 +25,8 @@ const PHOTOSHOP_DOCUMENT_BIT_DEPTH_RELATIVE_OFFSET =
   PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 const PHOTOSHOP_VIBRANCE_RELATIVE_OFFSET =
   PHOTOSHOP_VIBRANCE_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
+const PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET =
+  PHOTOSHOP_COLOR_VIBRANCE_OFFSET - PHOTOSHOP_PAYLOAD_OFFSET;
 export const FULLSCREEN_VERTEX_WGSL = /* wgsl */ `
 struct VertexOutput {
   @builtin(position) position: vec4f,
@@ -447,8 +450,6 @@ ${POINT_COLOR_SELECTION_WGSL}
 @group(0) @binding(3) var<uniform> adjustments: Adjustments;
 @group(0) @binding(4) var curveLut: texture_2d<f32>;
 @group(0) @binding(5) var colorLookupLut: texture_3d<f32>;
-@group(0) @binding(6) var colorVibranceWhiteBalanceLut: texture_3d<f32>;
-@group(0) @binding(7) var colorVibranceColorLut: texture_3d<f32>;
 @group(0) @binding(8) var colorBalanceTransferLut: texture_2d<f32>;
 @group(0) @binding(9) var gradeLookLut: texture_3d<f32>;
 
@@ -482,6 +483,112 @@ fn oklabToLinearRgb(lab: vec3f) -> vec3f {
     vec3f(-3.3077115913, 2.6097574011, -0.7034186147),
     vec3f(0.2309699292, -0.3413193965, 1.7076147010)
   ) * lms;
+}
+
+fn colorVibranceLinearRgbToXyz(rgb: vec3f) -> vec3f {
+  return mat3x3f(
+    vec3f(0.4124564, 0.2126729, 0.0193339),
+    vec3f(0.3575761, 0.7151522, 0.1191920),
+    vec3f(0.1804375, 0.0721750, 0.9503041)
+  ) * rgb;
+}
+
+fn colorVibranceXyzToLinearRgb(xyz: vec3f) -> vec3f {
+  return mat3x3f(
+    vec3f(3.2404542, -0.9692660, 0.0556434),
+    vec3f(-1.5371385, 1.8760108, -0.2040259),
+    vec3f(-0.4985314, 0.0415560, 1.0572252)
+  ) * xyz;
+}
+
+fn colorVibranceTemperatureToCct(temperature: f32) -> f32 {
+  let d65Mired = 1000000.0 / 6504.0;
+  var targetMired = d65Mired;
+  if (temperature > 0.0) {
+    targetMired = mix(
+      d65Mired,
+      1000000.0 / 2500.0,
+      pow(clamp(temperature / 100.0, 0.0, 1.0), 1.08)
+    );
+  } else if (temperature < 0.0) {
+    targetMired = mix(
+      d65Mired,
+      1000000.0 / 20000.0,
+      pow(clamp(-temperature / 150.0, 0.0, 1.0), 1.08)
+    );
+  }
+  return 1000000.0 / targetMired;
+}
+
+fn colorVibranceCctToChromaticity(cct: f32) -> vec2f {
+  let t = clamp(cct, 1667.0, 25000.0);
+  var x = 0.0;
+  var y = 0.0;
+  if (t < 4000.0) {
+    x = ((-0.2661239e9 / t - 0.2343589e6) / t + 0.8776956e3) / t + 0.179910;
+    if (t <= 2222.0) {
+      y = ((-1.1063814 * x - 1.34811020) * x + 2.18555832) * x - 0.20219683;
+    } else {
+      y = ((-0.9549476 * x - 1.37418593) * x + 2.09137015) * x - 0.16748867;
+    }
+  } else {
+    if (t <= 7000.0) {
+      x = ((-4.6070e9 / t + 2.9678e6) / t + 0.09911e3) / t + 0.244063;
+    } else {
+      x = ((-2.0064e9 / t + 1.9018e6) / t + 0.24748e3) / t + 0.237040;
+    }
+    y = (-3.0 * x + 2.87) * x - 0.275;
+  }
+  return vec2f(x, y);
+}
+
+fn colorVibranceTintChromaticity(xy: vec2f, cct: f32, tint: f32) -> vec2f {
+  let x = xy.x;
+  var normalSlope = 0.0;
+  if (cct <= 2222.0) {
+    normalSlope = (-3.3191442 * x - 2.69622040) * x + 2.18555832;
+  } else if (cct <= 4000.0) {
+    normalSlope = (-2.8648428 * x - 2.74837186) * x + 2.09137015;
+  } else {
+    normalSlope = (9.2452740 * x - 11.7467734) * x + 3.75112997;
+  }
+  let normalLength = sqrt(1.0 + normalSlope * normalSlope);
+  let offset = clamp(tint / 100.0, -1.0, 1.0) * 0.035;
+  return vec2f(
+    xy.x + offset * normalSlope / normalLength,
+    xy.y - offset / normalLength
+  );
+}
+
+fn colorVibranceChromaticityToXyz(xy: vec2f) -> vec3f {
+  let safeY = max(xy.y, 1e-5);
+  return vec3f(xy.x / safeY, 1.0, (1.0 - xy.x - xy.y) / safeY);
+}
+
+fn colorVibranceChromaticAdaptation(rgb: vec3f, temperature: f32, tint: f32) -> vec3f {
+  if (abs(temperature) < 0.00001 && abs(tint) < 0.00001) { return rgb; }
+  let cct = colorVibranceTemperatureToCct(temperature);
+  let targetXy = colorVibranceTintChromaticity(
+    colorVibranceCctToChromaticity(cct), cct, tint
+  );
+  let sourceWhite = vec3f(0.95047, 1.0, 1.08883);
+  let targetWhite = colorVibranceChromaticityToXyz(targetXy);
+  let cat16 = mat3x3f(
+    vec3f(0.401288, -0.250268, -0.002079),
+    vec3f(0.650173, 1.204414, 0.048952),
+    vec3f(-0.051461, 0.045854, 0.953127)
+  );
+  let inverseCat16 = mat3x3f(
+    vec3f(1.862068, 0.387520, -0.015841),
+    vec3f(-1.011255, 0.621447, -0.034123),
+    vec3f(0.149187, -0.008974, 1.049964)
+  );
+  let sourceLms = cat16 * sourceWhite;
+  let targetLms = cat16 * targetWhite;
+  let adaptedXyz = inverseCat16 * (
+    (cat16 * colorVibranceLinearRgbToXyz(rgb)) * targetLms / max(sourceLms, vec3f(1e-6))
+  );
+  return colorVibranceXyzToLinearRgb(adaptedXyz);
 }
 
 fn applyPerceptualColor(rgb: vec3f) -> vec3f {
@@ -1324,49 +1431,106 @@ fn sampleUnitColorLookup(lut: texture_3d<f32>, encoded: vec3f) -> vec3f {
   return mix(mix(z0y0, z0y1, fraction.y), mix(z1y0, z1y1, fraction.y), fraction.z);
 }
 
-fn sampleExtendedUnitColorLookup(lut: texture_3d<f32>, encoded: vec3f) -> vec3f {
-  let dimensions = textureDimensions(lut);
-  let scaled = encoded * vec3f(dimensions - vec3u(1u));
-  let lowerFloat = clamp(
-    floor(scaled),
-    vec3f(0.0),
-    vec3f(dimensions - vec3u(2u))
+fn colorVibranceHueDistance(left: f32, right: f32) -> f32 {
+  let distance = abs(left - right);
+  return min(distance, 6.28318530718 - distance);
+}
+
+fn colorVibranceSkinProtection(lab: vec3f) -> f32 {
+  let chroma = length(lab.yz);
+  if (chroma < 0.000001) { return 0.0; }
+  let hue = atan2(lab.z, lab.y);
+  let hueWeight = 1.0 - smoothstep(
+    ${COLOR_VIBRANCE_SKIN_MODEL.hueInnerRadius},
+    ${COLOR_VIBRANCE_SKIN_MODEL.hueOuterRadius},
+    colorVibranceHueDistance(hue, ${COLOR_VIBRANCE_SKIN_MODEL.hueCenter})
   );
-  let lower = vec3u(lowerFloat);
-  let upper = lower + vec3u(1u);
-  let fraction = scaled - lowerFloat;
-  let z0y0 = mix(
-    textureLoad(lut, vec3u(lower.x, lower.y, lower.z), 0).rgb,
-    textureLoad(lut, vec3u(upper.x, lower.y, lower.z), 0).rgb,
-    fraction.x
+  let chromaWeight = smoothstep(
+    ${COLOR_VIBRANCE_SKIN_MODEL.chromaFadeInStart},
+    ${COLOR_VIBRANCE_SKIN_MODEL.chromaFadeInEnd},
+    chroma
+  ) * (1.0 - smoothstep(
+    ${COLOR_VIBRANCE_SKIN_MODEL.chromaFadeOutStart},
+    ${COLOR_VIBRANCE_SKIN_MODEL.chromaFadeOutEnd},
+    chroma
+  ));
+  let lightnessWeight = smoothstep(
+    ${COLOR_VIBRANCE_SKIN_MODEL.lightnessFadeInStart},
+    ${COLOR_VIBRANCE_SKIN_MODEL.lightnessFadeInEnd},
+    lab.x
+  ) * (1.0 - smoothstep(
+    ${COLOR_VIBRANCE_SKIN_MODEL.lightnessFadeOutStart},
+    ${COLOR_VIBRANCE_SKIN_MODEL.lightnessFadeOutEnd},
+    lab.x
+  ));
+  return hueWeight * chromaWeight * lightnessWeight;
+}
+
+fn colorVibranceInGamut(rgb: vec3f) -> bool {
+  return all(rgb >= vec3f(0.0)) && all(rgb <= vec3f(1.0));
+}
+
+fn colorVibranceChannelGamutAmount(neutral: f32, candidate: f32) -> f32 {
+  if (candidate < 0.0) { return neutral / max(neutral - candidate, 0.000001); }
+  if (candidate > 1.0) { return (1.0 - neutral) / max(candidate - neutral, 0.000001); }
+  return 1.0;
+}
+
+fn colorVibranceGamutMap(lab: vec3f) -> vec3f {
+  let boundedLightness = clamp(lab.x, 0.0, 1.0);
+  let candidateRgb = oklabToLinearRgb(vec3f(boundedLightness, lab.yz));
+  if (colorVibranceInGamut(candidateRgb)) { return candidateRgb; }
+  let neutral = oklabToLinearRgb(vec3f(boundedLightness, 0.0, 0.0));
+  let amount = min(
+    colorVibranceChannelGamutAmount(neutral.r, candidateRgb.r),
+    min(
+      colorVibranceChannelGamutAmount(neutral.g, candidateRgb.g),
+      colorVibranceChannelGamutAmount(neutral.b, candidateRgb.b)
+    )
   );
-  let z0y1 = mix(
-    textureLoad(lut, vec3u(lower.x, upper.y, lower.z), 0).rgb,
-    textureLoad(lut, vec3u(upper.x, upper.y, lower.z), 0).rgb,
-    fraction.x
-  );
-  let z1y0 = mix(
-    textureLoad(lut, vec3u(lower.x, lower.y, upper.z), 0).rgb,
-    textureLoad(lut, vec3u(upper.x, lower.y, upper.z), 0).rgb,
-    fraction.x
-  );
-  let z1y1 = mix(
-    textureLoad(lut, vec3u(lower.x, upper.y, upper.z), 0).rgb,
-    textureLoad(lut, vec3u(upper.x, upper.y, upper.z), 0).rgb,
-    fraction.x
-  );
-  return mix(mix(z0y0, z0y1, fraction.y), mix(z1y0, z1y1, fraction.y), fraction.z);
+  return clamp(neutral + (candidateRgb - neutral) * amount, vec3f(0.0), vec3f(1.0));
 }
 
 fn applyPhotoshopColorVibrance(source: vec3f) -> vec3f {
-  var encoded = photoshopLinearSrgbToEncodedDocument(source);
-  encoded = clamp(
-    sampleUnitColorLookup(colorVibranceWhiteBalanceLut, encoded),
-    vec3f(-${PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES}.0 / 255.0),
-    vec3f(${255 + PHOTOSHOP_COLOR_VIBRANCE_HEADROOM_CODES}.0 / 255.0)
+  let temperature = clamp(
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET}u), -100.0, 100.0
   );
-  encoded = sampleExtendedUnitColorLookup(colorVibranceColorLut, encoded);
-  return photoshopEncodedDocumentToLinearSrgb(encoded);
+  let tint = clamp(
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET + 1}u), -100.0, 100.0
+  );
+  let vibrance = clamp(
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET + 2}u), -100.0, 100.0
+  );
+  let saturation = clamp(
+    photoshopValue(${PHOTOSHOP_COLOR_VIBRANCE_RELATIVE_OFFSET + 3}u), -100.0, 100.0
+  );
+  if (abs(temperature) < 0.00001 && abs(tint) < 0.00001
+    && abs(vibrance) < 0.00001 && abs(saturation) < 0.00001) { return source; }
+
+  // Temperature and Tint are a coupled white-point move, not RGB channel
+  // offsets. Reuse LightTable's CAT16 path; its cool range is asymmetric, so
+  // map this symmetric UI's negative half onto that complete range.
+  let mappedTemperature = select(temperature, temperature * 1.5, temperature < 0.0);
+  var rgb = colorVibranceChromaticAdaptation(source, mappedTemperature, tint);
+  if (abs(vibrance) < 0.00001 && abs(saturation) < 0.00001) {
+    return max(rgb, vec3f(0.0));
+  }
+
+  var lab = linearRgbToOklab(rgb);
+  let chroma = length(lab.yz);
+  if (chroma < 0.000001) { return max(rgb, vec3f(0.0)); }
+  let perceptualSaturation = chroma / max(lab.x, 0.08);
+  let underSaturated = 1.0 - smoothstep(0.08, 0.42, perceptualSaturation);
+  let skinProtection = colorVibranceSkinProtection(lab);
+  let positiveResponse = (0.28 + 0.92 * underSaturated)
+    * (1.0 - ${COLOR_VIBRANCE_SKIN_MODEL.maximumProtection} * skinProtection);
+  let negativeResponse = 0.72 + 0.28 * underSaturated;
+  let vibranceResponse = select(positiveResponse, negativeResponse, vibrance < 0.0);
+  let vibranceScale = max(0.0, 1.0 + vibrance / 100.0 * vibranceResponse);
+  let saturationScale = max(0.0, 1.0 + saturation / 100.0);
+  let scale = vibranceScale * saturationScale;
+  lab = vec3f(lab.x, lab.y * scale, lab.z * scale);
+  return colorVibranceGamutMap(lab);
 }
 
 fn applyPhotoshopAdjustment(source: vec3f) -> vec3f {

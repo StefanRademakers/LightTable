@@ -156,13 +156,14 @@ describe('LightTable WGSL modules', () => {
     expect(CREATIVE_GRADE_WGSL).toContain('var lab = linearRgbToOklab(rgb);');
   });
 
-  it('evaluates current Photoshop Color and Vibrance as two coupled LUT stages', () => {
-    expect(CREATIVE_GRADE_WGSL).toContain('@binding(6) var colorVibranceWhiteBalanceLut');
-    expect(CREATIVE_GRADE_WGSL).toContain('@binding(7) var colorVibranceColorLut');
+  it('evaluates Color and Vibrance analytically with skin and gamut protection', () => {
+    expect(CREATIVE_GRADE_WGSL).not.toContain('colorVibranceWhiteBalanceLut');
+    expect(CREATIVE_GRADE_WGSL).not.toContain('colorVibranceColorLut');
     expect(CREATIVE_GRADE_WGSL).toContain('@binding(8) var colorBalanceTransferLut');
     expect(CREATIVE_GRADE_WGSL).toContain('fn applyPhotoshopColorVibrance');
-    expect(CREATIVE_GRADE_WGSL.indexOf('colorVibranceWhiteBalanceLut, encoded'))
-      .toBeLessThan(CREATIVE_GRADE_WGSL.indexOf('colorVibranceColorLut, encoded'));
+    expect(CREATIVE_GRADE_WGSL).toContain('fn colorVibranceSkinProtection');
+    expect(CREATIVE_GRADE_WGSL).toContain('fn colorVibranceGamutMap');
+    expect(CREATIVE_GRADE_WGSL).toContain('colorVibranceChromaticAdaptation(source, mappedTemperature, tint)');
     expect(CREATIVE_GRADE_WGSL).toContain('if (kind == 15u)');
   });
 

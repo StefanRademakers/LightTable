@@ -6,16 +6,10 @@ import {
   type ColorLookupUniform,
   type GradeLookUniform
 } from './adjustmentUniform';
-import {
-  buildPhotoshopColorVibranceLuts,
-  PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
-} from './photoshopColorVibranceLut';
 
 export interface AdjustmentGpuPayloadTargets {
   readonly uniformBuffer: GPUBuffer;
   readonly curveTexture: GPUTexture;
-  readonly colorVibranceWhiteBalanceTexture?: GPUTexture;
-  readonly colorVibranceColorTexture?: GPUTexture;
 }
 
 export interface AdjustmentGpuPayloadChange {
@@ -53,7 +47,6 @@ const curvesEqual = (left: CurvesAdjustments | null, right: CurvesAdjustments) =
 export class AdjustmentGpuPayloadWriter {
   private lastUniform: Float32Array | null = null;
   private lastCurves: CurvesAdjustments | null = null;
-  private lastColorVibranceParameters: readonly number[] | null = null;
 
   constructor(
     private readonly device: GPUDevice,
@@ -95,47 +88,6 @@ export class AdjustmentGpuPayloadWriter {
         { width: CURVE_LUT_SIZE, height: 1 }
       );
       this.lastCurves = cloneCurves(adjustments.curves);
-    }
-
-    if (
-      adjustments.photoshopAdjustment.kind === 'color-vibrance'
-      && this.targets.colorVibranceWhiteBalanceTexture
-      && this.targets.colorVibranceColorTexture
-    ) {
-      const settings = adjustments.photoshopAdjustment;
-      const parameters = [
-        settings.colorVibranceTemperature,
-        settings.colorVibranceTint,
-        settings.colorVibranceVibrance,
-        settings.colorVibranceSaturation
-      ];
-      if (!this.lastColorVibranceParameters
-        || parameters.some((value, index) => value !== this.lastColorVibranceParameters?.[index])) {
-        const luts = buildPhotoshopColorVibranceLuts(settings);
-        const colorLayout = {
-          bytesPerRow: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE * 4,
-          rowsPerImage: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
-        };
-        const whiteBalanceLayout = {
-          bytesPerRow: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE * 4 * Float32Array.BYTES_PER_ELEMENT,
-          rowsPerImage: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
-        };
-        const extent = {
-          width: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE,
-          height: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE,
-          depthOrArrayLayers: PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
-        };
-        this.device.queue.writeTexture(
-          { texture: this.targets.colorVibranceWhiteBalanceTexture },
-          luts.whiteBalance,
-          whiteBalanceLayout,
-          extent
-        );
-        this.device.queue.writeTexture(
-          { texture: this.targets.colorVibranceColorTexture }, luts.color, colorLayout, extent
-        );
-        this.lastColorVibranceParameters = parameters;
-      }
     }
 
     return { uniformChanged, curveChanged };

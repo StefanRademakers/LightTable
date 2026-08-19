@@ -1,0 +1,34 @@
+Task 212 - Prototype reusable adaptive chroma protection for native Grade
+
+Goal
+
+Turn the measured Color and Vibrance lessons into one reusable CPU/WGSL
+selection-and-protection model, evaluate it as a possible new native Grade
+default, and make the alpha-stage compatibility consequence explicit.
+
+Read first
+
+- `audit/COLOR_PROTECTION_MODEL_FINDINGS.md`
+- `packages/lighttable-app/src/lighttable/gpu/pointColorSelection.ts`
+- the classic `applyPhotoshopVibrance` and native `applyPerceptualColor`
+  implementations in `gpu/shaders.ts`
+
+Scope
+
+- Reuse Point Color's periodic hue x chroma x luminance weighting rather than
+  creating a second skin-range system.
+- Separate low-saturation response, skin likelihood, and gamut/headroom
+  protection so each can be visualized and tested.
+- Build the synthetic and portrait evaluation described in the audit finding.
+- Keep the candidate independently measurable until portrait/gamut evidence and
+  owner visual review choose whether it replaces the alpha default, becomes an
+  explicit control, or remains a specialized mode.
+
+Do not
+
+- infer one universal skin hue from the current medium-saturation slice;
+- copy Photoshop's compatibility node into native Grade;
+- retain the old Grade response merely for compatibility if the candidate is
+  demonstrably better; conversely, do not replace it merely because one
+  aggregate score improves;
+- use a 3D LUT as the first implementation of the protection model.

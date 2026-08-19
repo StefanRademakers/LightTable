@@ -128,7 +128,6 @@
     "capture:grade-visual-baseline": "npm run package:desktop:verify && node scripts/capture-grade-visual-regression.mjs --packaged --accept",
     "test:adjustment-parity-policy": "node --test scripts/adjustment-parity-suite.test.mjs scripts/grade-light-parity-suite.test.mjs scripts/grade-camera-raw-corpus.test.mjs scripts/audit-grade-parity-readiness.test.mjs",
     "generate:photoshop-brightness-contrast-lut": "node scripts/generate-photoshop-brightness-contrast-lut.mjs",
-    "generate:photoshop-color-vibrance-lut": "node scripts/generate-photoshop-color-vibrance-lut.mjs",
     "generate:photoshop-color-balance-transfer": "node scripts/generate-photoshop-color-balance-transfer.mjs",
     "generate:psd-blend-corpus": "node scripts/generate-psd-blend-mode-corpus.mjs",
     "generate:psd-blend-color-matrix": "node scripts/generate-psd-blend-color-matrix.mjs",

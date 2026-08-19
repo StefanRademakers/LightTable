@@ -591,33 +591,36 @@ or alter native Grade. Photoshop stores this newer adjustment in the same
 `vibA` PSD block as classic Vibrance, distinguished by `useLegacy: false` and
 the additional `temperature` and `tint` descriptor fields.
 
-Oracle measurements show two coupled operations in a fixed order:
-Temperature and Tint form a white-balance stage, followed by a combined
-Vibrance and Saturation stage. Treating the four sliders as independent curves
-loses gamut-dependent interactions at large values. LightTable therefore uses
-two measured 13x13x13 RGB LUT stages, interpolated over dense Temperature/Tint
-and Vibrance/Saturation parameter grids. The white-balance volume retains a
-measured quarter-channel of signed headroom, and the color volume extrapolates
-at its boundary before the final document-gamut clamp. This models Photoshop's
-soft range falloff and clipping protection without changing Grade's
-deliberately broader OKLab controls. The two active GPU textures consume
-approximately 43 KiB per node and require the same eight samples per LUT, no
-CPU readback, and no extra compositor pass.
+The captured corpus established useful design properties but is no longer the
+runtime architecture. Temperature and Tint are evaluated together as a CAT16
+white-point adaptation. Vibrance and Saturation operate on OKLab chroma;
+Vibrance responds most strongly to muted colors and uses a soft OKLCH hue x
+chroma x lightness likelihood to protect a broad skin-like region. Colors that
+leave the display gamut are projected continuously from the neutral point at
+the same perceptual lightness instead of clipping channels or quantizing a LUT
+boundary.
 
-| Corpus | Profile / depth | Cases | Visual parity | Individual 95% gate |
-| --- | --- | ---: | ---: | ---: |
-| Hue/lightness diagnostic ramp | sRGB / 8-bit | 27 | 99.143% | 27 / 27 |
-| `D:\face.jpg`, combined signed 80 extremes | sRGB / 8-bit | 2 | 98.760% | 2 / 2 |
-| `D:\people.jpg`, combined signed 80 extremes | sRGB / 16-bit | 2 | 97.264% | 2 / 2 |
-| Complete RGB lattice, signed parameter pairs | sRGB / 8-bit | 24 | 98.101% | 24 / 24 |
-| `D:\face.jpg`, off-grid random controls | sRGB / 8-bit | 3 | 97.772% | 3 / 3 |
+The earlier 441 Temperature/Tint and 49 Vibrance/Saturation 13x13x13 volumes
+have been removed completely: 8,591,289 bytes of generated TypeScript and
+6,136,221 bytes of embedded model data. Color and Vibrance now allocates no
+dedicated 3D textures and performs no CPU reconstruction or slider-time texture
+upload. Its four values travel in the existing adjustment uniform.
 
-The diagnostic worst case is combined positive 80 at 96.121%; all diagnostic,
-pairwise and photographic cases now pass the visual gate. A dense 10-point
-white-balance parameter grid also covers the unseen
-`temperature=-91, tint=37` face case. These tests
-deliberately include zero, signed 20/80/100 extremes, combined extremes, and
-off-grid parameter values rather than validating only small slider moves.
+Compatibility scores remain diagnostic rather than a product gate. The final
+27-case hue/lightness run scores 88.487% against Photoshop because CAT16
+Temperature/Tint intentionally differs at large values. A dedicated portrait
+set that isolates neutral, Vibrance +20/+80/+100 and Saturation +80/+100 scores
+99.253%. At Vibrance +100 a sampled skin ROI moves from 0.129 to 0.171 encoded
+RGB chroma (Photoshop 0.195), while a muted grass ROI moves from 0.055 to 0.135
+(Photoshop 0.146). Saturation remains global: the same skin ROI reaches 0.262
+versus Photoshop 0.266.
+
+Verification deliberately includes signed 20/80/100 values for every slider,
+combined signed 80 extremes, smooth hue/lightness gradients, real portraits
+and isolated Vibrance-versus-Saturation cases. The first gamut prototype passed
+aggregate checks but exposed visible contour bands at extreme positive values;
+the current continuous projection was selected only after those bands were
+removed.
 
 PSD import reads the extended descriptor before ag-psd normalizes it to classic
 Vibrance. PSD export restores `temperature`, `tint`, `useLegacy: false`,

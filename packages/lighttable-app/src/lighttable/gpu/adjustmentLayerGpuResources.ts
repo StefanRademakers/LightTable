@@ -14,7 +14,6 @@ import {
 } from '../processing/adjustmentStack';
 import { attachedAdjustmentProcessingOwner } from '../processing/attachedAdjustment';
 import type { ColorLookupUniform, GradeLookUniform } from './adjustmentUniform';
-import { PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE } from './photoshopColorVibranceLut';
 
 export interface AdjustmentLayerGpuRuntime {
   uniformBuffer: GPUBuffer;
@@ -27,8 +26,6 @@ export interface AdjustmentLayerGpuRuntime {
   gradeLookAssetId: string | null;
   gradeLookUniform: GradeLookUniform | null;
   photoshopAdjustmentKind: string;
-  colorVibranceWhiteBalanceTexture: GPUTexture | null;
-  colorVibranceColorTexture: GPUTexture | null;
 }
 
 interface ResolvedColorLookup {
@@ -123,26 +120,6 @@ export class AdjustmentLayerGpuResources {
     });
     const colorLookup = dependencies.resolveColorLookup(colorLookupAssetId);
     const gradeLook = dependencies.resolveColorLookup(gradeLookAssetId);
-    const createColorVibranceTexture = (label: string, format: GPUTextureFormat) => this.device.createTexture({
-      label,
-      size: [
-        PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE,
-        PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE,
-        PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE
-      ],
-      dimension: '3d',
-      format,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-    });
-    const colorVibranceWhiteBalanceTexture = photoshopAdjustmentKind === 'color-vibrance'
-      ? createColorVibranceTexture(
-        `LightTable Color and Vibrance white balance: ${layer.name}`,
-        'rgba32float'
-      )
-      : null;
-    const colorVibranceColorTexture = photoshopAdjustmentKind === 'color-vibrance'
-      ? createColorVibranceTexture(`LightTable Color and Vibrance color: ${layer.name}`, 'rgba8unorm')
-      : null;
     const createCreativeBindGroup = (source: GPUTexture, spatialInput: GPUTexture) =>
       this.device.createBindGroup({
         layout: dependencies.creativePipeline.getBindGroupLayout(0),
@@ -153,10 +130,6 @@ export class AdjustmentLayerGpuResources {
           { binding: 3, resource: { buffer: uniformBuffer } },
           { binding: 4, resource: curveTexture.createView() },
           { binding: 5, resource: (colorLookup?.texture
-            ?? dependencies.identityColorLookupTexture).createView() },
-          { binding: 6, resource: (colorVibranceWhiteBalanceTexture
-            ?? dependencies.identityColorLookupTexture).createView() },
-          { binding: 7, resource: (colorVibranceColorTexture
             ?? dependencies.identityColorLookupTexture).createView() },
           { binding: 8, resource: dependencies.photoshopColorBalanceTransferTexture.createView() },
           { binding: 9, resource: (gradeLook?.texture
@@ -173,15 +146,11 @@ export class AdjustmentLayerGpuResources {
       createCreativeBindGroup,
       payloadWriter: new AdjustmentGpuPayloadWriter(this.device, {
         uniformBuffer,
-        curveTexture,
-        ...(colorVibranceWhiteBalanceTexture ? { colorVibranceWhiteBalanceTexture } : {}),
-        ...(colorVibranceColorTexture ? { colorVibranceColorTexture } : {})
+        curveTexture
       }),
       colorLookupAssetId,
       gradeLookAssetId,
       photoshopAdjustmentKind,
-      colorVibranceWhiteBalanceTexture,
-      colorVibranceColorTexture,
       colorLookupUniform: colorLookup ? {
         enabled: true,
         domainMin: colorLookup.domainMin,
@@ -220,9 +189,6 @@ export class AdjustmentLayerGpuResources {
     for (const runtime of this.runtimes.values()) {
       bytes += ADJUSTMENT_UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMENT
         + CURVE_LUT_SIZE * 4 * Float32Array.BYTES_PER_ELEMENT;
-      if (runtime.colorVibranceWhiteBalanceTexture) {
-        bytes += PHOTOSHOP_COLOR_VIBRANCE_LUT_SIZE ** 3 * 4 * 2;
-      }
     }
     return bytes;
   }
@@ -236,7 +202,5 @@ export class AdjustmentLayerGpuResources {
   private destroyRuntime(runtime: AdjustmentLayerGpuRuntime) {
     runtime.uniformBuffer.destroy();
     runtime.curveTexture.destroy();
-    runtime.colorVibranceWhiteBalanceTexture?.destroy();
-    runtime.colorVibranceColorTexture?.destroy();
   }
 }

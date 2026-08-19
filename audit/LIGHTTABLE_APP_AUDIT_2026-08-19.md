@@ -32,16 +32,14 @@ of documentsemantiek te herschrijven:
   libvips-packageentries. Transformers draait in drie losse, lazy rendererworkers.
   Dat verlaagt de bewezen shipped reachability sterk, maar de installgraph blijft
   bewust rood totdat upstream of een andere dependencykeuze het oplost.
-- Het webdeliverybudget is nu reproduceerbaar en flow-aware. De actuele initiale
-  JavaScriptlast is 11.222.464 bytes raw, 4.759.276 gzip en 4.302.331 Brotli;
-  CSS is 302.244 bytes raw en 39.747 Brotli. Zware ML-, vision-, PSD-, PDF- en
-  text-assets zijn aantoonbaar lazy. De Color/Vibrance-data zit nog wel in de
-  initiale editorchunk en blijft het grootste concrete gebruikerskostenrisico.
-- De 68.191-regelige Color/Vibrance-LUT wordt niet langer als handgeschreven
-  spaghetti geteld. Hij heeft een bekende generator, exacte hash, byte- en
-  compressiemetingen en een benoemde laadgrens. Dat maakt de omvang verklaarbaar,
-  maar niet gratis: ongeveer 8,59 MB gegenereerde bron / 3,64 MB Brotli is nog
-  steeds een te grote verplichte bootstrapkost voor een specialistische flow.
+- Het webdeliverybudget is reproduceerbaar en flow-aware. Zware ML-, vision-,
+  PSD-, PDF- en text-assets zijn aantoonbaar lazy. Taak 211 heeft bovendien de
+  volledige Color/Vibrance-calibratiebibliotheek uit de initiale editorchunk
+  verwijderd; de definitieve nieuwe buildmeting staat bij R5.
+- De 68.191-regelige Color/Vibrance-LUT was verklaarbare gegenereerde bron, maar
+  nog steeds een verkeerde productarchitectuur. Omdat alpha 0.1 geen bestaande
+  documenten hoeft te behouden, is hij vervangen door geteste CAT16/OKLab-
+  wiskunde met expliciete huidachtige en gamutbescherming.
 - De commandocatalogus legt expliciet vast dat **alle gebruikersfunctionaliteit
   uiteindelijk agentbereikbaar** moet worden. De huidige Agent Access- en externe
   MCP-profielen zijn een gecontroleerde tussenstand. Ontbrekende Face Warp- en
@@ -54,9 +52,9 @@ of documentsemantiek te herschrijven:
   lifecycle-eigenaarschap, fan-out en productblast-radius in plaats van alleen
   regelaantallen. Extractie is pas winst als een capability daarna zelfstandig
   testbaar en owned is; bestandssplitsing zonder zo'n grens is geen vooruitgang.
-- De Color/Vibrance-LUT lazy maken verandert de synchrone GPU-resource-
-  initialisatie en paritykritische dataflow. Dat is waardevol vervolgwerk, maar
-  geen veilige opportunistische wijziging in deze vuile, actieve werkstaat.
+- Color/Vibrance is niet lazy gemaakt maar geheel LUT-vrij gemaakt. De oude
+  captures blijven onderzoeksdata; Photoshop-gelijkheid is niet langer het
+  productcontract voor deze alpha-adjustment.
 - Een echte twee-/twaalfuurs soak, integrated-GPU-/Apple-Siliconkwalificatie en
   representatieve gebruikerstests zijn niet vervangen door meer unit tests.
 - Grade/Camera Raw, PSD-editability en taak 201 blijven actieve producttrajecten.
@@ -361,6 +359,24 @@ Gevolg: remote PSD-export wordt als geldig MCP-commando gepresenteerd, maar beho
 ### R5 — Webdownload en parsekosten zijn te groot voor de betaalbare/laagdrempelige belofte
 
 **Ernst: hoog voor web · Zekerheid: bewezen**
+
+**Status na taak 211: opgelost voor Color and Vibrance.** De auditbaseline
+hieronder blijft als historische meting staan. Alle 490 ingebedde volumes zijn
+verwijderd: 8.591.289 bytes gegenereerde TypeScript en 6.136.221 bytes binaire
+modeldata. De adjustment gebruikt nu gekoppelde CAT16-white-pointadaptatie en
+OKLab-chroma met lage-verzadigingsrespons, een zacht hue x chroma x lightness-
+masker voor huidachtige kleuren en continue gamutprojectie. Ook de twee 3D-
+textures per actieve laag en slider-time uploads zijn verdwenen.
+
+De definitieve productie-hoofdchunk meet 2.848,00 kB minified / 760,26 kB gzip
+en 594.077 bytes Brotli: 74,3% minder raw en 84,2% minder gzip dan de baseline.
+Alle 27
+extreme diagnostische gevallen renderen via packaged Electron/WebGPU. De
+Photoshop-score van die set is bewust geen gate meer (88,487% door afwijkende
+CAT16-extremen). Een geïsoleerde portretset voor Vibrance en Saturation scoort
+99,253% en laat zien dat Vibrance huid duidelijk rustiger houdt dan globale
+Saturation. De resterende productvraag is diversiteit van de huid-/objectcorpus,
+niet levering of verborgen LUT-opslag.
 
 De productie-webbuild rapporteert:
 

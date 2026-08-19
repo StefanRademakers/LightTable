@@ -135,11 +135,16 @@ describe('LightTable adjustment uniform packing', () => {
     expect(packed[10]).toBe(0);
   });
 
-  it('reserves a distinct evaluator kind for current Color and Vibrance', () => {
+  it('packs all Color and Vibrance controls for its analytic evaluator', () => {
     const settings = createDefaultAdjustments();
     settings.photoshopAdjustment.kind = 'color-vibrance';
+    settings.photoshopAdjustment.colorVibranceTemperature = -91;
+    settings.photoshopAdjustment.colorVibranceTint = 37;
+    settings.photoshopAdjustment.colorVibranceVibrance = -44;
+    settings.photoshopAdjustment.colorVibranceSaturation = 63;
     const packed = buildAdjustmentUniform(settings, 100, 50, true);
     expect(packed[128]).toBe(15);
+    expect(Array.from(packed.slice(363, 367))).toEqual([-91, 37, -44, 63]);
   });
 
   it('packs Levels channel and the built-in Color Lookup preset', () => {

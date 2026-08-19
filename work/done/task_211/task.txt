@@ -1,0 +1,41 @@
+Task 211 - Replace the brute-force Color and Vibrance calibration corpus
+
+Goal
+
+Replace the shipped Photoshop 27 calibration corpus with a compact,
+explainable color model that remains useful at slider extremes and explicitly
+protects skin-like colors and output gamut.
+
+Why this task exists
+
+The old implementation embedded 441 complete 13^3 RGB white-balance volumes
+and 49 complete color volumes. Its generated TypeScript was 8.59 MB and held
+6.14 MB of binary calibration data. No LightTable documents have been shipped,
+so preserving that alpha implementation is not a product requirement.
+
+Decision
+
+Treat the captures as research and regression evidence, not as the product
+contract. Use CAT16 white-point adaptation for Temperature/Tint and an OKLab
+chroma model for Vibrance/Saturation. Make low-saturation response, soft
+OKLCH skin likelihood and gamut projection explicit and testable.
+
+Acceptance
+
+- Remove all 490 Color and Vibrance volumes from shipped source.
+- Remove its generated data from initial JavaScript and per-layer GPU textures.
+- Preserve an exact neutral bypass.
+- Keep Temperature/Tint coupled as a white-point operation.
+- Protect muted colors, a broad skin-like region and out-of-gamut results.
+- Test neutral, signed 20/80/100 values, combined signed 80 extremes, smooth
+  gradients and isolated portrait Vibrance/Saturation cases.
+- Measure the production web bundle before and after.
+- Keep Photoshop capture tooling available as research infrastructure without
+  making it a production dependency.
+
+Do not
+
+- Claim the analytic model is Adobe's private implementation.
+- Tune only to one aggregate Photoshop score.
+- Use hard RGB clipping or a coarse iterative gamut boundary.
+- Call a broad chromatic mask semantic person detection.

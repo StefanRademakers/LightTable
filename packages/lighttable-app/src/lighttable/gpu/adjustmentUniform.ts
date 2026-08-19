@@ -23,6 +23,7 @@ export const PHOTOSHOP_BLEND_PROFILE_OFFSET = 313;
 export const PHOTOSHOP_HUE_SATURATION_RANGES_OFFSET = 314;
 export const PHOTOSHOP_VIBRANCE_OFFSET = 356;
 export const PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET = 362;
+export const PHOTOSHOP_COLOR_VIBRANCE_OFFSET = 363;
 
 export interface ColorLookupUniform {
   readonly enabled: boolean;
@@ -187,6 +188,12 @@ export const buildAdjustmentUniform = (
     photoshop.vibranceSaturation
   ], PHOTOSHOP_VIBRANCE_OFFSET);
   packed[PHOTOSHOP_DOCUMENT_BIT_DEPTH_OFFSET] = documentBitDepth;
+  packed.set([
+    photoshop.colorVibranceTemperature,
+    photoshop.colorVibranceTint,
+    photoshop.colorVibranceVibrance,
+    photoshop.colorVibranceSaturation
+  ], PHOTOSHOP_COLOR_VIBRANCE_OFFSET);
   value.pointColor.samples.slice(0, POINT_COLOR_MAX_SAMPLES).forEach((sample, index) => {
     packed.set([
       sample.lightness, sample.chroma, sample.hue, 1,

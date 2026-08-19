@@ -6,15 +6,13 @@ import { classifyWebAsset } from './audit-web-delivery.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 
-test('generated source is accountable but excluded from handwritten ownership review', async () => {
+test('removed calibration artifacts cannot silently return as generated startup source', async () => {
   const policy = JSON.parse(await readFile(path.join(
     workspace, 'architecture', 'tests', 'source-structure-baseline.json'
   ), 'utf8'));
-  const generated = policy.generatedFiles[
+  assert.equal(policy.generatedFiles[
     'packages/lighttable-app/src/lighttable/gpu/photoshopColorVibranceLut.generated.ts'
-  ];
-  assert.equal(generated.generator, 'scripts/generate-photoshop-color-vibrance-lut.mjs');
-  assert.equal(generated.loadBoundary, 'initial-editor-javascript');
+  ], undefined);
   assert.equal(policy.reviewedHotspots[
     'packages/lighttable-app/src/lighttable/LightTableEditorOverlay.tsx'
   ].classification, 'mixed-authority');
@@ -28,7 +26,7 @@ test('heavy delivery assets map to the user flow that justifies loading them', a
     loadBoundary: 'lazy', userFlow: 'local AI model inference'
   });
   assert.deepEqual(classifyWebAsset('index-HASH.js', policy.assetRules), {
-    loadBoundary: 'initial', userFlow: 'editor shell and core editing, including calibrated Grade data'
+    loadBoundary: 'initial', userFlow: 'editor shell and core editing'
   });
   assert.equal(classifyWebAsset('mystery-model.bin', policy.assetRules), null);
 });

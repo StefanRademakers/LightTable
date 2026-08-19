@@ -4,7 +4,7 @@
 | --- | --- | ---: |
 | Grade | Ja, runtime curve | 16 KB; optionele user Grade Look variabel |
 | Lens Fx | Nee | - |
-| Color and Vibrance | Ja, embedded | **8,59 MB TypeScript / 6,14 MB binair** |
+| Color and Vibrance | Nee | Analytische CAT16/OKLab-shader; geen embedded data |
 | Brightness / Contrast | Ja, embedded 1D | 4,18 KB TypeScript / 975 bytes meetdata |
 | Levels | Nee | - |
 | Curves | Ja, runtime | 16 KB per curve-texture |
@@ -24,28 +24,31 @@
 | Clarity and Dehaze | Nee | - |
 | Grain | Nee | - |
 
-## Waar de grote Color-and-Vibrance-data leeft
+## Waar de eerdere grote Color-and-Vibrance-data leefde
 
-- Bronbestand: `packages/lighttable-app/src/lighttable/gpu/photoshopColorVibranceLut.generated.ts`.
-- In dat bestand: 8.591.289 bytes Base64-TypeScript rond 6.136.221 bytes LUT-data.
-- In de web- en Electronbuild: statisch onderdeel van de initiale renderer-JavaScriptchunk.
-- Gecomprimeerd: circa 3,64 MB Brotli van de totale 4,30 MB initiale JavaScriptlast.
-- Na module-evaluatie: de Base64-strings bestaan al, ook zonder gebruikte Color-and-Vibrance-laag.
-- Bij eerste werkelijk gebruikte Color-and-Vibrance-laag: 5.813.262 bytes white-balancedata en
-  322.959 bytes kleurdata worden gedecodeerd en modulebreed gecachet.
-- Per actieve laag: twee afgeleide 13x13x13 GPU-textures, samen circa 43,9 KB.
+De eerdere 8,59 MB was geen enkele GPU-LUT maar een ingebouwde bibliotheek van
+490 volledige 13x13x13-volumes: 441 voor Temperature/Tint en 49 voor
+Vibrance/Saturation. Die bibliotheek, de Base64-decodering, twee GPU-textures per
+actieve laag en slider-time uploads zijn in taak 211 volledig verwijderd.
 
-De 8,59 MB is dus geen GPU-LUT van 8,59 MB. Het is een ingebouwde bibliotheek van 490
-LUTs die als JavaScriptbron wordt verscheept. De actieve GPU-data is klein; de vaste
-download-, parse- en JS-geheugenkosten zijn het aandachtspunt.
+De actuele implementatie leeft als uitlegbare shaderwiskunde in `shaders.ts` en
+als geteste parameter-/CPU-referentie in `colorVibranceModel.ts`:
 
-## Is 8,59 MB groot?
+- Temperature/Tint: gekoppelde CAT16-white-pointadaptatie;
+- Vibrance/Saturation: OKLab-chromarespons;
+- bescherming: lage-verzadigingsrespons plus zacht hue x chroma x lightness-masker;
+- gamut: continue projectie vanaf de neutrale as met dezelfde OKLab-lightness.
 
-Ja, voor initiale JavaScript is dit groot. Een WebP van 3 MB is eveneens een aanzienlijke
-download, maar blijft een apart binair beeldasset dat de JavaScript-engine niet als
-tienduizenden strings hoeft te parsen en samen te voegen. Hier vormt één calibration-
-dataset circa 77% van de ruwe initiale JavaScript en circa 85% van de Brotli-grootte.
+## Was 8,59 MB groot?
 
-Dat maakt dit een terecht onderzoekspunt. De eerste vraag blijft echter of de 490 LUTs
-inhoudelijk nodig zijn; alleen verplaatsen naar een binair bestand lost de modelomvang
-niet op.
+Ja, voor initiale JavaScript was dit groot. Een WebP van 3 MB is eveneens een
+aanzienlijke download, maar blijft een apart binair beeldasset dat de JavaScript-
+engine niet als tienduizenden strings hoeft te parsen en samen te voegen. De oude
+calibratiedataset vormde circa 77% van de ruwe initiale JavaScript en circa 85%
+van de Brotli-grootte.
+
+Dat onderzoekspunt is gesloten: alle 8.591.289 bytes gegenereerde TypeScript en
+6.136.221 bytes modeldata zijn weg. De definitieve productiebouw meet 2,848 MB
+minified / 0,760 MB gzip / 0,594 MB Brotli voor de hoofdchunk, tegenover 11,09 /
+4,80 MB in de auditbaseline. Er is voor deze adjustment geen featureasset meer
+om lazy te laden.
