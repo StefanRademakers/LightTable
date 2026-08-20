@@ -974,6 +974,93 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('leases live gestures and releases the document after timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const state = setup();
+      const started = await state.service.beginGesture({
+        documentId: state.session.id, kind: 'selection-rectangle',
+        coordinateSpace: 'document', parameters: { mode: 'replace' },
+        sample: { x: 4, y: 5 }
+      });
+      expect(started.status).toBe('started');
+      await vi.advanceTimersByTimeAsync(30_001);
+      expect(state.ports.finishGesture).toHaveBeenCalledWith(
+        state.session.id, 'selection-rectangle', expect.any(Number), false
+      );
+      await expect(state.service.beginGesture({
+        documentId: state.session.id, kind: 'selection-rectangle',
+        coordinateSpace: 'document', parameters: { mode: 'replace' },
+        sample: { x: 8, y: 9 }
+      })).resolves.toMatchObject({ status: 'started' });
+      state.service.dispose();
+      state.workspace.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refreshes a lease after accepted samples and cancels on document close', async () => {
+    vi.useFakeTimers();
+    try {
+      const state = setup();
+      const started = await state.service.beginGesture({
+        documentId: state.session.id, kind: 'selection-rectangle',
+        coordinateSpace: 'document', parameters: { mode: 'replace' },
+        sample: { x: 1, y: 1 }
+      });
+      await vi.advanceTimersByTimeAsync(20_000);
+      await state.service.updateGesture(started.gestureId!, [{ x: 2, y: 2 }]);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(state.ports.finishGesture).not.toHaveBeenCalled();
+
+      expect(state.workspace.close(state.session.id, { discardChanges: true }).ok).toBe(true);
+      await Promise.resolve();
+      expect(state.ports.finishGesture).toHaveBeenCalledWith(
+        state.session.id, 'selection-rectangle', expect.any(Number), false
+      );
+      expect(await state.service.cancelAllGestures()).toBe(0);
+      state.service.dispose();
+      state.workspace.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not refresh leases for rejected updates and cancels during disposal', async () => {
+    vi.useFakeTimers();
+    try {
+      const expired = setup();
+      const started = await expired.service.beginGesture({
+        documentId: expired.session.id, kind: 'selection-rectangle',
+        coordinateSpace: 'document', parameters: { mode: 'replace' },
+        sample: { x: 1, y: 1 }
+      });
+      await vi.advanceTimersByTimeAsync(20_000);
+      await expect(expired.service.updateGesture(started.gestureId!, []))
+        .resolves.toMatchObject({ status: 'rejected' });
+      await vi.advanceTimersByTimeAsync(10_001);
+      expect(expired.ports.finishGesture).toHaveBeenCalledTimes(1);
+      expired.service.dispose();
+      expired.workspace.dispose();
+
+      const disposed = setup();
+      await disposed.service.beginGesture({
+        documentId: disposed.session.id, kind: 'selection-rectangle',
+        coordinateSpace: 'document', parameters: { mode: 'replace' },
+        sample: { x: 3, y: 3 }
+      });
+      disposed.service.dispose();
+      await Promise.resolve();
+      expect(disposed.ports.finishGesture).toHaveBeenCalledWith(
+        disposed.session.id, 'selection-rectangle', expect.any(Number), false
+      );
+      disposed.workspace.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('rejects malformed parameters and missing history capabilities consistently', async () => {
     const state = setup();
     expect(await state.service.execute(request(

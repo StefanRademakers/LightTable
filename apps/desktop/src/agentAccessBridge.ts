@@ -171,6 +171,7 @@ export class AgentAccessBridge {
     const server = this.server;
     this.server = null;
     if (server) await this.closeServer(server);
+    await this.invokeRenderer('gesture.cancelAll', {}).catch(() => undefined);
     return this.publish({
       supported: true, enabled: false, state: 'stopped',
       ...(this.credentials ? { deviceId: this.credentials.deviceId } : {})

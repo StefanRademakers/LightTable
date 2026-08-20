@@ -1,0 +1,69 @@
+Task 226 - Bounded automation gesture lifecycle
+===============================================
+
+Goal
+====
+
+Ensure an interrupted remote Paint, Selection or Transform gesture cannot
+leave transient editor state active or permanently block later automation.
+
+Contributes to
+==============
+
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 220`](../task_220_reviewed_mcp_capability_admission/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Give every live automation gesture a bounded lease.
+- [x] Refresh the lease only after accepted sample updates.
+- [x] Cancel timed-out gestures through the existing editor finish/cancel owner.
+- [x] Cancel all live gestures when Agent Access is stopped.
+- [x] Cancel a document gesture when that document closes or becomes unavailable.
+- [x] Keep explicit finish/cancel idempotent and clear timers exactly once.
+- [x] Ensure service disposal cannot retain timers or gesture records.
+- [x] Test timeout, explicit cancel, document-close and bridge-disable paths.
+- [x] Run packaged Agent Access interruption/recovery proof.
+- [x] Run type, boundary and focused regression gates.
+
+Scope guard
+===========
+
+- Live pointer samples continue through the dedicated bounded gesture path.
+- `tool.commitGesture` remains the preferred agent route when all samples are
+  already known; this task does not make MCP imitate slow human drawing.
+- This task changes lifecycle and recovery only, not brush, selection or
+  transform rendering algorithms.
+
+Completion contract
+===================
+
+After client interruption, Agent Access stop or document removal, the editor
+receives one cancel for every live automation gesture, releases its lease and
+accepts a subsequent gesture without application restart.
+
+Completion evidence
+===================
+
+- Every live gesture owns a 30-second timer; only a fully accepted update batch
+  clears and renews it. Rejected/empty updates leave the original deadline.
+- Finish removes the gesture and clears its timer before awaiting the editor,
+  so timeout, explicit finish and bulk cleanup cannot call the owner twice.
+- Workspace lifecycle observation cancels gestures when their document closes
+  or ceases to be ready. Service disposal clears all remaining leases.
+- Agent Access closes its listener and sockets, then requests renderer-owned
+  `gesture.cancelAll`; cleanup failure cannot leave the local server exposed.
+- Focused lifecycle run: 55 test files and 864 tests passed. The preceding
+  combined regression run passed 82 files / 1,058 tests and workspace typecheck.
+- Packaged desktop build/distribution verification passed. The packaged Agent
+  Access smoke began a selection gesture, stopped the bridge without finishing
+  it, restarted the bridge, then began and canceled a second gesture.
+
+Explicit remaining work
+=======================
+
+- deployed tunnel disconnect/reconnect proof;
+- packaged renderer telemetry for frame submissions and commit latency;
+- Warp final-stroke schema and admission.

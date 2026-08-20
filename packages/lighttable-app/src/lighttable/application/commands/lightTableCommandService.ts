@@ -226,6 +226,7 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
+const AUTOMATION_GESTURE_LEASE_MS = 30_000;
 
 /**
  * Transport-neutral read/query and bounded command registry.
@@ -243,6 +244,7 @@ export class LightTableCommandService {
     readonly kind: LightTableGestureKind;
     readonly pointerId: number;
     sampleCount: number;
+    lease: ReturnType<typeof setTimeout>;
   }>();
   private gestureSequence = 0;
   private readonly taskEvents = new AutomationTaskEventStore();
@@ -259,11 +261,16 @@ export class LightTableCommandService {
   ) {
     this.unsubscribe = workspace.subscribe(() => {
       this.workspaceRevision += 1;
+      for (const [gestureId, gesture] of this.gestures) {
+        const document = this.workspace.getDocument(gesture.documentId)?.getSnapshot();
+        if (!document || document.lifecycle !== 'ready') void this.finishGesture(gestureId, false);
+      }
     });
   }
 
   dispose(): void {
     this.unsubscribe();
+    void this.cancelAllGestures();
     this.artifacts.clear();
     this.taskArtifacts.clear();
   }
@@ -381,7 +388,10 @@ export class LightTableCommandService {
     );
     if (!started) return { status: 'rejected', message: 'The editor rejected the gesture.' };
     const gestureId = `gesture-${Date.now()}-${this.gestureSequence}`;
-    this.gestures.set(gestureId, { documentId, kind: request.kind, pointerId, sampleCount: 1 });
+    this.gestures.set(gestureId, {
+      documentId, kind: request.kind, pointerId, sampleCount: 1,
+      lease: this.createGestureLease(gestureId)
+    });
     return { status: 'started', gestureId, sampleCount: 1 };
   }
 
@@ -405,6 +415,8 @@ export class LightTableCommandService {
       }
     }
     gesture.sampleCount += samples.length;
+    clearTimeout(gesture.lease);
+    gesture.lease = this.createGestureLease(gestureId);
     return { status: 'updated', gestureId, sampleCount: gesture.sampleCount };
   }
 
@@ -412,6 +424,7 @@ export class LightTableCommandService {
     const gesture = this.gestures.get(gestureId);
     if (!gesture) return { status: 'rejected', message: 'The gesture does not exist.' };
     this.gestures.delete(gestureId);
+    clearTimeout(gesture.lease);
     const finished = await this.ports.finishGesture(
       gesture.documentId, gesture.kind, gesture.pointerId, commit
     );
@@ -421,6 +434,18 @@ export class LightTableCommandService {
     return finished
       ? { status: commit ? 'completed' : 'canceled', gestureId, sampleCount: gesture.sampleCount }
       : { status: 'rejected', message: 'The editor could not finish the gesture.' };
+  }
+
+  async cancelAllGestures(documentId?: DocumentSessionId): Promise<number> {
+    const gestureIds = [...this.gestures]
+      .filter(([, gesture]) => documentId === undefined || gesture.documentId === documentId)
+      .map(([gestureId]) => gestureId);
+    await Promise.all(gestureIds.map((gestureId) => this.finishGesture(gestureId, false)));
+    return gestureIds.length;
+  }
+
+  private createGestureLease(gestureId: string): ReturnType<typeof setTimeout> {
+    return setTimeout(() => void this.finishGesture(gestureId, false), AUTOMATION_GESTURE_LEASE_MS);
   }
 
   queryWorkspace(): WorkspaceQueryResult {
@@ -1304,6 +1329,7 @@ export interface LightTableAutomationDriver {
   beginGesture(request: unknown): Promise<LightTableGestureResult>;
   updateGesture(gestureId: string, samples: unknown): Promise<LightTableGestureResult>;
   finishGesture(gestureId: string, commit: boolean): Promise<LightTableGestureResult>;
+  cancelAllGestures(documentId?: DocumentSessionId): Promise<number>;
   registerInputArtifact(file: File): LightTableArtifactMetadata;
   queryArtifact(artifactId: string): LightTableArtifactMetadata | null;
   resolveArtifact(artifactId: string): File | null;

@@ -173,6 +173,14 @@ try {
   }
   await invoke(address, rotatedToken, 'workspace.query');
 
+  const interruptedGesture = await invoke(address, rotatedToken, 'gesture.begin', {
+    documentId: switched.activeDocumentId, kind: 'selection-rectangle',
+    coordinateSpace: 'document', parameters: { mode: 'replace' }, sample: { x: 2, y: 2 }
+  });
+  if (interruptedGesture.status !== 'started') {
+    throw new Error(`Interrupted Agent gesture did not start: ${JSON.stringify(interruptedGesture)}`);
+  }
+
   await settings.getByRole('button', { name: 'Stop' }).click();
   await settings.getByText('stopped', { exact: true }).waitFor();
   await expectClosed(address);
@@ -184,6 +192,20 @@ try {
   lastAddress = restartedAddress;
   const afterRestart = await invoke(restartedAddress, restartedToken, 'workspace.query');
   if (afterRestart.documents.length !== 2) throw new Error('Restarting Agent Access lost open documents.');
+  const activeDocumentId = afterRestart.activeDocumentId;
+  const recoveredGesture = await invoke(restartedAddress, restartedToken, 'gesture.begin', {
+    documentId: activeDocumentId, kind: 'selection-rectangle', coordinateSpace: 'document',
+    parameters: { mode: 'replace' }, sample: { x: 4, y: 4 }
+  });
+  if (recoveredGesture.status !== 'started') {
+    throw new Error(`Agent gesture did not recover after bridge restart: ${JSON.stringify(recoveredGesture)}`);
+  }
+  const canceledGesture = await invoke(restartedAddress, restartedToken, 'gesture.finish', {
+    gestureId: recoveredGesture.gestureId, commit: false
+  });
+  if (canceledGesture.status !== 'canceled') {
+    throw new Error(`Recovered Agent gesture did not cancel cleanly: ${JSON.stringify(canceledGesture)}`);
+  }
   await settings.getByRole('button', { name: 'Stop' }).click();
   await expectClosed(restartedAddress);
   if (pageErrors.length) throw new Error(`Agent Access page errors: ${pageErrors.join(' | ')}`);

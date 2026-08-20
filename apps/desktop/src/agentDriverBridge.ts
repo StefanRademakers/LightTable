@@ -53,6 +53,9 @@ export const invokeAgentDriver = async (
   if (method === 'gesture.begin') return driver.beginGesture(value);
   if (method === 'gesture.update') return driver.updateGesture(String(value.gestureId), value.samples);
   if (method === 'gesture.finish') return driver.finishGesture(String(value.gestureId), value.commit === true);
+  if (method === 'gesture.cancelAll') return driver.cancelAllGestures(
+    typeof value.documentId === 'string' ? documentId : undefined
+  );
   if (method === 'command.execute') {
     if (!isLightTableAgentAccessCommandId(value.command)) {
       throw new Error('This command is not exposed through Agent Access.');

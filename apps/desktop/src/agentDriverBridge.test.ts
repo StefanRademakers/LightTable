@@ -65,4 +65,11 @@ describe('invokeAgentDriver', () => {
     expect(queryBasicGrade).toHaveBeenCalledWith('document-1', { kind: 'document' });
     expect(execute).not.toHaveBeenCalled();
   });
+
+  it('exposes host-owned gesture cleanup without pointer simulation', async () => {
+    const cancelAllGestures = vi.fn(async () => 2);
+    const driver = driverWith({ cancelAllGestures });
+    await expect(invokeAgentDriver(driver, 'gesture.cancelAll', {})).resolves.toBe(2);
+    expect(cancelAllGestures).toHaveBeenCalledWith(undefined);
+  });
 });

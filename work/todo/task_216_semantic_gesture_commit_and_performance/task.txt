@@ -67,12 +67,15 @@ Current evidence (2026-08-20)
 - A real packaged Exposure slider gesture records one final `grade.setBasic`
   step and replays it; pointer/keyboard preview values never enter command
   transport individually.
+- Live automation gestures now have a 30-second renewable lease. Timeout,
+  document close, command-service disposal and Agent Access stop all cancel
+  through the existing editor gesture owner; a packaged stop/restart flow
+  proves a subsequent selection gesture is accepted without restarting the app.
 
 Remaining before this task is complete
 ======================================
 
 - Warp final-stroke schema, Actions replay and remote admission;
-- explicit disconnect/document-close behavior for remote gesture sessions;
 - representative runtime telemetry in the packaged app for commit latency and
   submitted frames, interpreted alongside interaction behavior rather than as
   a standalone responsiveness score.

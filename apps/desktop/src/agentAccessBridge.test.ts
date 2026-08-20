@@ -58,6 +58,7 @@ describe('AgentAccessBridge', () => {
     expect(await response.json()).toMatchObject({ requestId: 'one', status: 'completed' });
     expect(calls).toEqual([{ method: 'workspace.query', parameters: {} }]);
     expect(await bridge.disable()).toMatchObject({ enabled: false, state: 'stopped' });
+    expect(calls.at(-1)).toEqual({ method: 'gesture.cancelAll', parameters: {} });
     await expect(fetch(`${status.address}/health`)).rejects.toThrow();
   });
 

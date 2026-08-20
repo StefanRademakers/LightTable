@@ -55,3 +55,13 @@ Non-goals
 - Automatically exposing every new local command.
 - Granting unrestricted desktop, filesystem or network control.
 - Treating OAuth/tool enumeration alone as artist capability proof.
+
+Current evidence (2026-08-20)
+=============================
+
+- Live gesture sessions are limited to one per document, 4,096 samples and a
+  30-second lease renewed only by accepted updates.
+- Timeout, document close, service disposal and local Agent Access stop cancel
+  transient work through the existing editor finish/cancel boundary.
+- Packaged Agent Access interruption/restart proves abandoned gesture cleanup
+  and immediate recovery; deployed tunnel reconnect behavior remains open.
