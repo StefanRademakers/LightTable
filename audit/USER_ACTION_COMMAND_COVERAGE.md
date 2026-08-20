@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 39 already routed through semantic commands;
+- 42 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 34 presentation-only operations;
-- 16 genuine semantic command gaps;
+- 13 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -55,8 +55,8 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `extras` | presentation | Toggles canvas overlays. | 802 |
 | `feather-selection` | gap | No semantic selection-feather command exists. | 437 |
 | `fit` | command | `view.setZoom` | 770 |
-| `flatten-group` | gap | No semantic group-flatten command exists. | 731 |
-| `flatten-image` | gap | No semantic image-flatten command exists. | 737 |
+| `flatten-group` | command | `layer.flattenGroup` | 731 |
+| `flatten-image` | command | `document.flattenImage` | 737 |
 | `flip-canvas-horizontal` | command | `document.applyGeometry` | 536 |
 | `flip-canvas-vertical` | command | `document.applyGeometry` | 539 |
 | `format-support` | presentation | Opens format-support information. | 241 |
@@ -71,7 +71,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `invert-selection` | command | `selection.modify` | 419 |
 | `layer-via-copy` | gap | No semantic layer-via-copy command exists. | 567 |
 | `lock-guides` | presentation | Changes document-view guide interaction. | 847 |
-| `merge-down` | gap | No semantic layer-merge command exists. | 723 |
+| `merge-down` | command | `layer.merge` | 723 |
 | `move-down` | command | `layer.move` | 692 |
 | `move-up` | command | `layer.move` | 687 |
 | `new-document` | command | `document.create` | 180 |

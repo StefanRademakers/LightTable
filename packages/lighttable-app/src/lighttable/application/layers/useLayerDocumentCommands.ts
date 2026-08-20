@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import type {
   ImageDocument,
   LayerId,
+  LayerNode,
   Rect
 } from '../../editor/document/documentTypes';
 import { layerIsLocked } from '../../editor/document/documentTypes';
@@ -143,8 +144,10 @@ export interface LayerDocumentCommands {
   createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId): boolean;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
   mergeSelectedLayers(selectedLayerIds: LayerId[]): boolean;
+  mergeLayersWhenReady(selectedLayerIds: LayerId[]): Promise<boolean>;
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
+  flattenWhenReady(request: FlattenRequest): Promise<boolean>;
   rasterizeTextLayer(layerId: LayerId): boolean;
   rasterizeTextLayerWhenReady(layerId: LayerId): Promise<boolean>;
   rasterizeActiveTextLayer(): boolean;
@@ -167,6 +170,15 @@ const fullDocumentBounds = (document: ImageDocument) => ({
   height: document.height
 });
 
+const contributingTextLayerIds = (
+  nodes: readonly LayerNode[],
+  inheritedVisible = true
+): LayerId[] => nodes.flatMap((node) => {
+  const visible = inheritedVisible && node.visible && node.opacity > 0;
+  if (node.type === 'group') return contributingTextLayerIds(node.children, visible);
+  return node.type === 'text' && visible ? [node.id] : [];
+});
+
 /**
  * Owns renderer-backed layer mutations as atomic application transactions.
  *
@@ -183,6 +195,22 @@ export const createLayerDocumentCommands = (
     get current() {
       return resolveDependencies();
     }
+  };
+
+  const waitForTextTargets = async (layerIds: readonly LayerId[]) => {
+    const dependencies = dependenciesRef.current;
+    const document = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    if (!document || !renderer?.waitForTextSource) return true;
+    const targets = layerIds.map((layerId) => findDocumentLayer(document, layerId))
+      .filter((layer): layer is LayerNode => Boolean(layer));
+    const textLayerIds = [...new Set(contributingTextLayerIds(targets))];
+    for (const textLayerId of textLayerIds) {
+      if (!await renderer.waitForTextSource(textLayerId)) {
+        throw new Error('A contributing text source could not be prepared for compositing.');
+      }
+    }
+    return true;
   };
 
   const addMaskToLayer = (layerId: LayerId, useSelection: boolean, present = false) => {
@@ -518,6 +546,12 @@ export const createLayerDocumentCommands = (
     return true;
   };
 
+  const mergeLayersWhenReady = async (selectedLayerIds: LayerId[]) => {
+    await waitForTextTargets(selectedLayerIds);
+    if (mergeSelectedLayers(selectedLayerIds)) return true;
+    throw new Error('The prepared layers could not be merged.');
+  };
+
   const mergeActiveLayerDown = () => {
     const current = dependenciesRef.current.getDocument();
     if (!current?.activeLayerId) {
@@ -621,6 +655,17 @@ export const createLayerDocumentCommands = (
       request.kind === 'group' ? 'Group flattened' : 'Image flattened'
     );
     return true;
+  };
+
+  const flattenWhenReady = async (request: FlattenRequest) => {
+    const current = dependenciesRef.current.getDocument();
+    const plan = current && (request.kind === 'group'
+      ? getFlattenGroupPlan(current, request.groupId)
+      : getFlattenImagePlan(current));
+    if (!plan) throw new Error('The flatten target is unavailable.');
+    await waitForTextTargets(plan.layerIds);
+    if (flatten(request)) return true;
+    throw new Error('The prepared layer stack could not be flattened.');
   };
 
   const rasterizeTextLayerById = (layerId: LayerId) => {
@@ -1060,8 +1105,10 @@ export const createLayerDocumentCommands = (
     createAdjustmentLayerOfKind: createProcessingLayer,
     createAttachedAdjustment,
     mergeSelectedLayers,
+    mergeLayersWhenReady,
     mergeActiveLayerDown,
     flatten,
+    flattenWhenReady,
     rasterizeTextLayer: rasterizeTextLayerById,
     rasterizeTextLayerWhenReady,
     rasterizeActiveTextLayer,

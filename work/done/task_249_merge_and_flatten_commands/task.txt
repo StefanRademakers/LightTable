@@ -1,0 +1,55 @@
+Task 249 - Explicit merge and flatten commands
+
+Goal
+====
+
+Expose Merge Down/Selected, Flatten Group and Flatten Image through explicit
+stable-target commands shared by UI, Actions and reviewed MCP execution while
+retaining the existing full-canvas GPU and history owner.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Define strict `layer.merge`, `layer.flattenGroup` and
+      `document.flattenImage` schemas with no contextual remote targets.
+- [x] Reuse the existing merge/flatten document plans, GPU compositor and one
+      history entry per operation.
+- [x] Resolve normal UI context once to stable IDs before dispatch.
+- [x] Preserve Flatten Image's document/panel Grade reset and undo restoration.
+- [x] Wait for relevant text sources outside interactive render paths.
+- [x] Prove validation, Actions record/replay and output IDs.
+- [x] Prove representative packaged MCP merge and flatten output.
+- [x] Update coverage, parent evidence and generated contracts.
+- [x] Run full relevant gates, commit and move this package to `work/done/`.
+
+Out of scope
+============
+
+- Pointer, preview or compositor frame transport through commands.
+- Adding new merge modes or changing flatten appearance.
+- Treating host confirmation UI as part of the semantic mutation.
+
+Result and evidence
+===================
+
+- Normal Merge Down resolves its active sibling pair once; multi-selection
+  resolves to explicit IDs. Group and image flatten carry no hidden target.
+- The command service normalizes merge order through the canonical contiguous-
+  sibling plan before execution and rejects duplicate, non-contiguous, empty or
+  expanded destructive requests.
+- Automation yields one editor frame and waits only for contributing visible
+  text sources before entering the existing synchronous GPU transaction.
+- Focused service tests prove Actions record/replay for merge and both flatten
+  scopes. Existing owner tests retain the Grade-reset/undo contract.
+- The packaged external MCP smoke creates two filled raster layers, merges them
+  to a new returned ID, flattens the complete document and verifies exactly one
+  raster layer with the returned final ID. Preview/native/PSD export behavior is
+  exercised before the deliberate destructive final proof.
+- Menu coverage is 103 inventoried actions with 13 genuine semantic gaps.

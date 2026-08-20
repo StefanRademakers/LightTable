@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRasterLayer, createTextLayer, duplicateLayer, renameLayer,
+import { createRasterLayer, createTextLayer, duplicateLayer, groupLayers, renameLayer,
   setLayerBlendMode } from '../../editor/document/documentCommands';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
@@ -52,6 +52,9 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     executeRasterInvert: vi.fn(),
     executeTextToShape: vi.fn(),
     executeTextRasterize: vi.fn(),
+    executeLayerMerge: vi.fn(),
+    executeFlattenGroup: vi.fn(),
+    executeFlattenImage: vi.fn(),
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -909,6 +912,65 @@ describe('LightTableCommandService registry', () => {
     expect(await state.service.execute(request(commandId, state.session.id, {
       layerId, unexpected: true
     }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('records and replays an explicit contiguous layer merge', async () => {
+    const state = setup();
+    const withSecond = createRasterLayer(state.session.getSnapshot().document!, 'Second');
+    state.session.setDocument(withSecond);
+    const layerIds = withSecond.layers.map(({ id }) => id);
+    vi.mocked(state.ports.executeLayerMerge!).mockImplementation((_documentId, command) => {
+      const current = state.session.getSnapshot().document!;
+      state.session.setDocument({ ...current, revision: current.revision + 1 });
+      return { layerIds: command.layerIds, outputLayerId: 'merged-output' };
+    });
+    state.service.startActionRecording('Merge title layers');
+    const result = await state.service.execute(request('layer.merge', state.session.id, { layerIds }));
+    state.service.stopActionRecording();
+
+    expect(result).toMatchObject({ status: 'completed', value: {
+      layerIds, outputLayerId: 'merged-output'
+    } });
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'layer.merge', parameters: { layerIds }, replayable: true
+    }]);
+    await state.service.playActionRecording();
+    expect(state.ports.executeLayerMerge).toHaveBeenCalledTimes(2);
+    expect(await state.service.execute(request('layer.merge', state.session.id, {
+      layerIds: [layerIds[0], layerIds[0]]
+    }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('records and replays explicit group and image flatten targets', async () => {
+    const state = setup();
+    const twoLayers = createRasterLayer(state.session.getSnapshot().document!, 'Second');
+    const grouped = groupLayers(twoLayers, twoLayers.layers.map(({ id }) => id), 'Card');
+    state.session.setDocument(grouped);
+    const groupId = grouped.activeLayerId!;
+    const mutate = (value: unknown) => {
+      const current = state.session.getSnapshot().document!;
+      state.session.setDocument({ ...current, revision: current.revision + 1 });
+      return value;
+    };
+    vi.mocked(state.ports.executeFlattenGroup!).mockImplementation((_documentId, command) => (
+      mutate({ groupId: command.groupId, outputLayerId: 'group-output' })
+    ));
+    vi.mocked(state.ports.executeFlattenImage!).mockImplementation(() => (
+      mutate({ outputLayerId: 'image-output' })
+    ));
+    state.service.startActionRecording('Flatten card');
+    expect(await state.service.execute(request('layer.flattenGroup', state.session.id, { groupId })))
+      .toMatchObject({ status: 'completed', value: { groupId, outputLayerId: 'group-output' } });
+    state.service.stopActionRecording();
+    await state.service.playActionRecording();
+    expect(state.ports.executeFlattenGroup).toHaveBeenCalledTimes(2);
+
+    expect(await state.service.execute(request('document.flattenImage', state.session.id, {})))
+      .toMatchObject({ status: 'completed', value: { outputLayerId: 'image-output' } });
+    expect(await state.service.execute(request('document.flattenImage', state.session.id,
+      { preserveLayers: true }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });
 

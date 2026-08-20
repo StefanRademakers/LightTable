@@ -4488,12 +4488,36 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const rasterizeActiveTextLayer = layerDocumentCommands.rasterizeActiveTextLayer;
   const mergeSelectedLayers = layerDocumentCommands.mergeSelectedLayers;
   const mergeActiveLayerDown = layerDocumentCommands.mergeActiveLayerDown;
+  const mergeLayersCommand = useCallback((layerIds: LayerId[]) => {
+    if (!executeRegisteredCommand('layer.merge', { layerIds })) {
+      return mergeSelectedLayers(layerIds);
+    }
+    return true;
+  }, [executeRegisteredCommand, mergeSelectedLayers]);
   const mergeSelectionOrActiveDown = useCallback(() => {
     const selectedLayerIds = selectedLayerIdsRef.current;
-    return selectedLayerIds.length > 1
-      ? mergeSelectedLayers(selectedLayerIds)
+    if (selectedLayerIds.length > 1) return mergeLayersCommand(selectedLayerIds);
+    const document = imageDocumentRef.current;
+    const activeLayerId = document?.activeLayerId;
+    if (!document || !activeLayerId) return mergeActiveLayerDown();
+    const siblings = siblingLayers(document, activeLayerId);
+    const index = siblings.findIndex(({ id }) => id === activeLayerId);
+    return index > 0
+      ? mergeLayersCommand([siblings[index - 1]!.id, activeLayerId])
       : mergeActiveLayerDown();
-  }, [mergeActiveLayerDown, mergeSelectedLayers]);
+  }, [mergeActiveLayerDown, mergeLayersCommand]);
+  const flattenGroupCommand = useCallback((groupId: LayerId) => {
+    if (!executeRegisteredCommand('layer.flattenGroup', { groupId })) {
+      return layerDocumentCommands.flatten({ kind: 'group', groupId });
+    }
+    return true;
+  }, [executeRegisteredCommand, layerDocumentCommands]);
+  const flattenImageCommand = useCallback(() => {
+    if (!executeRegisteredCommand('document.flattenImage', {})) {
+      return layerDocumentCommands.flatten({ kind: 'image' });
+    }
+    return true;
+  }, [executeRegisteredCommand, layerDocumentCommands]);
   const handleLayerSelectionChange = useCallback((layerIds: LayerId[]) => {
     selectedLayerIdsRef.current = layerIds;
     setSelectedLayerIds(layerIds);
@@ -4584,9 +4608,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     loadLayerMaskSelection: selectionSessionController.selectLayerMask,
     loadLayerTransparencySelection: selectionSessionController.selectLayerTransparency,
     mergeActiveLayerDown: mergeSelectionOrActiveDown,
-    mergeSelectedLayers,
-    flattenGroup: (groupId) => layerDocumentCommands.flatten({ kind: 'group', groupId }),
-    flattenImage: () => layerDocumentCommands.flatten({ kind: 'image' }),
+    mergeSelectedLayers: mergeLayersCommand,
+    flattenGroup: flattenGroupCommand,
+    flattenImage: flattenImageCommand,
     editStyles: openLayerStyleEditor,
     finishStyleEditing: layerStyleEditor.commit,
     finishProcessingEditing: () => {
@@ -4886,6 +4910,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return await layerDocumentCommands.rasterizeTextLayerWhenReady(command.layerId)
           ? { layerId: command.layerId, outputType: 'raster' as const }
           : null;
+      },
+      executeLayerMerge: async (command) => {
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        if (!await layerDocumentCommands.mergeLayersWhenReady([...command.layerIds])) return null;
+        const outputLayerId = imageDocumentRef.current?.activeLayerId;
+        return outputLayerId ? { layerIds: command.layerIds, outputLayerId } : null;
+      },
+      executeFlattenGroup: async (command) => {
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        if (!await layerDocumentCommands.flattenWhenReady({
+          kind: 'group', groupId: command.groupId
+        })) return null;
+        const outputLayerId = imageDocumentRef.current?.activeLayerId;
+        return outputLayerId ? { groupId: command.groupId, outputLayerId } : null;
+      },
+      executeFlattenImage: async () => {
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        if (!await layerDocumentCommands.flattenWhenReady({ kind: 'image' })) return null;
+        const outputLayerId = imageDocumentRef.current?.activeLayerId;
+        return outputLayerId ? { outputLayerId } : null;
       },
       queryBasicAdjustments: (target) => {
         const document = imageDocumentRef.current;

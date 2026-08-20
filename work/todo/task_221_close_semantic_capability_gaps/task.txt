@@ -71,6 +71,8 @@ Completed vertical slices
   reversible GPU transaction.
 - text finalization through `text.convertToShape` and `text.rasterize`, retaining
   stable layer IDs and the existing vector-path and GPU pixel-history owners.
+- explicit contiguous layer merge, group flatten and document flatten through
+  their existing full-canvas compositor and history owner.
 
 Rules
 =====

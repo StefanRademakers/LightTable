@@ -36,6 +36,7 @@ import { dispatchSemanticAdjustmentCreation, dispatchSemanticFixedTransform,
   dispatchSemanticRasterInvert } from './semanticContextualEditDispatcher';
 import { projectCommandCapabilities } from './commandCapabilityProjection';
 import { dispatchSemanticTextFinalization } from './semanticTextFinalizationDispatcher';
+import { dispatchSemanticMergeFlatten } from './semanticMergeFlattenDispatcher';
 import { dispatchSemanticRasterGradient } from './semanticRasterGradientCommandHandler';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
@@ -212,6 +213,26 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     const execute = this.resolve(documentId).executeTextRasterize;
     if (!execute) throw new Error('Text rasterization is unavailable in the target document.');
     return execute(command);
+  }
+
+  executeLayerMerge(documentId: DocumentSessionId,
+    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeLayerMerge']>>[0]) {
+    const execute = this.resolve(documentId).executeLayerMerge;
+    if (!execute) throw new Error('Layer merge is unavailable in the target document.');
+    return execute(command);
+  }
+
+  executeFlattenGroup(documentId: DocumentSessionId,
+    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeFlattenGroup']>>[0]) {
+    const execute = this.resolve(documentId).executeFlattenGroup;
+    if (!execute) throw new Error('Group flatten is unavailable in the target document.');
+    return execute(command);
+  }
+
+  executeFlattenImage(documentId: DocumentSessionId) {
+    const execute = this.resolve(documentId).executeFlattenImage;
+    if (!execute) throw new Error('Image flatten is unavailable in the target document.');
+    return execute();
   }
 
   queryBasicAdjustments(documentId: DocumentSessionId, target: BasicAdjustmentTarget) {
@@ -1203,6 +1224,17 @@ export class LightTableCommandService {
           executor ? (command) => executor.call(this.ports, request.documentId, command) : undefined,
           () => this.document(request.documentId)?.document?.revision
         );
+        return result.ok ? { value: result.value } : result;
+      }
+      case 'layer.merge':
+      case 'layer.flattenGroup':
+      case 'document.flattenImage': {
+        const result = await dispatchSemanticMergeFlatten(request.command, parameters, snapshot.document!, {
+          merge: this.ports.executeLayerMerge ? (command) => this.ports.executeLayerMerge!(request.documentId, command) : undefined,
+          flattenGroup: this.ports.executeFlattenGroup ? (command) => this.ports.executeFlattenGroup!(request.documentId, command) : undefined,
+          flattenImage: this.ports.executeFlattenImage ? () => this.ports.executeFlattenImage!(request.documentId) : undefined
+        },
+          () => this.document(request.documentId)?.document?.revision);
         return result.ok ? { value: result.value } : result;
       }
       case 'layer.createRaster': {

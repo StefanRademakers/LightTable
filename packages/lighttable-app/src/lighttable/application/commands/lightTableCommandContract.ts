@@ -27,6 +27,7 @@ import type { SemanticFixedTransformCommand } from './semanticFixedTransformComm
 import type { SemanticAdjustmentCreationCommand } from './semanticAdjustmentCreationCommandContract';
 import type { SemanticRasterInvertCommand } from './semanticRasterInvertCommandContract';
 import type { SemanticTextFinalizationCommand } from './semanticTextFinalizationCommandContract';
+import type { SemanticFlattenGroupCommand, SemanticLayerMergeCommand } from './semanticMergeFlattenCommandContract';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId
@@ -215,6 +216,9 @@ export interface LightTableCommandPorts {
   executeRasterInvert?(documentId: DocumentSessionId, command: SemanticRasterInvertCommand): unknown | Promise<unknown>;
   executeTextToShape?(documentId: DocumentSessionId, command: SemanticTextFinalizationCommand): unknown | Promise<unknown>;
   executeTextRasterize?(documentId: DocumentSessionId, command: SemanticTextFinalizationCommand): unknown | Promise<unknown>;
+  executeLayerMerge?(documentId: DocumentSessionId, command: SemanticLayerMergeCommand): unknown | Promise<unknown>;
+  executeFlattenGroup?(documentId: DocumentSessionId, command: SemanticFlattenGroupCommand): unknown | Promise<unknown>;
+  executeFlattenImage?(documentId: DocumentSessionId): unknown | Promise<unknown>;
   queryBasicAdjustments?(documentId: DocumentSessionId, target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
@@ -257,6 +261,9 @@ export interface DocumentLightTableCommandPorts {
   executeRasterInvert?(command: SemanticRasterInvertCommand): unknown | Promise<unknown>;
   executeTextToShape?(command: SemanticTextFinalizationCommand): unknown | Promise<unknown>;
   executeTextRasterize?(command: SemanticTextFinalizationCommand): unknown | Promise<unknown>;
+  executeLayerMerge?(command: SemanticLayerMergeCommand): unknown | Promise<unknown>;
+  executeFlattenGroup?(command: SemanticFlattenGroupCommand): unknown | Promise<unknown>;
+  executeFlattenImage?(): unknown | Promise<unknown>;
   queryBasicAdjustments?(target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;

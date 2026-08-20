@@ -44,6 +44,15 @@
   "text.rasterize": [
     { "layerId": "layer-caption" }
   ],
+  "layer.merge": [
+    { "layerIds": ["layer-shadow", "layer-title"] }
+  ],
+  "layer.flattenGroup": [
+    { "groupId": "group-card" }
+  ],
+  "document.flattenImage": [
+    {}
+  ],
   "layer.setMask": [
     { "layerId": "layer-photo", "operation": "add", "source": "reveal-all" },
     { "layerId": "layer-photo", "operation": "set-enabled", "enabled": false }

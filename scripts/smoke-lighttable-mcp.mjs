@@ -359,9 +359,41 @@ try {
   await writeFile(previewPath, Buffer.from(image.data, 'base64'));
   const native = await exportArtifact('file.exportNative', 'lighttable');
   const psd = await exportArtifact('file.exportPsd', 'psd');
+  const mergeBottom = (await call('lighttable_execute', {
+    documentId, command: 'layer.createRaster', parameters: {}
+  })).structuredContent.value?.layerId;
+  const mergeTop = (await call('lighttable_execute', {
+    documentId, command: 'layer.createRaster', parameters: {}
+  })).structuredContent.value?.layerId;
+  if (!mergeBottom || !mergeTop) throw new Error('MCP merge fixtures were not created.');
+  await call('lighttable_execute', { documentId, command: 'raster.fill', parameters: {
+    layerId: mergeBottom, channel: 'pixels', color: '#22aa66', opacity: 1
+  } });
+  await call('lighttable_execute', { documentId, command: 'raster.fill', parameters: {
+    layerId: mergeTop, channel: 'pixels', color: '#3344ee', opacity: 0.5
+  } });
+  const mergedLayers = (await call('lighttable_execute', {
+    documentId, command: 'layer.merge', parameters: { layerIds: [mergeBottom, mergeTop] }
+  })).structuredContent;
+  if (mergedLayers?.status !== 'completed' || !mergedLayers.value?.outputLayerId
+    || mergedLayers.value.outputLayerId === mergeBottom
+    || mergedLayers.value.outputLayerId === mergeTop) {
+    throw new Error(`MCP explicit layer merge failed: ${JSON.stringify(mergedLayers)}`);
+  }
+  const flattenedImage = (await call('lighttable_execute', {
+    documentId, command: 'document.flattenImage', parameters: {}
+  })).structuredContent;
+  if (flattenedImage?.status !== 'completed' || !flattenedImage.value?.outputLayerId) {
+    throw new Error(`MCP image flatten failed: ${JSON.stringify(flattenedImage)}`);
+  }
   const after = (await call('lighttable_document', { documentId })).structuredContent;
   const layers = (await call('lighttable_layers', { documentId })).structuredContent;
-  const report = { source, workspace, before, after, publications, layerCount: layers.length,
+  const finalLayerList = Array.isArray(layers) ? layers : layers.result ?? layers.layers ?? layers.value ?? [];
+  if (finalLayerList.length !== 1 || finalLayerList[0]?.id !== flattenedImage.value.outputLayerId
+    || finalLayerList[0]?.type !== 'raster') {
+    throw new Error(`MCP image flatten did not produce one raster layer: ${JSON.stringify(layers)}`);
+  }
+  const report = { source, workspace, before, after, publications, layerCount: finalLayerList.length,
     createdLayerId: layerId, outputs: { previewPath, native, psd }, bridgeLog };
   await writeFile(path.join(output, 'mcp-layered-design.json'), `${JSON.stringify(report, null, 2)}\n`);
   process.stdout.write(`LightTable MCP end-to-end smoke passed: ${output}\n`);
