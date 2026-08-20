@@ -31,8 +31,8 @@ Checklist
 Resolution and evidence
 =======================
 
-- Phase and stack capture reproduced the failure during `ui-text-typing`; the
-  minified call site resolved to the global editor `keyup` listener.
+- Phase and stack capture first reproduced the failure during `ui-text-typing`;
+  one minified call site resolved to the global editor `keyup` listener.
 - That listener published Caps Lock state on every keydown and keyup. The test's
   long native text burst therefore issued hundreds of redundant
   `setPreciseBrushCursor(false)` updates while React was processing text edits.
@@ -41,17 +41,30 @@ Resolution and evidence
 - A deterministic unit regression sends 300 ordinary keydown/keyup pairs and
   proves zero modifier-state publications. Existing transition, current-handler,
   event-consumption and disposal tests remain green.
-- Before the fix the bounded diagnostic loop reproduced error 185 on repetition
-  3. After rebuilding the packaged app, six consecutive complete
-  UI/Actions/MCP route-equivalence runs passed with the page-error gate intact.
+- Before that fix the bounded diagnostic loop reproduced error 185 on
+  repetition 3. Six consecutive runs then passed, but a later independent run
+  reproduced error 185 during `ui-text-composition`. Its retained stack ended
+  in the GPU histogram callback, proving the first resolution was incomplete.
+- Every completed GPU histogram readback was publishing a new 768-bin object
+  directly into the editor root. Fast text/IME rendering could therefore add
+  observer-driven root updates while React was already processing its burst.
+  Histogram publication now uses the existing latest-value frame scheduler:
+  at most the newest histogram reaches React once per display frame, and a
+  document reset cancels a queued value. Pixels, history and command execution
+  are unchanged.
+- The scheduler's deterministic tests prove that repeated values before a frame
+  result in one publication and that cancellation/disposal cannot publish stale
+  state. After rebuilding, six consecutive complete UI/Actions/MCP
+  route-equivalence runs passed with the page-error gate intact.
 - Stack and workflow-phase capture remain in the harness so a different future
   page error identifies its active route rather than returning only a minified
   React code.
-- Final verification passed: full workspace typecheck, 485 application test
-  files / 2791 tests plus every workspace suite, boundary/source/UI/docs audits,
-  diff check and the packaged Actions smoke. Brush and Grade interaction stayed
-  local during pointer movement and each produced one semantic publication and
-  one history entry on commit.
+- Final verification for the second fix passed: full workspace typecheck, 485
+  application test files / 2793 tests plus every workspace suite,
+  boundary/source/UI/docs audits, generated-inventory and command-contract
+  checks, diff check and the rebuilt packaged Actions smoke. Brush and Grade
+  interaction stayed local during pointer movement and each produced one
+  semantic publication and one history entry on commit.
 
 Non-goals
 =========

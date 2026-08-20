@@ -125,6 +125,7 @@ import { useEditorDocumentLifecycleController } from './composition/documents/us
 import { useEditorDocumentFileController } from './composition/documents/useEditorDocumentFileController';
 import { useEditorKeyboardController } from './composition/input/useEditorKeyboardController';
 import { resolveDeleteTarget } from './application/input/resolveDeleteTarget';
+import { LatestFrameValueScheduler } from './application/input/latestFrameValueScheduler';
 import { createEditorMenuController } from './composition/menus/createEditorMenuController';
 import { primaryShortcutLabel } from './application/input/editorShortcutPresentation';
 import { LayersWorkspacePanel } from './composition/workspace/LayersWorkspacePanel';
@@ -808,6 +809,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [onScreenModeChange, screenMode]);
   const [metadata, setMetadata] = useState<LightTableImageMetadata | null>(null);
   const [histogram, setHistogram] = useState<RgbHistogram | null>(null);
+  const histogramPublicationRef = useRef<LatestFrameValueScheduler<RgbHistogram> | null>(null);
+  useEffect(() => {
+    const publication = new LatestFrameValueScheduler<RgbHistogram>(setHistogram);
+    histogramPublicationRef.current = publication;
+    return () => {
+      if (histogramPublicationRef.current === publication) histogramPublicationRef.current = null;
+      publication.dispose();
+    };
+  }, []);
+  const publishHistogram = useCallback((next: RgbHistogram) => {
+    histogramPublicationRef.current?.schedule(next);
+  }, []);
+  const resetHistogram = useCallback(() => {
+    histogramPublicationRef.current?.cancel();
+    setHistogram(null);
+  }, []);
   const {
     zoomMode,
     setZoomMode,
@@ -2812,7 +2829,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       editorDialogs.closeFeather();
       setLensBlurViewportModeState('result');
       clearEditorHistory();
-      setHistogram(null);
+      resetHistogram();
       setZoomMode('fit');
       setView({ scale: 1, panX: 0, panY: 0 });
     },
@@ -2832,6 +2849,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentSession,
     textFontRegistry,
     publishAdjustmentPresentation,
+    resetHistogram,
     resetLensBlurDepth,
     setEditorSession,
     setImageDocument,
@@ -2911,7 +2929,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           scopeVisibilityRef.current = visibility;
           setScopeSettings(settings);
           setScopeVisibility(visibility);
-          setHistogram(null);
+          resetHistogram();
         },
         resetDiagnostics: () => {
           setError(null);
@@ -2955,6 +2973,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     documentSession,
     fileNameBase,
     initialRecipe,
+    resetHistogram,
     resetLensBlurDepth,
     setEditorSession,
     setImageDocument,
@@ -3015,7 +3034,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getGroupVisibility: () => groupVisibilityRef.current,
     getPublicationPorts: getDocumentPublicationPorts,
     getScopeOptions: getDocumentOpenScopeOptions,
-    publishHistogram: setHistogram,
+    publishHistogram,
     publishGpuMemory: setGpuMemoryBytes,
     publishTextRenderPresentation,
     publishCompositeRendered,

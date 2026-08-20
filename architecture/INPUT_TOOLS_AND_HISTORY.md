@@ -68,6 +68,10 @@ the GPU diameter preview with the precise crosshair. Modifier state is cleared
 on window blur so temporary input cannot remain stuck. The global keyboard
 binding publishes Shift, Alt and Caps Lock only when their state changes;
 ordinary high-frequency text keys never enqueue redundant modifier React state.
+GPU analysis is likewise an observer, not input authority: completed histogram
+readbacks are coalesced to the newest value once per display frame before they
+reach the editor React root. Document reset cancels any pending publication, so
+fast typing and IME composition cannot accumulate stale histogram updates.
 
 Fill commands use Alt+Backspace for foreground and Ctrl/Cmd+Backspace for
 background. Adding Shift preserves existing pixel transparency for that one
