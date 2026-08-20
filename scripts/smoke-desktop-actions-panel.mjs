@@ -128,13 +128,32 @@ try {
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await recorder.locator('li').filter({ hasText: 'grade.setBasic' }).waitFor();
 
+  const typeTool = window.getByRole('button', { name: 'Type tool (T)', exact: true }).first();
+  await typeTool.click();
+  await typeTool.waitFor();
+  await window.mouse.click(
+    viewportBounds.x + viewportBounds.width * 0.62,
+    viewportBounds.y + viewportBounds.height * 0.28
+  );
+  const textInput = window.getByRole('textbox', { name: /^Edit / });
+  await textInput.waitFor({ state: 'attached', timeout: 30_000 });
+  await textInput.press('Escape');
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.locator('li').filter({ hasText: 'text.create' }).waitFor({ timeout: 30_000 });
+  await window.getByRole('tab', { name: 'Properties', exact: true }).click();
+  const textProperties = window.getByRole('complementary', { name: 'Text properties' });
+  await textProperties.waitFor();
+  await textProperties.getByRole('checkbox', { name: 'Bold', exact: true }).click();
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.locator('li').filter({ hasText: 'text.format' }).waitFor();
+
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
   const undo = panel.locator('details').filter({ hasText: 'history.undo' });
   await undo.locator('summary').click();
   const undoButton = undo.getByRole('button', { name: 'Run' });
   await undoButton.waitFor();
-  for (let index = 0; index < 7; index += 1) {
+  for (let index = 0; index < 9; index += 1) {
     await undoButton.click();
     await panel.getByRole('status').filter({ hasText: 'history.undo: completed' })
       .waitFor({ timeout: 15_000 });
@@ -146,7 +165,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 7) throw new Error('Expected seven recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 9) throw new Error('Expected nine recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -163,21 +182,48 @@ try {
   if (!gradeStepText?.includes('$step6.layerId')) {
     throw new Error(`Recorded Grade target was not rebound to the latest layer result: ${gradeStepText}`);
   }
+  const textFormatStep = recorder.locator('li').filter({ hasText: 'text.format' });
+  await textFormatStep.locator('summary').click();
+  const textFormatStepText = await textFormatStep.textContent();
+  if (!textFormatStepText?.includes('$step8.layerId')) {
+    throw new Error(`Recorded text format target was not bound to text.create: ${textFormatStepText}`);
+  }
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
-  await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
-    .waitFor({ timeout: 15_000 });
   await window.waitForFunction(
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
-    before + 1
+    before + 2,
+    { timeout: 15_000 }
   );
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
+    .waitFor({ timeout: 15_000 }).catch(async () => {
+      throw new Error(`Actions playback did not complete: ${await recorder.textContent()}`);
+    });
   await window.waitForFunction(
     (expected) => [...document.querySelectorAll('input[aria-label="Layer name"]')]
       .some((input) => input.value === expected),
     'Recorded Title',
     { timeout: 15_000 }
   );
+  await window.locator('.lighttable-layer__text-status', { hasText: 'Flow' })
+    .waitFor({ state: 'visible', timeout: 15_000 });
+  const playbackText = await window.evaluate(() => {
+    const driver = window.__lightTableAutomation;
+    const workspace = driver?.queryWorkspace();
+    const documentId = workspace?.activeDocumentId;
+    const document = documentId ? driver?.queryDocument(documentId) : null;
+    return documentId && document?.activeLayerId
+      ? driver?.queryText(documentId, document.activeLayerId)
+      : null;
+  });
+  if (playbackText?.sourceKind !== 'flow' || !playbackText.editable
+    || playbackText.styleRuns?.[0]?.syntheticBold !== true
+    || typeof playbackText.transform?.tx !== 'number'
+    || typeof playbackText.transform?.ty !== 'number') {
+    throw new Error(`Actions replay did not preserve editable faux-bold text: ${JSON.stringify(playbackText)}`);
+  }
 
   await window.screenshot({ path: screenshot });
   if (pageErrors.length) throw new Error(`Actions panel page errors: ${pageErrors.join(' | ')}`);

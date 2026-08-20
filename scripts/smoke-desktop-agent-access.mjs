@@ -103,6 +103,41 @@ try {
     throw new Error('Agent Grade query mutated the document or its history.');
   }
 
+  const textCreated = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-create-text', command: 'text.create', documentId: originalId,
+    commandParameters: {
+      mode: 'point', text: 'Agent title', name: 'Agent Title',
+      origin: { x: 80, y: 100 }, writingMode: 'horizontal-tb',
+      style: { fontSize: 42, fill: { enabled: true, color: '#f0a020' } }
+    }
+  });
+  const textLayerId = textCreated.status === 'completed' ? textCreated.value?.layerId : null;
+  if (!textLayerId) throw new Error(`Agent text creation failed: ${JSON.stringify(textCreated)}`);
+  const textFormatted = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-format-text', command: 'text.format', documentId: originalId,
+    commandParameters: {
+      layerId: textLayerId,
+      style: { fontSize: 54, syntheticItalic: true, underline: true,
+        fill: { enabled: true, color: '#30c0e0' } }
+    }
+  });
+  if (textFormatted.status !== 'completed') {
+    throw new Error(`Agent text formatting failed: ${JSON.stringify(textFormatted)}`);
+  }
+  const queriedText = await invoke(address, token, 'text.query', {
+    documentId: originalId, layerId: textLayerId
+  });
+  if (queriedText.sourceKind !== 'flow' || !queriedText.editable
+    || queriedText.content?.text !== 'Agent title'
+    || queriedText.styleRuns?.[0]?.fontSize !== 54
+    || queriedText.styleRuns?.[0]?.syntheticItalic !== true
+    || queriedText.styleRuns?.[0]?.underline !== true
+    || !queriedText.styleRuns?.[0]?.fill
+    || typeof queriedText.transform?.tx !== 'number'
+    || typeof queriedText.transform?.ty !== 'number') {
+    throw new Error(`Agent text query is incomplete: ${JSON.stringify(queriedText)}`);
+  }
+
   const shape = await invoke(address, token, 'command.execute', {
     commandRequestId: 'agent-create-badge', command: 'vector.create', documentId: originalId,
     commandParameters: {

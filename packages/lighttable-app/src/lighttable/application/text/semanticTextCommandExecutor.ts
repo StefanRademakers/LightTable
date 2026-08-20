@@ -66,6 +66,8 @@ export const semanticStylePatchFromCanonical = (
     ...(patch.fontSize === undefined ? {} : { fontSize: patch.fontSize }),
     ...(patch.fontWeight === undefined ? {} : { fontWeight: patch.fontWeight }),
     ...(patch.fontStyle === undefined ? {} : { fontStyle: patch.fontStyle }),
+    ...(patch.syntheticBold === undefined ? {} : { syntheticBold: patch.syntheticBold }),
+    ...(patch.syntheticItalic === undefined ? {} : { syntheticItalic: patch.syntheticItalic }),
     ...(patch.tracking === undefined ? {} : { tracking: patch.tracking }),
     ...(patch.underline === undefined ? {} : { underline: patch.underline }),
     ...(fill === undefined ? {} : { fill: fill ? { enabled: true, color: fill } : { enabled: false } }),
@@ -121,6 +123,8 @@ const patches = async (
     ...(style?.fontSize === undefined ? {} : { fontSize: style.fontSize }),
     ...(style?.fontWeight === undefined ? {} : { fontWeight: style.fontWeight }),
     ...(style?.fontStyle === undefined ? {} : { fontStyle: style.fontStyle }),
+    ...(style?.syntheticBold === undefined ? {} : { syntheticBold: style.syntheticBold }),
+    ...(style?.syntheticItalic === undefined ? {} : { syntheticItalic: style.syntheticItalic }),
     ...(style?.tracking === undefined ? {} : { tracking: style.tracking }),
     ...(style?.underline === undefined ? {} : { underline: style.underline })
   };

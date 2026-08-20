@@ -1046,8 +1046,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     readonly start: LightTableGestureSample;
   } | null>(null);
   const textPropertyGestureRef = useRef<
-    | { readonly kind: 'text'; readonly layerId: LayerId }
-    | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId; readonly before: ImageDocument }
+    | { readonly kind: 'text'; readonly layerId: LayerId;
+        readonly range: { readonly start: number; readonly end: number } | null;
+        style: TextStylePatch; paragraph: ParagraphStylePatch; recordable: boolean }
+    | { readonly kind: 'document'; readonly documentId: ImageDocument['id']; readonly layerId: LayerId;
+        readonly before: ImageDocument; style: TextStylePatch;
+        paragraph: ParagraphStylePatch; recordable: boolean }
     | null
   >(null);
   const textWarpGestureRef = useRef<{
@@ -5890,11 +5894,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const editing = textEditingController.getSnapshot();
     if (editing.status === 'editing' && editing.layerId === layerId) {
       if (!textEditingController.beginFormatting()) return false;
-      textPropertyGestureRef.current = { kind: 'text', layerId };
+      const start = Math.min(editing.selection.anchor, editing.selection.focus);
+      const end = Math.max(editing.selection.anchor, editing.selection.focus);
+      textPropertyGestureRef.current = {
+        kind: 'text', layerId, range: start === end ? null : { start, end },
+        style: {}, paragraph: {}, recordable: true
+      };
       return true;
     }
     if (!beginDocumentTransaction()) return false;
-    textPropertyGestureRef.current = { kind: 'document', documentId: document.id, layerId, before: document };
+    textPropertyGestureRef.current = {
+      kind: 'document', documentId: document.id, layerId, before: document,
+      style: {}, paragraph: {}, recordable: true
+    };
     return true;
   };
   const applyTextPropertyPatch = (
@@ -5903,6 +5915,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => {
     const gesture = textPropertyGestureRef.current;
     if (!gesture) return;
+    gesture.style = { ...gesture.style, ...patch };
+    gesture.paragraph = { ...gesture.paragraph, ...paragraphPatch };
+    if (!semanticStylePatchFromCanonical(gesture.style)
+      || !semanticParagraphPatchFromCanonical(gesture.paragraph)) {
+      gesture.recordable = false;
+    }
     if (gesture.kind === 'text') {
       const editing = textEditingController.getSnapshot();
       if (editing.status !== 'editing' || editing.layerId !== gesture.layerId) return;
@@ -5947,9 +5965,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     flushPendingTextPaintPreview();
     const gesture = textPropertyGestureRef.current;
     if (!gesture) return;
-    if (gesture.kind === 'text') textEditingController.endFormatting();
-    else endDocumentTransaction();
+    const changed = gesture.kind === 'text'
+      ? textEditingController.endFormatting()
+      : endDocumentTransaction();
     textPropertyGestureRef.current = null;
+    if (!changed || !gesture.recordable) return;
+    const style = semanticStylePatchFromCanonical(gesture.style);
+    const paragraph = semanticParagraphPatchFromCanonical(gesture.paragraph);
+    if (!style || !paragraph || (!Object.keys(style).length && !Object.keys(paragraph).length)) return;
+    const parameters = {
+      layerId: gesture.layerId,
+      ...(gesture.kind === 'text' && gesture.range ? gesture.range : {}),
+      ...(Object.keys(style).length ? { style } : {}),
+      ...(Object.keys(paragraph).length ? { paragraph } : {})
+    };
+    commandService?.recordObservedCommand(
+      'text.format',
+      workspaceDocumentId as DocumentSessionId,
+      parameters,
+      { layerId: gesture.layerId, changed: true }
+    );
   };
   const cancelTextPropertyGesture = () => {
     cancelPendingTextPaintPreview();

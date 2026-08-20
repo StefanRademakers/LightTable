@@ -1,0 +1,72 @@
+Task 227 - Packaged editable text through Actions and MCP
+=========================================================
+
+Goal
+====
+
+Prove that an artist can create and format native editable text through the
+real UI/Actions path and through authenticated Agent Access, with stable layer
+identity and canonical text inspection.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Record real UI point-text creation as one `text.create` Action step.
+- [x] Record a real discrete text-format operation as `text.format`.
+- [x] Bind the format target to the created text layer result during playback.
+- [x] Undo and replay the text steps in the packaged Actions panel.
+- [x] Create point text through authenticated packaged Agent Access.
+- [x] Format the created layer through the shared semantic command owner.
+- [x] Query canonical content, style and transform through `text.query`.
+- [x] Confirm text remains a native editable text layer after both routes.
+- [x] Update equivalence/capability documentation with exact boundaries.
+- [x] Run type, command, boundary and packaged regression gates.
+
+Scope guard
+===========
+
+- This slice covers point-text creation and discrete layer-wide formatting.
+- It does not claim Actions coverage for high-frequency typing/IME transactions,
+  path text, text warp or every paragraph property.
+- It reuses the existing text engine, font registry and history owners.
+
+Completion contract
+===================
+
+Packaged Actions can record/undo/replay UI-created editable text and its format
+using result binding, while packaged authenticated Agent Access can create,
+format and query an equivalent native text layer without rasterization.
+
+Completion evidence
+===================
+
+- UI point-text creation records one `text.create`. The normal Properties
+  faux-Bold gesture keeps previews local and records one final `text.format`.
+- `text.format` now models synthetic bold and italic explicitly instead of
+  conflating them with font weight or font style. Underline remains explicit.
+- Actions binds the format layer ID to `$step8.layerId`, undoes nine mixed
+  artist operations and replays them. Canonical `text.query` then confirms a
+  live flow-text layer with `syntheticBold: true`.
+- Packaged authenticated Agent Access creates `Agent title`, formats font size,
+  fill, synthetic italic and underline, then reads the same properties and
+  editable content through `text.query`.
+- Focused text/regression run passed 567 test files / 4,070 tests; the later
+  semantic/MCP regression run passed 81 files / 1,025 tests. Workspace
+  typecheck and packaged desktop distribution verification passed.
+- Packaged Actions and Agent Access smokes both passed.
+
+Explicit remaining work
+=======================
+
+- coalesced typing/delete/IME Action semantics;
+- path text, text warp and unsupported advanced typography properties;
+- one combined three-route failure/stale-revision comparison;
+- deployed external MCP tunnel proof.

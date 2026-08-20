@@ -76,11 +76,16 @@ Current evidence (2026-08-20)
   transforms and blends a layer, then queries canonical state.
 - A packaged Actions flow records UI transform, selection and Brush work,
   undoes it and replays it with stable result binding.
+- Packaged Actions records UI point-text creation plus faux-bold formatting,
+  binds `text.format` to the new layer, undoes/replays both and confirms the
+  result remains editable flow text. Packaged Agent Access separately creates,
+  formats and queries native text including faux italic and underline.
 
 Still required for completion
 =============================
 
-- editable text create/format in the complete three-route workflow;
+- high-frequency typing/IME recording and text failure equivalence across all
+  three routes;
 - revision-bound rendered preview/export comparison with declared per-image
   tolerances and retained difference artifacts;
 - the complete workflow through the external MCP bridge, not only the packaged

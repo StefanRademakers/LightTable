@@ -123,6 +123,8 @@ export interface EditableTextQueryResult {
     readonly font: { readonly families: readonly string[]; readonly postScriptName?: string;
       readonly assetId?: string; readonly available: boolean; readonly substituted: boolean };
     readonly fill: unknown; readonly stroke: unknown; readonly tracking: number;
+    readonly syntheticBold: boolean; readonly syntheticItalic: boolean;
+    readonly underline: boolean;
   }[];
   readonly paragraphRuns: readonly unknown[];
   readonly runsTruncated: boolean;

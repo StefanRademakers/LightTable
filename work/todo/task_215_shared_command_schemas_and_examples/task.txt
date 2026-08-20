@@ -71,6 +71,9 @@ Current evidence (2026-08-20)
   both the real sliders and `grade.setBasic` validation.
 - Stable result binding supports nested Grade targets during packaged Action
   replay.
+- The semantic text-style contract now explicitly distinguishes synthetic
+  bold/italic from font weight/style; UI recording, command validation,
+  execution, text query and the dedicated MCP text tool share those meanings.
 
 Still required for completion
 =============================

@@ -309,10 +309,13 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       end: z.number().int().nonnegative().optional(), text: z.string().max(1_000_000).optional(),
       fontAssetId: z.string().min(1).max(255).optional(), fontSize: z.number().positive().max(100_000).optional(),
       fill: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), tracking: z.number().min(-10_000).max(100_000).optional(),
+      syntheticBold: z.boolean().optional(), syntheticItalic: z.boolean().optional(),
+      underline: z.boolean().optional(),
       alignment: z.enum(['start', 'center', 'end', 'justify']).optional(),
       expectedDocumentRevision: z.number().int().nonnegative().optional() })
   }, withResult(({ documentId, layerId, operation, start, end, text, fontAssetId, fontSize,
-    fill, tracking, alignment, expectedDocumentRevision }) => {
+    fill, tracking, syntheticBold, syntheticItalic, underline, alignment,
+    expectedDocumentRevision }) => {
     if (operation === 'replace' && (start === undefined || end === undefined || text === undefined)) {
       throw new Error('Range replacement requires start, end and text.');
     }
@@ -322,7 +325,11 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       commandParameters: operation === 'replace' ? { layerId, start, end, text } : { layerId,
         ...(start === undefined || end === undefined ? {} : { start, end }), style: {
           ...(fontAssetId ? { font: { assetId: fontAssetId } } : {}), ...(fontSize ? { fontSize } : {}),
-          ...(fill ? { fill: { enabled: true, color: fill } } : {}), ...(tracking === undefined ? {} : { tracking })
+          ...(fill ? { fill: { enabled: true, color: fill } } : {}),
+          ...(tracking === undefined ? {} : { tracking }),
+          ...(syntheticBold === undefined ? {} : { syntheticBold }),
+          ...(syntheticItalic === undefined ? {} : { syntheticItalic }),
+          ...(underline === undefined ? {} : { underline })
         }, ...(alignment ? { paragraph: { alignment } } : {}) } });
   }, { edit: true }));
   server.registerTool('lighttable_create_shape', {

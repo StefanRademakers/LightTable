@@ -938,10 +938,16 @@ describe('LightTableCommandService registry', () => {
     expect(result).toMatchObject({ status: 'completed', value: { layerId } });
     expect(state.ports.executeTextCommand).toHaveBeenCalledWith(state.session.id,
       { kind: 'replace', layerId, start: 0, end: 0, text: 'مرحبا 👋' });
+    await expect(state.service.execute(request('text.format', state.session.id,
+      { layerId, style: { syntheticBold: true, syntheticItalic: true, underline: true } })))
+      .resolves.toMatchObject({ status: 'completed' });
+    expect(state.ports.executeTextCommand).toHaveBeenLastCalledWith(state.session.id,
+      { kind: 'format', layerId,
+        style: { syntheticBold: true, syntheticItalic: true, underline: true } });
     const stale = await state.service.execute({ ...request('text.format', state.session.id,
       { layerId, style: { fontSize: 64 } }), expectedDocumentRevision: 999 });
     expect(stale).toMatchObject({ status: 'rejected', code: 'stale-document-revision' });
-    expect(state.ports.executeTextCommand).toHaveBeenCalledTimes(1);
+    expect(state.ports.executeTextCommand).toHaveBeenCalledTimes(2);
     const invalid = await state.service.execute(request('text.replaceRange', state.session.id,
       { layerId, start: 0, end: 99, text: 'x' }));
     expect(invalid).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });

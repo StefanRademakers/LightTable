@@ -100,6 +100,10 @@ Existing foundation evidence
   `grade.queryBasic` now reads those canonical values through authenticated
   packaged Agent Access without history/recording mutation. Non-basic groups
   remain open.
+- Native point-text creation and faux-bold/italic/underline formatting now use
+  shared semantic owners. Packaged Actions records, binds, undoes and replays
+  UI text creation/formatting; packaged Agent Access creates, formats and
+  queries the editable flow-text state.
 
 Program definition of done
 ==========================

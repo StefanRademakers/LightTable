@@ -11,6 +11,8 @@ export interface SemanticTextStylePatch {
   readonly fontSize?: number;
   readonly fontWeight?: number;
   readonly fontStyle?: 'normal' | 'italic' | 'oblique';
+  readonly syntheticBold?: boolean;
+  readonly syntheticItalic?: boolean;
   readonly tracking?: number;
   readonly fill?: { readonly enabled: boolean; readonly color?: string };
   readonly stroke?: { readonly enabled: boolean; readonly color?: string; readonly width?: number };
@@ -76,6 +78,8 @@ const parseStyle = (value: unknown): SemanticTextStylePatch | null => {
   if (value.fontSize !== undefined && !finite(value.fontSize, 0.1, 100_000)) return null;
   if (value.fontWeight !== undefined && !finite(value.fontWeight, 1, 1_000)) return null;
   if (value.fontStyle !== undefined && !['normal', 'italic', 'oblique'].includes(String(value.fontStyle))) return null;
+  if (value.syntheticBold !== undefined && typeof value.syntheticBold !== 'boolean') return null;
+  if (value.syntheticItalic !== undefined && typeof value.syntheticItalic !== 'boolean') return null;
   if (value.tracking !== undefined && !finite(value.tracking, -10_000, 100_000)) return null;
   if (value.underline !== undefined && typeof value.underline !== 'boolean') return null;
   const parsePaint = (paint: unknown, stroke: boolean) => {
@@ -91,6 +95,8 @@ const parseStyle = (value: unknown): SemanticTextStylePatch | null => {
   return { ...(font ? { font } : {}), ...(typeof value.fontSize === 'number' ? { fontSize: value.fontSize } : {}),
     ...(typeof value.fontWeight === 'number' ? { fontWeight: value.fontWeight } : {}),
     ...(typeof value.fontStyle === 'string' ? { fontStyle: value.fontStyle as SemanticTextStylePatch['fontStyle'] } : {}),
+    ...(typeof value.syntheticBold === 'boolean' ? { syntheticBold: value.syntheticBold } : {}),
+    ...(typeof value.syntheticItalic === 'boolean' ? { syntheticItalic: value.syntheticItalic } : {}),
     ...(typeof value.tracking === 'number' ? { tracking: value.tracking } : {}),
     ...(typeof value.underline === 'boolean' ? { underline: value.underline } : {}),
     ...(fill ? { fill } : {}), ...(stroke ? { stroke } : {}) };

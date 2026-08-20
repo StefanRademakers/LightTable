@@ -547,7 +547,9 @@ export class LightTableCommandService {
           ...(run.requestedFont.postScriptName ? { postScriptName: run.requestedFont.postScriptName } : {}),
           ...(assetId ? { assetId } : {}), available: Boolean(assetId && availableAssets.has(assetId)),
           substituted: Boolean(run.requestedFont.replacement) },
-        fill: structuredClone(run.fill ?? null), stroke: structuredClone(run.stroke ?? null), tracking: run.tracking };
+        fill: structuredClone(run.fill ?? null), stroke: structuredClone(run.stroke ?? null),
+        tracking: run.tracking, syntheticBold: run.syntheticBold,
+        syntheticItalic: run.syntheticItalic, underline: Boolean(run.underline) };
     }) : [];
     return { layerId, sourceKind: source.kind, editable: source.kind === 'flow', revision: layer.revision,
       transform: { ...layer.transform }, content: { text: text.slice(0, 4096), totalLength: text.length,

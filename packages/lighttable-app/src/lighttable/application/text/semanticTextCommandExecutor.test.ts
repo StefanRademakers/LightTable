@@ -39,13 +39,15 @@ describe('semantic text command executor', () => {
     const state = setup('abc אבג');
     await executeSemanticTextCommand({ kind: 'format', layerId: state.layerId, start: 0, end: 3,
       style: { fontSize: 72, tracking: 120, fill: { enabled: true, color: '#ff0088' },
-        stroke: { enabled: true, color: '#001122', width: 3 } },
+        stroke: { enabled: true, color: '#001122', width: 3 },
+        syntheticBold: true, syntheticItalic: true },
       paragraph: { alignment: 'end', direction: 'rtl', leading: { value: 88 }, startIndent: 12 } },
     state.dependencies);
     const layer = findDocumentLayer(state.document(), state.layerId)!;
     if (layer.type !== 'text' || layer.text.source.kind !== 'flow') throw new Error('Text missing.');
     expect(layer.text.source.styleRuns[0]).toMatchObject({ end: 3, fontSize: 72, tracking: 120,
-      fill: { kind: 'solid' }, stroke: { width: 3 } });
+      fill: { kind: 'solid' }, stroke: { width: 3 }, syntheticBold: true,
+      syntheticItalic: true });
     expect(layer.text.source.paragraphRuns[0]).toMatchObject({ alignment: 'end', direction: 'rtl',
       lineHeight: { kind: 'absolute', value: 88 }, startIndent: 12 });
     expect(state.history).toHaveBeenCalledTimes(1);
