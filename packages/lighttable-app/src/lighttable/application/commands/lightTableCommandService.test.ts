@@ -333,7 +333,12 @@ describe('LightTableCommandService action recording', () => {
         featherRadius: 0,
         antiAlias: false
       },
-      { operationCount: 1 }
+      {
+        mode: 'replace',
+        shape: { kind: 'rectangle', points: [{ x: 2, y: 3 }, { x: 20, y: 30 }] },
+        featherRadius: 0,
+        antiAlias: false
+      }
     )).toBe(true);
     expect(state.ports.executeSelectionCommand).toBeUndefined();
     expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
@@ -1344,7 +1349,10 @@ describe('LightTableCommandService registry', () => {
   });
 
   it('routes a final selection shape without changing the document revision', async () => {
-    const executeSelectionCommand = vi.fn(async () => ({ operationCount: 1 }));
+    const executeSelectionCommand = vi.fn(async (_documentId, command) => command.kind === 'apply-shape'
+      ? { mode: command.mode, shape: command.shape,
+        featherRadius: command.featherRadius, antiAlias: command.antiAlias }
+      : null);
     const state = setup({ executeSelectionCommand });
     const before = state.service.queryDocument(state.session.id)!.canonicalRevision;
     await expect(state.service.execute(request('selection.applyShape', state.session.id, {
@@ -1359,7 +1367,10 @@ describe('LightTableCommandService registry', () => {
   });
 
   it('validates, records and replays one asynchronous Magic Wand recipe', async () => {
-    const executeSelectionCommand = vi.fn(async () => ({ operationCount: 1 }));
+    const executeSelectionCommand = vi.fn(async (_documentId, command) => command.kind === 'magic-wand'
+      ? { layerId: command.layerId, point: command.point,
+        mode: command.mode, options: command.options }
+      : null);
     const state = setup({ executeSelectionCommand });
     const layerId = state.session.getSnapshot().document!.activeLayerId;
     const parameters = {

@@ -124,6 +124,24 @@ try {
       createRasterContract, layerMaskContract
     })}`);
   }
+  const shapeSelectionContract = (await call('lighttable_commands', { command: 'selection.applyShape' }))
+    .structuredContent.commands?.[0]?.contract;
+  const wandSelectionContract = (await call('lighttable_commands', { command: 'selection.applyMagicWand' }))
+    .structuredContent.commands?.[0]?.contract;
+  const modifySelectionContract = (await call('lighttable_commands', { command: 'selection.modify' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (shapeSelectionContract?.status !== 'complete' || shapeSelectionContract.schemaVersion !== 1
+    || !shapeSelectionContract.input?.properties?.shape?.allOf
+    || !shapeSelectionContract.result?.properties?.antiAlias
+    || wandSelectionContract?.status !== 'complete' || wandSelectionContract.schemaVersion !== 1
+    || !wandSelectionContract.input?.properties?.options?.properties?.sampleSize
+    || !wandSelectionContract.result?.properties?.options
+    || modifySelectionContract?.status !== 'complete' || modifySelectionContract.schemaVersion !== 1
+    || !modifySelectionContract.input?.allOf || !modifySelectionContract.result?.allOf) {
+    throw new Error(`MCP selection discovery is incomplete: ${JSON.stringify({
+      shapeSelectionContract, wandSelectionContract, modifySelectionContract
+    })}`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
@@ -159,6 +177,17 @@ try {
     throw new Error(`Invalid cross-operation mask state reached the desktop mutation owner: ${JSON.stringify({
       invalidMask, before: before.canonicalRevision, after: afterInvalidMask.canonicalRevision
     })}`);
+  }
+  const invalidSelection = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'selection.applyMagicWand', parameters: {
+      kind: 'magic-wand', layerId: before.activeLayerId,
+      point: { x: 10, y: 10, pressure: 0.5 }, mode: 'replace',
+      options: { sampleSize: 3, tolerance: 20, antiAlias: true,
+        contiguous: true, sampleAllLayers: false }
+    }
+  } });
+  if (!invalidSelection.isError) {
+    throw new Error(`Private pointer state reached the Magic Wand owner: ${JSON.stringify(invalidSelection)}`);
   }
   const sourceLayerId = before.activeLayerId;
   const openingLayers = (await call('lighttable_layers', { documentId })).structuredContent;

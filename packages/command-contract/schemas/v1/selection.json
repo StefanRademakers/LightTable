@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "category": "selection",
+  "commands": {
+    "selection.applyShape": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mode", "shape"],
+        "properties": {
+          "mode": { "type": "string", "title": "Combine mode", "enum": ["replace", "add", "subtract", "intersect"], "default": "replace" },
+          "shape": {
+            "type": "object",
+            "title": "Final selection shape",
+            "additionalProperties": false,
+            "required": ["kind", "points"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["rectangle", "ellipse", "free", "polygon"], "default": "rectangle" },
+              "points": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 4096,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["x", "y"],
+                  "properties": {
+                    "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+                    "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 }
+                  }
+                }
+              }
+            },
+            "allOf": [
+              {
+                "if": { "type": "object", "required": ["kind"], "properties": { "kind": { "enum": ["rectangle", "ellipse"] } } },
+                "then": { "type": "object", "properties": { "points": { "type": "array", "maxItems": 2 } } }
+              },
+              {
+                "if": { "type": "object", "required": ["kind"], "properties": { "kind": { "enum": ["free", "polygon"] } } },
+                "then": { "type": "object", "properties": { "points": { "type": "array", "minItems": 3 } } }
+              }
+            ]
+          },
+          "featherRadius": { "type": "number", "title": "Feather radius", "minimum": 0, "maximum": 250, "default": 0 },
+          "antiAlias": { "type": "boolean", "title": "Anti-alias", "default": false }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mode", "shape", "featherRadius", "antiAlias"],
+        "properties": {
+          "mode": { "type": "string", "enum": ["replace", "add", "subtract", "intersect"] },
+          "shape": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "points"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["rectangle", "ellipse", "free", "polygon"] },
+              "points": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 4096,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["x", "y"],
+                  "properties": {
+                    "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+                    "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 }
+                  }
+                }
+              }
+            },
+            "allOf": [
+              {
+                "if": { "type": "object", "required": ["kind"], "properties": { "kind": { "enum": ["rectangle", "ellipse"] } } },
+                "then": { "type": "object", "properties": { "points": { "type": "array", "maxItems": 2 } } }
+              },
+              {
+                "if": { "type": "object", "required": ["kind"], "properties": { "kind": { "enum": ["free", "polygon"] } } },
+                "then": { "type": "object", "properties": { "points": { "type": "array", "minItems": 3 } } }
+              }
+            ]
+          },
+          "featherRadius": { "type": "number", "minimum": 0, "maximum": 250 },
+          "antiAlias": { "type": "boolean" }
+        }
+      }
+    },
+    "selection.applyMagicWand": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "layerId", "point", "mode", "options"],
+        "properties": {
+          "kind": { "type": "string", "title": "Selection kind", "const": "magic-wand", "default": "magic-wand" },
+          "layerId": { "type": "string", "title": "Source layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+          "point": {
+            "type": "object",
+            "title": "Document sample point",
+            "additionalProperties": false,
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "y": { "type": "number", "minimum": -10000000, "maximum": 10000000, "default": 0 }
+            }
+          },
+          "mode": { "type": "string", "title": "Combine mode", "enum": ["replace", "add", "subtract", "intersect"], "default": "replace" },
+          "options": {
+            "type": "object",
+            "title": "Magic Wand options",
+            "additionalProperties": false,
+            "required": ["sampleSize", "tolerance", "antiAlias", "contiguous", "sampleAllLayers"],
+            "properties": {
+              "sampleSize": { "type": "integer", "enum": [1, 3, 5, 11, 31, 51, 101], "default": 1 },
+              "tolerance": { "type": "number", "minimum": 0, "maximum": 255, "default": 20 },
+              "antiAlias": { "type": "boolean", "default": true },
+              "contiguous": { "type": "boolean", "default": true },
+              "sampleAllLayers": { "type": "boolean", "default": false }
+            }
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "point", "mode", "options"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "point": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+              "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 }
+            }
+          },
+          "mode": { "type": "string", "enum": ["replace", "add", "subtract", "intersect"] },
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sampleSize", "tolerance", "antiAlias", "contiguous", "sampleAllLayers"],
+            "properties": {
+              "sampleSize": { "type": "integer", "enum": [1, 3, 5, 11, 31, 51, 101] },
+              "tolerance": { "type": "integer", "minimum": 0, "maximum": 255 },
+              "antiAlias": { "type": "boolean" },
+              "contiguous": { "type": "boolean" },
+              "sampleAllLayers": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "selection.modify": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "operation"],
+        "properties": {
+          "kind": { "type": "string", "title": "Selection kind", "const": "modify", "default": "modify" },
+          "operation": { "type": "string", "title": "Operation", "enum": ["all", "clear", "invert", "feather"], "default": "all" },
+          "radius": { "type": "number", "title": "Feather radius", "minimum": 0, "maximum": 250, "default": 0 }
+        },
+        "allOf": [
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "feather" } } },
+            "then": { "type": "object", "required": ["radius"] },
+            "else": { "type": "object", "not": { "type": "object", "required": ["radius"] } }
+          }
+        ]
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["operation"],
+        "properties": {
+          "operation": { "type": "string", "enum": ["all", "clear", "invert", "feather"] },
+          "radius": { "type": "number", "minimum": 0, "maximum": 250 }
+        },
+        "allOf": [
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "feather" } } },
+            "then": { "type": "object", "required": ["radius"] },
+            "else": { "type": "object", "not": { "type": "object", "required": ["radius"] } }
+          }
+        ]
+      }
+    }
+  }
+}

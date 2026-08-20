@@ -2333,7 +2333,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         'selection.applyShape',
         workspaceDocumentId as DocumentSessionId,
         parameters,
-        { mode: parameters.mode, shape: parameters.shape }
+        { mode: parameters.mode, shape: parameters.shape,
+          featherRadius: parameters.featherRadius, antiAlias: parameters.antiAlias }
       );
     },
     onMagicWandCommitted: (parameters) => {
@@ -2341,7 +2342,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         'selection.applyMagicWand',
         workspaceDocumentId as DocumentSessionId,
         parameters,
-        { layerId: parameters.layerId, mode: parameters.mode, point: parameters.point }
+        { layerId: parameters.layerId, mode: parameters.mode, point: parameters.point,
+          options: parameters.options }
       );
     }
   }, selectionGestureRef.current);

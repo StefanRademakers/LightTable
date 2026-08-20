@@ -93,6 +93,14 @@ describe('ActionsPanel', () => {
       .toEqual({});
     expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['layer.setMask']!.input))
       .toEqual({ layerId: '', operation: 'add' });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['selection.applyShape']!.input))
+      .toEqual({ mode: 'replace', shape: { kind: 'rectangle', points: [] } });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['selection.applyMagicWand']!.input))
+      .toEqual({ kind: 'magic-wand', layerId: '', point: { x: 0, y: 0 }, mode: 'replace',
+        options: { sampleSize: 1, tolerance: 20, antiAlias: true,
+          contiguous: true, sampleAllLayers: false } });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['selection.modify']!.input))
+      .toEqual({ kind: 'modify', operation: 'all' });
   });
 
   it('renders nested conditional text properties without a free-form command JSON editor', () => {

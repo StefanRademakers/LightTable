@@ -65,6 +65,9 @@ test('versioned schemas describe and validate every completed command vertical',
     'layer.setFillOpacity',
     'layer.setBlendMode',
     'layer.setLock',
+    'selection.applyShape',
+    'selection.applyMagicWand',
+    'selection.modify',
     'text.create',
     'text.replaceRange',
     'text.format',
@@ -225,4 +228,46 @@ test('layer mask schemas require only operation-relevant properties', () => {
     { layerId: 'photo', operation: 'set-enabled' },
     { layerId: 'photo', operation: 'set-linked', linked: true, enabled: true }
   ]) assert.equal(validateJsonSchemaValue(mask.input, value).valid, false, JSON.stringify(value));
+});
+
+test('selection schemas bound final geometry, sampled recipes and conditional feather state', () => {
+  const shape = LIGHTTABLE_COMMAND_SCHEMAS['selection.applyShape'];
+  const rectangle = {
+    mode: 'replace', shape: {
+      kind: 'rectangle', points: [{ x: 20, y: 30 }, { x: 260, y: 180 }]
+    }, featherRadius: 0, antiAlias: true
+  };
+  assert.equal(validateJsonSchemaValue(shape.input, rectangle).valid, true);
+  assert.equal(validateJsonSchemaValue(shape.result, rectangle).valid, true);
+  assert.equal(validateJsonSchemaValue(shape.input, {
+    ...rectangle, shape: { ...rectangle.shape, points: [...rectangle.shape.points, { x: 1, y: 2 }] }
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(shape.input, {
+    mode: 'replace', shape: { kind: 'polygon', points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] }
+  }).valid, false);
+
+  const wand = LIGHTTABLE_COMMAND_SCHEMAS['selection.applyMagicWand'];
+  const sampled = {
+    kind: 'magic-wand', layerId: 'photo', point: { x: 320, y: 180 }, mode: 'replace',
+    options: { sampleSize: 3, tolerance: 20, antiAlias: true,
+      contiguous: true, sampleAllLayers: false }
+  };
+  assert.equal(validateJsonSchemaValue(wand.input, sampled).valid, true);
+  assert.equal(validateJsonSchemaValue(wand.input, {
+    ...sampled, options: { ...sampled.options, generatedMask: [0, 1] }
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(wand.input, {
+    ...sampled, point: { ...sampled.point, pressure: 0.7 }
+  }).valid, false);
+
+  const modify = LIGHTTABLE_COMMAND_SCHEMAS['selection.modify'];
+  assert.equal(validateJsonSchemaValue(modify.input, {
+    kind: 'modify', operation: 'feather', radius: 12
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(modify.input, {
+    kind: 'modify', operation: 'feather'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(modify.input, {
+    kind: 'modify', operation: 'invert', radius: 12
+  }).valid, false);
 });

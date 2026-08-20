@@ -145,6 +145,10 @@ Current evidence (2026-08-20)
   `layer.setMask` operation-specific add/remove/enable/link inputs and results.
   Actions derives only relevant defaults; MCP discovery exposes both complete
   contracts and rejects cross-operation mask fields before document mutation.
+- A separate Selection module now bounds final geometric shapes, Magic Wand
+  sample recipes and conditional Feather state without exposing generated masks
+  or pointer samples. Complete result schemas align native UI observation with
+  direct Actions/MCP execution; MCP rejects private point pressure state.
 
 Still required for completion
 =============================

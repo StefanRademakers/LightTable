@@ -33,8 +33,9 @@ Checklist
 Scope guard
 ===========
 
-- This task does not add Feather, Select Subject, Color Range or pixel-copy
-  semantics.
+- This original task did not add Feather, Select Subject, Color Range or
+  pixel-copy semantics. Feather was added later through the same bounded final-
+  operation owner; the other exclusions remain open.
 - Selection remains editor state and must not increment document pixel/content
   revision merely because the selection changes.
 - Commands operate on the final selection state; no pointer samples are sent.
@@ -42,8 +43,8 @@ Scope guard
 Completion evidence
 ===================
 
-- `selection.modify` accepts only `all`, `clear` and `invert`; extra or unknown
-  properties fail validation before reaching the editor.
+- `selection.modify` accepts `all`, `clear`, `invert` and bounded `feather`;
+  radius is required only for Feather and extra properties fail before the editor.
 - Select All, Deselect/Clear and Inverse menu/keyboard owners now invoke the
   shared command with the existing selection controller as fallback only when
   no command service is mounted.

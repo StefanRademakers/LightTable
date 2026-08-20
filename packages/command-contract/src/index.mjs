@@ -13,6 +13,8 @@ import layerStructureCommandSchemas from '../schemas/v1/layer-structure.json' wi
 
 import layerCommandSchemas from '../schemas/v1/layer.json' with { type: 'json' };
 
+import selectionCommandSchemas from '../schemas/v1/selection.json' with { type: 'json' };
+
 import textCommandSchemas from '../schemas/v1/text.json' with { type: 'json' };
 
 import transformCommandSchemas from '../schemas/v1/transform.json' with { type: 'json' };
@@ -95,6 +97,7 @@ export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
   ...layerMaskCommandSchemas.commands,
   ...layerStructureCommandSchemas.commands,
   ...layerCommandSchemas.commands,
+  ...selectionCommandSchemas.commands,
   ...textCommandSchemas.commands,
   ...transformCommandSchemas.commands
 });

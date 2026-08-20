@@ -106,7 +106,16 @@ const createHarness = () => {
       undo: () => { selection = before; },
       redo: () => { selection = after; }
     });
-    return { operationCount: selection.length };
+    if (command.kind === 'modify') {
+      return { operation: command.operation,
+        ...(command.operation === 'feather' ? { radius: command.radius } : {}) };
+    }
+    if (command.kind === 'magic-wand') {
+      return { layerId: command.layerId, point: command.point,
+        mode: command.mode, options: command.options };
+    }
+    return { mode: command.mode, shape: command.shape,
+      featherRadius: command.featherRadius, antiAlias: command.antiAlias };
   };
   const applyVector = (command: Parameters<typeof executeSemanticVectorCommand>[0]) => (
     executeSemanticVectorCommand(command, {

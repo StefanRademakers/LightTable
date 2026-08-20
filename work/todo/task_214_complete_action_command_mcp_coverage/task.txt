@@ -98,7 +98,9 @@ Existing foundation evidence
   and bounded Brush/Erase stroke verticals now share typed UI/Actions/MCP
   capabilities; this is partial category evidence, not program completion.
 - Select All, Clear/Deselect and Invert now share `selection.modify` across the
-  real menu/keyboard owner, Actions and admitted MCP execution.
+  real menu/keyboard owner, Actions and admitted MCP execution. Geometric,
+  Magic Wand and discrete/Feather selection recipes now also carry shared
+  version-1 input/result schemas; raster masks and pointer samples stay local.
 - Fourteen basic Grade controls now share `grade.setBasic` with explicit
   document/layer targets, final slider recording and packaged Actions replay;
   `grade.queryBasic` now reads those canonical values through authenticated
