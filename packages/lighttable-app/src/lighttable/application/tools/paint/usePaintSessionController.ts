@@ -103,6 +103,12 @@ export interface PaintSessionController {
 }
 
 const cloneBrush = (brush: BrushSettings): BrushSettings => ({ ...brush });
+const cloneOperator = (operator: PaintBrushStrokePlan): PaintBrushStrokePlan =>
+  operator.operator === 'tone' ? { ...operator } : ({
+    ...operator,
+    source: { ...operator.source, point: { ...operator.source.point } },
+    sourceOffset: { ...operator.sourceOffset }
+  });
 
 const clipDirtyBoundsToDocument = (
   bounds: Rect,
@@ -206,11 +212,10 @@ export const createPaintSessionController = (
         if (operator && operator.operator !== 'tone') renderer.beginSampledBrushStroke(operator);
         activeBrush = cloneBrush(brush);
         activeOperator = operator ?? null;
-        recordedStroke = recordSemanticCommit
-          && (!operator || operator.operator === 'tone') ? {
+        recordedStroke = recordSemanticCommit ? {
           target: { ...target, sourceToDocument: { ...target.sourceToDocument } },
           brush: cloneBrush(brush),
-          ...(operator ? { operator: { ...operator } } : {}),
+          ...(operator ? { operator: cloneOperator(operator) } : {}),
           samples: [{ ...point }],
           byteLength: 512 + JSON.stringify(point).length,
           overflowed: false

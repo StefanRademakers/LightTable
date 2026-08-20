@@ -81,6 +81,7 @@ try {
   const workspace = (await call('lighttable_workspace', {})).structuredContent;
   const documentId = workspace.activeDocumentId;
   const before = (await call('lighttable_document', { documentId })).structuredContent;
+  const sourceLayerId = before.activeLayerId;
   await call('lighttable_execute', { documentId, command: 'layer.createRaster',
     expectedDocumentRevision: before.canonicalRevision, parameters: {} });
   const createdDocument = (await call('lighttable_document', { documentId })).structuredContent;
@@ -104,6 +105,18 @@ try {
   })).structuredContent;
   if (toneStroke?.value?.kind !== 'brush-stroke' || toneStroke.value.sampleCount !== 2) {
     throw new Error(`MCP tone-brush command failed: ${JSON.stringify(toneStroke)}`);
+  }
+  const sampledStroke = (await call('lighttable_execute', { documentId, command: 'tool.commitGesture',
+    parameters: { kind: 'brush-stroke', parameters: { layerId, channel: 'pixels', erase: false,
+      brush: { presetId: 'round', size: 54, hardness: 0.5, opacity: 0.8,
+        flow: 0.35, spacing: 0.08, smooth: 0, color: '#000000', backgroundColor: '#ffffff' },
+      operator: { operator: 'healing', source: { anchorLayerId: sourceLayerId,
+        point: { x: 80, y: 80 } }, sampleMode: 'current-and-below',
+        sourceOffset: { x: -80, y: -40 }, diffusion: 5 } },
+    samples: [{ x: 160, y: 120, pressure: 1 }, { x: 230, y: 145, pressure: 0.8 }] }
+  })).structuredContent;
+  if (sampledStroke?.value?.sampleCount !== 2) {
+    throw new Error(`MCP Healing Brush command failed: ${JSON.stringify(sampledStroke)}`);
   }
   const gesture = (await call('lighttable_gesture_begin', { documentId, kind: 'brush-stroke',
     coordinateSpace: 'document', parameters: { layerId, channel: 'pixels' },

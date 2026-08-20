@@ -57,6 +57,8 @@ Completed vertical slices
   shared gradient schema and local-only drag interaction.
 - Dodge, Burn and Sponge final strokes with explicit snapshotted operator
   settings and local-only frame-scheduled interaction.
+- Clone Stamp and Healing Brush final strokes with an immutable renderer-owned
+  source snapshot and bounded document-relative source metadata for replay.
 
 Rules
 =====

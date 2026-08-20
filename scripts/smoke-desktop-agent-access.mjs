@@ -329,6 +329,20 @@ try {
     || toneStroke.value?.sampleCount !== 2) {
     throw new Error(`Agent tone-brush stroke failed: ${JSON.stringify(toneStroke)}`);
   }
+  const sampledStroke = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-clone-stroke', command: 'tool.commitGesture', documentId: originalId,
+    commandParameters: {
+      kind: 'brush-stroke', parameters: { layerId, channel: 'pixels', erase: false,
+        brush: { presetId: 'round', size: 48, hardness: 0.65, opacity: 1,
+          flow: 0.4, spacing: 0.08, smooth: 0, color: '#000000', backgroundColor: '#ffffff' },
+        operator: { operator: 'clone', source: { anchorLayerId: layerId, point: { x: 80, y: 80 } },
+          sampleMode: 'current', sourceOffset: { x: -80, y: -40 }, diffusion: 5 } },
+      samples: [{ x: 160, y: 120, pressure: 1 }, { x: 220, y: 140, pressure: 0.8 }]
+    }
+  });
+  if (sampledStroke.status !== 'completed' || sampledStroke.value?.sampleCount !== 2) {
+    throw new Error(`Agent Clone Stamp stroke failed: ${JSON.stringify(sampledStroke)}`);
+  }
   const warpApplied = await invoke(address, token, 'command.execute', {
     commandRequestId: 'agent-warp-raster', command: 'warp.applyStroke', documentId: originalId,
     commandParameters: {

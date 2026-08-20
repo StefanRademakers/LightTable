@@ -110,6 +110,10 @@ Current evidence (2026-08-20)
   fill, while the editable final paint is retained in the Action parameters.
 - Dodge and Sponge now have representative packaged UI/Actions, Agent Access
   and external MCP execution through the same GPU paint-session owner.
+- Clone now has packaged UI recording, undo and Actions replay; direct Agent
+  Access executes Clone and the external MCP bridge executes Healing through
+  the same sampled-brush renderer owner. This proves route equivalence, not
+  Photoshop visual parity.
 
 Still required for completion
 =============================

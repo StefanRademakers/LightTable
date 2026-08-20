@@ -5,8 +5,9 @@ import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
 import {
+  automationPaintOperatorFromPlan,
   parseAutomationBrushSettings,
-  parseAutomationToneBrushPlan
+  parseAutomationPaintOperator
 } from './application/commands/lightTableCommandValidation';
 import { useDocumentHistoryController, type EditorHistoryEntry } from './application/commands/useDocumentHistoryController';
 import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
@@ -48,6 +49,7 @@ import { toolShortcutGroupFor } from './editor/tools/toolRegistry';
 import { brushPresetChange, resolveBrushPreset } from './editor/tools/brush/brushPresets';
 import { useAutoAlignController } from './application/tools/autoAlign/useAutoAlignController';
 import { SampledBrushSourceController } from './application/tools/paint/sampledBrush';
+import type { PaintBrushStrokePlan } from './editor/tools/paint/sampledBrushTypes';
 import { SmartSelectionToolController } from './application/tools/smartSelection/SmartSelectionToolController';
 import type {
   SmartSelectionBackendIdentity,
@@ -3505,7 +3507,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             channel: target.channel,
             erase: target.erase,
             brush,
-            ...(operator ? { operator } : {})
+            ...(operator ? { operator: automationPaintOperatorFromPlan(operator) } : {})
           },
           samples
         },
@@ -5162,6 +5164,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const layerId = typeof parameters.layerId === 'string'
         ? parameters.layerId as LayerId
         : document?.activeLayerId ?? null;
+      if (!document) return false;
       const layer = document && layerId ? findRasterLayer(document, layerId) : null;
       if (!layer) return false;
       const channel = parameters.channel === 'mask' ? 'mask' : 'pixels';
@@ -5169,8 +5172,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ?? editorSessionRef.current.brush;
       const operator = parameters.operator === undefined
         ? undefined
-        : parseAutomationToneBrushPlan(parameters.operator) ?? undefined;
+        : parseAutomationPaintOperator(parameters.operator) ?? undefined;
       if (parameters.operator !== undefined && !operator) return false;
+      let paintOperator: PaintBrushStrokePlan | undefined;
+      if (operator?.operator === 'clone' || operator?.operator === 'healing') {
+        paintOperator = {
+          ...operator,
+          source: { ...operator.source, documentId: document.id }
+        };
+      } else if (operator?.operator === 'tone') {
+        paintOperator = operator;
+      }
+      if (paintOperator && paintOperator.operator !== 'tone'
+        && paintOperator.sampleMode !== 'all'
+        && !findDocumentLayer(document, paintOperator.source.anchorLayerId)) return false;
       return paintSessionController.begin({
         pointerId,
         layer,
@@ -5181,7 +5196,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           sourceToDocument: paintTargetSourceToDocument(layer, channel)
         },
         brush,
-        operator,
+        operator: paintOperator,
         point: {
           ...sample,
           pressure: sample.pressure ?? 1

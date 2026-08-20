@@ -135,6 +135,9 @@ Existing foundation evidence
 - Dodge, Burn and Sponge now share the bounded final brush-stroke contract.
   Effective operator settings publish only after successful GPU/history commit;
   interactive dabs remain on the existing local frame scheduler.
+- Clone Stamp and Healing Brush now use that same final-stroke boundary with an
+  explicit document-relative source anchor. Source pixels, immutable GPU
+  snapshots and live pointer updates remain inside the desktop renderer.
 
 Program definition of done
 ==========================

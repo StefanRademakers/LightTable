@@ -203,6 +203,8 @@ describe('PaintSessionController', () => {
 
   it('keeps one immutable sampled source active for the whole stroke and one undo entry', () => {
     const fixture = createFixture();
+    const onStrokeCommitted = vi.fn();
+    fixture.dependencies.onStrokeCommitted = onStrokeCommitted;
     expect(fixture.controller.begin({
       pointerId: 14,
       layer: fixture.layer,
@@ -214,7 +216,8 @@ describe('PaintSessionController', () => {
       },
       brush: createEditorSession().brush,
       point: { x: 10, y: 10, pressure: 1 },
-      operator: sampledPlan
+      operator: sampledPlan,
+      recordSemanticCommit: true
     })).toBe(true);
 
     fixture.controller.move(14, { x: 20, y: 10, pressure: 1 });
@@ -228,6 +231,10 @@ describe('PaintSessionController', () => {
     }
     expect(fixture.renderer.endSampledBrushStroke).toHaveBeenCalledOnce();
     expect(fixture.history).toHaveLength(1);
+    expect(onStrokeCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      operator: sampledPlan,
+      samples: [{ x: 10, y: 10, pressure: 1 }, { x: 20, y: 10, pressure: 1 }]
+    }));
   });
 
   it('releases a sampled source when its paint gesture is cancelled', () => {

@@ -137,6 +137,30 @@
       "kind": "layer-translate",
       "parameters": { "layerId": "layer-title" },
       "samples": [{ "x": 0, "y": 0 }, { "x": 32, "y": 16 }]
+    },
+    {
+      "kind": "brush-stroke",
+      "parameters": {
+        "layerId": "layer-retouch",
+        "channel": "pixels",
+        "erase": false,
+        "brush": {
+          "presetId": "round", "size": 42, "hardness": 0.6,
+          "opacity": 1, "flow": 0.35, "spacing": 0.08, "smooth": 0,
+          "color": "#000000", "backgroundColor": "#ffffff"
+        },
+        "operator": {
+          "operator": "clone",
+          "source": { "anchorLayerId": "layer-source", "point": { "x": 120, "y": 90 } },
+          "sampleMode": "current-and-below",
+          "sourceOffset": { "x": -80, "y": -40 },
+          "diffusion": 5
+        }
+      },
+      "samples": [
+        { "x": 200, "y": 130, "pressure": 1 },
+        { "x": 260, "y": 150, "pressure": 0.8 }
+      ]
     }
   ],
   "selection.applyShape": [

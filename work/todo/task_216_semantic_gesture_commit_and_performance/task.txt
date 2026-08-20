@@ -90,6 +90,9 @@ Current evidence (2026-08-20)
 - A packaged 24-move Dodge gesture over non-neutral pixels likewise publishes
   one final tone stroke only after GPU/history success; the paint hot path and
   frame scheduler are unchanged.
+- A packaged Clone gesture keeps source selection and 24 pointer moves local,
+  then publishes one bounded stroke only after pointer-up GPU/history commit.
+  Source snapshotting stays at stroke begin and no pixel data enters transport.
 
 Remaining before this task is complete
 ======================================

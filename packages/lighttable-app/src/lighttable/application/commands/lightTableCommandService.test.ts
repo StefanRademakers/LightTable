@@ -730,6 +730,30 @@ describe('LightTableCommandService registry', () => {
     state.service.dispose(); state.workspace.dispose();
   });
 
+  it('accepts document-relative sampled-brush sources without nested document identity', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId;
+    const operator = {
+      operator: 'healing', source: { anchorLayerId: layerId, point: { x: 20, y: 30 } },
+      sampleMode: 'current-and-below', sourceOffset: { x: -40, y: 10 }, diffusion: 5
+    };
+    await expect(state.service.execute(request('tool.commitGesture', state.session.id, {
+      kind: 'brush-stroke', parameters: { layerId, channel: 'pixels', brush: automationBrush, operator },
+      samples: [{ x: 60, y: 20, pressure: 1 }, { x: 80, y: 25, pressure: 0.8 }]
+    }))).resolves.toMatchObject({ status: 'completed' });
+    expect(state.ports.beginGesture).toHaveBeenCalledWith(
+      state.session.id, 'brush-stroke', expect.any(Number),
+      expect.objectContaining({ operator }), expect.any(Object)
+    );
+
+    await expect(state.service.execute(request('tool.commitGesture', state.session.id, {
+      kind: 'brush-stroke', parameters: { layerId, channel: 'pixels', brush: automationBrush,
+        operator: { ...operator, source: { ...operator.source, documentId: state.session.id } } },
+      samples: [{ x: 60, y: 20 }]
+    }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('routes a final selection shape without changing the document revision', async () => {
     const executeSelectionCommand = vi.fn(async () => ({ operationCount: 1 }));
     const state = setup({ executeSelectionCommand });

@@ -4,6 +4,10 @@ import { isLightTableCommandId } from '@lighttable/command-contract';
 import type { BrushSettings } from '../../editor/session/editorSession';
 import { BRUSH_PRESET_IDS } from '../../editor/tools/brush/brushPresets';
 import type { ToneBrushStrokePlan } from '../../editor/tools/paint/toneBrushTypes';
+import type {
+  PaintBrushStrokePlan,
+  SampledBrushStrokePlan
+} from '../../editor/tools/paint/sampledBrushTypes';
 
 const record = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -68,6 +72,56 @@ export const parseAutomationToneBrushPlan = (value: unknown): ToneBrushStrokePla
   };
 };
 
+export type AutomationSampledBrushPlan = Omit<SampledBrushStrokePlan, 'source'> & {
+  readonly source: Omit<SampledBrushStrokePlan['source'], 'documentId'>;
+};
+export type AutomationPaintOperator = ToneBrushStrokePlan | AutomationSampledBrushPlan;
+
+const boundedPoint = (value: unknown): value is { readonly x: number; readonly y: number } =>
+  record(value) && typeof value.x === 'number' && Number.isFinite(value.x)
+  && Math.abs(value.x) <= 10_000_000 && typeof value.y === 'number'
+  && Number.isFinite(value.y) && Math.abs(value.y) <= 10_000_000;
+
+export const parseAutomationSampledBrushPlan = (
+  value: unknown
+): AutomationSampledBrushPlan | null => {
+  if (!record(value) || (value.operator !== 'clone' && value.operator !== 'healing')
+    || !record(value.source) || Object.hasOwn(value.source, 'documentId')
+    || typeof value.source.anchorLayerId !== 'string' || !value.source.anchorLayerId
+    || value.source.anchorLayerId.length > 512 || !boundedPoint(value.source.point)
+    || (value.sampleMode !== 'current' && value.sampleMode !== 'current-and-below'
+      && value.sampleMode !== 'all')
+    || !boundedPoint(value.sourceOffset) || !Number.isInteger(value.diffusion)
+    || Number(value.diffusion) < 1 || Number(value.diffusion) > 7) return null;
+  return {
+    operator: value.operator,
+    source: {
+      anchorLayerId: value.source.anchorLayerId as SampledBrushStrokePlan['source']['anchorLayerId'],
+      point: { x: value.source.point.x as number, y: value.source.point.y as number }
+    },
+    sampleMode: value.sampleMode,
+    sourceOffset: {
+      x: value.sourceOffset.x as number,
+      y: value.sourceOffset.y as number
+    },
+    diffusion: Number(value.diffusion)
+  };
+};
+
+export const parseAutomationPaintOperator = (value: unknown): AutomationPaintOperator | null =>
+  parseAutomationToneBrushPlan(value) ?? parseAutomationSampledBrushPlan(value);
+
+export const automationPaintOperatorFromPlan = (
+  plan: PaintBrushStrokePlan
+): AutomationPaintOperator => plan.operator === 'tone' ? { ...plan } : ({
+  ...plan,
+  source: {
+    anchorLayerId: plan.source.anchorLayerId,
+    point: { ...plan.source.point }
+  },
+  sourceOffset: { ...plan.sourceOffset }
+});
+
 export const parseCommittedGestureRequest = (
   value: unknown
 ): CommittedGestureRequest | { readonly message: string } => {
@@ -86,7 +140,7 @@ export const parseCommittedGestureRequest = (
     const brush = parseAutomationBrushSettings(value.parameters.brush);
     const operator = value.parameters.operator === undefined
       ? undefined
-      : parseAutomationToneBrushPlan(value.parameters.operator);
+      : parseAutomationPaintOperator(value.parameters.operator);
     if (typeof value.parameters.layerId !== 'string' || !value.parameters.layerId
       || !brush || (value.parameters.channel !== 'pixels' && value.parameters.channel !== 'mask')
       || (value.parameters.erase !== undefined && typeof value.parameters.erase !== 'boolean')

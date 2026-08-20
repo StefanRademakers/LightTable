@@ -1,0 +1,47 @@
+Task 238 - Semantic sampled-brush strokes
+=========================================
+
+Goal
+====
+
+Expose Clone Stamp and Healing Brush as bounded final semantic strokes with an
+explicit sampled-source contract through UI, Actions and reviewed Agent/MCP.
+
+Checklist
+=========
+
+- [x] Define a document-relative source schema with anchor layer, point, sample mode, offset and diffusion.
+- [x] Keep the request document ID authoritative; do not persist a nested runtime document ID in Actions.
+- [x] Snapshot the source texture and effective operator once at stroke begin.
+- [x] Publish one Action only after successful pointer-up GPU/history commit.
+- [x] Replay through the existing sampled-brush renderer owner without pointer transport.
+- [x] Reject invalid/missing sources, deleted required anchors, malformed settings and oversized payloads.
+- [x] Prove Clone and Healing through tests plus packaged UI/Actions/Agent/MCP workflows.
+- [x] Run full gates, update parent work items, complete and commit.
+
+Scope guard
+===========
+
+- Source pixels and immutable GPU source textures never cross command transport.
+- Cross-document sampling is not admitted; the command request document owns
+  both source and destination for this slice.
+
+Completion contract
+===================
+
+A real Clone or Healing gesture records its semantic source mapping and final
+samples once, then Actions/Agent/MCP rebuild the same sampled-brush plan through
+the canonical GPU paint transaction and one reversible history entry.
+
+Evidence
+========
+
+- Unit/integration: 461 app test files and 2,586 tests pass, including immutable
+  sampled-plan capture, valid Healing validation and nested document-ID rejection.
+- Packaged UI: Clone source choice records nothing; 24 pointer moves record
+  nothing before pointer-up; the committed stroke records once, undoes and replays.
+- Packaged Agent Access executes Clone; the external MCP bridge executes Healing.
+- Workspace typecheck, MCP tests (17), boundary, source-structure,
+  architecture-documentation and command-contract verification pass.
+- The existing broad packaged Actions smoke remains green after integration.
+- No Photoshop visual-parity claim is made by this task.

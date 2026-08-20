@@ -73,3 +73,6 @@ Current evidence (2026-08-20)
   source/result evidence.
 - Dodge, Burn and Sponge are admitted only as bounded final semantic strokes;
   the remote route never transports dabs, pixels or live pointer updates.
+- Clone and Healing are admitted under the same bound with a document-relative
+  sampled-source descriptor. Nested/cross-document runtime IDs, malformed
+  source plans and oversized requests fail validation before GPU execution.
