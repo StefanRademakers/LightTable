@@ -396,6 +396,76 @@ try {
     });
     assert.ok(renderEvidence[`ui-vs-${route}`].passed, `UI and ${route} pixels diverged.`);
   }
+
+  const mcpFailureBeforeRaw = await collectMcpState(mcp, mcpDocumentId);
+  const mcpFailureBefore = normalizeRouteState(mcpFailureBeforeRaw);
+  const failureRevision = mcpFailureBeforeRaw.document.canonicalRevision;
+  const failureLayerId = mcpFailureBeforeRaw.layers.find(({ type }) => type === 'vector')?.id;
+  const failureText = mcpFailureBeforeRaw.texts[0];
+  if (!failureLayerId || !failureText) throw new Error('Failure proof requires vector and text targets.');
+  const staleFailure = mcpResult(await mcp.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: mcpDocumentId,
+    command: 'layer.rename',
+    expectedDocumentRevision: failureRevision - 1,
+    parameters: { layerId: failureLayerId, name: 'Must not publish' }
+  } }), 'MCP stale revision rejection');
+  assert.equal(staleFailure.status, 'rejected');
+  assert.equal(staleFailure.code, 'stale-document-revision');
+  assert.equal(staleFailure.revisions.document, failureRevision);
+  const invalidFailure = mcpResult(await mcp.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: mcpDocumentId,
+    command: 'text.replaceRange',
+    expectedDocumentRevision: failureRevision,
+    parameters: {
+      layerId: failureText.layerId,
+      start: failureText.content.totalLength + 1,
+      end: failureText.content.totalLength + 1,
+      text: 'Must not publish'
+    }
+  } }), 'MCP invalid text range rejection');
+  assert.equal(invalidFailure.status, 'rejected');
+  assert.equal(invalidFailure.code, 'invalid-parameters');
+  assert.deepEqual(normalizeRouteState(await collectMcpState(mcp, mcpDocumentId)), mcpFailureBefore,
+    'Rejected MCP requests changed canonical state or history.');
+
+  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
+    await window.getByRole('menuitem', { name: 'View' }).click();
+    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+  }
+  await recorder.getByRole('button', { name: 'Clear' }).click();
+  await recorder.getByRole('button', { name: 'Record' }).click();
+  await window.getByRole('button', { name: 'Type tool (T)', exact: true }).first().click();
+  const failureViewport = window.locator('.lighttable-viewport:visible').last();
+  const failureBounds = await failureViewport.boundingBox();
+  if (!failureBounds) throw new Error('Failure source viewport is not measurable.');
+  await window.mouse.click(
+    failureBounds.x + failureBounds.width * 0.3,
+    failureBounds.y + failureBounds.height * 0.73
+  );
+  const failureInput = window.getByRole('textbox', { name: /^Edit / });
+  await failureInput.waitFor({ state: 'attached' });
+  await failureInput.pressSequentially('!');
+  await failureInput.press('Escape');
+  await waitForRecorded('text.replaceRange');
+  await recorder.getByRole('button', { name: 'Stop' }).click();
+  const targetFailureRecording = await driver.queryActionRecording();
+  assert.equal(targetFailureRecording.steps.length, 1,
+    `Target failure recording should contain one edit: ${JSON.stringify(targetFailureRecording.steps)}`);
+  const targetFailureStep = targetFailureRecording.steps[0];
+  assert.equal(targetFailureStep.command, 'text.replaceRange');
+  assert.equal(typeof targetFailureStep.parameters.layerId, 'string',
+    'The target failure needs a fixed existing layer ID, not a generated binding.');
+  const missingTargetDocumentId = await createDocumentThroughMcp(mcp, driver, 'Actions missing target');
+  const actionsFailureBefore = normalizeRouteState(await collectDriverState(driver, missingTargetDocumentId));
+  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
+  await recorder.getByRole('status').filter({ hasText: 'Playback: failed at step 1' })
+    .waitFor({ timeout: 30_000 });
+  const actionsFailureMessage = (await recorder.locator('.lighttable-action-recorder__steps li').first()
+    .locator('.lighttable-action-recorder__warning').textContent())?.trim() ?? '';
+  assert.match(actionsFailureMessage, /target text layer does not exist/i);
+  assert.deepEqual(normalizeRouteState(await collectDriverState(driver, missingTargetDocumentId)),
+    actionsFailureBefore, 'Rejected Actions playback changed canonical state or history.');
+
   await writeFile(path.join(output, 'evidence.json'), JSON.stringify({
     claim: 'one bounded shape/text workflow only; not whole-application equivalence',
     commands,
@@ -414,6 +484,12 @@ try {
       actions: 'playback completed; export steps require a completed task artifact',
       mcp: mcpExportTask,
       deliveredUiFile: uiExportPath
+    },
+    failureEvidence: {
+      observedUiValidation: 'invalid observed parameters are refused before revision/recording publication',
+      actions: { status: 'failed', sequence: 1, message: actionsFailureMessage,
+        stateAndHistoryUnchanged: true },
+      mcp: { stale: staleFailure, invalid: invalidFailure, stateAndHistoryUnchanged: true }
     }
   }, null, 2));
   if (pageErrors.length) throw new Error(`Packaged page errors: ${pageErrors.join(' | ')}`);

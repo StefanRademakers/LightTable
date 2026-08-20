@@ -115,6 +115,16 @@ Current evidence (2026-08-20)
   214-unit editable text, seven Undo entries and pixel-exact rendered/exported
   output. Unit coverage also coalesces 260 sequential inserts into one history
   and semantic replacement.
+- Failure behavior is now retained alongside the success evidence. Direct UI
+  observers are fail-closed through command-family parsers before they can
+  advance revision or enter an Action. A normally recorded text edit with a
+  fixed existing layer ID is then replayed into a different document through
+  the real Actions panel: playback stops at step 1 with `The target text layer
+  does not exist`, and state/history remain unchanged. Through the external
+  MCP TLS/device route, a stale rename returns `stale-document-revision` with
+  revision 9 and an out-of-range text replacement returns
+  `invalid-parameters`; both retain revision 9/history state 7 and leave the
+  complete normalized document unchanged.
 
 - Layer duplicate/delete/move/blend/clipping/visibility/locks have a real
   UI-origin, Actions and MCP canonical-state/history equivalence harness.
@@ -210,7 +220,5 @@ Current evidence (2026-08-20)
 Still required for completion
 =============================
 
-- equivalent stale-revision and invalid-parameter failure evidence at every
-  real route boundary.
 - expand rendered comparison beyond the now-proven rectangle/text workflow to
   native Pen paths and other representative vector primitives;
