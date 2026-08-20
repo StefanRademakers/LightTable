@@ -1,0 +1,60 @@
+Task 261 - Intermittent packaged React update-depth error
+========================================================
+
+Goal
+====
+
+Reproduce and remove the intermittent minified React error 185 observed during
+the packaged UI/Actions/MCP route-equivalence workflow, or prove and document a
+specific benign external cause. A completed visual/state comparison is not
+enough when the page emitted a runtime error.
+
+Evidence and scope
+==================
+
+- On 2026-08-20 two consecutive runs completed all route work but failed the
+  final page-error gate with React error 185 (maximum update depth).
+- The next two isolated runs passed without page errors.
+- Error collection now retains `error.stack` where Electron provides it.
+- Do not weaken or retry away the page-error gate.
+
+Checklist
+=========
+
+- [x] Capture the first failing interaction and usable component/runtime stack.
+- [x] Determine whether Actions panel, document activation, task publication or
+      another external-store subscription forms the update loop.
+- [x] Add a deterministic regression or bounded repeated-run harness.
+- [x] Fix the owner without suppressing React errors.
+- [x] Re-run packaged UI/Actions/MCP equivalence and related full gates.
+
+Resolution and evidence
+=======================
+
+- Phase and stack capture reproduced the failure during `ui-text-typing`; the
+  minified call site resolved to the global editor `keyup` listener.
+- That listener published Caps Lock state on every keydown and keyup. The test's
+  long native text burst therefore issued hundreds of redundant
+  `setPreciseBrushCursor(false)` updates while React was processing text edits.
+- The binding now owns Shift, Alt and Caps Lock state and publishes only actual
+  transitions. Blur still clears every active modifier and temporary tool.
+- A deterministic unit regression sends 300 ordinary keydown/keyup pairs and
+  proves zero modifier-state publications. Existing transition, current-handler,
+  event-consumption and disposal tests remain green.
+- Before the fix the bounded diagnostic loop reproduced error 185 on repetition
+  3. After rebuilding the packaged app, six consecutive complete
+  UI/Actions/MCP route-equivalence runs passed with the page-error gate intact.
+- Stack and workflow-phase capture remain in the harness so a different future
+  page error identifies its active route rather than returning only a minified
+  React code.
+- Final verification passed: full workspace typecheck, 485 application test
+  files / 2791 tests plus every workspace suite, boundary/source/UI/docs audits,
+  diff check and the packaged Actions smoke. Brush and Grade interaction stayed
+  local during pointer movement and each produced one semantic publication and
+  one history entry on commit.
+
+Non-goals
+=========
+
+- Treating a later green run as proof that the error cannot recur.
+- Filtering error 185 from test output.

@@ -25,6 +25,7 @@ const mcpSession = await startPackagedMcpTestSession({ label: 'LightTable route 
 const environment = { ...process.env, ...mcpSession.desktopEnvironment };
 delete environment.ELECTRON_RUN_AS_NODE;
 const pageErrors = [];
+let workflowPhase = 'launch';
 let app;
 
 const waitForDocument = async (driver, documentId) => {
@@ -150,7 +151,9 @@ try {
     timeout: 30_000
   });
   const window = await app.firstWindow({ timeout: 30_000 });
-  window.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
+  window.on('pageerror', (error) => pageErrors.push(
+    `[${workflowPhase}] ${error.stack ?? error.message}`
+  ));
   const open = await waitForDesktopLauncher({
     app, page: window, outputDirectory: output, sourceFile: fixture,
     pageErrors, label: 'route-equivalence'
@@ -165,6 +168,7 @@ try {
       .filter((step) => step.command === command).length >= count,
   { command, count }, { timeout: 30_000 });
 
+  workflowPhase = 'ui-recording';
   const uiDocumentId = await createDocument(driver, 'UI route');
   await window.getByRole('menuitem', { name: 'View' }).click();
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
@@ -194,6 +198,7 @@ try {
   await window.mouse.up();
   await waitForRecorded('vector.create');
 
+  workflowPhase = 'ui-transform-shortcut';
   await window.keyboard.press('Control+t');
   const transformBody = window.getByLabel('Transform controls').locator('.lighttable-transform__body');
   const transformBounds = await transformBody.boundingBox();
@@ -204,12 +209,14 @@ try {
   await window.mouse.move(transformBounds.x + transformBounds.width / 2 + 22,
     transformBounds.y + transformBounds.height / 2 + 14, { steps: 10 });
   await window.mouse.up();
+  workflowPhase = 'ui-transform-commit';
   await window.keyboard.press('Enter');
   await waitForRecorded('layer.setTransform');
   await window.getByRole('menuitem', { name: 'Layer' }).click();
   await window.getByRole('menuitem', { name: 'Rename Layer' }).click();
   const layerName = window.locator('input[aria-label="Layer name"]:focus');
   await layerName.fill('Agent card');
+  workflowPhase = 'ui-layer-rename';
   await layerName.press('Enter');
 
   // Exercise another live-shape primitive through the actual toolbar family.
@@ -226,11 +233,13 @@ try {
 
   // Pen anchor/rubber-band interaction is likewise local. Enter commits one
   // editable open path rather than publishing per anchor or pointer sample.
+  workflowPhase = 'ui-pen-shortcut';
   await window.keyboard.press('p');
   await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Pen' }).waitFor();
   for (const [x, y] of [[0.18, 0.2], [0.34, 0.32], [0.22, 0.48]]) {
     await window.mouse.click(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
   }
+  workflowPhase = 'ui-pen-commit';
   await window.keyboard.press('Enter');
   await waitForRecorded('vector.create', 3);
 
@@ -238,7 +247,9 @@ try {
   await window.mouse.click(bounds.x + bounds.width * 0.28, bounds.y + bounds.height * 0.72);
   const textInput = window.getByRole('textbox', { name: /^Edit / });
   await textInput.waitFor({ state: 'attached' });
+  workflowPhase = 'ui-text-typing';
   await textInput.pressSequentially(highFrequencyText);
+  workflowPhase = 'ui-text-composition';
   await textInput.evaluate((input, text) => {
     input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
     input.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: '編' }));
@@ -246,6 +257,7 @@ try {
     input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: text }));
   }, composedText);
   await waitForRecorded('text.replaceRange', 2);
+  workflowPhase = 'ui-text-finish';
   await textInput.press('Escape');
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await waitForRecorded('text.create')
@@ -258,10 +270,12 @@ try {
       })}`);
     });
   await window.getByRole('tab', { name: 'Properties', exact: true }).click();
+  workflowPhase = 'ui-text-format';
   await window.getByRole('complementary', { name: 'Text properties' })
     .getByRole('checkbox', { name: 'Bold', exact: true }).click();
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await waitForRecorded('text.format');
+  workflowPhase = 'ui-export';
   await window.getByRole('menuitem', { name: 'File' }).click();
   await window.getByRole('menuitem', { name: 'Export PNG', exact: true }).click();
   await waitForRecorded('file.exportPng');
@@ -304,6 +318,7 @@ try {
   }
   assert.ok(formatStep.parameters.layerId?.$lighttableResult,
     'Recorded text formatting did not bind to the generated text layer.');
+  workflowPhase = 'ui-undo-redo';
   const uiUndoRedo = await assertUndoRedoRoundtrip({
     route: 'UI', readState: () => collectDriverState(driver, uiDocumentId),
     undo: () => keyboardHistory(window, driver, uiDocumentId, 'undo'),
@@ -312,6 +327,7 @@ try {
   const expectedUndoDepth = (await driver.queryDocument(uiDocumentId)).history.undoDepth;
   const expectedLayerCount = (await driver.queryLayers(uiDocumentId)).length;
 
+  workflowPhase = 'actions-playback';
   const actionsDocumentId = await createDocumentThroughMcp(mcp, driver, 'Actions route');
   await window.getByRole('menuitem', { name: 'View' }).click();
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
@@ -331,12 +347,14 @@ try {
   }
   await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
     .waitFor({ timeout: 10_000 });
+  workflowPhase = 'actions-undo-redo';
   const actionsUndoRedo = await assertUndoRedoRoundtrip({
     route: 'Actions', readState: () => collectDriverState(driver, actionsDocumentId),
     undo: () => keyboardHistory(window, driver, actionsDocumentId, 'undo'),
     redo: () => keyboardHistory(window, driver, actionsDocumentId, 'redo')
   });
 
+  workflowPhase = 'mcp-playback';
   const mcpDocumentId = await createDocumentThroughMcp(mcp, driver, 'MCP route');
   const mcpEventBaseline = mcpResult(await mcp.callTool({
     name: 'lighttable_events', arguments: { afterCursor: 0, limit: 1 }
@@ -404,6 +422,7 @@ try {
       'MCP event wait missed the history publication from its first edit.');
     }
   }
+  workflowPhase = 'mcp-undo-redo';
   const mcpUndoRedo = await assertUndoRedoRoundtrip({
     route: 'MCP', readState: () => collectMcpState(mcp, mcpDocumentId),
     undo: async () => mcpResult(await mcp.callTool({ name: 'lighttable_execute', arguments: {
@@ -414,6 +433,7 @@ try {
     } }), 'MCP Redo')
   });
 
+  workflowPhase = 'state-and-render-equivalence';
   const normalizedStates = {
     ui: normalizeRouteState(await collectDriverState(driver, uiDocumentId)),
     actions: normalizeRouteState(await collectDriverState(driver, actionsDocumentId)),
@@ -462,6 +482,7 @@ try {
     assert.ok(renderEvidence[`ui-vs-${route}`].passed, `UI and ${route} pixels diverged.`);
   }
 
+  workflowPhase = 'rejection-equivalence';
   const mcpFailureBeforeRaw = await collectMcpState(mcp, mcpDocumentId);
   const mcpFailureBefore = normalizeRouteState(mcpFailureBeforeRaw);
   const failureRevision = mcpFailureBeforeRaw.document.canonicalRevision;
@@ -493,6 +514,7 @@ try {
   assert.deepEqual(normalizeRouteState(await collectMcpState(mcp, mcpDocumentId)), mcpFailureBefore,
     'Rejected MCP requests changed canonical state or history.');
 
+  workflowPhase = 'actions-failure-playback';
   if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
     await window.getByRole('menuitem', { name: 'View' }).click();
     await window.getByRole('menuitem', { name: 'Actions panel' }).click();
@@ -531,6 +553,7 @@ try {
   assert.deepEqual(normalizeRouteState(await collectDriverState(driver, missingTargetDocumentId)),
     actionsFailureBefore, 'Rejected Actions playback changed canonical state or history.');
 
+  workflowPhase = 'evidence-finalization';
   await writeFile(path.join(output, 'evidence.json'), JSON.stringify({
     claim: 'one bounded native vector/text workflow only; not whole-application equivalence',
     commands,

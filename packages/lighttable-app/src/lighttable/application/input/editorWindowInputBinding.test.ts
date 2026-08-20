@@ -94,8 +94,8 @@ describe('bindEditorWindowInput', () => {
     target.dispatch('keyup', keyboardEvent('Alt') as unknown as Event);
     target.dispatch('blur', {} as Event);
 
-    expect(onShiftChange.mock.calls).toEqual([[true], [false], [false]]);
-    expect(onAltChange.mock.calls).toEqual([[true], [false], [false]]);
+    expect(onShiftChange.mock.calls).toEqual([[true], [false]]);
+    expect(onAltChange.mock.calls).toEqual([[true], [false]]);
     expect(onBlur).toHaveBeenCalledOnce();
     dispose();
   });
@@ -113,6 +113,27 @@ describe('bindEditorWindowInput', () => {
     target.dispatch('blur', {} as Event);
 
     expect(onCapsLockChange.mock.calls).toEqual([[true], [false]]);
+    dispose();
+  });
+
+  it('does not publish unchanged modifier state for ordinary text input', () => {
+    const target = new FakeInputTarget();
+    const onShiftChange = vi.fn();
+    const onAltChange = vi.fn();
+    const onCapsLockChange = vi.fn();
+    const dispose = bindEditorWindowInput(
+      target,
+      () => handlers({ onShiftChange, onAltChange, onCapsLockChange })
+    );
+
+    for (let index = 0; index < 300; index += 1) {
+      target.dispatch('keydown', keyboardEvent('a') as unknown as Event);
+      target.dispatch('keyup', keyboardEvent('a') as unknown as Event);
+    }
+
+    expect(onShiftChange).not.toHaveBeenCalled();
+    expect(onAltChange).not.toHaveBeenCalled();
+    expect(onCapsLockChange).not.toHaveBeenCalled();
     dispose();
   });
 

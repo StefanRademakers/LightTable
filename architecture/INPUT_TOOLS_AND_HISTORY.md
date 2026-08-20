@@ -65,7 +65,9 @@ one display-composited GPU pixel without changing tools. A Shift-click begins
 at the last completed Brush point and commits through the normal paint engine.
 `F5` opens the existing shared tool-settings surface, and Caps Lock replaces
 the GPU diameter preview with the precise crosshair. Modifier state is cleared
-on window blur so temporary input cannot remain stuck.
+on window blur so temporary input cannot remain stuck. The global keyboard
+binding publishes Shift, Alt and Caps Lock only when their state changes;
+ordinary high-frequency text keys never enqueue redundant modifier React state.
 
 Fill commands use Alt+Backspace for foreground and Ctrl/Cmd+Backspace for
 background. Adding Shift preserves existing pixel transparency for that one

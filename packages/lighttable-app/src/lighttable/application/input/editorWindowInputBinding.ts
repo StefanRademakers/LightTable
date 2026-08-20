@@ -42,27 +42,57 @@ export const bindEditorWindowInput = (
   target: EditorWindowInputTarget,
   getHandlers: () => EditorWindowInputHandlers
 ): (() => void) => {
+  let shiftActive = false;
+  let altActive = false;
+  let capsLockState = false;
+  const publishCapsLockTransition = (event: KeyboardEvent, handlers: EditorWindowInputHandlers) => {
+    const next = capsLockActive(event);
+    if (next === capsLockState) return;
+    capsLockState = next;
+    handlers.onCapsLockChange(next);
+  };
   const handleKeyDown: EventListener = (rawEvent) => {
     const event = rawEvent as KeyboardEvent;
     const handlers = getHandlers();
-    if (event.key === 'Shift') handlers.onShiftChange(true);
-    if (event.key === 'Alt') handlers.onAltChange(true);
-    handlers.onCapsLockChange(capsLockActive(event));
+    if (event.key === 'Shift' && !shiftActive) {
+      shiftActive = true;
+      handlers.onShiftChange(true);
+    }
+    if (event.key === 'Alt' && !altActive) {
+      altActive = true;
+      handlers.onAltChange(true);
+    }
+    publishCapsLockTransition(event, handlers);
     if (handlers.onKeyDown(event)) consumeKeyboardEvent(event);
   };
   const handleKeyUp: EventListener = (rawEvent) => {
     const event = rawEvent as KeyboardEvent;
     const handlers = getHandlers();
-    if (event.key === 'Shift') handlers.onShiftChange(false);
-    if (event.key === 'Alt') handlers.onAltChange(false);
-    handlers.onCapsLockChange(capsLockActive(event));
+    if (event.key === 'Shift' && shiftActive) {
+      shiftActive = false;
+      handlers.onShiftChange(false);
+    }
+    if (event.key === 'Alt' && altActive) {
+      altActive = false;
+      handlers.onAltChange(false);
+    }
+    publishCapsLockTransition(event, handlers);
     if (handlers.onKeyUp(event)) consumeKeyboardEvent(event);
   };
   const handleBlur: EventListener = () => {
     const handlers = getHandlers();
-    handlers.onShiftChange(false);
-    handlers.onAltChange(false);
-    handlers.onCapsLockChange(false);
+    if (shiftActive) {
+      shiftActive = false;
+      handlers.onShiftChange(false);
+    }
+    if (altActive) {
+      altActive = false;
+      handlers.onAltChange(false);
+    }
+    if (capsLockState) {
+      capsLockState = false;
+      handlers.onCapsLockChange(false);
+    }
     handlers.onBlur();
   };
 
