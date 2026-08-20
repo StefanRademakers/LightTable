@@ -285,7 +285,7 @@ import {
   type FaceWarpDetectionReviewSource
 } from './application/tools/faceWarp/faceWarpDetectionReview';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
-import { useTransformSessionController } from './application/tools/transform/useTransformSessionController';
+import { useTransformSessionController, type FixedTransformOperation } from './application/tools/transform/useTransformSessionController';
 import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
 import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
 import { transformSessionFrame } from './editor/tools/transform/transformSessionFrame';
@@ -733,6 +733,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const transformActiveRef = useRef<() => boolean>(() => false);
   const repeatTransformRef = useRef<(duplicate?: boolean) => void>(() => undefined);
   const nudgeTransformRef = useRef<(x: number, y: number) => void>(() => undefined);
+  const applyFixedTransformRef = useRef<(operation: FixedTransformOperation) => Promise<unknown>>(
+    async () => null
+  );
+  const fixedTransformCommandRunningRef = useRef(false);
   const finishPenPathRef = useRef<() => void>(() => undefined);
   const cancelPenPathRef = useRef<() => boolean>(() => false);
   const undoPenAnchorRef = useRef<() => boolean>(() => false);
@@ -4842,6 +4846,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         });
         return { target: command.target, values: command.values, changed: true };
       },
+      executeFixedTransform: (command) => applyFixedTransformRef.current(command.operation),
       queryBasicAdjustments: (target) => {
         const document = imageDocumentRef.current;
         if (!document) return null;
@@ -5108,7 +5113,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus,
     transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
     onLayerTransformCommitted: (layerId, transform) => {
-      commandService?.recordObservedCommand(
+      if (!fixedTransformCommandRunningRef.current) commandService?.recordObservedCommand(
         'layer.setTransform',
         workspaceDocumentId as DocumentSessionId,
         { layerId, transform },
@@ -5189,6 +5194,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   transformActiveRef.current = transformSession.isActive;
   repeatTransformRef.current = transformSession.repeat;
   nudgeTransformRef.current = transformSession.nudge;
+  applyFixedTransformRef.current = async (operation) => {
+    if (fixedTransformCommandRunningRef.current) return null;
+    const before = imageDocumentRef.current;
+    if (!before) return null;
+    fixedTransformCommandRunningRef.current = true;
+    try {
+      const target = await transformSession.applyFixed(operation);
+      const after = imageDocumentRef.current;
+      return target && after && after.id === before.id && after.revision !== before.revision
+        ? { operation, target, documentRevision: after.revision }
+        : null;
+    } finally {
+      fixedTransformCommandRunningRef.current = false;
+    }
+  };
   beginAutomationGestureRef.current = (kind, pointerId, parameters, sample) => {
     if (kind === 'selection-rectangle') {
       return selectionSessionController.begin(
@@ -5740,7 +5760,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       pasteSelectedContent,
       pasteGrade: pasteCurrentGrade,
       copyGrade: copyCurrentGrade,
-      applyFixedTransform: (operation) => { void transformSession.applyFixed(operation); }
+      applyFixedTransform: (operation) => {
+        if (!executeRegisteredCommand('transform.applyFixed', { operation })) {
+          void transformSession.applyFixed(operation);
+        }
+      }
     },
     selection: {
       selectAll: selectAllContent,

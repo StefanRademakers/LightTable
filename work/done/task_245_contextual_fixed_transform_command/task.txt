@@ -1,0 +1,63 @@
+Task 245 - Contextual fixed transform command
+
+Goal
+====
+
+Make the five Edit > Transform operations one shared, context-aware capability
+for UI, Actions and Agent/MCP without changing their current selection, mask,
+single-layer or multi-layer behavior.
+
+Parent work
+===========
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Define one bounded `transform.applyFixed` schema for the five discrete
+  rotate/flip operations, including an Actions example.
+- [x] Keep the existing transform-session controller as the sole executor so
+  selection pixels, masks, one layer and selected layer groups retain their
+  current pivot, render and undo semantics.
+- [x] Route Edit > Transform through the shared command with a local fallback
+  when no command service is mounted.
+- [x] Prevent duplicate action recording when the contextual command commits
+  an ordinary single-layer affine transform.
+- [x] Expose capability availability and reviewed Agent/MCP execution without
+  sending pointer updates or transform previews through the command layer.
+- [x] Prove parameter rejection, command execution/change reporting, menu
+  routing, Actions recording/playback and representative MCP exposure.
+- [x] Re-run command coverage, update parent evidence, run repository gates
+  and commit the completed slice.
+
+Non-goals
+=========
+
+- Moving live transform handles, pointer samples or preview frames through MCP.
+- Replacing explicit absolute `layer.setTransform`; agents still need that
+  deterministic stable-layer-ID operation.
+- Reimplementing fixed-transform math separately in the command service.
+
+Evidence
+========
+
+- The shared schema accepts exactly five operations and rejects extra target
+  fields; the current editor context deliberately remains the target owner.
+- Edit > Transform dispatches `transform.applyFixed`; direct local execution is
+  retained only when no command service exists.
+- The mounted port delegates to `useTransformSessionController.applyFixed`, so
+  its existing measured bounds, center pivot, GPU pixel transaction and history
+  rules remain authoritative. A re-entry guard rejects overlapping commands.
+- Single-layer commits suppress their lower-level observed
+  `layer.setTransform` record while this command is running, yielding one
+  replayable Actions step instead of two.
+- The packaged external MCP smoke creates a sampled Magic Wand selection and
+  successfully flips that selection through `transform.applyFixed`, checking
+  its result target and increasing canonical revision.
+- Menu coverage moved the five rotate/flip actions from gaps to commands: 103
+  static actions, 35 command-routed and 20 genuine gaps remain.
+- Verification passed: full workspace tests (467 app files / 2631 app tests),
+  typecheck, desktop package boundary, external MCP smoke, source structure,
+  architecture documentation and UI boundary.

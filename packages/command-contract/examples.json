@@ -26,6 +26,10 @@
   "layer.setTransform": [
     { "layerId": "layer-title", "transform": { "a": 1, "b": 0, "c": 0, "d": 1, "tx": 32, "ty": 16 } }
   ],
+  "transform.applyFixed": [
+    { "operation": "flip-horizontal" },
+    { "operation": "rotate-clockwise-90" }
+  ],
   "layer.setMask": [
     { "layerId": "layer-photo", "operation": "add", "source": "reveal-all" },
     { "layerId": "layer-photo", "operation": "set-enabled", "enabled": false }

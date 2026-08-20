@@ -96,12 +96,14 @@ export interface TransformSessionController {
   repeat(duplicate?: boolean): void;
   nudge(x: number, y: number): void;
   setDuplicate(duplicate: boolean): void;
-  applyFixed(operation: FixedTransformOperation): Promise<void>;
+  applyFixed(operation: FixedTransformOperation): Promise<FixedTransformTarget | null>;
 }
 
 export type FixedTransformOperation =
   | 'rotate-180' | 'rotate-clockwise-90' | 'rotate-counter-clockwise-90'
   | 'flip-horizontal' | 'flip-vertical';
+
+export type FixedTransformTarget = 'selection' | 'mask' | 'layer' | 'layer-group';
 
 /**
  * React adapter for the renderer-backed transform transaction.
@@ -470,7 +472,10 @@ export const useTransformSessionController = (
     await begin();
     const active = controllerRef.current?.state;
     const bounds = active?.sourceBounds ?? groupRef.current?.bounds ?? maskRef.current?.bounds;
-    if (!bounds) return;
+    if (!bounds) return null;
+    const target: FixedTransformTarget = maskRef.current
+      ? 'mask'
+      : groupRef.current ? 'layer-group' : active?.sourceKind ?? 'layer';
     const pivot = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
     const delta = aroundPoint(
       operation === 'rotate-180' ? rotationMatrix(Math.PI)
@@ -483,6 +488,7 @@ export const useTransformSessionController = (
     update(delta);
     finish(true);
     dependenciesRef.current.setStatus(operation.startsWith('rotate') ? 'Layer rotated' : 'Layer flipped');
+    return target;
   }, [begin, finish, isActive, update]);
 
   const nudge = useCallback((x: number, y: number) => {

@@ -140,6 +140,17 @@ try {
   if (magicWand?.value?.layerId !== layerId || magicWand.value.mode !== 'replace') {
     throw new Error(`MCP Magic Wand command failed: ${JSON.stringify(magicWand)}`);
   }
+  const beforeFixedTransform = (await call('lighttable_document', { documentId })).structuredContent;
+  const fixedTransform = (await call('lighttable_execute', {
+    documentId, command: 'transform.applyFixed',
+    expectedDocumentRevision: beforeFixedTransform.canonicalRevision,
+    parameters: { operation: 'flip-horizontal' }
+  })).structuredContent;
+  if (fixedTransform?.status !== 'completed' || fixedTransform.value?.operation !== 'flip-horizontal'
+    || fixedTransform.value?.target !== 'selection'
+    || fixedTransform.revisions?.document <= beforeFixedTransform.canonicalRevision) {
+    throw new Error(`MCP contextual fixed transform failed: ${JSON.stringify(fixedTransform)}`);
+  }
   const mcpPath = (await call('lighttable_execute', {
     documentId, command: 'vector.create', parameters: {
       name: 'MCP Path Text curve', fillRule: 'nonzero',

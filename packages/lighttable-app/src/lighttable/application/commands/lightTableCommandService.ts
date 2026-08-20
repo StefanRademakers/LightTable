@@ -32,6 +32,7 @@ import { dispatchSemanticWarpStroke } from './semanticWarpCommandHandler';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
 import { dispatchSemanticFill } from './semanticFillCommandHandler';
 import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
+import { parseSemanticFixedTransformCommand } from './semanticFixedTransformCommandContract';
 import { dispatchSemanticRasterGradient } from './semanticRasterGradientCommandHandler';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
@@ -175,6 +176,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   executeBasicAdjustmentCommand(documentId: DocumentSessionId, command: SemanticBasicAdjustmentCommand) {
     const execute = this.resolve(documentId).executeBasicAdjustmentCommand;
     if (!execute) throw new Error('Basic Grade commands are unavailable in the target document.');
+    return execute(command);
+  }
+
+  executeFixedTransform(documentId: DocumentSessionId, command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeFixedTransform']>>[0]) {
+    const execute = this.resolve(documentId).executeFixedTransform;
+    if (!execute) throw new Error('Fixed transform commands are unavailable in the target document.');
     return execute(command);
   }
 
@@ -766,6 +773,8 @@ export class LightTableCommandService {
       availability('layer.setClipping', layerCapabilities.layerCount > 1,
         'Clipping requires a lower sibling layer.'),
       availability('layer.setTransform', layerCapabilities.layerCount > 0, 'There are no layers.'),
+      availability('transform.applyFixed', Boolean(this.ports.executeFixedTransform)
+        && Boolean(layerCapabilities.activeLayer), 'Select an editable layer.'),
       availability('layer.setMask', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.setLock', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.placeArtifact', true, ''),
@@ -1212,6 +1221,22 @@ export class LightTableCommandService {
         const viewport: DocumentViewport = { ...snapshot.viewport, zoomMode: mode, scale };
         await this.ports.setZoom(request.documentId, viewport);
         return { value: { viewport } };
+      }
+      case 'transform.applyFixed': {
+        const command = parseSemanticFixedTransformCommand(parameters);
+        if ('message' in command) return this.invalidParameters(command.message);
+        if (!this.ports.executeFixedTransform) {
+          return { code: 'command-unavailable', message: 'Fixed transform commands are unavailable in this host.' };
+        }
+        const beforeRevision = snapshot.document!.revision;
+        const result = await this.ports.executeFixedTransform(request.documentId, command);
+        if (!result) {
+          return { code: 'command-unavailable', message: 'There is no editable transform target.' };
+        }
+        const changed = this.document(request.documentId)?.document?.revision !== beforeRevision;
+        return changed ? { value: result } : {
+          code: 'execution-failed', message: 'The fixed transform did not change the document.'
+        };
       }
       case 'layer.createRaster': {
         if (!isRecord(parameters) || Object.keys(parameters).length > 0) {

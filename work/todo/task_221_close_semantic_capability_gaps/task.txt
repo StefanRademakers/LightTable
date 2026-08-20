@@ -63,6 +63,8 @@ Completed vertical slices
   newest-request, cancellation and stale-completion protections retained.
 - native Path Text creation through `text.create`, with stable path references,
   packaged Actions replay and direct Agent/MCP creation/query.
+- contextual fixed rotate/flip through `transform.applyFixed`, preserving the
+  existing selection, mask, single-layer and layer-group transaction owner.
 
 Rules
 =====

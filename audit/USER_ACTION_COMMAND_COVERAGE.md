@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 30 already routed through semantic commands;
+- 35 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 34 presentation-only operations;
-- 25 genuine semantic command gaps;
+- 20 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -114,11 +114,11 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `toggle-mask` | command | `layer.setMask` | 650 |
 | `toggle-screen-mode` | presentation | Changes application window presentation. | 795 |
 | `toggle-visibility` | command | `layer.setVisibility` | 677 |
-| `transform-flip-horizontal` | gap | No semantic layer/selection transform command exists. | 335 |
-| `transform-flip-vertical` | gap | No semantic layer/selection transform command exists. | 337 |
-| `transform-rotate-180` | gap | No semantic layer/selection transform command exists. | 329 |
-| `transform-rotate-clockwise-90` | gap | No semantic layer/selection transform command exists. | 331 |
-| `transform-rotate-counter-clockwise-90` | gap | No semantic layer/selection transform command exists. | 333 |
+| `transform-flip-horizontal` | command | `transform.applyFixed` | 335 |
+| `transform-flip-vertical` | command | `transform.applyFixed` | 337 |
+| `transform-rotate-180` | command | `transform.applyFixed` | 329 |
+| `transform-rotate-clockwise-90` | command | `transform.applyFixed` | 331 |
+| `transform-rotate-counter-clockwise-90` | command | `transform.applyFixed` | 333 |
 | `ui-style-guide` | presentation | Opens the developer UI style guide. | 887 |
 | `workspace-ai-generation` | presentation | Applies a local workspace layout preset. | 858 |
 | `workspace-grading` | presentation | Applies a local workspace layout preset. | 857 |
