@@ -21,8 +21,9 @@ const listen = (app) => new Promise((resolve) => {
 });
 
 test('Streamable HTTP exposes typed tools and enforces edit scope', async (context) => {
+  const mockClient = new MockLightTableClient();
   const service = await createLightTableMcpApp({ publicUrl: 'http://127.0.0.1:8787',
-    pairingCode: 'integration-pairing', client: new MockLightTableClient(),
+    pairingCode: 'integration-pairing', client: mockClient,
     allowInsecure: true, allowedHosts: ['127.0.0.1'] });
   const http = await listen(service.app);
   context.after(async () => { await service.close(); await new Promise((resolve) => http.close(resolve)); });
@@ -63,6 +64,10 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.deepEqual(commandCatalog.structuredContent.commands[0].parameters, {
     layerId: 'string', name: 'string'
   });
+  assert.equal(commandCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.equal(commandCatalog.structuredContent.commands[0].contract.schemaVersion, 1);
+  assert.deepEqual(commandCatalog.structuredContent.commands[0].contract.input.required,
+    ['layerId', 'name']);
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
@@ -111,6 +116,19 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   const editor = new Client({ name: 'LightTable test editor', version: '1.0.0' });
   await editor.connect(editTransport);
   context.after(() => editor.close());
+  const invalidRevision = mockClient.revision;
+  const invalid = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'layer.rename', parameters: {
+      layerId: 'layer-background', name: '   ', privateState: true } } });
+  assert.equal(invalid.isError, true);
+  assert.equal(mockClient.revision, invalidRevision, 'invalid schema input reached the desktop client');
+  const invalidBatch = await editor.callTool({ name: 'lighttable_batch', arguments: {
+    documentId: 'document-demo', name: 'Invalid batch', operations: [{
+      operationId: 'rename', command: 'layer.rename',
+      parameters: { layerId: 'layer-background', name: 'Name', privateState: true }
+    }] } });
+  assert.equal(invalidBatch.isError, true);
+  assert.equal(mockClient.revision, invalidRevision, 'invalid batch schema input reached the desktop client');
   const result = await editor.callTool({ name: 'lighttable_execute', arguments: {
     documentId: 'document-demo', command: 'layer.rename', parameters: {
       layerId: 'layer-background', name: 'Renamed by MCP' } } });

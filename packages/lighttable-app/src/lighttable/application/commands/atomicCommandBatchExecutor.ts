@@ -1,4 +1,9 @@
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
+import {
+  LIGHTTABLE_COMMAND_SCHEMAS,
+  formatSchemaValidationIssues,
+  validateJsonSchemaValue
+} from '@lighttable/command-contract';
 import { findDocumentLayer, siblingLayers } from '../../editor/document/layerTree';
 import { moveLayer, renameLayer, setLayerBlendMode, setLayerClipping, setLayerFillOpacity,
   setLayersLock, setLayersVisibility } from '../../editor/document/documentCommands';
@@ -55,6 +60,13 @@ export const executeAtomicCommandBatch = async (
   for (const [index, operation] of batch.operations.entries()) {
     if (signal.aborted) throw new DOMException('The batch was canceled.', 'AbortError');
     const parameters = resolveReferences(operation.parameters, results);
+    const sharedSchema = LIGHTTABLE_COMMAND_SCHEMAS[operation.command]?.input;
+    if (sharedSchema) {
+      const validation = validateJsonSchemaValue(sharedSchema, parameters);
+      if (!validation.valid) throw new Error(
+        `${operation.operationId}: parameters do not match schema v1: ${formatSchemaValidationIssues(validation.issues)}.`
+      );
+    }
     let result: unknown = null;
     if (operation.command.startsWith('text.')) {
       const parsed = parseSemanticTextCommand(semanticKind(operation) as 'create' | 'replace' | 'format' | 'layout', parameters);
@@ -94,20 +106,21 @@ export const executeAtomicCommandBatch = async (
           throw new Error(`${operation.operationId}: the layer cannot move ${parsed.direction}.`);
         }
         current = moveLayer(current, parsed.layerId, targetIndex);
+        result = { layerId: parsed.layerId, direction: parsed.direction };
       } else if (parsed.kind === 'set-blend-mode') {
         current = setLayerBlendMode(current, parsed.layerId, parsed.blendMode);
+        result = { layerId: parsed.layerId, blendMode: parsed.blendMode };
       } else if (parsed.kind === 'set-clipping') {
         const siblings = siblingLayers(current, parsed.layerId);
         if (parsed.clipping && siblings.findIndex(({ id }) => id === parsed.layerId) <= 0) {
           throw new Error(`${operation.operationId}: clipping requires a lower sibling layer.`);
         }
         current = setLayerClipping(current, parsed.layerId, parsed.clipping);
+        result = { layerId: parsed.layerId, clipping: parsed.clipping };
       } else if (parsed.kind === 'set-lock') {
         current = setLayersLock(current, [...parsed.layerIds], parsed.lock, parsed.locked);
+        result = { layerIds: parsed.layerIds, lock: parsed.lock, locked: parsed.locked };
       }
-      result = parsed.kind === 'set-lock'
-        ? { layerIds: parsed.layerIds, lock: parsed.lock, locked: parsed.locked }
-        : { ...parsed };
     } else {
       if (!record(parameters)) throw new Error(`${operation.operationId}: parameters must be an object.`);
       const layerId = String(parameters.layerId ?? '') as LayerId;
@@ -118,23 +131,28 @@ export const executeAtomicCommandBatch = async (
         const name = typeof parameters.name === 'string' ? parameters.name.trim() : '';
         if (!name || name.length > 255) throw new Error(`${operation.operationId}: the layer name is invalid.`);
         current = renameLayer(current, layerId, name);
+        result = { layerId, name };
       } else if (operation.command === 'layer.setVisibility') {
         const ids = Array.isArray(parameters.layerIds) ? parameters.layerIds : [];
         if (!ids.length || ids.length > 256 || ids.some((id) => typeof id !== 'string'
           || !findDocumentLayer(current, id as LayerId))) throw new Error(`${operation.operationId}: layerIds are invalid.`);
-        current = setLayersVisibility(current, ids as LayerId[], Boolean(parameters.visible));
+        const layerIds = [...new Set(ids)] as LayerId[];
+        current = setLayersVisibility(current, layerIds, parameters.visible as boolean);
+        result = { layerIds, visible: parameters.visible };
       } else if (operation.command === 'layer.setFillOpacity') {
         const opacity = Number(parameters.opacity);
         if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new Error(`${operation.operationId}: opacity is invalid.`);
         current = setLayerFillOpacity(current, layerId, opacity);
+        result = { layerId, opacity };
       } else if (operation.command === 'layer.style.setEnabled') {
         current = setLayerStyleStackEnabled(current, layerId, Boolean(parameters.enabled));
+        result = { layerId, enabled: Boolean(parameters.enabled) };
       } else {
         const effectId = String(parameters.effectId ?? '');
         if (!effectId) throw new Error(`${operation.operationId}: effectId is required.`);
         current = setLayerStyleEnabled(current, layerId, effectId as LayerStyleId, Boolean(parameters.enabled));
+        result = { layerId, effectId, enabled: Boolean(parameters.enabled) };
       }
-      result = { layerId };
     }
     if (!result) throw new Error(`${operation.operationId}: the command did not change the document.`);
     results.set(operation.operationId, result);

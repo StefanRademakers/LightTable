@@ -76,6 +76,15 @@ export declare const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES: Readonly<Record<Li
 
 export declare const LIGHTTABLE_COMMAND_EXAMPLES: Readonly<Partial<Record<LightTableCommandId, readonly Readonly<Record<string, unknown>>[]>>>;
 
+export interface LightTableJsonSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean'; readonly title?: string; readonly description?: string; readonly properties?: Readonly<Record<string, LightTableJsonSchema>>; readonly required?: readonly string[]; readonly additionalProperties?: boolean; readonly items?: LightTableJsonSchema; readonly enum?: readonly unknown[]; readonly default?: unknown; readonly minLength?: number; readonly maxLength?: number; readonly pattern?: string; readonly minItems?: number; readonly maxItems?: number; readonly uniqueItems?: boolean; readonly minimum?: number; readonly maximum?: number; readonly 'x-lighttable-control'?: 'layer-id' | 'layer-ids'; readonly 'x-lighttable-step'?: number; }
+export interface LightTableCommandSchema { readonly input: LightTableJsonSchema; readonly result: LightTableJsonSchema; }
+export interface LightTableSchemaValidationIssue { readonly path: readonly (string | number)[]; readonly code: string; readonly message: string; }
+export type LightTableSchemaValidationResult = { readonly valid: true; readonly issues: readonly [] } | { readonly valid: false; readonly issues: readonly LightTableSchemaValidationIssue[] };
+export declare const LIGHTTABLE_COMMAND_SCHEMA_VERSION: 1;
+export declare const LIGHTTABLE_COMMAND_SCHEMAS: Readonly<Partial<Record<LightTableCommandId, LightTableCommandSchema>>>;
+export declare const validateJsonSchemaValue: (schema: LightTableJsonSchema, value: unknown) => LightTableSchemaValidationResult;
+export declare const formatSchemaValidationIssues: (issues: readonly LightTableSchemaValidationIssue[]) => string;
+
 export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'document.create',
   'view.setZoom',

@@ -218,6 +218,28 @@ try {
   const layerProjection = await driver.queryLayers(documentId) ?? [];
   const activeLayer = layerProjection.find(({ id }) => id === before?.activeLayerId);
   if (!activeLayer) throw new Error('No active layer projection.');
+  const schemaUiDocumentId = workspace.activeDocumentId;
+  const schemaUiDocument = schemaUiDocumentId ? await driver.queryDocument(schemaUiDocumentId) : null;
+  const schemaUiLayers = schemaUiDocumentId ? await driver.queryLayers(schemaUiDocumentId) ?? [] : [];
+  const schemaUiTarget = schemaUiLayers.find(({ id }) => id === schemaUiDocument?.activeLayerId);
+  if (!schemaUiDocumentId || !schemaUiTarget) throw new Error('No active schema UI target.');
+  await page.getByRole('menuitem', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Actions panel', exact: true }).click();
+  const actionsPanel = page.getByRole('complementary', { name: 'Actions' });
+  await actionsPanel.getByRole('radio', { name: 'Commands', exact: true }).click();
+  await actionsPanel.getByRole('searchbox', { name: 'Search commands' }).fill('layer.rename');
+  const renameCommand = actionsPanel.locator('details').filter({ hasText: 'layer.rename' });
+  await renameCommand.locator('summary').click();
+  await renameCommand.getByRole('textbox', { name: 'Layer ID' }).fill(schemaUiTarget.id);
+  await renameCommand.getByRole('textbox', { name: 'Name' }).fill('Schema UI layer');
+  await renameCommand.getByRole('button', { name: 'Run', exact: true }).click();
+  await actionsPanel.getByRole('status').filter({ hasText: 'layer.rename: completed' })
+    .waitFor({ timeout: 15_000 });
+  const schemaUiLayer = (await driver.queryLayers(schemaUiDocumentId))
+    ?.find(({ id }) => id === schemaUiTarget.id);
+  if (schemaUiLayer?.name !== 'Schema UI layer') {
+    throw new Error(`Schema-generated command editor did not execute rename: ${JSON.stringify(schemaUiLayer)}`);
+  }
   const zoom = await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: 175 });
   const hidden = await driver.execute(documentId, 'layer.setVisibility', {
     layerIds: [activeLayer.id], visible: false
@@ -256,7 +278,9 @@ try {
     parameters: { layerId: createdId, channel: 'pixels' }, sample: { x: 50, y: 50, pressure: 1 }
   }, [{ x: 90, y: 75, pressure: 0.8 }]);
   const report = {
-    workspace, semantic: { create: semanticCreate, placements, layers: placedLayers,
+    workspace, schemaUi: { command: 'layer.rename', documentId: schemaUiDocumentId,
+      layerId: schemaUiTarget.id, name: schemaUiLayer.name },
+    semantic: { create: semanticCreate, placements, layers: placedLayers,
       text: { created: textCreated, projection: textProjection, latenciesMs: textLatencies,
         nativeDocumentId, psdDocumentId },
       vector: { created: vectorCreated, effectCreated, projection: vectorProjection,

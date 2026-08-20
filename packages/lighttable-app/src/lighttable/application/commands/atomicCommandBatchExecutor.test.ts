@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LIGHTTABLE_COMMAND_SCHEMAS, validateJsonSchemaValue } from '@lighttable/command-contract';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { createRasterLayer } from '../../editor/document/documentCommands';
 import { findDocumentLayer } from '../../editor/document/layerTree';
@@ -22,7 +23,7 @@ describe('executeAtomicCommandBatch', () => {
   it('publishes once and records one named undo boundary', async () => {
     const state = fixture();
     const progress = vi.fn();
-    await executeAtomicCommandBatch(batch([
+    const result = await executeAtomicCommandBatch(batch([
       { operationId: 'rename', command: 'layer.rename', parameters: { layerId: state.layerId, name: 'Hero' } },
       { operationId: 'dim', command: 'layer.setFillOpacity', parameters: { layerId: state.layerId, opacity: 0.5 } }
     ]), state.dependencies, new AbortController().signal, progress);
@@ -31,6 +32,14 @@ describe('executeAtomicCommandBatch', () => {
     expect(state.record.mock.calls[0][2]).toBe('Agent: build card');
     expect(findDocumentLayer(state.document, state.layerId)).toMatchObject({ name: 'Hero', fillOpacity: 0.5 });
     expect(progress).toHaveBeenCalledTimes(2);
+    expect(result.results).toEqual([
+      { operationId: 'rename', value: { layerId: state.layerId, name: 'Hero' } },
+      { operationId: 'dim', value: { layerId: state.layerId, opacity: 0.5 } }
+    ]);
+    expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.rename']!.result,
+      result.results[0]!.value).valid).toBe(true);
+    expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.setFillOpacity']!.result,
+      result.results[1]!.value).valid).toBe(true);
   });
 
   it('resolves deterministic operation-result references inside the batch', async () => {
@@ -51,7 +60,7 @@ describe('executeAtomicCommandBatch', () => {
 
   it('applies structural layer properties as one atomic history publication', async () => {
     const state = fixture();
-    await executeAtomicCommandBatch(batch([
+    const result = await executeAtomicCommandBatch(batch([
       { operationId: 'blend', command: 'layer.setBlendMode', parameters: {
         layerId: state.layerId, blendMode: 'multiply'
       } },
@@ -64,6 +73,14 @@ describe('executeAtomicCommandBatch', () => {
     });
     expect(state.publish).toHaveBeenCalledOnce();
     expect(state.record).toHaveBeenCalledOnce();
+    expect(result.results).toEqual([
+      { operationId: 'blend', value: { layerId: state.layerId, blendMode: 'multiply' } },
+      { operationId: 'lock', value: { layerIds: [state.layerId], lock: 'position', locked: true } }
+    ]);
+    expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.setBlendMode']!.result,
+      result.results[0]!.value).valid).toBe(true);
+    expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.setLock']!.result,
+      result.results[1]!.value).valid).toBe(true);
   });
 
   it('keeps the exact baseline unpublished when any operation fails or is canceled', async () => {
@@ -80,6 +97,22 @@ describe('executeAtomicCommandBatch', () => {
       { operationId: 'rename', command: 'layer.rename', parameters: { layerId: state.layerId, name: 'Canceled' } }
     ]), state.dependencies, canceled.signal, () => undefined)).rejects.toMatchObject({ name: 'AbortError' });
     expect(state.publish).not.toHaveBeenCalled();
+  });
+
+  it('rejects shared-schema violations before publishing a partially applied batch', async () => {
+    const state = fixture();
+    await expect(executeAtomicCommandBatch(batch([
+      { operationId: 'first', command: 'layer.rename', parameters: {
+        layerId: state.layerId, name: 'Never published'
+      } },
+      { operationId: 'invalid', command: 'layer.setFillOpacity', parameters: {
+        layerId: state.layerId, opacity: 0.5, rendererObject: {}
+      } }
+    ]), state.dependencies, new AbortController().signal, () => undefined))
+      .rejects.toThrow(/invalid.*schema v1/u);
+    expect(state.publish).not.toHaveBeenCalled();
+    expect(state.record).not.toHaveBeenCalled();
+    expect(findDocumentLayer(state.document, state.layerId)?.name).not.toBe('Never published');
   });
 
   it.each([0, 1, 2])('rolls back when command position %i fails', async (failureIndex) => {

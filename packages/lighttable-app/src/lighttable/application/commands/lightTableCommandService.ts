@@ -1,4 +1,9 @@
 import type { DocumentSessionId, DocumentSessionSnapshot, DocumentViewport } from '../documents/documentSession';
+import {
+  LIGHTTABLE_COMMAND_SCHEMAS,
+  formatSchemaValidationIssues,
+  validateJsonSchemaValue
+} from '@lighttable/command-contract';
 import type { WorkspaceSession } from '../workspace/workspaceSession';
 import { layerIsLocked, type LayerId, type LayerNode } from '../../editor/document/documentTypes';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
@@ -702,6 +707,14 @@ export class LightTableCommandService {
     const request = this.parseRequest(requestValue);
     if ('rejection' in request) return request.rejection;
     const { value } = request;
+    const sharedSchema = LIGHTTABLE_COMMAND_SCHEMAS[value.command]?.input;
+    if (sharedSchema) {
+      const validation = validateJsonSchemaValue(sharedSchema, value.parameters);
+      if (!validation.valid) {
+        return this.reject(value.requestId, 'invalid-parameters',
+          `Command parameters do not match schema v1: ${formatSchemaValidationIssues(validation.issues)}.`);
+      }
+    }
     if (value.expectedWorkspaceRevision !== undefined
       && value.expectedWorkspaceRevision !== this.workspaceRevision) {
       return this.reject(

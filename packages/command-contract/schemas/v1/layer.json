@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lighttable.local/schemas/commands/v1/layer.json",
+  "schemaVersion": 1,
+  "commands": {
+    "layer.rename": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "name"],
+        "properties": {
+          "layerId": {
+            "type": "string",
+            "title": "Layer ID",
+            "description": "Stable ID of the layer to rename.",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-lighttable-control": "layer-id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "New non-blank layer name.",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "name"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 }
+        }
+      }
+    },
+    "layer.setVisibility": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerIds", "visible"],
+        "properties": {
+          "layerIds": {
+            "type": "array",
+            "title": "Layer IDs",
+            "description": "One or more stable layer IDs.",
+            "minItems": 1,
+            "maxItems": 256,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "x-lighttable-control": "layer-ids"
+          },
+          "visible": {
+            "type": "boolean",
+            "title": "Visible"
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerIds", "visible"],
+        "properties": {
+          "layerIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+          },
+          "visible": { "type": "boolean" }
+        }
+      }
+    },
+    "layer.setFillOpacity": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "opacity"],
+        "properties": {
+          "layerId": {
+            "type": "string",
+            "title": "Layer ID",
+            "description": "Stable ID of the target layer.",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-lighttable-control": "layer-id"
+          },
+          "opacity": {
+            "type": "number",
+            "title": "Fill opacity",
+            "description": "Fill opacity without Layer Style opacity.",
+            "minimum": 0,
+            "maximum": 1,
+            "default": 1,
+            "x-lighttable-step": 0.01
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "opacity"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "layer.setBlendMode": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "blendMode"],
+        "properties": {
+          "layerId": {
+            "type": "string",
+            "title": "Layer ID",
+            "description": "Stable ID of the target layer.",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-lighttable-control": "layer-id"
+          },
+          "blendMode": {
+            "type": "string",
+            "title": "Blend mode",
+            "default": "normal",
+            "enum": [
+              "normal", "darken", "multiply", "color-burn", "lighten", "screen",
+              "color-dodge", "linear-dodge", "overlay", "soft-light", "hard-light",
+              "difference", "hue", "saturation", "color", "luminosity", "linear-burn",
+              "darker-color", "lighter-color", "vivid-light", "linear-light", "pin-light",
+              "hard-mix", "exclusion", "subtract", "divide"
+            ]
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "blendMode"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "blendMode": {
+            "type": "string",
+            "enum": [
+              "normal", "darken", "multiply", "color-burn", "lighten", "screen",
+              "color-dodge", "linear-dodge", "overlay", "soft-light", "hard-light",
+              "difference", "hue", "saturation", "color", "luminosity", "linear-burn",
+              "darker-color", "lighter-color", "vivid-light", "linear-light", "pin-light",
+              "hard-mix", "exclusion", "subtract", "divide"
+            ]
+          }
+        }
+      }
+    },
+    "layer.setLock": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerIds", "lock", "locked"],
+        "properties": {
+          "layerIds": {
+            "type": "array",
+            "title": "Layer IDs",
+            "description": "One or more stable layer IDs.",
+            "minItems": 1,
+            "maxItems": 256,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "x-lighttable-control": "layer-ids"
+          },
+          "lock": {
+            "type": "string",
+            "title": "Lock",
+            "default": "all",
+            "enum": ["transparency", "pixels", "position", "all"]
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": true
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerIds", "lock", "locked"],
+        "properties": {
+          "layerIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+          },
+          "lock": { "type": "string", "enum": ["transparency", "pixels", "position", "all"] },
+          "locked": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

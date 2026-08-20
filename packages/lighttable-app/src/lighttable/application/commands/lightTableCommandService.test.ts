@@ -1459,6 +1459,31 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('rejects complete shared layer-schema violations before any mutation port runs', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    const invalid = [
+      ['layer.rename', { layerId, name: '   ' }],
+      ['layer.rename', { layerId, name: 'Hero', privateState: true }],
+      ['layer.setVisibility', { layerIds: [], visible: true }],
+      ['layer.setFillOpacity', { layerId, opacity: 1.01 }],
+      ['layer.setBlendMode', { layerId, blendMode: 'not-a-mode' }],
+      ['layer.setLock', { layerIds: [layerId], lock: 'position', locked: 'yes' }]
+    ] as const;
+
+    for (const [command, parameters] of invalid) {
+      expect(await state.service.execute(request(command, state.session.id, parameters)))
+        .toMatchObject({ status: 'rejected', code: 'invalid-parameters',
+          message: expect.stringContaining('schema v1') });
+    }
+    expect(state.ports.renameLayer).not.toHaveBeenCalled();
+    expect(state.ports.setLayerVisibility).not.toHaveBeenCalled();
+    expect(state.ports.setLayerFillOpacity).not.toHaveBeenCalled();
+    expect(state.ports.executeLayerCommand).not.toHaveBeenCalled();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('queries and toggles effect bypass through bounded document ports', async () => {
     const state = setup();
     const layerId = state.session.getSnapshot().document!.activeLayerId!;

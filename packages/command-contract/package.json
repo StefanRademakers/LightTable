@@ -7,6 +7,7 @@
     "catalog.json",
     "parameter-properties.json",
     "examples.json",
+    "schemas",
     "src"
   ],
   "exports": {
@@ -16,7 +17,8 @@
     },
     "./catalog.json": "./catalog.json",
     "./parameter-properties.json": "./parameter-properties.json",
-    "./examples.json": "./examples.json"
+    "./examples.json": "./examples.json",
+    "./schemas/v1/layer.json": "./schemas/v1/layer.json"
   },
   "scripts": {
     "test": "node ../../scripts/generate-command-contract.mjs --check && node --test test",

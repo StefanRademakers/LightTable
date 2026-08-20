@@ -7,6 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const catalogPath = path.join(root, 'packages', 'command-contract', 'catalog.json');
 const parameterPropertiesPath = path.join(root, 'packages', 'command-contract', 'parameter-properties.json');
 const examplesPath = path.join(root, 'packages', 'command-contract', 'examples.json');
+const layerSchemasPath = path.join(root, 'packages', 'command-contract', 'schemas', 'v1', 'layer.json');
 const modulePath = path.join(root, 'packages', 'command-contract', 'src', 'index.mjs');
 const declarationPath = path.join(root, 'packages', 'command-contract', 'src', 'index.d.ts');
 const check = process.argv.includes('--check');
@@ -14,6 +15,7 @@ const check = process.argv.includes('--check');
 const catalog = JSON.parse(await readFile(catalogPath, 'utf8'));
 const parameterProperties = JSON.parse(await readFile(parameterPropertiesPath, 'utf8'));
 const commandExamples = JSON.parse(await readFile(examplesPath, 'utf8'));
+const layerSchemas = JSON.parse(await readFile(layerSchemasPath, 'utf8'));
 if (catalog.protocolVersion !== 1 || !Array.isArray(catalog.commands) || catalog.commands.length === 0) {
   throw new Error('The LightTable command catalog must define protocol v1 and at least one command.');
 }
@@ -27,6 +29,28 @@ if (ids.some((id) => typeof id !== 'string' || id.length === 0) || new Set(ids).
   throw new Error('The LightTable command catalog contains an invalid or duplicate command ID.');
 }
 const propertyIds = Object.keys(parameterProperties);
+const commandSchemas = layerSchemas.commands;
+if (layerSchemas.schemaVersion !== 1 || typeof commandSchemas !== 'object' || commandSchemas === null) {
+  throw new Error('The layer command schema module must define schema version 1 commands.');
+}
+const unknownSchemaIds = Object.keys(commandSchemas).filter((id) => !ids.includes(id));
+if (unknownSchemaIds.length > 0) {
+  throw new Error(`Command schemas reference unknown IDs: ${unknownSchemaIds.join(', ')}.`);
+}
+for (const [id, schema] of Object.entries(commandSchemas)) {
+  if (schema?.input?.type !== 'object' || schema?.result?.type !== 'object') {
+    throw new Error(`The command ${id} must define object input and result schemas.`);
+  }
+  const definition = catalog.commands.find((command) => command.id === id);
+  if (definition.invocation !== 'parameters') {
+    throw new Error(`Direct command ${id} may not define a parameter schema.`);
+  }
+  const schemaProperties = Object.keys(schema.input.properties ?? {}).sort();
+  const advertisedProperties = Object.keys(parameterProperties[id] ?? {}).sort();
+  if (JSON.stringify(schemaProperties) !== JSON.stringify(advertisedProperties)) {
+    throw new Error(`The command ${id} schema and legacy property discovery have drifted.`);
+  }
+}
 const unknownExampleIds = Object.keys(commandExamples).filter((id) => !ids.includes(id));
 if (unknownExampleIds.length > 0) {
   throw new Error(`Command examples reference unknown IDs: ${unknownExampleIds.join(', ')}.`);
@@ -95,11 +119,15 @@ const moduleSource = `// Generated from ../catalog.json by scripts/generate-comm
   + `import commandCatalog from '../catalog.json' with { type: 'json' };\n\n`
   + `import parameterProperties from '../parameter-properties.json' with { type: 'json' };\n\n`
   + `import commandExamples from '../examples.json' with { type: 'json' };\n\n`
+  + `import layerCommandSchemas from '../schemas/v1/layer.json' with { type: 'json' };\n\n`
+  + `export { validateJsonSchemaValue, formatSchemaValidationIssues } from './schema-validation.mjs';\n\n`
   + `export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = ${catalog.protocolVersion};\n\n`
   + `export const LIGHTTABLE_COMMAND_IDS = Object.freeze(${literal(ids)});\n\n`
   + `export const LIGHTTABLE_COMMAND_DEFINITIONS = Object.freeze(commandCatalog.commands);\n\n`
   + `export const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES = Object.freeze(parameterProperties);\n\n`
   + `export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);\n\n`
+  + `export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = ${layerSchemas.schemaVersion};\n\n`
+  + `export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze(layerCommandSchemas.commands);\n\n`
   + `export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze(${literal(agentAccess)});\n\n`
   + `export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze(${literal(externalExecute)});\n\n`
   + `export const LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS = Object.freeze(${literal(externalDedicated)});\n\n`
@@ -122,6 +150,14 @@ const declarationSource = `// Generated from ../catalog.json by scripts/generate
   + `export type LightTableCommandParameterProperties = Readonly<Record<string, string>>;\n`
   + `export declare const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES: Readonly<Record<LightTableCommandId, LightTableCommandParameterProperties>>;\n\n`
   + `export declare const LIGHTTABLE_COMMAND_EXAMPLES: Readonly<Partial<Record<LightTableCommandId, readonly Readonly<Record<string, unknown>>[]>>>;\n\n`
+  + `export interface LightTableJsonSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean'; readonly title?: string; readonly description?: string; readonly properties?: Readonly<Record<string, LightTableJsonSchema>>; readonly required?: readonly string[]; readonly additionalProperties?: boolean; readonly items?: LightTableJsonSchema; readonly enum?: readonly unknown[]; readonly default?: unknown; readonly minLength?: number; readonly maxLength?: number; readonly pattern?: string; readonly minItems?: number; readonly maxItems?: number; readonly uniqueItems?: boolean; readonly minimum?: number; readonly maximum?: number; readonly 'x-lighttable-control'?: 'layer-id' | 'layer-ids'; readonly 'x-lighttable-step'?: number; }\n`
+  + `export interface LightTableCommandSchema { readonly input: LightTableJsonSchema; readonly result: LightTableJsonSchema; }\n`
+  + `export interface LightTableSchemaValidationIssue { readonly path: readonly (string | number)[]; readonly code: string; readonly message: string; }\n`
+  + `export type LightTableSchemaValidationResult = { readonly valid: true; readonly issues: readonly [] } | { readonly valid: false; readonly issues: readonly LightTableSchemaValidationIssue[] };\n`
+  + `export declare const LIGHTTABLE_COMMAND_SCHEMA_VERSION: ${layerSchemas.schemaVersion};\n`
+  + `export declare const LIGHTTABLE_COMMAND_SCHEMAS: Readonly<Partial<Record<LightTableCommandId, LightTableCommandSchema>>>;\n`
+  + `export declare const validateJsonSchemaValue: (schema: LightTableJsonSchema, value: unknown) => LightTableSchemaValidationResult;\n`
+  + `export declare const formatSchemaValidationIssues: (issues: readonly LightTableSchemaValidationIssue[]) => string;\n\n`
   + tupleDeclaration('LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS', agentAccess)
   + `export type LightTableAgentAccessCommandId = typeof LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS[number];\n\n`
   + tupleDeclaration('LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS', externalExecute)

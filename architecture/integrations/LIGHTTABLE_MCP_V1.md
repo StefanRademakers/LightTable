@@ -150,9 +150,18 @@ is the checked top-level property inventory for those commands. Generation
 fails when a catalog command has no matching property entry or an orphaned
 entry remains. Both the local Commands view and the read-only
 `lighttable_commands` MCP discovery tool consume the generated projection.
-These signatures are discovery metadata, not full JSON Schema: command-service
-parsers remain the runtime validation authority until the property inventory is
-promoted to complete shared machine-validation schemas.
+These signatures remain legacy discovery metadata while commands are promoted
+category by category to versioned JSON Schema modules under
+[`packages/command-contract/schemas/`](../../packages/command-contract/schemas/).
+The first complete layer slice covers rename, visibility, fill opacity, blend
+mode and lock input/result contracts. The local Commands editor, command
+service, atomic batch executor and MCP discovery/input gate consume that same
+schema. Invalid fields, types, ranges, enums and transport-only private state
+are therefore rejected before a document mutation or desktop bridge call.
+Application-owned parsers still enforce contextual rules that JSON Schema
+cannot decide, such as whether a stable layer ID exists in the requested
+document. Commands marked `legacy-properties-only` by `lighttable_commands`
+have not yet reached this contract bar and must not be described as complete.
 
 The profiles intentionally describe current rollout state. Generic MCP
 execution is narrower than the complete application command set, while

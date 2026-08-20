@@ -1,8 +1,11 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { LIGHTTABLE_COMMAND_DEFINITIONS, LIGHTTABLE_COMMAND_SCHEMAS } from '@lighttable/command-contract';
+import { BLEND_MODES } from '../../document/blendModes';
 import { ActionsPanel } from './ActionsPanel';
 import { CommandCatalogView } from './CommandCatalogView';
+import { createCommandParameterDefaults } from './CommandParameterEditor';
 
 const definition = {
   id: 'layer.createRaster' as const, category: 'layer' as const, label: 'New raster layer',
@@ -50,6 +53,30 @@ describe('ActionsPanel', () => {
     expect(markup).toContain('Properties');
     expect(markup).toContain('None');
     expect(markup).not.toContain('textarea');
+  });
+
+  it('renders schema-driven controls for commands with a complete shared contract', () => {
+    const rename = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'layer.rename')!;
+    const markup = renderToStaticMarkup(<CommandCatalogView
+      capabilities={[{ command: 'layer.rename', available: true, reason: null }]}
+      definitions={[rename]}
+      onExecute={() => null}
+    />);
+
+    expect(markup).toContain('Layer ID');
+    expect(markup).toContain('Name');
+    expect(markup).toContain('must contain at least 1 character');
+    expect(markup).toContain('disabled=""');
+    expect(markup).not.toContain('textarea');
+  });
+
+  it('derives editor defaults and blend choices from the shared schema', () => {
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['layer.setFillOpacity']!.input))
+      .toEqual({ layerId: '', opacity: 1 });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['layer.setLock']!.input))
+      .toEqual({ layerIds: [], lock: 'all', locked: true });
+    expect(LIGHTTABLE_COMMAND_SCHEMAS['layer.setBlendMode']!.input.properties!.blendMode.enum)
+      .toEqual(BLEND_MODES.map(({ id }) => id));
   });
 
   it('shows subscribed asynchronous task progress in the recorder status', () => {

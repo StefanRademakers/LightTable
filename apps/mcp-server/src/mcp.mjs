@@ -6,9 +6,12 @@ import {
   LIGHTTABLE_COMMAND_IDS,
   LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES,
   LIGHTTABLE_COMMAND_EXAMPLES,
+  LIGHTTABLE_COMMAND_SCHEMAS,
+  LIGHTTABLE_COMMAND_SCHEMA_VERSION,
   LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS,
   LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS,
-  LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS
+  LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS,
+  validateJsonSchemaValue
 } from '@lighttable/command-contract';
 import { z } from 'zod';
 
@@ -191,15 +194,30 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       : LIGHTTABLE_COMMAND_DEFINITIONS;
     return { protocolVersion: 1, commands: definitions.map((definition) => ({
       ...definition, parameters: LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES[definition.id],
-      examples: LIGHTTABLE_COMMAND_EXAMPLES[definition.id] ?? []
+      examples: LIGHTTABLE_COMMAND_EXAMPLES[definition.id] ?? [],
+      contract: LIGHTTABLE_COMMAND_SCHEMAS[definition.id]
+        ? { status: 'complete', schemaVersion: LIGHTTABLE_COMMAND_SCHEMA_VERSION,
+          ...LIGHTTABLE_COMMAND_SCHEMAS[definition.id] }
+        : { status: 'legacy-properties-only' }
     })) };
   }));
+  const executeInputSchema = z.object({
+    documentId: z.string().min(1),
+    command: z.enum(LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS),
+    expectedDocumentRevision: z.number().int().nonnegative().optional(),
+    parameters: z.record(z.string(), z.unknown()).default({})
+  }).superRefine(({ command, parameters }, context) => {
+    const schema = LIGHTTABLE_COMMAND_SCHEMAS[command]?.input;
+    if (!schema) return;
+    const validation = validateJsonSchemaValue(schema, parameters);
+    for (const issue of validation.issues) context.addIssue({
+      code: 'custom', path: ['parameters', ...issue.path], message: issue.message
+    });
+  });
   server.registerTool('lighttable_execute', {
     title: 'Execute an undoable LightTable command',
     description: 'Executes one validated semantic command against an explicit document ID. Pass expectedDocumentRevision to reject stale edits.',
-    inputSchema: z.object({ documentId: z.string().min(1), command: z.enum(LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS),
-      expectedDocumentRevision: z.number().int().nonnegative().optional(),
-      parameters: z.record(z.string(), z.unknown()).default({}) }),
+    inputSchema: executeInputSchema,
     annotations: { readOnlyHint: false, destructiveHint: false }
   }, withResult(({ documentId, command, parameters, expectedDocumentRevision }) =>
     client.invoke('command.execute', { documentId, command,
@@ -213,7 +231,14 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       expectedDocumentRevision: z.number().int().nonnegative().optional(),
       operations: z.array(z.object({ operationId: z.string().min(1).max(128),
         command: z.enum(LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS),
-        parameters: z.record(z.string(), z.unknown()).default({}) })).min(1).max(64) })
+        parameters: z.record(z.string(), z.unknown()).default({}) }).superRefine(({ command, parameters }, context) => {
+          const schema = LIGHTTABLE_COMMAND_SCHEMAS[command]?.input;
+          if (!schema) return;
+          const validation = validateJsonSchemaValue(schema, parameters);
+          for (const issue of validation.issues) context.addIssue({
+            code: 'custom', path: ['parameters', ...issue.path], message: issue.message
+          });
+        })).min(1).max(64) })
   }, withResult(({ documentId, name, timeoutMs, operations, expectedDocumentRevision }) =>
     client.invoke('command.execute', { documentId, command: 'command.batch',
       commandRequestId: crypto.randomUUID(), commandParameters: { name, timeoutMs, operations },

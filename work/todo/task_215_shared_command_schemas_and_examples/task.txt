@@ -88,11 +88,23 @@ Current evidence (2026-08-20)
 - `text.create` now documents point, paragraph and native path modes. Path Text
   carries stable path references plus bounded layout settings, never vector
   geometry or runtime editor objects.
+- A modular JSON Schema v1 layer contract now owns input and result shape for
+  rename, visibility, fill opacity, blend mode and lock. Generation checks its
+  property names against legacy discovery; application tests check the blend
+  enum against the real product list.
+- The local Commands view generates typed fields/defaults/enums/errors from
+  those schemas. A packaged Electron/Playwright flow executed a real rename
+  through that form and verified the resulting stable layer state.
+- Direct command execution, local atomic batches and external MCP execution/
+  batches validate the same schema before mutation or a desktop bridge call.
+  Atomic batch results now match direct results for stable downstream bindings.
+- MCP discovery separates these `complete` version-1 contracts from commands
+  that still expose `legacy-properties-only` metadata.
 
 Still required for completion
 =============================
 
 - formal versioned input and result schemas for every admitted command;
-- generated Actions property editors from those schemas;
+- generated Actions property editors for every remaining parameterized command;
 - schema migration/incompatibility behavior for persisted Actions;
 - explicit blocking reasons for every command without a complete schema.

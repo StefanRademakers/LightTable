@@ -1,9 +1,11 @@
 import React from 'react';
 import {
   LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES,
+  LIGHTTABLE_COMMAND_SCHEMAS,
   type LightTableCommandId
 } from '@lighttable/command-contract';
 import { ActionButton } from '../../../../ui/ActionButton';
+import { CommandParameterEditor } from './CommandParameterEditor';
 import {
   ACTION_CATEGORY_LABELS,
   actionExposureLabel,
@@ -14,7 +16,7 @@ interface ActionCatalogRowProps {
   readonly item: ActionCatalogItem;
   readonly running: boolean;
   readonly runBlocked: boolean;
-  readonly onRun: (command: LightTableCommandId) => void;
+  readonly onRun: (command: LightTableCommandId, parameters: unknown) => void;
 }
 
 export const ActionCatalogRow: React.FC<ActionCatalogRowProps> = ({
@@ -25,6 +27,7 @@ export const ActionCatalogRow: React.FC<ActionCatalogRowProps> = ({
 }) => {
   const { definition, available, unavailableReason } = item;
   const parameters = Object.entries(LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES[definition.id]);
+  const schema = LIGHTTABLE_COMMAND_SCHEMAS[definition.id]?.input;
   return <details className="lighttable-actions-panel__action">
     <summary>
       <span>
@@ -61,12 +64,15 @@ export const ActionCatalogRow: React.FC<ActionCatalogRowProps> = ({
         : null}
       {definition.invocation === 'direct'
         ? <ActionButton size="control" disabled={!available || runBlocked}
-            onClick={() => onRun(definition.id)}>
+            onClick={() => onRun(definition.id, {})}>
             {running ? 'Running…' : 'Run'}
           </ActionButton>
-        : <p className="lighttable-actions-panel__parameters">
-            Property editing is not implemented yet; recorded executions remain replayable.
-          </p>}
+        : schema
+          ? <CommandParameterEditor schema={schema} disabled={!available || runBlocked}
+              running={running} onRun={(values) => onRun(definition.id, values)} />
+          : <p className="lighttable-actions-panel__parameters">
+              This command still has legacy property metadata; schema-driven editing is not available yet.
+            </p>}
     </div>
   </details>;
 };

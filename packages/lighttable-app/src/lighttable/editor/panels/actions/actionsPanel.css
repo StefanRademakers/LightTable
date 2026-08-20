@@ -220,3 +220,34 @@
 
 .lighttable-actions-panel__action-body dt { color: var(--lt-text-secondary); }
 .lighttable-actions-panel__action-body dd { margin: 0; }
+
+.lighttable-command-parameter-editor {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.lighttable-command-parameter-editor > label {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.45fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-small);
+}
+
+.lighttable-command-parameter-editor > label.is-checkbox {
+  grid-template-columns: auto 1fr;
+}
+
+.lighttable-command-parameter-editor input:not([type='checkbox']),
+.lighttable-command-parameter-editor select {
+  width: 100%;
+  min-width: 0;
+}
+
+.lighttable-command-parameter-editor__error {
+  margin: 0;
+  color: var(--lt-danger);
+  font-size: var(--lt-type-small);
+}

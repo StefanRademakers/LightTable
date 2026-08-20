@@ -42,11 +42,11 @@ export const CommandCatalogView: React.FC<CommandCatalogViewProps> = ({
   const visibleCount = groups.reduce((total, group) => total + group.items.length, 0);
   const categories = [...new Set(definitions.map((definition) => definition.category))];
 
-  const execute = async (command: LightTableCommandId) => {
+  const execute = async (command: LightTableCommandId, parameters: unknown) => {
     setRunning(command);
     setResult(null);
     try {
-      const pending = onExecute(command, {});
+      const pending = onExecute(command, parameters);
       if (!pending) return setResult('The local command service is unavailable.');
       const response = await pending;
       setResult(response.status === 'rejected'
@@ -79,7 +79,7 @@ export const CommandCatalogView: React.FC<CommandCatalogViewProps> = ({
         <h3 id={`command-${group.category}`}>{group.label}</h3>
         {group.items.map((item) => <ActionCatalogRow key={item.definition.id} item={item}
           running={running === item.definition.id} runBlocked={running !== null}
-          onRun={(command) => void execute(command)} />)}
+          onRun={(command, parameters) => void execute(command, parameters)} />)}
       </section>)}
     </div>
   </div>;

@@ -1,0 +1,93 @@
+const record = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const issue = (path, code, message) => ({ path, code, message });
+
+const validateNode = (schema, value, path, issues) => {
+  if (schema.type === 'object') {
+    if (!record(value)) {
+      issues.push(issue(path, 'type', 'must be an object'));
+      return;
+    }
+    const properties = schema.properties ?? {};
+    for (const required of schema.required ?? []) {
+      if (!Object.hasOwn(value, required)) {
+        issues.push(issue([...path, required], 'required', 'is required'));
+      }
+    }
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(value)) {
+        if (!Object.hasOwn(properties, key)) {
+          issues.push(issue([...path, key], 'additional-property', 'is not a supported property'));
+        }
+      }
+    }
+    for (const [key, childSchema] of Object.entries(properties)) {
+      if (Object.hasOwn(value, key)) validateNode(childSchema, value[key], [...path, key], issues);
+    }
+    return;
+  }
+  if (schema.type === 'array') {
+    if (!Array.isArray(value)) {
+      issues.push(issue(path, 'type', 'must be an array'));
+      return;
+    }
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      issues.push(issue(path, 'min-items', `must contain at least ${schema.minItems} item(s)`));
+    }
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) {
+      issues.push(issue(path, 'max-items', `must contain at most ${schema.maxItems} item(s)`));
+    }
+    if (schema.uniqueItems && new Set(value.map((item) => JSON.stringify(item))).size !== value.length) {
+      issues.push(issue(path, 'unique-items', 'must not contain duplicate items'));
+    }
+    if (schema.items) value.forEach((item, index) => validateNode(schema.items, item, [...path, index], issues));
+    return;
+  }
+  if (schema.type === 'string') {
+    if (typeof value !== 'string') {
+      issues.push(issue(path, 'type', 'must be a string'));
+      return;
+    }
+    if (schema.minLength !== undefined && value.length < schema.minLength) {
+      issues.push(issue(path, 'min-length', `must contain at least ${schema.minLength} character(s)`));
+    }
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) {
+      issues.push(issue(path, 'max-length', `must contain at most ${schema.maxLength} character(s)`));
+    }
+    if (schema.pattern !== undefined && !(new RegExp(schema.pattern, 'u')).test(value)) {
+      issues.push(issue(path, 'pattern', 'has an invalid format'));
+    }
+  } else if (schema.type === 'number') {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      issues.push(issue(path, 'type', 'must be a finite number'));
+      return;
+    }
+    if (schema.minimum !== undefined && value < schema.minimum) {
+      issues.push(issue(path, 'minimum', `must be at least ${schema.minimum}`));
+    }
+    if (schema.maximum !== undefined && value > schema.maximum) {
+      issues.push(issue(path, 'maximum', `must be at most ${schema.maximum}`));
+    }
+  } else if (schema.type === 'integer') {
+    if (!Number.isSafeInteger(value)) {
+      issues.push(issue(path, 'type', 'must be a safe integer'));
+      return;
+    }
+  } else if (schema.type === 'boolean' && typeof value !== 'boolean') {
+    issues.push(issue(path, 'type', 'must be a boolean'));
+    return;
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    issues.push(issue(path, 'enum', `must be one of: ${schema.enum.join(', ')}`));
+  }
+};
+
+export const validateJsonSchemaValue = (schema, value) => {
+  const issues = [];
+  validateNode(schema, value, [], issues);
+  return issues.length === 0 ? { valid: true, issues: [] } : { valid: false, issues };
+};
+
+export const formatSchemaValidationIssues = (issues) => issues.map(({ path, message }) => (
+  `${path.length > 0 ? path.join('.') : 'parameters'} ${message}`
+)).join('; ');

@@ -7,6 +7,10 @@ import parameterProperties from '../parameter-properties.json' with { type: 'jso
 
 import commandExamples from '../examples.json' with { type: 'json' };
 
+import layerCommandSchemas from '../schemas/v1/layer.json' with { type: 'json' };
+
+export { validateJsonSchemaValue, formatSchemaValidationIssues } from './schema-validation.mjs';
+
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1;
 
 export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
@@ -76,6 +80,10 @@ export const LIGHTTABLE_COMMAND_DEFINITIONS = Object.freeze(commandCatalog.comma
 export const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES = Object.freeze(parameterProperties);
 
 export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);
+
+export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = 1;
+
+export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze(layerCommandSchemas.commands);
 
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'document.create',

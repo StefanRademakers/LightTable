@@ -4,9 +4,9 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 75,
+      "productionUsageCount": 76,
       "internalUsageCount": 5,
-      "contextCount": 25,
+      "contextCount": 26,
       "overrideCount": 0,
       "locations": [
         {
@@ -21,6 +21,11 @@
         },
         {
           "path": "lighttable/editor/panels/actions/ActionCatalogRow.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/CommandParameterEditor.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -382,14 +387,19 @@
     {
       "id": "form-input",
       "metadataDeclared": true,
-      "productionUsageCount": 11,
+      "productionUsageCount": 15,
       "internalUsageCount": 4,
-      "contextCount": 5,
+      "contextCount": 6,
       "overrideCount": 1,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
           "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/CommandParameterEditor.tsx",
+          "count": 4,
           "kind": "product"
         },
         {
@@ -440,9 +450,9 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 29,
+      "productionUsageCount": 30,
       "internalUsageCount": 1,
-      "contextCount": 15,
+      "contextCount": 16,
       "overrideCount": 1,
       "locations": [
         {
@@ -467,6 +477,11 @@
         },
         {
           "path": "lighttable/editor/panels/actions/CommandCatalogView.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/CommandParameterEditor.tsx",
           "count": 1,
           "kind": "product"
         },
