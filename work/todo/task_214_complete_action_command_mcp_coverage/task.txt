@@ -84,9 +84,10 @@ Existing foundation evidence
 
 - Generated categorized command catalog and local Commands browser.
 - Checked inventory for 103 static editor-menu actions, four dynamic families
-  and all 36 registered toolbar tools. The current report still has 7 genuine
-  menu gaps; interactive Object Finder point/box/hover remains a canonical
-  local owner, while experimental Face Warp remains intentionally withheld.
+  and all 36 registered toolbar tools. The current report has one genuine menu
+  gap: Remove Object remains deferred because its product owner is unfinished.
+  Interactive Object Finder point/box/hover remains a canonical local owner,
+  while experimental Face Warp remains intentionally withheld.
 - Semantic routing for Image Size, canvas geometry, crop, rotate and flip.
 - Bounded recorder/playback, per-step results and stable-ID rebinding.
 - Shared top-level property discovery for Actions and MCP.
@@ -255,6 +256,11 @@ Existing foundation evidence
   external MCP uses the same opaque handle. Active-layer Paste retains the
   guarded renderer fast path. Packaged UI/Actions/MCP renders are byte-exact,
   while both copy variants leave revision/history unchanged.
+- Edit > Copy Grade and Paste Grade now share `grade.copy` plus `grade.paste`.
+  Complete recipes and optional embedded Look bytes stay in a bounded opaque
+  session artifact while Lens FX remains destination-owned. Actions binds
+  Paste to each replay's fresh Copy result; packaged UI, Actions and external
+  MCP produce two equal history edits and byte-exact equal 1448x1086 renders.
 
 Program definition of done
 ==========================

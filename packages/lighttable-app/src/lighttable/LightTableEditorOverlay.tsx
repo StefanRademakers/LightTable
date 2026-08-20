@@ -4,7 +4,10 @@ import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lig
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
-import type { LightTablePreviewEncoding } from './application/commands/lightTableCommandContract';
+import type {
+  LightTableGradeClipboardCapture,
+  LightTablePreviewEncoding
+} from './application/commands/lightTableCommandContract';
 import { commandDocumentTarget } from './application/commands/commandRequestScope';
 import { resolveAcceptedCommandArtifact } from './application/commands/resolveAcceptedCommandArtifact';
 import type { DocumentPixelRegion } from './editor/geometry/documentRegionPreview';
@@ -780,6 +783,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     readonly bounds: { readonly x: number; readonly y: number;
       readonly width: number; readonly height: number };
   } | null>(null);
+  const latestGradeClipboardArtifactRef = useRef<string | null>(null);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
   const applyCurvesRef = useRef<() => void>(() => undefined);
@@ -2681,71 +2685,114 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     toggleGroupVisibility,
     resetGroup
   } = adjustmentCommands;
+  const captureCurrentGrade = async (): Promise<LightTableGradeClipboardCapture> => {
+    const document = imageDocumentRef.current;
+    const renderer = engineRef.current;
+    const settings = cloneAdjustments(adjustmentsRef.current);
+    const assetId = settings.gradeLook.assetId;
+    let gradeLookAsset: LightTableGradeClipboardCapture['gradeLookAsset'];
+    if (assetId && document && renderer) {
+      const assets = await renderer.exportLayerAssets(document);
+      const source = assets.find((asset) => 'lutId' in asset && asset.lutId === assetId);
+      const metadata = document.assets.colorLookups.find((asset) => asset.id === assetId);
+      if (source && 'lutId' in source && metadata) {
+        gradeLookAsset = { assetId, name: metadata.name, source: source.source };
+      }
+    }
+    const capture = {
+      name: document?.name ?? 'Copied grade',
+      settings,
+      ...(gradeLookAsset ? { gradeLookAsset } : {})
+    };
+    copyLightTableGrade(settings, capture.name, gradeLookAsset);
+    setGradeStatus('Grade copied');
+    return capture;
+  };
+  const applyGradeCapture = async (
+    capture: LightTableGradeClipboardCapture
+  ) => {
+    let settings = cloneAdjustments(capture.settings);
+    const document = imageDocumentRef.current;
+    const renderer = engineRef.current;
+    const copiedAssetId = settings.gradeLook.assetId;
+    let importedLookAsset = false;
+    if (copiedAssetId && document && renderer) {
+      if (document.assets.colorLookups.some((asset) => asset.id === copiedAssetId)) {
+        // A same-document paste can reuse the already loaded immutable LUT.
+        // Importing a fresh UUID here would create an orphan asset on every
+        // paste and turn an otherwise identical Grade into a false change.
+      } else if (capture.gradeLookAsset?.assetId === copiedAssetId) {
+        const source = capture.gradeLookAsset.source;
+        const parsed = parseCubeLut(await source.text());
+        const assetId = `lut-${crypto.randomUUID()}` as DocumentAssetId;
+        await renderer.loadLayerAssets([{ lutId: assetId, source }]);
+        applyDocumentSnapshot({
+          ...document,
+          assets: {
+            ...document.assets,
+            colorLookups: [...document.assets.colorLookups, {
+              id: assetId,
+              name: parsed.title || capture.gradeLookAsset.name,
+              size: parsed.size,
+              domainMin: parsed.domainMin,
+              domainMax: parsed.domainMax,
+              byteLength: source.size,
+              revision: 0
+            }]
+          },
+          revision: document.revision + 1,
+          modifiedAt: Date.now()
+        });
+        settings = { ...settings, gradeLook: { ...settings.gradeLook, assetId } };
+        importedLookAsset = true;
+      } else if (!document.assets.colorLookups.some((asset) => asset.id === copiedAssetId)) {
+        // A persisted text-only clipboard cannot safely refer to another
+        // document's missing binary LUT. Paste the remaining Grade honestly.
+        settings = { ...settings, gradeLook: { ...settings.gradeLook, assetId: null } };
+      }
+    }
+    const changed = adjustmentCommands.pasteGrade(capture.name, settings);
+    return {
+      name: capture.name,
+      changed,
+      hasLookAsset: Boolean(capture.gradeLookAsset),
+      importedLookAsset
+    };
+  };
   const copyCurrentGrade = async () => {
     try {
-      const document = imageDocumentRef.current;
-      const renderer = engineRef.current;
-      const settings = cloneAdjustments(adjustmentsRef.current);
-      const assetId = settings.gradeLook.assetId;
-      let gradeLookAsset: NonNullable<typeof copiedGrade>['gradeLookAsset'];
-      if (assetId && document && renderer) {
-        const assets = await renderer.exportLayerAssets(document);
-        const source = assets.find((asset) => 'lutId' in asset && asset.lutId === assetId);
-        const metadata = document.assets.colorLookups.find((asset) => asset.id === assetId);
-        if (source && 'lutId' in source && metadata) {
-          gradeLookAsset = { assetId, name: metadata.name, source: source.source };
-        }
+      const execution = executeRegisteredCommand('grade.copy', {});
+      if (!execution) {
+        await captureCurrentGrade();
+        return;
       }
-      copyLightTableGrade(settings, document?.name ?? 'Copied grade', gradeLookAsset);
-      setGradeStatus('Grade copied');
+      const result = await execution;
+      const value = result.status === 'completed' && typeof result.value === 'object'
+        && result.value !== null ? result.value as Record<string, unknown> : null;
+      const artifact = value && typeof value.artifact === 'object' && value.artifact !== null
+        ? value.artifact as Record<string, unknown> : null;
+      if (typeof artifact?.id === 'string') latestGradeClipboardArtifactRef.current = artifact.id;
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not copy the Grade.');
     }
   };
   const pasteCurrentGrade = async () => {
-    if (!copiedGrade) return;
     try {
-      let settings = cloneAdjustments(copiedGrade.settings);
-      const document = imageDocumentRef.current;
-      const renderer = engineRef.current;
-      const copiedAssetId = settings.gradeLook.assetId;
-      if (copiedAssetId && document && renderer) {
-        if (copiedGrade.gradeLookAsset?.assetId === copiedAssetId) {
-          const source = copiedGrade.gradeLookAsset.source;
-          const parsed = parseCubeLut(await source.text());
-          const assetId = `lut-${crypto.randomUUID()}` as DocumentAssetId;
-          await renderer.loadLayerAssets([{ lutId: assetId, source }]);
-          applyDocumentSnapshot({
-            ...document,
-            assets: {
-              ...document.assets,
-              colorLookups: [...document.assets.colorLookups, {
-                id: assetId,
-                name: parsed.title || copiedGrade.gradeLookAsset.name,
-                size: parsed.size,
-                domainMin: parsed.domainMin,
-                domainMax: parsed.domainMax,
-                byteLength: source.size,
-                revision: 0
-              }]
-            },
-            revision: document.revision + 1,
-            modifiedAt: Date.now()
-          });
-          settings = {
-            ...settings,
-            gradeLook: { ...settings.gradeLook, assetId }
-          };
-        } else if (!document.assets.colorLookups.some((asset) => asset.id === copiedAssetId)) {
-          // A persisted text-only clipboard cannot safely refer to another
-          // document's missing binary LUT. Paste the remaining Grade honestly.
-          settings = {
-            ...settings,
-            gradeLook: { ...settings.gradeLook, assetId: null }
-          };
-        }
+      if (!commandService) {
+        if (copiedGrade) await applyGradeCapture(copiedGrade);
+        return;
       }
-      adjustmentCommands.pasteGrade(copiedGrade.name, settings);
+      let artifactId = latestGradeClipboardArtifactRef.current;
+      if (artifactId && !commandService.queryArtifact(artifactId)) {
+        latestGradeClipboardArtifactRef.current = null;
+        artifactId = null;
+      }
+      if (!artifactId && copiedGrade) {
+        artifactId = commandService.registerGradeClipboardArtifact(copiedGrade).id;
+        latestGradeClipboardArtifactRef.current = artifactId;
+      }
+      if (!artifactId) return;
+      await executeRegisteredCommand('grade.paste', { artifactId });
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not paste the Grade.');
     }
@@ -4923,6 +4970,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       pastePixels: (file, command, fastPasteToken) => layerDocumentCommands.pastePixelArtifact(
         file, { ...command.bounds, name: command.name }, fastPasteToken
       ),
+      copyGrade: captureCurrentGrade,
+      pasteGrade: applyGradeCapture,
       placeArtifact: layerDocumentCommands.placeImageArtifact,
       renameLayer: layerPanelController.rename,
       setLayerVisibility: layerPanelController.setVisibility,

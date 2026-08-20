@@ -2,7 +2,7 @@ import type { PsdExportCompatibilityFinding } from '../documents/psdExportProtoc
 
 export type LightTableArtifactKind =
   | 'input' | 'native-document' | 'png-export' | 'psd-export' | 'render-preview'
-  | 'pixel-clipboard';
+  | 'pixel-clipboard' | 'grade-clipboard';
 
 export interface LightTablePreviewArtifactContext {
   readonly documentId: string;

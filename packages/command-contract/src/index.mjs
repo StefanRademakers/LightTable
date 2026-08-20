@@ -27,6 +27,8 @@ import gestureCommandSchemas from '../schemas/v1/gesture.json' with { type: 'jso
 
 import gradeBasicCommandSchemas from '../schemas/v1/grade-basic.json' with { type: 'json' };
 
+import gradeClipboardCommandSchemas from '../schemas/v1/grade-clipboard.json' with { type: 'json' };
+
 import historyCommandSchemas from '../schemas/v1/history.json' with { type: 'json' };
 
 import layerEffectsCommandSchemas from '../schemas/v1/layer-effects.json' with { type: 'json' };
@@ -143,6 +145,8 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'selection.modify',
   'selection.copyPixels',
   'selection.pastePixels',
+  'grade.copy',
+  'grade.paste',
   'grade.setBasic',
   'task.cancel',
   'file.exportNative',
@@ -170,6 +174,7 @@ const baseCommandSchemas = Object.freeze({
   ...schemaModuleCommands(finalizationCommandSchemas),
   ...schemaModuleCommands(gestureCommandSchemas),
   ...schemaModuleCommands(gradeBasicCommandSchemas),
+  ...schemaModuleCommands(gradeClipboardCommandSchemas),
   ...schemaModuleCommands(historyCommandSchemas),
   ...schemaModuleCommands(layerEffectsCommandSchemas),
   ...schemaModuleCommands(layerMaskCommandSchemas),
@@ -268,6 +273,8 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'selection.modify',
   'selection.copyPixels',
   'selection.pastePixels',
+  'grade.copy',
+  'grade.paste',
   'grade.setBasic',
   'task.cancel',
   'file.exportNative',
@@ -331,6 +338,8 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'selection.modify',
   'selection.copyPixels',
   'selection.pastePixels',
+  'grade.copy',
+  'grade.paste',
   'grade.setBasic',
   'task.cancel',
   'file.exportNative',

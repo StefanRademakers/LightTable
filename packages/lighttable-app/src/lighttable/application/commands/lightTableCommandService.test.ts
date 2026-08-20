@@ -8,6 +8,7 @@ import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { LIGHTTABLE_COMMAND_SCHEMAS, validateJsonSchemaValue } from '@lighttable/command-contract';
 import type { SemanticActionLibraryStorage } from '../actions/semanticActionLibrary';
 import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
+import { createDefaultAdjustments } from '../../types';
 import { WorkspaceSession } from '../workspace/workspaceSession';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
@@ -45,6 +46,19 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
       fastPasteToken: 'renderer-clipboard-1'
     })),
     pastePixels: vi.fn(async () => ({ layerId: 'layer-pasted', width: 20, height: 12 })),
+    copyGrade: vi.fn(async () => {
+      const settings = createDefaultAdjustments();
+      settings.exposureEV = 1.25;
+      settings.gradeLook = { assetId: 'lut-cinema', strength: 62 };
+      return { name: 'Portrait', settings, gradeLookAsset: {
+        assetId: 'lut-cinema', name: 'Cinema',
+        source: new Blob(['TITLE "Cinema"\nLUT_3D_SIZE 2\n'])
+      } };
+    }),
+    pasteGrade: vi.fn(async (_documentId, capture) => ({
+      name: capture.name, changed: true,
+      hasLookAsset: Boolean(capture.gradeLookAsset), importedLookAsset: true
+    })),
     placeArtifact: vi.fn(),
     renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(),
@@ -126,6 +140,48 @@ const basicValues = {
 };
 
 describe('LightTableCommandService action recording', () => {
+  it('records Grade copy/paste with only a fresh opaque result binding', async () => {
+    const state = setup();
+    const revisionBeforeCopy = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    state.service.startActionRecording('Copy and paste Grade');
+
+    const copied = await state.service.execute(request('grade.copy', state.session.id));
+    expect(copied).toMatchObject({ status: 'completed', value: {
+      name: 'Portrait', hasLookAsset: true,
+      artifact: { kind: 'grade-clipboard',
+        mediaType: 'application/vnd.lighttable.grade-clipboard' }
+    } });
+    expect(state.service.queryDocument(state.session.id)!.canonicalRevision).toBe(revisionBeforeCopy);
+    if (copied.status !== 'completed') throw new Error('Grade copy was not completed.');
+    const artifactId = (copied.value as { artifact: { id: string } }).artifact.id;
+    await state.service.execute(request('grade.paste', state.session.id, { artifactId }));
+    state.service.stopActionRecording();
+
+    const recording = state.service.actionRecordingSnapshot();
+    expect(recording.steps).toMatchObject([
+      { sequence: 1, command: 'grade.copy', replayable: true,
+        parameters: {}, result: { artifact: { id: artifactId } } },
+      { sequence: 2, command: 'grade.paste', replayable: true,
+        parameters: { artifactId: {
+          $lighttableResult: { step: 1, path: 'artifact.id' }
+        } } }
+    ]);
+    expect(JSON.stringify(recording)).not.toMatch(/base64|LUT_3D_SIZE|settings|filePath/i);
+
+    await state.service.playActionRecording();
+
+    expect(state.ports.copyGrade).toHaveBeenCalledTimes(2);
+    expect(state.ports.pasteGrade).toHaveBeenCalledTimes(2);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'completed', results: [
+        { command: 'grade.copy', status: 'completed' },
+        { command: 'grade.paste', status: 'completed' }
+      ]
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('records pixel copy and binds paste to the fresh artifact on every playback', async () => {
     const pastedFiles: File[] = [];
     const pastePixels = vi.fn(async (_documentId: unknown, file: File) => {

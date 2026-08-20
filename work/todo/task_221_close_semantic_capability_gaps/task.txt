@@ -100,6 +100,9 @@ Completed vertical slices
   clipboard owner, with Paste reusing the normal raster clipboard owner and its
   guarded GPU fast path; replayable Actions and MCP exchange only bounded
   session artifact identities.
+- complete Grade recipe copy/paste through the existing Grade transaction and
+  history owner, including bounded session-only embedded Look transfer,
+  destination-owned Lens FX and replay-time Action result binding.
 
 Rules
 =====

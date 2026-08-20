@@ -33,7 +33,10 @@ const createHarness = () => {
     beginLensBlurInteraction,
     endLensBlurInteraction,
     changeAdjustments: (recipe) => {
-      adjustments = recipe(adjustments);
+      const next = recipe(adjustments);
+      const changed = JSON.stringify(next) !== JSON.stringify(adjustments);
+      adjustments = next;
+      return changed;
     },
     getAdjustments: () => adjustments,
     getGroupVisibility: () => visibility,

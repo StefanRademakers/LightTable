@@ -29,6 +29,10 @@ export const projectCommandCapabilities = (
       'Pixel copy is unavailable in this host.'),
     availability('selection.pastePixels', Boolean(ports.pastePixels),
       'Pixel paste is unavailable in this host.'),
+    availability('grade.copy', Boolean(ports.copyGrade),
+      'Copy Grade is unavailable in this host.'),
+    availability('grade.paste', Boolean(ports.pasteGrade),
+      'Paste Grade is unavailable in this host.'),
     availability('view.setZoom', true, ''), availability('layer.createRaster', true, ''),
     availability('layer.duplicate', walkLayerTree(snapshot.document.layers)
       .some(({ node }) => node.type === 'raster' || node.type === 'text'),

@@ -22,6 +22,7 @@ import type { SemanticSubjectSelectionCommand, SemanticSubjectSelectionResult }
   from './semanticSubjectSelectionCommandContract';
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
 import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandContract';
+import type { BasicAdjustments } from '../../types';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
 import type { AdjustmentQueryResult, AdjustmentQueryTarget } from '../adjustments/adjustmentQuery';
 import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
@@ -217,6 +218,23 @@ export interface LightTablePixelClipboardCapture {
   readonly fastPasteToken?: string;
 }
 
+export interface LightTableGradeClipboardCapture {
+  readonly name: string;
+  readonly settings: BasicAdjustments;
+  readonly gradeLookAsset?: {
+    readonly assetId: string;
+    readonly name: string;
+    readonly source: Blob;
+  };
+}
+
+export interface LightTableGradePasteResult {
+  readonly name: string;
+  readonly changed: boolean;
+  readonly hasLookAsset: boolean;
+  readonly importedLookAsset: boolean;
+}
+
 export interface LightTableLayerPreviewRender {
   readonly file: File; readonly width: number; readonly height: number;
   readonly sourceToOutput: {
@@ -246,6 +264,10 @@ export interface LightTableCommandPorts {
     LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>;
   pastePixels?(documentId: DocumentSessionId, file: File, command: SemanticPastePixelsCommand,
     fastPasteToken?: string): unknown | Promise<unknown>;
+  copyGrade?(documentId: DocumentSessionId):
+    LightTableGradeClipboardCapture | null | Promise<LightTableGradeClipboardCapture | null>;
+  pasteGrade?(documentId: DocumentSessionId, capture: LightTableGradeClipboardCapture):
+    LightTableGradePasteResult | null | Promise<LightTableGradePasteResult | null>;
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;
   renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string): void | Promise<void>;
   setLayerVisibility(documentId: DocumentSessionId, layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;
@@ -308,6 +330,10 @@ export interface DocumentLightTableCommandPorts {
     LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>;
   pastePixels?(file: File, command: SemanticPastePixelsCommand,
     fastPasteToken?: string): unknown | Promise<unknown>;
+  copyGrade?(): LightTableGradeClipboardCapture | null
+    | Promise<LightTableGradeClipboardCapture | null>;
+  pasteGrade?(capture: LightTableGradeClipboardCapture): LightTableGradePasteResult | null
+    | Promise<LightTableGradePasteResult | null>;
   placeArtifact(file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;
   renameLayer(layerId: LayerId, name: string): void | Promise<void>;
   setLayerVisibility(layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;

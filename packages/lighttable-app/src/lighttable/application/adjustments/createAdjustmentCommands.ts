@@ -94,7 +94,7 @@ export interface AdjustmentCommandPorts {
   readonly changeAdjustments: (
     recipe: (current: BasicAdjustments) => BasicAdjustments,
     domain?: AdjustmentPresentationDomain
-  ) => void;
+  ) => boolean;
   readonly getAdjustments: () => BasicAdjustments;
   readonly getGroupVisibility: () => GroupVisibility;
   readonly publishGroupVisibility: (visibility: GroupVisibility) => void;
@@ -196,7 +196,7 @@ export interface AdjustmentCommands {
   readonly resetGroup: (group: keyof GroupVisibility) => void;
   readonly resetGrade: () => void;
   readonly copyGrade: () => void;
-  readonly pasteGrade: (name: string, settings: BasicAdjustments) => void;
+  readonly pasteGrade: (name: string, settings: BasicAdjustments) => boolean;
 }
 
 export const createAdjustmentCommands = (
@@ -792,8 +792,12 @@ export const createAdjustmentCommands = (
 
   const pasteGrade = (name: string, settings: BasicAdjustments) => {
     ports.endAdjustment();
-    ports.changeAdjustments((current) => pasteGradeSettings(current, settings), 'grade');
+    const changed = ports.changeAdjustments(
+      (current) => pasteGradeSettings(current, settings),
+      'grade'
+    );
     ports.publishGradeStatus(`Loaded ${name}`);
+    return changed;
   };
 
   return {

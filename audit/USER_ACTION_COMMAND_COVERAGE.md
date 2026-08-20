@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 50 already routed through semantic commands;
+- 52 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 36 presentation-only operations;
-- 3 genuine semantic command gaps;
+- 1 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -38,7 +38,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `close-project` | host | Changes host project lifecycle state. | 271 |
 | `command-help` | presentation | Opens command documentation. | 757 |
 | `convert-text-to-shape` | command | `text.convertToShape` | 662, 747 |
-| `copy-grade` | gap | No semantic grade-clipboard command exists. | 310 |
+| `copy-grade` | command | `grade.copy` | 310 |
 | `copy-merged-content` | command | `selection.copyPixels` | 296 |
 | `copy-selected-content` | command | `selection.copyPixels` | 289 |
 | `delete-layer` | command | `layer.delete` | 584 |
@@ -80,7 +80,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `new-project` | host | Changes host project lifecycle state. | 244 |
 | `open-image` | host | Uses a local file picker; file.openArtifact targets registered artifacts. | 187 |
 | `open-project` | host | Uses a host project picker. | 251 |
-| `paste-grade` | gap | No semantic grade-clipboard command exists. | 317 |
+| `paste-grade` | command | `grade.paste` | 317 |
 | `paste-selected-content` | command | `selection.pastePixels` | 303 |
 | `place-image` | host | Uses a local file picker before layer.placeArtifact can apply. | 194 |
 | `rasterize-text` | command | `text.rasterize` | 671 |

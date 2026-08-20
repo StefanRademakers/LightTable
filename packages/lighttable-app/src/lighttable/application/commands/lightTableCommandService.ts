@@ -31,6 +31,7 @@ import {
   type LightTableCommandErrorCode, type LightTableCommandId, type LightTableCommandPorts,
   type LightTableCommandExecutionContext, type LightTableCommandRequest, type LightTableCommandResult,
   type LightTableCreateDocumentOptions,
+  type LightTableGradeClipboardCapture,
   type LightTableGestureKind, type LightTableGestureResult, type LightTableGestureSample,
   type LightTableRevisionSet, type LightTableWorkspaceCommandPorts, type WorkspaceQueryResult
 } from './lightTableCommandContract';
@@ -64,6 +65,7 @@ import { commandScope } from './commandRequestScope';
 import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import { parseSemanticAssignProfileCommand } from './semanticDocumentColorCommandContract';
 import { SemanticPixelClipboardCommandHandler } from './semanticPixelClipboardCommandHandler';
+import { SemanticGradeClipboardCommandHandler } from './semanticGradeClipboardCommandHandler';
 import { parseSemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
 import { parseSemanticSelectionCommand } from './semanticSelectionCommandContract';
@@ -133,6 +135,7 @@ const traceObservedCommand = (command: LightTableCommandId, accepted: boolean, r
  */
 export class LightTableCommandService {
   private readonly pixelClipboardCommands: SemanticPixelClipboardCommandHandler;
+  private readonly gradeClipboardCommands: SemanticGradeClipboardCommandHandler;
   private workspaceRevision = 1;
   private readonly unsubscribe: () => void;
   private readonly taskArtifacts = new Map<string, LightTableArtifactMetadata>();
@@ -195,6 +198,7 @@ export class LightTableCommandService {
   ) {
     this.actionLibrary = new SemanticActionLibrary(actionLibraryStorage);
     this.pixelClipboardCommands = new SemanticPixelClipboardCommandHandler(this.artifacts);
+    this.gradeClipboardCommands = new SemanticGradeClipboardCommandHandler(this.artifacts);
     let previousWorkspace = workspace.getSnapshot();
     this.unsubscribe = workspace.subscribe(() => {
       const currentWorkspace = workspace.getSnapshot();
@@ -222,6 +226,9 @@ export class LightTableCommandService {
 
   registerInputArtifact(file: File): LightTableArtifactMetadata { return this.artifacts.register(file, 'input'); }
   registerPixelClipboardArtifact(file: File): LightTableArtifactMetadata { return this.pixelClipboardCommands.register(file); }
+  registerGradeClipboardArtifact(capture: LightTableGradeClipboardCapture): LightTableArtifactMetadata {
+    return this.gradeClipboardCommands.register(capture);
+  }
   queryArtifact(artifactId: string): LightTableArtifactMetadata | null {
     return this.artifacts.query(artifactId);
   }
@@ -930,6 +937,17 @@ export class LightTableCommandService {
 
     if (value.command === 'selection.copyPixels' || value.command === 'selection.pastePixels') {
       const dispatched = await this.pixelClipboardCommands.dispatch(value.command, value.parameters,
+        documentRequest.documentId, this.ports);
+      if (dispatched.ok) {
+        if (dispatched.mutated) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: dispatched.value,
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      }
+      return this.reject(value.requestId, dispatched.code, dispatched.message, snapshot);
+    }
+
+    if (value.command === 'grade.copy' || value.command === 'grade.paste') {
+      const dispatched = await this.gradeClipboardCommands.dispatch(value.command, value.parameters,
         documentRequest.documentId, this.ports);
       if (dispatched.ok) {
         if (dispatched.mutated) this.workspace.getDocument(documentRequest.documentId)?.markChanged();

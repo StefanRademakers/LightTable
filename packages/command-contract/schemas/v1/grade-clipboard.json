@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "category": "adjustments",
+  "$defs": {
+    "artifactId": { "type": "string", "title": "Artifact ID", "minLength": 1, "maxLength": 256 },
+    "emptyInput": { "type": "object", "additionalProperties": false, "properties": {} },
+    "gradeClipboardArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "name", "mediaType", "byteLength", "createdAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/artifactId" },
+        "kind": { "type": "string", "const": "grade-clipboard" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "mediaType": { "type": "string", "const": "application/vnd.lighttable.grade-clipboard" },
+        "byteLength": { "type": "integer", "minimum": 1, "maximum": 35651648 },
+        "createdAt": { "type": "number", "minimum": 0 }
+      }
+    }
+  },
+  "commands": {
+    "grade.copy": {
+      "input": { "$ref": "#/$defs/emptyInput", "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "hasLookAsset", "artifact"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "hasLookAsset": { "type": "boolean" },
+          "artifact": { "$ref": "#/$defs/gradeClipboardArtifact" }
+        }
+      }
+    },
+    "grade.paste": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["artifactId"],
+        "properties": { "artifactId": { "$ref": "#/$defs/artifactId" } }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "changed", "hasLookAsset", "importedLookAsset"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "changed": { "type": "boolean" },
+          "hasLookAsset": { "type": "boolean" },
+          "importedLookAsset": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

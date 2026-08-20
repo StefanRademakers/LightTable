@@ -93,6 +93,8 @@ test('versioned schemas describe and validate every completed command vertical',
     'text.rasterize',
     'tool.commitGesture',
     'grade.setBasic',
+    'grade.copy',
+    'grade.paste',
     'history.undo',
     'history.redo',
     'layer.style.setEnabled',
@@ -605,6 +607,8 @@ test('artifact schemas carry opaque handles and stable document or layer results
   const place = LIGHTTABLE_COMMAND_SCHEMAS['layer.placeArtifact'];
   const copyPixels = LIGHTTABLE_COMMAND_SCHEMAS['selection.copyPixels'];
   const pastePixels = LIGHTTABLE_COMMAND_SCHEMAS['selection.pastePixels'];
+  const copyGrade = LIGHTTABLE_COMMAND_SCHEMAS['grade.copy'];
+  const pasteGrade = LIGHTTABLE_COMMAND_SCHEMAS['grade.paste'];
   assert.equal(validateJsonSchemaValue(open.input, { artifactId: 'artifact-1' }).valid, true);
   assert.equal(validateJsonSchemaValue(open.input, {
     artifactId: 'artifact-1', bytes: 'base64'
@@ -631,6 +635,24 @@ test('artifact schemas carry opaque handles and stable document or layer results
     artifactId: 'artifact-copy', bounds: { x: 0, y: 0, width: 20, height: 12 },
     filePath: 'private.png'
   }).valid, false);
+  assert.equal(validateJsonSchemaValue(copyGrade.input, {}).valid, true);
+  assert.equal(validateJsonSchemaValue(copyGrade.input, { settings: {} }).valid, false);
+  assert.equal(validateJsonSchemaValue(copyGrade.result, {
+    name: 'Portrait', hasLookAsset: true,
+    artifact: { id: 'artifact-grade', kind: 'grade-clipboard',
+      name: 'Portrait.ltgrade-clipboard',
+      mediaType: 'application/vnd.lighttable.grade-clipboard',
+      byteLength: 4096, createdAt: 1 }
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(pasteGrade.input, {
+    artifactId: 'artifact-grade'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(pasteGrade.input, {
+    artifactId: 'artifact-grade', lutBase64: 'private'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(pasteGrade.result, {
+    name: 'Portrait', changed: true, hasLookAsset: true, importedLookAsset: true
+  }).valid, true);
   assert.deepEqual(Object.keys(open.input.$defs), ['artifactId']);
 });
 

@@ -265,6 +265,20 @@ fast Paste, confirms copy is
 revision/history neutral and reports byte-exact equal pasted renders. This is a
 discrete I/O route and does not enter any paint, warp or pointer hot path.
 
+`grade.copy` captures the complete current Grade recipe plus an optional
+embedded 3D Look in one bounded, session-scoped `grade-clipboard` artifact.
+Lens FX remains destination-owned and is deliberately excluded. Commands,
+recorded Actions and MCP receive only artifact identity and metadata; LUT bytes,
+Base64 and host paths never enter their JSON. `grade.paste` consumes that
+artifact through the existing Grade transaction/history owner, reuses an
+already-loaded immutable LUT in the source document and imports a fresh asset
+only when the destination does not own it. Actions binds Paste to the fresh
+Copy result on every replay. Packaged proof with an embedded Look records the
+normal Edit-menu route, replays it through Actions and executes it through an
+authenticated external MCP client: all routes create the same two logical
+edits and render byte-exact equal 1448x1086 pixels. A separate cross-document
+case proves the embedded Look and its 62% strength survive transfer.
+
 A local Codex acceptance route is tracked in
 [`work/todo/task_264_local_codex_mcp_a_z/task.txt`](../../work/todo/task_264_local_codex_mcp_a_z/task.txt).
 The supported local launcher and current acceptance instructions live in

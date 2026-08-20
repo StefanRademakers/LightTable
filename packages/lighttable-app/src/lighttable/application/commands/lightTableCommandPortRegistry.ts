@@ -71,6 +71,17 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     if (!execute) throw new Error('Pixel paste is unavailable in the target document.');
     return execute(file, command, fastPasteToken);
   }
+  copyGrade(documentId: DocumentSessionId) {
+    const execute = this.resolve(documentId).copyGrade;
+    if (!execute) throw new Error('Copy Grade is unavailable in the target document.');
+    return execute();
+  }
+  pasteGrade(documentId: DocumentSessionId,
+    capture: Parameters<NonNullable<DocumentLightTableCommandPorts['pasteGrade']>>[0]) {
+    const execute = this.resolve(documentId).pasteGrade;
+    if (!execute) throw new Error('Paste Grade is unavailable in the target document.');
+    return execute(capture);
+  }
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement) {
     return this.resolve(documentId).placeArtifact(file, placement);
   }

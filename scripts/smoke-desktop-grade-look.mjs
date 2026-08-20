@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { _electron as electron } from 'playwright-core';
 import { createHash } from 'node:crypto';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -5,6 +6,9 @@ import path from 'node:path';
 import process from 'node:process';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { mcpResult } from './action-route-equivalence.mjs';
+import { startPackagedMcpTestSession } from './packaged-mcp-test-session.mjs';
+import { compareRenderEvidence } from './render-comparison-evidence.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const source = path.resolve(process.argv[2] ?? 'D:/colors.png');
@@ -14,6 +18,7 @@ const destinationSource = path.resolve(process.argv[4] ?? 'D:/people.jpg');
 const output = path.join(workspace, 'tmp', 'grade-look');
 const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(workspace, { requirePackaged: true });
+const mcpSession = await startPackagedMcpTestSession({ label: 'LightTable Grade clipboard equivalence' });
 const corpus = JSON.parse(await readFile(
   path.join(import.meta.dirname, 'grade-camera-raw-corpus.json'), 'utf8'
 ));
@@ -31,6 +36,7 @@ const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 const environment = {
   ...process.env,
+  ...mcpSession.desktopEnvironment,
   LIGHTTABLE_AUTOMATION_USER_DATA: userData,
   LIGHTTABLE_AUTOMATION_OPEN_FILE: source,
   LIGHTTABLE_AUTOMATION_HEADLESS: '1'
@@ -67,6 +73,11 @@ const decodeMean = (page, bytes) => page.evaluate(async (encoded) => {
 const distance = (left, right) => Math.sqrt(left.reduce(
   (sum, value, index) => sum + (value - right[index]) ** 2, 0
 ));
+const strictRenderPolicy = {
+  maximumRmse: 0, maximumMeanAbsoluteError: 0,
+  maximumChannelRmse: 0, maximumChannelMeanAbsoluteError: 0,
+  maximumP95PixelDelta: 0, maximumChangedPixelRatioAt16: 0
+};
 
 try {
   const page = await app.firstWindow({ timeout: 30_000 });
@@ -75,17 +86,22 @@ try {
   });
   await open.click();
   const driver = await attachLightTableAutomation(page, 'grade-look', 30_000);
+  const mcp = await mcpSession.pairAndAuthorize(page);
   const documentId = (await driver.queryWorkspace())?.activeDocumentId;
   if (!documentId) throw new Error('No active document after opening the Look fixture.');
   await driver.waitForDocument(documentId, 120_000);
 
-  const exportMean = async (targetDocumentId = documentId) => {
+  const exportPng = async (targetDocumentId = documentId, targetPath = null) => {
     const request = await driver.execute(targetDocumentId, 'file.exportPng', {}, { requireCompleted: false });
     const task = await driver.waitForTask(targetDocumentId, request.taskId, 120_000);
     const artifact = task.artifact && await driver.readArtifact(task.artifact.id);
     if (!artifact) throw new Error('Grade Look smoke export produced no artifact.');
-    return decodeMean(page, artifact.bytes);
+    if (targetPath) await writeFile(targetPath, artifact.bytes);
+    return { bytes: artifact.bytes, mean: await decodeMean(page, artifact.bytes) };
   };
+  const exportMean = async (targetDocumentId = documentId) => (
+    await exportPng(targetDocumentId)
+  ).mean;
 
   const sourceNeutral = await exportMean();
   await page.getByRole('button', { name: 'New fill or processing layer' }).click();
@@ -135,6 +151,104 @@ try {
     throw new Error(`Source Look Strength settled at ${await strength.inputValue()}, expected 62.`);
   }
   await page.waitForTimeout(200);
+
+  // One complete embedded-Look recipe now travels through all three routes.
+  // Copy is intentionally read-only, the temporary exposure edit is one undo,
+  // and Paste restores the captured recipe as a second undoable edit.
+  const gradeLayerId = (await driver.queryDocument(documentId)).activeLayerId;
+  assert.ok(gradeLayerId, 'The Grade clipboard proof has no active Grade layer.');
+  const baselineDocument = await driver.queryDocument(documentId);
+  const baselineUndoDepth = baselineDocument.history.undoDepth;
+  const routeFiles = Object.fromEntries(['ui', 'actions', 'mcp'].map((route) => [
+    route, path.join(output, `grade-clipboard-${route}.png`)
+  ]));
+
+  await page.getByRole('menuitem', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Actions panel', exact: true }).click();
+  let recorder = page.getByRole('complementary', { name: 'Actions' })
+    .locator('.lighttable-action-recorder');
+  await recorder.getByRole('button', { name: 'Record', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Copy grade', exact: true }).click();
+  await page.waitForFunction(() => window.__lightTableAutomation?.actionRecordingSnapshot?.().steps
+    .some(({ command }) => command === 'grade.copy'), undefined, { timeout: 30_000 });
+  await driver.execute(documentId, 'grade.setBasic', {
+    target: { kind: 'layer', layerId: gradeLayerId }, values: { exposureEV: -1.25 }
+  });
+  await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Paste grade:/ }).click();
+  await page.waitForFunction(() => window.__lightTableAutomation?.actionRecordingSnapshot?.().steps
+    .some(({ command }) => command === 'grade.paste'), undefined, { timeout: 30_000 });
+  recorder = page.getByRole('complementary', { name: 'Actions' })
+    .locator('.lighttable-action-recorder');
+  await recorder.getByRole('button', { name: 'Stop', exact: true }).click();
+  const recording = await driver.queryActionRecording();
+  assert.deepEqual(recording.steps.map(({ command }) => command),
+    ['grade.copy', 'grade.setBasic', 'grade.paste']);
+  assert.deepEqual(recording.steps[2].parameters.artifactId,
+    { $lighttableResult: { step: 1, path: 'artifact.id' } });
+  assert.doesNotMatch(JSON.stringify(recording), /base64|data:|bytesBase64|filePath/iu,
+    'The recorded Grade Action retained LUT bytes, Base64 or a filesystem path.');
+  let routeDocument = await driver.queryDocument(documentId);
+  assert.equal(routeDocument.history.undoDepth, baselineUndoDepth + 2,
+    'The UI Grade clipboard route did not create exactly two logical edits.');
+  await exportPng(documentId, routeFiles.ui);
+
+  await driver.execute(documentId, 'history.undo');
+  await driver.execute(documentId, 'history.undo');
+  assert.equal((await driver.queryDocument(documentId)).history.undoDepth, baselineUndoDepth);
+  recorder = page.getByRole('complementary', { name: 'Actions' })
+    .locator('.lighttable-action-recorder');
+  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.waitForFunction(() => (
+    window.__lightTableAutomation?.actionPlaybackSnapshot?.().status === 'completed'
+  ), undefined, { timeout: 60_000 });
+  routeDocument = await driver.queryDocument(documentId);
+  assert.equal(routeDocument.history.undoDepth, baselineUndoDepth + 2,
+    'The Action Grade clipboard route did not reproduce two logical edits.');
+  await exportPng(documentId, routeFiles.actions);
+
+  await driver.execute(documentId, 'history.undo');
+  await driver.execute(documentId, 'history.undo');
+  const beforeMcp = mcpResult(await mcp.callTool({ name: 'lighttable_document',
+    arguments: { documentId } }), 'MCP Grade clipboard document');
+  const mcpCopy = mcpResult(await mcp.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'grade.copy',
+    expectedDocumentRevision: beforeMcp.canonicalRevision, parameters: {}
+  } }), 'MCP Copy Grade');
+  assert.equal(mcpCopy.value.artifact.kind, 'grade-clipboard');
+  assert.equal(mcpCopy.value.hasLookAsset, true);
+  mcpResult(await mcp.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'grade.setBasic',
+    expectedDocumentRevision: beforeMcp.canonicalRevision,
+    parameters: { target: { kind: 'layer', layerId: gradeLayerId }, values: { exposureEV: -1.25 } }
+  } }), 'MCP temporary Grade edit');
+  const afterMcpEdit = mcpResult(await mcp.callTool({ name: 'lighttable_document',
+    arguments: { documentId } }), 'MCP post-edit Grade document');
+  mcpResult(await mcp.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'grade.paste',
+    expectedDocumentRevision: afterMcpEdit.canonicalRevision,
+    parameters: { artifactId: mcpCopy.value.artifact.id }
+  } }), 'MCP Paste Grade');
+  routeDocument = await driver.queryDocument(documentId);
+  assert.equal(routeDocument.history.undoDepth, baselineUndoDepth + 2,
+    'The MCP Grade clipboard route did not reproduce two logical edits.');
+  await exportPng(documentId, routeFiles.mcp);
+
+  const renderEvidence = {};
+  for (const route of ['actions', 'mcp']) {
+    renderEvidence[route] = await compareRenderEvidence({
+      leftPath: routeFiles.ui, rightPath: routeFiles[route],
+      width: baselineDocument.canvas.width, height: baselineDocument.canvas.height,
+      sideBySidePath: path.join(output, `grade-clipboard-ui-vs-${route}.png`),
+      differencePath: path.join(output, `grade-clipboard-ui-vs-${route}-difference.png`),
+      policy: strictRenderPolicy
+    });
+    assert.equal(renderEvidence[route].passed, true,
+      `Grade clipboard UI and ${route} pixels differ.`);
+  }
+
+  // Refresh the normal UI clipboard before proving cross-document import.
   await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Copy grade', exact: true }).click();
   await page.waitForTimeout(200);
@@ -194,11 +308,17 @@ try {
       { id: 'look-half', mean: half },
       { id: 'look-zero', mean: bypass },
       { id: 'cross-document-copy', strength: 62, mean: destinationLookMean }
-    ]
+    ],
+    routeEquivalence: {
+      commands: recording.steps.map(({ command }) => command),
+      historyEntriesPerRoute: 2,
+      renderEvidence
+    }
   }, null, 2)}\n`);
   process.stdout.write(`Grade Look smoke passed: neutral=${neutral.map((value) => value.toFixed(2))}; `
     + `full=${full.map((value) => value.toFixed(2))}; half=${half.map((value) => value.toFixed(2))}; `
     + `zero=${bypass.map((value) => value.toFixed(2))}; cross-document strength=62.\n`);
 } finally {
   await app.close().catch(() => undefined);
+  await mcpSession.close().catch(() => undefined);
 }

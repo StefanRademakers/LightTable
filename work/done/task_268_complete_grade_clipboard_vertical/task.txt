@@ -1,0 +1,66 @@
+Task 268 - Complete Grade clipboard vertical
+
+Goal
+====
+
+Route Edit > Copy Grade and Paste Grade through one bounded semantic owner used
+by the normal UI, Actions and reviewed MCP execution. Preserve the complete
+Global Grade recipe, preserve destination Lens FX, and carry an active embedded
+3D Look without putting LUT bytes or Base64 into command parameters, results or
+recorded Actions.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Define closed `grade.copy` and `grade.paste` input/result schemas.
+- [x] Store recipe and optional `.cube` bytes in one bounded session artifact;
+  expose only its opaque identity and metadata.
+- [x] Keep the existing text-only local clipboard fallback and its deliberate
+  Lens FX exclusion.
+- [x] Route the real Edit menu through the command owner.
+- [x] Bind recorded Paste to the preceding Copy artifact result.
+- [x] Admit both commands to generic MCP execution after permission review.
+- [x] Prove UI, Actions and MCP produce equivalent Grade state, history and
+  rendered pixels, including an embedded Look case.
+- [x] Prove invalid, missing and released artifacts fail without mutation.
+- [x] Update generated coverage, parent tasks and durable integration docs.
+- [x] Run focused tests, app/MCP typechecks, command-contract/boundary checks
+  and the representative packaged smoke before moving this task to `done/`.
+
+Completed evidence (2026-08-20)
+===============================
+
+- `npm run smoke:desktop:grade-look` passed against the packaged desktop and an
+  independently authenticated Streamable HTTP MCP client.
+- The normal Edit menu recorded `grade.copy`, `grade.setBasic`, `grade.paste`;
+  Paste retained `$lighttableResult(step 1, artifact.id)` and no LUT bytes,
+  Base64, data URL or filesystem path.
+- UI, Actions replay and MCP each produced exactly two logical history edits.
+- UI versus Actions and UI versus MCP both measured RMSE 0, maximum channel
+  delta 0 and changed-pixel ratio 0 across the 1448x1086 rendered source.
+- Cross-document paste imported the embedded Look and preserved Strength 62.
+- A command Copy with an active but unavailable LUT is rejected rather than
+  claiming a partial capture; the legacy persisted text-only fallback remains
+  usable and safely drops a foreign unavailable Look.
+- Focused app tests (107), app typecheck, generated command-contract check,
+  menu/tool coverage, packaged distribution boundary and MCP tests passed.
+
+Constraints
+===========
+
+- Lens FX remains a separate destination-owned pass.
+- No arbitrary BasicAdjustments/state-patch command is introduced.
+- No LUT bytes, Base64, filesystem path, renderer object or React state crosses
+  Actions/MCP transport.
+- Grade artifacts are explicitly session-scoped and bounded to the existing
+  supported `.cube` size.
+- Existing adjustment transaction/history/render owners remain authoritative.
+- This task closes two menu coverage gaps; it does not complete Task 214 or the
+  broader agent-native product goal.

@@ -56,6 +56,8 @@
   "selection.modify": { "kind": "modify", "operation": "all | clear | invert | feather", "radius?": "number 0..250 (feather only)" },
   "selection.copyPixels": { "source": "active-layer | merged" },
   "selection.pastePixels": { "artifactId": "pixel clipboard artifact ID", "bounds": "document bounds", "name?": "safe layer name" },
+  "grade.copy": {},
+  "grade.paste": { "artifactId": "session Grade clipboard artifact ID" },
   "grade.setBasic": { "target": "document | layer target", "values": "partial basic-grade values with control ranges" },
   "task.cancel": { "taskId": "string" },
   "file.exportNative": {},
