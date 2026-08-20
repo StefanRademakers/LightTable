@@ -58,10 +58,6 @@ export const routeFreehandPointerMove = ({
     return warp.moveMany(pointerId, points);
   }
   if (intent !== 'paint') return false;
-  let moved = false;
-  for (const sample of samples) {
-    const point = project(sample);
-    if (point && paint.move(pointerId, point)) moved = true;
-  }
-  return moved;
+  const points = samples.map(project).filter((point): point is BrushPoint => Boolean(point));
+  return paint.moveMany(pointerId, points);
 };

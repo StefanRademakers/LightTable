@@ -84,8 +84,15 @@ export class PaintGestureController {
   }
 
   move(pointerId: number, point: BrushPoint): PaintGestureUpdate | null {
+    return this.moveMany(pointerId, [point]);
+  }
+
+  moveMany(pointerId: number, points: readonly BrushPoint[]): PaintGestureUpdate | null {
     if (!this.owns(pointerId) || !this.builder || !this.smoother || !this.target) return null;
-    return this.update(this.builder.add(this.smoother.add(point)));
+    if (!points.length) return null;
+    const dabs: BrushDab[] = [];
+    for (const point of points) dabs.push(...this.builder.add(this.smoother.add(point)));
+    return this.update(dabs);
   }
 
   finish(pointerId: number): FinishedPaintGesture | null {

@@ -12,6 +12,23 @@ const target = (patch: Partial<PaintGestureTarget> = {}): PaintGestureTarget => 
 });
 
 describe('PaintGestureController', () => {
+  it('processes a coalesced input batch identically to ordered single moves', () => {
+    const points = Array.from({ length: 64 }, (_, index) => ({
+      x: index + 1,
+      y: Math.sin(index / 8) * 4,
+      pressure: 0.4 + index / 128
+    }));
+    const sequential = new PaintGestureController();
+    const batched = new PaintGestureController();
+    const brush = { size: 12, spacing: 0.1, smooth: 0.25 };
+    sequential.begin(20, target(), brush, { x: 0, y: 0, pressure: 0.4 });
+    batched.begin(20, target(), brush, { x: 0, y: 0, pressure: 0.4 });
+    const sequentialDabs = points.flatMap((point) => sequential.move(20, point)?.dabs ?? []);
+    const batchedDabs = batched.moveMany(20, points)?.dabs ?? [];
+    expect(batchedDabs).toEqual(sequentialDabs);
+    expect(batched.finish(20)?.dirtyBounds).toEqual(sequential.finish(20)?.dirtyBounds);
+  });
+
   it('locks one target and transform for the complete gesture', () => {
     const controller = new PaintGestureController();
     const source = target({

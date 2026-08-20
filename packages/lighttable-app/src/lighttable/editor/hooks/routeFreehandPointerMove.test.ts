@@ -24,7 +24,8 @@ const controllers = () => ({
     moveMany: vi.fn(() => true)
   } as unknown as WarpSessionController,
   paint: {
-    move: vi.fn(() => true)
+    move: vi.fn(() => true),
+    moveMany: vi.fn(() => true)
   } as unknown as PaintSessionController
 });
 
@@ -46,7 +47,7 @@ describe('freehand pointer move routing', () => {
     ]);
   });
 
-  it('batches free selection but retains per-sample raster paint delivery', () => {
+  it('batches free selection and raster paint without dropping ordered samples', () => {
     const ports = controllers();
     const samples = [sample(1, 10), sample(2, 11)];
     const base = {
@@ -66,6 +67,10 @@ describe('freehand pointer move routing', () => {
     expect(routeFreehandPointerMove({
       ...base, intent: 'paint', activeTool: 'brush'
     })).toBe(true);
-    expect(ports.paint.move).toHaveBeenCalledTimes(2);
+    expect(ports.paint.moveMany).toHaveBeenCalledOnce();
+    expect(ports.paint.moveMany).toHaveBeenCalledWith(7, [
+      { x: 1, y: 0, pressure: 0.5 },
+      { x: 2, y: 0, pressure: 0.5 }
+    ]);
   });
 });

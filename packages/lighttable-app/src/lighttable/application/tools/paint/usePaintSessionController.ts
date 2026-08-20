@@ -89,6 +89,7 @@ export interface PaintSessionController {
   owns(pointerId: number): boolean;
   begin(request: BeginPaintSession): boolean;
   move(pointerId: number, point: BrushPoint): boolean;
+  moveMany(pointerId: number, points: readonly BrushPoint[]): boolean;
   finish(pointerId: number): boolean;
   cancel(pointerId: number): boolean;
   reset(): void;
@@ -195,7 +196,13 @@ export const createPaintSessionController = (
       }
     },
     move: (pointerId, point) => {
-      const update = gesture.move(pointerId, point);
+      const update = gesture.moveMany(pointerId, [point]);
+      if (!update) return false;
+      paintScheduler.schedule(update);
+      return true;
+    },
+    moveMany: (pointerId, points) => {
+      const update = gesture.moveMany(pointerId, points);
       if (!update) return false;
       paintScheduler.schedule(update);
       return true;
