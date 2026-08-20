@@ -22,7 +22,8 @@ import {
   DirectSelectionToolController,
   type DirectSelectionPointerOptions
 } from './DirectSelectionToolController';
-import { PenToolController, type PenRubberBand } from './PenToolController';
+import { PenToolController, type PenRubberBand, type PenToolControllerOptions
+} from './PenToolController';
 import {
   LiveShapeToolController,
   type LiveShapeDragOptions,
@@ -68,6 +69,7 @@ export interface VectorToolSessionOptions {
     readonly existingLayerId?: LayerId;
     readonly layerName: string;
   }) => void;
+  onPenPathCommitted?: PenToolControllerOptions['onCommitted'];
 }
 
 export interface VectorPointerDownOptions extends LiveShapeDragOptions {
@@ -126,7 +128,8 @@ export class VectorToolSessionController {
       ids: options.ids,
       style: options.penStyle,
       layerName: options.layerName,
-      pathName: options.pathName
+      pathName: options.pathName,
+      onCommitted: options.onPenPathCommitted
     });
     this.liveShape = new LiveShapeToolController(
       this.documents,

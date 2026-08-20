@@ -112,6 +112,10 @@ Existing foundation evidence
   lossless `vector.create` only after commit. Geometry, transform, layer/element
   names, fill, stroke and opacity remain native and replayable; pointer previews
   never enter the command service.
+- Native Pen authoring now publishes one lossless `vector.create` after an open
+  or closed path commit, and resumed authoring publishes one `vector.update`.
+  Anchors, Bezier handles, style and transform remain native; point placement,
+  handle dragging and rubber-band previews remain local.
 
 Program definition of done
 ==========================

@@ -184,9 +184,24 @@ try {
       })}`);
     });
 
+  await window.keyboard.press('p');
+  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Pen' }).waitFor();
+  for (const [x, y] of [[0.18, 0.2], [0.34, 0.32], [0.22, 0.48]]) {
+    await window.mouse.click(
+      viewportBounds.x + viewportBounds.width * x,
+      viewportBounds.y + viewportBounds.height * y
+    );
+  }
+  await window.keyboard.press('Enter');
+  await window.waitForFunction(() => {
+    const recorder = document.querySelector('.lighttable-action-recorder');
+    return recorder && [...recorder.querySelectorAll('li')]
+      .filter((entry) => entry.textContent?.includes('vector.create')).length === 2;
+  }, undefined, { timeout: 15_000 });
+
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
-  for (let index = 0; index < 12; index += 1) {
+  for (let index = 0; index < 13; index += 1) {
     await window.getByRole('tab', { name: 'Actions', exact: true }).click();
     await panel.getByRole('radio', { name: 'Commands' }).click();
     const undo = panel.locator('details').filter({ hasText: 'history.undo' });
@@ -212,7 +227,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 12) throw new Error('Expected twelve recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 13) throw new Error('Expected thirteen recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -234,6 +249,13 @@ try {
   const textFormatStepText = await textFormatStep.textContent();
   if (!textFormatStepText?.includes('$step8.layerId')) {
     throw new Error(`Recorded text format target was not bound to text.create: ${textFormatStepText}`);
+  }
+  const vectorCreateSteps = recorder.locator('li').filter({ hasText: 'vector.create' });
+  const penStep = vectorCreateSteps.nth(1);
+  await penStep.locator('summary').click();
+  const penStepText = await penStep.textContent();
+  if (!penStepText?.includes('$step12.layerId')) {
+    throw new Error(`Recorded Pen path was not bound to Rectangle layer result: ${penStepText}`);
   }
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
@@ -297,11 +319,13 @@ try {
       vector: driver?.queryVector(documentId, shapeLayer.id)
     } : null;
   });
+  const rectangle = playbackShape?.vector?.elements?.find(({ type }) => type === 'live-shape');
+  const penPath = playbackShape?.vector?.elements?.find(({ type }) => type === 'path');
   if (playbackShape?.layerName !== 'Shape'
-    || playbackShape.vector?.totalElements !== 1
-    || playbackShape.vector.elements?.[0]?.type !== 'live-shape'
-    || playbackShape.vector.elements?.[0]?.geometry?.kind !== 'rectangle') {
-    throw new Error(`Actions replay did not preserve native rectangle: ${JSON.stringify(playbackShape)}`);
+    || playbackShape.vector?.totalElements !== 2
+    || rectangle?.geometry?.kind !== 'rectangle'
+    || penPath?.subpaths?.[0]?.anchors?.length !== 3) {
+    throw new Error(`Actions replay did not preserve native Rectangle and Pen path: ${JSON.stringify(playbackShape)}`);
   }
 
   await window.screenshot({ path: screenshot });

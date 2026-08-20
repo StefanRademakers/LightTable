@@ -13,6 +13,7 @@ describe('toolAutomationCatalog', () => {
     expect(TOOL_AUTOMATION_CATALOG.brush.capabilities)
       .toContain('tool.commitGesture:brush-stroke');
     expect(TOOL_AUTOMATION_CATALOG['shape-rectangle'].availability).toBe('ui-and-command');
+    expect(TOOL_AUTOMATION_CATALOG['vector-pen'].availability).toBe('ui-and-command');
     expect(TOOL_AUTOMATION_CATALOG.warp.availability).toBe('canonical-owner-only');
     expect(TOOL_AUTOMATION_CATALOG['text-point'].availability).toBe('ui-and-command');
   });

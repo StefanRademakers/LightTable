@@ -1,7 +1,47 @@
-import { cloneVectorStyle, type VectorLiveShape } from '@lighttable/vector-core';
+import { cloneVectorStyle, type VectorLiveShape, type VectorPath } from '@lighttable/vector-core';
 import type { LayerId } from '../../editor/document/documentTypes';
 import type { SemanticVectorCommand, SemanticVectorPrimitive
 } from '../commands/semanticVectorCommandContract';
+
+const observedSubpaths = (path: VectorPath) => path.subpaths.map((subpath) => ({
+  id: subpath.id,
+  closed: subpath.closed,
+  anchors: subpath.anchors.map((anchor) => ({
+    id: anchor.id,
+    x: anchor.position.x,
+    y: anchor.position.y,
+    handleIn: anchor.handleIn ? { ...anchor.handleIn } : null,
+    handleOut: anchor.handleOut ? { ...anchor.handleOut } : null,
+    mode: anchor.mode
+  }))
+}));
+
+export const observedVectorPathCreateCommand = (
+  path: VectorPath,
+  existingLayerId?: LayerId,
+  layerName?: string
+): Omit<Extract<SemanticVectorCommand, { readonly kind: 'create' }>, 'kind'> => ({
+  ...(existingLayerId ? { layerId: existingLayerId } : {}),
+  ...(!existingLayerId && layerName ? { layerName } : {}),
+  name: path.name,
+  subpaths: observedSubpaths(path),
+  fillRule: path.fillRule,
+  transform: { ...path.transform },
+  style: cloneVectorStyle(path.style)
+});
+
+export const observedVectorPathUpdateCommand = (
+  path: VectorPath,
+  layerId: LayerId
+): Omit<Extract<SemanticVectorCommand, { readonly kind: 'update' }>, 'kind'> => ({
+  layerId,
+  elementId: path.id,
+  name: path.name,
+  subpaths: observedSubpaths(path),
+  fillRule: path.fillRule,
+  transform: { ...path.transform },
+  style: cloneVectorStyle(path.style)
+});
 
 /** Projects a committed editable live shape into its lossless replay contract. */
 export const observedLiveShapeCreateCommand = (

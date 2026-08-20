@@ -1,0 +1,62 @@
+Task 230 - Record native Pen path commits
+==========================================
+
+Goal
+====
+
+Record a completed Pen path as one faithful semantic vector operation while
+keeping every anchor/handle preview local and preserving one history boundary.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Project committed path anchors/handles/style/transform into shared vector schemas.
+- [x] Distinguish new-path creation from resumed-path update.
+- [x] Publish only after open/closed path history commits successfully.
+- [x] Preserve existing-vector-layer targeting and new-layer result binding.
+- [x] Keep anchor placement, handle dragging and rubber-band previews local.
+- [x] Add open, closed, curved and resumed-path semantic tests.
+- [x] Record a real packaged Pen workflow, undo it and replay native editable geometry.
+- [x] Keep MCP schema/examples and truthful toolbar coverage synchronized.
+- [x] Document unsupported connect-path/direct-selection cases explicitly.
+- [x] Run type, contract, boundary, full app and packaged regression gates.
+
+Scope guard
+===========
+
+- No per-anchor or pointer-move commands are emitted.
+- Joining two existing paths and point-tool edits remain separate work unless
+  the existing update schema proves lossless without widening this slice.
+- The Pen result remains a native path; rasterization is not an acceptable replay.
+
+Completion contract
+===================
+
+One real multi-anchor Pen authoring session records at most one replayable
+vector command after commit. Undo and playback restore native editable path
+geometry, transform, style, layer targeting and one logical history entry.
+
+Completion evidence (2026-08-20)
+================================
+
+- Open, closed, curved and resumed paths have controller/executor regression
+  coverage. A resumed path publishes `vector.update`; a new path publishes
+  `vector.create` only after the document transaction commits.
+- Packaged Actions records a real three-anchor Pen gesture as one step, binds
+  its generated layer through `$step12.layerId`, undoes the mixed workflow and
+  replays a native editable path with three anchors.
+- Packaged Agent Access creates a three-anchor path in an existing vector layer
+  and `vector.query` verifies its native geometry and stroke properties.
+- Typecheck, command-contract verification, boundary verification, all 2,566
+  app tests, the packaged distribution check and both desktop smokes pass.
+- Still outside this slice: joining paths through `connectPath`, Add/Delete/
+  Convert Point edits, Direct Selection mutations, rendered-pixel equivalence
+  and proof through the externally deployed MCP tunnel.

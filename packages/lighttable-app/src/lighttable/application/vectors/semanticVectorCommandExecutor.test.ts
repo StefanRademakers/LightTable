@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
-import { createVectorLiveShape } from '@lighttable/vector-core';
+import { createAnchor, createSubpath, createVectorLiveShape, createVectorPath
+} from '@lighttable/vector-core';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { parseSemanticVectorCommand } from '../commands/semanticVectorCommandContract';
 import { executeSemanticVectorCommand } from './semanticVectorCommandExecutor';
-import { observedLiveShapeCreateCommand } from './semanticVectorObservation';
+import { observedLiveShapeCreateCommand, observedVectorPathCreateCommand,
+  observedVectorPathUpdateCommand } from './semanticVectorObservation';
 
 const harness = () => {
   let document = createImageDocument('Vectors', 640, 480, 'fixture');
@@ -95,5 +97,41 @@ describe('semantic vector commands', () => {
         geometry, transform: element.transform, style: element.style });
       expect(layer?.name).toBe('Shape');
     }
+  });
+
+  it('round-trips curved Pen creation and resumed updates without flattening', () => {
+    const state = harness();
+    const path = createVectorPath('observed-path', 'Pen artwork', [createSubpath('curve', [
+      { ...createAnchor('a', { x: 10, y: 12 }), handleOut: { x: 24, y: 3 }, mode: 'smooth' },
+      { ...createAnchor('b', { x: 90, y: 54 }), handleIn: { x: 65, y: 70 }, mode: 'smooth' }
+    ], false)]);
+    path.fillRule = 'evenodd';
+    path.transform = { a: 1, b: 0.1, c: 0, d: 1, tx: 14, ty: 8 };
+    path.style.opacity = 0.72;
+    const createParameters = observedVectorPathCreateCommand(path, undefined, 'Shape');
+    const parsedCreate = parseSemanticVectorCommand('create', createParameters);
+    expect(parsedCreate).not.toHaveProperty('message');
+    const created = executeSemanticVectorCommand(
+      parsedCreate as Extract<typeof parsedCreate, { kind: 'create' }>, state.dependencies
+    )!;
+    const createdLayer = findDocumentLayer(state.document(), created.layerId);
+    const replayed = createdLayer?.type === 'vector' ? createdLayer.elements[0] : null;
+    expect(createdLayer?.name).toBe('Shape');
+    expect(replayed).toMatchObject({ type: 'path', name: path.name,
+      subpaths: path.subpaths, transform: path.transform, style: path.style });
+
+    if (replayed?.type !== 'path') throw new Error('Expected replayed path.');
+    const resumed = structuredClone(replayed);
+    resumed.subpaths[0]!.anchors.push(createAnchor('c', { x: 130, y: 28 }));
+    const updateParameters = observedVectorPathUpdateCommand(resumed, created.layerId);
+    const parsedUpdate = parseSemanticVectorCommand('update', updateParameters);
+    expect(parsedUpdate).not.toHaveProperty('message');
+    executeSemanticVectorCommand(
+      parsedUpdate as Extract<typeof parsedUpdate, { kind: 'update' }>, state.dependencies
+    );
+    const updatedLayer = findDocumentLayer(state.document(), created.layerId);
+    const updated = updatedLayer?.type === 'vector' ? updatedLayer.elements[0] : null;
+    expect(updated?.type === 'path' ? updated.subpaths[0]?.anchors : []).toHaveLength(3);
+    expect(state.history).toHaveBeenCalledTimes(2);
   });
 });

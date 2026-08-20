@@ -43,6 +43,8 @@ Completed vertical slices
 - editable point text creation and discrete formatting;
 - layer-mask add/remove/enabled/linked state, including selection-derived masks.
 - native Rectangle/Ellipse/Triangle/Line creation observed after local commit.
+- native open/closed Pen path creation and resumed-path updates observed after
+  local commit, with previews kept outside command transport.
 
 Rules
 =====

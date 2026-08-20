@@ -87,6 +87,10 @@ Current evidence (2026-08-20)
 - Native shape creation is shared through `vector.create`: unit round-trips
   cover Rectangle, Ellipse, Triangle and Line properties, while packaged
   Actions proves a real Rectangle gesture, undo and native editable replay.
+- Native Pen paths share `vector.create`/`vector.update`: packaged Actions
+  records a real three-anchor gesture, binds its generated layer, undoes and
+  replays editable path geometry. Packaged Agent Access creates a three-anchor
+  path in an existing vector layer and reads the native anchors/style back.
 
 Still required for completion
 =============================
@@ -99,3 +103,5 @@ Still required for completion
   in-app Agent Access route;
 - equivalent stale-revision and invalid-parameter failure evidence at every
   real route boundary.
+- rendered comparison for native shapes and paths, plus external MCP-tunnel
+  proof; current Pen evidence reaches the packaged Agent Access boundary.

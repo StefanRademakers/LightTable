@@ -148,6 +148,23 @@ try {
   });
   const badgeLayerId = shape.status === 'completed' ? shape.value?.layerId : null;
   if (!badgeLayerId) throw new Error(`Agent vector creation failed: ${JSON.stringify(shape)}`);
+  const agentPath = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-create-pen-path', command: 'vector.create', documentId: originalId,
+    commandParameters: {
+      layerId: badgeLayerId, name: 'Agent Pen', fillRule: 'nonzero',
+      subpaths: [{ closed: false, anchors: [
+        { x: 30, y: 35, handleOut: { x: 55, y: 20 }, mode: 'smooth' },
+        { x: 110, y: 80, handleIn: { x: 80, y: 95 }, mode: 'smooth' },
+        { x: 155, y: 45, mode: 'corner' }
+      ] }],
+      style: { fill: null, stroke: { paint: { type: 'solid', color: [1, 0.4, 0.1, 1] },
+        width: 6, alignment: 'center', cap: 'round', join: 'round', miterLimit: 4,
+        dash: [], dashOffset: 0 }, opacity: 0.9 }
+    }
+  });
+  if (agentPath.status !== 'completed' || !agentPath.value?.elementId) {
+    throw new Error(`Agent Pen path creation failed: ${JSON.stringify(agentPath)}`);
+  }
   const selection = await invoke(address, token, 'command.execute', {
     commandRequestId: 'agent-select-badge', command: 'selection.applyShape', documentId: originalId,
     commandParameters: {
@@ -178,8 +195,16 @@ try {
   const badge = designedLayers.find(({ id }) => id === badgeLayerId);
   if (badge?.type !== 'vector' || badge.name !== 'Agent Badge' || badge.blendMode !== 'screen'
     || badge.transform?.tx !== 32 || badge.transform?.ty !== 18
-    || badge.vectorContent?.elementCount !== 1) {
+    || badge.vectorContent?.elementCount !== 2) {
     throw new Error(`Agent mixed design state is incomplete: ${JSON.stringify(badge)}`);
+  }
+  const queriedBadge = await invoke(address, token, 'vector.query', {
+    documentId: originalId, layerId: badgeLayerId
+  });
+  const queriedPath = queriedBadge.elements?.find(({ id }) => id === agentPath.value.elementId);
+  if (queriedPath?.type !== 'path' || queriedPath.subpaths?.[0]?.anchors?.length !== 3
+    || queriedPath.style?.stroke?.width !== 6) {
+    throw new Error(`Agent Pen path query is incomplete: ${JSON.stringify(queriedPath)}`);
   }
   const activeBeforeMask = (await invoke(address, token, 'document.query', {
     documentId: originalId

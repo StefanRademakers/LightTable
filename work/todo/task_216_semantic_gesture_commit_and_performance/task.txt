@@ -74,6 +74,9 @@ Current evidence (2026-08-20)
 - Native live-shape drags retain their existing local provisional document path.
   A single callback publishes `vector.create` only after successful commit; a
   packaged 16-move Rectangle drag records one step and replays one editable shape.
+- A packaged three-anchor Pen session keeps anchor/handle/rubber-band previews
+  local and records one `vector.create` only after commit. Resuming an existing
+  path similarly records one final `vector.update`.
 
 Remaining before this task is complete
 ======================================

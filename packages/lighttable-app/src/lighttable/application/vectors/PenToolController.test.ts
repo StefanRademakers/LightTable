@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   multiplyMatrices,
   scaleMatrix,
@@ -21,7 +21,10 @@ const ids = (): VectorIdSource => {
   return { next: (kind) => `${kind}-${++value}` };
 };
 
-const setup = (style?: VectorStyle) => {
+const setup = (
+  style?: VectorStyle,
+  onCommitted?: NonNullable<ConstructorParameters<typeof PenToolController>[1]>['onCommitted']
+) => {
   let document = createImageDocument('Pen', 200, 100, 'asset');
   const history: Array<{ before: typeof document; after: typeof document }> = [];
   const documentController = new VectorDocumentController(() => ({
@@ -32,6 +35,7 @@ const setup = (style?: VectorStyle) => {
   return {
     controller: new PenToolController(documentController, {
       ids: ids(),
+      onCommitted,
       ...(style ? { style: () => style } : {})
     }),
     history,
@@ -83,7 +87,8 @@ describe('PenToolController', () => {
   });
 
   it('previews many anchors but commits the completed path once', () => {
-    const state = setup();
+    const onCommitted = vi.fn();
+    const state = setup(undefined, onCommitted);
     expect(state.controller.pointerDown({ x: 10, y: 10 })).toBe(true);
     expect(state.controller.pointerMove({ x: 15, y: 10 })).toBe(true);
     expect(state.controller.pointerMove({ x: 18, y: 10 })).toBe(true);
@@ -94,6 +99,12 @@ describe('PenToolController', () => {
 
     expect(state.controller.finishOpen()).toBe(true);
     expect(state.history).toHaveLength(1);
+    expect(onCommitted).toHaveBeenCalledOnce();
+    expect(onCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'create',
+      layerName: 'Shape',
+      path: expect.objectContaining({ type: 'path' })
+    }));
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
     expect(layer?.type).toBe('vector');
     if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
@@ -132,7 +143,8 @@ describe('PenToolController', () => {
   });
 
   it('closes near the first anchor and records one history entry', () => {
-    const state = setup();
+    const onCommitted = vi.fn();
+    const state = setup(undefined, onCommitted);
     for (const point of [{ x: 10, y: 10 }, { x: 80, y: 10 }, { x: 40, y: 70 }]) {
       state.controller.pointerDown(point);
       state.controller.pointerUp(point);
@@ -142,6 +154,8 @@ describe('PenToolController', () => {
     expect(state.history).toHaveLength(0);
     expect(state.controller.pointerUp({ x: 12, y: 11 })).toBe(true);
     expect(state.history).toHaveLength(1);
+    expect(onCommitted).toHaveBeenCalledOnce();
+    expect(onCommitted.mock.calls[0]?.[0].path.subpaths[0]?.closed).toBe(true);
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
     expect(layer?.type === 'vector' && layer.elements[0]?.type === 'path' ? layer.elements[0].subpaths[0]?.closed : false).toBe(true);
   });
@@ -214,5 +228,36 @@ describe('PenToolController', () => {
       { x: 80, y: 90 },
       { x: 120, y: 130 }
     ]);
+  });
+
+  it('publishes a resumed Pen path as one semantic update target', () => {
+    const onCommitted = vi.fn();
+    const state = setup(undefined, onCommitted);
+    for (const point of [{ x: 10, y: 10 }, { x: 60, y: 30 }]) {
+      state.controller.pointerDown(point);
+      state.controller.pointerUp(point);
+    }
+    state.controller.finishOpen();
+    const layerId = state.document.activeLayerId!;
+    const layer = findDocumentLayer(state.document, layerId);
+    const path = layer?.type === 'vector' && layer.elements[0]?.type === 'path'
+      ? layer.elements[0] : null;
+    if (!path) throw new Error('Expected initial Pen path.');
+    onCommitted.mockClear();
+
+    expect(state.controller.resumePath(
+      layerId, path, path.subpaths[0]!.id, 'append', path.transform
+    )).toBe(true);
+    state.controller.pointerDown({ x: 100, y: 55 });
+    state.controller.pointerUp({ x: 100, y: 55 });
+    expect(state.controller.finishOpen()).toBe(true);
+
+    expect(onCommitted).toHaveBeenCalledOnce();
+    expect(onCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'update', layerId, existingLayerId: layerId,
+      path: expect.objectContaining({ id: path.id })
+    }));
+    expect(onCommitted.mock.calls[0]?.[0].path.subpaths[0]?.anchors).toHaveLength(3);
+    expect(state.history).toHaveLength(2);
   });
 });

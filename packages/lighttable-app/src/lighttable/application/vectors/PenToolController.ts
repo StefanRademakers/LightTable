@@ -2,6 +2,7 @@ import {
   identityAffineMatrix,
   invertMatrix,
   joinVectorPathEndpoints,
+  cloneVectorPath,
   cloneVectorStyle,
   PenPathBuilder,
   transformPoint,
@@ -12,7 +13,8 @@ import {
   type VectorPath,
   type VectorStyle
 } from '@lighttable/vector-core';
-import type { LayerId } from '../../editor/document/documentTypes';
+import { layerIsLocked, type LayerId } from '../../editor/document/documentTypes';
+import { findDocumentLayer } from '../../editor/document/layerTree';
 import { VectorDocumentController } from './VectorDocumentController';
 
 const distanceSquared = (left: Vec2, right: Vec2) => {
@@ -63,6 +65,13 @@ export interface PenToolControllerOptions {
   style?: () => VectorStyle;
   layerName?: string;
   pathName?: string;
+  onCommitted?: (result: {
+    readonly operation: 'create' | 'update';
+    readonly layerId: LayerId;
+    readonly layerName: string;
+    readonly path: VectorPath;
+    readonly existingLayerId?: LayerId;
+  }) => void;
 }
 
 export interface PenToolSnapshot {
@@ -105,6 +114,8 @@ export class PenToolController {
   private transaction: 'creation' | 'mutation' | null = null;
   private authoredStyle: VectorStyle | null = null;
   private presentedPath: VectorPath | null = null;
+  private existingLayerId: LayerId | null = null;
+  private readonly onCommitted?: PenToolControllerOptions['onCommitted'];
   private presentationRevision = 0;
 
   constructor(
@@ -115,6 +126,7 @@ export class PenToolController {
     this.style = options.style ?? defaultPenStyle;
     this.layerName = options.layerName ?? 'Shape';
     this.pathName = options.pathName ?? 'Path';
+    this.onCommitted = options.onCommitted;
   }
 
   pointerDown(position: Vec2) {
@@ -259,6 +271,7 @@ export class PenToolController {
       this.documentToPath = { ...documentToPath };
       this.pathToDocument = { ...pathToDocument };
       this.transaction = 'mutation';
+      this.existingLayerId = layerId;
       if (!this.preview(draft)) throw new Error('The open path could not enter Pen editing mode.');
       return true;
     } catch (error) {
@@ -313,6 +326,12 @@ export class PenToolController {
   }
 
   private openPath() {
+    const openingDocument = this.documents.currentDocument();
+    const openingTarget = openingDocument
+      ? findDocumentLayer(openingDocument, openingDocument.activeLayerId)
+      : null;
+    this.existingLayerId = openingTarget?.type === 'vector'
+      && !layerIsLocked(openingTarget, 'pixels') ? openingTarget.id : null;
     this.authoredStyle = cloneVectorStyle(this.style());
     const builder = PenPathBuilder.start(
       this.ids,
@@ -320,7 +339,10 @@ export class PenToolController {
       { ...cloneVectorStyle(this.authoredStyle), fill: null, stroke: null }
     );
     const placement = this.documents.beginPathCreation(builder.snapshot(), this.layerName);
-    if (!placement) return false;
+    if (!placement) {
+      this.existingLayerId = null;
+      return false;
+    }
     this.builder = new PenPathBuilder(
       placement.path,
       builder.activeSubpathId(),
@@ -349,9 +371,29 @@ export class PenToolController {
   }
 
   private commit() {
-    const committed = this.transaction === 'mutation'
+    const operation = this.transaction === 'mutation' ? 'update' : 'create';
+    const layerId = this.layerId;
+    const pathId = this.presentedPath?.id ?? this.builder?.snapshot().id;
+    const existingLayerId = this.existingLayerId;
+    const committed = operation === 'update'
       ? this.documents.commitPathMutation()
       : this.documents.commitPathCreation();
+    if (committed && layerId && pathId) {
+      const document = this.documents.currentDocument();
+      const layer = document ? findDocumentLayer(document, layerId) : null;
+      const path = layer?.type === 'vector'
+        ? layer.elements.find((element): element is VectorPath => (
+            element.type === 'path' && element.id === pathId
+          ))
+        : null;
+      if (layer?.type === 'vector' && path) this.onCommitted?.({
+        operation,
+        layerId,
+        layerName: layer.name,
+        path: cloneVectorPath(path),
+        ...(existingLayerId ? { existingLayerId } : {})
+      });
+    }
     this.reset();
     return committed;
   }
@@ -363,6 +405,7 @@ export class PenToolController {
     this.documentToPath = identityAffineMatrix();
     this.pathToDocument = identityAffineMatrix();
     this.transaction = null;
+    this.existingLayerId = null;
     this.authoredStyle = null;
     this.presentedPath = null;
   }

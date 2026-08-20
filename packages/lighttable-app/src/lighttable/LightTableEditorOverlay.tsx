@@ -165,7 +165,8 @@ import { FlowTextEditingSessionController } from './application/text/flowTextEdi
 import { executeSemanticTextCommand, paragraphTextCreateCommand, pointTextCreateCommand,
   semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
-import { observedLiveShapeCreateCommand } from './application/vectors/semanticVectorObservation';
+import { observedLiveShapeCreateCommand, observedVectorPathCreateCommand,
+  observedVectorPathUpdateCommand } from './application/vectors/semanticVectorObservation';
 import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
 import { executeAtomicCommandBatch } from './application/commands/atomicCommandBatchExecutor';
 import { applySemanticFaceWarpCommandToDocument, executeSemanticFaceWarpCommand } from './application/effects/faceWarp/semanticFaceWarpCommandExecutor';
@@ -3536,6 +3537,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         workspaceDocumentId as DocumentSessionId,
         parameters,
         { layerId, elementId: element.id }
+      );
+    },
+    onPenPathCommitted: ({ operation, layerId, layerName, path, existingLayerId }) => {
+      const parameters = operation === 'create'
+        ? observedVectorPathCreateCommand(path, existingLayerId, layerName)
+        : observedVectorPathUpdateCommand(path, layerId);
+      commandService?.recordObservedCommand(
+        operation === 'create' ? 'vector.create' : 'vector.update',
+        workspaceDocumentId as DocumentSessionId,
+        parameters,
+        { layerId, elementId: path.id }
       );
     }
   });
