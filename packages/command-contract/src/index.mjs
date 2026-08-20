@@ -219,6 +219,7 @@ export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
 
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'document.create',
+  'document.duplicate',
   'document.resizeImage',
   'document.applyGeometry',
   'document.assignProfile',
@@ -285,6 +286,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
 ]);
 
 export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
+  'document.duplicate',
   'document.resizeImage',
   'document.applyGeometry',
   'document.assignProfile',

@@ -132,6 +132,11 @@ Current evidence (2026-08-20)
   session artifact plus bounds and composes it with the already admitted
   `selection.pastePixels`; raw bytes/private fields fail before the bridge.
   Packaged external MCP paste matches the normal UI render exactly.
+- `document.duplicate` is admitted as a source-revision-bound workspace fork,
+  not filesystem or overwrite authority. External MCP rejects private path and
+  flatten options, receives a fresh document ID and can continue editing only
+  that fork. Packaged UI/Actions/MCP state and rendered pixels are exact while
+  the source revision, dirty state and history remain unchanged.
 - The local Codex acceptance launcher separates loopback MCP/OAuth from the
   encrypted desktop tunnel. Its external Streamable HTTP probe proves denial
   before approval, bounded read-only preview, edit denial, revocation and

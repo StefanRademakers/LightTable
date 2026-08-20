@@ -109,6 +109,33 @@ describe('SemanticActionPlaybackController', () => {
     expect(controller.snapshot().status).toBe('completed');
   });
 
+  it('routes steps recorded after a source-scoped duplicate to the fresh fork', async () => {
+    const duplicateRecording: ActionRecordingSnapshot = { ...recording(), steps: [{
+      ...recording().steps[0]!, command: 'document.duplicate', documentId: 'recorded-source',
+      parameters: { name: 'Variant A' }, result: { documentId: 'recorded-duplicate' }
+    }, {
+      ...recording().steps[1]!, command: 'layer.createRaster', documentId: 'recorded-duplicate',
+      parameters: {}, result: { created: true, layerId: 'old-layer' }
+    }] };
+    const execute = vi.fn(async (request) => ({ requestId: request.requestId,
+      status: 'completed' as const,
+      value: request.command === 'document.duplicate'
+        ? { documentId: 'fresh-duplicate' }
+        : { created: true, layerId: 'fresh-layer' },
+      revisions: { workspace: 1 } }));
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.play(duplicateRecording, 'fresh-source');
+
+    expect(execute).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      command: 'document.duplicate', documentId: 'fresh-source'
+    }));
+    expect(execute).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      command: 'layer.createRaster', documentId: 'fresh-duplicate'
+    }));
+    expect(controller.snapshot().status).toBe('completed');
+  });
+
   it('awaits an accepted task and binds its artifact into the following step', async () => {
     const asyncRecording: ActionRecordingSnapshot = {
       ...recording(), steps: [{ ...recording().steps[0]!, command: 'file.exportNative',

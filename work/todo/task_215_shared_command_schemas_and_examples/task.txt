@@ -224,11 +224,15 @@ Current evidence (2026-08-20)
   bounds reject oversized/private/mixed input and results contain actual
   post-commit dimensions. The Actions form opts into root-variant editing
   without changing unrelated schema unions.
+- `document.duplicate` now completes the document module with a safe-name input
+  and stable fresh-document result. Private source paths, flatten options and
+  stale source revisions fail before the fork owner. Its packaged Actions flow
+  proves that a returned fork identity can bind later document steps.
 
-Still required for completion
-=============================
+Remaining intentional exception
+===============================
 
-- formal versioned input and result schemas for remaining admitted dedicated
-  commands;
-- generated Actions property editors for every remaining parameterized command;
-- explicit blocking reasons for every command without a complete schema.
+- All 65 currently admitted commands now have complete version-1 input/result
+  contracts. `faceWarp.applyOperation` is the sole legacy contract and remains
+  explicitly withheld because Face Warp is experimental and its visual/product
+  gates are parked; advertising a stable schema would be dishonest.

@@ -23,6 +23,21 @@
     }
   },
   "commands": {
+    "document.duplicate": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string", "title": "Duplicate name", "minLength": 1, "maxLength": 255,
+            "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f]+$"
+          }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["documentId"],
+        "properties": { "documentId": { "$ref": "#/$defs/documentId" } }
+      }
+    },
     "document.create": {
       "input": {
         "type": "object", "additionalProperties": false,

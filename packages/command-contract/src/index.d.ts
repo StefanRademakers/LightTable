@@ -94,6 +94,7 @@ export declare const formatSchemaValidationIssues: (issues: readonly LightTableS
 
 export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'document.create',
+  'document.duplicate',
   'document.resizeImage',
   'document.applyGeometry',
   'document.assignProfile',
@@ -162,6 +163,7 @@ export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
 export type LightTableAgentAccessCommandId = typeof LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS[number];
 
 export declare const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS: readonly [
+  'document.duplicate',
   'document.resizeImage',
   'document.applyGeometry',
   'document.assignProfile',

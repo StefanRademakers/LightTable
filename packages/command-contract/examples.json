@@ -19,6 +19,10 @@
       "background": { "kind": "solid", "color": "#F5F1E8" }
     }
   ],
+  "document.duplicate": [
+    { "name": "Portrait variant A" },
+    { "name": "Portrait monochrome study" }
+  ],
   "document.resizeImage": [
     {
       "width": 1200, "height": 800, "resolutionPpi": 144,

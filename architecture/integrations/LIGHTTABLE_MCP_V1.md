@@ -248,6 +248,19 @@ Packaged proof starts from an untagged PNG, verifies the assigned state and one
 undo entry through all three routes, and compares every result with the source
 at zero pixel delta. This is not Convert to Profile support.
 
+`document.duplicate` is the source-scoped workspace fork used by Image >
+Duplicate, Actions and external MCP. Its closed contract accepts only a safe
+new document name: source paths, overwrite targets, flatten switches and pixel
+payloads are rejected before the desktop bridge. An expected source revision
+prevents a remote fork from silently capturing a newer edit. The operation
+exports through the existing self-contained native boundary, remaps document,
+layer and asset identities, opens one independent unsaved document and leaves
+source revision, dirty state and history untouched. Actions maps the recorded
+duplicate result ID to the fresh fork on every replay so subsequent steps edit
+the new copy. Packaged UI/Actions/MCP proof duplicates a raster/vector/text
+composition, adds one layer only to each fork, compares editable structure and
+reports byte-exact equal rendered pixels.
+
 `selection.copyPixels` is the bounded pixel-clipboard producer for active-layer
 and merged selections. The existing renderer performs the GPU capture and the
 UI host still writes the system image clipboard, while the command result

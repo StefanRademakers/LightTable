@@ -163,12 +163,16 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       expect.objectContaining({ command: 'layer.rename' }),
       { origin: 'mcp', recording: 'record' }
     );
-    expect(await adapter.invoke(request('command.execute', { command: 'document.duplicate' })))
+    expect(await adapter.invoke(request('command.execute', {
+      command: 'document.duplicate', documentId: 'document-1',
+      commandRequestId: 'duplicate-1', commandParameters: { name: 'Variant A' }
+    }))).toMatchObject({ status: 'completed' });
+    expect(await adapter.invoke(request('command.execute', { command: 'faceWarp.applyOperation' })))
       .toMatchObject({ status: 'rejected', code: 'command-not-allowed' });
     adapter.revoke();
     expect(await adapter.invoke(request('artifact.list')))
       .toMatchObject({ status: 'rejected', code: 'session-revoked' });
-    expect(adapter.activity()).toHaveLength(3);
+    expect(adapter.activity()).toHaveLength(4);
   });
 
   it('forwards semantic document creation and placement with optimistic revisions', async () => {

@@ -1,0 +1,71 @@
+Task 269 - Complete document duplicate vertical
+
+Goal
+====
+
+Promote Image > Duplicate from a local workspace fork into a complete shared
+capability for safe editable variants. Normal UI, Actions and reviewed MCP must
+create independent unsaved documents through the same native artifact/fork
+owner without changing the source document.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 220`](../../todo/task_220_reviewed_mcp_capability_admission/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Add a closed version-1 input/result schema and examples.
+- [x] Enforce optimistic source revision and reject private copy/flatten/path
+  options before the workspace owner runs.
+- [x] Admit the operation to Agent Access and generic external MCP with edit
+  permission; it grants no filesystem or overwrite authority.
+- [x] Remap a duplicate result document ID during Actions playback so later
+  steps target the freshly replayed copy, not the recorded runtime document.
+- [x] Prove source revision, history, dirty state and rendered pixels stay
+  unchanged when the duplicate is created.
+- [x] Prove duplicate identity/layers are independent, history starts empty and
+  a later edit affects only the duplicate.
+- [x] Prove normal UI, Actions and authenticated external MCP produce
+  equivalent editable structure and rendered pixels.
+- [x] Run focused/full app tests, MCP tests, contract/coverage/boundary checks
+  and the packaged representative smoke.
+- [x] Update durable architecture/program documentation and move to `done/`.
+
+Completed evidence (2026-08-20)
+===============================
+
+- `npm run smoke:desktop:duplicate-image` passed against the packaged desktop
+  and an independently authenticated Streamable HTTP MCP client.
+- The source contains native raster, vector and editable text layers plus a
+  document Grade. Image > Duplicate recorded `document.duplicate` followed by
+  `layer.createRaster` in the fresh result document.
+- Actions replay remapped that recorded result to its new duplicate; external
+  MCP used the returned document ID explicitly. UI, Actions and MCP ended with
+  equal editable layer/vector/text state and one independent history edit.
+- UI versus Actions and UI versus MCP both measured RMSE 0, maximum channel
+  delta 0 and changed-pixel ratio 0.
+- Source canonical revision, history, dirty state and complete normalized
+  structure stayed unchanged across all three forks and later edits.
+- Every duplicate starts at history depth zero with disjoint document/layer
+  identities. A prior broad string remapper was corrected so user content that
+  merely equals an internal ID is no longer rewritten; only explicit identity
+  fields are remapped.
+- Private path/flatten fields and stale source revisions are rejected without a
+  fork or source mutation.
+
+Constraints
+===========
+
+- No source path, overwrite target, flattened-only switch or pixel payload is
+  accepted by the public command.
+- Duplication is a workspace fork, not an undo entry in the source document.
+- The duplicate is a new unsaved document with fresh document/layer/runtime
+  identities and an empty history baseline.
+- No raw pointer/paint/slider path is involved.
+- Experimental Face Warp remains explicitly withheld; completing this task
+  leaves it as the only legacy-schema command for an honest reason.

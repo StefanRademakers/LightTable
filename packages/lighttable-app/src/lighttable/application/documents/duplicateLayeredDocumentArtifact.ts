@@ -46,12 +46,20 @@ const collectRuntimeIds = (value: unknown, ids: Map<string, string>): void => {
   }
 };
 
-const remapRuntimeIds = <T>(value: T, ids: ReadonlyMap<string, string>): T => {
-  if (typeof value === 'string') return (ids.get(value) ?? value) as T;
+const IDENTITY_FIELD = /(?:^id$|Id$|Ids$)/;
+
+const remapRuntimeIds = <T>(value: T, ids: ReadonlyMap<string, string>, field = ''): T => {
+  if (typeof value === 'string') {
+    return (IDENTITY_FIELD.test(field) ? ids.get(value) ?? value : value) as T;
+  }
   if (!value || typeof value !== 'object') return value;
-  if (Array.isArray(value)) return value.map((entry) => remapRuntimeIds(entry, ids)) as T;
+  if (Array.isArray(value)) return value.map((entry) => (
+    typeof entry === 'string' && IDENTITY_FIELD.test(field)
+      ? ids.get(entry) ?? entry
+      : remapRuntimeIds(entry, ids)
+  )) as T;
   return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-    .map(([key, entry]) => [key, remapRuntimeIds(entry, ids)])) as T;
+    .map(([key, entry]) => [key, remapRuntimeIds(entry, ids, key)])) as T;
 };
 
 export interface DuplicatedDocumentSemantics {

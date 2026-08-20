@@ -188,7 +188,10 @@ export class SemanticActionPlaybackController {
         producedResults.set(step.sequence, result.value);
         const recordedDocumentId = returnedDocumentId(step.result);
         const createdDocumentId = returnedDocumentId(result.value);
-        if (!step.documentId && recordedDocumentId && createdDocumentId) {
+        // Both workspace document creation and a source-scoped document fork
+        // can produce the runtime document targeted by later recorded steps.
+        // Always remap that returned identity for the remainder of this replay.
+        if (recordedDocumentId && createdDocumentId) {
           replayDocumentIds.set(recordedDocumentId, createdDocumentId);
         }
         this.publish({ ...this.snapshotValue, results, taskProgress: null });

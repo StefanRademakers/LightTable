@@ -799,6 +799,12 @@ export class LightTableCommandService {
       if (source.lifecycle !== 'ready' || !source.document) {
         return this.reject(value.requestId, 'document-not-ready', 'The source document is not ready.', source);
       }
+      if (value.expectedDocumentRevision !== undefined
+        && value.expectedDocumentRevision !== source.documentRevision) {
+        return this.reject(value.requestId, 'stale-document-revision',
+          `Expected document revision ${value.expectedDocumentRevision}, current revision is ${source.documentRevision}.`,
+          source);
+      }
       if (!this.workspacePorts) {
         return this.reject(value.requestId, 'command-unavailable', 'Document duplication is unavailable in this host.', source);
       }

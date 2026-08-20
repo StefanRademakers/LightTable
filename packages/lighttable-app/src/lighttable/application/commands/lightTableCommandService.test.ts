@@ -2069,6 +2069,18 @@ describe('LightTableCommandService registry', () => {
     expect(duplicateDocument).toHaveBeenCalledWith(state.session.id, 'Source copy');
     expect(state.session.getSnapshot().documentRevision).toBe(before.documentRevision);
     expect(state.session.getSnapshot().history.currentStateId).toBe(before.history.currentStateId);
+
+    const stale = await service.execute({
+      protocolVersion: 1, requestId: 'duplicate-stale', command: 'document.duplicate',
+      documentId: state.session.id, expectedDocumentRevision: before.documentRevision + 1,
+      parameters: { name: 'Stale copy' }
+    });
+    expect(stale).toMatchObject({ status: 'rejected', code: 'stale-document-revision' });
+    const privateOptions = await service.execute(request('document.duplicate', state.session.id, {
+      name: 'Flattened copy', mergedLayersOnly: true, sourcePath: 'D:/private.psd'
+    }));
+    expect(privateOptions).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(duplicateDocument).toHaveBeenCalledTimes(1);
     service.dispose(); state.service.dispose(); state.workspace.dispose();
   });
 

@@ -261,6 +261,11 @@ Existing foundation evidence
   session artifact while Lens FX remains destination-owned. Actions binds
   Paste to each replay's fresh Copy result; packaged UI, Actions and external
   MCP produce two equal history edits and byte-exact equal 1448x1086 renders.
+- Image > Duplicate now shares `document.duplicate` with Actions and external
+  MCP. The source-scoped fork has a closed contract and optimistic revision,
+  returns a fresh document identity and remaps later Action steps to that fresh
+  result. Packaged proof preserves the source exactly while all three routes
+  produce equal editable raster/vector/text copies and byte-exact pixels.
 
 Program definition of done
 ==========================

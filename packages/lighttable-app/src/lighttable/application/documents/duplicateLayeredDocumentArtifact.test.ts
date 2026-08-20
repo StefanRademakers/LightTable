@@ -38,7 +38,8 @@ describe('duplicate document semantics', () => {
     const stack: AdjustmentStack = {
       id: 'document-stack', revision: 0,
       modules: [{ id: 'document-module', type: 'lt.light', enabled: true, revision: 0, settings: {
-        ownerLayerId: layer.id
+        ownerLayerId: layer.id,
+        userLabel: layer.id
       } }]
     };
 
@@ -54,6 +55,7 @@ describe('duplicate document semantics', () => {
     expect(duplicateLayer.attachedAdjustments?.[0]?.id).not.toBe('attached-source');
     expect(result.adjustmentStack.id).not.toBe(stack.id);
     expect(result.adjustmentStack.modules[0]?.settings.ownerLayerId).toBe(duplicateLayer.id);
+    expect(result.adjustmentStack.modules[0]?.settings.userLabel).toBe(layer.id);
     expect(document.name).toBe('Source');
     expect(document.activeLayerId).toBe(layer.id);
   });
