@@ -116,7 +116,7 @@ const declarationSource = `// Generated from ../catalog.json by scripts/generate
   + `export declare const LIGHTTABLE_COMMAND_PROTOCOL_VERSION: ${catalog.protocolVersion};\n\n`
   + tupleDeclaration('LIGHTTABLE_COMMAND_IDS', ids)
   + `export type LightTableCommandId = typeof LIGHTTABLE_COMMAND_IDS[number];\n\n`
-  + `export type LightTableCommandCategory = 'document' | 'image' | 'view' | 'layer' | 'effects' | 'file' | 'text' | 'vector' | 'automation' | 'history';\n`
+  + `export type LightTableCommandCategory = 'document' | 'image' | 'view' | 'layer' | 'effects' | 'file' | 'text' | 'vector' | 'selection' | 'automation' | 'history';\n`
   + `export interface LightTableCommandDefinition { readonly id: LightTableCommandId; readonly category: LightTableCommandCategory; readonly label: string; readonly description: string; readonly scope: 'workspace' | 'document'; readonly effect: 'presentation' | 'edit' | 'external-io' | 'control'; readonly invocation: 'direct' | 'parameters'; readonly agentAccess: boolean; readonly agentAccessReason?: string; readonly externalMcp: 'execute' | 'dedicated' | null; readonly externalMcpReason?: string; readonly atomicBatch?: boolean; }\n`
   + `export declare const LIGHTTABLE_COMMAND_DEFINITIONS: readonly LightTableCommandDefinition[];\n\n`
   + `export type LightTableCommandParameterProperties = Readonly<Record<string, string>>;\n`

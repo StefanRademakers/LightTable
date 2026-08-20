@@ -14,6 +14,7 @@ import type { ImageSizeRequest } from '../imageSize/imageSizeModel';
 import type { DocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import type { SemanticLayerCommand } from './semanticLayerCommandContract';
+import type { SemanticSelectionCommand } from './semanticSelectionCommandContract';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId
@@ -189,6 +190,7 @@ export interface LightTableCommandPorts {
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   executeFaceWarpCommand?(documentId: DocumentSessionId, command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(documentId: DocumentSessionId, command: SemanticLayerCommand): unknown | Promise<unknown>;
+  executeSelectionCommand?(documentId: DocumentSessionId, command: SemanticSelectionCommand): unknown | Promise<unknown>;
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
@@ -219,6 +221,7 @@ export interface DocumentLightTableCommandPorts {
   executeLayerStyleCommand(command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   executeFaceWarpCommand?(command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(command: SemanticLayerCommand): unknown | Promise<unknown>;
+  executeSelectionCommand?(command: SemanticSelectionCommand): unknown | Promise<unknown>;
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>;

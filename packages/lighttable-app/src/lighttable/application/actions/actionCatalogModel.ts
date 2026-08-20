@@ -13,6 +13,7 @@ export const ACTION_CATEGORY_LABELS: Readonly<Record<LightTableCommandCategory, 
   file: 'File',
   text: 'Text',
   vector: 'Vector',
+  selection: 'Selection',
   automation: 'Automation',
   history: 'History'
 };

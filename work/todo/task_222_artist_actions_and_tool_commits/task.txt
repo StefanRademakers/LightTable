@@ -62,7 +62,7 @@ Contract and test foundation
 - [x] Restore the generated command and menu-coverage checks to green.
 - [x] Add reusable typed input/result validation for the selected capabilities.
 - [x] Add examples that use stable document/layer IDs rather than UI position.
-- [ ] Build an equivalence harness that compares canonical state, history and
+- [x] Build an equivalence harness that compares canonical state, history and
       returned IDs for direct owner, Actions playback and MCP execution.
 - [x] Prove invalid targets, stale revisions and malformed properties fail
       without partial document mutation.
@@ -106,7 +106,7 @@ Realtime safety
 Product verification and handoff
 --------------------------------
 
-- [ ] Run focused unit and contract suites.
+- [x] Run focused unit and contract suites.
 - [ ] Run app typecheck, MCP tests, Actions tests and architecture boundaries.
 - [ ] Exercise the representative flow in the packaged desktop application.
 - [ ] Update command coverage and the active task status with exact evidence.

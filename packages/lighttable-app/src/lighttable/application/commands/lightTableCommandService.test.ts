@@ -14,7 +14,7 @@ import {
   type LightTableCommandPorts
 } from './lightTableCommandService';
 
-const setup = () => {
+const setup = (overrides: Partial<LightTableCommandPorts> = {}) => {
   let id = 0;
   const workspace = new WorkspaceSession({
     createId: () => `document-${++id}` as never
@@ -50,7 +50,8 @@ const setup = () => {
     updateGesture: vi.fn(async () => true),
     finishGesture: vi.fn(async () => true),
     undo: vi.fn(async () => true),
-    redo: vi.fn(async () => true)
+    redo: vi.fn(async () => true),
+    ...overrides
   };
   const service = new LightTableCommandService(workspace, ports);
   return { workspace, session, ports, service };
@@ -593,6 +594,21 @@ describe('LightTableCommandService registry', () => {
     }));
     expect(result).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     expect(state.ports.beginGesture).not.toHaveBeenCalled();
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('routes a final selection shape without changing the document revision', async () => {
+    const executeSelectionCommand = vi.fn(async () => ({ operationCount: 1 }));
+    const state = setup({ executeSelectionCommand });
+    const before = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    await expect(state.service.execute(request('selection.applyShape', state.session.id, {
+      mode: 'replace',
+      shape: { kind: 'rectangle', points: [{ x: 10, y: 20 }, { x: 80, y: 90 }] },
+      featherRadius: 2,
+      antiAlias: true
+    }))).resolves.toMatchObject({ status: 'completed' });
+    expect(executeSelectionCommand).toHaveBeenCalledOnce();
+    expect(state.service.queryDocument(state.session.id)!.canonicalRevision).toBe(before);
     state.service.dispose(); state.workspace.dispose();
   });
 

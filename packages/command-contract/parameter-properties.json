@@ -32,6 +32,7 @@
   "layer.effect.move": { "layerId": "string", "effectId": "string", "targetIndex": "integer 0..63" },
   "command.batch": { "name": "string", "timeoutMs?": "integer 100..10000", "operations": "command-operation[]" },
   "tool.commitGesture": { "kind": "brush-stroke | selection-rectangle | layer-translate", "parameters": "object", "samples": "gesture-sample[] (1..4096, <=240 KiB)" },
+  "selection.applyShape": { "mode": "replace | add | subtract | intersect", "shape": "selection-shape (2..4096 points)", "featherRadius?": "number 0..250", "antiAlias?": "boolean" },
   "task.cancel": { "taskId": "string" },
   "file.exportNative": {},
   "file.exportPng": {},

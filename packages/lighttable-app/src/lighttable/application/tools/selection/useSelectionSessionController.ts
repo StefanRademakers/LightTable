@@ -117,6 +117,12 @@ export interface SelectionSessionController {
   translate(x: number, y: number): void;
   magicWand(point: SelectionPoint, mode: SelectionCombineMode, options: MagicWandOptions): boolean;
   rasterMask(mask: RasterSelectionMask, mode: SelectionCombineMode): Promise<boolean>;
+  applyShape(
+    shape: SelectionShape,
+    mode: SelectionCombineMode,
+    featherRadius: number,
+    antiAlias: boolean
+  ): Promise<boolean>;
 }
 
 export const cloneSelectionOperations = (
@@ -377,6 +383,41 @@ export const createSelectionSessionController = (
         );
       });
     return true;
+  };
+
+  const applyShape = async (
+    shape: SelectionShape,
+    mode: SelectionCombineMode,
+    featherRadius: number,
+    antiAlias: boolean
+  ): Promise<boolean> => {
+    const dependencies = resolveDependencies();
+    const document = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    if (!document || !renderer) return false;
+    const before = cloneSelectionOperations(dependencies.getSelection());
+    const operation: SelectionOperation = {
+      mode,
+      shape: { ...shape, points: shape.points.map((point) => ({ ...point })) },
+      ...(featherRadius > 0 ? { amount: featherRadius } : {}),
+      ...(antiAlias ? { antiAlias: true } : {})
+    };
+    const after = mode === 'replace' ? [operation] : [...before, operation];
+    try {
+      const applied = await renderer.setSelection(shape, mode, featherRadius, antiAlias);
+      if (!applied || !isCurrent(document, renderer)) return false;
+      const latest = resolveDependencies();
+      latest.publishSelection(after, null);
+      pushHistory(document, before, after);
+      latest.setError(null);
+      return true;
+    } catch (reason) {
+      if (!isCurrent(document, renderer)) return false;
+      resolveDependencies().setError(
+        reason instanceof Error ? reason.message : 'The selection could not be applied.'
+      );
+      return false;
+    }
   };
 
   const moveMany = (
@@ -683,6 +724,7 @@ export const createSelectionSessionController = (
         return false;
       }
     },
+    applyShape,
     finishPolygon: () => (
       polygonGesture.active
         ? applyGestureResult(polygonGesture.finish())

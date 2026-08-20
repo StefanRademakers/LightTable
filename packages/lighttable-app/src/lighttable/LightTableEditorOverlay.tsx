@@ -4553,6 +4553,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         layerPanelController.setLock([...command.layerIds], command.lock, command.locked);
         return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
       },
+      executeSelectionCommand: async (command) => {
+        const applied = await selectionSessionController.applyShape(
+          command.shape,
+          command.mode,
+          command.featherRadius,
+          command.antiAlias
+        );
+        return applied ? {
+          mode: command.mode,
+          shape: command.shape,
+          featherRadius: command.featherRadius,
+          antiAlias: command.antiAlias
+        } : null;
+      },
       executeAtomicBatch: async (batch, signal, report) => {
         const result = await executeAtomicCommandBatch(batch, {
           fontRegistry: textFontRegistry, getDocument: () => imageDocumentRef.current,

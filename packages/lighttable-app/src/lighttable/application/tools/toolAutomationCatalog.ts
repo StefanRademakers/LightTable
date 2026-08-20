@@ -20,8 +20,9 @@ const presentation = (note: string): ToolAutomationDefinition => ({
 const owner = (interaction: 'discrete' | 'continuous', capabilities: readonly string[], note: string): ToolAutomationDefinition => ({
   interaction, availability: 'canonical-owner-only', capabilities, note
 });
-const playback = (capabilities: readonly string[], note: string): ToolAutomationDefinition => ({
-  interaction: 'continuous', availability: 'playback-command-only', capabilities, note
+const playback = (capabilities: readonly string[], note: string,
+  interaction: 'discrete' | 'continuous' = 'continuous'): ToolAutomationDefinition => ({
+  interaction, availability: 'playback-command-only', capabilities, note
 });
 
 /**
@@ -37,13 +38,18 @@ export const TOOL_AUTOMATION_CATALOG = {
     capabilities: ['view.setZoom'], note: 'Zoom state has a semantic command; click-drag zoom remains local.' },
   transform: playback(['tool.commitGesture:layer-translate'],
     'Committed translation is callable; real transform UI recording and affine/projective commits remain open.'),
-  'select-rectangle': playback(['tool.commitGesture:selection-rectangle'],
-    'Rectangle selection playback exists; real UI recording remains open.'),
-  'select-ellipse': owner('continuous', [], 'Selection owner exists; no committed automation schema yet.'),
-  'select-horizontal': owner('discrete', [], 'Selection owner exists; no committed automation schema yet.'),
-  'select-vertical': owner('discrete', [], 'Selection owner exists; no committed automation schema yet.'),
-  'select-free': owner('continuous', [], 'Selection owner exists; no committed automation schema yet.'),
-  'select-polygonal': owner('continuous', [], 'Selection owner exists; no committed automation schema yet.'),
+  'select-rectangle': playback(['selection.applyShape'],
+    'Final rectangle selection is callable; real UI recording remains open.'),
+  'select-ellipse': playback(['selection.applyShape'],
+    'Final ellipse selection is callable; real UI recording remains open.'),
+  'select-horizontal': playback(['selection.applyShape'],
+    'Final row selection is callable; real UI recording remains open.', 'discrete'),
+  'select-vertical': playback(['selection.applyShape'],
+    'Final column selection is callable; real UI recording remains open.', 'discrete'),
+  'select-free': playback(['selection.applyShape'],
+    'Final freehand outline is callable; real UI recording remains open.'),
+  'select-polygonal': playback(['selection.applyShape'],
+    'Final polygon outline is callable; real UI recording remains open.'),
   'select-object': owner('continuous', [], 'Smart-selection owner exists; model/result contract is not exposed.'),
   'select-magic-wand': owner('discrete', [], 'Magic Wand owner exists; sampled selection contract is not exposed.'),
   'vector-pen': owner('continuous', ['vector.create'], 'Vector command can express the result; UI Pen commit recording is open.'),

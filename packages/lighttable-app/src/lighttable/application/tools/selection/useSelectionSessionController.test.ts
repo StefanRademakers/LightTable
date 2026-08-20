@@ -61,6 +61,29 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
 };
 
 describe('selection session controller', () => {
+  it('applies one final semantic shape without replaying pointer samples', async () => {
+    const state = setup();
+    expect(await state.controller.applyShape(
+      { kind: 'rectangle', points: [{ x: 12, y: 14 }, { x: 52, y: 64 }] },
+      'replace',
+      3,
+      true
+    )).toBe(true);
+    expect(state.renderer.setSelection).toHaveBeenCalledOnce();
+    expect(state.renderer.setSelection).toHaveBeenCalledWith(
+      { kind: 'rectangle', points: [{ x: 12, y: 14 }, { x: 52, y: 64 }] },
+      'replace',
+      3,
+      true
+    );
+    expect(state.selection).toEqual([{
+      mode: 'replace', amount: 3, antiAlias: true,
+      shape: { kind: 'rectangle', points: [{ x: 12, y: 14 }, { x: 52, y: 64 }] }
+    }]);
+    expect(state.history).toHaveLength(1);
+    expect(state.history[0].documentMutation).toBe(false);
+  });
+
   it('publishes one pointer gesture and one selection-only history entry', async () => {
     const state = setup();
     expect(state.controller.begin(7, 'select-rectangle', { x: 10, y: 10 }, 'replace')).toBe(true);

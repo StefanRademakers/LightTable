@@ -38,6 +38,7 @@ import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
 import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import { parseSemanticFaceWarpCommand, type SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import { parseSemanticLayerCommand, type SemanticLayerCommand } from './semanticLayerCommandContract';
+import { parseSemanticSelectionCommand, type SemanticSelectionCommand } from './semanticSelectionCommandContract';
 import {
   SemanticActionRecorder,
   type ActionRecordingSnapshot
@@ -116,6 +117,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   executeLayerCommand(documentId: DocumentSessionId, command: SemanticLayerCommand) {
     return this.resolve(documentId).executeLayerCommand(command);
+  }
+
+  executeSelectionCommand(documentId: DocumentSessionId, command: SemanticSelectionCommand) {
+    const execute = this.resolve(documentId).executeSelectionCommand;
+    if (!execute) throw new Error('Selection commands are unavailable in the target document.');
+    return execute(command);
   }
 
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
@@ -551,6 +558,8 @@ export class LightTableCommandService {
       availability('layer.effect.move', true, ''),
       availability('command.batch', true, ''),
       availability('tool.commitGesture', true, ''),
+      availability('selection.applyShape', Boolean(this.ports.executeSelectionCommand),
+        'Selection commands are unavailable in this host.'),
       availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),
       availability('file.exportNative', true, ''),
       availability('file.exportPng', true, ''),
@@ -1088,6 +1097,16 @@ export class LightTableCommandService {
           sampleCount: committed.samples.length
         }, changed: false };
       }
+      case 'selection.applyShape': {
+        const command = parseSemanticSelectionCommand(parameters);
+        if ('message' in command) return this.invalidParameters(command.message);
+        if (!this.ports.executeSelectionCommand) {
+          return { code: 'command-unavailable', message: 'Selection commands are unavailable in this host.' };
+        }
+        const result = await this.ports.executeSelectionCommand(request.documentId, command);
+        if (!result) return { code: 'execution-failed', message: 'The selection could not be applied.' };
+        return { value: result, changed: false };
+      }
       case 'history.undo':
       case 'history.redo': {
         if (!isRecord(parameters) || Object.keys(parameters).length > 0) {
@@ -1101,9 +1120,11 @@ export class LightTableCommandService {
             message: direction === 'undo' ? 'There is nothing to undo.' : 'There is nothing to redo.'
           };
         }
-        const changed = await this.ports[direction](request.documentId);
-        if (!changed) return { code: 'execution-failed', message: `${direction} did not complete.` };
-        return { value: { changed: true } };
+        const beforeRevision = snapshot.document!.revision;
+        const completed = await this.ports[direction](request.documentId);
+        if (!completed) return { code: 'execution-failed', message: `${direction} did not complete.` };
+        const documentChanged = this.document(request.documentId)?.document?.revision !== beforeRevision;
+        return { value: { changed: true, documentChanged }, changed: documentChanged };
       }
     }
     return { code: 'command-unavailable', message: 'The command is not available in this document scope.' };

@@ -7,6 +7,7 @@ import { AuthenticatedLightTableMcpAdapter } from './lightTableMcpAdapter';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, LightTableCommandService,
   type LightTableCommandPorts } from './lightTableCommandService';
 import type { SemanticLayerCommand } from './semanticLayerCommandContract';
+import type { SemanticSelectionCommand } from './semanticSelectionCommandContract';
 
 const token = '0123456789abcdef0123456789abcdef';
 
@@ -21,6 +22,7 @@ const createHarness = () => {
   } });
   if (!opened.ok) throw new Error('Equivalence document could not open.');
   const session = opened.value;
+  let selection: SemanticSelectionCommand[] = [];
   const withBottom = createRasterLayer(createImageDocument('Equivalence', 64, 64, 'fixture'), 'Bottom');
   const initial = createRasterLayer(withBottom, 'Top');
   session.setDocument(initial);
@@ -52,11 +54,27 @@ const createHarness = () => {
       ? { layerIds: command.layerIds, lock: command.lock, locked: command.locked }
       : 'layerId' in command ? { ...command } : null;
   };
+  const applySelection = (command: SemanticSelectionCommand) => {
+    const before = selection;
+    const after = command.mode === 'replace' ? [command] : [...before, command];
+    selection = after;
+    session.history.record({
+      id: `equivalence-history-${++historySequence}`,
+      type: 'selection.apply-shape',
+      label: 'Apply selection shape',
+      documentId: session.id,
+      affectsDocument: false,
+      undo: () => { selection = before; },
+      redo: () => { selection = after; }
+    });
+    return { operationCount: selection.length };
+  };
   const ports: LightTableCommandPorts = {
     setZoom: vi.fn(), createRasterLayer: vi.fn(), placeArtifact: vi.fn(), renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(), setLayerFillOpacity: vi.fn(), setLayerStyleEnabled: vi.fn(),
     setLayerEffectEnabled: vi.fn(), executeTextCommand: vi.fn(), executeVectorCommand: vi.fn(),
     executeLayerStyleCommand: vi.fn(), executeLayerCommand: vi.fn((_documentId, command) => applyLayer(command)),
+    executeSelectionCommand: vi.fn((_documentId, command) => applySelection(command)),
     executeAtomicBatch: vi.fn(), exportNativeArtifact: vi.fn(), exportPngArtifact: vi.fn(),
     exportPsdArtifact: vi.fn(), beginGesture: vi.fn(), updateGesture: vi.fn(), finishGesture: vi.fn(),
     undo: vi.fn(() => session.history.undo()), redo: vi.fn(() => session.history.redo())
@@ -86,7 +104,16 @@ const createHarness = () => {
       }
     };
   };
-  return { workspace, session, service, adapter, topId, execute, snapshot };
+  const selectionSnapshot = () => ({
+    selection: structuredClone(selection),
+    canonicalRevision: service.queryDocument(session.id)!.canonicalRevision,
+    history: {
+      undoDepth: session.history.getSnapshot().undoDepth,
+      redoDepth: session.history.getSnapshot().redoDepth,
+      dirty: session.history.getSnapshot().dirty
+    }
+  });
+  return { workspace, session, service, adapter, topId, execute, snapshot, selectionSnapshot };
 };
 
 const steps = (layerId: string) => [
@@ -129,6 +156,51 @@ describe('artist capability equivalence harness', () => {
     expect(actions.service.actionRecordingSnapshot().steps.map(({ command }) => command))
       .toEqual(steps(actions.topId).map(({ command }) => command));
     expect(mcp.adapter.activity().every(({ outcome }) => outcome === 'completed')).toBe(true);
+
+    for (const harness of [ui, actions, mcp]) {
+      harness.service.dispose();
+      harness.workspace.dispose();
+    }
+  });
+
+  it('applies the same final selection through UI, Actions and MCP without dirtying the document', async () => {
+    const parameters = {
+      mode: 'replace',
+      shape: { kind: 'polygon', points: [
+        { x: 8, y: 9 }, { x: 52, y: 11 }, { x: 30, y: 54 }
+      ] },
+      featherRadius: 2,
+      antiAlias: true
+    };
+    const ui = createHarness();
+    expect(await ui.execute('selection.applyShape', parameters)).toMatchObject({ status: 'completed' });
+
+    const actions = createHarness();
+    actions.service.startActionRecording('Select subject area');
+    await actions.execute('selection.applyShape', parameters);
+    actions.service.stopActionRecording();
+    await actions.execute('history.undo', {});
+    expect(await actions.service.playActionRecording()).toMatchObject({ status: 'completed' });
+
+    const mcp = createHarness();
+    expect(await mcp.adapter.invoke({
+      protocolVersion: 1,
+      requestId: 'mcp-selection-shape',
+      token,
+      method: 'command.execute',
+      parameters: {
+        documentId: mcp.session.id,
+        command: 'selection.applyShape',
+        commandRequestId: 'mcp-command-selection-shape',
+        expectedDocumentRevision: mcp.service.queryDocument(mcp.session.id)!.canonicalRevision,
+        commandParameters: parameters
+      }
+    })).toMatchObject({ status: 'completed' });
+
+    expect(actions.selectionSnapshot()).toEqual(ui.selectionSnapshot());
+    expect(mcp.selectionSnapshot()).toEqual(ui.selectionSnapshot());
+    expect(ui.selectionSnapshot()).toMatchObject({ canonicalRevision: 0,
+      history: { undoDepth: 1, redoDepth: 0, dirty: false } });
 
     for (const harness of [ui, actions, mcp]) {
       harness.service.dispose();
