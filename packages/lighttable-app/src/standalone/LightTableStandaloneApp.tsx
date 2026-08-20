@@ -843,19 +843,21 @@ export function LightTableStandaloneApp({
               if (host.openFile) void requestHostDocument();
               else launcherFileInputRef.current?.click();
             }}>Open</ButtonBase>
-            <ButtonBase type="button" disabled={projectCreating || !host.projects}
-              onClick={requestNewProject}>New Project</ButtonBase>
-            <ButtonBase type="button" disabled={opening || !host.projects}
-              onClick={() => void openProject()}>Open Project</ButtonBase>
             <ButtonBase type="button" className={launcherPage === 'new-document' ? 'is-active' : undefined}
               aria-current={launcherPage === 'new-document' ? 'page' : undefined}
               onClick={() => setLauncherPage('new-document')}>New Document</ButtonBase>
             <ButtonBase type="button" className={launcherPage === 'recent-files' ? 'is-active' : undefined}
               aria-current={launcherPage === 'recent-files' ? 'page' : undefined}
               onClick={() => setLauncherPage('recent-files')}>Recent Files</ButtonBase>
+            <div className="lighttable-launcher__navigation-separator" role="separator" />
+            <ButtonBase type="button" disabled={projectCreating || !host.projects}
+              onClick={requestNewProject}>New Project</ButtonBase>
+            <ButtonBase type="button" disabled={opening || !host.projects}
+              onClick={() => void openProject()}>Open Project</ButtonBase>
             <ButtonBase type="button" className={launcherPage === 'recent-projects' ? 'is-active' : undefined}
               aria-current={launcherPage === 'recent-projects' ? 'page' : undefined}
               onClick={() => setLauncherPage('recent-projects')}>Recent Projects</ButtonBase>
+            <div className="lighttable-launcher__navigation-separator" role="separator" />
             <ButtonBase type="button" className={launcherPage === 'recovery-records' ? 'is-active' : undefined}
               aria-current={launcherPage === 'recovery-records' ? 'page' : undefined}
               onClick={() => setLauncherPage('recovery-records')}>

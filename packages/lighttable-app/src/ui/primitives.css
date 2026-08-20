@@ -1013,6 +1013,12 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   text-align: center;
 }
 
+.lighttable-launcher__navigation-separator {
+  height: 1px;
+  margin: 7px 10px;
+  background: var(--lt-border-subtle);
+}
+
 .lighttable-launcher__view {
   min-width: 0;
   min-height: 0;
