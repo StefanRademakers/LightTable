@@ -100,6 +100,12 @@ Current evidence (2026-08-20)
   Atomic batch results now match direct results for stable downstream bindings.
 - MCP discovery separates these `complete` version-1 contracts from commands
   that still expose `legacy-properties-only` metadata.
+- A separate layer-structure module adds duplicate, Layer via Copy, delete,
+  move and clipping without growing the first schema file. New stable layer IDs,
+  copy scope and canonical target lists have explicit result contracts.
+- Packaged Commands UI proved the generated move enum by changing real sibling
+  order. External MCP proved duplicate/copy stable-ID results, clipping toggles,
+  down/up movement and exact deletion results against the desktop bridge.
 
 Still required for completion
 =============================

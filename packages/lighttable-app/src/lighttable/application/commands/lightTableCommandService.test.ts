@@ -5,6 +5,7 @@ import { createImageDocument, createVectorLayer } from '../../editor/document/do
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createVectorLiveShape } from '@lighttable/vector-core';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
+import { LIGHTTABLE_COMMAND_SCHEMAS, validateJsonSchemaValue } from '@lighttable/command-contract';
 import type { SemanticActionLibraryStorage } from '../actions/semanticActionLibrary';
 import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
 import { WorkspaceSession } from '../workspace/workspaceSession';
@@ -473,6 +474,8 @@ describe('LightTableCommandService action recording', () => {
     const duplicate = await state.service.execute(request('layer.duplicate', state.session.id,
       { layerId: sourceLayerId }));
     if (duplicate.status !== 'completed') throw new Error('Duplicate failed.');
+    expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.duplicate']!.result,
+      duplicate.value).valid).toBe(true);
     const recordedCopyId = (duplicate.value as { layerId: string }).layerId;
     await state.service.execute(request('layer.setBlendMode', state.session.id,
       { layerId: recordedCopyId, blendMode: 'multiply' }));
@@ -509,6 +512,9 @@ describe('LightTableCommandService action recording', () => {
 
     expect(copied).toMatchObject({ status: 'completed',
       value: { sourceLayerId, layerId: expect.any(String), scope: 'layer' } });
+    if (copied.status === 'completed') expect(validateJsonSchemaValue(
+      LIGHTTABLE_COMMAND_SCHEMAS['layer.copyToNewLayer']!.result, copied.value
+    ).valid).toBe(true);
     expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
       command: 'layer.copyToNewLayer', replayable: true, parameters: { layerId: sourceLayerId }
     }]);
@@ -870,11 +876,16 @@ describe('LightTableCommandService registry', () => {
 
   it('validates and routes structural layer capabilities with stable targets', async () => {
     const state = setup();
-    vi.mocked(state.ports.executeLayerCommand).mockImplementation((_documentId, command) => (
-      command.kind === 'duplicate'
-        ? { sourceLayerId: command.layerId, layerId: 'copy-id' }
-        : { ...command }
-    ));
+    vi.mocked(state.ports.executeLayerCommand).mockImplementation((_documentId, command) => {
+      if (command.kind === 'duplicate') return { sourceLayerId: command.layerId, layerId: 'copy-id' };
+      if (command.kind === 'delete') return { layerIds: command.layerIds };
+      if (command.kind === 'move') return { layerId: command.layerId, direction: command.direction };
+      if (command.kind === 'set-blend-mode') return { layerId: command.layerId, blendMode: command.blendMode };
+      if (command.kind === 'set-clipping') return { layerId: command.layerId, clipping: command.clipping };
+      if (command.kind === 'set-lock') return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
+      if (command.kind === 'set-mask') return { layerId: command.layerId, operation: command.operation };
+      return null;
+    });
     const document = state.session.getSnapshot().document!;
     const topId = document.activeLayerId!;
     const results = await Promise.all([
@@ -891,6 +902,14 @@ describe('LightTableCommandService registry', () => {
       state.service.execute(request('layer.delete', state.session.id, { layerIds: [topId] }))
     ]);
     expect(results.every(({ status }) => status === 'completed')).toBe(true);
+    for (const [index, command] of ([
+      'layer.duplicate', 'layer.move', 'layer.setBlendMode', 'layer.setClipping',
+      null, 'layer.setLock', 'layer.delete'
+    ] as const).entries()) {
+      if (!command || results[index]?.status !== 'completed') continue;
+      expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS[command]!.result,
+        results[index].value).valid).toBe(true);
+    }
     expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(7);
 
     const malformed = await state.service.execute(request('layer.setBlendMode', state.session.id,
@@ -1468,7 +1487,12 @@ describe('LightTableCommandService registry', () => {
       ['layer.setVisibility', { layerIds: [], visible: true }],
       ['layer.setFillOpacity', { layerId, opacity: 1.01 }],
       ['layer.setBlendMode', { layerId, blendMode: 'not-a-mode' }],
-      ['layer.setLock', { layerIds: [layerId], lock: 'position', locked: 'yes' }]
+      ['layer.setLock', { layerIds: [layerId], lock: 'position', locked: 'yes' }],
+      ['layer.duplicate', { layerId, rendererState: {} }],
+      ['layer.copyToNewLayer', { layerId: '' }],
+      ['layer.delete', { layerIds: [] }],
+      ['layer.move', { layerId, direction: 'left' }],
+      ['layer.setClipping', { layerId, clipping: 1 }]
     ] as const;
 
     for (const [command, parameters] of invalid) {

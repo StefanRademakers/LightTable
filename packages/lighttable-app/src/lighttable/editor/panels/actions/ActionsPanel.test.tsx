@@ -75,6 +75,10 @@ describe('ActionsPanel', () => {
       .toEqual({ layerId: '', opacity: 1 });
     expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['layer.setLock']!.input))
       .toEqual({ layerIds: [], lock: 'all', locked: true });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['layer.duplicate']!.input))
+      .toEqual({ layerId: '' });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['layer.move']!.input))
+      .toEqual({ layerId: '', direction: 'up' });
     expect(LIGHTTABLE_COMMAND_SCHEMAS['layer.setBlendMode']!.input.properties!.blendMode.enum)
       .toEqual(BLEND_MODES.map(({ id }) => id));
   });

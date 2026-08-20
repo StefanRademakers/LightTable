@@ -7,7 +7,10 @@ import { executeAtomicCommandBatch } from './atomicCommandBatchExecutor';
 import type { AtomicCommandBatch } from './atomicCommandBatchContract';
 
 const fixture = () => {
-  let document = createRasterLayer(createImageDocument('Batch', 64, 64, 'source'));
+  let document = createRasterLayer(
+    createRasterLayer(createImageDocument('Batch', 64, 64, 'source'), 'Bottom'),
+    'Top'
+  );
   const layerId = document.activeLayerId!;
   const publish = vi.fn((next) => { document = next; });
   const record = vi.fn();
@@ -80,6 +83,26 @@ describe('executeAtomicCommandBatch', () => {
     expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.setBlendMode']!.result,
       result.results[0]!.value).valid).toBe(true);
     expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.setLock']!.result,
+      result.results[1]!.value).valid).toBe(true);
+  });
+
+  it('returns the same move and clipping result shape as direct execution', async () => {
+    const state = fixture();
+    const result = await executeAtomicCommandBatch(batch([
+      { operationId: 'clip', command: 'layer.setClipping', parameters: {
+        layerId: state.layerId, clipping: true
+      } },
+      { operationId: 'move', command: 'layer.move', parameters: {
+        layerId: state.layerId, direction: 'down'
+      } }
+    ]), state.dependencies, new AbortController().signal, () => undefined);
+    expect(result.results).toEqual([
+      { operationId: 'clip', value: { layerId: state.layerId, clipping: true } },
+      { operationId: 'move', value: { layerId: state.layerId, direction: 'down' } }
+    ]);
+    expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.setClipping']!.result,
+      result.results[0]!.value).valid).toBe(true);
+    expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.move']!.result,
       result.results[1]!.value).valid).toBe(true);
   });
 

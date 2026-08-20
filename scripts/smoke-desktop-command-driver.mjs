@@ -222,7 +222,11 @@ try {
   const schemaUiDocument = schemaUiDocumentId ? await driver.queryDocument(schemaUiDocumentId) : null;
   const schemaUiLayers = schemaUiDocumentId ? await driver.queryLayers(schemaUiDocumentId) ?? [] : [];
   const schemaUiTarget = schemaUiLayers.find(({ id }) => id === schemaUiDocument?.activeLayerId);
-  if (!schemaUiDocumentId || !schemaUiTarget) throw new Error('No active schema UI target.');
+  const schemaUiTopLevel = schemaUiLayers.filter(({ parentId }) => parentId === null);
+  const schemaMoveTarget = schemaUiTopLevel[1];
+  if (!schemaUiDocumentId || !schemaUiTarget || !schemaMoveTarget) {
+    throw new Error('No active schema UI target or movable sibling.');
+  }
   await page.getByRole('menuitem', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Actions panel', exact: true }).click();
   const actionsPanel = page.getByRole('complementary', { name: 'Actions' });
@@ -239,6 +243,22 @@ try {
     ?.find(({ id }) => id === schemaUiTarget.id);
   if (schemaUiLayer?.name !== 'Schema UI layer') {
     throw new Error(`Schema-generated command editor did not execute rename: ${JSON.stringify(schemaUiLayer)}`);
+  }
+  await actionsPanel.getByRole('searchbox', { name: 'Search commands' }).fill('layer.move');
+  const moveCommand = actionsPanel.locator('details').filter({ hasText: 'layer.move' });
+  await moveCommand.locator('summary').click();
+  await moveCommand.getByRole('textbox', { name: 'Layer ID' }).fill(schemaMoveTarget.id);
+  await moveCommand.getByRole('combobox', { name: 'Direction' }).selectOption('down');
+  await moveCommand.getByRole('button', { name: 'Run', exact: true }).click();
+  await actionsPanel.getByRole('status').filter({ hasText: 'layer.move: completed' })
+    .waitFor({ timeout: 15_000 });
+  const schemaUiMovedTopLevel = (await driver.queryLayers(schemaUiDocumentId))
+    ?.filter(({ parentId }) => parentId === null) ?? [];
+  if (schemaUiMovedTopLevel.findIndex(({ id }) => id === schemaMoveTarget.id) !== 0) {
+    throw new Error(`Schema-generated move control did not change sibling order: ${JSON.stringify({
+      before: schemaUiTopLevel.map(({ id }) => id),
+      after: schemaUiMovedTopLevel.map(({ id }) => id)
+    })}`);
   }
   const zoom = await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: 175 });
   const hidden = await driver.execute(documentId, 'layer.setVisibility', {
@@ -278,8 +298,9 @@ try {
     parameters: { layerId: createdId, channel: 'pixels' }, sample: { x: 50, y: 50, pressure: 1 }
   }, [{ x: 90, y: 75, pressure: 0.8 }]);
   const report = {
-    workspace, schemaUi: { command: 'layer.rename', documentId: schemaUiDocumentId,
-      layerId: schemaUiTarget.id, name: schemaUiLayer.name },
+    workspace, schemaUi: { documentId: schemaUiDocumentId,
+      rename: { command: 'layer.rename', layerId: schemaUiTarget.id, name: schemaUiLayer.name },
+      move: { command: 'layer.move', layerId: schemaMoveTarget.id, direction: 'down' } },
     semantic: { create: semanticCreate, placements, layers: placedLayers,
       text: { created: textCreated, projection: textProjection, latenciesMs: textLatencies,
         nativeDocumentId, psdDocumentId },

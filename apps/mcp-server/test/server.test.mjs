@@ -68,6 +68,12 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(commandCatalog.structuredContent.commands[0].contract.schemaVersion, 1);
   assert.deepEqual(commandCatalog.structuredContent.commands[0].contract.input.required,
     ['layerId', 'name']);
+  const duplicateCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'layer.duplicate'
+  } });
+  assert.equal(duplicateCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.deepEqual(duplicateCatalog.structuredContent.commands[0].contract.result.required,
+    ['sourceLayerId', 'layerId']);
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
@@ -122,6 +128,11 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
       layerId: 'layer-background', name: '   ', privateState: true } } });
   assert.equal(invalid.isError, true);
   assert.equal(mockClient.revision, invalidRevision, 'invalid schema input reached the desktop client');
+  const invalidDuplicate = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'layer.duplicate', parameters: {
+      layerId: 'layer-background', selectedPixels: [] } } });
+  assert.equal(invalidDuplicate.isError, true);
+  assert.equal(mockClient.revision, invalidRevision, 'invalid duplicate input reached the desktop client');
   const invalidBatch = await editor.callTool({ name: 'lighttable_batch', arguments: {
     documentId: 'document-demo', name: 'Invalid batch', operations: [{
       operationId: 'rename', command: 'layer.rename',

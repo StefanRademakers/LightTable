@@ -153,11 +153,13 @@ entry remains. Both the local Commands view and the read-only
 These signatures remain legacy discovery metadata while commands are promoted
 category by category to versioned JSON Schema modules under
 [`packages/command-contract/schemas/`](../../packages/command-contract/schemas/).
-The first complete layer slice covers rename, visibility, fill opacity, blend
-mode and lock input/result contracts. The local Commands editor, command
-service, atomic batch executor and MCP discovery/input gate consume that same
-schema. Invalid fields, types, ranges, enums and transport-only private state
-are therefore rejected before a document mutation or desktop bridge call.
+The first complete layer slices cover rename, visibility, fill opacity, blend
+mode, lock, duplicate, Layer via Copy, delete, move and clipping input/result
+contracts. Separate property and structure schema modules keep this from
+becoming one registry file. The local Commands editor, command service, atomic
+batch executor and MCP discovery/input gate consume the merged projection.
+Invalid fields, types, ranges, enums and transport-only private state are
+therefore rejected before a document mutation or desktop bridge call.
 Application-owned parsers still enforce contextual rules that JSON Schema
 cannot decide, such as whether a stable layer ID exists in the requested
 document. Commands marked `legacy-properties-only` by `lighttable_commands`

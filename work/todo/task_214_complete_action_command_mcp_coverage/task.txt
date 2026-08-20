@@ -88,8 +88,8 @@ Existing foundation evidence
 - Semantic routing for Image Size, canvas geometry, crop, rotate and flip.
 - Bounded recorder/playback, per-step results and stable-ID rebinding.
 - Shared top-level property discovery for Actions and MCP.
-- The first modular shared input/result schema slice now drives generated local
-  controls plus direct/batch validation for five structural layer commands in
+- The first modular shared input/result schema slices now drive generated local
+  controls plus direct/batch validation for ten structural layer commands in
   the application and MCP routes; remaining command schemas are still open.
 - Trusted UI/MCP/playback origin and playback recording isolation.
 - Packaged Create Raster Layer -> Rename Layer playback proof.

@@ -51,13 +51,18 @@ test('current remote rollout remains a strict subset of the application command 
   assert.equal(LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS.includes('faceWarp.applyOperation'), false);
 });
 
-test('versioned layer schemas describe and validate the first complete vertical set', () => {
+test('versioned layer schemas describe and validate the complete structural verticals', () => {
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
     'layer.rename',
     'layer.setVisibility',
     'layer.setFillOpacity',
     'layer.setBlendMode',
-    'layer.setLock'
+    'layer.setLock',
+    'layer.duplicate',
+    'layer.copyToNewLayer',
+    'layer.delete',
+    'layer.move',
+    'layer.setClipping'
   ]);
   for (const [command, schema] of Object.entries(LIGHTTABLE_COMMAND_SCHEMAS)) {
     assert.equal(schema.input.additionalProperties, false, `${command} input must be closed`);
@@ -84,6 +89,17 @@ test('shared schemas reject missing, extra, oversized and contradictory layer in
   assert.equal(validateJsonSchemaValue(lock, {
     layerIds: ['layer-1'], lock: 'made-up', locked: true
   }).valid, false);
+
+  const duplicate = LIGHTTABLE_COMMAND_SCHEMAS['layer.duplicate'].input;
+  assert.equal(validateJsonSchemaValue(duplicate, { layerId: '' }).valid, false);
+  assert.equal(validateJsonSchemaValue(duplicate, { layerId: 'layer-1', selection: {} }).valid, false);
+  const deletion = LIGHTTABLE_COMMAND_SCHEMAS['layer.delete'].input;
+  assert.equal(validateJsonSchemaValue(deletion, { layerIds: [] }).valid, false);
+  assert.equal(validateJsonSchemaValue(deletion, { layerIds: ['x'.repeat(257)] }).valid, false);
+  const move = LIGHTTABLE_COMMAND_SCHEMAS['layer.move'].input;
+  assert.equal(validateJsonSchemaValue(move, { layerId: 'layer-1', direction: 'left' }).valid, false);
+  const clipping = LIGHTTABLE_COMMAND_SCHEMAS['layer.setClipping'].input;
+  assert.equal(validateJsonSchemaValue(clipping, { layerId: 'layer-1', clipping: 1 }).valid, false);
 });
 
 test('shared result schemas accept the canonical layer result values', () => {
@@ -92,7 +108,12 @@ test('shared result schemas accept the canonical layer result values', () => {
     'layer.setVisibility': { layerIds: ['layer-1'], visible: false },
     'layer.setFillOpacity': { layerId: 'layer-1', opacity: 0.42 },
     'layer.setBlendMode': { layerId: 'layer-1', blendMode: 'multiply' },
-    'layer.setLock': { layerIds: ['layer-1'], lock: 'position', locked: true }
+    'layer.setLock': { layerIds: ['layer-1'], lock: 'position', locked: true },
+    'layer.duplicate': { sourceLayerId: 'layer-1', layerId: 'layer-copy' },
+    'layer.copyToNewLayer': { sourceLayerId: 'layer-1', layerId: 'layer-copy', scope: 'selection' },
+    'layer.delete': { layerIds: ['layer-1'] },
+    'layer.move': { layerId: 'layer-1', direction: 'up' },
+    'layer.setClipping': { layerId: 'layer-1', clipping: true }
   };
   for (const [command, value] of Object.entries(cases)) {
     assert.deepEqual(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS[command].result, value),

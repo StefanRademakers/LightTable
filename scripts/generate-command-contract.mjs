@@ -8,6 +8,7 @@ const catalogPath = path.join(root, 'packages', 'command-contract', 'catalog.jso
 const parameterPropertiesPath = path.join(root, 'packages', 'command-contract', 'parameter-properties.json');
 const examplesPath = path.join(root, 'packages', 'command-contract', 'examples.json');
 const layerSchemasPath = path.join(root, 'packages', 'command-contract', 'schemas', 'v1', 'layer.json');
+const layerStructureSchemasPath = path.join(root, 'packages', 'command-contract', 'schemas', 'v1', 'layer-structure.json');
 const modulePath = path.join(root, 'packages', 'command-contract', 'src', 'index.mjs');
 const declarationPath = path.join(root, 'packages', 'command-contract', 'src', 'index.d.ts');
 const check = process.argv.includes('--check');
@@ -16,6 +17,7 @@ const catalog = JSON.parse(await readFile(catalogPath, 'utf8'));
 const parameterProperties = JSON.parse(await readFile(parameterPropertiesPath, 'utf8'));
 const commandExamples = JSON.parse(await readFile(examplesPath, 'utf8'));
 const layerSchemas = JSON.parse(await readFile(layerSchemasPath, 'utf8'));
+const layerStructureSchemas = JSON.parse(await readFile(layerStructureSchemasPath, 'utf8'));
 if (catalog.protocolVersion !== 1 || !Array.isArray(catalog.commands) || catalog.commands.length === 0) {
   throw new Error('The LightTable command catalog must define protocol v1 and at least one command.');
 }
@@ -29,10 +31,17 @@ if (ids.some((id) => typeof id !== 'string' || id.length === 0) || new Set(ids).
   throw new Error('The LightTable command catalog contains an invalid or duplicate command ID.');
 }
 const propertyIds = Object.keys(parameterProperties);
-const commandSchemas = layerSchemas.commands;
-if (layerSchemas.schemaVersion !== 1 || typeof commandSchemas !== 'object' || commandSchemas === null) {
-  throw new Error('The layer command schema module must define schema version 1 commands.');
+const schemaModules = [layerSchemas, layerStructureSchemas];
+if (schemaModules.some((module) => module.schemaVersion !== 1
+  || typeof module.commands !== 'object' || module.commands === null)) {
+  throw new Error('Every command schema module must define schema version 1 commands.');
 }
+const schemaIds = schemaModules.flatMap((module) => Object.keys(module.commands));
+const duplicateSchemaIds = schemaIds.filter((id, index) => schemaIds.indexOf(id) !== index);
+if (duplicateSchemaIds.length > 0) {
+  throw new Error(`Command schemas define duplicate IDs: ${[...new Set(duplicateSchemaIds)].join(', ')}.`);
+}
+const commandSchemas = Object.assign({}, ...schemaModules.map((module) => module.commands));
 const unknownSchemaIds = Object.keys(commandSchemas).filter((id) => !ids.includes(id));
 if (unknownSchemaIds.length > 0) {
   throw new Error(`Command schemas reference unknown IDs: ${unknownSchemaIds.join(', ')}.`);
@@ -120,6 +129,7 @@ const moduleSource = `// Generated from ../catalog.json by scripts/generate-comm
   + `import parameterProperties from '../parameter-properties.json' with { type: 'json' };\n\n`
   + `import commandExamples from '../examples.json' with { type: 'json' };\n\n`
   + `import layerCommandSchemas from '../schemas/v1/layer.json' with { type: 'json' };\n\n`
+  + `import layerStructureCommandSchemas from '../schemas/v1/layer-structure.json' with { type: 'json' };\n\n`
   + `export { validateJsonSchemaValue, formatSchemaValidationIssues } from './schema-validation.mjs';\n\n`
   + `export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = ${catalog.protocolVersion};\n\n`
   + `export const LIGHTTABLE_COMMAND_IDS = Object.freeze(${literal(ids)});\n\n`
@@ -127,7 +137,10 @@ const moduleSource = `// Generated from ../catalog.json by scripts/generate-comm
   + `export const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES = Object.freeze(parameterProperties);\n\n`
   + `export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);\n\n`
   + `export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = ${layerSchemas.schemaVersion};\n\n`
-  + `export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze(layerCommandSchemas.commands);\n\n`
+  + `export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({\n`
+  + `  ...layerCommandSchemas.commands,\n`
+  + `  ...layerStructureCommandSchemas.commands\n`
+  + `});\n\n`
   + `export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze(${literal(agentAccess)});\n\n`
   + `export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze(${literal(externalExecute)});\n\n`
   + `export const LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS = Object.freeze(${literal(externalDedicated)});\n\n`

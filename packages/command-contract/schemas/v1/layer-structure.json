@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lighttable.local/schemas/commands/v1/layer-structure.json",
+  "schemaVersion": 1,
+  "commands": {
+    "layer.duplicate": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId"],
+        "properties": {
+          "layerId": {
+            "type": "string",
+            "title": "Layer ID",
+            "description": "Stable ID of the raster or text layer to duplicate.",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-lighttable-control": "layer-id"
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceLayerId", "layerId"],
+        "properties": {
+          "sourceLayerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 }
+        }
+      }
+    },
+    "layer.copyToNewLayer": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId"],
+        "properties": {
+          "layerId": {
+            "type": "string",
+            "title": "Source layer ID",
+            "description": "Stable ID of the raster source layer.",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-lighttable-control": "layer-id"
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceLayerId", "layerId", "scope"],
+        "properties": {
+          "sourceLayerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "scope": { "type": "string", "enum": ["layer", "selection"] }
+        }
+      }
+    },
+    "layer.delete": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerIds"],
+        "properties": {
+          "layerIds": {
+            "type": "array",
+            "title": "Layer IDs",
+            "description": "One to 256 stable layer IDs to delete.",
+            "minItems": 1,
+            "maxItems": 256,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "x-lighttable-control": "layer-ids"
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerIds"],
+        "properties": {
+          "layerIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+          }
+        }
+      }
+    },
+    "layer.move": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "direction"],
+        "properties": {
+          "layerId": {
+            "type": "string",
+            "title": "Layer ID",
+            "description": "Stable ID of the layer to move among its siblings.",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-lighttable-control": "layer-id"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction",
+            "default": "up",
+            "enum": ["up", "down"]
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "direction"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "direction": { "type": "string", "enum": ["up", "down"] }
+        }
+      }
+    },
+    "layer.setClipping": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "clipping"],
+        "properties": {
+          "layerId": {
+            "type": "string",
+            "title": "Layer ID",
+            "description": "Stable ID of the layer whose clipping state changes.",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-lighttable-control": "layer-id"
+          },
+          "clipping": {
+            "type": "boolean",
+            "title": "Create clipping mask"
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "clipping"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "clipping": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

@@ -248,7 +248,8 @@ try {
     documentId, command: 'layer.duplicate', parameters: { layerId: alignReference }
   })).structuredContent;
   const alignTargetLayerId = duplicatedForAlign?.value?.layerId;
-  if (!alignTargetLayerId || !referenceLayer?.transform) {
+  if (!alignTargetLayerId || duplicatedForAlign?.value?.sourceLayerId !== alignReference
+    || !referenceLayer?.transform) {
     throw new Error(`MCP Auto Align fixture could not be created: ${JSON.stringify(duplicatedForAlign)}`);
   }
   await call('lighttable_execute', { documentId, command: 'layer.setLock', parameters: {
@@ -300,7 +301,8 @@ try {
     documentId, command: 'layer.copyToNewLayer', parameters: { layerId }
   })).structuredContent;
   const copiedLayerId = layerCopy?.value?.layerId;
-  if (!copiedLayerId || layerCopy.value?.sourceLayerId !== layerId) {
+  if (!copiedLayerId || layerCopy.value?.sourceLayerId !== layerId
+    || layerCopy.value?.scope !== 'layer') {
     throw new Error(`MCP Layer via Copy did not return an editable target: ${JSON.stringify(layerCopy)}`);
   }
   await call('lighttable_execute', { documentId, command: 'layer.setVisibility',
@@ -324,10 +326,28 @@ try {
   if (!copiedLayerList.some(({ id, type }) => id === copiedLayerId && type === 'raster')) {
     throw new Error(`MCP Layer via Copy did not publish its raster layer: ${JSON.stringify(copiedLayerList)}`);
   }
+  const clipped = (await call('lighttable_execute', { documentId, command: 'layer.setClipping',
+    parameters: { layerId: copiedLayerId, clipping: true } })).structuredContent;
+  const unclipped = (await call('lighttable_execute', { documentId, command: 'layer.setClipping',
+    parameters: { layerId: copiedLayerId, clipping: false } })).structuredContent;
+  const movedDown = (await call('lighttable_execute', { documentId, command: 'layer.move',
+    parameters: { layerId: copiedLayerId, direction: 'down' } })).structuredContent;
+  const movedUp = (await call('lighttable_execute', { documentId, command: 'layer.move',
+    parameters: { layerId: copiedLayerId, direction: 'up' } })).structuredContent;
+  if (clipped?.value?.clipping !== true || unclipped?.value?.clipping !== false
+    || movedDown?.value?.direction !== 'down' || movedUp?.value?.direction !== 'up') {
+    throw new Error(`MCP structural layer results diverged: ${JSON.stringify({
+      clipped, unclipped, movedDown, movedUp
+    })}`);
+  }
   await call('lighttable_execute', { documentId, command: 'layer.setVisibility',
     parameters: { layerIds: [layerId], visible: true } });
-  await call('lighttable_execute', { documentId, command: 'layer.delete',
-    parameters: { layerIds: [copiedLayerId] } });
+  const deletedCopy = (await call('lighttable_execute', { documentId, command: 'layer.delete',
+    parameters: { layerIds: [copiedLayerId] } })).structuredContent;
+  if (deletedCopy?.value?.layerIds?.length !== 1
+    || deletedCopy.value.layerIds[0] !== copiedLayerId) {
+    throw new Error(`MCP layer deletion result diverged: ${JSON.stringify(deletedCopy)}`);
+  }
   const toneStroke = (await call('lighttable_execute', { documentId, command: 'tool.commitGesture',
     parameters: { kind: 'brush-stroke', parameters: { layerId, channel: 'pixels', erase: false,
       brush: { presetId: 'round', size: 72, hardness: 0.5, opacity: 1,
