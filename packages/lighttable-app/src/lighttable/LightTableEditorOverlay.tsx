@@ -4,7 +4,10 @@ import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lig
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
-import { parseAutomationBrushSettings } from './application/commands/lightTableCommandValidation';
+import {
+  parseAutomationBrushSettings,
+  parseAutomationToneBrushPlan
+} from './application/commands/lightTableCommandValidation';
 import { useDocumentHistoryController, type EditorHistoryEntry } from './application/commands/useDocumentHistoryController';
 import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
@@ -3491,7 +3494,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyDocumentSnapshot,
     pushHistoryEntry,
     setError,
-    onStrokeCommitted: ({ target, brush, samples }) => {
+    onStrokeCommitted: ({ target, brush, operator, samples }) => {
       commandService?.recordObservedCommand(
         'tool.commitGesture',
         workspaceDocumentId as DocumentSessionId,
@@ -3501,7 +3504,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             layerId: target.layerId,
             channel: target.channel,
             erase: target.erase,
-            brush
+            brush,
+            ...(operator ? { operator } : {})
           },
           samples
         },
@@ -5163,6 +5167,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const channel = parameters.channel === 'mask' ? 'mask' : 'pixels';
       const brush = parseAutomationBrushSettings(parameters.brush)
         ?? editorSessionRef.current.brush;
+      const operator = parameters.operator === undefined
+        ? undefined
+        : parseAutomationToneBrushPlan(parameters.operator) ?? undefined;
+      if (parameters.operator !== undefined && !operator) return false;
       return paintSessionController.begin({
         pointerId,
         layer,
@@ -5173,6 +5181,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           sourceToDocument: paintTargetSourceToDocument(layer, channel)
         },
         brush,
+        operator,
         point: {
           ...sample,
           pressure: sample.pressure ?? 1

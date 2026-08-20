@@ -1,0 +1,26 @@
+Task 237 - Active-layer stability across pixel commits
+======================================================
+
+Goal
+====
+
+Determine and remove any active-layer selection reversion when a user selects
+another layer immediately after a GPU-backed Fill or Gradient commit.
+
+Checklist
+=========
+
+- [ ] Build a focused deterministic reproduction outside the large Actions smoke.
+- [ ] Distinguish delayed React presentation from stale document-snapshot publication.
+- [ ] Preserve the latest active-layer selection without weakening pixel undo snapshots.
+- [ ] Cover Fill, raster Gradient and paint finish with an interleaved selection test.
+- [ ] Verify normal layer selection, undo/redo and Actions playback remain unchanged.
+
+Observed lead (2026-08-20)
+==========================
+
+During Task 236's large packaged smoke, selecting a raster layer immediately
+after a raster Gradient step was briefly observable and later the active layer
+returned to the Gradient Fill vector layer. The tone-brush proof was moved
+earlier because this belongs to a separate concurrency/state-ownership audit;
+the cause is not yet established.

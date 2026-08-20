@@ -77,6 +77,8 @@ Current evidence (2026-08-20)
 - Vector Gradient Fill and raster-gradient commands now consume one bounded
   gradient-paint validator, including stop counts, IDs, coordinate space,
   transform bounds and a 64 KiB transport ceiling.
+- The brush-stroke schema now documents and validates an optional bounded tone
+  operator for Dodge, Burn and Sponge rather than depending on toolbar state.
 
 Still required for completion
 =============================

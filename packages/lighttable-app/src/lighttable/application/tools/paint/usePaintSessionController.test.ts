@@ -139,6 +139,35 @@ describe('PaintSessionController', () => {
     expect(fixture.history).toHaveLength(1);
   });
 
+  it('records a snapshotted tone operator only after its GPU edit commits', () => {
+    const onStrokeCommitted = vi.fn();
+    const fixture = createFixture();
+    fixture.dependencies.onStrokeCommitted = onStrokeCommitted;
+    const operator = {
+      operator: 'tone' as const,
+      mode: 'sponge' as const,
+      range: 'midtones' as const,
+      spongeMode: 'desaturate' as const,
+      protectTones: true,
+      vibrance: false
+    };
+    expect(fixture.controller.begin({
+      pointerId: 23,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels', erase: false,
+        sourceToDocument: identityMatrix() },
+      brush: { ...createEditorSession().brush, flow: 0.4 },
+      point: { x: 10, y: 11, pressure: 1 },
+      operator,
+      recordSemanticCommit: true
+    })).toBe(true);
+    expect(onStrokeCommitted).not.toHaveBeenCalled();
+    expect(fixture.controller.finish(23)).toBe(true);
+    expect(onStrokeCommitted).toHaveBeenCalledWith(expect.objectContaining({ operator }));
+    expect(fixture.history).toHaveLength(1);
+    expect(vi.mocked(fixture.renderer.paintBrushDabs).mock.calls[0]?.[11]).toEqual(operator);
+  });
+
   it('keeps painting but refuses to record an oversized UI stroke', () => {
     const onStrokeCommitted = vi.fn();
     const fixture = createFixture();

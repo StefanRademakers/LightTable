@@ -1,0 +1,60 @@
+Task 236 - Semantic tone-brush strokes
+======================================
+
+Goal
+====
+
+Expose Dodge, Burn and Sponge as bounded final semantic strokes through the
+existing GPU paint owner, Actions and reviewed Agent/MCP execution without
+transporting pointer updates or changing interactive paint scheduling.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Extend the bounded brush-stroke schema with explicit Dodge/Burn/Sponge operator settings.
+- [x] Snapshot and publish the effective tone operator only after successful pointer-up/history commit.
+- [x] Keep pointer moves local and retain the existing frame-batched GPU paint path.
+- [x] Replay Actions/Agent/MCP through the same paint-session and renderer owner.
+- [x] Reject malformed modes, ranges, flags, targets, samples and oversized payloads.
+- [x] Prove UI recording, undo/replay and direct Agent/MCP execution with tests and packaged smokes.
+- [x] Run full type, test, contract, boundary, structure, packaging and smoke gates.
+
+Scope guard
+===========
+
+- No pointer moves, dabs, pixels or renderer buffers cross command transport.
+- Clone Stamp and Healing Brush remain out of scope: their immutable sampled
+  source and sample-mode contract require a separate reviewed capability.
+
+Completion contract
+===================
+
+One real Dodge, Burn or Sponge gesture remains local until finish, records one
+bounded semantic stroke and one history entry, and can be replayed through the
+same GPU paint owner from Actions, Agent Access and external MCP.
+
+Evidence (2026-08-20)
+=====================
+
+- The bounded brush-stroke schema accepts one explicit tone operator: mode,
+  tonal range, Sponge mode, Protect Tones and Vibrance. Invalid settings fail
+  before gesture start.
+- The controller snapshots brush and operator at begin, keeps frame-batched
+  dabs local, and records only after a real GPU edit and history entry exist.
+- A packaged Dodge gesture over a grayscale gradient kept 24 pointer moves out
+  of Actions, published one final step at pointer-up, survived undo of the full
+  21-step workflow and replayed through the same paint owner.
+- Packaged Agent Access executed Dodge; an external MCP process executed a
+  desaturating Sponge stroke through the packaged desktop bridge.
+- Packaging, command-contract, boundary, structure and documentation checks,
+  2,585 app tests, 17 MCP tests, all-workspace typecheck and all three packaged
+  execution smokes passed.

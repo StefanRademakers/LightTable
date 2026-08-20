@@ -132,6 +132,9 @@ Existing foundation evidence
 - Raster/mask pixel gradients now publish one final bounded paint through
   `raster.applyGradient`; pointer movement remains local and the GPU/history
   transaction is shared by UI, Actions and Agent/MCP.
+- Dodge, Burn and Sponge now share the bounded final brush-stroke contract.
+  Effective operator settings publish only after successful GPU/history commit;
+  interactive dabs remain on the existing local frame scheduler.
 
 Program definition of done
 ==========================

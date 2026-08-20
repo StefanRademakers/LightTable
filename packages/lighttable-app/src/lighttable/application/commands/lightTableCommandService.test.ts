@@ -700,6 +700,36 @@ describe('LightTableCommandService registry', () => {
     state.service.dispose(); state.workspace.dispose();
   });
 
+  it('accepts bounded tone-brush operators and rejects malformed operator settings', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId;
+    const valid = await state.service.execute(request('tool.commitGesture', state.session.id, {
+      kind: 'brush-stroke',
+      parameters: { layerId, channel: 'pixels', brush: automationBrush, operator: {
+        operator: 'tone', mode: 'dodge', range: 'highlights', spongeMode: 'saturate',
+        protectTones: true, vibrance: true
+      } },
+      samples: [{ x: 4, y: 5, pressure: 1 }, { x: 8, y: 9, pressure: 0.5 }]
+    }));
+    expect(valid).toMatchObject({ status: 'completed' });
+    expect(state.ports.beginGesture).toHaveBeenCalledWith(
+      state.session.id, 'brush-stroke', expect.any(Number),
+      expect.objectContaining({ operator: expect.objectContaining({ mode: 'dodge' }) }),
+      expect.objectContaining({ x: 4, y: 5 })
+    );
+
+    const malformed = await state.service.execute(request('tool.commitGesture', state.session.id, {
+      kind: 'brush-stroke',
+      parameters: { layerId, channel: 'pixels', brush: automationBrush, operator: {
+        operator: 'tone', mode: 'blur', range: 'highlights', spongeMode: 'saturate',
+        protectTones: true, vibrance: true
+      } },
+      samples: [{ x: 4, y: 5 }]
+    }));
+    expect(malformed).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('routes a final selection shape without changing the document revision', async () => {
     const executeSelectionCommand = vi.fn(async () => ({ operationCount: 1 }));
     const state = setup({ executeSelectionCommand });

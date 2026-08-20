@@ -94,6 +94,17 @@ try {
   await call('lighttable_execute', { documentId, command: 'raster.applyGradient', parameters: {
     layerId, channel: 'pixels', paint: mcpGradient, opacity: 1, blendMode: 'normal'
   } });
+  const toneStroke = (await call('lighttable_execute', { documentId, command: 'tool.commitGesture',
+    parameters: { kind: 'brush-stroke', parameters: { layerId, channel: 'pixels', erase: false,
+      brush: { presetId: 'round', size: 72, hardness: 0.5, opacity: 1,
+        flow: 0.14, spacing: 0.25, smooth: 0, color: '#000000', backgroundColor: '#ffffff' },
+      operator: { operator: 'tone', mode: 'sponge', range: 'midtones',
+        spongeMode: 'desaturate', protectTones: true, vibrance: false } },
+    samples: [{ x: 100, y: 100, pressure: 1 }, { x: 200, y: 120, pressure: 0.8 }] }
+  })).structuredContent;
+  if (toneStroke?.value?.kind !== 'brush-stroke' || toneStroke.value.sampleCount !== 2) {
+    throw new Error(`MCP tone-brush command failed: ${JSON.stringify(toneStroke)}`);
+  }
   const gesture = (await call('lighttable_gesture_begin', { documentId, kind: 'brush-stroke',
     coordinateSpace: 'document', parameters: { layerId, channel: 'pixels' },
     sample: { x: 80, y: 80, pressure: 1 } })).structuredContent;

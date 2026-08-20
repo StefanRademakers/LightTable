@@ -74,6 +74,7 @@ export interface PaintSessionDependencies {
   onStrokeCommitted?(stroke: {
     readonly target: PaintGestureTarget;
     readonly brush: BrushSettings;
+    readonly operator?: PaintBrushStrokePlan;
     readonly samples: readonly BrushPoint[];
   }): void;
 }
@@ -132,6 +133,7 @@ export const createPaintSessionController = (
   let recordedStroke: {
     target: PaintGestureTarget;
     brush: BrushSettings;
+    operator?: PaintBrushStrokePlan;
     samples: BrushPoint[];
     byteLength: number;
     overflowed: boolean;
@@ -204,9 +206,11 @@ export const createPaintSessionController = (
         if (operator && operator.operator !== 'tone') renderer.beginSampledBrushStroke(operator);
         activeBrush = cloneBrush(brush);
         activeOperator = operator ?? null;
-        recordedStroke = recordSemanticCommit && !operator ? {
+        recordedStroke = recordSemanticCommit
+          && (!operator || operator.operator === 'tone') ? {
           target: { ...target, sourceToDocument: { ...target.sourceToDocument } },
           brush: cloneBrush(brush),
+          ...(operator ? { operator: { ...operator } } : {}),
           samples: [{ ...point }],
           byteLength: 512 + JSON.stringify(point).length,
           overflowed: false
@@ -314,6 +318,7 @@ export const createPaintSessionController = (
         dependencies.onStrokeCommitted?.({
           target: completedRecording.target,
           brush: completedRecording.brush,
+          ...(completedRecording.operator ? { operator: completedRecording.operator } : {}),
           samples: completedRecording.samples
         });
       }

@@ -314,6 +314,21 @@ try {
     || rasterGradient.value?.channel !== 'pixels') {
     throw new Error(`Agent raster Gradient failed: ${JSON.stringify(rasterGradient)}`);
   }
+  const toneStroke = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-tone-stroke', command: 'tool.commitGesture', documentId: originalId,
+    commandParameters: {
+      kind: 'brush-stroke', parameters: { layerId, channel: 'pixels', erase: false,
+        brush: { presetId: 'round', size: 72, hardness: 0.5, opacity: 1,
+          flow: 0.0525, spacing: 0.25, smooth: 0, color: '#000000', backgroundColor: '#ffffff' },
+        operator: { operator: 'tone', mode: 'dodge', range: 'midtones',
+          spongeMode: 'saturate', protectTones: true, vibrance: true } },
+      samples: [{ x: 90, y: 110, pressure: 1 }, { x: 190, y: 130, pressure: 0.8 }]
+    }
+  });
+  if (toneStroke.status !== 'completed' || toneStroke.value?.kind !== 'brush-stroke'
+    || toneStroke.value?.sampleCount !== 2) {
+    throw new Error(`Agent tone-brush stroke failed: ${JSON.stringify(toneStroke)}`);
+  }
   const warpApplied = await invoke(address, token, 'command.execute', {
     commandRequestId: 'agent-warp-raster', command: 'warp.applyStroke', documentId: originalId,
     commandParameters: {

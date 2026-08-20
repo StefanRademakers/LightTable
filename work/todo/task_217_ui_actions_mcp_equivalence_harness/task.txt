@@ -108,6 +108,8 @@ Current evidence (2026-08-20)
 - Raster Gradient has the same packaged UI/Actions/Agent/MCP route. External
   MCP preview evidence distinguishes its blue-to-cyan result from a red source
   fill, while the editable final paint is retained in the Action parameters.
+- Dodge and Sponge now have representative packaged UI/Actions, Agent Access
+  and external MCP execution through the same GPU paint-session owner.
 
 Still required for completion
 =============================

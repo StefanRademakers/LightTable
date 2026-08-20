@@ -115,6 +115,53 @@ try {
   );
   await window.mouse.up();
   await recorder.locator('li').filter({ hasText: 'tool.commitGesture' }).waitFor();
+  const committedGestures = recorder.locator('li').filter({ hasText: 'tool.commitGesture' });
+  if (await committedGestures.count() !== 1) throw new Error('Expected one Brush Action before Dodge.');
+  await window.getByRole('button', { name: 'Show gradient and fill tools', exact: true }).click();
+  await window.getByRole('button', { name: 'Paint bucket (G)', exact: true }).click();
+  await window.mouse.click(
+    viewportBounds.x + viewportBounds.width * 0.24,
+    viewportBounds.y + viewportBounds.height * 0.44
+  );
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.locator('li').filter({ hasText: 'raster.fill' }).waitFor({ timeout: 15_000 });
+  await window.getByRole('button', { name: 'Show gradient and fill tools', exact: true }).click();
+  await window.getByRole('button', { name: 'Gradient (G)', exact: true }).click();
+  await window.getByRole('combobox', { name: 'Gradient application' }).selectOption('pixels');
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.19,
+    viewportBounds.y + viewportBounds.height * 0.58
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.39,
+    viewportBounds.y + viewportBounds.height * 0.66,
+    { steps: 18 }
+  );
+  if (await recorder.locator('li').filter({ hasText: 'raster.applyGradient' }).count() !== 0) {
+    throw new Error('Raster Gradient published before pointer-up.');
+  }
+  await window.mouse.up();
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.locator('li').filter({ hasText: 'raster.applyGradient' }).waitFor({ timeout: 15_000 });
+  await window.keyboard.press('o');
+  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Dodge' }).waitFor();
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.25,
+    viewportBounds.y + viewportBounds.height * 0.61
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.34,
+    viewportBounds.y + viewportBounds.height * 0.64,
+    { steps: 24 }
+  );
+  if (await committedGestures.count() !== 1) throw new Error('Dodge published before pointer-up.');
+  await window.mouse.up();
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await window.waitForFunction(() => [...document.querySelectorAll('.lighttable-action-recorder li')]
+    .filter((entry) => entry.textContent?.includes('tool.commitGesture')).length === 2);
   await window.getByRole('menuitem', { name: 'Layer' }).click();
   await window.getByRole('menuitem', { name: 'Rename Layer' }).click();
   const focusedLayerName = window.locator('input[aria-label="Layer name"]:focus');
@@ -122,7 +169,8 @@ try {
   await focusedLayerName.press('Enter');
   await recorder.locator('li').filter({ hasText: 'layer.rename' }).waitFor();
   await window.getByRole('tab', { name: 'Properties', exact: true }).click();
-  const exposure = window.getByRole('slider', { name: 'Exposure', exact: true });
+  const exposure = window.getByRole('tabpanel', { name: 'Properties' })
+    .getByRole('slider', { name: 'Exposure', exact: true });
   await exposure.focus();
   await exposure.press('ArrowRight');
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
@@ -320,37 +368,9 @@ try {
     || warpRecordingEvidence.document?.history.undoDepth !== warpTelemetryBefore?.history.undoDepth + 2) {
     throw new Error(`Warp recording did not publish two semantic history commits: ${JSON.stringify(warpRecordingEvidence)}`);
   }
-  await window.getByRole('button', { name: 'Show gradient and fill tools', exact: true }).click();
-  await window.getByRole('button', { name: 'Paint bucket (G)', exact: true }).click();
-  await window.mouse.click(
-    viewportBounds.x + viewportBounds.width * 0.24,
-    viewportBounds.y + viewportBounds.height * 0.44
-  );
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.locator('li').filter({ hasText: 'raster.fill' }).waitFor({ timeout: 15_000 });
-  await window.getByRole('button', { name: 'Show gradient and fill tools', exact: true }).click();
-  await window.getByRole('button', { name: 'Gradient (G)', exact: true }).click();
-  await window.getByRole('combobox', { name: 'Gradient application' }).selectOption('pixels');
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.19,
-    viewportBounds.y + viewportBounds.height * 0.58
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.39,
-    viewportBounds.y + viewportBounds.height * 0.66,
-    { steps: 18 }
-  );
-  if (await recorder.locator('li').filter({ hasText: 'raster.applyGradient' }).count() !== 0) {
-    throw new Error('Raster Gradient published before pointer-up.');
-  }
-  await window.mouse.up();
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.locator('li').filter({ hasText: 'raster.applyGradient' }).waitFor({ timeout: 15_000 });
-
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
-  for (let index = 0; index < 20; index += 1) {
+  for (let index = 0; index < 21; index += 1) {
     await window.getByRole('tab', { name: 'Actions', exact: true }).click();
     await panel.getByRole('radio', { name: 'Commands' }).click();
     const undo = panel.locator('details').filter({ hasText: 'history.undo' });
@@ -376,42 +396,43 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 20) throw new Error('Expected twenty recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 21) throw new Error('Expected twenty-one recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
   await undoStep.getByText('no', { exact: true }).waitFor();
   const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
   await renameStep.locator('summary').click();
-  await renameStep.getByText('$step4.layerId', { exact: false }).waitFor();
-  const brushStep = recorder.locator('li').filter({ hasText: 'tool.commitGesture' });
+  await renameStep.getByText('$step7.layerId', { exact: false }).waitFor();
+  const gestureSteps = recorder.locator('li').filter({ hasText: 'tool.commitGesture' });
+  const brushStep = gestureSteps.first();
   await brushStep.locator('summary').click();
   await brushStep.getByText('$step4.layerId', { exact: false }).waitFor();
   const gradeStep = recorder.locator('li').filter({ hasText: 'grade.setBasic' });
   await gradeStep.locator('summary').click();
   const gradeStepText = await gradeStep.textContent();
-  if (!gradeStepText?.includes('$step6.layerId')) {
+  if (!gradeStepText?.includes('$step9.layerId')) {
     throw new Error(`Recorded Grade target was not rebound to the latest layer result: ${gradeStepText}`);
   }
   const textFormatStep = recorder.locator('li').filter({ hasText: 'text.format' });
   await textFormatStep.locator('summary').click();
   const textFormatStepText = await textFormatStep.textContent();
-  if (!textFormatStepText?.includes('$step8.layerId')) {
+  if (!textFormatStepText?.includes('$step11.layerId')) {
     throw new Error(`Recorded text format target was not bound to text.create: ${textFormatStepText}`);
   }
   const vectorCreateSteps = recorder.locator('li').filter({ hasText: 'vector.create' });
   const penStep = vectorCreateSteps.nth(1);
   await penStep.locator('summary').click();
   const penStepText = await penStep.textContent();
-  if (!penStepText?.includes('$step12.layerId')) {
+  if (!penStepText?.includes('$step15.layerId')) {
     throw new Error(`Recorded Pen path was not bound to Rectangle layer result: ${penStepText}`);
   }
   const vectorUpdateSteps = recorder.locator('li').filter({ hasText: 'vector.update' });
   const vectorUpdateStep = vectorUpdateSteps.first();
   await vectorUpdateStep.locator('summary').click();
   const vectorUpdateText = await vectorUpdateStep.textContent();
-  if (!vectorUpdateText?.includes('$step13.layerId')
-    || !vectorUpdateText.includes('$step13.elementId')) {
+  if (!vectorUpdateText?.includes('$step16.layerId')
+    || !vectorUpdateText.includes('$step16.elementId')) {
     throw new Error(`Recorded Direct Selection edit was not bound to its Pen path: ${vectorUpdateText}`);
   }
   const gradientCreateStep = vectorCreateSteps.nth(2);
@@ -423,8 +444,8 @@ try {
   const gradientUpdateStep = vectorUpdateSteps.nth(1);
   await gradientUpdateStep.locator('summary').click();
   const gradientUpdateText = await gradientUpdateStep.textContent();
-  if (!gradientUpdateText?.includes('$step15.layerId')
-    || !gradientUpdateText.includes('$step15.elementId')) {
+  if (!gradientUpdateText?.includes('$step18.layerId')
+    || !gradientUpdateText.includes('$step18.elementId')) {
     throw new Error(`Recorded Gradient edit was not bound to its fill layer: ${gradientUpdateText}`);
   }
   const warpSteps = recorder.locator('li').filter({ hasText: 'warp.applyStroke' });
@@ -433,21 +454,28 @@ try {
   const firstWarpText = await warpSteps.first().textContent();
   await warpSteps.nth(1).locator('summary').click();
   const secondWarpText = await warpSteps.nth(1).textContent();
-  if (!firstWarpText?.includes('$step7.target.layerId') || !secondWarpText?.includes('$step17.layerId')) {
+  if (!firstWarpText?.includes('$step10.target.layerId') || !secondWarpText?.includes('$step20.layerId')) {
     throw new Error(`Warp bindings are not stable across replay: ${JSON.stringify({ firstWarpText, secondWarpText })}`);
   }
   const fillStep = recorder.locator('li').filter({ hasText: 'raster.fill' });
   await fillStep.locator('summary').click();
   const fillStepText = await fillStep.textContent();
-  if (!fillStepText?.includes('$step18.layerId') || !fillStepText.includes('"channel": "pixels"')) {
+  if (!fillStepText?.includes('$step4.layerId') || !fillStepText.includes('"channel": "pixels"')) {
     throw new Error(`Recorded Fill target/channel are not stable: ${fillStepText}`);
   }
   const rasterGradientStep = recorder.locator('li').filter({ hasText: 'raster.applyGradient' });
   await rasterGradientStep.locator('summary').click();
   const rasterGradientText = await rasterGradientStep.textContent();
-  if (!rasterGradientText?.includes('$step19.layerId')
+  if (!rasterGradientText?.includes('$step6.layerId')
     || !rasterGradientText.includes('"coordinateSpace": "document"')) {
     throw new Error(`Recorded raster Gradient lost target or final paint: ${rasterGradientText}`);
+  }
+  const dodgeStep = gestureSteps.nth(1);
+  await dodgeStep.locator('summary').click();
+  const dodgeText = await dodgeStep.textContent();
+  if (!dodgeText?.includes('$step7.layerId') || !dodgeText.includes('"operator": "tone"')
+    || !dodgeText.includes('"mode": "dodge"')) {
+    throw new Error(`Recorded Dodge stroke lost target or operator settings: ${dodgeText}`);
   }
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();

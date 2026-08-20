@@ -3,6 +3,7 @@ import type { LightTableCreateDocumentOptions,
 import { isLightTableCommandId } from '@lighttable/command-contract';
 import type { BrushSettings } from '../../editor/session/editorSession';
 import { BRUSH_PRESET_IDS } from '../../editor/tools/brush/brushPresets';
+import type { ToneBrushStrokePlan } from '../../editor/tools/paint/toneBrushTypes';
 
 const record = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -51,6 +52,22 @@ export const parseAutomationBrushSettings = (value: unknown): BrushSettings | nu
   };
 };
 
+export const parseAutomationToneBrushPlan = (value: unknown): ToneBrushStrokePlan | null => {
+  if (!record(value) || value.operator !== 'tone'
+    || (value.mode !== 'dodge' && value.mode !== 'burn' && value.mode !== 'sponge')
+    || (value.range !== 'shadows' && value.range !== 'midtones' && value.range !== 'highlights')
+    || (value.spongeMode !== 'saturate' && value.spongeMode !== 'desaturate')
+    || typeof value.protectTones !== 'boolean' || typeof value.vibrance !== 'boolean') return null;
+  return {
+    operator: 'tone',
+    mode: value.mode,
+    range: value.range,
+    spongeMode: value.spongeMode,
+    protectTones: value.protectTones,
+    vibrance: value.vibrance
+  };
+};
+
 export const parseCommittedGestureRequest = (
   value: unknown
 ): CommittedGestureRequest | { readonly message: string } => {
@@ -67,13 +84,18 @@ export const parseCommittedGestureRequest = (
   let parameters: Record<string, unknown>;
   if (value.kind === 'brush-stroke') {
     const brush = parseAutomationBrushSettings(value.parameters.brush);
+    const operator = value.parameters.operator === undefined
+      ? undefined
+      : parseAutomationToneBrushPlan(value.parameters.operator);
     if (typeof value.parameters.layerId !== 'string' || !value.parameters.layerId
       || !brush || (value.parameters.channel !== 'pixels' && value.parameters.channel !== 'mask')
-      || (value.parameters.erase !== undefined && typeof value.parameters.erase !== 'boolean')) {
+      || (value.parameters.erase !== undefined && typeof value.parameters.erase !== 'boolean')
+      || (value.parameters.operator !== undefined && !operator)
+      || (operator && value.parameters.erase === true)) {
       return { message: 'Committed brush stroke requires layerId, channel and complete bounded brush settings.' };
     }
     parameters = { layerId: value.parameters.layerId, channel: value.parameters.channel,
-      erase: value.parameters.erase === true, brush };
+      erase: value.parameters.erase === true, brush, ...(operator ? { operator } : {}) };
   } else if (value.kind === 'layer-translate') {
     if (typeof value.parameters.layerId !== 'string' || !value.parameters.layerId) {
       return { message: 'Committed layer translation requires layerId.' };
