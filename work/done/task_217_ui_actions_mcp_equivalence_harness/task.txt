@@ -15,7 +15,7 @@ Parent goal
 Depends on
 ==========
 
-- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt) for
+- [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt) for
   shared schemas/examples.
 - [`Task 216`](../../done/task_216_semantic_gesture_commit_and_performance/task.txt) for
   any gesture included in the first workflow.
@@ -63,11 +63,11 @@ Current evidence (2026-08-20)
 
 - A dedicated packaged route-equivalence smoke now uses one real UI recording
   as the authoritative recipe for a rectangle with explicit fill/stroke,
-  transform, rename, editable point text and faux-bold formatting. Actions
-  replays that exact recording in a fresh document and the authenticated
-  external MCP TLS/device tunnel resolves the same recorded result bindings
-  and executes the same six semantic commands in a third document, including
-  `file.exportPng`.
+  transform and rename; a second native Ellipse; an open three-anchor Pen
+  path; editable point text with coalesced typing/IME and faux-bold formatting;
+  and `file.exportPng`. Actions replays that exact ten-command recording in a
+  fresh document and the authenticated external MCP TLS/device tunnel resolves
+  the same recorded result bindings in a third document.
 - The normal File > Export PNG menu route now calls that same semantic export
   owner instead of rendering through its previous parallel UI path. The
   command task is the sole render/artifact owner; the UI only resolves its
@@ -78,12 +78,12 @@ Current evidence (2026-08-20)
   completed PNG artifact, replays it through Actions (whose export gate
   requires a completed artifact), and inspects the external MCP task through
   `lighttable_task`. UI and MCP artifacts are both non-empty `png-export`
-  results of 11,140 bytes in the current fixture. The host-delivered UI PNG is
+  results of 24,810 bytes in the current fixture. The host-delivered UI PNG is
   pixel-exact to the canonical revision-bound preview; all four generated PNGs
   also have the same SHA-256 in the current run.
 - All three routes now expose matching bounded Undo/Redo labels, depths and
   state IDs. Undo/Redo restores the same editable state while advancing the
-  canonical revision from 5 to 7 on every route.
+  canonical revision from 9 to 11 on every route.
 - That harness found and fixed two real publication gaps: local keyboard
   Undo/Redo bypassed the semantic command owner, and already-committed UI
   gestures were recorded without advancing the public document revision.
@@ -112,7 +112,7 @@ Current evidence (2026-08-20)
   two intermediate IME updates ending in `編集🧪`. Those interactions publish
   exactly two replacement commands (one typing group and one composition),
   not a command per key/update. UI, Actions and external MCP end with the same
-  214-unit editable text, seven Undo entries and pixel-exact rendered/exported
+  214-unit editable text, nine Undo entries and pixel-exact rendered/exported
   output. Unit coverage also coalesces 260 sequential inserts into one history
   and semantic replacement.
 - Failure behavior is now retained alongside the success evidence. Direct UI
@@ -122,9 +122,21 @@ Current evidence (2026-08-20)
   the real Actions panel: playback stops at step 1 with `The target text layer
   does not exist`, and state/history remain unchanged. Through the external
   MCP TLS/device route, a stale rename returns `stale-document-revision` with
-  revision 9 and an out-of-range text replacement returns
-  `invalid-parameters`; both retain revision 9/history state 7 and leave the
+  revision 11 and an out-of-range text replacement returns
+  `invalid-parameters`; both retain revision 11/history state 9 and leave the
   complete normalized document unchanged.
+- The final rendered comparison now includes three separately editable vector
+  elements in the canonical vector layer: Rectangle, Ellipse and an open Pen
+  path with three native anchors. The UI drags/clicks publish exactly three
+  `vector.create` commands in total and no transient pointer samples. Actions
+  and external MCP reproduce the same geometry, transforms, linear-light
+  fill/stroke values, text and history. UI, Actions, MCP and the delivered File
+  export share SHA-256
+  `2E47B3503356CCA85E0633A402BD61F5CB3AA09B01F3C0631EC2B3F871B90017`;
+  the declared zero-tolerance comparison reports zero delta for every RGB
+  channel and pixel threshold. The retained side-by-side was visually reviewed
+  and contains all three intended vector forms rather than a blank/equivalent
+  failure render.
 
 - Layer duplicate/delete/move/blend/clipping/visibility/locks have a real
   UI-origin, Actions and MCP canonical-state/history equivalence harness.
@@ -217,8 +229,14 @@ Current evidence (2026-08-20)
   guardrail passes (RMSE 9.79, MAE 6.27, p95 pixel delta 26), but rendered
   equivalence is explicitly not claimed from those numbers.
 
-Still required for completion
-=============================
+Completion result (2026-08-20)
+==============================
 
-- expand rendered comparison beyond the now-proven rectangle/text workflow to
-  native Pen paths and other representative vector primitives;
+The bounded representative workflow meets this task's definition of done in
+the packaged desktop application through normal UI recording, real Actions
+playback and the authenticated external MCP-to-desktop bridge. Editable
+canonical state, result bindings, history/Undo/Redo, task artifacts, exact GPU
+pixels and stale/invalid rejection boundaries are retained in
+`tmp/route-equivalence-smoke/evidence.json` and its PNG artifacts. This closes
+the harness task only; it does not claim whole-application command coverage or
+visual equivalence for capabilities outside this workflow.

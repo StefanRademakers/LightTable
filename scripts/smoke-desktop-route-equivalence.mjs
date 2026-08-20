@@ -212,6 +212,28 @@ try {
   await layerName.fill('Agent card');
   await layerName.press('Enter');
 
+  // Exercise another live-shape primitive through the actual toolbar family.
+  // All drag samples stay inside the tool controller; only mouse-up publishes
+  // the single native vector.create recorded below.
+  await window.getByRole('button', { name: 'Show shape tools', exact: true }).click();
+  await window.getByRole('toolbar', { name: 'Shape tools' })
+    .getByRole('button', { name: 'Ellipse (U)', exact: true }).click();
+  await window.mouse.move(bounds.x + bounds.width * 0.62, bounds.y + bounds.height * 0.18);
+  await window.mouse.down();
+  await window.mouse.move(bounds.x + bounds.width * 0.86, bounds.y + bounds.height * 0.42, { steps: 18 });
+  await window.mouse.up();
+  await waitForRecorded('vector.create', 2);
+
+  // Pen anchor/rubber-band interaction is likewise local. Enter commits one
+  // editable open path rather than publishing per anchor or pointer sample.
+  await window.keyboard.press('p');
+  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Pen' }).waitFor();
+  for (const [x, y] of [[0.18, 0.2], [0.34, 0.32], [0.22, 0.48]]) {
+    await window.mouse.click(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
+  }
+  await window.keyboard.press('Enter');
+  await waitForRecorded('vector.create', 3);
+
   await window.getByRole('button', { name: 'Type tool (T)', exact: true }).first().click();
   await window.mouse.click(bounds.x + bounds.width * 0.28, bounds.y + bounds.height * 0.72);
   const textInput = window.getByRole('textbox', { name: /^Edit / });
@@ -259,6 +281,13 @@ try {
   ]) {
     assert.ok(commands.includes(command), `UI recording omitted ${command}: ${commands.join(', ')}`);
   }
+  const vectorSteps = recording.steps.filter(({ command }) => command === 'vector.create');
+  assert.equal(vectorSteps.length, 3,
+    `Rectangle, Ellipse and Pen should each publish one vector.create: ${vectorSteps.length}`);
+  assert.equal(vectorSteps[0].parameters.primitive?.kind, 'rectangle');
+  assert.equal(vectorSteps[1].parameters.primitive?.kind, 'ellipse');
+  assert.equal(vectorSteps[2].parameters.subpaths?.[0]?.anchors?.length, 3,
+    'Recorded Pen path did not preserve its three native anchors.');
   const exportStep = recording.steps.find(({ command }) => command === 'file.exportPng');
   assert.equal(exportStep.result.artifact.mediaType, 'image/png');
   assert.ok(exportStep.result.artifact.byteLength > 0, 'UI export artifact was empty.');
@@ -281,16 +310,21 @@ try {
     redo: () => keyboardHistory(window, driver, uiDocumentId, 'redo')
   });
   const expectedUndoDepth = (await driver.queryDocument(uiDocumentId)).history.undoDepth;
+  const expectedLayerCount = (await driver.queryLayers(uiDocumentId)).length;
 
   const actionsDocumentId = await createDocumentThroughMcp(mcp, driver, 'Actions route');
   await window.getByRole('menuitem', { name: 'View' }).click();
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
-  await window.waitForFunction(({ documentId, undoDepth }) => {
+  await window.waitForFunction(({ documentId, undoDepth, layerCount }) => {
     const automation = window.__lightTableAutomation;
-    return automation?.queryLayers(documentId)?.length === 3
+    return automation?.queryLayers(documentId)?.length === layerCount
       && automation.queryDocument(documentId)?.history.undoDepth === undoDepth;
-  }, { documentId: actionsDocumentId, undoDepth: expectedUndoDepth }, { timeout: 60_000 });
+  }, {
+    documentId: actionsDocumentId,
+    undoDepth: expectedUndoDepth,
+    layerCount: expectedLayerCount
+  }, { timeout: 60_000 });
   if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
     await window.getByRole('menuitem', { name: 'View' }).click();
     await window.getByRole('menuitem', { name: 'Actions panel' }).click();
@@ -467,8 +501,14 @@ try {
     actionsFailureBefore, 'Rejected Actions playback changed canonical state or history.');
 
   await writeFile(path.join(output, 'evidence.json'), JSON.stringify({
-    claim: 'one bounded shape/text workflow only; not whole-application equivalence',
+    claim: 'one bounded native vector/text workflow only; not whole-application equivalence',
     commands,
+    vectorInputEvidence: {
+      primitives: vectorSteps.map(({ parameters }) => parameters.primitive?.kind ?? 'path'),
+      penAnchorCount: vectorSteps[2].parameters.subpaths[0].anchors.length,
+      semanticCreateCommands: vectorSteps.length,
+      transientPointerSamplesPublished: 0
+    },
     textInputEvidence: {
       inputCharacters: highFrequencyText.length,
       compositionUpdates: 2,
