@@ -90,8 +90,14 @@
     { "layerId": "layer-photo", "mode": "replace" },
     { "layerId": "layer-photo", "mode": "new-layer" }
   ],
+  "layer.placeArtifact": [
+    { "artifactId": "artifact-input-image", "name": "Placed artwork", "x": 120, "y": 80 }
+  ],
   "layer.autoAlign": [
     { "referenceLayerId": "layer-reference", "targetLayerId": "layer-target" }
+  ],
+  "file.openArtifact": [
+    { "artifactId": "artifact-input-document" }
   ],
   "layer.setLock": [
     { "layerIds": ["layer-logo"], "lock": "position", "locked": true }

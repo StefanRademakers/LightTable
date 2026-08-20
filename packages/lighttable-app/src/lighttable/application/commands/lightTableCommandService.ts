@@ -739,7 +739,9 @@ export class LightTableCommandService {
       }
     }
     if (value.command === 'file.openArtifact') {
-      if (!isRecord(value.parameters) || typeof value.parameters.artifactId !== 'string') {
+      if (!isRecord(value.parameters) || Object.keys(value.parameters).length !== 1
+        || typeof value.parameters.artifactId !== 'string'
+        || value.parameters.artifactId.length < 1 || value.parameters.artifactId.length > 256) {
         return this.reject(value.requestId, 'invalid-parameters', 'Open requires an artifactId.');
       }
       const file = this.artifacts.resolve(value.parameters.artifactId);
@@ -880,7 +882,10 @@ export class LightTableCommandService {
     }
 
     if (value.command === 'layer.placeArtifact') {
-      if (!isRecord(value.parameters) || typeof value.parameters.artifactId !== 'string') {
+      if (!isRecord(value.parameters)
+        || Object.keys(value.parameters).some((key) => !['artifactId', 'name', 'x', 'y'].includes(key))
+        || typeof value.parameters.artifactId !== 'string'
+        || value.parameters.artifactId.length < 1 || value.parameters.artifactId.length > 256) {
         return this.reject(value.requestId, 'invalid-parameters', 'Place requires an artifactId.', snapshot);
       }
       const file = this.artifacts.resolve(value.parameters.artifactId);
@@ -893,7 +898,8 @@ export class LightTableCommandService {
         || (typeof entry === 'number' && Number.isFinite(entry) && Math.abs(entry) <= 10_000_000);
       if (!finiteOptional(value.parameters.x) || !finiteOptional(value.parameters.y)
         || (value.parameters.name !== undefined && (typeof value.parameters.name !== 'string'
-          || !value.parameters.name.trim() || value.parameters.name.trim().length > 255))) {
+          || !value.parameters.name.trim() || value.parameters.name.length > 255
+          || /[\u0000-\u001f\u007f]/u.test(value.parameters.name)))) {
         return this.reject(value.requestId, 'invalid-parameters', 'Placement name and coordinates are invalid.', snapshot);
       }
       const placement: LightTableArtifactPlacement = {

@@ -508,6 +508,9 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     description: 'Downloads one public HTTPS image (maximum 32 MiB), registers it as a bounded input artifact, then opens it or places PNG/JPEG/WebP into an explicit document. Private-network URLs are rejected.',
     inputSchema: z.object({ url: z.string().url(), name: z.string().min(1).max(255).optional(),
       documentId: z.string().min(1).optional(), x: z.number().finite().optional(), y: z.number().finite().optional() })
+      .refine(({ documentId, x, y }) => documentId !== undefined || (x === undefined && y === undefined), {
+        message: 'Placement coordinates require a target documentId.'
+      })
   }, withResult(async ({ url, name, documentId, x, y }) => {
     const image = await downloadImage(url, fetchImpl);
     const artifact = await client.uploadArtifact({ bytes: image.bytes,
@@ -517,7 +520,9 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       ...(documentId ? { documentId } : {}),
       command: documentId ? 'layer.placeArtifact' : openArtifactCommand,
       commandRequestId: crypto.randomUUID(), commandParameters: {
-        artifactId: artifact.id, ...(name ? { name } : {}), ...(x === undefined ? {} : { x }), ...(y === undefined ? {} : { y })
+        artifactId: artifact.id, ...(documentId && name ? { name } : {}),
+        ...(documentId && x !== undefined ? { x } : {}),
+        ...(documentId && y !== undefined ? { y } : {})
       }
     });
     return { artifact, result };

@@ -149,6 +149,20 @@ describe('ActionsPanel', () => {
     expect(markup).not.toContain('disabled=""');
   });
 
+  it('renders opaque artifact handles without exposing binary payload fields', () => {
+    const place = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'layer.placeArtifact')!;
+    const markup = renderToStaticMarkup(<CommandCatalogView
+      capabilities={[{ command: place.id, available: true, reason: null }]}
+      definitions={[place]}
+      onExecute={() => null}
+    />);
+    expect(markup).toContain('artifact-input-image');
+    expect(markup).toContain('Placed artwork');
+    expect(markup).not.toContain('bytes');
+    expect(markup).not.toContain('base64');
+    expect(markup).not.toContain('disabled=""');
+  });
+
   it('renders nested conditional text properties without a free-form command JSON editor', () => {
     const createText = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'text.create')!;
     const markup = renderToStaticMarkup(<CommandCatalogView

@@ -10,7 +10,7 @@ import { createRequestGuard } from './operations.mjs';
 export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
   allowInsecure = false, allowedHosts, devicePairingCode = pairingCode, serverId,
   oauthStateStore = null, tenantId = 'default', userId = 'owner', audit = null,
-  requestGuard = createRequestGuard() } = {}) => {
+  requestGuard = createRequestGuard(), fetchImpl = fetch } = {}) => {
   const resource = new URL('/mcp', publicUrl);
   const issuer = new URL('/', publicUrl);
   if (!allowInsecure && (resource.protocol !== 'https:' || issuer.protocol !== 'https:')) {
@@ -57,7 +57,10 @@ export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
         .status(401).json({ error: 'invalid_token' });
     }
   };
-  const mcp = createLightTableMcpServer(typeof client === 'function' ? client(deviceTunnel) : client);
+  const mcp = createLightTableMcpServer(
+    typeof client === 'function' ? client(deviceTunnel) : client,
+    { fetchImpl }
+  );
   const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: undefined,
     enableJsonResponse: true });
   await mcp.connect(transport);

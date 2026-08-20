@@ -1820,6 +1820,12 @@ describe('LightTableCommandService registry', () => {
     const artifact = service.registerInputArtifact(new File(['svg'], 'vector.svg', { type: 'image/svg+xml' }));
     expect(await service.execute(request('layer.placeArtifact', state.session.id, { artifactId: artifact.id })))
       .toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(await service.execute(request('layer.placeArtifact', state.session.id, {
+      artifactId: artifact.id, pointerPosition: { x: 0, y: 0 }
+    }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(await service.execute({ protocolVersion: 1, requestId: 'expanded-open',
+      command: 'file.openArtifact', parameters: { artifactId: artifact.id, mode: 'place' } }))
+      .toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     expect(state.ports.placeArtifact).not.toHaveBeenCalled();
     service.dispose(); state.service.dispose(); state.workspace.dispose();
   });

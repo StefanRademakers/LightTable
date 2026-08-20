@@ -53,6 +53,8 @@ test('current remote rollout remains a strict subset of the application command 
 
 test('versioned schemas describe and validate every completed command vertical', () => {
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
+    'file.openArtifact',
+    'layer.placeArtifact',
     'raster.invert',
     'text.convertToShape',
     'text.rasterize',
@@ -412,4 +414,24 @@ test('vector schemas resolve shared definitions and reject UI-only or contradict
   assert.deepEqual(Object.keys(remove.input.$defs), ['id']);
   assert.ok(JSON.stringify(remove).length < 1_000);
   assert.equal(validateJsonSchemaValue({ $ref: '#/$defs/missing', $defs: {} }, 1).valid, false);
+});
+
+test('artifact schemas carry opaque handles and stable document or layer results only', () => {
+  const open = LIGHTTABLE_COMMAND_SCHEMAS['file.openArtifact'];
+  const place = LIGHTTABLE_COMMAND_SCHEMAS['layer.placeArtifact'];
+  assert.equal(validateJsonSchemaValue(open.input, { artifactId: 'artifact-1' }).valid, true);
+  assert.equal(validateJsonSchemaValue(open.input, {
+    artifactId: 'artifact-1', bytes: 'base64'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(open.result, { documentId: 'document-1' }).valid, true);
+  assert.equal(validateJsonSchemaValue(place.input, {
+    artifactId: 'artifact-1', name: 'Placed image', x: -20, y: 40
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(place.input, {
+    artifactId: 'artifact-1', name: '   '
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(place.result, {
+    layerId: 'placed-1', width: 512, height: 384
+  }).valid, true);
+  assert.deepEqual(Object.keys(open.input.$defs), ['artifactId']);
 });

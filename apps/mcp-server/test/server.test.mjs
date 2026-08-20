@@ -19,12 +19,26 @@ const accessToken = (oauth, scopes) => {
 const listen = (app) => new Promise((resolve) => {
   const server = app.listen(0, '127.0.0.1', () => resolve(server));
 });
+const withoutCommandRequestId = ({ commandRequestId: _commandRequestId, ...request }) => request;
 
 test('Streamable HTTP exposes typed tools and enforces edit scope', async (context) => {
   const mockClient = new MockLightTableClient();
+  const commandCalls = [];
+  const invoke = mockClient.invoke.bind(mockClient);
+  mockClient.invoke = async (method, parameters) => {
+    if (method === 'command.execute') commandCalls.push(parameters);
+    return invoke(method, parameters);
+  };
+  mockClient.uploadArtifact = async ({ bytes, name, mediaType }) => ({
+    id: 'artifact-uploaded', kind: 'input', name, mediaType,
+    byteLength: bytes.byteLength, createdAt: 1
+  });
+  const fetchImpl = async () => new Response(new Uint8Array([137, 80, 78, 71]), {
+    status: 200, headers: { 'content-type': 'image/png', 'content-length': '4' }
+  });
   const service = await createLightTableMcpApp({ publicUrl: 'http://127.0.0.1:8787',
     pairingCode: 'integration-pairing', client: mockClient,
-    allowInsecure: true, allowedHosts: ['127.0.0.1'] });
+    allowInsecure: true, allowedHosts: ['127.0.0.1'], fetchImpl });
   const http = await listen(service.app);
   context.after(async () => { await service.close(); await new Promise((resolve) => http.close(resolve)); });
   const url = new URL(`http://127.0.0.1:${http.address().port}/mcp`);
@@ -57,6 +71,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_events'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_wait_for_events'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_cancel_task'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_import_image_url'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_commands'));
   const commandCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'layer.rename'
@@ -164,6 +179,23 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   } });
   assert.equal(created.isError, undefined);
   assert.equal(created.structuredContent.status, 'completed');
+  const placedImport = await editor.callTool({ name: 'lighttable_import_image_url', arguments: {
+    url: 'https://93.184.216.34/reference.png', name: 'Reference image',
+    documentId: 'document-demo', x: 24, y: 32
+  } });
+  assert.equal(placedImport.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'layer.placeArtifact',
+    commandParameters: { artifactId: 'artifact-uploaded', name: 'Reference image', x: 24, y: 32 }
+  });
+  const openedImport = await editor.callTool({ name: 'lighttable_import_image_url', arguments: {
+    url: 'https://93.184.216.34/document.png', name: 'Opened image'
+  } });
+  assert.equal(openedImport.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    command: 'file.openArtifact',
+    commandParameters: { artifactId: 'artifact-uploaded' }
+  });
   const textCreated = await editor.callTool({ name: 'lighttable_create_text', arguments: {
     documentId: 'document-demo', mode: 'paragraph', text: 'مرحبا 👋', x: 20, y: 30,
     width: 280, height: 160, family: 'Inter', fontSize: 64, fill: '#ff0088', writingMode: 'horizontal-tb'

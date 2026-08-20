@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "category": "file",
+  "$defs": {
+    "artifactId": { "type": "string", "title": "Artifact ID", "minLength": 1, "maxLength": 256 },
+    "documentId": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "layerId": { "type": "string", "minLength": 1, "maxLength": 512 }
+  },
+  "commands": {
+    "file.openArtifact": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["artifactId"],
+        "properties": { "artifactId": { "$ref": "#/$defs/artifactId" } }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["documentId"],
+        "properties": { "documentId": { "$ref": "#/$defs/documentId" } }
+      }
+    },
+    "layer.placeArtifact": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["artifactId"],
+        "properties": {
+          "artifactId": { "$ref": "#/$defs/artifactId" },
+          "name": {
+            "type": "string", "title": "Layer name", "minLength": 1, "maxLength": 255,
+            "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "x": { "type": "number", "title": "Document X", "minimum": -10000000, "maximum": 10000000 },
+          "y": { "type": "number", "title": "Document Y", "minimum": -10000000, "maximum": 10000000 }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["layerId", "width", "height"],
+        "properties": {
+          "layerId": { "$ref": "#/$defs/layerId" },
+          "width": { "type": "integer", "minimum": 1, "maximum": 32768 },
+          "height": { "type": "integer", "minimum": 1, "maximum": 32768 }
+        }
+      }
+    }
+  }
+}

@@ -79,7 +79,7 @@ describe('SemanticActionPlaybackController', () => {
         contract: legacyContract,
         outcome: 'accepted', result: { taskId: 'old-task', artifact: { id: 'old-artifact' } },
       parameters: {} }, { ...recording().steps[1]!, command: 'file.openArtifact',
-        contract: legacyContract, documentId: null, parameters: {
+        contract: legacyContract, documentId: null, result: { documentId: 'opened-document' }, parameters: {
           artifactId: { $lighttableResult: { step: 1, path: 'artifact.id' } }
         } }]
     };

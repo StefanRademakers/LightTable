@@ -55,6 +55,15 @@ try {
     token: bridgeToken });
   const directWorkspace = await bridge.invoke('workspace.query');
   if (!directWorkspace?.activeDocumentId) throw new Error('Desktop bridge has no active document.');
+  const inputImageBytes = await sharp({ create: {
+    width: 12, height: 8, channels: 4, background: { r: 32, g: 144, b: 224, alpha: 1 }
+  } }).png().toBuffer();
+  const inputArtifact = await bridge.uploadArtifact({
+    bytes: inputImageBytes, name: 'mcp-input.png', mediaType: 'image/png'
+  });
+  if (inputArtifact?.kind !== 'input' || inputArtifact?.byteLength !== inputImageBytes.byteLength) {
+    throw new Error(`Desktop artifact upload failed: ${JSON.stringify(inputArtifact)}`);
+  }
 
   service = await createLightTableMcpApp({ publicUrl: 'http://127.0.0.1:8787', pairingCode,
     client: bridge, allowInsecure: true, allowedHosts: ['127.0.0.1'] });
@@ -218,6 +227,20 @@ try {
       vectorCreateContract, vectorUpdateContract, vectorRemoveContract
     })}`);
   }
+  const openArtifactContract = (await call('lighttable_commands', { command: 'file.openArtifact' }))
+    .structuredContent.commands?.[0]?.contract;
+  const placeArtifactContract = (await call('lighttable_commands', { command: 'layer.placeArtifact' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (openArtifactContract?.status !== 'complete' || openArtifactContract.schemaVersion !== 1
+    || openArtifactContract.input?.properties?.artifactId?.$ref !== '#/$defs/artifactId'
+    || !openArtifactContract.result?.properties?.documentId
+    || placeArtifactContract?.status !== 'complete' || placeArtifactContract.schemaVersion !== 1
+    || placeArtifactContract.input?.properties?.name?.maxLength !== 255
+    || !placeArtifactContract.result?.properties?.width) {
+    throw new Error(`MCP artifact discovery is incomplete: ${JSON.stringify({
+      openArtifactContract, placeArtifactContract
+    })}`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
@@ -320,6 +343,17 @@ try {
   if (!invalidVector.isError || afterInvalidVector.canonicalRevision !== before.canonicalRevision) {
     throw new Error(`Private pointer state reached the vector owner: ${JSON.stringify({
       invalidVector, before: before.canonicalRevision, after: afterInvalidVector.canonicalRevision
+    })}`);
+  }
+  const invalidPlacement = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'layer.placeArtifact', parameters: {
+      artifactId: inputArtifact.id, pointerPosition: { x: 0, y: 0 }
+    }
+  } });
+  const afterInvalidPlacement = (await call('lighttable_document', { documentId })).structuredContent;
+  if (!invalidPlacement.isError || afterInvalidPlacement.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Pointer placement state reached the layer owner: ${JSON.stringify({
+      invalidPlacement, before: before.canonicalRevision, after: afterInvalidPlacement.canonicalRevision
     })}`);
   }
   const sourceLayerId = before.activeLayerId;
@@ -880,6 +914,15 @@ try {
   await writeFile(previewPath, Buffer.from(image.data, 'base64'));
   const native = await exportArtifact('file.exportNative', 'lighttable');
   const psd = await exportArtifact('file.exportPsd', 'psd');
+  const placedInput = (await call('lighttable_execute', {
+    documentId, command: 'layer.placeArtifact', parameters: {
+      artifactId: inputArtifact.id, name: 'MCP placed input', x: 36, y: 28
+    }
+  })).structuredContent;
+  if (placedInput?.status !== 'completed' || !placedInput.value?.layerId
+    || placedInput.value.width !== 12 || placedInput.value.height !== 8) {
+    throw new Error(`MCP artifact placement failed: ${JSON.stringify(placedInput)}`);
+  }
   const mergeBottom = (await call('lighttable_execute', {
     documentId, command: 'layer.createRaster', parameters: {}
   })).structuredContent.value?.layerId;
@@ -913,6 +956,17 @@ try {
   if (finalLayerList.length !== 1 || finalLayerList[0]?.id !== flattenedImage.value.outputLayerId
     || finalLayerList[0]?.type !== 'raster') {
     throw new Error(`MCP image flatten did not produce one raster layer: ${JSON.stringify(layers)}`);
+  }
+  const openedInput = await bridge.invoke('command.execute', {
+    command: 'file.openArtifact', commandRequestId: 'mcp-open-input-document',
+    commandParameters: { artifactId: inputArtifact.id }
+  });
+  const openedWorkspace = await bridge.invoke('workspace.query');
+  if (openedInput?.status !== 'completed' || !openedInput.value?.documentId
+    || openedWorkspace.activeDocumentId !== openedInput.value.documentId) {
+    throw new Error(`Artifact open did not create and activate a document: ${JSON.stringify({
+      openedInput, openedWorkspace
+    })}`);
   }
   const report = { source, workspace, before, after, publications, layerCount: finalLayerList.length,
     createdLayerId: layerId, outputs: { previewPath, native, psd }, bridgeLog };

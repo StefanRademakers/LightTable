@@ -167,6 +167,15 @@ Current evidence (2026-08-20)
   reusable without duplicating nested structures. The Vector module uses it for
   primitives, paths, live geometry, solid/gradient paint and complete strokes
   across create/update/remove, with stable layer/element results.
+- A separate Artifact module now owns `file.openArtifact` and
+  `layer.placeArtifact`: bounded registry IDs, an optional safe layer name and
+  finite placement coordinates produce stable document/layer IDs and decoded
+  dimensions. Unknown pointer/UI state and raw bytes are rejected. Reachable
+  `$defs` are pruned independently for each generated command contract.
+- The external URL-import MCP tool proves both routing variants: with a target
+  document it places a layer; without one it opens a document. Real packaged
+  desktop smoke additionally uploads and decodes a valid PNG, executes placement
+  through external MCP and opens it through the authenticated bridge.
 
 Still required for completion
 =============================

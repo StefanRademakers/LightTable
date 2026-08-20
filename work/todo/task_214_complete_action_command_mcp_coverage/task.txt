@@ -201,6 +201,14 @@ Existing foundation evidence
   version-1 migration with per-step command-contract checks and active-document
   replay. A packaged restart proves this workflow without routing any
   interaction preview through storage.
+- External raster inputs now cross the capability boundary as bounded opaque
+  artifact handles. `layer.placeArtifact` reuses the existing decode/document/
+  history owner, while `file.openArtifact` creates a document from the same
+  registry entry. Command parameters never contain image bytes or Base64; the
+  dedicated URL-import route owns download limits, upload and handle creation.
+- Artifact handles are registry/session scoped. Durable Actions may bind a
+  handle returned by an earlier producing step, but must not claim that an
+  arbitrary persisted import handle remains portable across restarts.
 
 Program definition of done
 ==========================
