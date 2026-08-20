@@ -119,6 +119,13 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       cursor: z.string().max(1024).optional(), limit: z.number().int().min(1).max(256).default(128) }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('layer.list', input)));
+  server.registerTool('lighttable_layer', {
+    title: 'Inspect a LightTable layer',
+    description: 'Returns a compact type-dispatched content summary for an explicit stable layer ID, or the current active layer when layerId is omitted. The result identifies targeted detail queries and previews without embedding unbounded pixels, geometry or adjustment settings.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1).optional(),
+      expectedDocumentRevision: z.number().int().nonnegative().optional() }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('layer.query', input)));
   server.registerTool('lighttable_layer_effects', {
     title: 'Inspect layer effects', description: 'Returns canonical editable Layer Style settings for one layer.',
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
@@ -520,6 +527,41 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
         { type: 'text', text: JSON.stringify({ documentId: input.documentId,
           layerId: input.layerId, channel: input.channel,
           canonicalRevision: input.expectedDocumentRevision,
+          artifact: preview.artifact, reused: preview.reused }) }
+      ] };
+    } catch (error) { return failure(error); }
+  });
+  server.registerTool('lighttable_region_preview', {
+    title: 'Render a LightTable document region',
+    description: 'Returns a bounded lossless PNG or quality-controlled WebP for an exact document-pixel region of one canonical revision. It uses the same final-composite crop owner as Copy Merged without changing selection or viewport.',
+    inputSchema: z.object({ documentId: z.string().min(1),
+      region: z.object({ x: z.number().nonnegative(), y: z.number().nonnegative(),
+        width: z.number().positive(), height: z.number().positive() }),
+      expectedDocumentRevision: z.number().int().nonnegative(),
+      maxEdge: z.number().int().min(64).max(1024).default(1024),
+      format: z.enum(['png', 'webp']).default('png'),
+      quality: z.number().min(0.1).max(1).optional(),
+      knownArtifactId: z.string().min(1).max(256).optional() }),
+    annotations: { readOnlyHint: true }
+  }, async (input) => {
+    try {
+      const preview = await client.invoke('document.preview', input);
+      if (preview?.status !== 'completed' || !preview.artifact?.id) {
+        throw new Error(preview?.message ?? 'Region preview rendering did not complete.');
+      }
+      if (input.knownArtifactId === preview.artifact.id) return response({
+        documentId: input.documentId, region: input.region,
+        canonicalRevision: input.expectedDocumentRevision, artifact: preview.artifact,
+        reused: true, unchanged: true
+      });
+      const artifact = await client.readArtifact(preview.artifact.id);
+      if (artifact.bytes.byteLength > 20 * 1024 * 1024) {
+        throw new Error('Region preview exceeds the 20 MiB MCP response limit.');
+      }
+      return { content: [
+        { type: 'image', data: Buffer.from(artifact.bytes).toString('base64'), mimeType: artifact.mediaType },
+        { type: 'text', text: JSON.stringify({ documentId: input.documentId,
+          region: input.region, canonicalRevision: input.expectedDocumentRevision,
           artifact: preview.artifact, reused: preview.reused }) }
       ] };
     } catch (error) { return failure(error); }

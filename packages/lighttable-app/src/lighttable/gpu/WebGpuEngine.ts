@@ -90,6 +90,7 @@ import {
 } from './sharedWebGpuDevice';
 import { getCorePipelineBundle } from './corePipelineLibrary';
 import { DOCUMENT_THUMBNAIL_WGSL, FULLSCREEN_VERTEX_WGSL } from './shaders';
+import type { DocumentPixelRegion } from '../editor/geometry/documentRegionPreview';
 import { DocumentCoreGpuResources } from './documentCoreGpuResources';
 import { encodeRgba8Png, readRgba8Texture, readRgba8TexturePixel } from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
@@ -2935,6 +2936,19 @@ export class WebGpuEngine {
     } finally {
       texture.destroy();
     }
+  }
+
+  /** Uses the same final-composite crop/readback owner as Copy Merged, without selection state. */
+  async exportRegionThumbnailPng(region: DocumentPixelRegion, maxEdge = 256) {
+    if (!this.metadata || !this.imageResources.finalTexture || !this.documentRenderer) {
+      throw new Error('No processed image is available for region preview export.');
+    }
+    this.settleInteractiveRenderQuality();
+    this.renderScheduler.flush();
+    await this.device.queue.onSubmittedWorkDone();
+    return this.documentRenderer.exportDisplayRegion(
+      this.imageResources.finalTexture, region, maxEdge
+    );
   }
 
   waitForTextSourcesForExport() { return this.documentRenderer?.waitForTextSourcesForExport() ?? Promise.resolve(true); }

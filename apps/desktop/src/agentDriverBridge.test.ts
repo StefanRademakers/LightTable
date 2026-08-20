@@ -91,6 +91,18 @@ describe('invokeAgentDriver', () => {
     expect(queryLayers).not.toHaveBeenCalled();
   });
 
+  it('forwards active-layer detail inspection without executing a command', async () => {
+    const queryLayerDetail = vi.fn(() => ({ status: 'rejected' as const,
+      code: 'no-active-layer' as const, message: 'missing' }));
+    const execute = vi.fn();
+    const driver = driverWith({ queryLayerDetail, execute });
+    const parameters = { documentId: 'document-1', expectedDocumentRevision: 8 };
+    await expect(invokeAgentDriver(driver, 'layer.query', parameters))
+      .resolves.toMatchObject({ code: 'no-active-layer' });
+    expect(queryLayerDetail).toHaveBeenCalledWith(parameters);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('forwards isolated layer previews without executing a command', async () => {
     const requestLayerPreview = vi.fn(async () => ({ status: 'rejected' as const,
       code: 'channel-unavailable' as const, message: 'missing mask' }));

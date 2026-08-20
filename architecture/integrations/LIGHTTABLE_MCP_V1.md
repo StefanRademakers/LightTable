@@ -82,14 +82,17 @@ Read operations:
   renderer;
 - request isolated layer pixels or a raster mask through the mounted GPU layer
   renderer without moving the artist viewport.
+- request an exact document-pixel region through the same final-composite crop
+  and encode owner as Copy Merged, without changing selection or viewport;
+- inspect the current active layer, or one explicit layer ID, through a compact
+  type-dispatched content summary before requesting heavier details.
 
 Whole-document and layer previews require an exact canonical document
 revision. `maxEdge` controls output size from 64-1024 pixels; PNG is lossless,
 while WebP accepts an explicit `quality` from 0.1-1. Previews are cached by
 revision, target/channel, size, format and quality. Supplying the
 last `knownArtifactId` returns metadata only when the preview is unchanged, so
-event-driven clients do not repeatedly transfer the same Base64 PNG. Arbitrary
-document-region preview remains open.
+event-driven clients do not repeatedly transfer the same Base64 image.
 
 Write operations:
 
@@ -115,9 +118,9 @@ the explicitly enabled host bridge.
 The server also contains a complete editable social-design workflow that uses
 the same public commands to create a document, placed artwork, gradient vector,
 point/paragraph text and a drop shadow, then verifies undo/redo and exports GPU
-preview, native and PSD artifacts. Remaining gaps include arbitrary region
-preview, complete targeted inspection for every adjustment/content type and
-broad semantic coverage for some tools. Those must be added to the shared
+preview, native and PSD artifacts. Remaining gaps include complete targeted
+inspection for every adjustment type and broad semantic coverage for some
+tools. Those must be added to the shared
 application command service first;
 DOM selectors or a parallel MCP-only scene format remain forbidden.
 
@@ -221,8 +224,8 @@ isolation before release.
 packaged desktop instance. `npm run smoke:mcp` remains the full remote protocol
 test and currently uses the isolated development bridge fixture. Its 2026-08-20
 run used `D:\shapes.psd`, traversed revision-bound layer pages, fetched both a
-whole-document PNG and isolated 256-pixel WebP raster-layer preview at quality
-0.72, proved an
+whole-document PNG, isolated 256-pixel WebP raster-layer preview at quality
+0.72 and a 192×96 document region returned as 128×64 WebP, proved an
 unchanged layer preview omitted image bytes, then exercised semantic edits and
 exported all three artifacts.
 Evidence is under `D:\mediavibe\LightTableTestFiles\mcp`:

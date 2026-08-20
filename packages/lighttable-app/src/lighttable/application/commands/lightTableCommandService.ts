@@ -17,6 +17,8 @@ import {
 export type { LayerQuerySummary } from './layerQueryProjection';
 import { projectLayerListPage, type LayerListQueryResult } from './layerListQuery';
 export type { LayerListQueryResult } from './layerListQuery';
+import { projectLayerDetailQuery, type LayerDetailQueryResult } from './layerDetailQuery';
+export type { LayerDetailQueryResult } from './layerDetailQuery';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type AutomationEventQueryResult, type AutomationTaskQueryResult, type CommandCapabilitySummary,
@@ -124,7 +126,9 @@ export class LightTableCommandService {
         height: snapshot.document.height
       } : null;
     },
-    render: async (documentId, maxEdge, encoding) => this.ports.exportPreviewArtifact(documentId, maxEdge, encoding),
+    render: async (documentId, maxEdge, encoding, region) => (
+      this.ports.exportPreviewArtifact(documentId, maxEdge, encoding, region)
+    ),
     register: (file, context) => this.artifacts.registerPreview(file, context),
     query: (artifactId) => this.artifacts.query(artifactId)
   });
@@ -523,6 +527,20 @@ export class LightTableCommandService {
     );
   }
 
+  queryLayerDetail(value: unknown): LayerDetailQueryResult {
+    if (!isRecord(value) || typeof value.documentId !== 'string' || !value.documentId) {
+      return { status: 'rejected', code: 'invalid-request',
+        message: 'Layer query requires a documentId.' };
+    }
+    const documentId = value.documentId as DocumentSessionId;
+    const snapshot = this.document(documentId);
+    if (!snapshot?.document) return { status: 'rejected', code: 'document-not-found',
+      message: 'The layer-query document is not available.' };
+    return projectLayerDetailQuery(
+      documentId, snapshot.document, snapshot.documentRevision, value
+    );
+  }
+
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null {
     const canonical = this.document(documentId)?.document;
     const layer = canonical ? findDocumentLayer(canonical, layerId) : null;
@@ -531,7 +549,9 @@ export class LightTableCommandService {
       layerId,
       enabled: layer.styleStack.enabled,
       revision: layer.styleStack.revision,
-      effects: layer.styleStack.effects.map((effect) => ({
+      totalEffects: layer.styleStack.effects.length,
+      truncated: layer.styleStack.effects.length > 128,
+      effects: layer.styleStack.effects.slice(0, 128).map((effect) => ({
         id: effect.id,
         kind: effect.kind,
         name: effect.name,
@@ -1395,6 +1415,7 @@ export interface LightTableAutomationDriver {
   queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null;
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;
   queryLayerPage(request: unknown): LayerListQueryResult;
+  queryLayerDetail(request: unknown): LayerDetailQueryResult;
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null;
   queryText(documentId: DocumentSessionId, layerId: LayerId): EditableTextQueryResult | null;
   queryVector(documentId: DocumentSessionId, layerId: LayerId): EditableVectorQueryResult | null;

@@ -37,6 +37,8 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_workspace'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_preview'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_preview'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_region_preview'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_document'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_build_social_design'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_text'));
@@ -66,6 +68,11 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   } });
   assert.equal(layers.structuredContent.canonicalRevision, 1);
   assert.ok(Array.isArray(layers.structuredContent.layers));
+  const activeLayer = await reader.callTool({ name: 'lighttable_layer', arguments: {
+    documentId: 'document-demo', expectedDocumentRevision: 1
+  } });
+  assert.equal(activeLayer.structuredContent.resolvedFrom, 'active-layer');
+  assert.equal(activeLayer.structuredContent.content.kind, 'raster');
   const preview = await reader.callTool({ name: 'lighttable_preview', arguments: {
     documentId: 'document-demo', expectedDocumentRevision: 1, maxEdge: 512
   } });
@@ -85,6 +92,13 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   } });
   assert.equal(unchangedLayerPreview.content.some(({ type }) => type === 'image'), false);
   assert.equal(unchangedLayerPreview.structuredContent.unchanged, true);
+  const regionPreview = await reader.callTool({ name: 'lighttable_region_preview', arguments: {
+    documentId: 'document-demo', region: { x: 100, y: 80, width: 320, height: 160 },
+    expectedDocumentRevision: 1, maxEdge: 160, format: 'webp', quality: 0.7
+  } });
+  assert.equal(regionPreview.isError, undefined);
+  assert.ok(regionPreview.content.some(({ type }) => type === 'image'));
+  assert.deepEqual(regionPreview.structuredContent, undefined);
   const denied = await reader.callTool({ name: 'lighttable_execute', arguments: {
     documentId: 'document-demo', command: 'layer.createRaster', parameters: {} } });
   assert.equal(denied.isError, true);

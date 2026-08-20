@@ -592,6 +592,22 @@ describe('LightTableCommandService queries', () => {
     state.workspace.dispose();
   });
 
+  it('inspects the active layer through one compact revision-bound query', () => {
+    const state = setup();
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    expect(state.service.queryLayerDetail({ documentId: state.session.id,
+      expectedDocumentRevision: revision })).toMatchObject({
+      status: 'completed', canonicalRevision: revision, resolvedFrom: 'active-layer',
+      content: { kind: 'raster' },
+      availableQueries: expect.arrayContaining(['layer.preview:pixels'])
+    });
+    expect(state.service.queryLayerDetail({ documentId: state.session.id,
+      expectedDocumentRevision: revision + 1 })).toMatchObject({
+      status: 'rejected', code: 'stale-document-revision', currentRevision: revision
+    });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('projects bounded editable text without font bytes', () => {
     const state = setup();
     const text = createDefaultTextLayerData();
@@ -1451,7 +1467,7 @@ describe('LightTableCommandService registry', () => {
         width: 80, height: 60, maxEdge: 512
       } } });
     expect(state.ports.exportPreviewArtifact).toHaveBeenCalledWith(
-      state.session.id, 512, { format: 'png' }
+      state.session.id, 512, { format: 'png' }, undefined
     );
     const second = await state.service.requestDocumentPreview(request);
     expect(second).toMatchObject({ status: 'completed', reused: true });
@@ -1491,6 +1507,25 @@ describe('LightTableCommandService registry', () => {
     expect(state.service.releaseArtifact(first.artifact.id)).toBe(true);
     await expect(state.service.requestLayerPreview(request))
       .resolves.toMatchObject({ status: 'completed', reused: false });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('routes revision-bound document regions through the preview owner', async () => {
+    const state = setup();
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    const region = { x: 10, y: 5, width: 40, height: 20 };
+    const result = await state.service.requestDocumentPreview({ documentId: state.session.id,
+      expectedDocumentRevision: revision, maxEdge: 20, region });
+    // Agent previews intentionally reject edges below 64 before reaching the renderer.
+    expect(result).toMatchObject({ status: 'rejected', code: 'invalid-request' });
+    const completed = await state.service.requestDocumentPreview({ documentId: state.session.id,
+      expectedDocumentRevision: revision, maxEdge: 64, region });
+    expect(completed).toMatchObject({ status: 'completed', artifact: { preview: {
+      width: 40, height: 20, target: { kind: 'region', bounds: region }
+    } } });
+    expect(state.ports.exportPreviewArtifact).toHaveBeenCalledWith(
+      state.session.id, 64, { format: 'png' }, region
+    );
     state.service.dispose(); state.workspace.dispose();
   });
 

@@ -47,6 +47,12 @@ Current evidence (2026-08-20)
 - `layer.preview` now returns bounded isolated raster-layer pixels or a raster
   mask through the mounted GPU layer renderer, including exact source-to-output
   mapping metadata and without moving the viewport.
+- MCP `lighttable_region_preview` now returns an exact document-pixel crop of the final
+  composite through the same GPU crop/encode owner as Copy Merged, without
+  creating a selection or changing the viewport.
+- `layer.query` resolves an explicit or active layer and returns a compact
+  type-dispatched raster/group/adjustment/vector/text content summary plus the
+  targeted queries and previews that are actually available.
 - Whole-document and layer MCP previews accept `knownArtifactId`; an unchanged
   artifact returns metadata without retransferring its Base64 image payload.
 - Preview `maxEdge` is explicit (64-1024). PNG remains lossless; WebP exposes
@@ -58,9 +64,11 @@ Current evidence (2026-08-20)
   are explicit and force canonical re-query rather than silently missing work.
 - The packaged MCP flow records a cursor before editing, observes its exact
   final revision/history publication and then requests preview N+1.
-- Arbitrary document-region preview and server-push delivery remain open.
-- Targeted text, vector, effects, Warp and basic Grade queries exist; a complete
-  type-dispatched detail query for every layer/adjustment kind remains open.
+- Server-push delivery remains open; reconnect-safe cursor events are the
+  current no-polling mechanism.
+- Targeted text, vector, effects, Warp and basic Grade queries exist. Complete
+  typed projections for every adjustment kind continue in
+  [`Task 255`](../task_255_complete_adjustment_observation_schemas_task/task.txt).
 
 Representative proof
 ====================

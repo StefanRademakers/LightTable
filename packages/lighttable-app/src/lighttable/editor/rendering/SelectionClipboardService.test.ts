@@ -28,6 +28,7 @@ describe('SelectionClipboardService copy orchestration', () => {
     const finish = vi.fn(() => ({}) as GPUCommandBuffer);
     const encoder = { finish } as unknown as GPUCommandEncoder;
     const submit = vi.fn();
+    const textureCodec = { encodeUnchecked: vi.fn(async () => new Blob(['region'])) };
     const service = new SelectionClipboardService({
       device: {
         createCommandEncoder: vi.fn(() => encoder),
@@ -38,7 +39,7 @@ describe('SelectionClipboardService copy orchestration', () => {
         mask: {} as GPUTexture
       } as never,
       layerResources: {} as never,
-      textureCodec: {} as never,
+      textureCodec: textureCodec as never,
       dimensions: () => ({ width: 64, height: 32 }),
       generation: () => 1,
       pipelines: () => ({} as never),
@@ -46,7 +47,7 @@ describe('SelectionClipboardService copy orchestration', () => {
       drawFullscreen: vi.fn()
     });
     vi.spyOn(service, 'encodeLayerCopy').mockReturnValue(true);
-    return { service, encoder, finish, submit };
+    return { service, encoder, finish, submit, textureCodec };
   };
 
   it('isolates a visible layer with normal blend before copying its selection', () => {
@@ -95,5 +96,17 @@ describe('SelectionClipboardService copy orchestration', () => {
     )).toBe(false);
     expect(encodeComposite).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
+  });
+
+  it('encodes final-composite regions through the shared Copy Merged crop owner', async () => {
+    const { service, textureCodec } = createService();
+    const texture = {} as GPUTexture;
+    await expect(service.exportDisplayRegion(
+      texture, { x: 16, y: 8, width: 32, height: 16 }, 16
+    )).resolves.toBeInstanceOf(Blob);
+    expect(textureCodec.encodeUnchecked).toHaveBeenCalledWith(
+      texture, false, 16, 8,
+      { a: 0.5, b: 0, c: 0, d: 0.5, tx: -8, ty: -4 }
+    );
   });
 });

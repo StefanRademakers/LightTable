@@ -19,6 +19,11 @@ export interface LightTablePreviewArtifactContext {
       readonly a: number; readonly b: number; readonly c: number;
       readonly d: number; readonly tx: number; readonly ty: number;
     };
+  } | {
+    readonly kind: 'region';
+    readonly coordinateSpace: 'document-px';
+    readonly bounds: { readonly x: number; readonly y: number;
+      readonly width: number; readonly height: number };
   };
 }
 

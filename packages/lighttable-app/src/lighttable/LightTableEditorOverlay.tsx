@@ -5,6 +5,7 @@ import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
 import type { LightTablePreviewEncoding } from './application/commands/lightTableCommandContract';
+import type { DocumentPixelRegion } from './editor/geometry/documentRegionPreview';
 import {
   automationPaintOperatorFromPlan,
   parseAutomationBrushSettings,
@@ -1072,7 +1073,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const exportPngArtifactRef = useRef<() => Promise<File>>(async () => {
     throw new Error('The PNG export controller is not ready.');
   });
-  const exportPreviewArtifactRef = useRef<(maxEdge: number) => Promise<File>>(async () => {
+  const exportPreviewArtifactRef = useRef<(maxEdge: number,
+    region?: DocumentPixelRegion) => Promise<File>>(async () => {
     throw new Error('The preview export controller is not ready.');
   });
   const exportPsdArtifactRef = useRef<() => Promise<ExportedPsdDocument>>(async () => {
@@ -5030,9 +5032,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
-      exportPreviewArtifact: async (maxEdge, encoding) => encodeAgentPreview(
-        await exportPreviewArtifactRef.current(maxEdge), 'document-preview', encoding
-      ),
+      exportPreviewArtifact: async (maxEdge, encoding, region) => {
+        const source = await exportPreviewArtifactRef.current(maxEdge, region);
+        return encodeAgentPreview(
+          source, region ? 'document-region-preview' : 'document-preview', encoding
+        );
+      },
       exportLayerPreviewArtifact: async (layerId, channel, maxEdge, encoding) => {
         const preview = await engineRef.current?.exportLayerThumbnail(
           layerId, channel === 'mask', maxEdge, maxEdge
@@ -5636,8 +5641,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus });
   exportNativeArtifactRef.current = async () => (await exportOutput({ forceLayered: true })).file;
   exportPngArtifactRef.current = () => exportEditorPngArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
-  exportPreviewArtifactRef.current = (maxEdge) => exportEditorPreviewArtifact(
-    engineRef.current, imageDocumentRef.current, fileNameBase, maxEdge
+  exportPreviewArtifactRef.current = (maxEdge, region) => exportEditorPreviewArtifact(
+    engineRef.current, imageDocumentRef.current, fileNameBase, maxEdge, region
   );
   exportPsdArtifactRef.current = () => exportEditorPsdArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
 

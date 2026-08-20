@@ -22,12 +22,15 @@ Checklist
 - [x] Keep list rows compact; use explicit stable layer-ID queries/previews for
       currently supported text, vector, raster, mask, effects, Warp and Grade
       details.
-- [ ] Complete targeted detail queries for every layer and adjustment kind.
+- [x] Add one compact revision-bound `layer.query` that resolves either an
+      explicit stable ID or the active layer, summarizes its real content type
+      and points to available bounded detail queries/previews.
 - [x] Reject stale or cross-revision cursors so pages cannot silently describe
       different document states.
 - [x] Add bounded layer/channel preview requests through the real GPU renderer
       without changing the artist viewport.
-- [ ] Add arbitrary document-region previews.
+- [x] Add arbitrary document-region previews through the same final-composite
+      crop/encode owner as Copy Merged, without selection or viewport mutation.
 - [x] Cache current previews by revision, target, channel, size, format and
       quality; avoid
       re-rendering unchanged requests and document transfer on event polling.
@@ -36,7 +39,7 @@ Checklist
 - [x] Prove bounded iterative traversal on synthetic 5,000-layer-wide and
       2,000-level-deep documents without building a full projected layer array.
 - [x] Update Task 218/current MCP documentation with honest current/open state.
-- [ ] Run full gates, move to `work/done/` and commit the milestone.
+- [x] Run full gates, move to `work/done/` and commit the milestone.
 
 Non-goals
 =========

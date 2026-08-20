@@ -1,12 +1,8 @@
 import type { ImageDocument, LayerId, Rect } from '../document/documentTypes';
 import { findRasterLayer } from '../document/layerTree';
 import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
-import {
-  encodeRgba8Png,
-  readR8Texture,
-  readRgba8Texture,
-  selectionMaskToRgba8
-} from '../../gpu/gpuReadback';
+import { encodeRgba8Png, readR8Texture, selectionMaskToRgba8 } from '../../gpu/gpuReadback';
+import { planDocumentRegionPreview } from '../geometry/documentRegionPreview';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { LayerTextureCodec } from './LayerTextureCodec';
 import type { SelectionTextureStore } from './SelectionTextureStore';
@@ -169,12 +165,6 @@ export class SelectionClipboardService {
       format: 'rgba8unorm',
       usage: clipboardTextureUsage()
     });
-    const croppedTexture = device.createTexture({
-      label: 'LightTable cropped selected display clipboard',
-      size: [crop.width, crop.height],
-      format: 'rgba8unorm',
-      usage: clipboardTextureUsage()
-    });
     try {
       const pipeline = this.options.pipelines().selectionDisplayCopy;
       const bindGroup = device.createBindGroup({
@@ -194,27 +184,29 @@ export class SelectionClipboardService {
         selectedDisplay.createView(),
         { r: 0, g: 0, b: 0, a: 0 }
       );
-      encoder.copyTextureToTexture(
-        {
-          texture: selectedDisplay,
-          origin: { x: crop.x, y: crop.y }
-        },
-        { texture: croppedTexture },
-        [crop.width, crop.height]
-      );
       device.queue.submit([encoder.finish()]);
-      const pixels = await readRgba8Texture(
-        device,
-        croppedTexture,
-        crop.width,
-        crop.height,
-        'LightTable Copy Merged readback'
+      return await this.exportDisplayRegion(
+        selectedDisplay, crop, Math.max(crop.width, crop.height)
       );
-      return await encodeRgba8Png(pixels, crop.width, crop.height);
     } finally {
       selectedDisplay.destroy();
-      croppedTexture.destroy();
     }
+  }
+
+  async exportDisplayRegion(displayTexture: GPUTexture, bounds: Rect, maxEdge: number) {
+    const { width, height } = this.options.dimensions();
+    const plan = planDocumentRegionPreview(width, height, bounds, maxEdge);
+    if (!plan) throw new Error('The display region must be finite, non-empty and inside the document.');
+    const scaleX = plan.outputWidth / plan.region.width;
+    const scaleY = plan.outputHeight / plan.region.height;
+    return this.options.textureCodec.encodeUnchecked(
+      displayTexture,
+      false,
+      plan.outputWidth,
+      plan.outputHeight,
+      { a: scaleX, b: 0, c: 0, d: scaleY,
+        tx: -plan.region.x * scaleX, ty: -plan.region.y * scaleY }
+    );
   }
 
   /**

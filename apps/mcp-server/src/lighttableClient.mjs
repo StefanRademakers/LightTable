@@ -85,8 +85,12 @@ export class MockLightTableClient {
       ? { status: 'completed', reused: false, artifact: { id: 'preview-demo',
         kind: 'render-preview', name: 'preview.png', mediaType: 'image/png', byteLength: 3,
         createdAt: Date.now(), preview: { documentId: this.document.id,
-          canonicalRevision: this.document.canonicalRevision, width: 512, height: 341,
-          maxEdge: parameters.maxEdge ?? 1024 } } }
+          canonicalRevision: this.document.canonicalRevision,
+          width: parameters.region ? Math.min(parameters.region.width, parameters.maxEdge ?? 1024) : 512,
+          height: parameters.region ? Math.min(parameters.region.height, parameters.maxEdge ?? 1024) : 341,
+          maxEdge: parameters.maxEdge ?? 1024,
+          ...(parameters.region ? { target: { kind: 'region', coordinateSpace: 'document-px',
+            bounds: parameters.region } } : {}) } } }
       : { status: 'rejected', code: 'stale-document-revision', message: 'stale',
         currentRevision: this.document.canonicalRevision };
     if (method === 'layer.preview') return parameters.documentId === this.document.id
@@ -106,6 +110,17 @@ export class MockLightTableClient {
       offset: 0, limit: parameters.limit ?? 128, truncated: false,
       nextCursor: null, layers: this.layers
     } : { status: 'rejected', code: 'document-not-found', message: 'Document not found.' };
+    if (method === 'layer.query') {
+      const layer = this.layers.find(({ id }) => id === (parameters.layerId ?? this.document.activeLayerId));
+      return layer ? { status: 'completed', documentId: this.document.id,
+        canonicalRevision: this.document.canonicalRevision,
+        resolvedFrom: parameters.layerId ? 'explicit-layer' : 'active-layer', layer,
+        content: { kind: 'raster', pixelRevision: 1, source: { kind: 'runtime-raster' },
+          dirtyBounds: null, localAdjustments: null, attachedAdjustmentCount: 0,
+          attachedAdjustmentsTruncated: false, attachedAdjustments: [] },
+        availableQueries: ['layer.preview:pixels', 'warp.query', 'grade.queryBasic'] }
+        : { status: 'rejected', code: 'layer-not-found', message: 'Layer not found.' };
+    }
     if (method === 'layer.effects') return { layerId: parameters.layerId, enabled: true, revision: 0, effects: [] };
     if (method === 'text.query') return { layerId: parameters.layerId, sourceKind: 'flow', editable: true,
       revision: 1, transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },

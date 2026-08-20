@@ -98,6 +98,23 @@ try {
   const backgroundSourceLayerId = openingLayerList.find(({ id, type }) =>
     id === sourceLayerId && type === 'raster')?.id
     ?? openingLayerList.find(({ type }) => type === 'raster')?.id;
+  const activeLayerDetail = (await call('lighttable_layer', { documentId,
+    expectedDocumentRevision: before.canonicalRevision })).structuredContent;
+  const activeLayerSummary = openingLayerList.find(({ id }) => id === sourceLayerId);
+  if (activeLayerDetail?.status !== 'completed'
+    || activeLayerDetail.resolvedFrom !== 'active-layer'
+    || activeLayerDetail.layer?.id !== sourceLayerId
+    || activeLayerDetail.content?.kind !== activeLayerSummary?.type) {
+    throw new Error(`MCP active-layer inspection is incomplete: ${JSON.stringify(activeLayerDetail)}`);
+  }
+  if (!backgroundSourceLayerId) throw new Error('MCP fixture has no raster layer for layer preview.');
+  const rasterLayerDetail = (await call('lighttable_layer', { documentId,
+    layerId: backgroundSourceLayerId,
+    expectedDocumentRevision: before.canonicalRevision })).structuredContent;
+  if (rasterLayerDetail?.content?.kind !== 'raster'
+    || !rasterLayerDetail.availableQueries?.includes('layer.preview:pixels')) {
+    throw new Error(`MCP raster-layer inspection is incomplete: ${JSON.stringify(rasterLayerDetail)}`);
+  }
   const openingPreview = await call('lighttable_preview', { documentId,
     expectedDocumentRevision: before.canonicalRevision, maxEdge: 256 });
   const openingPreviewMetadata = JSON.parse(
@@ -107,7 +124,6 @@ try {
     || openingPreviewMetadata.artifact?.preview?.maxEdge !== 256) {
     throw new Error(`Opening MCP preview lost revision context: ${JSON.stringify(openingPreviewMetadata)}`);
   }
-  if (!backgroundSourceLayerId) throw new Error('MCP fixture has no raster layer for layer preview.');
   const openingLayerPreview = await call('lighttable_layer_preview', { documentId,
     layerId: backgroundSourceLayerId, channel: 'pixels',
     expectedDocumentRevision: before.canonicalRevision, maxEdge: 256,
@@ -132,6 +148,24 @@ try {
     || reusedLayerPreview.content.some(({ type }) => type === 'image')
     || reusedLayerPreviewMetadata.artifact?.id !== openingLayerPreviewMetadata.artifact?.id) {
     throw new Error('Unchanged MCP layer preview rendered or retransferred image bytes.');
+  }
+  const regionBounds = { x: 64, y: 48, width: 192, height: 96 };
+  const openingRegionPreview = await call('lighttable_region_preview', { documentId,
+    region: regionBounds, expectedDocumentRevision: before.canonicalRevision,
+    maxEdge: 128, format: 'webp', quality: 0.68 });
+  const openingRegionImage = openingRegionPreview.content.find(({ type }) => type === 'image');
+  const openingRegionMetadata = JSON.parse(
+    openingRegionPreview.content.find(({ type }) => type === 'text')?.text ?? '{}'
+  );
+  const decodedRegion = openingRegionImage
+    ? await sharp(Buffer.from(openingRegionImage.data, 'base64')).metadata() : null;
+  if (openingRegionImage?.mimeType !== 'image/webp'
+    || decodedRegion?.width !== 128 || decodedRegion.height !== 64
+    || openingRegionMetadata.artifact?.preview?.target?.coordinateSpace !== 'document-px'
+    || JSON.stringify(openingRegionMetadata.artifact.preview.target.bounds) !== JSON.stringify(regionBounds)) {
+    throw new Error(`MCP region preview lost crop context: ${JSON.stringify({
+      decodedRegion, openingRegionMetadata
+    })}`);
   }
   const openingEvents = (await call('lighttable_events', { afterCursor: 0, limit: 200 }))
     .structuredContent;

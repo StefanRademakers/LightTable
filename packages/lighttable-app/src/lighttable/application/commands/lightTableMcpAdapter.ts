@@ -13,6 +13,7 @@ export type LightTableMcpMethod =
   | 'document.preview'
   | 'layer.preview'
   | 'layer.list'
+  | 'layer.query'
   | 'layer.effects'
   | 'text.query'
   | 'vector.query'
@@ -162,6 +163,7 @@ export class AuthenticatedLightTableMcpAdapter {
       case 'document.preview': return this.options.driver.requestDocumentPreview(parameters);
       case 'layer.preview': return this.options.driver.requestLayerPreview(parameters);
       case 'layer.list': return this.options.driver.queryLayerPage(parameters);
+      case 'layer.query': return this.options.driver.queryLayerDetail(parameters);
       case 'layer.effects': return this.options.driver.queryLayerEffects(documentId, parameters.layerId as LayerId);
       case 'text.query': return this.options.driver.queryText(documentId, parameters.layerId as LayerId);
       case 'vector.query': return this.options.driver.queryVector(documentId, parameters.layerId as LayerId);

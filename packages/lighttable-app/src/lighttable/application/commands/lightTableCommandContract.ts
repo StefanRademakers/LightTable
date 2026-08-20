@@ -1,5 +1,6 @@
 import type { DocumentSessionId, DocumentSessionSnapshot, DocumentViewport } from '../documents/documentSession';
 import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
+import type { DocumentPixelRegion } from '../../editor/geometry/documentRegionPreview';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 import type { RenderTelemetrySnapshot } from '../rendering/renderTelemetry';
 import type { LightTableArtifactMetadata } from './lightTableArtifactRegistry';
@@ -114,6 +115,8 @@ export interface LayerEffectsQueryResult {
   readonly layerId: LayerId;
   readonly enabled: boolean;
   readonly revision: number;
+  readonly totalEffects: number;
+  readonly truncated: boolean;
   readonly effects: readonly {
     readonly id: LayerStyleId; readonly kind: LayerStyleKind; readonly name: string;
     readonly enabled: boolean; readonly opacity: number; readonly blendMode: LayerNode['blendMode'];
@@ -243,7 +246,7 @@ export interface LightTableCommandPorts {
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPreviewArtifact(documentId: DocumentSessionId, maxEdge: number,
-    encoding: LightTablePreviewEncoding): File | Promise<File>;
+    encoding: LightTablePreviewEncoding, region?: DocumentPixelRegion): File | Promise<File>;
   exportLayerPreviewArtifact(documentId: DocumentSessionId, layerId: LayerId,
     channel: 'pixels' | 'mask', maxEdge: number,
     encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
@@ -293,7 +296,8 @@ export interface DocumentLightTableCommandPorts {
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>;
-  exportPreviewArtifact(maxEdge: number, encoding: LightTablePreviewEncoding): File | Promise<File>;
+  exportPreviewArtifact(maxEdge: number, encoding: LightTablePreviewEncoding,
+    region?: DocumentPixelRegion): File | Promise<File>;
   exportLayerPreviewArtifact(layerId: LayerId, channel: 'pixels' | 'mask',
     maxEdge: number, encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
   exportPsdArtifact(): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;

@@ -30,9 +30,9 @@ milestone changes those boundaries; feature task details belong in
 - Embedded opt-in Agent Access plus outbound TLS/WSS pairing and a remote MCP
   adapter; transport, permissions and editor command semantics remain separate.
 - MCP construction/query support for editable text, vectors, gradients and
-  Layer Styles, including revision-bound layer pages, whole-document/layer/mask
-  GPU previews, unchanged-image transfer suppression, complete layered-design
-  transactions and export artifacts.
+  Layer Styles, including revision-bound layer pages, active-layer content
+  summaries, whole-document/layer/mask/region GPU previews, unchanged-image
+  transfer suppression, complete layered-design transactions and export artifacts.
 - Provider-neutral GenAI packages, OpenArt integration, a managed local-AI
   protocol/provider process and project-backed job/asset/history persistence.
 - Local editor inference for depth, smart selection, matte refinement,

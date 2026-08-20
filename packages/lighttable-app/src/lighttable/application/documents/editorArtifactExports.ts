@@ -1,5 +1,6 @@
 import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { DocumentRendererPort } from '../../infrastructure/rendering/webGpuDocumentRenderer';
+import type { DocumentPixelRegion } from '../../editor/geometry/documentRegionPreview';
 import { exportPsdDocument, type ExportedPsdDocument } from './PsdExportClient';
 
 const exportFileName = (sourceName: string, suffix: string): string =>
@@ -23,13 +24,16 @@ export const exportEditorPreviewArtifact = async (
   renderer: DocumentRendererPort | null,
   document: ImageDocument | null,
   sourceName: string,
-  maxEdge: number
+  maxEdge: number,
+  region?: DocumentPixelRegion
 ): Promise<File> => {
   if (!renderer || !document) throw new Error('The document renderer is not ready.');
   renderer.synchronizeDocumentForExport(document);
   return new File(
-    [await renderer.exportThumbnailPng(maxEdge)],
-    exportFileName(sourceName, `preview-${maxEdge}.png`),
+    [await (region
+      ? renderer.exportRegionThumbnailPng(region, maxEdge)
+      : renderer.exportThumbnailPng(maxEdge))],
+    exportFileName(sourceName, `${region ? 'region-' : ''}preview-${maxEdge}.png`),
     { type: 'image/png' }
   );
 };

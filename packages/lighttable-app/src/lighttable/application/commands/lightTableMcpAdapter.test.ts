@@ -35,6 +35,8 @@ const createDriver = (): LightTableAutomationDriver => ({
   queryLayerPage: vi.fn(() => ({ status: 'completed' as const, documentId: 'document-1',
     canonicalRevision: 1, total: 0, offset: 0, limit: 128, truncated: false,
     nextCursor: null, layers: [] })),
+  queryLayerDetail: vi.fn(() => ({ status: 'rejected' as const,
+    code: 'layer-not-found' as const, message: 'missing' })),
   queryLayerEffects: vi.fn(() => null),
   queryText: vi.fn(() => null),
   queryVector: vi.fn(() => null),
@@ -119,6 +121,17 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     expect(driver.queryLayerPage).toHaveBeenCalledWith({ documentId: 'document-1',
       expectedDocumentRevision: 7, cursor: 'cursor-1', limit: 32 });
     expect(driver.queryLayers).not.toHaveBeenCalled();
+  });
+
+  it('forwards active-layer detail inspection without command mutation', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    const parameters = { documentId: 'document-1', expectedDocumentRevision: 7 };
+    await adapter.invoke(request('layer.query', parameters));
+    expect(driver.queryLayerDetail).toHaveBeenCalledWith(parameters);
+    expect(driver.execute).not.toHaveBeenCalled();
   });
 
   it('allows only the explicit command surface and supports revocation', async () => {

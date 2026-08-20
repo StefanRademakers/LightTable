@@ -4,6 +4,7 @@ import type {
   LightTablePreviewArtifactContext
 } from './lightTableArtifactRegistry';
 import type { LightTablePreviewEncoding } from './lightTableCommandContract';
+import { planDocumentRegionPreview, type DocumentPixelRegion } from '../../editor/geometry/documentRegionPreview';
 
 export const MIN_AGENT_PREVIEW_EDGE = 64;
 export const MAX_AGENT_PREVIEW_EDGE = 1024;
@@ -25,7 +26,8 @@ interface PreviewDocumentSnapshot {
 
 export interface DocumentPreviewArtifactDependencies {
   snapshot(documentId: DocumentSessionId): PreviewDocumentSnapshot | null;
-  render(documentId: DocumentSessionId, maxEdge: number, encoding: LightTablePreviewEncoding): Promise<File>;
+  render(documentId: DocumentSessionId, maxEdge: number, encoding: LightTablePreviewEncoding,
+    region?: DocumentPixelRegion): Promise<File>;
   register(file: File, context: LightTablePreviewArtifactContext): LightTableArtifactMetadata;
   query(artifactId: string): LightTableArtifactMetadata | null;
 }
@@ -52,6 +54,15 @@ export const parsePreviewEncoding = (value: Record<string, unknown>): LightTable
   return { format, quality: (quality as number | undefined) ?? 0.85 };
 };
 
+const parseRegion = (value: unknown): DocumentPixelRegion | null | undefined => {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) return null;
+  const { x, y, width, height } = value;
+  return [x, y, width, height].every((item) => typeof item === 'number' && Number.isFinite(item))
+    ? { x: x as number, y: y as number, width: width as number, height: height as number }
+    : null;
+};
+
 /**
  * Revision gate and cache for bounded agent previews. Rendering remains owned
  * by the mounted document renderer; this controller never touches viewport or
@@ -70,9 +81,10 @@ export class DocumentPreviewArtifactController {
     const requestedEdge = isRecord(value) && typeof value.maxEdge === 'number'
       ? value.maxEdge : value && isRecord(value) && value.maxEdge === undefined ? undefined : null;
     const encoding = isRecord(value) ? parsePreviewEncoding(value) : null;
+    const region = isRecord(value) ? parseRegion(value.region) : null;
     if (!isRecord(value) || typeof value.documentId !== 'string'
       || expected === null || !Number.isSafeInteger(expected) || expected < 0
-      || requestedEdge === null || !encoding
+      || requestedEdge === null || !encoding || region === null
       || (requestedEdge !== undefined && (!Number.isInteger(requestedEdge)
         || requestedEdge < MIN_AGENT_PREVIEW_EDGE || requestedEdge > MAX_AGENT_PREVIEW_EDGE))) {
       return Promise.resolve({ status: 'rejected', code: 'invalid-request',
@@ -91,7 +103,13 @@ export class DocumentPreviewArtifactController {
         message: 'The expected document revision is stale.',
         currentRevision: opening.canonicalRevision });
     }
-    const key = `${documentId}:${expectedRevision}:${maxEdge}:${encoding.format}:${encoding.quality ?? 'lossless'}`;
+    const regionPlan = region ? planDocumentRegionPreview(
+      opening.width, opening.height, region, maxEdge
+    ) : null;
+    if (region && !regionPlan) return Promise.resolve({ status: 'rejected', code: 'invalid-request',
+      message: 'Preview region must be finite, non-empty and inside the document.' });
+    const regionKey = region ? `${region.x},${region.y},${region.width},${region.height}` : 'document';
+    const key = `${documentId}:${expectedRevision}:${maxEdge}:${regionKey}:${encoding.format}:${encoding.quality ?? 'lossless'}`;
     const cached = this.cache.get(key);
     const artifact = cached ? this.dependencies.query(cached) : null;
     if (artifact?.kind === 'render-preview') {
@@ -101,7 +119,7 @@ export class DocumentPreviewArtifactController {
     const pending = this.inFlight.get(key);
     if (pending) return pending;
     let request!: Promise<DocumentPreviewResult>;
-    request = this.render(documentId, expectedRevision, maxEdge, encoding, key, this.generation)
+    request = this.render(documentId, expectedRevision, maxEdge, encoding, region, key, this.generation)
       .finally(() => {
         if (this.inFlight.get(key) === request) this.inFlight.delete(key);
       });
@@ -122,11 +140,12 @@ export class DocumentPreviewArtifactController {
   }
 
   private async render(documentId: DocumentSessionId, expectedRevision: number,
-    maxEdge: number, encoding: LightTablePreviewEncoding, key: string,
+    maxEdge: number, encoding: LightTablePreviewEncoding, region: DocumentPixelRegion | undefined,
+    key: string,
     generation: number): Promise<DocumentPreviewResult> {
     let file: File;
     try {
-      file = await this.dependencies.render(documentId, maxEdge, encoding);
+      file = await this.dependencies.render(documentId, maxEdge, encoding, region);
     } catch (reason) {
       return { status: 'rejected', code: 'renderer-unavailable',
         message: reason instanceof Error ? reason.message : 'The document preview renderer is unavailable.' };
@@ -145,12 +164,18 @@ export class DocumentPreviewArtifactController {
         message: 'The document changed while its preview was rendering.',
         currentRevision: closing.canonicalRevision };
     }
-    const dimensions = previewDimensions(closing.width, closing.height, maxEdge);
+    const regionPlan = region ? planDocumentRegionPreview(
+      closing.width, closing.height, region, maxEdge
+    ) : null;
+    const dimensions = regionPlan ? { width: regionPlan.outputWidth, height: regionPlan.outputHeight }
+      : previewDimensions(closing.width, closing.height, maxEdge);
     const artifact = this.dependencies.register(file, {
       documentId,
       canonicalRevision: expectedRevision,
       ...dimensions,
-      maxEdge, format: encoding.format, ...(encoding.quality === undefined ? {} : { quality: encoding.quality })
+      maxEdge, format: encoding.format, ...(encoding.quality === undefined ? {} : { quality: encoding.quality }),
+      ...(region ? { target: { kind: 'region' as const, coordinateSpace: 'document-px' as const,
+        bounds: { ...region } } } : {})
     });
     this.cache.set(key, artifact.id);
     return { status: 'completed', artifact, reused: false };

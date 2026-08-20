@@ -184,8 +184,9 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     return this.resolve(documentId).exportPngArtifact();
   }
   exportPreviewArtifact(documentId: DocumentSessionId, maxEdge: number,
-    encoding: Parameters<DocumentLightTableCommandPorts['exportPreviewArtifact']>[1]) {
-    return this.resolve(documentId).exportPreviewArtifact(maxEdge, encoding);
+    encoding: Parameters<DocumentLightTableCommandPorts['exportPreviewArtifact']>[1],
+    region?: Parameters<DocumentLightTableCommandPorts['exportPreviewArtifact']>[2]) {
+    return this.resolve(documentId).exportPreviewArtifact(maxEdge, encoding, region);
   }
   exportLayerPreviewArtifact(documentId: DocumentSessionId, layerId: LayerId,
     channel: 'pixels' | 'mask', maxEdge: number,

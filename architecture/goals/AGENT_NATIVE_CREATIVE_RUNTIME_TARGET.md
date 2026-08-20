@@ -190,8 +190,9 @@ Styles and real renderer preview/export paths.
 discoverable but are not yet complete shared machine schemas; Actions lacks
 durable named sets, rich parameters, gesture coalescing and task-aware
 playback; structural layer pages plus whole-document/layer/mask previews now
-cover a bounded inspection baseline, but arbitrary region preview and complete
-targeted detail queries remain open; equivalent UI/Actions/MCP outcomes are not
+cover a bounded inspection baseline including final-composite regions and an
+active-layer content dispatcher, but complete adjustment detail queries remain
+open; equivalent UI/Actions/MCP outcomes are not
 yet broadly proven.
 
 **Target only:** reference decomposition, autonomous visual correction,

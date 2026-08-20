@@ -1,0 +1,37 @@
+Task 255 - Complete adjustment observation schemas
+
+Goal
+====
+
+Let an agent inspect every editable adjustment kind through bounded typed
+projections instead of receiving raw module settings or guessing from layer
+names.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 218`](../task_218_agent_observation_preview_and_events/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [ ] Inventory adjustment-layer kinds, attached adjustments and document/raster
+      Grade owners against their current property editors and command schemas.
+- [ ] Define bounded discriminated query results with revision, enabled state,
+      authored/default distinction and truncation metadata where needed.
+- [ ] Reuse shared machine schemas; do not serialize raw renderer settings,
+      LUT bytes or duplicated document state.
+- [ ] Expose the same query authority through Agent Access and MCP with stale-
+      revision and large-payload tests.
+- [ ] Prove representative Grade, Curves, Color/Vibrance, Selective Color,
+      Layer Style-adjacent and attached-adjustment inspection.
+- [ ] Update the MCP/current-state documentation, run full gates and commit.
+
+Non-goals
+=========
+
+- Changing adjustment rendering or parity behavior.
+- Returning visual parity scores as a substitute for editable state.
+- Exposing high-frequency slider preview events.

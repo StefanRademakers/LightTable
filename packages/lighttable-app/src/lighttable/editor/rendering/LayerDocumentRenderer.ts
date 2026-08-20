@@ -767,6 +767,10 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionClipboard.exportDisplaySelection(displayTexture, bounds);
   }
 
+  async exportDisplayRegion(displayTexture: GPUTexture, bounds: Rect, maxEdge: number) {
+    return this.runtime.selectionClipboard.exportDisplayRegion(displayTexture, bounds, maxEdge);
+  }
+
   async exportSelectionMask() {
     return this.runtime.selectionClipboard.exportSelectionMask();
   }

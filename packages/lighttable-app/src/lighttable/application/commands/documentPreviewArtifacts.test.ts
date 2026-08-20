@@ -40,6 +40,20 @@ describe('DocumentPreviewArtifactController', () => {
     expect(state.render).toHaveBeenCalledOnce();
   });
 
+  it('binds a document-space region, output dimensions and encoding into artifact identity', async () => {
+    const state = setup();
+    const request = { documentId, expectedDocumentRevision: 7, maxEdge: 400,
+      region: { x: 200, y: 100, width: 800, height: 400 }, format: 'webp', quality: 0.6 };
+    const first = await state.controller.request(request);
+    expect(first).toMatchObject({ status: 'completed', reused: false,
+      artifact: { preview: { width: 400, height: 200, format: 'webp', quality: 0.6,
+        target: { kind: 'region', coordinateSpace: 'document-px', bounds: request.region } } } });
+    expect(state.render).toHaveBeenCalledWith(documentId, 400,
+      { format: 'webp', quality: 0.6 }, request.region);
+    await state.controller.request({ ...request, region: { ...request.region, x: 201 } });
+    expect(state.render).toHaveBeenCalledTimes(2);
+  });
+
   it('rejects stale, malformed and oversized requests before rendering', async () => {
     const state = setup();
     await expect(state.controller.request({ documentId, expectedDocumentRevision: 6 }))
@@ -48,7 +62,9 @@ describe('DocumentPreviewArtifactController', () => {
     for (const request of [
       { documentId },
       { documentId, expectedDocumentRevision: 7, maxEdge: 63 },
-      { documentId, expectedDocumentRevision: 7, maxEdge: MAX_AGENT_PREVIEW_EDGE + 1 }
+      { documentId, expectedDocumentRevision: 7, maxEdge: MAX_AGENT_PREVIEW_EDGE + 1 },
+      { documentId, expectedDocumentRevision: 7,
+        region: { x: 1500, y: 0, width: 200, height: 100 } }
     ]) {
       await expect(state.controller.request(request)).resolves.toMatchObject({
         status: 'rejected', code: 'invalid-request'
