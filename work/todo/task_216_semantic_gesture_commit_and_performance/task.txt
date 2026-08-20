@@ -79,6 +79,8 @@ Current evidence (2026-08-20)
   path similarly records one final `vector.update`.
 - A twelve-sample packaged Direct Selection drag records one final path update.
   Cancel, no-op click and marquee-only selection produce no semantic mutation.
+- Packaged Gradient Fill drags publish only their final native create/update;
+  intermediate axis samples, cancellation and color-stop endpoint clicks remain local.
 
 Remaining before this task is complete
 ======================================

@@ -165,7 +165,7 @@ import { FlowTextEditingSessionController } from './application/text/flowTextEdi
 import { executeSemanticTextCommand, paragraphTextCreateCommand, pointTextCreateCommand,
   semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
-import { observedLiveShapeCreateCommand, observedVectorPathCreateCommand,
+import { observedLiveShapeCreateCommand, observedLiveShapeUpdateCommand, observedVectorPathCreateCommand,
   observedVectorPathUpdateCommand } from './application/vectors/semanticVectorObservation';
 import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
 import { executeAtomicCommandBatch } from './application/commands/atomicCommandBatchExecutor';
@@ -3556,6 +3556,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         workspaceDocumentId as DocumentSessionId,
         path ? observedVectorPathUpdateCommand(path, layerId) : { layerId, elementId: pathId },
         { layerId, elementId: pathId }
+      );
+    },
+    onGradientCommitted: ({ operation, layerId, layerName, layerRole, layerOpacity,
+      layerBlendMode, element }) => {
+      const parameters = operation === 'create'
+        ? observedLiveShapeCreateCommand(element, undefined, layerName, {
+            role: layerRole,
+            opacity: layerOpacity,
+            blendMode: layerBlendMode
+          })
+        : observedLiveShapeUpdateCommand(element, layerId);
+      if (!parameters) return;
+      commandService?.recordObservedCommand(
+        operation === 'create' ? 'vector.create' : 'vector.update',
+        workspaceDocumentId as DocumentSessionId,
+        parameters,
+        { layerId, elementId: element.id }
       );
     }
   });

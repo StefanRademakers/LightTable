@@ -1,5 +1,6 @@
 import { cloneVectorStyle, type VectorLiveShape, type VectorPath } from '@lighttable/vector-core';
 import type { LayerId } from '../../editor/document/documentTypes';
+import type { BlendMode } from '../../editor/document/blendModes';
 import type { SemanticVectorCommand, SemanticVectorPrimitive
 } from '../commands/semanticVectorCommandContract';
 
@@ -47,7 +48,12 @@ export const observedVectorPathUpdateCommand = (
 export const observedLiveShapeCreateCommand = (
   element: VectorLiveShape,
   existingLayerId?: LayerId,
-  layerName?: string
+  layerName?: string,
+  layerPresentation?: {
+    readonly role: 'artwork' | 'gradient-fill';
+    readonly opacity: number;
+    readonly blendMode: BlendMode;
+  }
 ): Omit<Extract<SemanticVectorCommand, { readonly kind: 'create' }>, 'kind'> | null => {
   const geometry = element.geometry;
   let primitive: SemanticVectorPrimitive;
@@ -71,9 +77,26 @@ export const observedLiveShapeCreateCommand = (
   return {
     ...(existingLayerId ? { layerId: existingLayerId } : {}),
     ...(!existingLayerId && layerName ? { layerName } : {}),
+    ...(!existingLayerId && layerPresentation ? {
+      layerRole: layerPresentation.role,
+      layerOpacity: layerPresentation.opacity,
+      layerBlendMode: layerPresentation.blendMode
+    } : {}),
     name: element.name,
     primitive,
     transform: { ...element.transform },
     style: cloneVectorStyle(element.style)
   };
 };
+
+export const observedLiveShapeUpdateCommand = (
+  element: VectorLiveShape,
+  layerId: LayerId
+): Omit<Extract<SemanticVectorCommand, { readonly kind: 'update' }>, 'kind'> => ({
+  layerId,
+  elementId: element.id,
+  name: element.name,
+  geometry: structuredClone(element.geometry),
+  transform: { ...element.transform },
+  style: cloneVectorStyle(element.style)
+});

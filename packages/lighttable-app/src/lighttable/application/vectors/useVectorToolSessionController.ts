@@ -31,6 +31,7 @@ export interface VectorToolSessionHookOptions {
   readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
   readonly onPenPathCommitted?: VectorToolSessionOptions['onPenPathCommitted'];
   readonly onPathMutationCommitted?: VectorToolSessionOptions['onPathMutationCommitted'];
+  readonly onGradientCommitted?: VectorToolSessionOptions['onGradientCommitted'];
 }
 
 /**
@@ -55,7 +56,8 @@ export const useVectorToolSessionController = ({
   requestGradientColorEditor,
   onLiveShapeCommitted,
   onPenPathCommitted,
-  onPathMutationCommitted
+  onPathMutationCommitted,
+  onGradientCommitted
 }: VectorToolSessionHookOptions): VectorToolSessionController => {
   const portsRef = useRef({
     document,
@@ -72,7 +74,8 @@ export const useVectorToolSessionController = ({
     requestGradientColorEditor,
     onLiveShapeCommitted,
     onPenPathCommitted,
-    onPathMutationCommitted
+    onPathMutationCommitted,
+    onGradientCommitted
   });
   portsRef.current = {
     document,
@@ -89,7 +92,8 @@ export const useVectorToolSessionController = ({
     requestGradientColorEditor,
     onLiveShapeCommitted,
     onPenPathCommitted,
-    onPathMutationCommitted
+    onPathMutationCommitted,
+    onGradientCommitted
   };
 
   const controllerRef = useRef<VectorToolSessionController | null>(null);
@@ -114,7 +118,8 @@ export const useVectorToolSessionController = ({
       rasterizeShape: (transaction) => portsRef.current.rasterizeShape(transaction),
       onLiveShapeCommitted: (result) => portsRef.current.onLiveShapeCommitted?.(result),
       onPenPathCommitted: (result) => portsRef.current.onPenPathCommitted?.(result),
-      onPathMutationCommitted: (result) => portsRef.current.onPathMutationCommitted?.(result)
+      onPathMutationCommitted: (result) => portsRef.current.onPathMutationCommitted?.(result),
+      onGradientCommitted: (result) => portsRef.current.onGradientCommitted?.(result)
     });
   }
 

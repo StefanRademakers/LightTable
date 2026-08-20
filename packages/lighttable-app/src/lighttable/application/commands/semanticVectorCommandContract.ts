@@ -1,6 +1,7 @@
 import type { GradientPaintInstance } from '@lighttable/paint-core';
 import type { AffineMatrix, ArrowheadGeometry, LiveShapeGeometry, VectorStyle,
   VectorSubpath } from '@lighttable/vector-core';
+import { BLEND_MODES, type BlendMode } from '../../editor/document/blendModes';
 
 export interface SemanticVectorPathAnchor {
   readonly id?: string;
@@ -36,6 +37,8 @@ export interface SemanticVectorStylePatch {
 
 export type SemanticVectorCommand =
   | { readonly kind: 'create'; readonly layerId?: string; readonly layerName?: string; readonly name?: string;
+      readonly layerRole?: 'artwork' | 'gradient-fill'; readonly layerOpacity?: number;
+      readonly layerBlendMode?: BlendMode;
       readonly primitive?: SemanticVectorPrimitive; readonly subpaths?: readonly SemanticVectorSubpath[];
       readonly fillRule?: 'nonzero' | 'evenodd'; readonly style?: SemanticVectorStylePatch;
       readonly transform?: AffineMatrix }
@@ -52,6 +55,7 @@ const finite = (value: unknown, min = -10_000_000, max = 10_000_000): value is n
   typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
 );
 const id = (value: unknown) => typeof value === 'string' && value.length > 0 && value.length <= 255;
+const blendMode = (value: unknown): value is BlendMode => BLEND_MODES.some(({ id }) => id === value);
 const point = (value: unknown) => record(value) && finite(value.x) && finite(value.y);
 const matrix = (value: unknown) => record(value)
   && ['a', 'b', 'c', 'd', 'tx', 'ty'].every((key) => finite(value[key]));
@@ -132,6 +136,11 @@ export const parseSemanticVectorCommand = (
       || (hasPath && !validSubpaths(value.subpaths)) || !validStyle(value.style)
       || (value.layerId !== undefined && !id(value.layerId))
       || (value.layerName !== undefined && !id(value.layerName))
+      || (value.layerRole !== undefined && value.layerRole !== 'artwork' && value.layerRole !== 'gradient-fill')
+      || (value.layerOpacity !== undefined && !finite(value.layerOpacity, 0, 1))
+      || (value.layerBlendMode !== undefined && !blendMode(value.layerBlendMode))
+      || (value.layerId !== undefined && (value.layerRole !== undefined
+        || value.layerOpacity !== undefined || value.layerBlendMode !== undefined))
       || (value.name !== undefined && !id(value.name))
       || (value.transform !== undefined && !matrix(value.transform))
       || (value.fillRule !== undefined && value.fillRule !== 'nonzero' && value.fillRule !== 'evenodd')) {

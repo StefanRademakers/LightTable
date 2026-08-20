@@ -47,6 +47,8 @@ Completed vertical slices
   local commit, with previews kept outside command transport.
 - native Add/Delete/Convert Point and Direct Selection geometry commits, with
   selection-only and preview work kept outside command transport.
+- native Gradient Fill creation and on-canvas editing, including its layer role
+  and presentation; raster-pixel Gradient remains a distinct open category.
 
 Rules
 =====

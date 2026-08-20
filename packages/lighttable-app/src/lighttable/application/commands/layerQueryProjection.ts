@@ -87,6 +87,7 @@ export interface LayerQuerySummary {
     readonly mode: 'point' | 'paragraph' | 'path' | 'positioned';
     readonly writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr' | null;
   } | null;
+  readonly vectorRole: 'artwork' | 'gradient-fill' | null;
   readonly vectorContent: VectorContentQuerySummary | null;
 }
 
@@ -138,6 +139,7 @@ export function projectLayerQuery(
       mode: 'positioned',
       writingMode: null
     } : null,
+    vectorRole: node.type === 'vector' ? node.role ?? 'artwork' : null,
     vectorContent: node.type === 'vector' ? projectVectorContentQuery(node) : null
   };
 }

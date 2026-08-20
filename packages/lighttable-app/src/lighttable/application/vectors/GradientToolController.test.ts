@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
@@ -48,12 +48,13 @@ describe('GradientToolController', () => {
       applyDocumentSnapshot: (next) => { document = next; },
       pushDocumentHistory: (before, after) => history.push({ before, after })
     }));
+    const onCommitted = vi.fn();
     const controller = new GradientToolController(documents, () => ({
       paint: createDefaultGradientPaint('gesture', 'document'),
       opacity: 0.75,
       blendMode: 'multiply',
       transparency: true
-    }));
+    }), undefined, undefined, undefined, onCommitted);
 
     expect(controller.pointerDown({ x: 20, y: 30 })).toBe(true);
     expect(controller.pointerMove({ x: 220, y: 30 })).toBe(true);
@@ -71,6 +72,11 @@ describe('GradientToolController', () => {
       geometry: { kind: 'rectangle', width: 320, height: 180 },
       style: { fill: { kind: 'gradient', coordinateSpace: 'document' }, opacity: 1 }
     });
+    expect(onCommitted).toHaveBeenCalledOnce();
+    expect(onCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'create', layerRole: 'gradient-fill', layerOpacity: 0.75,
+      layerBlendMode: 'multiply', element: expect.objectContaining({ type: 'live-shape' })
+    }));
   });
 
   it('keeps the active Gradient Fill selected and edits it instead of adding layers', () => {
@@ -82,12 +88,13 @@ describe('GradientToolController', () => {
       applyDocumentSnapshot: (next) => { document = next; },
       pushDocumentHistory: (before, after) => history.push({ before, after })
     }));
+    const onCommitted = vi.fn();
     const controller = new GradientToolController(documents, () => ({
       paint: createDefaultGradientPaint('gesture', 'document'),
       opacity: 1,
       blendMode: 'normal',
       transparency: true
-    }), (target) => selected.push(target));
+    }), (target) => selected.push(target), undefined, undefined, onCommitted);
 
     controller.pointerDown({ x: 20, y: 30 }, 6);
     controller.pointerMove({ x: 220, y: 30 });
@@ -122,6 +129,8 @@ describe('GradientToolController', () => {
     expect(fillAfterEndpointEdit && 'kind' in fillAfterEndpointEdit
       ? fillAfterEndpointEdit.transform
       : null).toEqual({ a: 260, b: 30, c: -30, d: 260, tx: 40, ty: 50 });
+    expect(onCommitted.mock.calls.map(([result]) => result.operation))
+      .toEqual(['create', 'update', 'update']);
   });
 
   it('translates the complete gradient when dragging its line body', () => {
@@ -162,10 +171,11 @@ describe('GradientToolController', () => {
       applyDocumentSnapshot: (next) => { document = next; },
       pushDocumentHistory: (before, after) => history.push({ before, after })
     }));
+    const onCommitted = vi.fn();
     const controller = new GradientToolController(documents, () => ({
       paint: createDefaultGradientPaint('gesture', 'document'), opacity: 1,
       blendMode: 'normal', transparency: true
-    }), () => undefined, (endpoint) => requested.push(endpoint));
+    }), () => undefined, (endpoint) => requested.push(endpoint), undefined, onCommitted);
 
     controller.pointerDown({ x: 20, y: 30 }, 8);
     controller.pointerMove({ x: 250, y: 30 });
@@ -176,6 +186,30 @@ describe('GradientToolController', () => {
     expect(controller.pointerUp({ x: 250, y: 30 })).toBe(true);
     expect(requested).toEqual(['end']);
     expect(history).toHaveLength(1);
+    expect(onCommitted).toHaveBeenCalledTimes(1);
+  });
+
+  it('publishes nothing when a Gradient Fill preview is cancelled', () => {
+    let document = createImageDocument('Gradient', 320, 180, 'asset');
+    const history = vi.fn();
+    const onCommitted = vi.fn();
+    const documents = new VectorDocumentController(() => ({
+      getDocument: () => document,
+      applyDocumentSnapshot: (next) => { document = next; },
+      pushDocumentHistory: history
+    }));
+    const controller = new GradientToolController(documents, () => ({
+      paint: createDefaultGradientPaint('gesture', 'document'), opacity: 1,
+      blendMode: 'normal', transparency: true
+    }), undefined, undefined, undefined, onCommitted);
+
+    const opening = document;
+    controller.pointerDown({ x: 20, y: 30 });
+    controller.pointerMove({ x: 250, y: 30 });
+    expect(controller.cancel()).toBe(true);
+    expect(document).toBe(opening);
+    expect(history).not.toHaveBeenCalled();
+    expect(onCommitted).not.toHaveBeenCalled();
   });
 
   it('redraws the selected fill without creating a second layer when dragging away from its gizmo', () => {

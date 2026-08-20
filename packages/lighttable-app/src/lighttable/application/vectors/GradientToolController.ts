@@ -29,6 +29,16 @@ export interface GradientToolSelectionTarget {
   readonly elementId: string;
 }
 
+export interface GradientToolCommit {
+  readonly operation: 'create' | 'update';
+  readonly layerId: LayerId;
+  readonly layerName: string;
+  readonly layerRole: 'artwork' | 'gradient-fill';
+  readonly layerOpacity: number;
+  readonly layerBlendMode: BlendMode;
+  readonly element: VectorLiveShape;
+}
+
 interface EditableGradientTarget extends GradientToolSelectionTarget {
   readonly documentToPaintParent: AffineMatrix;
   readonly openingStart: Vec2;
@@ -141,7 +151,8 @@ export class GradientToolController {
     private readonly settings: () => GradientToolSettingsSnapshot,
     private readonly selectTarget: (target: GradientToolSelectionTarget) => void = () => {},
     private readonly requestColorEditor: (endpoint: 'start' | 'end') => void = () => {},
-    private readonly minimumDragDistance = 0.5
+    private readonly minimumDragDistance = 0.5,
+    private readonly onCommitted?: (result: GradientToolCommit) => void
   ) {}
 
   pointerDown(position: Vec2, hitRadius = 0) {
@@ -288,7 +299,10 @@ export class GradientToolController {
         elementId: this.edit.target.elementId
       };
       const committed = this.documents.commitElementMutation();
-      if (committed) this.selectTarget(target);
+      if (committed) {
+        this.selectTarget(target);
+        this.publishCommit('update', target);
+      }
       this.reset();
       return committed;
     }
@@ -296,7 +310,13 @@ export class GradientToolController {
       this.reset();
       return false;
     }
+    const elementId = this.shape.id;
     const committed = this.documents.commitElementCreation();
+    const document = this.documents.currentDocument();
+    if (committed && document?.activeLayerId) this.publishCommit('create', {
+      layerId: document.activeLayerId,
+      elementId
+    });
     this.reset();
     return committed;
   }
@@ -321,5 +341,23 @@ export class GradientToolController {
     this.documentToLayer = identityAffineMatrix();
     this.edit = null;
     this.mutationStarted = false;
+  }
+
+  private publishCommit(operation: GradientToolCommit['operation'], target: GradientToolSelectionTarget) {
+    const document = this.documents.currentDocument();
+    const layer = document ? findDocumentLayer(document, target.layerId) : null;
+    const element = layer?.type === 'vector'
+      ? layer.elements.find(({ id }) => id === target.elementId)
+      : null;
+    if (layer?.type !== 'vector' || element?.type !== 'live-shape') return;
+    this.onCommitted?.({
+      operation,
+      layerId: layer.id,
+      layerName: layer.name,
+      layerRole: layer.role ?? 'artwork',
+      layerOpacity: layer.opacity,
+      layerBlendMode: layer.blendMode,
+      element: cloneVectorLiveShape(element)
+    });
   }
 }

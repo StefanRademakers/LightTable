@@ -214,9 +214,46 @@ try {
   await window.mouse.up();
   await recorder.locator('li').filter({ hasText: 'vector.update' }).waitFor({ timeout: 15_000 });
 
+  await window.keyboard.press('g');
+  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Gradient' }).waitFor();
+  const gradientApplication = window.getByRole('combobox', { name: 'Gradient application' });
+  await gradientApplication.selectOption('fill-layer');
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.14,
+    viewportBounds.y + viewportBounds.height * 0.2
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.37,
+    viewportBounds.y + viewportBounds.height * 0.42,
+    { steps: 14 }
+  );
+  await window.mouse.up();
+  await window.waitForFunction(() => {
+    const entries = [...document.querySelectorAll('.lighttable-action-recorder li')];
+    return entries.filter((entry) => entry.textContent?.includes('vector.create')).length >= 3;
+  }, undefined, { timeout: 15_000 }).catch(async () => {
+    throw new Error(`Gradient Fill did not record vector.create: ${await recorder.textContent()}`);
+  });
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.255,
+    viewportBounds.y + viewportBounds.height * 0.31
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.285,
+    viewportBounds.y + viewportBounds.height * 0.37,
+    { steps: 10 }
+  );
+  await window.mouse.up();
+  await window.waitForFunction(() => {
+    const entries = [...document.querySelectorAll('.lighttable-action-recorder li')];
+    return entries.filter((entry) => entry.textContent?.includes('vector.update')).length >= 2;
+  }, undefined, { timeout: 15_000 });
+
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
-  for (let index = 0; index < 14; index += 1) {
+  for (let index = 0; index < 16; index += 1) {
     await window.getByRole('tab', { name: 'Actions', exact: true }).click();
     await panel.getByRole('radio', { name: 'Commands' }).click();
     const undo = panel.locator('details').filter({ hasText: 'history.undo' });
@@ -242,7 +279,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 14) throw new Error('Expected fourteen recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 16) throw new Error('Expected sixteen recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -272,19 +309,33 @@ try {
   if (!penStepText?.includes('$step12.layerId')) {
     throw new Error(`Recorded Pen path was not bound to Rectangle layer result: ${penStepText}`);
   }
-  const vectorUpdateStep = recorder.locator('li').filter({ hasText: 'vector.update' });
+  const vectorUpdateSteps = recorder.locator('li').filter({ hasText: 'vector.update' });
+  const vectorUpdateStep = vectorUpdateSteps.first();
   await vectorUpdateStep.locator('summary').click();
   const vectorUpdateText = await vectorUpdateStep.textContent();
   if (!vectorUpdateText?.includes('$step13.layerId')
     || !vectorUpdateText.includes('$step13.elementId')) {
     throw new Error(`Recorded Direct Selection edit was not bound to its Pen path: ${vectorUpdateText}`);
   }
+  const gradientCreateStep = vectorCreateSteps.nth(2);
+  await gradientCreateStep.locator('summary').click();
+  const gradientCreateText = await gradientCreateStep.textContent();
+  if (!gradientCreateText?.includes('gradient-fill')) {
+    throw new Error(`Recorded Gradient Fill lost its layer role: ${gradientCreateText}`);
+  }
+  const gradientUpdateStep = vectorUpdateSteps.nth(1);
+  await gradientUpdateStep.locator('summary').click();
+  const gradientUpdateText = await gradientUpdateStep.textContent();
+  if (!gradientUpdateText?.includes('$step15.layerId')
+    || !gradientUpdateText.includes('$step15.elementId')) {
+    throw new Error(`Recorded Gradient edit was not bound to its fill layer: ${gradientUpdateText}`);
+  }
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
   await window.waitForFunction(
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
-    before + 3,
+    before + 4,
     { timeout: 15_000 }
   );
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
@@ -332,9 +383,10 @@ try {
     const driver = window.__lightTableAutomation;
     const workspace = driver?.queryWorkspace();
     const documentId = workspace?.activeDocumentId;
-    const document = documentId ? driver?.queryDocument(documentId) : null;
-    const shapeLayer = documentId && document?.activeLayerId
-      ? driver?.queryLayers(documentId)?.find(({ id, type }) => id === document.activeLayerId && type === 'vector')
+    const shapeLayer = documentId
+      ? driver?.queryLayers(documentId)?.find(({ type, name, vectorRole }) => (
+          type === 'vector' && name === 'Shape' && vectorRole === 'artwork'
+        ))
       : null;
     return documentId && shapeLayer ? {
       layerName: shapeLayer.name,
@@ -348,6 +400,24 @@ try {
     || rectangle?.geometry?.kind !== 'rectangle'
     || penPath?.subpaths?.[0]?.anchors?.length !== 3) {
     throw new Error(`Actions replay did not preserve native Rectangle and Pen path: ${JSON.stringify(playbackShape)}`);
+  }
+  const playbackGradient = await window.evaluate(() => {
+    const driver = window.__lightTableAutomation;
+    const workspace = driver?.queryWorkspace();
+    const documentId = workspace?.activeDocumentId;
+    const gradientLayer = documentId
+      ? driver?.queryLayers(documentId)?.find(({ vectorRole }) => vectorRole === 'gradient-fill')
+      : null;
+    return documentId && gradientLayer ? {
+      layer: gradientLayer,
+      vector: driver?.queryVector(documentId, gradientLayer.id)
+    } : null;
+  });
+  const gradientShape = playbackGradient?.vector?.elements?.[0];
+  if (playbackGradient?.layer?.vectorRole !== 'gradient-fill'
+    || gradientShape?.type !== 'live-shape'
+    || gradientShape.style?.fill?.kind !== 'gradient') {
+    throw new Error(`Actions replay did not preserve editable Gradient Fill: ${JSON.stringify(playbackGradient)}`);
   }
 
   await window.screenshot({ path: screenshot });

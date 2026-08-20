@@ -17,6 +17,7 @@ describe('toolAutomationCatalog', () => {
     expect(TOOL_AUTOMATION_CATALOG['vector-direct-select'].availability).toBe('ui-and-command');
     expect(TOOL_AUTOMATION_CATALOG['vector-add-anchor'].availability).toBe('ui-and-command');
     expect(TOOL_AUTOMATION_CATALOG['vector-delete-anchor'].capabilities).toContain('vector.remove');
+    expect(TOOL_AUTOMATION_CATALOG.gradient.availability).toBe('ui-and-command');
     expect(TOOL_AUTOMATION_CATALOG.warp.availability).toBe('canonical-owner-only');
     expect(TOOL_AUTOMATION_CATALOG['text-point'].availability).toBe('ui-and-command');
   });

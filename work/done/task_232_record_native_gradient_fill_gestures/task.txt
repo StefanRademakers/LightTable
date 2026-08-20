@@ -1,0 +1,66 @@
+Task 232 - Record native Gradient Fill gestures
+================================================
+
+Goal
+====
+
+Record Gradient Fill creation and on-canvas axis edits as native semantic
+vector operations without routing drag previews through Actions or MCP.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Preserve Gradient Fill layer role, opacity and blend mode in creation schema.
+- [x] Record one native `vector.create` after a successful fill-layer drag.
+- [x] Record one native `vector.update` after axis/start/end/redraw commits.
+- [x] Keep pointer previews and endpoint color-editor clicks local.
+- [x] Preserve gradient assets, stops, transparency and affine gradient geometry.
+- [x] Reject invalid layer-presentation combinations at the shared parser.
+- [x] Add creation/edit/cancel/color-click semantic regression coverage.
+- [x] Add packaged Actions undo/replay proof for an editable Gradient Fill.
+- [x] Add packaged Agent Access create/update/query proof.
+- [x] Keep raster-pixel gradient explicitly outside this slice.
+- [x] Run type, contract, boundary, full app and packaged regression gates.
+
+Scope guard
+===========
+
+- Only `gradient.application === 'fill-layer'` uses this native vector route.
+- Raster pixel gradients retain their dedicated GPU owner and need a separate
+  bounded result contract; this task does not pretend they are vector content.
+- Gradient drag samples remain local and frame-scheduled.
+
+Completion contract
+===================
+
+A real Gradient Fill gesture records one replayable command after commit.
+Playback restores its special layer role/presentation and editable gradient
+stops/axis; an on-canvas edit records one further bounded update.
+
+Completion evidence (2026-08-20)
+================================
+
+- `vector.create` now carries validated new-layer role, opacity and blend mode;
+  those fields are rejected when appending to an existing vector layer.
+- Gradient Fill creation, axis/start/end/redraw edits and cancellation have
+  controller and semantic round-trip coverage. Endpoint color-editor clicks
+  and cancelled previews publish no extra command/history entry.
+- `layer.list` exposes `vectorRole`, allowing Actions and agents to distinguish
+  ordinary artwork from editable Gradient Fill layers.
+- Packaged Actions records one real 14-sample Gradient Fill drag and one
+  ten-sample axis edit, undoes sixteen mixed operations and replays the native
+  `gradient-fill` role, editable live shape and gradient paint.
+- Packaged Agent Access creates a soft-light Gradient Fill at 72% layer opacity,
+  updates its axis through `vector.update` and reads role/presentation/axis back.
+- Workspace typecheck, command-contract/boundary checks, all 2,571 app tests,
+  packaged distribution verification and both desktop smokes pass.
+- Raster-pixel Gradient, rendered-pixel equivalence and external MCP-tunnel
+  proof remain outside this slice.

@@ -24,7 +24,7 @@
   "text.replaceRange": { "layerId": "string", "start": "integer", "end": "integer", "text": "string" },
   "text.format": { "layerId": "string", "start?": "integer", "end?": "integer", "style?": "text-style", "paragraph?": "paragraph-style" },
   "text.setLayout": { "layerId": "string", "mode?": "point | paragraph", "origin?": "point", "frame?": "rect", "writingMode?": "writing-mode", "transform?": "affine-matrix" },
-  "vector.create": { "layerId?": "string", "layerName?": "string", "name?": "string", "primitive?": "vector-primitive", "subpaths?": "vector-subpath[]", "fillRule?": "nonzero | evenodd", "style?": "vector-style", "transform?": "affine-matrix" },
+  "vector.create": { "layerId?": "string", "layerName?": "string", "layerRole?": "artwork | gradient-fill (new layer only)", "layerOpacity?": "number 0..1 (new layer only)", "layerBlendMode?": "blend-mode (new layer only)", "name?": "string", "primitive?": "vector-primitive", "subpaths?": "vector-subpath[]", "fillRule?": "nonzero | evenodd", "style?": "vector-style", "transform?": "affine-matrix" },
   "vector.update": { "layerId": "string", "elementId": "string", "name?": "string", "transform?": "affine-matrix", "style?": "vector-style", "geometry?": "live-shape", "subpaths?": "vector-subpath[]", "fillRule?": "nonzero | evenodd" },
   "vector.remove": { "layerId": "string", "elementId": "string" },
   "faceWarp.applyOperation": { "layerId": "string", "operation": "face-warp-operation" },

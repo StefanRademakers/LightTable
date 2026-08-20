@@ -119,6 +119,9 @@ Existing foundation evidence
 - Add/Delete/Convert Point and committed Direct Selection geometry edits now
   publish final `vector.update`/`vector.remove` operations. Hit testing,
   selection, marquees and pointer previews remain local and unrecorded.
+- Native Gradient Fill creation and on-canvas axis edits now share bounded
+  `vector.create`/`vector.update` operations, including layer role, opacity and
+  blend mode. Raster-pixel gradients remain on their separate GPU owner.
 
 Program definition of done
 ==========================

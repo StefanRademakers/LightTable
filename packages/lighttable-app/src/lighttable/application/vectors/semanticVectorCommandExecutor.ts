@@ -114,7 +114,11 @@ export const executeSemanticVectorCommand = (
       throw new Error('The requested vector target is unavailable or locked.');
     }
     after = target?.type === 'vector' ? appendVectorElement(before, target.id, element)
-      : createVectorLayer(before, [element], command.layerName ?? command.name ?? 'Shape');
+      : createVectorLayer(before, [element], command.layerName ?? command.name ?? 'Shape', undefined,
+        command.layerRole ?? 'artwork', {
+          opacity: command.layerOpacity ?? 1,
+          blendMode: command.layerBlendMode ?? 'normal'
+        });
     layerId = target?.type === 'vector' ? target.id : after.activeLayerId;
   } else {
     const layer = findDocumentLayer(before, command.layerId as LayerId);

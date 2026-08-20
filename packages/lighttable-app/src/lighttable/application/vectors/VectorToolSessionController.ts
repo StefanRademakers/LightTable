@@ -44,6 +44,7 @@ import {
 import { hitTestVectorDocument } from './vectorSceneQueries';
 import {
   GradientToolController,
+  type GradientToolCommit,
   type GradientToolSettingsSnapshot
 } from './GradientToolController';
 import type { VectorPathMutationCommit } from './vectorPathCommit';
@@ -72,6 +73,7 @@ export interface VectorToolSessionOptions {
   }) => void;
   onPenPathCommitted?: PenToolControllerOptions['onCommitted'];
   onPathMutationCommitted?: (result: VectorPathMutationCommit) => void;
+  onGradientCommitted?: (result: GradientToolCommit) => void;
 }
 
 export interface VectorPointerDownOptions extends LiveShapeDragOptions {
@@ -155,7 +157,9 @@ export class VectorToolSessionController {
         anchors: [],
         active: null
       }),
-      options.requestGradientColorEditor
+      options.requestGradientColorEditor,
+      undefined,
+      options.onGradientCommitted
     );
     this.selectionCommands = options.ids
       ? new VectorSelectionCommandController(this.documents, dependencies, options.ids)

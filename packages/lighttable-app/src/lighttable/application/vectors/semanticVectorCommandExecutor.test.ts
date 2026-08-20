@@ -6,7 +6,7 @@ import { createImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { parseSemanticVectorCommand } from '../commands/semanticVectorCommandContract';
 import { executeSemanticVectorCommand } from './semanticVectorCommandExecutor';
-import { observedLiveShapeCreateCommand, observedVectorPathCreateCommand,
+import { observedLiveShapeCreateCommand, observedLiveShapeUpdateCommand, observedVectorPathCreateCommand,
   observedVectorPathUpdateCommand } from './semanticVectorObservation';
 
 const harness = () => {
@@ -97,6 +97,50 @@ describe('semantic vector commands', () => {
         geometry, transform: element.transform, style: element.style });
       expect(layer?.name).toBe('Shape');
     }
+  });
+
+  it('round-trips Gradient Fill role, presentation and editable axis', () => {
+    const state = harness();
+    const element = createVectorLiveShape('gradient-shape', {
+      kind: 'rectangle', width: 640, height: 480,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    }, 'Gradient Fill');
+    const fill = { ...createDefaultGradientPaint('recorded-gradient', 'document'),
+      transform: { a: 300, b: 20, c: -20, d: 300, tx: 40, ty: 50 } };
+    element.style = { fill, stroke: null, opacity: 1 };
+    const createParameters = observedLiveShapeCreateCommand(element, undefined, 'Gradient Fill', {
+      role: 'gradient-fill', opacity: 0.7, blendMode: 'multiply'
+    });
+    const parsed = parseSemanticVectorCommand('create', createParameters);
+    expect(parsed).not.toHaveProperty('message');
+    const created = executeSemanticVectorCommand(
+      parsed as Extract<typeof parsed, { kind: 'create' }>, state.dependencies
+    )!;
+    const layer = findDocumentLayer(state.document(), created.layerId);
+    expect(layer).toMatchObject({
+      type: 'vector', role: 'gradient-fill', opacity: 0.7, blendMode: 'multiply'
+    });
+    const replayed = layer?.type === 'vector' ? layer.elements[0] : null;
+    if (replayed?.type !== 'live-shape') throw new Error('Expected Gradient Fill live shape.');
+    const edited = structuredClone(replayed);
+    if (!edited.style.fill || !('kind' in edited.style.fill)) throw new Error('Expected gradient paint.');
+    edited.style = { ...edited.style, fill: {
+      ...edited.style.fill,
+      transform: { ...edited.style.fill.transform, tx: 75 }
+    } };
+    executeSemanticVectorCommand({ kind: 'update',
+      ...observedLiveShapeUpdateCommand(edited, created.layerId) }, state.dependencies);
+    const updatedLayer = findDocumentLayer(state.document(), created.layerId);
+    const updated = updatedLayer?.type === 'vector' ? updatedLayer.elements[0] : null;
+    expect(updated?.style.fill && 'kind' in updated.style.fill
+      ? updated.style.fill.transform.tx : null).toBe(75);
+  });
+
+  it('rejects layer presentation when appending to an existing vector layer', () => {
+    expect(parseSemanticVectorCommand('create', {
+      layerId: 'existing', layerRole: 'gradient-fill',
+      primitive: { kind: 'rectangle', x: 0, y: 0, width: 10, height: 10 }
+    })).toHaveProperty('message');
   });
 
   it('round-trips curved Pen creation and resumed updates without flattening', () => {

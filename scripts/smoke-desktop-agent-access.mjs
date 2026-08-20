@@ -27,6 +27,17 @@ const invoke = async (address, token, method, parameters = {}, requestId = crypt
   if (!response.ok) throw new Error(`Agent invoke failed (${response.status}): ${JSON.stringify(payload)}`);
   return payload.value;
 };
+const agentGradient = (tx) => ({ kind: 'gradient',
+  asset: { id: 'agent-gradient', name: 'Agent gradient', type: 'solid', smoothness: 1,
+    colorStops: [
+      { id: 'cool', position: 0, midpoint: 0.5, color: { r: 0.1, g: 0.3, b: 1, a: 1 } },
+      { id: 'warm', position: 1, midpoint: 0.5, color: { r: 1, g: 0.35, b: 0.1, a: 1 } }
+    ], opacityStops: [
+      { id: 'opacity-0', position: 0, midpoint: 0.5, opacity: 1 },
+      { id: 'opacity-1', position: 1, midpoint: 0.5, opacity: 1 }
+    ], roughness: 0, seed: 0 }, shape: 'linear', coordinateSpace: 'document',
+  transform: { a: 260, b: 0, c: 0, d: 260, tx, ty: 80 }, reverse: false,
+  dither: true, interpolation: 'perceptual' });
 
 try {
   app = await electron.launch({ executablePath: launch.executablePath, args: launch.args, cwd: root,
@@ -249,6 +260,41 @@ try {
   if (!masked?.hasMask || masked.maskContent?.raster?.enabled !== false
     || masked.maskContent?.raster?.linked !== false) {
     throw new Error(`Agent mask state is incomplete: ${JSON.stringify(masked)}`);
+  }
+  const gradientFill = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-create-gradient-fill', command: 'vector.create', documentId: originalId,
+    commandParameters: {
+      layerName: 'Agent Gradient Fill', layerRole: 'gradient-fill',
+      layerOpacity: 0.72, layerBlendMode: 'soft-light', name: 'Gradient Fill',
+      primitive: { kind: 'rectangle', x: 0, y: 0, width: 512, height: 512,
+        cornerRadii: [0, 0, 0, 0], linkedCorners: true },
+      style: { fill: agentGradient(40), stroke: null, opacity: 1 }
+    }
+  });
+  const gradientLayerId = gradientFill.status === 'completed' ? gradientFill.value?.layerId : null;
+  const gradientElementId = gradientFill.status === 'completed' ? gradientFill.value?.elementId : null;
+  if (!gradientLayerId || !gradientElementId) {
+    throw new Error(`Agent Gradient Fill creation failed: ${JSON.stringify(gradientFill)}`);
+  }
+  const gradientEdit = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-edit-gradient-fill', command: 'vector.update', documentId: originalId,
+    commandParameters: {
+      layerId: gradientLayerId, elementId: gradientElementId,
+      style: { fill: agentGradient(65), stroke: null, opacity: 1 }
+    }
+  });
+  if (gradientEdit.status !== 'completed') {
+    throw new Error(`Agent Gradient Fill edit failed: ${JSON.stringify(gradientEdit)}`);
+  }
+  const gradientLayers = await invoke(address, token, 'layer.list', { documentId: originalId });
+  const gradientLayer = gradientLayers.find(({ id }) => id === gradientLayerId);
+  const queriedGradient = await invoke(address, token, 'vector.query', {
+    documentId: originalId, layerId: gradientLayerId
+  });
+  if (gradientLayer?.vectorRole !== 'gradient-fill' || gradientLayer.opacity !== 0.72
+    || gradientLayer.blendMode !== 'soft-light'
+    || queriedGradient.elements?.[0]?.style?.fill?.transform?.tx !== 65) {
+    throw new Error(`Agent Gradient Fill state is incomplete: ${JSON.stringify({ gradientLayer, queriedGradient })}`);
   }
   await window.getByRole('treeitem', { name: /Agent Badge/i }).waitFor();
 
