@@ -84,6 +84,13 @@ describe('semantic vector commands', () => {
       layerId: 'shape-layer', elementId: 'shape',
       geometry: { kind: 'rectangle', width: 40, height: 20 }
     })).toHaveProperty('message');
+    expect(parseSemanticVectorCommand('update', {
+      layerId: 'shape-layer', elementId: 'shape'
+    })).toHaveProperty('message');
+    expect(parseSemanticVectorCommand('update', {
+      layerId: 'shape-layer', elementId: 'shape',
+      geometry: { kind: 'ellipse', width: 40, height: 20 }, fillRule: 'evenodd'
+    })).toHaveProperty('message');
     expect(parseSemanticVectorCommand('remove', {
       layerId: 'shape-layer', elementId: 'shape', selectionBounds: [0, 0, 40, 20]
     })).toHaveProperty('message');

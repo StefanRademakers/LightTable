@@ -82,7 +82,10 @@ test('versioned schemas describe and validate every completed command vertical',
     'text.format',
     'text.setLayout',
     'layer.setTransform',
-    'transform.applyFixed'
+    'transform.applyFixed',
+    'vector.create',
+    'vector.update',
+    'vector.remove'
   ]);
   for (const [command, schema] of Object.entries(LIGHTTABLE_COMMAND_SCHEMAS)) {
     assert.equal(schema.input.additionalProperties, false, `${command} input must be closed`);
@@ -380,4 +383,33 @@ test('raster paint schemas describe final bounded GPU operations, not pointer st
   assert.equal(validateJsonSchemaValue(gradient.input, {
     ...example, paint: { ...example.paint, pointerPath: [[0, 0], [10, 10]] }
   }).valid, false);
+});
+
+test('vector schemas resolve shared definitions and reject UI-only or contradictory state', () => {
+  const create = LIGHTTABLE_COMMAND_SCHEMAS['vector.create'];
+  const update = LIGHTTABLE_COMMAND_SCHEMAS['vector.update'];
+  const remove = LIGHTTABLE_COMMAND_SCHEMAS['vector.remove'];
+  for (const example of LIGHTTABLE_COMMAND_EXAMPLES['vector.create']) {
+    assert.equal(validateJsonSchemaValue(create.input, example).valid, true);
+  }
+  assert.equal(validateJsonSchemaValue(update.input,
+    LIGHTTABLE_COMMAND_EXAMPLES['vector.update'][0]).valid, true);
+  assert.equal(validateJsonSchemaValue(remove.input,
+    LIGHTTABLE_COMMAND_EXAMPLES['vector.remove'][0]).valid, true);
+  assert.equal(validateJsonSchemaValue(create.input, {
+    ...LIGHTTABLE_COMMAND_EXAMPLES['vector.create'][0], pointerSamples: []
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(update.input, {
+    layerId: 'shapes', elementId: 'card'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(update.input, {
+    layerId: 'shapes', elementId: 'card',
+    geometry: { kind: 'ellipse', width: 20, height: 10 }, fillRule: 'evenodd'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(remove.result, {
+    layerId: 'shapes', elementId: 'card'
+  }).valid, true);
+  assert.deepEqual(Object.keys(remove.input.$defs), ['id']);
+  assert.ok(JSON.stringify(remove).length < 1_000);
+  assert.equal(validateJsonSchemaValue({ $ref: '#/$defs/missing', $defs: {} }, 1).valid, false);
 });

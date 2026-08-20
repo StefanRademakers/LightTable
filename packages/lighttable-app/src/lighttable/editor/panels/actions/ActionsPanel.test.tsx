@@ -136,6 +136,19 @@ describe('ActionsPanel', () => {
     expect(markup).not.toContain('disabled=""');
   });
 
+  it('resolves shared vector definitions into an executable Actions form', () => {
+    const createVector = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'vector.create')!;
+    const markup = renderToStaticMarkup(<CommandCatalogView
+      capabilities={[{ command: createVector.id, available: true, reason: null }]}
+      definitions={[createVector]}
+      onExecute={() => null}
+    />);
+    expect(markup).toContain('Rectangle');
+    expect(markup).toContain('cornerRadii');
+    expect(markup).not.toContain('unresolved schema reference');
+    expect(markup).not.toContain('disabled=""');
+  });
+
   it('renders nested conditional text properties without a free-form command JSON editor', () => {
     const createText = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'text.create')!;
     const markup = renderToStaticMarkup(<CommandCatalogView

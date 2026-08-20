@@ -12,24 +12,34 @@ const record = (value: unknown): value is Readonly<Record<string, unknown>> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
 
-const objectDefaults = (schema: LightTableJsonSchema): Readonly<Record<string, unknown>> => {
+const resolveSchema = (schema: LightTableJsonSchema, root: LightTableJsonSchema) => {
+  const match = schema.$ref?.match(/^#\/\$defs\/([^/]+)$/u);
+  return match ? root.$defs?.[match[1]] ?? schema : schema;
+};
+
+const objectDefaults = (
+  schema: LightTableJsonSchema,
+  root: LightTableJsonSchema = schema
+): Readonly<Record<string, unknown>> => {
+  schema = resolveSchema(schema, root);
   const properties = schema.properties ?? {};
   const required = new Set(schema.required ?? []);
   const entries: [string, unknown][] = Object.entries(properties).flatMap(([name, property]) => (
-    required.has(name) ? [[name, initialFieldValue(property)]] : []
+    required.has(name) ? [[name, initialFieldValue(property, root)]] : []
   ));
   if (entries.length === 0 && (schema.minProperties ?? 0) > 0) {
     const seeded = Object.entries(properties).find(([, property]) => property.default !== undefined
       || property.enum?.length || property.type === 'boolean');
-    if (seeded) entries.push([seeded[0], initialFieldValue(seeded[1])]);
+    if (seeded) entries.push([seeded[0], initialFieldValue(seeded[1], root)]);
   }
   return Object.fromEntries(entries);
 };
 
-const initialFieldValue = (schema: LightTableJsonSchema): unknown => {
+const initialFieldValue = (schema: LightTableJsonSchema, root: LightTableJsonSchema): unknown => {
+  schema = resolveSchema(schema, root);
   if (schema.default !== undefined) return structuredClone(schema.default);
-  if (schema.oneOf?.length) return initialFieldValue(schema.oneOf[0]);
-  if (schema.type === 'object') return objectDefaults(schema);
+  if (schema.oneOf?.length) return initialFieldValue(schema.oneOf[0], root);
+  if (schema.type === 'object') return objectDefaults(schema, root);
   if (schema.type === 'boolean') return false;
   if (schema.type === 'array') return [];
   if (schema.enum?.length) return schema.enum[0];
@@ -49,9 +59,10 @@ interface SchemaFieldProps {
   readonly disabled: boolean;
   readonly onChange: (value: unknown) => void;
   readonly onRemove?: () => void;
+  readonly rootSchema: LightTableJsonSchema;
 }
 
-const PrimitiveField: React.FC<Omit<SchemaFieldProps, 'required' | 'onRemove'>> = ({
+const PrimitiveField: React.FC<Omit<SchemaFieldProps, 'required' | 'onRemove' | 'rootSchema'>> = ({
   name, schema, value, disabled, onChange
 }) => {
   const label = schema.title ?? name;
@@ -93,18 +104,22 @@ const PrimitiveField: React.FC<Omit<SchemaFieldProps, 'required' | 'onRemove'>> 
 };
 
 const SchemaField: React.FC<SchemaFieldProps> = ({
-  name, schema, value, required, disabled, onChange, onRemove
+  name, schema, value, required, disabled, onChange, onRemove, rootSchema
 }) => {
+  const resolved = resolveSchema(schema, rootSchema);
+  if (resolved !== schema) return <SchemaField name={name} schema={resolved} value={value}
+    required={required} disabled={disabled} onChange={onChange} onRemove={onRemove}
+    rootSchema={rootSchema} />;
   const label = schema.title ?? name;
   if (value === undefined) return <div className="lighttable-command-parameter-editor__optional">
     <span>{label}</span>
     <ActionButton size="control" disabled={disabled}
-      onClick={() => onChange(initialFieldValue(schema))}>Add</ActionButton>
+      onClick={() => onChange(initialFieldValue(schema, rootSchema))}>Add</ActionButton>
   </div>;
 
   if (schema.oneOf?.length) {
     const selected = Math.max(0, schema.oneOf.findIndex((branch) =>
-      validateJsonSchemaValue(branch, value).valid));
+      validateJsonSchemaValue({ ...branch, $defs: rootSchema.$defs }, value).valid));
     const branch = schema.oneOf[selected];
     return <fieldset>
       <legend>{label}</legend>
@@ -113,14 +128,16 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
       <label>
         <span>Variant</span>
         <FormSelect value={String(selected)} disabled={disabled}
-          onChange={(event) => onChange(initialFieldValue(schema.oneOf![Number(event.currentTarget.value)]))}>
+          onChange={(event) => onChange(initialFieldValue(
+            schema.oneOf![Number(event.currentTarget.value)], rootSchema
+          ))}>
           {schema.oneOf.map((option, index) => <option key={index} value={index}>
             {option.title ?? `Variant ${index + 1}`}
           </option>)}
         </FormSelect>
       </label>
       <SchemaField name="Value" schema={branch} value={value} required disabled={disabled}
-        onChange={onChange} />
+        onChange={onChange} rootSchema={rootSchema} />
     </fieldset>;
   }
 
@@ -134,6 +151,7 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
       {Object.entries(schema.properties ?? {}).map(([childName, childSchema]) => (
         <SchemaField key={childName} name={childName} schema={childSchema}
           value={current[childName]} required={requiredProperties.has(childName)} disabled={disabled}
+          rootSchema={rootSchema}
           onChange={(next) => onChange({ ...current, [childName]: next })}
           onRemove={() => onChange(Object.fromEntries(
             Object.entries(current).filter(([key]) => key !== childName)
@@ -178,7 +196,7 @@ export const CommandParameterEditor: React.FC<CommandParameterEditorProps> = ({
     {Object.entries(schema.properties ?? {}).map(([name, property]) => (
       <SchemaField key={name} name={name} schema={property} value={parameters[name]}
         required={required.has(name)} disabled={disabled} onChange={(value) => update(name, value)}
-        onRemove={() => remove(name)} />
+        onRemove={() => remove(name)} rootSchema={schema} />
     ))}
     {!validation.valid
       ? <p className="lighttable-command-parameter-editor__error">

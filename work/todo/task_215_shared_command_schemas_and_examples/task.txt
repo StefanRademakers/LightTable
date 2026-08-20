@@ -163,6 +163,10 @@ Current evidence (2026-08-20)
   Gradient paint, including bounded stops, transforms, coordinate spaces and
   blend modes. Actions uses the shared examples for valid nested initial state;
   MCP rejects pointer samples before the GPU/history owner.
+- A composable local `$defs`/`$ref` schema boundary now keeps rich contracts
+  reusable without duplicating nested structures. The Vector module uses it for
+  primitives, paths, live geometry, solid/gradient paint and complete strokes
+  across create/update/remove, with stable layer/element results.
 
 Still required for completion
 =============================

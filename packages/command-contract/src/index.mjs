@@ -27,7 +27,35 @@ import textCommandSchemas from '../schemas/v1/text.json' with { type: 'json' };
 
 import transformCommandSchemas from '../schemas/v1/transform.json' with { type: 'json' };
 
+import vectorCommandSchemas from '../schemas/v1/vector.json' with { type: 'json' };
+
 export { validateJsonSchemaValue, formatSchemaValidationIssues } from './schema-validation.mjs';
+
+const schemaReferences = (value, names = new Set()) => {
+  if (Array.isArray(value)) value.forEach((entry) => schemaReferences(entry, names));
+  else if (value && typeof value === 'object') {
+    const match = typeof value.$ref === 'string' ? value.$ref.match(/^#\/\$defs\/([^/]+)$/u) : null;
+    if (match) names.add(match[1]);
+    Object.values(value).forEach((entry) => schemaReferences(entry, names));
+  }
+  return names;
+};
+const schemaWithDefinitions = (schema, definitions) => {
+  const names = schemaReferences(schema);
+  for (const name of names) {
+    if (!definitions[name]) throw new Error(`Command schema references missing definition: ${name}.`);
+    schemaReferences(definitions[name], names);
+  }
+  return names.size > 0 ? { ...schema, $defs: Object.fromEntries(
+    [...names].map((name) => [name, definitions[name]])
+  ) } : schema;
+};
+const schemaModuleCommands = (module) => module.$defs
+  ? Object.fromEntries(Object.entries(module.commands).map(([id, schema]) => [id, {
+      ...schema, input: schemaWithDefinitions(schema.input, module.$defs),
+      result: schemaWithDefinitions(schema.result, module.$defs)
+    }]))
+  : module.commands;
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1;
 
@@ -102,16 +130,17 @@ export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);
 export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = 1;
 
 export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
-  ...finalizationCommandSchemas.commands,
-  ...gradeBasicCommandSchemas.commands,
-  ...layerMaskCommandSchemas.commands,
-  ...layerStructureCommandSchemas.commands,
-  ...layerCommandSchemas.commands,
-  ...mergeFlattenCommandSchemas.commands,
-  ...rasterPaintCommandSchemas.commands,
-  ...selectionCommandSchemas.commands,
-  ...textCommandSchemas.commands,
-  ...transformCommandSchemas.commands
+  ...schemaModuleCommands(finalizationCommandSchemas),
+  ...schemaModuleCommands(gradeBasicCommandSchemas),
+  ...schemaModuleCommands(layerMaskCommandSchemas),
+  ...schemaModuleCommands(layerStructureCommandSchemas),
+  ...schemaModuleCommands(layerCommandSchemas),
+  ...schemaModuleCommands(mergeFlattenCommandSchemas),
+  ...schemaModuleCommands(rasterPaintCommandSchemas),
+  ...schemaModuleCommands(selectionCommandSchemas),
+  ...schemaModuleCommands(textCommandSchemas),
+  ...schemaModuleCommands(transformCommandSchemas),
+  ...schemaModuleCommands(vectorCommandSchemas)
 });
 
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([

@@ -2,30 +2,42 @@ const record = (value) => typeof value === 'object' && value !== null && !Array.
 
 const issue = (path, code, message) => ({ path, code, message });
 
-const matches = (schema, value) => {
+const referenced = (schema, root) => {
+  if (!schema.$ref) return schema;
+  const match = schema.$ref.match(/^#\/\$defs\/([^/]+)$/u);
+  return match ? root.$defs?.[match[1]] ?? schema : schema;
+};
+
+const matches = (schema, value, root) => {
   const issues = [];
-  validateNode(schema, value, [], issues);
+  validateNode(schema, value, [], issues, root);
   return issues.length === 0;
 };
 
-const validateNode = (schema, value, path, issues) => {
+const validateNode = (schema, value, path, issues, root) => {
+  const resolved = referenced(schema, root);
+  if (resolved !== schema) return validateNode(resolved, value, path, issues, root);
+  if (schema.$ref) {
+    issues.push(issue(path, 'ref', `uses an unresolved schema reference: ${schema.$ref}`));
+    return;
+  }
   if (schema.const !== undefined && !Object.is(schema.const, value)) {
     issues.push(issue(path, 'const', `must equal ${String(schema.const)}`));
   }
-  if (schema.allOf) schema.allOf.forEach((branch) => validateNode(branch, value, path, issues));
-  if (schema.anyOf && !schema.anyOf.some((branch) => matches(branch, value))) {
+  if (schema.allOf) schema.allOf.forEach((branch) => validateNode(branch, value, path, issues, root));
+  if (schema.anyOf && !schema.anyOf.some((branch) => matches(branch, value, root))) {
     issues.push(issue(path, 'any-of', 'must match at least one supported variant'));
   }
   if (schema.oneOf) {
-    const count = schema.oneOf.filter((branch) => matches(branch, value)).length;
+    const count = schema.oneOf.filter((branch) => matches(branch, value, root)).length;
     if (count !== 1) issues.push(issue(path, 'one-of', 'must match exactly one supported variant'));
   }
-  if (schema.not && matches(schema.not, value)) {
+  if (schema.not && matches(schema.not, value, root)) {
     issues.push(issue(path, 'not', 'uses a property combination that is not supported'));
   }
   if (schema.if) {
-    const branch = matches(schema.if, value) ? schema.then : schema.else;
-    if (branch) validateNode(branch, value, path, issues);
+    const branch = matches(schema.if, value, root) ? schema.then : schema.else;
+    if (branch) validateNode(branch, value, path, issues, root);
   }
   if (schema.type === 'object') {
     if (!record(value)) {
@@ -52,7 +64,7 @@ const validateNode = (schema, value, path, issues) => {
       }
     }
     for (const [key, childSchema] of Object.entries(properties)) {
-      if (Object.hasOwn(value, key)) validateNode(childSchema, value[key], [...path, key], issues);
+      if (Object.hasOwn(value, key)) validateNode(childSchema, value[key], [...path, key], issues, root);
     }
     return;
   }
@@ -70,7 +82,7 @@ const validateNode = (schema, value, path, issues) => {
     if (schema.uniqueItems && new Set(value.map((item) => JSON.stringify(item))).size !== value.length) {
       issues.push(issue(path, 'unique-items', 'must not contain duplicate items'));
     }
-    if (schema.items) value.forEach((item, index) => validateNode(schema.items, item, [...path, index], issues));
+    if (schema.items) value.forEach((item, index) => validateNode(schema.items, item, [...path, index], issues, root));
     return;
   }
   if (schema.type === 'string') {
@@ -120,7 +132,7 @@ const validateNode = (schema, value, path, issues) => {
 
 export const validateJsonSchemaValue = (schema, value) => {
   const issues = [];
-  validateNode(schema, value, [], issues);
+  validateNode(schema, value, [], issues, schema);
   return issues.length === 0 ? { valid: true, issues: [] } : { valid: false, issues };
 };
 

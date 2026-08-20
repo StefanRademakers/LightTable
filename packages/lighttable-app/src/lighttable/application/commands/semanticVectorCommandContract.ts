@@ -200,6 +200,8 @@ export const parseSemanticVectorCommand = (
     || (value.transform !== undefined && !matrix(value.transform)) || !validStyle(value.style)
     || (value.subpaths !== undefined && !validSubpaths(value.subpaths))
     || (value.geometry !== undefined && !validLiveGeometry(value.geometry))
+    || Object.keys(value).length < 3
+    || (value.geometry !== undefined && (value.subpaths !== undefined || value.fillRule !== undefined))
     || (value.fillRule !== undefined && value.fillRule !== 'nonzero' && value.fillRule !== 'evenodd'))) {
     return { message: 'Vector update parameters are invalid or exceed the geometry limits.' };
   }

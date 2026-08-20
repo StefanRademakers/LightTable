@@ -121,6 +121,13 @@
         "reverse": false, "dither": true, "interpolation": "perceptual" },
         "stroke": null, "opacity": 1 } }
   ],
+  "vector.update": [
+    { "layerId": "layer-shapes", "elementId": "shape-card",
+      "transform": { "a": 1, "b": 0, "c": 0, "d": 1, "tx": 48, "ty": 32 } }
+  ],
+  "vector.remove": [
+    { "layerId": "layer-shapes", "elementId": "shape-card" }
+  ],
   "warp.applyStroke": [
     { "layerId": "layer-photo", "mode": "push",
       "settings": { "diameterPx": 120, "strength": 0.35, "hardness": 0.5,

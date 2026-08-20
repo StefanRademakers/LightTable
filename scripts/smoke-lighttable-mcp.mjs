@@ -202,6 +202,22 @@ try {
       fillContract, rasterGradientContract
     })}`);
   }
+  const vectorCreateContract = (await call('lighttable_commands', { command: 'vector.create' }))
+    .structuredContent.commands?.[0]?.contract;
+  const vectorUpdateContract = (await call('lighttable_commands', { command: 'vector.update' }))
+    .structuredContent.commands?.[0]?.contract;
+  const vectorRemoveContract = (await call('lighttable_commands', { command: 'vector.remove' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (vectorCreateContract?.status !== 'complete' || vectorCreateContract.schemaVersion !== 1
+    || !vectorCreateContract.input?.$defs?.primitive
+    || vectorUpdateContract?.status !== 'complete' || vectorUpdateContract.schemaVersion !== 1
+    || vectorUpdateContract.input?.minProperties !== 3
+    || vectorRemoveContract?.status !== 'complete' || vectorRemoveContract.schemaVersion !== 1
+    || !vectorRemoveContract.result?.properties?.elementId) {
+    throw new Error(`MCP vector discovery is incomplete: ${JSON.stringify({
+      vectorCreateContract, vectorUpdateContract, vectorRemoveContract
+    })}`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
@@ -292,6 +308,18 @@ try {
     throw new Error(`Pointer samples reached the final raster-gradient owner: ${JSON.stringify({
       invalidRasterGradient, before: before.canonicalRevision,
       after: afterInvalidRasterGradient.canonicalRevision
+    })}`);
+  }
+  const invalidVector = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'vector.create', parameters: {
+      primitive: { kind: 'rectangle', x: 0, y: 0, width: 40, height: 20 },
+      pointerSamples: [{ x: 0, y: 0 }]
+    }
+  } });
+  const afterInvalidVector = (await call('lighttable_document', { documentId })).structuredContent;
+  if (!invalidVector.isError || afterInvalidVector.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Private pointer state reached the vector owner: ${JSON.stringify({
+      invalidVector, before: before.canonicalRevision, after: afterInvalidVector.canonicalRevision
     })}`);
   }
   const sourceLayerId = before.activeLayerId;
@@ -683,6 +711,17 @@ try {
   if (mcpPathElement?.subpaths?.[0]?.id !== 'mcp-path-text-subpath') {
     throw new Error(`MCP vector query lost the Path Text target: ${JSON.stringify(mcpVector)}`);
   }
+  const updatedPath = (await call('lighttable_execute', {
+    documentId, command: 'vector.update', parameters: {
+      layerId: mcpPath.value.layerId, elementId: mcpPath.value.elementId,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 12, ty: 8 }
+    }
+  })).structuredContent;
+  if (updatedPath?.status !== 'completed'
+    || updatedPath.value?.layerId !== mcpPath.value.layerId
+    || updatedPath.value?.elementId !== mcpPath.value.elementId) {
+    throw new Error(`MCP vector update failed: ${JSON.stringify(updatedPath)}`);
+  }
   const mcpPathText = (await call('lighttable_execute', {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'MCP path label', name: 'MCP Path Label',
@@ -718,6 +757,16 @@ try {
     || convertedShape.value?.outputType !== 'vector'
     || convertedShape.revisions?.document <= beforeShapeConversion.canonicalRevision) {
     throw new Error(`MCP text-to-shape conversion failed: ${JSON.stringify(convertedShape)}`);
+  }
+  const removedPath = (await call('lighttable_execute', {
+    documentId, command: 'vector.remove', parameters: {
+      layerId: mcpPath.value.layerId, elementId: mcpPath.value.elementId
+    }
+  })).structuredContent;
+  if (removedPath?.status !== 'completed'
+    || removedPath.value?.layerId !== mcpPath.value.layerId
+    || removedPath.value?.elementId !== mcpPath.value.elementId) {
+    throw new Error(`MCP vector removal failed: ${JSON.stringify(removedPath)}`);
   }
   const convertedVector = (await call('lighttable_vector', {
     documentId, layerId: mcpPathText.value.layerId

@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "category": "vector",
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "number": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "positive": { "type": "number", "minimum": 0, "maximum": 10000000 },
+    "point": {
+      "type": "object", "additionalProperties": false, "required": ["x", "y"],
+      "properties": { "x": { "$ref": "#/$defs/number" }, "y": { "$ref": "#/$defs/number" } }
+    },
+    "matrix": {
+      "type": "object", "additionalProperties": false, "required": ["a", "b", "c", "d", "tx", "ty"],
+      "properties": {
+        "a": { "$ref": "#/$defs/number" }, "b": { "$ref": "#/$defs/number" },
+        "c": { "$ref": "#/$defs/number" }, "d": { "$ref": "#/$defs/number" },
+        "tx": { "$ref": "#/$defs/number" }, "ty": { "$ref": "#/$defs/number" }
+      }
+    },
+    "arrow": {
+      "type": "object", "additionalProperties": false, "required": ["width", "length", "concavity"],
+      "properties": {
+        "width": { "$ref": "#/$defs/positive" }, "length": { "$ref": "#/$defs/positive" },
+        "concavity": { "$ref": "#/$defs/unit" }
+      }
+    },
+    "solidPaint": {
+      "type": "object", "additionalProperties": false, "required": ["type", "color"],
+      "properties": {
+        "type": { "type": "string", "const": "solid" },
+        "color": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/unit" } }
+      }
+    },
+    "colorStop": {
+      "type": "object", "additionalProperties": false, "required": ["id", "position", "midpoint", "color"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "position": { "$ref": "#/$defs/unit" },
+        "midpoint": { "$ref": "#/$defs/unit" },
+        "color": {
+          "type": "object", "additionalProperties": false, "required": ["r", "g", "b", "a"],
+          "properties": { "r": { "$ref": "#/$defs/unit" }, "g": { "$ref": "#/$defs/unit" }, "b": { "$ref": "#/$defs/unit" }, "a": { "$ref": "#/$defs/unit" } }
+        }
+      }
+    },
+    "opacityStop": {
+      "type": "object", "additionalProperties": false, "required": ["id", "position", "midpoint", "opacity"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "position": { "$ref": "#/$defs/unit" },
+        "midpoint": { "$ref": "#/$defs/unit" }, "opacity": { "$ref": "#/$defs/unit" }
+      }
+    },
+    "gradientPaint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "asset", "shape", "coordinateSpace", "transform", "reverse", "dither", "interpolation"],
+      "properties": {
+        "kind": { "type": "string", "const": "gradient" },
+        "asset": {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "name", "type", "smoothness", "colorStops", "opacityStops", "roughness", "seed"],
+          "properties": {
+            "id": { "$ref": "#/$defs/id" }, "name": { "$ref": "#/$defs/id" },
+            "type": { "type": "string", "enum": ["solid", "noise"] },
+            "smoothness": { "$ref": "#/$defs/unit" }, "roughness": { "$ref": "#/$defs/unit" },
+            "seed": { "type": "number" },
+            "colorStops": { "type": "array", "minItems": 2, "maxItems": 64, "items": { "$ref": "#/$defs/colorStop" } },
+            "opacityStops": { "type": "array", "minItems": 2, "maxItems": 64, "items": { "$ref": "#/$defs/opacityStop" } }
+          }
+        },
+        "shape": { "type": "string", "enum": ["linear", "radial", "angle", "reflected", "diamond"] },
+        "coordinateSpace": { "type": "string", "enum": ["object-bounds", "layer", "document"] },
+        "transform": { "$ref": "#/$defs/matrix" },
+        "reverse": { "type": "boolean" }, "dither": { "type": "boolean" },
+        "interpolation": { "type": "string", "enum": ["perceptual", "linear", "classic", "smooth"] }
+      }
+    },
+    "paint": { "oneOf": [{ "$ref": "#/$defs/solidPaint" }, { "$ref": "#/$defs/gradientPaint" }] },
+    "stroke": {
+      "type": "object", "additionalProperties": false,
+      "required": ["paint", "width", "cap", "join", "miterLimit", "dash", "dashOffset"],
+      "properties": {
+        "paint": { "$ref": "#/$defs/paint" }, "opacity": { "$ref": "#/$defs/unit" },
+        "width": { "type": "number", "minimum": 0, "maximum": 100000 },
+        "alignment": { "type": "string", "enum": ["inside", "center", "outside"] },
+        "cap": { "type": "string", "enum": ["butt", "round", "square"] },
+        "join": { "type": "string", "enum": ["miter", "round", "bevel"] },
+        "miterLimit": { "type": "number", "minimum": 0, "maximum": 100000 },
+        "dash": { "type": "array", "maxItems": 64, "items": { "type": "number", "minimum": 0, "maximum": 100000 } },
+        "dashOffset": { "type": "number", "minimum": -100000, "maximum": 100000 }
+      }
+    },
+    "style": {
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "fill": { "oneOf": [{ "const": null }, { "$ref": "#/$defs/paint" }] },
+        "stroke": { "oneOf": [{ "const": null }, { "$ref": "#/$defs/stroke" }] },
+        "opacity": { "$ref": "#/$defs/unit" }
+      }
+    },
+    "anchor": {
+      "type": "object", "additionalProperties": false, "required": ["x", "y"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "x": { "$ref": "#/$defs/number" }, "y": { "$ref": "#/$defs/number" },
+        "handleIn": { "oneOf": [{ "const": null }, { "$ref": "#/$defs/point" }] },
+        "handleOut": { "oneOf": [{ "const": null }, { "$ref": "#/$defs/point" }] },
+        "mode": { "type": "string", "enum": ["corner", "smooth", "symmetric"] }
+      }
+    },
+    "subpaths": {
+      "type": "array", "minItems": 1, "maxItems": 256,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["closed", "anchors"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" }, "closed": { "type": "boolean" },
+          "anchors": { "type": "array", "maxItems": 8192, "items": { "$ref": "#/$defs/anchor" } }
+        }
+      }
+    },
+    "primitive": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["kind", "x", "y", "width", "height"], "properties": {
+          "kind": { "const": "rectangle" }, "x": { "$ref": "#/$defs/number" }, "y": { "$ref": "#/$defs/number" },
+          "width": { "$ref": "#/$defs/positive" }, "height": { "$ref": "#/$defs/positive" },
+          "cornerRadii": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/positive" } },
+          "linkedCorners": { "type": "boolean" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "x", "y", "width", "height"], "properties": {
+          "kind": { "const": "ellipse" }, "x": { "$ref": "#/$defs/number" }, "y": { "$ref": "#/$defs/number" },
+          "width": { "$ref": "#/$defs/positive" }, "height": { "$ref": "#/$defs/positive" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "x", "y", "width", "height"], "properties": {
+          "kind": { "const": "triangle" }, "x": { "$ref": "#/$defs/number" }, "y": { "$ref": "#/$defs/number" },
+          "width": { "$ref": "#/$defs/positive" }, "height": { "$ref": "#/$defs/positive" }, "cornerRadius": { "$ref": "#/$defs/positive" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "cx", "cy", "points", "outerRadius", "innerRadius"], "properties": {
+          "kind": { "const": "star" }, "cx": { "$ref": "#/$defs/number" }, "cy": { "$ref": "#/$defs/number" },
+          "points": { "type": "integer", "minimum": 3, "maximum": 2048 }, "outerRadius": { "$ref": "#/$defs/positive" },
+          "innerRadius": { "$ref": "#/$defs/positive" }, "rotationRadians": { "$ref": "#/$defs/number" }, "cornerRadius": { "$ref": "#/$defs/positive" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "x1", "y1", "x2", "y2"], "properties": {
+          "kind": { "const": "line" }, "x1": { "$ref": "#/$defs/number" }, "y1": { "$ref": "#/$defs/number" },
+          "x2": { "$ref": "#/$defs/number" }, "y2": { "$ref": "#/$defs/number" },
+          "startArrow": { "oneOf": [{ "const": null }, { "$ref": "#/$defs/arrow" }] },
+          "endArrow": { "oneOf": [{ "const": null }, { "$ref": "#/$defs/arrow" }] } } }
+      ]
+    },
+    "geometry": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["kind", "width", "height", "cornerRadii", "linkedCorners"], "properties": {
+          "kind": { "const": "rectangle" }, "width": { "$ref": "#/$defs/positive" }, "height": { "$ref": "#/$defs/positive" },
+          "cornerRadii": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/positive" } }, "linkedCorners": { "type": "boolean" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "width", "height"], "properties": {
+          "kind": { "const": "ellipse" }, "width": { "$ref": "#/$defs/positive" }, "height": { "$ref": "#/$defs/positive" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "width", "height", "cornerRadius"], "properties": {
+          "kind": { "const": "triangle" }, "width": { "$ref": "#/$defs/positive" }, "height": { "$ref": "#/$defs/positive" }, "cornerRadius": { "$ref": "#/$defs/positive" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "sides", "radius", "rotationRadians", "cornerRadius"], "properties": {
+          "kind": { "const": "polygon" }, "sides": { "type": "integer", "minimum": 3, "maximum": 2048 }, "radius": { "$ref": "#/$defs/positive" },
+          "rotationRadians": { "$ref": "#/$defs/number" }, "cornerRadius": { "$ref": "#/$defs/positive" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "points", "outerRadius", "innerRadius", "rotationRadians", "cornerRadius"], "properties": {
+          "kind": { "const": "star" }, "points": { "type": "integer", "minimum": 3, "maximum": 2048 },
+          "outerRadius": { "$ref": "#/$defs/positive" }, "innerRadius": { "$ref": "#/$defs/positive" },
+          "rotationRadians": { "$ref": "#/$defs/number" }, "cornerRadius": { "$ref": "#/$defs/positive" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "start", "end", "startArrow", "endArrow"], "properties": {
+          "kind": { "const": "line" }, "start": { "$ref": "#/$defs/point" }, "end": { "$ref": "#/$defs/point" },
+          "startArrow": { "oneOf": [{ "const": null }, { "$ref": "#/$defs/arrow" }] },
+          "endArrow": { "oneOf": [{ "const": null }, { "$ref": "#/$defs/arrow" }] } } }
+      ]
+    }
+  },
+  "commands": {
+    "vector.create": {
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "layerId": { "$ref": "#/$defs/id", "title": "Target vector layer ID", "x-lighttable-control": "layer-id" },
+          "layerName": { "$ref": "#/$defs/id" }, "name": { "$ref": "#/$defs/id" },
+          "layerRole": { "type": "string", "enum": ["artwork", "gradient-fill"] },
+          "layerOpacity": { "$ref": "#/$defs/unit" },
+          "layerBlendMode": { "type": "string", "enum": ["normal", "darken", "multiply", "color-burn", "lighten", "screen", "color-dodge", "linear-dodge", "overlay", "soft-light", "hard-light", "difference", "hue", "saturation", "color", "luminosity", "linear-burn", "darker-color", "lighter-color", "vivid-light", "linear-light", "pin-light", "hard-mix", "exclusion", "subtract", "divide"] },
+          "primitive": { "$ref": "#/$defs/primitive" }, "subpaths": { "$ref": "#/$defs/subpaths" },
+          "fillRule": { "type": "string", "enum": ["nonzero", "evenodd"] },
+          "style": { "$ref": "#/$defs/style" }, "transform": { "$ref": "#/$defs/matrix" }
+        },
+        "oneOf": [
+          { "type": "object", "required": ["primitive"], "not": { "type": "object", "required": ["subpaths"] } },
+          { "type": "object", "required": ["subpaths"], "not": { "type": "object", "required": ["primitive"] } }
+        ],
+        "if": { "type": "object", "required": ["layerId"] },
+        "then": { "not": { "type": "object", "anyOf": [
+          { "type": "object", "required": ["layerRole"] },
+          { "type": "object", "required": ["layerOpacity"] },
+          { "type": "object", "required": ["layerBlendMode"] }
+        ] } }
+      },
+      "result": { "type": "object", "additionalProperties": false, "required": ["layerId", "elementId"], "properties": {
+        "layerId": { "$ref": "#/$defs/id" }, "elementId": { "$ref": "#/$defs/id" } } }
+    },
+    "vector.update": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["layerId", "elementId"], "minProperties": 3,
+        "properties": {
+          "layerId": { "$ref": "#/$defs/id", "x-lighttable-control": "layer-id" }, "elementId": { "$ref": "#/$defs/id" },
+          "name": { "$ref": "#/$defs/id" }, "transform": { "$ref": "#/$defs/matrix" }, "style": { "$ref": "#/$defs/style" },
+          "geometry": { "$ref": "#/$defs/geometry" }, "subpaths": { "$ref": "#/$defs/subpaths" },
+          "fillRule": { "type": "string", "enum": ["nonzero", "evenodd"] }
+        },
+        "if": { "type": "object", "required": ["geometry"] },
+        "then": { "not": { "type": "object", "anyOf": [
+          { "type": "object", "required": ["subpaths"] },
+          { "type": "object", "required": ["fillRule"] }
+        ] } }
+      },
+      "result": { "type": "object", "additionalProperties": false, "required": ["layerId", "elementId"], "properties": {
+        "layerId": { "$ref": "#/$defs/id" }, "elementId": { "$ref": "#/$defs/id" } } }
+    },
+    "vector.remove": {
+      "input": { "type": "object", "additionalProperties": false, "required": ["layerId", "elementId"], "properties": {
+        "layerId": { "$ref": "#/$defs/id", "x-lighttable-control": "layer-id" }, "elementId": { "$ref": "#/$defs/id" } } },
+      "result": { "type": "object", "additionalProperties": false, "required": ["layerId", "elementId"], "properties": {
+        "layerId": { "$ref": "#/$defs/id" }, "elementId": { "$ref": "#/$defs/id" } } }
+    }
+  }
+}
