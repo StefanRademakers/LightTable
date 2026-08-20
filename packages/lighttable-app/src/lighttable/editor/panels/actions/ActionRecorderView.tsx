@@ -13,6 +13,7 @@ import {
   type SemanticActionLibrarySnapshot
 } from '../../../application/actions/semanticActionLibrary';
 import { ActionBindingEditor, ActionVariableRow } from './ActionBindingEditor';
+import { ActionStepParameterEditor } from './ActionStepParameterEditor';
 
 export interface ActionRecorderViewProps {
   readonly recording: ActionRecordingSnapshot;
@@ -40,6 +41,8 @@ export interface ActionRecorderViewProps {
   readonly onBindResult: (sequence: number, path: string, producer: number,
     resultPath: string) => ActionRecordingEditResult;
   readonly onRestoreLiteral: (sequence: number, path: string) => ActionRecordingEditResult;
+  readonly onReplaceStepParameters: (sequence: number,
+    parameters: Readonly<Record<string, unknown>>) => ActionRecordingEditResult;
 }
 
 const formatted = (value: unknown): string => JSON.stringify(value, (_key, candidate) => {
@@ -71,7 +74,8 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
   onLoad,
   onDelete,
   onCreateVariable, onUpdateVariable, onDeleteVariable, onBindVariable, onBindResult,
-  onRestoreLiteral
+  onRestoreLiteral,
+  onReplaceStepParameters
 }) => {
   const [name, setName] = useState(recording.name);
   useEffect(() => setName(recording.name), [recording.id, recording.name]);
@@ -204,6 +208,11 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
               {playbackResult?.message ? <p className="lighttable-action-recorder__warning">{playbackResult.message}</p> : null}
               <h4>Parameters</h4>
               <pre>{formatted(step.parameters)}</pre>
+              <h4>Edit parameters</h4>
+              <ActionStepParameterEditor step={step}
+                priorSteps={recording.steps.filter((candidate) => candidate.sequence < step.sequence)}
+                variables={recording.variables} disabled={busy || recording.status !== 'stopped'}
+                onApply={(parameters) => onReplaceStepParameters(step.sequence, parameters)} />
               <h4>Bindings</h4>
               <ActionBindingEditor step={step}
                 priorSteps={recording.steps.filter((candidate) => candidate.sequence < step.sequence)}

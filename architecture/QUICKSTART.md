@@ -533,7 +533,10 @@ Playback calls the same command service again with recording disabled; it does
 not own a second mutation route. Stopped Actions may define bounded typed
 variables with defaults and explicitly bind any compatible parameter to a
 variable or prior step result. Binding edits and playback overrides run the
-complete command-schema preflight before the first command executes.
+complete command-schema preflight before the first command executes. Literal
+recorded parameters are edited by the same generated schema controls as the
+Commands browser; applying a form preserves its stored bindings and publishes
+the whole validated step atomically.
 
 Atomic batches are capped at 64 operations, 256 KiB and 10 seconds. They build
 against a private document value, can reference earlier operation results, and

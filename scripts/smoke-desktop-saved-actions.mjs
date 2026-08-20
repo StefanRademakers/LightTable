@@ -1,5 +1,5 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
@@ -9,12 +9,9 @@ const output = path.join(root, 'tmp', 'saved-actions-smoke');
 await mkdir(output, { recursive: true });
 const fixture = process.argv[2]
   ? path.resolve(process.argv[2])
-  : path.join(output, 'saved-actions-source.png');
-if (process.argv[2]) await access(fixture);
-else await writeFile(fixture, Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-  'base64'
-));
+  : path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons',
+    'tool_shape_rectangle.png');
+await access(fixture);
 const userData = await mkdtemp(path.join(output, 'profile-'));
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 const environment = { ...process.env };
@@ -79,6 +76,10 @@ try {
   await recorder.getByRole('button', { name: 'Stop' }).click();
   const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
   await renameStep.locator('summary').click();
+  const stepEditor = renameStep.locator('.lighttable-action-step-editor');
+  await stepEditor.getByRole('textbox', { name: 'Name', exact: true }).fill('Schema edited layer');
+  await stepEditor.getByRole('button', { name: 'Apply parameters' }).click();
+  await stepEditor.getByRole('status').filter({ hasText: 'Parameters updated.' }).waitFor();
   await renameStep.getByRole('combobox', { name: 'Step 2 parameter' }).selectOption({ label: 'name' });
   await renameStep.getByRole('textbox', { name: 'Step 2 new variable name' }).fill('layerName');
   await renameStep.getByRole('button', { name: 'Promote' }).click();
@@ -142,7 +143,9 @@ try {
   if (storedEnvelope?.version !== 4 || storedEnvelope.sets?.length !== 3
     || storedEnvelope.actions?.length !== 2
     || new Set(storedEnvelope.actions.map((action) => action.setId)).size !== 2
-    || storedEnvelope.actions.some((action) => action.recording?.variables?.[0]?.name !== 'layerName')) {
+    || storedEnvelope.actions.some((action) => action.recording?.variables?.[0]?.name !== 'layerName'
+      || action.recording?.variables?.[0]?.defaultValue !== 'Schema edited layer'
+      || action.recording?.steps?.[1]?.parameters?.layerId?.$lighttableResult?.step !== 1)) {
     throw new Error(`Action Set envelope is incomplete: ${JSON.stringify(storedEnvelope)}`);
   }
   await restoredSets.selectOption({ label: 'Portrait recipes' });

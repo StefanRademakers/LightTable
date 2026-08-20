@@ -64,6 +64,9 @@ export class SemanticActionWorkflowController {
   restoreLiteral = (sequence: number, parameterPath: string) => (
     this.recorder.restoreLiteral(sequence, parameterPath)
   );
+  replaceParameters = (sequence: number, parameters: Readonly<Record<string, unknown>>) => (
+    this.recorder.replaceParameters(sequence, parameters)
+  );
 
   librarySnapshot = (): SemanticActionLibrarySnapshot => this.library.snapshot();
   subscribeLibrary = (listener: () => void): (() => void) => this.library.subscribe(listener);

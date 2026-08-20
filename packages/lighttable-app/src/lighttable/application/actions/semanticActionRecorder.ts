@@ -228,6 +228,15 @@ export class SemanticActionRecorder {
     return this.applyEdit(this.snapshotValue.variables, sequence, parameterPath, resolved.value);
   }
 
+  replaceParameters(sequence: number,
+    parameters: Readonly<Record<string, unknown>>): ActionRecordingEditResult {
+    const step = this.snapshotValue.steps.find((candidate) => candidate.sequence === sequence);
+    if (!step) return { ok: false, error: `Step ${sequence} does not exist.` };
+    return this.applySnapshot({ ...this.snapshotValue,
+      steps: this.snapshotValue.steps.map((candidate) => candidate.sequence === sequence
+        ? { ...candidate, parameters: structuredClone(parameters) } : candidate) });
+  }
+
   private applyEdit(variables: readonly ActionVariableDefinition[], sequence: number,
     parameterPath: string, replacement: unknown): ActionRecordingEditResult {
     const step = this.snapshotValue.steps.find((candidate) => candidate.sequence === sequence);

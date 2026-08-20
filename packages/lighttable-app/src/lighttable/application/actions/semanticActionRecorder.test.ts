@@ -115,4 +115,18 @@ describe('SemanticActionRecorder', () => {
     expect(recorder.bindResult(2, '/layerId', 1, 'layerId')).toEqual({ ok: true });
     expect(recorder.bindResult(1, '/name', 2, 'name')).toMatchObject({ ok: false });
   });
+
+  it('replaces complete-schema step parameters atomically', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start();
+    recorder.record(request('layer.rename', { layerId: 'layer-1', name: 'Title' }),
+      completed('request-layer.rename', { layerId: 'layer-1', name: 'Title' }), Date.now());
+    recorder.stop();
+
+    expect(recorder.replaceParameters(1, { layerId: 'layer-1', name: 'Edited title' }))
+      .toEqual({ ok: true });
+    expect(recorder.snapshot().steps[0]?.parameters).toMatchObject({ name: 'Edited title' });
+    expect(recorder.replaceParameters(1, { layerId: 'layer-1' })).toMatchObject({ ok: false });
+    expect(recorder.snapshot().steps[0]?.parameters).toMatchObject({ name: 'Edited title' });
+  });
 });

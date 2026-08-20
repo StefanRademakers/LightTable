@@ -37,5 +37,8 @@ export const createActionsPanelCallbacks = (service?: LightTableCommandService) 
   ),
   onRestoreLiteral: (sequence: number, path: string) => (
     service?.restoreActionParameterLiteral(sequence, path) ?? unavailable()
+  ),
+  onReplaceStepParameters: (sequence: number, parameters: Readonly<Record<string, unknown>>) => (
+    service?.replaceActionStepParameters(sequence, parameters) ?? unavailable()
   )
 });

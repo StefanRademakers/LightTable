@@ -37,6 +37,8 @@ export interface ActionsPanelProps extends Omit<CommandCatalogViewProps, 'defini
   readonly onBindResult?: (sequence: number, parameterPath: string,
     producerStep: number, resultPath: string) => ActionRecordingEditResult;
   readonly onRestoreLiteral?: (sequence: number, parameterPath: string) => ActionRecordingEditResult;
+  readonly onReplaceStepParameters?: (sequence: number,
+    parameters: Readonly<Record<string, unknown>>) => ActionRecordingEditResult;
   readonly definitions?: readonly LightTableCommandDefinition[];
 }
 
@@ -66,6 +68,7 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onBindVariable = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onBindResult = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onRestoreLiteral = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onReplaceStepParameters = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   definitions = LIGHTTABLE_COMMAND_DEFINITIONS
 }) => {
   const [tab, setTab] = useState<'actions' | 'commands'>('actions');
@@ -89,7 +92,8 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
           onSave={onSaveAction} onLoad={onLoadAction} onDelete={onDeleteAction}
           onCreateVariable={onCreateVariable} onUpdateVariable={onUpdateVariable}
           onDeleteVariable={onDeleteVariable} onBindVariable={onBindVariable}
-          onBindResult={onBindResult} onRestoreLiteral={onRestoreLiteral} />
+          onBindResult={onBindResult} onRestoreLiteral={onRestoreLiteral}
+          onReplaceStepParameters={onReplaceStepParameters} />
       : <CommandCatalogView capabilities={capabilities} onExecute={onExecute} definitions={definitions} />}
   </aside>;
 };

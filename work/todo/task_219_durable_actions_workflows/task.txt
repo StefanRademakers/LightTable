@@ -56,6 +56,8 @@ Current evidence (2026-08-20)
   durable named-set storage, panel controls, migration and restart proof.
 - [`Task 272`](../../done/task_272_typed_action_variables_and_bindings/task.txt)
   delivered typed workflow inputs and explicit parameter/result bindings.
+- [`Task 273`](../../done/task_273_schema_driven_action_step_editing/task.txt)
+  delivered shared-schema editing for recorded literal parameters.
 - Concrete stopped Actions can be user-named, explicitly saved, loaded and
   deleted from a deterministic bounded library.
 - The version-4 envelope groups at most 32 Actions into at most 16 stable named
@@ -93,6 +95,10 @@ Current evidence (2026-08-20)
   stores it in the version-4 envelope, reloads it after a full process restart,
   changes its default and replays the resulting layer name through the shared
   command route.
+- Every stopped complete-schema step exposes the same generated controls as the
+  Commands browser. Apply replaces the parameter object atomically after
+  contract validation, preserves existing variable/result references and
+  directs attempted bound-value changes back to their explicit source.
 - Accepted async commands now replay through subscribed document-task state,
   show progress, fail closed on missing/failure/cancel/timeout and support Stop
   through the real task owner. Completed export artifacts are available to

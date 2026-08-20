@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   formatSchemaValidationIssues,
   validateJsonSchemaValue,
@@ -206,29 +206,29 @@ interface CommandParameterEditorProps {
   readonly disabled: boolean;
   readonly running: boolean;
   readonly onRun: (parameters: Readonly<Record<string, unknown>>) => void;
+  readonly runLabel?: string;
 }
 
-export const CommandParameterEditor: React.FC<CommandParameterEditorProps> = ({
-  schema,
-  initialParameters,
-  disabled,
-  running,
-  onRun
+export interface CommandParameterFieldsProps {
+  readonly schema: LightTableJsonSchema;
+  readonly parameters: Readonly<Record<string, unknown>>;
+  readonly disabled: boolean;
+  readonly onChange: (parameters: Readonly<Record<string, unknown>>) => void;
+}
+
+export const CommandParameterFields: React.FC<CommandParameterFieldsProps> = ({
+  schema, parameters, disabled, onChange
 }) => {
-  const [parameters, setParameters] = useState(() => initialParameters
-    ? structuredClone(initialParameters)
-    : createCommandParameterDefaults(schema));
   const validation = useMemo(() => validateJsonSchemaValue(schema, parameters), [parameters, schema]);
   const required = new Set(schema.required ?? []);
-  const update = (name: string, value: unknown) => setParameters((current) => ({ ...current, [name]: value }));
-  const remove = (name: string) => setParameters((current) => Object.fromEntries(
-    Object.entries(current).filter(([key]) => key !== name)
+  const update = (name: string, value: unknown) => onChange({ ...parameters, [name]: value });
+  const remove = (name: string) => onChange(Object.fromEntries(
+    Object.entries(parameters).filter(([key]) => key !== name)
   ));
-
-  return <div className="lighttable-command-parameter-editor">
+  return <>
     {schema['x-lighttable-variant-editor'] === true ? <SchemaField name={schema.title ?? 'Parameters'} schema={schema}
       value={parameters} required disabled={disabled} onChange={(value) => {
-        if (record(value)) setParameters(value);
+        if (record(value)) onChange(value);
       }} rootSchema={schema} /> : Object.entries(schema.properties ?? {}).map(([name, property]) => (
       <SchemaField key={name} name={name} schema={property} value={parameters[name]}
         required={required.has(name)} disabled={disabled} onChange={(value) => update(name, value)}
@@ -239,9 +239,31 @@ export const CommandParameterEditor: React.FC<CommandParameterEditorProps> = ({
           {formatSchemaValidationIssues(validation.issues)}
         </p>
       : null}
+  </>;
+};
+
+export const CommandParameterEditor: React.FC<CommandParameterEditorProps> = ({
+  schema,
+  initialParameters,
+  disabled,
+  running,
+  onRun,
+  runLabel = 'Run'
+}) => {
+  const [parameters, setParameters] = useState(() => initialParameters
+    ? structuredClone(initialParameters)
+    : createCommandParameterDefaults(schema));
+  useEffect(() => {
+    setParameters(initialParameters ? structuredClone(initialParameters) : createCommandParameterDefaults(schema));
+  }, [initialParameters, schema]);
+  const validation = useMemo(() => validateJsonSchemaValue(schema, parameters), [parameters, schema]);
+
+  return <div className="lighttable-command-parameter-editor">
+    <CommandParameterFields schema={schema} parameters={parameters} disabled={disabled}
+      onChange={setParameters} />
     <ActionButton size="control" disabled={disabled || !validation.valid}
       onClick={() => onRun(parameters)}>
-      {running ? 'Running…' : 'Run'}
+      {running ? 'Running…' : runLabel}
     </ActionButton>
   </div>;
 };

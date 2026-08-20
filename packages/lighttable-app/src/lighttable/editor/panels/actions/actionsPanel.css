@@ -204,6 +204,16 @@
 .lighttable-action-binding-editor__current { color: var(--lt-text-secondary); }
 .lighttable-action-binding-editor__error { color: var(--lt-danger); }
 
+.lighttable-action-step-editor {
+  display: grid;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid var(--lt-border);
+}
+.lighttable-action-step-editor > p { margin: 0; font-size: var(--lt-type-small); }
+.lighttable-action-step-editor__message { color: var(--lt-text-secondary); }
+.lighttable-action-step-editor__error { color: var(--lt-danger); }
+
 .lighttable-command-catalog {
   display: flex;
   flex: 1;

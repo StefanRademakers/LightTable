@@ -79,6 +79,8 @@ describe('ActionsPanel', () => {
 
     expect(markup).toContain('Play step');
     expect(markup).toContain('Play from here');
+    expect(markup).toContain('Edit parameters');
+    expect(markup).toContain('Apply parameters');
   });
 
   it('discovers categorized commands without an arbitrary JSON executor', () => {

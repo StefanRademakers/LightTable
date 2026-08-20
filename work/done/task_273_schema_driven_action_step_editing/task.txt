@@ -1,0 +1,51 @@
+Task 273 - Schema-driven recorded Action step editing
+=====================================================
+
+Goal
+====
+
+Let an artist edit the literal parameters of a stopped recorded Action using
+the same generated schema controls as the Commands browser, without losing
+explicit variable/result bindings or creating command-specific UI logic.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- Extract a controlled reusable parameter-fields surface from the current
+  shared-schema command editor.
+- Resolve bindings to editable display values while preserving the stored
+  references on Apply.
+- Validate and publish the whole edited step atomically through the existing
+  Action contract preflight.
+- Disable editing while recording or playback is active.
+- Prove a recorded step can be edited, persisted, restarted and replayed.
+
+Non-goals
+=========
+
+- A raw JSON workflow editor.
+- Command-specific recorded-step forms.
+- Editing results, origins or private runtime state.
+
+Evidence (2026-08-20)
+=====================
+
+- [x] `CommandParameterFields` is the controlled shared-schema field surface;
+  both direct Commands and recorded-step editing use it.
+- [x] Recorded literals apply as one validated parameter object. A rejected
+  required-field edit leaves the prior step byte-for-byte intact.
+- [x] Variable/result references are preserved while other literals change;
+  changing a resolved bound value in the form fails with a source-directed
+  message instead of silently discarding its binding.
+- [x] The packaged two-process smoke edits the recorded rename to
+  `Schema edited layer`, promotes that value to `layerName`, proves the earlier
+  result binding remains in the v4 envelope, restarts, changes the default and
+  replays `Replayed variable layer`.
+- [x] The pathological 68-byte 1x1 PNG smoke fixture that intermittently left
+  import in `opening` was replaced by a tracked 48x48 RGBA LightTable asset;
+  the same packaged build then passed the complete restart flow.

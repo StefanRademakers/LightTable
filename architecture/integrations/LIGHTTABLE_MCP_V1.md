@@ -153,7 +153,9 @@ set libraries gain an empty variable list. Set names, selection, variables and
 explicit parameter/result bindings are local workflow metadata; they do not
 enter document state or create parallel MCP mutation commands. Playback
 resolves defaults or typed overrides and prior results before the same shared
-command-schema preflight used to guard each recorded semantic command.
+command-schema preflight used to guard each recorded semantic command. The
+local recorded-step editor also consumes these generated schemas; it does not
+maintain a command-specific form catalog or alter MCP command contracts.
 
 [`packages/command-contract/parameter-properties.json`](../../packages/command-contract/parameter-properties.json)
 is the checked top-level property inventory for those commands. Generation
