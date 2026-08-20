@@ -129,6 +129,7 @@ export interface SelectionSessionController {
     featherRadius: number,
     antiAlias: boolean
   ): Promise<boolean>;
+  applyState(operation: 'all' | 'clear' | 'invert'): Promise<boolean>;
 }
 
 export const cloneSelectionOperations = (
@@ -305,33 +306,35 @@ export const createSelectionSessionController = (
     });
   };
 
-  const commitSnapshot = (
+  const commitSnapshot = async (
     after: SelectionOperation[],
     failureMessage: string
-  ) => {
+  ): Promise<boolean> => {
     const dependencies = resolveDependencies();
     const document = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
-    if (!document || !renderer) return;
+    if (!document || !renderer) return false;
     const before = cloneSelectionOperations(dependencies.getSelection());
     const snapshot = cloneSelectionOperations(after);
     gesture.reset();
     dependencies.publishDraft(null);
     dependencies.publishSelection(before, null);
-    void renderer.replaceSelection(snapshot)
-      .then((applied) => {
-        if (!applied || !isCurrent(document, renderer)) return;
-        const latest = resolveDependencies();
-        latest.publishSelection(snapshot, null);
-        pushHistory(document, before, snapshot);
-        latest.setError(null);
-      })
-      .catch((reason) => {
-        if (!isCurrent(document, renderer)) return;
+    try {
+      const applied = await renderer.replaceSelection(snapshot);
+      if (!applied || !isCurrent(document, renderer)) return false;
+      const latest = resolveDependencies();
+      latest.publishSelection(snapshot, null);
+      pushHistory(document, before, snapshot);
+      latest.setError(null);
+      return true;
+    } catch (reason) {
+      if (isCurrent(document, renderer)) {
         resolveDependencies().setError(
           reason instanceof Error ? reason.message : failureMessage
         );
-      });
+      }
+      return false;
+    }
   };
 
   const applyGestureResult = (
@@ -781,7 +784,7 @@ export const createSelectionSessionController = (
     selectAll: () => {
       const document = resolveDependencies().getDocument();
       if (!document) return;
-      commitSnapshot(
+      void commitSnapshot(
         createFullCanvasSelection(document.width, document.height),
         'The complete canvas could not be selected.'
       );
@@ -789,13 +792,35 @@ export const createSelectionSessionController = (
     clear: () => {
       const dependencies = resolveDependencies();
       if (!dependencies.getSelection().length && !gesture.draft) return;
-      commitSnapshot([], 'The selection could not be cleared.');
+      void commitSnapshot([], 'The selection could not be cleared.');
     },
     invert: () => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       if (!document) return;
-      commitSnapshot(
+      void commitSnapshot(
+        [
+          ...cloneSelectionOperations(dependencies.getSelection()),
+          createInvertSelectionOperation(document.width, document.height)
+        ],
+        'The selection could not be inverted.'
+      );
+    },
+    applyState: async (operation) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      if (!document) return false;
+      if (operation === 'all') {
+        return commitSnapshot(
+          createFullCanvasSelection(document.width, document.height),
+          'The complete canvas could not be selected.'
+        );
+      }
+      if (operation === 'clear') {
+        if (!dependencies.getSelection().length && !gesture.draft) return true;
+        return commitSnapshot([], 'The selection could not be cleared.');
+      }
+      return commitSnapshot(
         [
           ...cloneSelectionOperations(dependencies.getSelection()),
           createInvertSelectionOperation(document.width, document.height)
@@ -807,7 +832,7 @@ export const createSelectionSessionController = (
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       if (!document || !dependencies.getSelection().length) return;
-      commitSnapshot(
+      void commitSnapshot(
         [
           ...cloneSelectionOperations(dependencies.getSelection()),
           createFeatherSelectionOperation(document.width, document.height, radius)
@@ -820,7 +845,7 @@ export const createSelectionSessionController = (
       const document = dependencies.getDocument();
       const layer = document ? findDocumentLayer(document, layerId) : null;
       if (!document || !layer?.mask) return;
-      commitSnapshot(
+      void commitSnapshot(
         [createLayerMaskSelectionOperation(
           layer.id,
           layer.mask.pixelRevision,
@@ -835,7 +860,7 @@ export const createSelectionSessionController = (
       const document = dependencies.getDocument();
       const layer = document ? findDocumentLayer(document, layerId) : null;
       if (!document || layer?.type !== 'raster') return;
-      commitSnapshot(
+      void commitSnapshot(
         [createLayerTransparencySelectionOperation(
           layer.id,
           layer.pixelRevision,
@@ -848,7 +873,7 @@ export const createSelectionSessionController = (
     selectCompositeChannel: (channel) => {
       const document = resolveDependencies().getDocument();
       if (!document) return;
-      commitSnapshot(
+      void commitSnapshot(
         [createCompositeChannelSelectionOperation(
           channel,
           document.revision,

@@ -25,4 +25,15 @@ describe('semantic selection command contract', () => {
       mode: 'replace', shape: { kind: 'rectangle', points: [{ x: 0, y: 0 }, { x: 20_000_000, y: 1 }] }
     })).toHaveProperty('message');
   });
+
+  it('parses only the bounded discrete selection operations', () => {
+    for (const operation of ['all', 'clear', 'invert'] as const) {
+      expect(parseSemanticSelectionCommand({ kind: 'modify', operation }))
+        .toEqual({ kind: 'modify', operation });
+    }
+    expect(parseSemanticSelectionCommand({ kind: 'modify', operation: 'grow' }))
+      .toHaveProperty('message');
+    expect(parseSemanticSelectionCommand({ kind: 'modify', operation: 'clear', radius: 4 }))
+      .toHaveProperty('message');
+  });
 });

@@ -639,6 +639,26 @@ describe('LightTableCommandService registry', () => {
     state.service.dispose(); state.workspace.dispose();
   });
 
+  it('records and replays a discrete selection modification without document mutation', async () => {
+    const executeSelectionCommand = vi.fn(async () => ({ operation: 'invert' }));
+    const state = setup({ executeSelectionCommand });
+    const before = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    state.service.startActionRecording('Invert selection');
+    await expect(state.service.execute(request('selection.modify', state.session.id, {
+      kind: 'modify', operation: 'invert'
+    }))).resolves.toMatchObject({ status: 'completed' });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'selection.modify', replayable: true,
+      parameters: { kind: 'modify', operation: 'invert' }
+    }]);
+    expect(state.service.queryDocument(state.session.id)!.canonicalRevision).toBe(before);
+    await state.service.playActionRecording();
+    expect(executeSelectionCommand).toHaveBeenCalledTimes(2);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('validates bounded layer visibility mutations', async () => {
     const state = setup();
     const layerId = state.session.getSnapshot().document!.activeLayerId!;

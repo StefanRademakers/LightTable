@@ -60,7 +60,13 @@ const createHarness = () => {
   };
   const applySelection = (command: SemanticSelectionCommand) => {
     const before = selection;
-    const after = command.mode === 'replace' ? [command] : [...before, command];
+    const after = command.kind === 'modify'
+      ? command.operation === 'clear'
+        ? []
+        : command.operation === 'all'
+          ? [command]
+          : [...before, command]
+      : command.mode === 'replace' ? [command] : [...before, command];
     selection = after;
     session.history.record({
       id: `equivalence-history-${++historySequence}`,
@@ -239,6 +245,55 @@ describe('artist capability equivalence harness', () => {
     expect(mcp.selectionSnapshot()).toEqual(ui.selectionSnapshot());
     expect(ui.selectionSnapshot()).toMatchObject({ canonicalRevision: 0,
       history: { undoDepth: 1, redoDepth: 0, dirty: false } });
+
+    for (const harness of [ui, actions, mcp]) {
+      harness.service.dispose();
+      harness.workspace.dispose();
+    }
+  });
+
+  it('applies discrete selection state through equivalent UI, Actions and MCP routes', async () => {
+    const operations = ['all', 'invert', 'clear'] as const;
+    const ui = createHarness();
+    for (const operation of operations) {
+      expect(await ui.execute('selection.modify', { kind: 'modify', operation }))
+        .toMatchObject({ status: 'completed' });
+    }
+
+    const actions = createHarness();
+    actions.service.startActionRecording('Selection state');
+    for (const operation of operations) {
+      await actions.execute('selection.modify', { kind: 'modify', operation });
+    }
+    actions.service.stopActionRecording();
+    for (let index = 0; index < operations.length; index += 1) {
+      await actions.execute('history.undo', {});
+    }
+    expect(await actions.service.playActionRecording()).toMatchObject({ status: 'completed' });
+
+    const mcp = createHarness();
+    for (const operation of operations) {
+      expect(await mcp.adapter.invoke({
+        protocolVersion: 1,
+        requestId: `mcp-selection-${operation}`,
+        token,
+        method: 'command.execute',
+        parameters: {
+          documentId: mcp.session.id,
+          command: 'selection.modify',
+          commandRequestId: `mcp-command-selection-${operation}`,
+          expectedDocumentRevision: 0,
+          commandParameters: { kind: 'modify', operation }
+        }
+      })).toMatchObject({ status: 'completed' });
+    }
+
+    expect(actions.selectionSnapshot()).toEqual(ui.selectionSnapshot());
+    expect(mcp.selectionSnapshot()).toEqual(ui.selectionSnapshot());
+    expect(ui.selectionSnapshot()).toMatchObject({
+      canonicalRevision: 0,
+      history: { undoDepth: 3, redoDepth: 0, dirty: false }
+    });
 
     for (const harness of [ui, actions, mcp]) {
       harness.service.dispose();

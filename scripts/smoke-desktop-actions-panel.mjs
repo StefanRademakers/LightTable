@@ -89,6 +89,9 @@ try {
   );
   await window.mouse.up();
   await recorder.locator('li').filter({ hasText: 'selection.applyShape' }).waitFor();
+  await window.getByRole('menuitem', { name: 'Select' }).click();
+  await window.getByRole('menuitem', { name: 'Inverse' }).click();
+  await recorder.locator('li').filter({ hasText: 'selection.modify' }).waitFor();
 
   const layerRows = window.getByRole('treeitem');
   const before = await layerRows.count();
@@ -125,7 +128,7 @@ try {
   await undo.locator('summary').click();
   const undoButton = undo.getByRole('button', { name: 'Run' });
   await undoButton.waitFor();
-  for (let index = 0; index < 5; index += 1) {
+  for (let index = 0; index < 6; index += 1) {
     await undoButton.click();
     await panel.getByRole('status').filter({ hasText: 'history.undo: completed' })
       .waitFor({ timeout: 15_000 });
@@ -137,17 +140,17 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 5) throw new Error('Expected five recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 6) throw new Error('Expected six recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
   await undoStep.getByText('no', { exact: true }).waitFor();
   const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
   await renameStep.locator('summary').click();
-  await renameStep.getByText('$step3.layerId', { exact: false }).waitFor();
+  await renameStep.getByText('$step4.layerId', { exact: false }).waitFor();
   const brushStep = recorder.locator('li').filter({ hasText: 'tool.commitGesture' });
   await brushStep.locator('summary').click();
-  await brushStep.getByText('$step3.layerId', { exact: false }).waitFor();
+  await brushStep.getByText('$step4.layerId', { exact: false }).waitFor();
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();

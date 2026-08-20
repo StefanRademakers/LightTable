@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 23 already routed through semantic commands;
+- 27 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 34 presentation-only operations;
-- 32 genuine semantic command gaps;
+- 28 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -33,7 +33,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `clear-guides` | presentation | Changes document-view guides, not image content. | 848 |
 | `clear-recent` | host | Changes host-maintained recent-file state. | 210 |
 | `clear-recent-projects` | host | Changes host-maintained recent-project state. | 263 |
-| `clear-selection` | gap | No semantic selection command exists. | 426 |
+| `clear-selection` | command | `selection.modify` | 426 |
 | `clipping-mask` | command | `layer.setClipping` | 623 |
 | `close-project` | host | Changes host project lifecycle state. | 271 |
 | `command-help` | presentation | Opens command documentation. | 757 |
@@ -68,7 +68,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `image-rotation-counter-clockwise-90` | command | `document.applyGeometry` | 530 |
 | `image-size` | command | `document.resizeImage` | 507 |
 | `invert-layer-colors` | gap | No semantic raster-invert command exists. | 609 |
-| `invert-selection` | gap | No semantic selection command exists. | 419 |
+| `invert-selection` | command | `selection.modify` | 419 |
 | `layer-via-copy` | gap | No semantic layer-via-copy command exists. | 567 |
 | `lock-guides` | presentation | Changes document-view guide interaction. | 847 |
 | `merge-down` | gap | No semantic layer-merge command exists. | 723 |
@@ -91,8 +91,8 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `reset-workspace-layout` | presentation | Resets local panel layout. | 859 |
 | `rulers` | presentation | Toggles canvas rulers. | 818 |
 | `save-corrected` | host | Writes through the current source/host save workflow. | 218 |
-| `select-all` | gap | No semantic selection command exists. | 405 |
-| `select-none` | gap | No semantic selection command exists. | 412 |
+| `select-all` | command | `selection.modify` | 405 |
+| `select-none` | command | `selection.modify` | 412 |
 | `settings` | presentation | Opens application preferences. | 359 |
 | `show-actions-panel` | presentation | Shows the Actions panel. | 877 |
 | `show-ai-history-panel` | presentation | Shows the AI Assets panel. | 872 |

@@ -3020,9 +3020,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return () => window.clearTimeout(timeout);
   }, [error]);
 
-  const selectAllContent = selectionSessionController.selectAll;
-  const clearCurrentSelection = selectionSessionController.clear;
-  const invertCurrentSelection = selectionSessionController.invert;
+  const selectAllContentOwner = selectionSessionController.selectAll;
+  const clearCurrentSelectionOwner = selectionSessionController.clear;
+  const invertCurrentSelectionOwner = selectionSessionController.invert;
+  const selectAllContent = () => {
+    if (!executeRegisteredCommand('selection.modify', {
+      kind: 'modify', operation: 'all'
+    })) selectAllContentOwner();
+  };
+  const clearCurrentSelection = () => {
+    if (!executeRegisteredCommand('selection.modify', {
+      kind: 'modify', operation: 'clear'
+    })) clearCurrentSelectionOwner();
+  };
+  const invertCurrentSelection = () => {
+    if (!executeRegisteredCommand('selection.modify', {
+      kind: 'modify', operation: 'invert'
+    })) invertCurrentSelectionOwner();
+  };
   const featherCurrentSelection = selectionSessionController.feather;
   const presentViewportImmediately = useCallback((
     scale: number,
@@ -4589,6 +4604,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
       },
       executeSelectionCommand: async (command) => {
+        if (command.kind === 'modify') {
+          const applied = await selectionSessionController.applyState(command.operation);
+          return applied ? { operation: command.operation } : null;
+        }
         const applied = await selectionSessionController.applyShape(
           command.shape,
           command.mode,

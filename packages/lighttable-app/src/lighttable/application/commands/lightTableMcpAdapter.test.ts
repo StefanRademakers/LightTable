@@ -157,6 +157,23 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     }), { origin: 'mcp', recording: 'record' });
   });
 
+  it('forwards one final selection-state operation without pointer simulation', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    expect(await adapter.invoke(request('command.execute', {
+      command: 'selection.modify', documentId: 'document-1',
+      commandRequestId: 'selection-invert-1', expectedDocumentRevision: 12,
+      commandParameters: { kind: 'modify', operation: 'invert' }
+    }))).toMatchObject({ status: 'completed' });
+    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({
+      command: 'selection.modify', documentId: 'document-1',
+      expectedDocumentRevision: 12,
+      parameters: { kind: 'modify', operation: 'invert' }
+    }), { origin: 'mcp', recording: 'record' });
+  });
+
   it('accepts one committed tool call without requiring live MCP pointer streaming', async () => {
     const driver = createDriver();
     const adapter = new AuthenticatedLightTableMcpAdapter({

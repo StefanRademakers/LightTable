@@ -12,7 +12,14 @@ export interface SemanticSelectionApplyShapeCommand {
   readonly antiAlias: boolean;
 }
 
-export type SemanticSelectionCommand = SemanticSelectionApplyShapeCommand;
+export interface SemanticSelectionModifyCommand {
+  readonly kind: 'modify';
+  readonly operation: 'all' | 'clear' | 'invert';
+}
+
+export type SemanticSelectionCommand =
+  | SemanticSelectionApplyShapeCommand
+  | SemanticSelectionModifyCommand;
 
 const MAX_POINTS = 4096;
 const MAX_COORDINATE = 10_000_000;
@@ -25,6 +32,16 @@ const record = (value: unknown): value is Record<string, unknown> => (
 export const parseSemanticSelectionCommand = (
   value: unknown
 ): SemanticSelectionCommand | { readonly message: string } => {
+  if (record(value) && value.kind === 'modify') {
+    if (value.operation !== 'all' && value.operation !== 'clear'
+      && value.operation !== 'invert') {
+      return { message: 'Selection modify requires operation all, clear or invert.' };
+    }
+    if (Object.keys(value).some((key) => key !== 'kind' && key !== 'operation')) {
+      return { message: 'Selection modify contains unsupported properties.' };
+    }
+    return { kind: 'modify', operation: value.operation };
+  }
   if (!record(value) || !combineModes.has(value.mode as SelectionCombineMode)
     || !record(value.shape) || !shapeKinds.has(value.shape.kind as SelectionShape['kind'])
     || !Array.isArray(value.shape.points) || value.shape.points.length > MAX_POINTS) {

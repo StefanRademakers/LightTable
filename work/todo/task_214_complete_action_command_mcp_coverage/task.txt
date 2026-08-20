@@ -84,7 +84,7 @@ Existing foundation evidence
 
 - Generated categorized command catalog and local Commands browser.
 - Checked inventory for 103 static editor-menu actions and four dynamic
-  families; the current report still has 32 genuine menu gaps.
+  families; the current report still has 28 genuine menu gaps.
 - Semantic routing for Image Size, canvas geometry, crop, rotate and flip.
 - Bounded recorder/playback, per-step results and stable-ID rebinding.
 - Shared top-level property discovery for Actions and MCP.
@@ -93,6 +93,8 @@ Existing foundation evidence
 - Layer structure, final geometric selection, single-layer affine transform
   and bounded Brush/Erase stroke verticals now share typed UI/Actions/MCP
   capabilities; this is partial category evidence, not program completion.
+- Select All, Clear/Deselect and Invert now share `selection.modify` across the
+  real menu/keyboard owner, Actions and admitted MCP execution.
 
 Program definition of done
 ==========================

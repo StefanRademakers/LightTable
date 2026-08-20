@@ -583,6 +583,8 @@ export class LightTableCommandService {
       availability('tool.commitGesture', true, ''),
       availability('selection.applyShape', Boolean(this.ports.executeSelectionCommand),
         'Selection commands are unavailable in this host.'),
+      availability('selection.modify', Boolean(this.ports.executeSelectionCommand),
+        'Selection commands are unavailable in this host.'),
       availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),
       availability('file.exportNative', true, ''),
       availability('file.exportPng', true, ''),
@@ -1126,7 +1128,8 @@ export class LightTableCommandService {
           sampleCount: committed.samples.length
         }, changed: false };
       }
-      case 'selection.applyShape': {
+      case 'selection.applyShape':
+      case 'selection.modify': {
         const command = parseSemanticSelectionCommand(parameters);
         if ('message' in command) return this.invalidParameters(command.message);
         if (!this.ports.executeSelectionCommand) {

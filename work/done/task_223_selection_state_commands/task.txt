@@ -1,0 +1,60 @@
+Task 223 - Selection state commands
+===================================
+
+Goal
+====
+
+Expose existing discrete selection operations through the shared semantic
+command owner so normal menus, Actions and MCP can clear and invert a selection
+without UI simulation or a second selection implementation.
+
+Contributes to
+==============
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 217`](../../todo/task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Extend the modular selection command contract with clear and invert.
+- [x] Reuse the mounted selection controller and its existing history owner.
+- [x] Route the real Select menu operations through the shared command.
+- [x] Record normal UI Clear/Invert as one replayable Action step.
+- [x] Admit the bounded operations to Agent Access/MCP with examples.
+- [x] Compare direct UI-origin, Actions and MCP selection state/history.
+- [x] Reject missing documents and invalid parameters without mutation.
+- [x] Run type, command, MCP, Actions and boundary verification.
+- [x] Update generated menu coverage with exact remaining gaps.
+
+Scope guard
+===========
+
+- This task does not add Feather, Select Subject, Color Range or pixel-copy
+  semantics.
+- Selection remains editor state and must not increment document pixel/content
+  revision merely because the selection changes.
+- Commands operate on the final selection state; no pointer samples are sent.
+
+Completion evidence
+===================
+
+- `selection.modify` accepts only `all`, `clear` and `invert`; extra or unknown
+  properties fail validation before reaching the editor.
+- Select All, Deselect/Clear and Inverse menu/keyboard owners now invoke the
+  shared command with the existing selection controller as fallback only when
+  no command service is mounted.
+- The mounted controller awaits the real selection rasterizer and publishes
+  one selection-only history entry; document revision and dirty state do not
+  change.
+- UI-origin, recorded Actions and authenticated MCP execute All -> Invert ->
+  Clear with equivalent final selection state and history depth.
+- Packaged desktop Actions smoke records `Select > Inverse`, undoes the complete
+  six-step mixed flow and replays it successfully.
+- Focused run: 83 test files, 1,173 tests passed.
+- Workspace typecheck, command generation/drift, application boundary, UI
+  boundary and packaged desktop build passed.
+- Generated menu coverage: 103 actions, 28 genuine gaps (down from 32).

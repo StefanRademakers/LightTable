@@ -62,5 +62,10 @@
       "featherRadius": 0,
       "antiAlias": false
     }
+  ],
+  "selection.modify": [
+    { "kind": "modify", "operation": "all" },
+    { "kind": "modify", "operation": "clear" },
+    { "kind": "modify", "operation": "invert" }
   ]
 }

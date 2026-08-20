@@ -61,6 +61,24 @@ const setup = (overrides: Partial<SelectionSessionDependencies> = {}) => {
 };
 
 describe('selection session controller', () => {
+  it('applies all, invert and clear through one selection-only owner', async () => {
+    const state = setup();
+    expect(await state.controller.applyState('all')).toBe(true);
+    expect(state.selection).toHaveLength(1);
+    expect(await state.controller.applyState('invert')).toBe(true);
+    expect(state.selection.at(-1)?.mode).toBe('invert');
+    expect(await state.controller.applyState('clear')).toBe(true);
+    expect(state.selection).toEqual([]);
+    expect(state.renderer.replaceSelection).toHaveBeenCalledTimes(3);
+    expect(state.history).toHaveLength(3);
+    expect(state.history.every(({ documentMutation }) => documentMutation === false)).toBe(true);
+
+    await state.history.at(-1)?.undo();
+    expect(state.selection.at(-1)?.mode).toBe('invert');
+    await state.history.at(-1)?.redo();
+    expect(state.selection).toEqual([]);
+  });
+
   it('applies one final semantic shape without replaying pointer samples', async () => {
     const state = setup();
     expect(await state.controller.applyShape(
