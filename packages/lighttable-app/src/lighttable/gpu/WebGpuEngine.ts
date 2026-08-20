@@ -762,6 +762,10 @@ export class WebGpuEngine {
     this.documentRenderer?.beginPixelEdit(layerId, channel);
   }
 
+  captureAllPixelEdit(layerId: LayerId, channel: PaintChannel = 'pixels') {
+    return this.documentRenderer?.captureAllPixelEdit(layerId, channel) ?? 0;
+  }
+
   finishPixelEdit(): ReversiblePixelEdit | null {
     return this.documentRenderer?.finishPixelEdit() ?? null;
   }
@@ -1500,6 +1504,10 @@ export class WebGpuEngine {
   vectorPathsForTextLayer(layerId: LayerId, signal?: AbortSignal) {
     return this.documentRenderer?.vectorPathsForTextLayer(layerId, signal)
       ?? Promise.resolve(null);
+  }
+
+  waitForTextSource(layerId: LayerId) {
+    return this.documentRenderer?.waitForTextSource(layerId) ?? Promise.resolve(false);
   }
 
   applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo') {

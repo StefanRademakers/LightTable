@@ -65,6 +65,7 @@ export interface LayerCommandHistoryEntry {
 export interface LayerCommandRendererPort {
   duplicateLayerPixels(sourceId: LayerId, destinationId: LayerId): void;
   beginLayerPixelEdit(layerId: LayerId, channel?: PaintChannel): void;
+  captureAllPixelEdit(layerId: LayerId, channel?: PaintChannel): number;
   mergeLayers(
     document: ImageDocument,
     layerIds: readonly LayerId[],
@@ -80,6 +81,7 @@ export interface LayerCommandRendererPort {
     source: import('../../editor/document/documentTypes').TextLayer,
     destination: import('../../editor/document/documentTypes').RasterLayer
   ): boolean;
+  waitForTextSource?(layerId: LayerId): Promise<boolean>;
   invertLayerColors(layerId: LayerId, channel?: PaintChannel): boolean;
   bakeSelectionIntoLayerMask(layerId: LayerId): boolean;
   applyGeneratedLayerMask(
@@ -143,6 +145,8 @@ export interface LayerDocumentCommands {
   mergeSelectedLayers(selectedLayerIds: LayerId[]): boolean;
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
+  rasterizeTextLayer(layerId: LayerId): boolean;
+  rasterizeTextLayerWhenReady(layerId: LayerId): Promise<boolean>;
   rasterizeActiveTextLayer(): boolean;
   invertLayerColors(layerId: LayerId, channel: PaintChannel): boolean;
   copySelectedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
@@ -619,11 +623,11 @@ export const createLayerDocumentCommands = (
     return true;
   };
 
-  const rasterizeActiveTextLayer = () => {
+  const rasterizeTextLayerById = (layerId: LayerId) => {
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
-    const source = current ? findDocumentLayer(current, current.activeLayerId) : null;
+    const source = current ? findDocumentLayer(current, layerId) : null;
     if (!current || source?.type !== 'text' || !renderer) {
       dependencies.setError('Select a text layer to rasterize.');
       return false;
@@ -644,6 +648,13 @@ export const createLayerDocumentCommands = (
       }
       renderer.beginLayerPixelEdit(destination.id);
       editOpen = true;
+      if (renderer.captureAllPixelEdit(destination.id) === 0) {
+        renderer.cancelPixelEdit();
+        editOpen = false;
+        renderer.releaseRasterDestination(destination.id);
+        dependencies.setError('Rasterize Type could not capture a recoverable pre-edit snapshot.');
+        return false;
+      }
       if (!renderer.rasterizeText(current, source, destination)) {
         renderer.cancelPixelEdit();
         editOpen = false;
@@ -698,6 +709,26 @@ export const createLayerDocumentCommands = (
       );
       return false;
     }
+  };
+
+  const rasterizeActiveTextLayer = () => {
+    const activeLayerId = dependenciesRef.current.getDocument()?.activeLayerId;
+    if (!activeLayerId) {
+      dependenciesRef.current.setError('Select a text layer to rasterize.');
+      return false;
+    }
+    return rasterizeTextLayerById(activeLayerId);
+  };
+
+  const rasterizeTextLayerWhenReady = async (layerId: LayerId) => {
+    const renderer = dependenciesRef.current.getRenderer();
+    if (renderer?.waitForTextSource && !await renderer.waitForTextSource(layerId)) {
+      const message = 'The text source could not be prepared for rasterization.';
+      dependenciesRef.current.setError(message);
+      throw new Error(message);
+    }
+    if (rasterizeTextLayerById(layerId)) return true;
+    throw new Error('The text source was ready, but the GPU raster transaction could not be completed.');
   };
 
   const invertLayerColors = (layerId: LayerId, channel: PaintChannel) => {
@@ -1031,6 +1062,8 @@ export const createLayerDocumentCommands = (
     mergeSelectedLayers,
     mergeActiveLayerDown,
     flatten,
+    rasterizeTextLayer: rasterizeTextLayerById,
+    rasterizeTextLayerWhenReady,
     rasterizeActiveTextLayer,
     invertLayerColors,
     copySelectedContent,

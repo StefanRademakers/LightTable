@@ -38,6 +38,12 @@
   "raster.invert": [
     { "layerId": "layer-photo", "channel": "pixels" }
   ],
+  "text.convertToShape": [
+    { "layerId": "layer-heading" }
+  ],
+  "text.rasterize": [
+    { "layerId": "layer-caption" }
+  ],
   "layer.setMask": [
     { "layerId": "layer-photo", "operation": "add", "source": "reveal-all" },
     { "layerId": "layer-photo", "operation": "set-enabled", "enabled": false }

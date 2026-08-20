@@ -602,6 +602,35 @@ export class TextLayerRenderCoordinator {
     });
   }
 
+  /** Rebuilds one visible text layer as a settled outline source for a destructive bake. */
+  async waitForFinalOutputSource(layerId: LayerId) {
+    if (this.disposed) return false;
+    await this.work;
+    const openingDocument = this.document;
+    const fontRevision = this.fontPort?.revision;
+    if (!openingDocument || fontRevision === undefined) return false;
+    const entry = visibleTextLayers(openingDocument).find(({ layer }) => layer.id === layerId);
+    if (!entry) return false;
+    const expected = this.layerPreparationKey(
+      openingDocument.id, entry.layer, entry.transform, fontRevision
+    );
+    if (this.outlineLayerKeys.get(layerId) !== expected
+      || !this.isSettledForCurrentGeneration(entry.layer)
+      || !this.options.renderer.hasExactSource(entry.layer)) {
+      this.forcedOutlineLayers.add(layerId);
+      this.settledLayerKeys.delete(layerId);
+      this.pendingKey = '';
+      this.schedule();
+      await this.work;
+    }
+    if (this.document !== openingDocument) return false;
+    const current = visibleTextLayers(openingDocument).find(({ layer }) => layer.id === layerId);
+    return Boolean(current
+      && this.outlineLayerKeys.get(layerId) === expected
+      && this.isSettledForCurrentGeneration(current.layer)
+      && this.options.renderer.hasExactSource(current.layer));
+  }
+
   retireSubmittedResources() {
     void this.dependencies?.backend.retireSubmittedResources();
   }

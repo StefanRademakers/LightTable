@@ -50,6 +50,8 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     executeFixedTransform: vi.fn(),
     executeAdjustmentCreation: vi.fn(),
     executeRasterInvert: vi.fn(),
+    executeTextToShape: vi.fn(),
+    executeTextRasterize: vi.fn(),
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -874,6 +876,39 @@ describe('LightTableCommandService registry', () => {
     expect(state.ports.executeRasterInvert).toHaveBeenCalledTimes(2);
     expect(await state.service.execute(request('raster.invert', state.session.id,
       { layerId, channel: 'all' }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it.each([
+    ['text.convertToShape', 'executeTextToShape', 'vector'],
+    ['text.rasterize', 'executeTextRasterize', 'raster']
+  ] as const)('validates, records and replays %s with a stable text-layer target', async (
+    commandId, portName, outputType
+  ) => {
+    const state = setup();
+    const textDocument = createTextLayer(
+      state.session.getSnapshot().document!, createDefaultTextLayerData(), 'Editable text'
+    );
+    state.session.setDocument(textDocument);
+    const layerId = textDocument.activeLayerId!;
+    vi.mocked(state.ports[portName]!).mockImplementation((_documentId, command) => {
+      const current = state.session.getSnapshot().document!;
+      state.session.setDocument({ ...current, revision: current.revision + 1 });
+      return { layerId: command.layerId, outputType };
+    });
+    state.service.startActionRecording(`Finalize ${outputType} text`);
+    const result = await state.service.execute(request(commandId, state.session.id, { layerId }));
+    state.service.stopActionRecording();
+
+    expect(result).toMatchObject({ status: 'completed', value: { layerId, outputType } });
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: commandId, replayable: true, parameters: { layerId }
+    }]);
+    await state.service.playActionRecording();
+    expect(state.ports[portName]).toHaveBeenCalledTimes(2);
+    expect(await state.service.execute(request(commandId, state.session.id, {
+      layerId, unexpected: true
+    }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });
 

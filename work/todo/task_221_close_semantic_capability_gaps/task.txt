@@ -69,6 +69,8 @@ Completed vertical slices
   including local, attached and standalone adjustment-layer placements.
 - explicit raster or mask inversion through `raster.invert` and its existing
   reversible GPU transaction.
+- text finalization through `text.convertToShape` and `text.rasterize`, retaining
+  stable layer IDs and the existing vector-path and GPU pixel-history owners.
 
 Rules
 =====

@@ -50,6 +50,8 @@ export const projectCommandCapabilities = (
     availability('raster.fill', Boolean(ports.executeFillCommand), 'Fill commands are unavailable in this host.'),
     availability('raster.applyGradient', Boolean(ports.executeRasterGradientCommand), 'Raster-gradient commands are unavailable in this host.'),
     availability('raster.invert', Boolean(ports.executeRasterInvert), 'Raster invert is unavailable in this host.'),
+    availability('text.convertToShape', Boolean(ports.executeTextToShape), 'Text-to-shape conversion is unavailable in this host.'),
+    availability('text.rasterize', Boolean(ports.executeTextRasterize), 'Text rasterization is unavailable in this host.'),
     availability('faceWarp.applyOperation', Boolean(ports.executeFaceWarpCommand), 'Face Warp commands are unavailable in this host.'),
     availability('layer.effect.add', true, ''), availability('layer.effect.update', true, ''),
     availability('layer.effect.remove', true, ''), availability('layer.effect.move', true, ''),

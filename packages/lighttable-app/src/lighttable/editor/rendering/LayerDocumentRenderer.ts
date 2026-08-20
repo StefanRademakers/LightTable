@@ -345,6 +345,10 @@ export class LayerDocumentRenderer {
     return this.runtime.textLayerCoordinator.waitForFinalOutputSources();
   }
 
+  waitForTextSource(layerId: LayerId) {
+    return this.runtime.textLayerCoordinator.waitForFinalOutputSource(layerId);
+  }
+
   async loadDocumentAssets(assets: DocumentAssetBlob[]) {
     await this.runtime.documentAssets.load(assets);
     // The document is initialized before its persisted raster assets are
@@ -459,6 +463,10 @@ export class LayerDocumentRenderer {
 
   beginPixelEdit(layerId: LayerId, channel: PaintChannel) {
     return this.runtime.pixelEditHistory.begin(layerId, channel);
+  }
+
+  captureAllPixelEdit(layerId: LayerId, channel: PaintChannel = 'pixels') {
+    return this.runtime.pixelEditHistory.captureAll(layerId, channel);
   }
 
   finishPixelEdit(): ReversiblePixelEdit | null {

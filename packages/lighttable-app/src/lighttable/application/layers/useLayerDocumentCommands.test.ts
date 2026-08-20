@@ -34,6 +34,7 @@ const pixelEdit = (): ReversiblePixelEdit => ({
 const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRendererPort => ({
   duplicateLayerPixels: vi.fn(),
   beginLayerPixelEdit: vi.fn(),
+  captureAllPixelEdit: vi.fn(() => 1),
   mergeLayers: vi.fn(() => true),
   flattenGroup: vi.fn(() => true),
   flattenImage: vi.fn(() => true),
@@ -381,6 +382,7 @@ describe('useLayerDocumentCommands', () => {
       expect.objectContaining({ id: layerId, type: 'raster' })
     );
     expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(layerId);
+    expect(state.renderer.captureAllPixelEdit).toHaveBeenCalledWith(layerId);
     expect(state.renderer.rasterizeText).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ id: layerId, type: 'text' }),
@@ -397,6 +399,24 @@ describe('useLayerDocumentCommands', () => {
     expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'redo');
   });
 
+  it('waits for a newly published text source before an automated rasterization', async () => {
+    const state = setup(createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Fresh text'
+    ));
+    const layerId = state.document().activeLayerId!;
+    const waitForTextSource = vi.fn(async () => true);
+    state.renderer.waitForTextSource = waitForTextSource;
+
+    await expect(state.commands.rasterizeTextLayerWhenReady(layerId)).resolves.toBe(true);
+
+    expect(waitForTextSource).toHaveBeenCalledWith(layerId);
+    expect(state.renderer.rasterizeText).toHaveBeenCalledOnce();
+    expect(state.document().layers.at(-1)).toMatchObject({ id: layerId, type: 'raster' });
+    expect(state.historyEntries).toHaveLength(1);
+  });
+
   it('rolls back a failed GPU text rasterization without document history', () => {
     const state = setup(createTextLayer(
       createImageDocument('Test', 32, 24, 'asset'),
@@ -407,6 +427,23 @@ describe('useLayerDocumentCommands', () => {
 
     expect(state.commands.rasterizeActiveTextLayer()).toBe(false);
 
+    expect(state.renderer.cancelPixelEdit).toHaveBeenCalledOnce();
+    expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
+    expect(state.document().layers.at(-1)?.type).toBe('text');
+    expect(state.historyEntries).toEqual([]);
+  });
+
+  it('refuses text rasterization when no recoverable pre-edit tiles were captured', () => {
+    const state = setup(createTextLayer(
+      createImageDocument('Test', 32, 24, 'asset'),
+      createDefaultTextLayerData(),
+      'Text fixture'
+    ));
+    vi.mocked(state.renderer.captureAllPixelEdit).mockReturnValue(0);
+
+    expect(state.commands.rasterizeActiveTextLayer()).toBe(false);
+
+    expect(state.renderer.rasterizeText).not.toHaveBeenCalled();
     expect(state.renderer.cancelPixelEdit).toHaveBeenCalledOnce();
     expect(state.renderer.releaseRasterDestination).toHaveBeenCalledOnce();
     expect(state.document().layers.at(-1)?.type).toBe('text');

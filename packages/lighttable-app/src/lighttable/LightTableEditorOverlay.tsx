@@ -4872,6 +4872,21 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       executeRasterInvert: (command) => layerDocumentCommands.invertLayerColors(
         command.layerId, command.channel
       ) ? command : null,
+      executeTextToShape: async (command) => (
+        await textToShapeController.convert(command.layerId)
+          ? { layerId: command.layerId, outputType: 'vector' as const }
+          : null
+      ),
+      executeTextRasterize: async (command) => {
+        // Document publication updates the command snapshot synchronously, but
+        // the text coordinator observes a newly created layer on the next
+        // editor frame. Rasterization must wait for that host boundary before
+        // asking the coordinator for its final outline source.
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        return await layerDocumentCommands.rasterizeTextLayerWhenReady(command.layerId)
+          ? { layerId: command.layerId, outputType: 'raster' as const }
+          : null;
+      },
       queryBasicAdjustments: (target) => {
         const document = imageDocumentRef.current;
         if (!document) return null;
@@ -5402,6 +5417,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   };
   invertActiveLayerColorsRef.current = invertActiveLayerColors;
 
+  const rasterizeActiveTextLayerCommand = () => {
+    const layerId = imageDocumentRef.current?.activeLayerId;
+    if (!layerId) {
+      layerDocumentCommands.rasterizeActiveTextLayer();
+      return;
+    }
+    textEditingController.finish();
+    pointTextController.cancel();
+    paragraphTextController.cancel();
+    if (!executeRegisteredCommand('text.rasterize', { layerId })) {
+      layerDocumentCommands.rasterizeTextLayer(layerId);
+    }
+  };
+
   const focusActiveLayerName = () => {
     const layerId = imageDocumentRef.current?.activeLayerId;
     if (!layerId) return;
@@ -5829,7 +5858,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layers: {
       panel: commandLayerPanelController,
       duplicate: commandLayerPanelController.duplicateActive,
-      rasterizeText: rasterizeActiveTextLayer,
+      rasterizeText: rasterizeActiveTextLayerCommand,
       convertTextToShape: () => {
         const layerId = imageDocumentRef.current?.activeLayerId;
         if (layerId) requestTextToShape(layerId);
@@ -6024,8 +6053,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
 
   function commitTextToShape(layerId: LayerId) {
     setGradeStatus('Converting text to editable shapes...');
-    void textToShapeController.convert(layerId).then((converted) => {
-      setGradeStatus(converted ? 'Text converted to editable shapes.' : null);
+    const execution = executeRegisteredCommand('text.convertToShape', { layerId });
+    const conversion = execution ?? textToShapeController.convert(layerId).then((converted) => (
+      converted
+        ? { status: 'completed' as const }
+        : { status: 'rejected' as const, message: 'Text could not be converted to shapes.' }
+    ));
+    void conversion.then((result) => {
+      setGradeStatus(result.status === 'completed' ? 'Text converted to editable shapes.' : null);
+      if (result.status === 'rejected') setError(result.message);
     }).catch((reason) => {
       if (reason instanceof DOMException && reason.name === 'AbortError') {
         setGradeStatus(null);

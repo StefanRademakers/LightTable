@@ -235,6 +235,53 @@ try {
     || mcpText.layout.upright !== false || mcpText.layout.direction !== 'reverse') {
     throw new Error(`MCP Path Text query is incomplete: ${JSON.stringify(mcpText)}`);
   }
+  const beforeShapeConversion = (await call('lighttable_document', { documentId })).structuredContent;
+  const convertedShape = (await call('lighttable_execute', {
+    documentId, command: 'text.convertToShape',
+    expectedDocumentRevision: beforeShapeConversion.canonicalRevision,
+    parameters: { layerId: mcpPathText.value.layerId }
+  })).structuredContent;
+  if (convertedShape?.status !== 'completed'
+    || convertedShape.value?.layerId !== mcpPathText.value.layerId
+    || convertedShape.value?.outputType !== 'vector'
+    || convertedShape.revisions?.document <= beforeShapeConversion.canonicalRevision) {
+    throw new Error(`MCP text-to-shape conversion failed: ${JSON.stringify(convertedShape)}`);
+  }
+  const convertedVector = (await call('lighttable_vector', {
+    documentId, layerId: mcpPathText.value.layerId
+  })).structuredContent;
+  if (convertedVector.layerId !== mcpPathText.value.layerId || convertedVector.totalElements < 1) {
+    throw new Error(`MCP text-to-shape output is not native vector geometry: ${JSON.stringify(convertedVector)}`);
+  }
+  const rasterText = (await call('lighttable_execute', {
+    documentId, command: 'text.create', parameters: {
+      mode: 'point', text: 'Rasterized MCP caption', name: 'MCP Raster Caption',
+      origin: { x: 60, y: 80 }, writingMode: 'horizontal-tb',
+      style: { fontSize: 22, fill: { enabled: true, color: '#ffffff' } }
+    }
+  })).structuredContent;
+  if (rasterText?.status !== 'completed' || !rasterText.value?.layerId) {
+    throw new Error(`MCP raster text creation failed: ${JSON.stringify(rasterText)}`);
+  }
+  const beforeRasterize = (await call('lighttable_document', { documentId })).structuredContent;
+  const rasterizedText = (await call('lighttable_execute', {
+    documentId, command: 'text.rasterize',
+    expectedDocumentRevision: beforeRasterize.canonicalRevision,
+    parameters: { layerId: rasterText.value.layerId }
+  })).structuredContent;
+  if (rasterizedText?.status !== 'completed'
+    || rasterizedText.value?.layerId !== rasterText.value.layerId
+    || rasterizedText.value?.outputType !== 'raster'
+    || rasterizedText.revisions?.document <= beforeRasterize.canonicalRevision) {
+    throw new Error(`MCP text rasterization failed: ${JSON.stringify(rasterizedText)}`);
+  }
+  const finalizedLayers = (await call('lighttable_layers', { documentId })).structuredContent;
+  const finalizedLayerList = Array.isArray(finalizedLayers)
+    ? finalizedLayers
+    : finalizedLayers.result ?? finalizedLayers.layers ?? finalizedLayers.value ?? [];
+  if (!finalizedLayerList.some(({ id, type }) => id === rasterText.value.layerId && type === 'raster')) {
+    throw new Error(`MCP text rasterization did not retain a raster layer ID: ${JSON.stringify(finalizedLayers)}`);
+  }
   const gesture = (await call('lighttable_gesture_begin', { documentId, kind: 'brush-stroke',
     coordinateSpace: 'document', parameters: { layerId, channel: 'pixels' },
     sample: { x: 80, y: 80, pressure: 1 } })).structuredContent;

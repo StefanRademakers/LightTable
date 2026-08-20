@@ -4,6 +4,7 @@ import {
   type LightTableCommandDefinition
 } from '@lighttable/command-contract';
 import { ButtonBase } from '../../../../ui/ButtonBase';
+import { FormSelect } from '../../../../ui/FormSelect';
 import type { ActionRecordingSnapshot } from '../../../application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from '../../../application/actions/semanticActionPlayback';
 import type { SemanticActionLibrarySnapshot } from '../../../application/actions/semanticActionLibrary';
@@ -83,13 +84,13 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
         || recording.status !== 'stopped' || recording.steps.length === 0
         || recording.steps.some(({ replayable }) => !replayable) || !name.trim()}>Save</ButtonBase>
       <label>Saved
-        <select aria-label="Saved Actions" value={library.selectedId ?? ''}
+        <FormSelect aria-label="Saved Actions" value={library.selectedId ?? ''}
           onChange={(event) => event.currentTarget.value && onLoad(event.currentTarget.value)}>
           <option value="">No saved Actions</option>
           {library.actions.map((action) => <option key={action.id} value={action.id}>
             {action.name} ({action.recording.steps.length})
           </option>)}
-        </select>
+        </FormSelect>
       </label>
       <ButtonBase type="button" onClick={() => library.selectedId && onLoad(library.selectedId)}
         disabled={busy || !library.selectedId}>Load</ButtonBase>

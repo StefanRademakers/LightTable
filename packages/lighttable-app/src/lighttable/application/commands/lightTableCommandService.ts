@@ -35,6 +35,7 @@ import type { SemanticRasterGradientCommand } from './semanticRasterGradientComm
 import { dispatchSemanticAdjustmentCreation, dispatchSemanticFixedTransform,
   dispatchSemanticRasterInvert } from './semanticContextualEditDispatcher';
 import { projectCommandCapabilities } from './commandCapabilityProjection';
+import { dispatchSemanticTextFinalization } from './semanticTextFinalizationDispatcher';
 import { dispatchSemanticRasterGradient } from './semanticRasterGradientCommandHandler';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
@@ -197,6 +198,20 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeRasterInvert']>>[0]) {
     const execute = this.resolve(documentId).executeRasterInvert;
     if (!execute) throw new Error('Raster invert is unavailable in the target document.'); return execute(command);
+  }
+
+  executeTextToShape(documentId: DocumentSessionId,
+    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeTextToShape']>>[0]) {
+    const execute = this.resolve(documentId).executeTextToShape;
+    if (!execute) throw new Error('Text-to-shape conversion is unavailable in the target document.');
+    return execute(command);
+  }
+
+  executeTextRasterize(documentId: DocumentSessionId,
+    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeTextRasterize']>>[0]) {
+    const execute = this.resolve(documentId).executeTextRasterize;
+    if (!execute) throw new Error('Text rasterization is unavailable in the target document.');
+    return execute(command);
   }
 
   queryBasicAdjustments(documentId: DocumentSessionId, target: BasicAdjustmentTarget) {
@@ -1175,6 +1190,19 @@ export class LightTableCommandService {
           this.ports.executeRasterInvert
             ? (command) => this.ports.executeRasterInvert!(request.documentId, command) : undefined,
           () => this.document(request.documentId)?.document?.revision);
+        return result.ok ? { value: result.value } : result;
+      }
+      case 'text.convertToShape':
+      case 'text.rasterize': {
+        const convertToShape = request.command === 'text.convertToShape';
+        const executor = convertToShape ? this.ports.executeTextToShape : this.ports.executeTextRasterize;
+        const result = await dispatchSemanticTextFinalization(
+          parameters,
+          snapshot.document!,
+          convertToShape ? 'convert to shape' : 'rasterize',
+          executor ? (command) => executor.call(this.ports, request.documentId, command) : undefined,
+          () => this.document(request.documentId)?.document?.revision
+        );
         return result.ok ? { value: result.value } : result;
       }
       case 'layer.createRaster': {

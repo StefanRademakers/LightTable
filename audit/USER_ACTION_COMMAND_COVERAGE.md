@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 37 already routed through semantic commands;
+- 39 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 34 presentation-only operations;
-- 18 genuine semantic command gaps;
+- 16 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -37,7 +37,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `clipping-mask` | command | `layer.setClipping` | 623 |
 | `close-project` | host | Changes host project lifecycle state. | 271 |
 | `command-help` | presentation | Opens command documentation. | 757 |
-| `convert-text-to-shape` | gap | No semantic text-to-shape command exists. | 662, 747 |
+| `convert-text-to-shape` | command | `text.convertToShape` | 662, 747 |
 | `copy-grade` | gap | No semantic grade-clipboard command exists. | 310 |
 | `copy-merged-content` | gap | No semantic pixel-clipboard command exists. | 296 |
 | `copy-selected-content` | gap | No semantic pixel-clipboard command exists. | 289 |
@@ -83,7 +83,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `paste-grade` | gap | No semantic grade-clipboard command exists. | 317 |
 | `paste-selected-content` | gap | No semantic pixel-clipboard command exists. | 303 |
 | `place-image` | host | Uses a local file picker before layer.placeArtifact can apply. | 194 |
-| `rasterize-text` | gap | No semantic text-rasterize command exists. | 671 |
+| `rasterize-text` | command | `text.rasterize` | 671 |
 | `remove-background` | gap | No semantic background-removal command exists. | 452, 617 |
 | `remove-mask` | command | `layer.setMask` | 655 |
 | `remove-object` | gap | No semantic object-removal command exists. | 445 |

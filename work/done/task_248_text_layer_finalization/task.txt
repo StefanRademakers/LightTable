@@ -1,0 +1,70 @@
+Task 248 - Finalize editable text as vector shapes or raster pixels
+
+Goal
+====
+
+Expose the two existing text-finalization operations as explicit, stable-target
+commands shared by normal UI, Actions and reviewed MCP execution. Preserve the
+current vector-path and GPU pixel-history owners; do not create alternate
+conversion implementations.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Scope and invariants
+====================
+
+- `text.convertToShape` targets one stable editable text layer ID and replaces
+  it in place with native vector glyph paths.
+- `text.rasterize` targets one stable editable text layer ID and replaces it in
+  place with a full-canvas raster layer through the existing reversible GPU
+  pixel transaction.
+- Both operations retain the layer ID and create exactly one undoable edit.
+- The convert confirmation dialog remains presentation state. Recording starts
+  only after confirmation, when the document mutation is dispatched.
+- Pointer movement, text typing and render work remain outside command
+  transport; these are discrete finalization commits.
+
+Checklist
+=========
+
+- [x] Define strict schemas and examples for both commands.
+- [x] Add capability projection and document-port routing without duplicating
+      either conversion owner.
+- [x] Generalize rasterization from active-layer lookup to explicit layer ID.
+- [x] Route the existing Layer menu and confirmation flow through the commands.
+- [x] Prove direct owner behavior, UI/Actions equivalence and stable layer IDs.
+- [x] Prove both operations through the packaged external MCP boundary.
+- [x] Update menu coverage, parent-task evidence and generated contracts.
+- [x] Run focused tests, app typecheck and architecture/boundary gates.
+- [x] Commit the verified slice and move this task package to `work/done/`.
+
+Out of scope
+============
+
+- Live keystrokes, text-edit sessions or glyph previews over MCP.
+- Reconstructing editable text from vector or raster output.
+- A second rasterizer, font shaper or vector conversion algorithm.
+
+Result and evidence
+===================
+
+- The two commands accept exactly one stable `layerId`; capability projection,
+  normal UI dispatch, Actions record/replay and reviewed external MCP execution
+  share the mounted document ports.
+- Convert-to-shape preserves the existing confirmation boundary and converts
+  the same layer to queryable native vector glyph paths.
+- Rasterization now waits for React/WebGPU publication and a targeted final
+  outline source. The real renderer exposed a pre-existing owner defect: it
+  opened pixel history without capturing pre-edit tiles, so a real finish could
+  never produce undo data even though its mocked test did. The owner now captures
+  the full new raster destination before the bake and retains one reversible
+  GPU history entry.
+- The packaged external MCP smoke creates and queries both outputs, verifies
+  their original IDs and continues through rendered preview, native export and
+  PSD export.
+- Command coverage is 103 inventoried menu actions with 16 genuine gaps.
