@@ -248,6 +248,23 @@ Packaged proof starts from an untagged PNG, verifies the assigned state and one
 undo entry through all three routes, and compares every result with the source
 at zero pixel delta. This is not Convert to Profile support.
 
+`selection.copyPixels` is the bounded pixel-clipboard producer for active-layer
+and merged selections. The existing renderer performs the GPU capture and the
+UI host still writes the system image clipboard, while the command result
+publishes only finite document bounds and opaque `pixel-clipboard` artifact
+metadata. `selection.pastePixels` consumes that handle through the existing
+raster-clipboard/document/history owner. A private generation token preserves
+the same-document active-layer GPU fast path and normal full-canvas raster
+semantics; stale or merged captures fall back to the bounded image artifact.
+Actions binds Paste to the fresh artifact ID returned by the preceding Copy
+step, so replay does not persist session-local pixel data. External MCP can
+execute the same pair with edit permission; raw
+bytes, Base64, paths, masks and GPU state are rejected or never serialized.
+Packaged UI/Actions/MCP proof covers both Copy variants and the active-layer
+fast Paste, confirms copy is
+revision/history neutral and reports byte-exact equal pasted renders. This is a
+discrete I/O route and does not enter any paint, warp or pointer hot path.
+
 A local Codex acceptance route is tracked in
 [`work/todo/task_264_local_codex_mcp_a_z/task.txt`](../../work/todo/task_264_local_codex_mcp_a_z/task.txt).
 The supported local launcher and current acceptance instructions live in

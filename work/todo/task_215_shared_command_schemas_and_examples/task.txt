@@ -172,6 +172,12 @@ Current evidence (2026-08-20)
   finite placement coordinates produce stable document/layer IDs and decoded
   dimensions. Unknown pointer/UI state and raw bytes are rejected. Reachable
   `$defs` are pruned independently for each generated command contract.
+- The Artifact module now also owns `selection.copyPixels`: a closed source
+  enum produces finite document bounds and typed `pixel-clipboard` metadata.
+  `selection.pastePixels` accepts only that opaque handle, closed bounds and an
+  optional safe name. Shared examples cover active-layer and merged capture;
+  private byte payloads fail schema validation before MCP reaches the desktop
+  bridge.
 - The external URL-import MCP tool proves both routing variants: with a target
   document it places a layer; without one it opens a document. Real packaged
   desktop smoke additionally uploads and decodes a valid PNG, executes placement

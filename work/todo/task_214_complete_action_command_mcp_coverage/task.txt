@@ -249,6 +249,12 @@ Existing foundation evidence
   Actions and MCP. Its closed contract is metadata-only, rejects conversion and
   private ICC state, records one undo for a change and none for a no-op; the
   packaged three-route comparison proves zero rendered-pixel change.
+- Edit > Copy, Copy Merged and Paste as new layer now share
+  `selection.copyPixels` plus `selection.pastePixels`. Pixel data remains in a
+  bounded session artifact; Actions binds Paste to the fresh copy result and
+  external MCP uses the same opaque handle. Active-layer Paste retains the
+  guarded renderer fast path. Packaged UI/Actions/MCP renders are byte-exact,
+  while both copy variants leave revision/history unchanged.
 
 Program definition of done
 ==========================

@@ -109,6 +109,20 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(profileCatalog.structuredContent.commands[0].contract.status, 'complete');
   assert.deepEqual(profileCatalog.structuredContent.commands[0].contract.input.required,
     ['profile']);
+  const pixelCopyCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'selection.copyPixels'
+  } });
+  assert.equal(pixelCopyCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.deepEqual(pixelCopyCatalog.structuredContent.commands[0].contract.input.required,
+    ['source']);
+  assert.deepEqual(pixelCopyCatalog.structuredContent.commands[0].contract.result.required,
+    ['source', 'bounds', 'artifact']);
+  const pixelPasteCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'selection.pastePixels'
+  } });
+  assert.equal(pixelPasteCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.deepEqual(pixelPasteCatalog.structuredContent.commands[0].contract.input.required,
+    ['artifactId', 'bounds']);
   const textCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'text.create'
   } });
@@ -220,8 +234,19 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
       profile: 'srgb', convertPixels: true
     } } });
   assert.equal(privateProfile.isError, true);
+  const privatePixelCopy = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'selection.copyPixels', parameters: {
+      source: 'merged', bytesBase64: 'private-pixel-payload'
+    } } });
+  assert.equal(privatePixelCopy.isError, true);
+  const privatePixelPaste = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'selection.pastePixels', parameters: {
+      artifactId: 'artifact-copy', bounds: { x: 0, y: 0, width: 20, height: 12 },
+      filePath: 'C:\\private\\clipboard.png'
+    } } });
+  assert.equal(privatePixelPaste.isError, true);
   assert.equal(commandCalls.length, beforeInvalidGeometry,
-    'invalid document geometry reached the desktop client');
+    'invalid closed-schema commands reached the desktop client');
   const invalidBatch = await editor.callTool({ name: 'lighttable_batch', arguments: {
     documentId: 'document-demo', name: 'Invalid batch', operations: [{
       operationId: 'rename', command: 'layer.rename',
@@ -272,6 +297,26 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
     documentId: 'document-demo', command: 'document.assignProfile',
     commandParameters: { profile: 'srgb' }
+  });
+  const copiedPixels = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'selection.copyPixels', parameters: {
+      source: 'merged'
+    } } });
+  assert.equal(copiedPixels.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'selection.copyPixels',
+    commandParameters: { source: 'merged' }
+  });
+  const pastedPixels = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'selection.pastePixels', parameters: {
+      artifactId: 'artifact-copy', name: 'Pasted Selection',
+      bounds: { x: -4, y: 8, width: 20, height: 12 }
+    } } });
+  assert.equal(pastedPixels.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'selection.pastePixels',
+    commandParameters: { artifactId: 'artifact-copy', name: 'Pasted Selection',
+      bounds: { x: -4, y: 8, width: 20, height: 12 } }
   });
   const created = await editor.callTool({ name: 'lighttable_create_document', arguments: {
     name: 'MCP canvas', width: 400, height: 300, resolutionPpi: 144,

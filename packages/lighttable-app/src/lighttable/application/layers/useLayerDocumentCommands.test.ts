@@ -254,7 +254,9 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const selection = createFullCanvasSelection(32, 24);
 
-    await expect(state.commands.copySelectedContent(selection)).resolves.toBe(true);
+    await expect(state.commands.copySelectedContent(selection)).resolves.toMatchObject({
+      file: expect.any(File), bounds: { x: 0, y: 0, width: 32, height: 24 }
+    });
 
     expect(state.renderer.copySelectedLayerContent).toHaveBeenCalledOnce();
     expect(state.renderer.exportSelectionClipboard).toHaveBeenCalledWith({
@@ -276,7 +278,9 @@ describe('useLayerDocumentCommands', () => {
       }
     }, createFeatherSelectionOperation(100, 80, 12.4)];
 
-    await expect(state.commands.copySelectedContent(selection)).resolves.toBe(true);
+    await expect(state.commands.copySelectedContent(selection)).resolves.toMatchObject({
+      file: expect.any(File), bounds: { x: 0, y: 0, width: 86, height: 71 }
+    });
 
     const support = { x: 0, y: 0, width: 86, height: 71 };
     expect(state.renderer.exportSelectionClipboard).toHaveBeenCalledWith(support);
@@ -291,11 +295,44 @@ describe('useLayerDocumentCommands', () => {
 
     await expect(
       state.commands.copyMergedContent(createFullCanvasSelection(32, 24))
-    ).resolves.toBe(true);
+    ).resolves.toMatchObject({
+      file: expect.any(File), bounds: { x: 0, y: 0, width: 32, height: 24 }
+    });
 
     expect(state.renderer.exportMergedSelection).toHaveBeenCalledOnce();
     expect(state.renderer.copySelectedLayerContent).not.toHaveBeenCalled();
     expect(state.imageClipboard.writeImage).toHaveBeenCalledOnce();
+  });
+
+  it('pastes the current active-layer artifact through the renderer fast clipboard', async () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const copied = await state.commands.copySelectedContent(createFullCanvasSelection(16, 12));
+    expect(copied?.fastPasteToken).toBeTruthy();
+
+    await expect(state.commands.pastePixelArtifact(
+      copied!.file, { x: 0, y: 0, width: 16, height: 12, name: 'Pasted Selection' },
+      copied!.fastPasteToken
+    )).resolves.toMatchObject({ width: 16, height: 12 });
+
+    expect(state.renderer.pasteSelectionClipboard).toHaveBeenCalledOnce();
+    expect(state.renderer.pasteClipboardImage).not.toHaveBeenCalled();
+    expect(state.document().layers).toHaveLength(2);
+    expect(state.document().layers.at(-1)).toMatchObject({ width: 32, height: 24 });
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to the bounded image artifact when a fast token is stale', async () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const copied = await state.commands.copySelectedContent(createFullCanvasSelection(16, 12));
+
+    await expect(state.commands.pastePixelArtifact(
+      copied!.file, { x: 3, y: 4, width: 16, height: 12 }, 'stale-token'
+    )).resolves.toMatchObject({ width: 16, height: 12 });
+
+    expect(state.renderer.pasteSelectionClipboard).not.toHaveBeenCalled();
+    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
+      state.document().activeLayerId, copied!.file, { x: 3, y: 4 }
+    );
   });
 
   it('pastes an external clipboard image into a new layer', async () => {

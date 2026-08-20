@@ -50,6 +50,7 @@ import {
   zoomViewToScaleAtPoint
 } from './editor/tools/pointer/viewportCoordinates';
 import { steppedZoomPercent, zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
+import { selectionOperationsSupportBounds } from './editor/tools/transform/selectionTransform';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
@@ -774,6 +775,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const copySelectedContentRef = useRef<() => void>(() => undefined);
   const copyMergedContentRef = useRef<() => void>(() => undefined);
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
+  const latestPixelClipboardRef = useRef<{
+    readonly artifactId: string;
+    readonly bounds: { readonly x: number; readonly y: number;
+      readonly width: number; readonly height: number };
+  } | null>(null);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
   const applyCurvesRef = useRef<() => void>(() => undefined);
@@ -4602,18 +4608,86 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setSelectedLayerIds(layerIds);
   }, []);
 
-  const copySelectedContent = () => {
-    void layerDocumentCommands.copySelectedContent(editorSession.selection);
+  const copyPixels = async (source: 'active-layer' | 'merged') => {
+    const execution = executeRegisteredCommand('selection.copyPixels', { source });
+    if (!execution) {
+      await (source === 'active-layer'
+        ? layerDocumentCommands.copySelectedContent(editorSession.selection)
+        : layerDocumentCommands.copyMergedContent(editorSession.selection));
+      return;
+    }
+    const result = await execution;
+    const value = result.status === 'completed' && typeof result.value === 'object'
+      && result.value !== null ? result.value as Record<string, unknown> : null;
+    const artifact = value && typeof value.artifact === 'object' && value.artifact !== null
+      ? value.artifact as Record<string, unknown> : null;
+    const bounds = value && typeof value.bounds === 'object' && value.bounds !== null
+      ? value.bounds as Record<string, unknown> : null;
+    if (typeof artifact?.id === 'string' && bounds
+      && typeof bounds.x === 'number' && typeof bounds.y === 'number'
+      && typeof bounds.width === 'number' && typeof bounds.height === 'number') {
+      latestPixelClipboardRef.current = {
+        artifactId: artifact.id,
+        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
+      };
+    }
   };
+  const copySelectedContent = () => { void copyPixels('active-layer'); };
   copySelectedContentRef.current = copySelectedContent;
 
-  const copyMergedContent = () => {
-    void layerDocumentCommands.copyMergedContent(editorSession.selection);
-  };
+  const copyMergedContent = () => { void copyPixels('merged'); };
   copyMergedContentRef.current = copyMergedContent;
 
   const pasteSelectedContent = () => {
-    void layerDocumentCommands.pasteSelectedContent(editorSession.selection);
+    void (async () => {
+      if (!commandService) {
+        await layerDocumentCommands.pasteSelectedContent(editorSession.selection);
+        return;
+      }
+      let copied = latestPixelClipboardRef.current;
+      if (copied && !commandService.queryArtifact(copied.artifactId)) {
+        latestPixelClipboardRef.current = null;
+        copied = null;
+      }
+      if (!copied) {
+        const clipboardImage = await imageClipboard.readImage();
+        if (!clipboardImage) {
+          setError('The system clipboard does not contain an image.');
+          return;
+        }
+        const file = new File(
+          [clipboardImage.blob], 'Clipboard image.png',
+          { type: clipboardImage.blob.type || 'image/png' }
+        );
+        const artifact = commandService.registerPixelClipboardArtifact(file);
+        const document = imageDocumentRef.current;
+        const selectionBounds = document && editorSession.selection.length
+          ? selectionOperationsSupportBounds([...editorSession.selection], {
+              x: 0, y: 0, width: document.width, height: document.height
+            })
+          : null;
+        let naturalSize: { width: number; height: number } | null = null;
+        if (!clipboardImage.placement) {
+          const bitmap = await createImageBitmap(file);
+          naturalSize = { width: bitmap.width, height: bitmap.height };
+          bitmap.close();
+        }
+        const origin = clipboardImage.placement ?? selectionBounds;
+        copied = { artifactId: artifact.id, bounds: {
+          x: origin?.x ?? 0,
+          y: origin?.y ?? 0,
+          width: clipboardImage.placement?.width ?? naturalSize?.width ?? document?.width ?? 1,
+          height: clipboardImage.placement?.height ?? naturalSize?.height ?? document?.height ?? 1
+        } };
+      }
+      await executeRegisteredCommand('selection.pastePixels', {
+        artifactId: copied.artifactId,
+        name: 'Pasted Selection',
+        bounds: copied.bounds
+      });
+    })().catch((reason) => setError(
+      reason instanceof Error ? reason.message : 'The clipboard image could not be pasted.'
+    ));
   };
   pasteSelectedContentRef.current = pasteSelectedContent;
 
@@ -4843,6 +4917,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         else applyExactZoom(viewport.scale * 100);
       },
       createRasterLayer: layerPanelController.createRasterLayer,
+      copyPixels: (source) => source === 'active-layer'
+        ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
+        : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection),
+      pastePixels: (file, command, fastPasteToken) => layerDocumentCommands.pastePixelArtifact(
+        file, { ...command.bounds, name: command.name }, fastPasteToken
+      ),
       placeArtifact: layerDocumentCommands.placeImageArtifact,
       renameLayer: layerPanelController.rename,
       setLayerVisibility: layerPanelController.setVisibility,

@@ -184,7 +184,9 @@ stable IDs, optimistic revisions, bounded artifacts, atomic batches, async task
 events and document-space gestures. The Actions surface discovers, records and
 replays part of that command set. Agent Access and the MCP server expose a
 permission-gated subset, including editable text/vector construction, Layer
-Styles and real renderer preview/export paths.
+Styles, bounded pixel Copy/Copy Merged/Paste and real renderer preview/export
+paths. Pixel clipboard Actions regenerate session-local artifacts during replay
+instead of persisting raster bytes or host paths.
 
 **Partial:** command coverage is incomplete; parameter properties are
 discoverable but are not yet complete shared machine schemas; Actions lacks

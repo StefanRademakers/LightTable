@@ -39,6 +39,12 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     createRasterLayer: vi.fn(() => {
       session.setDocument(createRasterLayer(session.getSnapshot().document!));
     }),
+    copyPixels: vi.fn(async () => ({
+      file: new File(['pixels'], 'selection.png', { type: 'image/png' }),
+      bounds: { x: 4, y: 6, width: 20, height: 12 },
+      fastPasteToken: 'renderer-clipboard-1'
+    })),
+    pastePixels: vi.fn(async () => ({ layerId: 'layer-pasted', width: 20, height: 12 })),
     placeArtifact: vi.fn(),
     renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(),
@@ -120,6 +126,66 @@ const basicValues = {
 };
 
 describe('LightTableCommandService action recording', () => {
+  it('records pixel copy and binds paste to the fresh artifact on every playback', async () => {
+    const pastedFiles: File[] = [];
+    const pastePixels = vi.fn(async (_documentId: unknown, file: File) => {
+      pastedFiles.push(file);
+      return { layerId: 'layer-pasted', width: 20, height: 12 };
+    });
+    const state = setup({ pastePixels });
+    const revisionBeforeCopy = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    state.service.startActionRecording('Copy and paste pixels');
+
+    const copied = await state.service.execute(request(
+      'selection.copyPixels', state.session.id, { source: 'active-layer' }
+    ));
+    expect(copied).toMatchObject({ status: 'completed', value: {
+      source: 'active-layer', bounds: { x: 4, y: 6, width: 20, height: 12 },
+      artifact: { kind: 'pixel-clipboard', mediaType: 'image/png', byteLength: 6 }
+    } });
+    expect(state.service.queryDocument(state.session.id)!.canonicalRevision).toBe(revisionBeforeCopy);
+    if (copied.status !== 'completed') throw new Error('Pixel copy was not completed.');
+    const artifactId = (copied.value as { artifact: { id: string } }).artifact.id;
+    await state.service.execute(request('selection.pastePixels', state.session.id, {
+      artifactId, name: 'Pasted Selection',
+      bounds: { x: 4, y: 6, width: 20, height: 12 }
+    }));
+    state.service.stopActionRecording();
+
+    const recording = state.service.actionRecordingSnapshot();
+    expect(recording.steps).toMatchObject([
+      { sequence: 1, command: 'selection.copyPixels', replayable: true,
+        parameters: { source: 'active-layer' }, result: { artifact: { id: artifactId } } },
+      { sequence: 2, command: 'selection.pastePixels', replayable: true,
+        parameters: {
+          artifactId: { $lighttableResult: { step: 1, path: 'artifact.id' } },
+          name: 'Pasted Selection', bounds: { x: 4, y: 6, width: 20, height: 12 }
+        } }
+    ]);
+    expect(JSON.stringify(recording)).not.toMatch(/base64|data:|bytesBase64|filePath/i);
+
+    await state.service.playActionRecording();
+
+    expect(state.ports.copyPixels).toHaveBeenCalledTimes(2);
+    expect(pastePixels).toHaveBeenCalledTimes(2);
+    expect(pastedFiles[1]).not.toBe(pastedFiles[0]);
+    expect(pastedFiles[1]).toMatchObject({
+      name: 'selection.png', type: 'image/png', size: 6
+    });
+    expect(pastePixels).toHaveBeenLastCalledWith(
+      state.session.id, expect.any(File), expect.objectContaining({ artifactId: expect.any(String) }),
+      'renderer-clipboard-1'
+    );
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'completed', results: [
+        { command: 'selection.copyPixels', status: 'completed' },
+        { command: 'selection.pastePixels', status: 'completed' }
+      ]
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('records, enriches and awaits an asynchronous export during playback', async () => {
     const state = setup();
     state.service.startActionRecording('Export proof');

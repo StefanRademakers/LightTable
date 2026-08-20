@@ -81,6 +81,8 @@ test('versioned schemas describe and validate every completed command vertical',
     'file.exportPsd',
     'file.openArtifact',
     'layer.placeArtifact',
+    'selection.copyPixels',
+    'selection.pastePixels',
     'layer.autoAlign',
     'document.assignProfile',
     'document.resizeImage',
@@ -601,6 +603,8 @@ test('layer effect schemas expose editable styles without accepting private or m
 test('artifact schemas carry opaque handles and stable document or layer results only', () => {
   const open = LIGHTTABLE_COMMAND_SCHEMAS['file.openArtifact'];
   const place = LIGHTTABLE_COMMAND_SCHEMAS['layer.placeArtifact'];
+  const copyPixels = LIGHTTABLE_COMMAND_SCHEMAS['selection.copyPixels'];
+  const pastePixels = LIGHTTABLE_COMMAND_SCHEMAS['selection.pastePixels'];
   assert.equal(validateJsonSchemaValue(open.input, { artifactId: 'artifact-1' }).valid, true);
   assert.equal(validateJsonSchemaValue(open.input, {
     artifactId: 'artifact-1', bytes: 'base64'
@@ -615,6 +619,18 @@ test('artifact schemas carry opaque handles and stable document or layer results
   assert.equal(validateJsonSchemaValue(place.result, {
     layerId: 'placed-1', width: 512, height: 384
   }).valid, true);
+  assert.equal(validateJsonSchemaValue(copyPixels.input, { source: 'merged' }).valid, true);
+  assert.equal(validateJsonSchemaValue(copyPixels.input, {
+    source: 'merged', bytesBase64: 'private'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(pastePixels.input, {
+    artifactId: 'artifact-copy', bounds: { x: -4, y: 8, width: 20, height: 12 },
+    name: 'Pasted Selection'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(pastePixels.input, {
+    artifactId: 'artifact-copy', bounds: { x: 0, y: 0, width: 20, height: 12 },
+    filePath: 'private.png'
+  }).valid, false);
   assert.deepEqual(Object.keys(open.input.$defs), ['artifactId']);
 });
 

@@ -38,6 +38,11 @@ import type {
   SemanticAssignProfileCommand,
   SemanticAssignProfileResult
 } from './semanticDocumentColorCommandContract';
+import type {
+  PixelClipboardSource,
+  SemanticCopyPixelsCommand,
+  SemanticPastePixelsCommand
+} from './semanticPixelClipboardCommandContract';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId
@@ -205,6 +210,12 @@ export interface LightTableCreateDocumentOptions {
 }
 
 export interface LightTableArtifactPlacement { readonly name?: string; readonly x?: number; readonly y?: number }
+export interface LightTablePixelClipboardCapture {
+  readonly file: File;
+  readonly bounds: { readonly x: number; readonly y: number;
+    readonly width: number; readonly height: number };
+  readonly fastPasteToken?: string;
+}
 
 export interface LightTableLayerPreviewRender {
   readonly file: File; readonly width: number; readonly height: number;
@@ -231,6 +242,10 @@ export interface LightTableCommandPorts {
     command: SemanticAssignProfileCommand): SemanticAssignProfileResult | Promise<SemanticAssignProfileResult>;
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(documentId: DocumentSessionId): void | Promise<void>;
+  copyPixels?(documentId: DocumentSessionId, command: SemanticCopyPixelsCommand):
+    LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>;
+  pastePixels?(documentId: DocumentSessionId, file: File, command: SemanticPastePixelsCommand,
+    fastPasteToken?: string): unknown | Promise<unknown>;
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;
   renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string): void | Promise<void>;
   setLayerVisibility(documentId: DocumentSessionId, layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;
@@ -289,6 +304,10 @@ export interface DocumentLightTableCommandPorts {
     SemanticAssignProfileResult | Promise<SemanticAssignProfileResult>;
   setZoom(viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(): void | Promise<void>;
+  copyPixels?(source: PixelClipboardSource):
+    LightTablePixelClipboardCapture | null | Promise<LightTablePixelClipboardCapture | null>;
+  pastePixels?(file: File, command: SemanticPastePixelsCommand,
+    fastPasteToken?: string): unknown | Promise<unknown>;
   placeArtifact(file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;
   renameLayer(layerId: LayerId, name: string): void | Promise<void>;
   setLayerVisibility(layerIds: readonly LayerId[], visible: boolean): void | Promise<void>;

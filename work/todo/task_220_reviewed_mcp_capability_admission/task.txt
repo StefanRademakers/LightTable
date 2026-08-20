@@ -127,6 +127,11 @@ Current evidence (2026-08-20)
   can assign only the current sRGB working profile; conversion flags, profile
   payloads and unsupported names fail before the bridge. Packaged UI/Actions/
   MCP proof reports equal assigned state, one undo and zero pixel delta.
+- `selection.copyPixels` is admitted as discrete bounded external I/O for
+  active-layer or merged selection capture. MCP receives only an opaque
+  session artifact plus bounds and composes it with the already admitted
+  `selection.pastePixels`; raw bytes/private fields fail before the bridge.
+  Packaged external MCP paste matches the normal UI render exactly.
 - The local Codex acceptance launcher separates loopback MCP/OAuth from the
   encrypted desktop tunnel. Its external Streamable HTTP probe proves denial
   before approval, bounded read-only preview, edit denial, revocation and

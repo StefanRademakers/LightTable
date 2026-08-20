@@ -1,0 +1,74 @@
+Task 267 - Complete pixel clipboard vertical
+
+Goal
+====
+
+Route Edit > Copy, Copy Merged and Paste as new layer through bounded semantic
+capabilities shared by normal UI, durable Actions and reviewed MCP, without
+moving pixel bytes through JSON or touching interactive pointer/paint paths.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- [x] Add a closed `selection.copyPixels` contract for active-layer and merged
+  selection capture.
+- [x] Keep image bytes in a bounded host-owned artifact registry; expose only
+  metadata and an opaque ID to Actions/MCP.
+- [x] Route the existing Edit menu copy owners through the command service.
+- [x] Route paste through `selection.pastePixels` and the existing raster
+  clipboard/document/history owner, retaining OS-image-clipboard fallback in
+  the UI host.
+- [x] Bind a recorded paste to the fresh artifact returned by its preceding
+  copy during every Actions replay.
+- [x] Admit the closed command to external MCP and reject private byte fields
+  before the desktop bridge.
+- [x] Prove Copy and Copy Merged are revision/history neutral and UI, Actions
+  and MCP Paste render identically in the packaged desktop.
+
+Performance and safety boundary
+===============================
+
+- Copy/Paste is a discrete external-I/O operation, not a pointer-frequency
+  capability. No brush, warp, slider or frame-preview path imports this schema
+  or publishes clipboard payloads.
+- Same-document active-layer Paste retains the renderer's GPU clipboard and
+  normal full-canvas raster-layer semantics. A private generation token guards
+  that fast path; stale tokens fall back to the bounded image artifact.
+- PNG/WebP captures are limited to 512 MiB and finite document bounds.
+- Actions and MCP retain only artifact metadata/IDs. No Base64, data URL, host
+  path, GPU object or selection mask crosses the command boundary.
+- Artifact handles are in-process/session scoped. Durable Actions remain valid
+  because replay executes the producing copy step and binds Paste to its fresh
+  result; a standalone persisted clipboard ID is not portable across restart.
+
+Completed evidence (2026-08-20)
+===============================
+
+- `npm run smoke:desktop:pixel-clipboard` passed against the packaged app.
+- The real Edit menu recorded Copy Merged, active-layer Copy and Paste as three
+  semantic steps. Paste stored
+  `$lighttableResult(step 2, artifact.id)`, not the original artifact ID.
+- Actions replay and authenticated external MCP each produced an equal pasted
+  layer at document bounds `x=32, y=24, width=164, height=124`.
+- UI versus Actions and UI versus MCP both measured RMSE 0, maximum channel
+  delta 0 and changed-pixel ratio 0 across the 256x192 rendered document.
+- Both packaged copy commands left canonical revision and undo depth unchanged;
+  Paste created the single document/history mutation.
+- Focused app tests, MCP integration tests, command-contract generation,
+  coverage audit, automation tests, app typecheck and architecture boundary
+  verification passed during implementation.
+
+Non-goals
+=========
+
+- Grade recipe clipboard commands; those require their own complete portable
+  recipe contract.
+- Remove Object; the owner explicitly deferred that unfinished product flow.
+- Cross-restart persistence of arbitrary OS clipboard or artifact contents.
+- Streaming or simulating interactive paint/pointer events through MCP.

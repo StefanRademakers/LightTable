@@ -42,6 +42,29 @@
           "items": { "$ref": "#/$defs/compatibilityFinding" }
         }
       }
+    },
+    "pixelClipboardArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "name", "mediaType", "byteLength", "createdAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/artifactId" },
+        "kind": { "type": "string", "const": "pixel-clipboard" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "mediaType": { "type": "string", "enum": ["image/png", "image/webp"] },
+        "byteLength": { "type": "integer", "minimum": 1, "maximum": 536870912 },
+        "createdAt": { "type": "number", "minimum": 0 }
+      }
+    },
+    "documentBounds": {
+      "type": "object", "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+        "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+        "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000 },
+        "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000 }
+      }
     }
   },
   "commands": {
@@ -105,6 +128,44 @@
           "layerId": { "$ref": "#/$defs/layerId" },
           "width": { "type": "integer", "minimum": 1, "maximum": 32768 },
           "height": { "type": "integer", "minimum": 1, "maximum": 32768 }
+        }
+      }
+    },
+    "selection.copyPixels": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["source"],
+        "properties": { "source": { "type": "string", "enum": ["active-layer", "merged"] } }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source", "bounds", "artifact"],
+        "properties": {
+          "source": { "type": "string", "enum": ["active-layer", "merged"] },
+          "bounds": { "$ref": "#/$defs/documentBounds" },
+          "artifact": { "$ref": "#/$defs/pixelClipboardArtifact" }
+        }
+      }
+    },
+    "selection.pastePixels": {
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "required": ["artifactId", "bounds"],
+        "properties": {
+          "artifactId": { "$ref": "#/$defs/artifactId" },
+          "bounds": { "$ref": "#/$defs/documentBounds" },
+          "name": {
+            "type": "string", "title": "Layer name", "minLength": 1, "maxLength": 255,
+            "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f]+$"
+          }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["layerId", "width", "height"],
+        "properties": {
+          "layerId": { "$ref": "#/$defs/layerId" },
+          "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000 },
+          "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000 }
         }
       }
     }

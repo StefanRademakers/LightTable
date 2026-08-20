@@ -380,6 +380,13 @@
     { "kind": "modify", "operation": "invert" },
     { "kind": "modify", "operation": "feather", "radius": 12 }
   ],
+  "selection.copyPixels": [
+    { "source": "active-layer" },
+    { "source": "merged" }
+  ],
+  "selection.pastePixels": [
+    { "artifactId": "artifact-copy-result", "bounds": { "x": 32, "y": 24, "width": 164, "height": 124 }, "name": "Pasted Selection" }
+  ],
   "grade.setBasic": [
     { "target": { "kind": "document" }, "values": { "exposureEV": 0.35, "contrast": 12 } },
     { "target": { "kind": "layer", "layerId": "layer-photo" }, "values": { "temperature": -8, "vibrance": 15 } }

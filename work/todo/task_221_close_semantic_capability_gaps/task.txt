@@ -96,6 +96,10 @@ Completed vertical slices
   parameters; packaged route equivalence is exact.
 - sRGB profile assignment through the existing document mutation/history
   owner, explicitly separate from future Convert to Profile color transforms.
+- active-layer and merged pixel copy through the existing renderer/system-
+  clipboard owner, with Paste reusing the normal raster clipboard owner and its
+  guarded GPU fast path; replayable Actions and MCP exchange only bounded
+  session artifact identities.
 
 Rules
 =====

@@ -25,6 +25,10 @@ export const projectCommandCapabilities = (
     availability('document.applyGeometry', Boolean(ports.applyDocumentGeometry), 'Document geometry is unavailable in this host.'),
     availability('document.assignProfile', Boolean(ports.assignDocumentProfile),
       'Assign Profile is unavailable in this host.'),
+    availability('selection.copyPixels', Boolean(ports.copyPixels),
+      'Pixel copy is unavailable in this host.'),
+    availability('selection.pastePixels', Boolean(ports.pastePixels),
+      'Pixel paste is unavailable in this host.'),
     availability('view.setZoom', true, ''), availability('layer.createRaster', true, ''),
     availability('layer.duplicate', walkLayerTree(snapshot.document.layers)
       .some(({ node }) => node.type === 'raster' || node.type === 'text'),

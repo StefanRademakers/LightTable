@@ -14,6 +14,9 @@ import type { SemanticSubjectSelectionCommand } from './semanticSubjectSelection
 import type { SemanticTextCommand } from './semanticTextCommandContract';
 import type { SemanticVectorCommand } from './semanticVectorCommandContract';
 import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
+import type {
+  SemanticCopyPixelsCommand, SemanticPastePixelsCommand
+} from './semanticPixelClipboardCommandContract';
 import type { AtomicCommandBatch } from './atomicCommandBatchContract';
 import type {
   DocumentLightTableCommandPorts,
@@ -56,6 +59,17 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   }
   createRasterLayer(documentId: DocumentSessionId) {
     return this.resolve(documentId).createRasterLayer();
+  }
+  copyPixels(documentId: DocumentSessionId, command: SemanticCopyPixelsCommand) {
+    const execute = this.resolve(documentId).copyPixels;
+    if (!execute) throw new Error('Pixel copy is unavailable in the target document.');
+    return execute(command.source);
+  }
+  pastePixels(documentId: DocumentSessionId, file: File, command: SemanticPastePixelsCommand,
+    fastPasteToken?: string) {
+    const execute = this.resolve(documentId).pastePixels;
+    if (!execute) throw new Error('Pixel paste is unavailable in the target document.');
+    return execute(file, command, fastPasteToken);
   }
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement) {
     return this.resolve(documentId).placeArtifact(file, placement);

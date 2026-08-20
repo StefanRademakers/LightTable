@@ -63,6 +63,7 @@ import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
 import { commandScope } from './commandRequestScope';
 import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import { parseSemanticAssignProfileCommand } from './semanticDocumentColorCommandContract';
+import { SemanticPixelClipboardCommandHandler } from './semanticPixelClipboardCommandHandler';
 import { parseSemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
 import { parseSemanticSelectionCommand } from './semanticSelectionCommandContract';
@@ -131,6 +132,7 @@ const traceObservedCommand = (command: LightTableCommandId, accepted: boolean, r
  * edits React state, document objects or GPU resources itself.
  */
 export class LightTableCommandService {
+  private readonly pixelClipboardCommands: SemanticPixelClipboardCommandHandler;
   private workspaceRevision = 1;
   private readonly unsubscribe: () => void;
   private readonly taskArtifacts = new Map<string, LightTableArtifactMetadata>();
@@ -192,6 +194,7 @@ export class LightTableCommandService {
     actionLibraryStorage?: SemanticActionLibraryStorage
   ) {
     this.actionLibrary = new SemanticActionLibrary(actionLibraryStorage);
+    this.pixelClipboardCommands = new SemanticPixelClipboardCommandHandler(this.artifacts);
     let previousWorkspace = workspace.getSnapshot();
     this.unsubscribe = workspace.subscribe(() => {
       const currentWorkspace = workspace.getSnapshot();
@@ -217,10 +220,8 @@ export class LightTableCommandService {
     this.layerPreviews.clear();
   }
 
-  registerInputArtifact(file: File): LightTableArtifactMetadata {
-    return this.artifacts.register(file, 'input');
-  }
-
+  registerInputArtifact(file: File): LightTableArtifactMetadata { return this.artifacts.register(file, 'input'); }
+  registerPixelClipboardArtifact(file: File): LightTableArtifactMetadata { return this.pixelClipboardCommands.register(file); }
   queryArtifact(artifactId: string): LightTableArtifactMetadata | null {
     return this.artifacts.query(artifactId);
   }
@@ -927,6 +928,17 @@ export class LightTableCommandService {
       }
     }
 
+    if (value.command === 'selection.copyPixels' || value.command === 'selection.pastePixels') {
+      const dispatched = await this.pixelClipboardCommands.dispatch(value.command, value.parameters,
+        documentRequest.documentId, this.ports);
+      if (dispatched.ok) {
+        if (dispatched.mutated) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: dispatched.value,
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      }
+      return this.reject(value.requestId, dispatched.code, dispatched.message, snapshot);
+    }
+
     if (value.command === 'file.exportNative' || value.command === 'file.exportPng'
       || value.command === 'file.exportPsd') {
       if (!isRecord(value.parameters) || Object.keys(value.parameters).length > 0) {
@@ -1557,6 +1569,7 @@ export interface LightTableAutomationDriver {
   finishGesture(gestureId: string, commit: boolean): Promise<LightTableGestureResult>;
   cancelAllGestures(documentId?: DocumentSessionId): Promise<number>;
   registerInputArtifact(file: File): LightTableArtifactMetadata;
+  registerPixelClipboardArtifact?(file: File): LightTableArtifactMetadata;
   queryArtifact(artifactId: string): LightTableArtifactMetadata | null;
   resolveArtifact(artifactId: string): File | null;
   listArtifacts(): readonly LightTableArtifactMetadata[];
