@@ -132,3 +132,49 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `\`open-recent-project-${project.recentId}\`` | host | Opens a host-maintained recent-project entry. | 257 |
 | `\`image-adjustments-${definition.id}\`` | command | `adjustment.create` | 472 |
 | `\`blend-${mode.id}\`` | command | `layer.setBlendMode` | 602 |
+
+## Toolbar inventory
+
+- 36 registered tools;
+- 32 have a recorded UI/command route;
+- 2 have a canonical owner but no proven UI/command vertical;
+- 0 are explicitly not exposed.
+
+| Tool | Role | Interaction | Availability | Capability | Note |
+| --- | --- | --- | --- | --- | --- |
+| `transform` | transform | continuous | ui-and-command | `layer.setTransform` | Single-layer affine UI commits record one final matrix; groups, masks and projective transforms remain open. |
+| `select-rectangle` | selection | continuous | ui-and-command | `selection.applyShape` | The UI records one final rectangle only after successful selection rasterization. |
+| `select-ellipse` | selection | continuous | ui-and-command | `selection.applyShape` | The UI records one final ellipse only after successful selection rasterization. |
+| `select-horizontal` | selection | discrete | ui-and-command | `selection.applyShape` | The UI records one final row selection. |
+| `select-vertical` | selection | discrete | ui-and-command | `selection.applyShape` | The UI records one final column selection. |
+| `select-free` | selection | continuous | ui-and-command | `selection.applyShape` | The UI records the bounded final outline, never pointer-move commands. |
+| `select-polygonal` | selection | continuous | ui-and-command | `selection.applyShape` | The UI records the bounded final polygon, never intermediate clicks. |
+| `select-object` | selection | continuous | canonical-owner-only | none | Smart-selection owner exists; model/result contract is not exposed. |
+| `select-magic-wand` | selection | discrete | ui-and-command | `selection.applyMagicWand` | One successful asynchronous GPU selection publishes its sampled recipe; masks remain local. |
+| `vector-pen` | vector | continuous | ui-and-command | `vector.create`, `vector.update` | Open/closed and resumed Pen paths publish once after commit; anchor and handle previews remain local. |
+| `vector-add-anchor` | vector | discrete | ui-and-command | `vector.update` | One-shot add records the final native path. |
+| `vector-delete-anchor` | vector | discrete | ui-and-command | `vector.update`, `vector.remove` | One-shot delete records the final native path or its removal. |
+| `vector-convert-anchor` | vector | continuous | ui-and-command | `vector.update` | Click/drag conversion records once after commit; previews remain local. |
+| `vector-select` | vector | presentation | presentation-only | none | Vector target selection is editor presentation state. |
+| `vector-direct-select` | vector | continuous | ui-and-command | `vector.update` | Selection/marquee remain presentation; anchor, handle and segment edits record once after commit. |
+| `shape-rectangle` | vector | continuous | ui-and-command | `vector.create`, `vector.update` | The toolbar publishes one native Rectangle only after its local preview commits. |
+| `shape-ellipse` | vector | continuous | ui-and-command | `vector.create`, `vector.update` | The toolbar publishes one native Ellipse only after its local preview commits. |
+| `shape-triangle` | vector | continuous | ui-and-command | `vector.create`, `vector.update` | The toolbar publishes one native Triangle only after its local preview commits. |
+| `shape-line` | vector | continuous | ui-and-command | `vector.create`, `vector.update` | The toolbar publishes one native Line only after its local preview commits. |
+| `text-point` | text | discrete | ui-and-command | `text.create`, `text.replaceRange`, `text.format`, `text.setLayout` | Point text already enters through semantic commands. |
+| `text-paragraph` | text | continuous | ui-and-command | `text.create`, `text.replaceRange`, `text.format`, `text.setLayout` | Paragraph text creation and editing already use semantic commands. |
+| `text-vertical` | text | discrete | ui-and-command | `text.create`, `text.replaceRange`, `text.format`, `text.setLayout` | Vertical text uses the shared text contract. |
+| `text-path` | text | discrete | ui-and-command | `text.create` | Path Text creation references existing native path geometry through the shared text command. |
+| `gradient` | vector | continuous | ui-and-command | `vector.create`, `vector.update`, `raster.applyGradient` | Fill-layer and raster modes publish one final paint after commit; drag previews remain local. |
+| `fill` | fill | discrete | ui-and-command | `raster.fill` | One successful GPU fill publishes one explicit layer/channel operation; pixels and selection stay local. |
+| `brush` | paint | continuous | ui-and-command | `tool.commitGesture:brush-stroke` | Actions captures one bounded stroke only while recording; pointer updates stay on the local paint hot path. |
+| `healing-brush` | paint | continuous | ui-and-command | `tool.commitGesture:brush-stroke` | Final stroke carries a document-relative sampled source; source pixels and dabs remain local. |
+| `clone-stamp` | paint | continuous | ui-and-command | `tool.commitGesture:brush-stroke` | Final stroke carries a document-relative sampled source; source pixels and dabs remain local. |
+| `erase` | paint | continuous | ui-and-command | `tool.commitGesture:brush-stroke` | Erase records through the same bounded stroke contract with erase=true. |
+| `dodge` | paint | continuous | ui-and-command | `tool.commitGesture:brush-stroke` | One bounded tone stroke publishes after commit; pointer updates stay on the local paint hot path. |
+| `burn` | paint | continuous | ui-and-command | `tool.commitGesture:brush-stroke` | One bounded tone stroke publishes after commit; pointer updates stay on the local paint hot path. |
+| `sponge` | paint | continuous | ui-and-command | `tool.commitGesture:brush-stroke` | One bounded tone stroke publishes after commit; pointer updates stay on the local paint hot path. |
+| `warp` | warp | continuous | ui-and-command | `warp.applyStroke` | UI previews remain frame-coalesced; one bounded layer-source stroke publishes after history commit. |
+| `face-warp` | face-warp | discrete | canonical-owner-only | `faceWarp.applyOperation` | Semantic operations exist but remain experimentally excluded from MCP. |
+| `view` | view | presentation | presentation-only | none | Canvas navigation is viewport presentation. |
+| `zoom` | zoom | presentation | ui-and-command | `view.setZoom` | Zoom state has a semantic command; click-drag zoom remains local. |

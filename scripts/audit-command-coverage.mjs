@@ -6,6 +6,10 @@ import ts from 'typescript';
 const root = path.resolve(import.meta.dirname, '..');
 const menuPath = path.join(root, 'packages', 'lighttable-app', 'src', 'lighttable',
   'editor', 'menus', 'createEditorMenuOptions.ts');
+const toolRegistryPath = path.join(root, 'packages', 'lighttable-app', 'src', 'lighttable',
+  'editor', 'tools', 'toolRegistry.ts');
+const toolAutomationPath = path.join(root, 'packages', 'lighttable-app', 'src', 'lighttable',
+  'application', 'tools', 'toolAutomationCatalog.ts');
 const mappingPath = path.join(root, 'architecture', 'tests', 'action-coverage', 'editor-menus.json');
 const reportPath = path.join(root, 'audit', 'USER_ACTION_COMMAND_COVERAGE.md');
 const listOnly = process.argv.includes('--list');
@@ -19,6 +23,89 @@ const dynamicActions = [];
 const propertyName = (property) => {
   if (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) return property.name.text;
   return null;
+};
+
+const variableInitializer = (file, name) => {
+  let initializer = null;
+  const visit = (node) => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)
+      && node.name.text === name) initializer = node.initializer ?? null;
+    if (!initializer) ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return initializer;
+};
+
+const stringValue = (node) => (
+  node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) ? node.text : null
+);
+const stringArray = (node) => ts.isArrayLiteralExpression(node)
+  ? node.elements.map(stringValue).filter((value) => value !== null) : null;
+const objectProperty = (node, name) => ts.isObjectLiteralExpression(node)
+  ? node.properties.find((property) => propertyName(property) === name) : null;
+const propertyInitializer = (property) => property && ts.isPropertyAssignment(property)
+  ? property.initializer : null;
+const unwrapExpression = (node) => {
+  let current = node;
+  while (current && (ts.isAsExpression(current) || ts.isSatisfiesExpression(current)
+    || ts.isParenthesizedExpression(current))) current = current.expression;
+  return current;
+};
+
+const readToolDefinitions = async () => {
+  const toolSource = await readFile(toolRegistryPath, 'utf8');
+  const file = ts.createSourceFile(toolRegistryPath, toolSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const declaration = unwrapExpression(variableInitializer(file, 'TOOL_DEFINITIONS'));
+  if (!declaration || !ts.isArrayLiteralExpression(declaration)) {
+    throw new Error('Could not inspect TOOL_DEFINITIONS.');
+  }
+  return declaration.elements.map((element) => {
+    if (!ts.isObjectLiteralExpression(element)) throw new Error('Tool definitions must be object literals.');
+    const id = stringValue(propertyInitializer(objectProperty(element, 'id')));
+    const label = stringValue(propertyInitializer(objectProperty(element, 'label')));
+    const role = stringValue(propertyInitializer(objectProperty(element, 'role')));
+    if (!id || !label || !role) throw new Error('Each tool needs literal id, label and role values.');
+    return { id, label, role };
+  });
+};
+
+const readToolAutomation = async () => {
+  const automationSource = await readFile(toolAutomationPath, 'utf8');
+  const file = ts.createSourceFile(toolAutomationPath, automationSource,
+    ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const declaration = unwrapExpression(variableInitializer(file, 'TOOL_AUTOMATION_CATALOG'));
+  if (!declaration || !ts.isObjectLiteralExpression(declaration)) {
+    throw new Error('Could not inspect TOOL_AUTOMATION_CATALOG.');
+  }
+  return declaration.properties.map((property) => {
+    const id = propertyName(property);
+    if (!id || !ts.isPropertyAssignment(property)) {
+      throw new Error('Tool automation entries must use literal properties.');
+    }
+    const value = property.initializer;
+    if (ts.isCallExpression(value) && ts.isIdentifier(value.expression)) {
+      const helper = value.expression.text;
+      const presentation = helper === 'presentation';
+      if (!presentation && helper !== 'owner' && helper !== 'uiCommand') {
+        throw new Error(`Unknown tool automation helper ${helper} for ${id}.`);
+      }
+      const capabilities = presentation ? [] : stringArray(value.arguments[1]);
+      const note = stringValue(value.arguments[presentation ? 0 : 2]);
+      const interaction = presentation ? 'presentation' : stringValue(value.arguments[0]);
+      if (!capabilities || !note || !interaction) throw new Error(`Invalid tool automation entry ${id}.`);
+      return { id, interaction, availability: presentation ? 'presentation-only'
+        : helper === 'owner' ? 'canonical-owner-only' : 'ui-and-command', capabilities, note };
+    }
+    if (!ts.isObjectLiteralExpression(value)) throw new Error(`Invalid tool automation entry ${id}.`);
+    const interaction = stringValue(propertyInitializer(objectProperty(value, 'interaction')));
+    const availability = stringValue(propertyInitializer(objectProperty(value, 'availability')));
+    const capabilities = stringArray(propertyInitializer(objectProperty(value, 'capabilities')));
+    const note = stringValue(propertyInitializer(objectProperty(value, 'note')));
+    if (!interaction || !availability || !capabilities || !note) {
+      throw new Error(`Invalid explicit tool automation entry ${id}.`);
+    }
+    return { id, interaction, availability, capabilities, note };
+  });
 };
 
 const inspect = (node) => {
@@ -60,6 +147,34 @@ if (!Array.isArray(mapping.dynamicActions)) {
 }
 const catalog = JSON.parse(await readFile(path.join(root, 'packages', 'command-contract', 'catalog.json'), 'utf8'));
 const commandIds = new Set(catalog.commands.map(({ id }) => id));
+const toolDefinitions = await readToolDefinitions();
+const toolAutomation = await readToolAutomation();
+const registeredToolIds = new Set(toolDefinitions.map(({ id }) => id));
+const automatedToolIds = new Set(toolAutomation.map(({ id }) => id));
+const missingTools = toolDefinitions.filter(({ id }) => !automatedToolIds.has(id));
+const staleTools = toolAutomation.filter(({ id }) => !registeredToolIds.has(id));
+if (missingTools.length || staleTools.length || automatedToolIds.size !== toolAutomation.length) {
+  throw new Error(`Toolbar automation coverage drift. Missing: ${missingTools.map(({ id }) => id).join(', ') || 'none'}. `
+    + `Stale/duplicate: ${staleTools.map(({ id }) => id).join(', ') || 'none'}.`);
+}
+const toolAvailability = new Set(['presentation-only', 'ui-and-command', 'playback-command-only',
+  'canonical-owner-only', 'not-exposed']);
+const toolInteractions = new Set(['presentation', 'discrete', 'continuous']);
+for (const entry of toolAutomation) {
+  if (!toolAvailability.has(entry.availability) || !toolInteractions.has(entry.interaction)) {
+    throw new Error(`Invalid toolbar automation classification for ${entry.id}.`);
+  }
+  if (entry.availability === 'presentation-only' && entry.interaction !== 'presentation') {
+    throw new Error(`Presentation-only tool ${entry.id} must have presentation interaction semantics.`);
+  }
+  if (entry.availability === 'ui-and-command' && entry.capabilities.length === 0) {
+    throw new Error(`UI/command tool ${entry.id} needs at least one semantic capability.`);
+  }
+  for (const capability of entry.capabilities) {
+    const command = capability.split(':', 1)[0];
+    if (!commandIds.has(command)) throw new Error(`${entry.id} maps to unknown command ${capability}.`);
+  }
+}
 const mapped = new Map(mapping.actions.map((entry) => [entry.id, entry]));
 const missing = ids.filter((id) => !mapped.has(id));
 const stale = [...mapped.keys()].filter((id) => !staticActions.has(id));
@@ -117,6 +232,14 @@ const dynamicRows = mapping.dynamicActions.map((entry) => {
   const sourceEntry = dynamicActions.find(({ expression }) => expression === entry.expression);
   return `| \`${entry.expression.replaceAll('`', '\\`')}\` | ${entry.classification} | ${target} | ${sourceEntry.line} |`;
 });
+const toolById = new Map(toolAutomation.map((entry) => [entry.id, entry]));
+const toolbarRows = toolDefinitions.map((definition) => {
+  const entry = toolById.get(definition.id);
+  return `| \`${definition.id}\` | ${definition.role} | ${entry.interaction} | ${entry.availability} | `
+    + `${entry.capabilities.length ? entry.capabilities.map((value) => `\`${value}\``).join(', ') : 'none'} | ${entry.note} |`;
+});
+const toolOwnerOnly = toolAutomation.filter(({ availability }) => availability === 'canonical-owner-only');
+const toolNotExposed = toolAutomation.filter(({ availability }) => availability === 'not-exposed');
 const report = `# User action / command coverage\n\n`
   + `Generated from the central editor menu on ${new Date().toISOString().slice(0, 10)}. `
   + `This is the first checked surface, not complete application coverage.\n\n`
@@ -139,7 +262,15 @@ const report = `# User action / command coverage\n\n`
   + `| --- | --- | --- | --- |\n${rows.join('\n')}\n\n`
   + `## Dynamic menu families\n\n`
   + `| Value expression | Classification | Command or reason | Source line |\n`
-  + `| --- | --- | --- | --- |\n${dynamicRows.join('\n')}\n`;
+  + `| --- | --- | --- | --- |\n${dynamicRows.join('\n')}\n\n`
+  + `## Toolbar inventory\n\n`
+  + `- ${toolDefinitions.length} registered tools;\n`
+  + `- ${toolAutomation.filter(({ availability }) => availability === 'ui-and-command').length} have a recorded UI/command route;\n`
+  + `- ${toolOwnerOnly.length} have a canonical owner but no proven UI/command vertical;\n`
+  + `- ${toolNotExposed.length} are explicitly not exposed.\n\n`
+  + `| Tool | Role | Interaction | Availability | Capability | Note |\n`
+  + `| --- | --- | --- | --- | --- | --- |\n${toolbarRows.join('\n')}\n`;
 
 if (write) await writeFile(reportPath, report, 'utf8');
-process.stdout.write(`Editor menu coverage passed: ${ids.length} actions, ${gapEntries.length} gaps.${write ? ` Report: ${reportPath}` : ''}\n`);
+process.stdout.write(`Editor/menu toolbar coverage passed: ${ids.length} menu actions, ${gapEntries.length} menu gaps, `
+  + `${toolDefinitions.length} tools, ${toolOwnerOnly.length + toolNotExposed.length} tool gaps/withheld.${write ? ` Report: ${reportPath}` : ''}\n`);
