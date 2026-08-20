@@ -24,6 +24,7 @@ import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
 import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
 import type { SemanticFixedTransformCommand } from './semanticFixedTransformCommandContract';
+import type { SemanticAdjustmentCreationCommand } from './semanticAdjustmentCreationCommandContract';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId
@@ -208,6 +209,7 @@ export interface LightTableCommandPorts {
   executeSelectionCommand?(documentId: DocumentSessionId, command: SemanticSelectionCommand): unknown | Promise<unknown>;
   executeBasicAdjustmentCommand?(documentId: DocumentSessionId, command: SemanticBasicAdjustmentCommand): unknown | Promise<unknown>;
   executeFixedTransform?(documentId: DocumentSessionId, command: SemanticFixedTransformCommand): unknown | Promise<unknown>;
+  executeAdjustmentCreation?(documentId: DocumentSessionId, command: SemanticAdjustmentCreationCommand): unknown | Promise<unknown>;
   queryBasicAdjustments?(documentId: DocumentSessionId, target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
@@ -246,6 +248,7 @@ export interface DocumentLightTableCommandPorts {
   executeSelectionCommand?(command: SemanticSelectionCommand): unknown | Promise<unknown>;
   executeBasicAdjustmentCommand?(command: SemanticBasicAdjustmentCommand): unknown | Promise<unknown>;
   executeFixedTransform?(command: SemanticFixedTransformCommand): unknown | Promise<unknown>;
+  executeAdjustmentCreation?(command: SemanticAdjustmentCreationCommand): unknown | Promise<unknown>;
   queryBasicAdjustments?(target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;

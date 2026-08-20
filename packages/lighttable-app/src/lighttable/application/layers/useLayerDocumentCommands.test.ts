@@ -577,6 +577,21 @@ describe('useLayerDocumentCommands', () => {
     expect(layer.mask).not.toBeNull();
   });
 
+  it('creates an adjustment layer above an explicit stable anchor', () => {
+    const document = createRasterLayer(
+      createRasterLayer(createImageDocument('Test', 32, 24, 'asset'), 'Bottom'),
+      'Top'
+    );
+    const state = setup(document);
+    const bottomId = state.document().layers.find(({ name }) => name === 'Bottom')!.id;
+
+    expect(state.commands.createAdjustmentLayerOfKind('curves', bottomId)).toBe(true);
+
+    expect(state.document().layers.map(({ name }) => name))
+      .toEqual(['Background', 'Bottom', 'Curves', 'Top']);
+    expect(state.document().activeLayerId).toBe(state.document().layers[2]!.id);
+  });
+
   it('attaches independent adjustment nodes without replacing the raster local grade', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const raster = state.document().layers[0]!;

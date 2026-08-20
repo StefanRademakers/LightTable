@@ -27,6 +27,10 @@ import { createAdjustmentCommands } from './application/adjustments/createAdjust
 import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdjustmentTarget';
 import { projectBasicAdjustmentValues } from './application/adjustments/basicAdjustmentQuery';
 import { changedBasicAdjustmentValues } from './application/commands/semanticBasicAdjustmentCommandContract';
+import {
+  resolveContextualAdjustmentCreation,
+  type SemanticAdjustmentCreationCommand
+} from './application/commands/semanticAdjustmentCreationCommandContract';
 import type { ActionRecordingSnapshot } from './application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from './application/actions/semanticActionPlayback';
 import type { SemanticActionLibrarySnapshot } from './application/actions/semanticActionLibrary';
@@ -750,6 +754,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
   const applyCurvesRef = useRef<() => void>(() => undefined);
   const applyAdjustmentRef = useRef<(kind: AdjustmentLayerKind) => void>(() => undefined);
+  const executeAdjustmentCreationRef = useRef<(
+    command: SemanticAdjustmentCreationCommand
+  ) => unknown>(() => null);
   const rasterizeShapeRef = useRef<(
     transaction: VectorElementCreationTransaction
   ) => boolean>(() => false);
@@ -4609,31 +4616,45 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       });
     }
   };
+  executeAdjustmentCreationRef.current = (command) => {
+    const before = imageDocumentRef.current;
+    if (!before) return null;
+    if (command.placement === 'local') {
+      layerPanelController.createLocalProcessing(command.layerId, command.kind);
+      const after = imageDocumentRef.current;
+      if (!after || after.revision === before.revision) return null;
+      showProperties({ kind: 'processing', layerId: command.layerId, owner: command.kind });
+      return { kind: command.kind, placement: command.placement, layerId: command.layerId };
+    }
+    if (command.placement === 'attached') {
+      const adjustmentId = layerPanelController.createAttachedAdjustment(command.layerId, command.kind);
+      if (!adjustmentId) return null;
+      showProperties({ kind: 'attached-processing', layerId: command.layerId, adjustmentId });
+      return { kind: command.kind, placement: command.placement,
+        layerId: command.layerId, adjustmentId };
+    }
+    if (!layerPanelController.createAdjustmentLayerOfKind(command.kind, command.aboveLayerId)) {
+      return null;
+    }
+    const layerId = imageDocumentRef.current?.activeLayerId;
+    if (!layerId) return null;
+    requestAnimationFrame(() => showProperties({ kind: 'layer', layerId }));
+    return { kind: command.kind, placement: command.placement, layerId };
+  };
   applyAdjustmentRef.current = (kind) => {
     const document = imageDocumentRef.current;
-    const active = document ? findDocumentLayer(document, document.activeLayerId) : null;
-    if (active?.type === 'raster' && !active.locks.all && !active.locks.pixels) {
-      if (kind === 'curves') {
-        applyCurvesRef.current();
+    if (!document) return;
+    const command = resolveContextualAdjustmentCreation(document, kind);
+    if (command.placement === 'local') {
+      const layer = findDocumentLayer(document, command.layerId);
+      if (layer?.type === 'raster'
+        && adjustmentStackHasLocalProcessing(layer.adjustmentStack, command.kind)) {
+        showProperties({ kind: 'processing', layerId: command.layerId, owner: command.kind });
         return;
       }
-      if (kind === 'grade' || kind === 'lens-fx') {
-        const owner = kind === 'lens-fx' ? 'lens-fx' : 'grade';
-        layerPanelController.createLocalProcessing(active.id, owner);
-        showProperties({ kind: 'processing', layerId: active.id, owner });
-        return;
-      }
-      const adjustmentId = layerPanelController.createAttachedAdjustment(active.id, kind);
-      if (adjustmentId) {
-        showProperties({ kind: 'attached-processing', layerId: active.id, adjustmentId });
-      }
-      return;
     }
-    if (layerPanelController.createAdjustmentLayerOfKind(kind)) {
-      requestAnimationFrame(() => {
-        const layerId = imageDocumentRef.current?.activeLayerId;
-        if (layerId) showProperties({ kind: 'layer', layerId });
-      });
+    if (!executeRegisteredCommand('adjustment.create', command)) {
+      executeAdjustmentCreationRef.current(command);
     }
   };
   deleteActiveTargetRef.current = () => {
@@ -4847,6 +4868,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return { target: command.target, values: command.values, changed: true };
       },
       executeFixedTransform: (command) => applyFixedTransformRef.current(command.operation),
+      executeAdjustmentCreation: (command) => executeAdjustmentCreationRef.current(command),
       queryBasicAdjustments: (target) => {
         const document = imageDocumentRef.current;
         if (!document) return null;

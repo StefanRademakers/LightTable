@@ -1,0 +1,71 @@
+Task 246 - Explicit adjustment creation
+
+Goal
+====
+
+Turn the complete existing Image > Adjustments family into one explicit,
+stable-target capability shared by UI, Actions and Agent/MCP, while retaining
+the product's current local-processing, attached-adjustment and adjustment-layer
+behavior.
+
+Parent work
+===========
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Define a bounded `adjustment.create` schema using the canonical visible
+  adjustment-kind catalog and explicit `local`, `attached` or
+  `adjustment-layer` placement.
+- [x] Resolve the menu's current contextual behavior once at invocation time
+  and record stable layer IDs/placement rather than ambiguous UI state.
+- [x] Reuse `ensureRasterLayerLocalProcessing`, attached-adjustment creation
+  and processing-layer creation through their existing document/history owners.
+- [x] Preserve the current Properties-panel presentation without making panel
+  state part of the semantic command.
+- [x] Expose reviewed capability metadata, examples, Actions replay and
+  Agent/MCP execution with clear invalid-target rejection.
+- [x] Prove representative local, attached and adjustment-layer results plus
+  normal undo/revision behavior.
+- [x] Add packaged MCP evidence, run all repository gates, update coverage and
+  parent evidence, then commit.
+
+Non-goals
+=========
+
+- Sending adjustment slider drags through the command layer.
+- Claiming parity for any adjustment's rendering algorithm.
+- Adding adjustment types that are hidden or unfinished in the current product.
+
+Evidence
+========
+
+- The contract derives accepted kinds from the canonical visible adjustment
+  menu catalog and rejects hidden kinds, unsupported fields and invalid local
+  placements.
+- The UI freezes context into stable targets before dispatch: Grade, Curves and
+  Lens Fx become local processing on editable rasters; other kinds become
+  attached adjustments; non-raster/locked contexts create a standalone layer
+  above an explicit anchor.
+- Opening an already-existing local adjustment remains a presentation action
+  and is not recorded as a false document mutation.
+- The existing layer-document owners still construct module stacks, update the
+  immutable document, publish panel values and create undo history. Standalone
+  creation now also accepts an explicit insertion anchor.
+- Contract/service/owner tests cover all three placements, stable targeting,
+  invalid requests, Actions recording/replay and explicit layer ordering.
+- Packaged external MCP creates neutral local Grade, attached
+  Brightness/Contrast and standalone Curves nodes, checking stable IDs and a
+  canonical revision increase for every operation.
+- Menu coverage now reports 103 static actions, four dynamic families and 19
+  genuine gaps; Image > Adjustments is mapped to `adjustment.create`.
+- The source-structure gate caught central command-service growth during this
+  task. Fixed-transform and adjustment validation/dispatch were extracted to a
+  cohesive contextual-edit dispatcher instead of accepting a larger baseline.
+- Verification passed: full workspace tests (468 app files / 2639 app tests),
+  typecheck, desktop package boundary, external MCP smoke, source structure
+  (883 handwritten files), architecture documentation, command coverage and UI
+  boundary.

@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 35 already routed through semantic commands;
+- 36 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 34 presentation-only operations;
-- 20 genuine semantic command gaps;
+- 19 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -130,5 +130,5 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | --- | --- | --- | --- |
 | `\`open-recent-${file.id}\`` | host | Opens a host-maintained local recent-file entry. | 205 |
 | `\`open-recent-project-${project.recentId}\`` | host | Opens a host-maintained recent-project entry. | 257 |
-| `\`image-adjustments-${definition.id}\`` | gap | Adjustment-layer creation is not represented by a semantic command. | 472 |
+| `\`image-adjustments-${definition.id}\`` | command | `adjustment.create` | 472 |
 | `\`blend-${mode.id}\`` | command | `layer.setBlendMode` | 602 |

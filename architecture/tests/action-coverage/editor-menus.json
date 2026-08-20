@@ -109,7 +109,7 @@
   "dynamicActions": [
     { "expression": "`open-recent-${file.id}`", "classification": "host", "reason": "Opens a host-maintained local recent-file entry." },
     { "expression": "`open-recent-project-${project.recentId}`", "classification": "host", "reason": "Opens a host-maintained recent-project entry." },
-    { "expression": "`image-adjustments-${definition.id}`", "classification": "gap", "reason": "Adjustment-layer creation is not represented by a semantic command." },
+    { "expression": "`image-adjustments-${definition.id}`", "classification": "command", "command": "adjustment.create" },
     { "expression": "`blend-${mode.id}`", "classification": "command", "command": "layer.setBlendMode" }
   ]
 }

@@ -32,7 +32,7 @@ import { dispatchSemanticWarpStroke } from './semanticWarpCommandHandler';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
 import { dispatchSemanticFill } from './semanticFillCommandHandler';
 import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
-import { parseSemanticFixedTransformCommand } from './semanticFixedTransformCommandContract';
+import { dispatchSemanticAdjustmentCreation, dispatchSemanticFixedTransform } from './semanticContextualEditDispatcher';
 import { dispatchSemanticRasterGradient } from './semanticRasterGradientCommandHandler';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
@@ -179,10 +179,16 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     return execute(command);
   }
 
-  executeFixedTransform(documentId: DocumentSessionId, command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeFixedTransform']>>[0]) {
+  executeFixedTransform(documentId: DocumentSessionId,
+    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeFixedTransform']>>[0]) {
     const execute = this.resolve(documentId).executeFixedTransform;
-    if (!execute) throw new Error('Fixed transform commands are unavailable in the target document.');
-    return execute(command);
+    if (!execute) throw new Error('Fixed transform commands are unavailable in the target document.'); return execute(command);
+  }
+
+  executeAdjustmentCreation(documentId: DocumentSessionId,
+    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeAdjustmentCreation']>>[0]) {
+    const execute = this.resolve(documentId).executeAdjustmentCreation;
+    if (!execute) throw new Error('Adjustment creation is unavailable in the target document.'); return execute(command);
   }
 
   queryBasicAdjustments(documentId: DocumentSessionId, target: BasicAdjustmentTarget) {
@@ -774,7 +780,9 @@ export class LightTableCommandService {
         'Clipping requires a lower sibling layer.'),
       availability('layer.setTransform', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('transform.applyFixed', Boolean(this.ports.executeFixedTransform)
-        && Boolean(layerCapabilities.activeLayer), 'Select an editable layer.'),
+        && Boolean(layerCapabilities.activeLayer), 'Select an editable layer.'), availability(
+        'adjustment.create', Boolean(this.ports.executeAdjustmentCreation),
+        'Adjustment creation is unavailable in this host.'),
       availability('layer.setMask', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.setLock', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.placeArtifact', true, ''),
@@ -1223,20 +1231,18 @@ export class LightTableCommandService {
         return { value: { viewport } };
       }
       case 'transform.applyFixed': {
-        const command = parseSemanticFixedTransformCommand(parameters);
-        if ('message' in command) return this.invalidParameters(command.message);
-        if (!this.ports.executeFixedTransform) {
-          return { code: 'command-unavailable', message: 'Fixed transform commands are unavailable in this host.' };
-        }
-        const beforeRevision = snapshot.document!.revision;
-        const result = await this.ports.executeFixedTransform(request.documentId, command);
-        if (!result) {
-          return { code: 'command-unavailable', message: 'There is no editable transform target.' };
-        }
-        const changed = this.document(request.documentId)?.document?.revision !== beforeRevision;
-        return changed ? { value: result } : {
-          code: 'execution-failed', message: 'The fixed transform did not change the document.'
-        };
+        const result = await dispatchSemanticFixedTransform(parameters, snapshot.document!,
+          this.ports.executeFixedTransform
+            ? (command) => this.ports.executeFixedTransform!(request.documentId, command) : undefined,
+          () => this.document(request.documentId)?.document?.revision);
+        return result.ok ? { value: result.value } : result;
+      }
+      case 'adjustment.create': {
+        const result = await dispatchSemanticAdjustmentCreation(parameters, snapshot.document!,
+          this.ports.executeAdjustmentCreation
+            ? (command) => this.ports.executeAdjustmentCreation!(request.documentId, command) : undefined,
+          () => this.document(request.documentId)?.document?.revision);
+        return result.ok ? { value: result.value } : result;
       }
       case 'layer.createRaster': {
         if (!isRecord(parameters) || Object.keys(parameters).length > 0) {

@@ -48,6 +48,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     executeFaceWarpCommand: vi.fn(),
     executeLayerCommand: vi.fn(),
     executeFixedTransform: vi.fn(),
+    executeAdjustmentCreation: vi.fn(),
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -814,6 +815,41 @@ describe('LightTableCommandService registry', () => {
       operation: 'rotate-45'
     }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     expect(state.ports.executeFixedTransform).toHaveBeenCalledTimes(2);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates, records and replays explicit adjustment creation targets', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeAdjustmentCreation!).mockImplementation((_documentId, command) => {
+      const current = state.session.getSnapshot().document!;
+      state.session.setDocument({ ...current, revision: current.revision + 1 });
+      return { ...command, adjustmentId: 'adjustment-created' };
+    });
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    state.service.startActionRecording('Attach Threshold');
+    const result = await state.service.execute(request('adjustment.create', state.session.id, {
+      kind: 'threshold', placement: 'attached', layerId
+    }));
+    state.service.stopActionRecording();
+
+    expect(result).toMatchObject({ status: 'completed', value: {
+      kind: 'threshold', placement: 'attached', layerId,
+      adjustmentId: 'adjustment-created'
+    } });
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'adjustment.create', replayable: true,
+      parameters: { kind: 'threshold', placement: 'attached', layerId }
+    }]);
+    await state.service.playActionRecording();
+    expect(state.ports.executeAdjustmentCreation).toHaveBeenCalledTimes(2);
+
+    expect(await state.service.execute(request('adjustment.create', state.session.id, {
+      kind: 'threshold', placement: 'attached', layerId: 'missing'
+    }))).toMatchObject({ status: 'rejected', code: 'command-unavailable' });
+    expect(await state.service.execute(request('adjustment.create', state.session.id, {
+      kind: 'threshold', placement: 'local', layerId
+    }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(state.ports.executeAdjustmentCreation).toHaveBeenCalledTimes(2);
     state.service.dispose(); state.workspace.dispose();
   });
 

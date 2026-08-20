@@ -66,7 +66,7 @@ export interface LayerPanelControllerDependencies {
   createAdjustmentLayer(): boolean;
   createCurvesAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
-  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): boolean;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId): boolean;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
   addActiveLayerMask(): boolean;
   duplicateActiveLayer(): boolean;
@@ -116,7 +116,7 @@ export interface LayerPanelController {
   createLocalProcessing(layerId: LayerId, kind: LocalProcessingKind): void;
   createGradientFillLayer(): void;
   createLensFxLayer(): boolean;
-  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): boolean;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId): boolean;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
   createGroup(): void;
   groupSelection(layerIds: LayerId[]): void;
@@ -267,7 +267,8 @@ export const createLayerPanelController = (
     createGradientFillLayer: () =>
       usePixelChannel((current) => createGradientFillLayer(current)),
     createLensFxLayer: () => resolveDependencies().createLensFxLayer(),
-    createAdjustmentLayerOfKind: (kind) => resolveDependencies().createAdjustmentLayerOfKind(kind),
+    createAdjustmentLayerOfKind: (kind, aboveLayerId) =>
+      resolveDependencies().createAdjustmentLayerOfKind(kind, aboveLayerId),
     createAttachedAdjustment: (layerId, kind) =>
       resolveDependencies().createAttachedAdjustment(layerId, kind),
     createGroup: () =>

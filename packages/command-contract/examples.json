@@ -30,6 +30,11 @@
     { "operation": "flip-horizontal" },
     { "operation": "rotate-clockwise-90" }
   ],
+  "adjustment.create": [
+    { "kind": "grade", "placement": "local", "layerId": "layer-photo" },
+    { "kind": "threshold", "placement": "attached", "layerId": "layer-photo" },
+    { "kind": "curves", "placement": "adjustment-layer", "aboveLayerId": "layer-photo" }
+  ],
   "layer.setMask": [
     { "layerId": "layer-photo", "operation": "add", "source": "reveal-all" },
     { "layerId": "layer-photo", "operation": "set-enabled", "enabled": false }

@@ -65,6 +65,8 @@ Completed vertical slices
   packaged Actions replay and direct Agent/MCP creation/query.
 - contextual fixed rotate/flip through `transform.applyFixed`, preserving the
   existing selection, mask, single-layer and layer-group transaction owner.
+- explicit creation of every visible adjustment through `adjustment.create`,
+  including local, attached and standalone adjustment-layer placements.
 
 Rules
 =====

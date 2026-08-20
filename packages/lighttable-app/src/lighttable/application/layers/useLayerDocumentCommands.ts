@@ -138,7 +138,7 @@ export interface LayerDocumentCommands {
   createAdjustmentLayer(): boolean;
   createCurvesAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
-  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind): boolean;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId): boolean;
   createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
   mergeSelectedLayers(selectedLayerIds: LayerId[]): boolean;
   mergeActiveLayerDown(): boolean;
@@ -372,7 +372,7 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const createProcessingLayer = (kind: AdjustmentLayerKind) => {
+  const createProcessingLayer = (kind: AdjustmentLayerKind, aboveLayerId?: LayerId) => {
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
     const previousDocumentGrade = dependencies.getDocumentAdjustments?.();
@@ -407,7 +407,7 @@ export const createLayerDocumentCommands = (
       current,
       stack,
       definition.name,
-      current.activeLayerId ?? undefined,
+      aboveLayerId ?? current.activeLayerId ?? undefined,
       kind
     );
 

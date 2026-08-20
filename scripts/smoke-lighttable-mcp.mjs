@@ -151,6 +151,30 @@ try {
     || fixedTransform.revisions?.document <= beforeFixedTransform.canonicalRevision) {
     throw new Error(`MCP contextual fixed transform failed: ${JSON.stringify(fixedTransform)}`);
   }
+  const createAdjustment = async (parameters, expectedPlacement) => {
+    const document = (await call('lighttable_document', { documentId })).structuredContent;
+    const created = (await call('lighttable_execute', {
+      documentId, command: 'adjustment.create',
+      expectedDocumentRevision: document.canonicalRevision, parameters
+    })).structuredContent;
+    if (created?.status !== 'completed' || created.value?.kind !== parameters.kind
+      || created.value?.placement !== expectedPlacement
+      || created.revisions?.document <= document.canonicalRevision) {
+      throw new Error(`MCP adjustment creation failed: ${JSON.stringify(created)}`);
+    }
+    return created.value;
+  };
+  await createAdjustment({ kind: 'grade', placement: 'local', layerId }, 'local');
+  const attached = await createAdjustment({
+    kind: 'brightness-contrast', placement: 'attached', layerId
+  }, 'attached');
+  if (!attached.adjustmentId) throw new Error('MCP attached adjustment did not return a stable ID.');
+  const adjustmentLayer = await createAdjustment({
+    kind: 'curves', placement: 'adjustment-layer', aboveLayerId: layerId
+  }, 'adjustment-layer');
+  if (!adjustmentLayer.layerId || adjustmentLayer.layerId === layerId) {
+    throw new Error('MCP adjustment layer did not return a new stable layer ID.');
+  }
   const mcpPath = (await call('lighttable_execute', {
     documentId, command: 'vector.create', parameters: {
       name: 'MCP Path Text curve', fillRule: 'nonzero',
