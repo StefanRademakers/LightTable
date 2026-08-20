@@ -130,7 +130,9 @@ Existing foundation evidence
   selection, marquees and pointer previews remain local and unrecorded.
 - Native Gradient Fill creation and on-canvas axis edits now share bounded
   `vector.create`/`vector.update` operations, including layer role, opacity and
-  blend mode. Raster-pixel gradients remain on their separate GPU owner.
+  blend mode. Raster-pixel gradients remain on their separate GPU owner. The
+  semantic vector boundary now rejects private pointer state, unknown fields,
+  incomplete strokes and malformed live-shape geometry before document history.
 - Native Warp now keeps frame-coalesced pointer/hold previews local and emits
   one bounded layer-source `warp.applyStroke` per completed gesture. Packaged
   Actions proves Push plus held Twirl undo/replay; packaged Agent Access proves

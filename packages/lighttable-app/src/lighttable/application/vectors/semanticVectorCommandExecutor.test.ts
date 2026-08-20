@@ -70,6 +70,25 @@ describe('semantic vector commands', () => {
       style: { fill: gradient } })).toHaveProperty('message');
   });
 
+  it('rejects private pointer state, incomplete strokes and malformed live geometry at the command boundary', () => {
+    const rectangle = { primitive: { kind: 'rectangle', x: 0, y: 0, width: 40, height: 20 } };
+    expect(parseSemanticVectorCommand('create', {
+      ...rectangle, pointerSamples: [{ x: 0, y: 0 }]
+    })).toHaveProperty('message');
+    expect(parseSemanticVectorCommand('create', {
+      ...rectangle, style: { stroke: {
+        paint: { type: 'solid', color: [0, 0, 0, 1] }, width: 2, dash: []
+      } }
+    })).toHaveProperty('message');
+    expect(parseSemanticVectorCommand('update', {
+      layerId: 'shape-layer', elementId: 'shape',
+      geometry: { kind: 'rectangle', width: 40, height: 20 }
+    })).toHaveProperty('message');
+    expect(parseSemanticVectorCommand('remove', {
+      layerId: 'shape-layer', elementId: 'shape', selectionBounds: [0, 0, 40, 20]
+    })).toHaveProperty('message');
+  });
+
   it('round-trips authored toolbar shape properties through vector.create', () => {
     const cases = [
       { kind: 'rectangle' as const, width: 80, height: 40,
