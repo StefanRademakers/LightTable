@@ -3,15 +3,17 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { captureDesktopTestState, resolveDesktopTestLaunch,
+  waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { startPackagedMcpTestSession } from './packaged-mcp-test-session.mjs';
 import { mcpResult } from './action-route-equivalence.mjs';
 import { compareRenderEvidence } from './render-comparison-evidence.mjs';
+import { runAssignProfileRouteEquivalence } from './assign-profile-route-equivalence.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const output = path.join(root, 'tmp', 'document-capability-equivalence');
-const source = path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'image.png');
+const source = path.join(root, 'architecture', 'ui', '1.png');
 await Promise.all([access(source), mkdir(output, { recursive: true })]);
 const userData = await mkdtemp(path.join(output, 'profile-'));
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
@@ -85,10 +87,19 @@ try {
   const open = await waitForDesktopLauncher({ app, page, outputDirectory: output,
     sourceFile: source, pageErrors, label: 'document-capability-equivalence' });
   await open.click();
-  await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
-    .waitFor({ timeout: 60_000 });
+  try {
+    await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
+      .waitFor({ timeout: 60_000 });
+  } catch (error) {
+    const diagnostic = await captureDesktopTestState({ app, page, outputDirectory: output,
+      sourceFile: source, pageErrors, label: 'document-capability-open', timeout: 60_000 });
+    throw new Error(`Document capability source did not open. Diagnostic: ${diagnostic}`, {
+      cause: error
+    });
+  }
   const driver = await attachLightTableAutomation(page, 'document-capability-equivalence');
   const mcp = await mcpSession.pairAndAuthorize(page);
+  const profileEvidence = await runAssignProfileRouteEquivalence({ page, driver, mcp, output });
 
   const uiDocumentId = await createDocument(mcp, driver, 'Geometry UI');
   await page.getByRole('menuitem', { name: 'View' }).click();
@@ -191,7 +202,9 @@ try {
     assert.equal(renderEvidence[route].passed, true, `UI and ${route} pixels differ.`);
   }
   if (pageErrors.length) throw new Error(`Page errors: ${JSON.stringify(pageErrors)}`);
-  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ states, renderEvidence }, null, 2)}\n`);
+  await writeFile(path.join(output, 'report.json'), `${JSON.stringify({
+    profileEvidence, states, renderEvidence
+  }, null, 2)}\n`);
   process.stdout.write(`Packaged document capability equivalence passed: ${output}\n`);
 } finally {
   await app?.close().catch(() => {});

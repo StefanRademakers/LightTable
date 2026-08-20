@@ -48,6 +48,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     if (!execute) throw new Error('Document geometry is unavailable in the target document.');
     return execute(request);
   }
+  assignDocumentProfile(documentId: DocumentSessionId,
+    command: Parameters<NonNullable<DocumentLightTableCommandPorts['assignDocumentProfile']>>[0]) {
+    const execute = this.resolve(documentId).assignDocumentProfile;
+    if (!execute) throw new Error('Assign Profile is unavailable in the target document.');
+    return execute(command);
+  }
   createRasterLayer(documentId: DocumentSessionId) {
     return this.resolve(documentId).createRasterLayer();
   }

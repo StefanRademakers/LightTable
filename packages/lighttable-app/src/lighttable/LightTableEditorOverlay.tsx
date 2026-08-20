@@ -4819,6 +4819,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
       resizeImage: (request) => commitImageSize(request, false),
       applyDocumentGeometry: (request) => commitDocumentGeometry(request, false),
+      assignDocumentProfile: ({ profile }) => {
+        const changed = documentMutationController.change((document) => (
+          document.colorSettings.workingProfile === profile
+            && document.colorSettings.profileState === 'assigned'
+            ? document
+            : {
+                ...document,
+                colorSettings: {
+                  ...document.colorSettings,
+                  workingProfile: profile,
+                  profileState: 'assigned'
+                },
+                revision: document.revision + 1,
+                modifiedAt: Date.now()
+              }
+        ));
+        return { profile, profileState: 'assigned', changed };
+      },
       setZoom: (viewport) => {
         if (viewport.zoomMode === 'fit') applyFitZoom();
         else if (viewport.zoomMode === '100') applyActualZoom();
@@ -6049,14 +6067,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       applyCurves: () => applyCurvesRef.current(),
       applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
       assignSrgbProfile: () => {
-        documentMutationController.change((document) => document.colorSettings.profileState === 'assigned'
-          ? document
-          : {
-              ...document,
-              colorSettings: { ...document.colorSettings, profileState: 'assigned' },
-              revision: document.revision + 1,
-              modifiedAt: Date.now()
-            });
+        if (!executeRegisteredCommand('document.assignProfile', { profile: 'srgb' })) {
+          documentMutationController.change((document) => document.colorSettings.profileState === 'assigned'
+            ? document
+            : {
+                ...document,
+                colorSettings: { ...document.colorSettings, profileState: 'assigned' },
+                revision: document.revision + 1,
+                modifiedAt: Date.now()
+              });
+        }
       }
     },
     layers: {

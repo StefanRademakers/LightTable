@@ -82,6 +82,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'file.openArtifact',
     'layer.placeArtifact',
     'layer.autoAlign',
+    'document.assignProfile',
     'document.resizeImage',
     'document.applyGeometry',
     'document.create',
@@ -700,6 +701,23 @@ test('adjustment creation schemas preserve exact placement semantics', () => {
   }).valid, true);
   assert.equal(validateJsonSchemaValue(create.result, {
     kind: 'curves', placement: 'adjustment-layer', layerId: 'curves-1'
+  }).valid, true);
+});
+
+test('Assign Profile is a closed metadata operation and not a pixel conversion', () => {
+  const assign = LIGHTTABLE_COMMAND_SCHEMAS['document.assignProfile'];
+  assert.equal(validateJsonSchemaValue(assign.input, { profile: 'srgb' }).valid, true);
+  assert.equal(validateJsonSchemaValue(assign.input, {
+    profile: 'srgb', convertPixels: true
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(assign.input, {
+    profile: 'srgb', iccBytes: 'base64'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(assign.input, {
+    profile: 'adobe-rgb-1998'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(assign.result, {
+    profile: 'srgb', profileState: 'assigned', changed: true
   }).valid, true);
 });
 

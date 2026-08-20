@@ -8,6 +8,7 @@ export declare const LIGHTTABLE_COMMAND_IDS: readonly [
   'document.duplicate',
   'document.resizeImage',
   'document.applyGeometry',
+  'document.assignProfile',
   'view.setZoom',
   'layer.createRaster',
   'layer.duplicate',
@@ -91,6 +92,7 @@ export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'document.create',
   'document.resizeImage',
   'document.applyGeometry',
+  'document.assignProfile',
   'view.setZoom',
   'layer.createRaster',
   'layer.duplicate',
@@ -154,6 +156,7 @@ export type LightTableAgentAccessCommandId = typeof LIGHTTABLE_AGENT_ACCESS_COMM
 export declare const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS: readonly [
   'document.resizeImage',
   'document.applyGeometry',
+  'document.assignProfile',
   'view.setZoom',
   'layer.createRaster',
   'layer.duplicate',

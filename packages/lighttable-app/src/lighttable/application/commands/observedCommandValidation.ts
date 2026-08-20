@@ -10,6 +10,7 @@ import { parseSemanticVectorCommand } from './semanticVectorCommandContract';
 import { parseSemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import { parseSemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { parseSemanticSubjectSelectionCommand } from './semanticSubjectSelectionCommandContract';
+import { parseSemanticAssignProfileCommand } from './semanticDocumentColorCommandContract';
 
 const valid = (parsed: object) => !('message' in parsed);
 
@@ -19,6 +20,7 @@ export const observedCommandParametersAreValid = (
   parameters: unknown
 ): boolean => {
   switch (command) {
+    case 'document.assignProfile': return valid(parseSemanticAssignProfileCommand(parameters));
     case 'text.replaceRange': return valid(parseSemanticTextCommand('replace', parameters));
     case 'text.format': return valid(parseSemanticTextCommand('format', parameters));
     case 'vector.create': return valid(parseSemanticVectorCommand('create', parameters));

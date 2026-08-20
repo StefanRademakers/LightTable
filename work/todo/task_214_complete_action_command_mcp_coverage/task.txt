@@ -245,6 +245,10 @@ Existing foundation evidence
   Actions replay and external MCP produce equal canvas, layer transforms,
   history and byte-exact pixels; continuous crop/dialog interaction remains
   outside the command boundary.
+- Edit > Assign Profile > sRGB now shares `document.assignProfile` across UI,
+  Actions and MCP. Its closed contract is metadata-only, rejects conversion and
+  private ICC state, records one undo for a change and none for a no-op; the
+  packaged three-route comparison proves zero rendered-pixel change.
 
 Program definition of done
 ==========================

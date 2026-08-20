@@ -72,7 +72,8 @@ read/edit scopes require explicit desktop approval. See
 
 Read operations:
 
-- inspect workspace, document dimensions/aspect/revision/viewport;
+- inspect workspace, document dimensions/aspect/revision/viewport and current
+  bit depth, working/blend profile and assigned-versus-assumed profile state;
 - list the compact editable layer tree in revision-bound cursor pages of at
   most 256 rows; list rows do not inline vector geometry;
 - inspect targeted text, vector, Warp, basic Grade, complete processing-module
@@ -237,6 +238,15 @@ layer/history state and byte-exact rendered pixels. Crop handles, dialog
 previews and pointer samples remain local. The detailed geometry regression
 also gates selection-bound Crop and exposed a corrected 64-byte WGSL uniform
 layout that previously invalidated the mask-transfer command buffer.
+
+`document.assignProfile` is a separate closed metadata operation. It currently
+accepts only the document model's sRGB working profile and deliberately rejects
+pixel-conversion flags, ICC bytes and unsupported profile names. The Edit menu,
+Actions replay and external MCP share the document mutation/history owner; a
+repeat assignment returns `changed: false` and creates no history entry.
+Packaged proof starts from an untagged PNG, verifies the assigned state and one
+undo entry through all three routes, and compares every result with the source
+at zero pixel delta. This is not Convert to Profile support.
 
 A future local Codex acceptance route is tracked in
 [`work/parked/task_264_local_codex_mcp_a_z/task.txt`](../../work/parked/task_264_local_codex_mcp_a_z/task.txt).

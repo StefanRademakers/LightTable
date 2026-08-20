@@ -1,0 +1,60 @@
+Task 266 - Complete Assign Profile vertical
+
+Goal
+====
+
+Route the existing Edit > Assign Profile > sRGB operation through one typed
+document command shared by normal UI, durable Actions and reviewed MCP.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- Add a closed version-1 `document.assignProfile` input/result contract.
+- Keep assignment distinct from color conversion: this operation changes
+  document interpretation metadata only and supports the currently implemented
+  sRGB working profile.
+- Route the real Image menu through the command service and one normal undo
+  history entry.
+- Record and replay the operation through Actions.
+- Admit the bounded operation to Agent Access and external MCP.
+- Prove UI, Actions and MCP reach equivalent document state and do not change
+  rendered pixels.
+
+Definition of done
+==================
+
+- The menu no longer bypasses the semantic command owner.
+- Repeating an already-assigned profile reports `changed: false` and adds no
+  history entry.
+- UI, Actions and external MCP produce the same assigned profile state.
+- A representative rendered comparison proves assignment itself does not
+  transform image pixels.
+- Focused contract/application/MCP tests and wider boundary checks pass.
+
+Non-goals
+=========
+
+- Convert to Profile or arbitrary ICC transforms.
+- Embedding or transporting ICC byte payloads.
+- Claiming support for profiles that the current document model cannot assign.
+
+Completed evidence (2026-08-20)
+===============================
+
+- The Edit menu executes `document.assignProfile` through the mounted command
+  port; assignment uses the existing document mutation controller and history.
+- The shared version-1 schema accepts exactly `{ "profile": "srgb" }` and the
+  result exposes assigned state plus whether a mutation occurred.
+- Document observation now reports bounded color semantics needed to verify
+  the operation without exposing ICC bytes.
+- The packaged document-capability smoke starts from an untagged 1584x935 PNG,
+  records and replays the menu action, undoes between routes, executes external
+  MCP, and checks a repeated MCP assignment remains at one undo entry.
+- Source versus UI, Actions and MCP previews all passed with RMSE 0, maximum
+  channel delta 0 and changed-pixel ratio 0.

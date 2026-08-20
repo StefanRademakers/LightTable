@@ -94,6 +94,8 @@ Completed vertical slices
   layered GPU/history owners. The complete vertical preserves local dialog and
   crop-gizmo interaction while Actions and MCP operate only on final bounded
   parameters; packaged route equivalence is exact.
+- sRGB profile assignment through the existing document mutation/history
+  owner, explicitly separate from future Convert to Profile color transforms.
 
 Rules
 =====

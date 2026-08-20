@@ -62,6 +62,7 @@ import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSamp
 import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
 import { commandScope } from './commandRequestScope';
 import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
+import { parseSemanticAssignProfileCommand } from './semanticDocumentColorCommandContract';
 import { parseSemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
 import { parseSemanticSelectionCommand } from './semanticSelectionCommandContract';
@@ -537,6 +538,7 @@ export class LightTableCommandService {
       canonicalRevision: document.documentRevision,
       savedRevision: document.savedRevision,
       canvas: canonical ? { width: canonical.width, height: canonical.height } : null,
+      color: canonical ? { ...canonical.colorSettings } : null,
       activeLayerId: canonical?.activeLayerId ?? null,
       layerCount: canonical ? walkLayerTree(canonical.layers).length : 0,
       viewport: { ...document.viewport },
@@ -899,6 +901,29 @@ export class LightTableCommandService {
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
         return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
+      }
+    }
+
+    if (value.command === 'document.assignProfile') {
+      const command = parseSemanticAssignProfileCommand(value.parameters);
+      if ('message' in command) {
+        return this.reject(value.requestId, 'invalid-parameters', command.message, snapshot);
+      }
+      if (!this.ports.assignDocumentProfile) {
+        return this.reject(value.requestId, 'command-unavailable',
+          'Assign Profile is unavailable in this host.', snapshot);
+      }
+      try {
+        const result = await this.ports.assignDocumentProfile(
+          documentRequest.documentId,
+          command
+        );
+        if (result.changed) this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: result,
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed',
+          reason instanceof Error ? reason.message : String(reason), snapshot);
       }
     }
 

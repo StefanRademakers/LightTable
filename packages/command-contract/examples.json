@@ -38,6 +38,9 @@
     { "operation": "rotate", "rotation": { "degrees": 12.5 } },
     { "operation": "flip", "axis": "horizontal" }
   ],
+  "document.assignProfile": [
+    { "profile": "srgb" }
+  ],
   "view.setZoom": [
     { "mode": "fit" },
     { "mode": "100" },

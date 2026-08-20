@@ -61,6 +61,12 @@ errors, and close its Electron process in `finally`. Pixel-sensitive work also
 needs a stable reference/difference gate. Performance work records the active
 event count; a test that did not trigger the intended action is a failed test.
 
+`smoke:desktop:document-capabilities` includes the packaged UI -> Actions ->
+external-MCP route gate for document geometry and Assign Profile. The profile
+slice begins with an untagged PNG, requires one reversible metadata change,
+rejects a repeated history entry and compares source/UI/Actions/MCP previews
+with a strict zero-delta policy.
+
 Leak and crash triage can be run alone with:
 
 ```powershell

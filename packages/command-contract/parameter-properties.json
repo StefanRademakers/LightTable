@@ -3,6 +3,7 @@
   "document.duplicate": { "name": "string" },
   "document.resizeImage": { "width": "integer", "height": "integer", "resolutionPpi": "number", "resample": "boolean", "method": "resample-method", "preserveDetailsNoiseReduction": "number 0..100", "scaleStyles": "boolean" },
   "document.applyGeometry": { "operation": "canvas-size | crop | rotate | flip", "width?": "integer", "height?": "integer", "anchorX?": "0 | 0.5 | 1", "anchorY?": "0 | 0.5 | 1", "bounds?": "rect", "rotation?": "rotation", "axis?": "horizontal | vertical" },
+  "document.assignProfile": { "profile": "srgb" },
   "view.setZoom": { "mode": "fit | 100 | custom", "percent?": "number" },
   "layer.createRaster": {},
   "layer.duplicate": { "layerId": "string" },

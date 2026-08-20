@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 46 already routed through semantic commands;
+- 47 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 36 presentation-only operations;
-- 7 genuine semantic command gaps;
+- 6 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -26,7 +26,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `ai-history` | presentation | Shows the AI Assets panel. | 395 |
 | `ai-provider-openart` | host | Changes an external provider connection. | 374 |
 | `apply-auto-align` | command | `layer.autoAlign` | 700 |
-| `assign-profile-srgb` | gap | No semantic color-profile command exists. | 346 |
+| `assign-profile-srgb` | command | `document.assignProfile` | 346 |
 | `auto-align` | presentation | Starts transient GPU analysis and compositor preview; Apply commits layer.autoAlign. | 710 |
 | `cancel-auto-align` | presentation | Cancels transient analysis/preview without mutating document state. | 705 |
 | `canvas-size` | command | `document.applyGeometry` | 514 |

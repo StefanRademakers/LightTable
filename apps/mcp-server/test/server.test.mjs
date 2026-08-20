@@ -103,6 +103,12 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(geometryCatalog.structuredContent.commands[0].contract.input.oneOf.length, 4);
   assert.deepEqual(geometryCatalog.structuredContent.commands[0].contract.result.required,
     ['operation', 'width', 'height']);
+  const profileCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'document.assignProfile'
+  } });
+  assert.equal(profileCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.deepEqual(profileCatalog.structuredContent.commands[0].contract.input.required,
+    ['profile']);
   const textCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'text.create'
   } });
@@ -203,6 +209,11 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
       operation: 'rotate', rotation: 'clockwise-90', axis: 'horizontal'
     } } });
   assert.equal(mixedGeometry.isError, true);
+  const privateProfile = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'document.assignProfile', parameters: {
+      profile: 'srgb', convertPixels: true
+    } } });
+  assert.equal(privateProfile.isError, true);
   assert.equal(commandCalls.length, beforeInvalidGeometry,
     'invalid document geometry reached the desktop client');
   const invalidBatch = await editor.callTool({ name: 'lighttable_batch', arguments: {
@@ -246,6 +257,15 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
     documentId: 'document-demo', command: 'document.applyGeometry',
     commandParameters: { operation: 'rotate', rotation: { degrees: -17.5 } }
+  });
+  const assignedProfile = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'document.assignProfile', parameters: {
+      profile: 'srgb'
+    } } });
+  assert.equal(assignedProfile.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'document.assignProfile',
+    commandParameters: { profile: 'srgb' }
   });
   const created = await editor.callTool({ name: 'lighttable_create_document', arguments: {
     name: 'MCP canvas', width: 400, height: 300, resolutionPpi: 144,

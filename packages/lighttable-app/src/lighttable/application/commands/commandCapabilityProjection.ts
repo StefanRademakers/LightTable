@@ -23,6 +23,8 @@ export const projectCommandCapabilities = (
     availability('document.duplicate', workspaceCommandsAvailable, 'Document duplication is unavailable in this host.'),
     availability('document.resizeImage', Boolean(ports.resizeImage), 'Image Size is unavailable in this host.'),
     availability('document.applyGeometry', Boolean(ports.applyDocumentGeometry), 'Document geometry is unavailable in this host.'),
+    availability('document.assignProfile', Boolean(ports.assignDocumentProfile),
+      'Assign Profile is unavailable in this host.'),
     availability('view.setZoom', true, ''), availability('layer.createRaster', true, ''),
     availability('layer.duplicate', walkLayerTree(snapshot.document.layers)
       .some(({ node }) => node.type === 'raster' || node.type === 'text'),

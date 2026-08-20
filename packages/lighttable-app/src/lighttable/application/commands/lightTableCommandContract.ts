@@ -34,6 +34,10 @@ import type { SemanticTextFinalizationCommand } from './semanticTextFinalization
 import type { SemanticFlattenGroupCommand, SemanticLayerMergeCommand } from './semanticMergeFlattenCommandContract';
 import type { SemanticBackgroundRemovalCommand } from './semanticBackgroundRemovalCommandContract';
 import type { SemanticAutoAlignCommand } from './semanticAutoAlignCommandContract';
+import type {
+  SemanticAssignProfileCommand,
+  SemanticAssignProfileResult
+} from './semanticDocumentColorCommandContract';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId
@@ -98,6 +102,13 @@ export interface DocumentQueryResult {
   readonly canonicalRevision: number;
   readonly savedRevision: number;
   readonly canvas: { readonly width: number; readonly height: number } | null;
+  readonly color: {
+    readonly mode: 'rgb';
+    readonly workingProfile: 'srgb';
+    readonly blendProfile: 'srgb' | 'adobe-rgb-1998';
+    readonly bitDepth: 8 | 16 | 32;
+    readonly profileState: 'assigned' | 'assumed';
+  } | null;
   readonly activeLayerId: LayerId | null;
   readonly layerCount: number;
   readonly viewport: DocumentViewport;
@@ -216,6 +227,8 @@ export interface LightTableWorkspaceCommandPorts {
 export interface LightTableCommandPorts {
   resizeImage?(documentId: DocumentSessionId, request: ImageSizeRequest): void | Promise<void>;
   applyDocumentGeometry?(documentId: DocumentSessionId, request: DocumentGeometryRequest): void | Promise<void>;
+  assignDocumentProfile?(documentId: DocumentSessionId,
+    command: SemanticAssignProfileCommand): SemanticAssignProfileResult | Promise<SemanticAssignProfileResult>;
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(documentId: DocumentSessionId): void | Promise<void>;
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;
@@ -272,6 +285,8 @@ export interface LightTableCommandPorts {
 export interface DocumentLightTableCommandPorts {
   resizeImage?(request: ImageSizeRequest): void | Promise<void>;
   applyDocumentGeometry?(request: DocumentGeometryRequest): void | Promise<void>;
+  assignDocumentProfile?(command: SemanticAssignProfileCommand):
+    SemanticAssignProfileResult | Promise<SemanticAssignProfileResult>;
   setZoom(viewport: DocumentViewport): void | Promise<void>;
   createRasterLayer(): void | Promise<void>;
   placeArtifact(file: File, placement: LightTableArtifactPlacement): unknown | Promise<unknown>;

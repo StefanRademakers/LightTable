@@ -32,6 +32,9 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
   const ports: LightTableCommandPorts = {
     resizeImage: vi.fn(),
     applyDocumentGeometry: vi.fn(),
+    assignDocumentProfile: vi.fn(async (_documentId, command) => ({
+      ...command, profileState: 'assigned' as const, changed: true
+    })),
     setZoom: vi.fn((_documentId, viewport) => session.updateViewport(() => viewport)),
     createRasterLayer: vi.fn(() => {
       session.setDocument(createRasterLayer(session.getSnapshot().document!));
@@ -1581,6 +1584,36 @@ describe('LightTableCommandService registry', () => {
     expect(executeBasicAdjustmentCommand).toHaveBeenCalledTimes(2);
     state.service.dispose();
     state.workspace.dispose();
+  });
+
+  it('validates, records and replays profile assignment without conversion state', async () => {
+    const assignDocumentProfile = vi.fn(async (_documentId, command) => ({
+      ...command, profileState: 'assigned' as const, changed: true
+    }));
+    const state = setup({ assignDocumentProfile });
+    state.service.startActionRecording('Assign sRGB');
+    await expect(state.service.execute(request('document.assignProfile', state.session.id, {
+      profile: 'srgb'
+    }))).resolves.toMatchObject({ status: 'completed', value: {
+      profile: 'srgb', profileState: 'assigned', changed: true
+    } });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'document.assignProfile', replayable: true,
+      parameters: { profile: 'srgb' }
+    }]);
+    await state.service.playActionRecording();
+    expect(assignDocumentProfile).toHaveBeenCalledTimes(2);
+
+    for (const invalid of [
+      { profile: 'adobe-rgb-1998' },
+      { profile: 'srgb', convertPixels: true },
+      { profile: 'srgb', iccBytes: 'base64' }
+    ]) await expect(state.service.execute(request(
+      'document.assignProfile', state.session.id, invalid
+    ))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(assignDocumentProfile).toHaveBeenCalledTimes(2);
+    state.service.dispose(); state.workspace.dispose();
   });
 
   it('queries basic Grade state without changing history or Actions recording', () => {

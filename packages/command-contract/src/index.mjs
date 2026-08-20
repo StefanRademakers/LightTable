@@ -15,6 +15,8 @@ import artifactCommandSchemas from '../schemas/v1/artifact.json' with { type: 'j
 
 import autoAlignCommandSchemas from '../schemas/v1/auto-align.json' with { type: 'json' };
 
+import documentColorCommandSchemas from '../schemas/v1/document-color.json' with { type: 'json' };
+
 import documentGeometryCommandSchemas from '../schemas/v1/document-geometry.json' with { type: 'json' };
 
 import documentCommandSchemas from '../schemas/v1/document.json' with { type: 'json' };
@@ -88,6 +90,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'document.duplicate',
   'document.resizeImage',
   'document.applyGeometry',
+  'document.assignProfile',
   'view.setZoom',
   'layer.createRaster',
   'layer.duplicate',
@@ -159,6 +162,7 @@ const baseCommandSchemas = Object.freeze({
   ...schemaModuleCommands(adjustmentCreationCommandSchemas),
   ...schemaModuleCommands(artifactCommandSchemas),
   ...schemaModuleCommands(autoAlignCommandSchemas),
+  ...schemaModuleCommands(documentColorCommandSchemas),
   ...schemaModuleCommands(documentGeometryCommandSchemas),
   ...schemaModuleCommands(documentCommandSchemas),
   ...schemaModuleCommands(finalizationCommandSchemas),
@@ -210,6 +214,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'document.create',
   'document.resizeImage',
   'document.applyGeometry',
+  'document.assignProfile',
   'view.setZoom',
   'layer.createRaster',
   'layer.duplicate',
@@ -271,6 +276,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
 export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'document.resizeImage',
   'document.applyGeometry',
+  'document.assignProfile',
   'view.setZoom',
   'layer.createRaster',
   'layer.duplicate',

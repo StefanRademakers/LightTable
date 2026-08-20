@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "category": "document",
+  "commands": {
+    "document.assignProfile": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profile"],
+        "properties": {
+          "profile": {
+            "type": "string",
+            "title": "Assigned profile",
+            "const": "srgb",
+            "default": "srgb",
+            "description": "Assign the current sRGB working profile without converting pixel values."
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profile", "profileState", "changed"],
+        "properties": {
+          "profile": { "type": "string", "const": "srgb" },
+          "profileState": { "type": "string", "const": "assigned" },
+          "changed": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

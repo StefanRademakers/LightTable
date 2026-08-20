@@ -8,7 +8,7 @@
     { "id": "ai-history", "classification": "presentation", "reason": "Shows the AI Assets panel." },
     { "id": "ai-provider-openart", "classification": "host", "reason": "Changes an external provider connection." },
     { "id": "apply-auto-align", "classification": "command", "command": "layer.autoAlign" },
-    { "id": "assign-profile-srgb", "classification": "gap", "reason": "No semantic color-profile command exists." },
+    { "id": "assign-profile-srgb", "classification": "command", "command": "document.assignProfile" },
     { "id": "auto-align", "classification": "presentation", "reason": "Starts transient GPU analysis and compositor preview; Apply commits layer.autoAlign." },
     { "id": "cancel-auto-align", "classification": "presentation", "reason": "Cancels transient analysis/preview without mutating document state." },
     { "id": "canvas-size", "classification": "command", "command": "document.applyGeometry" },
