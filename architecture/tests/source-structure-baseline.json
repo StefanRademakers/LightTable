@@ -101,12 +101,12 @@
       "decision": "Move tool-family option groups to their owning feature without creating a generic options manager."
     },
     "packages/lighttable-app/src/lighttable/application/commands/lightTableCommandService.ts": {
-      "baselineLines": 1395,
+      "baselineLines": 1607,
       "classification": "cohesive-heavy",
-      "responsibilities": ["semantic command orchestration and publication", "document and workspace query routing", "gesture, task and artifact lifecycle", "Actions recording and playback"],
-      "lifecycleOwners": ["workspace service", "mounted document ports", "bounded gesture, task and artifact registries", "Actions recorder and playback"],
+      "responsibilities": ["semantic command orchestration and publication", "document and workspace query routing", "gesture, task and artifact lifecycle", "Actions recording decisions and workflow integration"],
+      "lifecycleOwners": ["workspace service", "mounted document ports", "bounded gesture, task and artifact registries", "delegated SemanticActionWorkflowController"],
       "productRisk": "high",
-      "decision": "Preserve central protocol, revision and recording authority; extract family validation/execution handlers as categories are added, and keep realtime preview loops outside this service."
+      "decision": "Preserve central protocol, revision and recording-decision authority; Actions storage/selection/playback now lives in SemanticActionWorkflowController. Continue extracting cohesive family validation/execution handlers as categories are added, and keep realtime preview loops outside this service."
     },
     "packages/lighttable-app/src/lighttable/editor/workspace/LightTableDockWorkspace.tsx": {
       "baselineLines": 1055,

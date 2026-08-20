@@ -1,0 +1,63 @@
+Task 271 - Durable named Action Sets
+
+Status
+======
+
+Complete (2026-08-20).
+
+Goal
+====
+
+Replace the flat Saved Actions list with bounded named Action Sets that survive
+restart, preserve existing libraries through an explicit migration and keep
+normal Actions replay on the same semantic command owner.
+
+Parent
+======
+
+- [`Task 219`](../../todo/task_219_durable_actions_workflows/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Add a bounded version-3 set/action envelope with stable set identity,
+  deterministic ordering and selection.
+- [x] Migrate valid v1/v2 flat libraries into a default set atomically; reject
+  malformed/newer libraries without retaining a partial result.
+- [x] Add create, rename, select and delete-set operations with clear behavior
+  for contained Actions.
+- [x] Save/load/delete Actions inside the selected set without changing Action
+  replay or document history semantics.
+- [x] Expose sets in the real Actions panel using existing controls and compact
+  desktop-panel layout.
+- [x] Prove bounds, migration, restart persistence and set-scoped selection in
+  unit plus packaged desktop tests.
+- [x] Update durable Actions documentation and run the full gates. Commit is
+  recorded in repository history when this completed task is moved to `done`.
+
+Constraints
+===========
+
+- Maximum 16 sets, 32 Actions, 256 steps per Action, 2 MiB per Action and 8 MiB
+  total remain enforced.
+- Deleting a set explicitly deletes its contained Actions and is disabled for
+  the final remaining set.
+- Set metadata never enters MCP command parameters or document state.
+- No pointer, slider, paint, warp, renderer or history hot path changes.
+
+Evidence
+========
+
+- Unit coverage validates version-1/version-2 migration, future/incompatible
+  rejection, set/action relationships, stable selection, contained deletion
+  and the 16-set boundary.
+- The packaged two-process Saved Actions smoke creates and renames sets, saves
+  one recording independently into two sets, restarts the desktop, proves
+  selected-set filtering, replays the Action and deletes only the selected
+  set's contained Action.
+- Actions recording/storage/playback lifecycle was extracted from the growing
+  command service into `SemanticActionWorkflowController`; the command service
+  retains protocol validation and the decision to record the shared execution.
+- App tests (2821), MCP tests (19), workspace typecheck, command-contract,
+  architecture/UI boundaries, packaging and the packaged restart smoke pass.

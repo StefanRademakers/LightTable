@@ -22,6 +22,10 @@ export interface ActionsPanelProps extends Omit<CommandCatalogViewProps, 'defini
   readonly onPlayStep: (sequence: number) => void;
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
+  readonly onCreateActionSet: (name: string) => void;
+  readonly onRenameActionSet: (id: string, name: string) => void;
+  readonly onSelectActionSet: (id: string) => void;
+  readonly onDeleteActionSet: (id: string) => void;
   readonly onSaveAction: (name: string) => void;
   readonly onLoadAction: (id: string) => void;
   readonly onDeleteAction: (id: string) => void;
@@ -41,6 +45,10 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onPlayStep,
   onPlayFromStep,
   onStopPlayback,
+  onCreateActionSet,
+  onRenameActionSet,
+  onSelectActionSet,
+  onDeleteActionSet,
   onSaveAction,
   onLoadAction,
   onDeleteAction,
@@ -62,6 +70,8 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
           onStart={onStartRecording} onStop={onStopRecording} onClear={onClearRecording}
           onPlay={onPlay} onPlayStep={onPlayStep} onPlayFromStep={onPlayFromStep}
           onStopPlayback={onStopPlayback}
+          onCreateSet={onCreateActionSet} onRenameSet={onRenameActionSet}
+          onSelectSet={onSelectActionSet} onDeleteSet={onDeleteActionSet}
           onSave={onSaveAction} onLoad={onLoadAction} onDelete={onDeleteAction} />
       : <CommandCatalogView capabilities={capabilities} onExecute={onExecute} definitions={definitions} />}
   </aside>;

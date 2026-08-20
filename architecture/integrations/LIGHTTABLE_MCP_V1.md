@@ -146,6 +146,13 @@ class and local invocation metadata. The docked Actions panel consumes that
 projection plus live capability results, so local discovery and MCP exposure
 cannot acquire separate naming or categorization lists.
 
+Durable Actions use a separate bounded version-3 workflow envelope: at most 16
+named sets and 32 Actions, with atomic migration of valid version-1/version-2
+flat libraries into a stable Default Set. Set names, selection and ordering are
+local workflow metadata; they do not enter document state or MCP command
+parameters. Recorded steps still contain only the shared semantic command
+contracts that Actions playback and MCP execution validate independently.
+
 [`packages/command-contract/parameter-properties.json`](../../packages/command-contract/parameter-properties.json)
 is the checked top-level property inventory for those commands. Generation
 fails when a catalog command has no matching property entry or an orphaned

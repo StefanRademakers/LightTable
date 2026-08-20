@@ -7,7 +7,10 @@ import { ButtonBase } from '../../../../ui/ButtonBase';
 import { FormSelect } from '../../../../ui/FormSelect';
 import type { ActionRecordingSnapshot } from '../../../application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from '../../../application/actions/semanticActionPlayback';
-import type { SemanticActionLibrarySnapshot } from '../../../application/actions/semanticActionLibrary';
+import {
+  LIGHTTABLE_MAX_ACTION_SETS,
+  type SemanticActionLibrarySnapshot
+} from '../../../application/actions/semanticActionLibrary';
 
 export interface ActionRecorderViewProps {
   readonly recording: ActionRecordingSnapshot;
@@ -21,6 +24,10 @@ export interface ActionRecorderViewProps {
   readonly onPlayStep: (sequence: number) => void;
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
+  readonly onCreateSet: (name: string) => void;
+  readonly onRenameSet: (id: string, name: string) => void;
+  readonly onSelectSet: (id: string) => void;
+  readonly onDeleteSet: (id: string) => void;
   readonly onSave: (name: string) => void;
   readonly onLoad: (id: string) => void;
   readonly onDelete: (id: string) => void;
@@ -45,16 +52,24 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
   onPlayStep,
   onPlayFromStep,
   onStopPlayback,
+  onCreateSet,
+  onRenameSet,
+  onSelectSet,
+  onDeleteSet,
   onSave,
   onLoad,
   onDelete
 }) => {
   const [name, setName] = useState(recording.name);
   useEffect(() => setName(recording.name), [recording.id, recording.name]);
+  const selectedSet = library.sets.find(({ id }) => id === library.selectedSetId) ?? library.sets[0];
+  const [actionSetName, setActionSetName] = useState(selectedSet?.name ?? '');
+  useEffect(() => setActionSetName(selectedSet?.name ?? ''), [selectedSet?.id, selectedSet?.name]);
   const labels = useMemo(() => new Map<string, string>(
     definitions.map(({ id, label }) => [id, label])
   ), [definitions]);
   const replayableCount = recording.steps.filter(({ replayable }) => replayable).length;
+  const setActions = library.actions.filter(({ setId }) => setId === library.selectedSetId);
   const busy = playback.status === 'running';
   return <section className="lighttable-action-recorder" aria-labelledby="action-recorder-title">
     <header className="lighttable-action-recorder__action-header">
@@ -78,6 +93,26 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
         disabled={busy || recording.steps.length === 0}>Clear</ButtonBase>
     </div>
     <div className="lighttable-action-recorder__library" aria-label="Saved Actions">
+      <label>Set
+        <FormSelect aria-label="Action Set" value={library.selectedSetId}
+          onChange={(event) => onSelectSet(event.currentTarget.value)} disabled={busy}>
+          {library.sets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}
+        </FormSelect>
+      </label>
+      <span className="lighttable-action-recorder__set-actions">
+        <ButtonBase type="button" onClick={() => onCreateSet(actionSetName)}
+          disabled={busy || !actionSetName.trim()
+            || library.sets.length >= LIGHTTABLE_MAX_ACTION_SETS}>New set</ButtonBase>
+        <ButtonBase type="button" onClick={() => onRenameSet(library.selectedSetId, actionSetName)}
+          disabled={busy || !actionSetName.trim()}>Rename</ButtonBase>
+        <ButtonBase type="button" onClick={() => onDeleteSet(library.selectedSetId)}
+          disabled={busy || library.sets.length <= 1}>Delete set</ButtonBase>
+      </span>
+      <label>Set name
+        <input aria-label="Action Set name" value={actionSetName} maxLength={255}
+          onChange={(event) => setActionSetName(event.currentTarget.value)} disabled={busy} />
+      </label>
+      <span />
       <label>Action name
         <input aria-label="Action name" value={name} maxLength={255}
           onChange={(event) => setName(event.currentTarget.value)} disabled={busy} />
@@ -89,7 +124,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
         <FormSelect aria-label="Saved Actions" value={library.selectedId ?? ''}
           onChange={(event) => event.currentTarget.value && onLoad(event.currentTarget.value)}>
           <option value="">No saved Actions</option>
-          {library.actions.map((action) => <option key={action.id} value={action.id}>
+          {setActions.map((action) => <option key={action.id} value={action.id}>
             {action.name} ({action.recording.steps.length})
           </option>)}
         </FormSelect>

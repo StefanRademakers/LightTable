@@ -11,6 +11,7 @@
   "assetRules": [
     { "pattern": "^StandaloneDocumentRuntimeView-.*\\.(?:js|css)$", "loadBoundary": "lazy", "userFlow": "first opened document editor runtime" },
     { "pattern": "^lightTableCommandService-.*\\.js$", "loadBoundary": "initial", "userFlow": "launcher automation and agent-driven document creation" },
+    { "pattern": "^semanticActionLibrary-.*\\.js$", "loadBoundary": "initial", "userFlow": "semantic command recording and durable Actions workflows" },
     { "pattern": "^icons-.*\\.js$", "loadBoundary": "initial", "userFlow": "launcher and shared application iconography" },
     { "pattern": "^src-.*\\.js$", "loadBoundary": "initial", "userFlow": "shared command contracts and application foundations" },
     { "pattern": "^index-.*\\.js$", "loadBoundary": "initial", "userFlow": "editor shell and core editing" },

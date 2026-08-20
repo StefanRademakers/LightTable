@@ -79,20 +79,13 @@ import {
   parseAdjustmentQueryTarget,
   type AdjustmentQueryResult
 } from '../adjustments/adjustmentQuery';
-import {
-  SemanticActionRecorder,
-  type ActionRecordingSnapshot
-} from '../actions/semanticActionRecorder';
-import {
-  SemanticActionPlaybackController,
-  type ActionTaskPlaybackPort,
-  type ActionPlaybackSnapshot
-} from '../actions/semanticActionPlayback';
-import {
-  SemanticActionLibrary,
-  type SemanticActionLibrarySnapshot,
-  type SemanticActionLibraryStorage
+import type { ActionRecordingSnapshot } from '../actions/semanticActionRecorder';
+import type { ActionPlaybackSnapshot, ActionTaskPlaybackPort } from '../actions/semanticActionPlayback';
+import type {
+  SemanticActionLibrarySnapshot,
+  SemanticActionLibraryStorage
 } from '../actions/semanticActionLibrary';
+import { SemanticActionWorkflowController } from '../actions/semanticActionWorkflowController';
 import {
   DocumentPreviewArtifactController,
   type DocumentPreviewResult
@@ -150,8 +143,7 @@ export class LightTableCommandService {
   private readonly executingDocumentCommands = new Map<DocumentSessionId, number>();
   private readonly taskEvents = new AutomationTaskEventStore();
   private readonly publicationEvents = new AutomationPublicationEventStore();
-  private readonly actionRecorder = new SemanticActionRecorder();
-  private readonly actionLibrary: SemanticActionLibrary;
+  private readonly actions: SemanticActionWorkflowController;
   private readonly documentPreviews = new DocumentPreviewArtifactController({
     snapshot: (documentId) => {
       const snapshot = this.document(documentId);
@@ -183,12 +175,6 @@ export class LightTableCommandService {
     register: (file, context) => this.artifacts.registerPreview(file, context),
     query: (artifactId) => this.artifacts.query(artifactId)
   });
-  private readonly actionPlayback = new SemanticActionPlaybackController(
-    (request) => this.execute(request, { origin: 'actions-playback', recording: 'ignore' }),
-    { wait: (documentId, taskId, signal, onProgress) =>
-      this.waitForActionTask(documentId as DocumentSessionId, taskId, signal, onProgress) }
-  );
-
   constructor(
     private readonly workspace: WorkspaceSession,
     private readonly ports: LightTableCommandPorts,
@@ -196,7 +182,12 @@ export class LightTableCommandService {
     private readonly artifacts = new LightTableArtifactRegistry(),
     actionLibraryStorage?: SemanticActionLibraryStorage
   ) {
-    this.actionLibrary = new SemanticActionLibrary(actionLibraryStorage);
+    this.actions = new SemanticActionWorkflowController({
+      execute: (request) => this.execute(request, { origin: 'actions-playback', recording: 'ignore' }),
+      activeDocumentId: () => this.workspace.getSnapshot().activeDocumentId ?? undefined,
+      tasks: { wait: (documentId, taskId, signal, onProgress) =>
+        this.waitForActionTask(documentId as DocumentSessionId, taskId, signal, onProgress) }
+    }, actionLibraryStorage);
     this.pixelClipboardCommands = new SemanticPixelClipboardCommandHandler(this.artifacts);
     this.gradeClipboardCommands = new SemanticGradeClipboardCommandHandler(this.artifacts);
     let previousWorkspace = workspace.getSnapshot();
@@ -216,6 +207,7 @@ export class LightTableCommandService {
 
   dispose(): void {
     this.unsubscribe();
+    this.actions.dispose();
     this.publicationEvents.dispose();
     void this.cancelAllGestures();
     this.artifacts.clear();
@@ -343,30 +335,20 @@ export class LightTableCommandService {
 
   subscribeTaskEvents = (listener: () => void): (() => void) => this.taskEvents.subscribe(listener);
   taskEventRevision = (): number => this.taskEvents.snapshot();
-  actionRecordingSnapshot = (): ActionRecordingSnapshot => this.actionRecorder.snapshot();
-  subscribeActionRecording = (listener: () => void): (() => void) => this.actionRecorder.subscribe(listener);
-  startActionRecording = (name?: string): ActionRecordingSnapshot => {
-    this.actionPlayback.clear();
-    return this.actionRecorder.start(name);
-  };
-  stopActionRecording = (): ActionRecordingSnapshot => this.actionRecorder.stop();
-  clearActionRecording = (): ActionRecordingSnapshot => {
-    this.actionPlayback.clear();
-    return this.actionRecorder.clear();
-  };
-  actionLibrarySnapshot = (): SemanticActionLibrarySnapshot => this.actionLibrary.snapshot();
-  subscribeActionLibrary = (listener: () => void): (() => void) => this.actionLibrary.subscribe(listener);
-  saveActionRecording = async (name: string) => {
-    const saved = await this.actionLibrary.save(this.actionRecorder.snapshot(), name);
-    if (saved) this.actionRecorder.restore(saved.recording);
-    return saved;
-  };
-  loadSavedAction = async (id: string): Promise<ActionRecordingSnapshot | null> => {
-    this.actionPlayback.clear();
-    const action = await this.actionLibrary.select(id);
-    return action ? this.actionRecorder.restore(action.recording) : null;
-  };
-  deleteSavedAction = (id: string): Promise<boolean> => this.actionLibrary.delete(id);
+  actionRecordingSnapshot = (): ActionRecordingSnapshot => this.actions.recordingSnapshot();
+  subscribeActionRecording = (listener: () => void) => this.actions.subscribeRecording(listener);
+  startActionRecording = (name?: string) => this.actions.startRecording(name);
+  stopActionRecording = () => this.actions.stopRecording();
+  clearActionRecording = () => this.actions.clearRecording();
+  actionLibrarySnapshot = (): SemanticActionLibrarySnapshot => this.actions.librarySnapshot();
+  subscribeActionLibrary = (listener: () => void) => this.actions.subscribeLibrary(listener);
+  createActionSet = (name: string) => this.actions.createSet(name);
+  renameActionSet = (id: string, name: string) => this.actions.renameSet(id, name);
+  selectActionSet = (id: string) => this.actions.selectSet(id);
+  deleteActionSet = (id: string) => this.actions.deleteSet(id);
+  saveActionRecording = (name: string) => this.actions.saveRecording(name);
+  loadSavedAction = (id: string) => this.actions.loadSaved(id);
+  deleteSavedAction = (id: string) => this.actions.deleteSaved(id);
 
   recordObservedCommand(command: LightTableCommandId, documentId: DocumentSessionId,
     parameters: unknown, value: unknown): boolean {
@@ -383,7 +365,7 @@ export class LightTableCommandService {
     if (resultSchema && !validateJsonSchemaValue(resultSchema, value).valid) {
       return traceObservedCommand(command, false, 'invalid-observed-result');
     }
-    const recording = this.actionRecorder.snapshot();
+    const recording = this.actions.recordingSnapshot();
     if (recording.status !== 'recording' || !recording.id) {
       return traceObservedCommand(command, false, 'recorder-inactive');
     }
@@ -396,7 +378,7 @@ export class LightTableCommandService {
       parameters
     });
     if ('rejection' in parsed) return traceObservedCommand(command, false, 'request-rejected');
-    this.actionRecorder.record(parsed.value, {
+    this.actions.record(parsed.value, {
       requestId: parsed.value.requestId,
       status: 'completed',
       value,
@@ -404,20 +386,12 @@ export class LightTableCommandService {
     }, startedAt, recording.id, 'ui');
     return traceObservedCommand(command, true, 'recorded');
   }
-  actionPlaybackSnapshot = (): ActionPlaybackSnapshot => this.actionPlayback.snapshot();
-  subscribeActionPlayback = (listener: () => void): (() => void) => this.actionPlayback.subscribe(listener);
-  playActionRecording = (): Promise<ActionPlaybackSnapshot> => this.actionPlayback.play(
-    this.actionRecorder.snapshot(), this.workspace.getSnapshot().activeDocumentId ?? undefined
-  );
-  playActionStep = (sequence: number): Promise<ActionPlaybackSnapshot> => (
-    this.actionPlayback.playStep(this.actionRecorder.snapshot(), sequence,
-      this.workspace.getSnapshot().activeDocumentId ?? undefined)
-  );
-  playActionFromStep = (sequence: number): Promise<ActionPlaybackSnapshot> => (
-    this.actionPlayback.playFrom(this.actionRecorder.snapshot(), sequence,
-      this.workspace.getSnapshot().activeDocumentId ?? undefined)
-  );
-  stopActionPlayback = (): void => this.actionPlayback.stop();
+  actionPlaybackSnapshot = (): ActionPlaybackSnapshot => this.actions.playbackSnapshot();
+  subscribeActionPlayback = (listener: () => void) => this.actions.subscribePlayback(listener);
+  playActionRecording = () => this.actions.play();
+  playActionStep = (sequence: number) => this.actions.playStep(sequence);
+  playActionFromStep = (sequence: number) => this.actions.playFrom(sequence);
+  stopActionPlayback = (): void => this.actions.stopPlayback();
 
   queryRenderTelemetry(documentId: DocumentSessionId): RenderTelemetrySnapshot | null {
     return this.document(documentId)?.lifecycle === 'ready'
@@ -715,8 +689,9 @@ export class LightTableCommandService {
     origin: 'ui', recording: 'record'
   }): Promise<LightTableCommandResult> {
     const startedAt = Date.now();
-    const recordingId = context.recording === 'record' && this.actionRecorder.snapshot().status === 'recording'
-      ? this.actionRecorder.snapshot().id
+    const recording = this.actions.recordingSnapshot();
+    const recordingId = context.recording === 'record' && recording.status === 'recording'
+      ? recording.id
       : null;
     const parsed = this.parseRequest(requestValue);
     const documentId = 'value' in parsed ? parsed.value.documentId : undefined;
@@ -735,7 +710,7 @@ export class LightTableCommandService {
       }
     }
     if (!('rejection' in parsed) && context.recording === 'record') {
-      this.actionRecorder.record(parsed.value, result, startedAt, recordingId, context.origin);
+      this.actions.record(parsed.value, result, startedAt, recordingId, context.origin);
     }
     return result;
   }
@@ -872,7 +847,7 @@ export class LightTableCommandService {
 
     const automationTask = startSemanticAutomationTask(value.command, value.parameters, this.workspace.getDocument(
       documentRequest.documentId)!, this.ports, this.taskEvents,
-      (id, result) => this.actionRecorder.completeTask(id, result));
+      (id, result) => this.actions.completeTask(id, result));
     if (automationTask) {
       return 'error' in automationTask ? this.reject(value.requestId, automationTask.error, automationTask.message, snapshot)
         : { requestId: value.requestId, status: 'accepted', taskId: automationTask.taskId, revisions: this.revisions(snapshot) };
@@ -1166,7 +1141,7 @@ export class LightTableCommandService {
       const findings = psd && !(exported instanceof File) ? exported.findings : [];
       const artifact = this.artifacts.register(file, kind, findings);
       this.taskArtifacts.set(task.id, artifact);
-      this.actionRecorder.completeTask(task.id, { artifact });
+      this.actions.completeTask(task.id, { artifact });
       return artifact;
     });
     const taskId = session.tasks.getSnapshot().activeTaskIds.at(-1);

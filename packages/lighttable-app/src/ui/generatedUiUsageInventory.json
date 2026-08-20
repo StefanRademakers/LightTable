@@ -160,7 +160,7 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 138,
+      "productionUsageCount": 142,
       "internalUsageCount": 0,
       "contextCount": 38,
       "overrideCount": 0,
@@ -197,7 +197,7 @@
         },
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 9,
+          "count": 13,
           "kind": "product"
         },
         {
@@ -450,7 +450,7 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 31,
+      "productionUsageCount": 32,
       "internalUsageCount": 1,
       "contextCount": 16,
       "overrideCount": 1,
@@ -472,7 +472,7 @@
         },
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 1,
+          "count": 2,
           "kind": "product"
         },
         {

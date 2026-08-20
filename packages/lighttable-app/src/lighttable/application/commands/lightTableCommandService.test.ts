@@ -501,6 +501,8 @@ describe('LightTableCommandService action recording', () => {
       write: (value) => { persisted = value; }
     };
     const first = setup({}, storage);
+    const workflowSet = await first.service.createActionSet('Layer workflows');
+    expect(workflowSet).toMatchObject({ name: 'Layer workflows' });
     first.service.startActionRecording('Draft');
     await first.service.execute(request('layer.createRaster', first.session.id));
     first.service.stopActionRecording();
@@ -510,8 +512,13 @@ describe('LightTableCommandService action recording', () => {
     const restored = new LightTableCommandService(first.workspace, first.ports,
       undefined, undefined, storage);
     expect(restored.actionLibrarySnapshot()).toMatchObject({
-      actions: [{ name: 'Fresh layer', recording: { steps: [{ command: 'layer.createRaster' }] } }]
+      selectedSetId: workflowSet!.id,
+      sets: [{ name: 'Default Set' }, { name: 'Layer workflows' }],
+      actions: [{ setId: workflowSet!.id, name: 'Fresh layer',
+        recording: { steps: [{ command: 'layer.createRaster' }] } }]
     });
+    expect(await restored.renameActionSet(workflowSet!.id, 'Layer recipes'))
+      .toMatchObject({ name: 'Layer recipes' });
     const actionId = restored.actionLibrarySnapshot().actions[0]!.id;
     expect((await restored.loadSavedAction(actionId))?.name).toBe('Fresh layer');
     await restored.playActionRecording();

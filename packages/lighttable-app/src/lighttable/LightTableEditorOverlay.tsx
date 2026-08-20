@@ -41,7 +41,10 @@ import {
 } from './application/commands/semanticAdjustmentCreationCommandContract';
 import type { ActionRecordingSnapshot } from './application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from './application/actions/semanticActionPlayback';
-import type { SemanticActionLibrarySnapshot } from './application/actions/semanticActionLibrary';
+import {
+  LIGHTTABLE_DEFAULT_ACTION_SET_ID,
+  type SemanticActionLibrarySnapshot
+} from './application/actions/semanticActionLibrary';
 import { linearRgbToOklab, srgbToLinear } from './colorMath';
 import type { PointColorSample } from './pointColor';
 import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
@@ -407,7 +410,8 @@ const EMPTY_ACTION_PLAYBACK: ActionPlaybackSnapshot = {
 };
 const emptyActionPlayback = () => EMPTY_ACTION_PLAYBACK;
 const EMPTY_ACTION_LIBRARY: SemanticActionLibrarySnapshot = {
-  actions: [], selectedId: null, error: null
+  sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID, name: 'Default Set', createdAt: 0, updatedAt: 0 }],
+  selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID, actions: [], selectedId: null, error: null
 };
 const emptyActionLibrary = () => EMPTY_ACTION_LIBRARY;
 const encodeAgentPreview = async (source: File | Blob, name: string,
@@ -7559,6 +7563,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 onPlayStep: (sequence) => { void commandService?.playActionStep(sequence); },
                 onPlayFromStep: (sequence) => { void commandService?.playActionFromStep(sequence); },
                 onStopPlayback: () => { commandService?.stopActionPlayback(); },
+                onCreateActionSet: (name) => { void commandService?.createActionSet(name); },
+                onRenameActionSet: (id, name) => { void commandService?.renameActionSet(id, name); },
+                onSelectActionSet: (id) => { void commandService?.selectActionSet(id); },
+                onDeleteActionSet: (id) => { void commandService?.deleteActionSet(id); },
                 onSaveAction: (name) => { void commandService?.saveActionRecording(name); },
                 onLoadAction: (id) => { void commandService?.loadSavedAction(id); },
                 onDeleteAction: (id) => { void commandService?.deleteSavedAction(id); }

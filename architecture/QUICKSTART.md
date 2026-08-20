@@ -526,6 +526,12 @@ is the shared application service. Each mounted document registers narrow
 `DocumentLightTableCommandPorts`; the service does not reach into React or
 construct another document model.
 
+The command service decides whether a validated execution is recordable, while
+[`SemanticActionWorkflowController`](../packages/lighttable-app/src/lighttable/application/actions/semanticActionWorkflowController.ts)
+owns Actions recording state, durable set selection and playback lifecycle.
+Playback calls the same command service again with recording disabled; it does
+not own a second mutation route.
+
 Atomic batches are capped at 64 operations, 256 KiB and 10 seconds. They build
 against a private document value, can reference earlier operation results, and
 publish once as one named undo entry. Failure or cancellation publishes

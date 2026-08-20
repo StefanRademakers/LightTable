@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { LIGHTTABLE_COMMAND_DEFINITIONS, LIGHTTABLE_COMMAND_SCHEMAS } from '@lighttable/command-contract';
 import { BLEND_MODES } from '../../document/blendModes';
 import { BASIC_ADJUSTMENT_RANGES } from '../../../application/adjustments/groupVisibility';
+import { LIGHTTABLE_DEFAULT_ACTION_SET_ID } from '../../../application/actions/semanticActionLibrary';
 import { ActionsPanel } from './ActionsPanel';
 import { CommandCatalogView } from './CommandCatalogView';
 import { createCommandParameterDefaults } from './CommandParameterEditor';
@@ -13,6 +14,9 @@ const definition = {
   description: 'Create a raster layer.', scope: 'document' as const, effect: 'edit' as const,
   invocation: 'direct' as const, agentAccess: true, externalMcp: 'execute' as const
 };
+const emptyLibrary = { sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID, name: 'Default Set',
+  createdAt: 0, updatedAt: 0 }], selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
+actions: [], selectedId: null, error: null } as const;
 
 describe('ActionsPanel', () => {
   it('keeps recorded Actions primary and the command browser in a separate view', () => {
@@ -23,7 +27,7 @@ describe('ActionsPanel', () => {
       recording={{ status: 'idle', id: null, name: 'Untitled Action', startedAt: null,
         stoppedAt: null, steps: [], byteLength: 0, limitReached: false }}
       playback={{ status: 'idle', currentSequence: null, results: [], taskProgress: null }}
-      library={{ actions: [], selectedId: null, error: null }}
+      library={emptyLibrary}
       onStartRecording={() => undefined}
       onStopRecording={() => undefined}
       onClearRecording={() => undefined}
@@ -31,6 +35,10 @@ describe('ActionsPanel', () => {
       onPlayStep={() => undefined}
       onPlayFromStep={() => undefined}
       onStopPlayback={() => undefined}
+      onCreateActionSet={() => undefined}
+      onRenameActionSet={() => undefined}
+      onSelectActionSet={() => undefined}
+      onDeleteActionSet={() => undefined}
       onSaveAction={() => undefined}
       onLoadAction={() => undefined}
       onDeleteAction={() => undefined}
@@ -40,6 +48,11 @@ describe('ActionsPanel', () => {
     expect(markup).toContain('Commands');
     expect(markup).toContain('Untitled Action');
     expect(markup).toContain('Record');
+    expect(markup).toContain('Action Set');
+    expect(markup).toContain('Default Set');
+    expect(markup).toContain('New set');
+    expect(markup).toContain('Rename');
+    expect(markup).toContain('Delete set');
     expect(markup).not.toContain('New raster layer');
   });
 
@@ -54,11 +67,13 @@ describe('ActionsPanel', () => {
           startedAt: 1, durationMs: 1, replayable: true, note: null
         }] }}
       playback={{ status: 'idle', currentSequence: null, results: [], taskProgress: null }}
-      library={{ actions: [], selectedId: null, error: null }}
+      library={emptyLibrary}
       onStartRecording={() => undefined} onStopRecording={() => undefined}
       onClearRecording={() => undefined} onPlay={() => undefined}
       onPlayStep={() => undefined} onPlayFromStep={() => undefined}
       onStopPlayback={() => undefined} onSaveAction={() => undefined}
+      onCreateActionSet={() => undefined} onRenameActionSet={() => undefined}
+      onSelectActionSet={() => undefined} onDeleteActionSet={() => undefined}
       onLoadAction={() => undefined} onDeleteAction={() => undefined}
     />);
 
@@ -267,11 +282,13 @@ describe('ActionsPanel', () => {
       recording={{ status: 'stopped', id: 'action-1', name: 'Export', startedAt: 1,
         stoppedAt: 2, steps: [], byteLength: 0, limitReached: false }}
       playback={{ status: 'running', currentSequence: 1, results: [], taskProgress: 0.42 }}
-      library={{ actions: [], selectedId: null, error: null }}
+      library={emptyLibrary}
       onStartRecording={() => undefined} onStopRecording={() => undefined}
       onClearRecording={() => undefined} onPlay={() => undefined}
       onPlayStep={() => undefined} onPlayFromStep={() => undefined}
       onStopPlayback={() => undefined}
+      onCreateActionSet={() => undefined} onRenameActionSet={() => undefined}
+      onSelectActionSet={() => undefined} onDeleteActionSet={() => undefined}
       onSaveAction={() => undefined} onLoadAction={() => undefined}
       onDeleteAction={() => undefined}
     />);

@@ -52,16 +52,21 @@ Non-goals
 Current evidence (2026-08-20)
 =============================
 
+- [`Task 271`](../../done/task_271_durable_action_sets/task.txt) delivered the
+  durable named-set storage, panel controls, migration and restart proof.
 - Concrete stopped Actions can be user-named, explicitly saved, loaded and
   deleted from a deterministic bounded library.
-- The version-2 envelope is limited to 32 Actions, 256 steps per Action, 2 MiB
-  per Action and 8 MiB total. Malformed, newer-version, unknown-command,
-  non-replayable and oversized content fails atomically.
+- The version-3 envelope groups at most 32 Actions into at most 16 stable named
+  Action Sets, with 256 steps per Action, 2 MiB per Action and 8 MiB total.
+  Set/action ordering and selection are deterministic; malformed,
+  newer-version, unknown-command, non-replayable and oversized content fails
+  atomically.
 - Every recorded step stores its command-contract status and schema version.
-  Existing version-1 libraries migrate atomically to version 2 after validating
-  current complete-schema inputs, completed results and recorded result
-  bindings. Incompatible libraries stay unloaded with a precise error; playback
-  repeats the contract preflight before executing its first step.
+  Existing version-1 and version-2 flat libraries migrate atomically into the
+  stable Default Set after validating current complete-schema inputs, completed
+  results and recorded result bindings. Incompatible libraries stay unloaded
+  with a precise error; playback repeats the contract preflight before
+  executing its first step.
 - Desktop persistence is host-owned and atomically written under app userData;
   it does not depend on the renderer's changing localhost origin. Web uses its
   browser-origin storage adapter.
@@ -71,11 +76,13 @@ Current evidence (2026-08-20)
   for stable result bindings and created/duplicated document identities. A
   packaged Duplicate -> Create Layer Action started at step two, replayed the
   required fork first and edited the fresh result document.
-- A packaged two-process smoke records create+rename, saves, fully restarts the
-  app, reopens the original PSD as a fresh session, loads and replays the Action.
+- A packaged two-process smoke creates and renames sets, stores the same
+  two-step recording independently in two sets, fully restarts the app, proves
+  selected-set and filtered-action persistence, replays the original Action and
+  verifies that deleting one set deletes only its contained Action.
 - Accepted async commands now replay through subscribed document-task state,
   show progress, fail closed on missing/failure/cancel/timeout and support Stop
   through the real task owner. Completed export artifacts are available to
   later stable result bindings.
-- Action sets, user variables and explicit
-  migration transforms for future schema versions remain open.
+- User variables and explicit migration transforms for future command-schema
+  versions remain open.
