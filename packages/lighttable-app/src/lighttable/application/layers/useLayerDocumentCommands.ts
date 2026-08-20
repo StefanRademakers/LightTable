@@ -133,6 +133,7 @@ export interface LayerDocumentCommands {
   addActiveLayerMask(useSelection: boolean): boolean;
   addLayerMask(layerId: LayerId, useSelection: boolean, present?: boolean): boolean;
   applyBackgroundRemovalMask(
+    layerId: LayerId,
     mask: RasterSelectionMask,
     mode: 'replace' | 'intersect' | 'new-layer'
   ): boolean;
@@ -324,13 +325,14 @@ export const createLayerDocumentCommands = (
   };
 
   const applyBackgroundRemovalMask = (
+    layerId: LayerId,
     mask: RasterSelectionMask,
     mode: 'replace' | 'intersect' | 'new-layer'
   ) => {
     const dependencies = dependenciesRef.current;
     const before = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
-    const sourceId = before?.activeLayerId;
+    const sourceId = layerId;
     const source = before && sourceId ? findRasterLayer(before, sourceId) : null;
     if (!before || !renderer || !sourceId || !source) return false;
     if (layerIsLocked(source, 'pixels')) {

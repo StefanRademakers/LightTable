@@ -55,6 +55,10 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     executeLayerMerge: vi.fn(),
     executeFlattenGroup: vi.fn(),
     executeFlattenImage: vi.fn(),
+    executeBackgroundRemoval: vi.fn(async (_documentId, command, _signal, report) => {
+      report(0.5, 'Removing background');
+      return { ...command, modelId: 'fixture' };
+    }),
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -122,6 +126,66 @@ describe('LightTableCommandService action recording', () => {
       status: 'completed', taskProgress: null,
       results: [{ command: 'file.exportNative', status: 'completed' }]
     });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('records and awaits cancellable background removal during Actions playback', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    state.service.startActionRecording('Subject mask');
+    const accepted = await state.service.execute(request('layer.removeBackground', state.session.id,
+      { layerId, mode: 'replace' }));
+    expect(accepted.status).toBe('accepted');
+    if (accepted.status !== 'accepted') throw new Error('Remove Background was not accepted.');
+    await vi.waitFor(() => expect(state.service.queryTask(state.session.id, accepted.taskId))
+      .toMatchObject({ status: 'completed', progress: 1 }));
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'layer.removeBackground', outcome: 'accepted', replayable: true,
+      parameters: { layerId, mode: 'replace' }, result: { taskId: accepted.taskId, modelId: 'fixture' }
+    }]);
+
+    await state.service.playActionRecording();
+
+    expect(state.ports.executeBackgroundRemoval).toHaveBeenCalledTimes(2);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'completed', results: [{ command: 'layer.removeBackground', status: 'completed' }]
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('cancels a running background-removal task through the shared task owner', async () => {
+    const executeBackgroundRemoval = vi.fn((_documentId, _command, signal: AbortSignal) =>
+      new Promise((_resolve, reject) => signal.addEventListener('abort',
+        () => reject(new DOMException('Canceled', 'AbortError')), { once: true })));
+    const state = setup({ executeBackgroundRemoval });
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    const accepted = await state.service.execute(request('layer.removeBackground', state.session.id,
+      { layerId, mode: 'replace' }));
+    expect(accepted.status).toBe('accepted');
+    if (accepted.status !== 'accepted') throw new Error('Remove Background was not accepted.');
+    await expect(state.service.execute(request('task.cancel', state.session.id,
+      { taskId: accepted.taskId }))).resolves.toMatchObject({ status: 'completed' });
+    await vi.waitFor(() => expect(state.service.queryTask(state.session.id, accepted.taskId)?.status)
+      .toBe('canceled'));
+    expect(executeBackgroundRemoval.mock.calls[0]?.[2].aborted).toBe(true);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('rejects malformed or missing background-removal targets before starting work', async () => {
+    const state = setup();
+    await expect(state.service.execute(request('layer.removeBackground', state.session.id,
+      { layerId: 'missing', mode: 'replace' }))).resolves.toMatchObject({
+      status: 'rejected', code: 'command-unavailable'
+    });
+    await expect(state.service.execute(request('layer.removeBackground', state.session.id,
+      { layerId: 'missing', mode: 'merge' }))).resolves.toMatchObject({
+      status: 'rejected', code: 'invalid-parameters'
+    });
+    expect(state.ports.executeBackgroundRemoval).not.toHaveBeenCalled();
     state.service.dispose();
     state.workspace.dispose();
   });

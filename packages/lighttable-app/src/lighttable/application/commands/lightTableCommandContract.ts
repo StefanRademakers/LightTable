@@ -28,6 +28,7 @@ import type { SemanticAdjustmentCreationCommand } from './semanticAdjustmentCrea
 import type { SemanticRasterInvertCommand } from './semanticRasterInvertCommandContract';
 import type { SemanticTextFinalizationCommand } from './semanticTextFinalizationCommandContract';
 import type { SemanticFlattenGroupCommand, SemanticLayerMergeCommand } from './semanticMergeFlattenCommandContract';
+import type { SemanticBackgroundRemovalCommand } from './semanticBackgroundRemovalCommandContract';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId
@@ -219,6 +220,8 @@ export interface LightTableCommandPorts {
   executeLayerMerge?(documentId: DocumentSessionId, command: SemanticLayerMergeCommand): unknown | Promise<unknown>;
   executeFlattenGroup?(documentId: DocumentSessionId, command: SemanticFlattenGroupCommand): unknown | Promise<unknown>;
   executeFlattenImage?(documentId: DocumentSessionId): unknown | Promise<unknown>;
+  executeBackgroundRemoval?(documentId: DocumentSessionId, command: SemanticBackgroundRemovalCommand,
+    signal: AbortSignal, report: (progress: number, message: string) => void): unknown | Promise<unknown>;
   queryBasicAdjustments?(documentId: DocumentSessionId, target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
@@ -264,6 +267,8 @@ export interface DocumentLightTableCommandPorts {
   executeLayerMerge?(command: SemanticLayerMergeCommand): unknown | Promise<unknown>;
   executeFlattenGroup?(command: SemanticFlattenGroupCommand): unknown | Promise<unknown>;
   executeFlattenImage?(): unknown | Promise<unknown>;
+  executeBackgroundRemoval?(command: SemanticBackgroundRemovalCommand, signal: AbortSignal,
+    report: (progress: number, message: string) => void): unknown | Promise<unknown>;
   queryBasicAdjustments?(target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;

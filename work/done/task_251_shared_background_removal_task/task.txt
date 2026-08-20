@@ -1,0 +1,65 @@
+Task 251 - Shared cancellable background removal
+
+Goal
+====
+
+Promote the existing local Remove Background operation into one explicit,
+cancellable command task so UI, Actions and MCP share the same model, stale-
+result protection, GPU mask transaction and undo owner.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Define a bounded command with explicit raster `layerId` and mask mode;
+      never infer the remote target from active UI state.
+- [x] Reuse the existing lazy BEN2 model, isolated-layer export, cancellation,
+      progress and stale-result rejection rather than adding a second executor.
+- [x] Apply the result to the requested layer through the existing reversible
+      GPU mask transaction, including replace/intersect/new-layer behavior.
+- [x] Route normal UI confirmation through the same command while keeping the
+      mask-conflict dialog presentation-only.
+- [x] Make execution a real queryable/cancellable automation task and make
+      Actions playback wait for its terminal state.
+- [x] Prove validation, progress/cancel/stale behavior, UI/Actions equivalence
+      and representative packaged MCP execution where the pinned model is
+      available without credentials.
+- [x] Update capability coverage and durable evidence, run all gates, commit
+      the milestone and move this task to `work/done/` only when fully proven.
+
+Out of scope
+============
+
+- Remove Object: its current implementation only submits an external GenAI
+  generation and does not own result delivery/document mutation yet.
+- Model changes, visual-parity claims or pointer-event transport.
+
+Result and evidence
+===================
+
+- `layer.removeBackground` accepts exactly an existing unlocked raster
+  `layerId` plus `replace`, `intersect` or `new-layer`; invalid targets are
+  rejected before model export/download starts.
+- The normal menu and mask-conflict dialog dispatch this command. The dialog
+  only chooses mode; the application operation still owns isolated-layer
+  export, lazy pinned BEN2 inference, stale-result rejection and the existing
+  reversible GPU mask transaction.
+- Command execution publishes a queryable automation task. `task.cancel`
+  aborts the worker operation, and Actions recording/playback retains one
+  replayable step and waits for its terminal task state.
+- Hot model callbacks are bounded separately to 10 Hz for React presentation
+  and 2 Hz for task/MCP publication. The first packaged run exposed an event-
+  buffer flood; the final cold packaged run completed without a reconnect gap.
+- The optional packaged external MCP smoke performed real BEN2 inference,
+  waited for completion and verified `hasMask`, raster mask metadata and a
+  non-zero mask pixel revision on the explicit source layer.
+- Unit/integration evidence covers strict parsing, missing targets, progress,
+  cancellation, stale document rejection, Actions replay and failed GPU mask
+  rollback. Full app evidence is 473 files / 2676 tests after final gating.
+- Menu coverage is 103 inventoried actions with 11 genuine semantic gaps.

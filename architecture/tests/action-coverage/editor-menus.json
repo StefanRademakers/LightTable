@@ -66,7 +66,7 @@
     { "id": "paste-selected-content", "classification": "gap", "reason": "No semantic pixel-clipboard command exists." },
     { "id": "place-image", "classification": "host", "reason": "Uses a local file picker before layer.placeArtifact can apply." },
     { "id": "rasterize-text", "classification": "command", "command": "text.rasterize" },
-    { "id": "remove-background", "classification": "gap", "reason": "No semantic background-removal command exists." },
+    { "id": "remove-background", "classification": "command", "command": "layer.removeBackground" },
     { "id": "remove-mask", "classification": "command", "command": "layer.setMask" },
     { "id": "remove-object", "classification": "gap", "reason": "No semantic object-removal command exists." },
     { "id": "rename-layer", "classification": "command", "command": "layer.rename" },

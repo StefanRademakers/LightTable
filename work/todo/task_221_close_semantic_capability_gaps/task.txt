@@ -75,6 +75,9 @@ Completed vertical slices
   their existing full-canvas compositor and history owner.
 - bounded final selection Feather through `selection.modify`, without changing
   the tool-option feather already carried by new shape selections.
+- cancellable Remove Background through `layer.removeBackground`, with an
+  explicit raster target, bounded progress, stale-result rejection and the
+  existing generated-mask GPU/history transaction.
 
 Rules
 =====

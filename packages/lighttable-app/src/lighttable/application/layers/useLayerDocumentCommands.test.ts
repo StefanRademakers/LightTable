@@ -203,7 +203,7 @@ describe('useLayerDocumentCommands', () => {
     const layerId = state.document().activeLayerId!;
     const mask = { width: 32, height: 24, data: new Uint8Array(32 * 24).fill(192) };
 
-    expect(state.commands.applyBackgroundRemovalMask(mask, 'replace')).toBe(true);
+    expect(state.commands.applyBackgroundRemovalMask(layerId, mask, 'replace')).toBe(true);
 
     expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(layerId, 'mask');
     expect(state.renderer.applyGeneratedLayerMask).toHaveBeenCalledWith(layerId, mask, 'replace');
@@ -218,16 +218,17 @@ describe('useLayerDocumentCommands', () => {
 
   it('can intersect an existing mask or create a separate masked layer', () => {
     const intersect = setup(createImageDocument('Intersect', 8, 8, 'asset'));
+    const intersectLayerId = intersect.document().activeLayerId!;
     intersect.commands.addActiveLayerMask(false);
     const mask = { width: 8, height: 8, data: new Uint8Array(64).fill(255) };
-    expect(intersect.commands.applyBackgroundRemovalMask(mask, 'intersect')).toBe(true);
+    expect(intersect.commands.applyBackgroundRemovalMask(intersectLayerId, mask, 'intersect')).toBe(true);
     expect(intersect.renderer.applyGeneratedLayerMask).toHaveBeenLastCalledWith(
       intersect.document().activeLayerId, mask, 'intersect'
     );
 
     const duplicate = setup(createImageDocument('Duplicate', 8, 8, 'asset'));
     const originalId = duplicate.document().activeLayerId!;
-    expect(duplicate.commands.applyBackgroundRemovalMask(mask, 'new-layer')).toBe(true);
+    expect(duplicate.commands.applyBackgroundRemovalMask(originalId, mask, 'new-layer')).toBe(true);
     expect(duplicate.document().layers).toHaveLength(2);
     expect(duplicate.document().activeLayerId).not.toBe(originalId);
     expect(duplicate.renderer.duplicateLayerPixels).toHaveBeenCalledWith(
@@ -237,9 +238,10 @@ describe('useLayerDocumentCommands', () => {
 
   it('does not publish a partial mask command when the GPU upload fails', () => {
     const state = setup(createImageDocument('Failure', 8, 8, 'asset'));
+    const layerId = state.document().activeLayerId!;
     vi.mocked(state.renderer.applyGeneratedLayerMask).mockReturnValue(false);
 
-    expect(state.commands.applyBackgroundRemovalMask({
+    expect(state.commands.applyBackgroundRemovalMask(layerId, {
       width: 8, height: 8, data: new Uint8Array(64)
     }, 'replace')).toBe(false);
 

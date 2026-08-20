@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 43 already routed through semantic commands;
+- 44 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 34 presentation-only operations;
-- 12 genuine semantic command gaps;
+- 11 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -84,7 +84,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `paste-selected-content` | gap | No semantic pixel-clipboard command exists. | 303 |
 | `place-image` | host | Uses a local file picker before layer.placeArtifact can apply. | 194 |
 | `rasterize-text` | command | `text.rasterize` | 671 |
-| `remove-background` | gap | No semantic background-removal command exists. | 452, 617 |
+| `remove-background` | command | `layer.removeBackground` | 452, 617 |
 | `remove-mask` | command | `layer.setMask` | 655 |
 | `remove-object` | gap | No semantic object-removal command exists. | 445 |
 | `rename-layer` | command | `layer.rename` | 591 |

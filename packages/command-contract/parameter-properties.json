@@ -20,6 +20,7 @@
   "layer.flattenGroup": { "groupId": "string" },
   "document.flattenImage": {},
   "layer.setMask": { "layerId": "string", "operation": "add | remove | set-enabled | set-linked", "source?": "reveal-all | selection", "enabled?": "boolean", "linked?": "boolean" },
+  "layer.removeBackground": { "layerId": "string", "mode": "replace | intersect | new-layer" },
   "layer.setLock": { "layerIds": "string[]", "lock": "transparency | pixels | position | all", "locked": "boolean" },
   "layer.placeArtifact": { "artifactId": "string", "name?": "string", "x?": "number", "y?": "number" },
   "layer.rename": { "layerId": "string", "name": "string" },

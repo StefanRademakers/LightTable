@@ -84,7 +84,7 @@ Existing foundation evidence
 
 - Generated categorized command catalog and local Commands browser.
 - Checked inventory for 103 static editor-menu actions and four dynamic
-  families; the current report still has 12 genuine menu gaps.
+  families; the current report still has 11 genuine menu gaps.
 - Semantic routing for Image Size, canvas geometry, crop, rotate and flip.
 - Bounded recorder/playback, per-step results and stable-ID rebinding.
 - Shared top-level property discovery for Actions and MCP.
@@ -165,6 +165,11 @@ Existing foundation evidence
   sources; Flatten Image retains its final Grade reset and undo restoration.
 - Selection > Feather now uses bounded `selection.modify` parameters and the
   existing asynchronous GPU/selection-history owner across UI, Actions and MCP.
+- Remove Background now shares explicit raster-layer/mask-mode parameters,
+  lazy BEN2 inference, cancellation, stale-result rejection and one reversible
+  GPU mask transaction across UI, Actions and MCP. Model progress is bounded
+  before React and task/event publication so long downloads cannot flood the
+  reconnect buffer.
 - Concrete Actions now have bounded version-1 save/load/delete persistence and
   active-document replay. A packaged restart proves this workflow without
   routing any interaction preview through storage.

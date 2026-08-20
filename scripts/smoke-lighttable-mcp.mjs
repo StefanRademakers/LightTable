@@ -78,10 +78,26 @@ try {
     if (result.isError) throw new Error(result.content?.[0]?.text ?? `${name} failed.`);
     return result;
   };
+  const waitForDocumentTask = async (documentId, taskId, timeout = 120_000) => {
+    const deadline = Date.now() + timeout;
+    let task;
+    while (Date.now() < deadline) {
+      task = await bridge.invoke('task.query', { documentId, taskId });
+      if (task?.status !== 'running') return task;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Task ${taskId} timed out after ${timeout} ms.`);
+  };
   const workspace = (await call('lighttable_workspace', {})).structuredContent;
   const documentId = workspace.activeDocumentId;
   const before = (await call('lighttable_document', { documentId })).structuredContent;
   const sourceLayerId = before.activeLayerId;
+  const openingLayers = (await call('lighttable_layers', { documentId })).structuredContent;
+  const openingLayerList = Array.isArray(openingLayers)
+    ? openingLayers : openingLayers.result ?? openingLayers.layers ?? openingLayers.value ?? [];
+  const backgroundSourceLayerId = openingLayerList.find(({ id, type }) =>
+    id === sourceLayerId && type === 'raster')?.id
+    ?? openingLayerList.find(({ type }) => type === 'raster')?.id;
   const openingPreview = await call('lighttable_preview', { documentId,
     expectedDocumentRevision: before.canonicalRevision, maxEdge: 256 });
   const openingPreviewMetadata = JSON.parse(
@@ -93,9 +109,33 @@ try {
   }
   const openingEvents = (await call('lighttable_events', { afterCursor: 0, limit: 200 }))
     .structuredContent;
-  const eventCursor = openingEvents.latestCursor;
+  let eventCursor = openingEvents.latestCursor;
+  let firstEditRevision = before.canonicalRevision;
+  if (process.env.LIGHTTABLE_SMOKE_BACKGROUND_REMOVAL === '1') {
+    if (!backgroundSourceLayerId) throw new Error('MCP fixture has no raster layer for Remove Background.');
+    const removal = (await call('lighttable_execute', {
+      documentId, command: 'layer.removeBackground',
+      parameters: { layerId: backgroundSourceLayerId, mode: 'replace' }
+    })).structuredContent;
+    if (removal?.status !== 'accepted' || !removal.taskId) {
+      throw new Error(`MCP Remove Background was not accepted: ${JSON.stringify(removal)}`);
+    }
+    const task = await waitForDocumentTask(documentId, removal.taskId, 600_000);
+    if (task?.status !== 'completed') {
+      throw new Error(`MCP Remove Background failed: ${JSON.stringify(task)}`);
+    }
+    const maskedLayers = (await call('lighttable_layers', { documentId })).structuredContent;
+    const maskedLayerList = Array.isArray(maskedLayers)
+      ? maskedLayers : maskedLayers.result ?? maskedLayers.layers ?? maskedLayers.value ?? [];
+    const maskedSource = maskedLayerList.find(({ id }) => id === backgroundSourceLayerId);
+    if (!maskedSource?.hasMask || !maskedSource.maskContent?.raster?.pixelRevision) {
+      throw new Error(`MCP Remove Background did not publish an editable raster mask: ${JSON.stringify(maskedSource)}`);
+    }
+    firstEditRevision = (await call('lighttable_document', { documentId })).structuredContent.canonicalRevision;
+    eventCursor = (await call('lighttable_events', { afterCursor: 0, limit: 1 })).structuredContent.latestCursor;
+  }
   await call('lighttable_execute', { documentId, command: 'layer.createRaster',
-    expectedDocumentRevision: before.canonicalRevision, parameters: {} });
+    expectedDocumentRevision: firstEditRevision, parameters: {} });
   const createdDocument = (await call('lighttable_document', { documentId })).structuredContent;
   const layerId = createdDocument.activeLayerId;
   await call('lighttable_execute', { documentId, command: 'layer.rename',

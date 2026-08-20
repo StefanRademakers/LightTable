@@ -67,7 +67,7 @@ import {
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
-import { useBackgroundRemovalController } from './application/backgroundRemoval/useBackgroundRemovalController';
+import { useBackgroundRemovalController, type BackgroundRemovalMaskMode } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
 import {
   adjustmentStackHasLocalProcessing,
@@ -4441,12 +4441,27 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getGlobalGradeStrength: () => globalGradeStrengthRef.current,
     publishGlobalGradeStrength
   });
+  const backgroundRemovalTaskIdRef = useRef<string | null>(null);
+  const startBackgroundRemovalTask = useCallback((layerId: LayerId, mode: BackgroundRemovalMaskMode) => {
+    void executeRegisteredCommand('layer.removeBackground', { layerId, mode })?.then((result) => {
+      if (result.status === 'accepted') backgroundRemovalTaskIdRef.current = result.taskId;
+    });
+  }, [executeRegisteredCommand]);
+  const cancelBackgroundRemovalTask = useCallback(() => {
+    const taskId = backgroundRemovalTaskIdRef.current;
+    if (!taskId) return false;
+    backgroundRemovalTaskIdRef.current = null;
+    void executeRegisteredCommand('task.cancel', { taskId });
+    return true;
+  }, [executeRegisteredCommand]);
   const backgroundRemovalController = useBackgroundRemovalController({
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
     applyMask: layerDocumentCommands.applyBackgroundRemovalMask,
     setStatus: setGradeStatus,
-    setError
+    setError,
+    startTask: startBackgroundRemovalTask,
+    cancelTask: cancelBackgroundRemovalTask
   });
   rasterizeShapeRef.current = (transaction) => {
     const renderer = engineRef.current;
@@ -4937,6 +4952,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (!await layerDocumentCommands.flattenWhenReady({ kind: 'image' })) return null;
         const outputLayerId = imageDocumentRef.current?.activeLayerId;
         return outputLayerId ? { outputLayerId } : null;
+      },
+      executeBackgroundRemoval: async (command, signal, report) => {
+        try {
+          return await backgroundRemovalController.removeBackgroundFromLayer(
+            command.layerId,
+            command.mode,
+            { signal, onProgress: (progress) => report(
+              Math.max(0, Math.min(1, (progress.percent ?? 0) / 100)), progress.message
+            ) }
+          );
+        } finally {
+          backgroundRemovalTaskIdRef.current = null;
+        }
       },
       queryBasicAdjustments: (target) => {
         const document = imageDocumentRef.current;
@@ -6913,7 +6941,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           <BackgroundRemovalDialog
             state={backgroundRemovalController.state}
             onCancel={backgroundRemovalController.cancel}
-            onChoose={(mode) => void backgroundRemovalController.removeBackgroundFromActiveLayer(mode)}
+            onChoose={backgroundRemovalController.choose}
           />
         </>
       )}

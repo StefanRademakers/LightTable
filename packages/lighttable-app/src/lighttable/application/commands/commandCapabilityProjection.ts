@@ -36,6 +36,7 @@ export const projectCommandCapabilities = (
       && Boolean(layerCapabilities.activeLayer), 'Select an editable layer.'),
     availability('adjustment.create', Boolean(ports.executeAdjustmentCreation), 'Adjustment creation is unavailable in this host.'),
     availability('layer.setMask', layerCapabilities.layerCount > 0, 'There are no layers.'),
+    availability('layer.removeBackground', Boolean(ports.executeBackgroundRemoval), 'Remove Background is unavailable in this host.'),
     availability('layer.setLock', layerCapabilities.layerCount > 0, 'There are no layers.'),
     availability('layer.placeArtifact', true, ''),
     availability('layer.rename', Boolean(layerCapabilities.activeLayer), 'Select an existing layer.'),

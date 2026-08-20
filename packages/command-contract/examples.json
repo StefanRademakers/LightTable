@@ -57,6 +57,10 @@
     { "layerId": "layer-photo", "operation": "add", "source": "reveal-all" },
     { "layerId": "layer-photo", "operation": "set-enabled", "enabled": false }
   ],
+  "layer.removeBackground": [
+    { "layerId": "layer-photo", "mode": "replace" },
+    { "layerId": "layer-photo", "mode": "new-layer" }
+  ],
   "layer.setLock": [
     { "layerIds": ["layer-logo"], "lock": "position", "locked": true }
   ],

@@ -56,6 +56,7 @@ import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeomet
 import { parseSemanticFaceWarpCommand, type SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import { parseSemanticLayerCommand, type SemanticLayerCommand } from './semanticLayerCommandContract';
 import { parseSemanticSelectionCommand, type SemanticSelectionCommand } from './semanticSelectionCommandContract';
+import { startValidatedBackgroundRemovalTask } from './backgroundRemovalTask';
 import {
   parseSemanticBasicAdjustmentCommand,
   parseBasicAdjustmentTarget,
@@ -225,16 +226,18 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   executeFlattenGroup(documentId: DocumentSessionId,
     command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeFlattenGroup']>>[0]) {
     const execute = this.resolve(documentId).executeFlattenGroup;
-    if (!execute) throw new Error('Group flatten is unavailable in the target document.');
-    return execute(command);
+    if (!execute) throw new Error('Group flatten is unavailable in the target document.'); return execute(command);
   }
-
   executeFlattenImage(documentId: DocumentSessionId) {
     const execute = this.resolve(documentId).executeFlattenImage;
-    if (!execute) throw new Error('Image flatten is unavailable in the target document.');
-    return execute();
+    if (!execute) throw new Error('Image flatten is unavailable in the target document.'); return execute();
   }
-
+  executeBackgroundRemoval(documentId: DocumentSessionId, command: Parameters<NonNullable<
+    DocumentLightTableCommandPorts['executeBackgroundRemoval']>>[0], signal: AbortSignal,
+    report: (progress: number, message: string) => void) {
+    const execute = this.resolve(documentId).executeBackgroundRemoval;
+    if (!execute) throw new Error('Remove Background is unavailable in the target document.'); return execute(command, signal, report);
+  }
   queryBasicAdjustments(documentId: DocumentSessionId, target: BasicAdjustmentTarget) {
     return this.resolve(documentId).queryBasicAdjustments?.(target) ?? null;
   }
@@ -925,6 +928,12 @@ export class LightTableCommandService {
       return { requestId: value.requestId, status: 'accepted', taskId, revisions: this.revisions(snapshot) };
     }
 
+    if (value.command === 'layer.removeBackground') {
+      const started = startValidatedBackgroundRemovalTask(value.parameters, this.workspace.getDocument(
+        documentRequest.documentId)!, this.ports, this.taskEvents, (id, result) => this.actionRecorder.completeTask(id, result));
+      return 'error' in started ? this.reject(value.requestId, started.error, started.message, snapshot)
+        : { requestId: value.requestId, status: 'accepted', taskId: started.taskId, revisions: this.revisions(snapshot) };
+    }
     if (value.command === 'document.resizeImage') {
       const resize = parseImageSizeRequest(value.parameters);
       if ('message' in resize) {
