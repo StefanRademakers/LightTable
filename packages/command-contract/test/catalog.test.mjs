@@ -66,6 +66,9 @@ test('versioned schemas describe and validate every completed command vertical',
     'layer.setFillOpacity',
     'layer.setBlendMode',
     'layer.setLock',
+    'layer.merge',
+    'layer.flattenGroup',
+    'document.flattenImage',
     'selection.applyShape',
     'selection.applyMagicWand',
     'selection.modify',
@@ -291,4 +294,29 @@ test('basic Grade schema requires a bounded partial patch and explicit target', 
   assert.equal(validateJsonSchemaValue(grade.result, {
     target: { kind: 'document' }, values: { exposureEV: 1.25 }, changed: true
   }).valid, true);
+});
+
+test('destructive merge and flatten schemas require explicit bounded targets and stable outputs', () => {
+  const merge = LIGHTTABLE_COMMAND_SCHEMAS['layer.merge'];
+  assert.equal(validateJsonSchemaValue(merge.input, {
+    layerIds: ['bottom', 'top']
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(merge.result, {
+    layerIds: ['bottom', 'top'], outputLayerId: 'merged'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(merge.input, {
+    layerIds: ['same', 'same']
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(merge.input, {
+    layerIds: ['bottom', 'top'], preserveSources: true
+  }).valid, false);
+
+  const group = LIGHTTABLE_COMMAND_SCHEMAS['layer.flattenGroup'];
+  assert.equal(validateJsonSchemaValue(group.input, { groupId: 'card' }).valid, true);
+  assert.equal(validateJsonSchemaValue(group.input, { groupId: '' }).valid, false);
+
+  const image = LIGHTTABLE_COMMAND_SCHEMAS['document.flattenImage'];
+  assert.deepEqual(validateJsonSchemaValue(image.input, {}), { valid: true, issues: [] });
+  assert.equal(validateJsonSchemaValue(image.input, { preserveLayers: true }).valid, false);
+  assert.equal(validateJsonSchemaValue(image.result, { outputLayerId: 'flattened' }).valid, true);
 });

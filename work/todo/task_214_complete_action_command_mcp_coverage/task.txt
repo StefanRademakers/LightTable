@@ -163,6 +163,9 @@ Existing foundation evidence
   explicit `adjustment.create` placement and stable target ID. Local Grade /
   Curves / Lens Fx, attached adjustments and standalone adjustment layers reuse
   their existing document/history owners across UI, Actions and Agent/MCP.
+- Merge, Flatten Group and Flatten Image now add shared version-1 schemas to
+  their existing explicit-target GPU/history owners. Destructive requests stay
+  bounded and return stable output-layer IDs for later Action/agent steps.
 - Layer > Invert Colors now records and executes `raster.invert` with an
   explicit stable layer ID and pixels/mask channel through the existing GPU
   pixel-edit and undo owner.

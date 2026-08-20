@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "category": "layer",
+  "commands": {
+    "layer.merge": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerIds"],
+        "properties": {
+          "layerIds": {
+            "type": "array",
+            "title": "Contiguous sibling layer IDs",
+            "minItems": 2,
+            "maxItems": 256,
+            "uniqueItems": true,
+            "x-lighttable-control": "layer-ids",
+            "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerIds", "outputLayerId"],
+        "properties": {
+          "layerIds": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+          },
+          "outputLayerId": { "type": "string", "minLength": 1, "maxLength": 512 }
+        }
+      }
+    },
+    "layer.flattenGroup": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["groupId"],
+        "properties": {
+          "groupId": { "type": "string", "title": "Group ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["groupId", "outputLayerId"],
+        "properties": {
+          "groupId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "outputLayerId": { "type": "string", "minLength": 1, "maxLength": 512 }
+        }
+      }
+    },
+    "document.flattenImage": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["outputLayerId"],
+        "properties": {
+          "outputLayerId": { "type": "string", "minLength": 1, "maxLength": 512 }
+        }
+      }
+    }
+  }
+}

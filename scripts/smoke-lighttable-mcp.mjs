@@ -150,6 +150,24 @@ try {
     || !basicGradeContract.result?.properties?.changed) {
     throw new Error(`MCP basic Grade discovery is incomplete: ${JSON.stringify(basicGradeContract)}`);
   }
+  const mergeContract = (await call('lighttable_commands', { command: 'layer.merge' }))
+    .structuredContent.commands?.[0]?.contract;
+  const groupFlattenContract = (await call('lighttable_commands', { command: 'layer.flattenGroup' }))
+    .structuredContent.commands?.[0]?.contract;
+  const imageFlattenContract = (await call('lighttable_commands', { command: 'document.flattenImage' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (mergeContract?.status !== 'complete' || mergeContract.schemaVersion !== 1
+    || mergeContract.input?.properties?.layerIds?.uniqueItems !== true
+    || !mergeContract.result?.properties?.outputLayerId
+    || groupFlattenContract?.status !== 'complete' || groupFlattenContract.schemaVersion !== 1
+    || !groupFlattenContract.result?.properties?.groupId
+    || imageFlattenContract?.status !== 'complete' || imageFlattenContract.schemaVersion !== 1
+    || Object.keys(imageFlattenContract.input?.properties ?? {}).length !== 0
+    || !imageFlattenContract.result?.properties?.outputLayerId) {
+    throw new Error(`MCP merge/flatten discovery is incomplete: ${JSON.stringify({
+      mergeContract, groupFlattenContract, imageFlattenContract
+    })}`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
@@ -206,6 +224,15 @@ try {
   if (!invalidGrade.isError || afterInvalidGrade.canonicalRevision !== before.canonicalRevision) {
     throw new Error(`Private Grade state reached the desktop mutation owner: ${JSON.stringify({
       invalidGrade, before: before.canonicalRevision, after: afterInvalidGrade.canonicalRevision
+    })}`);
+  }
+  const invalidFlatten = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'document.flattenImage', parameters: { preserveLayers: true }
+  } });
+  const afterInvalidFlatten = (await call('lighttable_document', { documentId })).structuredContent;
+  if (!invalidFlatten.isError || afterInvalidFlatten.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Expanded Flatten Image request reached the destructive owner: ${JSON.stringify({
+      invalidFlatten, before: before.canonicalRevision, after: afterInvalidFlatten.canonicalRevision
     })}`);
   }
   const sourceLayerId = before.activeLayerId;

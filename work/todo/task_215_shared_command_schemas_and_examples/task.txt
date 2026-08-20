@@ -153,6 +153,9 @@ Current evidence (2026-08-20)
   14 application-owned numeric ranges, non-empty partial patches and canonical
   changed/no-op results. A drift test compares schema ranges to the real slider
   map; MCP rejects private curve payloads before document mutation.
+- A separate Merge/Flatten module now constrains destructive sibling merges,
+  group targets and option-free image flattening, including stable output-layer
+  results. Duplicate merge IDs and expanded image options fail before execution.
 
 Still required for completion
 =============================

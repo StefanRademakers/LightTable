@@ -108,6 +108,12 @@ describe('ActionsPanel', () => {
       LIGHTTABLE_COMMAND_SCHEMAS['grade.setBasic']!.input.properties!.values.properties!
     ).map(([key, schema]) => [key, { min: schema.minimum, max: schema.maximum }])))
       .toEqual(BASIC_ADJUSTMENT_RANGES);
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['layer.merge']!.input))
+      .toEqual({ layerIds: [] });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['layer.flattenGroup']!.input))
+      .toEqual({ groupId: '' });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['document.flattenImage']!.input))
+      .toEqual({});
   });
 
   it('renders nested conditional text properties without a free-form command JSON editor', () => {

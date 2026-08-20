@@ -44,6 +44,9 @@ Result and evidence
 - The command service normalizes merge order through the canonical contiguous-
   sibling plan before execution and rejects duplicate, non-contiguous, empty or
   expanded destructive requests.
+- The previously strict application parsers now also have shared version-1
+  input/result schemas. Actions and MCP discovery expose only explicit bounded
+  IDs and stable output IDs; expanded Flatten Image options fail pre-mutation.
 - Automation yields one editor frame and waits only for contributing visible
   text sources before entering the existing synchronous GPU transaction.
 - Focused service tests prove Actions record/replay for merge and both flatten
