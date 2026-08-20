@@ -61,6 +61,34 @@ Non-goals
 Current evidence (2026-08-20)
 =============================
 
+- A dedicated packaged route-equivalence smoke now uses one real UI recording
+  as the authoritative recipe for a rectangle with explicit fill/stroke,
+  transform, rename, editable point text and faux-bold formatting. Actions
+  replays that exact recording in a fresh document and the authenticated
+  external MCP TLS/device tunnel resolves the same recorded result bindings
+  and executes the same five semantic commands in a third document.
+- All three routes now expose matching bounded Undo/Redo labels, depths and
+  state IDs. Undo/Redo restores the same editable state while advancing the
+  canonical revision from 5 to 7 on every route.
+- That harness found and fixed two real publication gaps: local keyboard
+  Undo/Redo bypassed the semantic command owner, and already-committed UI
+  gestures were recorded without advancing the public document revision.
+  Semantic commands suppress their own nested UI observations, so replay and
+  MCP still publish exactly one revision per logical edit.
+- Normalized layer, vector and text state is identical across UI, Actions and
+  external MCP after generated document/layer/element IDs are rebound. The
+  comparison retains relationships, geometry, transforms, fill/stroke, font,
+  text runs and history while excluding gesture-preview-only internal
+  revision counters.
+- Revision-bound 640x480 GPU previews are pixel-exact in this bounded workflow:
+  UI vs Actions and UI vs MCP both report zero per-channel MAE/RMSE, zero p95
+  and maximum delta, and zero changed pixels. Side-by-side and amplified
+  difference PNGs are retained under `tmp/route-equivalence-smoke/` and were
+  visually reviewed. This is not a whole-application parity claim.
+- The document query now exposes only the bounded next `undoLabel` and
+  `redoLabel`, not an unbounded history stack, so agents can verify the logical
+  operation before navigating history.
+
 - Layer duplicate/delete/move/blend/clipping/visibility/locks have a real
   UI-origin, Actions and MCP canonical-state/history equivalence harness.
 - Geometric selection and single-layer affine transform use the same stable-ID
@@ -157,13 +185,10 @@ Still required for completion
 
 - high-frequency typing/IME recording and text failure equivalence across all
   three routes;
-- revision-bound rendered preview/export comparison with declared per-image
-  tolerances and retained difference artifacts across the actual UI, Actions
-  and MCP routes; the new Photoshop interchange evidence exposes a visible
-  gradient/shadow difference and is not a substitute for that comparison;
-- the complete workflow through the external MCP bridge, not only the packaged
-  in-app Agent Access route;
+- shared-command proof for the normal File > Export PNG route. The bounded
+  revision-aware preview is now equivalent, but the normal UI export still
+  owns a separate delivery path and is not claimed as command-equivalent;
 - equivalent stale-revision and invalid-parameter failure evidence at every
   real route boundary.
-- rendered comparison for native shapes and paths, plus external MCP-tunnel
-  proof; current Pen evidence reaches the packaged Agent Access boundary.
+- expand rendered comparison beyond the now-proven rectangle/text workflow to
+  native Pen paths and other representative vector primitives;

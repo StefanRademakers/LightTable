@@ -2726,16 +2726,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [documentHistoryController, endAdjustmentTransaction, endDocumentTransaction]);
 
   const undoEditor = useCallback(() => {
-    // Local history must remain available while the workspace/renderer is
-    // publishing a fresh document surface (for example directly after Image
-    // Size). External automation still reaches this same controller through
-    // the registered undo port, but local Ctrl+Z has no readiness race.
-    void applyUndoEditor();
-  }, [applyUndoEditor]);
+    if (!executeRegisteredCommand('history.undo', {})) void applyUndoEditor();
+  }, [applyUndoEditor, executeRegisteredCommand]);
 
   const redoEditor = useCallback(() => {
-    void applyRedoEditor();
-  }, [applyRedoEditor]);
+    if (!executeRegisteredCommand('history.redo', {})) void applyRedoEditor();
+  }, [applyRedoEditor, executeRegisteredCommand]);
 
   const getDocumentPublicationPorts = useCallback(() => ({
     mergeStartupTimings: (timings: LightTableStartupTimings) => {

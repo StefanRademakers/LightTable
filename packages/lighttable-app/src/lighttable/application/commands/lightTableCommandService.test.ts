@@ -320,6 +320,7 @@ describe('LightTableCommandService action recording', () => {
   it('records one already-committed UI owner result without executing it twice', () => {
     const state = setup();
     state.service.startActionRecording('Observed UI commit');
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
     expect(state.service.recordObservedCommand(
       'selection.applyShape',
       state.session.id,
@@ -336,6 +337,28 @@ describe('LightTableCommandService action recording', () => {
       command: 'selection.applyShape', outcome: 'completed', replayable: true,
       origin: 'ui'
     }]);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
+    expect(state.service.recordObservedCommand(
+      'vector.create', state.session.id, { name: 'Observed rectangle' },
+      { layerId: 'observed-layer', elementId: 'observed-element' }
+    )).toBe(true);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('does not republish a UI observation raised by an executing semantic command', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId;
+    state.ports.renameLayer = vi.fn((_documentId, targetLayerId, name) => {
+      state.session.setDocument(renameLayer(state.session.getSnapshot().document!, targetLayerId, name));
+      expect(state.service.recordObservedCommand('layer.rename', state.session.id,
+        { layerId: targetLayerId, name }, { layerId: targetLayerId, name })).toBe(false);
+    });
+    state.service.startActionRecording('One semantic rename');
+    await state.service.execute(request('layer.rename', state.session.id, { layerId, name: 'Only once' }));
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
+    expect(state.service.actionRecordingSnapshot().steps).toHaveLength(1);
     state.service.dispose();
     state.workspace.dispose();
   });

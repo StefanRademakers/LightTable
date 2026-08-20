@@ -102,6 +102,7 @@ export interface DocumentQueryResult {
   readonly history: {
     readonly canUndo: boolean; readonly canRedo: boolean; readonly busy: boolean;
     readonly undoDepth: number; readonly redoDepth: number; readonly estimatedBytes: number;
+    readonly undoLabel: string | null; readonly redoLabel: string | null;
     readonly currentStateId: number;
   };
   readonly tasks: { readonly activeCount: number };

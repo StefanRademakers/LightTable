@@ -96,6 +96,12 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
 );
 const AUTOMATION_GESTURE_LEASE_MS = 30_000;
 const ACTION_TASK_TIMEOUT_MS = 120_000;
+const OBSERVED_STATE_ONLY_COMMANDS = new Set<LightTableCommandId>([
+  'view.setZoom',
+  'selection.applyShape',
+  'selection.applyMagicWand',
+  'selection.modify'
+]);
 
 /**
  * Transport-neutral read/query and bounded command registry.
@@ -116,6 +122,7 @@ export class LightTableCommandService {
     lease: ReturnType<typeof setTimeout>;
   }>();
   private gestureSequence = 0;
+  private readonly executingDocumentCommands = new Map<DocumentSessionId, number>();
   private readonly taskEvents = new AutomationTaskEventStore();
   private readonly publicationEvents = new AutomationPublicationEventStore();
   private readonly actionRecorder = new SemanticActionRecorder();
@@ -326,6 +333,10 @@ export class LightTableCommandService {
 
   recordObservedCommand(command: LightTableCommandId, documentId: DocumentSessionId,
     parameters: unknown, value: unknown): boolean {
+    if ((this.executingDocumentCommands.get(documentId) ?? 0) > 0) return false;
+    if (!OBSERVED_STATE_ONLY_COMMANDS.has(command)) {
+      this.workspace.getDocument(documentId)?.markChanged();
+    }
     const recording = this.actionRecorder.snapshot();
     if (recording.status !== 'recording' || !recording.id) return false;
     const startedAt = Date.now();
@@ -496,6 +507,8 @@ export class LightTableCommandService {
         busy: document.history.busy,
         undoDepth: document.history.undoDepth,
         redoDepth: document.history.redoDepth,
+        undoLabel: document.history.undoLabel,
+        redoLabel: document.history.redoLabel,
         estimatedBytes: document.history.estimatedBytes,
         currentStateId: document.history.currentStateId
       },
@@ -651,7 +664,21 @@ export class LightTableCommandService {
       ? this.actionRecorder.snapshot().id
       : null;
     const parsed = this.parseRequest(requestValue);
-    const result = await this.executeCommand(requestValue);
+    const documentId = 'value' in parsed ? parsed.value.documentId : undefined;
+    if (documentId) {
+      this.executingDocumentCommands.set(documentId,
+        (this.executingDocumentCommands.get(documentId) ?? 0) + 1);
+    }
+    let result: LightTableCommandResult;
+    try {
+      result = await this.executeCommand(requestValue);
+    } finally {
+      if (documentId) {
+        const depth = (this.executingDocumentCommands.get(documentId) ?? 1) - 1;
+        if (depth > 0) this.executingDocumentCommands.set(documentId, depth);
+        else this.executingDocumentCommands.delete(documentId);
+      }
+    }
     if (!('rejection' in parsed) && context.recording === 'record') {
       this.actionRecorder.record(parsed.value, result, startedAt, recordingId, context.origin);
     }

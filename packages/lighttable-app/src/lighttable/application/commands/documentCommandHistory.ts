@@ -26,6 +26,8 @@ export interface DocumentCommandHistorySnapshot {
   readonly busy: boolean;
   readonly undoDepth: number;
   readonly redoDepth: number;
+  readonly undoLabel: string | null;
+  readonly redoLabel: string | null;
   readonly estimatedBytes: number;
   readonly currentStateId: number;
   readonly savedStateId: number;
@@ -252,6 +254,8 @@ export class DocumentCommandHistory {
       busy: this.busy,
       undoDepth: this.undoNodes.length,
       redoDepth: this.redoNodes.length,
+      undoLabel: this.undoNodes.at(-1)?.command.label ?? null,
+      redoLabel: this.redoNodes.at(-1)?.command.label ?? null,
       estimatedBytes,
       currentStateId: this.currentStateId,
       savedStateId: this.savedStateId,

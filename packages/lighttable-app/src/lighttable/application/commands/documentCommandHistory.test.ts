@@ -36,6 +36,8 @@ describe('DocumentCommandHistory', () => {
     expect(history.getSnapshot()).toMatchObject({
       canUndo: true,
       canRedo: false,
+      undoLabel: 'paint',
+      redoLabel: null,
       dirty: true
     });
     history.markSaved();
@@ -46,12 +48,18 @@ describe('DocumentCommandHistory', () => {
     expect(history.getSnapshot()).toMatchObject({
       canUndo: false,
       canRedo: true,
+      undoLabel: null,
+      redoLabel: 'paint',
       dirty: true
     });
 
     await history.redo();
     expect(calls).toEqual(['undo', 'redo']);
-    expect(history.getSnapshot().dirty).toBe(false);
+    expect(history.getSnapshot()).toMatchObject({
+      undoLabel: 'paint',
+      redoLabel: null,
+      dirty: false
+    });
   });
 
   it('keeps selection-only commands out of document dirty state', async () => {
