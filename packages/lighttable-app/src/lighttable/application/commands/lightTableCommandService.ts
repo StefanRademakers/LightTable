@@ -369,7 +369,9 @@ export class LightTableCommandService {
     const finished = await this.ports.finishGesture(
       gesture.documentId, gesture.kind, gesture.pointerId, commit
     );
-    if (finished && commit) this.workspace.getDocument(gesture.documentId)?.markChanged();
+    if (finished && commit && gesture.kind !== 'selection-rectangle') {
+      this.workspace.getDocument(gesture.documentId)?.markChanged();
+    }
     return finished
       ? { status: commit ? 'completed' : 'canceled', gestureId, sampleCount: gesture.sampleCount }
       : { status: 'rejected', message: 'The editor could not finish the gesture.' };

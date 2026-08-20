@@ -543,6 +543,13 @@ describe('LightTableCommandService registry', () => {
       await state.service.finishGesture(started.gestureId, true);
     }
     expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(2);
+    const selection = await state.service.beginGesture({ documentId: state.session.id,
+      kind: 'selection-rectangle', coordinateSpace: 'document', parameters: { mode: 'replace' },
+      sample: { x: 0, y: 0 } });
+    if (selection.status === 'started' && selection.gestureId) {
+      await state.service.finishGesture(selection.gestureId, true);
+    }
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(2);
     state.service.dispose();
     state.workspace.dispose();
   });
