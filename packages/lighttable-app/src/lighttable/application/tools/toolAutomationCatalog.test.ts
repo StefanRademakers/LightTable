@@ -14,6 +14,9 @@ describe('toolAutomationCatalog', () => {
       .toContain('tool.commitGesture:brush-stroke');
     expect(TOOL_AUTOMATION_CATALOG['shape-rectangle'].availability).toBe('ui-and-command');
     expect(TOOL_AUTOMATION_CATALOG['vector-pen'].availability).toBe('ui-and-command');
+    expect(TOOL_AUTOMATION_CATALOG['vector-direct-select'].availability).toBe('ui-and-command');
+    expect(TOOL_AUTOMATION_CATALOG['vector-add-anchor'].availability).toBe('ui-and-command');
+    expect(TOOL_AUTOMATION_CATALOG['vector-delete-anchor'].capabilities).toContain('vector.remove');
     expect(TOOL_AUTOMATION_CATALOG.warp.availability).toBe('canonical-owner-only');
     expect(TOOL_AUTOMATION_CATALOG['text-point'].availability).toBe('ui-and-command');
   });

@@ -30,7 +30,8 @@ const layerPaths = (layer: ReturnType<typeof findDocumentLayer>): VectorPath[] =
 
 const setup = (
   rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean,
-  onLiveShapeCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onLiveShapeCommitted']
+  onLiveShapeCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onLiveShapeCommitted'],
+  onPathMutationCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onPathMutationCommitted']
 ) => {
   let document = createImageDocument('Vector tools', 200, 100, 'asset');
   let selection: VectorEditorSelection = createVectorEditorSelection();
@@ -41,7 +42,7 @@ const setup = (
     pushDocumentHistory: (before, after) => history.push({ before, after }),
     getSelection: () => selection,
     setSelection: (next) => { selection = next; }
-  }, { ids: ids(), rasterizeShape, onLiveShapeCommitted });
+  }, { ids: ids(), rasterizeShape, onLiveShapeCommitted, onPathMutationCommitted });
   return {
     controller,
     history,
@@ -617,7 +618,8 @@ describe('VectorToolSessionController', () => {
   });
 
   it('adds and deletes anchors through exact one-shot point tools', () => {
-    const state = setup();
+    const onCommitted = vi.fn();
+    const state = setup(undefined, undefined, onCommitted);
     const layer = createVectorLayer([createVectorPath('path', 'Path', [
       createSubpath('subpath', [
         createAnchor('first', { x: 20, y: 20 }),
@@ -640,6 +642,28 @@ describe('VectorToolSessionController', () => {
     updated = findDocumentLayer(state.document, layer.id);
     expect(layerPaths(updated)[0]?.subpaths[0]?.anchors.map(({ id }) => id) ?? [])
       .toEqual(['first', 'second']);
+    expect(onCommitted).toHaveBeenCalledTimes(2);
+    expect(onCommitted.mock.calls.map(([result]) => result.path?.subpaths[0]?.anchors.length))
+      .toEqual([3, 2]);
+  });
+
+  it('records removal when Delete Point removes the final path anchor', () => {
+    const onCommitted = vi.fn();
+    const state = setup(undefined, undefined, onCommitted);
+    const path = createVectorPath('path', 'Path', [createSubpath('subpath', [
+      createAnchor('only', { x: 40, y: 30 })
+    ])]);
+    const layer = createVectorLayer([path]);
+    state.document.layers = [layer];
+    state.controller.activate('delete-anchor');
+
+    expect(state.controller.pointerDown(1, { x: 40, y: 30 }, { hitRadius: 3 })).toBe(true);
+    expect(state.history).toHaveLength(1);
+    expect(onCommitted).toHaveBeenCalledWith({
+      layerId: layer.id,
+      pathId: path.id,
+      path: null
+    });
   });
 
   it('auto-adds and deletes anchors while the base Pen tool is active', () => {
@@ -669,7 +693,8 @@ describe('VectorToolSessionController', () => {
   });
 
   it('converts an anchor click or drag as one transform-safe history command', () => {
-    const state = setup();
+    const onCommitted = vi.fn();
+    const state = setup(undefined, undefined, onCommitted);
     const path = createVectorPath('path', 'Path', [createSubpath('subpath', [
       createAnchor('first', { x: 20, y: 20 }, {
         mode: 'smooth',
@@ -701,6 +726,7 @@ describe('VectorToolSessionController', () => {
         handleOut: { x: 30, y: 30 },
         handleIn: { x: 10, y: 10 }
       });
+    expect(onCommitted).toHaveBeenCalledTimes(2);
   });
 
   it('resumes a transformed open path endpoint as one mutation transaction', () => {

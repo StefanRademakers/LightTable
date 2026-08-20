@@ -116,6 +116,9 @@ Existing foundation evidence
   or closed path commit, and resumed authoring publishes one `vector.update`.
   Anchors, Bezier handles, style and transform remain native; point placement,
   handle dragging and rubber-band previews remain local.
+- Add/Delete/Convert Point and committed Direct Selection geometry edits now
+  publish final `vector.update`/`vector.remove` operations. Hit testing,
+  selection, marquees and pointer previews remain local and unrecorded.
 
 Program definition of done
 ==========================

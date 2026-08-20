@@ -46,6 +46,7 @@ import {
   GradientToolController,
   type GradientToolSettingsSnapshot
 } from './GradientToolController';
+import type { VectorPathMutationCommit } from './vectorPathCommit';
 
 export type VectorToolMode = 'element-selection' | 'direct-selection' | 'pen' | 'live-shape' | 'gradient' | VectorPointToolMode;
 
@@ -70,6 +71,7 @@ export interface VectorToolSessionOptions {
     readonly layerName: string;
   }) => void;
   onPenPathCommitted?: PenToolControllerOptions['onCommitted'];
+  onPathMutationCommitted?: (result: VectorPathMutationCommit) => void;
 }
 
 export interface VectorPointerDownOptions extends LiveShapeDragOptions {
@@ -122,7 +124,9 @@ export class VectorToolSessionController {
     this.onLiveShapeCommitted = options.onLiveShapeCommitted;
     this.documentId = dependencies.getDocument()?.id ?? null;
     this.documents = new VectorDocumentController(() => this.dependencies);
-    this.directSelection = new DirectSelectionToolController(this.documents, dependencies);
+    this.directSelection = new DirectSelectionToolController(
+      this.documents, dependencies, options.onPathMutationCommitted
+    );
     this.elementSelection = new VectorElementSelectionToolController(this.documents, dependencies);
     this.pen = new PenToolController(this.documents, {
       ids: options.ids,
@@ -159,7 +163,8 @@ export class VectorToolSessionController {
     this.pointTools = new VectorPointToolController(
       this.documents,
       this.selectionCommands,
-      dependencies
+      dependencies,
+      options.onPathMutationCommitted
     );
   }
 

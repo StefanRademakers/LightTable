@@ -199,9 +199,24 @@ try {
       .filter((entry) => entry.textContent?.includes('vector.create')).length === 2;
   }, undefined, { timeout: 15_000 });
 
+  await window.keyboard.press('Shift+a');
+  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Direct selection' }).waitFor();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.18,
+    viewportBounds.y + viewportBounds.height * 0.2
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.21,
+    viewportBounds.y + viewportBounds.height * 0.23,
+    { steps: 12 }
+  );
+  await window.mouse.up();
+  await recorder.locator('li').filter({ hasText: 'vector.update' }).waitFor({ timeout: 15_000 });
+
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
-  for (let index = 0; index < 13; index += 1) {
+  for (let index = 0; index < 14; index += 1) {
     await window.getByRole('tab', { name: 'Actions', exact: true }).click();
     await panel.getByRole('radio', { name: 'Commands' }).click();
     const undo = panel.locator('details').filter({ hasText: 'history.undo' });
@@ -227,7 +242,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 13) throw new Error('Expected thirteen recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 14) throw new Error('Expected fourteen recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -256,6 +271,13 @@ try {
   const penStepText = await penStep.textContent();
   if (!penStepText?.includes('$step12.layerId')) {
     throw new Error(`Recorded Pen path was not bound to Rectangle layer result: ${penStepText}`);
+  }
+  const vectorUpdateStep = recorder.locator('li').filter({ hasText: 'vector.update' });
+  await vectorUpdateStep.locator('summary').click();
+  const vectorUpdateText = await vectorUpdateStep.textContent();
+  if (!vectorUpdateText?.includes('$step13.layerId')
+    || !vectorUpdateText.includes('$step13.elementId')) {
+    throw new Error(`Recorded Direct Selection edit was not bound to its Pen path: ${vectorUpdateText}`);
   }
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();

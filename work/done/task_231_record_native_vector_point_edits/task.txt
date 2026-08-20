@@ -1,0 +1,64 @@
+Task 231 - Record native vector point edits
+===========================================
+
+Goal
+====
+
+Record committed Direct Selection and Add/Delete/Convert Point edits as one
+faithful `vector.update`, while keeping hit testing, selection and every pointer
+preview local.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Reuse the existing path-mutation/document/history owner.
+- [x] Observe Add Point and Delete Point only after their one-shot commit.
+- [x] Observe Convert Point only after click or drag commit.
+- [x] Observe Direct Selection anchor, handle and segment drags after commit.
+- [x] Keep marquee selection, hit testing and pointer previews out of commands.
+- [x] Preserve exact layer/path ids, anchors, handles, style and transform.
+- [x] Add cancellation and no-op regression coverage.
+- [x] Add packaged Actions recording, undo and editable replay proof.
+- [x] Keep toolbar coverage and MCP examples truthful.
+- [x] Run type, contract, boundary, full app and packaged regression gates.
+
+Scope guard
+===========
+
+- No pointer move, hit-test result or marquee selection is remotely transported.
+- This task does not redesign vector selection state or path joining.
+- Replay remains a native path update; raster snapshots are not accepted.
+
+Completion contract
+===================
+
+Each successful point-edit gesture creates at most one semantic update after
+the existing history commit. Cancelled and selection-only interactions create
+none. Actions replay and direct command execution restore editable geometry.
+
+Completion evidence (2026-08-20)
+================================
+
+- Add/Delete Point publish one final native path observation; deletion of the
+  final anchor correctly becomes `vector.remove` rather than a fake update.
+- Convert Point click/drag and Direct Selection anchor/handle/segment drags use
+  the existing provisional mutation and publish only after its history commit.
+- Cancelled gestures, no-op clicks and marquee-only selection publish nothing.
+- Packaged Actions records a real twelve-sample Direct Selection drag as one
+  `vector.update`, binds it to the preceding generated Pen path, undoes fourteen
+  mixed operations and replays native editable geometry.
+- Packaged Agent Access executes `vector.update`; `vector.query` reads back the
+  changed anchor position, remaining path geometry and stroke.
+- Typecheck, command-contract and boundary checks, all 2,568 app tests, packaged
+  distribution verification and both desktop smokes pass.
+- Still outside this slice: keyboard nudges/mode changes on vector selections,
+  multi-path deletion recording, path joining, rendered-pixel equivalence and
+  proof through the externally deployed MCP tunnel.

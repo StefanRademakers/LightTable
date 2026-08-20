@@ -91,6 +91,9 @@ Current evidence (2026-08-20)
   records a real three-anchor gesture, binds its generated layer, undoes and
   replays editable path geometry. Packaged Agent Access creates a three-anchor
   path in an existing vector layer and reads the native anchors/style back.
+- Packaged Actions records and replays a real Direct Selection path edit using
+  bindings to the generated Pen layer/element. Packaged Agent Access executes
+  the same full-path update and queries the changed anchor position back.
 
 Still required for completion
 =============================

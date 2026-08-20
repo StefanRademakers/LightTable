@@ -31,15 +31,17 @@ const setup = () => {
     applyDocumentSnapshot: (next) => { document = next; },
     pushDocumentHistory: (before, after) => { history.push({ before, after }); }
   }));
+  const onCommitted = vi.fn();
   const controller = new DirectSelectionToolController(documents, {
     getDocument: () => document,
     getSelection: () => selection,
     setSelection: vi.fn((next) => { selection = next; })
-  });
+  }, onCommitted);
   return {
     controller,
     documents,
     history,
+    onCommitted,
     get document() { return document; },
     set document(next) { document = next; },
     get selection() { return selection; }
@@ -98,6 +100,12 @@ describe('DirectSelectionToolController', () => {
       : null;
     expect(committedPath?.subpaths[0]?.anchors[0]?.position.x).toBeCloseTo(12, 10);
     expect(committedPath?.subpaths[0]?.anchors[0]?.position.y).toBeCloseTo(9, 10);
+    expect(state.onCommitted).toHaveBeenCalledTimes(1);
+    expect(state.onCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      layerId: scene.layer.id,
+      pathId: scene.path.id,
+      path: expect.objectContaining({ id: scene.path.id })
+    }));
     expect(committedPath?.geometryRevision).toBeGreaterThan(endRevision);
     expect(state.history).toHaveLength(1);
   });
@@ -216,6 +224,19 @@ describe('DirectSelectionToolController', () => {
 
     expect(state.document).toBe(opening);
     expect(state.history).toHaveLength(0);
+    expect(state.onCommitted).not.toHaveBeenCalled();
+  });
+
+  it('does not publish a geometry command for a selection-only click', () => {
+    const state = setup();
+    const scene = transformedPath();
+    state.document.layers = [scene.group];
+    const point = transformPoint(scene.localToDocument, { x: 2, y: 3 });
+
+    expect(state.controller.pointerDown(point, { radius: 2 })).toBe(true);
+    expect(state.controller.pointerUp(point)).toBe(false);
+    expect(state.history).toHaveLength(0);
+    expect(state.onCommitted).not.toHaveBeenCalled();
   });
 
   it('does not leak an active drag into a newly activated document', () => {
@@ -250,6 +271,7 @@ describe('DirectSelectionToolController', () => {
     expect(state.controller.pointerUp({ x: first.x + 4, y: first.y + 4 })).toBe(true);
     expect(state.selection.anchors.map(({ anchorId }) => anchorId)).toEqual(['anchor']);
     expect(state.history).toHaveLength(0);
+    expect(state.onCommitted).not.toHaveBeenCalled();
   });
 
   it('restores the opening selection when a marquee gesture is cancelled', () => {

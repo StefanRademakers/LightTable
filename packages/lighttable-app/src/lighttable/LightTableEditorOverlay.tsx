@@ -3549,6 +3549,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         parameters,
         { layerId, elementId: path.id }
       );
+    },
+    onPathMutationCommitted: ({ layerId, pathId, path }) => {
+      commandService?.recordObservedCommand(
+        path ? 'vector.update' : 'vector.remove',
+        workspaceDocumentId as DocumentSessionId,
+        path ? observedVectorPathUpdateCommand(path, layerId) : { layerId, elementId: pathId },
+        { layerId, elementId: pathId }
+      );
     }
   });
   finishPenPathRef.current = () => {

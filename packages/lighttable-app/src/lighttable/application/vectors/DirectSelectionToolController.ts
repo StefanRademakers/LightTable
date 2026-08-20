@@ -19,6 +19,7 @@ import {
   type VectorPathSelectionReference
 } from '../../editor/session/editorSession';
 import { VectorDocumentController } from './VectorDocumentController';
+import { committedVectorPath, type VectorPathMutationCommit } from './vectorPathCommit';
 import {
   hitTestVectorDocument,
   vectorAnchorsInDocumentRect,
@@ -164,7 +165,8 @@ export class DirectSelectionToolController {
 
   constructor(
     private readonly documents: VectorDocumentController,
-    private readonly dependencies: DirectSelectionToolDependencies
+    private readonly dependencies: DirectSelectionToolDependencies,
+    private readonly onCommitted?: (result: VectorPathMutationCommit) => void
   ) {}
 
   pointerDown(documentPoint: Vec2, options: DirectSelectionPointerOptions) {
@@ -305,7 +307,11 @@ export class DirectSelectionToolController {
     this.pointerMove(documentPoint);
     this.gesture = null;
     if (gesture.kind === 'marquee') return true;
-    return this.documents.commitPathMutation();
+    const committed = this.documents.commitPathMutation();
+    if (committed) this.onCommitted?.(committedVectorPath(
+      this.dependencies.getDocument(), gesture.layerId, gesture.pathId
+    ));
+    return committed;
   }
 
   cancel() {

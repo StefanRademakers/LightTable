@@ -10,6 +10,7 @@ import type { VectorEditorSelection } from '../../editor/session/editorSession';
 import { VectorDocumentController } from './VectorDocumentController';
 import { VectorSelectionCommandController } from './VectorSelectionCommandController';
 import { hitTestVectorDocument } from './vectorSceneQueries';
+import { committedVectorPath, type VectorPathMutationCommit } from './vectorPathCommit';
 
 export type VectorPointToolMode = 'add-anchor' | 'delete-anchor' | 'convert-anchor';
 
@@ -65,7 +66,8 @@ export class VectorPointToolController {
   constructor(
     private readonly documents: VectorDocumentController,
     private readonly commands: VectorSelectionCommandController,
-    private readonly dependencies: VectorPointToolDependencies
+    private readonly dependencies: VectorPointToolDependencies,
+    private readonly onCommitted?: (result: VectorPathMutationCommit) => void
   ) {}
 
   pointerDown(
@@ -96,10 +98,11 @@ export class VectorPointToolController {
           target: { ...hit.target }
         }
       });
-      return {
-        handled: this.commands.insertAnchorAtActiveSegment(),
-        capture: false
-      };
+      const handled = this.commands.insertAnchorAtActiveSegment();
+      if (handled) this.onCommitted?.(committedVectorPath(
+        this.dependencies.getDocument(), hit.layerId, hit.pathId
+      ));
+      return { handled, capture: false };
     }
 
     if (hit.target.kind !== 'anchor') return { handled: false, capture: false };
@@ -110,7 +113,11 @@ export class VectorPointToolController {
       hit.target.anchorId
     ));
     if (mode === 'delete-anchor') {
-      return { handled: this.commands.deleteSelection(), capture: false };
+      const handled = this.commands.deleteSelection();
+      if (handled) this.onCommitted?.(committedVectorPath(
+        this.dependencies.getDocument(), hit.layerId, hit.pathId
+      ));
+      return { handled, capture: false };
     }
 
     const inverse = invertMatrix(hit.documentPath.transform);
@@ -156,7 +163,11 @@ export class VectorPointToolController {
       ));
     }
     this.convertGesture = null;
-    return this.documents.commitPathMutation();
+    const committed = this.documents.commitPathMutation();
+    if (committed) this.onCommitted?.(committedVectorPath(
+      this.dependencies.getDocument(), gesture.layerId, gesture.pathId
+    ));
+    return committed;
   }
 
   cancel() {

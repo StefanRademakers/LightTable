@@ -45,6 +45,8 @@ Completed vertical slices
 - native Rectangle/Ellipse/Triangle/Line creation observed after local commit.
 - native open/closed Pen path creation and resumed-path updates observed after
   local commit, with previews kept outside command transport.
+- native Add/Delete/Convert Point and Direct Selection geometry commits, with
+  selection-only and preview work kept outside command transport.
 
 Rules
 =====

@@ -165,6 +165,24 @@ try {
   if (agentPath.status !== 'completed' || !agentPath.value?.elementId) {
     throw new Error(`Agent Pen path creation failed: ${JSON.stringify(agentPath)}`);
   }
+  const agentPathUpdate = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-update-pen-path', command: 'vector.update', documentId: originalId,
+    commandParameters: {
+      layerId: badgeLayerId, elementId: agentPath.value.elementId, name: 'Agent Pen',
+      fillRule: 'nonzero', transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      subpaths: [{ closed: false, anchors: [
+        { x: 36, y: 40, handleOut: { x: 60, y: 22 }, mode: 'smooth' },
+        { x: 110, y: 80, handleIn: { x: 80, y: 95 }, mode: 'smooth' },
+        { x: 155, y: 45, mode: 'corner' }
+      ] }],
+      style: { fill: null, stroke: { paint: { type: 'solid', color: [1, 0.4, 0.1, 1] },
+        width: 6, alignment: 'center', cap: 'round', join: 'round', miterLimit: 4,
+        dash: [], dashOffset: 0 }, opacity: 0.9 }
+    }
+  });
+  if (agentPathUpdate.status !== 'completed') {
+    throw new Error(`Agent Pen path update failed: ${JSON.stringify(agentPathUpdate)}`);
+  }
   const selection = await invoke(address, token, 'command.execute', {
     commandRequestId: 'agent-select-badge', command: 'selection.applyShape', documentId: originalId,
     commandParameters: {
@@ -203,6 +221,7 @@ try {
   });
   const queriedPath = queriedBadge.elements?.find(({ id }) => id === agentPath.value.elementId);
   if (queriedPath?.type !== 'path' || queriedPath.subpaths?.[0]?.anchors?.length !== 3
+    || queriedPath.subpaths[0].anchors[0]?.position?.x !== 36
     || queriedPath.style?.stroke?.width !== 6) {
     throw new Error(`Agent Pen path query is incomplete: ${JSON.stringify(queriedPath)}`);
   }
