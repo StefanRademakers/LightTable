@@ -2178,6 +2178,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         type: `text.${entry.group}`,
         label: entry.group === 'composition' ? 'Compose text' : 'Edit text'
       });
+      if (entry.semanticReplacement) {
+        commandService?.recordObservedCommand(
+          'text.replaceRange',
+          workspaceDocumentId as DocumentSessionId,
+          entry.semanticReplacement,
+          { layerId: entry.semanticReplacement.layerId }
+        );
+      }
     }
   }));
   const textEditingController = textEditingControllerRef.current;

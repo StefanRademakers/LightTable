@@ -2,6 +2,7 @@ import type { TextLayerData } from '@lighttable/text-core';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { applyTextLayerDataMutation } from '../../editor/document/textLayerCommands';
+import { graphemeStops } from './flowTextEditing';
 
 export type TextEditGroupKind =
   | 'typing'
@@ -22,9 +23,42 @@ export interface TextEditHistoryEntry {
   readonly layerIds: readonly LayerId[];
   readonly resourceIds: readonly LayerId[];
   readonly group: TextEditGroupKind;
+  readonly semanticReplacement: TextEditSemanticReplacement | null;
   undo(): void;
   redo(): void;
 }
+
+export interface TextEditSemanticReplacement {
+  readonly layerId: LayerId;
+  readonly start: number;
+  readonly end: number;
+  readonly text: string;
+}
+
+export const describeTextReplacement = (
+  layerId: LayerId,
+  before: string,
+  after: string
+): TextEditSemanticReplacement | null => {
+  if (before === after) return null;
+  const beforeStops = graphemeStops(before);
+  const afterStops = graphemeStops(after);
+  const beforeCount = beforeStops.length - 1;
+  const afterCount = afterStops.length - 1;
+  let prefix = 0;
+  while (prefix < beforeCount && prefix < afterCount
+    && before.slice(beforeStops[prefix], beforeStops[prefix + 1])
+      === after.slice(afterStops[prefix], afterStops[prefix + 1])) prefix += 1;
+  let suffix = 0;
+  while (suffix < beforeCount - prefix && suffix < afterCount - prefix
+    && before.slice(beforeStops[beforeCount - suffix - 1], beforeStops[beforeCount - suffix])
+      === after.slice(afterStops[afterCount - suffix - 1], afterStops[afterCount - suffix])) suffix += 1;
+  const start = beforeStops[prefix] ?? before.length;
+  const end = beforeStops[beforeCount - suffix] ?? before.length;
+  const replacementStart = afterStops[prefix] ?? after.length;
+  const replacementEnd = afterStops[afterCount - suffix] ?? after.length;
+  return { layerId, start, end, text: after.slice(replacementStart, replacementEnd) };
+};
 
 export interface TextEditTransactionDependencies {
   getDocument(): ImageDocument | null;
@@ -113,10 +147,23 @@ export const createTextEditTransactionController = (
       const dependencies = resolveDependencies();
       const after = dependencies.getDocument();
       if (!completed.changed || after !== completed.latest) return false;
+      const beforeLayer = findDocumentLayer(completed.before, completed.layerId);
+      const afterLayer = findDocumentLayer(after, completed.layerId);
+      const semanticReplacement = beforeLayer?.type === 'text'
+        && beforeLayer.text.source.kind === 'flow'
+        && afterLayer?.type === 'text'
+        && afterLayer.text.source.kind === 'flow'
+        ? describeTextReplacement(
+          completed.layerId,
+          beforeLayer.text.source.text,
+          afterLayer.text.source.text
+        )
+        : null;
       dependencies.pushHistory({
         layerIds: [completed.layerId],
         resourceIds: [],
         group: completed.group,
+        semanticReplacement,
         undo: () => applyForDocument(completed.documentId, completed.before),
         redo: () => applyForDocument(completed.documentId, after)
       });

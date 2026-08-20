@@ -339,10 +339,26 @@ describe('LightTableCommandService action recording', () => {
     }]);
     expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
     expect(state.service.recordObservedCommand(
-      'vector.create', state.session.id, { name: 'Observed rectangle' },
-      { layerId: 'observed-layer', elementId: 'observed-element' }
+      'layer.setTransform', state.session.id, {
+        layerId: state.session.getSnapshot().document!.activeLayerId,
+        transform: { a: 1, b: 0, c: 0, d: 1, tx: 4, ty: 8 }
+      }, { layerId: state.session.getSnapshot().document!.activeLayerId }
     )).toBe(true);
     expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('refuses an invalid observed UI text commit before revision or recording publication', () => {
+    const state = setup();
+    state.service.startActionRecording('Invalid observed text');
+    expect(state.service.recordObservedCommand(
+      'text.replaceRange', state.session.id,
+      { layerId: 'text-layer', start: 9, end: 2, text: 'invalid' },
+      { layerId: 'text-layer' }
+    )).toBe(false);
+    expect(state.service.actionRecordingSnapshot().steps).toEqual([]);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
     state.service.dispose();
     state.workspace.dispose();
   });

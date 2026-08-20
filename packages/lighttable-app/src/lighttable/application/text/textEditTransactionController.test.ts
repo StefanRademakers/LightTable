@@ -1,10 +1,11 @@
 import { createDefaultFlowTextSource, createDefaultTextLayerData } from '@lighttable/text-core';
 import { describe, expect, it } from 'vitest';
 import { createTextLayer, setLayerLock } from '../../editor/document/documentCommands';
-import { createImageDocument, type ImageDocument } from '../../editor/document/documentTypes';
+import { createImageDocument, type ImageDocument, type LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   createTextEditTransactionController,
+  describeTextReplacement,
   TEXT_EDIT_COALESCING_RULES,
   type TextEditHistoryEntry
 } from './textEditTransactionController';
@@ -57,6 +58,9 @@ describe('text edit transaction controller', () => {
     expect(state.history).toHaveLength(1);
     expect(state.history[0].group).toBe('typing');
     expect(state.history[0].resourceIds).toEqual([]);
+    expect(state.history[0].semanticReplacement).toEqual({
+      layerId: id, start: 1, end: 4, text: 'ype'
+    });
 
     state.history[0].undo();
     const undone = findDocumentLayer(state.document, id);
@@ -68,6 +72,13 @@ describe('text edit transaction controller', () => {
     expect(redone?.type === 'text' && redone.text.source.kind === 'flow'
       ? redone.text.source.text
       : null).toBe('Type');
+  });
+
+  it('describes replacements only on complete grapheme boundaries', () => {
+    expect(describeTextReplacement('layer' as LayerId,
+      'A🧑‍🎨Z', 'A🧑‍🚀Z')).toEqual({
+      layerId: 'layer', start: 1, end: 6, text: '🧑‍🚀'
+    });
   });
 
   it('uses explicit composition boundaries and cancel restores the exact snapshot', () => {

@@ -133,6 +133,8 @@ const strictRenderPolicy = {
   maximumP95PixelDelta: 0,
   maximumChangedPixelRatioAt16: 0
 };
+const highFrequencyText = 'Agent native typing remains local. '.repeat(6);
+const composedText = '編集🧪';
 
 try {
   app = await electron.launch({
@@ -214,6 +216,14 @@ try {
   await window.mouse.click(bounds.x + bounds.width * 0.28, bounds.y + bounds.height * 0.72);
   const textInput = window.getByRole('textbox', { name: /^Edit / });
   await textInput.waitFor({ state: 'attached' });
+  await textInput.pressSequentially(highFrequencyText);
+  await textInput.evaluate((input, text) => {
+    input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+    input.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: '編' }));
+    input.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: text }));
+    input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: text }));
+  }, composedText);
+  await waitForRecorded('text.replaceRange', 2);
   await textInput.press('Escape');
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await waitForRecorded('text.create')
@@ -244,7 +254,8 @@ try {
   const recording = await driver.queryActionRecording();
   const commands = recording.steps.filter(({ replayable }) => replayable).map(({ command }) => command);
   for (const command of [
-    'vector.create', 'layer.setTransform', 'layer.rename', 'text.create', 'text.format', 'file.exportPng'
+    'vector.create', 'layer.setTransform', 'layer.rename', 'text.create', 'text.replaceRange',
+    'text.format', 'file.exportPng'
   ]) {
     assert.ok(commands.includes(command), `UI recording omitted ${command}: ${commands.join(', ')}`);
   }
@@ -253,6 +264,15 @@ try {
   assert.ok(exportStep.result.artifact.byteLength > 0, 'UI export artifact was empty.');
   await access(uiExportPath);
   const formatStep = recording.steps.find(({ command }) => command === 'text.format');
+  const replacementSteps = recording.steps.filter(({ command }) => command === 'text.replaceRange');
+  assert.equal(replacementSteps.length, 2,
+    `Typing and IME should publish two commits, not per-input commands: ${replacementSteps.length}`);
+  assert.deepEqual(replacementSteps.map(({ parameters }) => parameters.text),
+    [highFrequencyText, composedText]);
+  for (const step of replacementSteps) {
+    assert.ok(step.parameters.layerId?.$lighttableResult,
+      'Recorded text replacement did not bind to the generated text layer.');
+  }
   assert.ok(formatStep.parameters.layerId?.$lighttableResult,
     'Recorded text formatting did not bind to the generated text layer.');
   const uiUndoRedo = await assertUndoRedoRoundtrip({
@@ -379,6 +399,12 @@ try {
   await writeFile(path.join(output, 'evidence.json'), JSON.stringify({
     claim: 'one bounded shape/text workflow only; not whole-application equivalence',
     commands,
+    textInputEvidence: {
+      inputCharacters: highFrequencyText.length,
+      compositionUpdates: 2,
+      semanticReplacementCommands: replacementSteps.length,
+      finalText: `${highFrequencyText}${composedText}`
+    },
     resultBinding: formatStep.parameters.layerId,
     undoRedo: { ui: uiUndoRedo, actions: actionsUndoRedo, mcp: mcpUndoRedo },
     states: normalizedStates,

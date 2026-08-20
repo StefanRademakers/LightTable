@@ -78,6 +78,20 @@ describe('flow text editing session', () => {
     expect(state.controller.getSnapshot().selection.focus).toBe(1);
   });
 
+  it('keeps high-frequency typing local until one semantic commit boundary', () => {
+    const state = setup('');
+    const id = state.document.activeLayerId!;
+    const text = 'agent-native-'.repeat(20);
+    state.controller.begin(id);
+    for (const character of text) state.controller.insert(character);
+    expect(state.history).toHaveLength(0);
+    expect(state.controller.checkpoint()).toBe(true);
+    expect(state.history).toHaveLength(1);
+    expect(state.history[0].semanticReplacement).toEqual({
+      layerId: id, start: 0, end: 0, text
+    });
+  });
+
   it('replaces intermediate IME updates inside one composition history group', () => {
     const state = setup('A');
     const id = state.document.activeLayerId!;

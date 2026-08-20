@@ -31,6 +31,7 @@ import {
 } from './lightTableCommandContract';
 import { parseSemanticTextCommand } from './semanticTextCommandContract';
 import { parseSemanticVectorCommand } from './semanticVectorCommandContract';
+import { observedCommandParametersAreValid } from './observedCommandValidation';
 import { dispatchSemanticWarpStroke } from './semanticWarpCommandHandler';
 import { dispatchSemanticFill } from './semanticFillCommandHandler';
 import { dispatchSemanticAdjustmentCreation, dispatchSemanticFixedTransform,
@@ -94,6 +95,7 @@ export { LightTableCommandPortRegistry } from './lightTableCommandPortRegistry';
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
+
 const AUTOMATION_GESTURE_LEASE_MS = 30_000;
 const ACTION_TASK_TIMEOUT_MS = 120_000;
 const OBSERVED_STATE_ONLY_COMMANDS = new Set<LightTableCommandId>([
@@ -334,6 +336,7 @@ export class LightTableCommandService {
   recordObservedCommand(command: LightTableCommandId, documentId: DocumentSessionId,
     parameters: unknown, value: unknown): boolean {
     if ((this.executingDocumentCommands.get(documentId) ?? 0) > 0) return false;
+    if (!observedCommandParametersAreValid(command, parameters)) return false;
     if (!OBSERVED_STATE_ONLY_COMMANDS.has(command)) {
       this.workspace.getDocument(documentId)?.markChanged();
     }

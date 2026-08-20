@@ -102,6 +102,19 @@ Current evidence (2026-08-20)
 - The document query now exposes only the bounded next `undoLabel` and
   `redoLabel`, not an unbounded history stack, so agents can verify the logical
   operation before navigating history.
+- Native textarea input and IME now retain the existing low-latency local
+  editing path: transient input updates never call the command service. At the
+  existing typing/composition transaction boundary, LightTable derives one
+  grapheme-safe minimal `text.replaceRange` and records that committed result.
+  Invalid observed replacements fail parsing before recording or revision
+  publication.
+- The packaged three-route workflow types 210 ordinary characters and applies
+  two intermediate IME updates ending in `編集🧪`. Those interactions publish
+  exactly two replacement commands (one typing group and one composition),
+  not a command per key/update. UI, Actions and external MCP end with the same
+  214-unit editable text, seven Undo entries and pixel-exact rendered/exported
+  output. Unit coverage also coalesces 260 sequential inserts into one history
+  and semantic replacement.
 
 - Layer duplicate/delete/move/blend/clipping/visibility/locks have a real
   UI-origin, Actions and MCP canonical-state/history equivalence harness.
@@ -197,8 +210,6 @@ Current evidence (2026-08-20)
 Still required for completion
 =============================
 
-- high-frequency typing/IME recording and text failure equivalence across all
-  three routes;
 - equivalent stale-revision and invalid-parameter failure evidence at every
   real route boundary.
 - expand rendered comparison beyond the now-proven rectangle/text workflow to
