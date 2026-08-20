@@ -305,6 +305,34 @@ try {
       openArtifactContract, placeArtifactContract
     })}`);
   }
+  const adjustmentCreateContract = (await call('lighttable_commands', { command: 'adjustment.create' }))
+    .structuredContent.commands?.[0]?.contract;
+  const autoAlignContract = (await call('lighttable_commands', { command: 'layer.autoAlign' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (adjustmentCreateContract?.status !== 'complete'
+    || adjustmentCreateContract.schemaVersion !== 1
+    || !adjustmentCreateContract.input?.oneOf
+    || adjustmentCreateContract.input?.$defs?.visibleKind?.enum?.includes('vibrance')
+    || autoAlignContract?.status !== 'complete' || autoAlignContract.schemaVersion !== 1
+    || !autoAlignContract.input?.properties?.referenceLayerId
+    || autoAlignContract.result?.properties?.confidence
+    || autoAlignContract.result?.properties?.correctionMatrix) {
+    throw new Error(`MCP adjustment/Auto Align discovery is incomplete or leaks internals: ${JSON.stringify({
+      adjustmentCreateContract, autoAlignContract
+    })}`);
+  }
+  for (const [command, parameters] of [
+    ['adjustment.create', { kind: 'threshold', placement: 'local', layerId: before.activeLayerId }],
+    ['adjustment.create', { kind: 'curves', placement: 'adjustment-layer',
+      layerId: before.activeLayerId }],
+    ['layer.autoAlign', { referenceLayerId: 'reference', targetLayerId: 'target',
+      confidence: 0.99 }]
+  ]) {
+    const invalid = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+      documentId, command, parameters
+    } });
+    if (!invalid.isError) throw new Error(`MCP ${command} admitted invalid/private state.`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },

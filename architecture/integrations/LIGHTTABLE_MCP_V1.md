@@ -153,14 +153,17 @@ entry remains. Both the local Commands view and the read-only
 These signatures remain legacy discovery metadata while commands are promoted
 category by category to versioned JSON Schema modules under
 [`packages/command-contract/schemas/`](../../packages/command-contract/schemas/).
-The first complete layer slices cover rename, visibility, fill opacity, blend
+The complete layer slices cover rename, visibility, fill opacity, blend
 mode, lock, duplicate, Layer via Copy, delete, move and clipping input/result
 contracts. The complete Text slice adds point, paragraph and native Path Text
 creation plus range replacement, conditional character/paragraph formatting
-and layout. View zoom, Undo/Redo, task cancellation and native/PNG/PSD export
-also have closed contracts: export results carry bounded opaque metadata and
-never paths, bytes or Base64. Separate layer, layer-structure, text, view,
-history, task and artifact modules keep this from
+and layout. Adjustment creation and Auto Align now also have closed contracts.
+Auto Align exposes only stable target IDs and whether geometry changed; estimator
+model, confidence, diagnostics, preview reuse and correction matrices remain
+inside the application. View zoom, Undo/Redo, task cancellation and
+native/PNG/PSD export also have closed contracts: export results carry bounded
+opaque metadata and never paths, bytes or Base64. Separate layer,
+layer-structure, text, adjustment, alignment, view, history, task and artifact modules keep this from
 becoming one registry file; the generator discovers schema modules instead of
 maintaining another central import list. The local Commands editor recursively
 generates bounded nested fields and explicit optional groups without a free-form
@@ -303,8 +306,8 @@ typed tool execution.
 The original document/asset/text/vector/style/batch/task slices are now
 implemented. Expand only through the shared command service, prioritizing:
 
-1. layer transforms, reparenting and alignment with explicit coordinate space;
-2. selections, masks and their editable properties;
+1. layer reparenting with explicit insertion semantics;
+2. richer selection and mask properties;
 3. Grade/Lens Fx and non-basic adjustment mutation semantics;
 4. remaining tool operations that can be expressed deterministically;
 5. richer structural and visual inspection for reference-image reconstruction;

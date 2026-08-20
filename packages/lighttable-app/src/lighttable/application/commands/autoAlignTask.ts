@@ -9,6 +9,13 @@ import { parseSemanticAutoAlignCommand, type SemanticAutoAlignCommand }
 type AutoAlignTaskStart = { readonly taskId: string }
   | { readonly error: 'invalid-parameters' | 'command-unavailable' | 'execution-failed'; readonly message: string };
 
+const semanticAutoAlignResult = (command: SemanticAutoAlignCommand, value: unknown) => ({
+  changed: !(typeof value === 'object' && value !== null
+    && 'changed' in value && value.changed === false),
+  referenceLayerId: command.referenceLayerId,
+  targetLayerId: command.targetLayerId
+});
+
 const startAutoAlignTask = (
   session: DocumentSession,
   ports: LightTableCommandPorts,
@@ -19,9 +26,9 @@ const startAutoAlignTask = (
   const name = 'Auto Align';
   const running = session.tasks.run('automation', name, async (task) => {
     events.append(task.id, 'running', { progress: 0, message: name });
-    const value = await ports.executeAutoAlign!(session.id, command, task.signal);
+    const internalValue = await ports.executeAutoAlign!(session.id, command, task.signal);
     task.throwIfCanceled();
-    return value;
+    return semanticAutoAlignResult(command, internalValue);
   }, { replace: false });
   const taskId = session.tasks.getSnapshot().activeTaskIds.at(-1) ?? null;
   if (!taskId) return null;

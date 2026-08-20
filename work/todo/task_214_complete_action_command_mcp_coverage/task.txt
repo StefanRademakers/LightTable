@@ -222,6 +222,9 @@ Existing foundation evidence
   bounded rendering, undid cleanly and replayed through Actions. External MCP
   separately proved discovery, rejection without mutation and complete effect-
   stack add/update/toggle/move/query/remove execution.
+- Adjustment creation and Auto Align now also publish modular version-1 schemas.
+  Auto Align records only changed state and stable layer IDs; estimator model,
+  confidence, diagnostics, preview reuse and matrices stay internal.
 
 Program definition of done
 ==========================

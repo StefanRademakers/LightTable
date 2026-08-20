@@ -195,6 +195,10 @@ Current evidence (2026-08-20)
   The external MCP smoke rejects host paths/Base64/private options, executes the
   packaged viewport owner and produces real native/PNG/PSD artifacts through the
   existing task and renderer owners.
+- Adjustment creation now has one conditional schema for the exact visible-kind
+  catalog and its local, attached and standalone placement rules. Auto Align has
+  a separate two-target schema; completion is normalized to changed state and
+  stable layer IDs so estimator internals cannot enter saved Actions or MCP.
 
 Still required for completion
 =============================

@@ -286,8 +286,13 @@ describe('LightTableCommandService action recording', () => {
     expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
       command: 'layer.autoAlign', outcome: 'accepted', replayable: true,
       parameters: { referenceLayerId, targetLayerId },
-      result: { taskId: accepted.taskId, changed: true }
+      result: { taskId: accepted.taskId, changed: true, referenceLayerId, targetLayerId }
     }]);
+    const recordedResult = state.service.actionRecordingSnapshot().steps[0]?.result;
+    expect(recordedResult).not.toHaveProperty('model');
+    expect(recordedResult).not.toHaveProperty('confidence');
+    expect(recordedResult).not.toHaveProperty('correctionMatrix');
+    expect(recordedResult).not.toHaveProperty('previewReused');
 
     await state.service.playActionRecording();
 

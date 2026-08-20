@@ -45,7 +45,8 @@ test('every external MCP command is enforced by the downstream Agent Access prof
 test('external semantic contracts do not bind replaceable implementation identities', () => {
   const forbidden = new Set([
     'modelId', 'backend', 'expectedBackend', 'candidate', 'tensor', 'graphNames',
-    'artifactRevision', 'preprocessingRevision', 'maskBytes', 'pointerId'
+    'artifactRevision', 'preprocessingRevision', 'maskBytes', 'pointerId',
+    'previewReused', 'correctionMatrix', 'diagnostics', 'algorithm'
   ]);
   const visit = (value, command, path = '') => {
     if (!value || typeof value !== 'object') return;
@@ -72,11 +73,13 @@ test('current remote rollout remains a strict subset of the application command 
 
 test('versioned schemas describe and validate every completed command vertical', () => {
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
+    'adjustment.create',
     'file.exportNative',
     'file.exportPng',
     'file.exportPsd',
     'file.openArtifact',
     'layer.placeArtifact',
+    'layer.autoAlign',
     'raster.invert',
     'text.convertToShape',
     'text.rasterize',
@@ -583,4 +586,46 @@ test('export schemas return bounded opaque metadata with command-specific kinds'
       path: 'layers[0]', message: 'Face Warp was baked.'
     }] }
   }).valid, true);
+});
+
+test('adjustment creation schemas preserve exact placement semantics', () => {
+  const create = LIGHTTABLE_COMMAND_SCHEMAS['adjustment.create'];
+  for (const example of LIGHTTABLE_COMMAND_EXAMPLES['adjustment.create']) {
+    assert.equal(validateJsonSchemaValue(create.input, example).valid, true);
+  }
+  for (const invalid of [
+    { kind: 'threshold', placement: 'local', layerId: 'photo' },
+    { kind: 'grade', placement: 'local' },
+    { kind: 'curves', placement: 'attached', layerId: 'photo', aboveLayerId: 'anchor' },
+    { kind: 'curves', placement: 'adjustment-layer', layerId: 'photo' },
+    { kind: 'vibrance', placement: 'adjustment-layer' },
+    { kind: 'grade', placement: 'local', layerId: 'photo', panelState: {} }
+  ]) assert.equal(validateJsonSchemaValue(create.input, invalid).valid, false, JSON.stringify(invalid));
+  assert.equal(validateJsonSchemaValue(create.result, {
+    kind: 'grade', placement: 'local', layerId: 'photo'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(create.result, {
+    kind: 'threshold', placement: 'attached', layerId: 'photo', adjustmentId: 'adjustment-1'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(create.result, {
+    kind: 'curves', placement: 'adjustment-layer', layerId: 'curves-1'
+  }).valid, true);
+});
+
+test('Auto Align schema exposes semantic targets and outcome, not estimator state', () => {
+  const align = LIGHTTABLE_COMMAND_SCHEMAS['layer.autoAlign'];
+  assert.equal(validateJsonSchemaValue(align.input, {
+    referenceLayerId: 'reference', targetLayerId: 'target'
+  }).valid, true);
+  for (const privateField of ['model', 'confidence', 'diagnostics', 'correctionMatrix', 'previewReused']) {
+    assert.equal(validateJsonSchemaValue(align.input, {
+      referenceLayerId: 'reference', targetLayerId: 'target', [privateField]: true
+    }).valid, false, privateField);
+  }
+  assert.equal(validateJsonSchemaValue(align.result, {
+    changed: true, referenceLayerId: 'reference', targetLayerId: 'target'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(align.result, {
+    changed: true, referenceLayerId: 'reference', targetLayerId: 'target', confidence: 0.98
+  }).valid, false);
 });

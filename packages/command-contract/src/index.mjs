@@ -7,7 +7,11 @@ import parameterProperties from '../parameter-properties.json' with { type: 'jso
 
 import commandExamples from '../examples.json' with { type: 'json' };
 
+import adjustmentCreationCommandSchemas from '../schemas/v1/adjustment-creation.json' with { type: 'json' };
+
 import artifactCommandSchemas from '../schemas/v1/artifact.json' with { type: 'json' };
+
+import autoAlignCommandSchemas from '../schemas/v1/auto-align.json' with { type: 'json' };
 
 import finalizationCommandSchemas from '../schemas/v1/finalization.json' with { type: 'json' };
 
@@ -142,7 +146,9 @@ export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);
 export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = 1;
 
 export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
+  ...schemaModuleCommands(adjustmentCreationCommandSchemas),
   ...schemaModuleCommands(artifactCommandSchemas),
+  ...schemaModuleCommands(autoAlignCommandSchemas),
   ...schemaModuleCommands(finalizationCommandSchemas),
   ...schemaModuleCommands(gradeBasicCommandSchemas),
   ...schemaModuleCommands(historyCommandSchemas),

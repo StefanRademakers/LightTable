@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "category": "effects",
+  "$defs": {
+    "layerId": { "type": "string", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+    "visibleKind": {
+      "type": "string",
+      "enum": [
+        "grade", "lens-fx", "color-vibrance", "brightness-contrast", "levels",
+        "curves", "exposure", "hue-saturation", "color-balance", "black-white",
+        "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
+        "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain"
+      ]
+    },
+    "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] }
+  },
+  "commands": {
+    "adjustment.create": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "placement"],
+        "properties": {
+          "kind": { "$ref": "#/$defs/visibleKind" },
+          "placement": { "type": "string", "enum": ["local", "attached", "adjustment-layer"] },
+          "layerId": { "$ref": "#/$defs/layerId" },
+          "aboveLayerId": { "$ref": "#/$defs/layerId" }
+        },
+        "oneOf": [
+          {
+            "type": "object", "required": ["kind", "placement", "layerId"],
+            "properties": {
+              "kind": { "$ref": "#/$defs/localKind" },
+              "placement": { "const": "local" }
+            },
+            "not": { "type": "object", "required": ["aboveLayerId"] }
+          },
+          {
+            "type": "object", "required": ["kind", "placement", "layerId"],
+            "properties": { "placement": { "const": "attached" } },
+            "not": { "type": "object", "required": ["aboveLayerId"] }
+          },
+          {
+            "type": "object", "required": ["kind", "placement"],
+            "properties": { "placement": { "const": "adjustment-layer" } },
+            "not": { "type": "object", "required": ["layerId"] }
+          }
+        ]
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "placement", "layerId"],
+        "properties": {
+          "kind": { "$ref": "#/$defs/visibleKind" },
+          "placement": { "type": "string", "enum": ["local", "attached", "adjustment-layer"] },
+          "layerId": { "$ref": "#/$defs/layerId" },
+          "adjustmentId": { "type": "string", "minLength": 1, "maxLength": 512 }
+        },
+        "oneOf": [
+          {
+            "type": "object", "required": ["kind", "placement", "layerId"],
+            "properties": { "kind": { "$ref": "#/$defs/localKind" }, "placement": { "const": "local" } },
+            "not": { "type": "object", "required": ["adjustmentId"] }
+          },
+          {
+            "type": "object", "required": ["kind", "placement", "layerId", "adjustmentId"],
+            "properties": { "placement": { "const": "attached" } }
+          },
+          {
+            "type": "object", "required": ["kind", "placement", "layerId"],
+            "properties": { "placement": { "const": "adjustment-layer" } },
+            "not": { "type": "object", "required": ["adjustmentId"] }
+          }
+        ]
+      }
+    }
+  }
+}
