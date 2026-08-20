@@ -248,6 +248,36 @@ try {
     || queriedPath.style?.stroke?.width !== 6) {
     throw new Error(`Agent Pen path query is incomplete: ${JSON.stringify(queriedPath)}`);
   }
+  const pathTextCreated = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-create-path-text', command: 'text.create', documentId: originalId,
+    commandParameters: {
+      mode: 'path', text: 'Agent path label', name: 'Agent Path Label',
+      origin: { x: 36, y: 40 }, writingMode: 'horizontal-tb',
+      path: { layerId: badgeLayerId, elementId: agentPath.value.elementId,
+        subpathId: queriedPath.subpaths[0].id, startOffset: 12, side: 'right',
+        upright: false, direction: 'reverse' },
+      style: { fontSize: 28, fill: { enabled: true, color: '#f5f5f5' } }
+    }
+  });
+  const pathTextLayerId = pathTextCreated.status === 'completed'
+    ? pathTextCreated.value?.layerId : null;
+  if (!pathTextLayerId) {
+    throw new Error(`Agent Path Text creation failed: ${JSON.stringify(pathTextCreated)}`);
+  }
+  const queriedPathText = await invoke(address, token, 'text.query', {
+    documentId: originalId, layerId: pathTextLayerId
+  });
+  if (queriedPathText.content?.text !== 'Agent path label'
+    || queriedPathText.layout?.mode !== 'path'
+    || queriedPathText.layout.pathLayerId !== badgeLayerId
+    || queriedPathText.layout.pathElementId !== agentPath.value.elementId
+    || queriedPathText.layout.pathSubpathId !== queriedPath.subpaths[0].id
+    || queriedPathText.layout.startOffset !== 12
+    || queriedPathText.layout.side !== 'right'
+    || queriedPathText.layout.upright !== false
+    || queriedPathText.layout.direction !== 'reverse') {
+    throw new Error(`Agent Path Text query is incomplete: ${JSON.stringify(queriedPathText)}`);
+  }
   const activeBeforeMask = (await invoke(address, token, 'document.query', {
     documentId: originalId
   })).activeLayerId;

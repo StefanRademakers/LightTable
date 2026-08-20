@@ -36,6 +36,13 @@ export interface PathTextCreationTarget {
   readonly pathSubpathId: string;
 }
 
+export interface PathTextLayoutOptions {
+  readonly startOffset: number;
+  readonly side: 'left' | 'right';
+  readonly upright: boolean;
+  readonly direction: 'forward' | 'reverse';
+}
+
 export type PathTextCreationTargetResolution =
   | { readonly kind: 'resolved'; readonly target: PathTextCreationTarget }
   | { readonly kind: 'none' | 'ambiguous' | 'live-shape' | 'ambiguous-subpath' };
@@ -461,7 +468,13 @@ export const createPathTextDocument = (
   target: PathTextCreationTarget,
   settings: TextToolSettings,
   font: DocumentFontAsset,
-  foregroundColor: string
+  foregroundColor: string,
+  layout: PathTextLayoutOptions = {
+    startOffset: 0,
+    side: 'left',
+    upright: true,
+    direction: 'forward'
+  }
 ): ImageDocument => {
   if (request.documentId !== document.id) return document;
   const layer = findLayerNode(document.layers, target.pathLayerId)?.node;
@@ -476,10 +489,10 @@ export const createPathTextDocument = (
       pathLayerId: target.pathLayerId,
       pathElementId: target.pathElementId,
       pathSubpathId: target.pathSubpathId,
-      startOffset: 0,
-      side: 'left',
-      upright: true,
-      direction: 'forward'
+      startOffset: layout.startOffset,
+      side: layout.side,
+      upright: layout.upright,
+      direction: layout.direction
     },
     settings,
     font,

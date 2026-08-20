@@ -167,7 +167,8 @@ import {
   textCreationKind
 } from './application/text/pointTextCreation';
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
-import { executeSemanticTextCommand, paragraphTextCreateCommand, pointTextCreateCommand,
+import { executeSemanticTextCommand, paragraphTextCreateCommand, pathTextCreateCommand,
+  pointTextCreateCommand,
   semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
 import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
@@ -3942,9 +3943,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const pathTarget = pathTextCreationTargetRef.current;
     pathTextCreationTargetRef.current = null;
     if (!request || !before || !font || request.documentId !== before.id) return false;
-    if (!pathTarget && commandService) {
-      const execution = executeRegisteredCommand('text.create', pointTextCreateCommand(request,
-        editorSession.text, font, editorSession.brush.color, editorSession.activeTool === 'text-vertical'));
+    if (commandService) {
+      const command = pathTarget
+        ? pathTextCreateCommand(
+            request, pathTarget, editorSession.text, font, editorSession.brush.color
+          )
+        : pointTextCreateCommand(request, editorSession.text, font,
+            editorSession.brush.color, editorSession.activeTool === 'text-vertical');
+      const execution = executeRegisteredCommand('text.create', command);
       void execution?.then((result) => {
         if (beginEditing && result.status === 'completed') {
           const layerId = (result.value as { layerId?: LayerId }).layerId;

@@ -128,6 +128,53 @@ try {
   if (magicWand?.value?.layerId !== layerId || magicWand.value.mode !== 'replace') {
     throw new Error(`MCP Magic Wand command failed: ${JSON.stringify(magicWand)}`);
   }
+  const mcpPath = (await call('lighttable_execute', {
+    documentId, command: 'vector.create', parameters: {
+      name: 'MCP Path Text curve', fillRule: 'nonzero',
+      subpaths: [{ id: 'mcp-path-text-subpath', closed: false, anchors: [
+        { x: 40, y: 220, handleOut: { x: 100, y: 170 }, mode: 'smooth' },
+        { x: 220, y: 190, handleIn: { x: 155, y: 235 }, mode: 'smooth' },
+        { x: 360, y: 230, mode: 'corner' }
+      ] }],
+      style: { fill: null, stroke: { paint: { type: 'solid', color: [1, 1, 1, 1] },
+        width: 3, alignment: 'center', cap: 'round', join: 'round', miterLimit: 4,
+        dash: [], dashOffset: 0 }, opacity: 1 }
+    }
+  })).structuredContent;
+  if (mcpPath?.status !== 'completed' || !mcpPath.value?.layerId || !mcpPath.value?.elementId) {
+    throw new Error(`MCP Path Text curve creation failed: ${JSON.stringify(mcpPath)}`);
+  }
+  const mcpVector = (await call('lighttable_vector', {
+    documentId, layerId: mcpPath.value.layerId
+  })).structuredContent;
+  const mcpPathElement = mcpVector.elements?.find(({ id }) => id === mcpPath.value.elementId);
+  if (mcpPathElement?.subpaths?.[0]?.id !== 'mcp-path-text-subpath') {
+    throw new Error(`MCP vector query lost the Path Text target: ${JSON.stringify(mcpVector)}`);
+  }
+  const mcpPathText = (await call('lighttable_execute', {
+    documentId, command: 'text.create', parameters: {
+      mode: 'path', text: 'MCP path label', name: 'MCP Path Label',
+      origin: { x: 40, y: 220 }, writingMode: 'horizontal-tb',
+      path: { layerId: mcpPath.value.layerId, elementId: mcpPath.value.elementId,
+        subpathId: 'mcp-path-text-subpath', startOffset: 18, side: 'right',
+        upright: false, direction: 'reverse' },
+      style: { fontSize: 26, fill: { enabled: true, color: '#ffffff' } }
+    }
+  })).structuredContent;
+  if (mcpPathText?.status !== 'completed' || !mcpPathText.value?.layerId) {
+    throw new Error(`MCP Path Text creation failed: ${JSON.stringify(mcpPathText)}`);
+  }
+  const mcpText = (await call('lighttable_text', {
+    documentId, layerId: mcpPathText.value.layerId
+  })).structuredContent;
+  if (mcpText.content?.text !== 'MCP path label' || mcpText.layout?.mode !== 'path'
+    || mcpText.layout.pathLayerId !== mcpPath.value.layerId
+    || mcpText.layout.pathElementId !== mcpPath.value.elementId
+    || mcpText.layout.pathSubpathId !== 'mcp-path-text-subpath'
+    || mcpText.layout.startOffset !== 18 || mcpText.layout.side !== 'right'
+    || mcpText.layout.upright !== false || mcpText.layout.direction !== 'reverse') {
+    throw new Error(`MCP Path Text query is incomplete: ${JSON.stringify(mcpText)}`);
+  }
   const gesture = (await call('lighttable_gesture_begin', { documentId, kind: 'brush-stroke',
     coordinateSpace: 'document', parameters: { layerId, channel: 'pixels' },
     sample: { x: 80, y: 80, pressure: 1 } })).structuredContent;

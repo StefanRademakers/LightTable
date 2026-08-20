@@ -79,3 +79,7 @@ Current evidence (2026-08-20)
 - Magic Wand is admitted as a bounded selection recipe. Remote callers provide
   no raster mask or runtime revision; source existence and every option are
   validated before the existing asynchronous GPU owner runs.
+- Path Text creation is admitted through the existing `text.create` capability.
+  Remote callers reference an existing native contour and bounded layout
+  values; no path geometry, pointer stream or editor selection state crosses
+  the boundary.

@@ -7,8 +7,9 @@ import { renameLayer } from '../../editor/document/documentCommands';
 import { applyTextLayerDataMutation, setFlowTextLayout, setTextLayerTransform } from '../../editor/document/textLayerCommands';
 import { replaceFlowTextSelection } from './flowTextEditing';
 import { formatFlowTextSource, type ParagraphStylePatch, type TextStylePatch } from './flowTextFormatting';
-import { createParagraphTextDocument, createPointTextDocument, resolveTextToolFont,
-  type ParagraphTextCreationRequest, type PointTextCreationRequest } from './pointTextCreation';
+import { createParagraphTextDocument, createPathTextDocument, createPointTextDocument,
+  resolveTextToolFont, type ParagraphTextCreationRequest, type PathTextCreationTarget,
+  type PointTextCreationRequest } from './pointTextCreation';
 import { solidTextPaintHex, textFillEnabledPatch, textFillPatchFromHex, textFontPatch,
   textStrokePatch } from './textPropertyPresentation';
 import type { DocumentFontRegistry } from '../../text/fonts/DocumentFontRegistry';
@@ -46,6 +47,27 @@ export const paragraphTextCreateCommand = (
   frame: { width: Math.abs(request.end.x - request.start.x), height: Math.abs(request.end.y - request.start.y) },
   writingMode: vertical ? 'vertical-rl' : 'horizontal-tb', style: creationStyle(settings, font, color),
   paragraph: { alignment: settings.alignment }
+});
+
+export const pathTextCreateCommand = (
+  request: PointTextCreationRequest,
+  target: PathTextCreationTarget,
+  settings: TextToolSettings,
+  font: DocumentFontAsset,
+  color: string
+): Extract<SemanticTextCommand, { kind: 'create' }> => ({
+  kind: 'create', mode: 'path', text: request.text, origin: request.origin,
+  writingMode: 'horizontal-tb', style: creationStyle(settings, font, color),
+  paragraph: { alignment: settings.alignment },
+  path: {
+    layerId: target.pathLayerId,
+    elementId: target.pathElementId,
+    subpathId: target.pathSubpathId,
+    startOffset: 0,
+    side: 'left',
+    upright: true,
+    direction: 'forward'
+  }
 });
 
 export const semanticStylePatchFromCanonical = (
@@ -190,11 +212,26 @@ export const executeSemanticTextCommand = async (
     after = command.mode === 'point'
       ? createPointTextDocument(before, { documentId: before.id, origin: command.origin, text: command.text },
           authoredSettings, font, command.style?.fill?.color ?? dependencies.getForegroundColor(), command.writingMode)
-      : createParagraphTextDocument(before, { documentId: before.id, pointerId: null,
+      : command.mode === 'paragraph'
+        ? createParagraphTextDocument(before, { documentId: before.id, pointerId: null,
           aboveLayerId: before.activeLayerId, start: command.origin,
           end: { x: command.origin.x + command.frame!.width, y: command.origin.y + command.frame!.height },
           text: command.text }, authoredSettings, font,
-          command.style?.fill?.color ?? dependencies.getForegroundColor(), command.writingMode);
+          command.style?.fill?.color ?? dependencies.getForegroundColor(), command.writingMode)
+        : createPathTextDocument(before, {
+          documentId: before.id, origin: command.origin, text: command.text
+        }, {
+          pathLayerId: command.path!.layerId as LayerId,
+          pathElementId: command.path!.elementId,
+          pathSubpathId: command.path!.subpathId
+        }, authoredSettings, font,
+        command.style?.fill?.color ?? dependencies.getForegroundColor(), {
+          startOffset: command.path!.startOffset,
+          side: command.path!.side,
+          upright: command.path!.upright,
+          direction: command.path!.direction
+        });
+    if (after === before) return null;
     const createdId = after.activeLayerId;
     if (!createdId) return null;
     if (command.name) after = renameLayer(after, createdId, command.name);

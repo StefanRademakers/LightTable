@@ -20,7 +20,7 @@
   "layer.style.setEnabled": { "layerId": "string", "enabled": "boolean" },
   "layer.effect.setEnabled": { "layerId": "string", "effectId": "string", "enabled": "boolean" },
   "file.openArtifact": { "artifactId": "string" },
-  "text.create": { "mode": "point | paragraph", "text": "string", "origin": "point", "name?": "string", "frame?": "size", "writingMode?": "writing-mode", "style?": "text-style", "paragraph?": "paragraph-style" },
+  "text.create": { "mode": "point | paragraph | path", "text": "string", "origin": "point", "name?": "string", "frame?": "size", "path?": "native path target + startOffset/side/upright/direction", "writingMode?": "writing-mode", "style?": "text-style", "paragraph?": "paragraph-style" },
   "text.replaceRange": { "layerId": "string", "start": "integer", "end": "integer", "text": "string" },
   "text.format": { "layerId": "string", "start?": "integer", "end?": "integer", "style?": "text-style", "paragraph?": "paragraph-style" },
   "text.setLayout": { "layerId": "string", "mode?": "point | paragraph", "origin?": "point", "frame?": "rect", "writingMode?": "writing-mode", "transform?": "affine-matrix" },

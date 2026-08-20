@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultFlowTextSource, createDefaultTextLayerData } from '@lighttable/text-core';
+import { createAnchor, createSubpath, createVectorPath } from '@lighttable/vector-core';
 import { createTextLayer } from '../../editor/document/documentCommands';
-import { createImageDocument, type ImageDocument } from '../../editor/document/documentTypes';
+import { createImageDocument, createVectorLayer, type ImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
+import { BUNDLED_TEXT_FONT_CATALOG } from '../../text/fonts/bundledTextFont';
 import { executeSemanticTextCommand, type SemanticTextCommandDependencies } from './semanticTextCommandExecutor';
 
 const setup = (value = 'A👋B') => {
@@ -76,5 +78,81 @@ describe('semantic text command executor', () => {
     expect(layer.type === 'text' && layer.text.source.kind === 'flow'
       ? layer.text.source.styleRuns[0].fontSize : null).not.toBe(90);
     expect(state.history).not.toHaveBeenCalled();
+  });
+
+  it('creates editable text bound to one explicit native contour', async () => {
+    const font = BUNDLED_TEXT_FONT_CATALOG[0]!;
+    const path = createVectorPath('title-path', 'Title path', [
+      createSubpath('main-contour', [
+        createAnchor('a', { x: 20, y: 40 }),
+        createAnchor('b', { x: 280, y: 80 })
+      ])
+    ]);
+    const vector = createVectorLayer([path], 'Paths');
+    let document: ImageDocument = {
+      ...createImageDocument('Path Text', 400, 300, 'source'),
+      layers: [vector], activeLayerId: vector.id
+    };
+    const history = vi.fn();
+    const dependencies: SemanticTextCommandDependencies = {
+      fontRegistry: { availableAssets: [font] } as never,
+      getDocument: () => document,
+      getTextSettings: () => ({ family: font.familyNames[0]!, style: font.styleName,
+        size: 48, antiAlias: 'smooth', alignment: 'start', fillEnabled: true }),
+      getForegroundColor: () => '#224466',
+      applyDocument: (next) => { document = next; },
+      recordHistory: history
+    };
+    const result = await executeSemanticTextCommand({
+      kind: 'create', mode: 'path', text: 'Along the curve', origin: { x: 0, y: 0 },
+      writingMode: 'horizontal-tb', path: {
+        layerId: vector.id, elementId: path.id, subpathId: 'main-contour',
+        startOffset: 22, side: 'right', upright: false, direction: 'reverse'
+      }
+    }, dependencies);
+    const layer = result ? findDocumentLayer(document, result.layerId) : null;
+    expect(layer?.type === 'text' && layer.text.source.kind === 'flow'
+      ? layer.text.source.layout : null).toEqual({
+      mode: 'path', pathLayerId: vector.id, pathElementId: path.id,
+      pathSubpathId: 'main-contour', startOffset: 22, side: 'right',
+      upright: false, direction: 'reverse'
+    });
+    expect(history).toHaveBeenCalledOnce();
+  });
+
+  it('does not mutate the active layer when the requested contour is missing', async () => {
+    const font = BUNDLED_TEXT_FONT_CATALOG[0]!;
+    const path = createVectorPath('title-path', 'Title path', [
+      createSubpath('main-contour', [
+        createAnchor('a', { x: 20, y: 40 }),
+        createAnchor('b', { x: 280, y: 80 })
+      ])
+    ]);
+    const vector = createVectorLayer([path], 'Paths');
+    let document: ImageDocument = {
+      ...createImageDocument('Path Text', 400, 300, 'source'),
+      layers: [vector], activeLayerId: vector.id
+    };
+    const original = document;
+    const history = vi.fn();
+    const result = await executeSemanticTextCommand({
+      kind: 'create', mode: 'path', text: 'Missing path', name: 'Must not rename',
+      origin: { x: 0, y: 0 }, writingMode: 'horizontal-tb', path: {
+        layerId: vector.id, elementId: path.id, subpathId: 'missing-contour',
+        startOffset: 0, side: 'left', upright: true, direction: 'forward'
+      }
+    }, {
+      fontRegistry: { availableAssets: [font] } as never,
+      getDocument: () => document,
+      getTextSettings: () => ({ family: font.familyNames[0]!, style: font.styleName,
+        size: 48, antiAlias: 'smooth', alignment: 'start', fillEnabled: true }),
+      getForegroundColor: () => '#224466',
+      applyDocument: (next) => { document = next; },
+      recordHistory: history
+    });
+    expect(result).toBeNull();
+    expect(document).toBe(original);
+    expect(findDocumentLayer(document, vector.id)?.name).toBe('Paths');
+    expect(history).not.toHaveBeenCalled();
   });
 });

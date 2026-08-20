@@ -1,4 +1,13 @@
 {
+  "text.create": [
+    {
+      "mode": "path",
+      "text": "Along the curve",
+      "origin": { "x": 0, "y": 0 },
+      "writingMode": "horizontal-tb",
+      "path": { "layerId": "layer-paths", "elementId": "path-title", "subpathId": "contour-main", "startOffset": 0, "side": "left", "upright": true, "direction": "forward" }
+    }
+  ],
   "layer.duplicate": [
     { "layerId": "layer-photo" }
   ],

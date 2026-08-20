@@ -61,6 +61,8 @@ Completed vertical slices
   source snapshot and bounded document-relative source metadata for replay.
 - Magic Wand sampled selection through its existing GPU/history owner, with
   newest-request, cancellation and stale-completion protections retained.
+- native Path Text creation through `text.create`, with stable path references,
+  packaged Actions replay and direct Agent/MCP creation/query.
 
 Rules
 =====

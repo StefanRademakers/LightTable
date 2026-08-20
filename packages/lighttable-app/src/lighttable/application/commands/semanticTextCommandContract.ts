@@ -28,10 +28,20 @@ export interface SemanticParagraphStylePatch {
   readonly spaceBefore?: number;
   readonly spaceAfter?: number;
 }
+export interface SemanticPathTextTarget {
+  readonly layerId: string;
+  readonly elementId: string;
+  readonly subpathId: string;
+  readonly startOffset: number;
+  readonly side: 'left' | 'right';
+  readonly upright: boolean;
+  readonly direction: 'forward' | 'reverse';
+}
 export type SemanticTextCommand =
-  | { readonly kind: 'create'; readonly mode: 'point' | 'paragraph'; readonly text: string;
+  | { readonly kind: 'create'; readonly mode: 'point' | 'paragraph' | 'path'; readonly text: string;
       readonly name?: string; readonly origin: { readonly x: number; readonly y: number };
       readonly frame?: { readonly width: number; readonly height: number };
+      readonly path?: SemanticPathTextTarget;
       readonly writingMode: SemanticTextWritingMode; readonly style?: SemanticTextStylePatch;
       readonly paragraph?: SemanticParagraphStylePatch }
   | { readonly kind: 'replace'; readonly layerId: string; readonly start: number;
@@ -128,7 +138,8 @@ export const parseSemanticTextCommand = (
   if (!record(value)) return { message: 'Text command parameters must be an object.' };
   if (kind === 'create') {
     const style = parseStyle(value.style); const paragraph = parseParagraph(value.paragraph);
-    if ((value.mode !== 'point' && value.mode !== 'paragraph') || !content(value.text) || !point(value.origin)
+    if ((value.mode !== 'point' && value.mode !== 'paragraph' && value.mode !== 'path')
+      || !content(value.text) || !point(value.origin)
       || (value.name !== undefined && (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 255))
       || (value.writingMode !== undefined && !writingMode(value.writingMode)) || !style || !paragraph) {
       return { message: 'Create text parameters are invalid.' };
@@ -137,10 +148,27 @@ export const parseSemanticTextCommand = (
     if (value.mode === 'paragraph' && (!record(frame) || !finite(frame.width, 1) || !finite(frame.height, 1))) {
       return { message: 'Paragraph text requires a positive frame width and height.' };
     }
+    const path = value.path;
+    if (value.mode === 'path' && (!record(path) || !layerId(path.layerId)
+      || !layerId(path.elementId) || !layerId(path.subpathId)
+      || !finite(path.startOffset) || (path.side !== 'left' && path.side !== 'right')
+      || typeof path.upright !== 'boolean'
+      || (path.direction !== 'forward' && path.direction !== 'reverse'))) {
+      return { message: 'Path text requires valid native path references and layout settings.' };
+    }
+    if (value.mode !== 'path' && value.path !== undefined) {
+      return { message: 'Only Path Text accepts path settings.' };
+    }
     return { kind, mode: value.mode, text: value.text, origin: value.origin,
       writingMode: writingMode(value.writingMode) ? value.writingMode : 'horizontal-tb',
       ...(typeof value.name === 'string' ? { name: value.name.trim() } : {}),
       ...(record(frame) ? { frame: { width: Number(frame.width), height: Number(frame.height) } } : {}),
+      ...(record(path) ? { path: {
+        layerId: String(path.layerId), elementId: String(path.elementId),
+        subpathId: String(path.subpathId), startOffset: Number(path.startOffset),
+        side: path.side as SemanticPathTextTarget['side'], upright: Boolean(path.upright),
+        direction: path.direction as SemanticPathTextTarget['direction']
+      } } : {}),
       ...(Object.keys(style).length ? { style } : {}), ...(Object.keys(paragraph).length ? { paragraph } : {}) };
   }
   if (!layerId(value.layerId)) return { message: 'Text edits require a valid layerId.' };

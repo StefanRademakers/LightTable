@@ -140,6 +140,9 @@ Existing foundation evidence
   snapshots and live pointer updates remain inside the desktop renderer.
 - Magic Wand now exposes one asynchronous sampled-selection recipe through UI,
   Actions and admitted Agent/MCP execution; generated masks remain GPU-local.
+- Native Path Text creation now shares `text.create` across UI, Actions and
+  Agent/MCP, with explicit path layer/element/contour references and editable
+  start-offset, side, upright and direction state.
 
 Program definition of done
 ==========================

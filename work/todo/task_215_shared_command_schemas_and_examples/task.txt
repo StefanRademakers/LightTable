@@ -85,6 +85,9 @@ Current evidence (2026-08-20)
 - Magic Wand has an explicit schema/example for source layer, bounded point,
   combine mode, sample size, tolerance, anti-aliasing, contiguity and layer
   sampling. Runtime document revisions and raster masks are rejected.
+- `text.create` now documents point, paragraph and native path modes. Path Text
+  carries stable path references plus bounded layout settings, never vector
+  geometry or runtime editor objects.
 
 Still required for completion
 =============================
