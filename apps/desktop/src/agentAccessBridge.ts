@@ -42,6 +42,7 @@ const FETCH_FORBIDDEN_PORTS = new Set([
 const INVOKE_METHODS = new Set([
   'workspace.query', 'document.query', 'document.preview', 'layer.list', 'layer.effects', 'text.query',
   'vector.query', 'warp.query', 'grade.queryBasic', 'command.capabilities', 'task.query', 'task.events',
+  'event.query',
   'artifact.list', 'artifact.query', 'artifact.release', 'gesture.begin',
   'gesture.update', 'gesture.finish', 'command.execute'
 ]);

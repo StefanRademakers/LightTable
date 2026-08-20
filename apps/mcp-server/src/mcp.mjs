@@ -198,6 +198,13 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     inputSchema: z.object({ afterCursor: z.number().int().nonnegative().default(0),
       limit: z.number().int().min(1).max(200).default(100) }), annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('task.events', input)));
+  server.registerTool('lighttable_events', {
+    title: 'Inspect LightTable publication events',
+    description: 'Returns bounded document, revision, selection, history, task and renderer publications after a reconnect-safe cursor. A gap requires canonical re-query.',
+    inputSchema: z.object({ afterCursor: z.number().int().nonnegative().default(0),
+      limit: z.number().int().min(1).max(200).default(100) }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('event.query', input)));
   server.registerTool('lighttable_cancel_task', {
     title: 'Cancel a LightTable task',
     inputSchema: z.object({ documentId: z.string().min(1), taskId: z.string().min(1) })

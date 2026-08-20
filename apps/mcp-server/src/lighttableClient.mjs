@@ -111,6 +111,8 @@ export class MockLightTableClient {
       .map((command) => ({ command, available: true, reason: null }));
     if (method === 'artifact.list') return [];
     if (method === 'task.events') return { cursor: 0, events: [] };
+    if (method === 'event.query') return { cursor: 0, latestCursor: 0,
+      oldestCursor: 1, gap: false, hasMore: false, events: [] };
     if (method === 'command.execute') {
       if (parameters.command === 'command.batch') {
         const title = parameters.commandParameters?.operations?.find((operation) => operation.operationId === 'title');

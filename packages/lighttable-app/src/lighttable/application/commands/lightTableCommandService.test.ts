@@ -412,6 +412,23 @@ describe('LightTableCommandService queries', () => {
 });
 
 describe('LightTableCommandService atomic batches', () => {
+  it('publishes bounded document/session changes on a separate reconnect-safe cursor', () => {
+    const state = setup();
+    state.session.markChanged(4);
+    state.session.history.record({ id: 'event-history', documentId: state.session.id,
+      type: 'automation.batch', label: 'Agent edit', undo: () => undefined, redo: () => undefined });
+    const generation = state.session.renderer.beginStart();
+    state.session.renderer.markReady(generation);
+    const result = state.service.queryPublicationEvents(0, 20);
+    expect(result).toMatchObject({ gap: false, hasMore: false,
+      latestCursor: result.cursor });
+    expect(result.events.map(({ kind }) => kind)).toEqual(expect.arrayContaining([
+      'document-revision-changed', 'history-changed', 'renderer-changed'
+    ]));
+    expect(state.service.queryPublicationEvents(result.cursor, 20).events).toEqual([]);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('accepts one bounded task and exposes reconnect-safe progress events', async () => {
     const state = setup();
     vi.mocked(state.ports.executeAtomicBatch).mockImplementation(async (_documentId, batch, _signal, report) => {

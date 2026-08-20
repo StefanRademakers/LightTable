@@ -21,6 +21,7 @@ export type LightTableMcpMethod =
   | 'command.execute'
   | 'task.query'
   | 'task.events'
+  | 'event.query'
   | 'artifact.list'
   | 'artifact.query'
   | 'artifact.release'
@@ -167,6 +168,8 @@ export class AuthenticatedLightTableMcpAdapter {
       case 'command.capabilities': return this.options.driver.queryCapabilities(documentId);
       case 'task.query': return this.options.driver.queryTask(documentId, String(parameters.taskId ?? ''));
       case 'task.events': return this.options.driver.queryTaskEvents(
+        Number(parameters.afterCursor ?? 0), Number(parameters.limit ?? 100));
+      case 'event.query': return this.options.driver.queryPublicationEvents(
         Number(parameters.afterCursor ?? 0), Number(parameters.limit ?? 100));
       case 'artifact.list': return this.options.driver.listArtifacts();
       case 'artifact.query': return this.options.driver.queryArtifact(String(parameters.artifactId ?? ''));

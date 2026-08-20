@@ -90,3 +90,6 @@ Current evidence (2026-08-20)
 - Read-only `document.preview` is admitted separately from export commands. It
   requires an expected canonical revision, caps the maximum edge at 1024 px,
   uses bounded opaque artifacts and passed the packaged external MCP tunnel.
+- Read-only `event.query` is admitted as a separate bounded cursor feed. It
+  publishes compact session metadata only, signals retained-window/restart gaps
+  explicitly and passed the packaged external MCP edit/observe/preview flow.

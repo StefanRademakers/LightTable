@@ -38,6 +38,11 @@ import { projectEditableVectorQuery } from './vectorQueryProjection';
 import { projectWarpQuery, type WarpQueryResult } from './warpQueryProjection';
 import { parseAtomicCommandBatch, type AtomicCommandBatch } from './atomicCommandBatchContract';
 import { AutomationTaskEventStore } from './automationTaskEventStore';
+import {
+  AutomationPublicationEventStore,
+  projectAutomationPublicationEvents,
+  type AutomationPublicationEventQueryResult
+} from './automationPublicationEventStore';
 import { startAtomicCommandBatchTask } from './atomicCommandBatchTask';
 import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSample,
   parseCommittedGestureRequest, parseCreateDocumentOptions } from './lightTableCommandValidation';
@@ -288,6 +293,7 @@ export class LightTableCommandService {
   }>();
   private gestureSequence = 0;
   private readonly taskEvents = new AutomationTaskEventStore();
+  private readonly publicationEvents = new AutomationPublicationEventStore();
   private readonly actionRecorder = new SemanticActionRecorder();
   private readonly actionLibrary: SemanticActionLibrary;
   private readonly documentPreviews = new DocumentPreviewArtifactController({
@@ -318,7 +324,13 @@ export class LightTableCommandService {
     actionLibraryStorage?: SemanticActionLibraryStorage
   ) {
     this.actionLibrary = new SemanticActionLibrary(actionLibraryStorage);
+    let previousWorkspace = workspace.getSnapshot();
     this.unsubscribe = workspace.subscribe(() => {
+      const currentWorkspace = workspace.getSnapshot();
+      this.publicationEvents.appendAll(projectAutomationPublicationEvents(
+        previousWorkspace, currentWorkspace
+      ));
+      previousWorkspace = currentWorkspace;
       this.workspaceRevision += 1;
       for (const [gestureId, gesture] of this.gestures) {
         const document = this.workspace.getDocument(gesture.documentId)?.getSnapshot();
@@ -432,6 +444,10 @@ export class LightTableCommandService {
 
   queryTaskEvents(afterCursor = 0, limit = 100): AutomationEventQueryResult {
     return this.taskEvents.query(afterCursor, limit);
+  }
+
+  queryPublicationEvents(afterCursor = 0, limit = 100): AutomationPublicationEventQueryResult {
+    return this.publicationEvents.query(afterCursor, limit);
   }
 
   subscribeTaskEvents = (listener: () => void): (() => void) => this.taskEvents.subscribe(listener);
@@ -1539,6 +1555,7 @@ export interface LightTableAutomationDriver {
   requestDocumentPreview(request: unknown): Promise<DocumentPreviewResult>;
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null;
   queryTaskEvents(afterCursor?: number, limit?: number): AutomationEventQueryResult;
+  queryPublicationEvents(afterCursor?: number, limit?: number): AutomationPublicationEventQueryResult;
   queryWorkspace(): WorkspaceQueryResult;
   queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null;
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;

@@ -43,7 +43,12 @@ Current evidence (2026-08-20)
   mid-render document changes fail closed, and released artifacts regenerate.
 - Packaged external MCP now proves inspect revision N -> preview N -> semantic
   edits -> preview N+1 through the real renderer and artifact tunnel.
-- Targeted region/layer previews and broader event-driven publication remain open.
+- `event.query` now exposes bounded reconnect-safe document, revision, active
+  layer, selection, history, task and renderer-state publications. Cursor gaps
+  are explicit and force canonical re-query rather than silently missing work.
+- The packaged MCP flow records a cursor before editing, observes its exact
+  final revision/history publication and then requests preview N+1.
+- Targeted region/layer previews and server-push delivery remain open.
 
 Representative proof
 ====================

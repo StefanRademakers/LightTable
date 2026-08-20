@@ -11,6 +11,7 @@ import type { SemanticLayerStyleCommand } from './semanticLayerStyleCommandContr
 import type { VectorElement } from '@lighttable/vector-core';
 import type { AtomicCommandBatch } from './atomicCommandBatchContract';
 import type { AutomationTaskEvent } from './automationTaskEventStore';
+import type { AutomationPublicationEventQueryResult } from './automationPublicationEventStore';
 import type { ImageSizeRequest } from '../imageSize/imageSizeModel';
 import type { DocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
@@ -160,6 +161,7 @@ export interface AutomationEventQueryResult {
   readonly cursor: number;
   readonly events: readonly AutomationTaskEvent[];
 }
+export type { AutomationPublicationEventQueryResult };
 
 export type LightTableGestureKind = 'brush-stroke' | 'selection-rectangle' | 'layer-translate';
 export interface LightTableGestureSample { readonly x: number; readonly y: number; readonly pressure?: number }

@@ -91,6 +91,9 @@ try {
     || openingPreviewMetadata.artifact?.preview?.maxEdge !== 256) {
     throw new Error(`Opening MCP preview lost revision context: ${JSON.stringify(openingPreviewMetadata)}`);
   }
+  const openingEvents = (await call('lighttable_events', { afterCursor: 0, limit: 200 }))
+    .structuredContent;
+  const eventCursor = openingEvents.latestCursor;
   await call('lighttable_execute', { documentId, command: 'layer.createRaster',
     expectedDocumentRevision: before.canonicalRevision, parameters: {} });
   const createdDocument = (await call('lighttable_document', { documentId })).structuredContent;
@@ -220,6 +223,16 @@ try {
     || previewMetadata.artifact?.id === openingPreviewMetadata.artifact?.id) {
     throw new Error(`MCP preview lost its revision context: ${JSON.stringify(previewMetadata)}`);
   }
+  const publications = (await call('lighttable_events', {
+    afterCursor: eventCursor, limit: 200
+  })).structuredContent;
+  if (publications.gap || !publications.events.some((event) =>
+    event.kind === 'document-revision-changed' && event.documentId === documentId
+      && event.detail?.canonicalRevision === previewDocument.canonicalRevision)
+    || !publications.events.some((event) =>
+      event.kind === 'history-changed' && event.documentId === documentId)) {
+    throw new Error(`MCP publication stream missed the final edit: ${JSON.stringify(publications)}`);
+  }
   const rendered = await sharp(Buffer.from(image.data, 'base64')).ensureAlpha().raw()
     .toBuffer({ resolveWithObject: true });
   const sampleOffset = (Math.min(10, rendered.info.height - 1) * rendered.info.width
@@ -253,7 +266,7 @@ try {
   const psd = await exportArtifact('file.exportPsd', 'psd');
   const after = (await call('lighttable_document', { documentId })).structuredContent;
   const layers = (await call('lighttable_layers', { documentId })).structuredContent;
-  const report = { source, workspace, before, after, layerCount: layers.length,
+  const report = { source, workspace, before, after, publications, layerCount: layers.length,
     createdLayerId: layerId, outputs: { previewPath, native, psd }, bridgeLog };
   await writeFile(path.join(output, 'mcp-layered-design.json'), `${JSON.stringify(report, null, 2)}\n`);
   process.stdout.write(`LightTable MCP end-to-end smoke passed: ${output}\n`);

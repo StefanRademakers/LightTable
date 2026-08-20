@@ -72,6 +72,12 @@ export class LightTableAutomationClient {
     ), { afterCursor, limit });
   }
 
+  queryPublicationEvents(afterCursor = 0, limit = 100) {
+    return this.page.evaluate(({ afterCursor, limit }) => (
+      window.__lightTableAutomation?.queryPublicationEvents(afterCursor, limit) ?? null
+    ), { afterCursor, limit });
+  }
+
   async execute(documentId, command, parameters = {}, options = {}) {
     const result = await this.page.evaluate(async (request) =>
       window.__lightTableAutomation?.execute(request) ?? null, {

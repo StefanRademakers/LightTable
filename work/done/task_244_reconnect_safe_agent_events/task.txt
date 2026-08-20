@@ -1,0 +1,59 @@
+Task 244 - Reconnect-safe agent publication events
+
+Goal
+====
+
+Let an agent wait for meaningful workspace/document publication after an edit
+instead of blindly polling, while preserving the existing task-progress feed.
+
+Parent work
+===========
+
+- [`Task 218`](../../todo/task_218_agent_observation_preview_and_events/task.txt)
+- [`Task 220`](../../todo/task_220_reviewed_mcp_capability_admission/task.txt)
+
+Checklist
+=========
+
+- [x] Add a separate bounded typed publication-event store; do not overload or
+  break the existing task-progress event contract.
+- [x] Derive events from existing WorkspaceSession/DocumentSession snapshots,
+  not new renderer, paint, pointer or React hot-path hooks.
+- [x] Publish document opened/closed/activated, canonical revision, active
+  layer, selection, history, task and renderer-state changes with stable IDs.
+- [x] Coalesce one workspace notification into bounded semantic events and do
+  not include document pixels, selection masks or complete layer payloads.
+- [x] Report cursor window gaps explicitly so reconnecting clients know when
+  they must re-query canonical state.
+- [x] Expose `event.query` through authenticated Agent Access, the external
+  bridge and MCP as a read-only method.
+- [x] Test ordering, bounds, gaps, no-op suppression and representative event
+  projection from real sessions.
+- [x] Add packaged MCP proof: record cursor, edit revision N, observe the exact
+  document/revision/history publication, then request preview N+1.
+- [x] Run full verification, update parent evidence and commit.
+
+Non-goals
+=========
+
+- Streaming raw pointer, typing, paint dab or GPU frame events.
+- Replacing canonical document/layer queries with event payloads.
+- Long-held network requests or server push in this first cursor-based slice.
+
+Evidence
+========
+
+- `event.query` owns an independent 512-event cursor window with pages capped
+  at 200. It reports oldest/latest cursor, gap and hasMore; stale windows and
+  future cursors after a runtime restart both require canonical re-query.
+- Projection observes only authoritative WorkspaceSession/DocumentSession
+  snapshots. Renderer memory-only updates, unchanged state and local pointer
+  samples publish no events.
+- Payloads contain stable document/layer/task IDs, counts, revisions and state;
+  they contain no document tree, pixel data, selection masks or gesture samples.
+- Existing batch `task.events` remains unchanged for progress consumers.
+- The authenticated app adapter, desktop Agent Access, local external bridge
+  and `lighttable_events` MCP tool share the same read-only query.
+- Packaged external MCP captured a cursor before editing `D:\shapes.psd`, then
+  observed the final canonical revision and history publication before reading
+  the distinct revision N+1 preview.
