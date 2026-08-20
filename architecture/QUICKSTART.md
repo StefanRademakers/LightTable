@@ -542,6 +542,17 @@ the local Action workflow envelope, is included in its storage boundary and is
 never routed through command parameters, document state, MCP, or a private
 model-reasoning channel.
 
+Normal Action playback remains stepwise, so each command keeps its ordinary
+history behavior and debugging boundary. `Play as one undo` is a separate,
+explicit route. A low-frequency preflight compiles only complete, synchronous,
+same-document steps already admitted by `command.batch`; it resolves typed
+variables, translates supported top-level prior-result bindings and rejects the
+whole request before execution when a step, binding, schema, document, count or
+byte boundary is incompatible. The existing atomic task owner then publishes
+one document and one history entry, or nothing on failure/cancellation. Paint,
+warp, pointer samples, host I/O, document creation and other non-batch work stay
+stepwise and never enter this compiler.
+
 Atomic batches are capped at 64 operations, 256 KiB and 10 seconds. They build
 against a private document value, can reference earlier operation results, and
 publish once as one named undo entry. Failure or cancellation publishes

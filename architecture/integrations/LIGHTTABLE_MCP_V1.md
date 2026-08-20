@@ -158,7 +158,17 @@ fields in the current envelope fail closed. Playback
 resolves defaults or typed overrides and prior results before the same shared
 command-schema preflight used to guard each recorded semantic command. The
 local recorded-step editor also consumes these generated schemas; it does not
-maintain a command-specific form catalog or alter MCP command contracts.
+maintain a command-specific form catalog, invent a mutation route or alter MCP
+command contracts.
+
+Ordinary playback remains stepwise.
+The optional `Play as one undo` control compiles only stopped, completed,
+same-document steps whose commands are already in the generated atomic-batch
+contract. Variable values resolve before execution; top-level prior-result
+bindings become native batch references. Diagnostic/async steps, workspace or
+multi-document flows, nested result paths and non-batch commands fail before
+the single `command.batch` request. This local workflow choice does not add an
+MCP method or make additional commands remotely eligible.
 
 [`packages/command-contract/parameter-properties.json`](../../packages/command-contract/parameter-properties.json)
 is the checked top-level property inventory for those commands. Generation

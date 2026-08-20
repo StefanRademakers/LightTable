@@ -29,8 +29,9 @@ milestone changes those boundaries; feature task details belong in
   and document-space gestures.
 - Durable named Action sets support bounded typed variables, explicit prior-
   result bindings, schema-gated defaults/overrides, bounded user-facing step
-  rationales and dependency-aware replay through that same semantic command
-  service.
+  rationales, dependency-aware stepwise replay and explicit fail-closed one-
+  undo playback for atomic-batch-compatible workflows through that same
+  semantic command service.
 - Document observation includes bounded color semantics, and sRGB profile
   assignment is a metadata-only UI/Actions/MCP command with reversible history;
   Convert to Profile remains unimplemented.

@@ -1,0 +1,61 @@
+Task 275 - Explicit atomic Action playback
+==========================================
+
+Goal
+====
+
+Keep ordinary Action playback stepwise and add an explicit one-undo playback
+route only when the complete stopped workflow can use the existing atomic
+command-batch owner without semantic loss.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- Compile eligible same-document Action steps into one bounded `command.batch`.
+- Resolve typed variables and translate supported prior-result bindings without
+  executing any command during preflight.
+- Reject non-batch commands, async steps, diagnostic steps, multiple recorded
+  documents, nested result paths and size/count/schema violations before
+  execution.
+- Keep normal Play, Play Step and Play From Here stepwise.
+- Expose an explicit `Play as one undo` control with an actionable exclusion
+  reason.
+- Preserve task progress, cancellation, playback isolation and per-step visible
+  completion state while the batch publishes exactly one history operation.
+- Prove the real packaged Actions route and one Undo restoration.
+
+Non-goals
+=========
+
+- Making every command atomic-batch compatible.
+- Simulating rollback around host I/O, AI, paint, warp or document creation.
+- Persisting a mode that could silently change behavior as an Action evolves.
+
+Evidence (2026-08-20)
+=====================
+
+- `atomicActionPlayback.ts` owns a bounded preflight/compiler separate from the
+  ordinary playback loop. It accepts only the generated atomic command set,
+  one recorded document, completed/replayable steps, at most 64 operations and
+  the existing batch schema/byte constraints.
+- Typed defaults/overrides resolve locally. A supported prior result becomes a
+  native `{ resultOf, field }` reference; forward, unavailable and nested paths
+  fail before command execution.
+- The explicit Actions control shows the first actionable exclusion reason.
+  Normal Play/Step/From are unchanged; the compiler runs only for the one-undo
+  request and is outside every gesture/pointer/render hot path.
+- Playback reuses the canonical `command.batch` task, progress and cancellation
+  owner. Terminal task completion marks the visible source steps completed;
+  failure/cancellation publishes no partial document or history state.
+- Focused compiler/controller/panel tests cover success, variables, result
+  translation, unsupported/async/diagnostic/multi-document/nested/count
+  rejection, one executor call and cancellation.
+- The packaged two-process Actions smoke records two real Layer-menu renames,
+  verifies ordinary recording created two history entries, undoes them, plays
+  them through `Play as one undo`, observes exactly one new history entry and
+  restores the original layer name and depth with one Undo.

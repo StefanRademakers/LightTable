@@ -212,6 +212,12 @@ Existing foundation evidence
   proves variable/rationale authoring, persistence, override replay, set
   filtering and contained deletion without routing any interaction preview or
   private model reasoning through storage.
+- Normal Action playback remains stepwise. An explicit `Play as one undo`
+  preflight now compiles only completed same-document operations already owned
+  by `command.batch`, resolves typed variables and supported result bindings,
+  and rejects every incompatible workflow before execution. Packaged Layer-menu
+  proof records two ordinary rename history entries, undoes both, atomically
+  replays them as one entry and restores the original name with one Undo.
 - External raster inputs now cross the capability boundary as bounded opaque
   artifact handles. `layer.placeArtifact` reuses the existing decode/document/
   history owner, while `file.openArtifact` creates a document from the same

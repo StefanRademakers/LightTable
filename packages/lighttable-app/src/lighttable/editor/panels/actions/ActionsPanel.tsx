@@ -20,6 +20,7 @@ export interface ActionsPanelProps extends Omit<CommandCatalogViewProps, 'defini
   readonly onStopRecording: () => void;
   readonly onClearRecording: () => void;
   readonly onPlay: () => void;
+  readonly onPlayAtomic?: () => void;
   readonly onPlayStep: (sequence: number) => void;
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
@@ -53,6 +54,7 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onStopRecording,
   onClearRecording,
   onPlay,
+  onPlayAtomic = () => undefined,
   onPlayStep,
   onPlayFromStep,
   onStopPlayback,
@@ -87,7 +89,8 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
       ? <ActionRecorderView recording={recording} playback={playback} library={library}
           definitions={definitions}
           onStart={onStartRecording} onStop={onStopRecording} onClear={onClearRecording}
-          onPlay={onPlay} onPlayStep={onPlayStep} onPlayFromStep={onPlayFromStep}
+          onPlay={onPlay} onPlayAtomic={onPlayAtomic}
+          onPlayStep={onPlayStep} onPlayFromStep={onPlayFromStep}
           onStopPlayback={onStopPlayback}
           onCreateSet={onCreateActionSet} onRenameSet={onRenameActionSet}
           onSelectSet={onSelectActionSet} onDeleteSet={onDeleteActionSet}

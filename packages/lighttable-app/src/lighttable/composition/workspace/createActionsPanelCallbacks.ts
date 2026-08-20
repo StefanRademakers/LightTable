@@ -12,6 +12,7 @@ export const createActionsPanelCallbacks = (service?: LightTableCommandService) 
   onStopRecording: () => { service?.stopActionRecording(); },
   onClearRecording: () => { service?.clearActionRecording(); },
   onPlay: () => { void service?.playActionRecording(); },
+  onPlayAtomic: () => { void service?.playActionRecordingAtomically(); },
   onPlayStep: (sequence: number) => { void service?.playActionStep(sequence); },
   onPlayFromStep: (sequence: number) => { void service?.playActionFromStep(sequence); },
   onStopPlayback: () => { service?.stopActionPlayback(); },

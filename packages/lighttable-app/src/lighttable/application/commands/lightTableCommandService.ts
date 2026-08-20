@@ -372,6 +372,9 @@ export class LightTableCommandService {
   saveActionRecording = (name: string) => this.actions.saveRecording(name);
   loadSavedAction = (id: string) => this.actions.loadSaved(id);
   deleteSavedAction = (id: string) => this.actions.deleteSaved(id);
+  playActionRecordingAtomically = (overrides?: Readonly<Record<string, unknown>>) => (
+    this.actions.playAtomic(overrides)
+  );
 
   recordObservedCommand(command: LightTableCommandId, documentId: DocumentSessionId,
     parameters: unknown, value: unknown): boolean {

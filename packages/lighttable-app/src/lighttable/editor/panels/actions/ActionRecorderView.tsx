@@ -15,6 +15,7 @@ import {
 import { ActionBindingEditor, ActionVariableRow } from './ActionBindingEditor';
 import { ActionStepParameterEditor } from './ActionStepParameterEditor';
 import { ActionStepRationaleEditor } from './ActionStepRationaleEditor';
+import { atomicActionEligibility } from '../../../application/actions/atomicActionEligibility';
 
 export interface ActionRecorderViewProps {
   readonly recording: ActionRecordingSnapshot;
@@ -25,6 +26,7 @@ export interface ActionRecorderViewProps {
   readonly onStop: () => void;
   readonly onClear: () => void;
   readonly onPlay: () => void;
+  readonly onPlayAtomic: () => void;
   readonly onPlayStep: (sequence: number) => void;
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
@@ -65,6 +67,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
   onStop,
   onClear,
   onPlay,
+  onPlayAtomic,
   onPlayStep,
   onPlayFromStep,
   onStopPlayback,
@@ -89,6 +92,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
     definitions.map(({ id, label }) => [id, label])
   ), [definitions]);
   const replayableCount = recording.steps.filter(({ replayable }) => replayable).length;
+  const atomicEligibility = useMemo(() => atomicActionEligibility(recording), [recording]);
   const setActions = library.actions.filter(({ setId }) => setId === library.selectedSetId);
   const busy = playback.status === 'running';
   return <section className="lighttable-action-recorder" aria-labelledby="action-recorder-title">
@@ -109,6 +113,10 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
         ? <ButtonBase type="button" onClick={onStopPlayback}>Stop playback</ButtonBase>
         : <ButtonBase type="button" onClick={onPlay}
             disabled={recording.status === 'recording' || replayableCount === 0}>Play</ButtonBase>}
+      {!busy ? <ButtonBase type="button" onClick={onPlayAtomic}
+        title={atomicEligibility.eligible ? 'Play the complete Action as one undoable transaction.'
+          : atomicEligibility.reason}
+        disabled={!atomicEligibility.eligible}>Play as one undo</ButtonBase> : null}
       <ButtonBase type="button" onClick={onClear}
         disabled={busy || recording.steps.length === 0}>Clear</ButtonBase>
     </div>
@@ -161,6 +169,10 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
           {playback.taskProgress === null ? '' : ` · ${Math.round(playback.taskProgress * 100)}%`}
         </p>
       : null}
+    {playback.results.at(-1)?.sequence === 0 && playback.results.at(-1)?.message
+      ? <p className="lighttable-action-recorder__warning" role="alert">
+          {playback.results.at(-1)!.message}
+        </p> : null}
     {recording.limitReached
       ? <p className="lighttable-action-recorder__warning" role="alert">Recorder limit reached; recording has paused.</p>
       : null}

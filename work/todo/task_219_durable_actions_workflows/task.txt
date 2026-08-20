@@ -61,6 +61,8 @@ Current evidence (2026-08-20)
 - [`Task 274`](../../done/task_274_action_step_rationales/task.txt) delivered
   bounded user-facing intent annotations without extending command or MCP
   payloads.
+- [`Task 275`](../../done/task_275_explicit_atomic_action_playback/task.txt)
+  defined normal stepwise history versus explicit fail-closed one-undo playback.
 - Concrete stopped Actions can be user-named, explicitly saved, loaded and
   deleted from a deterministic bounded library.
 - The version-5 envelope groups at most 32 Actions into at most 16 stable named
@@ -111,4 +113,11 @@ Current evidence (2026-08-20)
   show progress, fail closed on missing/failure/cancel/timeout and support Stop
   through the real task owner. Completed export artifacts are available to
   later stable result bindings.
+- Normal Play, Play Step and Play From Here retain their ordinary per-command
+  history boundaries. `Play as one undo` is explicit and available only when a
+  stopped workflow compiles completely into the existing atomic-batch owner.
+  Preflight rejects async/diagnostic/non-batch steps, multiple documents,
+  unsupported nested result paths and all contract/count/size failures before
+  execution. Packaged proof records two UI renames as two history entries,
+  undoes them, replays them as one transaction and restores both with one Undo.
 - Explicit migration transforms for future command-schema versions remain open.

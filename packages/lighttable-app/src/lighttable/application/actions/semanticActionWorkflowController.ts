@@ -96,6 +96,9 @@ export class SemanticActionWorkflowController {
   play = (overrides?: Readonly<Record<string, unknown>>): Promise<ActionPlaybackSnapshot> => this.playback.play(
     this.recorder.snapshot(), this.ports.activeDocumentId(), overrides
   );
+  playAtomic = (overrides?: Readonly<Record<string, unknown>>): Promise<ActionPlaybackSnapshot> => (
+    this.playback.playAtomic(this.recorder.snapshot(), this.ports.activeDocumentId(), overrides)
+  );
   playStep = (sequence: number): Promise<ActionPlaybackSnapshot> => this.playback.playStep(
     this.recorder.snapshot(), sequence, this.ports.activeDocumentId()
   );

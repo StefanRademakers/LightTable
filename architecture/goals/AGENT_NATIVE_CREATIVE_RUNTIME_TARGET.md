@@ -192,8 +192,9 @@ instead of persisting raster bytes or host paths.
 shared machine schemas, while several artist operations still lack admitted
 semantic commands. Actions now has durable named sets, typed variables,
 explicit result bindings, bounded user-facing step rationales, gesture-level
-commits and task-aware playback, but future command-schema migration transforms,
-teach mode and richer workflow authoring remain open. Structural layer pages plus whole-document/layer/mask previews now
+commits, task-aware stepwise playback and explicit one-undo playback for the
+bounded atomic subset, but future command-schema migration transforms, teach
+mode and richer workflow authoring remain open. Structural layer pages plus whole-document/layer/mask previews now
 cover a bounded inspection baseline including final-composite regions and an
 active-layer content dispatcher. Every current adjustment presentation now has
 bounded module-registry-backed inspection for document, layer and attached

@@ -41,6 +41,18 @@ const recording = (): ActionRecordingSnapshot => ({
 });
 
 describe('SemanticActionPlaybackController', () => {
+  const atomicRecording = (): ActionRecordingSnapshot => ({
+    ...recording(), name: 'Atomic title', steps: [{
+      ...recording().steps[0]!, command: 'text.create', parameters: {
+        mode: 'point', text: 'Title', origin: { x: 20, y: 30 }
+      }, result: { layerId: 'recorded-title' }
+    }, {
+      ...recording().steps[1]!, command: 'layer.rename', parameters: {
+        layerId: { $lighttableResult: { step: 1, path: 'layerId' } }, name: 'Hero title'
+      }, result: { layerId: 'recorded-title', name: 'Hero title' }
+    }]
+  });
+
   it('plays replayable steps through the supplied semantic executor', async () => {
     const execute = vi.fn(async (request) => ({ requestId: request.requestId,
       status: 'completed' as const,
@@ -370,5 +382,60 @@ describe('SemanticActionPlaybackController', () => {
     expect(execute).toHaveBeenCalledTimes(2);
     expect(execute.mock.calls[1]?.[0]).toMatchObject({ command: 'layer.rename',
       parameters: { layerId: 'new-layer', name: 'Title' } });
+  });
+
+  it('plays an eligible Action through one accepted atomic batch and preserves per-step results', async () => {
+    const execute = vi.fn(async (request) => ({ requestId: request.requestId,
+      status: 'accepted' as const, taskId: 'batch-task', revisions: { workspace: 1, document: 2 } }));
+    const wait = vi.fn(async () => ({ status: 'completed' as const,
+      value: { progress: 1, artifact: null } }));
+    const controller = new SemanticActionPlaybackController(execute, { wait });
+
+    await controller.playAtomic(atomicRecording(), 'fresh-document');
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      command: 'command.batch', documentId: 'fresh-document', parameters: expect.objectContaining({
+        name: 'Atomic title', operations: [expect.objectContaining({ command: 'text.create' }),
+          expect.objectContaining({ command: 'layer.rename', parameters: {
+            layerId: { resultOf: 'step-1', field: 'layerId' }, name: 'Hero title'
+          } })]
+      })
+    }));
+    expect(wait).toHaveBeenCalledWith('fresh-document', 'batch-task', expect.any(AbortSignal), expect.any(Function));
+    expect(controller.snapshot()).toMatchObject({ status: 'completed',
+      results: [{ sequence: 1, command: 'text.create', status: 'completed' },
+        { sequence: 2, command: 'layer.rename', status: 'completed' }] });
+  });
+
+  it('rejects ineligible atomic playback before executing a partial workflow', async () => {
+    const execute = vi.fn();
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.playAtomic(recording(), 'fresh-document');
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(controller.snapshot()).toMatchObject({ status: 'failed', currentSequence: 0,
+      results: [{ command: 'command.batch', status: 'atomic-incompatible',
+        message: expect.stringMatching(/diagnostic|cannot publish/i) }] });
+  });
+
+  it('cancels an in-flight atomic batch before it can publish', async () => {
+    const execute = vi.fn(async (request) => ({ requestId: request.requestId,
+      status: 'accepted' as const, taskId: 'batch-task', revisions: { workspace: 1 } }));
+    const canceled = vi.fn();
+    const controller = new SemanticActionPlaybackController(execute, { wait: (
+      _documentId, _taskId, signal
+    ) => new Promise((resolve) => signal.addEventListener('abort', () => {
+      canceled(); resolve({ status: 'canceled', message: 'Stopped.' });
+    }, { once: true })) });
+
+    const playing = controller.playAtomic(atomicRecording(), 'fresh-document');
+    await vi.waitFor(() => expect(controller.snapshot().status).toBe('running'));
+    controller.stop();
+    await playing;
+
+    expect(canceled).toHaveBeenCalledOnce();
+    expect(controller.snapshot()).toMatchObject({ status: 'stopped', currentSequence: null });
   });
 });

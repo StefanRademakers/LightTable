@@ -79,6 +79,8 @@ describe('ActionsPanel', () => {
 
     expect(markup).toContain('Play step');
     expect(markup).toContain('Play from here');
+    expect(markup).toContain('Play as one undo');
+    expect(markup).toContain('cannot publish through one atomic document transaction');
     expect(markup).toContain('Edit parameters');
     expect(markup).toContain('Apply parameters');
     expect(markup).toContain('User-facing rationale');

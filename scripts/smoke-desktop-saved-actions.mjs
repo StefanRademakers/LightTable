@@ -195,6 +195,74 @@ try {
   if (await restored.locator('li').count() !== 2) {
     throw new Error('Playback recursively changed the saved two-step Action.');
   }
+  const activeLayerState = () => second.window.evaluate(() => {
+    const automation = window.__lightTableAutomation;
+    const documentId = automation?.queryWorkspace()?.activeDocumentId;
+    const document = documentId ? automation?.queryDocument(documentId) : null;
+    const layer = documentId && document?.activeLayerId
+      ? automation?.queryLayers(documentId)?.find(({ id }) => id === document.activeLayerId) : null;
+    return documentId && document && layer ? {
+      documentId, layerId: layer.id, layerName: layer.name, undoDepth: document.history.undoDepth
+    } : null;
+  });
+  const beforeAtomicRecording = await activeLayerState();
+  if (!beforeAtomicRecording || beforeAtomicRecording.layerName !== 'Replayed variable layer') {
+    throw new Error(`Atomic playback has no stable active layer: ${JSON.stringify(beforeAtomicRecording)}`);
+  }
+  await restored.getByRole('button', { name: 'Clear' }).click();
+  await restored.getByRole('button', { name: 'Record' }).click();
+  for (const name of ['Atomic interim layer', 'Atomic final layer']) {
+    await second.window.getByRole('menuitem', { name: 'Layer' }).click();
+    await second.window.getByRole('menuitem', { name: 'Rename Layer' }).click();
+    const rename = second.window.locator('input[aria-label="Layer name"]:focus');
+    await rename.fill(name);
+    await rename.press('Enter');
+    await second.window.waitForFunction(({ layerId, name }) => {
+      const automation = window.__lightTableAutomation;
+      const documentId = automation?.queryWorkspace()?.activeDocumentId;
+      return documentId && automation?.queryLayers(documentId)?.find(({ id }) => id === layerId)?.name === name;
+    }, { layerId: beforeAtomicRecording.layerId, name });
+  }
+  await restored.getByRole('button', { name: 'Stop' }).click();
+  const afterStepwiseRecording = await activeLayerState();
+  if (!afterStepwiseRecording
+    || afterStepwiseRecording.undoDepth !== beforeAtomicRecording.undoDepth + 2) {
+    throw new Error(`Recorded rename steps did not remain stepwise: ${JSON.stringify({
+      beforeAtomicRecording, afterStepwiseRecording
+    })}`);
+  }
+  await second.window.keyboard.press('Control+z');
+  await second.window.keyboard.press('Control+z');
+  await second.window.waitForFunction(({ layerId, name, undoDepth }) => {
+    const automation = window.__lightTableAutomation;
+    const documentId = automation?.queryWorkspace()?.activeDocumentId;
+    const document = documentId ? automation?.queryDocument(documentId) : null;
+    return documentId && document?.history.undoDepth === undoDepth
+      && automation?.queryLayers(documentId)?.find(({ id }) => id === layerId)?.name === name;
+  }, { layerId: beforeAtomicRecording.layerId, name: beforeAtomicRecording.layerName,
+    undoDepth: beforeAtomicRecording.undoDepth });
+  const oneUndo = restored.getByRole('button', { name: 'Play as one undo' });
+  if (await oneUndo.isDisabled()) {
+    throw new Error(`Eligible rename Action was excluded from atomic playback: ${await oneUndo.getAttribute('title')}`);
+  }
+  await oneUndo.click();
+  await restored.getByRole('status').filter({ hasText: 'Playback: completed' }).waitFor({ timeout: 15_000 });
+  const afterAtomicPlayback = await activeLayerState();
+  if (!afterAtomicPlayback || afterAtomicPlayback.layerName !== 'Atomic final layer'
+    || afterAtomicPlayback.undoDepth !== beforeAtomicRecording.undoDepth + 1) {
+    throw new Error(`Atomic Action did not publish one history boundary: ${JSON.stringify({
+      beforeAtomicRecording, afterAtomicPlayback
+    })}`);
+  }
+  await second.window.keyboard.press('Control+z');
+  await second.window.waitForFunction(({ layerId, name, undoDepth }) => {
+    const automation = window.__lightTableAutomation;
+    const documentId = automation?.queryWorkspace()?.activeDocumentId;
+    const document = documentId ? automation?.queryDocument(documentId) : null;
+    return documentId && document?.history.undoDepth === undoDepth
+      && automation?.queryLayers(documentId)?.find(({ id }) => id === layerId)?.name === name;
+  }, { layerId: beforeAtomicRecording.layerId, name: beforeAtomicRecording.layerName,
+    undoDepth: beforeAtomicRecording.undoDepth });
   await restoredSets.selectOption({ label: 'Product workflows' });
   await restored.getByRole('button', { name: 'Delete set' }).click();
   await restoredSets.getByRole('option', { name: 'Product workflows' })

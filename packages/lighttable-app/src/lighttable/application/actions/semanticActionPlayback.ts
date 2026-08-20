@@ -14,7 +14,8 @@ export interface ActionPlaybackStepResult {
   readonly sequence: number;
   readonly command: string;
   readonly status: LightTableCommandResult['status'] | 'binding-error'
-    | 'contract-incompatible' | 'task-failed' | 'task-canceled' | 'task-timeout' | 'task-missing';
+    | 'contract-incompatible' | 'atomic-incompatible'
+    | 'task-failed' | 'task-canceled' | 'task-timeout' | 'task-missing';
   readonly message: string | null;
   readonly durationMs: number;
 }
@@ -109,6 +110,75 @@ export class SemanticActionPlaybackController {
   async play(recording: ActionRecordingSnapshot, targetDocumentId?: string,
     overrides: Readonly<Record<string, unknown>> = {}): Promise<ActionPlaybackSnapshot> {
     return this.run(recording, recording.steps.filter(({ replayable }) => replayable), targetDocumentId, overrides);
+  }
+
+  async playAtomic(recording: ActionRecordingSnapshot, targetDocumentId?: string,
+    overrides: Readonly<Record<string, unknown>> = {}): Promise<ActionPlaybackSnapshot> {
+    if (this.snapshotValue.status === 'running') return this.snapshotValue;
+    const { compileAtomicAction } = await import('./atomicActionPlayback');
+    const compiled = compileAtomicAction(recording, targetDocumentId, overrides);
+    if (!compiled.ok) {
+      this.publish({ status: 'failed', currentSequence: 0, taskProgress: null,
+        results: [{ sequence: 0, command: 'command.batch', status: 'atomic-incompatible',
+          message: compiled.error, durationMs: 0 }] });
+      return this.snapshotValue;
+    }
+    this.stopRequested = false;
+    this.publish({ status: 'running', currentSequence: null, results: [], taskProgress: null });
+    const startedAt = Date.now();
+    const requestId = `action-atomic-${recording.id ?? 'unsaved'}-${startedAt}`;
+    const execution = await this.execute({
+      protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+      requestId,
+      command: 'command.batch',
+      documentId: compiled.plan.documentId,
+      parameters: compiled.plan.batch
+    });
+    if (execution.status === 'rejected') {
+      this.publish({ status: 'failed', currentSequence: 0, taskProgress: null,
+        results: [{ sequence: 0, command: 'command.batch', status: 'rejected',
+          message: execution.message, durationMs: Math.max(0, Date.now() - startedAt) }] });
+      return this.snapshotValue;
+    }
+    if (execution.status !== 'accepted' || !this.tasks) {
+      this.publish({ status: 'failed', currentSequence: 0, taskProgress: null,
+        results: [{ sequence: 0, command: 'command.batch', status: 'task-missing',
+          message: 'Atomic playback did not start an observable batch task.',
+          durationMs: Math.max(0, Date.now() - startedAt) }] });
+      return this.snapshotValue;
+    }
+    this.taskAbort = new AbortController();
+    const waiting = this.tasks.wait(compiled.plan.documentId, execution.taskId,
+      this.taskAbort.signal, (taskProgress) => {
+        if (this.snapshotValue.status === 'running') {
+          this.publish({ ...this.snapshotValue, taskProgress });
+        }
+      });
+    if (this.stopRequested) this.taskAbort.abort();
+    const task = await waiting;
+    this.taskAbort = null;
+    if (this.stopRequested) {
+      this.publish({ ...this.snapshotValue, status: 'stopped', currentSequence: null,
+        taskProgress: null });
+      return this.snapshotValue;
+    }
+    if (task.status !== 'completed') {
+      this.publish({ status: 'failed', currentSequence: 0, taskProgress: null,
+        results: [{ sequence: 0, command: 'command.batch', status: `task-${task.status}`,
+          message: task.message, durationMs: Math.max(0, Date.now() - startedAt) }] });
+      return this.snapshotValue;
+    }
+    // The document task observer intentionally exposes terminal state and
+    // bounded artifacts, not the batch executor's private result map. A
+    // completed atomic task proves every operation ran: the executor publishes
+    // neither document nor history when any operation fails or is canceled.
+    const duration = Math.max(0, Date.now() - startedAt);
+    this.publish({ status: 'completed', currentSequence: null, taskProgress: null,
+      results: compiled.plan.steps.map((step, index) => ({
+        sequence: step.sequence, command: step.command, status: 'completed', message: null,
+        durationMs: index === compiled.plan.steps.length - 1 ? duration : 0
+      })) });
+    return this.snapshotValue;
   }
 
   async playStep(recording: ActionRecordingSnapshot, sequence: number,
