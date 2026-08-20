@@ -35,6 +35,13 @@ async function assertEditorFillsWindow(page) {
   }
 }
 
+async function assertFirstDocumentHydrates(page) {
+  await page.locator('.lighttable-layer[data-layer-id]').first().waitFor({
+    state: 'visible',
+    timeout: 15_000
+  });
+}
+
 await rm(output, { recursive: true, force: true });
 await Promise.all([mkdir(userData, { recursive: true }), mkdir(projects, { recursive: true })]);
 const launch = await resolveDesktopTestLaunch(root);
@@ -76,6 +83,7 @@ try {
   await newDocument.getByRole('button', { name: 'Create', exact: true }).click();
   await page.locator('.lighttable-backdrop:not(.lighttable-backdrop--inactive)').waitFor();
   await assertEditorFillsWindow(page);
+  await assertFirstDocumentHydrates(page);
   await page.getByRole('button', { name: 'Close editor', exact: true }).click();
   await home.waitFor({ state: 'visible' });
 
@@ -89,6 +97,7 @@ try {
   await importedAsset.dblclick();
   await page.locator('.lighttable-backdrop:not(.lighttable-backdrop--inactive)').waitFor();
   await assertEditorFillsWindow(page);
+  await assertFirstDocumentHydrates(page);
   await page.getByRole('button', { name: 'Close editor', exact: true }).click();
   await home.waitFor({ state: 'visible' });
   if (pageErrors.length) throw new Error(`Renderer errors: ${JSON.stringify(pageErrors)}`);

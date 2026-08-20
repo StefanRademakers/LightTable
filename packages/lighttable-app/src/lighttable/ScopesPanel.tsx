@@ -21,6 +21,7 @@ interface ScopesPanelProps {
   hueDistributionCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   paradeCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   vectorscopeCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+  onCanvasesReady?: () => void;
   error: string | null;
   onVisibilityChange: (scope: keyof ScopeVisibility, visible: boolean) => void;
   onSettingsChange: (settings: ScopeSettings) => void;
@@ -72,10 +73,19 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
   hueDistributionCanvasRef,
   paradeCanvasRef,
   vectorscopeCanvasRef,
+  onCanvasesReady,
   error,
   onVisibilityChange,
   onSettingsChange
 }) => {
+  React.useLayoutEffect(() => {
+    if (
+      hueDistributionCanvasRef.current
+      && paradeCanvasRef.current
+      && vectorscopeCanvasRef.current
+    ) onCanvasesReady?.();
+  }, [hueDistributionCanvasRef, onCanvasesReady, paradeCanvasRef, vectorscopeCanvasRef]);
+
   const targets = vectorscopeTargetPositions();
   const skinEnd = skinToneReferenceEnd();
   const update = <Key extends keyof ScopeSettings>(key: Key, value: ScopeSettings[Key]) => {

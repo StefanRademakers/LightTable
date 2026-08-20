@@ -7346,6 +7346,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 hueDistributionCanvasRef,
                 paradeCanvasRef,
                 vectorscopeCanvasRef,
+                onCanvasesReady: handleDocumentSurfaceReady,
                 error: scopeError,
                 onVisibilityChange: (scope, visible) => {
                   setScopeVisibility((current) => ({ ...current, [scope]: visible }));
