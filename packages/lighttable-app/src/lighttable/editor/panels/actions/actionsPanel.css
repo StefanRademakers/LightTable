@@ -214,6 +214,27 @@
 .lighttable-action-step-editor__message { color: var(--lt-text-secondary); }
 .lighttable-action-step-editor__error { color: var(--lt-danger); }
 
+.lighttable-action-recorder__rationale {
+  padding-left: 7px;
+  border-left: 2px solid var(--lt-accent);
+  color: var(--lt-text-secondary);
+}
+.lighttable-action-step-rationale {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  align-items: end;
+}
+.lighttable-action-step-rationale label { display: grid; grid-column: 1 / -1; gap: 3px; }
+.lighttable-action-step-rationale textarea {
+  min-height: 48px;
+  resize: vertical;
+  background: var(--lt-surface-inset);
+  color: var(--lt-text-primary);
+}
+.lighttable-action-step-rationale span { color: var(--lt-text-secondary); font-size: var(--lt-type-small); }
+.lighttable-action-step-rationale p { grid-column: 1 / -1; margin: 0; }
+
 .lighttable-command-catalog {
   display: flex;
   flex: 1;

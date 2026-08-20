@@ -146,12 +146,15 @@ class and local invocation metadata. The docked Actions panel consumes that
 projection plus live capability results, so local discovery and MCP exposure
 cannot acquire separate naming or categorization lists.
 
-Durable Actions use a separate bounded version-4 workflow envelope: at most 16
+Durable Actions use a separate bounded version-5 workflow envelope: at most 16
 named sets, 32 Actions and 32 typed variables per Action. Valid version-1/
 version-2 flat libraries migrate into a stable Default Set; valid version-3
-set libraries gain an empty variable list. Set names, selection, variables and
-explicit parameter/result bindings are local workflow metadata; they do not
-enter document state or create parallel MCP mutation commands. Playback
+set libraries gain an empty variable list, and valid version-4 steps gain an
+explicit null rationale. Set names, selection, variables, explicit parameter/
+result bindings and optional trimmed 280-character user-facing step rationales
+are local workflow metadata; they do not enter document state, command
+parameters or create parallel MCP mutation commands. Unknown/private step
+fields in the current envelope fail closed. Playback
 resolves defaults or typed overrides and prior results before the same shared
 command-schema preflight used to guard each recorded semantic command. The
 local recorded-step editor also consumes these generated schemas; it does not

@@ -67,6 +67,9 @@ export class SemanticActionWorkflowController {
   replaceParameters = (sequence: number, parameters: Readonly<Record<string, unknown>>) => (
     this.recorder.replaceParameters(sequence, parameters)
   );
+  updateRationale = (sequence: number, rationale: string) => (
+    this.recorder.updateRationale(sequence, rationale)
+  );
 
   librarySnapshot = (): SemanticActionLibrarySnapshot => this.library.snapshot();
   subscribeLibrary = (listener: () => void): (() => void) => this.library.subscribe(listener);

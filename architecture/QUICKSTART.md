@@ -536,7 +536,11 @@ variable or prior step result. Binding edits and playback overrides run the
 complete command-schema preflight before the first command executes. Literal
 recorded parameters are edited by the same generated schema controls as the
 Commands browser; applying a form preserves its stored bindings and publishes
-the whole validated step atomically.
+the whole validated step atomically. A stopped step can also carry one trimmed,
+280-character user-facing rationale describing visible intent. This belongs to
+the local Action workflow envelope, is included in its storage boundary and is
+never routed through command parameters, document state, MCP, or a private
+model-reasoning channel.
 
 Atomic batches are capped at 64 operations, 256 KiB and 10 seconds. They build
 against a private document value, can reference earlier operation results, and

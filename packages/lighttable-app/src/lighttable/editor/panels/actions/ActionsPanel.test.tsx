@@ -64,7 +64,7 @@ describe('ActionsPanel', () => {
           sequence: 1, requestId: 'request-1', command: 'layer.createRaster', documentId: 'document-1',
           origin: 'ui', contract: { status: 'complete', schemaVersion: 1 }, parameters: {},
           outcome: 'completed', result: { created: true, layerId: 'layer-1' },
-          startedAt: 1, durationMs: 1, replayable: true, note: null
+          startedAt: 1, durationMs: 1, replayable: true, note: null, rationale: null
         }] }}
       playback={{ status: 'idle', currentSequence: null, results: [], taskProgress: null }}
       library={emptyLibrary}
@@ -81,6 +81,8 @@ describe('ActionsPanel', () => {
     expect(markup).toContain('Play from here');
     expect(markup).toContain('Edit parameters');
     expect(markup).toContain('Apply parameters');
+    expect(markup).toContain('User-facing rationale');
+    expect(markup).toContain('Apply rationale');
   });
 
   it('discovers categorized commands without an arbitrary JSON executor', () => {

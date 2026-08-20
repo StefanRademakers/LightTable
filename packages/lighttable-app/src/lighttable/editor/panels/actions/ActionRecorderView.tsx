@@ -14,6 +14,7 @@ import {
 } from '../../../application/actions/semanticActionLibrary';
 import { ActionBindingEditor, ActionVariableRow } from './ActionBindingEditor';
 import { ActionStepParameterEditor } from './ActionStepParameterEditor';
+import { ActionStepRationaleEditor } from './ActionStepRationaleEditor';
 
 export interface ActionRecorderViewProps {
   readonly recording: ActionRecordingSnapshot;
@@ -43,6 +44,7 @@ export interface ActionRecorderViewProps {
   readonly onRestoreLiteral: (sequence: number, path: string) => ActionRecordingEditResult;
   readonly onReplaceStepParameters: (sequence: number,
     parameters: Readonly<Record<string, unknown>>) => ActionRecordingEditResult;
+  readonly onUpdateStepRationale: (sequence: number, rationale: string) => ActionRecordingEditResult;
 }
 
 const formatted = (value: unknown): string => JSON.stringify(value, (_key, candidate) => {
@@ -75,7 +77,8 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
   onDelete,
   onCreateVariable, onUpdateVariable, onDeleteVariable, onBindVariable, onBindResult,
   onRestoreLiteral,
-  onReplaceStepParameters
+  onReplaceStepParameters,
+  onUpdateStepRationale
 }) => {
   const [name, setName] = useState(recording.name);
   useEffect(() => setName(recording.name), [recording.id, recording.name]);
@@ -205,7 +208,13 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
                 <div><dt>Replayable</dt><dd>{step.replayable ? 'yes' : 'no'}</dd></div>
               </dl>
               {step.note ? <p>{step.note}</p> : null}
+              {step.rationale ? <p className="lighttable-action-recorder__rationale">
+                {step.rationale}
+              </p> : null}
               {playbackResult?.message ? <p className="lighttable-action-recorder__warning">{playbackResult.message}</p> : null}
+              <ActionStepRationaleEditor rationale={step.rationale}
+                disabled={busy || recording.status !== 'stopped'}
+                onApply={(rationale) => onUpdateStepRationale(step.sequence, rationale)} />
               <h4>Parameters</h4>
               <pre>{formatted(step.parameters)}</pre>
               <h4>Edit parameters</h4>

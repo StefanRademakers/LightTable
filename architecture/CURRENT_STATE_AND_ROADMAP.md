@@ -28,8 +28,9 @@ milestone changes those boundaries; feature task details belong in
   optimistic revisions, atomic batches, bounded artifacts, async task events
   and document-space gestures.
 - Durable named Action sets support bounded typed variables, explicit prior-
-  result bindings, schema-gated defaults/overrides and dependency-aware replay
-  through that same semantic command service.
+  result bindings, schema-gated defaults/overrides, bounded user-facing step
+  rationales and dependency-aware replay through that same semantic command
+  service.
 - Document observation includes bounded color semantics, and sRGB profile
   assignment is a metadata-only UI/Actions/MCP command with reversible history;
   Convert to Profile remains unimplemented.

@@ -40,5 +40,8 @@ export const createActionsPanelCallbacks = (service?: LightTableCommandService) 
   ),
   onReplaceStepParameters: (sequence: number, parameters: Readonly<Record<string, unknown>>) => (
     service?.replaceActionStepParameters(sequence, parameters) ?? unavailable()
+  ),
+  onUpdateStepRationale: (sequence: number, rationale: string) => (
+    service?.updateActionStepRationale(sequence, rationale) ?? unavailable()
   )
 });

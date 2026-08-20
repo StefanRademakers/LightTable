@@ -16,7 +16,7 @@ Depends on
 
 - [`Task 215`](../../done/task_215_shared_command_schemas_and_examples/task.txt) for
   schema-driven property editing and examples.
-- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt) for
+- [`Task 217`](../../done/task_217_ui_actions_mcp_equivalence_harness/task.txt) for
   shared-route equivalence evidence.
 
 Required work
@@ -58,9 +58,12 @@ Current evidence (2026-08-20)
   delivered typed workflow inputs and explicit parameter/result bindings.
 - [`Task 273`](../../done/task_273_schema_driven_action_step_editing/task.txt)
   delivered shared-schema editing for recorded literal parameters.
+- [`Task 274`](../../done/task_274_action_step_rationales/task.txt) delivered
+  bounded user-facing intent annotations without extending command or MCP
+  payloads.
 - Concrete stopped Actions can be user-named, explicitly saved, loaded and
   deleted from a deterministic bounded library.
-- The version-4 envelope groups at most 32 Actions into at most 16 stable named
+- The version-5 envelope groups at most 32 Actions into at most 16 stable named
   Action Sets, with 32 typed variables and 256 steps per Action, 2 MiB per
   Action and 8 MiB total.
   Set/action ordering and selection are deterministic; malformed,
@@ -92,9 +95,14 @@ Current evidence (2026-08-20)
   producer results. Playback accepts typed overrides and preflights them before
   executing its first command.
 - The packaged restart smoke now authors `layerName` through the real panel,
-  stores it in the version-4 envelope, reloads it after a full process restart,
+  stores it in the version-5 envelope, reloads it after a full process restart,
   changes its default and replays the resulting layer name through the shared
   command route.
+- A stopped step accepts one trimmed 280-character user-facing rationale. It is
+  stored inside the bounded Action envelope, displayed after a full process
+  restart and excluded from document commands and MCP. Version-4 steps migrate
+  to an explicit null rationale; malformed, untrimmed, oversized and unknown
+  private step fields are rejected atomically.
 - Every stopped complete-schema step exposes the same generated controls as the
   Commands browser. Apply replaces the parameter object atomically after
   contract validation, preserves existing variable/result references and

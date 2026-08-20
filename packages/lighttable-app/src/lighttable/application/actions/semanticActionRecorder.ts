@@ -34,6 +34,7 @@ export interface RecordedActionStep {
   readonly durationMs: number;
   readonly replayable: boolean;
   readonly note: string | null;
+  readonly rationale: string | null;
 }
 
 export interface ActionRecordingSnapshot {
@@ -237,6 +238,17 @@ export class SemanticActionRecorder {
         ? { ...candidate, parameters: structuredClone(parameters) } : candidate) });
   }
 
+  updateRationale(sequence: number, rationale: string): ActionRecordingEditResult {
+    const normalized = rationale.trim();
+    if (normalized.length > 280) return { ok: false, error: 'A step rationale is limited to 280 characters.' };
+    if (!this.snapshotValue.steps.some((candidate) => candidate.sequence === sequence)) {
+      return { ok: false, error: `Step ${sequence} does not exist.` };
+    }
+    return this.applySnapshot({ ...this.snapshotValue,
+      steps: this.snapshotValue.steps.map((candidate) => candidate.sequence === sequence
+        ? { ...candidate, rationale: normalized || null } : candidate) });
+  }
+
   private applyEdit(variables: readonly ActionVariableDefinition[], sequence: number,
     parameterPath: string, replacement: unknown): ActionRecordingEditResult {
     const step = this.snapshotValue.steps.find((candidate) => candidate.sequence === sequence);
@@ -250,14 +262,16 @@ export class SemanticActionRecorder {
 
   private applySnapshot(snapshot: ActionRecordingSnapshot): ActionRecordingEditResult {
     if (this.snapshotValue.status !== 'stopped') {
-      return { ok: false, error: 'Stop the Action before editing variables or bindings.' };
+      return { ok: false, error: 'Stop the Action before editing it.' };
     }
     const contracts = checkActionCommandContracts(snapshot.steps, false, snapshot.variables);
     if (!contracts.ok) return { ok: false, error: contracts.message };
     let byteLength: number;
     try {
       byteLength = new TextEncoder().encode(JSON.stringify({ variables: snapshot.variables,
-        steps: snapshot.steps.map(({ parameters, result }) => ({ parameters, result })) })).byteLength;
+        steps: snapshot.steps.map(({ parameters, result, rationale }) => (
+          { parameters, result, rationale }
+        )) })).byteLength;
     } catch {
       return { ok: false, error: 'The edited Action is not JSON serializable.' };
     }
@@ -336,7 +350,8 @@ export class SemanticActionRecorder {
       startedAt,
       durationMs: Math.max(0, Date.now() - startedAt),
       replayable,
-      note
+      note,
+      rationale: null
     };
     this.publish({ ...this.snapshotValue, steps: [...this.snapshotValue.steps, step], byteLength: nextBytes });
   }

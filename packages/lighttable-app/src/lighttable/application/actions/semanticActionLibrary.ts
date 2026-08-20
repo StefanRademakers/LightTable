@@ -7,7 +7,7 @@ import {
 } from './actionResultBindings';
 
 export const LIGHTTABLE_ACTION_LIBRARY_STORAGE_KEY = 'lighttable.actions.v1';
-export const LIGHTTABLE_ACTION_LIBRARY_VERSION = 4;
+export const LIGHTTABLE_ACTION_LIBRARY_VERSION = 5;
 export const LIGHTTABLE_DEFAULT_ACTION_SET_ID = 'action-set-default';
 export const LIGHTTABLE_MAX_ACTION_SETS = 16;
 const MAX_ACTIONS = 32;
@@ -73,19 +73,29 @@ const defaultSet = (): SavedSemanticActionSet => ({
 
 type StoredActionStep = Omit<RecordedActionStep, 'contract'> & { readonly contract?: RecordedCommandContract };
 
-const parseStep = (value: unknown, sequence: number): StoredActionStep | null => {
+const STEP_KEYS = new Set([
+  'sequence', 'requestId', 'origin', 'command', 'contract', 'documentId', 'parameters',
+  'outcome', 'result', 'startedAt', 'durationMs', 'replayable', 'note', 'rationale'
+]);
+
+const parseStep = (value: unknown, sequence: number,
+  allowMissingRationale: boolean): StoredActionStep | null => {
   if (!record(value) || value.sequence !== sequence || !boundedString(value.requestId, 512)
+    || Object.keys(value).some((key) => !STEP_KEYS.has(key))
     || !boundedString(value.command, 128) || !commands.has(value.command as never)
     || (value.origin !== 'ui' && value.origin !== 'actions-playback'
       && value.origin !== 'mcp' && value.origin !== 'internal')
     || (value.documentId !== null && !boundedString(value.documentId, 512))
     || (value.outcome !== 'completed' && value.outcome !== 'accepted') || value.replayable !== true
     || !finite(value.startedAt) || !finite(value.durationMs) || value.durationMs < 0
-    || (value.note !== null && (typeof value.note !== 'string' || value.note.length > 2_048))) return null;
+    || (value.note !== null && (typeof value.note !== 'string' || value.note.length > 2_048))
+    || (value.rationale === undefined ? !allowMissingRationale
+      : value.rationale !== null && (typeof value.rationale !== 'string'
+        || value.rationale.trim() !== value.rationale || value.rationale.length > 280))) return null;
   try {
     if (jsonBytes(value.parameters) > 256 * 1024 || jsonBytes(value.result) > 256 * 1024) return null;
   } catch { return null; }
-  return structuredClone(value) as unknown as StoredActionStep;
+  return structuredClone({ ...value, rationale: value.rationale ?? null }) as unknown as StoredActionStep;
 };
 
 type ParsedAction = { readonly action: SavedSemanticAction; readonly migrated: boolean }
@@ -93,6 +103,7 @@ type ParsedAction = { readonly action: SavedSemanticAction; readonly migrated: b
 
 const parseAction = (value: unknown, allowMissingLegacyContract: boolean,
   allowMissingVariables: boolean,
+  allowMissingRationale: boolean,
   legacySetId?: string): ParsedAction => {
   if (!record(value) || !boundedString(value.id, 255) || !boundedString(value.name, 255)
     || !finite(value.createdAt) || !finite(value.updatedAt) || !record(value.recording)) {
@@ -112,7 +123,8 @@ const parseAction = (value: unknown, allowMissingLegacyContract: boolean,
   if (!Array.isArray(variables)) return { error: 'Action variables are malformed.' };
   const variableError = validateActionVariables(variables as ActionVariableDefinition[]);
   if (variableError) return { error: variableError };
-  const steps = recording.steps.map((step, index) => parseStep(step, index + 1));
+  const missingRationale = recording.steps.some((step) => record(step) && step.rationale === undefined);
+  const steps = recording.steps.map((step, index) => parseStep(step, index + 1, allowMissingRationale));
   if (steps.some((step) => !step)) return { error: 'Action steps are malformed.' };
   const contracts = checkActionCommandContracts(steps as StoredActionStep[], allowMissingLegacyContract,
     variables as ActionVariableDefinition[]);
@@ -123,7 +135,7 @@ const parseAction = (value: unknown, allowMissingLegacyContract: boolean,
     recording: { ...parsedRecording, variables: structuredClone(variables), steps: contracts.steps } };
   try {
     return jsonBytes(action) <= MAX_ACTION_BYTES
-      ? { action, migrated: contracts.migrated || recording.variables === undefined }
+      ? { action, migrated: contracts.migrated || recording.variables === undefined || missingRationale }
       : { error: 'Action exceeds the storage boundary.' };
   } catch { return { error: 'Action is not serializable.' }; }
 };
@@ -249,7 +261,8 @@ export class SemanticActionLibrary {
       ? nextId('action', new Set(this.snapshotValue.actions.map((action) => action.id))) : requestedId;
     const parsed = parseAction({ id, setId: this.snapshotValue.selectedSetId,
       name: normalizedName, createdAt: previous?.createdAt ?? now, updatedAt: now,
-      recording: { ...recording, id, name: normalizedName, status: 'stopped', limitReached: false } }, false, false);
+      recording: { ...recording, id, name: normalizedName, status: 'stopped', limitReached: false } },
+    false, false, false);
     if ('error' in parsed) return null;
     const action = parsed.action;
     const actions = orderedActions([
@@ -286,7 +299,7 @@ export class SemanticActionLibrary {
     try {
       const value: unknown = JSON.parse(serialized);
       if (!record(value) || value.format !== 'lighttable-actions'
-        || (value.version !== 1 && value.version !== 2 && value.version !== 3
+        || (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4
           && value.version !== LIGHTTABLE_ACTION_LIBRARY_VERSION)
         || !Array.isArray(value.actions) || value.actions.length > MAX_ACTIONS
         || (value.selectedId !== null && typeof value.selectedId !== 'string')) {
@@ -298,6 +311,7 @@ export class SemanticActionLibrary {
       const setIds = new Set(sets.map(({ id }) => id));
       const parsed = value.actions.map((action) => parseAction(action, value.version === 1,
         Number(value.version) <= 3,
+        Number(value.version) <= 4,
         legacy ? LIGHTTABLE_DEFAULT_ACTION_SET_ID : undefined));
       const invalid = parsed.find((action) => 'error' in action);
       if (invalid && 'error' in invalid) {

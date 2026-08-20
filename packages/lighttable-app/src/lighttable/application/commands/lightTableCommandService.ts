@@ -360,6 +360,9 @@ export class LightTableCommandService {
   replaceActionStepParameters = (sequence: number, parameters: Readonly<Record<string, unknown>>) => (
     this.actions.replaceParameters(sequence, parameters)
   );
+  updateActionStepRationale = (sequence: number, rationale: string) => (
+    this.actions.updateRationale(sequence, rationale)
+  );
   actionLibrarySnapshot = (): SemanticActionLibrarySnapshot => this.actions.librarySnapshot();
   subscribeActionLibrary = (listener: () => void) => this.actions.subscribeLibrary(listener);
   createActionSet = (name: string) => this.actions.createSet(name);

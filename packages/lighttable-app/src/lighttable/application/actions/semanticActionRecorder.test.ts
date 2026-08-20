@@ -129,4 +129,22 @@ describe('SemanticActionRecorder', () => {
     expect(recorder.replaceParameters(1, { layerId: 'layer-1' })).toMatchObject({ ok: false });
     expect(recorder.snapshot().steps[0]?.parameters).toMatchObject({ name: 'Edited title' });
   });
+
+  it('stores only a trimmed bounded rationale while stopped', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start();
+    recorder.record(request('layer.rename', { layerId: 'layer-1', name: 'Title' }),
+      completed('request-layer.rename', { layerId: 'layer-1', name: 'Title' }), Date.now());
+
+    expect(recorder.updateRationale(1, 'Cannot edit while recording.')).toMatchObject({
+      ok: false, error: expect.stringMatching(/stop the action/i)
+    });
+    recorder.stop();
+    expect(recorder.updateRationale(1, '  Keeps the visible layer purpose clear.  ')).toEqual({ ok: true });
+    expect(recorder.snapshot().steps[0]?.rationale).toBe('Keeps the visible layer purpose clear.');
+    expect(recorder.updateRationale(1, 'x'.repeat(281))).toMatchObject({ ok: false });
+    expect(recorder.snapshot().steps[0]?.rationale).toBe('Keeps the visible layer purpose clear.');
+    expect(recorder.updateRationale(1, '   ')).toEqual({ ok: true });
+    expect(recorder.snapshot().steps[0]?.rationale).toBeNull();
+  });
 });

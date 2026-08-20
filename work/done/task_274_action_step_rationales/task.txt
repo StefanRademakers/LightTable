@@ -1,0 +1,50 @@
+Task 274 - Bounded user-facing Action step rationales
+=====================================================
+
+Goal
+====
+
+Let an artist annotate a recorded Action step with a short explanation of its
+visible intent, without adding model reasoning or execution metadata to the
+semantic command protocol.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- Add an optional trimmed rationale capped at 280 characters per step.
+- Migrate valid version-4 Actions atomically and reject malformed/private step
+  fields in the new format.
+- Edit rationales only while the Action is stopped.
+- Display the rationale with the step and persist it through restart.
+- Keep rationale local workflow metadata; never accept private chain-of-thought
+  or route it through document command parameters.
+
+Non-goals
+=========
+
+- Automatic rationale generation.
+- Agent reasoning storage.
+- Changing command execution, history or render behavior.
+
+Evidence (2026-08-20)
+=====================
+
+- `RecordedActionStep.rationale` is explicit nullable workflow metadata. The
+  recorder trims it, caps it at 280 characters, includes it in the Action byte
+  boundary and permits edits only while stopped.
+- The version-5 library parser uses an allowlist for every stored step field.
+  Valid version-4 steps migrate to `rationale: null`; current untrimmed,
+  oversized or unknown/private fields fail the whole load atomically.
+- The Actions panel displays and edits the rationale beside its recorded step;
+  workflow and command-service callbacks remain outside the document command
+  protocol.
+- Focused recorder/library/panel tests cover stopped-state, trimming, clearing,
+  limits, migration, persistence and malformed current data.
+- The packaged two-process smoke authors a rationale, saves it in two named
+  Actions, closes the application, verifies the version-5 host-owned file,
+  reloads the visible annotation and editor value, then replays the Action.

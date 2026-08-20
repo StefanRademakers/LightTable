@@ -11,7 +11,7 @@ const createStep: RecordedActionStep = {
   origin: 'ui',
   contract: { status: 'complete', schemaVersion: 1 },
   parameters: {}, outcome: 'completed', result: { created: true, layerId: 'generated-layer-1' },
-  startedAt: 1, durationMs: 1, replayable: true, note: null
+  startedAt: 1, durationMs: 1, replayable: true, note: null, rationale: null
 };
 
 describe('action result bindings', () => {

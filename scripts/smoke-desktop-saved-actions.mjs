@@ -7,11 +7,8 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 const root = path.resolve(import.meta.dirname, '..');
 const output = path.join(root, 'tmp', 'saved-actions-smoke');
 await mkdir(output, { recursive: true });
-const fixture = process.argv[2]
-  ? path.resolve(process.argv[2])
-  : path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons',
-    'tool_shape_rectangle.png');
-await access(fixture);
+const fixture = process.argv[2] ? path.resolve(process.argv[2]) : null;
+if (fixture) await access(fixture);
 const userData = await mkdtemp(path.join(output, 'profile-'));
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 const environment = { ...process.env };
@@ -22,17 +19,35 @@ const consoleErrors = [];
 const openApp = async (label) => {
   const app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
     cwd: root, env: { ...environment, LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-      LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture }, timeout: 30_000 });
+      ...(fixture ? { LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture } : {}) }, timeout: 30_000 });
   const window = await app.firstWindow({ timeout: 30_000 });
   window.on('pageerror', (error) => pageErrors.push(`${label}: ${error.message}`));
   window.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(`${label}: ${message.text()}`);
   });
-  const open = await waitForDesktopLauncher({ app, page: window, outputDirectory: output,
-    sourceFile: fixture, pageErrors, label });
-  await open.click();
-  await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
-    .waitFor({ timeout: 60_000 }).catch(async (error) => {
+  const ready = window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i });
+  let openError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const open = await waitForDesktopLauncher({ app, page: window, outputDirectory: output,
+      sourceFile: fixture ?? 'generated saved Actions document', pageErrors, label });
+    if (fixture) {
+      await open.click();
+    } else {
+      await window.getByRole('button', { name: 'New Document', exact: true }).click();
+      const dialog = window.locator('.lighttable-new-document-dialog--embedded');
+      await dialog.getByLabel('Name').fill('Saved Actions smoke');
+      await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    }
+    try {
+      await ready.waitFor({ state: 'visible', timeout: 20_000 });
+      openError = undefined;
+      break;
+    } catch (error) {
+      openError = error;
+      if (attempt < 3) await window.getByRole('button', { name: 'Close editor', exact: true }).click();
+    }
+  }
+  if (openError) {
       const evidence = await window.evaluate(() => ({
         title: document.title,
         body: document.body?.innerText.slice(0, 2_000),
@@ -41,9 +56,9 @@ const openApp = async (label) => {
       })).catch(() => null);
       await window.screenshot({ path: path.join(output, `${label}-not-ready.png`) }).catch(() => undefined);
       throw new Error(`Desktop did not become ready: ${JSON.stringify({
-        cause: error.message, pageErrors, consoleErrors, evidence
+        cause: openError.message, pageErrors, consoleErrors, evidence
       })}`);
-    });
+  }
   await window.getByRole('menuitem', { name: 'View' }).click();
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   return { app, window, panel: window.getByRole('complementary', { name: 'Actions' }) };
@@ -76,6 +91,10 @@ try {
   await recorder.getByRole('button', { name: 'Stop' }).click();
   const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
   await renameStep.locator('summary').click();
+  await renameStep.getByRole('textbox', { name: 'User-facing rationale' })
+    .fill('Names the reusable layer for later design steps.');
+  await renameStep.getByRole('button', { name: 'Apply rationale' }).click();
+  await renameStep.getByRole('status').filter({ hasText: 'Rationale updated.' }).waitFor();
   const stepEditor = renameStep.locator('.lighttable-action-step-editor');
   await stepEditor.getByRole('textbox', { name: 'Name', exact: true }).fill('Schema edited layer');
   await stepEditor.getByRole('button', { name: 'Apply parameters' }).click();
@@ -140,11 +159,12 @@ try {
     throw new Error('Restart exposed an Action from a non-selected set.');
   }
   const storedEnvelope = JSON.parse(await readFile(path.join(userData, 'actions-v1.json'), 'utf8'));
-  if (storedEnvelope?.version !== 4 || storedEnvelope.sets?.length !== 3
+  if (storedEnvelope?.version !== 5 || storedEnvelope.sets?.length !== 3
     || storedEnvelope.actions?.length !== 2
     || new Set(storedEnvelope.actions.map((action) => action.setId)).size !== 2
     || storedEnvelope.actions.some((action) => action.recording?.variables?.[0]?.name !== 'layerName'
       || action.recording?.variables?.[0]?.defaultValue !== 'Schema edited layer'
+      || action.recording?.steps?.[1]?.rationale !== 'Names the reusable layer for later design steps.'
       || action.recording?.steps?.[1]?.parameters?.layerId?.$lighttableResult?.step !== 1)) {
     throw new Error(`Action Set envelope is incomplete: ${JSON.stringify(storedEnvelope)}`);
   }
@@ -153,7 +173,15 @@ try {
     .waitFor({ state: 'attached' });
   await restored.getByRole('button', { name: 'Load' }).click();
   await restored.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
-  await restored.locator('li').filter({ hasText: 'layer.rename' }).waitFor();
+  const restoredRename = restored.locator('li').filter({ hasText: 'layer.rename' });
+  await restoredRename.waitFor();
+  await restoredRename.locator('summary').click();
+  await restoredRename.locator('.lighttable-action-recorder__rationale')
+    .filter({ hasText: 'Names the reusable layer for later design steps.' }).waitFor();
+  if (await restoredRename.getByRole('textbox', { name: 'User-facing rationale' }).inputValue()
+    !== 'Names the reusable layer for later design steps.') {
+    throw new Error('The persisted rationale did not restore into the stopped-step editor.');
+  }
   const restoredVariable = restored.getByRole('textbox', { name: 'layerName default' });
   await restoredVariable.fill('Replayed variable layer');
   await restoredVariable.blur();
