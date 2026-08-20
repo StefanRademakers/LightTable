@@ -35,6 +35,11 @@ type ExecuteCommand = (request: LightTableCommandRequest) => Promise<LightTableC
 const initialSnapshot = (): ActionPlaybackSnapshot => ({
   status: 'idle', currentSequence: null, results: [], taskProgress: null
 });
+const returnedDocumentId = (value: unknown): string | null => (
+  typeof value === 'object' && value !== null && 'documentId' in value
+    && typeof value.documentId === 'string' && value.documentId.length > 0
+    ? value.documentId : null
+);
 
 export class SemanticActionPlaybackController {
   private snapshotValue = initialSnapshot();
@@ -86,6 +91,7 @@ export class SemanticActionPlaybackController {
     this.stopRequested = false;
     this.publish({ status: 'running', currentSequence: null, results: [], taskProgress: null });
     const producedResults = new Map<number, unknown>();
+    const replayDocumentIds = new Map<string, string>();
     for (const step of steps) {
       if (this.stopRequested) {
         this.publish({ ...this.snapshotValue, status: 'stopped', currentSequence: null,
@@ -104,11 +110,14 @@ export class SemanticActionPlaybackController {
           results: [...this.snapshotValue.results, result], taskProgress: null });
         return this.snapshotValue;
       }
+      const resolvedDocumentId = step.documentId
+        ? replayDocumentIds.get(step.documentId) ?? targetDocumentId ?? step.documentId
+        : undefined;
       const result = await this.execute({
         protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
         requestId: `action-play-${recording.id ?? 'unsaved'}-${step.sequence}-${startedAt}`,
         command: step.command,
-        ...(step.documentId ? { documentId: targetDocumentId ?? step.documentId } : {}),
+        ...(resolvedDocumentId ? { documentId: resolvedDocumentId } : {}),
         parameters: parameters.value
       });
       const entry: ActionPlaybackStepResult = {
@@ -134,7 +143,7 @@ export class SemanticActionPlaybackController {
           return this.snapshotValue;
         }
         this.taskAbort = new AbortController();
-        const waiting = this.tasks.wait(targetDocumentId ?? step.documentId, result.taskId,
+        const waiting = this.tasks.wait(resolvedDocumentId!, result.taskId,
           this.taskAbort.signal, (taskProgress) => {
             if (this.snapshotValue.status === 'running') {
               this.publish({ ...this.snapshotValue, taskProgress });
@@ -177,6 +186,11 @@ export class SemanticActionPlaybackController {
           results: [...this.snapshotValue.results, completed], taskProgress: null });
       } else {
         producedResults.set(step.sequence, result.value);
+        const recordedDocumentId = returnedDocumentId(step.result);
+        const createdDocumentId = returnedDocumentId(result.value);
+        if (!step.documentId && recordedDocumentId && createdDocumentId) {
+          replayDocumentIds.set(recordedDocumentId, createdDocumentId);
+        }
         this.publish({ ...this.snapshotValue, results, taskProgress: null });
       }
     }

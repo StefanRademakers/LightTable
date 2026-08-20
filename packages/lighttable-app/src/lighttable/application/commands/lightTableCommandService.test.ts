@@ -1852,6 +1852,12 @@ describe('LightTableCommandService registry', () => {
       expectedWorkspaceRevision: 999
     });
     expect(stale).toMatchObject({ status: 'rejected', code: 'stale-workspace-revision' });
+    const incorrectlyTargeted = await service.execute({
+      protocolVersion: 1, requestId: 'targeted-create', command: 'document.create',
+      documentId: state.session.id, parameters
+    });
+    expect(incorrectlyTargeted).toMatchObject({ status: 'rejected', code: 'invalid-request',
+      message: expect.stringContaining('Workspace commands') });
     expect(createDocument).toHaveBeenCalledTimes(1);
     service.dispose(); state.service.dispose(); state.workspace.dispose();
   });

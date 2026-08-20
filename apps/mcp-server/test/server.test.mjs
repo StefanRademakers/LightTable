@@ -195,10 +195,23 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(result.structuredContent.status, 'completed');
   const created = await editor.callTool({ name: 'lighttable_create_document', arguments: {
     name: 'MCP canvas', width: 400, height: 300, resolutionPpi: 144,
-    bitDepth: '16', profile: 'adobe-rgb-1998', backgroundColor: '#112233'
+    bitDepth: 16, profile: 'adobe-rgb-1998', background: { kind: 'solid', color: '#112233' }
   } });
   assert.equal(created.isError, undefined);
   assert.equal(created.structuredContent.status, 'completed');
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    command: 'document.create', commandParameters: {
+      name: 'MCP canvas', width: 400, height: 300, resolutionPpi: 144,
+      bitDepth: 16, profile: 'adobe-rgb-1998', background: { kind: 'solid', color: '#112233' }
+    }
+  });
+  const beforeInvalidCreate = commandCalls.length;
+  const invalidCreate = await editor.callTool({ name: 'lighttable_create_document', arguments: {
+    name: 'Too large', width: 32768, height: 32768, resolutionPpi: 72,
+    bitDepth: 8, profile: 'srgb', background: { kind: 'transparent' }
+  } });
+  assert.equal(invalidCreate.isError, true);
+  assert.equal(commandCalls.length, beforeInvalidCreate, 'invalid document creation reached the desktop client');
   const placedImport = await editor.callTool({ name: 'lighttable_import_image_url', arguments: {
     url: 'https://93.184.216.34/reference.png', name: 'Reference image',
     documentId: 'document-demo', x: 24, y: 32

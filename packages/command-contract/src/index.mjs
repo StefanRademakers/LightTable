@@ -15,6 +15,8 @@ import artifactCommandSchemas from '../schemas/v1/artifact.json' with { type: 'j
 
 import autoAlignCommandSchemas from '../schemas/v1/auto-align.json' with { type: 'json' };
 
+import documentCommandSchemas from '../schemas/v1/document.json' with { type: 'json' };
+
 import finalizationCommandSchemas from '../schemas/v1/finalization.json' with { type: 'json' };
 
 import gestureCommandSchemas from '../schemas/v1/gesture.json' with { type: 'json' };
@@ -155,6 +157,7 @@ const baseCommandSchemas = Object.freeze({
   ...schemaModuleCommands(adjustmentCreationCommandSchemas),
   ...schemaModuleCommands(artifactCommandSchemas),
   ...schemaModuleCommands(autoAlignCommandSchemas),
+  ...schemaModuleCommands(documentCommandSchemas),
   ...schemaModuleCommands(finalizationCommandSchemas),
   ...schemaModuleCommands(gestureCommandSchemas),
   ...schemaModuleCommands(gradeBasicCommandSchemas),

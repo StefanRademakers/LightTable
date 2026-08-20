@@ -1,0 +1,44 @@
+Task 263 - Complete document.create across UI, Actions and MCP
+
+Goal
+Make document.create one canonical workspace-scoped capability whose properties, result and lifecycle routing are equivalent in the New Document UI, Actions and the dedicated MCP tool.
+
+Checklist
+- [x] Add a closed shared v1 input/result schema and representative examples.
+- [x] Keep the contextual total-pixel safety bound in canonical command validation and test it beside schema bounds.
+- [x] Make the Actions command browser omit documentId for workspace-scoped commands.
+- [x] Let Action replay map a recorded created document ID to the fresh document ID returned by document.create for later document-scoped steps.
+- [x] Align lighttable_create_document with canonical names and types, including numeric bitDepth and the background union.
+- [x] Add contract, command-service, Actions and MCP equivalence/rejection tests.
+- [x] Prove the route in the packaged app without weakening page-error or publication gates.
+- [x] Update MCP/Actions documentation and coverage ledgers.
+- [x] Run focused tests, typecheck, architecture/boundary audits and relevant packaged smokes.
+
+Non-goals
+- Changing document pixels, renderer internals or interactive input paths.
+- Making workspace document creation part of per-document undo history.
+- Preserving the alpha-only divergent MCP aliases backgroundColor or string bitDepth.
+
+Completion evidence
+- `document.create` has a closed v1 schema with two executable examples and a
+  stable `{documentId}` result. Schema tests reject string bit depth, aliases,
+  incomplete backgrounds and private fields.
+- The shared command request scope rejects a workspace command carrying
+  `documentId` or `expectedDocumentRevision`. The Actions Commands route derives
+  the target from catalog scope rather than a command-name exception list.
+- Actions replay maintains a recorded-to-fresh document map. A packaged
+  Commands/Actions flow recorded `document.create` as workspace-scoped, added a
+  Raster Layer to its returned document, replayed both steps and verified the
+  Raster Layer landed in the newly replayed document.
+- `lighttable_create_document` now accepts the exact canonical numeric bit
+  depth and transparent/solid background union. It rejects the total-pixel
+  bound before the desktop bridge; the application parser remains authoritative.
+- Focused result: 108 application tests, 29 command-contract tests and 17 MCP
+  tests passed.
+- `npm run package:desktop:verify` and
+  `npm run smoke:desktop:route-equivalence` passed against packaged Electron,
+  the authenticated desktop bridge and Streamable HTTP MCP.
+- Full `npm run typecheck` and `npm test` passed; the app suite contains 486
+  files and 2,797 tests.
+- Command coverage, boundary, source-structure, UI-boundary and architecture-
+  docs audits passed. `git diff --check` passed.

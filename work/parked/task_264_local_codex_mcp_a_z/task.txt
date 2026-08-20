@@ -1,0 +1,25 @@
+Task 264 - Local Codex to LightTable MCP A-Z acceptance route
+
+Status
+Parked until the representative command verticals are ready for external owner acceptance.
+
+Goal
+Run the real LightTable desktop bridge and a local Streamable HTTP MCP server,
+connect a fresh Codex session through project-local configuration, and prove a
+complete inspect -> create -> edit -> preview -> correct -> save/export flow.
+
+Checklist
+- [ ] Add one supported local launcher that starts the packaged app, authenticated desktop bridge and MCP endpoint with isolated temporary state.
+- [ ] Add a project-local Codex MCP profile/template without committing credentials or machine-specific ports.
+- [ ] Document the required fresh-session/restart boundary; a running Codex session cannot acquire a newly configured MCP server dynamically.
+- [ ] Prove read-only discovery and bounded previews before granting edit scope.
+- [ ] Prove document creation, layered edits, Actions-visible commands, revision/event observation, correction and export through MCP only.
+- [ ] Verify LightTable's final pixels and editable layer state independently through the packaged automation/query route.
+- [ ] Exercise invalid schema, stale revision, missing target, reconnect and clean shutdown paths.
+- [ ] Retain a concise machine-readable acceptance report without image bytes, tokens or private paths.
+
+Constraints
+- Use the normal LightTable command/query/task/event owners; no test-only mutation API.
+- Local configuration must remain opt-in and loopback-only.
+- Never put OAuth, bridge or pairing secrets in tracked Codex configuration.
+- This acceptance task does not block continued schema/capability implementation.

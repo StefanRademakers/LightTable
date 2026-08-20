@@ -5,6 +5,7 @@ import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
 import type { LightTablePreviewEncoding } from './application/commands/lightTableCommandContract';
+import { commandDocumentTarget } from './application/commands/commandRequestScope';
 import { resolveAcceptedCommandArtifact } from './application/commands/resolveAcceptedCommandArtifact';
 import type { DocumentPixelRegion } from './editor/geometry/documentRegionPreview';
 import {
@@ -865,7 +866,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
       requestId,
       command,
-      documentId: workspaceDocumentId,
+      ...commandDocumentTarget(command, workspaceDocumentId),
       parameters
     });
     void execution.then((result) => {

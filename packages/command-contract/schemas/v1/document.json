@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "category": "document",
+  "$defs": {
+    "documentId": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "background": {
+      "title": "Background",
+      "oneOf": [
+        {
+          "title": "Transparent",
+          "type": "object", "additionalProperties": false, "required": ["kind"],
+          "properties": { "kind": { "const": "transparent" } }
+        },
+        {
+          "title": "Solid color",
+          "type": "object", "additionalProperties": false, "required": ["kind", "color"],
+          "properties": {
+            "kind": { "const": "solid" },
+            "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+          }
+        }
+      ]
+    }
+  },
+  "commands": {
+    "document.create": {
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "width", "height", "resolutionPpi", "bitDepth", "profile", "background"],
+        "properties": {
+          "name": {
+            "type": "string", "title": "Document name", "minLength": 1, "maxLength": 255,
+            "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "width": { "type": "integer", "title": "Width", "minimum": 1, "maximum": 32768 },
+          "height": { "type": "integer", "title": "Height", "minimum": 1, "maximum": 32768 },
+          "resolutionPpi": { "type": "number", "title": "Resolution (ppi)", "minimum": 1, "maximum": 2400 },
+          "bitDepth": { "type": "integer", "title": "Bit depth", "enum": [8, 16] },
+          "profile": {
+            "type": "string", "title": "Blend compatibility",
+            "enum": ["srgb", "adobe-rgb-1998"]
+          },
+          "background": { "$ref": "#/$defs/background", "title": "Background" }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["documentId"],
+        "properties": { "documentId": { "$ref": "#/$defs/documentId" } }
+      }
+    }
+  }
+}

@@ -1,4 +1,24 @@
 {
+  "document.create": [
+    {
+      "name": "Social portrait",
+      "width": 1080,
+      "height": 1350,
+      "resolutionPpi": 72,
+      "bitDepth": 8,
+      "profile": "srgb",
+      "background": { "kind": "transparent" }
+    },
+    {
+      "name": "Print study",
+      "width": 2400,
+      "height": 3000,
+      "resolutionPpi": 300,
+      "bitDepth": 16,
+      "profile": "adobe-rgb-1998",
+      "background": { "kind": "solid", "color": "#F5F1E8" }
+    }
+  ],
   "view.setZoom": [
     { "mode": "fit" },
     { "mode": "100" },

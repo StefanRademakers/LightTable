@@ -81,6 +81,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'file.openArtifact',
     'layer.placeArtifact',
     'layer.autoAlign',
+    'document.create',
     'raster.invert',
     'text.convertToShape',
     'text.rasterize',
@@ -138,6 +139,24 @@ test('versioned schemas describe and validate every completed command vertical',
       assert.deepEqual(validateJsonSchemaValue(schema.input, example), { valid: true, issues: [] }, command);
     }
   }
+});
+
+test('document creation schema keeps exact workspace document semantics', () => {
+  const create = LIGHTTABLE_COMMAND_SCHEMAS['document.create'];
+  for (const example of LIGHTTABLE_COMMAND_EXAMPLES['document.create']) {
+    assert.deepEqual(validateJsonSchemaValue(create.input, example), { valid: true, issues: [] });
+  }
+  assert.equal(validateJsonSchemaValue(create.input, {
+    ...LIGHTTABLE_COMMAND_EXAMPLES['document.create'][0], bitDepth: '8'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(create.input, {
+    ...LIGHTTABLE_COMMAND_EXAMPLES['document.create'][0], backgroundColor: '#ffffff'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(create.input, {
+    ...LIGHTTABLE_COMMAND_EXAMPLES['document.create'][0], background: { kind: 'solid' }
+  }).valid, false);
+  assert.deepEqual(validateJsonSchemaValue(create.result, { documentId: 'document-created' }),
+    { valid: true, issues: [] });
 });
 
 test('atomic batch schema is derived from complete commands and preserves result references', () => {

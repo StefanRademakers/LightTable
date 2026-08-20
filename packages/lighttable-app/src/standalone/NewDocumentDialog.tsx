@@ -23,7 +23,8 @@ interface NewDocumentDialogProps {
 
 const DEFAULT_WIDTH = 1920;
 const DEFAULT_HEIGHT = 1080;
-const MAX_DIMENSION = 16384;
+const MAX_DIMENSION = 32768;
+const MAX_PIXEL_COUNT = 268_435_456;
 
 const readClipboardDimensions = async (
   clipboard: LightTableImageClipboard | undefined
@@ -98,7 +99,8 @@ export function NewDocumentDialog({
     && normalizedWidth >= 1
     && normalizedHeight >= 1
     && normalizedWidth <= MAX_DIMENSION
-    && normalizedHeight <= MAX_DIMENSION;
+    && normalizedHeight <= MAX_DIMENSION
+    && normalizedWidth * normalizedHeight <= MAX_PIXEL_COUNT;
   const optionsValid = valid && name.trim().length > 0 && name.trim().length <= 255
     && Number.isFinite(resolutionPpi) && resolutionPpi >= 1 && resolutionPpi <= 2400;
 
@@ -117,7 +119,7 @@ export function NewDocumentDialog({
           if (optionsValid && !creating) {
             onCreate({
               name: name.trim(), width: normalizedWidth, height: normalizedHeight,
-              resolutionPpi: Math.round(resolutionPpi), bitDepth, profile,
+              resolutionPpi, bitDepth, profile,
               background: backgroundKind === 'solid'
                 ? { kind: 'solid', color: backgroundColor }
                 : { kind: 'transparent' }

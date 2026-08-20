@@ -60,6 +60,7 @@ import { startAtomicCommandBatchTask } from './atomicCommandBatchTask';
 import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSample,
   parseCommittedGestureRequest, parseCreateDocumentOptions } from './lightTableCommandValidation';
 import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
+import { commandScope } from './commandRequestScope';
 import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import { parseSemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
@@ -1427,8 +1428,16 @@ export class LightTableCommandService {
     if (!isLightTableCommandId(value.command)) {
       return { rejection: this.reject(requestId, 'unknown-command', `Unknown command: ${value.command}.`) };
     }
-    if (value.command !== 'file.openArtifact' && value.command !== 'document.create'
-      && (typeof value.documentId !== 'string' || !value.documentId)) {
+    const scope = commandScope(value.command);
+    if (scope === 'workspace' && value.documentId !== undefined) {
+      return { rejection: this.reject(requestId, 'invalid-request',
+        'Workspace commands may not include a documentId.') };
+    }
+    if (scope === 'workspace' && value.expectedDocumentRevision !== undefined) {
+      return { rejection: this.reject(requestId, 'invalid-request',
+        'Workspace commands may not include expectedDocumentRevision.') };
+    }
+    if (scope === 'document' && (typeof value.documentId !== 'string' || !value.documentId)) {
       return { rejection: this.reject(requestId, 'document-required', 'An explicit documentId is required.') };
     }
     if (

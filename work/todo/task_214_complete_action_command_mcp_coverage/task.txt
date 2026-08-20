@@ -235,6 +235,11 @@ Existing foundation evidence
   generic state patch; invalid or forward references fail before publication.
   Detailed discovery stays on demand so every MCP connection does not inherit a
   roughly 65 KiB tool-schema payload.
+- Document creation now uses one closed workspace-scoped contract in New
+  Document, Commands/Actions and the dedicated MCP tool. Workspace commands
+  reject accidental document targets. Actions replay remaps the recorded
+  created document ID to the fresh result before executing later document
+  edits; the packaged route proves create -> raster edit -> replay.
 
 Program definition of done
 ==========================

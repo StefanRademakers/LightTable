@@ -48,8 +48,8 @@ const createDocument = async (driver, name) => {
 
 const createDocumentThroughMcp = async (mcp, driver, name) => {
   const created = mcpResult(await mcp.callTool({ name: 'lighttable_create_document', arguments: {
-    name, width: 640, height: 480, resolutionPpi: 72, bitDepth: '8',
-    profile: 'srgb', backgroundColor: '#182238'
+    name, width: 640, height: 480, resolutionPpi: 72, bitDepth: 8,
+    profile: 'srgb', background: { kind: 'solid', color: '#182238' }
   } }), `MCP setup document ${name}`);
   const documentId = created.value?.documentId ?? created.documentId;
   if (!documentId) throw new Error(`MCP create returned no document: ${JSON.stringify(created)}`);
@@ -167,6 +167,62 @@ try {
     window.__lightTableAutomation?.actionRecordingSnapshot?.().steps
       .filter((step) => step.command === command).length >= count,
   { command, count }, { timeout: 30_000 });
+
+  workflowPhase = 'workspace-action-recording';
+  const workspaceBeforeAction = await driver.queryWorkspace();
+  await window.getByRole('menuitem', { name: 'View' }).click();
+  await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+  let workspaceActionPanel = window.getByRole('complementary', { name: 'Actions' });
+  let workspaceRecorder = workspaceActionPanel.locator('.lighttable-action-recorder');
+  await workspaceRecorder.getByRole('button', { name: 'Record' }).click();
+  await workspaceActionPanel.getByRole('radio', { name: 'Commands' }).click();
+  const createDocumentAction = workspaceActionPanel.locator('details')
+    .filter({ hasText: 'document.create' });
+  await createDocumentAction.locator('summary').click();
+  await createDocumentAction.getByRole('button', { name: 'Run', exact: true }).click();
+  await window.waitForFunction((previousDocumentId) => {
+    const workspace = window.__lightTableAutomation?.queryWorkspace();
+    return workspace?.activeDocumentId && workspace.activeDocumentId !== previousDocumentId;
+  }, workspaceBeforeAction.activeDocumentId, { timeout: 30_000 });
+  const recordedCreatedDocumentId = (await driver.queryWorkspace()).activeDocumentId;
+  if (!recordedCreatedDocumentId) throw new Error('Actions document.create did not activate a document.');
+  await waitForDocument(driver, recordedCreatedDocumentId);
+  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
+    await window.getByRole('menuitem', { name: 'View' }).click();
+    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+  }
+  workspaceActionPanel = window.getByRole('complementary', { name: 'Actions' });
+  workspaceRecorder = workspaceActionPanel.locator('.lighttable-action-recorder');
+  await window.getByRole('menuitem', { name: 'Layer' }).click();
+  await window.getByRole('menuitem', { name: 'New Raster Layer' }).click();
+  await waitForRecorded('layer.createRaster');
+  await workspaceActionPanel.getByRole('radio', { name: 'Actions' }).click();
+  await workspaceRecorder.getByRole('button', { name: 'Stop' }).click();
+  const workspaceRecording = await driver.queryActionRecording();
+  const createStep = workspaceRecording.steps.find(({ command }) => command === 'document.create');
+  const rasterStep = workspaceRecording.steps.find(({ command }) => command === 'layer.createRaster');
+  assert.equal(createStep?.documentId, null, 'Actions recorded document.create as document-scoped.');
+  assert.equal(createStep?.result?.documentId, recordedCreatedDocumentId,
+    'Actions did not retain the created document identity for replay routing.');
+  assert.equal(rasterStep?.documentId, recordedCreatedDocumentId,
+    'The edit following document.create targeted a different document.');
+  const expectedCreatedLayerCount = (await driver.queryLayers(recordedCreatedDocumentId)).length;
+  workflowPhase = 'workspace-action-playback';
+  await workspaceRecorder.getByRole('button', { name: 'Play', exact: true }).click();
+  await window.waitForFunction(({ previousDocumentId, expectedLayerCount }) => {
+    const automation = window.__lightTableAutomation;
+    const activeDocumentId = automation?.queryWorkspace()?.activeDocumentId;
+    return activeDocumentId && activeDocumentId !== previousDocumentId
+      && automation.queryLayers(activeDocumentId)?.length === expectedLayerCount
+      && automation.actionPlaybackSnapshot?.().status === 'completed';
+  }, { previousDocumentId: recordedCreatedDocumentId, expectedLayerCount: expectedCreatedLayerCount },
+  { timeout: 30_000 });
+  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
+    await window.getByRole('menuitem', { name: 'View' }).click();
+    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+  }
+  await window.getByRole('complementary', { name: 'Actions' })
+    .locator('.lighttable-action-recorder').getByRole('button', { name: 'Clear' }).click();
 
   workflowPhase = 'ui-recording';
   const uiDocumentId = await createDocument(driver, 'UI route');

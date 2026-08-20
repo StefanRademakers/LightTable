@@ -137,6 +137,22 @@ describe('ActionsPanel', () => {
     expect(markup).not.toContain('disabled="">Run</button>');
   });
 
+  it('renders the canonical workspace document form without MCP-only aliases', () => {
+    const create = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'document.create')!;
+    const markup = renderToStaticMarkup(<CommandCatalogView
+      capabilities={[{ command: create.id, available: true, reason: null }]}
+      definitions={[create]}
+      onExecute={() => null}
+    />);
+    expect(markup).toContain('Social portrait');
+    expect(markup).toContain('Bit depth');
+    expect(markup).toContain('Background');
+    expect(markup).toContain('Transparent');
+    expect(markup).not.toContain('backgroundColor');
+    expect(markup).not.toContain('legacy property metadata');
+    expect(markup).not.toContain('disabled="">Run</button>');
+  });
+
   it('resolves shared vector definitions into an executable Actions form', () => {
     const createVector = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'vector.create')!;
     const markup = renderToStaticMarkup(<CommandCatalogView

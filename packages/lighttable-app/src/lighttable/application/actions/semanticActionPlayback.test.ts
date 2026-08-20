@@ -82,6 +82,33 @@ describe('SemanticActionPlaybackController', () => {
     }));
   });
 
+  it('routes steps recorded after workspace document creation to the newly replayed document', async () => {
+    const createdRecording: ActionRecordingSnapshot = { ...recording(), steps: [{
+      ...recording().steps[0]!, command: 'document.create', documentId: null,
+      parameters: { name: 'Created', width: 640, height: 480, resolutionPpi: 72, bitDepth: 8,
+        profile: 'srgb', background: { kind: 'transparent' } },
+      result: { documentId: 'recorded-created-document' }
+    }, {
+      ...recording().steps[1]!, command: 'layer.createRaster', documentId: 'recorded-created-document',
+      parameters: {}, result: { created: true, layerId: 'old-layer' }
+    }] };
+    const execute = vi.fn(async (request) => ({ requestId: request.requestId,
+      status: 'completed' as const,
+      value: request.command === 'document.create'
+        ? { documentId: 'fresh-created-document' }
+        : { created: true, layerId: 'fresh-layer' },
+      revisions: { workspace: 1 } }));
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.play(createdRecording, 'preexisting-target');
+
+    expect(execute).toHaveBeenNthCalledWith(1, expect.not.objectContaining({ documentId: expect.anything() }));
+    expect(execute).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      command: 'layer.createRaster', documentId: 'fresh-created-document'
+    }));
+    expect(controller.snapshot().status).toBe('completed');
+  });
+
   it('awaits an accepted task and binds its artifact into the following step', async () => {
     const asyncRecording: ActionRecordingSnapshot = {
       ...recording(), steps: [{ ...recording().steps[0]!, command: 'file.exportNative',

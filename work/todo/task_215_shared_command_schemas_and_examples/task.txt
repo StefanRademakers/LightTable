@@ -208,11 +208,16 @@ Current evidence (2026-08-20)
   publishes stable per-operation results. Actions renders its operation arrays
   and references locally; MCP exposes the roughly 65 KiB detailed schema only
   through on-demand discovery while enforcing it on the compact batch tool.
+- `document.create` now has a closed input/result schema and shared examples.
+  Its dedicated MCP tool uses the canonical numeric bit depth and nested
+  background union; the local Commands editor renders the same form. The
+  contextual total-pixel limit remains in the application owner and is also
+  rejected at the external bridge boundary.
 
 Still required for completion
 =============================
 
 - formal versioned input and result schemas for remaining admitted dedicated
-  commands (notably the document-creation boundary);
+  commands;
 - generated Actions property editors for every remaining parameterized command;
 - explicit blocking reasons for every command without a complete schema.

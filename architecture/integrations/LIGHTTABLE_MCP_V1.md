@@ -210,6 +210,25 @@ stronger input validation. PSD export is part of the proven remote design
 workflow. Resize, document duplication/geometry and Face Warp are not exposed
 yet; they are future capability slices rather than permanent exclusions.
 
+`document.create` now has one closed shared workspace contract. New Document,
+the local Commands view and `lighttable_create_document` use the same numeric
+bit depth, profile and transparent/solid background values; the former MCP-only
+string bit depth and `backgroundColor` alias no longer exist. Individual
+dimensions are schema-bounded, while the application owner retains the
+contextual 268,435,456-pixel product limit. Workspace commands reject a
+`documentId`. Actions replay maps the document ID returned by a recorded
+workspace creation to the fresh ID returned during replay, so subsequent
+document-scoped steps edit the newly created document instead of the document
+that happened to be active before playback.
+
+A future local Codex acceptance route is tracked in
+[`work/parked/task_264_local_codex_mcp_a_z/task.txt`](../../work/parked/task_264_local_codex_mcp_a_z/task.txt).
+Codex supports the existing Streamable HTTP transport through project-local
+configuration, but a newly configured MCP server becomes available only to a
+fresh Codex session. The acceptance route must start isolated local services,
+keep credentials out of tracked configuration and verify resulting state
+independently through the packaged application.
+
 The product target is agent access to all user-facing functionality. Expansion
 must keep going through semantic commands, capability discovery and the normal
 document/history/render authorities, with validation and representative proof

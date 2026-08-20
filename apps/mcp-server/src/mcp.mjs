@@ -30,6 +30,8 @@ const dedicatedCommand = (command) => {
   return command;
 };
 const createDocumentCommand = dedicatedCommand('document.create');
+const createDocumentSchema = LIGHTTABLE_COMMAND_SCHEMAS[createDocumentCommand]?.input;
+if (!createDocumentSchema) throw new Error('document.create requires a complete shared schema.');
 const openArtifactCommand = dedicatedCommand('file.openArtifact');
 const srgbToLinear = (value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 const hexLinearRgba = (hex) => [1, 3, 5]
@@ -40,6 +42,26 @@ const withResult = (operation, { edit = false } = {}) => async (input, context) 
     return response(await operation(input));
   } catch (error) { return failure(error); }
 };
+const createDocumentInput = z.object({
+  name: z.string().min(1).max(255),
+  width: z.number().int().min(1).max(32768),
+  height: z.number().int().min(1).max(32768),
+  resolutionPpi: z.number().min(1).max(2400),
+  bitDepth: z.union([z.literal(8), z.literal(16)]),
+  profile: z.enum(['srgb', 'adobe-rgb-1998']),
+  background: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('transparent') }).strict(),
+    z.object({ kind: z.literal('solid'), color: z.string().regex(/^#[0-9a-fA-F]{6}$/u) }).strict()
+  ])
+}).strict().superRefine((value, context) => {
+  const validation = validateJsonSchemaValue(createDocumentSchema, value);
+  if (!validation.valid) {
+    for (const issue of validation.issues) context.addIssue({ code: 'custom',
+      path: issue.path, message: issue.message });
+  }
+  if (value.width * value.height > 268_435_456) context.addIssue({ code: 'custom',
+    path: ['width'], message: 'Document dimensions may contain at most 268435456 pixels.' });
+});
 const awaitCommand = async (client, request, timeoutMs = 60_000) => {
   const result = await client.invoke('command.execute', request);
   if (result?.status !== 'accepted' || !result.taskId) return result;
@@ -285,18 +307,11 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
   server.registerTool('lighttable_create_document', {
     title: 'Create a LightTable document',
     description: 'Creates one document with explicit canvas, resolution, bit depth, profile and background semantics.',
-    inputSchema: z.object({
-      name: z.string().min(1).max(255), width: z.number().int().min(1).max(32768),
-      height: z.number().int().min(1).max(32768), resolutionPpi: z.number().int().min(1).max(2400).default(72),
-      bitDepth: z.enum(['8', '16']).default('8'),
-      profile: z.enum(['srgb', 'adobe-rgb-1998']).default('srgb'),
-      backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional()
-    })
-  }, withResult(({ name, width, height, resolutionPpi, bitDepth, profile, backgroundColor }) =>
+    inputSchema: createDocumentInput
+  }, withResult(({ name, width, height, resolutionPpi, bitDepth, profile, background }) =>
     client.invoke('command.execute', {
       command: createDocumentCommand, commandRequestId: crypto.randomUUID(),
-      commandParameters: { name, width, height, resolutionPpi, bitDepth: Number(bitDepth), profile,
-        background: backgroundColor ? { kind: 'solid', color: backgroundColor } : { kind: 'transparent' } }
+      commandParameters: { name, width, height, resolutionPpi, bitDepth, profile, background }
     }), { edit: true }));
   server.registerTool('lighttable_build_social_design', {
     title: 'Build a layered social design',
