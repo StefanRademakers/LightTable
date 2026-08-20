@@ -19,7 +19,8 @@
     "./parameter-properties.json": "./parameter-properties.json",
     "./examples.json": "./examples.json",
     "./schemas/v1/layer.json": "./schemas/v1/layer.json",
-    "./schemas/v1/layer-structure.json": "./schemas/v1/layer-structure.json"
+    "./schemas/v1/layer-structure.json": "./schemas/v1/layer-structure.json",
+    "./schemas/v1/text.json": "./schemas/v1/text.json"
   },
   "scripts": {
     "test": "node ../../scripts/generate-command-contract.mjs --check && node --test test",

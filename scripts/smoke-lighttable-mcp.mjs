@@ -91,6 +91,24 @@ try {
   const workspace = (await call('lighttable_workspace', {})).structuredContent;
   const documentId = workspace.activeDocumentId;
   const before = (await call('lighttable_document', { documentId })).structuredContent;
+  const textContract = (await call('lighttable_commands', { command: 'text.create' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (textContract?.status !== 'complete' || textContract.schemaVersion !== 1
+    || !textContract.input?.allOf || !textContract.result?.properties?.layerId) {
+    throw new Error(`MCP text.create discovery is not a complete conditional contract: ${JSON.stringify(textContract)}`);
+  }
+  const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'text.create', parameters: {
+      mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
+      privateEditorState: { selectedLayer: true }
+    }
+  } });
+  const afterInvalidText = (await call('lighttable_document', { documentId })).structuredContent;
+  if (!invalidText.isError || afterInvalidText.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Invalid nested Text input reached the desktop mutation owner: ${JSON.stringify({
+      invalidText, before: before.canonicalRevision, after: afterInvalidText.canonicalRevision
+    })}`);
+  }
   const sourceLayerId = before.activeLayerId;
   const openingLayers = (await call('lighttable_layers', { documentId })).structuredContent;
   const openingLayerList = Array.isArray(openingLayers)

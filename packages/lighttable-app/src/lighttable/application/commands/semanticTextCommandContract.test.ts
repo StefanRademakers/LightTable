@@ -30,5 +30,16 @@ describe('semantic text command contract', () => {
     expect(parseSemanticTextCommand('create', {
       ...pathCreate, mode: 'point'
     })).toHaveProperty('message');
+    expect(parseSemanticTextCommand('create', {
+      ...pathCreate, frame: { width: 100, height: 40 }
+    })).toHaveProperty('message');
+  });
+
+  it('rejects empty edits and bounds text offsets consistently with schema v1', () => {
+    expect(parseSemanticTextCommand('format', { layerId: 'text' })).toHaveProperty('message');
+    expect(parseSemanticTextCommand('layout', { layerId: 'text' })).toHaveProperty('message');
+    expect(parseSemanticTextCommand('replace', {
+      layerId: 'text', start: 0, end: 1_000_001, text: 'x'
+    })).toHaveProperty('message');
   });
 });

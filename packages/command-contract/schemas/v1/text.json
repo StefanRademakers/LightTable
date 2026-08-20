@@ -1,0 +1,307 @@
+{
+  "schemaVersion": 1,
+  "category": "text",
+  "commands": {
+    "text.create": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mode", "text", "origin"],
+        "properties": {
+          "mode": { "type": "string", "title": "Mode", "enum": ["point", "paragraph", "path"], "default": "point" },
+          "text": { "type": "string", "title": "Text", "maxLength": 1000000, "default": "Text" },
+          "origin": {
+            "type": "object", "title": "Origin", "additionalProperties": false,
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number", "title": "X", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "y": { "type": "number", "title": "Y", "minimum": -10000000, "maximum": 10000000, "default": 0 }
+            }
+          },
+          "name": { "type": "string", "title": "Layer name", "minLength": 1, "maxLength": 255 },
+          "frame": {
+            "type": "object", "title": "Paragraph frame", "additionalProperties": false,
+            "required": ["width", "height"],
+            "properties": {
+              "width": { "type": "number", "title": "Width", "minimum": 1, "maximum": 10000000, "default": 240 },
+              "height": { "type": "number", "title": "Height", "minimum": 1, "maximum": 10000000, "default": 120 }
+            }
+          },
+          "path": {
+            "type": "object", "title": "Native path", "additionalProperties": false,
+            "required": ["layerId", "elementId", "subpathId", "startOffset", "side", "upright", "direction"],
+            "properties": {
+              "layerId": { "type": "string", "title": "Path layer ID", "minLength": 1, "maxLength": 255, "x-lighttable-control": "layer-id" },
+              "elementId": { "type": "string", "title": "Element ID", "minLength": 1, "maxLength": 255 },
+              "subpathId": { "type": "string", "title": "Subpath ID", "minLength": 1, "maxLength": 255 },
+              "startOffset": { "type": "number", "title": "Start offset", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "side": { "type": "string", "title": "Side", "enum": ["left", "right"], "default": "left" },
+              "upright": { "type": "boolean", "title": "Upright", "default": true },
+              "direction": { "type": "string", "title": "Direction", "enum": ["forward", "reverse"], "default": "forward" }
+            }
+          },
+          "writingMode": { "type": "string", "title": "Writing mode", "enum": ["horizontal-tb", "vertical-rl", "vertical-lr"], "default": "horizontal-tb" },
+          "style": {
+            "type": "object", "title": "Character style", "additionalProperties": false, "minProperties": 1,
+            "properties": {
+              "font": {
+                "type": "object", "title": "Font", "additionalProperties": false,
+                "properties": {
+                  "assetId": { "type": "string", "title": "Asset ID", "minLength": 1, "maxLength": 255 },
+                  "family": { "type": "string", "title": "Family", "minLength": 1, "maxLength": 255 },
+                  "style": { "type": "string", "title": "Style", "minLength": 1, "maxLength": 255 }
+                },
+                "anyOf": [
+                  { "type": "object", "required": ["assetId"] },
+                  { "type": "object", "required": ["family"] }
+                ]
+              },
+              "fontSize": { "type": "number", "title": "Font size", "minimum": 0.1, "maximum": 100000, "default": 24 },
+              "fontWeight": { "type": "number", "title": "Font weight", "minimum": 1, "maximum": 1000, "default": 400 },
+              "fontStyle": { "type": "string", "title": "Font style", "enum": ["normal", "italic", "oblique"], "default": "normal" },
+              "syntheticBold": { "type": "boolean", "title": "Synthetic bold" },
+              "syntheticItalic": { "type": "boolean", "title": "Synthetic italic" },
+              "tracking": { "type": "number", "title": "Tracking", "minimum": -10000, "maximum": 100000, "default": 0 },
+              "fill": {
+                "type": "object", "title": "Fill", "additionalProperties": false, "required": ["enabled"],
+                "properties": {
+                  "enabled": { "type": "boolean", "title": "Enabled", "default": true },
+                  "color": { "type": "string", "title": "Color", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#000000" }
+                }
+              },
+              "stroke": {
+                "type": "object", "title": "Stroke", "additionalProperties": false, "required": ["enabled"],
+                "properties": {
+                  "enabled": { "type": "boolean", "title": "Enabled", "default": true },
+                  "color": { "type": "string", "title": "Color", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#000000" },
+                  "width": { "type": "number", "title": "Width", "minimum": 0, "maximum": 100000, "default": 1 }
+                }
+              },
+              "underline": { "type": "boolean", "title": "Underline" }
+            }
+          },
+          "paragraph": {
+            "type": "object", "title": "Paragraph style", "additionalProperties": false, "minProperties": 1,
+            "properties": {
+              "alignment": { "type": "string", "title": "Alignment", "enum": ["start", "center", "end", "justify"], "default": "start" },
+              "direction": { "type": "string", "title": "Direction", "enum": ["auto", "ltr", "rtl"], "default": "auto" },
+              "leading": {
+                "title": "Leading",
+                "oneOf": [
+                  { "type": "string", "title": "Normal", "enum": ["normal"], "default": "normal" },
+                  {
+                    "type": "object", "title": "Custom", "additionalProperties": false, "required": ["value"],
+                    "properties": {
+                      "kind": { "type": "string", "title": "Kind", "enum": ["absolute", "multiple"], "default": "absolute" },
+                      "value": { "type": "number", "title": "Value", "minimum": 0.1, "maximum": 100000, "default": 1 }
+                    }
+                  }
+                ]
+              },
+              "firstLineIndent": { "type": "number", "title": "First-line indent", "minimum": -100000, "maximum": 100000, "default": 0 },
+              "startIndent": { "type": "number", "title": "Start indent", "minimum": -100000, "maximum": 100000, "default": 0 },
+              "endIndent": { "type": "number", "title": "End indent", "minimum": -100000, "maximum": 100000, "default": 0 },
+              "spaceBefore": { "type": "number", "title": "Space before", "minimum": -100000, "maximum": 100000, "default": 0 },
+              "spaceAfter": { "type": "number", "title": "Space after", "minimum": -100000, "maximum": 100000, "default": 0 }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": { "type": "object", "required": ["mode"], "properties": { "mode": { "const": "paragraph" } } },
+            "then": { "type": "object", "required": ["frame"], "not": { "type": "object", "required": ["path"] } }
+          },
+          {
+            "if": { "type": "object", "required": ["mode"], "properties": { "mode": { "const": "path" } } },
+            "then": { "type": "object", "required": ["path"], "not": { "type": "object", "required": ["frame"] } }
+          },
+          {
+            "if": { "type": "object", "required": ["mode"], "properties": { "mode": { "const": "point" } } },
+            "then": {
+              "type": "object",
+              "not": { "type": "object", "anyOf": [
+                { "type": "object", "required": ["frame"] },
+                { "type": "object", "required": ["path"] }
+              ] }
+            }
+          }
+        ]
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerId"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "fontStatus": {
+            "type": "object", "additionalProperties": false, "required": ["kind", "assetId"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["exact"] },
+              "assetId": { "type": "string", "minLength": 1, "maxLength": 255 },
+              "family": { "type": "string", "minLength": 1, "maxLength": 255 },
+              "style": { "type": "string", "minLength": 1, "maxLength": 255 }
+            }
+          }
+        }
+      }
+    },
+    "text.replaceRange": {
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "required": ["layerId", "start", "end", "text"],
+        "properties": {
+          "layerId": { "type": "string", "title": "Text layer ID", "minLength": 1, "maxLength": 255, "x-lighttable-control": "layer-id" },
+          "start": { "type": "integer", "title": "Start", "minimum": 0, "maximum": 1000000, "default": 0 },
+          "end": { "type": "integer", "title": "End", "minimum": 0, "maximum": 1000000, "default": 0 },
+          "text": { "type": "string", "title": "Replacement", "maxLength": 1000000 }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerId"],
+        "properties": { "layerId": { "type": "string", "minLength": 1, "maxLength": 255 } }
+      }
+    },
+    "text.format": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["layerId"],
+        "properties": {
+          "layerId": { "type": "string", "title": "Text layer ID", "minLength": 1, "maxLength": 255, "x-lighttable-control": "layer-id" },
+          "start": { "type": "integer", "title": "Start", "minimum": 0, "maximum": 1000000 },
+          "end": { "type": "integer", "title": "End", "minimum": 0, "maximum": 1000000 },
+          "style": {
+            "type": "object", "title": "Character style", "additionalProperties": false, "minProperties": 1,
+            "properties": {
+              "font": {
+                "type": "object", "title": "Font", "additionalProperties": false,
+                "properties": {
+                  "assetId": { "type": "string", "title": "Asset ID", "minLength": 1, "maxLength": 255 },
+                  "family": { "type": "string", "title": "Family", "minLength": 1, "maxLength": 255 },
+                  "style": { "type": "string", "title": "Style", "minLength": 1, "maxLength": 255 }
+                },
+                "anyOf": [
+                  { "type": "object", "required": ["assetId"] },
+                  { "type": "object", "required": ["family"] }
+                ]
+              },
+              "fontSize": { "type": "number", "title": "Font size", "minimum": 0.1, "maximum": 100000, "default": 24 },
+              "fontWeight": { "type": "number", "title": "Font weight", "minimum": 1, "maximum": 1000, "default": 400 },
+              "fontStyle": { "type": "string", "title": "Font style", "enum": ["normal", "italic", "oblique"], "default": "normal" },
+              "syntheticBold": { "type": "boolean", "title": "Synthetic bold" },
+              "syntheticItalic": { "type": "boolean", "title": "Synthetic italic" },
+              "tracking": { "type": "number", "title": "Tracking", "minimum": -10000, "maximum": 100000, "default": 0 },
+              "fill": {
+                "type": "object", "title": "Fill", "additionalProperties": false, "required": ["enabled"],
+                "properties": {
+                  "enabled": { "type": "boolean", "title": "Enabled", "default": true },
+                  "color": { "type": "string", "title": "Color", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#000000" }
+                }
+              },
+              "stroke": {
+                "type": "object", "title": "Stroke", "additionalProperties": false, "required": ["enabled"],
+                "properties": {
+                  "enabled": { "type": "boolean", "title": "Enabled", "default": true },
+                  "color": { "type": "string", "title": "Color", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#000000" },
+                  "width": { "type": "number", "title": "Width", "minimum": 0, "maximum": 100000, "default": 1 }
+                }
+              },
+              "underline": { "type": "boolean", "title": "Underline" }
+            }
+          },
+          "paragraph": {
+            "type": "object", "title": "Paragraph style", "additionalProperties": false, "minProperties": 1,
+            "properties": {
+              "alignment": { "type": "string", "title": "Alignment", "enum": ["start", "center", "end", "justify"], "default": "start" },
+              "direction": { "type": "string", "title": "Direction", "enum": ["auto", "ltr", "rtl"], "default": "auto" },
+              "leading": {
+                "title": "Leading",
+                "oneOf": [
+                  { "type": "string", "title": "Normal", "enum": ["normal"], "default": "normal" },
+                  {
+                    "type": "object", "title": "Custom", "additionalProperties": false, "required": ["value"],
+                    "properties": {
+                      "kind": { "type": "string", "title": "Kind", "enum": ["absolute", "multiple"], "default": "absolute" },
+                      "value": { "type": "number", "title": "Value", "minimum": 0.1, "maximum": 100000, "default": 1 }
+                    }
+                  }
+                ]
+              },
+              "firstLineIndent": { "type": "number", "title": "First-line indent", "minimum": -100000, "maximum": 100000, "default": 0 },
+              "startIndent": { "type": "number", "title": "Start indent", "minimum": -100000, "maximum": 100000, "default": 0 },
+              "endIndent": { "type": "number", "title": "End indent", "minimum": -100000, "maximum": 100000, "default": 0 },
+              "spaceBefore": { "type": "number", "title": "Space before", "minimum": -100000, "maximum": 100000, "default": 0 },
+              "spaceAfter": { "type": "number", "title": "Space after", "minimum": -100000, "maximum": 100000, "default": 0 }
+            }
+          }
+        },
+        "anyOf": [
+          { "type": "object", "required": ["style"] },
+          { "type": "object", "required": ["paragraph"] }
+        ],
+        "allOf": [
+          {
+            "if": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["start"] },
+              { "type": "object", "required": ["end"] }
+            ] },
+            "then": { "type": "object", "required": ["start", "end"] }
+          }
+        ]
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerId"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "fontStatus": {
+            "type": "object", "additionalProperties": false, "required": ["kind", "assetId"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["exact"] },
+              "assetId": { "type": "string", "minLength": 1, "maxLength": 255 },
+              "family": { "type": "string", "minLength": 1, "maxLength": 255 },
+              "style": { "type": "string", "minLength": 1, "maxLength": 255 }
+            }
+          }
+        }
+      }
+    },
+    "text.setLayout": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["layerId"], "minProperties": 2,
+        "properties": {
+          "layerId": { "type": "string", "title": "Text layer ID", "minLength": 1, "maxLength": 255, "x-lighttable-control": "layer-id" },
+          "mode": { "type": "string", "title": "Mode", "enum": ["point", "paragraph"] },
+          "origin": {
+            "type": "object", "title": "Origin", "additionalProperties": false, "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number", "title": "X", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "y": { "type": "number", "title": "Y", "minimum": -10000000, "maximum": 10000000, "default": 0 }
+            }
+          },
+          "frame": {
+            "type": "object", "title": "Frame", "additionalProperties": false, "required": ["x", "y", "width", "height"],
+            "properties": {
+              "x": { "type": "number", "title": "X", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "y": { "type": "number", "title": "Y", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "width": { "type": "number", "title": "Width", "minimum": 1, "maximum": 10000000, "default": 240 },
+              "height": { "type": "number", "title": "Height", "minimum": 1, "maximum": 10000000, "default": 120 }
+            }
+          },
+          "writingMode": { "type": "string", "title": "Writing mode", "enum": ["horizontal-tb", "vertical-rl", "vertical-lr"] },
+          "transform": {
+            "type": "object", "title": "Transform", "additionalProperties": false,
+            "required": ["a", "b", "c", "d", "tx", "ty"],
+            "properties": {
+              "a": { "type": "number", "title": "A", "minimum": -10000000, "maximum": 10000000, "default": 1 },
+              "b": { "type": "number", "title": "B", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "c": { "type": "number", "title": "C", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "d": { "type": "number", "title": "D", "minimum": -10000000, "maximum": 10000000, "default": 1 },
+              "tx": { "type": "number", "title": "Translate X", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "ty": { "type": "number", "title": "Translate Y", "minimum": -10000000, "maximum": 10000000, "default": 0 }
+            }
+          }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["layerId"],
+        "properties": { "layerId": { "type": "string", "minLength": 1, "maxLength": 255 } }
+      }
+    }
+  }
+}

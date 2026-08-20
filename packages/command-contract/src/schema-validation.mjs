@@ -2,13 +2,43 @@ const record = (value) => typeof value === 'object' && value !== null && !Array.
 
 const issue = (path, code, message) => ({ path, code, message });
 
+const matches = (schema, value) => {
+  const issues = [];
+  validateNode(schema, value, [], issues);
+  return issues.length === 0;
+};
+
 const validateNode = (schema, value, path, issues) => {
+  if (schema.const !== undefined && !Object.is(schema.const, value)) {
+    issues.push(issue(path, 'const', `must equal ${String(schema.const)}`));
+  }
+  if (schema.allOf) schema.allOf.forEach((branch) => validateNode(branch, value, path, issues));
+  if (schema.anyOf && !schema.anyOf.some((branch) => matches(branch, value))) {
+    issues.push(issue(path, 'any-of', 'must match at least one supported variant'));
+  }
+  if (schema.oneOf) {
+    const count = schema.oneOf.filter((branch) => matches(branch, value)).length;
+    if (count !== 1) issues.push(issue(path, 'one-of', 'must match exactly one supported variant'));
+  }
+  if (schema.not && matches(schema.not, value)) {
+    issues.push(issue(path, 'not', 'uses a property combination that is not supported'));
+  }
+  if (schema.if) {
+    const branch = matches(schema.if, value) ? schema.then : schema.else;
+    if (branch) validateNode(branch, value, path, issues);
+  }
   if (schema.type === 'object') {
     if (!record(value)) {
       issues.push(issue(path, 'type', 'must be an object'));
       return;
     }
     const properties = schema.properties ?? {};
+    if (schema.minProperties !== undefined && Object.keys(value).length < schema.minProperties) {
+      issues.push(issue(path, 'min-properties', `must contain at least ${schema.minProperties} propert${schema.minProperties === 1 ? 'y' : 'ies'}`));
+    }
+    if (schema.maxProperties !== undefined && Object.keys(value).length > schema.maxProperties) {
+      issues.push(issue(path, 'max-properties', `must contain at most ${schema.maxProperties} properties`));
+    }
     for (const required of schema.required ?? []) {
       if (!Object.hasOwn(value, required)) {
         issues.push(issue([...path, required], 'required', 'is required'));
@@ -72,6 +102,12 @@ const validateNode = (schema, value, path, issues) => {
     if (!Number.isSafeInteger(value)) {
       issues.push(issue(path, 'type', 'must be a safe integer'));
       return;
+    }
+    if (schema.minimum !== undefined && value < schema.minimum) {
+      issues.push(issue(path, 'minimum', `must be at least ${schema.minimum}`));
+    }
+    if (schema.maximum !== undefined && value > schema.maximum) {
+      issues.push(issue(path, 'maximum', `must be at most ${schema.maximum}`));
     }
   } else if (schema.type === 'boolean' && typeof value !== 'boolean') {
     issues.push(issue(path, 'type', 'must be a boolean'));

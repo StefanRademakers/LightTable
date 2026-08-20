@@ -138,6 +138,22 @@ describe('executeAtomicCommandBatch', () => {
     expect(findDocumentLayer(state.document, state.layerId)?.name).not.toBe('Never published');
   });
 
+  it('rejects conditional text-schema violations before publishing an atomic batch', async () => {
+    const state = fixture();
+    await expect(executeAtomicCommandBatch(batch([
+      { operationId: 'rename', command: 'layer.rename', parameters: {
+        layerId: state.layerId, name: 'Never published'
+      } },
+      { operationId: 'empty-format', command: 'text.format', parameters: {
+        layerId: state.layerId, style: {}
+      } }
+    ]), state.dependencies, new AbortController().signal, () => undefined))
+      .rejects.toThrow(/empty-format.*schema v1/u);
+    expect(state.publish).not.toHaveBeenCalled();
+    expect(state.record).not.toHaveBeenCalled();
+    expect(findDocumentLayer(state.document, state.layerId)?.name).not.toBe('Never published');
+  });
+
   it.each([0, 1, 2])('rolls back when command position %i fails', async (failureIndex) => {
     const state = fixture();
     const operations = ['First', 'Second', 'Third'].map((name, index) => ({

@@ -155,15 +155,28 @@ category by category to versioned JSON Schema modules under
 [`packages/command-contract/schemas/`](../../packages/command-contract/schemas/).
 The first complete layer slices cover rename, visibility, fill opacity, blend
 mode, lock, duplicate, Layer via Copy, delete, move and clipping input/result
-contracts. Separate property and structure schema modules keep this from
-becoming one registry file. The local Commands editor, command service, atomic
-batch executor and MCP discovery/input gate consume the merged projection.
+contracts. The complete Text slice adds point, paragraph and native Path Text
+creation plus range replacement, conditional character/paragraph formatting
+and layout. Separate layer, layer-structure and text modules keep this from
+becoming one registry file; the generator discovers schema modules instead of
+maintaining another central import list. The local Commands editor recursively
+generates bounded nested fields and explicit optional groups without a free-form
+command JSON executor. The command service, atomic batch executor and MCP
+discovery/input gate consume the same merged projection.
 Invalid fields, types, ranges, enums and transport-only private state are
 therefore rejected before a document mutation or desktop bridge call.
 Application-owned parsers still enforce contextual rules that JSON Schema
 cannot decide, such as whether a stable layer ID exists in the requested
 document. Commands marked `legacy-properties-only` by `lighttable_commands`
 have not yet reached this contract bar and must not be described as complete.
+
+The schema validator now enforces closed nested objects, integer bounds,
+`allOf`/`anyOf`/`oneOf`, constants, negation and `if`/`then`/`else`. Text mode
+requirements and paired range offsets therefore fail before a desktop bridge
+call; document-relative checks such as target existence and range length remain
+with the application owner. Schema evaluation occurs only on discrete command
+execution, atomic operations and the local Commands form. Gesture samples and
+paint/pointer previews do not import or invoke it.
 
 The profiles intentionally describe current rollout state. Generic MCP
 execution is narrower than the complete application command set, while
@@ -252,6 +265,13 @@ Adjustment Layer and an attached Brightness/Contrast node back through
 bounded `lighttable_wait_for_events` read before a semantic edit and proves the
 wait wakes without polling, then drains revision/history publications from the
 returned reconnect cursor.
+
+The packaged Commands smoke additionally creates editable point text through
+the schema-generated nested origin controls, verifies its stable text layer,
+content and transform, and keeps renderer status clean. The external MCP smoke
+discovers `text.create` as a complete conditional schema, proves malformed Path
+Text/private state does not advance the canonical revision, then executes real
+point and native Path Text through the packaged desktop owner.
 
 `npm run smoke:desktop:route-equivalence` separately proves the same wait over
 the packaged outbound TLS/WSS device tunnel while a concurrent MCP call creates

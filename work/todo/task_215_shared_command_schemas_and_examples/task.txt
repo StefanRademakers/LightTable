@@ -106,6 +106,21 @@ Current evidence (2026-08-20)
 - Packaged Commands UI proved the generated move enum by changing real sibling
   order. External MCP proved duplicate/copy stable-ID results, clipping toggles,
   down/up movement and exact deletion results against the desktop bridge.
+- A separate Text module now owns all four semantic Text inputs and results.
+  Conditional point/paragraph/path creation, paired range offsets, nested font,
+  fill/stroke and paragraph variants, safe integer bounds and no-op rejection
+  match the application parser rather than only describing top-level names.
+- The generator discovers sorted v1 schema modules, detects duplicate command
+  IDs and normalizes the legacy optional-property notation for drift checks;
+  adding a category no longer requires editing a central schema import list.
+- The local Commands editor now recursively renders nested objects, explicit
+  optional add/remove groups and union variants. Packaged Electron created and
+  queried real editable point text through those controls; no arbitrary command
+  JSON field was introduced.
+- External MCP discovery reports the Text contracts as complete. Invalid Path
+  Text plus private state was rejected without a revision change; real point and
+  native Path Text continued to pass the desktop bridge. Text schema evaluation
+  remains outside all gesture sample and pointer-preview paths.
 
 Still required for completion
 =============================

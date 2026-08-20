@@ -51,18 +51,22 @@ test('current remote rollout remains a strict subset of the application command 
   assert.equal(LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS.includes('faceWarp.applyOperation'), false);
 });
 
-test('versioned layer schemas describe and validate the complete structural verticals', () => {
+test('versioned schemas describe and validate every completed command vertical', () => {
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
+    'layer.duplicate',
+    'layer.copyToNewLayer',
+    'layer.delete',
+    'layer.move',
+    'layer.setClipping',
     'layer.rename',
     'layer.setVisibility',
     'layer.setFillOpacity',
     'layer.setBlendMode',
     'layer.setLock',
-    'layer.duplicate',
-    'layer.copyToNewLayer',
-    'layer.delete',
-    'layer.move',
-    'layer.setClipping'
+    'text.create',
+    'text.replaceRange',
+    'text.format',
+    'text.setLayout'
   ]);
   for (const [command, schema] of Object.entries(LIGHTTABLE_COMMAND_SCHEMAS)) {
     assert.equal(schema.input.additionalProperties, false, `${command} input must be closed`);
@@ -71,6 +75,39 @@ test('versioned layer schemas describe and validate the complete structural vert
       assert.deepEqual(validateJsonSchemaValue(schema.input, example), { valid: true, issues: [] }, command);
     }
   }
+});
+
+test('conditional text schemas distinguish point, paragraph, path and ranged edits', () => {
+  const create = LIGHTTABLE_COMMAND_SCHEMAS['text.create'].input;
+  const base = { text: 'Title', origin: { x: 20, y: 30 } };
+  assert.equal(validateJsonSchemaValue(create, { ...base, mode: 'point' }).valid, true);
+  assert.equal(validateJsonSchemaValue(create, { ...base, mode: 'point', frame: { width: 100, height: 40 } }).valid, false);
+  assert.equal(validateJsonSchemaValue(create, { ...base, mode: 'paragraph' }).valid, false);
+  assert.equal(validateJsonSchemaValue(create, { ...base, mode: 'paragraph', frame: { width: 100, height: 40 } }).valid, true);
+  assert.equal(validateJsonSchemaValue(create, { ...base, mode: 'path' }).valid, false);
+  assert.equal(validateJsonSchemaValue(create, { ...base, mode: 'path', path: {
+    layerId: 'paths', elementId: 'curve', subpathId: 'main', startOffset: 0,
+    side: 'left', upright: true, direction: 'forward'
+  } }).valid, true);
+
+  const format = LIGHTTABLE_COMMAND_SCHEMAS['text.format'].input;
+  assert.equal(validateJsonSchemaValue(format, { layerId: 'title' }).valid, false);
+  assert.equal(validateJsonSchemaValue(format, { layerId: 'title', style: {} }).valid, false);
+  assert.equal(validateJsonSchemaValue(format, { layerId: 'title', style: { fontSize: 48 } }).valid, true);
+  assert.equal(validateJsonSchemaValue(format, { layerId: 'title', start: 0, style: { underline: true } }).valid, false);
+  assert.equal(validateJsonSchemaValue(format, {
+    layerId: 'title', start: 0, end: 5, style: { underline: true }
+  }).valid, true);
+});
+
+test('shared integer bounds reject unsafe text offsets before domain parsing', () => {
+  const replace = LIGHTTABLE_COMMAND_SCHEMAS['text.replaceRange'].input;
+  assert.equal(validateJsonSchemaValue(replace, {
+    layerId: 'title', start: -1, end: 0, text: 'x'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(replace, {
+    layerId: 'title', start: 0, end: 1000001, text: 'x'
+  }).valid, false);
 });
 
 test('shared schemas reject missing, extra, oversized and contradictory layer input', () => {
@@ -114,6 +151,21 @@ test('shared result schemas accept the canonical layer result values', () => {
     'layer.delete': { layerIds: ['layer-1'] },
     'layer.move': { layerId: 'layer-1', direction: 'up' },
     'layer.setClipping': { layerId: 'layer-1', clipping: true }
+  };
+  for (const [command, value] of Object.entries(cases)) {
+    assert.deepEqual(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS[command].result, value),
+      { valid: true, issues: [] }, command);
+  }
+});
+
+test('shared result schemas accept canonical text IDs and optional exact font status', () => {
+  const cases = {
+    'text.create': { layerId: 'text-title', fontStatus: {
+      kind: 'exact', assetId: 'font-inter', family: 'Inter', style: 'Regular'
+    } },
+    'text.replaceRange': { layerId: 'text-title' },
+    'text.format': { layerId: 'text-title' },
+    'text.setLayout': { layerId: 'text-title' }
   };
   for (const [command, value] of Object.entries(cases)) {
     assert.deepEqual(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS[command].result, value),

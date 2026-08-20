@@ -227,7 +227,7 @@
   padding-top: 4px;
 }
 
-.lighttable-command-parameter-editor > label {
+.lighttable-command-parameter-editor label {
   display: grid;
   grid-template-columns: minmax(88px, 0.45fr) minmax(0, 1fr);
   align-items: center;
@@ -236,8 +236,36 @@
   font-size: var(--lt-type-small);
 }
 
-.lighttable-command-parameter-editor > label.is-checkbox {
+.lighttable-command-parameter-editor label.is-checkbox {
   grid-template-columns: auto 1fr;
+}
+
+.lighttable-command-parameter-editor fieldset {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--lt-border);
+}
+
+.lighttable-command-parameter-editor legend {
+  padding: 0 4px;
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-small);
+}
+
+.lighttable-command-parameter-editor__field,
+.lighttable-command-parameter-editor__optional {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.lighttable-command-parameter-editor__optional {
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-small);
 }
 
 .lighttable-command-parameter-editor input:not([type='checkbox']),

@@ -81,6 +81,27 @@ describe('ActionsPanel', () => {
       .toEqual({ layerId: '', direction: 'up' });
     expect(LIGHTTABLE_COMMAND_SCHEMAS['layer.setBlendMode']!.input.properties!.blendMode.enum)
       .toEqual(BLEND_MODES.map(({ id }) => id));
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['text.create']!.input))
+      .toEqual({ mode: 'point', text: 'Text', origin: { x: 0, y: 0 } });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['text.format']!.input))
+      .toEqual({ layerId: '' });
+  });
+
+  it('renders nested conditional text properties without a free-form command JSON editor', () => {
+    const createText = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'text.create')!;
+    const markup = renderToStaticMarkup(<CommandCatalogView
+      capabilities={[{ command: 'text.create', available: true, reason: null }]}
+      definitions={[createText]}
+      onExecute={() => null}
+    />);
+
+    expect(markup).toContain('Origin');
+    expect(markup).toContain('Layer name');
+    expect(markup).toContain('Paragraph frame');
+    expect(markup).toContain('Native path');
+    expect(markup).toContain('Character style');
+    expect(markup).toContain('Add');
+    expect(markup).not.toContain('textarea');
   });
 
   it('shows subscribed asynchronous task progress in the recorder status', () => {

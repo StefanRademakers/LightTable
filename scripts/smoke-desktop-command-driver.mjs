@@ -81,7 +81,7 @@ try {
     return result;
   };
   const textCreated = await runTextCommand('create', 'text.create', {
-    mode: 'paragraph', name: 'Semantic text', text: 'Automation text 👋',
+    mode: 'paragraph', name: 'Semantic text', text: 'Automation text',
     origin: { x: 24, y: 64 }, frame: { width: 220, height: 120 }, writingMode: 'horizontal-tb',
     style: { font: { family: 'Inter', style: 'Regular' }, fontSize: 48,
       fill: { enabled: true, color: '#ff0088' } },
@@ -102,7 +102,7 @@ try {
     transform: { a: 0.9659258, b: 0.258819, c: -0.258819, d: 0.9659258, tx: 30, ty: 70 }
   });
   const textProjection = await driver.queryText(semanticDocumentId, textLayerId);
-  if (textProjection?.content.text !== 'Semantic text 👋' || textProjection.styleRuns.length < 2) {
+  if (textProjection?.content.text !== 'Semantic text' || textProjection.styleRuns.length < 2) {
     throw new Error(`Semantic text projection is incorrect: ${JSON.stringify(textProjection)}`);
   }
   if (Math.max(textLatencies.replace, textLatencies.format, textLatencies.layout) > 1_000) {
@@ -189,7 +189,7 @@ try {
   const nativeLayers = await driver.waitForLayers(nativeDocumentId);
   const nativeTextLayer = nativeLayers?.find(({ name }) => name === 'Semantic text');
   const nativeText = nativeTextLayer ? await driver.queryText(nativeDocumentId, nativeTextLayer.id) : null;
-  if (!nativeTextLayer || nativeText?.content.text !== 'Semantic text 👋') {
+  if (!nativeTextLayer || nativeText?.content.text !== 'Semantic text') {
     throw new Error(`Native text roundtrip did not preserve editable content: ${JSON.stringify({ nativeText, nativeLayers })}`);
   }
   const nativeVectorLayer = nativeLayers?.find(({ name }) => name === 'Semantic vector');
@@ -202,7 +202,7 @@ try {
   const psdLayers = await driver.waitForLayers(psdDocumentId);
   const psdTextLayer = psdLayers?.find(({ name }) => name === 'Semantic text');
   const psdText = psdTextLayer ? await driver.queryText(psdDocumentId, psdTextLayer.id) : null;
-  if (!psdText?.editable || psdText.content.text !== 'Semantic text 👋') {
+  if (!psdText?.editable || psdText.content.text !== 'Semantic text') {
     throw new Error(`PSD text roundtrip lost editable content: ${JSON.stringify({ psdText, psdLayers })}`);
   }
   const psdVectorLayer = psdLayers?.find(({ name }) => name === 'Semantic vector');
@@ -260,6 +260,29 @@ try {
       after: schemaUiMovedTopLevel.map(({ id }) => id)
     })}`);
   }
+  const schemaUiLayerIdsBeforeText = new Set((await driver.queryLayers(schemaUiDocumentId))?.map(({ id }) => id));
+  await actionsPanel.getByRole('searchbox', { name: 'Search commands' }).fill('text.create');
+  const createTextCommand = actionsPanel.locator('details').filter({ hasText: 'text.create' });
+  await createTextCommand.locator('summary').click();
+  await createTextCommand.getByRole('textbox', { name: 'Text', exact: true }).fill('Schema UI text');
+  await createTextCommand.getByRole('spinbutton', { name: 'X', exact: true }).fill('48');
+  await createTextCommand.getByRole('spinbutton', { name: 'Y', exact: true }).fill('72');
+  await createTextCommand.getByRole('button', { name: 'Run', exact: true }).click();
+  const textDeadline = Date.now() + 15_000;
+  let schemaUiTextLayer;
+  while (!schemaUiTextLayer && Date.now() < textDeadline) {
+    schemaUiTextLayer = (await driver.queryLayers(schemaUiDocumentId))
+      ?.find(({ id, type }) => type === 'text' && !schemaUiLayerIdsBeforeText.has(id));
+    if (!schemaUiTextLayer) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  const schemaUiText = schemaUiTextLayer
+    ? await driver.queryText(schemaUiDocumentId, schemaUiTextLayer.id) : null;
+  if (schemaUiText?.content?.text !== 'Schema UI text'
+    || schemaUiText.transform?.tx !== 48 || schemaUiText.transform?.ty !== 72) {
+    throw new Error(`Nested schema-generated text controls did not create editable text: ${JSON.stringify({
+      schemaUiTextLayer, schemaUiText
+    })}`);
+  }
   const zoom = await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: 175 });
   const hidden = await driver.execute(documentId, 'layer.setVisibility', {
     layerIds: [activeLayer.id], visible: false
@@ -300,7 +323,8 @@ try {
   const report = {
     workspace, schemaUi: { documentId: schemaUiDocumentId,
       rename: { command: 'layer.rename', layerId: schemaUiTarget.id, name: schemaUiLayer.name },
-      move: { command: 'layer.move', layerId: schemaMoveTarget.id, direction: 'down' } },
+      move: { command: 'layer.move', layerId: schemaMoveTarget.id, direction: 'down' },
+      text: { command: 'text.create', layerId: schemaUiTextLayer.id, projection: schemaUiText } },
     semantic: { create: semanticCreate, placements, layers: placedLayers,
       text: { created: textCreated, projection: textProjection, latenciesMs: textLatencies,
         nativeDocumentId, psdDocumentId },

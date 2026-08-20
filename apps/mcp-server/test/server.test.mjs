@@ -74,6 +74,13 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(duplicateCatalog.structuredContent.commands[0].contract.status, 'complete');
   assert.deepEqual(duplicateCatalog.structuredContent.commands[0].contract.result.required,
     ['sourceLayerId', 'layerId']);
+  const textCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'text.create'
+  } });
+  assert.equal(textCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.deepEqual(textCatalog.structuredContent.commands[0].contract.input.required,
+    ['mode', 'text', 'origin']);
+  assert.equal(textCatalog.structuredContent.commands[0].contract.input.allOf.length, 3);
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
@@ -133,6 +140,12 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
       layerId: 'layer-background', selectedPixels: [] } } });
   assert.equal(invalidDuplicate.isError, true);
   assert.equal(mockClient.revision, invalidRevision, 'invalid duplicate input reached the desktop client');
+  const invalidText = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'text.create', parameters: {
+      mode: 'path', text: 'Missing target', origin: { x: 0, y: 0 }
+    } } });
+  assert.equal(invalidText.isError, true);
+  assert.equal(mockClient.revision, invalidRevision, 'invalid conditional text input reached the desktop client');
   const invalidBatch = await editor.callTool({ name: 'lighttable_batch', arguments: {
     documentId: 'document-demo', name: 'Invalid batch', operations: [{
       operationId: 'rename', command: 'layer.rename',

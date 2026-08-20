@@ -94,10 +94,14 @@ Current evidence (2026-08-20)
   publishes compact session metadata only, signals retained-window/restart gaps
   explicitly and passed the packaged external MCP edit/observe/preview flow.
 - MCP command discovery now publishes complete JSON Schema v1 input/result
-  contracts for ten structural layer edits and labels all remaining entries
-  as legacy metadata. Direct and atomic-batch MCP input uses those schemas
+  contracts for ten structural layer edits plus the four semantic Text commands
+  and labels all remaining entries as legacy metadata. Direct and atomic-batch
+  MCP input uses those schemas
   before invoking the desktop bridge; malformed/private fields were proven not
   to increment the mock desktop revision.
 - Real external MCP execution now also verifies duplicate and Layer via Copy
   source/new-ID results, clipping enable/disable, down/up sibling movement and
   the exact deleted-ID result through the desktop owner.
+- Real external MCP now discovers conditional Text creation, rejects malformed
+  Path Text/private editor state before the desktop revision changes, and then
+  proves editable point and native Path Text against the same desktop owner.

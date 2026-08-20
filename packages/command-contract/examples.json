@@ -1,12 +1,38 @@
 {
   "text.create": [
     {
+      "mode": "point",
+      "text": "Campaign title",
+      "origin": { "x": 160, "y": 180 },
+      "name": "Title",
+      "style": { "fontSize": 72, "syntheticBold": true, "fill": { "enabled": true, "color": "#f5f1e8" } },
+      "paragraph": { "alignment": "center" }
+    },
+    {
+      "mode": "paragraph",
+      "text": "A bounded paragraph remains editable.",
+      "origin": { "x": 160, "y": 320 },
+      "frame": { "width": 760, "height": 240 },
+      "writingMode": "horizontal-tb"
+    },
+    {
       "mode": "path",
       "text": "Along the curve",
       "origin": { "x": 0, "y": 0 },
       "writingMode": "horizontal-tb",
       "path": { "layerId": "layer-paths", "elementId": "path-title", "subpathId": "contour-main", "startOffset": 0, "side": "left", "upright": true, "direction": "forward" }
     }
+  ],
+  "text.replaceRange": [
+    { "layerId": "layer-title", "start": 0, "end": 8, "text": "Updated" }
+  ],
+  "text.format": [
+    { "layerId": "layer-title", "style": { "fontSize": 64, "syntheticBold": true } },
+    { "layerId": "layer-body", "start": 0, "end": 12, "paragraph": { "alignment": "justify", "leading": { "kind": "multiple", "value": 1.25 } } }
+  ],
+  "text.setLayout": [
+    { "layerId": "layer-title", "origin": { "x": 180, "y": 220 }, "writingMode": "horizontal-tb" },
+    { "layerId": "layer-body", "mode": "paragraph", "frame": { "x": 160, "y": 320, "width": 760, "height": 280 } }
   ],
   "layer.duplicate": [
     { "layerId": "layer-photo" }

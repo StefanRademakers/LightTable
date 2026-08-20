@@ -148,6 +148,9 @@ export const parseSemanticTextCommand = (
     if (value.mode === 'paragraph' && (!record(frame) || !finite(frame.width, 1) || !finite(frame.height, 1))) {
       return { message: 'Paragraph text requires a positive frame width and height.' };
     }
+    if (value.mode !== 'paragraph' && value.frame !== undefined) {
+      return { message: 'Only paragraph text accepts frame settings.' };
+    }
     const path = value.path;
     if (value.mode === 'path' && (!record(path) || !layerId(path.layerId)
       || !layerId(path.elementId) || !layerId(path.subpathId)
@@ -173,19 +176,24 @@ export const parseSemanticTextCommand = (
   }
   if (!layerId(value.layerId)) return { message: 'Text edits require a valid layerId.' };
   if (kind === 'replace') {
-    if (!Number.isInteger(value.start) || !Number.isInteger(value.end) || Number(value.start) < 0
+    if (!Number.isSafeInteger(value.start) || !Number.isSafeInteger(value.end) || Number(value.start) < 0
+      || Number(value.end) > 1_000_000
       || Number(value.end) < Number(value.start) || !content(value.text)) return { message: 'Replacement range or content is invalid.' };
     return { kind, layerId: value.layerId, start: Number(value.start), end: Number(value.end), text: value.text };
   }
   if (kind === 'format') {
     const style = parseStyle(value.style); const paragraph = parseParagraph(value.paragraph);
     const ranged = value.start !== undefined || value.end !== undefined;
-    if (!style || !paragraph || (ranged && (!Number.isInteger(value.start) || !Number.isInteger(value.end)
-      || Number(value.start) < 0 || Number(value.end) < Number(value.start)))) return { message: 'Text format range or properties are invalid.' };
+    if (!style || !paragraph || (Object.keys(style).length === 0 && Object.keys(paragraph).length === 0)
+      || (ranged && (!Number.isSafeInteger(value.start) || !Number.isSafeInteger(value.end)
+      || Number(value.start) < 0 || Number(value.end) > 1_000_000
+      || Number(value.end) < Number(value.start)))) return { message: 'Text format range or properties are invalid.' };
     return { kind, layerId: value.layerId, ...(ranged ? { start: Number(value.start), end: Number(value.end) } : {}),
       ...(Object.keys(style).length ? { style } : {}), ...(Object.keys(paragraph).length ? { paragraph } : {}) };
   }
   const frame = value.frame; const transform = value.transform;
+  if (value.mode === undefined && value.origin === undefined && frame === undefined
+    && value.writingMode === undefined && transform === undefined) return { message: 'Text layout requires at least one change.' };
   if (value.mode !== undefined && value.mode !== 'point' && value.mode !== 'paragraph') return { message: 'Text layout mode is invalid.' };
   if (value.writingMode !== undefined && !writingMode(value.writingMode)) return { message: 'Writing mode is invalid.' };
   if (value.origin !== undefined && !point(value.origin)) return { message: 'Text origin is invalid.' };

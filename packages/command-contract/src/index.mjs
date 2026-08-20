@@ -7,9 +7,11 @@ import parameterProperties from '../parameter-properties.json' with { type: 'jso
 
 import commandExamples from '../examples.json' with { type: 'json' };
 
+import layerStructureCommandSchemas from '../schemas/v1/layer-structure.json' with { type: 'json' };
+
 import layerCommandSchemas from '../schemas/v1/layer.json' with { type: 'json' };
 
-import layerStructureCommandSchemas from '../schemas/v1/layer-structure.json' with { type: 'json' };
+import textCommandSchemas from '../schemas/v1/text.json' with { type: 'json' };
 
 export { validateJsonSchemaValue, formatSchemaValidationIssues } from './schema-validation.mjs';
 
@@ -86,8 +88,9 @@ export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);
 export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = 1;
 
 export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
+  ...layerStructureCommandSchemas.commands,
   ...layerCommandSchemas.commands,
-  ...layerStructureCommandSchemas.commands
+  ...textCommandSchemas.commands
 });
 
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([

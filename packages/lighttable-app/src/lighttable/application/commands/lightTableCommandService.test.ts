@@ -1790,12 +1790,19 @@ describe('LightTableCommandService registry', () => {
     expect(result).toMatchObject({ status: 'completed', value: { layerId } });
     expect(state.ports.executeTextCommand).toHaveBeenCalledWith(state.session.id,
       { kind: 'replace', layerId, start: 0, end: 0, text: 'مرحبا 👋' });
-    await expect(state.service.execute(request('text.format', state.session.id,
-      { layerId, style: { syntheticBold: true, syntheticItalic: true, underline: true } })))
-      .resolves.toMatchObject({ status: 'completed' });
+    const formatted = await state.service.execute(request('text.format', state.session.id,
+      { layerId, style: { syntheticBold: true, syntheticItalic: true, underline: true } }));
+    expect(formatted).toMatchObject({ status: 'completed' });
+    expect(formatted.status === 'completed' && validateJsonSchemaValue(
+      LIGHTTABLE_COMMAND_SCHEMAS['text.format']!.result, formatted.value
+    ).valid).toBe(true);
     expect(state.ports.executeTextCommand).toHaveBeenLastCalledWith(state.session.id,
       { kind: 'format', layerId,
         style: { syntheticBold: true, syntheticItalic: true, underline: true } });
+    const emptyFormat = await state.service.execute(request('text.format', state.session.id,
+      { layerId, style: {} }));
+    expect(emptyFormat).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(state.ports.executeTextCommand).toHaveBeenCalledTimes(2);
     const stale = await state.service.execute({ ...request('text.format', state.session.id,
       { layerId, style: { fontSize: 64 } }), expectedDocumentRevision: 999 });
     expect(stale).toMatchObject({ status: 'rejected', code: 'stale-document-revision' });
