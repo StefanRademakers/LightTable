@@ -42,4 +42,18 @@ describe('LightTableArtifactRegistry', () => {
     }]);
     expect(Object.keys(artifact)).not.toContain('file');
   });
+
+  it('retains exact revision and dimensions for bounded render previews', () => {
+    const registry = new LightTableArtifactRegistry();
+    const artifact = registry.registerPreview(
+      new File(['png'], 'preview.png', { type: 'image/png' }),
+      { documentId: 'document-1', canonicalRevision: 4,
+        width: 512, height: 288, maxEdge: 512 }
+    );
+    expect(artifact).toMatchObject({ kind: 'render-preview', preview: {
+      documentId: 'document-1', canonicalRevision: 4,
+      width: 512, height: 288, maxEdge: 512
+    } });
+    expect(Object.keys(artifact)).not.toContain('file');
+  });
 });

@@ -82,6 +82,15 @@ try {
   const documentId = workspace.activeDocumentId;
   const before = (await call('lighttable_document', { documentId })).structuredContent;
   const sourceLayerId = before.activeLayerId;
+  const openingPreview = await call('lighttable_preview', { documentId,
+    expectedDocumentRevision: before.canonicalRevision, maxEdge: 256 });
+  const openingPreviewMetadata = JSON.parse(
+    openingPreview.content.find(({ type }) => type === 'text')?.text ?? '{}'
+  );
+  if (openingPreviewMetadata.canonicalRevision !== before.canonicalRevision
+    || openingPreviewMetadata.artifact?.preview?.maxEdge !== 256) {
+    throw new Error(`Opening MCP preview lost revision context: ${JSON.stringify(openingPreviewMetadata)}`);
+  }
   await call('lighttable_execute', { documentId, command: 'layer.createRaster',
     expectedDocumentRevision: before.canonicalRevision, parameters: {} });
   const createdDocument = (await call('lighttable_document', { documentId })).structuredContent;
@@ -198,9 +207,19 @@ try {
     || warp.strokes?.[0]?.samples?.[1]?.positionPx?.[0] !== 148) {
     throw new Error(`MCP Warp query lost the editable recipe: ${JSON.stringify(warp)}`);
   }
-  const preview = await call('lighttable_preview', { documentId });
+  const previewDocument = (await call('lighttable_document', { documentId })).structuredContent;
+  const preview = await call('lighttable_preview', { documentId,
+    expectedDocumentRevision: previewDocument.canonicalRevision, maxEdge: 1024 });
   const image = preview.content.find(({ type }) => type === 'image');
   if (!image) throw new Error('MCP preview did not return an image.');
+  const previewMetadata = JSON.parse(preview.content.find(({ type }) => type === 'text')?.text ?? '{}');
+  if (previewMetadata.canonicalRevision !== previewDocument.canonicalRevision
+    || previewMetadata.artifact?.kind !== 'render-preview'
+    || previewMetadata.artifact?.preview?.maxEdge !== 1024
+    || previewMetadata.canonicalRevision <= openingPreviewMetadata.canonicalRevision
+    || previewMetadata.artifact?.id === openingPreviewMetadata.artifact?.id) {
+    throw new Error(`MCP preview lost its revision context: ${JSON.stringify(previewMetadata)}`);
+  }
   const rendered = await sharp(Buffer.from(image.data, 'base64')).ensureAlpha().raw()
     .toBuffer({ resolveWithObject: true });
   const sampleOffset = (Math.min(10, rendered.info.height - 1) * rendered.info.width

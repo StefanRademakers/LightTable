@@ -17,6 +17,10 @@ const createDriver = (): LightTableAutomationDriver => ({
   resolveArtifact: vi.fn(() => null),
   listArtifacts: vi.fn(() => []),
   releaseArtifact: vi.fn(() => true),
+  requestDocumentPreview: vi.fn(async () => ({
+    status: 'rejected' as const, code: 'document-not-ready' as const,
+    message: 'The preview document is not ready.'
+  })),
   queryTask: vi.fn(() => null),
   queryTaskEvents: vi.fn(() => ({ cursor: 0, events: [] })),
   queryWorkspace: vi.fn(() => ({ revision: 1, activeDocumentId: null, documents: [] })),
@@ -58,6 +62,20 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       .toMatchObject({ status: 'rejected', code: 'authentication-failed' });
     expect(await enabled.invoke(request('workspace.query')))
       .toMatchObject({ status: 'completed', value: { revision: 1 } });
+  });
+
+  it('forwards revision-bound document preview requests without command mutation', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    await adapter.invoke(request('document.preview', {
+      documentId: 'document-1', expectedDocumentRevision: 7, maxEdge: 512
+    }));
+    expect(driver.requestDocumentPreview).toHaveBeenCalledWith({
+      documentId: 'document-1', expectedDocumentRevision: 7, maxEdge: 512
+    });
+    expect(driver.execute).not.toHaveBeenCalled();
   });
 
   it('allows only the explicit command surface and supports revocation', async () => {

@@ -59,6 +59,13 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
+  const preview = await reader.callTool({ name: 'lighttable_preview', arguments: {
+    documentId: 'document-demo', expectedDocumentRevision: 1, maxEdge: 512
+  } });
+  assert.equal(preview.isError, undefined);
+  assert.ok(preview.content.some(({ type }) => type === 'image'));
+  assert.match(preview.content.find(({ type }) => type === 'text').text,
+    /"canonicalRevision":1/u);
   const denied = await reader.callTool({ name: 'lighttable_execute', arguments: {
     documentId: 'document-demo', command: 'layer.createRaster', parameters: {} } });
   assert.equal(denied.isError, true);

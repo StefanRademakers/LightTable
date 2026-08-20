@@ -1,6 +1,15 @@
 import type { PsdExportCompatibilityFinding } from '../documents/psdExportProtocol';
 
-export type LightTableArtifactKind = 'input' | 'native-document' | 'png-export' | 'psd-export';
+export type LightTableArtifactKind =
+  | 'input' | 'native-document' | 'png-export' | 'psd-export' | 'render-preview';
+
+export interface LightTablePreviewArtifactContext {
+  readonly documentId: string;
+  readonly canonicalRevision: number;
+  readonly width: number;
+  readonly height: number;
+  readonly maxEdge: number;
+}
 
 export interface LightTableArtifactMetadata {
   readonly id: string;
@@ -10,6 +19,7 @@ export interface LightTableArtifactMetadata {
   readonly byteLength: number;
   readonly createdAt: number;
   readonly compatibilityFindings?: readonly PsdExportCompatibilityFinding[];
+  readonly preview?: LightTablePreviewArtifactContext;
 }
 
 interface ArtifactRecord {
@@ -61,6 +71,28 @@ export class LightTableArtifactRegistry {
       ...(compatibilityFindings.length
         ? { compatibilityFindings: structuredClone(compatibilityFindings) }
         : {})
+    });
+    this.records.set(metadata.id, { metadata, file });
+    return metadata;
+  }
+
+  registerPreview(file: File, preview: LightTablePreviewArtifactContext): LightTableArtifactMetadata {
+    if (file.size > this.maximumArtifactBytes) {
+      throw new Error(`Artifact exceeds the ${this.maximumArtifactBytes}-byte limit.`);
+    }
+    while (this.records.size >= this.maximumArtifacts) {
+      const oldest = this.records.keys().next().value as string | undefined;
+      if (!oldest) break;
+      this.records.delete(oldest);
+    }
+    const metadata: LightTableArtifactMetadata = Object.freeze({
+      id: `artifact-${Date.now()}-${++this.sequence}`,
+      kind: 'render-preview',
+      name: file.name,
+      mediaType: file.type || 'image/png',
+      byteLength: file.size,
+      createdAt: Date.now(),
+      preview: Object.freeze({ ...preview })
     });
     this.records.set(metadata.id, { metadata, file });
     return metadata;

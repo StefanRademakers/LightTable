@@ -50,6 +50,8 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
+    exportPreviewArtifact: vi.fn(async (_documentId, maxEdge) =>
+      new File(['preview'], `preview-${maxEdge}.png`, { type: 'image/png' })),
     exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
     beginGesture: vi.fn(async () => true),
     updateGesture: vi.fn(async () => true),
@@ -651,6 +653,8 @@ describe('LightTableCommandService registry', () => {
       executeAtomicBatch: vi.fn(),
       exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
       exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
+      exportPreviewArtifact: vi.fn(async (maxEdge: number) =>
+        new File(['preview'], `preview-${maxEdge}.png`, { type: 'image/png' })),
       exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
       beginGesture: vi.fn(async () => true),
       updateGesture: vi.fn(async () => true),
@@ -1008,6 +1012,34 @@ describe('LightTableCommandService registry', () => {
       expect(artifact).toEqual(expect.objectContaining({ id: expect.any(String), byteLength: expect.any(Number) }));
       expect(state.service.queryArtifact(artifact!.id)).toEqual(artifact);
     }
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('serves revision-bound previews through the mounted thumbnail renderer and reuses them', async () => {
+    const state = setup();
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    const request = { documentId: state.session.id,
+      expectedDocumentRevision: revision, maxEdge: 512 };
+    const first = await state.service.requestDocumentPreview(request);
+    expect(first).toMatchObject({ status: 'completed', reused: false,
+      artifact: { kind: 'render-preview', preview: {
+        documentId: state.session.id, canonicalRevision: revision,
+        width: 80, height: 60, maxEdge: 512
+      } } });
+    expect(state.ports.exportPreviewArtifact).toHaveBeenCalledWith(state.session.id, 512);
+    const second = await state.service.requestDocumentPreview(request);
+    expect(second).toMatchObject({ status: 'completed', reused: true });
+    expect(state.ports.exportPreviewArtifact).toHaveBeenCalledOnce();
+    if (first.status !== 'completed') throw new Error('Expected preview artifact.');
+    expect(state.service.releaseArtifact(first.artifact.id)).toBe(true);
+    await expect(state.service.requestDocumentPreview(request)).resolves.toMatchObject({
+      status: 'completed', reused: false
+    });
+    await expect(state.service.requestDocumentPreview({
+      ...request, expectedDocumentRevision: revision + 1
+    })).resolves.toMatchObject({ status: 'rejected', code: 'stale-document-revision',
+      currentRevision: revision });
     state.service.dispose();
     state.workspace.dispose();
   });

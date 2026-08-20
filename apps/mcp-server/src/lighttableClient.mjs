@@ -80,6 +80,15 @@ export class MockLightTableClient {
         title: this.document.title, lifecycle: 'ready', dirty: this.document.dirty,
         source: { name: 'mcp-demo.lighttable', mediaType: 'application/x-lighttable' } }] };
     if (method === 'document.query') return parameters.documentId === this.document.id ? this.document : null;
+    if (method === 'document.preview') return parameters.documentId === this.document.id
+      && parameters.expectedDocumentRevision === this.document.canonicalRevision
+      ? { status: 'completed', reused: false, artifact: { id: 'preview-demo',
+        kind: 'render-preview', name: 'preview.png', mediaType: 'image/png', byteLength: 3,
+        createdAt: Date.now(), preview: { documentId: this.document.id,
+          canonicalRevision: this.document.canonicalRevision, width: 512, height: 341,
+          maxEdge: parameters.maxEdge ?? 1024 } } }
+      : { status: 'rejected', code: 'stale-document-revision', message: 'stale',
+        currentRevision: this.document.canonicalRevision };
     if (method === 'layer.list') return parameters.documentId === this.document.id ? this.layers : null;
     if (method === 'layer.effects') return { layerId: parameters.layerId, enabled: true, revision: 0, effects: [] };
     if (method === 'text.query') return { layerId: parameters.layerId, sourceKind: 'flow', editable: true,
@@ -115,5 +124,10 @@ export class MockLightTableClient {
         revisions: { workspace: this.revision, document: this.document.canonicalRevision } };
     }
     throw new Error(`Mock LightTable does not implement ${method}.`);
+  }
+
+  async readArtifact(artifactId) {
+    if (artifactId !== 'preview-demo') throw new Error('Mock artifact does not exist.');
+    return { bytes: new Uint8Array([1, 2, 3]), mediaType: 'image/png', name: 'preview.png' };
   }
 }

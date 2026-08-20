@@ -131,6 +131,9 @@ Current evidence (2026-08-20)
   the same document-task/artifact owners. Unit equivalence carries its newly
   generated artifact ID into a following bound command; failure and Stop do not
   continue later steps.
+- The external MCP workflow now renders bounded artifacts explicitly tied to
+  revisions N and N+1 around its semantic edits. The preview path uses the GPU
+  thumbnail owner and retains per-artifact context; it is not an aggregate score.
 
 Still required for completion
 =============================

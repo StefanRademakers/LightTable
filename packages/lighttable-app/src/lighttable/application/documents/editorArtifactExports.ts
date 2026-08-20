@@ -19,6 +19,21 @@ export const exportEditorPngArtifact = async (
   );
 };
 
+export const exportEditorPreviewArtifact = async (
+  renderer: DocumentRendererPort | null,
+  document: ImageDocument | null,
+  sourceName: string,
+  maxEdge: number
+): Promise<File> => {
+  if (!renderer || !document) throw new Error('The document renderer is not ready.');
+  renderer.synchronizeDocumentForExport(document);
+  return new File(
+    [await renderer.exportThumbnailPng(maxEdge)],
+    exportFileName(sourceName, `preview-${maxEdge}.png`),
+    { type: 'image/png' }
+  );
+};
+
 export const exportEditorPsdArtifact = async (
   renderer: DocumentRendererPort | null,
   document: ImageDocument | null,

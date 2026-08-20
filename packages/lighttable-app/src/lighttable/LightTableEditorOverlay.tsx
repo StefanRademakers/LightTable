@@ -18,7 +18,7 @@ import { useDocumentRuntimeServices } from './application/documents/useDocumentR
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
-import { exportEditorPngArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
+import { exportEditorPngArtifact, exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
@@ -1043,6 +1043,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const exportPngArtifactRef = useRef<() => Promise<File>>(async () => {
     throw new Error('The PNG export controller is not ready.');
+  });
+  const exportPreviewArtifactRef = useRef<(maxEdge: number) => Promise<File>>(async () => {
+    throw new Error('The preview export controller is not ready.');
   });
   const exportPsdArtifactRef = useRef<() => Promise<ExportedPsdDocument>>(async () => {
     throw new Error('The PSD export controller is not ready.');
@@ -4870,6 +4873,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
+      exportPreviewArtifact: (maxEdge) => exportPreviewArtifactRef.current(maxEdge),
       exportPsdArtifact: () => exportPsdArtifactRef.current(),
       beginGesture: (kind, pointerId, parameters, sample) => beginAutomationGestureRef.current(kind, pointerId, parameters, sample),
       updateGesture: (kind, pointerId, sample) => updateAutomationGestureRef.current(kind, pointerId, sample),
@@ -5431,6 +5435,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus });
   exportNativeArtifactRef.current = async () => (await exportOutput({ forceLayered: true })).file;
   exportPngArtifactRef.current = () => exportEditorPngArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
+  exportPreviewArtifactRef.current = (maxEdge) => exportEditorPreviewArtifact(
+    engineRef.current, imageDocumentRef.current, fileNameBase, maxEdge
+  );
   exportPsdArtifactRef.current = () => exportEditorPsdArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
 
   const duplicateImage = useCallback(async (name: string) => {

@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 27 already routed through semantic commands;
+- 30 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 34 presentation-only operations;
-- 28 genuine semantic command gaps;
+- 25 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -22,7 +22,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | --- | --- | --- | --- |
 | `about` | presentation | Opens application information; no document mutation. | 765 |
 | `actual-size` | command | `view.setZoom` | 777 |
-| `add-mask` | gap | No semantic layer-mask command exists. | 640 |
+| `add-mask` | command | `layer.setMask` | 640 |
 | `ai-history` | presentation | Shows the AI Assets panel. | 395 |
 | `ai-provider-openart` | host | Changes an external provider connection. | 374 |
 | `apply-auto-align` | gap | No semantic auto-align command exists. | 700 |
@@ -85,7 +85,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `place-image` | host | Uses a local file picker before layer.placeArtifact can apply. | 194 |
 | `rasterize-text` | gap | No semantic text-rasterize command exists. | 671 |
 | `remove-background` | gap | No semantic background-removal command exists. | 452, 617 |
-| `remove-mask` | gap | No semantic layer-mask command exists. | 655 |
+| `remove-mask` | command | `layer.setMask` | 655 |
 | `remove-object` | gap | No semantic object-removal command exists. | 445 |
 | `rename-layer` | command | `layer.rename` | 591 |
 | `reset-workspace-layout` | presentation | Resets local panel layout. | 859 |
@@ -111,7 +111,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `snap-none` | presentation | Changes local snapping behavior. | 839 |
 | `third-party-licenses` | presentation | Opens legal information. | 759 |
 | `toggle-lock` | command | `layer.setLock` | 716 |
-| `toggle-mask` | gap | No semantic layer-mask command exists. | 650 |
+| `toggle-mask` | command | `layer.setMask` | 650 |
 | `toggle-screen-mode` | presentation | Changes application window presentation. | 795 |
 | `toggle-visibility` | command | `layer.setVisibility` | 677 |
 | `transform-flip-horizontal` | gap | No semantic layer/selection transform command exists. | 335 |

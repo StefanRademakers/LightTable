@@ -66,6 +66,18 @@ describe('invokeAgentDriver', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('forwards bounded revision preview requests without executing a command', async () => {
+    const requestDocumentPreview = vi.fn(async () => ({ status: 'rejected' as const,
+      code: 'stale-document-revision' as const, message: 'stale', currentRevision: 8 }));
+    const execute = vi.fn();
+    const driver = driverWith({ requestDocumentPreview, execute });
+    const parameters = { documentId: 'document-1', expectedDocumentRevision: 7, maxEdge: 512 };
+    await expect(invokeAgentDriver(driver, 'document.preview', parameters))
+      .resolves.toMatchObject({ status: 'rejected', currentRevision: 8 });
+    expect(requestDocumentPreview).toHaveBeenCalledWith(parameters);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('forwards bounded Warp recipe inspection without executing a command', async () => {
     const queryWarp = vi.fn(() => ({ totalStrokes: 1, totalSamples: 2 } as never));
     const execute = vi.fn();

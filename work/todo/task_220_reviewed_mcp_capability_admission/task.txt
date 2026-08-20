@@ -87,3 +87,6 @@ Current evidence (2026-08-20)
   registry exposed to Agent/MCP queries. Artifact publication precedes terminal
   completion, and Stop cancels the canonical document task rather than a UI-only
   placeholder.
+- Read-only `document.preview` is admitted separately from export commands. It
+  requires an expected canonical revision, caps the maximum edge at 1024 px,
+  uses bounded opaque artifacts and passed the packaged external MCP tunnel.

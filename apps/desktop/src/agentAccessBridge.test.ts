@@ -62,9 +62,18 @@ describe('AgentAccessBridge', () => {
         parameters: { documentId: 'document-1', layerId: 'layer-1' } })
     });
     expect(await warpResponse.json()).toMatchObject({ requestId: 'two', status: 'completed' });
+    const previewResponse = await fetch(`${status.address}/invoke`, {
+      method: 'POST', headers: { authorization: `Bearer ${credentials.token}` },
+      body: JSON.stringify({ requestId: 'three', method: 'document.preview',
+        parameters: { documentId: 'document-1', expectedDocumentRevision: 2, maxEdge: 512 } })
+    });
+    expect(await previewResponse.json()).toMatchObject({ requestId: 'three', status: 'completed' });
     expect(calls).toEqual([
       { method: 'workspace.query', parameters: {} },
-      { method: 'warp.query', parameters: { documentId: 'document-1', layerId: 'layer-1' } }
+      { method: 'warp.query', parameters: { documentId: 'document-1', layerId: 'layer-1' } },
+      { method: 'document.preview', parameters: {
+        documentId: 'document-1', expectedDocumentRevision: 2, maxEdge: 512
+      } }
     ]);
     expect(await bridge.disable()).toMatchObject({ enabled: false, state: 'stopped' });
     expect(calls.at(-1)).toEqual({ method: 'gesture.cancelAll', parameters: {} });

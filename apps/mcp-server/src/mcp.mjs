@@ -448,25 +448,26 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
   }, { edit: true }));
   server.registerTool('lighttable_preview', {
     title: 'Render a LightTable document preview',
-    description: 'Uses LightTable’s real GPU/export path and returns a PNG tied to the current document revision.',
-    inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
-  }, async ({ documentId }) => {
+    description: 'Returns a bounded PNG from LightTable’s GPU preview path for exactly the requested canonical document revision.',
+    inputSchema: z.object({ documentId: z.string().min(1),
+      expectedDocumentRevision: z.number().int().nonnegative(),
+      maxEdge: z.number().int().min(64).max(1024).default(1024) }),
+    annotations: { readOnlyHint: true }
+  }, async ({ documentId, expectedDocumentRevision, maxEdge }) => {
     try {
-      const command = await client.invoke('command.execute', { documentId, command: 'file.exportPng',
-        commandRequestId: crypto.randomUUID(), commandParameters: {} });
-      if (command.status !== 'accepted') throw new Error('Preview export did not start.');
-      let task = null;
-      for (let attempt = 0; attempt < 600; attempt += 1) {
-        task = await client.invoke('task.query', { documentId, taskId: command.taskId });
-        if (task?.status !== 'running') break;
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      const preview = await client.invoke('document.preview', {
+        documentId, expectedDocumentRevision, maxEdge
+      });
+      if (preview?.status !== 'completed' || !preview.artifact?.id) {
+        throw new Error(preview?.message ?? 'Preview rendering did not complete.');
       }
-      if (task?.status !== 'completed' || !task.artifact?.id) throw new Error(task?.error ?? 'Preview export did not complete.');
-      const artifact = await client.readArtifact(task.artifact.id);
+      const artifact = await client.readArtifact(preview.artifact.id);
       if (artifact.bytes.byteLength > 20 * 1024 * 1024) throw new Error('Preview exceeds the 20 MiB MCP response limit.');
       return { content: [
         { type: 'image', data: Buffer.from(artifact.bytes).toString('base64'), mimeType: artifact.mediaType },
-        { type: 'text', text: JSON.stringify({ documentId, artifact: task.artifact }) }
+        { type: 'text', text: JSON.stringify({ documentId,
+          canonicalRevision: expectedDocumentRevision, artifact: preview.artifact,
+          reused: preview.reused }) }
       ] };
     } catch (error) { return failure(error); }
   });

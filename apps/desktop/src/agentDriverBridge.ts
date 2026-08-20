@@ -21,6 +21,7 @@ export const invokeAgentDriver = async (
   const layerId = String(value.layerId) as Parameters<LightTableAutomationDriver['queryText']>[1];
   if (method === 'workspace.query') return driver.queryWorkspace();
   if (method === 'document.query') return driver.queryDocument(documentId);
+  if (method === 'document.preview') return driver.requestDocumentPreview(value);
   if (method === 'layer.list') return driver.queryLayers(documentId);
   if (method === 'layer.effects') return driver.queryLayerEffects(documentId, layerId);
   if (method === 'text.query') return driver.queryText(documentId, layerId);

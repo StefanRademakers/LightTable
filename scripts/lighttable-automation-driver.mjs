@@ -20,6 +20,12 @@ export class LightTableAutomationClient {
     return this.page.evaluate((id) => window.__lightTableAutomation?.queryDocument(id) ?? null, documentId);
   }
 
+  requestDocumentPreview(documentId, expectedDocumentRevision, maxEdge = 1024) {
+    return this.page.evaluate((request) =>
+      window.__lightTableAutomation?.requestDocumentPreview(request) ?? null,
+    { documentId, expectedDocumentRevision, maxEdge });
+  }
+
   queryLayers(documentId) {
     return this.page.evaluate((id) => window.__lightTableAutomation?.queryLayers(id) ?? null, documentId);
   }

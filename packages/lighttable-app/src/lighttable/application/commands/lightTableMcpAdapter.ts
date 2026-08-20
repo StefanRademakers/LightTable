@@ -10,6 +10,7 @@ export const LIGHTTABLE_MCP_PROTOCOL_VERSION = 1 as const;
 export type LightTableMcpMethod =
   | 'workspace.query'
   | 'document.query'
+  | 'document.preview'
   | 'layer.list'
   | 'layer.effects'
   | 'text.query'
@@ -156,6 +157,7 @@ export class AuthenticatedLightTableMcpAdapter {
     switch (method as LightTableMcpMethod) {
       case 'workspace.query': return this.options.driver.queryWorkspace();
       case 'document.query': return this.options.driver.queryDocument(documentId);
+      case 'document.preview': return this.options.driver.requestDocumentPreview(parameters);
       case 'layer.list': return this.options.driver.queryLayers(documentId);
       case 'layer.effects': return this.options.driver.queryLayerEffects(documentId, parameters.layerId as LayerId);
       case 'text.query': return this.options.driver.queryText(documentId, parameters.layerId as LayerId);

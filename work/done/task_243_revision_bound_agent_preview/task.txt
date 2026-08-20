@@ -1,0 +1,65 @@
+Task 243 - Revision-bound bounded agent preview
+
+Goal
+====
+
+Let Agent Access and MCP request a bounded rendered document preview that is
+provably tied to one canonical document revision, without moving the artist's
+viewport or entering pointer/paint hot paths.
+
+Parent work
+===========
+
+- [`Task 218`](../../todo/task_218_agent_observation_preview_and_events/task.txt)
+- [`Task 217`](../../todo/task_217_ui_actions_mcp_equivalence_harness/task.txt)
+
+Checklist
+=========
+
+- [x] Add one shared `document.preview` observation contract with a bounded
+  maximum edge and required expected document revision.
+- [x] Render through the existing GPU thumbnail owner after synchronizing the
+  exact canonical document snapshot; do not screenshot or resize the viewport.
+- [x] Attach document ID, canonical revision, dimensions and render context to
+  the returned artifact metadata.
+- [x] Fail closed and release any produced artifact when the document revision
+  changes before or during preview production.
+- [x] Reuse a still-live artifact for identical document/revision/size requests
+  and invalidate cache entries when artifacts are released or evicted.
+- [x] Keep preview artifacts and request values bounded and validation explicit.
+- [x] Expose the same observation method through authenticated Agent Access and
+  the external MCP bridge without admitting a new mutation command.
+- [x] Test success, cache reuse, stale revision, mid-render mutation, invalid
+  bounds, release/regeneration and unavailable renderer behavior.
+- [x] Add a packaged external-MCP proof that inspects revision N, retrieves the
+  preview bytes, edits with expected revision N, then retrieves revision N+1.
+- [x] Run app, desktop, MCP, typecheck, boundary and architecture gates.
+
+Non-goals
+=========
+
+- Region/layer-isolated previews in this first slice.
+- Full-resolution export as the normal agent observation path.
+- A universal visual parity score.
+- Sending preview work through Actions or recording it in document history.
+
+Evidence
+========
+
+- `document.preview` requires an exact non-negative canonical revision and a
+  64-1024 px maximum edge. It returns structured rejection for stale, malformed,
+  closed or renderer-unavailable requests.
+- The mounted editor synchronizes the immutable document snapshot and calls
+  `exportThumbnailPng`; a contract test proves it never falls back to the
+  full-resolution `exportPng` path or touches viewport state.
+- Preview artifacts carry document ID, revision, rendered dimensions and
+  requested edge. Identical live requests reuse one artifact; concurrent work
+  coalesces, release/eviction regenerates, and disposal cannot publish late work.
+- The authenticated in-app adapter, desktop Agent Access bridge, local external
+  bridge and MCP tool all use the same controller. Preview is read-only and is
+  not an Action or document-history operation.
+- Packaged external MCP passed on `D:\shapes.psd`: it retrieved revision N at
+  256 px, performed the existing editable workflow, then retrieved a distinct
+  1024 px artifact at N+1 and decoded the final rendered pixel evidence.
+- Full workspace tests, typecheck, packaged desktop build, distribution boundary,
+  source-structure, architecture-doc and command-coverage gates passed.

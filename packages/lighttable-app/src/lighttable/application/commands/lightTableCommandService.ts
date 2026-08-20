@@ -67,6 +67,10 @@ import {
   type SemanticActionLibrarySnapshot,
   type SemanticActionLibraryStorage
 } from '../actions/semanticActionLibrary';
+import {
+  DocumentPreviewArtifactController,
+  type DocumentPreviewResult
+} from './documentPreviewArtifacts';
 export * from './lightTableCommandContract';
 
 /**
@@ -215,6 +219,10 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     return this.resolve(documentId).exportPngArtifact();
   }
 
+  exportPreviewArtifact(documentId: DocumentSessionId, maxEdge: number) {
+    return this.resolve(documentId).exportPreviewArtifact(maxEdge);
+  }
+
   exportPsdArtifact(documentId: DocumentSessionId) {
     return this.resolve(documentId).exportPsdArtifact();
   }
@@ -282,6 +290,20 @@ export class LightTableCommandService {
   private readonly taskEvents = new AutomationTaskEventStore();
   private readonly actionRecorder = new SemanticActionRecorder();
   private readonly actionLibrary: SemanticActionLibrary;
+  private readonly documentPreviews = new DocumentPreviewArtifactController({
+    snapshot: (documentId) => {
+      const snapshot = this.document(documentId);
+      return snapshot?.document ? {
+        lifecycle: snapshot.lifecycle,
+        canonicalRevision: snapshot.documentRevision,
+        width: snapshot.document.width,
+        height: snapshot.document.height
+      } : null;
+    },
+    render: async (documentId, maxEdge) => this.ports.exportPreviewArtifact(documentId, maxEdge),
+    register: (file, context) => this.artifacts.registerPreview(file, context),
+    query: (artifactId) => this.artifacts.query(artifactId)
+  });
   private readonly actionPlayback = new SemanticActionPlaybackController(
     (request) => this.execute(request, { origin: 'actions-playback', recording: 'ignore' }),
     { wait: (documentId, taskId, signal, onProgress) =>
@@ -310,6 +332,7 @@ export class LightTableCommandService {
     void this.cancelAllGestures();
     this.artifacts.clear();
     this.taskArtifacts.clear();
+    this.documentPreviews.clear();
   }
 
   registerInputArtifact(file: File): LightTableArtifactMetadata {
@@ -330,7 +353,12 @@ export class LightTableCommandService {
   }
 
   releaseArtifact(artifactId: string): boolean {
+    this.documentPreviews.invalidateArtifact(artifactId);
     return this.artifacts.release(artifactId);
+  }
+
+  requestDocumentPreview(request: unknown): Promise<DocumentPreviewResult> {
+    return this.documentPreviews.request(request);
   }
 
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null {
@@ -1508,6 +1536,7 @@ export interface LightTableAutomationDriver {
   resolveArtifact(artifactId: string): File | null;
   listArtifacts(): readonly LightTableArtifactMetadata[];
   releaseArtifact(artifactId: string): boolean;
+  requestDocumentPreview(request: unknown): Promise<DocumentPreviewResult>;
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null;
   queryTaskEvents(afterCursor?: number, limit?: number): AutomationEventQueryResult;
   queryWorkspace(): WorkspaceQueryResult;
