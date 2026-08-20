@@ -66,21 +66,40 @@ try {
     throw new Error('Crop still exposes the redundant floating options bar.');
   }
   const initialCropBox = await cropFrame.boundingBox();
-  const east = page.getByRole('button', { name: 'Crop e handle' });
-  const handleBox = await east.boundingBox();
-  if (!handleBox || !initialCropBox) throw new Error('Crop east handle is unavailable.');
+  // The default floating Layers panel can legitimately cover the east edge.
+  // Exercise the visible west handle instead of sending synthetic events
+  // through an overlapping panel.
+  const west = page.getByRole('button', { name: 'Crop w handle' });
+  const handleBox = await west.boundingBox();
+  if (!handleBox || !initialCropBox) throw new Error('Crop west handle is unavailable.');
+  const handleHitTarget = await page.evaluate(({ x, y }) => {
+    const element = document.elementFromPoint(x, y);
+    return {
+      className: element instanceof HTMLElement ? element.className : null,
+      tagName: element?.tagName ?? null,
+      pointerEvents: element instanceof HTMLElement ? getComputedStyle(element).pointerEvents : null
+    };
+  }, { x: handleBox.x + handleBox.width / 2, y: handleBox.y + handleBox.height / 2 });
   await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(initialCropBox.x + initialCropBox.width * 0.4,
+  await page.mouse.move(initialCropBox.x + initialCropBox.width * 0.6,
     handleBox.y + handleBox.height / 2, { steps: 8 });
   await page.mouse.up();
+  const resizedCropBox = await cropFrame.boundingBox();
+  if (!resizedCropBox || resizedCropBox.width >= initialCropBox.width - 1) {
+    throw new Error(`Interactive Crop handle did not resize the preview: ${JSON.stringify({
+      initialCropBox, handleBox, resizedCropBox, handleHitTarget
+    })}`);
+  }
   await page.keyboard.press('Enter');
   await cropFrame.waitFor({ state: 'detached' });
   const cropped = await driver.queryDocument(documentId);
   if (!cropped?.canvas || (cropped.canvas.width >= before.canvas.width && cropped.canvas.height >= before.canvas.height)
     || cropped.canvas.width >= cropped.canvas.height
     || cropped.history.undoDepth !== before.history.undoDepth + 1) {
-    throw new Error(`Interactive Crop did not create one smaller document state: ${JSON.stringify({ before, cropped })}`);
+    throw new Error(`Interactive Crop did not create one smaller document state: ${JSON.stringify({
+      before, cropped, initialCropBox, handleBox, resizedCropBox
+    })}`);
   }
   await imageMenu.click();
   await page.getByRole('menuitem', { name: 'Crop', exact: true }).click();
@@ -106,6 +125,7 @@ try {
   await cropFrame.waitFor({ state: 'visible' });
   const restoredFrame = await cropFrame.boundingBox();
   await page.keyboard.press('Escape');
+  await cropFrame.waitFor({ state: 'detached' });
   if (!restoredFrame) throw new Error('Restored document bounds are unavailable.');
   await page.keyboard.press('m');
   await page.locator('.lighttable-tool-options__identity')
@@ -127,8 +147,13 @@ try {
     || await cropFrame.count()) {
     throw new Error(`Crop did not immediately use active selection bounds: ${JSON.stringify({ before, selectionCropped })}`);
   }
+  if (selectionCropped.renderer.status === 'failed') {
+    const rendererMessage = await page.locator('.lighttable-toolbar__status').textContent();
+    throw new Error(`Selection-bound Crop failed the renderer lifecycle: ${rendererMessage}`);
+  }
   await driver.execute(documentId, 'history.undo', {});
   await page.keyboard.press('Control+d');
+  const beforeFixed = await driver.queryDocument(documentId);
   const layersBeforeFixed = await driver.queryLayers(documentId);
   await page.locator('.shots-app-menu__button').filter({ hasText: /^Edit$/ }).click();
   await page.getByRole('menuitem', { name: 'Transform', exact: true }).hover();
@@ -139,7 +164,7 @@ try {
   }
   const layersAfterFixed = await driver.queryLayers(documentId);
   if (fixed?.canvas?.width !== before.canvas.width || fixed.canvas.height !== before.canvas.height
-    || fixed.history.undoDepth !== 1
+    || fixed.history.undoDepth !== beforeFixed.history.undoDepth + 1
     || JSON.stringify(layersAfterFixed?.[0]?.transform) === JSON.stringify(layersBeforeFixed?.[0]?.transform)) {
     throw new Error(`Fixed layer transform changed the wrong scope: ${JSON.stringify({ fixed, layersBeforeFixed, layersAfterFixed })}`);
   }
@@ -148,12 +173,13 @@ try {
   if (JSON.stringify(layersFixedUndone?.[0]?.transform) !== JSON.stringify(layersBeforeFixed?.[0]?.transform)) {
     throw new Error('Fixed layer transform undo did not restore the canonical layer transform.');
   }
+  const beforeArbitrary = await driver.queryDocument(documentId);
   await driver.execute(documentId, 'document.applyGeometry', {
     operation: 'rotate', rotation: { degrees: 33 }
   });
   const arbitrary = await driver.queryDocument(documentId);
   if (!arbitrary?.canvas || arbitrary.canvas.width <= before.canvas.width || arbitrary.canvas.height <= before.canvas.height
-    || arbitrary.history.undoDepth !== 1) {
+    || arbitrary.history.undoDepth !== beforeArbitrary.history.undoDepth + 1) {
     throw new Error(`Arbitrary rotation did not use deterministic expanded bounds: ${JSON.stringify({ before, arbitrary })}`);
   }
   await driver.execute(documentId, 'history.undo', {});
@@ -164,6 +190,7 @@ try {
   if (errors.length) throw new Error(`Renderer errors: ${JSON.stringify(errors)}`);
   await page.screenshot({ path: path.join(output, 'document-geometry.png') });
   await writeFile(path.join(output, 'report.json'), `${JSON.stringify({ before, expanded, rotated, restored, cropped, cropUndone, selectionCropped,
-    fixed, layersBeforeFixed, layersAfterFixed, layersFixedUndone, arbitrary, arbitraryUndone, errors }, null, 2)}\n`);
+    beforeFixed, fixed, layersBeforeFixed, layersAfterFixed, layersFixedUndone,
+    beforeArbitrary, arbitrary, arbitraryUndone, errors }, null, 2)}\n`);
   process.stdout.write(`Desktop document geometry smoke passed. Report: ${path.join(output, 'report.json')}\n`);
 } finally { await app.close().catch(() => {}); }

@@ -868,8 +868,11 @@ export class LightTableCommandService {
       try {
         await this.ports.resizeImage(documentRequest.documentId, resize);
         this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        const committed = this.document(documentRequest.documentId)?.document;
         return { requestId: value.requestId, status: 'completed', value: {
-          width: resize.width, height: resize.height, resolutionPpi: resize.resolutionPpi
+          width: committed?.width ?? resize.width,
+          height: committed?.height ?? resize.height,
+          resolutionPpi: committed?.resolutionPpi ?? resize.resolutionPpi
         }, revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
         return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
@@ -887,7 +890,12 @@ export class LightTableCommandService {
       try {
         await this.ports.applyDocumentGeometry(documentRequest.documentId, geometry);
         this.workspace.getDocument(documentRequest.documentId)?.markChanged();
-        return { requestId: value.requestId, status: 'completed', value: { operation: geometry.operation },
+        const committed = this.document(documentRequest.documentId)?.document;
+        return { requestId: value.requestId, status: 'completed', value: {
+          operation: geometry.operation,
+          width: committed?.width ?? snapshot.document!.width,
+          height: committed?.height ?? snapshot.document!.height
+        },
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
       } catch (reason) {
         return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);

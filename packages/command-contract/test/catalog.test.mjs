@@ -68,7 +68,8 @@ test('current remote rollout remains a strict subset of the application command 
   assert.ok(LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS.length < LIGHTTABLE_COMMAND_IDS.length);
   for (const command of LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS) assert.equal(application.has(command), true);
   assert.equal(LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS.includes('document.duplicate'), false);
-  assert.equal(LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS.includes('document.applyGeometry'), false);
+  assert.equal(LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS.includes('document.resizeImage'), true);
+  assert.equal(LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS.includes('document.applyGeometry'), true);
   assert.equal(LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS.includes('faceWarp.applyOperation'), false);
 });
 
@@ -81,6 +82,8 @@ test('versioned schemas describe and validate every completed command vertical',
     'file.openArtifact',
     'layer.placeArtifact',
     'layer.autoAlign',
+    'document.resizeImage',
+    'document.applyGeometry',
     'document.create',
     'raster.invert',
     'text.convertToShape',
@@ -157,6 +160,34 @@ test('document creation schema keeps exact workspace document semantics', () => 
   }).valid, false);
   assert.deepEqual(validateJsonSchemaValue(create.result, { documentId: 'document-created' }),
     { valid: true, issues: [] });
+});
+
+test('document size and geometry schemas expose only bounded final operations', () => {
+  const resize = LIGHTTABLE_COMMAND_SCHEMAS['document.resizeImage'];
+  const geometry = LIGHTTABLE_COMMAND_SCHEMAS['document.applyGeometry'];
+  for (const example of LIGHTTABLE_COMMAND_EXAMPLES['document.resizeImage']) {
+    assert.equal(validateJsonSchemaValue(resize.input, example).valid, true);
+  }
+  for (const example of LIGHTTABLE_COMMAND_EXAMPLES['document.applyGeometry']) {
+    assert.equal(validateJsonSchemaValue(geometry.input, example).valid, true, JSON.stringify(example));
+  }
+  for (const invalid of [
+    { ...LIGHTTABLE_COMMAND_EXAMPLES['document.resizeImage'][0], width: 16385 },
+    { ...LIGHTTABLE_COMMAND_EXAMPLES['document.resizeImage'][0], previewPixels: [] }
+  ]) assert.equal(validateJsonSchemaValue(resize.input, invalid).valid, false);
+  for (const invalid of [
+    { operation: 'crop', bounds: { x: 0, y: 0, width: 0, height: 100 } },
+    { operation: 'rotate', rotation: { degrees: 1e20 } },
+    { operation: 'flip', axis: 'horizontal', bounds: { x: 0, y: 0, width: 1, height: 1 } },
+    { operation: 'canvas-size', width: 100, height: 100, anchorX: 0.5, anchorY: 0.5,
+      cropOverlay: true }
+  ]) assert.equal(validateJsonSchemaValue(geometry.input, invalid).valid, false, JSON.stringify(invalid));
+  assert.equal(validateJsonSchemaValue(resize.result, {
+    width: 1200, height: 800, resolutionPpi: 144
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(geometry.result, {
+    operation: 'rotate', width: 800, height: 1200
+  }).valid, true);
 });
 
 test('atomic batch schema is derived from complete commands and preserves result references', () => {

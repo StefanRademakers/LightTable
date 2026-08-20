@@ -13,8 +13,7 @@ struct Settings {
   targetSize: vec2f,
   inverseRow0: vec4f,
   inverseRow1: vec4f,
-  filtered: f32,
-  _padding: vec3f,
+  sampling: vec4f,
 };
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
 @group(0) @binding(1) var sourceSampler: sampler;
@@ -29,7 +28,7 @@ struct Settings {
   let inside = all(sourceCenter >= vec2f(0.0)) && all(sourceCenter < settings.sourceSize);
   if (!inside) { return vec4f(0.0); }
   var value = 0.0;
-  if (settings.filtered > 0.5) {
+  if (settings.sampling.x > 0.5) {
     value = textureSampleLevel(sourceTexture, sourceSampler, sourceCenter / settings.sourceSize, 0.0).r;
   } else {
     value = textureLoad(sourceTexture, vec2i(floor(sourceCenter)), 0).r;

@@ -3388,6 +3388,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setToolOptionsMenu(null);
           return;
         }
+        if (cropBounds) {
+          setCropBounds(null);
+          return;
+        }
         if (textEditingController.getSnapshot().status === 'editing') {
           textEditingController.finish();
           return;

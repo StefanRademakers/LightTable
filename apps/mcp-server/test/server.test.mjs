@@ -89,6 +89,20 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(duplicateCatalog.structuredContent.commands[0].contract.status, 'complete');
   assert.deepEqual(duplicateCatalog.structuredContent.commands[0].contract.result.required,
     ['sourceLayerId', 'layerId']);
+  const resizeCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'document.resizeImage'
+  } });
+  assert.equal(resizeCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.deepEqual(resizeCatalog.structuredContent.commands[0].contract.input.required,
+    ['width', 'height', 'resolutionPpi', 'resample', 'method',
+      'preserveDetailsNoiseReduction', 'scaleStyles']);
+  const geometryCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'document.applyGeometry'
+  } });
+  assert.equal(geometryCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.equal(geometryCatalog.structuredContent.commands[0].contract.input.oneOf.length, 4);
+  assert.deepEqual(geometryCatalog.structuredContent.commands[0].contract.result.required,
+    ['operation', 'width', 'height']);
   const textCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'text.create'
   } });
@@ -172,6 +186,25 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     } } });
   assert.equal(invalidText.isError, true);
   assert.equal(mockClient.revision, invalidRevision, 'invalid conditional text input reached the desktop client');
+  const beforeInvalidGeometry = commandCalls.length;
+  const invalidResize = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'document.resizeImage', parameters: {
+      width: 32768, height: 300, resolutionPpi: 72, resample: true,
+      method: 'bilinear', preserveDetailsNoiseReduction: 0, scaleStyles: true
+    } } });
+  assert.equal(invalidResize.isError, true);
+  const privateGeometry = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'document.applyGeometry', parameters: {
+      operation: 'flip', axis: 'horizontal', cropPreview: { x: 0, y: 0 }
+    } } });
+  assert.equal(privateGeometry.isError, true);
+  const mixedGeometry = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'document.applyGeometry', parameters: {
+      operation: 'rotate', rotation: 'clockwise-90', axis: 'horizontal'
+    } } });
+  assert.equal(mixedGeometry.isError, true);
+  assert.equal(commandCalls.length, beforeInvalidGeometry,
+    'invalid document geometry reached the desktop client');
   const invalidBatch = await editor.callTool({ name: 'lighttable_batch', arguments: {
     documentId: 'document-demo', name: 'Invalid batch', operations: [{
       operationId: 'rename', command: 'layer.rename',
@@ -193,6 +226,27 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
       layerId: 'layer-background', name: 'Renamed by MCP' } } });
   assert.equal(result.isError, undefined);
   assert.equal(result.structuredContent.status, 'completed');
+  const resized = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'document.resizeImage', parameters: {
+      width: 640, height: 360, resolutionPpi: 144, resample: true,
+      method: 'bicubic', preserveDetailsNoiseReduction: 0, scaleStyles: true
+    } } });
+  assert.equal(resized.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'document.resizeImage', commandParameters: {
+      width: 640, height: 360, resolutionPpi: 144, resample: true,
+      method: 'bicubic', preserveDetailsNoiseReduction: 0, scaleStyles: true
+    }
+  });
+  const geometry = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'document.applyGeometry', parameters: {
+      operation: 'rotate', rotation: { degrees: -17.5 }
+    } } });
+  assert.equal(geometry.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'document.applyGeometry',
+    commandParameters: { operation: 'rotate', rotation: { degrees: -17.5 } }
+  });
   const created = await editor.callTool({ name: 'lighttable_create_document', arguments: {
     name: 'MCP canvas', width: 400, height: 300, resolutionPpi: 144,
     bitDepth: 16, profile: 'adobe-rgb-1998', background: { kind: 'solid', color: '#112233' }

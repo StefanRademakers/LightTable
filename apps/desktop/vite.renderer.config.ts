@@ -20,6 +20,9 @@ export default defineConfig({
   // Electron or recreating the active document.
   resolve: {
     alias: {
+      '@lighttable/app/standalone': fileURLToPath(
+        new URL('../../packages/lighttable-app/src/standalone.ts', import.meta.url)
+      ),
       '@lighttable/app/ui-devtools': fileURLToPath(
         new URL('../../packages/lighttable-app/src/ui-devtools.ts', import.meta.url)
       ),

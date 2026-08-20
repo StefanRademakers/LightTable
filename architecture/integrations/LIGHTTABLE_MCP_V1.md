@@ -207,8 +207,9 @@ The profiles intentionally describe current rollout state. Generic MCP
 execution is narrower than the complete application command set, while
 document creation and artifact-open are reserved for dedicated tools with
 stronger input validation. PSD export is part of the proven remote design
-workflow. Resize, document duplication/geometry and Face Warp are not exposed
-yet; they are future capability slices rather than permanent exclusions.
+workflow. Document duplication and Face Warp remain withheld pending their own
+remote identity/result proof; they are future capability slices rather than
+permanent exclusions.
 
 `document.create` now has one closed shared workspace contract. New Document,
 the local Commands view and `lighttable_create_document` use the same numeric
@@ -220,6 +221,22 @@ contextual 268,435,456-pixel product limit. Workspace commands reject a
 workspace creation to the fresh ID returned during replay, so subsequent
 document-scoped steps edit the newly created document instead of the document
 that happened to be active before playback.
+
+`document.resizeImage` and `document.applyGeometry` now use one modular closed
+document-geometry schema. Image Size bounds dimensions, resolution, resampling
+method, Preserve Details noise reduction and style scaling. Geometry is an
+exact four-way union for Canvas Size, Crop, orthogonal/arbitrary Rotation and
+Flip; cross-operation fields, private preview state, oversized dimensions and
+unstable angles fail before the desktop bridge. Results report the actual
+post-commit canvas, not requested values echoed before execution. The local
+schema-driven Actions editor, normal dialogs/menus and generic MCP execution
+all reach the existing document/GPU/history owners. Packaged proof records
+Image Size plus Rotate in the normal UI, replays the Action on a fresh document
+and executes the same pair through external MCP; all three routes produce equal
+layer/history state and byte-exact rendered pixels. Crop handles, dialog
+previews and pointer samples remain local. The detailed geometry regression
+also gates selection-bound Crop and exposed a corrected 64-byte WGSL uniform
+layout that previously invalidated the mask-transfer command buffer.
 
 A future local Codex acceptance route is tracked in
 [`work/parked/task_264_local_codex_mcp_a_z/task.txt`](../../work/parked/task_264_local_codex_mcp_a_z/task.txt).

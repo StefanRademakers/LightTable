@@ -83,6 +83,7 @@
     "smoke:desktop:genai-assets": "node scripts/smoke-desktop-genai-project-assets.mjs",
     "smoke:desktop:mcp-design": "node scripts/smoke-desktop-mcp-design.mjs",
     "smoke:desktop:route-equivalence": "node scripts/smoke-desktop-route-equivalence.mjs",
+    "smoke:desktop:document-capabilities": "node scripts/smoke-desktop-document-capability-equivalence.mjs",
     "smoke:desktop:route-equivalence:build": "npm run package:desktop:verify && npm run smoke:desktop:route-equivalence --",
     "smoke:desktop:agent-tunnel:build": "npm run package:desktop:verify && npm run smoke:desktop:agent-tunnel --",
     "audit:desktop:panel-language": "node scripts/audit-desktop-panel-language.mjs",

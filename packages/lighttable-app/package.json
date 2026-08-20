@@ -8,6 +8,7 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./standalone": "./src/standalone.ts",
     "./ui-devtools": "./src/ui-devtools.ts",
     "./project-manifest": "./src/lighttable/application/projects/projectManifest.ts"
   },

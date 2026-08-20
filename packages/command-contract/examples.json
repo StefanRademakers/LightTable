@@ -19,6 +19,25 @@
       "background": { "kind": "solid", "color": "#F5F1E8" }
     }
   ],
+  "document.resizeImage": [
+    {
+      "width": 1200, "height": 800, "resolutionPpi": 144,
+      "resample": true, "method": "automatic",
+      "preserveDetailsNoiseReduction": 0, "scaleStyles": true
+    },
+    {
+      "width": 2400, "height": 1600, "resolutionPpi": 300,
+      "resample": false, "method": "bicubic",
+      "preserveDetailsNoiseReduction": 0, "scaleStyles": false
+    }
+  ],
+  "document.applyGeometry": [
+    { "operation": "canvas-size", "width": 1400, "height": 1000, "anchorX": 0.5, "anchorY": 0.5 },
+    { "operation": "crop", "bounds": { "x": 100, "y": 50, "width": 900, "height": 700 } },
+    { "operation": "rotate", "rotation": "clockwise-90" },
+    { "operation": "rotate", "rotation": { "degrees": 12.5 } },
+    { "operation": "flip", "axis": "horizontal" }
+  ],
   "view.setZoom": [
     { "mode": "fit" },
     { "mode": "100" },

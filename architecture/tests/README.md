@@ -44,8 +44,13 @@ and load-boundary reason rather than polluting the handwritten ranking.
 After the production web build, the delivery audit records raw, gzip and Brotli
 cost for initial JavaScript/CSS and every heavyweight lazy asset, with the user
 flow that owns it. Its current budget is a regression band around a dated
-measured baseline and the named startup goal; passing it does not mean the
-current 11 MB-class entry payload is good enough.
+measured baseline and the named startup goal. The standalone launcher is a
+separate package entry and does not load the document editor until the first
+document is materialized. The 2026-08-20 production measurement is 0.89 MB raw
+initial JavaScript and 74.5 kB raw initial CSS; the first-document editor
+runtime remains an explicitly owned 2.06 MB lazy JavaScript asset. These are
+load-boundary measurements, not claims about interaction speed after opening a
+document.
 
 ## Test-writing contract
 

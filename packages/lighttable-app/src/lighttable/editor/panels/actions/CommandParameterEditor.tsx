@@ -14,7 +14,8 @@ const record = (value: unknown): value is Readonly<Record<string, unknown>> => (
 
 const resolveSchema = (schema: LightTableJsonSchema, root: LightTableJsonSchema) => {
   const match = schema.$ref?.match(/^#\/\$defs\/([^/]+)$/u);
-  return match ? root.$defs?.[match[1]] ?? schema : schema;
+  const referenced = match ? root.$defs?.[match[1]] : undefined;
+  return referenced ? { ...referenced, ...schema, $ref: undefined } : schema;
 };
 
 const objectDefaults = (
@@ -225,7 +226,10 @@ export const CommandParameterEditor: React.FC<CommandParameterEditorProps> = ({
   ));
 
   return <div className="lighttable-command-parameter-editor">
-    {Object.entries(schema.properties ?? {}).map(([name, property]) => (
+    {schema['x-lighttable-variant-editor'] === true ? <SchemaField name={schema.title ?? 'Parameters'} schema={schema}
+      value={parameters} required disabled={disabled} onChange={(value) => {
+        if (record(value)) setParameters(value);
+      }} rootSchema={schema} /> : Object.entries(schema.properties ?? {}).map(([name, property]) => (
       <SchemaField key={name} name={name} schema={property} value={parameters[name]}
         required={required.has(name)} disabled={disabled} onChange={(value) => update(name, value)}
         onRemove={() => remove(name)} rootSchema={schema} />

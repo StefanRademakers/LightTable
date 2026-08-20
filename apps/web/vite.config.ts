@@ -21,6 +21,9 @@ export default defineConfig({
   // instead of hiding it behind npm's node_modules junction.
   resolve: {
     alias: {
+      '@lighttable/app/standalone': fileURLToPath(
+        new URL('../../packages/lighttable-app/src/standalone.ts', import.meta.url)
+      ),
       '@lighttable/app/ui-devtools': fileURLToPath(
         new URL('../../packages/lighttable-app/src/ui-devtools.ts', import.meta.url)
       ),

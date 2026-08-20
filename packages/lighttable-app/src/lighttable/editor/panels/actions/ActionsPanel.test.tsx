@@ -153,6 +153,23 @@ describe('ActionsPanel', () => {
     expect(markup).not.toContain('disabled="">Run</button>');
   });
 
+  it('renders discriminated document geometry variants from the shared schema', () => {
+    const geometry = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'document.applyGeometry')!;
+    const markup = renderToStaticMarkup(<CommandCatalogView
+      capabilities={[{ command: geometry.id, available: true, reason: null }]}
+      definitions={[geometry]}
+      onExecute={() => null}
+    />);
+    expect(markup).toContain('Canvas size');
+    expect(markup).toContain('Crop');
+    expect(markup).toContain('Rotate');
+    expect(markup).toContain('Flip canvas');
+    expect(markup).toContain('Canvas width');
+    expect(markup).not.toContain('cropOverlay');
+    expect(markup).not.toContain('legacy property metadata');
+    expect(markup).not.toContain('disabled="">Run</button>');
+  });
+
   it('resolves shared vector definitions into an executable Actions form', () => {
     const createVector = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'vector.create')!;
     const markup = renderToStaticMarkup(<CommandCatalogView

@@ -240,6 +240,11 @@ Existing foundation evidence
   reject accidental document targets. Actions replay remaps the recorded
   created document ID to the fresh result before executing later document
   edits; the packaged route proves create -> raster edit -> replay.
+- Image Size and document Canvas/Crop/Rotate/Flip now have closed shared
+  contracts and reviewed generic MCP admission. Packaged normal UI recording,
+  Actions replay and external MCP produce equal canvas, layer transforms,
+  history and byte-exact pixels; continuous crop/dialog interaction remains
+  outside the command boundary.
 
 Program definition of done
 ==========================

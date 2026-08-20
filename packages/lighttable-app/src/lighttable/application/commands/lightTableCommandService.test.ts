@@ -866,6 +866,10 @@ describe('LightTableCommandService atomic batches', () => {
 describe('LightTableCommandService registry', () => {
   it('routes Image Size through the mounted document command port', async () => {
     const state = setup();
+    vi.mocked(state.ports.resizeImage!).mockImplementation((_documentId, resize) => {
+      state.session.setDocument({ ...state.session.getSnapshot().document!,
+        width: resize.width, height: resize.height, resolutionPpi: resize.resolutionPpi });
+    });
     const parameters = {
       width: 40, height: 30, resolutionPpi: 300, resample: true,
       method: 'automatic', preserveDetailsNoiseReduction: 0, scaleStyles: true
@@ -880,10 +884,44 @@ describe('LightTableCommandService registry', () => {
 
   it('routes canonical document geometry through the mounted document port', async () => {
     const state = setup();
+    vi.mocked(state.ports.applyDocumentGeometry!).mockImplementation((_documentId, geometry) => {
+      if (geometry.operation !== 'canvas-size') return;
+      state.session.setDocument({ ...state.session.getSnapshot().document!,
+        width: geometry.width, height: geometry.height });
+    });
     const parameters = { operation: 'canvas-size', width: 100, height: 90, anchorX: 0.5, anchorY: 1 };
     const result = await state.service.execute(request('document.applyGeometry', state.session.id, parameters));
-    expect(result).toMatchObject({ status: 'completed', value: { operation: 'canvas-size' } });
+    expect(result).toMatchObject({ status: 'completed', value: {
+      operation: 'canvas-size',
+      width: state.session.getSnapshot().document!.width,
+      height: state.session.getSnapshot().document!.height
+    } });
     expect(state.ports.applyDocumentGeometry).toHaveBeenCalledWith(state.session.id, parameters);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('rejects unsafe, private and mixed document geometry before mutation', async () => {
+    const state = setup();
+    const unsafeResize = await state.service.execute(request('document.resizeImage', state.session.id, {
+      width: 16385, height: 30, resolutionPpi: 72, resample: true,
+      method: 'bilinear', preserveDetailsNoiseReduction: 0, scaleStyles: true
+    }));
+    const privateResize = await state.service.execute(request('document.resizeImage', state.session.id, {
+      width: 40, height: 30, resolutionPpi: 72, resample: true,
+      method: 'bilinear', preserveDetailsNoiseReduction: 0, scaleStyles: true,
+      previewSurface: 'private'
+    }));
+    const unstableRotation = await state.service.execute(request('document.applyGeometry', state.session.id, {
+      operation: 'rotate', rotation: { degrees: 3600.1 }
+    }));
+    const mixedOperation = await state.service.execute(request('document.applyGeometry', state.session.id, {
+      operation: 'crop', bounds: { x: 0, y: 0, width: 20, height: 20 }, axis: 'horizontal'
+    }));
+    for (const result of [unsafeResize, privateResize, unstableRotation, mixedOperation]) {
+      expect(result).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    }
+    expect(state.ports.resizeImage).not.toHaveBeenCalled();
+    expect(state.ports.applyDocumentGeometry).not.toHaveBeenCalled();
     state.service.dispose(); state.workspace.dispose();
   });
 

@@ -8,7 +8,7 @@ import {
   LightTableStandaloneApp,
   type LightTableAutomationDriver,
   type LightTableHost
-} from '@lighttable/app';
+} from '@lighttable/app/standalone';
 import './renderer.css';
 import { invokeAgentDriver } from './agentDriverBridge';
 import type { DesktopFilePayload } from './desktopBridge';

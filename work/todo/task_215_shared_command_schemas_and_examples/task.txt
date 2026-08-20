@@ -213,6 +213,11 @@ Current evidence (2026-08-20)
   background union; the local Commands editor renders the same form. The
   contextual total-pixel limit remains in the application owner and is also
   rejected at the external bridge boundary.
+- A separate document-geometry module now owns `document.resizeImage` and the
+  exact Canvas Size/Crop/Rotate/Flip union. Shared examples cover every variant;
+  bounds reject oversized/private/mixed input and results contain actual
+  post-commit dimensions. The Actions form opts into root-variant editing
+  without changing unrelated schema unions.
 
 Still required for completion
 =============================

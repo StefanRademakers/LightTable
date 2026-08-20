@@ -118,3 +118,8 @@ Current evidence (2026-08-20)
 - Real external MCP now discovers conditional Text creation, rejects malformed
   Path Text/private editor state before the desktop revision changes, and then
   proves editable point and native Path Text against the same desktop owner.
+- `document.resizeImage` and `document.applyGeometry` are admitted as discrete
+  destructive document edits. The MCP gate rejects unsafe dimensions, private
+  crop state and mixed operation variants before the bridge. Packaged external
+  MCP executes Image Size plus Rotate and matches normal UI and Actions state,
+  history and rendered pixels exactly; no gizmo or pointer stream is remote.

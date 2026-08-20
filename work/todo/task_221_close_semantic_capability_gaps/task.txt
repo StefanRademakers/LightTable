@@ -90,6 +90,10 @@ Completed vertical slices
   kinds. The normal editor still owns responsive local previews and history
   coalescing; only committed checkpoints enter Actions. Packaged UI recording,
   undo/playback and external MCP lifecycle execution prove the vertical slice.
+- Image Size and document Canvas Size/Crop/Rotate/Flip through their existing
+  layered GPU/history owners. The complete vertical preserves local dialog and
+  crop-gizmo interaction while Actions and MCP operate only on final bounded
+  parameters; packaged route equivalence is exact.
 
 Rules
 =====

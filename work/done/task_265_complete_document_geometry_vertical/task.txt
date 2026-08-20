@@ -1,0 +1,47 @@
+Task 265 - Complete Image Size and document geometry across UI, Actions and MCP
+
+Goal
+Promote the existing canonical Image Size and Canvas/Crop/Rotate/Flip owners to
+closed shared capabilities that normal UI, Actions and reviewed MCP execution
+can use with equivalent document, history and rendered results.
+
+Checklist
+- [x] Define modular closed v1 input/result schemas and representative examples for `document.resizeImage` and `document.applyGeometry`.
+- [x] Preserve exact resampling, layered semantics, selection/mask projection, guides, GPU transfer and undo owners.
+- [x] Return actual post-commit canvas dimensions instead of merely echoing requested values.
+- [x] Reject private UI state, unsafe dimensions, crop bounds and numerically unstable arbitrary rotations before mutation.
+- [x] Render both commands as executable schema-driven Actions forms.
+- [x] Admit both commands to Agent Access and generic MCP execution with explicit destructive-edit documentation.
+- [x] Add contract, command-service, Actions and MCP rejection/equivalence tests.
+- [x] Prove normal UI, Actions replay and external MCP on packaged Electron; retain detailed layered Image Size and document-geometry smokes.
+- [x] Update coverage/program documentation and run full repository gates.
+
+Performance constraints
+- Image Size and document geometry remain one discrete commit each.
+- No pointer, crop-gizmo, slider preview, GPU transfer loop or renderer callback enters MCP/schema validation.
+- Actions records final normalized parameters only after the existing UI commit succeeds.
+
+Non-goals
+- Remote simulation of the Crop gizmo or arbitrary-rotation dialog.
+- Changing resampling algorithms or geometry projection math.
+- Adding projective transforms.
+
+Completion evidence
+- Shared `document-geometry.json` supplies closed inputs/results and examples
+  for Image Size plus all four geometry variants.
+- Contract 30/30, MCP 17/17 and focused app 99/99 tests pass; invalid input is
+  proven not to reach application or desktop mutation ports.
+- Packaged UI -> Actions -> external MCP equivalence passes on fresh 640x480
+  documents with equal 240x320 state, two history entries and zero pixel delta.
+- Detailed packaged Image Size and document-geometry smokes pass. The geometry
+  route now rejects renderer failure and caught/fixed the previously invalid
+  selection-mask uniform layout (64-byte CPU buffer versus 80-byte WGSL layout).
+- `quality:agent -- --profile quick` passes, including all workspace tests and
+  the production web-delivery audit. A real launcher/document boundary reduced
+  measured initial delivery from 3.262 MB JS / 310.4 kB CSS to 0.890 MB JS /
+  74.5 kB CSS without raising the dated byte baseline. The 2.059 MB editor
+  runtime, feature panels and transient dialogs load only for their owning flow.
+- Packaged Electron build and the document-capability, document-geometry and
+  Image Size smokes pass after that split. The geometry smoke now selects an
+  actually visible Crop handle instead of clicking through the floating Layers
+  panel; `elementFromPoint` proved the old east-edge route hit Layers, not Crop.

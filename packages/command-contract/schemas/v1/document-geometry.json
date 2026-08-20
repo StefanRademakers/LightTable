@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "category": "image",
+  "$defs": {
+    "dimension": { "type": "integer", "minimum": 1, "maximum": 16384 },
+    "resolutionPpi": { "type": "number", "minimum": 1, "maximum": 2400 },
+    "canvasResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["width", "height", "resolutionPpi"],
+      "properties": {
+        "width": { "$ref": "#/$defs/dimension" },
+        "height": { "$ref": "#/$defs/dimension" },
+        "resolutionPpi": { "$ref": "#/$defs/resolutionPpi" }
+      }
+    },
+    "cropBounds": {
+      "type": "object", "title": "Document-space crop bounds", "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number", "minimum": -32768, "maximum": 32768 },
+        "y": { "type": "number", "minimum": -32768, "maximum": 32768 },
+        "width": { "type": "number", "minimum": 0.5, "maximum": 16384 },
+        "height": { "type": "number", "minimum": 0.5, "maximum": 16384 }
+      }
+    },
+    "canvasSizeOperation": {
+      "title": "Canvas size",
+      "type": "object", "additionalProperties": false,
+      "required": ["operation", "width", "height", "anchorX", "anchorY"],
+      "properties": {
+        "operation": { "const": "canvas-size" },
+        "width": { "$ref": "#/$defs/dimension", "title": "Canvas width" },
+        "height": { "$ref": "#/$defs/dimension", "title": "Canvas height" },
+        "anchorX": { "type": "number", "title": "Horizontal anchor", "enum": [0, 0.5, 1] },
+        "anchorY": { "type": "number", "title": "Vertical anchor", "enum": [0, 0.5, 1] }
+      }
+    },
+    "cropOperation": {
+      "title": "Crop",
+      "type": "object", "additionalProperties": false,
+      "required": ["operation", "bounds"],
+      "properties": {
+        "operation": { "const": "crop" },
+        "bounds": { "$ref": "#/$defs/cropBounds" }
+      }
+    },
+    "rotateOperation": {
+      "title": "Rotate",
+      "type": "object", "additionalProperties": false,
+      "required": ["operation", "rotation"],
+      "properties": {
+        "operation": { "const": "rotate" },
+        "rotation": {
+          "title": "Rotation", "oneOf": [
+            { "title": "Orthogonal", "type": "string", "enum": ["clockwise-90", "counter-clockwise-90", "180"] },
+            {
+              "title": "Arbitrary angle", "type": "object", "additionalProperties": false,
+              "required": ["degrees"],
+              "properties": { "degrees": { "type": "number", "minimum": -3600, "maximum": 3600 } }
+            }
+          ]
+        }
+      }
+    },
+    "flipOperation": {
+      "title": "Flip canvas",
+      "type": "object", "additionalProperties": false,
+      "required": ["operation", "axis"],
+      "properties": {
+        "operation": { "const": "flip" },
+        "axis": { "type": "string", "title": "Axis", "enum": ["horizontal", "vertical"] }
+      }
+    }
+  },
+  "commands": {
+    "document.resizeImage": {
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "required": ["width", "height", "resolutionPpi", "resample", "method", "preserveDetailsNoiseReduction", "scaleStyles"],
+        "properties": {
+          "width": { "$ref": "#/$defs/dimension", "title": "Width" },
+          "height": { "$ref": "#/$defs/dimension", "title": "Height" },
+          "resolutionPpi": { "$ref": "#/$defs/resolutionPpi", "title": "Resolution (ppi)" },
+          "resample": { "type": "boolean", "title": "Resample" },
+          "method": {
+            "type": "string", "title": "Resampling method",
+            "enum": ["automatic", "preserve-details", "preserve-details-2", "bicubic-smoother", "bicubic-sharper", "bicubic", "nearest", "bilinear"]
+          },
+          "preserveDetailsNoiseReduction": { "type": "number", "title": "Preserve Details noise reduction", "minimum": 0, "maximum": 100 },
+          "scaleStyles": { "type": "boolean", "title": "Scale styles" }
+        }
+      },
+      "result": { "$ref": "#/$defs/canvasResult", "type": "object", "additionalProperties": false,
+        "required": ["width", "height", "resolutionPpi"], "properties": {
+          "width": { "$ref": "#/$defs/dimension" }, "height": { "$ref": "#/$defs/dimension" },
+          "resolutionPpi": { "$ref": "#/$defs/resolutionPpi" }
+        } }
+    },
+    "document.applyGeometry": {
+      "input": {
+        "type": "object", "title": "Document geometry operation", "additionalProperties": false,
+        "x-lighttable-variant-editor": true,
+        "properties": {
+          "operation": { "type": "string", "enum": ["canvas-size", "crop", "rotate", "flip"] },
+          "width": { "$ref": "#/$defs/dimension" }, "height": { "$ref": "#/$defs/dimension" },
+          "anchorX": { "type": "number", "enum": [0, 0.5, 1] },
+          "anchorY": { "type": "number", "enum": [0, 0.5, 1] },
+          "bounds": { "$ref": "#/$defs/cropBounds" },
+          "rotation": { "oneOf": [
+            { "type": "string", "enum": ["clockwise-90", "counter-clockwise-90", "180"] },
+            { "type": "object", "additionalProperties": false, "required": ["degrees"],
+              "properties": { "degrees": { "type": "number", "minimum": -3600, "maximum": 3600 } } }
+          ] },
+          "axis": { "type": "string", "enum": ["horizontal", "vertical"] }
+        },
+        "oneOf": [
+          { "$ref": "#/$defs/canvasSizeOperation", "title": "Canvas size" },
+          { "$ref": "#/$defs/cropOperation", "title": "Crop" },
+          { "$ref": "#/$defs/rotateOperation", "title": "Rotate" },
+          { "$ref": "#/$defs/flipOperation", "title": "Flip canvas" }
+        ]
+      },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operation", "width", "height"],
+        "properties": {
+          "operation": { "type": "string", "enum": ["canvas-size", "crop", "rotate", "flip"] },
+          "width": { "$ref": "#/$defs/dimension" }, "height": { "$ref": "#/$defs/dimension" }
+        }
+      }
+    }
+  }
+}

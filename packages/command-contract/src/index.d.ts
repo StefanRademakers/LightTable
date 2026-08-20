@@ -78,7 +78,7 @@ export declare const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES: Readonly<Record<Li
 
 export declare const LIGHTTABLE_COMMAND_EXAMPLES: Readonly<Partial<Record<LightTableCommandId, readonly Readonly<Record<string, unknown>>[]>>>;
 
-export interface LightTableJsonSchema { readonly type?: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean'; readonly title?: string; readonly description?: string; readonly properties?: Readonly<Record<string, LightTableJsonSchema>>; readonly required?: readonly string[]; readonly additionalProperties?: boolean; readonly minProperties?: number; readonly maxProperties?: number; readonly items?: LightTableJsonSchema; readonly enum?: readonly unknown[]; readonly const?: unknown; readonly default?: unknown; readonly minLength?: number; readonly maxLength?: number; readonly pattern?: string; readonly minItems?: number; readonly maxItems?: number; readonly uniqueItems?: boolean; readonly minimum?: number; readonly maximum?: number; readonly allOf?: readonly LightTableJsonSchema[]; readonly anyOf?: readonly LightTableJsonSchema[]; readonly oneOf?: readonly LightTableJsonSchema[]; readonly not?: LightTableJsonSchema; readonly if?: LightTableJsonSchema; readonly then?: LightTableJsonSchema; readonly else?: LightTableJsonSchema; readonly $ref?: string; readonly $defs?: Readonly<Record<string, LightTableJsonSchema>>; readonly 'x-lighttable-control'?: 'layer-id' | 'layer-ids'; readonly 'x-lighttable-step'?: number; }
+export interface LightTableJsonSchema { readonly type?: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean'; readonly title?: string; readonly description?: string; readonly properties?: Readonly<Record<string, LightTableJsonSchema>>; readonly required?: readonly string[]; readonly additionalProperties?: boolean; readonly minProperties?: number; readonly maxProperties?: number; readonly items?: LightTableJsonSchema; readonly enum?: readonly unknown[]; readonly const?: unknown; readonly default?: unknown; readonly minLength?: number; readonly maxLength?: number; readonly pattern?: string; readonly minItems?: number; readonly maxItems?: number; readonly uniqueItems?: boolean; readonly minimum?: number; readonly maximum?: number; readonly allOf?: readonly LightTableJsonSchema[]; readonly anyOf?: readonly LightTableJsonSchema[]; readonly oneOf?: readonly LightTableJsonSchema[]; readonly not?: LightTableJsonSchema; readonly if?: LightTableJsonSchema; readonly then?: LightTableJsonSchema; readonly else?: LightTableJsonSchema; readonly $ref?: string; readonly $defs?: Readonly<Record<string, LightTableJsonSchema>>; readonly 'x-lighttable-control'?: 'layer-id' | 'layer-ids'; readonly 'x-lighttable-step'?: number; readonly 'x-lighttable-variant-editor'?: boolean; }
 export interface LightTableCommandSchema { readonly input: LightTableJsonSchema; readonly result: LightTableJsonSchema; }
 export interface LightTableSchemaValidationIssue { readonly path: readonly (string | number)[]; readonly code: string; readonly message: string; }
 export type LightTableSchemaValidationResult = { readonly valid: true; readonly issues: readonly [] } | { readonly valid: false; readonly issues: readonly LightTableSchemaValidationIssue[] };
@@ -89,6 +89,8 @@ export declare const formatSchemaValidationIssues: (issues: readonly LightTableS
 
 export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'document.create',
+  'document.resizeImage',
+  'document.applyGeometry',
   'view.setZoom',
   'layer.createRaster',
   'layer.duplicate',
@@ -150,6 +152,8 @@ export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
 export type LightTableAgentAccessCommandId = typeof LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS[number];
 
 export declare const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS: readonly [
+  'document.resizeImage',
+  'document.applyGeometry',
   'view.setZoom',
   'layer.createRaster',
   'layer.duplicate',

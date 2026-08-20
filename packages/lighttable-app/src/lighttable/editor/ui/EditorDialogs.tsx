@@ -1,25 +1,53 @@
 import { ConfirmDialog } from '../../../ui/ConfirmDialog';
 import { TextInputDialog } from '../../../ui/TextInputDialog';
+import React from 'react';
 import type { ReferenceDifferenceMetrics } from '../../application/rendering/rendererTypes';
 import type { DocumentFontAsset, ImageDocument, LayerId, PhotoshopImportReport } from '../document/documentTypes';
 import type { ImageSizeRequest } from '../../application/imageSize/imageSizeModel';
 import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
-import { PsdImportReportDialog } from '../psd/PsdImportReportDialog';
 import type { EditorDialogController } from './useEditorDialogController';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
-import { PdfExportPreflightDialog } from '../pdf/PdfExportPreflightDialog';
-import { MissingFontRecoveryDialog } from './MissingFontRecoveryDialog';
-import { FormatSupportDialog } from './FormatSupportDialog';
-import { FillDialog } from './FillDialog';
-import { AboutUpdateDialog } from './AboutUpdateDialog';
 import type { LightTableReleaseService } from '../../../platform/LightTableHost';
-import { CommandHelpDialog } from './CommandHelpDialog';
-import { ImageSizeDialog } from './ImageSizeDialog';
-import { ThirdPartyLicensesDialog } from './ThirdPartyLicensesDialog';
-import { NewGuideDialog } from './NewGuideDialog';
-import { DuplicateImageDialog } from './DuplicateImageDialog';
-import { CanvasSizeDialog } from './CanvasSizeDialog';
-import { ArbitraryRotationDialog } from './ArbitraryRotationDialog';
+
+const PsdImportReportDialog = React.lazy(async () => ({
+  default: (await import('../psd/PsdImportReportDialog')).PsdImportReportDialog
+}));
+const PdfExportPreflightDialog = React.lazy(async () => ({
+  default: (await import('../pdf/PdfExportPreflightDialog')).PdfExportPreflightDialog
+}));
+const MissingFontRecoveryDialog = React.lazy(async () => ({
+  default: (await import('./MissingFontRecoveryDialog')).MissingFontRecoveryDialog
+}));
+const FormatSupportDialog = React.lazy(async () => ({
+  default: (await import('./FormatSupportDialog')).FormatSupportDialog
+}));
+const FillDialog = React.lazy(async () => ({
+  default: (await import('./FillDialog')).FillDialog
+}));
+const AboutUpdateDialog = React.lazy(async () => ({
+  default: (await import('./AboutUpdateDialog')).AboutUpdateDialog
+}));
+const CommandHelpDialog = React.lazy(async () => ({
+  default: (await import('./CommandHelpDialog')).CommandHelpDialog
+}));
+const ImageSizeDialog = React.lazy(async () => ({
+  default: (await import('./ImageSizeDialog')).ImageSizeDialog
+}));
+const ThirdPartyLicensesDialog = React.lazy(async () => ({
+  default: (await import('./ThirdPartyLicensesDialog')).ThirdPartyLicensesDialog
+}));
+const NewGuideDialog = React.lazy(async () => ({
+  default: (await import('./NewGuideDialog')).NewGuideDialog
+}));
+const DuplicateImageDialog = React.lazy(async () => ({
+  default: (await import('./DuplicateImageDialog')).DuplicateImageDialog
+}));
+const CanvasSizeDialog = React.lazy(async () => ({
+  default: (await import('./CanvasSizeDialog')).CanvasSizeDialog
+}));
+const ArbitraryRotationDialog = React.lazy(async () => ({
+  default: (await import('./ArbitraryRotationDialog')).ArbitraryRotationDialog
+}));
 
 export interface EditorDialogsProps {
   readonly controller: EditorDialogController;
@@ -101,46 +129,49 @@ export const EditorDialogs = ({
   onDuplicateImage,
   onCreateGuide
 }: EditorDialogsProps) => (
-  <>
-    <ArbitraryRotationDialog open={controller.arbitraryRotationOpen} busy={documentGeometryBusy}
+  <React.Suspense fallback={null}>
+    {controller.arbitraryRotationOpen ? <ArbitraryRotationDialog open busy={documentGeometryBusy}
       onCancel={controller.closeArbitraryRotation}
-      onCommit={(degrees) => {
+      onCommit={(degrees: number) => {
         onApplyDocumentGeometry({ operation: 'rotate', rotation: { degrees } });
         controller.closeArbitraryRotation();
-      }} />
-    <CanvasSizeDialog
-      open={controller.canvasSizeOpen}
+      }} /> : null}
+    {controller.canvasSizeOpen ? <CanvasSizeDialog
+      open
       document={document}
       busy={documentGeometryBusy}
       onCancel={controller.closeCanvasSize}
       onCommit={onApplyDocumentGeometry}
-    />
-    <DuplicateImageDialog
-      open={controller.duplicateImageOpen}
+    /> : null}
+    {controller.duplicateImageOpen ? <DuplicateImageDialog
+      open
       sourceName={duplicateImageSourceName}
       busy={Boolean(duplicateImageBusy)}
       error={duplicateImageError}
       onCancel={controller.closeDuplicateImage}
       onConfirm={onDuplicateImage}
-    />
-    <NewGuideDialog open={controller.newGuideOpen} onCancel={controller.closeNewGuide}
-      onCommit={(guide) => { controller.closeNewGuide(); onCreateGuide(guide); }} />
-    <ImageSizeDialog
-      open={controller.imageSizeOpen}
+    /> : null}
+    {controller.newGuideOpen ? <NewGuideDialog open onCancel={controller.closeNewGuide}
+      onCommit={(guide: Omit<import('../document/documentTypes').DocumentGuide, 'id'>) => {
+        controller.closeNewGuide();
+        onCreateGuide(guide);
+      }} /> : null}
+    {controller.imageSizeOpen ? <ImageSizeDialog
+      open
       document={document}
       busy={imageSizeBusy}
       onCancel={controller.closeImageSize}
       onCommit={onResizeImage}
-    />
-    <FillDialog
-      open={controller.fillOpen}
+    /> : null}
+    {controller.fillOpen ? <FillDialog
+      open
       foregroundColor={foregroundColor}
       backgroundColor={backgroundColor}
       onCancel={controller.closeFill}
       onFill={onFill}
-    />
-    <TextInputDialog
-      open={controller.featherOpen}
+    /> : null}
+    {controller.featherOpen ? <TextInputDialog
+      open
       title="Select feather"
       initialValue="8.0"
       selectAllOnOpen
@@ -156,9 +187,9 @@ export const EditorDialogs = ({
         controller.closeFeather();
         onFeather(radius);
       }}
-    />
-    <ConfirmDialog
-      open={Boolean(controller.textToShapeRequest)}
+    /> : null}
+    {controller.textToShapeRequest ? <ConfirmDialog
+      open
       title="Convert text to shape?"
       description="Each glyph will become an editable vector path. Text content, font and paragraph editing will no longer be available. This can be undone while the document remains open."
       confirmLabel="Convert"
@@ -170,9 +201,9 @@ export const EditorDialogs = ({
         controller.closeTextToShape();
         onConvertTextToShape(request.layerId);
       }}
-    />
-    <PsdImportReportDialog
-      open={controller.psdReportOpen}
+    /> : null}
+    {controller.psdReportOpen ? <PsdImportReportDialog
+      open
       report={photoshopReport}
       metrics={differenceMetrics}
       textFontDiagnostics={textFontDiagnostics}
@@ -181,8 +212,8 @@ export const EditorDialogs = ({
       onSelectLayer={onSelectCompatibilityLayer}
       onReplaceTextFonts={onReplaceTextFonts}
       onClose={controller.closePsdReport}
-    />
-    <MissingFontRecoveryDialog
+    /> : null}
+    {controller.missingFontRecoveryRequest ? <MissingFontRecoveryDialog
       request={controller.missingFontRecoveryRequest}
       diagnostic={controller.missingFontRecoveryRequest
         ? textFontDiagnostics.find(({ layerId, sourceIdentity }) =>
@@ -204,14 +235,14 @@ export const EditorDialogs = ({
         controller.closeMissingFontRecovery();
         controller.openPsdReport();
       }}
-      onPreview={(assetId) => {
+      onPreview={(assetId: string) => {
         const request = controller.missingFontRecoveryRequest;
         if (!request) return;
         onPreviewTextFont(
           request.layerId, assetId, request.sourceIdentity, request.requestedFont
         );
       }}
-      onReplace={(assetId) => {
+      onReplace={(assetId: string) => {
         const request = controller.missingFontRecoveryRequest;
         if (!request) return;
         onReplaceTextFont(
@@ -219,27 +250,29 @@ export const EditorDialogs = ({
           request.offset, request.affinity
         );
       }}
-    />
-    <PdfExportPreflightDialog
-      open={Boolean(controller.pdfExportPreflightRequest)}
+    /> : null}
+    {controller.pdfExportPreflightRequest ? <PdfExportPreflightDialog
+      open
       request={controller.pdfExportPreflightRequest}
       onClose={controller.closePdfExportPreflight}
-    />
-    <FormatSupportDialog
-      open={controller.formatSupportOpen}
+    /> : null}
+    {controller.formatSupportOpen ? <FormatSupportDialog
+      open
       onClose={controller.closeFormatSupport}
-    />
-    <ThirdPartyLicensesDialog
-      open={controller.thirdPartyLicensesOpen}
+    /> : null}
+    {controller.thirdPartyLicensesOpen ? <ThirdPartyLicensesDialog
+      open
       includeDesktopRuntime={Boolean(release)}
       onClose={controller.closeThirdPartyLicenses}
-    />
-    <AboutUpdateDialog
-      open={controller.aboutOpen}
+    /> : null}
+    {controller.aboutOpen ? <AboutUpdateDialog
+      open
       release={release}
       dirtyDocuments={dirtyDocuments}
       onClose={controller.closeAbout}
-    />
-    <CommandHelpDialog open={controller.commandHelpOpen} onClose={controller.closeCommandHelp} />
-  </>
+    /> : null}
+    {controller.commandHelpOpen
+      ? <CommandHelpDialog open onClose={controller.closeCommandHelp} />
+      : null}
+  </React.Suspense>
 );

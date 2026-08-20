@@ -13,6 +13,7 @@ describe('invokeAgentDriver', () => {
         { command: 'layer.rename', available: true, reason: null },
         { command: 'file.exportPsd', available: true, reason: null },
         { command: 'faceWarp.applyOperation', available: true, reason: null },
+        { command: 'document.resizeImage', available: true, reason: null },
         { command: 'document.applyGeometry', available: true, reason: null }
       ] as const))
     });
@@ -20,7 +21,9 @@ describe('invokeAgentDriver', () => {
     await expect(invokeAgentDriver(driver, 'command.capabilities', { documentId: 'document-1' }))
       .resolves.toEqual([
         { command: 'layer.rename', available: true, reason: null },
-        { command: 'file.exportPsd', available: true, reason: null }
+        { command: 'file.exportPsd', available: true, reason: null },
+        { command: 'document.resizeImage', available: true, reason: null },
+        { command: 'document.applyGeometry', available: true, reason: null }
       ]);
   });
 

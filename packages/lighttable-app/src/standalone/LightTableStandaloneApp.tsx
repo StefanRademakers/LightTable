@@ -1,5 +1,8 @@
 import { ButtonBase } from '../ui/ButtonBase';
 import {
+  lazy,
+  Suspense,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -15,7 +18,6 @@ import {
   type LightTableRecentProject,
   type LightTableProjectLocation
 } from '../platform/LightTableHost';
-import { StandaloneDocumentRuntimeView } from './StandaloneDocumentRuntimeView';
 import type { EditorScreenMode } from '../lighttable/LightTableEditorOverlay';
 import { screenModeUsesHostFullscreen } from '../lighttable/editor/workspace/editorScreenMode';
 import {
@@ -31,7 +33,6 @@ import {
 import { createBlankPngFile } from './createBlankPngFile';
 import { NewDocumentDialog } from './NewDocumentDialog';
 import { LauncherJustifiedGallery } from './LauncherJustifiedGallery';
-import { NewProjectDialog } from './NewProjectDialog';
 import {
   LightTableCommandPortRegistry,
   LightTableCommandService
@@ -41,20 +42,35 @@ import type {
   LightTableRecoveryRecord
 } from '../platform/LightTableRecoveryStore';
 import { useReleaseSelectFocusAfterChange } from '../ui/useReleaseSelectFocusAfterChange';
-import {
-  GuidedSampleCoach,
-  type GuidedSampleSession
-} from './GuidedSampleCoach';
-import { PreferencesDialog } from './PreferencesDialog';
+import type { GuidedSampleSession } from './GuidedSampleCoach';
 import {
   DEFAULT_APPLICATION_PREFERENCES,
   loadApplicationPreferences,
   saveApplicationPreferences
 } from './applicationPreferences';
-import { ProjectHomeSurface } from './ProjectHomeSurface';
 import { resolveWorkspaceSurface } from './workspaceSurface';
 import type { GenAiAssetReference } from '@lighttable/genai-core';
 import { duplicateLayeredDocumentArtifact } from '../lighttable/application/documents/duplicateLayeredDocumentArtifact';
+
+const NewProjectDialog = lazy(async () => ({
+  default: (await import('./NewProjectDialog')).NewProjectDialog
+}));
+const GuidedSampleCoach = lazy(async () => ({
+  default: (await import('./GuidedSampleCoach')).GuidedSampleCoach
+}));
+const PreferencesDialog = lazy(async () => ({
+  default: (await import('./PreferencesDialog')).PreferencesDialog
+}));
+const ProjectHomeSurface = lazy(async () => ({
+  default: (await import('./ProjectHomeSurface')).ProjectHomeSurface
+}));
+const StandaloneDocumentRuntimeView = lazy(async () => ({
+  default: (await import('./StandaloneDocumentRuntimeView')).StandaloneDocumentRuntimeView
+}));
+
+const deferredSurface = (content: ReactNode) => (
+  <Suspense fallback={null}>{content}</Suspense>
+);
 
 interface LightTableStandaloneAppProps {
   host?: LightTableHost;
@@ -772,7 +788,7 @@ export function LightTableStandaloneApp({
 
   if (workspaceSurface.kind === 'project-home' && activeProject) {
     return <>
-      <ProjectHomeSurface
+      {deferredSurface(<ProjectHomeSurface
         project={activeProject}
         service={host.genAi}
         surface={workspaceSurface}
@@ -788,20 +804,20 @@ export function LightTableStandaloneApp({
           setActiveProject(null);
         }}
         onRevealProject={() => void host.projects?.reveal(activeProject)}
-      />
+      />)}
       <NewDocumentDialog open={newDialogOpen} clipboard={host.clipboard} creating={creating}
         onCancel={() => setNewDialogOpen(false)} onCreate={(size) => void createDocument(size)} />
-      <NewProjectDialog open={newProjectOpen} creating={projectCreating}
+      {newProjectOpen ? deferredSurface(<NewProjectDialog open creating={projectCreating}
         location={projectLocation} error={projectError}
         onChooseLocation={() => void chooseProjectLocation()}
         onCancel={() => setNewProjectOpen(false)}
-        onCreate={(name) => void createProject(name)} />
-      <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
+        onCreate={(name) => void createProject(name)} />) : null}
+      {settingsOpen ? deferredSurface(<PreferencesDialog open host={host} preferences={preferences}
         onCancel={() => setSettingsOpen(false)} onSave={(next) => {
           saveApplicationPreferences(next);
           setPreferences(next);
           setSettingsOpen(false);
-        }} />
+        }} />) : null}
     </>;
   }
 
@@ -899,17 +915,17 @@ export function LightTableStandaloneApp({
             </div>
           </section>
         </div>
-        <NewProjectDialog open={newProjectOpen} creating={projectCreating}
+        {newProjectOpen ? deferredSurface(<NewProjectDialog open creating={projectCreating}
           location={projectLocation} error={projectError}
           onChooseLocation={() => void chooseProjectLocation()}
           onCancel={() => setNewProjectOpen(false)}
-          onCreate={(name) => void createProject(name)} />
-        <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
+          onCreate={(name) => void createProject(name)} />) : null}
+        {settingsOpen ? deferredSurface(<PreferencesDialog open host={host} preferences={preferences}
           onCancel={() => setSettingsOpen(false)} onSave={(next) => {
             saveApplicationPreferences(next);
             setPreferences(next);
             setSettingsOpen(false);
-          }} />
+          }} />) : null}
       </main>
     );
   }
@@ -943,8 +959,8 @@ export function LightTableStandaloneApp({
         </ButtonBase>
       ) : null}
       {materializedDocuments.map((document) => (
-        <StandaloneDocumentRuntimeView
-          key={document.id}
+        <Suspense key={document.id} fallback={null}>
+          <StandaloneDocumentRuntimeView
           document={document}
           workspaceDocuments={workspaceDocuments}
           host={host}
@@ -981,7 +997,8 @@ export function LightTableStandaloneApp({
           onOpen={openDocument}
           onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
           onDocumentThumbnailChange={publishDocumentThumbnail}
-        />
+          />
+        </Suspense>
       ))}
       <NewDocumentDialog
         open={newDialogOpen}
@@ -990,19 +1007,19 @@ export function LightTableStandaloneApp({
         onCancel={() => setNewDialogOpen(false)}
         onCreate={(size) => void createDocument(size)}
       />
-      <NewProjectDialog open={newProjectOpen} creating={projectCreating}
+      {newProjectOpen ? deferredSurface(<NewProjectDialog open creating={projectCreating}
         location={projectLocation} error={projectError}
         onChooseLocation={() => void chooseProjectLocation()}
         onCancel={() => setNewProjectOpen(false)}
-        onCreate={(name) => void createProject(name)} />
-      <PreferencesDialog open={settingsOpen} host={host} preferences={preferences}
+        onCreate={(name) => void createProject(name)} />) : null}
+      {settingsOpen ? deferredSurface(<PreferencesDialog open host={host} preferences={preferences}
         onCancel={() => setSettingsOpen(false)} onSave={(next) => {
           saveApplicationPreferences(next);
           setPreferences(next);
           setSettingsOpen(false);
-        }} />
+        }} />) : null}
       {guidedSample ? (
-        <GuidedSampleCoach
+        deferredSurface(<GuidedSampleCoach
           session={guidedSample}
           ready={snapshot.documents[guidedSample.documentId]?.lifecycle === 'ready'
             && commandPorts.has(guidedSample.documentId)}
@@ -1010,7 +1027,7 @@ export function LightTableStandaloneApp({
           host={host}
           onSession={setGuidedSample}
           onDismiss={() => setGuidedSample(null)}
-        />
+        />)
       ) : null}
     </>
   );
