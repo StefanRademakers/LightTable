@@ -3428,7 +3428,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     applyDocumentSnapshot,
     pushHistoryEntry,
-    setError
+    setError,
+    onStrokeCommitted: ({ target, brush, samples }) => {
+      commandService?.recordObservedCommand(
+        'tool.commitGesture',
+        workspaceDocumentId as DocumentSessionId,
+        {
+          kind: 'brush-stroke',
+          parameters: {
+            layerId: target.layerId,
+            channel: target.channel,
+            erase: target.erase,
+            brush
+          },
+          samples
+        },
+        { kind: 'brush-stroke', sampleCount: samples.length }
+      );
+    }
   }, paintGestureRef.current);
   const sampledBrushSourceController = useMemo(
     () => new SampledBrushSourceController(),
@@ -4130,6 +4147,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     maxScale: MAX_SCALE,
     zoomWithScrollWheel: toolPreferences?.zoomWithScrollWheel ?? true,
     editingBlocked: historySnapshot.busy,
+    recordPaintCommit: actionRecording.status === 'recording',
     onBrushCursorChange: (cursor) => {
       engineRef.current?.setBrushCursorOverlay(cursor);
     },

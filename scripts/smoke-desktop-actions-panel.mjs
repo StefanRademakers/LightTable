@@ -99,6 +99,19 @@ try {
     before + 1
   );
   await recorder.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
+  await window.keyboard.press('b');
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.18,
+    viewportBounds.y + viewportBounds.height * 0.32
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.38,
+    viewportBounds.y + viewportBounds.height * 0.58,
+    { steps: 24 }
+  );
+  await window.mouse.up();
+  await recorder.locator('li').filter({ hasText: 'tool.commitGesture' }).waitFor();
   await window.getByRole('menuitem', { name: 'Layer' }).click();
   await window.getByRole('menuitem', { name: 'Rename Layer' }).click();
   const focusedLayerName = window.locator('input[aria-label="Layer name"]:focus');
@@ -112,7 +125,7 @@ try {
   await undo.locator('summary').click();
   const undoButton = undo.getByRole('button', { name: 'Run' });
   await undoButton.waitFor();
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 5; index += 1) {
     await undoButton.click();
     await panel.getByRole('status').filter({ hasText: 'history.undo: completed' })
       .waitFor({ timeout: 15_000 });
@@ -124,7 +137,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 4) throw new Error('Expected four recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 5) throw new Error('Expected five recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -132,6 +145,9 @@ try {
   const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
   await renameStep.locator('summary').click();
   await renameStep.getByText('$step3.layerId', { exact: false }).waitFor();
+  const brushStep = recorder.locator('li').filter({ hasText: 'tool.commitGesture' });
+  await brushStep.locator('summary').click();
+  await brushStep.getByText('$step3.layerId', { exact: false }).waitFor();
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();

@@ -44,7 +44,7 @@ try {
   await driver.execute(documentId, 'layer.createRaster', {});
 
   await page.keyboard.press('b');
-  await page.getByRole('button', { name: 'Brush' }).waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: 'Brush (B)', exact: true }).waitFor({ state: 'visible' });
   await page.keyboard.press('d');
   await page.keyboard.press('5');
   await page.keyboard.press('Shift+3');

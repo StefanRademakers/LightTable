@@ -71,6 +71,11 @@ export interface PaintSessionDependencies {
   applyDocumentSnapshot(document: ImageDocument): void;
   pushHistoryEntry(entry: PaintHistoryEntry): void;
   setError(message: string | null): void;
+  onStrokeCommitted?(stroke: {
+    readonly target: PaintGestureTarget;
+    readonly brush: BrushSettings;
+    readonly samples: readonly BrushPoint[];
+  }): void;
 }
 
 export interface BeginPaintSession {
@@ -82,6 +87,7 @@ export interface BeginPaintSession {
   /** Document-to-screen scale used to keep large-tip spacing visually continuous. */
   displayScale?: number;
   operator?: PaintBrushStrokePlan;
+  recordSemanticCommit?: boolean;
 }
 
 export interface PaintSessionController {
@@ -123,6 +129,25 @@ export const createPaintSessionController = (
 ): PaintSessionController => {
   let activeBrush: BrushSettings | null = null;
   let activeOperator: PaintBrushStrokePlan | null = null;
+  let recordedStroke: {
+    target: PaintGestureTarget;
+    brush: BrushSettings;
+    samples: BrushPoint[];
+    byteLength: number;
+    overflowed: boolean;
+  } | null = null;
+  const captureSamples = (points: readonly BrushPoint[]) => {
+    if (!recordedStroke || recordedStroke.overflowed) return;
+    const addedBytes = points.reduce((total, point) => total + JSON.stringify(point).length, 0);
+    if (recordedStroke.samples.length + points.length > 4096
+      || recordedStroke.byteLength + addedBytes > 220 * 1024) {
+      recordedStroke.overflowed = true;
+      recordedStroke.samples = [];
+      return;
+    }
+    recordedStroke.samples.push(...points.map((point) => ({ ...point })));
+    recordedStroke.byteLength += addedBytes;
+  };
 
   const paint = (update: PaintGestureUpdate) => {
     if (!update.dabs.length || !activeBrush) return;
@@ -159,6 +184,7 @@ export const createPaintSessionController = (
     paintScheduler.cancel();
     activeBrush = null;
     activeOperator = null;
+    recordedStroke = null;
     resolveDependencies().getRenderer()?.endSampledBrushStroke();
   };
 
@@ -167,7 +193,8 @@ export const createPaintSessionController = (
       return gesture.active;
     },
     owns: (pointerId) => gesture.owns(pointerId),
-    begin: ({ pointerId, layer, target, brush, point, displayScale = 1, operator }) => {
+    begin: ({ pointerId, layer, target, brush, point, displayScale = 1, operator,
+      recordSemanticCommit = false }) => {
       const dependencies = resolveDependencies();
       const renderer = dependencies.getRenderer();
       if (!renderer) return false;
@@ -177,6 +204,13 @@ export const createPaintSessionController = (
         if (operator && operator.operator !== 'tone') renderer.beginSampledBrushStroke(operator);
         activeBrush = cloneBrush(brush);
         activeOperator = operator ?? null;
+        recordedStroke = recordSemanticCommit && !operator ? {
+          target: { ...target, sourceToDocument: { ...target.sourceToDocument } },
+          brush: cloneBrush(brush),
+          samples: [{ ...point }],
+          byteLength: 512 + JSON.stringify(point).length,
+          overflowed: false
+        } : null;
         paintScheduler.schedule(gesture.begin(pointerId, target, {
           ...activeBrush,
           maximumSpacingPx: Math.max(0.5, 1.5 / Math.max(displayScale, 0.01))
@@ -198,18 +232,22 @@ export const createPaintSessionController = (
     move: (pointerId, point) => {
       const update = gesture.moveMany(pointerId, [point]);
       if (!update) return false;
+      captureSamples([point]);
       paintScheduler.schedule(update);
       return true;
     },
     moveMany: (pointerId, points) => {
       const update = gesture.moveMany(pointerId, points);
       if (!update) return false;
+      captureSamples(points);
       paintScheduler.schedule(update);
       return true;
     },
     finish: (pointerId) => {
       const finished = gesture.finish(pointerId);
       if (!finished) return false;
+      const completedRecording = recordedStroke;
+      recordedStroke = null;
       if (finished.dabs.length) paintScheduler.schedule({
         target: finished.target,
         dabs: finished.dabs
@@ -272,6 +310,13 @@ export const createPaintSessionController = (
         },
         dispose: pixelEdit.destroy
       });
+      if (completedRecording && !completedRecording.overflowed) {
+        dependencies.onStrokeCommitted?.({
+          target: completedRecording.target,
+          brush: completedRecording.brush,
+          samples: completedRecording.samples
+        });
+      }
       return true;
     },
     cancel: (pointerId) => {
@@ -279,6 +324,7 @@ export const createPaintSessionController = (
       paintScheduler.cancel();
       activeBrush = null;
       activeOperator = null;
+      recordedStroke = null;
       const renderer = resolveDependencies().getRenderer();
       const pixelEdit = renderer?.finishPixelEdit();
       if (pixelEdit) {

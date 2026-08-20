@@ -55,6 +55,65 @@ const createFixture = () => {
 };
 
 describe('PaintSessionController', () => {
+  it('reports one bounded semantic stroke only after the pixel edit commits', () => {
+    const onStrokeCommitted = vi.fn();
+    const fixture = createFixture();
+    const originalDependencies = fixture.dependencies;
+    originalDependencies.onStrokeCommitted = onStrokeCommitted;
+    const brush = createEditorSession().brush;
+    expect(fixture.controller.begin({
+      pointerId: 21,
+      layer: fixture.layer,
+      target: {
+        layerId: fixture.layer.id,
+        channel: 'pixels',
+        erase: false,
+        sourceToDocument: identityMatrix()
+      },
+      brush,
+      point: { x: 4, y: 5, pressure: 0.5 },
+      recordSemanticCommit: true
+    })).toBe(true);
+    expect(fixture.controller.moveMany(21, [
+      { x: 8, y: 9, pressure: 0.7 },
+      { x: 14, y: 12, pressure: 1 }
+    ])).toBe(true);
+    expect(onStrokeCommitted).not.toHaveBeenCalled();
+    expect(fixture.controller.finish(21)).toBe(true);
+    expect(onStrokeCommitted).toHaveBeenCalledOnce();
+    expect(onStrokeCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      target: expect.objectContaining({ layerId: fixture.layer.id, channel: 'pixels', erase: false }),
+      brush,
+      samples: [
+        { x: 4, y: 5, pressure: 0.5 },
+        { x: 8, y: 9, pressure: 0.7 },
+        { x: 14, y: 12, pressure: 1 }
+      ]
+    }));
+    expect(fixture.history).toHaveLength(1);
+  });
+
+  it('keeps painting but refuses to record an oversized UI stroke', () => {
+    const onStrokeCommitted = vi.fn();
+    const fixture = createFixture();
+    fixture.dependencies.onStrokeCommitted = onStrokeCommitted;
+    fixture.controller.begin({
+      pointerId: 22,
+      layer: fixture.layer,
+      target: { layerId: fixture.layer.id, channel: 'pixels', erase: false,
+        sourceToDocument: identityMatrix() },
+      brush: createEditorSession().brush,
+      point: { x: 0, y: 0, pressure: 1 },
+      recordSemanticCommit: true
+    });
+    fixture.controller.moveMany(22, Array.from({ length: 4096 }, (_, index) => ({
+      x: index / 10, y: index / 20, pressure: 1
+    })));
+    expect(fixture.controller.finish(22)).toBe(true);
+    expect(fixture.history).toHaveLength(1);
+    expect(onStrokeCommitted).not.toHaveBeenCalled();
+  });
+
   const sampledPlan = {
     operator: 'clone' as const,
     source: {

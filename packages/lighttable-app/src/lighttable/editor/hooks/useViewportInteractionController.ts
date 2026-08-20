@@ -156,6 +156,7 @@ interface ViewportInteractionOptions {
   zoomWithScrollWheel: boolean;
   /** Undo/redo owns document publication while true; no edit gesture may start. */
   editingBlocked: boolean;
+  recordPaintCommit?: boolean;
   onBrushCursorChange: (cursor: {
     center: { x: number; y: number };
     diameter: number;
@@ -227,6 +228,7 @@ export const useViewportInteractionController = ({
   maxScale,
   zoomWithScrollWheel,
   editingBlocked,
+  recordPaintCommit = false,
   onBrushCursorChange,
   onZoomDraftChange,
   onPenRubberBandChange,
@@ -967,7 +969,8 @@ export const useViewportInteractionController = ({
           : editorSession.brush,
         point: paintPoint,
         displayScale: activeScale,
-        operator: sampledOperation ?? toneOperation ?? undefined
+        operator: sampledOperation ?? toneOperation ?? undefined,
+        recordSemanticCommit: recordPaintCommit
       });
       if (started) {
         if (paintPoint !== point) paint.move(event.pointerId, point);
