@@ -100,9 +100,25 @@ Current evidence (2026-08-20)
   semantic command publishes only after the current result enters selection
   history; no mask or polling samples enter command transport.
 
-Remaining before this task is complete
-======================================
+- The packaged Actions smoke now captures release-to-command/history latency,
+  release-to-next-frame latency, submitted frames, recorder bytes and stage
+  encode counters without putting pointer samples on the diagnostic boundary.
+  Before release it asserts that canonical revision, history and Actions remain unchanged.
+- In three representative packaged runs, a 24-move Brush stroke produced 25 local
+  preview submissions and one post-commit submission, one Action, one undo entry
+  and a 1,834-byte recorder delta. Observed release-to-command/history time was
+  18.53-19.57 ms and release-to-next-frame time was 21.03-22.53 ms.
+- In those runs, an 18-move Exposure drag produced 18-20 local preview
+  submissions and one post-commit submission, one Action, one undo entry and a
+  240-byte recorder delta. Observed times were 14.82-22.46 ms and 25.79-43.39 ms
+  respectively. These machine/run-specific durations are diagnostic evidence,
+  not product thresholds or a synthetic responsiveness score.
+- The reproducible report is written by `npm run smoke:desktop:actions` to
+  `tmp/actions-panel-smoke/semantic-gesture-runtime.json`.
 
-- representative runtime telemetry in the packaged app for commit latency and
-  submitted frames, interpreted alongside interaction behavior rather than as
-  a standalone responsiveness score.
+Completion
+==========
+
+All required representative gesture, cancellation, bounded-publication and
+packaged runtime evidence is present. Interactive pointer/paint previews remain
+local and frame-scheduled; Actions and MCP receive only final semantic results.

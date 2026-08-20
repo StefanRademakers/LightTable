@@ -98,3 +98,21 @@ test('render readiness does not accept a rendered background document', async ()
     /did not publish a rendered frame/
   );
 });
+
+test('action recording projection stays read-only through the automation client', async () => {
+  const recording = { status: 'recording', steps: [{ command: 'grade.setBasic' }] };
+  const client = new LightTableAutomationClient({
+    evaluate: async (callback) => callback({
+      __lightTableAutomation: { actionRecordingSnapshot: () => recording }
+    })
+  });
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    __lightTableAutomation: { actionRecordingSnapshot: () => recording }
+  };
+  try {
+    assert.equal(await client.queryActionRecording(), recording);
+  } finally {
+    globalThis.window = previousWindow;
+  }
+});

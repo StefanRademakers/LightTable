@@ -36,7 +36,7 @@
     "soak:desktop:release": "node scripts/soak-desktop-release.mjs",
     "soak:desktop:release:build": "npm run package:desktop:verify && npm run soak:desktop:release --",
     "test:release-soak-policy": "node --test scripts/release-soak-policy.test.mjs scripts/release-candidate-policy.test.mjs scripts/release-evidence-signature.test.mjs",
-    "test:automation-driver": "node --test scripts/lighttable-automation-driver.test.mjs scripts/desktop-test-startup.test.mjs",
+    "test:automation-driver": "node --test scripts/lighttable-automation-driver.test.mjs scripts/desktop-test-startup.test.mjs scripts/semantic-gesture-runtime-evidence.test.mjs",
     "audit:desktop:canvas": "node scripts/audit-desktop-canvas-interactions.mjs",
     "audit:desktop:style-cache": "node scripts/audit-desktop-style-cache-lifecycle.mjs",
     "audit:desktop:style-interaction": "node scripts/audit-desktop-layer-style-interaction.mjs",

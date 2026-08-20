@@ -17,7 +17,7 @@ Depends on
 
 - [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt) for
   shared schemas/examples.
-- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt) for
+- [`Task 216`](../../done/task_216_semantic_gesture_commit_and_performance/task.txt) for
   any gesture included in the first workflow.
 
 First artist workflow

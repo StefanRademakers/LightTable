@@ -60,6 +60,11 @@ export class LightTableAutomationClient {
     documentId);
   }
 
+  queryActionRecording() {
+    return this.page.evaluate(() =>
+      window.__lightTableAutomation?.actionRecordingSnapshot?.() ?? null);
+  }
+
   queryTask(documentId, taskId) {
     return this.page.evaluate(({ documentId, taskId }) =>
       window.__lightTableAutomation?.queryTask(documentId, taskId) ?? null,

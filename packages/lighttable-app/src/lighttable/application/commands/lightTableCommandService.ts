@@ -1452,6 +1452,8 @@ export interface LightTableAutomationDriver {
   queryBasicGrade(documentId: DocumentSessionId, target: unknown): BasicGradeQueryResult | null;
   queryAdjustment(documentId: DocumentSessionId, request: unknown): AdjustmentQueryResult;
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
+  /** Read-only diagnostic projection of the visible Actions recorder. */
+  actionRecordingSnapshot?(): ActionRecordingSnapshot;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): boolean;
   execute(request: unknown, context?: LightTableCommandExecutionContext): Promise<LightTableCommandResult>;

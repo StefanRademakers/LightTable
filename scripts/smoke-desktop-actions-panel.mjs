@@ -1,8 +1,14 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, mkdtemp } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import {
+  beginGestureRuntimeEvidence,
+  captureGesturePreviewEvidence,
+  finishGestureRuntimeEvidence
+} from './semantic-gesture-runtime-evidence.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
@@ -11,6 +17,7 @@ const launch = await resolveDesktopTestLaunch(root);
 await Promise.all([access(fixture), mkdir(evidenceDirectory, { recursive: true })]);
 const userData = await mkdtemp(path.join(evidenceDirectory, 'profile-'));
 const screenshot = path.join(evidenceDirectory, 'actions-panel.png');
+const runtimeEvidencePath = path.join(evidenceDirectory, 'semantic-gesture-runtime.json');
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 
@@ -37,6 +44,10 @@ try {
   await open.click();
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ timeout: 60_000 });
+  const driver = await attachLightTableAutomation(window, 'actions-runtime');
+  const documentId = (await driver.queryWorkspace())?.activeDocumentId;
+  if (!documentId) throw new Error('Actions smoke has no active document for runtime evidence.');
+  const gestureRuntimeEvidence = [];
 
   await window.getByRole('menuitem', { name: 'View' }).click();
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
@@ -103,6 +114,7 @@ try {
   );
   await recorder.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
   await window.keyboard.press('b');
+  const brushBaseline = await beginGestureRuntimeEvidence(driver, documentId, 'tool.commitGesture');
   await window.mouse.move(
     viewportBounds.x + viewportBounds.width * 0.18,
     viewportBounds.y + viewportBounds.height * 0.32
@@ -113,8 +125,20 @@ try {
     viewportBounds.y + viewportBounds.height * 0.58,
     { steps: 24 }
   );
-  await window.mouse.up();
-  await recorder.locator('li').filter({ hasText: 'tool.commitGesture' }).waitFor();
+  const brushPreview = await captureGesturePreviewEvidence(
+    driver, documentId, 'tool.commitGesture', brushBaseline
+  );
+  gestureRuntimeEvidence.push(await finishGestureRuntimeEvidence({
+    page: window,
+    driver,
+    documentId,
+    command: 'tool.commitGesture',
+    label: 'Brush 24-move stroke',
+    baseline: brushBaseline,
+    preview: brushPreview,
+    localInputUpdates: 25,
+    commit: () => window.mouse.up()
+  }));
   const committedGestures = recorder.locator('li').filter({ hasText: 'tool.commitGesture' });
   if (await committedGestures.count() !== 1) throw new Error('Expected one Brush Action before Dodge.');
   await window.getByRole('button', { name: 'Show gradient and fill tools', exact: true }).click();
@@ -171,8 +195,37 @@ try {
   await window.getByRole('tab', { name: 'Properties', exact: true }).click();
   const exposure = window.getByRole('tabpanel', { name: 'Properties' })
     .getByRole('slider', { name: 'Exposure', exact: true });
-  await exposure.focus();
-  await exposure.press('ArrowRight');
+  const exposureBounds = await exposure.boundingBox();
+  if (!exposureBounds) throw new Error('Actions smoke could not measure the Exposure slider.');
+  const exposureBaseline = await beginGestureRuntimeEvidence(driver, documentId, 'grade.setBasic');
+  const exposureStart = {
+    x: exposureBounds.x + exposureBounds.width * 0.5,
+    y: exposureBounds.y + exposureBounds.height * 0.5
+  };
+  const exposureEndX = exposureBounds.x + exposureBounds.width * 0.68;
+  await window.mouse.move(exposureStart.x, exposureStart.y);
+  await window.mouse.down();
+  for (let index = 1; index <= 18; index += 1) {
+    await window.mouse.move(
+      exposureStart.x + (exposureEndX - exposureStart.x) * (index / 18),
+      exposureStart.y
+    );
+    await window.waitForTimeout(8);
+  }
+  const exposurePreview = await captureGesturePreviewEvidence(
+    driver, documentId, 'grade.setBasic', exposureBaseline
+  );
+  gestureRuntimeEvidence.push(await finishGestureRuntimeEvidence({
+    page: window,
+    driver,
+    documentId,
+    command: 'grade.setBasic',
+    label: 'Exposure 18-move slider drag',
+    baseline: exposureBaseline,
+    preview: exposurePreview,
+    localInputUpdates: 20,
+    commit: () => window.mouse.up()
+  }));
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await recorder.locator('li').filter({ hasText: 'grade.setBasic' }).waitFor();
 
@@ -584,10 +637,17 @@ try {
     recipeBytes: warpRecordingEvidence.recipeBytes,
     submittedFrames: warpRecordingEvidence.telemetry?.submittedFrames ?? null
   })}\n`);
+  process.stdout.write(`Semantic gesture runtime evidence: ${JSON.stringify(gestureRuntimeEvidence)}\n`);
+  await writeFile(runtimeEvidencePath, `${JSON.stringify({
+    source: 'packaged-desktop-actions-smoke',
+    interpretation: 'Durations are diagnostic observations, not a responsiveness score.',
+    gestures: gestureRuntimeEvidence
+  }, null, 2)}\n`);
 
   await window.screenshot({ path: screenshot });
   if (pageErrors.length) throw new Error(`Actions panel page errors: ${pageErrors.join(' | ')}`);
   process.stdout.write(`Desktop Actions panel smoke passed: ${screenshot}\n`);
+  process.stdout.write(`Gesture runtime report: ${runtimeEvidencePath}\n`);
 } finally {
   await app?.close().catch(() => undefined);
 }

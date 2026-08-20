@@ -12,7 +12,7 @@ This task contributes to, but does not complete:
 
 - [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
 - [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt)
-- [`Task 216`](../../todo/task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
 - [`Task 217`](../../todo/task_217_ui_actions_mcp_equivalence_harness/task.txt)
 - [`Task 220`](../../todo/task_220_reviewed_mcp_capability_admission/task.txt)
 - [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
