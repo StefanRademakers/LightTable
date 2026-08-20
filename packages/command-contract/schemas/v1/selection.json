@@ -154,6 +154,30 @@
         }
       }
     },
+    "selection.selectSubject": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "sourceLayerId", "mode", "sampleAllLayers"],
+        "properties": {
+          "kind": { "type": "string", "title": "Selection kind", "const": "subject", "default": "subject" },
+          "sourceLayerId": { "type": "string", "title": "Source layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+          "mode": { "type": "string", "title": "Combine mode", "enum": ["replace", "add", "subtract", "intersect"], "default": "replace" },
+          "sampleAllLayers": { "type": "boolean", "title": "Sample all layers", "default": false }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "sourceLayerId", "mode", "sampleAllLayers"],
+        "properties": {
+          "kind": { "const": "subject" },
+          "sourceLayerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "mode": { "type": "string", "enum": ["replace", "add", "subtract", "intersect"] },
+          "sampleAllLayers": { "type": "boolean" }
+        }
+      }
+    },
     "selection.modify": {
       "input": {
         "type": "object",

@@ -18,4 +18,12 @@ describe('smartSelectionExcludedLayerIds', () => {
     expect(excluded).not.toContain(document.activeLayerId);
     expect(excluded.length).toBe(document.layers.length - 1);
   });
+
+  it('can render an explicit non-active source without changing document selection', () => {
+    const document = createTestDocument();
+    const sourceLayerId = document.layers.find(({ id }) => id !== document.activeLayerId)!.id;
+    const excluded = smartSelectionExcludedLayerIds(document, false, sourceLayerId);
+    expect(excluded).not.toContain(sourceLayerId);
+    expect(excluded).toContain(document.activeLayerId);
+  });
 });

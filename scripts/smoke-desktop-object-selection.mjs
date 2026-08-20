@@ -6,7 +6,8 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\face.jpg');
-const interactionMode = process.argv.includes('--rectangle') ? 'rectangle' : 'object-finder';
+const interactionMode = process.argv.includes('--subject') ? 'subject'
+  : process.argv.includes('--rectangle') ? 'rectangle' : 'object-finder';
 const refineNegative = process.argv.includes('--negative');
 const optionValue = (name, fallback) => {
   const index = process.argv.indexOf(name);
@@ -80,6 +81,12 @@ try {
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
 
+  await page.getByRole('menuitem', { name: 'View' }).click();
+  await page.getByRole('menuitem', { name: 'Actions panel' }).click();
+  const actionsPanel = page.getByRole('complementary', { name: 'Actions' });
+  const recorder = actionsPanel.locator('.lighttable-action-recorder');
+  await recorder.getByRole('button', { name: 'Record' }).click();
+
   const selectionMaster = page.getByRole('button', { name: /^Magic Wand/ }).first();
   await selectionMaster.dispatchEvent('mousedown');
   const objectButton = page.getByRole('button', { name: 'Object Selection' });
@@ -102,6 +109,7 @@ try {
   await page.evaluate(() => {
     globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__ = [];
     globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__ = [];
+    globalThis.__LIGHTTABLE_COMMAND_OBSERVATION_TRACE__ = [];
   });
   const beforeSelection = await canvas.screenshot();
   const clickPoint = await page.evaluate(({ clickXRatio, clickYRatio }) => {
@@ -121,7 +129,9 @@ try {
   if (!clickPoint) throw new Error('No unobstructed canvas point is available.');
 
   const startedAt = performance.now();
-  if (interactionMode === 'rectangle') {
+  if (interactionMode === 'subject') {
+    await objectSelectionSettings.getByRole('button', { name: 'Select Subject' }).click();
+  } else if (interactionMode === 'rectangle') {
     await page.mouse.move(clickPoint.x - 24, clickPoint.y - 24);
     await page.mouse.down();
     await page.mouse.move(clickPoint.x + 24, clickPoint.y + 24, { steps: 8 });
@@ -145,11 +155,16 @@ try {
   }
   try {
     await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
-      ?.some((entry) => entry.event === 'candidate-published'), undefined, { timeout: inferenceTimeoutMs });
-    const applyButton = objectSelectionSettings.getByRole('button', { name: 'Apply', exact: true });
-    await applyButton.click();
-    await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
-      ?.some((entry) => entry.event === 'apply-requested'), undefined, { timeout: 5_000 });
+      ?.some((entry) => entry.event === 'candidate-published' || entry.event === 'committed'),
+    undefined, { timeout: inferenceTimeoutMs });
+    const committedDirectly = await page.evaluate(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
+      ?.some((entry) => entry.event === 'committed'));
+    if (!committedDirectly) {
+      const applyButton = objectSelectionSettings.getByRole('button', { name: 'Apply', exact: true });
+      await applyButton.click();
+      await page.waitForFunction(() => globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
+        ?.some((entry) => entry.event === 'apply-requested'), undefined, { timeout: 5_000 });
+    }
     await page.waitForFunction(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__?.some((entry) => (
       entry.operationCount === 1 && entry.sourceKind === 'raster-mask' && entry.visible && entry.maskActive
     )), undefined, { timeout: 15_000 });
@@ -185,6 +200,38 @@ try {
   if (visibleCommitMs === undefined) {
     throw new Error('Object Selection produced no persistent visible canvas update.');
   }
+  if (interactionMode === 'subject') {
+    const actionStep = recorder.locator('li').filter({ hasText: 'selection.selectSubject' });
+    await actionStep.waitFor({ timeout: 10_000 }).catch(async () => {
+      const trace = await page.evaluate(() => ({
+        smartSelection: globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__,
+        commandObservation: globalThis.__LIGHTTABLE_COMMAND_OBSERVATION_TRACE__
+      }));
+      throw new Error(`Select Subject Action did not publish: ${JSON.stringify({
+        recorder: await recorder.textContent(), trace
+      })}`);
+    });
+    if (await actionStep.count() !== 1) throw new Error('Select Subject published more than one Action.');
+    await actionStep.locator('summary').click();
+    const actionText = await actionStep.textContent();
+    if (!actionText?.includes('"kind": "subject"')
+      || !actionText.includes('"sourceLayerId"')
+      || /model|backend|candidate|refinement|pointerId|pressure|raster-mask|tensor|maskBytes/i.test(actionText)) {
+      throw new Error(`Select Subject crossed an invalid Action boundary: ${actionText}`);
+    }
+    await recorder.getByRole('button', { name: 'Stop' }).click();
+    await actionsPanel.getByRole('radio', { name: 'Commands' }).click();
+    const undo = actionsPanel.locator('details').filter({ hasText: 'history.undo' });
+    const runUndo = undo.getByRole('button', { name: 'Run' });
+    if (!await runUndo.isVisible()) await undo.locator('summary').click();
+    await runUndo.click();
+    await actionsPanel.getByRole('radio', { name: 'Actions' }).click();
+    await recorder.getByRole('button', { name: 'Play', exact: true }).click();
+    await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
+      .waitFor({ timeout: Math.max(30_000, inferenceTimeoutMs + 15_000) }).catch(async () => {
+        throw new Error(`Select Subject Action playback did not complete: ${await recorder.textContent()}`);
+      });
+  }
   const unexpectedConsoleErrors = consoleErrors.filter((message) => !(
     message.includes('onnxruntime')
     && (message.includes("can't constant fold")
@@ -211,7 +258,8 @@ try {
   }
   const publishedCandidates = smartSelectionTrace
     ?.filter((entry) => entry.event === 'candidate-published') ?? [];
-  const finalCoverage = publishedCandidates.at(-1)?.detail;
+  const finalCoverage = publishedCandidates.at(-1)?.detail
+    ?? smartSelectionTrace?.filter((entry) => entry.event === 'committed').at(-1)?.detail;
   if (!finalCoverage || finalCoverage.selectedMean < 0.85) {
     throw new Error(
       `Object Selection produced an excessively translucent mask: ${JSON.stringify(finalCoverage)}`

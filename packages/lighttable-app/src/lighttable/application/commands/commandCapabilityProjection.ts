@@ -68,6 +68,7 @@ export const projectCommandCapabilities = (
     availability('command.batch', true, ''), availability('tool.commitGesture', true, ''),
     availability('selection.applyShape', Boolean(ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
     availability('selection.applyMagicWand', Boolean(ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
+    availability('selection.selectSubject', Boolean(ports.executeSubjectSelection), 'Select Subject is unavailable in this host.'),
     availability('selection.modify', Boolean(ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
     availability('grade.setBasic', Boolean(ports.executeBasicAdjustmentCommand), 'Basic Grade commands are unavailable in this host.'),
     availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),

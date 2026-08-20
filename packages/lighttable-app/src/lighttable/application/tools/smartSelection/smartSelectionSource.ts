@@ -16,11 +16,12 @@ const isPathPrefix = (prefix: readonly number[], path: readonly number[]) =>
  */
 export const smartSelectionExcludedLayerIds = (
   document: ImageDocument,
-  sampleAllLayers: boolean
+  sampleAllLayers: boolean,
+  sourceLayerId: LayerId | null = document.activeLayerId
 ): readonly LayerId[] => {
   if (sampleAllLayers) return [];
   const entries = walkLayerTree(document.layers);
-  const active = entries.find(({ node }) => node.id === document.activeLayerId);
+  const active = entries.find(({ node }) => node.id === sourceLayerId);
   if (!active) return entries.map(({ node }) => node.id);
   return entries
     .filter(({ path }) => !isPathPrefix(path, active.path) && !isPathPrefix(active.path, path))
@@ -30,15 +31,16 @@ export const smartSelectionExcludedLayerIds = (
 export const createSmartSelectionSource = async (
   document: ImageDocument,
   renderer: SmartSelectionSourceRenderer,
-  sampleAllLayers: boolean
+  sampleAllLayers: boolean,
+  sourceLayerId: LayerId | null = document.activeLayerId
 ): Promise<SmartSelectionSource> => {
-  const excludedLayerIds = smartSelectionExcludedLayerIds(document, sampleAllLayers);
+  const excludedLayerIds = smartSelectionExcludedLayerIds(document, sampleAllLayers, sourceLayerId);
   const image = await renderer.exportPng({ excludedLayerIds });
   return {
     key: [
       document.id,
       document.revision,
-      sampleAllLayers ? 'composite' : document.activeLayerId
+      sampleAllLayers ? 'composite' : sourceLayerId
     ].join(':'),
     documentRevision: document.revision,
     width: document.width,

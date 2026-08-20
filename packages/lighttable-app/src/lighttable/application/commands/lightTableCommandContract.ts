@@ -18,6 +18,8 @@ import type { DocumentGeometryRequest } from '../documentGeometry/documentGeomet
 import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import type { SemanticLayerCommand } from './semanticLayerCommandContract';
 import type { SemanticSelectionCommand } from './semanticSelectionCommandContract';
+import type { SemanticSubjectSelectionCommand, SemanticSubjectSelectionResult }
+  from './semanticSubjectSelectionCommandContract';
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
 import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandContract';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
@@ -231,6 +233,8 @@ export interface LightTableCommandPorts {
   executeFaceWarpCommand?(documentId: DocumentSessionId, command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(documentId: DocumentSessionId, command: SemanticLayerCommand): unknown | Promise<unknown>;
   executeSelectionCommand?(documentId: DocumentSessionId, command: SemanticSelectionCommand): unknown | Promise<unknown>;
+  executeSubjectSelection?(documentId: DocumentSessionId, command: SemanticSubjectSelectionCommand,
+    signal: AbortSignal, report: (progress: number, message: string) => void): Promise<SemanticSubjectSelectionResult>;
   executeBasicAdjustmentCommand?(documentId: DocumentSessionId, command: SemanticBasicAdjustmentCommand): unknown | Promise<unknown>;
   executeFixedTransform?(documentId: DocumentSessionId, command: SemanticFixedTransformCommand): unknown | Promise<unknown>;
   executeAdjustmentCreation?(documentId: DocumentSessionId, command: SemanticAdjustmentCreationCommand): unknown | Promise<unknown>;
@@ -285,6 +289,8 @@ export interface DocumentLightTableCommandPorts {
   executeFaceWarpCommand?(command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(command: SemanticLayerCommand): unknown | Promise<unknown>;
   executeSelectionCommand?(command: SemanticSelectionCommand): unknown | Promise<unknown>;
+  executeSubjectSelection?(command: SemanticSubjectSelectionCommand, signal: AbortSignal,
+    report: (progress: number, message: string) => void): Promise<SemanticSubjectSelectionResult>;
   executeBasicAdjustmentCommand?(command: SemanticBasicAdjustmentCommand): unknown | Promise<unknown>;
   executeFixedTransform?(command: SemanticFixedTransformCommand): unknown | Promise<unknown>;
   executeAdjustmentCreation?(command: SemanticAdjustmentCreationCommand): unknown | Promise<unknown>;

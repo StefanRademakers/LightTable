@@ -85,8 +85,8 @@ Existing foundation evidence
 - Generated categorized command catalog and local Commands browser.
 - Checked inventory for 103 static editor-menu actions, four dynamic families
   and all 36 registered toolbar tools. The current report still has 7 genuine
-  menu gaps; Object Selection has only a canonical owner, while experimental
-  Face Warp has a semantic command but remains intentionally withheld.
+  menu gaps; interactive Object Finder point/box/hover remains a canonical
+  local owner, while experimental Face Warp remains intentionally withheld.
 - Semantic routing for Image Size, canvas geometry, crop, rotate and flip.
 - Bounded recorder/playback, per-step results and stable-ID rebinding.
 - Shared top-level property discovery for Actions and MCP.
@@ -157,6 +157,10 @@ Existing foundation evidence
   snapshots and live pointer updates remain inside the desktop renderer.
 - Magic Wand now exposes one asynchronous sampled-selection recipe through UI,
   Actions and admitted Agent/MCP execution; generated masks remain GPU-local.
+- Select Subject now exposes one stable cancellable semantic intent through its
+  normal UI button, Actions and external MCP. Model/backend/candidate identity,
+  refinement implementation, point/box prompts and raster masks remain local;
+  a shared contract policy rejects replaceable implementation identities.
 - Native Path Text creation now shares `text.create` across UI, Actions and
   Agent/MCP, with explicit path layer/element/contour references and editable
   start-offset, side, upright and direction state.

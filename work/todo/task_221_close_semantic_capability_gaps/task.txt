@@ -61,6 +61,9 @@ Completed vertical slices
   source snapshot and bounded document-relative source metadata for replay.
 - Magic Wand sampled selection through its existing GPU/history owner, with
   newest-request, cancellation and stale-completion protections retained.
+- Select Subject through `selection.selectSubject`, with explicit source,
+  combine mode and sampling scope. Model choice, backend/candidate identity,
+  refinement implementation and mask bytes remain outside Actions/MCP.
 - native Path Text creation through `text.create`, with stable path references,
   packaged Actions replay and direct Agent/MCP creation/query.
 - contextual fixed rotate/flip through `transform.applyFixed`, preserving the

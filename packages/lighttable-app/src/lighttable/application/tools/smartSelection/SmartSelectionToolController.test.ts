@@ -36,6 +36,7 @@ const harness = () => {
   };
   const options = createDefaultSmartSelectionOptions();
   const setDraft = vi.fn();
+  const onSelectionCommitted = vi.fn();
   const controller = new SmartSelectionToolController({
     getDocument: () => document,
     getRenderer: () => renderer,
@@ -43,14 +44,16 @@ const harness = () => {
     getOptions: () => options,
     selection: { rasterMask } as unknown as SelectionSessionController,
     setStatus: vi.fn(),
-    setDraft
+    setDraft,
+    onSelectionCommitted
   }, backend);
-  return { backend, controller, document, options, rasterMask, renderer, setDraft };
+  return { backend, controller, document, options, rasterMask, renderer, setDraft,
+    onSelectionCommitted };
 };
 
 describe('SmartSelectionToolController', () => {
-  it('commits an Object Finder click directly through the normal selection path', async () => {
-    const { backend, controller, rasterMask, renderer } = harness();
+  it('keeps an Object Finder point interaction local to the tool owner', async () => {
+    const { backend, controller, rasterMask, renderer, onSelectionCommitted } = harness();
     expect(controller.selectPoint({ x: 3, y: 2 }, 'add')).toBe(true);
     await vi.waitFor(() => expect(rasterMask).toHaveBeenCalledWith(mask, 'add'));
     expect(backend.selectPrompt).toHaveBeenCalledWith(
@@ -59,6 +62,35 @@ describe('SmartSelectionToolController', () => {
       expect.anything()
     );
     expect(renderer.setSmartSelectionPreview).toHaveBeenLastCalledWith(null);
+    expect(onSelectionCommitted).not.toHaveBeenCalled();
+  });
+
+  it('executes explicit Select Subject without exposing backend implementation state', async () => {
+    const { controller, document, rasterMask, onSelectionCommitted } = harness();
+    const report = vi.fn();
+    const result = await controller.executeSubjectSelection({
+      kind: 'subject', sourceLayerId: document.activeLayerId!,
+      mode: 'intersect', sampleAllLayers: false
+    }, new AbortController().signal, report);
+
+    expect(result).toEqual({ kind: 'subject', sourceLayerId: document.activeLayerId,
+      mode: 'intersect', sampleAllLayers: false });
+    expect(rasterMask).toHaveBeenCalledWith(mask, 'intersect');
+    expect(onSelectionCommitted).not.toHaveBeenCalled();
+    expect(report).toHaveBeenLastCalledWith(1, 'Object Selection applied');
+    expect(JSON.stringify(result)).not.toMatch(/model|backend|candidate|refinement|mask/i);
+  });
+
+  it('records only the semantic Select Subject intent from the normal UI route', async () => {
+    const { controller, onSelectionCommitted } = harness();
+    await expect(controller.selectSubject('add')).resolves.toBe(true);
+    expect(onSelectionCommitted).toHaveBeenCalledOnce();
+    expect(onSelectionCommitted.mock.calls[0]).toEqual([
+      expect.objectContaining({ kind: 'subject', mode: 'add', sampleAllLayers: false }),
+      expect.objectContaining({ kind: 'subject', mode: 'add', sampleAllLayers: false })
+    ]);
+    expect(JSON.stringify(onSelectionCommitted.mock.calls[0]))
+      .not.toMatch(/model|backend|candidate|refinement|mask|pointer/i);
   });
 
   it('repeats a fast hover prompt at final refinement quality before committing', async () => {

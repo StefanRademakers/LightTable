@@ -64,7 +64,7 @@ import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeomet
 import { parseSemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
 import { parseSemanticSelectionCommand } from './semanticSelectionCommandContract';
-import { startSemanticLayerTask } from './semanticLayerTaskDispatcher';
+import { startSemanticAutomationTask } from './semanticAutomationTaskDispatcher';
 import {
   parseSemanticBasicAdjustmentCommand,
   parseBasicAdjustmentTarget
@@ -108,8 +108,18 @@ const OBSERVED_STATE_ONLY_COMMANDS = new Set<LightTableCommandId>([
   'view.setZoom',
   'selection.applyShape',
   'selection.applyMagicWand',
+  'selection.selectSubject',
   'selection.modify'
 ]);
+const traceObservedCommand = (command: LightTableCommandId, accepted: boolean, reason: string) => {
+  const trace = (globalThis as typeof globalThis & {
+    __LIGHTTABLE_COMMAND_OBSERVATION_TRACE__?: Array<{
+      command: string; accepted: boolean; reason: string;
+    }>;
+  }).__LIGHTTABLE_COMMAND_OBSERVATION_TRACE__;
+  trace?.push({ command, accepted, reason });
+  return accepted;
+};
 
 /**
  * Transport-neutral read/query and bounded command registry.
@@ -350,15 +360,23 @@ export class LightTableCommandService {
 
   recordObservedCommand(command: LightTableCommandId, documentId: DocumentSessionId,
     parameters: unknown, value: unknown): boolean {
-    if ((this.executingDocumentCommands.get(documentId) ?? 0) > 0) return false;
-    if (!observedCommandParametersAreValid(command, parameters)) return false;
+    if ((this.executingDocumentCommands.get(documentId) ?? 0) > 0) {
+      return traceObservedCommand(command, false, 'command-execution-active');
+    }
+    if (!observedCommandParametersAreValid(command, parameters)) {
+      return traceObservedCommand(command, false, 'invalid-observed-parameters');
+    }
     if (!OBSERVED_STATE_ONLY_COMMANDS.has(command)) {
       this.workspace.getDocument(documentId)?.markChanged();
     }
     const resultSchema = LIGHTTABLE_COMMAND_SCHEMAS[command]?.result;
-    if (resultSchema && !validateJsonSchemaValue(resultSchema, value).valid) return false;
+    if (resultSchema && !validateJsonSchemaValue(resultSchema, value).valid) {
+      return traceObservedCommand(command, false, 'invalid-observed-result');
+    }
     const recording = this.actionRecorder.snapshot();
-    if (recording.status !== 'recording' || !recording.id) return false;
+    if (recording.status !== 'recording' || !recording.id) {
+      return traceObservedCommand(command, false, 'recorder-inactive');
+    }
     const startedAt = Date.now();
     const parsed = this.parseRequest({
       protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
@@ -367,14 +385,14 @@ export class LightTableCommandService {
       documentId,
       parameters
     });
-    if ('rejection' in parsed) return false;
+    if ('rejection' in parsed) return traceObservedCommand(command, false, 'request-rejected');
     this.actionRecorder.record(parsed.value, {
       requestId: parsed.value.requestId,
       status: 'completed',
       value,
       revisions: this.revisions(this.document(documentId) ?? undefined)
     }, startedAt, recording.id, 'ui');
-    return true;
+    return traceObservedCommand(command, true, 'recorded');
   }
   actionPlaybackSnapshot = (): ActionPlaybackSnapshot => this.actionPlayback.snapshot();
   subscribeActionPlayback = (listener: () => void): (() => void) => this.actionPlayback.subscribe(listener);
@@ -831,12 +849,12 @@ export class LightTableCommandService {
       return { requestId: value.requestId, status: 'accepted', taskId, revisions: this.revisions(snapshot) };
     }
 
-    const layerTask = startSemanticLayerTask(value.command, value.parameters, this.workspace.getDocument(
+    const automationTask = startSemanticAutomationTask(value.command, value.parameters, this.workspace.getDocument(
       documentRequest.documentId)!, this.ports, this.taskEvents,
       (id, result) => this.actionRecorder.completeTask(id, result));
-    if (layerTask) {
-      return 'error' in layerTask ? this.reject(value.requestId, layerTask.error, layerTask.message, snapshot)
-        : { requestId: value.requestId, status: 'accepted', taskId: layerTask.taskId, revisions: this.revisions(snapshot) };
+    if (automationTask) {
+      return 'error' in automationTask ? this.reject(value.requestId, automationTask.error, automationTask.message, snapshot)
+        : { requestId: value.requestId, status: 'accepted', taskId: automationTask.taskId, revisions: this.revisions(snapshot) };
     }
     if (value.command === 'document.resizeImage') {
       const resize = parseImageSizeRequest(value.parameters);

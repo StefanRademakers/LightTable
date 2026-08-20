@@ -2,9 +2,10 @@ import type { DocumentSession } from '../documents/documentSession';
 import type { AutomationTaskEventStore } from './automationTaskEventStore';
 import { startValidatedAutoAlignTask } from './autoAlignTask';
 import { startValidatedBackgroundRemovalTask } from './backgroundRemovalTask';
+import { startValidatedSubjectSelectionTask } from './subjectSelectionTask';
 import type { LightTableCommandPorts } from './lightTableCommandContract';
 
-export const startSemanticLayerTask = (
+export const startSemanticAutomationTask = (
   command: string,
   parameters: unknown,
   session: DocumentSession,
@@ -15,4 +16,6 @@ export const startSemanticLayerTask = (
   ? startValidatedBackgroundRemovalTask(parameters, session, ports, events, onComplete)
   : command === 'layer.autoAlign'
     ? startValidatedAutoAlignTask(parameters, session, ports, events, onComplete)
-    : null;
+    : command === 'selection.selectSubject'
+      ? startValidatedSubjectSelectionTask(parameters, session, ports, events, onComplete)
+      : null;

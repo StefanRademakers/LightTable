@@ -9,6 +9,7 @@ import { parseSemanticTextCommand } from './semanticTextCommandContract';
 import { parseSemanticVectorCommand } from './semanticVectorCommandContract';
 import { parseSemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import { parseSemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
+import { parseSemanticSubjectSelectionCommand } from './semanticSubjectSelectionCommandContract';
 
 const valid = (parsed: object) => !('message' in parsed);
 
@@ -29,6 +30,7 @@ export const observedCommandParametersAreValid = (
     case 'tool.commitGesture': return valid(parseCommittedGestureRequest(parameters));
     case 'selection.applyShape':
     case 'selection.applyMagicWand': return valid(parseSemanticSelectionCommand(parameters));
+    case 'selection.selectSubject': return valid(parseSemanticSubjectSelectionCommand(parameters));
     case 'grade.setBasic': return valid(parseSemanticBasicAdjustmentCommand(parameters));
     case 'layer.setTransform': return valid(parseSemanticLayerCommand('set-transform', parameters));
     case 'layer.style.update': return valid(parseSemanticLayerStyleCommand('stack-update', parameters));

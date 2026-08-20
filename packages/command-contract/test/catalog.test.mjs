@@ -42,6 +42,25 @@ test('every external MCP command is enforced by the downstream Agent Access prof
   }
 });
 
+test('external semantic contracts do not bind replaceable implementation identities', () => {
+  const forbidden = new Set([
+    'modelId', 'backend', 'expectedBackend', 'candidate', 'tensor', 'graphNames',
+    'artifactRevision', 'preprocessingRevision', 'maskBytes', 'pointerId'
+  ]);
+  const visit = (value, command, path = '') => {
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      assert.equal(forbidden.has(key), false,
+        `${command} leaks implementation field ${path}/${key}`);
+      visit(child, command, `${path}/${key}`);
+    }
+  };
+  for (const command of LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS) {
+    const schema = LIGHTTABLE_COMMAND_SCHEMAS[command];
+    if (schema) visit(schema, command);
+  }
+});
+
 test('current remote rollout remains a strict subset of the application command contract', () => {
   const application = new Set(LIGHTTABLE_COMMAND_IDS);
   assert.ok(LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS.length < LIGHTTABLE_COMMAND_IDS.length);
@@ -78,6 +97,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'layer.setFillOpacity',
     'layer.setBlendMode',
     'layer.setLock',
+    'layer.removeBackground',
     'layer.merge',
     'layer.flattenGroup',
     'document.flattenImage',
@@ -85,6 +105,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'raster.applyGradient',
     'selection.applyShape',
     'selection.applyMagicWand',
+    'selection.selectSubject',
     'selection.modify',
     'text.create',
     'text.replaceRange',
@@ -280,6 +301,19 @@ test('selection schemas bound final geometry, sampled recipes and conditional fe
   assert.equal(validateJsonSchemaValue(wand.input, {
     ...sampled, point: { ...sampled.point, pressure: 0.7 }
   }).valid, false);
+
+  const subject = LIGHTTABLE_COMMAND_SCHEMAS['selection.selectSubject'];
+  const subjectIntent = {
+    kind: 'subject', sourceLayerId: 'photo', mode: 'replace', sampleAllLayers: false
+  };
+  assert.equal(validateJsonSchemaValue(subject.input, subjectIntent).valid, true);
+  for (const privateKey of ['prompt', 'pointerId', 'generatedMask', 'backend', 'candidate',
+    'modelId', 'refinementQuality']) {
+    assert.equal(validateJsonSchemaValue(subject.input, {
+      ...subjectIntent, [privateKey]: {}
+    }).valid, false, `Select Subject must reject ${privateKey}`);
+  }
+  assert.equal(validateJsonSchemaValue(subject.result, subjectIntent).valid, true);
 
   const modify = LIGHTTABLE_COMMAND_SCHEMAS['selection.modify'];
   assert.equal(validateJsonSchemaValue(modify.input, {

@@ -60,10 +60,14 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     executeFlattenImage: vi.fn(),
     executeBackgroundRemoval: vi.fn(async (_documentId, command, _signal, report) => {
       report(0.5, 'Removing background');
-      return { ...command, modelId: 'fixture' };
+      return { ...command, modelId: 'private-fixture-model' };
     }),
     executeAutoAlign: vi.fn(async (_documentId, command) => ({ ...command, changed: true,
       correctionMatrix: { a: 1, b: 0, c: 0, d: 1, tx: -4, ty: 2 } })),
+    executeSubjectSelection: vi.fn(async (_documentId, command, _signal, report) => {
+      report(0.5, 'Selecting subject');
+      return { ...command };
+    }),
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -152,8 +156,10 @@ describe('LightTableCommandService action recording', () => {
     state.service.stopActionRecording();
     expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
       command: 'layer.removeBackground', outcome: 'accepted', replayable: true,
-      parameters: { layerId, mode: 'replace' }, result: { taskId: accepted.taskId, modelId: 'fixture' }
+      parameters: { layerId, mode: 'replace' },
+      result: { taskId: accepted.taskId, layerId, mode: 'replace' }
     }]);
+    expect(JSON.stringify(state.service.actionRecordingSnapshot().steps)).not.toMatch(/modelId/i);
 
     await state.service.playActionRecording();
 
@@ -195,6 +201,70 @@ describe('LightTableCommandService action recording', () => {
       status: 'rejected', code: 'invalid-parameters'
     });
     expect(state.ports.executeBackgroundRemoval).not.toHaveBeenCalled();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('records and replays Select Subject without exposing its implementation', async () => {
+    const state = setup();
+    const document = state.session.getSnapshot().document!;
+    const layerId = document.activeLayerId!;
+    const parameters = { kind: 'subject', sourceLayerId: layerId,
+      mode: 'replace', sampleAllLayers: false };
+    state.service.startActionRecording('Select subject');
+    const accepted = await state.service.execute(request('selection.selectSubject', state.session.id,
+      parameters));
+    expect(accepted.status).toBe('accepted');
+    if (accepted.status !== 'accepted') throw new Error('Object Selection was not accepted.');
+    await vi.waitFor(() => expect(state.service.queryTask(state.session.id, accepted.taskId))
+      .toMatchObject({ status: 'completed', progress: 1 }));
+    state.service.stopActionRecording();
+
+    expect(state.session.getSnapshot().document!.revision).toBe(document.revision);
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'selection.selectSubject', outcome: 'accepted', replayable: true,
+      parameters,
+      result: { taskId: accepted.taskId, kind: 'subject', sourceLayerId: layerId,
+        mode: 'replace', sampleAllLayers: false }
+    }]);
+    expect(JSON.stringify(state.service.actionRecordingSnapshot().steps))
+      .not.toMatch(/model|backend|candidate|refinement|mask|tensor|pointer/i);
+
+    await state.service.playActionRecording();
+    expect(state.ports.executeSubjectSelection).toHaveBeenCalledTimes(2);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'completed', results: [{ command: 'selection.selectSubject', status: 'completed' }]
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('cancels Select Subject and rejects private or missing targets before execution', async () => {
+    const executeSubjectSelection = vi.fn((_documentId, _command, signal: AbortSignal) =>
+      new Promise<never>((_resolve, reject) => signal.addEventListener('abort',
+        () => reject(new DOMException('Canceled', 'AbortError')), { once: true })));
+    const state = setup({ executeSubjectSelection });
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    const parameters = { kind: 'subject', sourceLayerId: layerId,
+      mode: 'replace', sampleAllLayers: true };
+    const accepted = await state.service.execute(request('selection.selectSubject', state.session.id,
+      parameters));
+    expect(accepted.status).toBe('accepted');
+    if (accepted.status !== 'accepted') throw new Error('Object Selection was not accepted.');
+    await state.service.execute(request('task.cancel', state.session.id, { taskId: accepted.taskId }));
+    await vi.waitFor(() => expect(state.service.queryTask(state.session.id, accepted.taskId)?.status)
+      .toBe('canceled'));
+    expect(executeSubjectSelection.mock.calls[0]?.[2].aborted).toBe(true);
+
+    await expect(state.service.execute(request('selection.selectSubject', state.session.id,
+      { ...parameters, pointerId: 4 }))).resolves.toMatchObject({
+      status: 'rejected', code: 'invalid-parameters'
+    });
+    await expect(state.service.execute(request('selection.selectSubject', state.session.id,
+      { ...parameters, sourceLayerId: 'missing' }))).resolves.toMatchObject({
+      status: 'rejected', code: 'command-unavailable'
+    });
+    expect(executeSubjectSelection).toHaveBeenCalledOnce();
     state.service.dispose();
     state.workspace.dispose();
   });

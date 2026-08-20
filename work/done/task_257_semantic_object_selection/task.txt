@@ -1,0 +1,62 @@
+Task 257 - Semantic Select Subject vertical
+
+Goal
+====
+
+Expose Select Subject as one stable, reproducible and cancellable selection
+capability shared by normal UI, Actions and reviewed MCP execution. The current
+segmentation model, point/box prompts, hover, preview masks, refinement pipeline,
+model tensors and raster bytes remain replaceable desktop implementation details.
+
+Parent program
+==============
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+
+Required work
+=============
+
+- [x] Define a closed semantic request for explicit source layer, composite or
+      layer sampling and combine mode.
+- [x] Return only stable Select Subject intent/result state; reject model,
+      backend, candidate, refinement, pointer and mask fields.
+- [x] Preserve the existing prepared-source cache, newest-request/stale-source
+      protections and local hover behavior.
+- [x] Run direct automation as a cancellable task with bounded progress/events;
+      do not block a normal MCP call on model download or inference.
+- [x] Record only the successful Select Subject UI operation, never hover,
+      point, box or region samples.
+- [x] Add a modular shared input/result schema, example and Actions properties.
+- [x] Admit the command only after invalid/private-state, cancellation, Actions
+      replay and external MCP execution are proven.
+- [x] Keep Object Selection honestly classified as a local interactive owner;
+      record the proven Select Subject sub-capability in parent coverage.
+
+Definition of done
+==================
+
+- UI, Actions and MCP reuse the same Select Subject controller and raster-selection
+  history owner.
+- One UI operation produces one selection history commit and one semantic Action.
+- Model load/inference is cancellable and stale completion cannot mutate state.
+- No model/backend/candidate identity, refinement setting, point/box prompt,
+  pointer stream, hover preview, tensor, PNG or raster mask crosses the command boundary.
+- Packaged Object Selection and external MCP evidence pass without regressing
+  interactive paint, warp or selection performance.
+
+Evidence
+========
+
+- `npm run smoke:desktop:object-selection -- D:\face.jpg --subject --backend balanced --inference-timeout 90000`
+  passed UI commit, one Action, undo and replay in the packaged app.
+- `npm run smoke:desktop:mcp-design -- D:\face.jpg --subject-only` passed
+  OAuth, approval, WSS tunnel, MCP execution, task polling and raster-selection state.
+- `npm run smoke:desktop:actions` preserved bounded Brush and Grade gesture
+  publication and passed packaged Action recording/playback.
+- `npm run smoke:desktop:route-equivalence` passed the packaged shared
+  UI/Actions/MCP route without creating a parallel mutation owner.
+- `npm run verify:command-contract`, `npm run verify:boundary`, `npm run typecheck`
+  and the complete `npm test` workspace gate passed on the final source state.
+- Command-contract policy rejects replaceable implementation identities from all
+  completed external MCP schemas.

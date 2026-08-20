@@ -1,4 +1,4 @@
-import type { ImageDocument } from '../../../editor/document/documentTypes';
+import type { ImageDocument, LayerId } from '../../../editor/document/documentTypes';
 import type {
   RasterSelectionMask,
   SelectionCombineMode,
@@ -21,6 +21,10 @@ import {
   createSmartSelectionSource,
   type SmartSelectionSourceRenderer
 } from './smartSelectionSource';
+import type {
+  SemanticSubjectSelectionCommand,
+  SemanticSubjectSelectionResult
+} from '../../commands/semanticSubjectSelectionCommandContract';
 
 export interface SmartSelectionPreviewRenderer extends SmartSelectionSourceRenderer {
   setSmartSelectionPreview(mask: RasterSelectionMask | null): void;
@@ -36,6 +40,10 @@ export interface SmartSelectionToolCallbacks {
   readonly setDraft: (shape: SelectionShape | null) => void;
   readonly onBackendIdentityChange?: (identity: SmartSelectionBackendIdentity) => void;
   readonly onPreparationChange?: (state: SmartSelectionPreparationState) => void;
+  readonly onSelectionCommitted?: (
+    command: SemanticSubjectSelectionCommand,
+    result: SemanticSubjectSelectionResult
+  ) => boolean | void;
 }
 
 const candidateAtPoint = (
@@ -129,6 +137,17 @@ export class SmartSelectionToolController {
 
   async prepare() {
     const document = this.callbacks.getDocument();
+    const options = this.callbacks.getOptions();
+    return this.prepareSource(document?.activeLayerId ?? null, options.sampleAllLayers, true);
+  }
+
+  private async prepareSource(
+    sourceLayerId: LayerId | null,
+    sampleAllLayers: boolean,
+    followActiveLayer: boolean,
+    signal?: AbortSignal
+  ) {
+    const document = this.callbacks.getDocument();
     const renderer = this.callbacks.getRenderer();
     const rendererReady = this.callbacks.isRendererReady();
     if (!document || !renderer || !rendererReady || this.disposed) {
@@ -138,11 +157,10 @@ export class SmartSelectionToolController {
       });
       return false;
     }
-    const options = this.callbacks.getOptions();
     const expectedKey = [
       document.id,
       document.revision,
-      options.sampleAllLayers ? 'composite' : document.activeLayerId
+      sampleAllLayers ? 'composite' : sourceLayerId
     ].join(':');
     if (this.source?.key === expectedKey) {
       this.callbacks.onPreparationChange?.({ phase: 'ready' });
@@ -154,17 +172,19 @@ export class SmartSelectionToolController {
       this.callbacks.onPreparationChange?.({
         phase: 'preparing', message: 'Loading Object Selection model…'
       });
-      const source = await createSmartSelectionSource(document, renderer, options.sampleAllLayers);
+      const source = await createSmartSelectionSource(document, renderer, sampleAllLayers, sourceLayerId);
       const current = this.callbacks.getDocument();
       const currentOptions = this.callbacks.getOptions();
       const currentKey = current ? [
         current.id,
         current.revision,
-        currentOptions.sampleAllLayers ? 'composite' : current.activeLayerId
+        sampleAllLayers ? 'composite' : followActiveLayer ? current.activeLayerId : sourceLayerId
       ].join(':') : null;
       if (this.disposed || !current || current.id !== document.id
-        || current.revision !== source.documentRevision || currentKey !== expectedKey) return false;
-      const prepared = await this.gate.prepare(source);
+        || current.revision !== source.documentRevision || currentKey !== expectedKey
+        || (followActiveLayer && currentOptions.sampleAllLayers !== sampleAllLayers)) return false;
+      signal?.throwIfAborted();
+      const prepared = await this.gate.prepare(source, signal);
       if (!prepared || this.disposed) return false;
       this.publishBackendIdentity();
       this.source = source;
@@ -188,6 +208,52 @@ export class SmartSelectionToolController {
     return promise;
   }
 
+  async executeSubjectSelection(
+    command: SemanticSubjectSelectionCommand,
+    signal: AbortSignal,
+    report: (progress: number, message: string) => void
+  ): Promise<SemanticSubjectSelectionResult> {
+    this.selectionInferenceCount += 1;
+    this.pendingHoverPoint = null;
+    this.gate.supersede();
+    try {
+      signal.throwIfAborted();
+      report(0.05, 'Preparing Object Selection source');
+      if (!await this.prepareSource(command.sourceLayerId, command.sampleAllLayers,
+        false, signal) || !this.source) throw new Error('Object Selection source preparation failed.');
+      signal.throwIfAborted();
+      const prepared = await this.gate.prepare(this.source, signal);
+      if (!prepared) throw new Error('Object Selection source was superseded.');
+      report(0.35, 'Running Object Selection inference');
+      const options = this.callbacks.getOptions();
+      const candidates = await this.gate.subject(prepared, {
+        refineEdges: options.refineEdges,
+        refinementQuality: options.refinementQuality,
+        signal
+      });
+      signal.throwIfAborted();
+      const candidate = candidates ? bestCandidate(candidates) : null;
+      if (!candidate) throw new Error('Object Selection found no matching object.');
+      report(0.8, 'Applying Object Selection mask');
+      const result = await this.commitSubjectCandidate(candidate, command);
+      if (!result) throw new Error('Object Selection result became stale before commit.');
+      report(1, 'Object Selection applied');
+      return result;
+    } finally {
+      this.selectionInferenceCount = Math.max(0, this.selectionInferenceCount - 1);
+      if (!this.disposed && this.pendingHoverPoint) void this.drainHoverInference();
+    }
+  }
+
+  private currentSubjectCommand(mode: SelectionCombineMode): SemanticSubjectSelectionCommand | null {
+    const document = this.callbacks.getDocument();
+    if (!document?.activeLayerId) return null;
+    return {
+      kind: 'subject', sourceLayerId: document.activeLayerId, mode,
+      sampleAllLayers: this.callbacks.getOptions().sampleAllLayers
+    };
+  }
+
   hover(point: SelectionPoint) {
     if (this.callbacks.getOptions().mode !== 'object-finder') return;
     if (candidateAtPoint(this.preview, point)) {
@@ -208,7 +274,7 @@ export class SmartSelectionToolController {
         void this.selectPrompt({ points: [{ point, label: 'positive' }] }, mode);
       } else {
         this.gate.supersede();
-        void this.commitCandidate(this.preview!, mode);
+        void this.commitInteractiveCandidate(this.preview!, mode);
       }
       return true;
     }
@@ -217,38 +283,22 @@ export class SmartSelectionToolController {
   }
 
   async selectSubject(mode: SelectionCombineMode = 'replace') {
-    // Subject detection is an authoritative selection request, just like an
-    // explicit point/box prompt. Keep hover inference from superseding it or
-    // publishing a candidate from a different request while it is running.
-    this.selectionInferenceCount += 1;
-    this.pendingHoverPoint = null;
-    this.gate.supersede();
+    const command = this.currentSubjectCommand(mode);
+    if (!command) return false;
     try {
-      if (!await this.prepare() || !this.source) return false;
-      const prepared = await this.gate.prepare(this.source);
-      if (!prepared) return false;
       this.callbacks.setStatus('Finding subject…');
-      const candidates = await this.gate.subject(prepared, {
-        refineEdges: this.callbacks.getOptions().refineEdges,
-        refinementQuality: this.callbacks.getOptions().refinementQuality
-      });
-      this.publishBackendIdentity();
-      const candidate = candidates ? bestCandidate(candidates) : null;
-      if (!candidate) {
-        this.callbacks.setStatus('No subject was found.');
-        return false;
-      }
-      const committed = await this.commitCandidate(candidate, mode);
+      const result = await this.executeSubjectSelection(
+        command, new AbortController().signal, () => undefined
+      );
+      const recorded = this.callbacks.onSelectionCommitted?.(command, result);
+      traceSmartSelection('action-observed', { recorded: recorded === true });
       this.callbacks.setStatus(null);
-      return committed;
+      return true;
     } catch (reason) {
       this.callbacks.setStatus(reason instanceof Error
         ? `Select Subject is unavailable: ${reason.message}`
         : 'Select Subject is unavailable.');
       return false;
-    } finally {
-      this.selectionInferenceCount = Math.max(0, this.selectionInferenceCount - 1);
-      if (!this.disposed && this.pendingHoverPoint) void this.drainHoverInference();
     }
   }
 
@@ -396,9 +446,9 @@ export class SmartSelectionToolController {
         this.callbacks.setStatus('No object was found.');
         return false;
       }
-      const committed = await this.commitCandidate(candidate, mode);
+      const committed = await this.commitInteractiveCandidate(candidate, mode);
       if (committed) this.callbacks.setStatus(null);
-      return committed;
+      return Boolean(committed);
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'Unknown prompt failure.';
       traceSmartSelection('select-error', { message });
@@ -424,12 +474,28 @@ export class SmartSelectionToolController {
     this.callbacks.onBackendIdentityChange?.(this.backend.identity);
   }
 
-  /** Keeps GPU feedback continuous until the authoritative selection mask is live. */
-  private async commitCandidate(
+  private async commitSubjectCandidate(
     candidate: SmartSelectionCandidate,
-    mode: SelectionCombineMode
-  ) {
-    if (!this.sourceIsCurrent(candidate.mask)) {
+    command: SemanticSubjectSelectionCommand
+  ): Promise<SemanticSubjectSelectionResult | false> {
+    if (!await this.commitCandidateMask(candidate, command.mode, command)) return false;
+    return {
+      kind: 'subject', sourceLayerId: command.sourceLayerId,
+      mode: command.mode, sampleAllLayers: command.sampleAllLayers
+    };
+  }
+
+  private commitInteractiveCandidate(candidate: SmartSelectionCandidate, mode: SelectionCombineMode) {
+    return this.commitCandidateMask(candidate, mode, null);
+  }
+
+  /** Keeps GPU feedback continuous until the authoritative selection mask is live. */
+  private async commitCandidateMask(
+    candidate: SmartSelectionCandidate,
+    mode: SelectionCombineMode,
+    command: SemanticSubjectSelectionCommand | null
+  ): Promise<boolean> {
+    if (!this.sourceIsCurrent(candidate.mask, command)) {
       traceSmartSelection('commit-rejected', { reason: 'stale-source' });
       return false;
     }
@@ -439,20 +505,24 @@ export class SmartSelectionToolController {
       traceSmartSelection('commit-rejected');
       return false;
     }
-    traceSmartSelection('committed');
+    traceSmartSelection('committed', maskCoverageSummary(candidate.mask));
     this.clearPreview();
     return true;
   }
 
-  private sourceIsCurrent(mask: RasterSelectionMask) {
+  private sourceIsCurrent(
+    mask: RasterSelectionMask,
+    command: SemanticSubjectSelectionCommand | null
+  ) {
     const document = this.callbacks.getDocument();
     const source = this.source;
     if (!document || !source) return false;
-    const options = this.callbacks.getOptions();
+    const sampleAllLayers = command?.sampleAllLayers
+      ?? this.callbacks.getOptions().sampleAllLayers;
     const currentKey = [
       document.id,
       document.revision,
-      options.sampleAllLayers ? 'composite' : document.activeLayerId
+      sampleAllLayers ? 'composite' : command?.sourceLayerId ?? document.activeLayerId
     ].join(':');
     return source.key === currentKey
       && source.documentRevision === document.revision

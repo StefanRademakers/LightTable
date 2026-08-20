@@ -200,6 +200,26 @@
           "locked": { "type": "boolean" }
         }
       }
+    },
+    "layer.removeBackground": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "mode"],
+        "properties": {
+          "layerId": { "type": "string", "title": "Raster layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+          "mode": { "type": "string", "title": "Mask operation", "enum": ["replace", "intersect", "new-layer"], "default": "replace" }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "mode"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "mode": { "type": "string", "enum": ["replace", "intersect", "new-layer"] }
+        }
+      }
     }
   }
 }

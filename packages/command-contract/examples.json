@@ -290,6 +290,14 @@
       "options": { "sampleSize": 3, "tolerance": 20, "antiAlias": true, "contiguous": true, "sampleAllLayers": false }
     }
   ],
+  "selection.selectSubject": [
+    {
+      "kind": "subject",
+      "sourceLayerId": "layer-photo",
+      "mode": "replace",
+      "sampleAllLayers": false
+    }
+  ],
   "selection.modify": [
     { "kind": "modify", "operation": "all" },
     { "kind": "modify", "operation": "clear" },

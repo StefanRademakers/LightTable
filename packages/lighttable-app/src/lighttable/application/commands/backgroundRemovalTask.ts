@@ -44,9 +44,9 @@ export const startBackgroundRemovalTask = (
       task.reportProgress(progress);
       events.append(task.id, 'progress', { progress, message });
     }, { minimumIntervalMs: 500 });
-    const value = await ports.executeBackgroundRemoval!(session.id, command, task.signal, report);
+    await ports.executeBackgroundRemoval!(session.id, command, task.signal, report);
     task.throwIfCanceled();
-    return value;
+    return { layerId: command.layerId, mode: command.mode };
   }, { replace: false });
   const taskId = session.tasks.getSnapshot().activeTaskIds.at(-1) ?? null;
   if (!taskId) return null;

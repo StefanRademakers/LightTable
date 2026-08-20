@@ -2364,7 +2364,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus,
     setDraft: setSelectionDraft,
     onBackendIdentityChange: setSmartSelectionBackendIdentity,
-    onPreparationChange: setSmartSelectionPreparation
+    onPreparationChange: setSmartSelectionPreparation,
+    onSelectionCommitted: (parameters, result) => commandService?.recordObservedCommand(
+      'selection.selectSubject',
+      workspaceDocumentId as DocumentSessionId,
+      parameters,
+      result
+    ) ?? false
   }, smartSelectionBackendRef.current);
   const smartSelectionController = smartSelectionControllerRef.current;
   const smartSelectionDisposeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4926,6 +4932,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           antiAlias: command.antiAlias
         } : null;
       },
+      executeSubjectSelection: (command, signal, report) => (
+        smartSelectionController.executeSubjectSelection(command, signal, report)
+      ),
       executeBasicAdjustmentCommand: (command) => {
         adjustmentTransactionController.end();
         const document = imageDocumentRef.current;

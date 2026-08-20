@@ -13,4 +13,13 @@ describe('observed command validation', () => {
       layerId: 'layer', name: 'Not an observed owner'
     })).toBe(false);
   });
+
+  it('accepts only stable Select Subject intent', () => {
+    const intent = { kind: 'subject', sourceLayerId: 'photo', mode: 'replace',
+      sampleAllLayers: false };
+    expect(observedCommandParametersAreValid('selection.selectSubject', intent)).toBe(true);
+    expect(observedCommandParametersAreValid('selection.selectSubject', {
+      ...intent, modelId: 'replaceable-private-model'
+    })).toBe(false);
+  });
 });

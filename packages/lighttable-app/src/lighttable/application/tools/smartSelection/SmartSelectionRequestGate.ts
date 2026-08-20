@@ -14,11 +14,11 @@ export class SmartSelectionRequestGate {
 
   constructor(private readonly backend: SmartSelectionBackend) {}
 
-  async prepare(source: SmartSelectionSource): Promise<PreparedSmartSelectionSource | null> {
+  async prepare(source: SmartSelectionSource, signal?: AbortSignal): Promise<PreparedSmartSelectionSource | null> {
     if (this.prepared?.sourceKey === source.key
       && this.prepared.documentRevision === source.documentRevision) return this.prepared;
     const generation = ++this.generation;
-    const prepared = await this.backend.prepare(source);
+    const prepared = await this.backend.prepare(source, signal);
     if (generation !== this.generation) {
       this.backend.disposePreparedSource(prepared);
       return null;

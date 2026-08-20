@@ -35,6 +35,7 @@ const output = path.join(root, 'tmp', 'mcp-design-smoke');
 const userData = path.join(output, 'author-user-data');
 const reopenUserData = path.join(output, 'reopen-user-data');
 const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
+const subjectOnly = process.argv.includes('--subject-only');
 const DESIGN_RENDER_POLICY = {
   maximumRmse: 12,
   maximumMeanAbsoluteError: 8,
@@ -99,6 +100,64 @@ try {
   await settings.getByRole('button', { name: 'Allow edit' }).click();
   await waitFor(() => dynamicClient.ready(), 'MCP client approval');
 
+  const approvedWorkspace = await mcp.callTool({ name: 'lighttable_workspace', arguments: {} });
+  const sourceDocumentId = approvedWorkspace.structuredContent?.documents?.[0]?.id;
+  if (!sourceDocumentId) throw new Error('MCP Select Subject found no source document.');
+  const sourceLayers = await mcp.callTool({
+    name: 'lighttable_layers', arguments: { documentId: sourceDocumentId }
+  });
+  const sourceLayerId = (sourceLayers.structuredContent?.layers ?? [])
+    .find(({ type, visible }) => type === 'raster' && visible)?.id;
+  if (!sourceLayerId) throw new Error('MCP Select Subject found no visible raster source layer.');
+  const subjectContract = await mcp.callTool({
+    name: 'lighttable_commands', arguments: { command: 'selection.selectSubject' }
+  });
+  if (subjectContract.isError
+    || subjectContract.structuredContent?.commands?.[0]?.contract?.status !== 'complete') {
+    throw new Error(`MCP Select Subject contract is incomplete: ${JSON.stringify(subjectContract)}`);
+  }
+  const subjectParameters = {
+    kind: 'subject', sourceLayerId, mode: 'replace', sampleAllLayers: false
+  };
+  const privateStateAttempt = await mcp.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: sourceDocumentId, command: 'selection.selectSubject',
+    parameters: { ...subjectParameters, modelId: 'private-implementation' }
+  } });
+  if (!privateStateAttempt.isError) {
+    throw new Error('MCP Select Subject admitted private model state.');
+  }
+  await window.evaluate(() => {
+    globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__ = [];
+    globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__ = [];
+  });
+  const subjectSelection = await mcp.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: sourceDocumentId, command: 'selection.selectSubject', parameters: subjectParameters
+  } });
+  const subjectTaskId = subjectSelection.structuredContent?.taskId;
+  if (subjectSelection.isError || subjectSelection.structuredContent?.status !== 'accepted' || !subjectTaskId) {
+    throw new Error(`MCP Select Subject was not accepted: ${JSON.stringify(subjectSelection)}`);
+  }
+  const subjectTask = await waitForMcpTask(mcp, sourceDocumentId, subjectTaskId, 120_000);
+  if (subjectTask.status !== 'completed') {
+    throw new Error(`MCP Select Subject failed: ${JSON.stringify(subjectTask)}`);
+  }
+  await window.waitForFunction(() => globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__?.some((entry) => (
+    entry.operationCount === 1 && entry.sourceKind === 'raster-mask' && entry.maskActive
+  )), undefined, { timeout: 15_000 }).catch(async () => {
+    const evidence = await window.evaluate(() => ({
+      selection: globalThis.__LIGHTTABLE_SELECTION_OVERLAY_TRACE__,
+      smartSelection: globalThis.__LIGHTTABLE_SMART_SELECTION_TRACE__
+    }));
+    throw new Error(`MCP Select Subject completed without visible selection evidence: ${JSON.stringify({
+      task: subjectTask, evidence
+    })}`);
+  });
+
+  designVerification: {
+  if (subjectOnly) {
+    process.stdout.write('Packaged external MCP Select Subject smoke passed.\n');
+    break designVerification;
+  }
   const icon = await readFile(path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'gradient_fill.png'))
     .catch(() => readFile(path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'tool_gradient.png')));
   const asset = await dynamicClient.uploadArtifact({ bytes: new Uint8Array(icon), name: 'gradient-icon.png', mediaType: 'image/png' });
@@ -182,6 +241,7 @@ try {
     layers
   }, null, 2));
   process.stdout.write(`Packaged MCP design structural roundtrip passed; render evidence retained: ${output}\n`);
+  }
 } finally {
   if (previousTls === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
   else process.env.NODE_TLS_REJECT_UNAUTHORIZED = previousTls;
@@ -197,4 +257,17 @@ async function waitFor(predicate, label, timeout = 15_000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 25)); }
   throw new Error(`Timed out waiting for ${label}.`);
+}
+async function waitForMcpTask(client, documentId, taskId, timeout) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const response = await client.callTool({
+      name: 'lighttable_task', arguments: { documentId, taskId }
+    });
+    if (response.isError) throw new Error(`MCP task query failed: ${JSON.stringify(response)}`);
+    const task = response.structuredContent;
+    if (task?.status && task.status !== 'running') return task;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Timed out waiting for MCP task ${taskId}.`);
 }

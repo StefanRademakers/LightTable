@@ -10,6 +10,7 @@ import type { SemanticLayerCommand } from './semanticLayerCommandContract';
 import type { SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
 import type { SemanticSelectionCommand } from './semanticSelectionCommandContract';
+import type { SemanticSubjectSelectionCommand } from './semanticSubjectSelectionCommandContract';
 import type { SemanticTextCommand } from './semanticTextCommandContract';
 import type { SemanticVectorCommand } from './semanticVectorCommandContract';
 import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
@@ -89,6 +90,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     const execute = this.resolve(documentId).executeSelectionCommand;
     if (!execute) throw new Error('Selection commands are unavailable in the target document.');
     return execute(command);
+  }
+  executeSubjectSelection(documentId: DocumentSessionId, command: SemanticSubjectSelectionCommand,
+    signal: AbortSignal, report: (progress: number, message: string) => void) {
+    const execute = this.resolve(documentId).executeSubjectSelection;
+    if (!execute) throw new Error('Select Subject is unavailable in the target document.');
+    return execute(command, signal, report);
   }
   executeBasicAdjustmentCommand(documentId: DocumentSessionId, command: SemanticBasicAdjustmentCommand) {
     const execute = this.resolve(documentId).executeBasicAdjustmentCommand;
