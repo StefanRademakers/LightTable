@@ -4573,7 +4573,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const autoAlignPreview = autoAlignController.preview;
   const cancelAutoAlignPreview = autoAlignController.cancel;
-  const applyAutoAlignPreview = autoAlignController.apply;
+  const applyAutoAlignPreview = useCallback(() => {
+    if (!autoAlignPreview) return;
+    void executeRegisteredCommand('layer.autoAlign', {
+      referenceLayerId: autoAlignPreview.referenceLayerId,
+      targetLayerId: autoAlignPreview.targetLayerId
+    });
+  }, [autoAlignPreview, executeRegisteredCommand]);
   const beginAutoAlign = autoAlignController.begin;
   cancelAutoAlignRef.current = cancelAutoAlignPreview;
 
@@ -4966,6 +4972,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           backgroundRemovalTaskIdRef.current = null;
         }
       },
+      executeAutoAlign: (command, signal) => autoAlignController.execute(command, signal),
       queryBasicAdjustments: (target) => {
         const document = imageDocumentRef.current;
         if (!document) return null;

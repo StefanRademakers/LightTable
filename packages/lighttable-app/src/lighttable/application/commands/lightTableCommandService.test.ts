@@ -59,6 +59,8 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
       report(0.5, 'Removing background');
       return { ...command, modelId: 'fixture' };
     }),
+    executeAutoAlign: vi.fn(async (_documentId, command) => ({ ...command, changed: true,
+      correctionMatrix: { a: 1, b: 0, c: 0, d: 1, tx: -4, ty: 2 } })),
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -186,6 +188,80 @@ describe('LightTableCommandService action recording', () => {
       status: 'rejected', code: 'invalid-parameters'
     });
     expect(state.ports.executeBackgroundRemoval).not.toHaveBeenCalled();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('records and awaits explicit Auto Align during Actions playback', async () => {
+    const state = setup();
+    const rasterIds = state.session.getSnapshot().document!.layers
+      .filter(({ type }) => type === 'raster').map(({ id }) => id);
+    const [targetLayerId, referenceLayerId] = rasterIds;
+    expect(referenceLayerId).toBeTruthy();
+    state.service.startActionRecording('Align layers');
+    const accepted = await state.service.execute(request('layer.autoAlign', state.session.id,
+      { referenceLayerId, targetLayerId }));
+    expect(accepted.status).toBe('accepted');
+    if (accepted.status !== 'accepted') throw new Error('Auto Align was not accepted.');
+    await vi.waitFor(() => expect(state.service.queryTask(state.session.id, accepted.taskId)?.status)
+      .toBe('completed'));
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'layer.autoAlign', outcome: 'accepted', replayable: true,
+      parameters: { referenceLayerId, targetLayerId },
+      result: { taskId: accepted.taskId, changed: true }
+    }]);
+
+    await state.service.playActionRecording();
+
+    expect(state.ports.executeAutoAlign).toHaveBeenCalledTimes(2);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'completed', results: [{ command: 'layer.autoAlign', status: 'completed' }]
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('cancels a running Auto Align through the document task owner', async () => {
+    const executeAutoAlign = vi.fn((_documentId, _command, signal: AbortSignal) =>
+      new Promise((_resolve, reject) => signal.addEventListener('abort',
+        () => reject(new DOMException('Canceled', 'AbortError')), { once: true })));
+    const state = setup({ executeAutoAlign });
+    const rasterIds = state.session.getSnapshot().document!.layers
+      .filter(({ type }) => type === 'raster').map(({ id }) => id);
+    const accepted = await state.service.execute(request('layer.autoAlign', state.session.id,
+      { targetLayerId: rasterIds[0], referenceLayerId: rasterIds[1] }));
+    expect(accepted.status).toBe('accepted');
+    if (accepted.status !== 'accepted') throw new Error('Auto Align was not accepted.');
+    await state.service.execute(request('task.cancel', state.session.id, { taskId: accepted.taskId }));
+    await vi.waitFor(() => expect(state.service.queryTask(state.session.id, accepted.taskId)?.status)
+      .toBe('canceled'));
+    expect(executeAutoAlign.mock.calls[0]?.[2].aborted).toBe(true);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('rejects hidden and position-locked Auto Align targets before analysis', async () => {
+    const state = setup();
+    const initial = state.session.getSnapshot().document!;
+    const rasterIds = initial.layers.filter(({ type }) => type === 'raster').map(({ id }) => id);
+    const [targetLayerId, referenceLayerId] = rasterIds;
+    state.session.setDocument({ ...initial, revision: initial.revision + 1,
+      layers: initial.layers.map((layer) => layer.id === targetLayerId
+        ? { ...layer, visible: false } : layer) });
+    await expect(state.service.execute(request('layer.autoAlign', state.session.id,
+      { targetLayerId, referenceLayerId }))).resolves.toMatchObject({
+      status: 'rejected', code: 'command-unavailable'
+    });
+    const hidden = state.session.getSnapshot().document!;
+    state.session.setDocument({ ...hidden, revision: hidden.revision + 1,
+      layers: hidden.layers.map((layer) => layer.id === targetLayerId
+        ? { ...layer, visible: true, locks: { ...layer.locks, position: true } } : layer) });
+    await expect(state.service.execute(request('layer.autoAlign', state.session.id,
+      { targetLayerId, referenceLayerId }))).resolves.toMatchObject({
+      status: 'rejected', code: 'command-unavailable'
+    });
+    expect(state.ports.executeAutoAlign).not.toHaveBeenCalled();
     state.service.dispose();
     state.workspace.dispose();
   });

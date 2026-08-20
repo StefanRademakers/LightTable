@@ -56,7 +56,7 @@ import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeomet
 import { parseSemanticFaceWarpCommand, type SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import { parseSemanticLayerCommand, type SemanticLayerCommand } from './semanticLayerCommandContract';
 import { parseSemanticSelectionCommand, type SemanticSelectionCommand } from './semanticSelectionCommandContract';
-import { startValidatedBackgroundRemovalTask } from './backgroundRemovalTask';
+import { startSemanticLayerTask } from './semanticLayerTaskDispatcher';
 import {
   parseSemanticBasicAdjustmentCommand,
   parseBasicAdjustmentTarget,
@@ -107,7 +107,6 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   has(documentId: DocumentSessionId): boolean {
     return this.documents.has(documentId);
   }
-
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport) {
     return this.resolve(documentId).setZoom(viewport);
   }
@@ -127,7 +126,6 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   createRasterLayer(documentId: DocumentSessionId) {
     return this.resolve(documentId).createRasterLayer();
   }
-
   placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement) {
     return this.resolve(documentId).placeArtifact(file, placement);
   }
@@ -135,7 +133,6 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand) {
     return this.resolve(documentId).executeTextCommand(command);
   }
-
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand) {
     return this.resolve(documentId).executeVectorCommand(command);
   }
@@ -161,7 +158,6 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand) {
     return this.resolve(documentId).executeLayerStyleCommand(command);
   }
-
   executeFaceWarpCommand(documentId: DocumentSessionId, command: SemanticFaceWarpCommand) {
     const execute = this.resolve(documentId).executeFaceWarpCommand;
     if (!execute) throw new Error('Face Warp commands are unavailable in the target document.');
@@ -171,7 +167,6 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   executeLayerCommand(documentId: DocumentSessionId, command: SemanticLayerCommand) {
     return this.resolve(documentId).executeLayerCommand(command);
   }
-
   executeSelectionCommand(documentId: DocumentSessionId, command: SemanticSelectionCommand) {
     const execute = this.resolve(documentId).executeSelectionCommand;
     if (!execute) throw new Error('Selection commands are unavailable in the target document.');
@@ -238,10 +233,14 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     const execute = this.resolve(documentId).executeBackgroundRemoval;
     if (!execute) throw new Error('Remove Background is unavailable in the target document.'); return execute(command, signal, report);
   }
+  executeAutoAlign(documentId: DocumentSessionId, command: Parameters<NonNullable<
+    DocumentLightTableCommandPorts['executeAutoAlign']>>[0], signal: AbortSignal) {
+    const execute = this.resolve(documentId).executeAutoAlign;
+    if (!execute) throw new Error('Auto Align is unavailable in the target document.'); return execute(command, signal);
+  }
   queryBasicAdjustments(documentId: DocumentSessionId, target: BasicAdjustmentTarget) {
     return this.resolve(documentId).queryBasicAdjustments?.(target) ?? null;
   }
-
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void) {
     return this.resolve(documentId).executeAtomicBatch(batch, signal, report);
@@ -928,11 +927,12 @@ export class LightTableCommandService {
       return { requestId: value.requestId, status: 'accepted', taskId, revisions: this.revisions(snapshot) };
     }
 
-    if (value.command === 'layer.removeBackground') {
-      const started = startValidatedBackgroundRemovalTask(value.parameters, this.workspace.getDocument(
-        documentRequest.documentId)!, this.ports, this.taskEvents, (id, result) => this.actionRecorder.completeTask(id, result));
-      return 'error' in started ? this.reject(value.requestId, started.error, started.message, snapshot)
-        : { requestId: value.requestId, status: 'accepted', taskId: started.taskId, revisions: this.revisions(snapshot) };
+    const layerTask = startSemanticLayerTask(value.command, value.parameters, this.workspace.getDocument(
+      documentRequest.documentId)!, this.ports, this.taskEvents,
+      (id, result) => this.actionRecorder.completeTask(id, result));
+    if (layerTask) {
+      return 'error' in layerTask ? this.reject(value.requestId, layerTask.error, layerTask.message, snapshot)
+        : { requestId: value.requestId, status: 'accepted', taskId: layerTask.taskId, revisions: this.revisions(snapshot) };
     }
     if (value.command === 'document.resizeImage') {
       const resize = parseImageSizeRequest(value.parameters);

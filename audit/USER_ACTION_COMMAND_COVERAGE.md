@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 44 already routed through semantic commands;
+- 45 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
-- 34 presentation-only operations;
-- 11 genuine semantic command gaps;
+- 36 presentation-only operations;
+- 8 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -25,10 +25,10 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `add-mask` | command | `layer.setMask` | 640 |
 | `ai-history` | presentation | Shows the AI Assets panel. | 395 |
 | `ai-provider-openart` | host | Changes an external provider connection. | 374 |
-| `apply-auto-align` | gap | No semantic auto-align command exists. | 700 |
+| `apply-auto-align` | command | `layer.autoAlign` | 700 |
 | `assign-profile-srgb` | gap | No semantic color-profile command exists. | 346 |
-| `auto-align` | gap | No semantic auto-align command exists. | 710 |
-| `cancel-auto-align` | gap | No semantic auto-align command exists. | 705 |
+| `auto-align` | presentation | Starts transient GPU analysis and compositor preview; Apply commits layer.autoAlign. | 710 |
+| `cancel-auto-align` | presentation | Cancels transient analysis/preview without mutating document state. | 705 |
 | `canvas-size` | command | `document.applyGeometry` | 514 |
 | `clear-guides` | presentation | Changes document-view guides, not image content. | 848 |
 | `clear-recent` | host | Changes host-maintained recent-file state. | 210 |

@@ -29,6 +29,7 @@ import type { SemanticRasterInvertCommand } from './semanticRasterInvertCommandC
 import type { SemanticTextFinalizationCommand } from './semanticTextFinalizationCommandContract';
 import type { SemanticFlattenGroupCommand, SemanticLayerMergeCommand } from './semanticMergeFlattenCommandContract';
 import type { SemanticBackgroundRemovalCommand } from './semanticBackgroundRemovalCommandContract';
+import type { SemanticAutoAlignCommand } from './semanticAutoAlignCommandContract';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId
@@ -222,6 +223,8 @@ export interface LightTableCommandPorts {
   executeFlattenImage?(documentId: DocumentSessionId): unknown | Promise<unknown>;
   executeBackgroundRemoval?(documentId: DocumentSessionId, command: SemanticBackgroundRemovalCommand,
     signal: AbortSignal, report: (progress: number, message: string) => void): unknown | Promise<unknown>;
+  executeAutoAlign?(documentId: DocumentSessionId, command: SemanticAutoAlignCommand,
+    signal: AbortSignal): unknown | Promise<unknown>;
   queryBasicAdjustments?(documentId: DocumentSessionId, target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
@@ -269,6 +272,7 @@ export interface DocumentLightTableCommandPorts {
   executeFlattenImage?(): unknown | Promise<unknown>;
   executeBackgroundRemoval?(command: SemanticBackgroundRemovalCommand, signal: AbortSignal,
     report: (progress: number, message: string) => void): unknown | Promise<unknown>;
+  executeAutoAlign?(command: SemanticAutoAlignCommand, signal: AbortSignal): unknown | Promise<unknown>;
   queryBasicAdjustments?(target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;

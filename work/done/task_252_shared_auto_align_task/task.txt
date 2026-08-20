@@ -1,0 +1,58 @@
+Task 252 - Shared cancellable Auto Align
+
+Goal
+====
+
+Expose Auto Align as one explicit, cancellable layer task through UI, Actions
+and MCP while preserving the existing local compositor preview and canonical
+geometry/history commit.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Define a bounded command with distinct explicit raster reference and
+      target layer IDs; reject missing, hidden, identical or locked targets.
+- [x] Keep Begin/Cancel preview local and non-recorded; Apply must dispatch the
+      shared command and reuse its matching preview result without re-analysis.
+- [x] Let Actions/MCP run the same GPU feature analysis without requiring a
+      preview, then commit through `applyTranslationAlignment` and one history
+      entry.
+- [x] Reject stale analysis when document content or target identity changes,
+      and support normal task cancellation.
+- [x] Prove UI preview reuse, direct execution, validation, stale/cancel paths,
+      Actions waiting/replay and packaged MCP geometry change.
+- [x] Reclassify Begin/Cancel truthfully as transient preview control and Apply
+      as the semantic command; update coverage and durable parent evidence.
+- [x] Run full gates, move to `work/done/` and commit the milestone.
+
+Evidence
+========
+
+- `layer.autoAlign` carries only two explicit raster layer IDs. Feature data,
+  analysis pixels and compositor previews stay inside the renderer process.
+- Begin and Cancel remain local preview controls. Apply routes through the
+  shared task and reuses an exact document-revision preview; direct Actions/MCP
+  execution performs the same GPU analysis without requiring UI state.
+- The task supports cancellation and rejects hidden, locked, identical and
+  stale targets before committing one `applyTranslationAlignment` history step.
+- Packaged MCP smoke builds a deterministic feature-rich raster pair, offsets
+  the target, executes real alignment and verifies changed editable geometry.
+- Final verification: workspace typecheck; 476 app test files / 2688 tests;
+  command-contract and MCP-server tests; command, source-structure,
+  architecture, boundary and UI-boundary gates; desktop packaging; packaged
+  MCP smoke; and `git diff --check` all pass.
+- Checked menu coverage is now 103 actions with 8 explicit gaps.
+
+Out of scope
+============
+
+- Sending analysis rasters, feature matches or compositor preview frames over
+  Actions/MCP.
+- Changing the alignment estimator or making visual-parity claims.

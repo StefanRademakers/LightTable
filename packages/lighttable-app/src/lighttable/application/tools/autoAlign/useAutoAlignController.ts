@@ -8,21 +8,10 @@ import {
   walkRasterLayers
 } from '../../../editor/document/layerTree';
 import { applyTranslationAlignment } from '../../../editor/document/documentCommands';
-import type {
-  TranslationAlignmentOptions,
-  TranslationAlignmentResult
-} from '../../../editor/autoAlign/alignmentTypes';
-
-export interface AutoAlignRendererPort {
-  alignLayersTranslation(
-    referenceLayerId: LayerId,
-    targetLayerId: LayerId,
-    options?: Partial<TranslationAlignmentOptions>,
-    signal?: AbortSignal
-  ): Promise<TranslationAlignmentResult>;
-  previewTranslationAlignment(result: TranslationAlignmentResult): boolean;
-  clearTranslationAlignmentPreview(targetLayerId?: LayerId): boolean;
-}
+import type { TranslationAlignmentResult } from '../../../editor/autoAlign/alignmentTypes';
+import type { SemanticAutoAlignCommand } from '../../commands/semanticAutoAlignCommandContract';
+import { executeAutoAlignOperation, reuseAutoAlignPreview,
+  type AutoAlignRendererPort } from './executeAutoAlignOperation';
 
 export interface AutoAlignControllerDependencies {
   getDocument(): ImageDocument | null;
@@ -38,6 +27,7 @@ export interface AutoAlignController {
   begin(): Promise<void>;
   apply(): void;
   cancel(): void;
+  execute(command: SemanticAutoAlignCommand, signal: AbortSignal): Promise<unknown>;
 }
 
 export const formatAutoAlignPreviewStatus = (
@@ -79,10 +69,13 @@ export const useAutoAlignController = (
   dependenciesRef.current = dependencies;
   const abortRef = useRef<AbortController | null>(null);
   const previewRef = useRef<TranslationAlignmentResult | null>(null);
+  const previewSourceRef = useRef<{ readonly documentId: string; readonly revision: number } | null>(null);
   const [preview, setPreviewState] = useState<TranslationAlignmentResult | null>(null);
 
-  const setPreview = useCallback((next: TranslationAlignmentResult | null) => {
+  const setPreview = useCallback((next: TranslationAlignmentResult | null,
+    source: { readonly documentId: string; readonly revision: number } | null = null) => {
     previewRef.current = next;
+    previewSourceRef.current = source;
     setPreviewState(next);
   }, []);
 
@@ -99,10 +92,9 @@ export const useAutoAlignController = (
     dependenciesRef.current.setStatus(null);
   }, [setPreview]);
 
-  const apply = useCallback(() => {
-    const currentPreview = previewRef.current;
+  const commit = useCallback((currentPreview: TranslationAlignmentResult, previewReused: boolean) => {
     const before = dependenciesRef.current.getDocument();
-    if (!before || !currentPreview) return;
+    if (!before) throw new Error('The Auto Align document is no longer available.');
     const after = applyTranslationAlignment(before, currentPreview);
     setPreview(null);
     if (after === before) {
@@ -110,7 +102,9 @@ export const useAutoAlignController = (
         .getRenderer()
         ?.clearTranslationAlignmentPreview(currentPreview.targetLayerId);
       dependenciesRef.current.setStatus('Auto Align found no geometry change to apply.');
-      return;
+      return { changed: false, previewReused, referenceLayerId: currentPreview.referenceLayerId,
+        targetLayerId: currentPreview.targetLayerId, model: currentPreview.model,
+        confidence: currentPreview.confidence, correctionMatrix: currentPreview.correctionMatrix };
     }
 
     // Commit before clearing the compositor preview so no intermediate frame
@@ -126,7 +120,45 @@ export const useAutoAlignController = (
         ? `Auto Align applied to layer · ${inlierCount}/${mutualMatches} geometric inliers`
         : `Auto Align applied to layer · ${Math.round(currentPreview.confidence * 100)}% confidence`
     );
+    return { changed: true, previewReused, referenceLayerId: currentPreview.referenceLayerId,
+      targetLayerId: currentPreview.targetLayerId, model: currentPreview.model,
+      confidence: currentPreview.confidence, correctionMatrix: currentPreview.correctionMatrix };
   }, [setPreview]);
+
+  const apply = useCallback(() => {
+    const currentPreview = previewRef.current;
+    if (currentPreview) commit(currentPreview, true);
+  }, [commit]);
+
+  const execute = useCallback(async (command: SemanticAutoAlignCommand, signal: AbortSignal) => {
+    const document = dependenciesRef.current.getDocument();
+    const renderer = dependenciesRef.current.getRenderer();
+    if (!document || !renderer) throw new Error('LightTable Auto Align is not initialized.');
+    const currentPreview = previewRef.current;
+    const previewSource = previewSourceRef.current;
+    if (signal.aborted) throw new DOMException('Auto Align was canceled.', 'AbortError');
+    const reused = reuseAutoAlignPreview(currentPreview, previewSource, document, command,
+      (result) => commit(result, true));
+    if (reused.reused) return reused.value;
+    abortRef.current?.abort();
+    if (currentPreview) renderer.clearTranslationAlignmentPreview(currentPreview.targetLayerId);
+    setPreview(null);
+    dependenciesRef.current.setStatus('Analyzing layer alignment...');
+    dependenciesRef.current.setError(null);
+    try {
+      return await executeAutoAlignOperation({ document, renderer, command, signal,
+        getDocument: dependenciesRef.current.getDocument,
+        commit: (result) => commit(result, false) });
+    } catch (reason) {
+      const canceled = signal.aborted || (reason instanceof DOMException && reason.name === 'AbortError');
+      dependenciesRef.current.setStatus(null);
+      if (!canceled) dependenciesRef.current.setError(
+        reason instanceof Error ? reason.message : 'Auto Align failed.'
+      );
+      throw canceled && !(reason instanceof DOMException)
+        ? new DOMException('Auto Align was canceled.', 'AbortError') : reason;
+    }
+  }, [commit, setPreview]);
 
   const begin = useCallback(async () => {
     const document = dependenciesRef.current.getDocument();
@@ -155,6 +187,7 @@ export const useAutoAlignController = (
     dependenciesRef.current.setStatus('Analyzing layer alignment...');
     dependenciesRef.current.setError(null);
     try {
+      const source = { documentId: document.id, revision: document.revision };
       const result = await renderer.alignLayersTranslation(
         references[0].id,
         target.id,
@@ -162,10 +195,14 @@ export const useAutoAlignController = (
         controller.signal
       );
       if (controller.signal.aborted || abortRef.current !== controller) return;
+      const current = dependenciesRef.current.getDocument();
+      if (!current || current.id !== source.documentId || current.revision !== source.revision) {
+        throw new Error('Auto Align preview was discarded because the document changed.');
+      }
       if (!renderer.previewTranslationAlignment(result)) {
         throw new Error('The Auto Align preview could not be displayed.');
       }
-      setPreview(result);
+      setPreview(result, source);
       dependenciesRef.current.setStatus(formatAutoAlignPreviewStatus(result));
     } catch (reason) {
       if (!controller.signal.aborted) {
@@ -189,5 +226,5 @@ export const useAutoAlignController = (
     }
   }, []);
 
-  return { preview, begin, apply, cancel };
+  return { preview, begin, apply, cancel, execute };
 };

@@ -134,6 +134,73 @@ try {
     firstEditRevision = (await call('lighttable_document', { documentId })).structuredContent.canonicalRevision;
     eventCursor = (await call('lighttable_events', { afterCursor: 0, limit: 1 })).structuredContent.latestCursor;
   }
+  const alignReference = (await call('lighttable_execute', {
+    documentId, command: 'layer.createRaster', expectedDocumentRevision: firstEditRevision, parameters: {}
+  })).structuredContent.value?.layerId;
+  if (!alignReference) throw new Error('MCP Auto Align reference layer was not created.');
+  await call('lighttable_execute', { documentId, command: 'raster.fill', parameters: {
+    layerId: alignReference, channel: 'pixels', color: '#18202a', opacity: 1
+  } });
+  const paintAlignFeature = (color, samples) => call('lighttable_execute', {
+    documentId, command: 'tool.commitGesture', parameters: {
+      kind: 'brush-stroke', parameters: { layerId: alignReference, channel: 'pixels', erase: false,
+        brush: { presetId: 'round', size: 18, hardness: 1, opacity: 1, flow: 1,
+          spacing: 0.05, smooth: 0, color, backgroundColor: '#000000' } }, samples
+    }
+  });
+  await paintAlignFeature('#f2f5f8', [
+    { x: 48, y: 64, pressure: 1 }, { x: 128, y: 48, pressure: 1 },
+    { x: 176, y: 132, pressure: 1 }, { x: 252, y: 72, pressure: 1 },
+    { x: 332, y: 160, pressure: 1 }, { x: 416, y: 96, pressure: 1 }
+  ]);
+  await paintAlignFeature('#ff6b35', [
+    { x: 72, y: 330, pressure: 1 }, { x: 148, y: 220, pressure: 1 },
+    { x: 230, y: 360, pressure: 1 }, { x: 310, y: 244, pressure: 1 },
+    { x: 430, y: 340, pressure: 1 }
+  ]);
+  const alignFixtureLayers = (await call('lighttable_layers', { documentId })).structuredContent;
+  const alignFixtureList = Array.isArray(alignFixtureLayers)
+    ? alignFixtureLayers : alignFixtureLayers.result ?? alignFixtureLayers.layers ?? alignFixtureLayers.value ?? [];
+  const referenceLayer = alignFixtureList.find(({ id }) => id === alignReference);
+  const duplicatedForAlign = (await call('lighttable_execute', {
+    documentId, command: 'layer.duplicate', parameters: { layerId: alignReference }
+  })).structuredContent;
+  const alignTargetLayerId = duplicatedForAlign?.value?.layerId;
+  if (!alignTargetLayerId || !referenceLayer?.transform) {
+    throw new Error(`MCP Auto Align fixture could not be created: ${JSON.stringify(duplicatedForAlign)}`);
+  }
+  await call('lighttable_execute', { documentId, command: 'layer.setLock', parameters: {
+    layerIds: [alignTargetLayerId], lock: 'all', locked: false
+  } });
+  await call('lighttable_execute', { documentId, command: 'layer.setLock', parameters: {
+    layerIds: [alignTargetLayerId], lock: 'position', locked: false
+  } });
+  const shiftedTransform = { ...referenceLayer.transform,
+    tx: referenceLayer.transform.tx + 12, ty: referenceLayer.transform.ty + 8 };
+  await call('lighttable_execute', { documentId, command: 'layer.setTransform', parameters: {
+    layerId: alignTargetLayerId, transform: shiftedTransform
+  } });
+  const autoAlign = (await call('lighttable_execute', { documentId, command: 'layer.autoAlign',
+    parameters: { referenceLayerId: alignReference, targetLayerId: alignTargetLayerId }
+  })).structuredContent;
+  if (autoAlign?.status !== 'accepted' || !autoAlign.taskId) {
+    throw new Error(`MCP Auto Align was not accepted: ${JSON.stringify(autoAlign)}`);
+  }
+  const autoAlignTask = await waitForDocumentTask(documentId, autoAlign.taskId);
+  if (autoAlignTask?.status !== 'completed') {
+    throw new Error(`MCP Auto Align failed: ${JSON.stringify(autoAlignTask)}`);
+  }
+  const alignedLayers = (await call('lighttable_layers', { documentId })).structuredContent;
+  const alignedLayerList = Array.isArray(alignedLayers)
+    ? alignedLayers : alignedLayers.result ?? alignedLayers.layers ?? alignedLayers.value ?? [];
+  const alignedTarget = alignedLayerList.find(({ id }) => id === alignTargetLayerId);
+  if (!alignedTarget || (alignedTarget.transform.tx === shiftedTransform.tx
+    && alignedTarget.transform.ty === shiftedTransform.ty)) {
+    throw new Error(`MCP Auto Align did not change target geometry: ${JSON.stringify(alignedTarget)}`);
+  }
+  await call('lighttable_execute', { documentId, command: 'layer.delete',
+    parameters: { layerIds: [alignTargetLayerId, alignReference] } });
+  firstEditRevision = (await call('lighttable_document', { documentId })).structuredContent.canonicalRevision;
   await call('lighttable_execute', { documentId, command: 'layer.createRaster',
     expectedDocumentRevision: firstEditRevision, parameters: {} });
   const createdDocument = (await call('lighttable_document', { documentId })).structuredContent;
