@@ -8,7 +8,7 @@ import {
   type Vec2,
   type VectorStyle
 } from '@lighttable/vector-core';
-import type { ImageDocument } from '../../editor/document/documentTypes';
+import { layerIsLocked, type ImageDocument, type LayerId } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   createVectorEditorSelection,
@@ -62,6 +62,12 @@ export interface VectorToolSessionOptions {
   pathName?: string;
   rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean;
   requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
+  onLiveShapeCommitted?: (result: {
+    readonly layerId: LayerId;
+    readonly element: VectorLiveShape;
+    readonly existingLayerId?: LayerId;
+    readonly layerName: string;
+  }) => void;
 }
 
 export interface VectorPointerDownOptions extends LiveShapeDragOptions {
@@ -78,6 +84,7 @@ interface CapturedPointer {
   readonly mode: VectorToolMode;
   readonly documentId: ImageDocument['id'];
   readonly rasterize?: boolean;
+  readonly existingVectorLayerId?: LayerId;
 }
 
 /**
@@ -103,12 +110,14 @@ export class VectorToolSessionController {
   private documentId: ImageDocument['id'] | null;
   private disposed = false;
   private readonly rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean;
+  private readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
 
   constructor(
     private readonly dependencies: VectorToolSessionDependencies,
     options: VectorToolSessionOptions = {}
   ) {
     this.rasterizeShape = options.rasterizeShape;
+    this.onLiveShapeCommitted = options.onLiveShapeCommitted;
     this.documentId = dependencies.getDocument()?.id ?? null;
     this.documents = new VectorDocumentController(() => this.dependencies);
     this.directSelection = new DirectSelectionToolController(this.documents, dependencies);
@@ -267,11 +276,18 @@ export class VectorToolSessionController {
       if (!result.capture) return true;
     }
 
+    const activeDocument = this.dependencies.getDocument();
+    const existingVectorTarget = this.activeMode === 'live-shape' && activeDocument
+      ? findDocumentLayer(activeDocument, activeDocument.activeLayerId)
+      : null;
     this.capturedPointer = {
       id: pointerId,
       mode: this.activeMode,
       documentId,
-      rasterize: this.activeMode === 'live-shape' && options.rasterize
+      rasterize: this.activeMode === 'live-shape' && options.rasterize,
+      ...(existingVectorTarget?.type === 'vector'
+        && !layerIsLocked(existingVectorTarget, 'pixels')
+        ? { existingVectorLayerId: existingVectorTarget.id } : {})
     };
     return true;
   }
@@ -320,7 +336,25 @@ export class VectorToolSessionController {
         }
         return true;
       }
-      return this.liveShape.pointerUp(documentPoint, options);
+      const opening = this.liveShape.snapshot();
+      const committed = this.liveShape.pointerUp(documentPoint, options);
+      if (committed && opening.layerId && opening.shape) {
+        const currentDocument = this.dependencies.getDocument();
+        const layer = currentDocument
+          ? findDocumentLayer(currentDocument, opening.layerId)
+          : null;
+        const element = layer?.type === 'vector'
+          ? layer.elements.find(({ id }) => id === opening.shape!.id)
+          : null;
+        if (layer?.type === 'vector' && element?.type === 'live-shape') this.onLiveShapeCommitted?.({
+          layerId: opening.layerId,
+          element: cloneVectorElement(element) as VectorLiveShape,
+          layerName: layer.name,
+          ...(capture.existingVectorLayerId
+            ? { existingLayerId: capture.existingVectorLayerId } : {})
+        });
+      }
+      return committed;
     }
     if (capture.mode === 'gradient') return this.gradient.pointerUp(
       documentPoint,

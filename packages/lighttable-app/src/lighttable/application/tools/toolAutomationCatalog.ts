@@ -20,10 +20,6 @@ const presentation = (note: string): ToolAutomationDefinition => ({
 const owner = (interaction: 'discrete' | 'continuous', capabilities: readonly string[], note: string): ToolAutomationDefinition => ({
   interaction, availability: 'canonical-owner-only', capabilities, note
 });
-const playback = (capabilities: readonly string[], note: string,
-  interaction: 'discrete' | 'continuous' = 'continuous'): ToolAutomationDefinition => ({
-  interaction, availability: 'playback-command-only', capabilities, note
-});
 const uiCommand = (interaction: 'discrete' | 'continuous', capabilities: readonly string[],
   note: string): ToolAutomationDefinition => ({
   interaction, availability: 'ui-and-command', capabilities, note
@@ -62,10 +58,14 @@ export const TOOL_AUTOMATION_CATALOG = {
   'vector-convert-anchor': owner('discrete', ['vector.update'], 'Vector update can express the result; UI routing is open.'),
   'vector-select': presentation('Vector target selection is editor presentation state.'),
   'vector-direct-select': presentation('Vector anchor selection is editor presentation state.'),
-  'shape-rectangle': owner('continuous', ['vector.create', 'vector.update'], 'Semantic output exists; UI shape commit recording is open.'),
-  'shape-ellipse': owner('continuous', ['vector.create', 'vector.update'], 'Semantic output exists; UI shape commit recording is open.'),
-  'shape-triangle': owner('continuous', ['vector.create', 'vector.update'], 'Semantic output exists; UI shape commit recording is open.'),
-  'shape-line': owner('continuous', ['vector.create', 'vector.update'], 'Semantic output exists; UI shape commit recording is open.'),
+  'shape-rectangle': uiCommand('continuous', ['vector.create', 'vector.update'],
+    'The toolbar publishes one native Rectangle only after its local preview commits.'),
+  'shape-ellipse': uiCommand('continuous', ['vector.create', 'vector.update'],
+    'The toolbar publishes one native Ellipse only after its local preview commits.'),
+  'shape-triangle': uiCommand('continuous', ['vector.create', 'vector.update'],
+    'The toolbar publishes one native Triangle only after its local preview commits.'),
+  'shape-line': uiCommand('continuous', ['vector.create', 'vector.update'],
+    'The toolbar publishes one native Line only after its local preview commits.'),
   'text-point': { interaction: 'discrete', availability: 'ui-and-command',
     capabilities: ['text.create', 'text.replaceRange', 'text.format', 'text.setLayout'],
     note: 'Point text already enters through semantic commands.' },

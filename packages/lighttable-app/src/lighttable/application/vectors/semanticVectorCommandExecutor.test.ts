@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
+import { createVectorLiveShape } from '@lighttable/vector-core';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { parseSemanticVectorCommand } from '../commands/semanticVectorCommandContract';
 import { executeSemanticVectorCommand } from './semanticVectorCommandExecutor';
+import { observedLiveShapeCreateCommand } from './semanticVectorObservation';
 
 const harness = () => {
   let document = createImageDocument('Vectors', 640, 480, 'fixture');
@@ -64,5 +66,34 @@ describe('semantic vector commands', () => {
     })) } };
     expect(parseSemanticVectorCommand('create', { primitive: { kind: 'ellipse', x: 0, y: 0, width: 10, height: 10 },
       style: { fill: gradient } })).toHaveProperty('message');
+  });
+
+  it('round-trips authored toolbar shape properties through vector.create', () => {
+    const cases = [
+      { kind: 'rectangle' as const, width: 80, height: 40,
+        cornerRadii: [3, 6, 9, 12] as [number, number, number, number], linkedCorners: false },
+      { kind: 'ellipse' as const, width: 72, height: 36 },
+      { kind: 'triangle' as const, width: 70, height: 60, cornerRadius: 7 },
+      { kind: 'line' as const, start: { x: 0, y: 0 }, end: { x: 90, y: 40 },
+        startArrow: { width: 8, length: 12, concavity: 0 },
+        endArrow: { width: 10, length: 16, concavity: 0.25 } }
+    ];
+    for (const [index, geometry] of cases.entries()) {
+      const state = harness();
+      const element = createVectorLiveShape(`observed-${index}`, geometry, `Observed ${geometry.kind}`);
+      element.transform = { a: 0.9, b: 0.1, c: -0.1, d: 0.9, tx: 31, ty: 27 };
+      element.style.opacity = 0.65;
+      const parameters = observedLiveShapeCreateCommand(element, undefined, 'Shape');
+      expect(parameters).not.toBeNull();
+      const parsed = parseSemanticVectorCommand('create', parameters);
+      expect(parsed).not.toHaveProperty('message');
+      const created = executeSemanticVectorCommand(parsed as Extract<typeof parsed, { kind: 'create' }>,
+        state.dependencies)!;
+      const layer = findDocumentLayer(state.document(), created.layerId);
+      const replayed = layer?.type === 'vector' ? layer.elements[0] : null;
+      expect(replayed).toMatchObject({ type: 'live-shape', name: element.name,
+        geometry, transform: element.transform, style: element.style });
+      expect(layer?.name).toBe('Shape');
+    }
   });
 });

@@ -158,16 +158,52 @@ try {
     throw new Error('Expected add and disable layer-mask Action steps.');
   }
 
+  await window.getByRole('button', { name: 'Rectangle (U)', exact: true }).first().click();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.18,
+    viewportBounds.y + viewportBounds.height * 0.62
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.36,
+    viewportBounds.y + viewportBounds.height * 0.78,
+    { steps: 16 }
+  );
+  await window.mouse.up();
+  await recorder.locator('li').filter({ hasText: 'vector.create' }).waitFor({ timeout: 15_000 })
+    .catch(async () => {
+      const diagnostic = await window.evaluate(() => {
+        const driver = window.__lightTableAutomation;
+        const workspace = driver?.queryWorkspace();
+        const documentId = workspace?.activeDocumentId;
+        return { document: documentId ? driver?.queryDocument(documentId) : null,
+          layers: documentId ? driver?.queryLayers(documentId) : null };
+      });
+      throw new Error(`Native Rectangle did not record vector.create: ${JSON.stringify({
+        diagnostic, recorder: await recorder.textContent()
+      })}`);
+    });
+
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
-  const undo = panel.locator('details').filter({ hasText: 'history.undo' });
-  await undo.locator('summary').click();
-  const undoButton = undo.getByRole('button', { name: 'Run' });
-  await undoButton.waitFor();
-  for (let index = 0; index < 11; index += 1) {
+  for (let index = 0; index < 12; index += 1) {
+    await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+    await panel.getByRole('radio', { name: 'Commands' }).click();
+    const undo = panel.locator('details').filter({ hasText: 'history.undo' });
+    const undoButton = undo.getByRole('button', { name: 'Run' });
+    if (!await undoButton.isVisible()) await undo.locator('summary').click();
+    await undoButton.waitFor();
+    const beforeUndoDepth = await window.evaluate(() => {
+      const driver = window.__lightTableAutomation;
+      const documentId = driver?.queryWorkspace()?.activeDocumentId;
+      return documentId ? driver?.queryDocument(documentId)?.history.undoDepth : null;
+    });
     await undoButton.click();
-    await panel.getByRole('status').filter({ hasText: 'history.undo: completed' })
-      .waitFor({ timeout: 15_000 });
+    await window.waitForFunction((expected) => {
+      const driver = window.__lightTableAutomation;
+      const documentId = driver?.queryWorkspace()?.activeDocumentId;
+      return documentId && driver?.queryDocument(documentId)?.history.undoDepth === expected;
+    }, Number(beforeUndoDepth) - 1, { timeout: 15_000 });
   }
   await window.waitForFunction(
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
@@ -176,7 +212,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 11) throw new Error('Expected eleven recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 12) throw new Error('Expected twelve recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -204,7 +240,7 @@ try {
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
   await window.waitForFunction(
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
-    before + 2,
+    before + 3,
     { timeout: 15_000 }
   );
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
@@ -224,9 +260,11 @@ try {
     const driver = window.__lightTableAutomation;
     const workspace = driver?.queryWorkspace();
     const documentId = workspace?.activeDocumentId;
-    const document = documentId ? driver?.queryDocument(documentId) : null;
-    return documentId && document?.activeLayerId
-      ? driver?.queryText(documentId, document.activeLayerId)
+    const textLayer = documentId
+      ? driver?.queryLayers(documentId)?.find(({ type }) => type === 'text')
+      : null;
+    return documentId && textLayer
+      ? driver?.queryText(documentId, textLayer.id)
       : null;
   });
   if (playbackText?.sourceKind !== 'flow' || !playbackText.editable
@@ -239,13 +277,31 @@ try {
     const driver = window.__lightTableAutomation;
     const workspace = driver?.queryWorkspace();
     const documentId = workspace?.activeDocumentId;
-    const document = documentId ? driver?.queryDocument(documentId) : null;
-    return documentId && document?.activeLayerId
-      ? driver?.queryLayers(documentId)?.find(({ id }) => id === document.activeLayerId)
+    return documentId
+      ? driver?.queryLayers(documentId)?.find(({ type, hasMask }) => type === 'text' && hasMask)
       : null;
   });
   if (!playbackMask?.hasMask || playbackMask.maskContent?.raster?.enabled !== false) {
     throw new Error(`Actions replay did not preserve disabled layer mask: ${JSON.stringify(playbackMask)}`);
+  }
+  const playbackShape = await window.evaluate(() => {
+    const driver = window.__lightTableAutomation;
+    const workspace = driver?.queryWorkspace();
+    const documentId = workspace?.activeDocumentId;
+    const document = documentId ? driver?.queryDocument(documentId) : null;
+    const shapeLayer = documentId && document?.activeLayerId
+      ? driver?.queryLayers(documentId)?.find(({ id, type }) => id === document.activeLayerId && type === 'vector')
+      : null;
+    return documentId && shapeLayer ? {
+      layerName: shapeLayer.name,
+      vector: driver?.queryVector(documentId, shapeLayer.id)
+    } : null;
+  });
+  if (playbackShape?.layerName !== 'Shape'
+    || playbackShape.vector?.totalElements !== 1
+    || playbackShape.vector.elements?.[0]?.type !== 'live-shape'
+    || playbackShape.vector.elements?.[0]?.geometry?.kind !== 'rectangle') {
+    throw new Error(`Actions replay did not preserve native rectangle: ${JSON.stringify(playbackShape)}`);
   }
 
   await window.screenshot({ path: screenshot });

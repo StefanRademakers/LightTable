@@ -165,6 +165,7 @@ import { FlowTextEditingSessionController } from './application/text/flowTextEdi
 import { executeSemanticTextCommand, paragraphTextCreateCommand, pointTextCreateCommand,
   semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
+import { observedLiveShapeCreateCommand } from './application/vectors/semanticVectorObservation';
 import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
 import { executeAtomicCommandBatch } from './application/commands/atomicCommandBatchExecutor';
 import { applySemanticFaceWarpCommandToDocument, executeSemanticFaceWarpCommand } from './application/effects/faceWarp/semanticFaceWarpCommandExecutor';
@@ -3526,7 +3527,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         endpoint
       }));
     },
-    rasterizeShape: (transaction) => rasterizeShapeRef.current(transaction)
+    rasterizeShape: (transaction) => rasterizeShapeRef.current(transaction),
+    onLiveShapeCommitted: ({ layerId, element, existingLayerId, layerName }) => {
+      const parameters = observedLiveShapeCreateCommand(element, existingLayerId, layerName);
+      if (!parameters) return;
+      commandService?.recordObservedCommand(
+        'vector.create',
+        workspaceDocumentId as DocumentSessionId,
+        parameters,
+        { layerId, elementId: element.id }
+      );
+    }
   });
   finishPenPathRef.current = () => {
     vectorToolSessionController.finishPenPath();

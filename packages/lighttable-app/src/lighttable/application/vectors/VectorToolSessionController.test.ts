@@ -28,7 +28,10 @@ const layerPaths = (layer: ReturnType<typeof findDocumentLayer>): VectorPath[] =
     : []
 );
 
-const setup = (rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean) => {
+const setup = (
+  rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean,
+  onLiveShapeCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onLiveShapeCommitted']
+) => {
   let document = createImageDocument('Vector tools', 200, 100, 'asset');
   let selection: VectorEditorSelection = createVectorEditorSelection();
   const history: Array<{ before: typeof document; after: typeof document }> = [];
@@ -38,7 +41,7 @@ const setup = (rasterizeShape?: (transaction: VectorElementCreationTransaction) 
     pushDocumentHistory: (before, after) => history.push({ before, after }),
     getSelection: () => selection,
     setSelection: (next) => { selection = next; }
-  }, { ids: ids(), rasterizeShape });
+  }, { ids: ids(), rasterizeShape, onLiveShapeCommitted });
   return {
     controller,
     history,
@@ -211,7 +214,8 @@ describe('VectorToolSessionController', () => {
   });
 
   it('creates a live shape through the document-owned pointer session', () => {
-    const state = setup();
+    const onLiveShapeCommitted = vi.fn();
+    const state = setup(undefined, onLiveShapeCommitted);
     expect(state.controller.setLiveShapePreset({
       kind: 'star',
       points: 6,
@@ -224,6 +228,11 @@ describe('VectorToolSessionController', () => {
     expect(state.history).toHaveLength(0);
     expect(state.controller.pointerUp(12, { x: 70, y: 70 })).toBe(true);
     expect(state.history).toHaveLength(1);
+    expect(onLiveShapeCommitted).toHaveBeenCalledOnce();
+    expect(onLiveShapeCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      layerId: state.document.activeLayerId,
+      element: expect.objectContaining({ type: 'live-shape', geometry: expect.objectContaining({ kind: 'star' }) })
+    }));
 
     const layer = findDocumentLayer(state.document, state.document.activeLayerId!);
     expect(layer?.type).toBe('vector');
@@ -260,6 +269,24 @@ describe('VectorToolSessionController', () => {
       elementId: 'live-shape-1'
     });
     expect(state.history).toHaveLength(0);
+  });
+
+  it('reports an existing editable vector target for stable Action replay', () => {
+    const onLiveShapeCommitted = vi.fn();
+    const state = setup(undefined, onLiveShapeCommitted);
+    const target = createVectorLayer([], 'Existing shapes');
+    state.document = { ...state.document, layers: [target], activeLayerId: target.id };
+    state.controller.activate('live-shape');
+    state.controller.pointerDown(14, { x: 10, y: 10 }, { hitRadius: 2 });
+    state.controller.pointerMove(14, { x: 60, y: 40 });
+    expect(state.controller.pointerUp(14, { x: 60, y: 40 })).toBe(true);
+
+    expect(onLiveShapeCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      layerId: target.id,
+      existingLayerId: target.id,
+      layerName: 'Existing shapes'
+    }));
+    expect(state.document.layers).toHaveLength(1);
   });
 
   it('selects and translates a live shape without converting its geometry', () => {

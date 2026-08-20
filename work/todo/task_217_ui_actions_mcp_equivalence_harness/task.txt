@@ -84,6 +84,9 @@ Current evidence (2026-08-20)
   The packaged Actions path also bakes the existing selection into a mask,
   replays its disabled state and verifies canonical mask data. Packaged Agent
   Access targets a non-active layer and leaves artist focus unchanged.
+- Native shape creation is shared through `vector.create`: unit round-trips
+  cover Rectangle, Ellipse, Triangle and Line properties, while packaged
+  Actions proves a real Rectangle gesture, undo and native editable replay.
 
 Still required for completion
 =============================

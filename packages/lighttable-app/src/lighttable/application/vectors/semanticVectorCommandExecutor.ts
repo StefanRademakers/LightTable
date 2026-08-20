@@ -25,10 +25,15 @@ const primitiveElement = (primitive: SemanticVectorPrimitive, name: string): Vec
   let geometry; let transform;
   if (primitive.kind === 'rectangle') {
     geometry = { kind: 'rectangle' as const, width: primitive.width, height: primitive.height,
-      cornerRadii: [...(primitive.cornerRadii ?? [0, 0, 0, 0])] as [number, number, number, number], linkedCorners: true };
+      cornerRadii: [...(primitive.cornerRadii ?? [0, 0, 0, 0])] as [number, number, number, number],
+      linkedCorners: primitive.linkedCorners ?? true };
     transform = translationMatrix(primitive.x, primitive.y);
   } else if (primitive.kind === 'ellipse') {
     geometry = { kind: 'ellipse' as const, width: primitive.width, height: primitive.height };
+    transform = translationMatrix(primitive.x, primitive.y);
+  } else if (primitive.kind === 'triangle') {
+    geometry = { kind: 'triangle' as const, width: primitive.width, height: primitive.height,
+      cornerRadius: primitive.cornerRadius ?? 0 };
     transform = translationMatrix(primitive.x, primitive.y);
   } else if (primitive.kind === 'star') {
     geometry = { kind: 'star' as const, points: primitive.points, outerRadius: primitive.outerRadius,
@@ -38,7 +43,8 @@ const primitiveElement = (primitive: SemanticVectorPrimitive, name: string): Vec
   } else {
     geometry = { kind: 'line' as const, start: { x: 0, y: 0 },
       end: { x: primitive.x2 - primitive.x1, y: primitive.y2 - primitive.y1 },
-      startArrow: null, endArrow: null };
+      startArrow: structuredClone(primitive.startArrow ?? null),
+      endArrow: structuredClone(primitive.endArrow ?? null) };
     transform = translationMatrix(primitive.x1, primitive.y1);
   }
   const element = createVectorLiveShape(nextId('shape'), geometry, name);
@@ -58,6 +64,7 @@ const createElement = (command: Extract<SemanticVectorCommand, { kind: 'create' 
     : createVectorPath(nextId('path'), name,
       canonicalSubpathsFromSemantic(command.subpaths!, nextId));
   if (element.type === 'path') element.fillRule = command.fillRule ?? 'nonzero';
+  if (command.transform) element.transform = { ...command.transform };
   element.style = applyStyle(element.style, command.style);
   return parseVectorElement(element, 'semantic vector creation');
 };
@@ -107,7 +114,7 @@ export const executeSemanticVectorCommand = (
       throw new Error('The requested vector target is unavailable or locked.');
     }
     after = target?.type === 'vector' ? appendVectorElement(before, target.id, element)
-      : createVectorLayer(before, [element], command.name ?? 'Shape');
+      : createVectorLayer(before, [element], command.layerName ?? command.name ?? 'Shape');
     layerId = target?.type === 'vector' ? target.id : after.activeLayerId;
   } else {
     const layer = findDocumentLayer(before, command.layerId as LayerId);

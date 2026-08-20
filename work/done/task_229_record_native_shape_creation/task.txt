@@ -1,0 +1,73 @@
+Task 229 - Record native shape creation without touching pointer hot paths
+==========================================================================
+
+Goal
+====
+
+Record committed Rectangle, Ellipse, Triangle and Line toolbar gestures as
+faithful `vector.create` Action steps that replay into native editable vectors.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Audit exact committed live-shape data versus the current vector schema.
+- [x] Extend the shared schema only for shape properties required for lossless replay.
+- [x] Publish one callback after successful canonical commit; keep pointer previews local.
+- [x] Preserve target-layer semantics and bind new-layer results during Action playback.
+- [x] Record native shape name, geometry, transform, fill, stroke and opacity.
+- [x] Cover Rectangle, Ellipse, Triangle and Line including corner/arrow properties.
+- [x] Add schema, controller, recording and canonical replay tests.
+- [x] Prove real packaged toolbar creation -> undo -> Actions playback.
+- [x] Keep MCP schema/examples synchronized and document exact remaining vector gaps.
+- [x] Run full type, contract, boundary and regression gates.
+
+Scope guard
+===========
+
+- Pointer-down/move previews never enter the command service or recorder.
+- Rasterized shape mode, Pen paths, post-create direct manipulation and Gradient
+  authoring are separate slices.
+- This task must not flatten native shapes or reduce their editable properties.
+
+Completion contract
+===================
+
+A real toolbar shape gesture creates one normal history entry and at most one
+recorded `vector.create` step after commit. Undo plus playback restores an
+equivalent native editable shape with its authored geometry/style/transform.
+
+Completion evidence
+===================
+
+- The audit found and closed actual replay gaps in `vector.create`: Triangle,
+  rectangle corner linking, Line arrowheads, exact transforms and separate
+  layer/element names.
+- `VectorToolSessionController` publishes one committed live-shape result after
+  document history succeeds. Pointer-down/move and provisional rendering are
+  unchanged and never call Actions or MCP.
+- Existing vector targets remain explicit; newly created layers omit a target
+  and return stable `layerId`/`elementId` results for later Action binding.
+- Unit round-trips cover all four toolbar shape kinds and their editable data.
+- Packaged Actions draws a Rectangle with 16 pointer moves, records one
+  `vector.create`, undoes twelve mixed operations, replays them and queries a
+  native live-shape with `Shape` layer name and `Rectangle` element geometry.
+- Workspace typecheck, 460-file / 2,564-test app suite, command-contract and
+  boundary verification, desktop package verification, packaged Actions and
+  packaged Agent Access all passed.
+
+Explicit remaining vector work
+==============================
+
+- Pen-path commit recording and stable path/subpath identity;
+- recorded direct-selection geometry/style edits;
+- Gradient authoring and rasterized Shape mode;
+- packaged toolbar proof for Ellipse, Triangle and Line (unit equivalence exists);
+- revision-bound rendered comparison across UI, Actions and external MCP.

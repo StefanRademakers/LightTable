@@ -1,5 +1,6 @@
 import type { GradientPaintInstance } from '@lighttable/paint-core';
-import type { AffineMatrix, LiveShapeGeometry, VectorStyle, VectorSubpath } from '@lighttable/vector-core';
+import type { AffineMatrix, ArrowheadGeometry, LiveShapeGeometry, VectorStyle,
+  VectorSubpath } from '@lighttable/vector-core';
 
 export interface SemanticVectorPathAnchor {
   readonly id?: string;
@@ -16,12 +17,16 @@ export interface SemanticVectorSubpath {
 }
 export type SemanticVectorPrimitive =
   | { readonly kind: 'rectangle'; readonly x: number; readonly y: number; readonly width: number;
-      readonly height: number; readonly cornerRadii?: readonly [number, number, number, number] }
+      readonly height: number; readonly cornerRadii?: readonly [number, number, number, number];
+      readonly linkedCorners?: boolean }
   | { readonly kind: 'ellipse'; readonly x: number; readonly y: number; readonly width: number; readonly height: number }
+  | { readonly kind: 'triangle'; readonly x: number; readonly y: number; readonly width: number;
+      readonly height: number; readonly cornerRadius?: number }
   | { readonly kind: 'star'; readonly cx: number; readonly cy: number; readonly points: number;
       readonly outerRadius: number; readonly innerRadius: number; readonly rotationRadians?: number;
       readonly cornerRadius?: number }
-  | { readonly kind: 'line'; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number };
+  | { readonly kind: 'line'; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number;
+      readonly startArrow?: ArrowheadGeometry | null; readonly endArrow?: ArrowheadGeometry | null };
 
 export interface SemanticVectorStylePatch {
   readonly fill?: VectorStyle['fill'];
@@ -30,9 +35,10 @@ export interface SemanticVectorStylePatch {
 }
 
 export type SemanticVectorCommand =
-  | { readonly kind: 'create'; readonly layerId?: string; readonly name?: string;
+  | { readonly kind: 'create'; readonly layerId?: string; readonly layerName?: string; readonly name?: string;
       readonly primitive?: SemanticVectorPrimitive; readonly subpaths?: readonly SemanticVectorSubpath[];
-      readonly fillRule?: 'nonzero' | 'evenodd'; readonly style?: SemanticVectorStylePatch }
+      readonly fillRule?: 'nonzero' | 'evenodd'; readonly style?: SemanticVectorStylePatch;
+      readonly transform?: AffineMatrix }
   | { readonly kind: 'update'; readonly layerId: string; readonly elementId: string;
       readonly name?: string; readonly transform?: AffineMatrix; readonly style?: SemanticVectorStylePatch;
       readonly geometry?: LiveShapeGeometry; readonly subpaths?: readonly SemanticVectorSubpath[];
@@ -98,15 +104,22 @@ const validPrimitive = (value: unknown): value is SemanticVectorPrimitive => {
   if (!record(value)) return false;
   if (value.kind === 'rectangle') return finite(value.x) && finite(value.y) && finite(value.width, 0)
     && finite(value.height, 0) && (value.cornerRadii === undefined || (Array.isArray(value.cornerRadii)
-      && value.cornerRadii.length === 4 && value.cornerRadii.every((radius) => finite(radius, 0))));
+      && value.cornerRadii.length === 4 && value.cornerRadii.every((radius) => finite(radius, 0))))
+    && (value.linkedCorners === undefined || typeof value.linkedCorners === 'boolean');
   if (value.kind === 'ellipse') return finite(value.x) && finite(value.y)
     && finite(value.width, 0) && finite(value.height, 0);
+  if (value.kind === 'triangle') return finite(value.x) && finite(value.y)
+    && finite(value.width, 0) && finite(value.height, 0)
+    && (value.cornerRadius === undefined || finite(value.cornerRadius, 0));
   if (value.kind === 'star') return finite(value.cx) && finite(value.cy)
     && Number.isInteger(value.points) && Number(value.points) >= 3 && Number(value.points) <= 2048
     && finite(value.outerRadius, 0) && finite(value.innerRadius, 0)
     && (value.rotationRadians === undefined || finite(value.rotationRadians))
     && (value.cornerRadius === undefined || finite(value.cornerRadius, 0));
-  return value.kind === 'line' && finite(value.x1) && finite(value.y1) && finite(value.x2) && finite(value.y2);
+  const arrow = (entry: unknown) => entry === undefined || entry === null || (record(entry)
+    && finite(entry.width, 0) && finite(entry.length, 0) && finite(entry.concavity, 0, 1));
+  return value.kind === 'line' && finite(value.x1) && finite(value.y1) && finite(value.x2) && finite(value.y2)
+    && arrow(value.startArrow) && arrow(value.endArrow);
 };
 
 export const parseSemanticVectorCommand = (
@@ -118,7 +131,9 @@ export const parseSemanticVectorCommand = (
     if (hasPrimitive === hasPath || (hasPrimitive && !validPrimitive(value.primitive))
       || (hasPath && !validSubpaths(value.subpaths)) || !validStyle(value.style)
       || (value.layerId !== undefined && !id(value.layerId))
+      || (value.layerName !== undefined && !id(value.layerName))
       || (value.name !== undefined && !id(value.name))
+      || (value.transform !== undefined && !matrix(value.transform))
       || (value.fillRule !== undefined && value.fillRule !== 'nonzero' && value.fillRule !== 'evenodd')) {
       return { message: 'Vector creation parameters are invalid or exceed the geometry limits.' };
     }

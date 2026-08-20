@@ -10,7 +10,8 @@ import {
   isVectorEditorTool,
   vectorToolActivation
 } from '../../editor/tools/vectorToolCatalog';
-import { VectorToolSessionController } from './VectorToolSessionController';
+import { VectorToolSessionController, type VectorToolSessionOptions
+} from './VectorToolSessionController';
 import type { VectorElementCreationTransaction } from './VectorDocumentController';
 import { vectorStyleFromToolSettings } from './vectorStylePresentation';
 
@@ -27,6 +28,7 @@ export interface VectorToolSessionHookOptions {
   readonly publishSelection: (selection: VectorEditorSelection) => void;
   readonly rasterizeShape: (transaction: VectorElementCreationTransaction) => boolean;
   readonly requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
+  readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
 }
 
 /**
@@ -48,7 +50,8 @@ export const useVectorToolSessionController = ({
   pushDocumentHistory,
   publishSelection,
   rasterizeShape,
-  requestGradientColorEditor
+  requestGradientColorEditor,
+  onLiveShapeCommitted
 }: VectorToolSessionHookOptions): VectorToolSessionController => {
   const portsRef = useRef({
     document,
@@ -62,7 +65,8 @@ export const useVectorToolSessionController = ({
     pushDocumentHistory,
     publishSelection,
     rasterizeShape,
-    requestGradientColorEditor
+    requestGradientColorEditor,
+    onLiveShapeCommitted
   });
   portsRef.current = {
     document,
@@ -76,7 +80,8 @@ export const useVectorToolSessionController = ({
     pushDocumentHistory,
     publishSelection,
     rasterizeShape,
-    requestGradientColorEditor
+    requestGradientColorEditor,
+    onLiveShapeCommitted
   };
 
   const controllerRef = useRef<VectorToolSessionController | null>(null);
@@ -98,7 +103,8 @@ export const useVectorToolSessionController = ({
       liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       gradientSettings: () => portsRef.current.gradient,
       requestGradientColorEditor: (endpoint) => portsRef.current.requestGradientColorEditor?.(endpoint),
-      rasterizeShape: (transaction) => portsRef.current.rasterizeShape(transaction)
+      rasterizeShape: (transaction) => portsRef.current.rasterizeShape(transaction),
+      onLiveShapeCommitted: (result) => portsRef.current.onLiveShapeCommitted?.(result)
     });
   }
 

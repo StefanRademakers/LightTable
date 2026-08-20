@@ -24,6 +24,13 @@
   "layer.setLock": [
     { "layerIds": ["layer-logo"], "lock": "position", "locked": true }
   ],
+  "vector.create": [
+    { "layerName": "Shape", "name": "Rectangle",
+      "primitive": { "kind": "rectangle", "x": 0, "y": 0, "width": 180, "height": 90,
+        "cornerRadii": [8, 8, 8, 8], "linkedCorners": true },
+      "transform": { "a": 1, "b": 0, "c": 0, "d": 1, "tx": 32, "ty": 24 },
+      "style": { "fill": { "type": "solid", "color": [0.1, 0.35, 0.9, 1] }, "opacity": 1 } }
+  ],
   "tool.commitGesture": [
     {
       "kind": "brush-stroke",

@@ -108,6 +108,10 @@ Existing foundation evidence
   target `layer.setMask` contract. Packaged Actions proves real Layer-menu
   recording/replay; packaged Agent Access proves background-layer execution
   without changing the artist's active layer.
+- Rectangle, Ellipse, Triangle and Line toolbar gestures now publish one
+  lossless `vector.create` only after commit. Geometry, transform, layer/element
+  names, fill, stroke and opacity remain native and replayable; pointer previews
+  never enter the command service.
 
 Program definition of done
 ==========================

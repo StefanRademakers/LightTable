@@ -71,6 +71,9 @@ Current evidence (2026-08-20)
   document close, command-service disposal and Agent Access stop all cancel
   through the existing editor gesture owner; a packaged stop/restart flow
   proves a subsequent selection gesture is accepted without restarting the app.
+- Native live-shape drags retain their existing local provisional document path.
+  A single callback publishes `vector.create` only after successful commit; a
+  packaged 16-move Rectangle drag records one step and replays one editable shape.
 
 Remaining before this task is complete
 ======================================
