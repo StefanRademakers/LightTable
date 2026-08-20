@@ -530,7 +530,10 @@ The command service decides whether a validated execution is recordable, while
 [`SemanticActionWorkflowController`](../packages/lighttable-app/src/lighttable/application/actions/semanticActionWorkflowController.ts)
 owns Actions recording state, durable set selection and playback lifecycle.
 Playback calls the same command service again with recording disabled; it does
-not own a second mutation route.
+not own a second mutation route. Stopped Actions may define bounded typed
+variables with defaults and explicitly bind any compatible parameter to a
+variable or prior step result. Binding edits and playback overrides run the
+complete command-schema preflight before the first command executes.
 
 Atomic batches are capped at 64 operations, 256 KiB and 10 seconds. They build
 against a private document value, can reference earlier operation results, and

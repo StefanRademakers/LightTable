@@ -204,11 +204,13 @@ Existing foundation evidence
 - Layer via Copy now shares one explicit raster-source command. Existing
   selection pixels stay renderer-local, the created raster has a stable result
   ID, and UI/Actions/MCP reuse the same GPU/document/history transaction.
-- Concrete Actions now have bounded version-3 named-set save/load/delete
-  persistence, atomic version-1/version-2 migration with per-step
-  command-contract checks and active-document replay. A packaged restart proves
-  set selection, filtering, replay and contained deletion without routing any
-  interaction preview through storage.
+- Concrete Actions now have bounded version-4 named-set save/load/delete
+  persistence, typed variables with defaults/overrides and explicit parameter/
+  prior-result bindings. Atomic version-1/version-2 flat and version-3 set
+  migration retains per-step command-contract checks and active-document
+  replay. A packaged restart proves variable authoring, persistence, override
+  replay, set filtering and contained deletion without routing any interaction
+  preview through storage.
 - External raster inputs now cross the capability boundary as bounded opaque
   artifact handles. `layer.placeArtifact` reuses the existing decode/document/
   history owner, while `file.openArtifact` creates a document from the same

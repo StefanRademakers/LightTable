@@ -25,7 +25,7 @@ describe('ActionsPanel', () => {
       definitions={[definition]}
       onExecute={() => null}
       recording={{ status: 'idle', id: null, name: 'Untitled Action', startedAt: null,
-        stoppedAt: null, steps: [], byteLength: 0, limitReached: false }}
+        stoppedAt: null, steps: [], variables: [], byteLength: 0, limitReached: false }}
       playback={{ status: 'idle', currentSequence: null, results: [], taskProgress: null }}
       library={emptyLibrary}
       onStartRecording={() => undefined}
@@ -60,7 +60,7 @@ describe('ActionsPanel', () => {
     const markup = renderToStaticMarkup(<ActionsPanel
       capabilities={[]} definitions={[definition]} onExecute={() => null}
       recording={{ status: 'stopped', id: 'action-1', name: 'Layer setup', startedAt: 1,
-        stoppedAt: 2, byteLength: 10, limitReached: false, steps: [{
+        stoppedAt: 2, byteLength: 10, limitReached: false, variables: [], steps: [{
           sequence: 1, requestId: 'request-1', command: 'layer.createRaster', documentId: 'document-1',
           origin: 'ui', contract: { status: 'complete', schemaVersion: 1 }, parameters: {},
           outcome: 'completed', result: { created: true, layerId: 'layer-1' },
@@ -280,7 +280,7 @@ describe('ActionsPanel', () => {
       definitions={[definition]}
       onExecute={() => null}
       recording={{ status: 'stopped', id: 'action-1', name: 'Export', startedAt: 1,
-        stoppedAt: 2, steps: [], byteLength: 0, limitReached: false }}
+        stoppedAt: 2, steps: [], variables: [], byteLength: 0, limitReached: false }}
       playback={{ status: 'running', currentSequence: 1, results: [], taskProgress: 0.42 }}
       library={emptyLibrary}
       onStartRecording={() => undefined} onStopRecording={() => undefined}

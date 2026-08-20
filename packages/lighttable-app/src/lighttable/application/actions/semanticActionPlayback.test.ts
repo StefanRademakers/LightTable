@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SemanticActionPlaybackController } from './semanticActionPlayback';
+import { SemanticActionRecorder } from './semanticActionRecorder';
 import type { ActionRecordingSnapshot } from './semanticActionRecorder';
 
 const legacyContract = { status: 'legacy-properties-only' as const, schemaVersion: null };
@@ -16,7 +17,7 @@ const acceptedBatchStep = () => ({
 
 const recording = (): ActionRecordingSnapshot => ({
   status: 'stopped', id: 'action-1', name: 'Test', startedAt: 1, stoppedAt: 2,
-  byteLength: 10, limitReached: false,
+  byteLength: 10, limitReached: false, variables: [],
   steps: [{
     sequence: 1, requestId: 'recorded-1', command: 'layer.createRaster', documentId: 'document-1',
     origin: 'ui',
@@ -300,5 +301,74 @@ describe('SemanticActionPlaybackController', () => {
     expect(execute).not.toHaveBeenCalled();
     expect(controller.snapshot()).toMatchObject({ status: 'failed', currentSequence: 2,
       results: [{ status: 'contract-incompatible', message: expect.stringMatching(/schema v2/i) }] });
+  });
+
+  it('replays typed variable defaults and explicit overrides through the same command route', async () => {
+    const variableRecording: ActionRecordingSnapshot = {
+      ...recording(),
+      variables: [{ name: 'layerName', type: 'string', defaultValue: 'Default title' }],
+      steps: [{ ...recording().steps[1]!, parameters: {
+        layerId: 'existing-layer', name: { $lighttableVariable: { name: 'layerName' } }
+      } }]
+    };
+    const execute = vi.fn(async (request) => ({ requestId: request.requestId,
+      status: 'completed' as const, value: { layerId: 'existing-layer',
+        name: (request.parameters as { name: string }).name }, revisions: { workspace: 1 } }));
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.play(variableRecording, 'document-2', { layerName: 'Agent title' });
+
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      documentId: 'document-2', parameters: { layerId: 'existing-layer', name: 'Agent title' }
+    }));
+  });
+
+  it('rejects invalid variable overrides before executing any step', async () => {
+    const variableRecording: ActionRecordingSnapshot = {
+      ...recording(),
+      variables: [{ name: 'layerName', type: 'string', defaultValue: 'Default title' }],
+      steps: [{ ...recording().steps[1]!, parameters: {
+        layerId: 'existing-layer', name: { $lighttableVariable: { name: 'layerName' } }
+      } }]
+    };
+    const execute = vi.fn();
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.play(variableRecording, 'document-2', { layerName: 42 });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(controller.snapshot()).toMatchObject({ status: 'failed', currentSequence: 0,
+      results: [{ status: 'binding-error', message: expect.stringMatching(/requires a string/i) }] });
+  });
+
+  it('honors an explicitly authored result dependency when playing only its consumer step', async () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start('Explicit dependency');
+    recorder.record({ protocolVersion: 1, requestId: 'create', command: 'layer.createRaster',
+      documentId: 'document-1', parameters: {} }, {
+      requestId: 'create', status: 'completed', value: { created: true, layerId: 'old-layer' },
+      revisions: { workspace: 1, document: 2 }
+    }, Date.now());
+    recorder.record({ protocolVersion: 1, requestId: 'rename', command: 'layer.rename',
+      documentId: 'document-1', parameters: { layerId: 'old-layer', name: 'Title' } }, {
+      requestId: 'rename', status: 'completed', value: { layerId: 'old-layer', name: 'Title' },
+      revisions: { workspace: 1, document: 3 }
+    }, Date.now());
+    recorder.stop();
+    expect(recorder.restoreLiteral(2, '/layerId')).toEqual({ ok: true });
+    expect(recorder.bindResult(2, '/layerId', 1, 'layerId')).toEqual({ ok: true });
+    const execute = vi.fn(async (request) => request.command === 'layer.createRaster'
+      ? { requestId: request.requestId, status: 'completed' as const,
+        value: { created: true, layerId: 'new-layer' }, revisions: { workspace: 1, document: 4 } }
+      : { requestId: request.requestId, status: 'completed' as const,
+        value: { layerId: (request.parameters as { layerId: string }).layerId, name: 'Title' },
+        revisions: { workspace: 1, document: 5 } });
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.playStep(recorder.snapshot(), 2, 'document-2');
+
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls[1]?.[0]).toMatchObject({ command: 'layer.rename',
+      parameters: { layerId: 'new-layer', name: 'Title' } });
   });
 });

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { bindRecordedParameters, resolveActionParameters } from './actionResultBindings';
+import {
+  bindRecordedParameters,
+  resolveActionParameters,
+  validateActionVariables
+} from './actionResultBindings';
 import type { RecordedActionStep } from './semanticActionRecorder';
 
 const createStep: RecordedActionStep = {
@@ -32,5 +36,27 @@ describe('action result bindings', () => {
     expect(resolveActionParameters({
       layerId: { $lighttableResult: { step: 1, path: 'layerId' } }
     }, new Map())).toEqual({ error: 'Step 1 result has no layerId.' });
+  });
+
+  it('resolves typed Action variables independently of result bindings', () => {
+    expect(resolveActionParameters({
+      name: { $lighttableVariable: { name: 'layerName' } },
+      layerId: { $lighttableResult: { step: 1, path: 'layerId' } }
+    }, new Map([[1, { layerId: 'layer-2' }]]), new Map([['layerName', 'Headline']]))).toEqual({
+      value: { name: 'Headline', layerId: 'layer-2' }
+    });
+  });
+
+  it('rejects malformed, duplicate and mistyped variable definitions', () => {
+    expect(validateActionVariables([
+      { name: 'size', type: 'number', defaultValue: 'large' }
+    ])).toContain('does not match');
+    expect(validateActionVariables([
+      { name: 'name', type: 'string', defaultValue: 'A' },
+      { name: 'name', type: 'string', defaultValue: 'B' }
+    ])).toContain('duplicated');
+    expect(validateActionVariables([
+      { name: 'bad name', type: 'string', defaultValue: 'A' }
+    ])).toContain('invalid');
   });
 });

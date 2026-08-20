@@ -4,7 +4,10 @@ import type {
   LightTableCommandResult
 } from '../commands/lightTableCommandContract';
 import type { ActionRecordingSnapshot, RecordedActionStep } from './semanticActionRecorder';
-import { resolveActionParameters } from './actionResultBindings';
+import {
+  actionVariableValueMatchesType,
+  resolveActionParameters
+} from './actionResultBindings';
 import { checkActionCommandContracts } from './actionCommandContracts';
 
 export interface ActionPlaybackStepResult {
@@ -35,6 +38,9 @@ type ExecuteCommand = (request: LightTableCommandRequest) => Promise<LightTableC
 const initialSnapshot = (): ActionPlaybackSnapshot => ({
   status: 'idle', currentSequence: null, results: [], taskProgress: null
 });
+const nameIn = (value: Readonly<Record<string, unknown>>, name: string): boolean => (
+  Object.prototype.hasOwnProperty.call(value, name)
+);
 const returnedDocumentId = (value: unknown): string | null => (
   typeof value === 'object' && value !== null && 'documentId' in value
     && typeof value.documentId === 'string' && value.documentId.length > 0
@@ -100,8 +106,9 @@ export class SemanticActionPlaybackController {
     return () => this.listeners.delete(listener);
   };
 
-  async play(recording: ActionRecordingSnapshot, targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
-    return this.run(recording, recording.steps.filter(({ replayable }) => replayable), targetDocumentId);
+  async play(recording: ActionRecordingSnapshot, targetDocumentId?: string,
+    overrides: Readonly<Record<string, unknown>> = {}): Promise<ActionPlaybackSnapshot> {
+    return this.run(recording, recording.steps.filter(({ replayable }) => replayable), targetDocumentId, overrides);
   }
 
   async playStep(recording: ActionRecordingSnapshot, sequence: number,
@@ -129,9 +136,25 @@ export class SemanticActionPlaybackController {
   }
 
   private async run(recording: ActionRecordingSnapshot,
-    steps: readonly RecordedActionStep[], targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
+    steps: readonly RecordedActionStep[], targetDocumentId?: string,
+    overrides: Readonly<Record<string, unknown>> = {}): Promise<ActionPlaybackSnapshot> {
     if (this.snapshotValue.status === 'running') return this.snapshotValue;
-    const contracts = checkActionCommandContracts(recording.steps);
+    const variables = recording.variables ?? [];
+    const knownNames = new Set(variables.map(({ name }) => name));
+    const unknownOverride = Object.keys(overrides).find((name) => !knownNames.has(name));
+    const invalidOverride = variables.find((variable) => nameIn(overrides, variable.name)
+      && !actionVariableValueMatchesType(variable.type, overrides[variable.name]));
+    if (unknownOverride || invalidOverride) {
+      const message = unknownOverride ? `Unknown Action variable ${unknownOverride}.`
+        : `Action variable ${invalidOverride!.name} requires a ${invalidOverride!.type} value.`;
+      this.publish({ status: 'failed', currentSequence: 0, taskProgress: null,
+        results: [{ sequence: 0, command: 'action.variables', status: 'binding-error',
+          message, durationMs: 0 }] });
+      return this.snapshotValue;
+    }
+    const effectiveVariables = variables.map((variable) => nameIn(overrides, variable.name)
+      ? { ...variable, defaultValue: overrides[variable.name] } : variable);
+    const contracts = checkActionCommandContracts(recording.steps, false, effectiveVariables);
     if (!contracts.ok) {
       this.publish({ status: 'failed', currentSequence: contracts.sequence, taskProgress: null,
         results: [{ sequence: contracts.sequence,
@@ -139,6 +162,8 @@ export class SemanticActionPlaybackController {
           status: 'contract-incompatible', message: contracts.message, durationMs: 0 }] });
       return this.snapshotValue;
     }
+    const variableValues = new Map(variables.map((variable) => [variable.name,
+      nameIn(overrides, variable.name) ? overrides[variable.name] : variable.defaultValue]));
     this.stopRequested = false;
     this.publish({ status: 'running', currentSequence: null, results: [], taskProgress: null });
     const producedResults = new Map<number, unknown>();
@@ -151,7 +176,7 @@ export class SemanticActionPlaybackController {
       }
       this.publish({ ...this.snapshotValue, currentSequence: step.sequence, taskProgress: null });
       const startedAt = Date.now();
-      const parameters = resolveActionParameters(step.parameters, producedResults);
+      const parameters = resolveActionParameters(step.parameters, producedResults, variableValues);
       if ('error' in parameters) {
         const result: ActionPlaybackStepResult = {
           sequence: step.sequence, command: step.command, status: 'binding-error',

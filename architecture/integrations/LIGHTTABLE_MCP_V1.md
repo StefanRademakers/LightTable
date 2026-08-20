@@ -146,12 +146,14 @@ class and local invocation metadata. The docked Actions panel consumes that
 projection plus live capability results, so local discovery and MCP exposure
 cannot acquire separate naming or categorization lists.
 
-Durable Actions use a separate bounded version-3 workflow envelope: at most 16
-named sets and 32 Actions, with atomic migration of valid version-1/version-2
-flat libraries into a stable Default Set. Set names, selection and ordering are
-local workflow metadata; they do not enter document state or MCP command
-parameters. Recorded steps still contain only the shared semantic command
-contracts that Actions playback and MCP execution validate independently.
+Durable Actions use a separate bounded version-4 workflow envelope: at most 16
+named sets, 32 Actions and 32 typed variables per Action. Valid version-1/
+version-2 flat libraries migrate into a stable Default Set; valid version-3
+set libraries gain an empty variable list. Set names, selection, variables and
+explicit parameter/result bindings are local workflow metadata; they do not
+enter document state or create parallel MCP mutation commands. Playback
+resolves defaults or typed overrides and prior results before the same shared
+command-schema preflight used to guard each recorded semantic command.
 
 [`packages/command-contract/parameter-properties.json`](../../packages/command-contract/parameter-properties.json)
 is the checked top-level property inventory for those commands. Generation

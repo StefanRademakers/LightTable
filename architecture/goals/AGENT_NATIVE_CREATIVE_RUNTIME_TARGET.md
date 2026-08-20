@@ -188,10 +188,12 @@ Styles, bounded pixel Copy/Copy Merged/Paste and real renderer preview/export
 paths. Pixel clipboard Actions regenerate session-local artifacts during replay
 instead of persisting raster bytes or host paths.
 
-**Partial:** command coverage is incomplete; parameter properties are
-discoverable but are not yet complete shared machine schemas; Actions lacks
-durable named sets, rich parameters, gesture coalescing and task-aware
-playback; structural layer pages plus whole-document/layer/mask previews now
+**Partial:** command coverage is incomplete; current catalog commands have
+shared machine schemas, while several artist operations still lack admitted
+semantic commands. Actions now has durable named sets, typed variables,
+explicit result bindings, gesture-level commits and task-aware playback, but
+future command-schema migration transforms, teach mode and richer workflow
+authoring remain open. Structural layer pages plus whole-document/layer/mask previews now
 cover a bounded inspection baseline including final-composite regions and an
 active-layer content dispatcher. Every current adjustment presentation now has
 bounded module-registry-backed inspection for document, layer and attached

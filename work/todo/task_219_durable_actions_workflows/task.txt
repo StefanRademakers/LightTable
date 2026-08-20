@@ -54,10 +54,13 @@ Current evidence (2026-08-20)
 
 - [`Task 271`](../../done/task_271_durable_action_sets/task.txt) delivered the
   durable named-set storage, panel controls, migration and restart proof.
+- [`Task 272`](../../done/task_272_typed_action_variables_and_bindings/task.txt)
+  delivered typed workflow inputs and explicit parameter/result bindings.
 - Concrete stopped Actions can be user-named, explicitly saved, loaded and
   deleted from a deterministic bounded library.
-- The version-3 envelope groups at most 32 Actions into at most 16 stable named
-  Action Sets, with 256 steps per Action, 2 MiB per Action and 8 MiB total.
+- The version-4 envelope groups at most 32 Actions into at most 16 stable named
+  Action Sets, with 32 typed variables and 256 steps per Action, 2 MiB per
+  Action and 8 MiB total.
   Set/action ordering and selection are deterministic; malformed,
   newer-version, unknown-command, non-replayable and oversized content fails
   atomically.
@@ -80,9 +83,18 @@ Current evidence (2026-08-20)
   two-step recording independently in two sets, fully restarts the app, proves
   selected-set and filtered-action persistence, replays the original Action and
   verifies that deleting one set deletes only its contained Action.
+- A stopped Action can promote a nested parameter to a user-named typed
+  variable, edit its default, explicitly bind another parameter to that
+  variable or a prior result and restore its recorded literal. Every edit is
+  validated atomically against the complete command schemas and recorded
+  producer results. Playback accepts typed overrides and preflights them before
+  executing its first command.
+- The packaged restart smoke now authors `layerName` through the real panel,
+  stores it in the version-4 envelope, reloads it after a full process restart,
+  changes its default and replays the resulting layer name through the shared
+  command route.
 - Accepted async commands now replay through subscribed document-task state,
   show progress, fail closed on missing/failure/cancel/timeout and support Stop
   through the real task owner. Completed export artifacts are available to
   later stable result bindings.
-- User variables and explicit migration transforms for future command-schema
-  versions remain open.
+- Explicit migration transforms for future command-schema versions remain open.

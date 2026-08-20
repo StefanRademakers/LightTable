@@ -50,6 +50,20 @@ export class SemanticActionWorkflowController {
     this.playback.clear();
     return this.recorder.clear();
   };
+  createVariable = (sequence: number, parameterPath: string, name: string) => (
+    this.recorder.createVariable(sequence, parameterPath, name)
+  );
+  updateVariable = (name: string, defaultValue: unknown) => this.recorder.updateVariable(name, defaultValue);
+  deleteVariable = (name: string) => this.recorder.deleteVariable(name);
+  bindVariable = (sequence: number, parameterPath: string, name: string) => (
+    this.recorder.bindVariable(sequence, parameterPath, name)
+  );
+  bindResult = (sequence: number, parameterPath: string, producerStep: number, resultPath: string) => (
+    this.recorder.bindResult(sequence, parameterPath, producerStep, resultPath)
+  );
+  restoreLiteral = (sequence: number, parameterPath: string) => (
+    this.recorder.restoreLiteral(sequence, parameterPath)
+  );
 
   librarySnapshot = (): SemanticActionLibrarySnapshot => this.library.snapshot();
   subscribeLibrary = (listener: () => void): (() => void) => this.library.subscribe(listener);
@@ -73,8 +87,8 @@ export class SemanticActionWorkflowController {
 
   playbackSnapshot = (): ActionPlaybackSnapshot => this.playback.snapshot();
   subscribePlayback = (listener: () => void): (() => void) => this.playback.subscribe(listener);
-  play = (): Promise<ActionPlaybackSnapshot> => this.playback.play(
-    this.recorder.snapshot(), this.ports.activeDocumentId()
+  play = (overrides?: Readonly<Record<string, unknown>>): Promise<ActionPlaybackSnapshot> => this.playback.play(
+    this.recorder.snapshot(), this.ports.activeDocumentId(), overrides
   );
   playStep = (sequence: number): Promise<ActionPlaybackSnapshot> => this.playback.playStep(
     this.recorder.snapshot(), sequence, this.ports.activeDocumentId()

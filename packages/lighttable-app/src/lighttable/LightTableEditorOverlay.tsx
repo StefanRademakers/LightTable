@@ -18,6 +18,7 @@ import {
 } from './application/commands/lightTableCommandValidation';
 import { useDocumentHistoryController, type EditorHistoryEntry } from './application/commands/useDocumentHistoryController';
 import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
+import { createActionsPanelCallbacks } from './composition/workspace/createActionsPanelCallbacks';
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
 import { DocumentRendererLifecycle } from './application/rendering/documentRendererLifecycle';
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
@@ -401,7 +402,7 @@ const MIN_SCALE = 0.02;
 const MAX_SCALE = 100;
 const EMPTY_ACTION_RECORDING: ActionRecordingSnapshot = {
   status: 'idle', id: null, name: 'Untitled Action', startedAt: null, stoppedAt: null,
-  steps: [], byteLength: 0, limitReached: false
+  steps: [], variables: [], byteLength: 0, limitReached: false
 };
 const subscribeToNothing = () => () => undefined;
 const emptyActionRecording = () => EMPTY_ACTION_RECORDING;
@@ -7556,20 +7557,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 recording: actionRecording,
                 playback: actionPlayback,
                 library: actionLibrary,
-                onStartRecording: () => { commandService?.startActionRecording(); },
-                onStopRecording: () => { commandService?.stopActionRecording(); },
-                onClearRecording: () => { commandService?.clearActionRecording(); },
-                onPlay: () => { void commandService?.playActionRecording(); },
-                onPlayStep: (sequence) => { void commandService?.playActionStep(sequence); },
-                onPlayFromStep: (sequence) => { void commandService?.playActionFromStep(sequence); },
-                onStopPlayback: () => { commandService?.stopActionPlayback(); },
-                onCreateActionSet: (name) => { void commandService?.createActionSet(name); },
-                onRenameActionSet: (id, name) => { void commandService?.renameActionSet(id, name); },
-                onSelectActionSet: (id) => { void commandService?.selectActionSet(id); },
-                onDeleteActionSet: (id) => { void commandService?.deleteActionSet(id); },
-                onSaveAction: (name) => { void commandService?.saveActionRecording(name); },
-                onLoadAction: (id) => { void commandService?.loadSavedAction(id); },
-                onDeleteAction: (id) => { void commandService?.deleteSavedAction(id); }
+                ...createActionsPanelCallbacks(commandService)
               },
               genAi: {
                 interactionActive: active,

@@ -81,4 +81,38 @@ describe('SemanticActionRecorder', () => {
       artifactId: { $lighttableResult: { step: 1, path: 'artifact.id' } }
     });
   });
+
+  it('promotes a parameter to a typed variable and validates later edits atomically', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start('Reusable rename');
+    recorder.record(request('layer.rename', { layerId: 'layer-1', name: 'Title' }),
+      completed('request-layer.rename', { layerId: 'layer-1', name: 'Title' }), Date.now());
+    recorder.stop();
+
+    expect(recorder.createVariable(1, '/name', 'layerName')).toEqual({ ok: true });
+    expect(recorder.snapshot().variables).toEqual([
+      { name: 'layerName', type: 'string', defaultValue: 'Title' }
+    ]);
+    expect(recorder.snapshot().steps[0]?.parameters).toMatchObject({
+      name: { $lighttableVariable: { name: 'layerName' } }
+    });
+    expect(recorder.updateVariable('layerName', 42)).toMatchObject({ ok: false });
+    expect(recorder.snapshot().variables[0]?.defaultValue).toBe('Title');
+    expect(recorder.updateVariable('layerName', 'Subtitle')).toEqual({ ok: true });
+    expect(recorder.deleteVariable('layerName')).toEqual({ ok: true });
+    expect(recorder.snapshot().steps[0]?.parameters).toMatchObject({ name: 'Subtitle' });
+  });
+
+  it('supports explicit prior-result binding and rejects forward references', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start();
+    recorder.record(request('layer.createRaster'),
+      completed('request-layer.createRaster', { created: true, layerId: 'created-layer' }), Date.now());
+    recorder.record(request('layer.rename', { layerId: 'created-layer', name: 'Title' }),
+      completed('request-layer.rename', { layerId: 'created-layer', name: 'Title' }), Date.now());
+    recorder.stop();
+    expect(recorder.restoreLiteral(2, '/layerId')).toEqual({ ok: true });
+    expect(recorder.bindResult(2, '/layerId', 1, 'layerId')).toEqual({ ok: true });
+    expect(recorder.bindResult(1, '/name', 2, 'name')).toMatchObject({ ok: false });
+  });
 });

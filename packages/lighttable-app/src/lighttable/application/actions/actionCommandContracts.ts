@@ -4,7 +4,11 @@ import {
   formatSchemaValidationIssues,
   validateJsonSchemaValue
 } from '@lighttable/command-contract';
-import { resolveActionParameters } from './actionResultBindings';
+import {
+  resolveActionParameters,
+  validateActionVariables,
+  type ActionVariableDefinition
+} from './actionResultBindings';
 
 export type RecordedCommandContract =
   | { readonly status: 'complete'; readonly schemaVersion: number }
@@ -41,8 +45,12 @@ export type ActionContractCheck<T extends ContractStep> =
   | { readonly ok: false; readonly sequence: number; readonly message: string };
 
 export const checkActionCommandContracts = <T extends ContractStep>(
-  steps: readonly T[], allowMissingLegacyContract = false
+  steps: readonly T[], allowMissingLegacyContract = false,
+  variables: readonly ActionVariableDefinition[] = []
 ): ActionContractCheck<T> => {
+  const variableError = validateActionVariables(variables);
+  if (variableError) return { ok: false, sequence: 0, message: variableError };
+  const variableValues = new Map(variables.map(({ name, defaultValue }) => [name, defaultValue]));
   const results = new Map<number, unknown>();
   const migratedSteps: (T & { readonly contract: RecordedCommandContract })[] = [];
   let migrated = false;
@@ -67,7 +75,7 @@ export const checkActionCommandContracts = <T extends ContractStep>(
         message: `Step ${step.sequence} (${step.command}) uses schema v${recorded.schemaVersion}; this runtime supports v${current.schemaVersion}.` };
     }
     if (current.status === 'complete') {
-      const resolved = resolveActionParameters(step.parameters, results);
+      const resolved = resolveActionParameters(step.parameters, results, variableValues);
       if ('error' in resolved) {
         return { ok: false, sequence: step.sequence,
           message: `Step ${step.sequence} (${step.command}) cannot resolve its recorded bindings: ${resolved.error}` };

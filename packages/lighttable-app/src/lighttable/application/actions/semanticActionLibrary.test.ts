@@ -8,7 +8,7 @@ import type { ActionRecordingSnapshot } from './semanticActionRecorder';
 
 const recording = (): ActionRecordingSnapshot => ({
   status: 'stopped', id: 'action-1', name: 'Untitled Action', startedAt: 1, stoppedAt: 2,
-  byteLength: 4, limitReached: false, steps: [{
+  byteLength: 4, limitReached: false, variables: [], steps: [{
     sequence: 1, requestId: 'request-1', origin: 'ui', command: 'layer.createRaster',
     contract: { status: 'complete', schemaVersion: 1 },
     documentId: 'old-document', parameters: {}, outcome: 'completed',
@@ -25,7 +25,7 @@ describe('semantic Action library', () => {
   it('persists, restores and deletes a bounded named Action', async () => {
     const state = memory(); const library = new SemanticActionLibrary(state.storage);
     expect((await library.save(recording(), 'Layer setup'))?.name).toBe('Layer setup');
-    expect(JSON.parse(state.value()!)).toMatchObject({ version: 3,
+    expect(JSON.parse(state.value()!)).toMatchObject({ version: 4,
       selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
       sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID, name: 'Default Set' }],
       actions: [{ setId: LIGHTTABLE_DEFAULT_ACTION_SET_ID }] });
@@ -41,7 +41,7 @@ describe('semantic Action library', () => {
 
   it('rejects incompatible or injected content atomically', () => {
     const incompatible = memory(JSON.stringify({
-      format: 'lighttable-actions', version: 4, selectedId: null, actions: []
+      format: 'lighttable-actions', version: 5, selectedId: null, actions: []
     }));
     expect(new SemanticActionLibrary(incompatible.storage).snapshot()).toMatchObject({
       actions: [], error: expect.stringMatching(/unsupported/i)
@@ -72,7 +72,7 @@ describe('semantic Action library', () => {
     expect(library.snapshot()).toMatchObject({ error: null, actions: [{ recording: { steps: [{
       command: 'layer.rename', contract: { status: 'complete', schemaVersion: 1 }
     }] } }] });
-    expect(JSON.parse(state.value()!)).toMatchObject({ version: 3,
+    expect(JSON.parse(state.value()!)).toMatchObject({ version: 4,
       selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
       actions: [{ setId: LIGHTTABLE_DEFAULT_ACTION_SET_ID, recording: { steps: [{
         contract: { status: 'complete', schemaVersion: 1 }
@@ -91,7 +91,7 @@ describe('semantic Action library', () => {
     expect(library.snapshot()).toMatchObject({ selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
       selectedId: 'action-1', sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID }],
       actions: [{ id: 'action-1', setId: LIGHTTABLE_DEFAULT_ACTION_SET_ID }] });
-    expect(JSON.parse(state.value()!)).toMatchObject({ version: 3,
+    expect(JSON.parse(state.value()!)).toMatchObject({ version: 4,
       selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
       actions: [{ setId: LIGHTTABLE_DEFAULT_ACTION_SET_ID }]
     });
@@ -185,6 +185,38 @@ describe('semantic Action library', () => {
 
     expect(new SemanticActionLibrary(malformed.storage).snapshot()).toMatchObject({
       actions: [], error: expect.stringMatching(/invalid command contract marker/i)
+    });
+  });
+
+  it('migrates a version-3 Action to bounded version-4 variables atomically', async () => {
+    const current = recording();
+    const legacyRecording = { ...current } as Record<string, unknown>;
+    delete legacyRecording.variables;
+    const state = memory(JSON.stringify({ format: 'lighttable-actions', version: 3,
+      selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID, selectedId: 'action-1',
+      sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID, name: 'Default Set', createdAt: 0, updatedAt: 0 }],
+      actions: [{ id: 'action-1', setId: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
+        name: current.name, createdAt: 1, updatedAt: 2, recording: legacyRecording }] }));
+
+    const library = new SemanticActionLibrary(state.storage);
+    await library.ready();
+
+    expect(library.snapshot().actions[0]?.recording.variables).toEqual([]);
+    expect(JSON.parse(state.value()!)).toMatchObject({ version: 4,
+      actions: [{ recording: { variables: [] } }] });
+  });
+
+  it('rejects malformed version-4 variables without retaining the Action', () => {
+    const current = recording();
+    const malformed = memory(JSON.stringify({ format: 'lighttable-actions', version: 4,
+      selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID, selectedId: 'action-1',
+      sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID, name: 'Default Set', createdAt: 0, updatedAt: 0 }],
+      actions: [{ id: 'action-1', setId: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
+        name: current.name, createdAt: 1, updatedAt: 2,
+        recording: { ...current, variables: [{ name: 'layer name', type: 'string', defaultValue: 'Title' }] } }] }));
+
+    expect(new SemanticActionLibrary(malformed.storage).snapshot()).toMatchObject({
+      actions: [], error: expect.stringMatching(/variable name.*invalid/i)
     });
   });
 

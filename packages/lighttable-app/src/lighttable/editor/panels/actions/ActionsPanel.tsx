@@ -4,6 +4,7 @@ import {
   type LightTableCommandDefinition
 } from '@lighttable/command-contract';
 import type { ActionRecordingSnapshot } from '../../../application/actions/semanticActionRecorder';
+import type { ActionRecordingEditResult } from '../../../application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from '../../../application/actions/semanticActionPlayback';
 import type { SemanticActionLibrarySnapshot } from '../../../application/actions/semanticActionLibrary';
 import { SegmentedControl } from '../../../../ui/SegmentedControl';
@@ -29,6 +30,13 @@ export interface ActionsPanelProps extends Omit<CommandCatalogViewProps, 'defini
   readonly onSaveAction: (name: string) => void;
   readonly onLoadAction: (id: string) => void;
   readonly onDeleteAction: (id: string) => void;
+  readonly onCreateVariable?: (sequence: number, parameterPath: string, name: string) => ActionRecordingEditResult;
+  readonly onUpdateVariable?: (name: string, defaultValue: unknown) => ActionRecordingEditResult;
+  readonly onDeleteVariable?: (name: string) => ActionRecordingEditResult;
+  readonly onBindVariable?: (sequence: number, parameterPath: string, name: string) => ActionRecordingEditResult;
+  readonly onBindResult?: (sequence: number, parameterPath: string,
+    producerStep: number, resultPath: string) => ActionRecordingEditResult;
+  readonly onRestoreLiteral?: (sequence: number, parameterPath: string) => ActionRecordingEditResult;
   readonly definitions?: readonly LightTableCommandDefinition[];
 }
 
@@ -52,6 +60,12 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onSaveAction,
   onLoadAction,
   onDeleteAction,
+  onCreateVariable = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onUpdateVariable = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onDeleteVariable = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onBindVariable = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onBindResult = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onRestoreLiteral = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   definitions = LIGHTTABLE_COMMAND_DEFINITIONS
 }) => {
   const [tab, setTab] = useState<'actions' | 'commands'>('actions');
@@ -72,7 +86,10 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
           onStopPlayback={onStopPlayback}
           onCreateSet={onCreateActionSet} onRenameSet={onRenameActionSet}
           onSelectSet={onSelectActionSet} onDeleteSet={onDeleteActionSet}
-          onSave={onSaveAction} onLoad={onLoadAction} onDelete={onDeleteAction} />
+          onSave={onSaveAction} onLoad={onLoadAction} onDelete={onDeleteAction}
+          onCreateVariable={onCreateVariable} onUpdateVariable={onUpdateVariable}
+          onDeleteVariable={onDeleteVariable} onBindVariable={onBindVariable}
+          onBindResult={onBindResult} onRestoreLiteral={onRestoreLiteral} />
       : <CommandCatalogView capabilities={capabilities} onExecute={onExecute} definitions={definitions} />}
   </aside>;
 };

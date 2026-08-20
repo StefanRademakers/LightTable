@@ -77,6 +77,12 @@ try {
   await nameInput.press('Enter');
   await recorder.locator('li').filter({ hasText: 'layer.rename' }).waitFor();
   await recorder.getByRole('button', { name: 'Stop' }).click();
+  const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
+  await renameStep.locator('summary').click();
+  await renameStep.getByRole('combobox', { name: 'Step 2 parameter' }).selectOption({ label: 'name' });
+  await renameStep.getByRole('textbox', { name: 'Step 2 new variable name' }).fill('layerName');
+  await renameStep.getByRole('button', { name: 'Promote' }).click();
+  await recorder.getByRole('textbox', { name: 'layerName default' }).waitFor();
   await recorder.getByRole('textbox', { name: 'Action name' }).fill('Persistent layer setup');
   await recorder.getByRole('button', { name: 'Save', exact: true }).click();
   await recorder.getByRole('combobox', { name: 'Saved Actions' })
@@ -133,9 +139,10 @@ try {
     throw new Error('Restart exposed an Action from a non-selected set.');
   }
   const storedEnvelope = JSON.parse(await readFile(path.join(userData, 'actions-v1.json'), 'utf8'));
-  if (storedEnvelope?.version !== 3 || storedEnvelope.sets?.length !== 3
+  if (storedEnvelope?.version !== 4 || storedEnvelope.sets?.length !== 3
     || storedEnvelope.actions?.length !== 2
-    || new Set(storedEnvelope.actions.map((action) => action.setId)).size !== 2) {
+    || new Set(storedEnvelope.actions.map((action) => action.setId)).size !== 2
+    || storedEnvelope.actions.some((action) => action.recording?.variables?.[0]?.name !== 'layerName')) {
     throw new Error(`Action Set envelope is incomplete: ${JSON.stringify(storedEnvelope)}`);
   }
   await restoredSets.selectOption({ label: 'Portrait recipes' });
@@ -144,13 +151,16 @@ try {
   await restored.getByRole('button', { name: 'Load' }).click();
   await restored.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
   await restored.locator('li').filter({ hasText: 'layer.rename' }).waitFor();
+  const restoredVariable = restored.getByRole('textbox', { name: 'layerName default' });
+  await restoredVariable.fill('Replayed variable layer');
+  await restoredVariable.blur();
   const replayBefore = await second.window.locator('.lighttable-layer[data-layer-id]').count();
   await restored.getByRole('button', { name: 'Play', exact: true }).click();
   await second.window.waitForFunction((count) =>
     document.querySelectorAll('.lighttable-layer[data-layer-id]').length === count + 1,
   replayBefore, { timeout: 30_000 });
   await restored.getByRole('status').filter({ hasText: 'Playback: completed' }).waitFor();
-  await second.window.getByRole('treeitem', { name: /Persistent Action Layer.*raster layer/i }).waitFor();
+  await second.window.getByRole('treeitem', { name: /Replayed variable layer.*raster layer/i }).waitFor();
   if (await restored.locator('li').count() !== 2) {
     throw new Error('Playback recursively changed the saved two-step Action.');
   }

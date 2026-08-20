@@ -340,6 +340,23 @@ export class LightTableCommandService {
   startActionRecording = (name?: string) => this.actions.startRecording(name);
   stopActionRecording = () => this.actions.stopRecording();
   clearActionRecording = () => this.actions.clearRecording();
+  createActionVariable = (sequence: number, parameterPath: string, name: string) => (
+    this.actions.createVariable(sequence, parameterPath, name)
+  );
+  updateActionVariable = (name: string, defaultValue: unknown) => (
+    this.actions.updateVariable(name, defaultValue)
+  );
+  deleteActionVariable = (name: string) => this.actions.deleteVariable(name);
+  bindActionParameterToVariable = (sequence: number, parameterPath: string, name: string) => (
+    this.actions.bindVariable(sequence, parameterPath, name)
+  );
+  bindActionParameterToResult = (sequence: number, parameterPath: string,
+    producerStep: number, resultPath: string) => (
+    this.actions.bindResult(sequence, parameterPath, producerStep, resultPath)
+  );
+  restoreActionParameterLiteral = (sequence: number, parameterPath: string) => (
+    this.actions.restoreLiteral(sequence, parameterPath)
+  );
   actionLibrarySnapshot = (): SemanticActionLibrarySnapshot => this.actions.librarySnapshot();
   subscribeActionLibrary = (listener: () => void) => this.actions.subscribeLibrary(listener);
   createActionSet = (name: string) => this.actions.createSet(name);
@@ -388,7 +405,7 @@ export class LightTableCommandService {
   }
   actionPlaybackSnapshot = (): ActionPlaybackSnapshot => this.actions.playbackSnapshot();
   subscribeActionPlayback = (listener: () => void) => this.actions.subscribePlayback(listener);
-  playActionRecording = () => this.actions.play();
+  playActionRecording = (overrides?: Readonly<Record<string, unknown>>) => this.actions.play(overrides);
   playActionStep = (sequence: number) => this.actions.playStep(sequence);
   playActionFromStep = (sequence: number) => this.actions.playFrom(sequence);
   stopActionPlayback = (): void => this.actions.stopPlayback();

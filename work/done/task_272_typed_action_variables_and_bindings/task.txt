@@ -1,0 +1,59 @@
+Task 272 - Typed Action variables and explicit bindings
+=======================================================
+
+Goal
+====
+
+Make recorded Actions deliberately reusable by allowing an artist to name
+typed inputs and explicitly bind a step parameter either to such an input or
+to a prior step result, while retaining the existing automatic stable-ID
+binding behavior.
+
+Parent goal
+===========
+
+[`architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- Store bounded, user-named typed variables with defaults in the Action.
+- Resolve optional playback overrides before the shared command schema gate.
+- Expose explicit variable/result binding and literal restoration in Actions.
+- Reject missing, forward, incompatible and malformed bindings atomically.
+- Migrate the version-3 Action library without changing command semantics.
+- Keep all execution on the existing semantic command route and outside
+  pointer/render/paint hot paths.
+
+Definition of done
+==================
+
+- A stopped Action can promote a parameter to a named variable, persist it,
+  reload it and replay with both its default and a typed override.
+- A user can explicitly bind a target parameter to a prior result and see the
+  dependency honored by Play Step / Play From Here.
+- Invalid variable and result bindings fail before the first command executes.
+- Focused tests, app typecheck and Actions/MCP boundary gates pass.
+
+Evidence (2026-08-20)
+=====================
+
+- [x] Version-4 storage adds at most 32 typed variables per Action and migrates
+  valid version-3 libraries atomically.
+- [x] The Actions panel promotes parameter paths, edits defaults, binds an
+  existing variable or prior result and restores a recorded literal.
+- [x] Defaults and runtime overrides are resolved before complete shared-schema
+  preflight; missing, mistyped, unknown and incompatible values execute zero
+  commands.
+- [x] Play Step includes an explicitly authored transitive producer and uses
+  its runtime result.
+- [x] The packaged two-process smoke authors `layerName`, persists/reloads it,
+  changes the default and replays `Replayed variable layer` after restart.
+- [x] No renderer, pointer, paint, warp or gesture implementation changed.
+
+Non-goals
+=========
+
+- Exposing Action-library editing as document mutation commands.
+- Streaming pointer samples or slider preview values through Actions/MCP.
+- Teach mode or automatic parameter suggestions.

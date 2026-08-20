@@ -6,11 +6,13 @@ import {
 import { ButtonBase } from '../../../../ui/ButtonBase';
 import { FormSelect } from '../../../../ui/FormSelect';
 import type { ActionRecordingSnapshot } from '../../../application/actions/semanticActionRecorder';
+import type { ActionRecordingEditResult } from '../../../application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from '../../../application/actions/semanticActionPlayback';
 import {
   LIGHTTABLE_MAX_ACTION_SETS,
   type SemanticActionLibrarySnapshot
 } from '../../../application/actions/semanticActionLibrary';
+import { ActionBindingEditor, ActionVariableRow } from './ActionBindingEditor';
 
 export interface ActionRecorderViewProps {
   readonly recording: ActionRecordingSnapshot;
@@ -31,13 +33,22 @@ export interface ActionRecorderViewProps {
   readonly onSave: (name: string) => void;
   readonly onLoad: (id: string) => void;
   readonly onDelete: (id: string) => void;
+  readonly onCreateVariable: (sequence: number, path: string, name: string) => ActionRecordingEditResult;
+  readonly onUpdateVariable: (name: string, value: unknown) => ActionRecordingEditResult;
+  readonly onDeleteVariable: (name: string) => ActionRecordingEditResult;
+  readonly onBindVariable: (sequence: number, path: string, name: string) => ActionRecordingEditResult;
+  readonly onBindResult: (sequence: number, path: string, producer: number,
+    resultPath: string) => ActionRecordingEditResult;
+  readonly onRestoreLiteral: (sequence: number, path: string) => ActionRecordingEditResult;
 }
 
 const formatted = (value: unknown): string => JSON.stringify(value, (_key, candidate) => {
   const binding = candidate?.$lighttableResult;
-  return binding && Number.isInteger(binding.step) && typeof binding.path === 'string'
-    ? `$step${binding.step}.${binding.path}`
-    : candidate;
+  if (binding && Number.isInteger(binding.step) && typeof binding.path === 'string') {
+    return `$step${binding.step}.${binding.path}`;
+  }
+  const variable = candidate?.$lighttableVariable;
+  return variable && typeof variable.name === 'string' ? `$${variable.name}` : candidate;
 }, 2);
 
 export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
@@ -58,7 +69,9 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
   onDeleteSet,
   onSave,
   onLoad,
-  onDelete
+  onDelete,
+  onCreateVariable, onUpdateVariable, onDeleteVariable, onBindVariable, onBindResult,
+  onRestoreLiteral
 }) => {
   const [name, setName] = useState(recording.name);
   useEffect(() => setName(recording.name), [recording.id, recording.name]);
@@ -144,6 +157,14 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
     {recording.limitReached
       ? <p className="lighttable-action-recorder__warning" role="alert">Recorder limit reached; recording has paused.</p>
       : null}
+    {recording.variables.length > 0 ? <section className="lighttable-action-recorder__variables"
+      aria-label="Action variables">
+      <h3>Variables</h3>
+      {recording.variables.map((variable) => <ActionVariableRow key={variable.name}
+        variable={variable} disabled={busy || recording.status !== 'stopped'}
+        onUpdate={(value) => onUpdateVariable(variable.name, value)}
+        onDelete={() => onDeleteVariable(variable.name)} />)}
+    </section> : null}
     {recording.steps.length === 0
       ? <p className="lighttable-action-recorder__empty">
           Press Record, then use LightTable normally. Recorded command steps will appear here.
@@ -183,6 +204,16 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
               {playbackResult?.message ? <p className="lighttable-action-recorder__warning">{playbackResult.message}</p> : null}
               <h4>Parameters</h4>
               <pre>{formatted(step.parameters)}</pre>
+              <h4>Bindings</h4>
+              <ActionBindingEditor step={step}
+                priorSteps={recording.steps.filter((candidate) => candidate.sequence < step.sequence)}
+                variables={recording.variables} disabled={busy || recording.status !== 'stopped'}
+                onCreateVariable={(path, variableName) => onCreateVariable(step.sequence, path, variableName)}
+                onBindVariable={(path, variableName) => onBindVariable(step.sequence, path, variableName)}
+                onBindResult={(path, producer, resultPath) => onBindResult(
+                  step.sequence, path, producer, resultPath
+                )}
+                onRestoreLiteral={(path) => onRestoreLiteral(step.sequence, path)} />
               <h4>Recorded result</h4>
               <pre>{formatted(step.result)}</pre>
             </details>
