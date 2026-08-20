@@ -114,6 +114,9 @@ Current evidence (2026-08-20)
   Access executes Clone and the external MCP bridge executes Healing through
   the same sampled-brush renderer owner. This proves route equivalence, not
   Photoshop visual parity.
+- The apparent active-layer reversion was isolated to stale smoke coordinates
+  landing outside the viewport. A dedicated packaged Fill/Gradient/Brush
+  selection-stability smoke passes; no unproven product-state fix was added.
 
 Still required for completion
 =============================

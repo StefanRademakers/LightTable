@@ -93,6 +93,9 @@ Current evidence (2026-08-20)
 - A packaged Clone gesture keeps source selection and 24 pointer moves local,
   then publishes one bounded stroke only after pointer-up GPU/history commit.
   Source snapshotting stays at stroke begin and no pixel data enters transport.
+- A focused packaged regression commits Fill, raster Gradient and a 24-move
+  Brush stroke, then proves an immediately selected different layer remains
+  canonical after React publication and idle.
 
 Remaining before this task is complete
 ======================================

@@ -1,0 +1,46 @@
+Task 237 - Active-layer stability across pixel commits
+======================================================
+
+Goal
+====
+
+Determine and remove any active-layer selection reversion when a user selects
+another layer immediately after a GPU-backed Fill or Gradient commit.
+
+Checklist
+=========
+
+- [x] Build a focused deterministic reproduction outside the large Actions smoke.
+- [x] Distinguish delayed React presentation from stale document-snapshot publication.
+- [x] Preserve the latest active-layer selection without weakening pixel undo snapshots.
+- [x] Cover Fill, raster Gradient and paint finish with an interleaved selection test.
+- [x] Verify normal layer selection, undo/redo and Actions playback remain unchanged.
+
+Observed lead (2026-08-20)
+==========================
+
+During Task 236's large packaged smoke, selecting a raster layer immediately
+after a raster Gradient step was briefly observable and later the active layer
+returned to the Gradient Fill vector layer. The tone-brush proof was moved
+earlier because this belongs to a separate concurrency/state-ownership audit;
+the cause is not yet established.
+
+Resolution (2026-08-20)
+=======================
+
+The suspected application race was not reproduced. Instrumenting the failing
+sampled-brush smoke showed that zero destination pointer events reached the
+viewport: its coordinates had been measured before a panel layout change and
+the later click landed in editor UI, where it legitimately selected another
+layer.
+
+The dedicated active-layer-stability smoke now measures the live viewport for
+every operation. It commits Fill, raster Gradient and a 24-move Brush stroke to
+a new raster layer, immediately selects an imported raster layer after each
+commit, then checks the canonical selection after two React frames plus an idle
+delay. All three operations retain the selected layer and add exactly one
+history entry. Undo/redo and a subsequent layer selection also pass. The broad
+packaged Actions playback smoke remains green.
+
+No product-state merge or history behavior was changed because the evidence did
+not justify it.
