@@ -21,6 +21,9 @@ describe('semanticLayerCommandContract', () => {
     expect(parseSemanticLayerCommand('duplicate', { layerId: 'layer-a' })).toEqual({
       kind: 'duplicate', layerId: 'layer-a'
     });
+    expect(parseSemanticLayerCommand('copy-to-new-layer', { layerId: 'layer-a' })).toEqual({
+      kind: 'copy-to-new-layer', layerId: 'layer-a'
+    });
     expect(parseSemanticLayerCommand('delete', { layerIds: ['a', 'a', 'b'] })).toEqual({
       kind: 'delete', layerIds: ['a', 'b']
     });
@@ -51,6 +54,9 @@ describe('semanticLayerCommandContract', () => {
     expect(parseSemanticLayerCommand('delete', { layerIds: [] })).toEqual({
       message: 'Layer delete requires 1-256 layerIds.'
     });
+    expect(parseSemanticLayerCommand('copy-to-new-layer', {
+      layerId: 'a', pixels: 'not-allowed'
+    })).toHaveProperty('message');
     expect(parseSemanticLayerCommand('set-lock', {
       layerIds: ['a'], lock: 'everything', locked: true
     })).toEqual({

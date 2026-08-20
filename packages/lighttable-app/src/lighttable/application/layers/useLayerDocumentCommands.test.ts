@@ -864,7 +864,8 @@ describe('useLayerDocumentCommands', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const sourceId = state.document().activeLayerId;
 
-    expect(state.commands.layerViaCopy(createFullCanvasSelection(16, 12))).toBe(true);
+    expect(state.commands.layerViaCopy(sourceId!, createFullCanvasSelection(16, 12)))
+      .toBe(state.document().activeLayerId);
 
     expect(state.renderer.copySelectedLayerContent).toHaveBeenCalledWith(
       expect.anything(),
@@ -881,5 +882,17 @@ describe('useLayerDocumentCommands', () => {
     expect(committedLayer?.type === 'raster' ? committedLayer.pixelRevision : null).toBe(1);
     expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
     expect(state.dependencies.setSelectionClipboardAvailable).toHaveBeenCalledWith(true);
+  });
+
+  it('copies the complete explicit raster layer when no selection exists', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const sourceId = state.document().activeLayerId!;
+
+    const copiedId = state.commands.layerViaCopy(sourceId, []);
+
+    expect(copiedId).toBe(state.document().activeLayerId);
+    expect(copiedId).not.toBe(sourceId);
+    expect(state.renderer.duplicateLayerPixels).toHaveBeenCalledWith(sourceId, copiedId);
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
   });
 });

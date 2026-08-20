@@ -161,7 +161,7 @@ export interface LayerDocumentCommands {
     readonly x?: number;
     readonly y?: number;
   }): Promise<{ readonly layerId: LayerId; readonly width: number; readonly height: number } | null>;
-  layerViaCopy(selection: readonly SelectionOperation[]): boolean;
+  layerViaCopy(layerId: LayerId, selection: readonly SelectionOperation[]): LayerId | null;
 }
 
 const fullDocumentBounds = (document: ImageDocument) => ({
@@ -1049,28 +1049,27 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const layerViaCopy = (selection: readonly SelectionOperation[]) => {
+  const layerViaCopy = (sourceId: LayerId, selection: readonly SelectionOperation[]) => {
     const before = dependenciesRef.current.getDocument();
     const renderer = dependenciesRef.current.getRenderer();
-    const sourceId = before?.activeLayerId;
-    if (!before || !renderer || !sourceId) return false;
+    if (!before || !renderer || !sourceId) return null;
     if (!selection.length) {
-      const duplicated = duplicateActiveLayer();
-      if (duplicated) dependenciesRef.current.setStatus('Layer copied');
-      return duplicated;
+      const duplicatedId = duplicateLayer(sourceId);
+      if (duplicatedId) dependenciesRef.current.setStatus('Layer copied');
+      return duplicatedId;
     }
 
     const sourceLayer = findRasterLayer(before, sourceId);
     if (!sourceLayer || !renderer.copySelectedLayerContent(before, sourceId)) {
       dependenciesRef.current.setError(
-        'The selected pixels could not be copied from the active layer.'
+        'The selected pixels could not be copied from the source layer.'
       );
-      return false;
+      return null;
     }
 
     let after = createRasterLayer(before, `${sourceLayer.name} copy`, sourceId);
     const copiedLayerId = after.activeLayerId;
-    if (!copiedLayerId) return false;
+    if (!copiedLayerId) return null;
     const dirtyBounds = selectionOperationsSupportBounds(
       [...selection],
       fullDocumentBounds(before)
@@ -1083,7 +1082,7 @@ export const createLayerDocumentCommands = (
       dependenciesRef.current.setError(
         'The selected pixels could not be placed on a new layer.'
       );
-      return false;
+      return null;
     }
     after = markLayerPixelsChanged(after, copiedLayerId, dirtyBounds);
     dependenciesRef.current.applyDocumentSnapshot(after);
@@ -1092,7 +1091,7 @@ export const createLayerDocumentCommands = (
     dependenciesRef.current.setActiveChannel('pixels');
     dependenciesRef.current.setStatus('Selection copied to a new layer');
     dependenciesRef.current.setError(null);
-    return true;
+    return copiedLayerId;
   };
 
   return {

@@ -11,6 +11,9 @@
   "layer.duplicate": [
     { "layerId": "layer-photo" }
   ],
+  "layer.copyToNewLayer": [
+    { "layerId": "layer-photo" }
+  ],
   "layer.delete": [
     { "layerIds": ["layer-draft"] }
   ],

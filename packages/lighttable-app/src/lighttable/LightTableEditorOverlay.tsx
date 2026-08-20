@@ -4558,7 +4558,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   pasteSelectedContentRef.current = pasteSelectedContent;
 
   const layerViaCopy = () => {
-    layerDocumentCommands.layerViaCopy(editorSession.selection);
+    const layerId = imageDocumentRef.current?.activeLayerId;
+    if (layerId) void executeRegisteredCommand('layer.copyToNewLayer', { layerId });
   };
   layerViaCopyRef.current = layerViaCopy;
   mergeActiveLayerDownRef.current = mergeSelectionOrActiveDown;
@@ -4788,6 +4789,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (command.kind === 'duplicate') {
           const layerId = layerDocumentCommands.duplicateLayer(command.layerId);
           return layerId ? { sourceLayerId: command.layerId, layerId } : null;
+        }
+        if (command.kind === 'copy-to-new-layer') {
+          const layerId = layerDocumentCommands.layerViaCopy(
+            command.layerId,
+            editorSessionRef.current.selection
+          );
+          return layerId ? { sourceLayerId: command.layerId, layerId,
+            scope: editorSessionRef.current.selection.length ? 'selection' : 'layer' } : null;
         }
         if (command.kind === 'delete') {
           layerPanelController.deleteSelection([...command.layerIds]);

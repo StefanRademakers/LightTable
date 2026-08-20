@@ -1,0 +1,56 @@
+Task 253 - Shared Layer via Copy
+
+Goal
+====
+
+Expose Layer via Copy as one explicit, bounded layer command through UI,
+Actions and MCP without transporting selection masks or raster pixels.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Define an explicit source-layer command whose behavior matches the UI:
+      copy selected pixels when a selection exists, otherwise copy the layer.
+- [x] Reuse the existing renderer selection clipboard and document/history
+      owner; keep selection masks and pixel payloads renderer-local.
+- [x] Route the Layer menu and keyboard shortcut through the shared command.
+- [x] Return the stable created layer ID and preserve one undo boundary.
+- [x] Prove validation, full-layer and selected-pixel behavior, Actions replay
+      and an actual packaged MCP editable-layer result.
+- [x] Update checked coverage and durable parent evidence.
+- [x] Run full gates, move to `work/done/` and commit the milestone.
+
+Evidence
+========
+
+- `layer.copyToNewLayer` accepts only an explicit raster source ID. The current
+  selection remains canonical editor state; no selection mask or pixels enter
+  command, Actions or MCP payloads.
+- With a selection, the existing GPU selection clipboard creates one new raster
+  layer and one history entry. Without a selection, the existing full-layer
+  duplication owner copies the explicit raster and returns its stable ID.
+- Layer menu and `Ctrl+J` route through the shared command; Actions records and
+  replays that same semantic operation.
+- Packaged MCP smoke creates a filled/graded raster, copies it, hides the source
+  and decodes a real GPU preview to prove the copied layer retained its pixels.
+- The command-service port registry moved to its own focused source file so the
+  central service stays below its reviewed growth boundary.
+- Checked editor-menu coverage is now 103 actions with 7 explicit gaps.
+- Final verification: workspace typecheck; 476 app test files / 2690 tests;
+  command-contract and MCP-server tests; command, source-structure,
+  architecture, boundary and UI-boundary gates; desktop packaging; packaged
+  MCP pixel smoke; and `git diff --check` all pass.
+
+Out of scope
+============
+
+- Exposing the renderer selection clipboard as an MCP artifact.
+- Replaying pointer samples or serializing raster/selection buffers.
+- General OS clipboard copy/paste support.

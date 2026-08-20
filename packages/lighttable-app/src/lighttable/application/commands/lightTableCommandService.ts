@@ -17,7 +17,7 @@ import {
 export type { LayerQuerySummary } from './layerQueryProjection';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
-  type AutomationEventQueryResult, type AutomationTaskQueryResult, type CommandCapabilitySummary, type DocumentLightTableCommandPorts,
+  type AutomationEventQueryResult, type AutomationTaskQueryResult, type CommandCapabilitySummary,
   type DocumentQueryResult, type EditableTextQueryResult, type EditableVectorQueryResult, type LayerEffectsQueryResult, type LightTableArtifactPlacement,
   type LightTableCommandErrorCode, type LightTableCommandId, type LightTableCommandPorts,
   type LightTableCommandExecutionContext, type LightTableCommandRequest, type LightTableCommandResult,
@@ -25,13 +25,10 @@ import {
   type LightTableGestureKind, type LightTableGestureResult, type LightTableGestureSample,
   type LightTableRevisionSet, type LightTableWorkspaceCommandPorts, type WorkspaceQueryResult
 } from './lightTableCommandContract';
-import { parseSemanticTextCommand, type SemanticTextCommand } from './semanticTextCommandContract';
-import { parseSemanticVectorCommand, type SemanticVectorCommand } from './semanticVectorCommandContract';
-import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
+import { parseSemanticTextCommand } from './semanticTextCommandContract';
+import { parseSemanticVectorCommand } from './semanticVectorCommandContract';
 import { dispatchSemanticWarpStroke } from './semanticWarpCommandHandler';
-import type { SemanticFillCommand } from './semanticFillCommandContract';
 import { dispatchSemanticFill } from './semanticFillCommandHandler';
-import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
 import { dispatchSemanticAdjustmentCreation, dispatchSemanticFixedTransform,
   dispatchSemanticRasterInvert } from './semanticContextualEditDispatcher';
 import { projectCommandCapabilities } from './commandCapabilityProjection';
@@ -41,7 +38,7 @@ import { dispatchSemanticRasterGradient } from './semanticRasterGradientCommandH
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
 import { projectWarpQuery, type WarpQueryResult } from './warpQueryProjection';
-import { parseAtomicCommandBatch, type AtomicCommandBatch } from './atomicCommandBatchContract';
+import { parseAtomicCommandBatch } from './atomicCommandBatchContract';
 import { AutomationTaskEventStore } from './automationTaskEventStore';
 import {
   AutomationPublicationEventStore,
@@ -53,15 +50,13 @@ import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSamp
   parseCommittedGestureRequest, parseCreateDocumentOptions } from './lightTableCommandValidation';
 import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
 import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
-import { parseSemanticFaceWarpCommand, type SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
-import { parseSemanticLayerCommand, type SemanticLayerCommand } from './semanticLayerCommandContract';
-import { parseSemanticSelectionCommand, type SemanticSelectionCommand } from './semanticSelectionCommandContract';
+import { parseSemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
+import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
+import { parseSemanticSelectionCommand } from './semanticSelectionCommandContract';
 import { startSemanticLayerTask } from './semanticLayerTaskDispatcher';
 import {
   parseSemanticBasicAdjustmentCommand,
-  parseBasicAdjustmentTarget,
-  type BasicAdjustmentTarget,
-  type SemanticBasicAdjustmentCommand
+  parseBasicAdjustmentTarget
 } from './semanticBasicAdjustmentCommandContract';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
 import {
@@ -84,247 +79,7 @@ import {
 } from './documentPreviewArtifacts';
 export * from './lightTableCommandContract';
 
-/**
- * Routes transport-neutral commands to the mounted controller for one document.
- *
- * The workspace owns this registry while each editor runtime registers its
- * existing application controllers. That keeps commands document-scoped and
- * prevents automation from introducing a second mutation implementation.
- */
-export class LightTableCommandPortRegistry implements LightTableCommandPorts {
-  private readonly documents = new Map<DocumentSessionId, DocumentLightTableCommandPorts>();
-
-  register(
-    documentId: DocumentSessionId,
-    ports: DocumentLightTableCommandPorts
-  ): () => void {
-    this.documents.set(documentId, ports);
-    return () => {
-      if (this.documents.get(documentId) === ports) this.documents.delete(documentId);
-    };
-  }
-
-  has(documentId: DocumentSessionId): boolean {
-    return this.documents.has(documentId);
-  }
-  setZoom(documentId: DocumentSessionId, viewport: DocumentViewport) {
-    return this.resolve(documentId).setZoom(viewport);
-  }
-
-  resizeImage(documentId: DocumentSessionId, request: Parameters<NonNullable<DocumentLightTableCommandPorts['resizeImage']>>[0]) {
-    const resize = this.resolve(documentId).resizeImage;
-    if (!resize) throw new Error('Image Size is unavailable in the target document.');
-    return resize(request);
-  }
-
-  applyDocumentGeometry(documentId: DocumentSessionId, request: Parameters<NonNullable<DocumentLightTableCommandPorts['applyDocumentGeometry']>>[0]) {
-    const apply = this.resolve(documentId).applyDocumentGeometry;
-    if (!apply) throw new Error('Document geometry is unavailable in the target document.');
-    return apply(request);
-  }
-
-  createRasterLayer(documentId: DocumentSessionId) {
-    return this.resolve(documentId).createRasterLayer();
-  }
-  placeArtifact(documentId: DocumentSessionId, file: File, placement: LightTableArtifactPlacement) {
-    return this.resolve(documentId).placeArtifact(file, placement);
-  }
-
-  executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand) {
-    return this.resolve(documentId).executeTextCommand(command);
-  }
-  executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand) {
-    return this.resolve(documentId).executeVectorCommand(command);
-  }
-
-  executeWarpStrokeCommand(documentId: DocumentSessionId, command: SemanticWarpStrokeCommand) {
-    const execute = this.resolve(documentId).executeWarpStrokeCommand;
-    if (!execute) throw new Error('Warp stroke commands are unavailable in the target document.');
-    return execute(command);
-  }
-
-  executeFillCommand(documentId: DocumentSessionId, command: SemanticFillCommand) {
-    const execute = this.resolve(documentId).executeFillCommand;
-    if (!execute) throw new Error('Fill commands are unavailable in the target document.');
-    return execute(command);
-  }
-
-  executeRasterGradientCommand(documentId: DocumentSessionId, command: SemanticRasterGradientCommand) {
-    const execute = this.resolve(documentId).executeRasterGradientCommand;
-    if (!execute) throw new Error('Raster-gradient commands are unavailable in the target document.');
-    return execute(command);
-  }
-
-  executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand) {
-    return this.resolve(documentId).executeLayerStyleCommand(command);
-  }
-  executeFaceWarpCommand(documentId: DocumentSessionId, command: SemanticFaceWarpCommand) {
-    const execute = this.resolve(documentId).executeFaceWarpCommand;
-    if (!execute) throw new Error('Face Warp commands are unavailable in the target document.');
-    return execute(command);
-  }
-
-  executeLayerCommand(documentId: DocumentSessionId, command: SemanticLayerCommand) {
-    return this.resolve(documentId).executeLayerCommand(command);
-  }
-  executeSelectionCommand(documentId: DocumentSessionId, command: SemanticSelectionCommand) {
-    const execute = this.resolve(documentId).executeSelectionCommand;
-    if (!execute) throw new Error('Selection commands are unavailable in the target document.');
-    return execute(command);
-  }
-
-  executeBasicAdjustmentCommand(documentId: DocumentSessionId, command: SemanticBasicAdjustmentCommand) {
-    const execute = this.resolve(documentId).executeBasicAdjustmentCommand;
-    if (!execute) throw new Error('Basic Grade commands are unavailable in the target document.');
-    return execute(command);
-  }
-
-  executeFixedTransform(documentId: DocumentSessionId,
-    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeFixedTransform']>>[0]) {
-    const execute = this.resolve(documentId).executeFixedTransform;
-    if (!execute) throw new Error('Fixed transform commands are unavailable in the target document.'); return execute(command);
-  }
-
-  executeAdjustmentCreation(documentId: DocumentSessionId,
-    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeAdjustmentCreation']>>[0]) {
-    const execute = this.resolve(documentId).executeAdjustmentCreation;
-    if (!execute) throw new Error('Adjustment creation is unavailable in the target document.'); return execute(command);
-  }
-
-  executeRasterInvert(documentId: DocumentSessionId,
-    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeRasterInvert']>>[0]) {
-    const execute = this.resolve(documentId).executeRasterInvert;
-    if (!execute) throw new Error('Raster invert is unavailable in the target document.'); return execute(command);
-  }
-
-  executeTextToShape(documentId: DocumentSessionId,
-    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeTextToShape']>>[0]) {
-    const execute = this.resolve(documentId).executeTextToShape;
-    if (!execute) throw new Error('Text-to-shape conversion is unavailable in the target document.');
-    return execute(command);
-  }
-
-  executeTextRasterize(documentId: DocumentSessionId,
-    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeTextRasterize']>>[0]) {
-    const execute = this.resolve(documentId).executeTextRasterize;
-    if (!execute) throw new Error('Text rasterization is unavailable in the target document.');
-    return execute(command);
-  }
-
-  executeLayerMerge(documentId: DocumentSessionId,
-    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeLayerMerge']>>[0]) {
-    const execute = this.resolve(documentId).executeLayerMerge;
-    if (!execute) throw new Error('Layer merge is unavailable in the target document.');
-    return execute(command);
-  }
-
-  executeFlattenGroup(documentId: DocumentSessionId,
-    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeFlattenGroup']>>[0]) {
-    const execute = this.resolve(documentId).executeFlattenGroup;
-    if (!execute) throw new Error('Group flatten is unavailable in the target document.'); return execute(command);
-  }
-  executeFlattenImage(documentId: DocumentSessionId) {
-    const execute = this.resolve(documentId).executeFlattenImage;
-    if (!execute) throw new Error('Image flatten is unavailable in the target document.'); return execute();
-  }
-  executeBackgroundRemoval(documentId: DocumentSessionId, command: Parameters<NonNullable<
-    DocumentLightTableCommandPorts['executeBackgroundRemoval']>>[0], signal: AbortSignal,
-    report: (progress: number, message: string) => void) {
-    const execute = this.resolve(documentId).executeBackgroundRemoval;
-    if (!execute) throw new Error('Remove Background is unavailable in the target document.'); return execute(command, signal, report);
-  }
-  executeAutoAlign(documentId: DocumentSessionId, command: Parameters<NonNullable<
-    DocumentLightTableCommandPorts['executeAutoAlign']>>[0], signal: AbortSignal) {
-    const execute = this.resolve(documentId).executeAutoAlign;
-    if (!execute) throw new Error('Auto Align is unavailable in the target document.'); return execute(command, signal);
-  }
-  queryBasicAdjustments(documentId: DocumentSessionId, target: BasicAdjustmentTarget) {
-    return this.resolve(documentId).queryBasicAdjustments?.(target) ?? null;
-  }
-  executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
-    report: (completed: number, operationId: string) => void) {
-    return this.resolve(documentId).executeAtomicBatch(batch, signal, report);
-  }
-
-  renameLayer(documentId: DocumentSessionId, layerId: LayerId, name: string) {
-    return this.resolve(documentId).renameLayer(layerId, name);
-  }
-
-  setLayerVisibility(
-    documentId: DocumentSessionId,
-    layerIds: readonly LayerId[],
-    visible: boolean
-  ) {
-    return this.resolve(documentId).setLayerVisibility(layerIds, visible);
-  }
-
-  setLayerFillOpacity(documentId: DocumentSessionId, layerId: LayerId, opacity: number) {
-    return this.resolve(documentId).setLayerFillOpacity(layerId, opacity);
-  }
-
-  setLayerStyleEnabled(documentId: DocumentSessionId, layerId: LayerId, enabled: boolean) {
-    return this.resolve(documentId).setLayerStyleEnabled(layerId, enabled);
-  }
-
-  setLayerEffectEnabled(
-    documentId: DocumentSessionId,
-    layerId: LayerId,
-    effectId: LayerStyleId,
-    enabled: boolean
-  ) {
-    return this.resolve(documentId).setLayerEffectEnabled(layerId, effectId, enabled);
-  }
-
-  exportNativeArtifact(documentId: DocumentSessionId) {
-    return this.resolve(documentId).exportNativeArtifact();
-  }
-
-  exportPngArtifact(documentId: DocumentSessionId) {
-    return this.resolve(documentId).exportPngArtifact();
-  }
-
-  exportPreviewArtifact(documentId: DocumentSessionId, maxEdge: number) {
-    return this.resolve(documentId).exportPreviewArtifact(maxEdge);
-  }
-
-  exportPsdArtifact(documentId: DocumentSessionId) {
-    return this.resolve(documentId).exportPsdArtifact();
-  }
-
-  beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample) {
-    return this.resolve(documentId).beginGesture(kind, pointerId, parameters, sample);
-  }
-
-  updateGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample) {
-    return this.resolve(documentId).updateGesture(kind, pointerId, sample);
-  }
-
-  finishGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, commit: boolean) {
-    return this.resolve(documentId).finishGesture(kind, pointerId, commit);
-  }
-
-  undo(documentId: DocumentSessionId) {
-    return this.resolve(documentId).undo();
-  }
-
-  redo(documentId: DocumentSessionId) {
-    return this.resolve(documentId).redo();
-  }
-
-  queryRenderTelemetry(documentId: DocumentSessionId) {
-    return this.resolve(documentId).queryRenderTelemetry?.() ?? null;
-  }
-
-  resetRenderTelemetry(documentId: DocumentSessionId) {
-    this.resolve(documentId).resetRenderTelemetry?.();
-  }
-
-  private resolve(documentId: DocumentSessionId): DocumentLightTableCommandPorts {
-    const ports = this.documents.get(documentId);
-    if (!ports) throw new Error('The target document command controller is not mounted.');
-    return ports;
-  }
-}
+export { LightTableCommandPortRegistry } from './lightTableCommandPortRegistry';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -1259,6 +1014,7 @@ export class LightTableCommandService {
         return { value: { created: true, layerId: created?.id ?? null } };
       }
       case 'layer.duplicate':
+      case 'layer.copyToNewLayer':
       case 'layer.delete':
       case 'layer.move':
       case 'layer.setBlendMode':
@@ -1268,6 +1024,7 @@ export class LightTableCommandService {
       case 'layer.setLock': {
         const kinds = {
           'layer.duplicate': 'duplicate',
+          'layer.copyToNewLayer': 'copy-to-new-layer',
           'layer.delete': 'delete',
           'layer.move': 'move',
           'layer.setBlendMode': 'set-blend-mode',
@@ -1282,10 +1039,13 @@ export class LightTableCommandService {
         if (targetIds.some((id) => !findDocumentLayer(snapshot.document!, id))) {
           return { code: 'command-unavailable', message: 'One or more target layers do not exist.' };
         }
-        if (command.kind === 'duplicate') {
+        if (command.kind === 'duplicate' || command.kind === 'copy-to-new-layer') {
           const layer = findDocumentLayer(snapshot.document!, command.layerId)!;
-          if (layer.type !== 'raster' && layer.type !== 'text') {
-            return { code: 'command-unavailable', message: 'Only raster and text layers can currently be duplicated.' };
+          if (command.kind === 'copy-to-new-layer' ? layer.type !== 'raster'
+            : layer.type !== 'raster' && layer.type !== 'text') {
+            return { code: 'command-unavailable', message: command.kind === 'copy-to-new-layer'
+              ? 'Layer via Copy requires a raster source layer.'
+              : 'Only raster and text layers can currently be duplicated.' };
           }
         }
         if (command.kind === 'delete'

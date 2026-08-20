@@ -81,6 +81,8 @@ Completed vertical slices
 - cancellable Auto Align through `layer.autoAlign`, with explicit reference and
   target rasters, exact-revision preview reuse and the existing translation
   alignment/history commit.
+- Layer via Copy through `layer.copyToNewLayer`, preserving selected-pixel and
+  no-selection full-layer behavior without transporting raster data.
 
 Rules
 =====

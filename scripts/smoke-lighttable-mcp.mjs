@@ -214,6 +214,38 @@ try {
   await call('lighttable_execute', { documentId, command: 'raster.applyGradient', parameters: {
     layerId, channel: 'pixels', paint: mcpGradient, opacity: 1, blendMode: 'normal'
   } });
+  const layerCopy = (await call('lighttable_execute', {
+    documentId, command: 'layer.copyToNewLayer', parameters: { layerId }
+  })).structuredContent;
+  const copiedLayerId = layerCopy?.value?.layerId;
+  if (!copiedLayerId || layerCopy.value?.sourceLayerId !== layerId) {
+    throw new Error(`MCP Layer via Copy did not return an editable target: ${JSON.stringify(layerCopy)}`);
+  }
+  await call('lighttable_execute', { documentId, command: 'layer.setVisibility',
+    parameters: { layerIds: [layerId], visible: false } });
+  const copiedDocument = (await call('lighttable_document', { documentId })).structuredContent;
+  const copiedPreview = await call('lighttable_preview', { documentId,
+    expectedDocumentRevision: copiedDocument.canonicalRevision, maxEdge: 256 });
+  const copiedImage = copiedPreview.content.find(({ type }) => type === 'image');
+  if (!copiedImage) throw new Error('MCP Layer via Copy preview did not return an image.');
+  const copiedPixels = await sharp(Buffer.from(copiedImage.data, 'base64')).ensureAlpha().raw()
+    .toBuffer({ resolveWithObject: true });
+  const copiedOffset = (Math.min(10, copiedPixels.info.height - 1) * copiedPixels.info.width
+    + Math.min(10, copiedPixels.info.width - 1)) * 4;
+  const copiedCorner = [...copiedPixels.data.subarray(copiedOffset, copiedOffset + 4)];
+  if (copiedCorner[3] < 240 || copiedCorner[2] <= copiedCorner[0]) {
+    throw new Error(`MCP Layer via Copy lost its GPU pixels: ${JSON.stringify(copiedCorner)}`);
+  }
+  const copiedLayers = (await call('lighttable_layers', { documentId })).structuredContent;
+  const copiedLayerList = Array.isArray(copiedLayers)
+    ? copiedLayers : copiedLayers.result ?? copiedLayers.layers ?? copiedLayers.value ?? [];
+  if (!copiedLayerList.some(({ id, type }) => id === copiedLayerId && type === 'raster')) {
+    throw new Error(`MCP Layer via Copy did not publish its raster layer: ${JSON.stringify(copiedLayerList)}`);
+  }
+  await call('lighttable_execute', { documentId, command: 'layer.setVisibility',
+    parameters: { layerIds: [layerId], visible: true } });
+  await call('lighttable_execute', { documentId, command: 'layer.delete',
+    parameters: { layerIds: [copiedLayerId] } });
   const toneStroke = (await call('lighttable_execute', { documentId, command: 'tool.commitGesture',
     parameters: { kind: 'brush-stroke', parameters: { layerId, channel: 'pixels', erase: false,
       brush: { presetId: 'round', size: 72, hardness: 0.5, opacity: 1,

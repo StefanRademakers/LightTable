@@ -84,7 +84,7 @@ Existing foundation evidence
 
 - Generated categorized command catalog and local Commands browser.
 - Checked inventory for 103 static editor-menu actions and four dynamic
-  families; the current report still has 8 genuine menu gaps.
+  families; the current report still has 7 genuine menu gaps.
 - Semantic routing for Image Size, canvas geometry, crop, rotate and flip.
 - Bounded recorder/playback, per-step results and stable-ID rebinding.
 - Shared top-level property discovery for Actions and MCP.
@@ -174,6 +174,9 @@ Existing foundation evidence
   Actions and MCP. Begin/Cancel and compositor preview stay local; an exact
   revision preview is reused, while direct automation runs the same cancellable
   GPU analysis and commits through the existing geometry/history owner.
+- Layer via Copy now shares one explicit raster-source command. Existing
+  selection pixels stay renderer-local, the created raster has a stable result
+  ID, and UI/Actions/MCP reuse the same GPU/document/history transaction.
 - Concrete Actions now have bounded version-1 save/load/delete persistence and
   active-document replay. A packaged restart proves this workflow without
   routing any interaction preview through storage.

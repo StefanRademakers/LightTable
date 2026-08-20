@@ -51,7 +51,7 @@
     { "id": "image-size", "classification": "command", "command": "document.resizeImage" },
     { "id": "invert-layer-colors", "classification": "command", "command": "raster.invert" },
     { "id": "invert-selection", "classification": "command", "command": "selection.modify" },
-    { "id": "layer-via-copy", "classification": "gap", "reason": "No semantic layer-via-copy command exists." },
+    { "id": "layer-via-copy", "classification": "command", "command": "layer.copyToNewLayer" },
     { "id": "lock-guides", "classification": "presentation", "reason": "Changes document-view guide interaction." },
     { "id": "merge-down", "classification": "command", "command": "layer.merge" },
     { "id": "move-down", "classification": "command", "command": "layer.move" },

@@ -4,6 +4,7 @@ import type { AffineMatrix } from '../../editor/geometry/affine';
 
 export type SemanticLayerCommand =
   | { readonly kind: 'duplicate'; readonly layerId: LayerId }
+  | { readonly kind: 'copy-to-new-layer'; readonly layerId: LayerId }
   | { readonly kind: 'delete'; readonly layerIds: readonly LayerId[] }
   | { readonly kind: 'move'; readonly layerId: LayerId; readonly direction: 'up' | 'down' }
   | { readonly kind: 'set-blend-mode'; readonly layerId: LayerId; readonly blendMode: BlendMode }
@@ -40,9 +41,12 @@ export const parseSemanticLayerCommand = (
   value: unknown
 ): SemanticLayerCommand | { readonly message: string } => {
   if (!record(value)) return { message: 'Layer command parameters must be an object.' };
-  if (kind === 'duplicate') {
+  if (kind === 'duplicate' || kind === 'copy-to-new-layer') {
     const target = layerId(value.layerId);
-    return target ? { kind, layerId: target } : { message: 'Layer duplicate requires layerId.' };
+    if (!target || Object.keys(value).some((key) => key !== 'layerId')) {
+      return { message: `${kind === 'duplicate' ? 'Layer duplicate' : 'Layer via Copy'} requires only layerId.` };
+    }
+    return { kind, layerId: target };
   }
   if (kind === 'delete') {
     const targets = layerIds(value.layerIds);

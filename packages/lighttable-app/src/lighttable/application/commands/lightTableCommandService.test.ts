@@ -448,6 +448,36 @@ describe('LightTableCommandService action recording', () => {
     expect((calls[3]?.[1] as { layerId: string }).layerId).not.toBe(recordedCopyId);
     state.service.dispose(); state.workspace.dispose();
   });
+
+  it('records and replays Layer via Copy with an explicit raster source', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeLayerCommand).mockImplementation((_documentId, command) => {
+      if (command.kind !== 'copy-to-new-layer') return null;
+      const before = state.session.getSnapshot().document!;
+      const after = duplicateLayer(before, command.layerId);
+      state.session.setDocument(after);
+      return { sourceLayerId: command.layerId, layerId: after.activeLayerId, scope: 'layer' };
+    });
+    const sourceLayerId = state.session.getSnapshot().document!.activeLayerId!;
+    state.service.startActionRecording('Layer via Copy');
+    const copied = await state.service.execute(request('layer.copyToNewLayer', state.session.id,
+      { layerId: sourceLayerId }));
+    state.service.stopActionRecording();
+
+    expect(copied).toMatchObject({ status: 'completed',
+      value: { sourceLayerId, layerId: expect.any(String), scope: 'layer' } });
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'layer.copyToNewLayer', replayable: true, parameters: { layerId: sourceLayerId }
+    }]);
+
+    await state.service.playActionRecording();
+
+    expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(2);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'completed', results: [{ command: 'layer.copyToNewLayer', status: 'completed' }]
+    });
+    state.service.dispose(); state.workspace.dispose();
+  });
 });
 
 describe('LightTableCommandService queries', () => {

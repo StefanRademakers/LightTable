@@ -27,6 +27,8 @@ export const projectCommandCapabilities = (
     availability('layer.duplicate', walkLayerTree(snapshot.document.layers)
       .some(({ node }) => node.type === 'raster' || node.type === 'text'),
     'There is no duplicable raster or text layer.'),
+    availability('layer.copyToNewLayer', walkLayerTree(snapshot.document.layers)
+      .some(({ node }) => node.type === 'raster'), 'There is no raster layer to copy.'),
     availability('layer.delete', layerCapabilities.layerCount > 1, 'The document must retain at least one layer.'),
     availability('layer.move', layerCapabilities.layerCount > 1, 'There is no other layer to move relative to.'),
     availability('layer.setBlendMode', layerCapabilities.layerCount > 0, 'There are no layers.'),
