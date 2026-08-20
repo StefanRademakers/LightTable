@@ -3111,7 +3111,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       kind: 'modify', operation: 'invert'
     })) invertCurrentSelectionOwner();
   };
-  const featherCurrentSelection = selectionSessionController.feather;
+  const featherCurrentSelection = (radius: number) => {
+    if (!executeRegisteredCommand('selection.modify', {
+      kind: 'modify', operation: 'feather', radius
+    })) void selectionSessionController.feather(radius);
+  };
   const presentViewportImmediately = useCallback((
     scale: number,
     panX: number,
@@ -4816,8 +4820,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       executeSelectionCommand: async (command) => {
         if (command.kind === 'modify') {
-          const applied = await selectionSessionController.applyState(command.operation);
-          return applied ? { operation: command.operation } : null;
+          const applied = command.operation === 'feather'
+            ? await selectionSessionController.feather(command.radius!)
+            : await selectionSessionController.applyState(command.operation);
+          return applied ? { operation: command.operation,
+            ...(command.operation === 'feather' ? { radius: command.radius } : {}) } : null;
         }
         if (command.kind === 'magic-wand') {
           const applied = await selectionSessionController.applyMagicWand(

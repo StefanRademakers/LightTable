@@ -219,7 +219,8 @@
   "selection.modify": [
     { "kind": "modify", "operation": "all" },
     { "kind": "modify", "operation": "clear" },
-    { "kind": "modify", "operation": "invert" }
+    { "kind": "modify", "operation": "invert" },
+    { "kind": "modify", "operation": "feather", "radius": 12 }
   ],
   "grade.setBasic": [
     { "target": { "kind": "document" }, "values": { "exposureEV": 0.35, "contrast": 12 } },

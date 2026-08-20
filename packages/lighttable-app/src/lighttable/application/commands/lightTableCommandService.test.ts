@@ -1099,6 +1099,29 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('validates, records and replays a bounded selection feather', async () => {
+    const executeSelectionCommand = vi.fn(async (_documentId, command) => ({
+      operation: command.kind === 'modify' ? command.operation : command.kind,
+      ...command.kind === 'modify' && command.operation === 'feather'
+        ? { radius: command.radius } : {}
+    }));
+    const state = setup({ executeSelectionCommand });
+    const parameters = { kind: 'modify', operation: 'feather', radius: 14 };
+    state.service.startActionRecording('Feather selection');
+    await expect(state.service.execute(request('selection.modify', state.session.id, parameters)))
+      .resolves.toMatchObject({ status: 'completed', value: { operation: 'feather', radius: 14 } });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'selection.modify', replayable: true, parameters
+    }]);
+    await state.service.playActionRecording();
+    expect(executeSelectionCommand).toHaveBeenCalledTimes(2);
+    await expect(state.service.execute(request('selection.modify', state.session.id, {
+      kind: 'modify', operation: 'feather', radius: 251
+    }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('validates, records and replays one final basic Grade patch', async () => {
     const executeBasicAdjustmentCommand = vi.fn(async () => ({
       target: { kind: 'document' }, values: { exposureEV: 1.25 }, changed: true

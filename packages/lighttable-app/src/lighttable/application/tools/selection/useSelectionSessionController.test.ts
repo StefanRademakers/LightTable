@@ -79,6 +79,19 @@ describe('selection session controller', () => {
     expect(state.selection).toEqual([]);
   });
 
+  it('returns the asynchronous feather commit and records selection-only history', async () => {
+    const state = setup();
+    await state.controller.applyState('all');
+
+    await expect(state.controller.feather(18)).resolves.toBe(true);
+
+    expect(state.selection.at(-1)).toMatchObject({ mode: 'feather', amount: 18 });
+    expect(state.renderer.replaceSelection).toHaveBeenLastCalledWith(
+      expect.arrayContaining([expect.objectContaining({ mode: 'feather', amount: 18 })])
+    );
+    expect(state.history.at(-1)?.documentMutation).toBe(false);
+  });
+
   it('applies one final semantic shape without replaying pointer samples', async () => {
     const state = setup();
     expect(await state.controller.applyShape(

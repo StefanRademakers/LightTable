@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 42 already routed through semantic commands;
+- 43 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 34 presentation-only operations;
-- 13 genuine semantic command gaps;
+- 12 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -53,7 +53,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `export-psd` | host | Runs a local download flow distinct from file.exportPsd artifact creation. | 238 |
 | `export-psd-appearance` | host | Runs an interactive maximum-appearance PSD export flow. | 239 |
 | `extras` | presentation | Toggles canvas overlays. | 802 |
-| `feather-selection` | gap | No semantic selection-feather command exists. | 437 |
+| `feather-selection` | command | `selection.modify` | 437 |
 | `fit` | command | `view.setZoom` | 770 |
 | `flatten-group` | command | `layer.flattenGroup` | 731 |
 | `flatten-image` | command | `document.flattenImage` | 737 |

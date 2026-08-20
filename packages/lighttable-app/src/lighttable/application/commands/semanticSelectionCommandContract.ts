@@ -17,7 +17,8 @@ export interface SemanticSelectionApplyShapeCommand {
 
 export interface SemanticSelectionModifyCommand {
   readonly kind: 'modify';
-  readonly operation: 'all' | 'clear' | 'invert';
+  readonly operation: 'all' | 'clear' | 'invert' | 'feather';
+  readonly radius?: number;
 }
 
 export interface SemanticSelectionMagicWandCommand {
@@ -46,13 +47,18 @@ export const parseSemanticSelectionCommand = (
 ): SemanticSelectionCommand | { readonly message: string } => {
   if (record(value) && value.kind === 'modify') {
     if (value.operation !== 'all' && value.operation !== 'clear'
-      && value.operation !== 'invert') {
-      return { message: 'Selection modify requires operation all, clear or invert.' };
+      && value.operation !== 'invert' && value.operation !== 'feather') {
+      return { message: 'Selection modify requires operation all, clear, invert or feather.' };
     }
-    if (Object.keys(value).some((key) => key !== 'kind' && key !== 'operation')) {
+    const feather = value.operation === 'feather';
+    if ((feather && (typeof value.radius !== 'number' || !Number.isFinite(value.radius)
+      || value.radius < 0 || value.radius > 250))
+      || (!feather && value.radius !== undefined)
+      || Object.keys(value).some((key) => key !== 'kind' && key !== 'operation' && key !== 'radius')) {
       return { message: 'Selection modify contains unsupported properties.' };
     }
-    return { kind: 'modify', operation: value.operation };
+    return { kind: 'modify', operation: value.operation,
+      ...(feather ? { radius: value.radius as number } : {}) };
   }
   if (record(value) && value.kind === 'magic-wand') {
     const point = value.point;

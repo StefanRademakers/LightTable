@@ -140,6 +140,16 @@ try {
   if (magicWand?.value?.layerId !== layerId || magicWand.value.mode !== 'replace') {
     throw new Error(`MCP Magic Wand command failed: ${JSON.stringify(magicWand)}`);
   }
+  const featheredSelection = (await call('lighttable_execute', {
+    documentId, command: 'selection.modify', parameters: {
+      kind: 'modify', operation: 'feather', radius: 9
+    }
+  })).structuredContent;
+  if (featheredSelection?.status !== 'completed'
+    || featheredSelection.value?.operation !== 'feather'
+    || featheredSelection.value?.radius !== 9) {
+    throw new Error(`MCP selection feather failed: ${JSON.stringify(featheredSelection)}`);
+  }
   const beforeFixedTransform = (await call('lighttable_document', { documentId })).structuredContent;
   const fixedTransform = (await call('lighttable_execute', {
     documentId, command: 'transform.applyFixed',

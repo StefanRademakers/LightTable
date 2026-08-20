@@ -1,0 +1,48 @@
+Task 250 - Semantic selection feather
+
+Goal
+====
+
+Promote the existing destructive selection Feather commit into the shared
+`selection.modify` contract so UI, Actions and MCP use the same bounded GPU and
+selection-history owner.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Extend `selection.modify` with exactly `operation: feather` and radius
+      `0..250` while preserving all/clear/invert payloads.
+- [x] Return the existing asynchronous GPU/history result from the selection
+      controller instead of hiding it behind fire-and-forget UI code.
+- [x] Route dialog confirmation through the shared command.
+- [x] Prove validation, one Actions step/replay and selection-state history.
+- [x] Add packaged MCP feather execution to the existing selection workflow.
+- [x] Update coverage/evidence, run gates, commit and move to `work/done/`.
+
+Out of scope
+============
+
+- Tool-option feather used while authoring a new geometric selection; that
+  value already belongs to `selection.applyShape`.
+- Pixel mask serialization or pointer-event transport.
+
+Result and evidence
+===================
+
+- `selection.modify` accepts feather only with a finite radius from 0 through
+  250 and rejects radius on all/clear/invert.
+- Dialog confirmation dispatches the same command used by Actions and MCP. The
+  tool-option value for a newly drawn selection remains local until the final
+  `selection.applyShape` commit, so no high-frequency path changed.
+- Controller coverage proves one non-document selection history entry; command
+  coverage proves record/replay and malformed-radius rejection.
+- The packaged external MCP smoke applies radius 9 immediately after its real
+  Magic Wand selection and completes the remaining render/export workflow.
+- Menu coverage is 103 inventoried actions with 12 genuine semantic gaps.

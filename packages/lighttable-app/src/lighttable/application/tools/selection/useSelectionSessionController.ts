@@ -123,7 +123,7 @@ export interface SelectionSessionController {
   selectAll(): void;
   clear(): void;
   invert(): void;
-  feather(radius: number): void;
+  feather(radius: number): Promise<boolean>;
   selectLayerMask(layerId: LayerId): void;
   selectLayerTransparency(layerId: LayerId): void;
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
@@ -870,8 +870,8 @@ export const createSelectionSessionController = (
     feather: (radius) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
-      if (!document || !dependencies.getSelection().length) return;
-      void commitSnapshot(
+      if (!document || !dependencies.getSelection().length) return Promise.resolve(false);
+      return commitSnapshot(
         [
           ...cloneSelectionOperations(dependencies.getSelection()),
           createFeatherSelectionOperation(document.width, document.height, radius)

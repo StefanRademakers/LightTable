@@ -35,7 +35,7 @@
     { "id": "export-psd", "classification": "host", "reason": "Runs a local download flow distinct from file.exportPsd artifact creation." },
     { "id": "export-psd-appearance", "classification": "host", "reason": "Runs an interactive maximum-appearance PSD export flow." },
     { "id": "extras", "classification": "presentation", "reason": "Toggles canvas overlays." },
-    { "id": "feather-selection", "classification": "gap", "reason": "No semantic selection-feather command exists." },
+    { "id": "feather-selection", "classification": "command", "command": "selection.modify" },
     { "id": "fit", "classification": "command", "command": "view.setZoom" },
     { "id": "flatten-group", "classification": "command", "command": "layer.flattenGroup" },
     { "id": "flatten-image", "classification": "command", "command": "document.flattenImage" },

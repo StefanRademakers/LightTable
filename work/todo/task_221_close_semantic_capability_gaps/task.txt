@@ -73,6 +73,8 @@ Completed vertical slices
   stable layer IDs and the existing vector-path and GPU pixel-history owners.
 - explicit contiguous layer merge, group flatten and document flatten through
   their existing full-canvas compositor and history owner.
+- bounded final selection Feather through `selection.modify`, without changing
+  the tool-option feather already carried by new shape selections.
 
 Rules
 =====
