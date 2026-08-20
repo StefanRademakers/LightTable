@@ -229,6 +229,12 @@ Existing foundation evidence
   strokes now also publish complete version-1 recipe schemas. Live coalesced
   input remains local; packaged Actions telemetry still shows one publication
   and one history entry per committed interaction.
+- Atomic batches now derive their complete operation and result contract from
+  the same twenty source schemas used by direct Actions/MCP execution. Stable
+  result references support dependent editable construction without exposing a
+  generic state patch; invalid or forward references fail before publication.
+  Detailed discovery stays on demand so every MCP connection does not inherit a
+  roughly 65 KiB tool-schema payload.
 
 Program definition of done
 ==========================

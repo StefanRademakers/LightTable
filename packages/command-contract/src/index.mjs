@@ -7,6 +7,8 @@ import parameterProperties from '../parameter-properties.json' with { type: 'jso
 
 import commandExamples from '../examples.json' with { type: 'json' };
 
+import { createCommandBatchSchema } from './batch-schema.mjs';
+
 import adjustmentCreationCommandSchemas from '../schemas/v1/adjustment-creation.json' with { type: 'json' };
 
 import artifactCommandSchemas from '../schemas/v1/artifact.json' with { type: 'json' };
@@ -149,7 +151,7 @@ export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);
 
 export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = 1;
 
-export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
+const baseCommandSchemas = Object.freeze({
   ...schemaModuleCommands(adjustmentCreationCommandSchemas),
   ...schemaModuleCommands(artifactCommandSchemas),
   ...schemaModuleCommands(autoAlignCommandSchemas),
@@ -170,6 +172,32 @@ export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
   ...schemaModuleCommands(vectorCommandSchemas),
   ...schemaModuleCommands(viewCommandSchemas),
   ...schemaModuleCommands(warpCommandSchemas)
+});
+
+export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
+  ...baseCommandSchemas,
+  'command.batch': createCommandBatchSchema(baseCommandSchemas, [
+  'layer.move',
+  'layer.setBlendMode',
+  'layer.setClipping',
+  'layer.setLock',
+  'layer.rename',
+  'layer.setVisibility',
+  'layer.setFillOpacity',
+  'layer.style.setEnabled',
+  'layer.effect.setEnabled',
+  'text.create',
+  'text.replaceRange',
+  'text.format',
+  'text.setLayout',
+  'vector.create',
+  'vector.update',
+  'vector.remove',
+  'layer.effect.add',
+  'layer.effect.update',
+  'layer.effect.remove',
+  'layer.effect.move'
+])
 });
 
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([

@@ -43,10 +43,25 @@ const waitFor = async (predicate, label, timeout = 90_000) => {
   }
   throw new Error(`Timed out waiting for ${label}.\n${bridgeLog}`);
 };
-const listen = (app) => new Promise((resolve) => {
+const listenOnce = (app) => new Promise((resolve) => {
   const server = app.listen(0, '127.0.0.1', () => resolve(server));
 });
 const stopHttp = (server) => new Promise((resolve) => server.close(resolve));
+const listen = async (app) => {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const server = await listenOnce(app);
+    const port = server.address().port;
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/health`);
+      if (!response.ok) throw new Error(`MCP health probe returned HTTP ${response.status}.`);
+      return server;
+    } catch (error) {
+      await stopHttp(server);
+      if (error?.cause?.message !== 'bad port') throw error;
+    }
+  }
+  throw new Error('Could not allocate a Fetch-safe local MCP port after eight attempts.');
+};
 let service; let http; let mcpClient;
 
 try {

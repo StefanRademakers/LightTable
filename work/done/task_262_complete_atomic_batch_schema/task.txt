@@ -1,0 +1,70 @@
+Task 262 - Complete derived atomic-batch contract
+=================================================
+
+Goal
+====
+
+Promote `command.batch`, the last externally admitted legacy command, to a
+complete shared version-1 contract without an opaque parameter object or a
+handwritten duplicate of every nested command schema.
+
+Parent work
+===========
+
+- [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+
+Required work
+=============
+
+- Derive operation variants from the commands marked `atomicBatch` in the
+  canonical catalog and their existing complete input/result schemas.
+- Preserve exact per-command fields, variants, limits and closed objects.
+- Permit bounded `{ resultOf, field }` references wherever a command value may
+  be supplied, while validating the resolved value again before execution.
+- Keep operation count, request bytes, duration, unique IDs and prior-result
+  ordering bounded by the existing batch owner.
+- Expose the same truthful schema through on-demand MCP command discovery and
+  the local Actions browser. Keep the always-advertised MCP tool compact, but
+  validate it against that complete shared contract before bridge execution.
+- Add an executable shared example and representative direct/Actions/MCP tests,
+  including private-state, malformed-reference and unresolved-reference failure.
+- Do not touch pointer, paint, Warp preview or per-frame execution paths.
+
+Definition of done
+==================
+
+- `command.batch` reports a complete schema-v1 contract.
+- Every advertised batch operation has a complete source contract; generation
+  fails closed if catalog admission and schemas drift.
+- On-demand MCP discovery exposes command-specific operation properties; the
+  always-loaded tool list does not pay the roughly 65 KiB schema cost.
+- A result-bound editable workflow executes as one publication and one undo
+  entry; invalid input mutates neither document nor history.
+- Full typecheck, tests, architecture/boundary audits and packaged route proof
+  pass.
+
+Resolution and evidence
+=======================
+
+- The generated schema contains exactly the 20 catalog commands marked
+  `atomicBatch`; generation fails if any source loses its complete input or
+  result contract. No external execute command remains without a schema.
+- The complete serialized batch contract is 65,543 bytes. MCP returns it only
+  from `lighttable_commands(command.batch)` while the always-loaded batch tool
+  retains a compact envelope and validates the complete shared contract before
+  invoking the desktop.
+- The shared example creates editable point text and binds its returned
+  `layerId` into a later rename. Direct executor, Actions and MCP tests cover
+  valid bindings, private/malformed/forward references and unchanged state on
+  rejection.
+- The rebuilt packaged Actions smoke ran the shared example from the generated
+  form, recorded one `command.batch`, undid it and replayed it as one history
+  boundary. The command-driver and real external MCP protocol smokes passed.
+- Six consecutive packaged UI/Actions/MCP route-equivalence runs passed with
+  the page-error gate intact. Full workspace typecheck, 485 application test
+  files / 2793 tests plus every workspace suite, boundary/source/UI/docs,
+  generated-inventory and command-contract checks, and diff check passed.
+- Brush, Grade, Warp and pointer-preview paths were not routed through schema
+  validation. Packaged runtime evidence retained local Brush/Grade updates and
+  one semantic publication plus one history entry at commit.

@@ -4,6 +4,15 @@ import type { ActionRecordingSnapshot } from './semanticActionRecorder';
 
 const legacyContract = { status: 'legacy-properties-only' as const, schemaVersion: null };
 const schemaContract = { status: 'complete' as const, schemaVersion: 1 };
+const acceptedBatchStep = () => ({
+  ...recording().steps[0]!, command: 'command.batch' as const,
+  contract: schemaContract, outcome: 'accepted' as const,
+  parameters: { name: 'Batch task', operations: [{
+    operationId: 'rename', command: 'layer.rename',
+    parameters: { layerId: 'old-layer', name: 'Title' }
+  }] },
+  result: { taskId: 'old-task' }
+});
 
 const recording = (): ActionRecordingSnapshot => ({
   status: 'stopped', id: 'action-1', name: 'Test', startedAt: 1, stoppedAt: 2,
@@ -108,9 +117,9 @@ describe('SemanticActionPlaybackController', () => {
 
   it('stops and aborts the current accepted task without running later steps', async () => {
     const acceptedRecording: ActionRecordingSnapshot = {
-      ...recording(), steps: [{ ...recording().steps[0]!, command: 'command.batch',
-        contract: legacyContract, outcome: 'accepted', result: { taskId: 'old-task', layerId: 'old-layer' } },
-      { ...recording().steps[1]!, contract: schemaContract }]
+      ...recording(), steps: [acceptedBatchStep(),
+      { ...recording().steps[1]!, contract: schemaContract,
+        parameters: { layerId: 'old-layer', name: 'Later' } }]
     };
     const execute = vi.fn(async (request) => ({ requestId: request.requestId,
       status: 'accepted' as const, taskId: 'new-task', revisions: { workspace: 1 } }));
@@ -135,9 +144,9 @@ describe('SemanticActionPlaybackController', () => {
     ['failed', 'task-failed'], ['timeout', 'task-timeout'], ['missing', 'task-missing']
   ] as const)('fails closed when an accepted task is %s', async (taskStatus, resultStatus) => {
     const acceptedRecording: ActionRecordingSnapshot = {
-      ...recording(), steps: [{ ...recording().steps[0]!, command: 'command.batch',
-        contract: legacyContract, outcome: 'accepted', result: { taskId: 'old-task', layerId: 'old-layer' } },
-      { ...recording().steps[1]!, contract: schemaContract }]
+      ...recording(), steps: [acceptedBatchStep(),
+      { ...recording().steps[1]!, contract: schemaContract,
+        parameters: { layerId: 'old-layer', name: 'Later' } }]
     };
     const execute = vi.fn(async (request) => ({ requestId: request.requestId,
       status: 'accepted' as const, taskId: 'new-task', revisions: { workspace: 1 } }));

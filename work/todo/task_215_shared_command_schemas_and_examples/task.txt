@@ -201,12 +201,18 @@ Current evidence (2026-08-20)
   stable layer IDs so estimator internals cannot enter saved Actions or MCP.
 - Final Brush/Selection/Translate gestures and Warp strokes now have separate
   complete recipe schemas. Validation occurs only at semantic execution or
-  recording, while live pointer/preview paths remain unchanged. `command.batch`
-  remains legacy until result references preserve each nested command schema.
+  recording, while live pointer/preview paths remain unchanged.
+- `command.batch` is now mechanically derived from the twenty atomic-compatible
+  source contracts. It preserves their nested closed schemas, bounds matching
+  prior-result references, validates resolved values again before execution and
+  publishes stable per-operation results. Actions renders its operation arrays
+  and references locally; MCP exposes the roughly 65 KiB detailed schema only
+  through on-demand discovery while enforcing it on the compact batch tool.
 
 Still required for completion
 =============================
 
-- formal versioned input and result schemas for every admitted command;
+- formal versioned input and result schemas for remaining admitted dedicated
+  commands (notably the document-creation boundary);
 - generated Actions property editors for every remaining parameterized command;
 - explicit blocking reasons for every command without a complete schema.

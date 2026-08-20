@@ -8,6 +8,7 @@ import {
   LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES,
   LIGHTTABLE_COMMAND_SCHEMAS,
   LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS,
+  LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS,
   LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS,
   validateJsonSchemaValue
 } from '../src/index.mjs';
@@ -127,7 +128,8 @@ test('versioned schemas describe and validate every completed command vertical',
     'vector.update',
     'vector.remove',
     'view.setZoom',
-    'warp.applyStroke'
+    'warp.applyStroke',
+    'command.batch'
   ]);
   for (const [command, schema] of Object.entries(LIGHTTABLE_COMMAND_SCHEMAS)) {
     assert.equal(schema.input.additionalProperties, false, `${command} input must be closed`);
@@ -136,6 +138,43 @@ test('versioned schemas describe and validate every completed command vertical',
       assert.deepEqual(validateJsonSchemaValue(schema.input, example), { valid: true, issues: [] }, command);
     }
   }
+});
+
+test('atomic batch schema is derived from complete commands and preserves result references', () => {
+  const batch = LIGHTTABLE_COMMAND_SCHEMAS['command.batch'];
+  const variants = batch.input.properties.operations.items.oneOf;
+  assert.deepEqual(variants.map(({ properties }) => properties.command.const),
+    [...LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS]);
+  for (const command of LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS) {
+    assert.ok(LIGHTTABLE_COMMAND_SCHEMAS[command], `${command} lacks its source contract`);
+  }
+
+  const example = LIGHTTABLE_COMMAND_EXAMPLES['command.batch'][0];
+  assert.equal(validateJsonSchemaValue(batch.input, example).valid, true);
+  for (const invalid of [
+    { ...example, privateState: true },
+    { ...example, operations: [{ operationId: 'x', command: 'file.exportPng', parameters: {} }] },
+    { ...example, operations: [{ operationId: 'x', command: 'layer.rename', parameters: {
+      layerId: { resultOf: 'create-title', field: 'layerId', pointerId: 4 }, name: 'Title'
+    } }] },
+    { ...example, operations: [{ operationId: 'x', command: 'layer.rename', parameters: {
+      layerId: { resultOf: 'create-title', field: 'privateResult' }, name: 'Title'
+    } }] },
+    { ...example, operations: [{ operationId: 'x', command: 'layer.rename', parameters: {
+      layerId: 'title', name: 'Title', rendererState: {}
+    } }] }
+  ]) assert.equal(validateJsonSchemaValue(batch.input, invalid).valid, false,
+    JSON.stringify(invalid));
+
+  assert.equal(validateJsonSchemaValue(batch.result, { results: [
+    { operationId: 'create-title', value: { layerId: 'title', fontStatus: {
+      kind: 'exact', assetId: 'lighttable-inter-latin-regular', family: 'Inter'
+    } } },
+    { operationId: 'rename-title', value: { layerId: 'title', name: 'Hero title' } }
+  ] }).valid, true);
+  assert.equal(validateJsonSchemaValue(batch.result, { results: [
+    { operationId: 'rename-title', value: { layerId: 'title', privateResult: true } }
+  ] }).valid, false);
 });
 
 test('conditional text schemas distinguish point, paragraph, path and ranged edits', () => {

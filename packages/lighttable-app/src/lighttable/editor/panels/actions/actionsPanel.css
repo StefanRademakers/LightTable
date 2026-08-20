@@ -268,6 +268,18 @@
   font-size: var(--lt-type-small);
 }
 
+.lighttable-command-parameter-editor__array-item {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border-left: 2px solid var(--lt-border);
+}
+
+.lighttable-command-parameter-editor__array-item > button {
+  justify-self: end;
+}
+
 .lighttable-command-parameter-editor input:not([type='checkbox']),
 .lighttable-command-parameter-editor select {
   width: 100%;

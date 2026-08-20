@@ -150,6 +150,17 @@
   "layer.effect.move": [
     { "layerId": "layer-title", "effectId": "effect-shadow", "targetIndex": 0 }
   ],
+  "command.batch": [
+    { "name": "Create editable title", "timeoutMs": 5000,
+      "operations": [
+        { "operationId": "create-title", "command": "text.create",
+          "parameters": { "mode": "point", "text": "Title",
+            "origin": { "x": 100, "y": 100 } } },
+        { "operationId": "rename-title", "command": "layer.rename",
+          "parameters": { "layerId": { "resultOf": "create-title", "field": "layerId" },
+            "name": "Hero title" } }
+      ] }
+  ],
   "vector.create": [
     { "layerName": "Shape", "name": "Rectangle",
       "primitive": { "kind": "rectangle", "x": 0, "y": 0, "width": 180, "height": 90,

@@ -133,7 +133,8 @@ describe('ActionsPanel', () => {
     />);
     expect(markup).toContain('agent-sunset');
     expect(markup).not.toContain('must contain at least');
-    expect(markup).not.toContain('disabled=""');
+    expect(markup).toContain('>Run</button>');
+    expect(markup).not.toContain('disabled="">Run</button>');
   });
 
   it('resolves shared vector definitions into an executable Actions form', () => {
@@ -146,7 +147,28 @@ describe('ActionsPanel', () => {
     expect(markup).toContain('Rectangle');
     expect(markup).toContain('cornerRadii');
     expect(markup).not.toContain('unresolved schema reference');
-    expect(markup).not.toContain('disabled=""');
+    expect(markup).toContain('>Run</button>');
+    expect(markup).not.toContain('disabled="">Run</button>');
+  });
+
+  it('renders derived atomic operations and result bindings without a JSON editor', () => {
+    const batch = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'command.batch')!;
+    const markup = renderToStaticMarkup(<CommandCatalogView
+      capabilities={[{ command: batch.id, available: true, reason: null }]}
+      definitions={[batch]}
+      onExecute={() => null}
+    />);
+
+    expect(markup).toContain('Create editable title');
+    expect(markup).toContain('create-title');
+    expect(markup).toContain('text.create');
+    expect(markup).toContain('rename-title');
+    expect(markup).toContain('Prior operation result');
+    expect(markup).toContain('layerId');
+    expect(markup).toContain('Add item');
+    expect(markup).not.toContain('legacy property metadata');
+    expect(markup).not.toContain('textarea');
+    expect(markup).not.toContain('unresolved schema reference');
   });
 
   it('renders opaque artifact handles without exposing binary payload fields', () => {

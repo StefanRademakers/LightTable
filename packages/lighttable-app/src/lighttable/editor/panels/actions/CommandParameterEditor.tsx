@@ -38,6 +38,7 @@ const objectDefaults = (
 const initialFieldValue = (schema: LightTableJsonSchema, root: LightTableJsonSchema): unknown => {
   schema = resolveSchema(schema, root);
   if (schema.default !== undefined) return structuredClone(schema.default);
+  if (schema.const !== undefined) return structuredClone(schema.const);
   if (schema.oneOf?.length) return initialFieldValue(schema.oneOf[0], root);
   if (schema.type === 'object') return objectDefaults(schema, root);
   if (schema.type === 'boolean') return false;
@@ -66,6 +67,10 @@ const PrimitiveField: React.FC<Omit<SchemaFieldProps, 'required' | 'onRemove' | 
   name, schema, value, disabled, onChange
 }) => {
   const label = schema.title ?? name;
+  if (schema.const !== undefined) return <label>
+    <span>{label}</span>
+    <FormInput value={String(schema.const)} disabled readOnly />
+  </label>;
   if (schema.type === 'boolean') return <label className="is-checkbox">
     <FormInput type="checkbox" checked={value === true}
       disabled={disabled} onChange={(event) => onChange(event.currentTarget.checked)} />
@@ -138,6 +143,33 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
       </label>
       <SchemaField name="Value" schema={branch} value={value} required disabled={disabled}
         onChange={onChange} rootSchema={rootSchema} />
+    </fieldset>;
+  }
+
+  if (schema.type === 'array' && schema.items && schema.items.type !== 'string') {
+    const items = Array.isArray(value) ? value : [];
+    const minimum = schema.minItems ?? 0;
+    const maximum = schema.maxItems ?? Number.MAX_SAFE_INTEGER;
+    return <fieldset>
+      <legend>{label}</legend>
+      {!required && onRemove ? <ActionButton size="control" disabled={disabled}
+        onClick={onRemove}>Remove</ActionButton> : null}
+      {items.map((item, index) => <div
+        className="lighttable-command-parameter-editor__array-item" key={index}>
+        <SchemaField name={`${label} ${index + 1}`} schema={schema.items!} value={item}
+          required disabled={disabled} rootSchema={rootSchema}
+          onChange={(next) => onChange(items.map((current, itemIndex) => (
+            itemIndex === index ? next : current
+          )))} />
+        <ActionButton size="control" disabled={disabled || items.length <= minimum}
+          onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>
+          Remove item
+        </ActionButton>
+      </div>)}
+      <ActionButton size="control" disabled={disabled || items.length >= maximum}
+        onClick={() => onChange([...items, initialFieldValue(schema.items!, rootSchema)])}>
+        Add item
+      </ActionButton>
     </fieldset>;
   }
 

@@ -636,6 +636,58 @@ try {
     || playbackWarp.strokes?.[1]?.mode !== 'twirl-cw') {
     throw new Error(`Actions replay did not preserve editable Warp recipes: ${JSON.stringify(playbackWarp)}`);
   }
+
+  // Prove the derived batch form itself, not only direct driver/MCP batches.
+  // The shared example creates Text and binds its stable result into Rename;
+  // recording and replay must still produce one batch history boundary.
+  await recorder.getByRole('button', { name: 'Clear' }).click();
+  await recorder.getByRole('button', { name: 'Record' }).click();
+  const batchBaseline = await driver.queryDocument(documentId);
+  await panel.getByRole('radio', { name: 'Commands' }).click();
+  const batchCommand = panel.locator('details').filter({ hasText: 'command.batch' });
+  const batchRun = batchCommand.getByRole('button', { name: 'Run' });
+  if (!await batchRun.isVisible()) await batchCommand.locator('summary').click();
+  await batchRun.click();
+  await window.waitForFunction(() => {
+    const runtime = window.__lightTableAutomation;
+    const active = runtime?.queryWorkspace()?.activeDocumentId;
+    return active && runtime?.queryLayers(active)?.some(({ name }) => name === 'Hero title');
+  }, undefined, { timeout: 15_000 });
+  const batchAfterRun = await driver.queryDocument(documentId);
+  if (batchAfterRun.history.undoDepth !== batchBaseline.history.undoDepth + 1) {
+    throw new Error(`Commands batch did not create one history boundary: ${JSON.stringify({
+      before: batchBaseline.history, after: batchAfterRun.history
+    })}`);
+  }
+  // Creating the title selects it and intentionally returns the inspector to
+  // Properties. Re-open the product Actions panel before switching its view.
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await panel.getByRole('radio', { name: 'Actions' }).click();
+  const recordedBatch = recorder.locator('li').filter({ hasText: 'command.batch' });
+  await recordedBatch.waitFor();
+  await recorder.getByRole('button', { name: 'Stop' }).click();
+  await driver.execute(documentId, 'history.undo', {});
+  if ((await driver.queryLayers(documentId))?.some(({ name }) => name === 'Hero title')) {
+    throw new Error('Undo did not remove the recorded atomic batch output.');
+  }
+  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
+  await window.waitForFunction(() => {
+    const runtime = window.__lightTableAutomation;
+    const active = runtime?.queryWorkspace()?.activeDocumentId;
+    return active && runtime?.queryLayers(active)?.some(({ name }) => name === 'Hero title');
+  }, undefined, { timeout: 15_000 });
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
+    .waitFor({ timeout: 15_000 });
+  const replayedBatchLayer = (await driver.queryLayers(documentId))
+    ?.find(({ name }) => name === 'Hero title');
+  const batchAfterReplay = await driver.queryDocument(documentId);
+  if (!replayedBatchLayer
+    || batchAfterReplay.history.undoDepth !== batchBaseline.history.undoDepth + 1) {
+    throw new Error(`Recorded batch replay lost its output or history boundary: ${JSON.stringify({
+      replayedBatchLayer, before: batchBaseline.history, after: batchAfterReplay.history
+    })}`);
+  }
   process.stdout.write(`Warp Actions evidence: ${JSON.stringify({
     historyEntries: 2,
     semanticOperations: 2,

@@ -2,6 +2,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { createCommandBatchSchema } from '../packages/command-contract/src/batch-schema.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const catalogPath = path.join(root, 'packages', 'command-contract', 'catalog.json');
@@ -35,6 +36,7 @@ if (ids.some((id) => typeof id !== 'string' || id.length === 0) || new Set(ids).
   throw new Error('The LightTable command catalog contains an invalid or duplicate command ID.');
 }
 const propertyIds = Object.keys(parameterProperties);
+const batchOperations = catalog.commands.filter(({ atomicBatch }) => atomicBatch === true).map(({ id }) => id);
 if (schemaModules.some(({ value }) => value.schemaVersion !== 1
   || typeof value.commands !== 'object' || value.commands === null)) {
   throw new Error('Every command schema module must define schema version 1 commands.');
@@ -45,6 +47,7 @@ if (duplicateSchemaIds.length > 0) {
   throw new Error(`Command schemas define duplicate IDs: ${[...new Set(duplicateSchemaIds)].join(', ')}.`);
 }
 const commandSchemas = Object.assign({}, ...schemaModules.map(({ value }) => value.commands));
+commandSchemas['command.batch'] = createCommandBatchSchema(commandSchemas, batchOperations);
 const unknownSchemaIds = Object.keys(commandSchemas).filter((id) => !ids.includes(id));
 if (unknownSchemaIds.length > 0) {
   throw new Error(`Command schemas reference unknown IDs: ${unknownSchemaIds.join(', ')}.`);
@@ -129,7 +132,6 @@ for (const command of catalog.commands) {
 const agentAccess = catalog.commands.filter(({ agentAccess: exposed }) => exposed).map(({ id }) => id);
 const externalExecute = catalog.commands.filter(({ externalMcp }) => externalMcp === 'execute').map(({ id }) => id);
 const externalDedicated = catalog.commands.filter(({ externalMcp }) => externalMcp === 'dedicated').map(({ id }) => id);
-const batchOperations = catalog.commands.filter(({ atomicBatch }) => atomicBatch === true).map(({ id }) => id);
 const literal = (values) => `[\n${values.map((value) => `  '${value}'`).join(',\n')}\n]`;
 const schemaImportName = (name) => `${name.replace(/\.json$/u, '').replace(/[^a-zA-Z0-9]+(.)/gu,
   (_, character) => character.toUpperCase())}CommandSchemas`;
@@ -142,6 +144,7 @@ const moduleSource = `// Generated from ../catalog.json by scripts/generate-comm
   + `import commandCatalog from '../catalog.json' with { type: 'json' };\n\n`
   + `import parameterProperties from '../parameter-properties.json' with { type: 'json' };\n\n`
   + `import commandExamples from '../examples.json' with { type: 'json' };\n\n`
+  + `import { createCommandBatchSchema } from './batch-schema.mjs';\n\n`
   + `${schemaImports}\n\n`
   + `export { validateJsonSchemaValue, formatSchemaValidationIssues } from './schema-validation.mjs';\n\n`
   + `const schemaReferences = (value, names = new Set()) => {\n`
@@ -175,8 +178,12 @@ const moduleSource = `// Generated from ../catalog.json by scripts/generate-comm
   + `export const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES = Object.freeze(parameterProperties);\n\n`
   + `export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);\n\n`
   + `export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = 1;\n\n`
-  + `export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({\n`
+  + `const baseCommandSchemas = Object.freeze({\n`
   + `${schemaSpreads}\n`
+  + `});\n\n`
+  + `export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({\n`
+  + `  ...baseCommandSchemas,\n`
+  + `  'command.batch': createCommandBatchSchema(baseCommandSchemas, ${literal(batchOperations)})\n`
   + `});\n\n`
   + `export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze(${literal(agentAccess)});\n\n`
   + `export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze(${literal(externalExecute)});\n\n`

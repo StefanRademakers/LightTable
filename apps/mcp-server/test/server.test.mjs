@@ -96,6 +96,17 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.deepEqual(textCatalog.structuredContent.commands[0].contract.input.required,
     ['mode', 'text', 'origin']);
   assert.equal(textCatalog.structuredContent.commands[0].contract.input.allOf.length, 3);
+  const batchCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'command.batch'
+  } });
+  assert.equal(batchCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.equal(batchCatalog.structuredContent.commands[0].contract.schemaVersion, 1);
+  assert.equal(batchCatalog.structuredContent.commands[0].examples[0].operations.length, 2);
+  assert.ok(batchCatalog.structuredContent.commands[0].contract.input.properties
+    .operations.items.oneOf.some(({ properties }) => (
+      properties.command.const === 'text.create'
+      && properties.parameters.$ref.includes('batch_text_create_input')
+    )));
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
@@ -168,6 +179,15 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     }] } });
   assert.equal(invalidBatch.isError, true);
   assert.equal(mockClient.revision, invalidRevision, 'invalid batch schema input reached the desktop client');
+  const invalidReference = await editor.callTool({ name: 'lighttable_batch', arguments: {
+    documentId: 'document-demo', name: 'Invalid reference', operations: [{
+      operationId: 'rename', command: 'layer.rename', parameters: {
+        layerId: { resultOf: 'create', field: 'layerId', pointerId: 9 }, name: 'Name'
+      }
+    }]
+  } });
+  assert.equal(invalidReference.isError, true);
+  assert.equal(mockClient.revision, invalidRevision, 'malformed result reference reached the desktop client');
   const result = await editor.callTool({ name: 'lighttable_execute', arguments: {
     documentId: 'document-demo', command: 'layer.rename', parameters: {
       layerId: 'layer-background', name: 'Renamed by MCP' } } });
@@ -242,11 +262,23 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     ['asset', 'point-text', 'paragraph-text', 'gradient-vector', 'drop-shadow']);
   const batch = await editor.callTool({ name: 'lighttable_batch', arguments: {
     documentId: 'document-demo', name: 'MCP mini design', operations: [
+      { operationId: 'title', command: 'text.create', parameters: {
+        mode: 'point', text: 'Title', origin: { x: 20, y: 30 } } },
       { operationId: 'rename', command: 'layer.rename', parameters: {
-        layerId: 'layer-background', name: 'Batch background' } }
+        layerId: { resultOf: 'title', field: 'layerId' }, name: 'Batch title' } }
     ]
   } });
   assert.equal(batch.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'command.batch', commandParameters: {
+      name: 'MCP mini design', timeoutMs: 5000, operations: [
+        { operationId: 'title', command: 'text.create', parameters: {
+          mode: 'point', text: 'Title', origin: { x: 20, y: 30 } } },
+        { operationId: 'rename', command: 'layer.rename', parameters: {
+          layerId: { resultOf: 'title', field: 'layerId' }, name: 'Batch title' } }
+      ]
+    }
+  });
   const events = await reader.callTool({ name: 'lighttable_task_events', arguments: { afterCursor: 0 } });
   assert.deepEqual(events.structuredContent.events, []);
   const task = await reader.callTool({ name: 'lighttable_task', arguments: {

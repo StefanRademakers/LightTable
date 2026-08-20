@@ -43,22 +43,43 @@ describe('executeAtomicCommandBatch', () => {
       result.results[0]!.value).valid).toBe(true);
     expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['layer.setFillOpacity']!.result,
       result.results[1]!.value).valid).toBe(true);
+    expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['command.batch']!.result,
+      result).valid).toBe(true);
   });
 
   it('resolves deterministic operation-result references inside the batch', async () => {
     const state = fixture();
-    const result = await executeAtomicCommandBatch(batch([
+    const referencedBatch = batch([
       { operationId: 'shape', command: 'vector.create', parameters: {
         name: 'Card', primitive: { kind: 'rectangle', x: 4, y: 4, width: 40, height: 24 }
       } },
       { operationId: 'rename-shape', command: 'layer.rename', parameters: {
         layerId: { resultOf: 'shape', field: 'layerId' }, name: 'Agent card'
       } }
-    ]), state.dependencies, new AbortController().signal, () => undefined);
+    ]);
+    expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['command.batch']!.input,
+      referencedBatch).valid).toBe(true);
+    const result = await executeAtomicCommandBatch(referencedBatch,
+      state.dependencies, new AbortController().signal, () => undefined);
     expect(result.results.map(({ operationId }) => operationId)).toEqual(['shape', 'rename-shape']);
     const shapeResult = result.results[0].value as { layerId: string };
     expect(findDocumentLayer(state.document, shapeResult.layerId as never)?.name).toBe('Agent card');
     expect(state.publish).toHaveBeenCalledOnce();
+  });
+
+  it('rejects unavailable or forward result references without publication', async () => {
+    const state = fixture();
+    await expect(executeAtomicCommandBatch(batch([
+      { operationId: 'rename', command: 'layer.rename', parameters: {
+        layerId: { resultOf: 'later', field: 'layerId' }, name: 'Never visible'
+      } },
+      { operationId: 'later', command: 'vector.create', parameters: {
+        name: 'Later', primitive: { kind: 'rectangle', x: 0, y: 0, width: 20, height: 20 }
+      } }
+    ]), state.dependencies, new AbortController().signal, () => undefined))
+      .rejects.toThrow(/later\.layerId is unavailable/u);
+    expect(state.publish).not.toHaveBeenCalled();
+    expect(state.record).not.toHaveBeenCalled();
   });
 
   it('applies structural layer properties as one atomic history publication', async () => {

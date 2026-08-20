@@ -178,9 +178,22 @@ Application-owned parsers still enforce contextual rules that JSON Schema
 cannot decide, such as whether a stable layer ID exists in the requested
 document. Commands marked `legacy-properties-only` by `lighttable_commands`
 have not yet reached this contract bar and must not be described as complete.
-`command.batch` is the remaining admitted legacy contract: its operation-result
-references require command-specific schema transformation before the outer
-batch can truthfully be advertised as complete.
+Every externally executable command is now complete. `command.batch` is derived
+from the commands marked atomic-batch compatible and their existing input/result
+schemas, rather than duplicating Text, Vector and Layer Style definitions in a
+new handwritten registry. Its closed operation union permits bounded prior-
+operation references on matching named result properties; the application
+resolves each reference in order and validates the resolved value against the
+original command schema again before execution. Missing, forward, private and
+type-incompatible references therefore publish nothing.
+
+The full derived batch schema is about 65 KiB and is intentionally returned on
+demand by `lighttable_commands(command.batch)`, not copied into every MCP
+`tools/list` response. The always-advertised `lighttable_batch` tool keeps a
+compact operation envelope and validates the complete shared contract before
+calling the desktop bridge. The local Commands view consumes that same full
+contract and renders editable object arrays, constants and result-reference
+variants without an arbitrary JSON field.
 
 The schema validator now enforces closed nested objects, integer bounds,
 `allOf`/`anyOf`/`oneOf`, constants, negation and `if`/`then`/`else`. Text mode

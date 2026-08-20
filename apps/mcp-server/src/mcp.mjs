@@ -225,23 +225,27 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }) }), { edit: true }));
   server.registerTool('lighttable_batch', {
     title: 'Execute an atomic LightTable command batch',
-    description: 'Runs up to 64 semantic edits as one publication and one named undo entry. Failure or cancellation publishes nothing.',
+    description: 'Runs up to 64 semantic edits as one publication and one named undo entry. Failure or cancellation publishes nothing. Query command.batch through lighttable_commands for the complete on-demand operation schema.',
     inputSchema: z.object({ documentId: z.string().min(1), name: z.string().min(1).max(128),
       timeoutMs: z.number().int().min(100).max(10_000).default(5_000),
       expectedDocumentRevision: z.number().int().nonnegative().optional(),
       operations: z.array(z.object({ operationId: z.string().min(1).max(128),
         command: z.enum(LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS),
-        parameters: z.record(z.string(), z.unknown()).default({}) }).superRefine(({ command, parameters }, context) => {
-          const schema = LIGHTTABLE_COMMAND_SCHEMAS[command]?.input;
-          if (!schema) return;
-          const validation = validateJsonSchemaValue(schema, parameters);
+        parameters: z.record(z.string(), z.unknown()) })).min(1).max(64) }).superRefine(({
+          name, timeoutMs, operations
+        }, context) => {
+          const validation = validateJsonSchemaValue(
+            LIGHTTABLE_COMMAND_SCHEMAS['command.batch'].input,
+            { name, timeoutMs, operations }
+          );
           for (const issue of validation.issues) context.addIssue({
-            code: 'custom', path: ['parameters', ...issue.path], message: issue.message
+            code: 'custom', path: issue.path, message: issue.message
           });
-        })).min(1).max(64) })
+        })
   }, withResult(({ documentId, name, timeoutMs, operations, expectedDocumentRevision }) =>
     client.invoke('command.execute', { documentId, command: 'command.batch',
-      commandRequestId: crypto.randomUUID(), commandParameters: { name, timeoutMs, operations },
+      commandRequestId: crypto.randomUUID(), commandParameters: { name, operations,
+        ...(timeoutMs === undefined ? {} : { timeoutMs }) },
       ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }) }), { edit: true }));
   server.registerTool('lighttable_task_events', {
     title: 'Poll LightTable agent activity',
