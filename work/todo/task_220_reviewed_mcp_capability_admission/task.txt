@@ -17,7 +17,7 @@ Depends on
 
 - [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
   coverage ownership.
-- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt) shared
+- [`Task 215`](../../done/task_215_shared_command_schemas_and_examples/task.txt) shared
   schemas.
 - [`Task 217`](../../done/task_217_ui_actions_mcp_equivalence_harness/task.txt)
   equivalence harness.

@@ -14,7 +14,7 @@ Parent goal
 Depends on
 ==========
 
-- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt) for
+- [`Task 215`](../../done/task_215_shared_command_schemas_and_examples/task.txt) for
   schema-driven property editing and examples.
 - [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt) for
   shared-route equivalence evidence.

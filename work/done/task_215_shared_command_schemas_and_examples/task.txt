@@ -1,5 +1,16 @@
 Task 215 - Shared command schemas and executable examples
 
+Completion audit (2026-08-20)
+================================
+
+All 65 admitted commands have modular version-1 input/result schemas consumed
+by command validation, generated Actions controls and MCP discovery/execution.
+The sole catalog command without a complete schema is experimental, withheld
+`faceWarp.applyOperation`, with an explicit product/visual-gate reason. Full app
+tests, MCP tests, generation drift, coverage, boundary and representative
+packaged route proofs are green. The contract remains versioned alpha, not a
+frozen public 1.0 API.
+
 Goal
 ====
 

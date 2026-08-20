@@ -11,7 +11,7 @@ handwritten duplicate of every nested command schema.
 Parent work
 ===========
 
-- [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt)
 - [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
 
 Required work
