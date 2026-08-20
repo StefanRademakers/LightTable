@@ -36,6 +36,7 @@ const setup = () => {
   ) => {
     adjustments = next;
   });
+  const onCommitted = vi.fn();
   const dependencies: AdjustmentTransactionDependencies = {
     getDocumentId: () => documentId,
     getAdjustments: () => adjustments,
@@ -43,7 +44,8 @@ const setup = () => {
     getRenderer: () => renderer,
     previewSnapshot,
     commitSnapshot,
-    pushHistoryEntry: (entry) => history.push(entry)
+    pushHistoryEntry: (entry) => history.push(entry),
+    onCommitted
   };
   const controller = createAdjustmentTransactionController(() => dependencies);
   return {
@@ -51,6 +53,7 @@ const setup = () => {
     renderer,
     previewSnapshot,
     commitSnapshot,
+    onCommitted,
     history,
     get adjustments() { return adjustments; },
     switchDocument: () => { documentId = secondDocument.id; }
@@ -69,6 +72,13 @@ describe('adjustment transaction controller', () => {
     expect(state.previewSnapshot).toHaveBeenCalledTimes(3);
     expect(state.commitSnapshot).toHaveBeenCalledTimes(1);
     expect(state.history).toHaveLength(1);
+    expect(state.onCommitted).toHaveBeenCalledOnce();
+    expect(state.onCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      targetLayerId: firstDocument.activeLayerId,
+      domain: 'grade',
+      before: expect.objectContaining({ exposureEV: 0 }),
+      after: expect.objectContaining({ exposureEV: 3 })
+    }));
     expect(state.renderer.setScopeInteractionActive).toHaveBeenNthCalledWith(1, true);
     expect(state.renderer.setScopeInteractionActive).toHaveBeenLastCalledWith(false);
   });
@@ -111,6 +121,7 @@ describe('adjustment transaction controller', () => {
     expect(state.previewSnapshot).toHaveBeenCalledTimes(2);
     expect(state.commitSnapshot).not.toHaveBeenCalled();
     expect(state.history).toHaveLength(0);
+    expect(state.onCommitted).not.toHaveBeenCalled();
   });
 
   it('rejects a pending interaction after a document switch', () => {

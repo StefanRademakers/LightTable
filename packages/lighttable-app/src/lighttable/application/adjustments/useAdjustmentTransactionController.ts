@@ -32,6 +32,12 @@ export interface AdjustmentTransactionDependencies {
     domain: AdjustmentPresentationDomain
   ): void;
   pushHistoryEntry(entry: AdjustmentHistoryEntry): void;
+  onCommitted?(commit: {
+    readonly before: BasicAdjustments;
+    readonly after: BasicAdjustments;
+    readonly targetLayerId: LayerId | null;
+    readonly domain: AdjustmentPresentationDomain;
+  }): void;
 }
 
 export interface AdjustmentTransactionController {
@@ -124,6 +130,12 @@ export const createAdjustmentTransactionController = (
         after,
         completed.targetLayerId
       );
+      dependencies.onCommitted?.({
+        before: cloneAdjustments(completed.before),
+        after: cloneAdjustments(after),
+        targetLayerId: completed.targetLayerId,
+        domain: completed.domain
+      });
     }
   };
 

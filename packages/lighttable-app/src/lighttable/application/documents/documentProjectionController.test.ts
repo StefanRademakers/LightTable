@@ -95,6 +95,26 @@ describe('createDocumentProjectionController', () => {
     expect(fixture.publishRendererAdjustments).toHaveBeenCalledOnce();
   });
 
+  it('can commit a background Grade target without replacing Properties presentation', () => {
+    const fixture = createFixture();
+    const presented = fixture.getEditorAdjustments();
+    const nextAdjustments = { ...createDefaultAdjustments(), contrast: 42 };
+
+    fixture.controller.applyAdjustmentSnapshot(
+      nextAdjustments,
+      fixture.getDocument().activeLayerId,
+      'grade',
+      false
+    );
+
+    expect(fixture.getEditorAdjustments()).toBe(presented);
+    expect(fixture.publishEditorAdjustments).not.toHaveBeenCalled();
+    expect(fixture.publishRendererDocument).toHaveBeenCalledOnce();
+    expect(fixture.getDocument().layers[0]).toMatchObject({
+      adjustmentStack: expect.objectContaining({ modules: expect.any(Array) })
+    });
+  });
+
   it('previews a contextual grade without publishing the canonical document', () => {
     const fixture = createFixture();
     const originalDocument = fixture.getDocument();

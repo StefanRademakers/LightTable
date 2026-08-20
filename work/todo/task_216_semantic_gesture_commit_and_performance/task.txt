@@ -64,11 +64,13 @@ Current evidence (2026-08-20)
   result; the recorder observes only that committed result.
 - Oversized recorder payloads fail closed while live painting continues.
 - Packaged Actions and Brush UX flows passed after integration.
+- A real packaged Exposure slider gesture records one final `grade.setBasic`
+  step and replays it; pointer/keyboard preview values never enter command
+  transport individually.
 
 Remaining before this task is complete
 ======================================
 
-- adjustment/Grade slider begin-preview-finish recording proof;
 - Warp final-stroke schema, Actions replay and remote admission;
 - explicit disconnect/document-close behavior for remote gesture sessions;
 - representative runtime telemetry in the packaged app for commit latency and

@@ -67,5 +67,9 @@
     { "kind": "modify", "operation": "all" },
     { "kind": "modify", "operation": "clear" },
     { "kind": "modify", "operation": "invert" }
+  ],
+  "grade.setBasic": [
+    { "target": { "kind": "document" }, "values": { "exposureEV": 0.35, "contrast": 12 } },
+    { "target": { "kind": "layer", "layerId": "layer-photo" }, "values": { "temperature": -8, "vibrance": 15 } }
   ]
 }

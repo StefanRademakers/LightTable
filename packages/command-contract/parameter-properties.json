@@ -35,6 +35,7 @@
   "tool.commitGesture": { "kind": "brush-stroke | selection-rectangle | layer-translate", "parameters": "object", "samples": "gesture-sample[] (1..4096, <=240 KiB)" },
   "selection.applyShape": { "mode": "replace | add | subtract | intersect", "shape": "selection-shape (2..4096 points)", "featherRadius?": "number 0..250", "antiAlias?": "boolean" },
   "selection.modify": { "kind": "modify", "operation": "all | clear | invert" },
+  "grade.setBasic": { "target": "document | layer target", "values": "partial basic-grade values with control ranges" },
   "task.cancel": { "taskId": "string" },
   "file.exportNative": {},
   "file.exportPng": {},

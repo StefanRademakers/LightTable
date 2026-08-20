@@ -1,0 +1,75 @@
+Task 224 - Targeted basic Grade command
+========================================
+
+Goal
+====
+
+Expose the basic Grade controls as one final typed patch against an explicit
+document or layer owner, while preserving the existing local slider preview
+path and preventing remote edits from hijacking the open Properties panel.
+
+Contributes to
+==============
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 216`](../../todo/task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../../todo/task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Define explicit document/layer Grade targets independent of UI focus.
+- [x] Resolve current values from canonical document/adjustment stacks.
+- [x] Validate partial numeric patches with the actual UI ranges.
+- [x] Reuse adjustment projection, renderer publication and normal undo history.
+- [x] Allow background target mutation without changing Properties presentation.
+- [x] Keep slider preview updates outside command/recorder traffic.
+- [x] Record one final `grade.setBasic` step after a UI slider transaction.
+- [x] Generate shared properties/examples and admit the verified command to MCP.
+- [x] Compare UI-origin, Actions and MCP canonical values/history.
+- [x] Exercise a representative packaged slider record/undo/replay flow.
+- [x] Run type, contract, boundary and focused test gates.
+
+Scope guard
+===========
+
+- This slice covers Temperature, Tint, Exposure, Contrast, Highlights,
+  Shadows, Whites, Blacks, Lift, Texture, Clarity, Dehaze, Vibrance and
+  Saturation only.
+- It does not change any visual adjustment algorithm or default.
+- Specialized Photoshop-compatible Adjustment Layers and attached adjustments
+  remain outside this command until their distinct schemas are modeled.
+
+Completion evidence
+===================
+
+- `grade.setBasic` addresses `{kind: document}` or one stable raster/Grade
+  Layer ID and accepts a non-empty partial patch of the 14 scoped controls.
+- Slider definitions and command validation consume one shared range map;
+  Exposure remains -5..5 and the other basic controls -100..100.
+- Canonical target resolution reads document Grade or materializes the target
+  layer stack; missing, locked and specialized Adjustment Layers fail closed.
+- Background layer mutation publishes canonical document/renderer state while
+  leaving an unrelated Properties presentation untouched.
+- Pointer/keyboard slider previews remain in the existing local transaction;
+  only its successful final commit is observed as one Action step.
+- UI-origin, Actions and authenticated MCP routes produce equivalent basic
+  Grade values and history for one multi-property document patch.
+- The packaged desktop Actions flow records a real Exposure slider edit,
+  binds its nested target to `$step6.layerId`, undoes seven mixed operations
+  and replays them successfully.
+- Focused adjustment/command run: 111 test files, 1,168 tests passed.
+- Workspace typecheck, command contract/drift, application boundary, UI
+  boundary and packaged desktop build passed.
+
+Explicit remaining work
+=======================
+
+- query current Grade values through Agent Access/MCP;
+- specialized Photoshop Adjustment Layer schemas;
+- attached adjustment targets;
+- non-basic Grade groups such as curves, mixer, color grading and detail;
+- external MCP-to-packaged-desktop value inspection beyond adapter forwarding.

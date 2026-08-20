@@ -174,6 +174,29 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     }), { origin: 'mcp', recording: 'record' });
   });
 
+  it('forwards one final targeted Grade patch without slider simulation', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    expect(await adapter.invoke(request('command.execute', {
+      command: 'grade.setBasic', documentId: 'document-1',
+      commandRequestId: 'grade-basic-1', expectedDocumentRevision: 12,
+      commandParameters: {
+        target: { kind: 'layer', layerId: 'photo' },
+        values: { exposureEV: 0.4, contrast: 12 }
+      }
+    }))).toMatchObject({ status: 'completed' });
+    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({
+      command: 'grade.setBasic', documentId: 'document-1',
+      expectedDocumentRevision: 12,
+      parameters: {
+        target: { kind: 'layer', layerId: 'photo' },
+        values: { exposureEV: 0.4, contrast: 12 }
+      }
+    }), { origin: 'mcp', recording: 'record' });
+  });
+
   it('accepts one committed tool call without requiring live MCP pointer streaming', async () => {
     const driver = createDriver();
     const adapter = new AuthenticatedLightTableMcpAdapter({

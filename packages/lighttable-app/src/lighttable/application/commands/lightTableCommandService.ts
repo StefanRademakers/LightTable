@@ -40,6 +40,10 @@ import { parseSemanticFaceWarpCommand, type SemanticFaceWarpCommand } from './se
 import { parseSemanticLayerCommand, type SemanticLayerCommand } from './semanticLayerCommandContract';
 import { parseSemanticSelectionCommand, type SemanticSelectionCommand } from './semanticSelectionCommandContract';
 import {
+  parseSemanticBasicAdjustmentCommand,
+  type SemanticBasicAdjustmentCommand
+} from './semanticBasicAdjustmentCommandContract';
+import {
   SemanticActionRecorder,
   type ActionRecordingSnapshot
 } from '../actions/semanticActionRecorder';
@@ -122,6 +126,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   executeSelectionCommand(documentId: DocumentSessionId, command: SemanticSelectionCommand) {
     const execute = this.resolve(documentId).executeSelectionCommand;
     if (!execute) throw new Error('Selection commands are unavailable in the target document.');
+    return execute(command);
+  }
+
+  executeBasicAdjustmentCommand(documentId: DocumentSessionId, command: SemanticBasicAdjustmentCommand) {
+    const execute = this.resolve(documentId).executeBasicAdjustmentCommand;
+    if (!execute) throw new Error('Basic Grade commands are unavailable in the target document.');
     return execute(command);
   }
 
@@ -585,6 +595,8 @@ export class LightTableCommandService {
         'Selection commands are unavailable in this host.'),
       availability('selection.modify', Boolean(this.ports.executeSelectionCommand),
         'Selection commands are unavailable in this host.'),
+      availability('grade.setBasic', Boolean(this.ports.executeBasicAdjustmentCommand),
+        'Basic Grade commands are unavailable in this host.'),
       availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),
       availability('file.exportNative', true, ''),
       availability('file.exportPng', true, ''),
@@ -1138,6 +1150,18 @@ export class LightTableCommandService {
         const result = await this.ports.executeSelectionCommand(request.documentId, command);
         if (!result) return { code: 'execution-failed', message: 'The selection could not be applied.' };
         return { value: result, changed: false };
+      }
+      case 'grade.setBasic': {
+        const command = parseSemanticBasicAdjustmentCommand(parameters);
+        if ('message' in command) return this.invalidParameters(command.message);
+        if (!this.ports.executeBasicAdjustmentCommand) {
+          return { code: 'command-unavailable', message: 'Basic Grade commands are unavailable in this host.' };
+        }
+        const result = await this.ports.executeBasicAdjustmentCommand(request.documentId, command);
+        if (!result || typeof result !== 'object') {
+          return { code: 'execution-failed', message: 'The basic Grade could not be applied.' };
+        }
+        return { value: result, changed: (result as { changed?: boolean }).changed !== false };
       }
       case 'history.undo':
       case 'history.redo': {

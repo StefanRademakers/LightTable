@@ -9,7 +9,9 @@ import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, LightTableCommandService,
   type LightTableCommandPorts } from './lightTableCommandService';
 import type { SemanticLayerCommand } from './semanticLayerCommandContract';
 import type { SemanticSelectionCommand } from './semanticSelectionCommandContract';
+import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
 import { executeSemanticVectorCommand } from '../vectors/semanticVectorCommandExecutor';
+import { createDefaultAdjustments } from '../../types';
 
 const token = '0123456789abcdef0123456789abcdef';
 
@@ -25,6 +27,7 @@ const createHarness = () => {
   if (!opened.ok) throw new Error('Equivalence document could not open.');
   const session = opened.value;
   let selection: SemanticSelectionCommand[] = [];
+  let basicAdjustments = createDefaultAdjustments();
   const withBottom = createRasterLayer(createImageDocument('Equivalence', 64, 64, 'fixture'), 'Bottom');
   const initial = createRasterLayer(withBottom, 'Top');
   session.setDocument(initial);
@@ -93,6 +96,29 @@ const createHarness = () => {
       })
     })
   );
+  const applyBasicAdjustment = (command: SemanticBasicAdjustmentCommand) => {
+    if (command.target.kind !== 'document') {
+      throw new Error('The equivalence fixture currently owns a document Grade target.');
+    }
+    const before = structuredClone(basicAdjustments);
+    const after = { ...before, ...command.values };
+    const changed = Object.keys(command.values).some((key) => (
+      (before as unknown as Record<string, unknown>)[key]
+        !== (after as unknown as Record<string, unknown>)[key]
+    ));
+    if (changed) {
+      basicAdjustments = after;
+      session.history.record({
+        id: `equivalence-history-${++historySequence}`,
+        type: 'adjustment.basic',
+        label: 'Set Basic Grade',
+        documentId: session.id,
+        undo: () => { basicAdjustments = before; },
+        redo: () => { basicAdjustments = after; }
+      });
+    }
+    return { target: command.target, values: command.values, changed };
+  };
   const ports: LightTableCommandPorts = {
     setZoom: vi.fn(), createRasterLayer: vi.fn(), placeArtifact: vi.fn(), renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(), setLayerFillOpacity: vi.fn(), setLayerStyleEnabled: vi.fn(),
@@ -100,6 +126,7 @@ const createHarness = () => {
     executeVectorCommand: vi.fn((_documentId, command) => applyVector(command)),
     executeLayerStyleCommand: vi.fn(), executeLayerCommand: vi.fn((_documentId, command) => applyLayer(command)),
     executeSelectionCommand: vi.fn((_documentId, command) => applySelection(command)),
+    executeBasicAdjustmentCommand: vi.fn((_documentId, command) => applyBasicAdjustment(command)),
     executeAtomicBatch: vi.fn(), exportNativeArtifact: vi.fn(), exportPngArtifact: vi.fn(),
     exportPsdArtifact: vi.fn(), beginGesture: vi.fn(), updateGesture: vi.fn(), finishGesture: vi.fn(),
     undo: vi.fn(() => session.history.undo()), redo: vi.fn(() => session.history.redo())
@@ -152,8 +179,20 @@ const createHarness = () => {
       redoDepth: session.history.getSnapshot().redoDepth
     }
   });
+  const gradeSnapshot = () => ({
+    values: {
+      exposureEV: basicAdjustments.exposureEV,
+      contrast: basicAdjustments.contrast,
+      temperature: basicAdjustments.temperature,
+      vibrance: basicAdjustments.vibrance
+    },
+    history: {
+      undoDepth: session.history.getSnapshot().undoDepth,
+      redoDepth: session.history.getSnapshot().redoDepth
+    }
+  });
   return { workspace, session, service, adapter, topId, execute, snapshot,
-    selectionSnapshot, designSnapshot };
+    selectionSnapshot, designSnapshot, gradeSnapshot };
 };
 
 const steps = (layerId: string) => [
@@ -295,6 +334,48 @@ describe('artist capability equivalence harness', () => {
       history: { undoDepth: 3, redoDepth: 0, dirty: false }
     });
 
+    for (const harness of [ui, actions, mcp]) {
+      harness.service.dispose();
+      harness.workspace.dispose();
+    }
+  });
+
+  it('applies one final basic Grade patch through equivalent UI, Actions and MCP routes', async () => {
+    const parameters = {
+      target: { kind: 'document' as const },
+      values: { exposureEV: 0.45, contrast: 18, temperature: -7, vibrance: 22 }
+    };
+    const ui = createHarness();
+    expect(await ui.execute('grade.setBasic', parameters)).toMatchObject({ status: 'completed' });
+
+    const actions = createHarness();
+    actions.service.startActionRecording('Basic grade');
+    await actions.execute('grade.setBasic', parameters);
+    actions.service.stopActionRecording();
+    await actions.execute('history.undo', {});
+    expect(await actions.service.playActionRecording()).toMatchObject({ status: 'completed' });
+
+    const mcp = createHarness();
+    expect(await mcp.adapter.invoke({
+      protocolVersion: 1,
+      requestId: 'mcp-basic-grade',
+      token,
+      method: 'command.execute',
+      parameters: {
+        documentId: mcp.session.id,
+        command: 'grade.setBasic',
+        commandRequestId: 'mcp-command-basic-grade',
+        expectedDocumentRevision: mcp.service.queryDocument(mcp.session.id)!.canonicalRevision,
+        commandParameters: parameters
+      }
+    })).toMatchObject({ status: 'completed' });
+
+    expect(actions.gradeSnapshot()).toEqual(ui.gradeSnapshot());
+    expect(mcp.gradeSnapshot()).toEqual(ui.gradeSnapshot());
+    expect(ui.gradeSnapshot()).toEqual({
+      values: { exposureEV: 0.45, contrast: 18, temperature: -7, vibrance: 22 },
+      history: { undoDepth: 1, redoDepth: 0 }
+    });
     for (const harness of [ui, actions, mcp]) {
       harness.service.dispose();
       harness.workspace.dispose();

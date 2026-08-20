@@ -3,6 +3,7 @@ import type { AdjustmentSliderTrack } from '../../../ui/AdjustmentSlider';
 import type {
   NumericAdjustmentKey
 } from '../../application/adjustments/groupVisibility';
+import { BASIC_ADJUSTMENT_RANGES } from '../../application/adjustments/groupVisibility';
 import type { ColorGradingMode } from '../../colorGrading';
 import {
   COLOR_MIXER_DISPLAY_CENTERS,
@@ -47,23 +48,23 @@ export type LensBlurNumericKey = Exclude<
 >;
 export type LensBlurSliderDefinition = SliderDefinition<LensBlurNumericKey>;
 
-export const COLOR_TEMPERATURE_RANGE = { min: -100, max: 100 } as const;
+export const COLOR_TEMPERATURE_RANGE = BASIC_ADJUSTMENT_RANGES.temperature;
 
 const SLIDERS: ReadonlyArray<SliderDefinition> = [
   { key: 'temperature', label: 'Temperature', ...COLOR_TEMPERATURE_RANGE, track: 'temperature' },
-  { key: 'tint', label: 'Tint', min: -100, max: 100, track: 'tint' },
-  { key: 'exposureEV', label: 'Exposure', min: -5, max: 5, step: 0.01, format: (value) => `${value.toFixed(2)} EV`, track: 'luminance' },
-  { key: 'contrast', label: 'Contrast', min: -100, max: 100, track: 'luminance' },
-  { key: 'highlights', label: 'Highlights', min: -100, max: 100, track: 'luminance' },
-  { key: 'shadows', label: 'Shadows', min: -100, max: 100, track: 'luminance' },
-  { key: 'whites', label: 'Whites', min: -100, max: 100, track: 'luminance' },
-  { key: 'blacks', label: 'Blacks', min: -100, max: 100, track: 'luminance' },
-  { key: 'lift', label: 'Lift', min: -100, max: 100, track: 'luminance' },
-  { key: 'texture', label: 'Texture', min: -100, max: 100, track: 'luminance' },
-  { key: 'clarity', label: 'Clarity', min: -100, max: 100, track: 'luminance' },
-  { key: 'dehaze', label: 'Dehaze', min: -100, max: 100, track: 'luminance' },
-  { key: 'vibrance', label: 'Vibrance', min: -100, max: 100, track: 'vibrance' },
-  { key: 'saturation', label: 'Saturation', min: -100, max: 100, track: 'saturation' }
+  { key: 'tint', label: 'Tint', ...BASIC_ADJUSTMENT_RANGES.tint, track: 'tint' },
+  { key: 'exposureEV', label: 'Exposure', ...BASIC_ADJUSTMENT_RANGES.exposureEV, step: 0.01, format: (value) => `${value.toFixed(2)} EV`, track: 'luminance' },
+  { key: 'contrast', label: 'Contrast', ...BASIC_ADJUSTMENT_RANGES.contrast, track: 'luminance' },
+  { key: 'highlights', label: 'Highlights', ...BASIC_ADJUSTMENT_RANGES.highlights, track: 'luminance' },
+  { key: 'shadows', label: 'Shadows', ...BASIC_ADJUSTMENT_RANGES.shadows, track: 'luminance' },
+  { key: 'whites', label: 'Whites', ...BASIC_ADJUSTMENT_RANGES.whites, track: 'luminance' },
+  { key: 'blacks', label: 'Blacks', ...BASIC_ADJUSTMENT_RANGES.blacks, track: 'luminance' },
+  { key: 'lift', label: 'Lift', ...BASIC_ADJUSTMENT_RANGES.lift, track: 'luminance' },
+  { key: 'texture', label: 'Texture', ...BASIC_ADJUSTMENT_RANGES.texture, track: 'luminance' },
+  { key: 'clarity', label: 'Clarity', ...BASIC_ADJUSTMENT_RANGES.clarity, track: 'luminance' },
+  { key: 'dehaze', label: 'Dehaze', ...BASIC_ADJUSTMENT_RANGES.dehaze, track: 'luminance' },
+  { key: 'vibrance', label: 'Vibrance', ...BASIC_ADJUSTMENT_RANGES.vibrance, track: 'vibrance' },
+  { key: 'saturation', label: 'Saturation', ...BASIC_ADJUSTMENT_RANGES.saturation, track: 'saturation' }
 ];
 
 const LIGHT_KEYS = new Set<NumericAdjustmentKey>([

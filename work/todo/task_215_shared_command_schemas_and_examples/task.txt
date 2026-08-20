@@ -61,3 +61,21 @@ Non-goals
 - Free-form arbitrary JSON/state mutation.
 - Freezing a public 1.0 API during alpha.
 - Building the complete Actions workflow UX in this task.
+
+Current evidence (2026-08-20)
+=============================
+
+- Structural layer, selection, affine-transform, committed paint and basic
+  Grade commands publish machine-readable parameter properties and examples.
+- The 14 basic Grade ranges now have one application-owned map consumed by
+  both the real sliders and `grade.setBasic` validation.
+- Stable result binding supports nested Grade targets during packaged Action
+  replay.
+
+Still required for completion
+=============================
+
+- formal versioned input and result schemas for every admitted command;
+- generated Actions property editors from those schemas;
+- schema migration/incompatibility behavior for persisted Actions;
+- explicit blocking reasons for every command without a complete schema.

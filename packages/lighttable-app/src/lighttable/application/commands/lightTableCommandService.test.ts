@@ -659,6 +659,31 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('validates, records and replays one final basic Grade patch', async () => {
+    const executeBasicAdjustmentCommand = vi.fn(async () => ({
+      target: { kind: 'document' }, values: { exposureEV: 1.25 }, changed: true
+    }));
+    const state = setup({ executeBasicAdjustmentCommand });
+    state.service.startActionRecording('Raise exposure');
+    await expect(state.service.execute(request('grade.setBasic', state.session.id, {
+      target: { kind: 'document' }, values: { exposureEV: 1.25 }
+    }))).resolves.toMatchObject({ status: 'completed' });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'grade.setBasic', replayable: true,
+      parameters: { target: { kind: 'document' }, values: { exposureEV: 1.25 } }
+    }]);
+    await state.service.playActionRecording();
+    expect(executeBasicAdjustmentCommand).toHaveBeenCalledTimes(2);
+
+    await expect(state.service.execute(request('grade.setBasic', state.session.id, {
+      target: { kind: 'document' }, values: { exposureEV: 12 }
+    }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(executeBasicAdjustmentCommand).toHaveBeenCalledTimes(2);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('validates bounded layer visibility mutations', async () => {
     const state = setup();
     const layerId = state.session.getSnapshot().document!.activeLayerId!;

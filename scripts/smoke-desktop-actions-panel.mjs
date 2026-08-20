@@ -121,6 +121,12 @@ try {
   await focusedLayerName.fill('Recorded Title');
   await focusedLayerName.press('Enter');
   await recorder.locator('li').filter({ hasText: 'layer.rename' }).waitFor();
+  await window.getByRole('tab', { name: 'Properties', exact: true }).click();
+  const exposure = window.getByRole('slider', { name: 'Exposure', exact: true });
+  await exposure.focus();
+  await exposure.press('ArrowRight');
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.locator('li').filter({ hasText: 'grade.setBasic' }).waitFor();
 
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
@@ -128,7 +134,7 @@ try {
   await undo.locator('summary').click();
   const undoButton = undo.getByRole('button', { name: 'Run' });
   await undoButton.waitFor();
-  for (let index = 0; index < 6; index += 1) {
+  for (let index = 0; index < 7; index += 1) {
     await undoButton.click();
     await panel.getByRole('status').filter({ hasText: 'history.undo: completed' })
       .waitFor({ timeout: 15_000 });
@@ -140,7 +146,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 6) throw new Error('Expected six recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 7) throw new Error('Expected seven recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -151,6 +157,12 @@ try {
   const brushStep = recorder.locator('li').filter({ hasText: 'tool.commitGesture' });
   await brushStep.locator('summary').click();
   await brushStep.getByText('$step4.layerId', { exact: false }).waitFor();
+  const gradeStep = recorder.locator('li').filter({ hasText: 'grade.setBasic' });
+  await gradeStep.locator('summary').click();
+  const gradeStepText = await gradeStep.textContent();
+  if (!gradeStepText?.includes('$step6.layerId')) {
+    throw new Error(`Recorded Grade target was not rebound to the latest layer result: ${gradeStepText}`);
+  }
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();

@@ -95,6 +95,9 @@ Existing foundation evidence
   capabilities; this is partial category evidence, not program completion.
 - Select All, Clear/Deselect and Invert now share `selection.modify` across the
   real menu/keyboard owner, Actions and admitted MCP execution.
+- Fourteen basic Grade controls now share `grade.setBasic` with explicit
+  document/layer targets, final slider recording and packaged Actions replay;
+  Grade inspection and non-basic groups remain open.
 
 Program definition of done
 ==========================

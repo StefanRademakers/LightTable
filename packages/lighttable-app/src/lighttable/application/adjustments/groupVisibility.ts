@@ -15,6 +15,26 @@ export type NumericAdjustmentKey = Exclude<
   'colorMixer' | 'pointColor' | 'colorGrading' | 'blackWhiteMix' | 'gradeLook' | 'curves' | 'gradientMap' | 'photoshopAdjustment' | 'detail' | 'effects'
 >;
 
+export const BASIC_ADJUSTMENT_RANGES: Readonly<Record<
+  NumericAdjustmentKey,
+  { readonly min: number; readonly max: number }
+>> = {
+  temperature: { min: -100, max: 100 },
+  tint: { min: -100, max: 100 },
+  exposureEV: { min: -5, max: 5 },
+  contrast: { min: -100, max: 100 },
+  highlights: { min: -100, max: 100 },
+  shadows: { min: -100, max: 100 },
+  whites: { min: -100, max: 100 },
+  blacks: { min: -100, max: 100 },
+  lift: { min: -100, max: 100 },
+  texture: { min: -100, max: 100 },
+  clarity: { min: -100, max: 100 },
+  dehaze: { min: -100, max: 100 },
+  vibrance: { min: -100, max: 100 },
+  saturation: { min: -100, max: 100 }
+};
+
 export interface GroupVisibility {
   readonly globalGrade: boolean;
   readonly globalLensFx: boolean;

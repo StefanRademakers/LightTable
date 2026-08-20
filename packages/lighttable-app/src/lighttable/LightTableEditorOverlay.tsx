@@ -20,6 +20,8 @@ import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFon
 import { useAdjustmentTransactionController } from './application/adjustments/useAdjustmentTransactionController';
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
+import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdjustmentTarget';
+import { changedBasicAdjustmentValues } from './application/commands/semanticBasicAdjustmentCommandContract';
 import type { ActionRecordingSnapshot } from './application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from './application/actions/semanticActionPlayback';
 import { linearRgbToOklab, srgbToLinear } from './colorMath';
@@ -64,7 +66,10 @@ import {
   type GradeModuleGroup,
   materializeBasicAdjustments
 } from './processing/adjustmentStack';
-import { attachedAdjustmentOwnerId } from './processing/attachedAdjustment';
+import {
+  attachedAdjustmentOwnerId,
+  parseAttachedAdjustmentOwnerId
+} from './processing/attachedAdjustment';
 import type { AdjustmentLayerKind } from './processing/adjustmentLayerCatalog';
 import { TextToShapeCommandController } from './application/text/TextToShapeCommandController';
 import { PositionedTextRecoveryCommandController } from './application/text/PositionedTextRecoveryCommandController';
@@ -841,6 +846,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [propertiesTarget, setPropertiesTarget] = useState<PropertiesInspectorTarget>({
     kind: 'none'
   });
+  const propertiesTargetRef = useRef(propertiesTarget);
+  propertiesTargetRef.current = propertiesTarget;
   const showProperties = useCallback((target: PropertiesInspectorTarget) => {
     setPropertiesTarget(target);
     requestAnimationFrame(() => {
@@ -2337,7 +2344,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     previewSnapshot: previewAdjustmentSnapshot,
     commitSnapshot: applyAdjustmentSnapshot,
-    pushHistoryEntry
+    pushHistoryEntry,
+    onCommitted: ({ before, after, targetLayerId, domain }) => {
+      if (domain !== 'grade' || (targetLayerId && parseAttachedAdjustmentOwnerId(targetLayerId))) {
+        return;
+      }
+      const values = changedBasicAdjustmentValues(before, after);
+      if (!Object.keys(values).length) return;
+      const target = targetLayerId
+        ? { kind: 'layer' as const, layerId: targetLayerId }
+        : { kind: 'document' as const };
+      commandService?.recordObservedCommand(
+        'grade.setBasic',
+        workspaceDocumentId as DocumentSessionId,
+        { target, values },
+        { target, values, changed: true }
+      );
+    }
   });
   resetAdjustmentTransactionRef.current = () => {
     adjustmentTransactionController.reset();
@@ -4620,6 +4643,51 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           featherRadius: command.featherRadius,
           antiAlias: command.antiAlias
         } : null;
+      },
+      executeBasicAdjustmentCommand: (command) => {
+        adjustmentTransactionController.end();
+        const document = imageDocumentRef.current;
+        if (!document) return null;
+        const resolved = resolveBasicAdjustmentTarget(
+          document,
+          documentAdjustmentsRef.current,
+          command.target
+        );
+        if ('message' in resolved) throw new Error(resolved.message);
+        const before = cloneAdjustments(resolved.adjustments);
+        const after = cloneAdjustments(before);
+        Object.entries(command.values).forEach(([key, value]) => {
+          (after as unknown as Record<string, unknown>)[key] = value;
+        });
+        const changed = Object.keys(command.values).some((key) => (
+          (before as unknown as Record<string, unknown>)[key]
+            !== (after as unknown as Record<string, unknown>)[key]
+        ));
+        if (!changed) return { target: command.target, values: command.values, changed: false };
+        const currentPropertiesTarget = propertiesTargetRef.current;
+        const presented = command.target.kind === 'document'
+          ? currentPropertiesTarget.kind === 'document-processing'
+            && currentPropertiesTarget.owner === 'grade'
+          : 'layerId' in currentPropertiesTarget
+            && currentPropertiesTarget.layerId === command.target.layerId
+            && propertiesInspectorView(document, currentPropertiesTarget) === 'grade';
+        const publish = (snapshot: BasicAdjustments) => {
+          documentProjectionController.applyAdjustmentSnapshot(
+            snapshot,
+            resolved.targetLayerId,
+            'grade',
+            presented
+          );
+        };
+        publish(after);
+        pushHistoryEntry({
+          type: 'adjustment.basic',
+          label: 'Set Basic Grade',
+          documentMutation: true,
+          undo: () => publish(before),
+          redo: () => publish(after)
+        });
+        return { target: command.target, values: command.values, changed: true };
       },
       executeAtomicBatch: async (batch, signal, report) => {
         const result = await executeAtomicCommandBatch(batch, {
