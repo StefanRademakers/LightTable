@@ -54,8 +54,10 @@ for (const [id, schema] of Object.entries(commandSchemas)) {
     throw new Error(`The command ${id} must define object input and result schemas.`);
   }
   const definition = catalog.commands.find((command) => command.id === id);
-  if (definition.invocation !== 'parameters') {
-    throw new Error(`Direct command ${id} may not define a parameter schema.`);
+  if (definition.invocation === 'direct'
+    && (Object.keys(schema.input.properties ?? {}).length > 0
+      || (schema.input.required?.length ?? 0) > 0)) {
+    throw new Error(`Direct command ${id} may only define a closed empty input schema.`);
   }
   const schemaProperties = Object.keys(schema.input.properties ?? {}).sort();
   const advertisedProperties = Object.keys(parameterProperties[id] ?? {})

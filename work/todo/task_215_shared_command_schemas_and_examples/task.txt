@@ -140,6 +140,11 @@ Current evidence (2026-08-20)
   native Type-tool creation and formatting. External MCP separately proves
   transform discovery, rejects private affine runtime fields without a revision
   change, and executes the real contextual fixed-transform owner.
+- A separate Layer Mask module now gives direct `layer.createRaster` a closed
+  empty input plus a stable non-null created-layer result, and gives
+  `layer.setMask` operation-specific add/remove/enable/link inputs and results.
+  Actions derives only relevant defaults; MCP discovery exposes both complete
+  contracts and rejects cross-operation mask fields before document mutation.
 
 Still required for completion
 =============================

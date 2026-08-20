@@ -11,8 +11,8 @@ const recording = (): ActionRecordingSnapshot => ({
   steps: [{
     sequence: 1, requestId: 'recorded-1', command: 'layer.createRaster', documentId: 'document-1',
     origin: 'ui',
-    contract: legacyContract,
-    parameters: {}, outcome: 'completed', result: { layerId: 'old-layer' }, startedAt: 1, durationMs: 1,
+    contract: schemaContract,
+    parameters: {}, outcome: 'completed', result: { created: true, layerId: 'old-layer' }, startedAt: 1, durationMs: 1,
     replayable: true, note: null
   }, {
     sequence: 2, requestId: 'recorded-2', command: 'layer.rename', documentId: 'document-1',
@@ -34,7 +34,8 @@ describe('SemanticActionPlaybackController', () => {
   it('plays replayable steps through the supplied semantic executor', async () => {
     const execute = vi.fn(async (request) => ({ requestId: request.requestId,
       status: 'completed' as const,
-      value: request.command === 'layer.createRaster' ? { layerId: 'new-layer-for-this-run' } : {},
+      value: request.command === 'layer.createRaster'
+        ? { created: true, layerId: 'new-layer-for-this-run' } : {},
       revisions: { workspace: 1 } }));
     const controller = new SemanticActionPlaybackController(execute);
 
@@ -58,7 +59,8 @@ describe('SemanticActionPlaybackController', () => {
   it('retargets every document-scoped step to the current active document', async () => {
     const execute = vi.fn(async (request) => ({ requestId: request.requestId,
       status: 'completed' as const,
-      value: request.command === 'layer.createRaster' ? { layerId: 'fresh-layer' } : {},
+      value: request.command === 'layer.createRaster'
+        ? { created: true, layerId: 'fresh-layer' } : {},
       revisions: { workspace: 1 } }));
     const controller = new SemanticActionPlaybackController(execute);
 

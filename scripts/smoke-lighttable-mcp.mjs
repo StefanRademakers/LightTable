@@ -111,6 +111,19 @@ try {
       layerTransformContract, fixedTransformContract
     })}`);
   }
+  const createRasterContract = (await call('lighttable_commands', { command: 'layer.createRaster' }))
+    .structuredContent.commands?.[0]?.contract;
+  const layerMaskContract = (await call('lighttable_commands', { command: 'layer.setMask' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (createRasterContract?.status !== 'complete' || createRasterContract.schemaVersion !== 1
+    || Object.keys(createRasterContract.input?.properties ?? {}).length !== 0
+    || !createRasterContract.result?.properties?.layerId
+    || layerMaskContract?.status !== 'complete' || layerMaskContract.schemaVersion !== 1
+    || !layerMaskContract.input?.allOf || !layerMaskContract.result?.allOf) {
+    throw new Error(`MCP layer creation/mask discovery is incomplete: ${JSON.stringify({
+      createRasterContract, layerMaskContract
+    })}`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
@@ -134,6 +147,17 @@ try {
     throw new Error(`Invalid affine state reached the desktop mutation owner: ${JSON.stringify({
       invalidTransform, before: before.canonicalRevision,
       after: afterInvalidTransform.canonicalRevision
+    })}`);
+  }
+  const invalidMask = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'layer.setMask', parameters: {
+      layerId: before.activeLayerId, operation: 'set-enabled', source: 'reveal-all'
+    }
+  } });
+  const afterInvalidMask = (await call('lighttable_document', { documentId })).structuredContent;
+  if (!invalidMask.isError || afterInvalidMask.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Invalid cross-operation mask state reached the desktop mutation owner: ${JSON.stringify({
+      invalidMask, before: before.canonicalRevision, after: afterInvalidMask.canonicalRevision
     })}`);
   }
   const sourceLayerId = before.activeLayerId;

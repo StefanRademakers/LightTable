@@ -33,7 +33,9 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     resizeImage: vi.fn(),
     applyDocumentGeometry: vi.fn(),
     setZoom: vi.fn((_documentId, viewport) => session.updateViewport(() => viewport)),
-    createRasterLayer: vi.fn(),
+    createRasterLayer: vi.fn(() => {
+      session.setDocument(createRasterLayer(session.getSnapshot().document!));
+    }),
     placeArtifact: vi.fn(),
     renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(),
@@ -470,6 +472,20 @@ describe('LightTableCommandService action recording', () => {
     state.workspace.dispose();
   });
 
+  it('rejects raster creation when the mounted owner produces no stable layer', async () => {
+    const state = setup({ createRasterLayer: vi.fn() });
+    const before = state.session.getSnapshot().document;
+
+    const result = await state.service.execute(request('layer.createRaster', state.session.id));
+
+    expect(result).toMatchObject({
+      status: 'rejected', code: 'execution-failed', message: 'The raster layer was not created.'
+    });
+    expect(state.session.getSnapshot().document).toBe(before);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('rebinds later layer operations to the duplicate created during playback', async () => {
     const state = setup();
     vi.mocked(state.ports.executeLayerCommand).mockImplementation((_documentId, command) => {
@@ -899,7 +915,10 @@ describe('LightTableCommandService registry', () => {
       if (command.kind === 'set-blend-mode') return { layerId: command.layerId, blendMode: command.blendMode };
       if (command.kind === 'set-clipping') return { layerId: command.layerId, clipping: command.clipping };
       if (command.kind === 'set-lock') return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
-      if (command.kind === 'set-mask') return { layerId: command.layerId, operation: command.operation };
+      if (command.kind === 'set-mask') return { layerId: command.layerId, operation: command.operation,
+        ...(command.operation === 'add' ? { source: command.source ?? 'reveal-all' } : {}),
+        ...(command.operation === 'set-enabled' ? { enabled: command.enabled } : {}),
+        ...(command.operation === 'set-linked' ? { linked: command.linked } : {}) };
       return null;
     });
     const document = state.session.getSnapshot().document!;
@@ -920,7 +939,7 @@ describe('LightTableCommandService registry', () => {
     expect(results.every(({ status }) => status === 'completed')).toBe(true);
     for (const [index, command] of ([
       'layer.duplicate', 'layer.move', 'layer.setBlendMode', 'layer.setClipping',
-      null, 'layer.setLock', 'layer.delete'
+      'layer.setMask', 'layer.setLock', 'layer.delete'
     ] as const).entries()) {
       if (!command || results[index]?.status !== 'completed') continue;
       expect(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS[command]!.result,

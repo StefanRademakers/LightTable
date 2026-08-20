@@ -1156,7 +1156,9 @@ export class LightTableCommandService {
         const created = after
           ? walkLayerTree(after.layers).find(({ node }) => !beforeIds.has(node.id))?.node ?? null
           : null;
-        return { value: { created: true, layerId: created?.id ?? null } };
+        return created
+          ? { value: { created: true, layerId: created.id } }
+          : { code: 'execution-failed', message: 'The raster layer was not created.' };
       }
       case 'layer.duplicate':
       case 'layer.copyToNewLayer':

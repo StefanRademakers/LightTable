@@ -111,7 +111,9 @@ Existing foundation evidence
 - Layer-mask add, remove, enable/disable and link state now share one explicit-
   target `layer.setMask` contract. Packaged Actions proves real Layer-menu
   recording/replay; packaged Agent Access proves background-layer execution
-  without changing the artist's active layer.
+  without changing the artist's active layer. Its shared version-1 schema now
+  permits only fields relevant to the selected operation; raster-layer creation
+  likewise publishes a complete schema and must return a stable created ID.
 - Rectangle, Ellipse, Triangle and Line toolbar gestures now publish one
   lossless `vector.create` only after commit. Geometry, transform, layer/element
   names, fill, stroke and opacity remain native and replayable; pointer previews

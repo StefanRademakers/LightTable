@@ -7,6 +7,8 @@ import parameterProperties from '../parameter-properties.json' with { type: 'jso
 
 import commandExamples from '../examples.json' with { type: 'json' };
 
+import layerMaskCommandSchemas from '../schemas/v1/layer-mask.json' with { type: 'json' };
+
 import layerStructureCommandSchemas from '../schemas/v1/layer-structure.json' with { type: 'json' };
 
 import layerCommandSchemas from '../schemas/v1/layer.json' with { type: 'json' };
@@ -90,6 +92,7 @@ export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);
 export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = 1;
 
 export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
+  ...layerMaskCommandSchemas.commands,
   ...layerStructureCommandSchemas.commands,
   ...layerCommandSchemas.commands,
   ...textCommandSchemas.commands,

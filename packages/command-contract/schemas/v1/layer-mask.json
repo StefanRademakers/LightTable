@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "category": "layer",
+  "commands": {
+    "layer.createRaster": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["created", "layerId"],
+        "properties": {
+          "created": { "type": "boolean", "const": true },
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 }
+        }
+      }
+    },
+    "layer.setMask": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "operation"],
+        "properties": {
+          "layerId": {
+            "type": "string",
+            "title": "Layer ID",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-lighttable-control": "layer-id"
+          },
+          "operation": {
+            "type": "string",
+            "title": "Operation",
+            "enum": ["add", "remove", "set-enabled", "set-linked"],
+            "default": "add"
+          },
+          "source": {
+            "type": "string",
+            "title": "Mask source",
+            "enum": ["reveal-all", "selection"],
+            "default": "reveal-all"
+          },
+          "enabled": { "type": "boolean", "title": "Enabled", "default": true },
+          "linked": { "type": "boolean", "title": "Linked", "default": true }
+        },
+        "allOf": [
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "add" } } },
+            "then": { "type": "object", "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["enabled"] },
+              { "type": "object", "required": ["linked"] }
+            ] } }
+          },
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "remove" } } },
+            "then": { "type": "object", "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["source"] },
+              { "type": "object", "required": ["enabled"] },
+              { "type": "object", "required": ["linked"] }
+            ] } }
+          },
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "set-enabled" } } },
+            "then": { "type": "object", "required": ["enabled"], "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["source"] },
+              { "type": "object", "required": ["linked"] }
+            ] } }
+          },
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "set-linked" } } },
+            "then": { "type": "object", "required": ["linked"], "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["source"] },
+              { "type": "object", "required": ["enabled"] }
+            ] } }
+          }
+        ]
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "operation"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "operation": { "type": "string", "enum": ["add", "remove", "set-enabled", "set-linked"] },
+          "source": { "type": "string", "enum": ["reveal-all", "selection"] },
+          "enabled": { "type": "boolean" },
+          "linked": { "type": "boolean" }
+        },
+        "allOf": [
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "add" } } },
+            "then": { "type": "object", "required": ["source"], "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["enabled"] },
+              { "type": "object", "required": ["linked"] }
+            ] } }
+          },
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "remove" } } },
+            "then": { "type": "object", "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["source"] },
+              { "type": "object", "required": ["enabled"] },
+              { "type": "object", "required": ["linked"] }
+            ] } }
+          },
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "set-enabled" } } },
+            "then": { "type": "object", "required": ["enabled"], "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["source"] },
+              { "type": "object", "required": ["linked"] }
+            ] } }
+          },
+          {
+            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "set-linked" } } },
+            "then": { "type": "object", "required": ["linked"], "not": { "type": "object", "anyOf": [
+              { "type": "object", "required": ["source"] },
+              { "type": "object", "required": ["enabled"] }
+            ] } }
+          }
+        ]
+      }
+    }
+  }
+}

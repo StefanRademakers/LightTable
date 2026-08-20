@@ -6,9 +6,9 @@ const recording = (): ActionRecordingSnapshot => ({
   status: 'stopped', id: 'action-1', name: 'Untitled Action', startedAt: 1, stoppedAt: 2,
   byteLength: 4, limitReached: false, steps: [{
     sequence: 1, requestId: 'request-1', origin: 'ui', command: 'layer.createRaster',
-    contract: { status: 'legacy-properties-only', schemaVersion: null },
+    contract: { status: 'complete', schemaVersion: 1 },
     documentId: 'old-document', parameters: {}, outcome: 'completed',
-    result: { layerId: 'created' }, startedAt: 1, durationMs: 1, replayable: true, note: null
+    result: { created: true, layerId: 'created' }, startedAt: 1, durationMs: 1, replayable: true, note: null
   }]
 });
 const memory = (initial: string | null = null) => {
@@ -23,7 +23,7 @@ describe('semantic Action library', () => {
     expect((await library.save(recording(), 'Layer setup'))?.name).toBe('Layer setup');
     expect(JSON.parse(state.value()!).version).toBe(2);
     expect(JSON.parse(state.value()!).actions[0].recording.steps[0].contract)
-      .toEqual({ status: 'legacy-properties-only', schemaVersion: null });
+      .toEqual({ status: 'complete', schemaVersion: 1 });
     const restored = new SemanticActionLibrary(state.storage);
     expect(restored.snapshot()).toMatchObject({ selectedId: 'action-1',
       actions: [{ id: 'action-1', name: 'Layer setup' }] });

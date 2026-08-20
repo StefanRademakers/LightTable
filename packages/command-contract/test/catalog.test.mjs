@@ -53,6 +53,8 @@ test('current remote rollout remains a strict subset of the application command 
 
 test('versioned schemas describe and validate every completed command vertical', () => {
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
+    'layer.createRaster',
+    'layer.setMask',
     'layer.duplicate',
     'layer.copyToNewLayer',
     'layer.delete',
@@ -200,4 +202,27 @@ test('transform schemas distinguish exact matrices from contextual fixed operati
   assert.equal(validateJsonSchemaValue(fixed.result, {
     operation: 'flip-horizontal', target: 'canvas'
   }).valid, false);
+});
+
+test('layer mask schemas require only operation-relevant properties', () => {
+  const create = LIGHTTABLE_COMMAND_SCHEMAS['layer.createRaster'];
+  assert.deepEqual(validateJsonSchemaValue(create.input, {}), { valid: true, issues: [] });
+  assert.equal(validateJsonSchemaValue(create.input, { internalPreset: true }).valid, false);
+  assert.deepEqual(validateJsonSchemaValue(create.result, {
+    created: true, layerId: 'new-raster'
+  }), { valid: true, issues: [] });
+
+  const mask = LIGHTTABLE_COMMAND_SCHEMAS['layer.setMask'];
+  for (const value of [
+    { layerId: 'photo', operation: 'add', source: 'selection' },
+    { layerId: 'photo', operation: 'remove' },
+    { layerId: 'photo', operation: 'set-enabled', enabled: false },
+    { layerId: 'photo', operation: 'set-linked', linked: false }
+  ]) assert.equal(validateJsonSchemaValue(mask.input, value).valid, true, JSON.stringify(value));
+  for (const value of [
+    { layerId: 'photo', operation: 'add', enabled: true },
+    { layerId: 'photo', operation: 'remove', source: 'reveal-all' },
+    { layerId: 'photo', operation: 'set-enabled' },
+    { layerId: 'photo', operation: 'set-linked', linked: true, enabled: true }
+  ]) assert.equal(validateJsonSchemaValue(mask.input, value).valid, false, JSON.stringify(value));
 });
