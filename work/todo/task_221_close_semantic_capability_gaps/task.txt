@@ -33,6 +33,16 @@ file size or easiest implementation. Expected domains include layer structure,
 transforms, masks/selections, paint, text/vector completeness, adjustments and
 Grade/Lens FX, assets/projects and generation placement.
 
+Completed vertical slices
+=========================
+
+- layer structure and affine transforms;
+- geometric and discrete selection state;
+- bounded Brush/Erase commits without routing pointer updates through commands;
+- targeted basic Grade mutations plus canonical queries;
+- editable point text creation and discrete formatting;
+- layer-mask add/remove/enabled/linked state, including selection-derived masks.
+
 Rules
 =====
 

@@ -469,12 +469,14 @@ describe('LightTableCommandService registry', () => {
         { layerId: topId, blendMode: 'screen' })),
       state.service.execute(request('layer.setClipping', state.session.id,
         { layerId: topId, clipping: true })),
+      state.service.execute(request('layer.setMask', state.session.id,
+        { layerId: topId, operation: 'add', source: 'reveal-all' })),
       state.service.execute(request('layer.setLock', state.session.id,
         { layerIds: [topId], lock: 'position', locked: true })),
       state.service.execute(request('layer.delete', state.session.id, { layerIds: [topId] }))
     ]);
     expect(results.every(({ status }) => status === 'completed')).toBe(true);
-    expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(6);
+    expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(7);
 
     const malformed = await state.service.execute(request('layer.setBlendMode', state.session.id,
       { layerId: topId, blendMode: 'unknown-mode' }));
@@ -482,7 +484,10 @@ describe('LightTableCommandService registry', () => {
       { layerIds: ['missing-layer'] }));
     expect(malformed).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     expect(missing).toMatchObject({ status: 'rejected', code: 'command-unavailable' });
-    expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(6);
+    const invalidMask = await state.service.execute(request('layer.setMask', state.session.id,
+      { layerId: topId, operation: 'set-enabled' }));
+    expect(invalidMask).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(7);
     state.service.dispose(); state.workspace.dispose();
   });
 

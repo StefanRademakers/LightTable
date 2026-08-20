@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument } from '../../editor/document/documentTypes';
-import { createRasterLayer, moveLayer, setLayerBlendMode, setLayersLock,
-  setLayerTransform } from '../../editor/document/documentCommands';
+import { addLayerMask, createRasterLayer, moveLayer, removeLayerMask, setLayerBlendMode,
+  setLayerMaskEnabled, setLayerMaskLinked, setLayersLock, setLayerTransform
+} from '../../editor/document/documentCommands';
 import { findDocumentLayer, siblingLayers } from '../../editor/document/layerTree';
 import { WorkspaceSession } from '../workspace/workspaceSession';
 import { AuthenticatedLightTableMcpAdapter } from './lightTableMcpAdapter';
@@ -46,6 +47,14 @@ const createHarness = () => {
       after = moveLayer(before, command.layerId, index + (command.direction === 'up' ? 1 : -1));
     } else if (command.kind === 'set-transform') {
       after = setLayerTransform(before, command.layerId, command.transform);
+    } else if (command.kind === 'set-mask') {
+      after = command.operation === 'add'
+        ? addLayerMask(before, command.layerId)
+        : command.operation === 'remove'
+          ? removeLayerMask(before, command.layerId)
+          : command.operation === 'set-enabled'
+            ? setLayerMaskEnabled(before, command.layerId, command.enabled!)
+            : setLayerMaskLinked(before, command.layerId, command.linked!);
     }
     if (after !== before) {
       session.setDocument(after);
@@ -157,6 +166,8 @@ const createHarness = () => {
       blendMode: top.blendMode,
       locks: { ...top.locks },
       transform: { ...top.transform },
+      mask: top.mask ? { enabled: top.mask.enabled, linked: top.mask.linked,
+        density: top.mask.density, feather: top.mask.feather } : null,
       order: session.getSnapshot().document!.layers.map(({ name }) => name),
       history: {
         undoDepth: session.history.getSnapshot().undoDepth,
@@ -209,6 +220,15 @@ const steps = (layerId: string) => [
   { command: 'layer.setLock', parameters: { layerIds: [layerId], lock: 'position', locked: false } },
   { command: 'layer.setTransform', parameters: {
     layerId, transform: { a: 1.25, b: 0, c: 0, d: 1.25, tx: 18, ty: -7 }
+  } },
+  { command: 'layer.setMask', parameters: {
+    layerId, operation: 'add', source: 'reveal-all'
+  } },
+  { command: 'layer.setMask', parameters: {
+    layerId, operation: 'set-enabled', enabled: false
+  } },
+  { command: 'layer.setMask', parameters: {
+    layerId, operation: 'set-linked', linked: false
   } }
 ] as const;
 

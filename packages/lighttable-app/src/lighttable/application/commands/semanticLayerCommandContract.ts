@@ -9,6 +9,9 @@ export type SemanticLayerCommand =
   | { readonly kind: 'set-blend-mode'; readonly layerId: LayerId; readonly blendMode: BlendMode }
   | { readonly kind: 'set-clipping'; readonly layerId: LayerId; readonly clipping: boolean }
   | { readonly kind: 'set-transform'; readonly layerId: LayerId; readonly transform: AffineMatrix }
+  | { readonly kind: 'set-mask'; readonly layerId: LayerId;
+    readonly operation: 'add' | 'remove' | 'set-enabled' | 'set-linked';
+    readonly source?: 'reveal-all' | 'selection'; readonly enabled?: boolean; readonly linked?: boolean }
   | { readonly kind: 'set-lock'; readonly layerIds: readonly LayerId[];
     readonly lock: keyof LayerLocks; readonly locked: boolean };
 
@@ -79,6 +82,31 @@ export const parseSemanticLayerCommand = (
       c: transform.c as number, d: transform.d as number,
       tx: transform.tx as number, ty: transform.ty as number
     } };
+  }
+  if (kind === 'set-mask') {
+    const target = layerId(value.layerId);
+    const operation = value.operation;
+    if (!target || (operation !== 'add' && operation !== 'remove'
+      && operation !== 'set-enabled' && operation !== 'set-linked')) {
+      return { message: 'Layer mask requires layerId and a supported operation.' };
+    }
+    if (operation === 'add') {
+      if (value.source !== undefined && value.source !== 'reveal-all' && value.source !== 'selection') {
+        return { message: 'Layer mask add source must be reveal-all or selection.' };
+      }
+      return { kind, layerId: target, operation, source: value.source ?? 'reveal-all' };
+    }
+    if (operation === 'set-enabled') {
+      return typeof value.enabled === 'boolean'
+        ? { kind, layerId: target, operation, enabled: value.enabled }
+        : { message: 'Layer mask set-enabled requires a boolean enabled value.' };
+    }
+    if (operation === 'set-linked') {
+      return typeof value.linked === 'boolean'
+        ? { kind, layerId: target, operation, linked: value.linked }
+        : { message: 'Layer mask set-linked requires a boolean linked value.' };
+    }
+    return { kind, layerId: target, operation };
   }
   const targets = layerIds(value.layerIds);
   if (!targets || typeof value.lock !== 'string' || !lockKinds.has(value.lock as keyof LayerLocks)

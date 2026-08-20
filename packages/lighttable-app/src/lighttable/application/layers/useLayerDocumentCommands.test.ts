@@ -166,6 +166,21 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().activeLayerId).toBe(layerId);
   });
 
+  it('adds a mask to an explicit background target without changing presentation state', () => {
+    const bottom = createImageDocument('Test', 32, 24, 'asset');
+    const bottomId = bottom.activeLayerId!;
+    const state = setup(createRasterLayer(bottom, 'Top'));
+    const activeId = state.document().activeLayerId!;
+
+    expect(state.commands.addLayerMask(bottomId, false)).toBe(true);
+
+    expect(state.document().layers.find(({ id }) => id === bottomId)?.mask).not.toBeNull();
+    expect(state.document().activeLayerId).toBe(activeId);
+    expect(state.dependencies.setActiveChannel).not.toHaveBeenCalled();
+    expect(state.dependencies.setStatus).not.toHaveBeenCalled();
+    expect(state.dependencies.setError).not.toHaveBeenCalled();
+  });
+
   it('bakes the current raster selection into a new mask as one pixel-history step', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const layerId = state.document().activeLayerId!;

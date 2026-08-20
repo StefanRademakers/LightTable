@@ -84,7 +84,7 @@ Existing foundation evidence
 
 - Generated categorized command catalog and local Commands browser.
 - Checked inventory for 103 static editor-menu actions and four dynamic
-  families; the current report still has 28 genuine menu gaps.
+  families; the current report still has 25 genuine menu gaps.
 - Semantic routing for Image Size, canvas geometry, crop, rotate and flip.
 - Bounded recorder/playback, per-step results and stable-ID rebinding.
 - Shared top-level property discovery for Actions and MCP.
@@ -104,6 +104,10 @@ Existing foundation evidence
   shared semantic owners. Packaged Actions records, binds, undoes and replays
   UI text creation/formatting; packaged Agent Access creates, formats and
   queries the editable flow-text state.
+- Layer-mask add, remove, enable/disable and link state now share one explicit-
+  target `layer.setMask` contract. Packaged Actions proves real Layer-menu
+  recording/replay; packaged Agent Access proves background-layer execution
+  without changing the artist's active layer.
 
 Program definition of done
 ==========================

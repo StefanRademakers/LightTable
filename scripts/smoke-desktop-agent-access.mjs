@@ -181,6 +181,31 @@ try {
     || badge.vectorContent?.elementCount !== 1) {
     throw new Error(`Agent mixed design state is incomplete: ${JSON.stringify(badge)}`);
   }
+  const activeBeforeMask = (await invoke(address, token, 'document.query', {
+    documentId: originalId
+  })).activeLayerId;
+  for (const [commandRequestId, commandParameters] of [
+    ['agent-add-mask', { layerId, operation: 'add', source: 'reveal-all' }],
+    ['agent-disable-mask', { layerId, operation: 'set-enabled', enabled: false }],
+    ['agent-unlink-mask', { layerId, operation: 'set-linked', linked: false }]
+  ]) {
+    const maskResult = await invoke(address, token, 'command.execute', {
+      commandRequestId, command: 'layer.setMask', documentId: originalId, commandParameters
+    });
+    if (maskResult.status !== 'completed') {
+      throw new Error(`Agent mask operation failed: ${JSON.stringify(maskResult)}`);
+    }
+  }
+  const afterMaskDocument = await invoke(address, token, 'document.query', { documentId: originalId });
+  const maskedLayers = await invoke(address, token, 'layer.list', { documentId: originalId });
+  const masked = maskedLayers.find(({ id }) => id === layerId);
+  if (afterMaskDocument.activeLayerId !== activeBeforeMask) {
+    throw new Error('Explicit Agent mask operations changed the artist active layer.');
+  }
+  if (!masked?.hasMask || masked.maskContent?.raster?.enabled !== false
+    || masked.maskContent?.raster?.linked !== false) {
+    throw new Error(`Agent mask state is incomplete: ${JSON.stringify(masked)}`);
+  }
   await window.getByRole('treeitem', { name: /Agent Badge/i }).waitFor();
 
   const unauthorized = await fetch(`${address}/invoke`, { method: 'POST',

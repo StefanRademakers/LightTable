@@ -1,0 +1,76 @@
+Task 228 - Semantic layer masks through UI, Actions and MCP
+===========================================================
+
+Goal
+====
+
+Make discrete layer-mask operations one canonical, target-explicit capability
+that behaves consistently through the normal UI, recorded Actions and MCP.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Define bounded semantic mask parameters with an explicit layer target.
+- [x] Preserve reveal-all and selection-derived mask creation semantics.
+- [x] Route Layer-menu add, enable/disable and remove through the command layer.
+- [x] Keep background MCP execution from changing the artist's active layer or paint target.
+- [x] Record UI mask operations as stable Action steps and replay them.
+- [x] Expose the same command and schema through authenticated Agent Access/MCP.
+- [x] Project enough canonical mask state to verify the result without screenshots.
+- [x] Add parser, capability, failure, history and three-route equivalence tests.
+- [x] Update command coverage and relevant execution documentation honestly.
+- [x] Run type, contract, boundary, packaged Actions and Agent Access gates.
+
+Scope guard
+===========
+
+- This slice covers discrete mask lifecycle/state operations only.
+- It does not route brush samples, pointer movement or mask-paint previews through
+  Actions or MCP, so interactive paint latency remains outside the command path.
+- Mask transforms and high-frequency painting remain separate capabilities.
+
+Completion contract
+===================
+
+The same explicit-target mask operation can be invoked from the Layer menu,
+recorded/replayed by Actions and invoked/query-verified through MCP, with normal
+document history and no background focus/channel side effects.
+
+Completion evidence
+===================
+
+- `layer.setMask` accepts only explicit targets and bounded add, remove,
+  set-enabled and set-linked operations.
+- Reveal-all and selection-derived masks retain their existing document/pixel
+  history owners. Explicit background execution suppresses channel/status UI.
+- Canonical `layer.list` now reports mask linked state alongside enabled,
+  density, feather and pixel revision.
+- The three-route equivalence harness produces the same mask state/history for
+  direct UI-origin execution, recorded Action playback and authenticated MCP.
+- The packaged Actions smoke records the real Layer menu, undoes eleven mixed
+  operations, replays and verifies the disabled selection-derived mask.
+- The packaged Agent Access smoke adds/disables/unlinks a mask on a non-active
+  layer and verifies that the active artist layer does not change.
+- Focused tests (105), full app tests (460 files / 2,562 tests), workspace
+  typecheck, command coverage, boundary verification, desktop packaging and
+  both packaged smokes passed.
+- The full workspace test run exposed one stale pre-existing Brush catalog
+  assertion after UI stroke recording had already shipped; the assertion was
+  corrected to match the real packaged Actions evidence and the app suite then
+  passed completely.
+
+Explicit remaining work
+=======================
+
+- mask transform as a distinct committed semantic capability;
+- bounded mask painting for agents (without per-pointer-event command traffic);
+- visual render comparison of UI/Actions/MCP mask results;
+- external deployed MCP tunnel proof beyond packaged Agent Access.

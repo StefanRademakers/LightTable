@@ -80,6 +80,10 @@ Current evidence (2026-08-20)
   binds `text.format` to the new layer, undoes/replays both and confirms the
   result remains editable flow text. Packaged Agent Access separately creates,
   formats and queries native text including faux italic and underline.
+- Reveal-all mask lifecycle/state has canonical UI/Actions/MCP equivalence.
+  The packaged Actions path also bakes the existing selection into a mask,
+  replays its disabled state and verifies canonical mask data. Packaged Agent
+  Access targets a non-active layer and leaves artist focus unchanged.
 
 Still required for completion
 =============================

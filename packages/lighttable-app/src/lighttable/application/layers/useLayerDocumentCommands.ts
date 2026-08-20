@@ -128,6 +128,7 @@ export interface LayerDocumentCommandDependencies {
 
 export interface LayerDocumentCommands {
   addActiveLayerMask(useSelection: boolean): boolean;
+  addLayerMask(layerId: LayerId, useSelection: boolean, present?: boolean): boolean;
   applyBackgroundRemovalMask(
     mask: RasterSelectionMask,
     mode: 'replace' | 'intersect' | 'new-layer'
@@ -180,11 +181,10 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const addActiveLayerMask = (useSelection: boolean) => {
+  const addMaskToLayer = (layerId: LayerId, useSelection: boolean, present = false) => {
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
-    const layerId = current?.activeLayerId;
-    const layer = current && layerId
+    const layer = current
       ? findDocumentLayer(current, layerId)
       : null;
     if (!current || !layerId || !layer || layer.mask) return false;
@@ -195,16 +195,18 @@ export const createLayerDocumentCommands = (
     dependencies.applyDocumentSnapshot(withMask);
     if (!useSelection) {
       dependencies.pushDocumentHistory(current, withMask);
-      dependencies.setActiveChannel('mask');
-      dependencies.setError(null);
-      dependencies.setStatus(`Added layer mask to ${layer.name}`);
+      if (present) {
+        dependencies.setActiveChannel('mask');
+        dependencies.setError(null);
+        dependencies.setStatus(`Added layer mask to ${layer.name}`);
+      }
       return true;
     }
 
     const renderer = dependencies.getRenderer();
     if (!renderer) {
       dependencies.applyDocumentSnapshot(current);
-      dependencies.setError('The current selection could not be baked into a layer mask.');
+      if (present) dependencies.setError('The current selection could not be baked into a layer mask.');
       return false;
     }
 
@@ -241,20 +243,29 @@ export const createLayerDocumentCommands = (
         },
         dispose: pixelEdit.destroy
       });
-      dependencies.setActiveChannel('mask');
-      dependencies.setError(null);
-      dependencies.setStatus(`Added selection as a mask to ${layer.name}`);
+      if (present) {
+        dependencies.setActiveChannel('mask');
+        dependencies.setError(null);
+        dependencies.setStatus(`Added selection as a mask to ${layer.name}`);
+      }
       return true;
     } catch (reason) {
       renderer.cancelPixelEdit();
       dependencies.applyDocumentSnapshot(current);
-      dependencies.setError(
-        reason instanceof Error
-          ? reason.message
-          : 'The current selection could not be baked into a layer mask.'
-      );
+      if (present) {
+        dependencies.setError(
+          reason instanceof Error
+            ? reason.message
+            : 'The current selection could not be baked into a layer mask.'
+        );
+      }
       return false;
     }
+  };
+
+  const addActiveLayerMask = (useSelection: boolean) => {
+    const layerId = dependenciesRef.current.getDocument()?.activeLayerId;
+    return layerId ? addMaskToLayer(layerId, useSelection, true) : false;
   };
 
   const duplicateLayer = (sourceId: LayerId): LayerId | null => {
@@ -1009,6 +1020,7 @@ export const createLayerDocumentCommands = (
 
   return {
     addActiveLayerMask,
+    addLayerMask: addMaskToLayer,
     applyBackgroundRemovalMask,
     duplicateActiveLayer,
     duplicateLayer,

@@ -8,8 +8,10 @@ describe('toolAutomationCatalog', () => {
       .toEqual(TOOL_DEFINITIONS.map(({ id }) => id).sort());
   });
 
-  it('does not mislabel owner-only or playback-only tools as complete UI coverage', () => {
-    expect(TOOL_AUTOMATION_CATALOG.brush.availability).toBe('playback-command-only');
+  it('distinguishes recorded UI tools from owner-only tools', () => {
+    expect(TOOL_AUTOMATION_CATALOG.brush.availability).toBe('ui-and-command');
+    expect(TOOL_AUTOMATION_CATALOG.brush.capabilities)
+      .toContain('tool.commitGesture:brush-stroke');
     expect(TOOL_AUTOMATION_CATALOG.warp.availability).toBe('canonical-owner-only');
     expect(TOOL_AUTOMATION_CATALOG['text-point'].availability).toBe('ui-and-command');
   });

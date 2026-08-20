@@ -65,6 +65,7 @@ export interface LayerQuerySummary {
   readonly maskContent: {
     readonly raster: null | {
       readonly enabled: boolean;
+      readonly linked: boolean;
       readonly density: number;
       readonly feather: number;
       readonly pixelRevision: number;
@@ -111,6 +112,7 @@ export function projectLayerQuery(
     maskContent: {
       raster: node.mask ? {
         enabled: node.mask.enabled,
+        linked: node.mask.linked,
         density: node.mask.density,
         feather: node.mask.feather,
         pixelRevision: node.mask.pixelRevision

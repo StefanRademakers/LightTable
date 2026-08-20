@@ -147,13 +147,24 @@ try {
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await recorder.locator('li').filter({ hasText: 'text.format' }).waitFor();
 
+  await window.getByRole('menuitem', { name: 'Layer' }).click();
+  await window.getByRole('menuitem', { name: 'Layer Mask' }).hover();
+  await window.getByRole('menuitem', { name: 'Add Layer Mask' }).click();
+  await recorder.locator('li').filter({ hasText: 'layer.setMask' }).waitFor();
+  await window.getByRole('menuitem', { name: 'Layer' }).click();
+  await window.getByRole('menuitem', { name: 'Layer Mask' }).hover();
+  await window.getByRole('menuitem', { name: 'Disable Layer Mask' }).click();
+  if (await recorder.locator('li').filter({ hasText: 'layer.setMask' }).count() !== 2) {
+    throw new Error('Expected add and disable layer-mask Action steps.');
+  }
+
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
   const undo = panel.locator('details').filter({ hasText: 'history.undo' });
   await undo.locator('summary').click();
   const undoButton = undo.getByRole('button', { name: 'Run' });
   await undoButton.waitFor();
-  for (let index = 0; index < 9; index += 1) {
+  for (let index = 0; index < 11; index += 1) {
     await undoButton.click();
     await panel.getByRole('status').filter({ hasText: 'history.undo: completed' })
       .waitFor({ timeout: 15_000 });
@@ -165,7 +176,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 9) throw new Error('Expected nine recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 11) throw new Error('Expected eleven recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -223,6 +234,18 @@ try {
     || typeof playbackText.transform?.tx !== 'number'
     || typeof playbackText.transform?.ty !== 'number') {
     throw new Error(`Actions replay did not preserve editable faux-bold text: ${JSON.stringify(playbackText)}`);
+  }
+  const playbackMask = await window.evaluate(() => {
+    const driver = window.__lightTableAutomation;
+    const workspace = driver?.queryWorkspace();
+    const documentId = workspace?.activeDocumentId;
+    const document = documentId ? driver?.queryDocument(documentId) : null;
+    return documentId && document?.activeLayerId
+      ? driver?.queryLayers(documentId)?.find(({ id }) => id === document.activeLayerId)
+      : null;
+  });
+  if (!playbackMask?.hasMask || playbackMask.maskContent?.raster?.enabled !== false) {
+    throw new Error(`Actions replay did not preserve disabled layer mask: ${JSON.stringify(playbackMask)}`);
   }
 
   await window.screenshot({ path: screenshot });

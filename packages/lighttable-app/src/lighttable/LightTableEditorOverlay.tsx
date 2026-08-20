@@ -330,6 +330,9 @@ import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapte
 import { PaintGestureController } from './editor/tools/paint/paintGestureController';
 import { paintTargetSourceToDocument } from './editor/tools/paint/paintCoordinates';
 import {
+  removeLayerMask,
+  setLayerMaskEnabled,
+  setLayerMaskLinked,
   mergeLayers as mergeDocumentLayers,
   setRasterLayerAdjustmentStack,
   setLayerTransform
@@ -4628,6 +4631,28 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           pushDocumentHistory(before, after);
           return { layerId: command.layerId, transform: command.transform };
         }
+        if (command.kind === 'set-mask') {
+          if (command.operation === 'add') {
+            return layerDocumentCommands.addLayerMask(
+              command.layerId,
+              command.source === 'selection'
+            ) ? { layerId: command.layerId, operation: command.operation,
+              source: command.source ?? 'reveal-all' } : null;
+          }
+          const before = imageDocumentRef.current;
+          if (!before) return null;
+          const after = command.operation === 'remove'
+            ? removeLayerMask(before, command.layerId)
+            : command.operation === 'set-enabled'
+              ? setLayerMaskEnabled(before, command.layerId, command.enabled!)
+              : setLayerMaskLinked(before, command.layerId, command.linked!);
+          if (after === before) return null;
+          applyDocumentSnapshot(after);
+          pushDocumentHistory(before, after);
+          return { layerId: command.layerId, operation: command.operation,
+            ...(command.operation === 'set-enabled' ? { enabled: command.enabled } : {}),
+            ...(command.operation === 'set-linked' ? { linked: command.linked } : {}) };
+        }
         layerPanelController.setLock([...command.layerIds], command.lock, command.locked);
         return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
       },
@@ -4770,6 +4795,45 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     setClipping: (layerId: LayerId, clipping: boolean) => {
       if (!executeRegisteredCommand('layer.setClipping', { layerId, clipping })) layerPanelController.setClipping(layerId, clipping);
+    },
+    addMask: () => {
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      const source = editorSessionRef.current.selection.length > 0 ? 'selection' : 'reveal-all';
+      const execution = layerId
+        ? executeRegisteredCommand('layer.setMask', { layerId, operation: 'add', source })
+        : null;
+      if (!execution) {
+        layerPanelController.addMask();
+      } else {
+        void execution.then((result) => {
+          if (result.status === 'completed') layerPanelController.changeChannel('mask');
+        });
+      }
+    },
+    toggleMask: () => {
+      const document = imageDocumentRef.current;
+      const layer = document ? findDocumentLayer(document, document.activeLayerId) : null;
+      if (!layer?.mask || !executeRegisteredCommand('layer.setMask', {
+        layerId: layer.id, operation: 'set-enabled', enabled: !layer.mask.enabled
+      })) layerPanelController.toggleMask();
+    },
+    setMaskLinked: (layerId: LayerId, linked: boolean) => {
+      if (!executeRegisteredCommand('layer.setMask', { layerId, operation: 'set-linked', linked })) {
+        layerPanelController.setMaskLinked(layerId, linked);
+      }
+    },
+    removeMask: (requestedLayerId?: LayerId) => {
+      const layerId = requestedLayerId ?? imageDocumentRef.current?.activeLayerId;
+      const execution = layerId
+        ? executeRegisteredCommand('layer.setMask', { layerId, operation: 'remove' })
+        : null;
+      if (!execution) {
+        layerPanelController.removeMask(requestedLayerId);
+      } else {
+        void execution.then((result) => {
+          if (result.status === 'completed') layerPanelController.changeChannel('pixels');
+        });
+      }
     },
     setLock: (layerIds: LayerId[], lock: Parameters<typeof layerPanelController.setLock>[1], locked: boolean) => {
       if (!executeRegisteredCommand('layer.setLock', { layerIds, lock, locked })) layerPanelController.setLock(layerIds, lock, locked);

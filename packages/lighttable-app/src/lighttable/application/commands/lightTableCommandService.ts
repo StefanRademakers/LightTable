@@ -605,6 +605,7 @@ export class LightTableCommandService {
       availability('layer.setClipping', layerCapabilities.layerCount > 1,
         'Clipping requires a lower sibling layer.'),
       availability('layer.setTransform', layerCapabilities.layerCount > 0, 'There are no layers.'),
+      availability('layer.setMask', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.setLock', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.placeArtifact', true, ''),
       availability(
@@ -1028,6 +1029,7 @@ export class LightTableCommandService {
       case 'layer.setBlendMode':
       case 'layer.setClipping':
       case 'layer.setTransform':
+      case 'layer.setMask':
       case 'layer.setLock': {
         const kinds = {
           'layer.duplicate': 'duplicate',
@@ -1036,6 +1038,7 @@ export class LightTableCommandService {
           'layer.setBlendMode': 'set-blend-mode',
           'layer.setClipping': 'set-clipping',
           'layer.setTransform': 'set-transform',
+          'layer.setMask': 'set-mask',
           'layer.setLock': 'set-lock'
         } as const;
         const command = parseSemanticLayerCommand(kinds[request.command], parameters);
@@ -1071,6 +1074,15 @@ export class LightTableCommandService {
         if (command.kind === 'set-transform'
           && layerIsLocked(findDocumentLayer(snapshot.document!, command.layerId)!, 'position')) {
           return { code: 'command-unavailable', message: 'The target layer position is locked.' };
+        }
+        if (command.kind === 'set-mask') {
+          const layer = findDocumentLayer(snapshot.document!, command.layerId)!;
+          if (command.operation === 'add' && layer.mask) {
+            return { code: 'command-unavailable', message: 'The target layer already has a raster mask.' };
+          }
+          if (command.operation !== 'add' && !layer.mask) {
+            return { code: 'command-unavailable', message: 'The target layer has no raster mask.' };
+          }
         }
         const beforeRevision = snapshot.document!.revision;
         const result = await this.ports.executeLayerCommand(request.documentId, command);
