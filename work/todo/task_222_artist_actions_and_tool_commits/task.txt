@@ -108,9 +108,9 @@ Product verification and handoff
 
 - [x] Run focused unit and contract suites.
 - [x] Run app typecheck, MCP tests, Actions tests and architecture boundaries.
-- [ ] Exercise the representative flow in the packaged desktop application.
+- [x] Exercise the representative flow in the packaged desktop application.
 - [ ] Update command coverage and the active task status with exact evidence.
-- [ ] Commit cohesive milestones with no unrelated worktree changes.
+- [x] Commit cohesive milestones with no unrelated worktree changes.
 
 Stop conditions
 ===============
