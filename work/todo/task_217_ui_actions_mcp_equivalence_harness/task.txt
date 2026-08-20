@@ -57,3 +57,26 @@ Non-goals
 
 - Claiming whole-application equivalence from one workflow.
 - Reimplementing the UI path in a synthetic test-only adapter.
+
+Current evidence (2026-08-20)
+=============================
+
+- Layer duplicate/delete/move/blend/clipping/visibility/locks have a real
+  UI-origin, Actions and MCP canonical-state/history equivalence harness.
+- Geometric selection and single-layer affine transform use the same stable-ID
+  commands from recorded UI operations and remote execution.
+- A packaged Agent Access flow creates vector content, applies a selection,
+  transforms and blends a layer, then queries canonical state.
+- A packaged Actions flow records UI transform, selection and Brush work,
+  undoes it and replays it with stable result binding.
+
+Still required for completion
+=============================
+
+- editable text create/format in the complete three-route workflow;
+- revision-bound rendered preview/export comparison with declared per-image
+  tolerances and retained difference artifacts;
+- the complete workflow through the external MCP bridge, not only the packaged
+  in-app Agent Access route;
+- equivalent stale-revision and invalid-parameter failure evidence at every
+  real route boundary.

@@ -50,3 +50,27 @@ Non-goals
 
 - Sending every pointer sample through the ordinary command catalog.
 - Treating a synthetic timing number as product responsiveness proof.
+
+Current evidence (2026-08-20)
+=============================
+
+- Coalesced pointer input reaches Paint and Warp through one `moveMany` call
+  per browser event; renderer work remains frame-scheduled.
+- A 2,049-sample recorded Brush stroke is protected by a regression contract:
+  one scheduled renderer batch, one history entry and one semantic commit.
+- A 2,048-sample `tool.commitGesture` request records and replays as one bounded
+  Action/MCP operation; it does not require remote pointer simulation.
+- A 2,048-update affine transform remains preview-only until one final document
+  result; the recorder observes only that committed result.
+- Oversized recorder payloads fail closed while live painting continues.
+- Packaged Actions and Brush UX flows passed after integration.
+
+Remaining before this task is complete
+======================================
+
+- adjustment/Grade slider begin-preview-finish recording proof;
+- Warp final-stroke schema, Actions replay and remote admission;
+- explicit disconnect/document-close behavior for remote gesture sessions;
+- representative runtime telemetry in the packaged app for commit latency and
+  submitted frames, interpreted alongside interaction behavior rather than as
+  a standalone responsiveness score.

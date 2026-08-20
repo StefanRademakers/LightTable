@@ -10,12 +10,12 @@ putting command transport or recording work in realtime interaction paths.
 
 This task contributes to, but does not complete:
 
-- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
-- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt)
-- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
-- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
-- [`Task 220`](../task_220_reviewed_mcp_capability_admission/task.txt)
-- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 216`](../../todo/task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../../todo/task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 220`](../../todo/task_220_reviewed_mcp_capability_admission/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
 - [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
 
 Architecture decision
@@ -98,7 +98,7 @@ Realtime safety
 - [x] Keep individual pointer updates and slider previews outside command recording.
 - [x] Bound sample/property payload size and reject incomplete operations.
 - [x] Coalesce one interaction into one undo/history publication.
-- [ ] Measure representative interactive paint/transform cadence before and
+- [x] Measure representative interactive paint/transform cadence before and
       after integration; no meaningful regression is accepted.
 - [x] Prove MCP can submit one complete call with properties without requiring
       live drawing or slider simulation.
@@ -109,7 +109,7 @@ Product verification and handoff
 - [x] Run focused unit and contract suites.
 - [x] Run app typecheck, MCP tests, Actions tests and architecture boundaries.
 - [x] Exercise the representative flow in the packaged desktop application.
-- [ ] Update command coverage and the active task status with exact evidence.
+- [x] Update command coverage and the active task status with exact evidence.
 - [x] Commit cohesive milestones with no unrelated worktree changes.
 
 Stop conditions
@@ -121,3 +121,62 @@ Stop conditions
 - If a realtime path cannot be integrated without measurable interaction risk,
   retain the local hot path and document the exact blocked semantic boundary.
 - Do not mark this task done until the packaged mixed artist flow passes.
+
+Completion evidence
+===================
+
+Delivered verticals:
+
+- layer duplicate/delete/move/blend/clipping/visibility/locks through shared
+  UI, Actions and MCP owners;
+- stable result-ID binding during Action playback;
+- final rectangle/ellipse/free/polygon selection operations;
+- final single-layer affine transforms;
+- bounded Brush/Erase stroke commits with complete brush settings;
+- mixed vector, selection, transform, blend and paint workflows in Actions;
+- packaged Agent Access and Actions-panel flows using the real desktop build.
+
+Realtime contract evidence:
+
+- 2,049 paint samples produce one scheduled renderer batch, one history entry
+  and one semantic recorder publication;
+- one 2,048-sample remote/Actions payload is validated, recorded as one bounded
+  step and replayed without simulating UI pointer traffic;
+- 2,048 semantic transform preview updates remain transient and yield one
+  final document transform only at finish;
+- oversized paint recording is dropped without interrupting the live stroke;
+- current Brush UX packaged smoke remains green.
+
+Verification on 2026-08-20:
+
+- focused automation/tool run: 81 files, 1,101 tests passed;
+- full workspace typecheck passed;
+- command contract passed: 103 menu actions, 32 genuine gaps;
+- application boundary and UI boundary checks passed;
+- packaged Actions, Agent Access and Brush UX representative flows passed in
+  the implementation commits listed below.
+
+Milestone commits
+=================
+
+- `80dbbb4b` structural layer and committed tool capabilities;
+- `eb9eba11` UI/Actions/MCP layer route equivalence;
+- `ce0d1c7a` semantic selection capability;
+- `7b3323d9` final affine-transform capability;
+- `0d8b1c7c` mixed artist Action replay;
+- `3979f35e` frame-coalesced paint input;
+- `77e9ec57` packaged Agent Access artist flow;
+- `ea940c7f` committed UI selection recording;
+- `4407f0ee` committed UI affine-transform recording;
+- `f3cadd3d` bounded UI paint recording;
+- `3e1a5917` realtime commit-boundary regressions.
+
+Explicitly not completed by this task
+=====================================
+
+- Warp replay schema and recording;
+- group, mask and projective transform recording;
+- sampled Healing/Clone/Tone paint recording;
+- adjustment/Grade semantic commit recording;
+- durable persisted Action sets and schema-driven property editing;
+- the remaining 32 menu capability gaps or whole-product MCP coverage.

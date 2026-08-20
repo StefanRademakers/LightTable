@@ -83,13 +83,16 @@ Existing foundation evidence
 ============================
 
 - Generated categorized command catalog and local Commands browser.
-- Checked inventory for 102 static editor-menu actions and four dynamic
-  families; the current report still has 39 menu gaps.
+- Checked inventory for 103 static editor-menu actions and four dynamic
+  families; the current report still has 32 genuine menu gaps.
 - Semantic routing for Image Size, canvas geometry, crop, rotate and flip.
 - Bounded recorder/playback, per-step results and stable-ID rebinding.
 - Shared top-level property discovery for Actions and MCP.
 - Trusted UI/MCP/playback origin and playback recording isolation.
 - Packaged Create Raster Layer -> Rename Layer playback proof.
+- Layer structure, final geometric selection, single-layer affine transform
+  and bounded Brush/Erase stroke verticals now share typed UI/Actions/MCP
+  capabilities; this is partial category evidence, not program completion.
 
 Program definition of done
 ==========================
