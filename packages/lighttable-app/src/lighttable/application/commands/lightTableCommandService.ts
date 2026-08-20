@@ -672,6 +672,8 @@ export class LightTableCommandService {
       availability('tool.commitGesture', true, ''),
       availability('selection.applyShape', Boolean(this.ports.executeSelectionCommand),
         'Selection commands are unavailable in this host.'),
+      availability('selection.applyMagicWand', Boolean(this.ports.executeSelectionCommand),
+        'Selection commands are unavailable in this host.'),
       availability('selection.modify', Boolean(this.ports.executeSelectionCommand),
         'Selection commands are unavailable in this host.'),
       availability('grade.setBasic', Boolean(this.ports.executeBasicAdjustmentCommand),
@@ -1264,6 +1266,7 @@ export class LightTableCommandService {
         }, changed: false };
       }
       case 'selection.applyShape':
+      case 'selection.applyMagicWand':
       case 'selection.modify': {
         const command = parseSemanticSelectionCommand(parameters);
         if ('message' in command) return this.invalidParameters(command.message);

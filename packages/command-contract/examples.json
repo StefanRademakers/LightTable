@@ -171,6 +171,15 @@
       "antiAlias": false
     }
   ],
+  "selection.applyMagicWand": [
+    {
+      "kind": "magic-wand",
+      "layerId": "layer-photo",
+      "point": { "x": 320, "y": 180 },
+      "mode": "replace",
+      "options": { "sampleSize": 3, "tolerance": 20, "antiAlias": true, "contiguous": true, "sampleAllLayers": false }
+    }
+  ],
   "selection.modify": [
     { "kind": "modify", "operation": "all" },
     { "kind": "modify", "operation": "clear" },

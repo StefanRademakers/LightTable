@@ -117,6 +117,9 @@ Current evidence (2026-08-20)
 - The apparent active-layer reversion was isolated to stale smoke coordinates
   landing outside the viewport. A dedicated packaged Fill/Gradient/Brush
   selection-stability smoke passes; no unproven product-state fix was added.
+- Packaged UI records and replays a real Magic Wand result after GPU completion.
+  Agent Access and external MCP execute the same asynchronous owner using only
+  the bounded sampling recipe.
 
 Still required for completion
 =============================

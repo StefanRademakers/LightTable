@@ -82,6 +82,9 @@ Current evidence (2026-08-20)
 - The same schema now describes Clone and Healing source anchor, source point,
   sample mode, offset and diffusion. The request document remains authoritative;
   recorded Actions reject a nested runtime document ID.
+- Magic Wand has an explicit schema/example for source layer, bounded point,
+  combine mode, sample size, tolerance, anti-aliasing, contiguity and layer
+  sampling. Runtime document revisions and raster masks are rejected.
 
 Still required for completion
 =============================

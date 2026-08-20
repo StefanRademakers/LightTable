@@ -78,6 +78,13 @@ export interface SelectionSessionDependencies {
     readonly featherRadius: number;
     readonly antiAlias: boolean;
   }): void;
+  onMagicWandCommitted?(command: {
+    readonly kind: 'magic-wand';
+    readonly layerId: LayerId;
+    readonly point: SelectionPoint;
+    readonly mode: SelectionCombineMode;
+    readonly options: MagicWandOptions;
+  }): void;
 }
 
 export interface SelectionSessionController {
@@ -122,6 +129,12 @@ export interface SelectionSessionController {
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
   translate(x: number, y: number): void;
   magicWand(point: SelectionPoint, mode: SelectionCombineMode, options: MagicWandOptions): boolean;
+  applyMagicWand(
+    layerId: LayerId,
+    point: SelectionPoint,
+    mode: SelectionCombineMode,
+    options: MagicWandOptions
+  ): Promise<boolean>;
   rasterMask(mask: RasterSelectionMask, mode: SelectionCombineMode): Promise<boolean>;
   applyShape(
     shape: SelectionShape,
@@ -524,6 +537,71 @@ export const createSelectionSessionController = (
     return true;
   };
 
+  const runMagicWand = async (
+    layerId: LayerId,
+    point: SelectionPoint,
+    mode: SelectionCombineMode,
+    options: MagicWandOptions,
+    recordObserved: boolean
+  ): Promise<boolean> => {
+    const dependencies = resolveDependencies();
+    const document = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    if (!document || !renderer || !findDocumentLayer(document, layerId)) return false;
+    const before = cloneSelectionOperations(
+      pendingMagicWandSnapshot ?? dependencies.getSelection()
+    );
+    const operation = createMagicWandSelectionOperation(
+      layerId,
+      document.revision,
+      document.width,
+      document.height,
+      point,
+      options,
+      mode
+    );
+    const after = mode === 'replace' ? [operation] : [...before, operation];
+    const requestId = ++magicWandRequestId;
+    pendingMagicWandSnapshot = cloneSelectionOperations(after);
+    try {
+      const applied = await renderer.applyMagicWand(operation);
+      if (!applied || !isCurrent(document, renderer)) {
+        if (requestId === magicWandRequestId && isCurrent(document, renderer)) {
+          pendingMagicWandSnapshot = null;
+          resolveDependencies().setError('The Magic Wand selection could not be applied.');
+        }
+        return false;
+      }
+      if (requestId !== magicWandRequestId) {
+        if (pendingMagicWandSnapshot) pushHistory(document, before, after);
+        return true;
+      }
+      pushHistory(document, before, after);
+      const latest = resolveDependencies();
+      pendingMagicWandSnapshot = null;
+      latest.publishSelection(after, null);
+      latest.setError(null);
+      if (recordObserved) {
+        const source = operation.source?.kind === 'magic-wand' ? operation.source : null;
+        if (source) latest.onMagicWandCommitted?.({
+          kind: 'magic-wand',
+          layerId: source.layerId,
+          point: { x: source.point.x, y: source.point.y },
+          mode,
+          options: { ...source.options }
+        });
+      }
+      return true;
+    } catch (reason) {
+      if (requestId !== magicWandRequestId || !isCurrent(document, renderer)) return false;
+      pendingMagicWandSnapshot = null;
+      resolveDependencies().setError(
+        reason instanceof Error ? reason.message : 'The Magic Wand selection could not be applied.'
+      );
+      return false;
+    }
+  };
+
   return {
     get active() {
       return gesture.pointerId !== null || polygonGesture.active || translation !== null;
@@ -665,51 +743,12 @@ export const createSelectionSessionController = (
     magicWand: (point, mode, options) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
-      const renderer = dependencies.getRenderer();
-      if (!document || !renderer || !document.activeLayerId) return false;
-      const before = cloneSelectionOperations(
-        pendingMagicWandSnapshot ?? dependencies.getSelection()
-      );
-      const operation = createMagicWandSelectionOperation(
-        document.activeLayerId,
-        document.revision,
-        document.width,
-        document.height,
-        point,
-        options,
-        mode
-      );
-      const after = mode === 'replace' ? [operation] : [...before, operation];
-      const requestId = ++magicWandRequestId;
-      pendingMagicWandSnapshot = cloneSelectionOperations(after);
-      void renderer.applyMagicWand(operation)
-        .then((applied) => {
-          if (!applied || !isCurrent(document, renderer)) {
-            if (requestId === magicWandRequestId && isCurrent(document, renderer)) {
-              pendingMagicWandSnapshot = null;
-              resolveDependencies().setError('The Magic Wand selection could not be applied.');
-            }
-            return;
-          }
-          if (requestId !== magicWandRequestId) {
-            if (pendingMagicWandSnapshot) pushHistory(document, before, after);
-            return;
-          }
-          pushHistory(document, before, after);
-          const latest = resolveDependencies();
-          pendingMagicWandSnapshot = null;
-          latest.publishSelection(after, null);
-          latest.setError(null);
-        })
-        .catch((reason) => {
-          if (requestId !== magicWandRequestId || !isCurrent(document, renderer)) return;
-          pendingMagicWandSnapshot = null;
-          resolveDependencies().setError(
-            reason instanceof Error ? reason.message : 'The Magic Wand selection could not be applied.'
-          );
-        });
+      if (!document?.activeLayerId || !dependencies.getRenderer()) return false;
+      void runMagicWand(document.activeLayerId, point, mode, options, true);
       return true;
     },
+    applyMagicWand: (layerId, point, mode, options) =>
+      runMagicWand(layerId, point, mode, options, false),
     rasterMask: async (mask, mode) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();

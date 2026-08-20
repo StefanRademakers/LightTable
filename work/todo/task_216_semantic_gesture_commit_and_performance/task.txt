@@ -96,6 +96,9 @@ Current evidence (2026-08-20)
 - A focused packaged regression commits Fill, raster Gradient and a 24-move
   Brush stroke, then proves an immediately selected different layer remains
   canonical after React publication and idle.
+- Magic Wand remains a single local click plus asynchronous GPU work. Its
+  semantic command publishes only after the current result enters selection
+  history; no mask or polling samples enter command transport.
 
 Remaining before this task is complete
 ======================================

@@ -2280,6 +2280,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         parameters,
         { mode: parameters.mode, shape: parameters.shape }
       );
+    },
+    onMagicWandCommitted: (parameters) => {
+      commandService?.recordObservedCommand(
+        'selection.applyMagicWand',
+        workspaceDocumentId as DocumentSessionId,
+        parameters,
+        { layerId: parameters.layerId, mode: parameters.mode, point: parameters.point }
+      );
     }
   }, selectionGestureRef.current);
   const smartSelectionControllerRef = useRef<SmartSelectionToolController | null>(null);
@@ -4742,6 +4750,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         if (command.kind === 'modify') {
           const applied = await selectionSessionController.applyState(command.operation);
           return applied ? { operation: command.operation } : null;
+        }
+        if (command.kind === 'magic-wand') {
+          const applied = await selectionSessionController.applyMagicWand(
+            command.layerId,
+            command.point,
+            command.mode,
+            command.options
+          );
+          return applied ? {
+            layerId: command.layerId,
+            point: command.point,
+            mode: command.mode,
+            options: command.options
+          } : null;
         }
         const applied = await selectionSessionController.applyShape(
           command.shape,

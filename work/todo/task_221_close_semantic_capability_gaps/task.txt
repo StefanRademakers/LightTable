@@ -59,6 +59,8 @@ Completed vertical slices
   settings and local-only frame-scheduled interaction.
 - Clone Stamp and Healing Brush final strokes with an immutable renderer-owned
   source snapshot and bounded document-relative source metadata for replay.
+- Magic Wand sampled selection through its existing GPU/history owner, with
+  newest-request, cancellation and stale-completion protections retained.
 
 Rules
 =====

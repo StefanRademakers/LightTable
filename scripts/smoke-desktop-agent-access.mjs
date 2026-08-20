@@ -206,6 +206,18 @@ try {
   if (selection.status !== 'completed') {
     throw new Error(`Agent selection failed: ${JSON.stringify(selection)}`);
   }
+  const magicWand = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-magic-wand', command: 'selection.applyMagicWand',
+    documentId: originalId,
+    commandParameters: {
+      kind: 'magic-wand', layerId, point: { x: 96, y: 96 }, mode: 'replace',
+      options: { sampleSize: 3, tolerance: 24, antiAlias: true,
+        contiguous: true, sampleAllLayers: false }
+    }
+  });
+  if (magicWand.status !== 'completed' || magicWand.value?.layerId !== layerId) {
+    throw new Error(`Agent Magic Wand failed: ${JSON.stringify(magicWand)}`);
+  }
   const transformed = await invoke(address, token, 'command.execute', {
     commandRequestId: 'agent-transform-badge', command: 'layer.setTransform', documentId: originalId,
     commandParameters: {

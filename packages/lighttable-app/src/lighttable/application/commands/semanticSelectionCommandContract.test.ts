@@ -36,4 +36,24 @@ describe('semantic selection command contract', () => {
     expect(parseSemanticSelectionCommand({ kind: 'modify', operation: 'clear', radius: 4 }))
       .toHaveProperty('message');
   });
+
+  it('parses a bounded Magic Wand recipe and rejects hidden runtime state', () => {
+    const command = {
+      kind: 'magic-wand', layerId: 'layer-photo', point: { x: 30.5, y: 42.25 },
+      mode: 'replace', options: {
+        sampleSize: 5, tolerance: 20, antiAlias: true,
+        contiguous: true, sampleAllLayers: false
+      }
+    };
+    expect(parseSemanticSelectionCommand(command)).toEqual(command);
+    expect(parseSemanticSelectionCommand({
+      ...command, documentRevision: 9
+    })).toHaveProperty('message');
+    expect(parseSemanticSelectionCommand({
+      ...command, options: { ...command.options, sampleSize: 7 }
+    })).toHaveProperty('message');
+    expect(parseSemanticSelectionCommand({
+      ...command, point: { x: Number.POSITIVE_INFINITY, y: 1 }
+    })).toHaveProperty('message');
+  });
 });

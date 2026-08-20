@@ -464,9 +464,11 @@ describe('selection session controller', () => {
   });
 
   it('commits one replayable Magic Wand operation through shared selection history', async () => {
-    const state = setup();
+    const onMagicWandCommitted = vi.fn();
+    const state = setup({ onMagicWandCommitted });
+    const pointerPoint = { x: 12.5, y: 8.25, pressure: 0.7 };
     expect(state.controller.magicWand(
-      { x: 12.5, y: 8.25 },
+      pointerPoint,
       'replace',
       { sampleSize: 5, tolerance: 20, antiAlias: true, contiguous: true, sampleAllLayers: false }
     )).toBe(true);
@@ -484,11 +486,41 @@ describe('selection session controller', () => {
     });
     expect(state.selection).toEqual([operation]);
     expect(state.history).toHaveLength(1);
+    expect(onMagicWandCommitted).toHaveBeenCalledWith({
+      kind: 'magic-wand',
+      layerId: document.activeLayerId,
+      point: { x: 12.5, y: 8.25 },
+      mode: 'replace',
+      options: { sampleSize: 5, tolerance: 20, antiAlias: true,
+        contiguous: true, sampleAllLayers: false }
+    });
 
     await state.history[0]!.undo();
     await state.history[0]!.redo();
     expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(1, []);
     expect(state.renderer.replaceSelection).toHaveBeenNthCalledWith(2, [operation]);
+  });
+
+  it('awaits direct Magic Wand execution without publishing a second UI observation', async () => {
+    const onMagicWandCommitted = vi.fn();
+    const state = setup({ onMagicWandCommitted });
+    await expect(state.controller.applyMagicWand(
+      document.activeLayerId!,
+      { x: 16, y: 24 },
+      'add',
+      { sampleSize: 3, tolerance: 12, antiAlias: false,
+        contiguous: false, sampleAllLayers: true }
+    )).resolves.toBe(true);
+    expect(state.selection).toHaveLength(1);
+    expect(state.history).toHaveLength(1);
+    expect(onMagicWandCommitted).not.toHaveBeenCalled();
+    await expect(state.controller.applyMagicWand(
+      'missing-layer' as never,
+      { x: 1, y: 1 },
+      'replace',
+      { sampleSize: 1, tolerance: 20, antiAlias: true,
+        contiguous: true, sampleAllLayers: false }
+    )).resolves.toBe(false);
   });
 
   it('commits an immutable raster mask through the normal selection history path', async () => {

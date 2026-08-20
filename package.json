@@ -52,6 +52,7 @@
     "smoke:desktop:actions": "node scripts/smoke-desktop-actions-panel.mjs",
     "smoke:desktop:sampled-actions": "node scripts/smoke-desktop-sampled-brush-actions.mjs",
     "smoke:desktop:active-layer-stability": "node scripts/smoke-desktop-active-layer-stability.mjs",
+    "smoke:desktop:magic-wand-actions": "node scripts/smoke-desktop-magic-wand-actions.mjs",
     "smoke:desktop:actions:build": "npm run package:desktop:verify && npm run smoke:desktop:actions --",
     "smoke:desktop:recovery": "node scripts/smoke-desktop-recovery.mjs",
     "profile:desktop:recovery": "node scripts/profile-desktop-recovery.mjs",

@@ -769,6 +769,31 @@ describe('LightTableCommandService registry', () => {
     state.service.dispose(); state.workspace.dispose();
   });
 
+  it('validates, records and replays one asynchronous Magic Wand recipe', async () => {
+    const executeSelectionCommand = vi.fn(async () => ({ operationCount: 1 }));
+    const state = setup({ executeSelectionCommand });
+    const layerId = state.session.getSnapshot().document!.activeLayerId;
+    const parameters = {
+      kind: 'magic-wand', layerId, point: { x: 24, y: 18 }, mode: 'replace',
+      options: { sampleSize: 3, tolerance: 20, antiAlias: true,
+        contiguous: true, sampleAllLayers: false }
+    };
+    state.service.startActionRecording('Select sampled region');
+    await expect(state.service.execute(request(
+      'selection.applyMagicWand', state.session.id, parameters
+    ))).resolves.toMatchObject({ status: 'completed' });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'selection.applyMagicWand', replayable: true, parameters
+    }]);
+    await state.service.playActionRecording();
+    expect(executeSelectionCommand).toHaveBeenCalledTimes(2);
+    await expect(state.service.execute(request('selection.applyMagicWand', state.session.id, {
+      ...parameters, options: { ...parameters.options, sampleSize: 7 }
+    }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('records and replays a discrete selection modification without document mutation', async () => {
     const executeSelectionCommand = vi.fn(async () => ({ operation: 'invert' }));
     const state = setup({ executeSelectionCommand });

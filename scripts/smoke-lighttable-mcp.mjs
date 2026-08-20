@@ -118,6 +118,16 @@ try {
   if (sampledStroke?.value?.sampleCount !== 2) {
     throw new Error(`MCP Healing Brush command failed: ${JSON.stringify(sampledStroke)}`);
   }
+  const magicWand = (await call('lighttable_execute', {
+    documentId, command: 'selection.applyMagicWand', parameters: {
+      kind: 'magic-wand', layerId, point: { x: 120, y: 110 }, mode: 'replace',
+      options: { sampleSize: 3, tolerance: 24, antiAlias: true,
+        contiguous: true, sampleAllLayers: false }
+    }
+  })).structuredContent;
+  if (magicWand?.value?.layerId !== layerId || magicWand.value.mode !== 'replace') {
+    throw new Error(`MCP Magic Wand command failed: ${JSON.stringify(magicWand)}`);
+  }
   const gesture = (await call('lighttable_gesture_begin', { documentId, kind: 'brush-stroke',
     coordinateSpace: 'document', parameters: { layerId, channel: 'pixels' },
     sample: { x: 80, y: 80, pressure: 1 } })).structuredContent;

@@ -138,6 +138,8 @@ Existing foundation evidence
 - Clone Stamp and Healing Brush now use that same final-stroke boundary with an
   explicit document-relative source anchor. Source pixels, immutable GPU
   snapshots and live pointer updates remain inside the desktop renderer.
+- Magic Wand now exposes one asynchronous sampled-selection recipe through UI,
+  Actions and admitted Agent/MCP execution; generated masks remain GPU-local.
 
 Program definition of done
 ==========================

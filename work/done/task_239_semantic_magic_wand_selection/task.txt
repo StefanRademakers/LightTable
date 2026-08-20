@@ -1,0 +1,49 @@
+Task 239 - Semantic Magic Wand selection
+========================================
+
+Goal
+====
+
+Expose one completed Magic Wand selection through the existing asynchronous GPU
+selection owner as a bounded UI, Actions and reviewed Agent/MCP capability.
+
+Checklist
+=========
+
+- [x] Define and validate an explicit source layer, document point, combine mode and all Magic Wand options.
+- [x] Keep document revision and raster mask data out of persisted/remote parameters.
+- [x] Record only after the asynchronous GPU result is current, applied and in selection history.
+- [x] Replay and direct execution through the same Magic Wand owner without pointer simulation.
+- [x] Preserve newest-request wins, cancellation and stale document/renderer protections.
+- [x] Reject missing layers, invalid coordinates/options and oversized payloads.
+- [x] Prove packaged UI/Actions, Agent Access and external MCP execution.
+- [x] Run full gates, update parent work items, complete and commit.
+
+Scope guard
+===========
+
+- The command carries a sampling recipe, never a raster selection mask.
+- Object Selection and model-backed inference remain separate work.
+- Visual Photoshop parity is not claimed by command-route equivalence.
+
+Completion contract
+===================
+
+A real Magic Wand click publishes one Action only after successful GPU
+selection/history commit. Actions, Agent Access and MCP rebuild that same
+selection recipe through the canonical asynchronous owner.
+
+Evidence
+========
+
+- Contract/controller/service tests cover strict options, unsupported runtime
+  fields, explicit source existence, async direct execution and UI observation.
+- The packaged UI records exactly one Magic Wand Action after GPU completion;
+  undo and replay pass with no document revision or raster mask in parameters.
+- Packaged Agent Access and the real external MCP bridge execute the command.
+- Existing newest-request, reset/cancel and stale document/renderer tests remain
+  green; the broad packaged Actions workflow also passes.
+- Full app tests pass (461 files, 2,589 tests), as do 17 MCP tests, all workspace
+  typechecks, packaging, boundary, source-structure, architecture-documentation
+  and command-contract verification.
+- No Photoshop visual-parity claim is made by this task.
