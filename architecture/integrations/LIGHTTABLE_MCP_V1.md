@@ -160,7 +160,10 @@ creation plus range replacement, conditional character/paragraph formatting
 and layout. Adjustment creation and Auto Align now also have closed contracts.
 Auto Align exposes only stable target IDs and whether geometry changed; estimator
 model, confidence, diagnostics, preview reuse and correction matrices remain
-inside the application. View zoom, Undo/Redo, task cancellation and
+inside the application. Committed Paint/Selection/Translate recipes and Warp
+strokes are likewise closed: sample arrays are bounded, complete nested brush
+and Warp state is validated, and pointer IDs, preview/debug state and runtime
+renderer objects are excluded. View zoom, Undo/Redo, task cancellation and
 native/PNG/PSD export also have closed contracts: export results carry bounded
 opaque metadata and never paths, bytes or Base64. Separate layer,
 layer-structure, text, adjustment, alignment, view, history, task and artifact modules keep this from
@@ -175,6 +178,9 @@ Application-owned parsers still enforce contextual rules that JSON Schema
 cannot decide, such as whether a stable layer ID exists in the requested
 document. Commands marked `legacy-properties-only` by `lighttable_commands`
 have not yet reached this contract bar and must not be described as complete.
+`command.batch` is the remaining admitted legacy contract: its operation-result
+references require command-specific schema transformation before the outer
+batch can truthfully be advertised as complete.
 
 The schema validator now enforces closed nested objects, integer bounds,
 `allOf`/`anyOf`/`oneOf`, constants, negation and `if`/`then`/`else`. Text mode

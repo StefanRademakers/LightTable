@@ -225,6 +225,10 @@ Existing foundation evidence
 - Adjustment creation and Auto Align now also publish modular version-1 schemas.
   Auto Align records only changed state and stable layer IDs; estimator model,
   confidence, diagnostics, preview reuse and matrices stay internal.
+- Final committed Brush/Selection/Translate operations and non-destructive Warp
+  strokes now also publish complete version-1 recipe schemas. Live coalesced
+  input remains local; packaged Actions telemetry still shows one publication
+  and one history entry per committed interaction.
 
 Program definition of done
 ==========================

@@ -108,6 +108,10 @@ Current evidence (2026-08-20)
   schemas. External discovery proves conditional placement and stable alignment
   outcomes; private estimator state and contradictory targets fail before the
   desktop bridge.
+- `tool.commitGesture` and `warp.applyStroke` now advertise closed final-recipe
+  schemas. MCP discovery/input gates reject UI pointer and preview state; real
+  Tone, Healing and editable Warp execution/query continue through the packaged
+  desktop owners without remote pointer simulation.
 - Real external MCP execution now also verifies duplicate and Layer via Copy
   source/new-ID results, clipping enable/disable, down/up sibling movement and
   the exact deleted-ID result through the desktop owner.

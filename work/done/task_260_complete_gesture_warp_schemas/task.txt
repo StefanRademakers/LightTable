@@ -1,0 +1,65 @@
+Task 260 - Complete final gesture and Warp schemas
+==================================================
+
+Goal
+====
+
+Promote committed Paint/Selection/Translate gestures and non-destructive Warp
+strokes to complete shared contracts without moving validation, serialization
+or transport work into live pointer and preview paths.
+
+Parent work
+===========
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 220`](../../todo/task_220_reviewed_mcp_capability_admission/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Define conditional Brush, Selection Rectangle and Layer Translate recipes.
+- [x] Cover complete brush settings plus bounded Tone and Clone/Healing operators.
+- [x] Define the complete editable Warp stroke recipe and stable authored result.
+- [x] Reject pointer/runtime/private fields and incompatible parameter variants.
+- [x] Keep live pointer, paint, Warp preview and frame scheduling unchanged.
+- [x] Prove recorded UI commits, Actions replay, direct MCP execution and queries.
+- [x] Re-run packaged runtime telemetry and full repository gates.
+- [x] Update evidence, move to `work/done/` and commit.
+
+Evidence
+========
+
+- `tool.commitGesture` has three closed variants. Brush covers all current
+  presets/settings plus Tone and document-relative Clone/Healing recipes;
+  Selection Rectangle and Layer Translate accept only their semantic fields.
+- `warp.applyStroke` retains the editable layer-source samples, timing, mode and
+  immutable settings, returning only stable layer/stroke IDs and sample count.
+- Contract tests reject pointer IDs/types, runtime textures, preview/debug state,
+  incompatible erase/operator combinations and out-of-range recipes.
+- No live interaction source changed. Packaged Actions still recorded one
+  1,834-byte operation for 25 local Brush updates and one operation per Warp
+  recipe. Preview submissions remained local and frame-scheduled.
+- External MCP discovered both complete schemas, rejected private state before
+  the bridge, executed real Tone/Healing/Warp recipes and queried editable Warp.
+- Full typecheck and tests passed (485 app files / 2790 app tests), as did
+  contract, source, architecture, boundary and UI audits, desktop packaging,
+  Actions, MCP and two consecutive final route-equivalence runs.
+
+Observed unrelated risk
+=======================
+
+Two route-equivalence runs completed their workflow but reported intermittent
+React error 185 at the final page-error gate. Two immediate repeat runs passed.
+Task 261 retains this as an open reproducibility/diagnostics risk rather than
+hiding it inside this completed capability slice.
+
+Non-goals
+=========
+
+- Sending live pointer events or preview frames through Actions/MCP.
+- Changing Paint or Warp rendering behavior.
+- Calling `command.batch` complete before operation-result references can retain
+  the exact nested schema of every admitted command.

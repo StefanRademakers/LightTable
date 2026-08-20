@@ -199,6 +199,10 @@ Current evidence (2026-08-20)
   catalog and its local, attached and standalone placement rules. Auto Align has
   a separate two-target schema; completion is normalized to changed state and
   stable layer IDs so estimator internals cannot enter saved Actions or MCP.
+- Final Brush/Selection/Translate gestures and Warp strokes now have separate
+  complete recipe schemas. Validation occurs only at semantic execution or
+  recording, while live pointer/preview paths remain unchanged. `command.batch`
+  remains legacy until result references preserve each nested command schema.
 
 Still required for completion
 =============================

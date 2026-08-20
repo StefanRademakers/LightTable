@@ -309,6 +309,10 @@ try {
     .structuredContent.commands?.[0]?.contract;
   const autoAlignContract = (await call('lighttable_commands', { command: 'layer.autoAlign' }))
     .structuredContent.commands?.[0]?.contract;
+  const gestureContract = (await call('lighttable_commands', { command: 'tool.commitGesture' }))
+    .structuredContent.commands?.[0]?.contract;
+  const warpContract = (await call('lighttable_commands', { command: 'warp.applyStroke' }))
+    .structuredContent.commands?.[0]?.contract;
   if (adjustmentCreateContract?.status !== 'complete'
     || adjustmentCreateContract.schemaVersion !== 1
     || !adjustmentCreateContract.input?.oneOf
@@ -316,9 +320,17 @@ try {
     || autoAlignContract?.status !== 'complete' || autoAlignContract.schemaVersion !== 1
     || !autoAlignContract.input?.properties?.referenceLayerId
     || autoAlignContract.result?.properties?.confidence
-    || autoAlignContract.result?.properties?.correctionMatrix) {
-    throw new Error(`MCP adjustment/Auto Align discovery is incomplete or leaks internals: ${JSON.stringify({
-      adjustmentCreateContract, autoAlignContract
+    || autoAlignContract.result?.properties?.correctionMatrix
+    || gestureContract?.status !== 'complete' || gestureContract.schemaVersion !== 1
+    || gestureContract.input?.$defs?.samples?.maxItems !== 4096
+    || !gestureContract.input?.$defs?.sampledOperator
+    || gestureContract.result?.properties?.gestureId
+    || warpContract?.status !== 'complete' || warpContract.schemaVersion !== 1
+    || warpContract.input?.properties?.samples?.maxItems !== 4096
+    || warpContract.input?.$defs?.settings?.properties?.debugView
+    || !warpContract.result?.properties?.strokeId) {
+    throw new Error(`MCP adjustment/gesture discovery is incomplete or leaks internals: ${JSON.stringify({
+      adjustmentCreateContract, autoAlignContract, gestureContract, warpContract
     })}`);
   }
   for (const [command, parameters] of [
@@ -326,7 +338,16 @@ try {
     ['adjustment.create', { kind: 'curves', placement: 'adjustment-layer',
       layerId: before.activeLayerId }],
     ['layer.autoAlign', { referenceLayerId: 'reference', targetLayerId: 'target',
-      confidence: 0.99 }]
+      confidence: 0.99 }],
+    ['tool.commitGesture', { kind: 'selection-rectangle',
+      parameters: { mode: 'replace', pointerId: 7 },
+      samples: [{ x: 0, y: 0 }, { x: 10, y: 10 }] }],
+    ['warp.applyStroke', { layerId: before.activeLayerId, mode: 'push',
+      settings: { diameterPx: 120, strength: 0.75, hardness: 0.5, flow: 1,
+        spacing: 0.04, smooth: 0.25, pressureSize: true, pressureStrength: true,
+        debugView: 'displacement' },
+      samples: [{ positionPx: [1, 1], deltaPx: [0, 0], pressure: 1,
+        tilt: [0, 0], timeMs: 1 }], startedAtMs: 1, durationMs: 0 }]
   ]) {
     const invalid = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
       documentId, command, parameters

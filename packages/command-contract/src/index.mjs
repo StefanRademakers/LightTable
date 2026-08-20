@@ -15,6 +15,8 @@ import autoAlignCommandSchemas from '../schemas/v1/auto-align.json' with { type:
 
 import finalizationCommandSchemas from '../schemas/v1/finalization.json' with { type: 'json' };
 
+import gestureCommandSchemas from '../schemas/v1/gesture.json' with { type: 'json' };
+
 import gradeBasicCommandSchemas from '../schemas/v1/grade-basic.json' with { type: 'json' };
 
 import historyCommandSchemas from '../schemas/v1/history.json' with { type: 'json' };
@@ -42,6 +44,8 @@ import transformCommandSchemas from '../schemas/v1/transform.json' with { type: 
 import vectorCommandSchemas from '../schemas/v1/vector.json' with { type: 'json' };
 
 import viewCommandSchemas from '../schemas/v1/view.json' with { type: 'json' };
+
+import warpCommandSchemas from '../schemas/v1/warp.json' with { type: 'json' };
 
 export { validateJsonSchemaValue, formatSchemaValidationIssues } from './schema-validation.mjs';
 
@@ -150,6 +154,7 @@ export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
   ...schemaModuleCommands(artifactCommandSchemas),
   ...schemaModuleCommands(autoAlignCommandSchemas),
   ...schemaModuleCommands(finalizationCommandSchemas),
+  ...schemaModuleCommands(gestureCommandSchemas),
   ...schemaModuleCommands(gradeBasicCommandSchemas),
   ...schemaModuleCommands(historyCommandSchemas),
   ...schemaModuleCommands(layerEffectsCommandSchemas),
@@ -163,7 +168,8 @@ export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
   ...schemaModuleCommands(textCommandSchemas),
   ...schemaModuleCommands(transformCommandSchemas),
   ...schemaModuleCommands(vectorCommandSchemas),
-  ...schemaModuleCommands(viewCommandSchemas)
+  ...schemaModuleCommands(viewCommandSchemas),
+  ...schemaModuleCommands(warpCommandSchemas)
 });
 
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([

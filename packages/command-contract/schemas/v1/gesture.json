@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "category": "automation",
+  "$defs": {
+    "layerId": { "type": "string", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+    "point": {
+      "type": "object", "additionalProperties": false, "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+        "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 }
+      }
+    },
+    "sample": {
+      "type": "object", "additionalProperties": false, "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+        "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+        "pressure": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "samples": { "type": "array", "minItems": 1, "maxItems": 4096, "items": { "$ref": "#/$defs/sample" } },
+    "brush": {
+      "type": "object", "additionalProperties": false,
+      "required": ["presetId", "size", "hardness", "opacity", "flow", "spacing", "smooth", "color", "backgroundColor"],
+      "properties": {
+        "presetId": { "type": "string", "enum": ["round", "airbrush", "ink-pen", "calligraphy", "rough-ink", "blur", "liquify"] },
+        "size": { "type": "number", "minimum": 0.1, "maximum": 5000 },
+        "hardness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "flow": { "type": "number", "minimum": 0, "maximum": 1 },
+        "spacing": { "type": "number", "minimum": 0.001, "maximum": 2 },
+        "smooth": { "type": "number", "minimum": 0, "maximum": 1 },
+        "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "x-lighttable-control": "color" },
+        "backgroundColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "x-lighttable-control": "color" }
+      }
+    },
+    "toneOperator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operator", "mode", "range", "spongeMode", "protectTones", "vibrance"],
+      "properties": {
+        "operator": { "const": "tone" },
+        "mode": { "type": "string", "enum": ["dodge", "burn", "sponge"] },
+        "range": { "type": "string", "enum": ["shadows", "midtones", "highlights"] },
+        "spongeMode": { "type": "string", "enum": ["saturate", "desaturate"] },
+        "protectTones": { "type": "boolean" },
+        "vibrance": { "type": "boolean" }
+      }
+    },
+    "sampledOperator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operator", "source", "sampleMode", "sourceOffset", "diffusion"],
+      "properties": {
+        "operator": { "type": "string", "enum": ["clone", "healing"] },
+        "source": {
+          "type": "object", "additionalProperties": false, "required": ["anchorLayerId", "point"],
+          "properties": {
+            "anchorLayerId": { "$ref": "#/$defs/layerId" },
+            "point": { "$ref": "#/$defs/point" }
+          }
+        },
+        "sampleMode": { "type": "string", "enum": ["current", "current-and-below", "all"] },
+        "sourceOffset": { "$ref": "#/$defs/point" },
+        "diffusion": { "type": "integer", "minimum": 1, "maximum": 7 }
+      }
+    },
+    "paintOperator": { "oneOf": [{ "$ref": "#/$defs/toneOperator" }, { "$ref": "#/$defs/sampledOperator" }] },
+    "brushParameters": {
+      "type": "object", "additionalProperties": false, "required": ["layerId", "channel", "brush"],
+      "properties": {
+        "layerId": { "$ref": "#/$defs/layerId" },
+        "channel": { "type": "string", "enum": ["pixels", "mask"] },
+        "erase": { "type": "boolean", "default": false },
+        "brush": { "$ref": "#/$defs/brush" },
+        "operator": { "$ref": "#/$defs/paintOperator" }
+      },
+      "not": {
+        "type": "object", "required": ["erase", "operator"],
+        "properties": { "erase": { "const": true } }
+      }
+    },
+    "selectionParameters": {
+      "type": "object", "additionalProperties": false, "required": ["mode"],
+      "properties": { "mode": { "type": "string", "enum": ["replace", "add", "subtract", "intersect"] } }
+    },
+    "translateParameters": {
+      "type": "object", "additionalProperties": false, "required": ["layerId"],
+      "properties": { "layerId": { "$ref": "#/$defs/layerId" } }
+    }
+  },
+  "commands": {
+    "tool.commitGesture": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["kind", "parameters", "samples"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["brush-stroke", "selection-rectangle", "layer-translate"] },
+          "parameters": { "type": "object" },
+          "samples": { "$ref": "#/$defs/samples" }
+        },
+        "oneOf": [
+          { "type": "object", "properties": { "kind": { "const": "brush-stroke" }, "parameters": { "$ref": "#/$defs/brushParameters" } } },
+          { "type": "object", "properties": { "kind": { "const": "selection-rectangle" }, "parameters": { "$ref": "#/$defs/selectionParameters" } } },
+          { "type": "object", "properties": { "kind": { "const": "layer-translate" }, "parameters": { "$ref": "#/$defs/translateParameters" } } }
+        ]
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["kind", "sampleCount"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["brush-stroke", "selection-rectangle", "layer-translate"] },
+          "sampleCount": { "type": "integer", "minimum": 1, "maximum": 4096 }
+        }
+      }
+    }
+  }
+}

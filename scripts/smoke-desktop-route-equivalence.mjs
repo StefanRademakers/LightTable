@@ -150,7 +150,7 @@ try {
     timeout: 30_000
   });
   const window = await app.firstWindow({ timeout: 30_000 });
-  window.on('pageerror', (error) => pageErrors.push(error.message));
+  window.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
   const open = await waitForDesktopLauncher({
     app, page: window, outputDirectory: output, sourceFile: fixture,
     pageErrors, label: 'route-equivalence'

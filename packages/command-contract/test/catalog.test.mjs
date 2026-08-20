@@ -83,6 +83,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'raster.invert',
     'text.convertToShape',
     'text.rasterize',
+    'tool.commitGesture',
     'grade.setBasic',
     'history.undo',
     'history.redo',
@@ -125,7 +126,8 @@ test('versioned schemas describe and validate every completed command vertical',
     'vector.create',
     'vector.update',
     'vector.remove',
-    'view.setZoom'
+    'view.setZoom',
+    'warp.applyStroke'
   ]);
   for (const [command, schema] of Object.entries(LIGHTTABLE_COMMAND_SCHEMAS)) {
     assert.equal(schema.input.additionalProperties, false, `${command} input must be closed`);
@@ -628,4 +630,46 @@ test('Auto Align schema exposes semantic targets and outcome, not estimator stat
   assert.equal(validateJsonSchemaValue(align.result, {
     changed: true, referenceLayerId: 'reference', targetLayerId: 'target', confidence: 0.98
   }).valid, false);
+});
+
+test('committed gesture schema describes final recipes without UI pointer state', () => {
+  const gesture = LIGHTTABLE_COMMAND_SCHEMAS['tool.commitGesture'];
+  for (const example of LIGHTTABLE_COMMAND_EXAMPLES['tool.commitGesture']) {
+    assert.equal(validateJsonSchemaValue(gesture.input, example).valid, true,
+      JSON.stringify(example));
+  }
+  const baseBrush = LIGHTTABLE_COMMAND_EXAMPLES['tool.commitGesture'][0];
+  for (const invalid of [
+    { ...baseBrush, pointerId: 4 },
+    { ...baseBrush, samples: [{ x: 1, y: 2, pointerType: 'pen' }] },
+    { ...baseBrush, parameters: { ...baseBrush.parameters, runtimeTexture: {} } },
+    { ...baseBrush, parameters: { ...baseBrush.parameters, erase: true,
+      operator: { operator: 'tone', mode: 'dodge', range: 'midtones',
+        spongeMode: 'saturate', protectTones: true, vibrance: true } } },
+    { kind: 'selection-rectangle', parameters: { mode: 'replace', layerId: 'x' },
+      samples: [{ x: 0, y: 0 }, { x: 10, y: 10 }] },
+    { kind: 'layer-translate', parameters: { layerId: 'x', delta: [1, 2] },
+      samples: [{ x: 0, y: 0 }, { x: 10, y: 10 }] }
+  ]) assert.equal(validateJsonSchemaValue(gesture.input, invalid).valid, false,
+    JSON.stringify(invalid));
+  assert.equal(validateJsonSchemaValue(gesture.result, {
+    kind: 'brush-stroke', sampleCount: 2
+  }).valid, true);
+});
+
+test('Warp schema retains authored stroke data but rejects preview and renderer state', () => {
+  const warp = LIGHTTABLE_COMMAND_SCHEMAS['warp.applyStroke'];
+  const example = LIGHTTABLE_COMMAND_EXAMPLES['warp.applyStroke'][0];
+  assert.equal(validateJsonSchemaValue(warp.input, example).valid, true);
+  for (const invalid of [
+    { ...example, previewFrame: 12 },
+    { ...example, settings: { ...example.settings, debugView: 'displacement' } },
+    { ...example, samples: [{ ...example.samples[0], pointerId: 7 }] },
+    { ...example, samples: [{ ...example.samples[0], tilt: [-91, 0] }] },
+    { ...example, durationMs: 3600001 }
+  ]) assert.equal(validateJsonSchemaValue(warp.input, invalid).valid, false,
+    JSON.stringify(invalid));
+  assert.equal(validateJsonSchemaValue(warp.result, {
+    layerId: 'photo', strokeId: 'stroke-1', sampleCount: 2
+  }).valid, true);
 });
