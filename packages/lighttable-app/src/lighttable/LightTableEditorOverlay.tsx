@@ -4788,7 +4788,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pushHistoryEntry,
     setError,
     setStatus: setGradeStatus,
-    transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document'
+    transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
+    onLayerTransformCommitted: (layerId, transform) => {
+      commandService?.recordObservedCommand(
+        'layer.setTransform',
+        workspaceDocumentId as DocumentSessionId,
+        { layerId, transform },
+        { layerId, transform }
+      );
+    }
   });
   const transformState = transformSession.state;
   const activeTransformFrame = useMemo(() => transformState

@@ -46,6 +46,31 @@ try {
   await recorder.getByRole('button', { name: 'Record' }).click();
   await recorder.getByText('recording', { exact: true }).waitFor();
 
+  await window.keyboard.press('Control+t');
+  const transformOverlay = window.getByLabel('Transform controls');
+  await transformOverlay.waitFor({ state: 'visible', timeout: 30_000 });
+  const transformBody = transformOverlay.locator('.lighttable-transform__body');
+  const transformBounds = await transformBody.boundingBox();
+  if (!transformBounds) throw new Error('Actions smoke could not measure the transform body.');
+  const transformStart = await window.evaluate(({ x, y, width, height }) => {
+    for (const fy of [0.25, 0.5, 0.75]) {
+      for (const fx of [0.25, 0.5, 0.75]) {
+        const point = { x: x + width * fx, y: y + height * fy };
+        if (document.elementFromPoint(point.x, point.y)?.classList.contains('lighttable-transform__body')) {
+          return point;
+        }
+      }
+    }
+    return null;
+  }, transformBounds);
+  if (!transformStart) throw new Error('Actions smoke transform body is covered by panel chrome.');
+  await window.mouse.move(transformStart.x, transformStart.y);
+  await window.mouse.down();
+  await window.mouse.move(transformStart.x + 18, transformStart.y + 12, { steps: 8 });
+  await window.mouse.up();
+  await recorder.locator('li').filter({ hasText: 'layer.setTransform' }).waitFor();
+  await window.keyboard.press('Enter');
+
   const viewport = window.locator('.lighttable-viewport');
   const viewportBounds = await viewport.boundingBox();
   if (!viewportBounds) throw new Error('Actions smoke could not measure the canvas viewport.');
@@ -87,10 +112,11 @@ try {
   await undo.locator('summary').click();
   const undoButton = undo.getByRole('button', { name: 'Run' });
   await undoButton.waitFor();
-  await undoButton.click();
-  await panel.getByRole('status').filter({ hasText: 'history.undo: completed' })
-    .waitFor({ timeout: 15_000 });
-  await undoButton.click();
+  for (let index = 0; index < 4; index += 1) {
+    await undoButton.click();
+    await panel.getByRole('status').filter({ hasText: 'history.undo: completed' })
+      .waitFor({ timeout: 15_000 });
+  }
   await window.waitForFunction(
     (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
     before
@@ -98,14 +124,14 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 2) throw new Error('Expected two recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 4) throw new Error('Expected four recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
   await undoStep.getByText('no', { exact: true }).waitFor();
   const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
   await renameStep.locator('summary').click();
-  await renameStep.getByText('$step2.layerId', { exact: false }).waitFor();
+  await renameStep.getByText('$step3.layerId', { exact: false }).waitFor();
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();

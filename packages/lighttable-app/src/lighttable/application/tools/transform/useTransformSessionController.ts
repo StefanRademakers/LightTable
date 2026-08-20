@@ -79,6 +79,7 @@ export interface TransformSessionDependencies {
   setError(message: string | null): void;
   setStatus(message: string): void;
   transformFrameMode?: TransformFrameMode;
+  onLayerTransformCommitted?(layerId: LayerId, transform: AffineMatrix): void;
 }
 
 export interface TransformSessionController {
@@ -162,6 +163,8 @@ export const useTransformSessionController = (
       if (result.afterDocument !== result.beforeDocument) {
         current.applyDocumentSnapshot(result.afterDocument);
         current.pushDocumentHistory(result.beforeDocument, result.afterDocument);
+        const layer = findDocumentLayer(result.afterDocument, result.layerId);
+        if (layer) current.onLayerTransformCommitted?.(layer.id, { ...layer.transform });
       }
       return;
     }
