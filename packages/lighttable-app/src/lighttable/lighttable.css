@@ -1,6 +1,6 @@
 @import 'dockview-react/dist/styles/dockview.css';
 
-.lighttable-backdrop {
+.modal-backdrop.lighttable-backdrop {
   z-index: 1400;
   display: block;
   background: var(--lt-surface-app);
@@ -12,7 +12,7 @@
   pointer-events: none;
 }
 
-.lighttable {
+.modal.lighttable {
   width: 100vw;
   max-width: 100vw;
   height: 100vh;

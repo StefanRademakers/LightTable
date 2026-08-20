@@ -11,6 +11,30 @@ const projects = path.join(output, 'projects');
 const reportPath = path.join(output, 'report.json');
 const projectName = 'Project Home Smoke';
 const source = path.join(root, 'packages', 'lighttable-app', 'src', 'assets', 'icons', 'image.png');
+
+async function assertEditorFillsWindow(page) {
+  const geometry = await page.locator('.lighttable-backdrop:not(.lighttable-backdrop--inactive) .lighttable').evaluate((editor) => {
+    const rect = editor.getBoundingClientRect();
+    return {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight
+    };
+  });
+  const tolerance = 1;
+  if (
+    Math.abs(geometry.x) > tolerance
+    || Math.abs(geometry.y) > tolerance
+    || Math.abs(geometry.width - geometry.viewportWidth) > tolerance
+    || Math.abs(geometry.height - geometry.viewportHeight) > tolerance
+  ) {
+    throw new Error(`Editor did not fill the window: ${JSON.stringify(geometry)}`);
+  }
+}
+
 await rm(output, { recursive: true, force: true });
 await Promise.all([mkdir(userData, { recursive: true }), mkdir(projects, { recursive: true })]);
 const launch = await resolveDesktopTestLaunch(root);
@@ -51,6 +75,7 @@ try {
   const newDocument = page.getByRole('dialog', { name: 'New document' });
   await newDocument.getByRole('button', { name: 'Create', exact: true }).click();
   await page.locator('.lighttable-backdrop:not(.lighttable-backdrop--inactive)').waitFor();
+  await assertEditorFillsWindow(page);
   await page.getByRole('button', { name: 'Close editor', exact: true }).click();
   await home.waitFor({ state: 'visible' });
 
@@ -63,6 +88,7 @@ try {
   }
   await importedAsset.dblclick();
   await page.locator('.lighttable-backdrop:not(.lighttable-backdrop--inactive)').waitFor();
+  await assertEditorFillsWindow(page);
   await page.getByRole('button', { name: 'Close editor', exact: true }).click();
   await home.waitFor({ state: 'visible' });
   if (pageErrors.length) throw new Error(`Renderer errors: ${JSON.stringify(pageErrors)}`);
