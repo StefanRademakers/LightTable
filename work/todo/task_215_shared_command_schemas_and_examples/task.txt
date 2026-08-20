@@ -156,6 +156,9 @@ Current evidence (2026-08-20)
 - A separate Merge/Flatten module now constrains destructive sibling merges,
   group targets and option-free image flattening, including stable output-layer
   results. Duplicate merge IDs and expanded image options fail before execution.
+- A separate finalization module now exposes explicit raster/mask inversion and
+  retained-ID Text-to-Shape/Text-to-Raster results. Output types are constants,
+  while live text editing and GPU payloads remain outside the command boundary.
 
 Still required for completion
 =============================

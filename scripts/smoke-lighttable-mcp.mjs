@@ -168,6 +168,23 @@ try {
       mergeContract, groupFlattenContract, imageFlattenContract
     })}`);
   }
+  const invertContract = (await call('lighttable_commands', { command: 'raster.invert' }))
+    .structuredContent.commands?.[0]?.contract;
+  const textShapeContract = (await call('lighttable_commands', { command: 'text.convertToShape' }))
+    .structuredContent.commands?.[0]?.contract;
+  const textRasterContract = (await call('lighttable_commands', { command: 'text.rasterize' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (invertContract?.status !== 'complete' || invertContract.schemaVersion !== 1
+    || !invertContract.input?.properties?.channel?.enum?.includes('mask')
+    || !invertContract.result?.properties?.layerId
+    || textShapeContract?.status !== 'complete' || textShapeContract.schemaVersion !== 1
+    || textShapeContract.result?.properties?.outputType?.const !== 'vector'
+    || textRasterContract?.status !== 'complete' || textRasterContract.schemaVersion !== 1
+    || textRasterContract.result?.properties?.outputType?.const !== 'raster') {
+    throw new Error(`MCP finalization discovery is incomplete: ${JSON.stringify({
+      invertContract, textShapeContract, textRasterContract
+    })}`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
@@ -233,6 +250,17 @@ try {
   if (!invalidFlatten.isError || afterInvalidFlatten.canonicalRevision !== before.canonicalRevision) {
     throw new Error(`Expanded Flatten Image request reached the destructive owner: ${JSON.stringify({
       invalidFlatten, before: before.canonicalRevision, after: afterInvalidFlatten.canonicalRevision
+    })}`);
+  }
+  const invalidInvert = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'raster.invert', parameters: {
+      layerId: before.activeLayerId, channel: 'all'
+    }
+  } });
+  const afterInvalidInvert = (await call('lighttable_document', { documentId })).structuredContent;
+  if (!invalidInvert.isError || afterInvalidInvert.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Expanded raster channel reached the GPU mutation owner: ${JSON.stringify({
+      invalidInvert, before: before.canonicalRevision, after: afterInvalidInvert.canonicalRevision
     })}`);
   }
   const sourceLayerId = before.activeLayerId;

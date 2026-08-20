@@ -114,6 +114,12 @@ describe('ActionsPanel', () => {
       .toEqual({ groupId: '' });
     expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['document.flattenImage']!.input))
       .toEqual({});
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['raster.invert']!.input))
+      .toEqual({ layerId: '', channel: 'pixels' });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['text.convertToShape']!.input))
+      .toEqual({ layerId: '' });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['text.rasterize']!.input))
+      .toEqual({ layerId: '' });
   });
 
   it('renders nested conditional text properties without a free-form command JSON editor', () => {

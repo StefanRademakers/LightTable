@@ -32,6 +32,9 @@ Evidence
 - `raster.invert` accepts exactly a stable layer ID and `pixels`/`mask` channel;
   missing layers, non-raster pixel targets, absent masks and locked targets fail
   before touching the renderer.
+- A shared version-1 input/result schema now exposes the same exact target and
+  channel boundary to Actions/MCP discovery; expanded channel values fail
+  before the GPU owner.
 - The pre-existing layer document owner now accepts an explicit ID but retains
   its begin/invert/finish GPU transaction, pixel-history snapshot, revision
   update, undo/redo and error handling.

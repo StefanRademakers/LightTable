@@ -168,7 +168,7 @@ Existing foundation evidence
   bounded and return stable output-layer IDs for later Action/agent steps.
 - Layer > Invert Colors now records and executes `raster.invert` with an
   explicit stable layer ID and pixels/mask channel through the existing GPU
-  pixel-edit and undo owner.
+  pixel-edit and undo owner. Its shared schema exposes exactly those fields.
 - Confirmed Convert Text to Shape and Rasterize Text now record and execute as
   explicit stable-target commands. Both retain their layer ID; shape output is
   native vector geometry and raster output waits for a final text source before

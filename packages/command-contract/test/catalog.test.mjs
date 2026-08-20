@@ -53,6 +53,9 @@ test('current remote rollout remains a strict subset of the application command 
 
 test('versioned schemas describe and validate every completed command vertical', () => {
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
+    'raster.invert',
+    'text.convertToShape',
+    'text.rasterize',
     'grade.setBasic',
     'layer.createRaster',
     'layer.setMask',
@@ -319,4 +322,33 @@ test('destructive merge and flatten schemas require explicit bounded targets and
   assert.deepEqual(validateJsonSchemaValue(image.input, {}), { valid: true, issues: [] });
   assert.equal(validateJsonSchemaValue(image.input, { preserveLayers: true }).valid, false);
   assert.equal(validateJsonSchemaValue(image.result, { outputLayerId: 'flattened' }).valid, true);
+});
+
+test('raster and text finalization schemas retain stable layer identity', () => {
+  const invert = LIGHTTABLE_COMMAND_SCHEMAS['raster.invert'];
+  assert.equal(validateJsonSchemaValue(invert.input, {
+    layerId: 'photo', channel: 'pixels'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(invert.result, {
+    layerId: 'photo', channel: 'mask'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(invert.input, {
+    layerId: 'photo', channel: 'all'
+  }).valid, false);
+
+  const shape = LIGHTTABLE_COMMAND_SCHEMAS['text.convertToShape'];
+  const raster = LIGHTTABLE_COMMAND_SCHEMAS['text.rasterize'];
+  assert.equal(validateJsonSchemaValue(shape.input, { layerId: 'heading' }).valid, true);
+  assert.equal(validateJsonSchemaValue(shape.result, {
+    layerId: 'heading', outputType: 'vector'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(shape.result, {
+    layerId: 'heading', outputType: 'raster'
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(raster.result, {
+    layerId: 'caption', outputType: 'raster'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(raster.input, {
+    layerId: 'caption', preserveText: true
+  }).valid, false);
 });

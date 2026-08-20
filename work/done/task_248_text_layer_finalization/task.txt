@@ -56,6 +56,9 @@ Result and evidence
 - The two commands accept exactly one stable `layerId`; capability projection,
   normal UI dispatch, Actions record/replay and reviewed external MCP execution
   share the mounted document ports.
+- Shared version-1 input/result schemas now distinguish the retained-ID vector
+  and raster outputs, so later Action steps can bind them without inferring the
+  final layer type.
 - Convert-to-shape preserves the existing confirmation boundary and converts
   the same layer to queryable native vector glyph paths.
 - Rasterization now waits for React/WebGPU publication and a targeted final

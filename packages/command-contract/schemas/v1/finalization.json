@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "category": "effects",
+  "commands": {
+    "raster.invert": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "channel"],
+        "properties": {
+          "layerId": { "type": "string", "title": "Layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+          "channel": { "type": "string", "title": "Raster channel", "enum": ["pixels", "mask"], "default": "pixels" }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "channel"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "channel": { "type": "string", "enum": ["pixels", "mask"] }
+        }
+      }
+    },
+    "text.convertToShape": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId"],
+        "properties": {
+          "layerId": { "type": "string", "title": "Text layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "outputType"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "outputType": { "type": "string", "const": "vector" }
+        }
+      }
+    },
+    "text.rasterize": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId"],
+        "properties": {
+          "layerId": { "type": "string", "title": "Text layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "outputType"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "outputType": { "type": "string", "const": "raster" }
+        }
+      }
+    }
+  }
+}
