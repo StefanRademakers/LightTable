@@ -62,10 +62,18 @@ Current evidence (2026-08-20)
 - `event.query` now exposes bounded reconnect-safe document, revision, active
   layer, selection, history, task and renderer-state publications. Cursor gaps
   are explicit and force canonical re-query rather than silently missing work.
+- `event.wait` and MCP `lighttable_wait_for_events` now hold one read-only call
+  for at most 10 seconds and return immediately for queued events or a cursor
+  gap. The application owns at most 64 concurrent waiters and releases them on
+  timeout or service disposal; the transport retains its separate 64-request /
+  15-second boundary.
 - The packaged MCP flow records a cursor before editing, observes its exact
   final revision/history publication and then requests preview N+1.
-- Server-push delivery remains open; reconnect-safe cursor events are the
-  current no-polling mechanism.
+- The packaged outbound TLS/WSS device route starts a wait and a concurrent
+  native edit. It wakes on `active-layer-changed`, then one cursor drain returns
+  `history-changed` plus the edit's exact `document-revision-changed`. The local
+  MCP end-to-end route proves the same sequence. Blind interval polling is no
+  longer required; unsolicited server push is not claimed.
 - Targeted text, vector, effects, Warp and basic Grade queries exist.
   `adjustment.query` now adds bounded module-registry-backed parameters for
   document Grade/Lens Fx, raster/Adjustment Layers and attached adjustments;
@@ -94,3 +102,16 @@ Non-goals
 - Returning the complete serialized document by default.
 - Disturbing the active viewport to create an agent preview.
 - Autonomous reference decomposition in this task.
+
+Completion result (2026-08-20)
+==============================
+
+The bounded observation loop passes through the packaged renderer and the real
+outbound Agent Access/MCP device route. An agent can inspect revision-bound
+structure, request size/format/quality-controlled whole, region and layer
+previews, reuse or release artifacts, wait without interval polling, drain the
+reconnect cursor, execute a native edit and request the exact newer render.
+Payload, artifact, wait, timeout, concurrency, cursor-gap, stale-revision and
+permission boundaries remain explicit. This completes the observation task;
+it does not complete autonomous visual judgment, reference reconstruction or
+the parked remote ephemeral-preview transport experiment.

@@ -338,8 +338,18 @@ try {
   });
 
   const mcpDocumentId = await createDocumentThroughMcp(mcp, driver, 'MCP route');
+  const mcpEventBaseline = mcpResult(await mcp.callTool({
+    name: 'lighttable_events', arguments: { afterCursor: 0, limit: 1 }
+  }), 'MCP event baseline');
+  const mcpPublicationWait = mcp.callTool({
+    name: 'lighttable_wait_for_events', arguments: {
+      afterCursor: mcpEventBaseline.latestCursor, limit: 20, timeoutMs: 10_000
+    }
+  });
   const mcpResults = new Map();
   let mcpExportTask = null;
+  let waitedPublications = null;
+  let waitedPublicationTail = null;
   for (const step of recording.steps.filter(({ replayable }) => replayable)) {
     const before = mcpResult(await mcp.callTool({
       name: 'lighttable_document', arguments: { documentId: mcpDocumentId }
@@ -372,6 +382,27 @@ try {
       assert.ok(mcpExportTask?.artifact?.byteLength > 0, 'MCP export artifact was empty.');
     }
     mcpResults.set(step.sequence, executed.value ?? executed.task ?? executed);
+    if (!waitedPublications) {
+      waitedPublications = mcpResult(await mcpPublicationWait, 'MCP publication wait');
+      assert.equal(waitedPublications.timedOut, false, 'MCP event wait timed out after a real edit.');
+      assert.equal(waitedPublications.gap, false, 'MCP event wait reported an unexpected cursor gap.');
+      assert.ok(waitedPublications.events.some((event) => event.documentId === mcpDocumentId),
+        'MCP event wait woke without an event for the edited document.');
+      waitedPublicationTail = mcpResult(await mcp.callTool({
+        name: 'lighttable_events', arguments: { afterCursor: waitedPublications.cursor, limit: 20 }
+      }), 'MCP publication tail');
+      const commandPublications = [...waitedPublications.events, ...waitedPublicationTail.events];
+      assert.equal(waitedPublicationTail.gap, false, 'MCP event tail reported an unexpected cursor gap.');
+      assert.ok(commandPublications.some((event) =>
+        event.kind === 'document-revision-changed' && event.documentId === mcpDocumentId
+          && event.detail?.canonicalRevision === executed.revisions?.document),
+      `MCP event wait missed the exact revision published by its first edit: ${JSON.stringify({
+        executed, waitedPublications, waitedPublicationTail
+      })}`);
+      assert.ok(commandPublications.some((event) =>
+        event.kind === 'history-changed' && event.documentId === mcpDocumentId),
+      'MCP event wait missed the history publication from its first edit.');
+    }
   }
   const mcpUndoRedo = await assertUndoRedoRoundtrip({
     route: 'MCP', readState: () => collectMcpState(mcp, mcpDocumentId),
@@ -508,6 +539,13 @@ try {
       penAnchorCount: vectorSteps[2].parameters.subpaths[0].anchors.length,
       semanticCreateCommands: vectorSteps.length,
       transientPointerSamplesPublished: 0
+    },
+    eventWaitEvidence: {
+      afterCursor: mcpEventBaseline.latestCursor,
+      timedOut: waitedPublications.timedOut,
+      gap: waitedPublications.gap,
+      wakeKinds: waitedPublications.events.map(({ kind }) => kind),
+      tailKinds: waitedPublicationTail.events.map(({ kind }) => kind)
     },
     textInputEvidence: {
       inputCharacters: highFrequencyText.length,

@@ -23,24 +23,37 @@ export interface AutomationPublicationEventQueryResult {
   readonly events: readonly AutomationPublicationEvent[];
 }
 
+export interface AutomationPublicationEventWaitResult
+  extends AutomationPublicationEventQueryResult {
+  readonly timedOut: boolean;
+}
+
 type EventInput = Omit<AutomationPublicationEvent, 'cursor' | 'timestamp'>;
 
+interface PublicationEventWaiter {
+  readonly afterCursor: number;
+  readonly limit: number;
+  readonly finish: (timedOut: boolean) => void;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+
 export class AutomationPublicationEventStore {
+  private static readonly maximumConcurrentWaiters = 64;
   private cursor = 0;
   private readonly events: AutomationPublicationEvent[] = [];
+  private readonly waiters = new Set<PublicationEventWaiter>();
 
   constructor(private readonly maximum = 512) {}
 
   append(input: EventInput): AutomationPublicationEvent {
-    const event = Object.freeze({ ...input, detail: Object.freeze({ ...input.detail }),
-      cursor: ++this.cursor, timestamp: Date.now() });
-    this.events.push(event);
-    if (this.events.length > this.maximum) this.events.splice(0, this.events.length - this.maximum);
+    const event = this.appendOne(input);
+    this.flushWaiters();
     return event;
   }
 
   appendAll(inputs: readonly EventInput[]): void {
-    inputs.forEach((input) => this.append(input));
+    inputs.forEach((input) => this.appendOne(input));
+    if (inputs.length > 0) this.flushWaiters();
   }
 
   query(afterCursor = 0, limit = 100): AutomationPublicationEventQueryResult {
@@ -59,6 +72,55 @@ export class AutomationPublicationEventStore {
       hasMore: available.length > events.length,
       events
     };
+  }
+
+  wait(afterCursor = 0, limit = 100, timeoutMs = 10_000): Promise<AutomationPublicationEventWaitResult> {
+    const initial = this.query(afterCursor, limit);
+    if (initial.gap || initial.events.length > 0) {
+      return Promise.resolve({ ...initial, timedOut: false });
+    }
+    const boundedTimeout = Number.isSafeInteger(timeoutMs)
+      ? Math.max(0, Math.min(10_000, timeoutMs))
+      : 10_000;
+    if (boundedTimeout === 0) return Promise.resolve({ ...initial, timedOut: true });
+    if (this.waiters.size >= AutomationPublicationEventStore.maximumConcurrentWaiters) {
+      return Promise.reject(new Error('The publication event waiter limit was reached.'));
+    }
+
+    return new Promise((resolve) => {
+      let waiter!: PublicationEventWaiter;
+      const finish = (timedOut: boolean) => {
+        clearTimeout(waiter.timer);
+        this.waiters.delete(waiter);
+        resolve({ ...this.query(waiter.afterCursor, waiter.limit), timedOut });
+      };
+      waiter = {
+        afterCursor,
+        limit,
+        finish,
+        timer: setTimeout(() => finish(true), boundedTimeout)
+      };
+      this.waiters.add(waiter);
+    });
+  }
+
+  dispose(): void {
+    [...this.waiters].forEach(({ finish }) => finish(true));
+  }
+
+  private appendOne(input: EventInput): AutomationPublicationEvent {
+    const event = Object.freeze({ ...input, detail: Object.freeze({ ...input.detail }),
+      cursor: ++this.cursor, timestamp: Date.now() });
+    this.events.push(event);
+    if (this.events.length > this.maximum) this.events.splice(0, this.events.length - this.maximum);
+    return event;
+  }
+
+  private flushWaiters(): void {
+    for (const waiter of [...this.waiters]) {
+      const result = this.query(waiter.afterCursor, waiter.limit);
+      if (result.gap || result.events.length > 0) waiter.finish(false);
+    }
   }
 }
 

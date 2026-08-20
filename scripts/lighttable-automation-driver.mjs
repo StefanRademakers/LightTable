@@ -83,6 +83,12 @@ export class LightTableAutomationClient {
     ), { afterCursor, limit });
   }
 
+  waitForPublicationEvents(afterCursor = 0, limit = 100, timeoutMs = 10_000) {
+    return this.page.evaluate(({ afterCursor, limit, timeoutMs }) => (
+      window.__lightTableAutomation?.waitForPublicationEvents(afterCursor, limit, timeoutMs) ?? null
+    ), { afterCursor, limit, timeoutMs });
+  }
+
   async execute(documentId, command, parameters = {}, options = {}) {
     const result = await this.page.evaluate(async (request) =>
       window.__lightTableAutomation?.execute(request) ?? null, {

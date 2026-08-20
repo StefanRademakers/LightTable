@@ -194,10 +194,32 @@ try {
     firstEditRevision = (await call('lighttable_document', { documentId })).structuredContent.canonicalRevision;
     eventCursor = (await call('lighttable_events', { afterCursor: 0, limit: 1 })).structuredContent.latestCursor;
   }
+  const publicationWait = call('lighttable_wait_for_events', {
+    afterCursor: eventCursor, limit: 20, timeoutMs: 10_000
+  });
   const alignReference = (await call('lighttable_execute', {
     documentId, command: 'layer.createRaster', expectedDocumentRevision: firstEditRevision, parameters: {}
   })).structuredContent.value?.layerId;
   if (!alignReference) throw new Error('MCP Auto Align reference layer was not created.');
+  const firstPublications = (await publicationWait).structuredContent;
+  const firstPublicationTail = (await call('lighttable_events', {
+    afterCursor: firstPublications.cursor, limit: 20
+  })).structuredContent;
+  const firstCommandPublications = [
+    ...firstPublications.events,
+    ...firstPublicationTail.events
+  ];
+  if (firstPublications.timedOut || firstPublications.gap
+    || firstPublicationTail.gap
+    || !firstPublications.events.some((event) => event.documentId === documentId)
+    || !firstCommandPublications.some((event) => event.kind === 'document-revision-changed'
+      && event.documentId === documentId && event.detail?.canonicalRevision > firstEditRevision)
+    || !firstCommandPublications.some((event) => event.kind === 'history-changed'
+      && event.documentId === documentId)) {
+    throw new Error(`MCP bounded event wait missed the first edit: ${JSON.stringify({
+      firstPublications, firstPublicationTail
+    })}`);
+  }
   await call('lighttable_execute', { documentId, command: 'raster.fill', parameters: {
     layerId: alignReference, channel: 'pixels', color: '#18202a', opacity: 1
   } });

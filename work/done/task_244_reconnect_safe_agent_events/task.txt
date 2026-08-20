@@ -9,7 +9,7 @@ instead of blindly polling, while preserving the existing task-progress feed.
 Parent work
 ===========
 
-- [`Task 218`](../../todo/task_218_agent_observation_preview_and_events/task.txt)
+- [`Task 218`](../task_218_agent_observation_preview_and_events/task.txt)
 - [`Task 220`](../../todo/task_220_reviewed_mcp_capability_admission/task.txt)
 
 Checklist
@@ -57,3 +57,13 @@ Evidence
 - Packaged external MCP captured a cursor before editing `D:\shapes.psd`, then
   observed the final canonical revision and history publication before reading
   the distinct revision N+1 preview.
+
+Follow-up (2026-08-20)
+======================
+
+The original non-goal for a long-held request applied to this first query-only
+slice. Completed parent Task 218 now adds a separate bounded `event.wait` /
+`lighttable_wait_for_events` read: maximum 10 seconds, maximum 64 application
+waiters, immediate cursor-gap/queued-event response and timeout/dispose cleanup.
+Packaged TLS/WSS and local MCP flows prove wake plus cursor drain without blind
+interval polling; unsolicited server push remains unclaimed.

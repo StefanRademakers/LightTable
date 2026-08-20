@@ -43,6 +43,13 @@ export const invokeAgentDriver = async (
   if (method === 'event.query') {
     return driver.queryPublicationEvents(value.afterCursor as number | undefined, value.limit as number | undefined);
   }
+  if (method === 'event.wait') {
+    return driver.waitForPublicationEvents(
+      value.afterCursor as number | undefined,
+      value.limit as number | undefined,
+      value.timeoutMs as number | undefined
+    );
+  }
   if (method === 'artifact.list') return driver.listArtifacts();
   if (method === 'artifact.query') return driver.queryArtifact(String(value.artifactId));
   if (method === 'artifact.release') return driver.releaseArtifact(String(value.artifactId));

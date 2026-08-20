@@ -240,6 +240,14 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       limit: z.number().int().min(1).max(200).default(100) }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('event.query', input)));
+  server.registerTool('lighttable_wait_for_events', {
+    title: 'Wait for LightTable publication events',
+    description: 'Waits up to 10 seconds for bounded document, revision, selection, history, task or renderer publications after a reconnect-safe cursor. Returns immediately for queued events or a cursor gap.',
+    inputSchema: z.object({ afterCursor: z.number().int().nonnegative(),
+      limit: z.number().int().min(1).max(200).default(100),
+      timeoutMs: z.number().int().min(0).max(10_000).default(10_000) }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('event.wait', input)));
   server.registerTool('lighttable_cancel_task', {
     title: 'Cancel a LightTable task',
     inputSchema: z.object({ documentId: z.string().min(1), taskId: z.string().min(1) })

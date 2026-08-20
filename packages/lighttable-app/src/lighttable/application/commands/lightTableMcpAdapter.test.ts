@@ -29,6 +29,8 @@ const createDriver = (): LightTableAutomationDriver => ({
   queryTaskEvents: vi.fn(() => ({ cursor: 0, events: [] })),
   queryPublicationEvents: vi.fn(() => ({ cursor: 0, latestCursor: 0,
     oldestCursor: 1, gap: false, hasMore: false, events: [] })),
+  waitForPublicationEvents: vi.fn(async () => ({ cursor: 0, latestCursor: 0,
+    oldestCursor: 1, gap: false, hasMore: false, events: [], timedOut: true })),
   queryWorkspace: vi.fn(() => ({ revision: 1, activeDocumentId: null, documents: [] })),
   queryDocument: vi.fn(() => null),
   queryLayers: vi.fn(() => null),
@@ -110,6 +112,18 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     });
     await adapter.invoke(request('event.query', { afterCursor: 12, limit: 50 }));
     expect(driver.queryPublicationEvents).toHaveBeenCalledWith(12, 50);
+    expect(driver.execute).not.toHaveBeenCalled();
+  });
+
+  it('waits for reconnect-safe publication events without executing a command', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    await expect(adapter.invoke(request('event.wait', {
+      afterCursor: 12, limit: 50, timeoutMs: 4_000
+    }))).resolves.toMatchObject({ status: 'completed', value: { timedOut: true } });
+    expect(driver.waitForPublicationEvents).toHaveBeenCalledWith(12, 50, 4_000);
     expect(driver.execute).not.toHaveBeenCalled();
   });
 

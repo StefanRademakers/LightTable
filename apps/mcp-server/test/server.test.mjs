@@ -54,6 +54,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_task_events'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_task'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_events'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_wait_for_events'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_cancel_task'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_commands'));
   const commandCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
@@ -185,6 +186,11 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   const publications = await reader.callTool({ name: 'lighttable_events', arguments: { afterCursor: 0 } });
   assert.deepEqual(publications.structuredContent, { cursor: 0, latestCursor: 0,
     oldestCursor: 1, gap: false, hasMore: false, events: [] });
+  const waited = await reader.callTool({ name: 'lighttable_wait_for_events', arguments: {
+    afterCursor: 0, timeoutMs: 0
+  } });
+  assert.deepEqual(waited.structuredContent, { cursor: 0, latestCursor: 0,
+    oldestCursor: 1, gap: false, hasMore: false, events: [], timedOut: true });
 });
 
 test('MCP endpoint advertises protected-resource metadata when unauthenticated', async (context) => {

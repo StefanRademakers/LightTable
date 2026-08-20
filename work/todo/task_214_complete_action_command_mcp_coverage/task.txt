@@ -51,9 +51,9 @@ vertically through multiple steps when that produces earlier product evidence.
    Establish machine-readable parameters/results and executable usage examples.
 3. **Interactive execution semantics ([Task 216](../../done/task_216_semantic_gesture_commit_and_performance/task.txt)).**
    Preserve slider/transform/paint responsiveness through bounded commits.
-4. **Equivalent-route proof ([Task 217](../task_217_ui_actions_mcp_equivalence_harness/task.txt)).**
+4. **Equivalent-route proof ([Task 217](../../done/task_217_ui_actions_mcp_equivalence_harness/task.txt)).**
    Compare UI, Actions and real MCP state, history and rendered results.
-5. **Agent observation loop ([Task 218](../task_218_agent_observation_preview_and_events/task.txt)).**
+5. **Agent observation loop ([Task 218](../../done/task_218_agent_observation_preview_and_events/task.txt)).**
    Add bounded structure, revision-bound preview and useful events.
 6. **Durable Actions workflows ([Task 219](../task_219_durable_actions_workflows/task.txt)).**
    Make recorded workflows editable, persistent, task-aware and inspectable.

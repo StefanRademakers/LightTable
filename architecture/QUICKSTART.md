@@ -530,6 +530,9 @@ Atomic batches are capped at 64 operations, 256 KiB and 10 seconds. They build
 against a private document value, can reference earlier operation results, and
 publish once as one named undo entry. Failure or cancellation publishes
 nothing. Long work returns task IDs and reconnect-safe event cursors.
+Agents can query a cursor page directly or use the bounded publication wait to
+sleep until new document/history/render activity arrives; waits are capped at
+10 seconds and never run on pointer or renderer hot paths.
 
 Binary input/output uses bounded opaque artifact IDs through
 [`lightTableArtifactRegistry.ts`](../packages/lighttable-app/src/lighttable/application/commands/lightTableArtifactRegistry.ts).

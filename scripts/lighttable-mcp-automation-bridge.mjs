@@ -71,6 +71,8 @@ const invoke = (method, parameters) => page.evaluate(async ({ method, parameters
   if (method === 'task.query') return driver.queryTask(parameters.documentId, parameters.taskId);
   if (method === 'task.events') return driver.queryTaskEvents(parameters.afterCursor, parameters.limit);
   if (method === 'event.query') return driver.queryPublicationEvents(parameters.afterCursor, parameters.limit);
+  if (method === 'event.wait') return driver.waitForPublicationEvents(
+    parameters.afterCursor, parameters.limit, parameters.timeoutMs);
   if (method === 'artifact.list') return driver.listArtifacts();
   if (method === 'artifact.query') return driver.queryArtifact(parameters.artifactId);
   if (method === 'artifact.release') return driver.releaseArtifact(parameters.artifactId);

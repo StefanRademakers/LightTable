@@ -140,6 +140,19 @@ describe('invokeAgentDriver', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('forwards bounded publication waits without executing a command', async () => {
+    const waitForPublicationEvents = vi.fn(async () => ({ cursor: 8, latestCursor: 8,
+      oldestCursor: 1, gap: false, hasMore: false, timedOut: false,
+      events: [{ cursor: 8, kind: 'renderer-changed' }] } as never));
+    const execute = vi.fn();
+    const driver = driverWith({ waitForPublicationEvents, execute });
+    await expect(invokeAgentDriver(driver, 'event.wait', {
+      afterCursor: 7, limit: 20, timeoutMs: 4_000
+    })).resolves.toMatchObject({ cursor: 8, timedOut: false });
+    expect(waitForPublicationEvents).toHaveBeenCalledWith(7, 20, 4_000);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('forwards bounded Warp recipe inspection without executing a command', async () => {
     const queryWarp = vi.fn(() => ({ totalStrokes: 1, totalSamples: 2 } as never));
     const execute = vi.fn();

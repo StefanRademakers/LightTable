@@ -19,9 +19,9 @@ Depends on
   coverage ownership.
 - [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt) shared
   schemas.
-- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 217`](../../done/task_217_ui_actions_mcp_equivalence_harness/task.txt)
   equivalence harness.
-- [`Task 218`](../task_218_agent_observation_preview_and_events/task.txt)
+- [`Task 218`](../../done/task_218_agent_observation_preview_and_events/task.txt)
   observation/preview where an edit needs visual feedback.
 
 Required work

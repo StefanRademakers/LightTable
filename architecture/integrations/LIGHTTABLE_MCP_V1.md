@@ -79,16 +79,19 @@ Read operations:
   parameters and Layer Style content by
   stable layer ID;
 - query currently valid semantic commands;
-- request a bounded whole-document PNG through LightTable's real export
+- request a bounded whole-document PNG or WebP through LightTable's real
   renderer;
 - request isolated layer pixels or a raster mask through the mounted GPU layer
   renderer without moving the artist viewport.
 - request an exact document-pixel region through the same final-composite crop
   and encode owner as Copy Merged, without changing selection or viewport;
 - inspect the current active layer, or one explicit layer ID, through a compact
-  type-dispatched content summary before requesting heavier details.
+  type-dispatched content summary before requesting heavier details;
+- query reconnect-safe publication pages or wait up to 10 seconds for the next
+  document, revision, active-layer, selection, history, task or renderer
+  publication. A cursor gap remains explicit and requires canonical re-query.
 
-Whole-document and layer previews require an exact canonical document
+Whole-document, region and layer previews require an exact canonical document
 revision. `maxEdge` controls output size from 64-1024 pixels; PNG is lossless,
 while WebP accepts an explicit `quality` from 0.1-1. Previews are cached by
 revision, target/channel, size, format and quality. Supplying the
@@ -234,7 +237,18 @@ whole-document PNG, isolated 256-pixel WebP raster-layer preview at quality
 unchanged layer preview omitted image bytes, then exercised semantic edits and
 exported all three artifacts. The packaged flow also read a native Curves
 Adjustment Layer and an attached Brightness/Contrast node back through
-`lighttable_adjustment` at their exact canonical revision.
+`lighttable_adjustment` at their exact canonical revision. It now also starts a
+bounded `lighttable_wait_for_events` read before a semantic edit and proves the
+wait wakes without polling, then drains revision/history publications from the
+returned reconnect cursor.
+
+`npm run smoke:desktop:route-equivalence` separately proves the same wait over
+the packaged outbound TLS/WSS device tunnel while a concurrent MCP call creates
+a native vector. The first publication is `active-layer-changed`; a single
+cursor drain then contains `history-changed` and the exact
+`document-revision-changed`. Idle waits time out after at most 10 seconds, core
+and tunnel concurrency are both bounded, and service disposal releases pending
+waiters.
 Evidence is under `D:\mediavibe\LightTableTestFiles\mcp`:
 
 - `mcp-layered-design.png`;

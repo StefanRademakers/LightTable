@@ -48,7 +48,8 @@ import { AutomationTaskEventStore } from './automationTaskEventStore';
 import {
   AutomationPublicationEventStore,
   projectAutomationPublicationEvents,
-  type AutomationPublicationEventQueryResult
+  type AutomationPublicationEventQueryResult,
+  type AutomationPublicationEventWaitResult
 } from './automationPublicationEventStore';
 import { startAtomicCommandBatchTask } from './atomicCommandBatchTask';
 import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSample,
@@ -191,6 +192,7 @@ export class LightTableCommandService {
 
   dispose(): void {
     this.unsubscribe();
+    this.publicationEvents.dispose();
     void this.cancelAllGestures();
     this.artifacts.clear();
     this.taskArtifacts.clear();
@@ -304,6 +306,14 @@ export class LightTableCommandService {
 
   queryPublicationEvents(afterCursor = 0, limit = 100): AutomationPublicationEventQueryResult {
     return this.publicationEvents.query(afterCursor, limit);
+  }
+
+  waitForPublicationEvents(
+    afterCursor = 0,
+    limit = 100,
+    timeoutMs = 10_000
+  ): Promise<AutomationPublicationEventWaitResult> {
+    return this.publicationEvents.wait(afterCursor, limit, timeoutMs);
   }
 
   subscribeTaskEvents = (listener: () => void): (() => void) => this.taskEvents.subscribe(listener);
@@ -1470,6 +1480,11 @@ export interface LightTableAutomationDriver {
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null;
   queryTaskEvents(afterCursor?: number, limit?: number): AutomationEventQueryResult;
   queryPublicationEvents(afterCursor?: number, limit?: number): AutomationPublicationEventQueryResult;
+  waitForPublicationEvents(
+    afterCursor?: number,
+    limit?: number,
+    timeoutMs?: number
+  ): Promise<AutomationPublicationEventWaitResult>;
   queryWorkspace(): WorkspaceQueryResult;
   queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null;
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;

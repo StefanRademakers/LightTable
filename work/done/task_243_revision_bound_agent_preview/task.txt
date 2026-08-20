@@ -10,8 +10,8 @@ viewport or entering pointer/paint hot paths.
 Parent work
 ===========
 
-- [`Task 218`](../../todo/task_218_agent_observation_preview_and_events/task.txt)
-- [`Task 217`](../../todo/task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 218`](../task_218_agent_observation_preview_and_events/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
 
 Checklist
 =========

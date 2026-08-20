@@ -158,6 +158,8 @@ export class MockLightTableClient {
     if (method === 'task.events') return { cursor: 0, events: [] };
     if (method === 'event.query') return { cursor: 0, latestCursor: 0,
       oldestCursor: 1, gap: false, hasMore: false, events: [] };
+    if (method === 'event.wait') return { cursor: 0, latestCursor: 0,
+      oldestCursor: 1, gap: false, hasMore: false, events: [], timedOut: true };
     if (method === 'command.execute') {
       if (parameters.command === 'command.batch') {
         const title = parameters.commandParameters?.operations?.find((operation) => operation.operationId === 'title');

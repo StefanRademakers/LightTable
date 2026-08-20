@@ -19,7 +19,7 @@ Parent goal and source
 
 - [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
 - [`Expanded MCP future usage brief`](../../../architecture/goals/mcp_future_usage_target_v3.md)
-- [`Task 218`](../../todo/task_218_agent_observation_preview_and_events/task.txt)
+- [`Task 218`](../../done/task_218_agent_observation_preview_and_events/task.txt)
 
 Activation gates
 ================

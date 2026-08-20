@@ -25,6 +25,50 @@ describe('AutomationPublicationEventStore', () => {
     });
   });
 
+  it('waits without polling and resolves one bounded batch from the reconnect cursor', async () => {
+    const store = new AutomationPublicationEventStore();
+    const waiting = store.wait(0, 20, 1_000);
+    store.appendAll([
+      { kind: 'document-revision-changed', documentId: 'document-1' as never,
+        detail: { canonicalRevision: 2 } },
+      { kind: 'history-changed', documentId: 'document-1' as never,
+        detail: { stateId: 2 } }
+    ]);
+    await expect(waiting).resolves.toMatchObject({
+      timedOut: false,
+      cursor: 2,
+      latestCursor: 2,
+      gap: false,
+      events: [
+        { cursor: 1, kind: 'document-revision-changed' },
+        { cursor: 2, kind: 'history-changed' }
+      ]
+    });
+    store.dispose();
+  });
+
+  it('returns queued events immediately and bounds idle waits and disposal', async () => {
+    const store = new AutomationPublicationEventStore();
+    store.append({ kind: 'document-opened', documentId: 'document-1' as never, detail: {} });
+    await expect(store.wait(0, 20, 10_000)).resolves.toMatchObject({
+      timedOut: false, cursor: 1, events: [{ cursor: 1 }]
+    });
+    await expect(store.wait(1, 20, 0)).resolves.toMatchObject({
+      timedOut: true, cursor: 1, events: []
+    });
+    const disposed = store.wait(1, 20, 10_000);
+    store.dispose();
+    await expect(disposed).resolves.toMatchObject({ timedOut: true, cursor: 1, events: [] });
+  });
+
+  it('bounds concurrent idle waiters independently of transport limits', async () => {
+    const store = new AutomationPublicationEventStore();
+    const waiting = Array.from({ length: 64 }, () => store.wait(0, 20, 10_000));
+    await expect(store.wait(0, 20, 10_000)).rejects.toThrow('waiter limit');
+    store.dispose();
+    await expect(Promise.all(waiting)).resolves.toHaveLength(64);
+  });
+
   it('projects compact semantic changes from the existing workspace/session owners', async () => {
     const workspace = new WorkspaceSession({ createId: () => 'document-1' as never });
     let before = workspace.getSnapshot();
