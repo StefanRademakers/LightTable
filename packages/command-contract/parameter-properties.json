@@ -10,6 +10,7 @@
   "layer.move": { "layerId": "string", "direction": "up | down" },
   "layer.setBlendMode": { "layerId": "string", "blendMode": "blend-mode" },
   "layer.setClipping": { "layerId": "string", "clipping": "boolean" },
+  "layer.setTransform": { "layerId": "string", "transform": "affine-matrix" },
   "layer.setLock": { "layerIds": "string[]", "lock": "transparency | pixels | position | all", "locked": "boolean" },
   "layer.placeArtifact": { "artifactId": "string", "name?": "string", "x?": "number", "y?": "number" },
   "layer.rename": { "layerId": "string", "name": "string" },

@@ -2,6 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
 
 describe('semanticLayerCommandContract', () => {
+  it('parses a bounded final affine transform', () => {
+    expect(parseSemanticLayerCommand('set-transform', {
+      layerId: 'layer-1',
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 24, ty: -8 }
+    })).toEqual({
+      kind: 'set-transform',
+      layerId: 'layer-1',
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 24, ty: -8 }
+    });
+    expect(parseSemanticLayerCommand('set-transform', {
+      layerId: 'layer-1',
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: Number.POSITIVE_INFINITY, ty: 0 }
+    })).toHaveProperty('message');
+  });
+
   it('parses bounded structural layer commands', () => {
     expect(parseSemanticLayerCommand('duplicate', { layerId: 'layer-a' })).toEqual({
       kind: 'duplicate', layerId: 'layer-a'

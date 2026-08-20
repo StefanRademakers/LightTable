@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument } from '../../editor/document/documentTypes';
-import { createRasterLayer, moveLayer, setLayerBlendMode, setLayersLock } from '../../editor/document/documentCommands';
+import { createRasterLayer, moveLayer, setLayerBlendMode, setLayersLock,
+  setLayerTransform } from '../../editor/document/documentCommands';
 import { findDocumentLayer, siblingLayers } from '../../editor/document/layerTree';
 import { WorkspaceSession } from '../workspace/workspaceSession';
 import { AuthenticatedLightTableMcpAdapter } from './lightTableMcpAdapter';
@@ -38,6 +39,8 @@ const createHarness = () => {
       const siblings = siblingLayers(before, command.layerId);
       const index = siblings.findIndex(({ id }) => id === command.layerId);
       after = moveLayer(before, command.layerId, index + (command.direction === 'up' ? 1 : -1));
+    } else if (command.kind === 'set-transform') {
+      after = setLayerTransform(before, command.layerId, command.transform);
     }
     if (after !== before) {
       session.setDocument(after);
@@ -97,6 +100,7 @@ const createHarness = () => {
       name: top.name,
       blendMode: top.blendMode,
       locks: { ...top.locks },
+      transform: { ...top.transform },
       order: session.getSnapshot().document!.layers.map(({ name }) => name),
       history: {
         undoDepth: session.history.getSnapshot().undoDepth,
@@ -119,7 +123,11 @@ const createHarness = () => {
 const steps = (layerId: string) => [
   { command: 'layer.setBlendMode', parameters: { layerId, blendMode: 'multiply' } },
   { command: 'layer.setLock', parameters: { layerIds: [layerId], lock: 'position', locked: true } },
-  { command: 'layer.move', parameters: { layerId, direction: 'down' } }
+  { command: 'layer.move', parameters: { layerId, direction: 'down' } },
+  { command: 'layer.setLock', parameters: { layerIds: [layerId], lock: 'position', locked: false } },
+  { command: 'layer.setTransform', parameters: {
+    layerId, transform: { a: 1.25, b: 0, c: 0, d: 1.25, tx: 18, ty: -7 }
+  } }
 ] as const;
 
 describe('artist capability equivalence harness', () => {
@@ -133,7 +141,7 @@ describe('artist capability equivalence harness', () => {
     actions.service.startActionRecording('Layer treatment');
     for (const step of steps(actions.topId)) await actions.execute(step.command, step.parameters);
     actions.service.stopActionRecording();
-    for (let index = 0; index < 3; index += 1) {
+    for (let index = 0; index < steps(actions.topId).length; index += 1) {
       await actions.execute('history.undo', {});
     }
     expect(await actions.service.playActionRecording()).toMatchObject({ status: 'completed' });

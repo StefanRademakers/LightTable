@@ -1,6 +1,6 @@
 import type { DocumentSessionId, DocumentSessionSnapshot, DocumentViewport } from '../documents/documentSession';
 import type { WorkspaceSession } from '../workspace/workspaceSession';
-import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
+import { layerIsLocked, type LayerId, type LayerNode } from '../../editor/document/documentTypes';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 import type { RenderTelemetrySnapshot } from '../rendering/renderTelemetry';
 import { findDocumentLayer, siblingLayers, walkLayerTree } from '../../editor/document/layerTree';
@@ -531,6 +531,7 @@ export class LightTableCommandService {
       availability('layer.setBlendMode', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.setClipping', layerCapabilities.layerCount > 1,
         'Clipping requires a lower sibling layer.'),
+      availability('layer.setTransform', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.setLock', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.placeArtifact', true, ''),
       availability(
@@ -949,6 +950,7 @@ export class LightTableCommandService {
       case 'layer.move':
       case 'layer.setBlendMode':
       case 'layer.setClipping':
+      case 'layer.setTransform':
       case 'layer.setLock': {
         const kinds = {
           'layer.duplicate': 'duplicate',
@@ -956,6 +958,7 @@ export class LightTableCommandService {
           'layer.move': 'move',
           'layer.setBlendMode': 'set-blend-mode',
           'layer.setClipping': 'set-clipping',
+          'layer.setTransform': 'set-transform',
           'layer.setLock': 'set-lock'
         } as const;
         const command = parseSemanticLayerCommand(kinds[request.command], parameters);
@@ -987,6 +990,10 @@ export class LightTableCommandService {
           if (siblings.findIndex(({ id }) => id === command.layerId) <= 0) {
             return { code: 'command-unavailable', message: 'Clipping requires a lower sibling layer.' };
           }
+        }
+        if (command.kind === 'set-transform'
+          && layerIsLocked(findDocumentLayer(snapshot.document!, command.layerId)!, 'position')) {
+          return { code: 'command-unavailable', message: 'The target layer position is locked.' };
         }
         const beforeRevision = snapshot.document!.revision;
         const result = await this.ports.executeLayerCommand(request.documentId, command);

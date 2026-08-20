@@ -4550,6 +4550,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           layerPanelController.setClipping(command.layerId, command.clipping);
           return { layerId: command.layerId, clipping: command.clipping };
         }
+        if (command.kind === 'set-transform') {
+          const before = imageDocumentRef.current;
+          if (!before) return null;
+          const after = setLayerTransform(before, command.layerId, command.transform);
+          if (after === before) return null;
+          applyDocumentSnapshot(after);
+          pushDocumentHistory(before, after);
+          return { layerId: command.layerId, transform: command.transform };
+        }
         layerPanelController.setLock([...command.layerIds], command.lock, command.locked);
         return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
       },

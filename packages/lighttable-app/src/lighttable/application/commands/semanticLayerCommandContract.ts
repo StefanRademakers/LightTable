@@ -1,5 +1,6 @@
 import { BLEND_MODES, type BlendMode } from '../../editor/document/blendModes';
 import type { LayerId, LayerLocks } from '../../editor/document/documentTypes';
+import type { AffineMatrix } from '../../editor/geometry/affine';
 
 export type SemanticLayerCommand =
   | { readonly kind: 'duplicate'; readonly layerId: LayerId }
@@ -7,6 +8,7 @@ export type SemanticLayerCommand =
   | { readonly kind: 'move'; readonly layerId: LayerId; readonly direction: 'up' | 'down' }
   | { readonly kind: 'set-blend-mode'; readonly layerId: LayerId; readonly blendMode: BlendMode }
   | { readonly kind: 'set-clipping'; readonly layerId: LayerId; readonly clipping: boolean }
+  | { readonly kind: 'set-transform'; readonly layerId: LayerId; readonly transform: AffineMatrix }
   | { readonly kind: 'set-lock'; readonly layerIds: readonly LayerId[];
     readonly lock: keyof LayerLocks; readonly locked: boolean };
 
@@ -63,6 +65,20 @@ export const parseSemanticLayerCommand = (
       return { message: 'Layer clipping requires layerId and a boolean clipping value.' };
     }
     return { kind, layerId: target, clipping: value.clipping };
+  }
+  if (kind === 'set-transform') {
+    const target = layerId(value.layerId);
+    const transform = record(value.transform) ? value.transform : null;
+    const keys = ['a', 'b', 'c', 'd', 'tx', 'ty'] as const;
+    if (!target || !transform || keys.some((key) => typeof transform[key] !== 'number'
+      || !Number.isFinite(transform[key]) || Math.abs(transform[key]) > 10_000_000)) {
+      return { message: 'Layer transform requires layerId and a bounded finite affine matrix.' };
+    }
+    return { kind, layerId: target, transform: {
+      a: transform.a as number, b: transform.b as number,
+      c: transform.c as number, d: transform.d as number,
+      tx: transform.tx as number, ty: transform.ty as number
+    } };
   }
   const targets = layerIds(value.layerIds);
   if (!targets || typeof value.lock !== 'string' || !lockKinds.has(value.lock as keyof LayerLocks)
