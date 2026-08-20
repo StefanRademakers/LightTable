@@ -6,7 +6,7 @@ import selfsigned from 'selfsigned';
 import { createLightTableMcpApp } from '../apps/mcp-server/src/server.mjs';
 import { DeviceTunnelLightTableClient } from '../apps/mcp-server/src/deviceTunnelClient.mjs';
 
-class DynamicDeviceClient {
+export class DynamicDeviceClient {
   constructor(broker, clientId) {
     this.broker = broker;
     this.clientId = clientId;

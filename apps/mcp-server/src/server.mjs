@@ -7,14 +7,18 @@ import { installOAuthRoutes, LightTableOAuthStore } from './oauth.mjs';
 import { DeviceTunnelBroker } from './deviceTunnel.mjs';
 import { createRequestGuard } from './operations.mjs';
 
-export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
+export const createLightTableMcpApp = async ({ publicUrl, devicePublicUrl, pairingCode, client,
   allowInsecure = false, allowedHosts, devicePairingCode = pairingCode, serverId,
   oauthStateStore = null, tenantId = 'default', userId = 'owner', audit = null,
   requestGuard = createRequestGuard(), fetchImpl = fetch } = {}) => {
   const resource = new URL('/mcp', publicUrl);
   const issuer = new URL('/', publicUrl);
+  const deviceIssuer = new URL('/', devicePublicUrl ?? publicUrl);
   if (!allowInsecure && (resource.protocol !== 'https:' || issuer.protocol !== 'https:')) {
     throw new Error('Public MCP and OAuth URLs must use HTTPS. Set allowInsecure only for localhost tests.');
+  }
+  if (devicePublicUrl && deviceIssuer.protocol !== 'https:') {
+    throw new Error('A separate desktop device origin must use HTTPS.');
   }
   const app = createMcpExpressApp({ host: '0.0.0.0', allowedHosts,
     jsonLimit: '1mb' });
@@ -37,7 +41,7 @@ export const createLightTableMcpApp = async ({ publicUrl, pairingCode, client,
     scopesSupported: oauthMetadata.scopes_supported, resourceName: 'LightTable',
     dangerouslyAllowInsecureIssuerUrl: allowInsecure }));
   installOAuthRoutes(app, oauth);
-  const deviceTunnel = new DeviceTunnelBroker({ publicUrl, pairingCode: devicePairingCode, serverId });
+  const deviceTunnel = new DeviceTunnelBroker({ publicUrl: deviceIssuer, pairingCode: devicePairingCode, serverId });
   app.use('/agent/pair', express.json({ limit: '16kb' }));
   deviceTunnel.installRoutes(app);
   let ready = true;

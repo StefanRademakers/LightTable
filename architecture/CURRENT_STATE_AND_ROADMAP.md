@@ -32,6 +32,10 @@ milestone changes those boundaries; feature task details belong in
   Convert to Profile remains unimplemented.
 - Embedded opt-in Agent Access plus outbound TLS/WSS pairing and a remote MCP
   adapter; transport, permissions and editor command semantics remain separate.
+- An opt-in local Codex launcher now pairs the packaged desktop over HTTPS/WSS
+  while serving MCP/OAuth on loopback HTTP. Its external-client smoke proves
+  read-only preview, edit denial, revocation and explicit edit escalation; the
+  final fresh-Codex artist workflow remains an active acceptance task.
 - MCP construction/query support for editable text, vectors, gradients and
   Layer Styles, including revision-bound layer pages, active-layer content
   summaries, whole-document/layer/mask/region GPU previews, unchanged-image

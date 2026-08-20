@@ -248,13 +248,16 @@ Packaged proof starts from an untagged PNG, verifies the assigned state and one
 undo entry through all three routes, and compares every result with the source
 at zero pixel delta. This is not Convert to Profile support.
 
-A future local Codex acceptance route is tracked in
-[`work/parked/task_264_local_codex_mcp_a_z/task.txt`](../../work/parked/task_264_local_codex_mcp_a_z/task.txt).
-Codex supports the existing Streamable HTTP transport through project-local
-configuration, but a newly configured MCP server becomes available only to a
-fresh Codex session. The acceptance route must start isolated local services,
-keep credentials out of tracked configuration and verify resulting state
-independently through the packaged application.
+A local Codex acceptance route is tracked in
+[`work/todo/task_264_local_codex_mcp_a_z/task.txt`](../../work/todo/task_264_local_codex_mcp_a_z/task.txt).
+The supported local launcher and current acceptance instructions live in
+[`LOCAL_CODEX_MCP_ACCEPTANCE.md`](LOCAL_CODEX_MCP_ACCEPTANCE.md). Codex uses the
+existing Streamable HTTP transport, but a newly configured MCP server becomes
+available only to a fresh Codex session. The launcher keeps the Codex endpoint
+loopback-only, keeps credentials out of tracked configuration and retains HTTPS/
+WSS for the desktop device tunnel. The automated packaged probe covers approval,
+read-only preview, edit denial, revocation and explicit edit escalation; final
+fresh-Codex owner acceptance remains open.
 
 The product target is agent access to all user-facing functionality. Expansion
 must keep going through semantic commands, capability discovery and the normal

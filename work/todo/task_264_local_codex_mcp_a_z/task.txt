@@ -1,0 +1,52 @@
+Task 264 - Local Codex to LightTable MCP A-Z acceptance route
+
+Status
+Active. The isolated launcher and SDK transport proof exist; final acceptance
+through a genuinely fresh Codex session remains owner-visible work.
+
+Goal
+Run the real LightTable desktop tunnel and a local Streamable HTTP MCP server,
+connect a fresh Codex session through opt-in local configuration, and prove a
+complete inspect -> create -> edit -> preview -> correct -> save/export flow.
+
+Checklist
+- [x] Add one supported local launcher that starts the packaged app,
+  authenticated desktop tunnel and MCP endpoint with isolated temporary state.
+- [x] Emit the current Codex `mcp add`, `mcp login` and cleanup commands without
+  committing credentials, OAuth state or a live user configuration.
+- [x] Document the required fresh-session boundary; a running Codex session
+  cannot acquire a newly configured MCP server dynamically.
+- [x] Prove read-only workspace/document/capability discovery and a bounded WebP
+  preview before granting edit scope.
+- [x] Prove edit denial under read-only approval, revoke access, request approval
+  again and execute only after explicit edit approval.
+- [ ] Run the real fresh-Codex owner acceptance with this launcher.
+- [ ] Prove document creation, layered edits, Actions-visible commands,
+  revision/event observation, correction and export through Codex MCP only.
+- [ ] Verify LightTable's final pixels and editable layer state independently
+  through the packaged automation/query route.
+- [ ] Exercise invalid schema, stale revision, missing target, reconnect and
+  clean shutdown paths from the fresh Codex client.
+- [x] Retain a concise machine-readable transport report without image bytes,
+  tokens, pairing codes or private paths.
+
+Implemented foundation (2026-08-20)
+- `npm run mcp:local:codex` launches an isolated packaged desktop and prints the
+  exact opt-in Codex setup/login/removal commands plus the short-lived pairing
+  code.
+- Codex MCP/OAuth stays on loopback HTTP while the desktop connects separately
+  over a one-day localhost HTTPS/WSS endpoint. Production defaults remain one
+  HTTPS origin.
+- `npm run smoke:mcp:local-codex` uses a separate Streamable HTTP SDK client and
+  passed the approval/read/edit/revocation lifecycle against the packaged app.
+- The probe exposed and fixed `lighttable_capabilities`: its MCP structured
+  content is now the valid object `{ documentId, commands }`, not a bare array.
+- Detailed instructions and security boundaries live in
+  [`architecture/integrations/LOCAL_CODEX_MCP_ACCEPTANCE.md`](../../../architecture/integrations/LOCAL_CODEX_MCP_ACCEPTANCE.md).
+
+Constraints
+- Use the normal LightTable command/query/task/event owners; no test-only
+  document mutation API.
+- Local configuration remains opt-in and loopback-only.
+- Never put OAuth, bridge or pairing secrets in tracked Codex configuration.
+- This acceptance task does not block continued schema/capability implementation.

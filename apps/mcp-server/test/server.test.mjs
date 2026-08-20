@@ -130,6 +130,12 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
+  const capabilities = await reader.callTool({ name: 'lighttable_capabilities', arguments: {
+    documentId: 'document-demo'
+  } });
+  assert.equal(capabilities.structuredContent.documentId, 'document-demo');
+  assert.ok(Array.isArray(capabilities.structuredContent.commands));
+  assert.ok(capabilities.structuredContent.commands.some(({ command }) => command === 'layer.createRaster'));
   const layers = await reader.callTool({ name: 'lighttable_layers', arguments: {
     documentId: 'document-demo', expectedDocumentRevision: 1, limit: 1
   } });
@@ -396,6 +402,35 @@ test('MCP endpoint advertises protected-resource metadata when unauthenticated',
     headers: { 'content-type': 'application/json' }, body: '{}' });
   assert.equal(response.status, 401);
   assert.match(response.headers.get('www-authenticate'), /resource_metadata=/u);
+});
+
+test('local MCP and desktop tunnel may advertise separate loopback origins', async (context) => {
+  const service = await createLightTableMcpApp({
+    publicUrl: 'http://127.0.0.1:8787',
+    devicePublicUrl: 'https://localhost:9443',
+    pairingCode: 'oauth-pairing',
+    devicePairingCode: 'device-pairing',
+    client: new MockLightTableClient(),
+    allowInsecure: true,
+    allowedHosts: ['127.0.0.1', 'localhost']
+  });
+  context.after(() => service.close());
+
+  const paired = service.deviceTunnel.pair('device-pairing', 'a'.repeat(24));
+  assert.equal(paired.serverUrl, 'https://localhost:9443');
+  assert.equal(paired.socketUrl, 'wss://localhost:9443/agent/tunnel');
+  assert.equal(service.oauth.resource.href, 'http://127.0.0.1:8787/mcp');
+});
+
+test('a separate desktop tunnel origin cannot downgrade to cleartext', async () => {
+  await assert.rejects(createLightTableMcpApp({
+    publicUrl: 'http://127.0.0.1:8787',
+    devicePublicUrl: 'http://127.0.0.1:8788',
+    pairingCode: 'oauth-pairing',
+    client: new MockLightTableClient(),
+    allowInsecure: true,
+    allowedHosts: ['127.0.0.1']
+  }), /device origin must use HTTPS/u);
 });
 
 test('OAuth authorization form requires a one-time same-site CSRF token', async (context) => {

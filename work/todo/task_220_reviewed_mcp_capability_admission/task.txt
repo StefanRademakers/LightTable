@@ -127,3 +127,8 @@ Current evidence (2026-08-20)
   can assign only the current sRGB working profile; conversion flags, profile
   payloads and unsupported names fail before the bridge. Packaged UI/Actions/
   MCP proof reports equal assigned state, one undo and zero pixel delta.
+- The local Codex acceptance launcher separates loopback MCP/OAuth from the
+  encrypted desktop tunnel. Its external Streamable HTTP probe proves denial
+  before approval, bounded read-only preview, edit denial, revocation and
+  explicit edit escalation against the packaged desktop. Fresh-Codex owner
+  acceptance remains tracked in Task 264.

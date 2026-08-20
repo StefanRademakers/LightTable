@@ -24,6 +24,9 @@ const auditStateStore = process.env.LIGHTTABLE_STATE_PATH
   : new MemoryStateStore();
 const audit = new PrivacyAuditLog({ stateStore: auditStateStore });
 const { app, close, deviceTunnel } = await createLightTableMcpApp({ publicUrl, pairingCode, client,
+  ...(process.env.LIGHTTABLE_DEVICE_PUBLIC_URL
+    ? { devicePublicUrl: process.env.LIGHTTABLE_DEVICE_PUBLIC_URL }
+    : {}),
   allowInsecure, allowedHosts, devicePairingCode: process.env.LIGHTTABLE_DEVICE_PAIRING_CODE ?? pairingCode,
   serverId: process.env.LIGHTTABLE_SERVER_ID ?? 'lighttable-mcp', oauthStateStore, audit,
   tenantId: process.env.LIGHTTABLE_TENANT_ID ?? 'default', userId: process.env.LIGHTTABLE_USER_ID ?? 'owner' });

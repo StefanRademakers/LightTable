@@ -204,7 +204,10 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
   server.registerTool('lighttable_capabilities', {
     title: 'List available document commands', description: 'Reports which typed LightTable commands are currently valid and why unavailable commands are disabled.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
-  }, withResult(({ documentId }) => client.invoke('command.capabilities', { documentId })));
+  }, withResult(async ({ documentId }) => ({
+    documentId,
+    commands: await client.invoke('command.capabilities', { documentId })
+  })));
   server.registerTool('lighttable_commands', {
     title: 'Discover LightTable commands',
     description: 'Returns the canonical command metadata and parameter properties shared with the local Actions browser.',

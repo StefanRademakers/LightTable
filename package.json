@@ -225,6 +225,8 @@
     "sign:update-manifest": "node scripts/sign-update-manifest.mjs",
     "quality:agent": "node scripts/run-quality-gates.mjs",
     "mcp:server": "npm run start -w @lighttable/mcp-server",
+    "mcp:local:codex": "node scripts/local-codex-mcp-session.mjs",
+    "smoke:mcp:local-codex": "node scripts/local-codex-mcp-session.mjs --probe",
     "mcp:bridge": "node scripts/lighttable-mcp-automation-bridge.mjs",
     "smoke:mcp": "node scripts/smoke-lighttable-mcp.mjs",
     "verify": "npm run verify:boundary && npm run typecheck && npm test && npm run build:web && npm run package:desktop:verify"
