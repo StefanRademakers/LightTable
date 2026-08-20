@@ -111,9 +111,10 @@ const summarizeContent = (layer: LayerNode): LayerContentSummary => {
 const availableQueries = (layer: LayerNode): string[] => {
   const result = ['layer.effects'];
   if (layer.mask) result.push('layer.preview:mask');
-  if (layer.type === 'raster') result.push('layer.preview:pixels', 'warp.query', 'grade.queryBasic');
+  if (layer.type === 'raster') result.push('layer.preview:pixels', 'warp.query', 'grade.queryBasic', 'adjustment.query');
   if (layer.type === 'text') result.push('text.query', 'layer.preview:pixels');
   if (layer.type === 'vector') result.push('vector.query');
+  if (layer.type === 'adjustment') result.push('adjustment.query');
   if (layer.type === 'adjustment' && layer.adjustmentKind === 'grade') result.push('grade.queryBasic');
   return result;
 };

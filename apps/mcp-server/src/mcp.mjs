@@ -161,6 +161,21 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('grade.queryBasic', input)));
+  server.registerTool('lighttable_adjustment', {
+    title: 'Inspect LightTable adjustments',
+    description: 'Returns bounded known canonical processing parameters, enabled state, revisions and default/non-default value state for document processing, one layer, or one attached adjustment. Unknown renderer settings and LUT bytes are never serialized.',
+    inputSchema: z.object({
+      documentId: z.string().min(1),
+      expectedDocumentRevision: z.number().int().nonnegative().optional(),
+      target: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('document'), owner: z.enum(['grade', 'lens-fx']) }),
+        z.object({ kind: z.literal('layer'), layerId: z.string().min(1).max(512) }),
+        z.object({ kind: z.literal('attached'), layerId: z.string().min(1).max(512),
+          adjustmentId: z.string().min(1).max(512) })
+      ])
+    }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('adjustment.query', input)));
   server.registerTool('lighttable_capabilities', {
     title: 'List available document commands', description: 'Reports which typed LightTable commands are currently valid and why unavailable commands are disabled.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }

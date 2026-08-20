@@ -64,6 +64,10 @@ import {
 } from './semanticBasicAdjustmentCommandContract';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
 import {
+  parseAdjustmentQueryTarget,
+  type AdjustmentQueryResult
+} from '../adjustments/adjustmentQuery';
+import {
   SemanticActionRecorder,
   type ActionRecordingSnapshot
 } from '../actions/semanticActionRecorder';
@@ -607,6 +611,31 @@ export class LightTableCommandService {
     const target = parseBasicAdjustmentTarget(value);
     if ('message' in target) throw new Error(target.message);
     return this.ports.queryBasicAdjustments?.(documentId, target) ?? null;
+  }
+
+  queryAdjustment(documentId: DocumentSessionId, value: unknown): AdjustmentQueryResult {
+    const snapshot = this.document(documentId);
+    if (!snapshot?.document) return { status: 'rejected', code: 'target-not-found',
+      message: 'The adjustment-query document is not available.' };
+    if (!isRecord(value)) return { status: 'rejected', code: 'invalid-request',
+      message: 'Adjustment query parameters must be an object.' };
+    const expected = value.expectedDocumentRevision;
+    if (expected !== undefined && (!Number.isSafeInteger(expected) || (expected as number) < 0)) {
+      return { status: 'rejected', code: 'invalid-request',
+        message: 'expectedDocumentRevision must be a non-negative safe integer.' };
+    }
+    if (expected !== undefined && expected !== snapshot.documentRevision) return {
+      status: 'rejected', code: 'stale-document-revision',
+      message: 'The expected document revision is stale.',
+      currentRevision: snapshot.documentRevision
+    };
+    const target = parseAdjustmentQueryTarget(value.target);
+    if ('message' in target) return { status: 'rejected', code: 'invalid-request',
+      message: target.message };
+    return this.ports.queryAdjustments?.(documentId, target) ?? {
+      status: 'rejected', code: 'unsupported-target',
+      message: 'Adjustment inspection is unavailable in the mounted document.'
+    };
   }
 
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null {
@@ -1421,6 +1450,7 @@ export interface LightTableAutomationDriver {
   queryVector(documentId: DocumentSessionId, layerId: LayerId): EditableVectorQueryResult | null;
   queryWarp?(documentId: DocumentSessionId, layerId: LayerId): WarpQueryResult | null;
   queryBasicGrade(documentId: DocumentSessionId, target: unknown): BasicGradeQueryResult | null;
+  queryAdjustment(documentId: DocumentSessionId, request: unknown): AdjustmentQueryResult;
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): boolean;

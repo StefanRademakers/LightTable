@@ -137,6 +137,14 @@ export class MockLightTableClient {
       values: { temperature: 0, tint: 0, exposureEV: 0, contrast: 0,
         highlights: 0, shadows: 0, whites: 0, blacks: 0, lift: 0,
         texture: 0, clarity: 0, dehaze: 0, vibrance: 0, saturation: 0 } };
+    if (method === 'adjustment.query') return {
+      status: 'completed', documentId: this.document.id,
+      documentRevision: this.document.canonicalRevision,
+      targetRevision: this.document.canonicalRevision, target: parameters.target,
+      adjustmentKind: parameters.target?.kind === 'document' ? parameters.target.owner : 'raster-processing',
+      stack: { id: 'mock-adjustments', revision: 0, totalModules: 0,
+        truncated: false, modules: [] }
+    };
     if (method === 'command.capabilities') return ['layer.createRaster', 'layer.rename',
       'layer.setVisibility', 'layer.setFillOpacity', 'history.undo', 'history.redo']
       .map((command) => ({ command, available: true, reason: null }));

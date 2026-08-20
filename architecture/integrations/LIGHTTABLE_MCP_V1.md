@@ -75,7 +75,8 @@ Read operations:
 - inspect workspace, document dimensions/aspect/revision/viewport;
 - list the compact editable layer tree in revision-bound cursor pages of at
   most 256 rows; list rows do not inline vector geometry;
-- inspect targeted text, vector, Warp, basic Grade and Layer Style content by
+- inspect targeted text, vector, Warp, basic Grade, complete processing-module
+  parameters and Layer Style content by
   stable layer ID;
 - query currently valid semantic commands;
 - request a bounded whole-document PNG through LightTable's real export
@@ -118,9 +119,13 @@ the explicitly enabled host bridge.
 The server also contains a complete editable social-design workflow that uses
 the same public commands to create a document, placed artwork, gradient vector,
 point/paragraph text and a drop shadow, then verifies undo/redo and exports GPU
-preview, native and PSD artifacts. Remaining gaps include complete targeted
-inspection for every adjustment type and broad semantic coverage for some
-tools. Those must be added to the shared
+preview, native and PSD artifacts. `lighttable_adjustment` now inspects
+document Grade/Lens Fx, raster/Adjustment Layer processing and attached
+adjustments through the shared module registry. It reports enabled and
+default/non-default value state, bounds modules/arrays and never serializes
+unknown renderer settings or LUT bytes. Remaining gaps include mutation
+coverage for non-basic adjustment parameters and broad semantic coverage for
+some tools. Those must be added to the shared
 application command service first;
 DOM selectors or a parallel MCP-only scene format remain forbidden.
 
@@ -227,7 +232,9 @@ run used `D:\shapes.psd`, traversed revision-bound layer pages, fetched both a
 whole-document PNG, isolated 256-pixel WebP raster-layer preview at quality
 0.72 and a 192×96 document region returned as 128×64 WebP, proved an
 unchanged layer preview omitted image bytes, then exercised semantic edits and
-exported all three artifacts.
+exported all three artifacts. The packaged flow also read a native Curves
+Adjustment Layer and an attached Brightness/Contrast node back through
+`lighttable_adjustment` at their exact canonical revision.
 Evidence is under `D:\mediavibe\LightTableTestFiles\mcp`:
 
 - `mcp-layered-design.png`;
@@ -250,7 +257,7 @@ implemented. Expand only through the shared command service, prioritizing:
 
 1. layer transforms, reparenting and alignment with explicit coordinate space;
 2. selections, masks and their editable properties;
-3. Grade/Lens Fx and adjustment-layer semantics;
+3. Grade/Lens Fx and non-basic adjustment mutation semantics;
 4. remaining tool operations that can be expressed deterministically;
 5. richer structural and visual inspection for reference-image reconstruction;
 6. version negotiation, ID-lifetime and permission contracts suitable for a

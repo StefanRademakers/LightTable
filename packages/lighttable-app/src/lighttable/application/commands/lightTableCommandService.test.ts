@@ -1377,6 +1377,27 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('gates complete adjustment inspection on the canonical revision', () => {
+    const queryAdjustments = vi.fn((_documentId, target) => ({
+      status: 'completed' as const, documentId: 'document-1', documentRevision: 1,
+      targetRevision: 1, target, adjustmentKind: 'grade',
+      stack: { id: 'stack-1', revision: 0, totalModules: 0, truncated: false, modules: [] }
+    }));
+    const state = setup({ queryAdjustments });
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    expect(state.service.queryAdjustment(state.session.id, {
+      expectedDocumentRevision: revision,
+      target: { kind: 'document', owner: 'grade' }
+    })).toMatchObject({ status: 'completed', adjustmentKind: 'grade' });
+    expect(state.service.queryAdjustment(state.session.id, {
+      expectedDocumentRevision: revision + 1,
+      target: { kind: 'document', owner: 'grade' }
+    })).toMatchObject({ status: 'rejected', code: 'stale-document-revision',
+      currentRevision: revision });
+    expect(queryAdjustments).toHaveBeenCalledTimes(1);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('validates bounded layer visibility mutations', async () => {
     const state = setup();
     const layerId = state.session.getSnapshot().document!.activeLayerId!;

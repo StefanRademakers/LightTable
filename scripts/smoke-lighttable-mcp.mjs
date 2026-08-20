@@ -384,6 +384,24 @@ try {
   if (!adjustmentLayer.layerId || adjustmentLayer.layerId === layerId) {
     throw new Error('MCP adjustment layer did not return a new stable layer ID.');
   }
+  const adjustmentRevision = (await call('lighttable_document', { documentId })).structuredContent;
+  const curvesInspection = (await call('lighttable_adjustment', {
+    documentId, expectedDocumentRevision: adjustmentRevision.canonicalRevision,
+    target: { kind: 'layer', layerId: adjustmentLayer.layerId }
+  })).structuredContent;
+  if (curvesInspection?.status !== 'completed' || curvesInspection.adjustmentKind !== 'curves'
+    || !curvesInspection.stack?.modules?.some(({ type }) => type === 'lt.curves')) {
+    throw new Error(`MCP Curves inspection is incomplete: ${JSON.stringify(curvesInspection)}`);
+  }
+  const attachedInspection = (await call('lighttable_adjustment', {
+    documentId, expectedDocumentRevision: adjustmentRevision.canonicalRevision,
+    target: { kind: 'attached', layerId, adjustmentId: attached.adjustmentId }
+  })).structuredContent;
+  if (attachedInspection?.status !== 'completed'
+    || attachedInspection.adjustmentKind !== 'brightness-contrast'
+    || !attachedInspection.stack?.modules?.some(({ type }) => type === 'lt.photoshop-adjustment')) {
+    throw new Error(`MCP attached adjustment inspection is incomplete: ${JSON.stringify(attachedInspection)}`);
+  }
   for (let pass = 0; pass < 2; pass += 1) {
     const invertDocument = (await call('lighttable_document', { documentId })).structuredContent;
     const inverted = (await call('lighttable_execute', {

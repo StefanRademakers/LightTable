@@ -61,6 +61,12 @@ export {
   type WorkspaceDocumentSummary,
   type WorkspaceQueryResult
 } from './lighttable/application/commands/lightTableCommandService';
+export type {
+  AdjustmentQueryResult,
+  AdjustmentQueryTarget,
+  AdjustmentModuleProjection,
+  AdjustmentParameterProjection
+} from './lighttable/application/adjustments/adjustmentQuery';
 export {
   AuthenticatedLightTableMcpAdapter,
   LIGHTTABLE_MCP_PROTOCOL_VERSION,

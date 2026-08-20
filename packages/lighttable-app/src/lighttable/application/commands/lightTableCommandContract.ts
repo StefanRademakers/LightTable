@@ -21,6 +21,7 @@ import type { SemanticSelectionCommand } from './semanticSelectionCommandContrac
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
 import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandContract';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
+import type { AdjustmentQueryResult, AdjustmentQueryTarget } from '../adjustments/adjustmentQuery';
 import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
 import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
@@ -241,6 +242,7 @@ export interface LightTableCommandPorts {
   executeAutoAlign?(documentId: DocumentSessionId, command: SemanticAutoAlignCommand,
     signal: AbortSignal): unknown | Promise<unknown>;
   queryBasicAdjustments?(documentId: DocumentSessionId, target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
+  queryAdjustments?(documentId: DocumentSessionId, target: AdjustmentQueryTarget): AdjustmentQueryResult | null;
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
@@ -293,6 +295,7 @@ export interface DocumentLightTableCommandPorts {
     report: (progress: number, message: string) => void): unknown | Promise<unknown>;
   executeAutoAlign?(command: SemanticAutoAlignCommand, signal: AbortSignal): unknown | Promise<unknown>;
   queryBasicAdjustments?(target: BasicAdjustmentTarget): BasicGradeQueryResult | null;
+  queryAdjustments?(target: AdjustmentQueryTarget): AdjustmentQueryResult | null;
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>;

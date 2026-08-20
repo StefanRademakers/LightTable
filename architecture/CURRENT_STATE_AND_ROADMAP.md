@@ -32,7 +32,8 @@ milestone changes those boundaries; feature task details belong in
 - MCP construction/query support for editable text, vectors, gradients and
   Layer Styles, including revision-bound layer pages, active-layer content
   summaries, whole-document/layer/mask/region GPU previews, unchanged-image
-  transfer suppression, complete layered-design transactions and export artifacts.
+  transfer suppression, bounded typed inspection for every current adjustment
+  presentation, complete layered-design transactions and export artifacts.
 - Provider-neutral GenAI packages, OpenArt integration, a managed local-AI
   protocol/provider process and project-backed job/asset/history persistence.
 - Local editor inference for depth, smart selection, matte refinement,

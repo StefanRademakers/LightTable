@@ -66,6 +66,7 @@ const invoke = (method, parameters) => page.evaluate(async ({ method, parameters
   if (method === 'vector.query') return driver.queryVector(parameters.documentId, parameters.layerId);
   if (method === 'warp.query') return driver.queryWarp?.(parameters.documentId, parameters.layerId) ?? null;
   if (method === 'grade.queryBasic') return driver.queryBasicGrade(parameters.documentId, parameters.target);
+  if (method === 'adjustment.query') return driver.queryAdjustment(parameters.documentId, parameters);
   if (method === 'command.capabilities') return driver.queryCapabilities(parameters.documentId);
   if (method === 'task.query') return driver.queryTask(parameters.documentId, parameters.taskId);
   if (method === 'task.events') return driver.queryTaskEvents(parameters.afterCursor, parameters.limit);

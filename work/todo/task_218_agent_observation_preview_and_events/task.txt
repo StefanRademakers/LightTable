@@ -66,9 +66,12 @@ Current evidence (2026-08-20)
   final revision/history publication and then requests preview N+1.
 - Server-push delivery remains open; reconnect-safe cursor events are the
   current no-polling mechanism.
-- Targeted text, vector, effects, Warp and basic Grade queries exist. Complete
-  typed projections for every adjustment kind continue in
-  [`Task 255`](../task_255_complete_adjustment_observation_schemas_task/task.txt).
+- Targeted text, vector, effects, Warp and basic Grade queries exist.
+  `adjustment.query` now adds bounded module-registry-backed parameters for
+  document Grade/Lens Fx, raster/Adjustment Layers and attached adjustments;
+  every current adjustment catalog presentation is covered without exposing
+  LUT bytes or unknown renderer settings. Evidence is in completed
+  [`Task 255`](../../done/task_255_complete_adjustment_observation_schemas_task/task.txt).
 
 Representative proof
 ====================

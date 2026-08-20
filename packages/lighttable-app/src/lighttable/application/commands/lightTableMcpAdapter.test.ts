@@ -42,6 +42,8 @@ const createDriver = (): LightTableAutomationDriver => ({
   queryVector: vi.fn(() => null),
   queryWarp: vi.fn(() => null),
   queryBasicGrade: vi.fn(() => null),
+  queryAdjustment: vi.fn(() => ({ status: 'rejected' as const,
+    code: 'target-not-found' as const, message: 'missing' })),
   queryCapabilities: vi.fn(() => null),
   execute: vi.fn(async (request: unknown) => ({
     requestId: (request as { requestId: string }).requestId,
@@ -313,6 +315,23 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     expect(driver.queryBasicGrade).toHaveBeenCalledWith(
       'document-1', { kind: 'document' }
     );
+    expect(driver.execute).not.toHaveBeenCalled();
+  });
+
+  it('forwards bounded adjustment inspection without command execution', async () => {
+    const driver = createDriver();
+    vi.mocked(driver.queryAdjustment).mockReturnValue({ status: 'completed',
+      documentId: 'document-1', documentRevision: 4, targetRevision: 4,
+      target: { kind: 'document', owner: 'grade' }, adjustmentKind: 'grade',
+      stack: { id: 'stack-1', revision: 0, totalModules: 0, truncated: false, modules: [] } });
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    const parameters = { documentId: 'document-1', expectedDocumentRevision: 4,
+      target: { kind: 'document', owner: 'grade' } };
+    expect(await adapter.invoke(request('adjustment.query', parameters)))
+      .toMatchObject({ status: 'completed', value: { adjustmentKind: 'grade' } });
+    expect(driver.queryAdjustment).toHaveBeenCalledWith('document-1', parameters);
     expect(driver.execute).not.toHaveBeenCalled();
   });
 

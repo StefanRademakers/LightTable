@@ -17,17 +17,18 @@ Parent program and goal
 Checklist
 =========
 
-- [ ] Inventory adjustment-layer kinds, attached adjustments and document/raster
+- [x] Inventory adjustment-layer kinds, attached adjustments and document/raster
       Grade owners against their current property editors and command schemas.
-- [ ] Define bounded discriminated query results with revision, enabled state,
-      authored/default distinction and truncation metadata where needed.
-- [ ] Reuse shared machine schemas; do not serialize raw renderer settings,
-      LUT bytes or duplicated document state.
-- [ ] Expose the same query authority through Agent Access and MCP with stale-
+- [x] Define bounded discriminated query results with revision, enabled state,
+      explicit default/non-default value distinction and truncation metadata;
+      do not infer historical authorship from current values.
+- [x] Reuse shared module-registry paths and canonical typed settings; do not
+      serialize raw renderer settings, LUT bytes or duplicated document state.
+- [x] Expose the same query authority through Agent Access and MCP with stale-
       revision and large-payload tests.
-- [ ] Prove representative Grade, Curves, Color/Vibrance, Selective Color,
+- [x] Prove representative Grade, Curves, Color/Vibrance, Selective Color,
       Layer Style-adjacent and attached-adjustment inspection.
-- [ ] Update the MCP/current-state documentation, run full gates and commit.
+- [x] Update the MCP/current-state documentation, run full gates and commit.
 
 Non-goals
 =========

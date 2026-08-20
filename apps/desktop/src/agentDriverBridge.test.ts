@@ -103,6 +103,19 @@ describe('invokeAgentDriver', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('forwards revision-bound adjustment inspection without executing a command', async () => {
+    const queryAdjustment = vi.fn(() => ({ status: 'rejected' as const,
+      code: 'stale-document-revision' as const, message: 'stale', currentRevision: 8 }));
+    const execute = vi.fn();
+    const driver = driverWith({ queryAdjustment, execute });
+    const parameters = { documentId: 'document-1', expectedDocumentRevision: 7,
+      target: { kind: 'document', owner: 'grade' } };
+    await expect(invokeAgentDriver(driver, 'adjustment.query', parameters))
+      .resolves.toMatchObject({ code: 'stale-document-revision', currentRevision: 8 });
+    expect(queryAdjustment).toHaveBeenCalledWith('document-1', parameters);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('forwards isolated layer previews without executing a command', async () => {
     const requestLayerPreview = vi.fn(async () => ({ status: 'rejected' as const,
       code: 'channel-unavailable' as const, message: 'missing mask' }));

@@ -28,6 +28,7 @@ import { projectAdjustmentSnapshot } from './application/adjustments/projectAdju
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdjustmentTarget';
 import { projectBasicAdjustmentValues } from './application/adjustments/basicAdjustmentQuery';
+import { projectAdjustmentQuery } from './application/adjustments/adjustmentQuery';
 import { changedBasicAdjustmentValues } from './application/commands/semanticBasicAdjustmentCommandContract';
 import {
   resolveContextualAdjustmentCreation,
@@ -5020,6 +5021,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           targetRevision: layer?.revision ?? document.revision,
           values: projectBasicAdjustmentValues(resolved.adjustments)
         };
+      },
+      queryAdjustments: (target) => {
+        const document = imageDocumentRef.current;
+        if (!document) return null;
+        return projectAdjustmentQuery(workspaceDocumentId, document,
+          documentAdjustmentsRef.current, document.revision, target);
       },
       executeAtomicBatch: async (batch, signal, report) => {
         const result = await executeAtomicCommandBatch(batch, {

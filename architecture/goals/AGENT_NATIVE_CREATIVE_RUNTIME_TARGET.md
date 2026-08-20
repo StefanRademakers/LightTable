@@ -191,8 +191,10 @@ discoverable but are not yet complete shared machine schemas; Actions lacks
 durable named sets, rich parameters, gesture coalescing and task-aware
 playback; structural layer pages plus whole-document/layer/mask previews now
 cover a bounded inspection baseline including final-composite regions and an
-active-layer content dispatcher, but complete adjustment detail queries remain
-open; equivalent UI/Actions/MCP outcomes are not
+active-layer content dispatcher. Every current adjustment presentation now has
+bounded module-registry-backed inspection for document, layer and attached
+owners; non-basic adjustment mutation schemas remain open. Equivalent
+UI/Actions/MCP outcomes are not
 yet broadly proven.
 
 **Target only:** reference decomposition, autonomous visual correction,
@@ -250,6 +252,8 @@ never replace inspection of representative images and editable structure.
   [`../DOCUMENT_AND_SCENE_MODEL.md`](../DOCUMENT_AND_SCENE_MODEL.md)
 - Active command/Actions/MCP coverage work:
   [`../../work/todo/task_214_complete_action_command_mcp_coverage/task.txt`](../../work/todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- Expanded owner design brief and provisional scale/preview-transport direction:
+  [`mcp_future_usage_target_v3.md`](./mcp_future_usage_target_v3.md)
 
 The owner-supplied `D:\mcp_future_usage_target.md` was reconciled into this
 contract on 2026-08-20. Its ambition is accepted with the terminology,

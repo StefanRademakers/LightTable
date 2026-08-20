@@ -2,6 +2,7 @@ import type { DocumentSessionId, DocumentViewport } from '../documents/documentS
 import type { LayerId } from '../../editor/document/documentTypes';
 import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
 import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandContract';
+import type { AdjustmentQueryTarget } from '../adjustments/adjustmentQuery';
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
 import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
@@ -156,6 +157,9 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   }
   queryBasicAdjustments(documentId: DocumentSessionId, target: BasicAdjustmentTarget) {
     return this.resolve(documentId).queryBasicAdjustments?.(target) ?? null;
+  }
+  queryAdjustments(documentId: DocumentSessionId, target: AdjustmentQueryTarget) {
+    return this.resolve(documentId).queryAdjustments?.(target) ?? null;
   }
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void) {

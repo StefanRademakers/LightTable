@@ -30,6 +30,7 @@ export const invokeAgentDriver = async (
   if (method === 'vector.query') return driver.queryVector(documentId, layerId);
   if (method === 'warp.query') return driver.queryWarp?.(documentId, layerId) ?? null;
   if (method === 'grade.queryBasic') return driver.queryBasicGrade(documentId, value.target);
+  if (method === 'adjustment.query') return driver.queryAdjustment(documentId, value);
   if (method === 'command.capabilities') {
     return driver.queryCapabilities(documentId)?.filter(({ command }) => (
       isLightTableAgentAccessCommandId(command)
