@@ -43,7 +43,7 @@ const awaitCommand = async (client, request, timeoutMs = 60_000) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const task = await client.invoke('task.query', { documentId: request.documentId, taskId: result.taskId });
-    if (task?.status === 'failed' || task?.status === 'cancelled') {
+    if (task?.status === 'failed' || task?.status === 'canceled' || task?.status === 'cancelled') {
       throw new Error(task.error ?? `LightTable task ${result.taskId} ${task.status}.`);
     }
     if (task?.status !== 'running') return { ...result, task };
@@ -224,6 +224,15 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     inputSchema: z.object({ afterCursor: z.number().int().nonnegative().default(0),
       limit: z.number().int().min(1).max(200).default(100) }), annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('task.events', input)));
+  server.registerTool('lighttable_task', {
+    title: 'Inspect a LightTable task',
+    description: 'Returns bounded status, progress, error and artifact metadata for one explicit document task.',
+    inputSchema: z.object({
+      documentId: z.string().min(1),
+      taskId: z.string().min(1)
+    }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('task.query', input)));
   server.registerTool('lighttable_events', {
     title: 'Inspect LightTable publication events',
     description: 'Returns bounded document, revision, selection, history, task and renderer publications after a reconnect-safe cursor. A gap requires canonical re-query.',

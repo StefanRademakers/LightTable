@@ -149,6 +149,12 @@ export class MockLightTableClient {
       'layer.setVisibility', 'layer.setFillOpacity', 'history.undo', 'history.redo']
       .map((command) => ({ command, available: true, reason: null }));
     if (method === 'artifact.list') return [];
+    if (method === 'task.query') return parameters.documentId === this.document.id
+      && parameters.taskId === 'task-demo'
+      ? { id: 'task-demo', status: 'completed', progress: 1, error: null,
+        artifact: { id: 'artifact-demo', kind: 'png-export', name: 'demo.png',
+          mediaType: 'image/png', byteLength: 3, createdAt: 1 } }
+      : null;
     if (method === 'task.events') return { cursor: 0, events: [] };
     if (method === 'event.query') return { cursor: 0, latestCursor: 0,
       oldestCursor: 1, gap: false, hasMore: false, events: [] };

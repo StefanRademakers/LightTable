@@ -18,6 +18,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
 const output = path.join(root, 'tmp', 'route-equivalence-smoke');
 await Promise.all([access(fixture), mkdir(output, { recursive: true })]);
+const uiExportPath = path.join(output, 'ui-file-menu-export.png');
 const userData = await mkdtemp(path.join(output, 'profile-'));
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 const mcpSession = await startPackagedMcpTestSession({ label: 'LightTable route equivalence' });
@@ -141,7 +142,8 @@ try {
     env: {
       ...environment,
       LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-      LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture
+      LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture,
+      LIGHTTABLE_AUTOMATION_SAVE_FILE: uiExportPath
     },
     timeout: 30_000
   });
@@ -228,13 +230,28 @@ try {
     .getByRole('checkbox', { name: 'Bold', exact: true }).click();
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await waitForRecorded('text.format');
+  await window.getByRole('menuitem', { name: 'File' }).click();
+  await window.getByRole('menuitem', { name: 'Export PNG', exact: true }).click();
+  await waitForRecorded('file.exportPng');
+  await window.waitForFunction(() => {
+    const step = window.__lightTableAutomation?.actionRecordingSnapshot?.().steps
+      .find((candidate) => candidate.command === 'file.exportPng');
+    return step?.outcome === 'accepted' && step.result?.artifact?.mediaType === 'image/png'
+      && step.result.artifact.byteLength > 0;
+  }, undefined, { timeout: 60_000 });
   await recorder.getByRole('button', { name: 'Stop' }).click();
 
   const recording = await driver.queryActionRecording();
   const commands = recording.steps.filter(({ replayable }) => replayable).map(({ command }) => command);
-  for (const command of ['vector.create', 'layer.setTransform', 'layer.rename', 'text.create', 'text.format']) {
+  for (const command of [
+    'vector.create', 'layer.setTransform', 'layer.rename', 'text.create', 'text.format', 'file.exportPng'
+  ]) {
     assert.ok(commands.includes(command), `UI recording omitted ${command}: ${commands.join(', ')}`);
   }
+  const exportStep = recording.steps.find(({ command }) => command === 'file.exportPng');
+  assert.equal(exportStep.result.artifact.mediaType, 'image/png');
+  assert.ok(exportStep.result.artifact.byteLength > 0, 'UI export artifact was empty.');
+  await access(uiExportPath);
   const formatStep = recording.steps.find(({ command }) => command === 'text.format');
   assert.ok(formatStep.parameters.layerId?.$lighttableResult,
     'Recorded text formatting did not bind to the generated text layer.');
@@ -243,6 +260,7 @@ try {
     undo: () => keyboardHistory(window, driver, uiDocumentId, 'undo'),
     redo: () => keyboardHistory(window, driver, uiDocumentId, 'redo')
   });
+  const expectedUndoDepth = (await driver.queryDocument(uiDocumentId)).history.undoDepth;
 
   const actionsDocumentId = await createDocumentThroughMcp(mcp, driver, 'Actions route');
   await window.getByRole('menuitem', { name: 'View' }).click();
@@ -252,7 +270,7 @@ try {
     const automation = window.__lightTableAutomation;
     return automation?.queryLayers(documentId)?.length === 3
       && automation.queryDocument(documentId)?.history.undoDepth === undoDepth;
-  }, { documentId: actionsDocumentId, undoDepth: commands.length }, { timeout: 30_000 });
+  }, { documentId: actionsDocumentId, undoDepth: expectedUndoDepth }, { timeout: 60_000 });
   if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
     await window.getByRole('menuitem', { name: 'View' }).click();
     await window.getByRole('menuitem', { name: 'Actions panel' }).click();
@@ -267,6 +285,7 @@ try {
 
   const mcpDocumentId = await createDocumentThroughMcp(mcp, driver, 'MCP route');
   const mcpResults = new Map();
+  let mcpExportTask = null;
   for (const step of recording.steps.filter(({ replayable }) => replayable)) {
     const before = mcpResult(await mcp.callTool({
       name: 'lighttable_document', arguments: { documentId: mcpDocumentId }
@@ -279,6 +298,25 @@ try {
       parameters
     } }), `MCP execute ${step.command}`);
     assert.notEqual(executed.status, 'rejected', `MCP rejected ${step.command}: ${executed.message}`);
+    if (executed.status === 'accepted') {
+      await window.waitForTimeout(25);
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        const task = mcpResult(await mcp.callTool({ name: 'lighttable_task', arguments: {
+          documentId: mcpDocumentId, taskId: executed.taskId
+        } }), `MCP task ${executed.taskId}`);
+        if (task?.status === 'failed' || task?.status === 'canceled') {
+          throw new Error(`MCP ${step.command} task ${task.status}: ${task.error ?? 'unknown error'}`);
+        }
+        if (task?.status === 'completed') {
+          mcpExportTask = task;
+          break;
+        }
+        await window.waitForTimeout(25);
+      }
+      assert.equal(mcpExportTask?.artifact?.mediaType, 'image/png');
+      assert.ok(mcpExportTask?.artifact?.byteLength > 0, 'MCP export artifact was empty.');
+    }
     mcpResults.set(step.sequence, executed.value ?? executed.task ?? executed);
   }
   const mcpUndoRedo = await assertUndoRedoRoundtrip({
@@ -315,6 +353,17 @@ try {
   await writeFile(previewPaths.mcp, Buffer.from(mcpImage.data, 'base64'));
 
   const renderEvidence = {};
+  renderEvidence['ui-file-export-vs-preview'] = await compareRenderEvidence({
+    leftPath: uiExportPath,
+    rightPath: previewPaths.ui,
+    width: 640,
+    height: 480,
+    sideBySidePath: path.join(output, 'ui-file-export-vs-preview.png'),
+    differencePath: path.join(output, 'ui-file-export-vs-preview-difference-x4.png'),
+    policy: strictRenderPolicy
+  });
+  assert.ok(renderEvidence['ui-file-export-vs-preview'].passed,
+    'Delivered File > Export PNG pixels diverged from the canonical UI preview.');
   for (const route of ['actions', 'mcp']) {
     renderEvidence[`ui-vs-${route}`] = await compareRenderEvidence({
       leftPath: previewPaths.ui,
@@ -334,7 +383,12 @@ try {
     undoRedo: { ui: uiUndoRedo, actions: actionsUndoRedo, mcp: mcpUndoRedo },
     states: normalizedStates,
     renderEvidence,
-    uiFileExportSharedCommandStatus: 'not-proven; File > Export PNG still owns a separate UI path'
+    exportEvidence: {
+      ui: exportStep.result,
+      actions: 'playback completed; export steps require a completed task artifact',
+      mcp: mcpExportTask,
+      deliveredUiFile: uiExportPath
+    }
   }, null, 2));
   if (pageErrors.length) throw new Error(`Packaged page errors: ${pageErrors.join(' | ')}`);
   process.stdout.write(`Packaged UI/Actions/MCP route equivalence passed: ${output}\n`);

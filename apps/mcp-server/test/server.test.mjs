@@ -52,6 +52,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_style'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_batch'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_task_events'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_task'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_events'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_cancel_task'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_commands'));
@@ -173,6 +174,14 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(batch.isError, undefined);
   const events = await reader.callTool({ name: 'lighttable_task_events', arguments: { afterCursor: 0 } });
   assert.deepEqual(events.structuredContent.events, []);
+  const task = await reader.callTool({ name: 'lighttable_task', arguments: {
+    documentId: 'document-demo', taskId: 'task-demo'
+  } });
+  assert.deepEqual(task.structuredContent, {
+    id: 'task-demo', status: 'completed', progress: 1, error: null,
+    artifact: { id: 'artifact-demo', kind: 'png-export', name: 'demo.png',
+      mediaType: 'image/png', byteLength: 3, createdAt: 1 }
+  });
   const publications = await reader.callTool({ name: 'lighttable_events', arguments: { afterCursor: 0 } });
   assert.deepEqual(publications.structuredContent, { cursor: 0, latestCursor: 0,
     oldestCursor: 1, gap: false, hasMore: false, events: [] });

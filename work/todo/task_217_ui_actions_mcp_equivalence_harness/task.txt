@@ -66,7 +66,21 @@ Current evidence (2026-08-20)
   transform, rename, editable point text and faux-bold formatting. Actions
   replays that exact recording in a fresh document and the authenticated
   external MCP TLS/device tunnel resolves the same recorded result bindings
-  and executes the same five semantic commands in a third document.
+  and executes the same six semantic commands in a third document, including
+  `file.exportPng`.
+- The normal File > Export PNG menu route now calls that same semantic export
+  owner instead of rendering through its previous parallel UI path. The
+  command task is the sole render/artifact owner; the UI only resolves its
+  bounded artifact and dispatches the resulting File to the desktop host.
+  Avoiding a nested UI `export` task is intentional because both would share
+  one per-document task registry and cancel each other.
+- Packaged evidence records the actual menu click, waits for the recorder's
+  completed PNG artifact, replays it through Actions (whose export gate
+  requires a completed artifact), and inspects the external MCP task through
+  `lighttable_task`. UI and MCP artifacts are both non-empty `png-export`
+  results of 11,140 bytes in the current fixture. The host-delivered UI PNG is
+  pixel-exact to the canonical revision-bound preview; all four generated PNGs
+  also have the same SHA-256 in the current run.
 - All three routes now expose matching bounded Undo/Redo labels, depths and
   state IDs. Undo/Redo restores the same editable state while advancing the
   canonical revision from 5 to 7 on every route.
@@ -185,9 +199,6 @@ Still required for completion
 
 - high-frequency typing/IME recording and text failure equivalence across all
   three routes;
-- shared-command proof for the normal File > Export PNG route. The bounded
-  revision-aware preview is now equivalent, but the normal UI export still
-  owns a separate delivery path and is not claimed as command-equivalent;
 - equivalent stale-revision and invalid-parameter failure evidence at every
   real route boundary.
 - expand rendered comparison beyond the now-proven rectangle/text workflow to

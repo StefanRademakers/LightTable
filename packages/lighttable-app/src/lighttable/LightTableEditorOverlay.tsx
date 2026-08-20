@@ -5,6 +5,7 @@ import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
 import type { LightTablePreviewEncoding } from './application/commands/lightTableCommandContract';
+import { resolveAcceptedCommandArtifact } from './application/commands/resolveAcceptedCommandArtifact';
 import type { DocumentPixelRegion } from './editor/geometry/documentRegionPreview';
 import {
   automationPaintOperatorFromPlan,
@@ -5571,6 +5572,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   };
 
+  const requestPngArtifact = useCallback(async () => {
+    if (!commandService) throw new Error('The LightTable command service is unavailable.');
+    const execution = executeRegisteredCommand('file.exportPng', {});
+    if (!execution) throw new Error('PNG export is unavailable.');
+    const result = await execution;
+    const resolved = await resolveAcceptedCommandArtifact(
+      commandService,
+      workspaceDocumentId as DocumentSessionId,
+      result
+    );
+    return resolved.file;
+  }, [commandService, executeRegisteredCommand, workspaceDocumentId]);
+
   const {
     saving,
     exportOutput,
@@ -5594,6 +5608,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     hasMetadata: Boolean(metadata),
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    requestPngArtifact: commandService ? requestPngArtifact : undefined,
     getFlatAdjustments: () => adjustmentsRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
     getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,

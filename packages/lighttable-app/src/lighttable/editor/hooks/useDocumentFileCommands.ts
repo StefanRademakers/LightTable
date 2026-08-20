@@ -67,6 +67,7 @@ export interface DocumentFileCommandsOptions {
     replaceSource?: { readonly path: string; readonly format: 'png' | 'jpeg' }
   ) => Promise<LightTableSaveResult> | LightTableSaveResult;
   readonly onExportFile?: (file: File) => Promise<unknown> | unknown;
+  readonly requestPngArtifact?: () => Promise<File>;
   readonly getDocumentRevision?: () => number;
   readonly getIsDirty?: () => boolean;
   readonly commitSavedRevision?: (revision: number) => void;
@@ -293,6 +294,16 @@ export const useDocumentFileCommands = (
   const exportPng = useCallback(async () => {
     const current = optionsRef.current;
     current.setError(null);
+    if (current.requestPngArtifact) {
+      try {
+        const file = await current.requestPngArtifact();
+        if (current.onExportFile) await current.onExportFile(file);
+        else downloadOutput(file);
+      } catch (reason) {
+        current.setError(reason instanceof Error ? reason.message : 'LightTable export failed.');
+      }
+      return;
+    }
     const result = await current.taskRegistry.run(
       'export',
       'Export PNG',
@@ -301,13 +312,14 @@ export const useDocumentFileCommands = (
         if (!renderer || !current.hasMetadata) {
           throw new Error('LightTable is not ready yet.');
         }
-        const blob = await renderer.exportPng();
-        task.throwIfCanceled();
-        downloadOutput(new File(
-          [blob],
+        const file = new File(
+          [await renderer.exportPng()],
           buildLightTableOutputName(current.fileNameBase),
           { type: 'image/png' }
-        ));
+        );
+        task.throwIfCanceled();
+        if (current.onExportFile) await current.onExportFile(file);
+        else downloadOutput(file);
       }
     );
     if (result.status === 'failed') {
