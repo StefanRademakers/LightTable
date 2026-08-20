@@ -4,12 +4,14 @@ import type {
   LightTableCommandResult
 } from '../commands/lightTableCommandContract';
 import { bindRecordedParameters } from './actionResultBindings';
+import { currentRecordedCommandContract, type RecordedCommandContract } from './actionCommandContracts';
 
 export interface RecordedActionStep {
   readonly sequence: number;
   readonly requestId: string;
   readonly origin: LightTableCommandOrigin;
   readonly command: string;
+  readonly contract: RecordedCommandContract;
   readonly documentId: string | null;
   readonly parameters: unknown;
   readonly outcome: LightTableCommandResult['status'];
@@ -152,6 +154,7 @@ export class SemanticActionRecorder {
       requestId: request.requestId,
       origin,
       command: request.command,
+      contract: currentRecordedCommandContract(request.command),
       documentId: request.documentId ?? null,
       parameters: parameters.value,
       outcome: result.status,

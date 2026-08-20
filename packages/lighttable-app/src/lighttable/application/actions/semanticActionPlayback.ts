@@ -5,12 +5,13 @@ import type {
 } from '../commands/lightTableCommandContract';
 import type { ActionRecordingSnapshot, RecordedActionStep } from './semanticActionRecorder';
 import { resolveActionParameters } from './actionResultBindings';
+import { checkActionCommandContracts } from './actionCommandContracts';
 
 export interface ActionPlaybackStepResult {
   readonly sequence: number;
   readonly command: string;
   readonly status: LightTableCommandResult['status'] | 'binding-error'
-    | 'task-failed' | 'task-canceled' | 'task-timeout' | 'task-missing';
+    | 'contract-incompatible' | 'task-failed' | 'task-canceled' | 'task-timeout' | 'task-missing';
   readonly message: string | null;
   readonly durationMs: number;
 }
@@ -74,6 +75,14 @@ export class SemanticActionPlaybackController {
   private async run(recording: ActionRecordingSnapshot,
     steps: readonly RecordedActionStep[], targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
     if (this.snapshotValue.status === 'running') return this.snapshotValue;
+    const contracts = checkActionCommandContracts(recording.steps);
+    if (!contracts.ok) {
+      this.publish({ status: 'failed', currentSequence: contracts.sequence, taskProgress: null,
+        results: [{ sequence: contracts.sequence,
+          command: recording.steps.find(({ sequence }) => sequence === contracts.sequence)?.command ?? 'unknown',
+          status: 'contract-incompatible', message: contracts.message, durationMs: 0 }] });
+      return this.snapshotValue;
+    }
     this.stopRequested = false;
     this.publish({ status: 'running', currentSequence: null, results: [], taskProgress: null });
     const producedResults = new Map<number, unknown>();

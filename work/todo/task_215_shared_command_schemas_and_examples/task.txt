@@ -121,11 +121,15 @@ Current evidence (2026-08-20)
   Text plus private state was rejected without a revision change; real point and
   native Path Text continued to pass the desktop bridge. Text schema evaluation
   remains outside all gesture sample and pointer-preview paths.
+- Recorded steps now carry either the complete command-schema version used at
+  record time or an explicit `legacy-properties-only` marker. Version-1 Action
+  libraries are checked against current input/result schemas and rewritten as
+  version 2 only when compatible. Load and playback reject missing, malformed,
+  newer or otherwise incompatible complete contracts before any command runs.
 
 Still required for completion
 =============================
 
 - formal versioned input and result schemas for every admitted command;
 - generated Actions property editors for every remaining parameterized command;
-- schema migration/incompatibility behavior for persisted Actions;
 - explicit blocking reasons for every command without a complete schema.

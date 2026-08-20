@@ -2,23 +2,29 @@ import { describe, expect, it, vi } from 'vitest';
 import { SemanticActionPlaybackController } from './semanticActionPlayback';
 import type { ActionRecordingSnapshot } from './semanticActionRecorder';
 
+const legacyContract = { status: 'legacy-properties-only' as const, schemaVersion: null };
+const schemaContract = { status: 'complete' as const, schemaVersion: 1 };
+
 const recording = (): ActionRecordingSnapshot => ({
   status: 'stopped', id: 'action-1', name: 'Test', startedAt: 1, stoppedAt: 2,
   byteLength: 10, limitReached: false,
   steps: [{
     sequence: 1, requestId: 'recorded-1', command: 'layer.createRaster', documentId: 'document-1',
     origin: 'ui',
-    parameters: {}, outcome: 'completed', result: {}, startedAt: 1, durationMs: 1,
+    contract: legacyContract,
+    parameters: {}, outcome: 'completed', result: { layerId: 'old-layer' }, startedAt: 1, durationMs: 1,
     replayable: true, note: null
   }, {
     sequence: 2, requestId: 'recorded-2', command: 'layer.rename', documentId: 'document-1',
     origin: 'ui',
+    contract: schemaContract,
     parameters: { layerId: { $lighttableResult: { step: 1, path: 'layerId' } }, name: 'Title' },
     outcome: 'completed', result: { layerId: 'old-layer', name: 'Title' }, startedAt: 2, durationMs: 1,
     replayable: true, note: null
   }, {
     sequence: 3, requestId: 'recorded-3', command: 'history.undo', documentId: 'document-1',
     origin: 'ui',
+    contract: legacyContract,
     parameters: {}, outcome: 'completed', result: {}, startedAt: 2, durationMs: 1,
     replayable: false, note: 'diagnostic'
   }]
@@ -68,9 +74,10 @@ describe('SemanticActionPlaybackController', () => {
   it('awaits an accepted task and binds its artifact into the following step', async () => {
     const asyncRecording: ActionRecordingSnapshot = {
       ...recording(), steps: [{ ...recording().steps[0]!, command: 'file.exportNative',
+        contract: legacyContract,
         outcome: 'accepted', result: { taskId: 'old-task', artifact: { id: 'old-artifact' } },
-        parameters: {} }, { ...recording().steps[1]!, command: 'file.openArtifact',
-        documentId: null, parameters: {
+      parameters: {} }, { ...recording().steps[1]!, command: 'file.openArtifact',
+        contract: legacyContract, documentId: null, parameters: {
           artifactId: { $lighttableResult: { step: 1, path: 'artifact.id' } }
         } }]
     };
@@ -100,7 +107,8 @@ describe('SemanticActionPlaybackController', () => {
   it('stops and aborts the current accepted task without running later steps', async () => {
     const acceptedRecording: ActionRecordingSnapshot = {
       ...recording(), steps: [{ ...recording().steps[0]!, command: 'command.batch',
-        outcome: 'accepted', result: { taskId: 'old-task' } }, recording().steps[1]!]
+        contract: legacyContract, outcome: 'accepted', result: { taskId: 'old-task', layerId: 'old-layer' } },
+      { ...recording().steps[1]!, contract: schemaContract }]
     };
     const execute = vi.fn(async (request) => ({ requestId: request.requestId,
       status: 'accepted' as const, taskId: 'new-task', revisions: { workspace: 1 } }));
@@ -126,7 +134,8 @@ describe('SemanticActionPlaybackController', () => {
   ] as const)('fails closed when an accepted task is %s', async (taskStatus, resultStatus) => {
     const acceptedRecording: ActionRecordingSnapshot = {
       ...recording(), steps: [{ ...recording().steps[0]!, command: 'command.batch',
-        outcome: 'accepted', result: { taskId: 'old-task' } }, recording().steps[1]!]
+        contract: legacyContract, outcome: 'accepted', result: { taskId: 'old-task', layerId: 'old-layer' } },
+      { ...recording().steps[1]!, contract: schemaContract }]
     };
     const execute = vi.fn(async (request) => ({ requestId: request.requestId,
       status: 'accepted' as const, taskId: 'new-task', revisions: { workspace: 1 } }));
@@ -154,5 +163,20 @@ describe('SemanticActionPlaybackController', () => {
       status: 'failed', currentSequence: 1,
       results: [{ sequence: 1, status: 'rejected', message: 'Target is gone.' }]
     });
+  });
+
+  it('fails contract preflight before executing a future-schema Action', async () => {
+    const execute = vi.fn();
+    const incompatible: ActionRecordingSnapshot = { ...recording(), steps: [
+      { ...recording().steps[0]! },
+      { ...recording().steps[1]!, contract: { status: 'complete', schemaVersion: 2 } }
+    ] };
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.play(incompatible);
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(controller.snapshot()).toMatchObject({ status: 'failed', currentSequence: 2,
+      results: [{ status: 'contract-incompatible', message: expect.stringMatching(/schema v2/i) }] });
   });
 });

@@ -181,9 +181,10 @@ Existing foundation evidence
 - Layer via Copy now shares one explicit raster-source command. Existing
   selection pixels stay renderer-local, the created raster has a stable result
   ID, and UI/Actions/MCP reuse the same GPU/document/history transaction.
-- Concrete Actions now have bounded version-1 save/load/delete persistence and
-  active-document replay. A packaged restart proves this workflow without
-  routing any interaction preview through storage.
+- Concrete Actions now have bounded version-2 save/load/delete persistence,
+  version-1 migration with per-step command-contract checks and active-document
+  replay. A packaged restart proves this workflow without routing any
+  interaction preview through storage.
 
 Program definition of done
 ==========================

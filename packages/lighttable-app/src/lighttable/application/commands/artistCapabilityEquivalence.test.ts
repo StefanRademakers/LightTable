@@ -67,9 +67,25 @@ const createHarness = () => {
         redo: () => session.setDocument(after)
       });
     }
-    return command.kind === 'set-lock'
-      ? { layerIds: command.layerIds, lock: command.lock, locked: command.locked }
-      : 'layerId' in command ? { ...command } : null;
+    if (command.kind === 'set-lock') {
+      return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
+    }
+    if (command.kind === 'move') {
+      return { layerId: command.layerId, direction: command.direction };
+    }
+    if (command.kind === 'set-blend-mode') {
+      return { layerId: command.layerId, blendMode: command.blendMode };
+    }
+    if (command.kind === 'set-transform') {
+      return { layerId: command.layerId, transform: command.transform };
+    }
+    if (command.kind === 'set-mask') {
+      return { layerId: command.layerId, operation: command.operation,
+        ...(command.operation === 'add' ? { source: command.source ?? 'reveal-all' } : {}),
+        ...(command.operation === 'set-enabled' ? { enabled: command.enabled } : {}),
+        ...(command.operation === 'set-linked' ? { linked: command.linked } : {}) };
+    }
+    return null;
   };
   const applySelection = (command: SemanticSelectionCommand) => {
     const before = selection;

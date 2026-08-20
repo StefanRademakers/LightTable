@@ -21,6 +21,7 @@ describe('SemanticActionRecorder', () => {
     expect(recorder.snapshot().byteLength).toBeGreaterThan(0);
     expect(recorder.snapshot().steps).toEqual([expect.objectContaining({
       sequence: 1, command: 'layer.rename', origin: 'ui', outcome: 'completed', replayable: true,
+      contract: { status: 'complete', schemaVersion: 1 },
       parameters: { layerId: 'layer-1', name: 'Title' }, durationMs: 6
     })]);
     vi.restoreAllMocks();
