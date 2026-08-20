@@ -137,7 +137,44 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     expect(await adapter.invoke(request('command.execute', { command: 'layer.effect.add',
       documentId: 'document-1', commandRequestId: 'effect-add', commandParameters: {
         layerId: 'vector-1', effectKind: 'stroke'
-      } }))).toMatchObject({ status: 'completed' });
+    } }))).toMatchObject({ status: 'completed' });
+  });
+
+  it('forwards admitted structural layer commands with stable targets and revisions', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    expect(await adapter.invoke(request('command.execute', {
+      command: 'layer.setBlendMode', documentId: 'document-1',
+      commandRequestId: 'blend-1', expectedDocumentRevision: 12,
+      commandParameters: { layerId: 'layer-1', blendMode: 'multiply' }
+    }))).toMatchObject({ status: 'completed' });
+    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({
+      command: 'layer.setBlendMode', documentId: 'document-1',
+      expectedDocumentRevision: 12,
+      parameters: { layerId: 'layer-1', blendMode: 'multiply' }
+    }), { origin: 'mcp', recording: 'record' });
+  });
+
+  it('accepts one committed tool call without requiring live MCP pointer streaming', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    const samples = [{ x: 10, y: 20, pressure: 1 }, { x: 30, y: 40, pressure: 0.5 }];
+    expect(await adapter.invoke(request('command.execute', {
+      command: 'tool.commitGesture', documentId: 'document-1',
+      commandRequestId: 'stroke-1', commandParameters: {
+        kind: 'brush-stroke', parameters: { layerId: 'layer-1', channel: 'pixels', brush: {
+          presetId: 'round', size: 24, hardness: 0.75, opacity: 1, flow: 0.5,
+          spacing: 0.05, smooth: 0.2, color: '#112233', backgroundColor: '#ffffff'
+        } }, samples
+      }
+    }))).toMatchObject({ status: 'completed' });
+    expect(driver.execute).toHaveBeenCalledWith(expect.objectContaining({
+      command: 'tool.commitGesture', parameters: expect.objectContaining({ samples })
+    }), { origin: 'mcp', recording: 'record' });
   });
 
   it('keeps Face Warp outside the current remote rollout profile', async () => {

@@ -1,6 +1,7 @@
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
-import { findDocumentLayer } from '../../editor/document/layerTree';
-import { renameLayer, setLayerFillOpacity, setLayersVisibility } from '../../editor/document/documentCommands';
+import { findDocumentLayer, siblingLayers } from '../../editor/document/layerTree';
+import { moveLayer, renameLayer, setLayerBlendMode, setLayerClipping, setLayerFillOpacity,
+  setLayersLock, setLayersVisibility } from '../../editor/document/documentCommands';
 import { setLayerStyleEnabled, setLayerStyleStackEnabled } from '../../editor/styles/layerStyleCommands';
 import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
 import type { DocumentFontRegistry } from '../../text/fonts/DocumentFontRegistry';
@@ -8,6 +9,7 @@ import type { TextToolSettings } from '../../editor/session/editorSession';
 import { parseSemanticTextCommand } from './semanticTextCommandContract';
 import { parseSemanticVectorCommand } from './semanticVectorCommandContract';
 import { parseSemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
+import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
 import { executeSemanticTextCommand } from '../text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from '../vectors/semanticVectorCommandExecutor';
 import { executeSemanticLayerStyleCommand } from '../styles/semanticLayerStyleCommandExecutor';
@@ -67,6 +69,45 @@ export const executeAtomicCommandBatch = async (
       const parsed = parseSemanticLayerStyleCommand(semanticKind(operation) as 'add' | 'update' | 'remove' | 'move', parameters);
       if ('message' in parsed) throw new Error(`${operation.operationId}: ${parsed.message}`);
       result = executeSemanticLayerStyleCommand(parsed, local);
+    } else if (operation.command === 'layer.move' || operation.command === 'layer.setBlendMode'
+      || operation.command === 'layer.setClipping' || operation.command === 'layer.setLock') {
+      const kinds = {
+        'layer.move': 'move',
+        'layer.setBlendMode': 'set-blend-mode',
+        'layer.setClipping': 'set-clipping',
+        'layer.setLock': 'set-lock'
+      } as const;
+      const parsed = parseSemanticLayerCommand(kinds[operation.command], parameters);
+      if ('message' in parsed) throw new Error(`${operation.operationId}: ${parsed.message}`);
+      if (parsed.kind === 'duplicate' || parsed.kind === 'delete') {
+        throw new Error(`${operation.operationId}: the layer command is not atomic-batch compatible.`);
+      }
+      const targetIds = 'layerIds' in parsed ? parsed.layerIds : [parsed.layerId];
+      if (targetIds.some((id) => !findDocumentLayer(current, id))) {
+        throw new Error(`${operation.operationId}: the target layer does not exist.`);
+      }
+      if (parsed.kind === 'move') {
+        const siblings = siblingLayers(current, parsed.layerId);
+        const index = siblings.findIndex(({ id }) => id === parsed.layerId);
+        const targetIndex = index + (parsed.direction === 'up' ? 1 : -1);
+        if (index < 0 || targetIndex < 0 || targetIndex >= siblings.length) {
+          throw new Error(`${operation.operationId}: the layer cannot move ${parsed.direction}.`);
+        }
+        current = moveLayer(current, parsed.layerId, targetIndex);
+      } else if (parsed.kind === 'set-blend-mode') {
+        current = setLayerBlendMode(current, parsed.layerId, parsed.blendMode);
+      } else if (parsed.kind === 'set-clipping') {
+        const siblings = siblingLayers(current, parsed.layerId);
+        if (parsed.clipping && siblings.findIndex(({ id }) => id === parsed.layerId) <= 0) {
+          throw new Error(`${operation.operationId}: clipping requires a lower sibling layer.`);
+        }
+        current = setLayerClipping(current, parsed.layerId, parsed.clipping);
+      } else if (parsed.kind === 'set-lock') {
+        current = setLayersLock(current, [...parsed.layerIds], parsed.lock, parsed.locked);
+      }
+      result = parsed.kind === 'set-lock'
+        ? { layerIds: parsed.layerIds, lock: parsed.lock, locked: parsed.locked }
+        : { ...parsed };
     } else {
       if (!record(parameters)) throw new Error(`${operation.operationId}: parameters must be an object.`);
       const layerId = String(parameters.layerId ?? '') as LayerId;

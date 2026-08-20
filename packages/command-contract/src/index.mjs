@@ -5,6 +5,8 @@ import commandCatalog from '../catalog.json' with { type: 'json' };
 
 import parameterProperties from '../parameter-properties.json' with { type: 'json' };
 
+import commandExamples from '../examples.json' with { type: 'json' };
+
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1;
 
 export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
@@ -14,6 +16,12 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'document.applyGeometry',
   'view.setZoom',
   'layer.createRaster',
+  'layer.duplicate',
+  'layer.delete',
+  'layer.move',
+  'layer.setBlendMode',
+  'layer.setClipping',
+  'layer.setLock',
   'layer.placeArtifact',
   'layer.rename',
   'layer.setVisibility',
@@ -34,6 +42,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'layer.effect.remove',
   'layer.effect.move',
   'command.batch',
+  'tool.commitGesture',
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
@@ -46,10 +55,18 @@ export const LIGHTTABLE_COMMAND_DEFINITIONS = Object.freeze(commandCatalog.comma
 
 export const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES = Object.freeze(parameterProperties);
 
+export const LIGHTTABLE_COMMAND_EXAMPLES = Object.freeze(commandExamples);
+
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'document.create',
   'view.setZoom',
   'layer.createRaster',
+  'layer.duplicate',
+  'layer.delete',
+  'layer.move',
+  'layer.setBlendMode',
+  'layer.setClipping',
+  'layer.setLock',
   'layer.placeArtifact',
   'layer.rename',
   'layer.setVisibility',
@@ -69,6 +86,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'layer.effect.remove',
   'layer.effect.move',
   'command.batch',
+  'tool.commitGesture',
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
@@ -80,6 +98,12 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
 export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'view.setZoom',
   'layer.createRaster',
+  'layer.duplicate',
+  'layer.delete',
+  'layer.move',
+  'layer.setBlendMode',
+  'layer.setClipping',
+  'layer.setLock',
   'layer.placeArtifact',
   'layer.rename',
   'layer.setVisibility',
@@ -98,6 +122,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'layer.effect.remove',
   'layer.effect.move',
   'command.batch',
+  'tool.commitGesture',
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
@@ -112,9 +137,10 @@ export const LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS = Object.freeze([
 ]);
 
 export const LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS = Object.freeze([
-  'view.setZoom',
-  'layer.createRaster',
-  'layer.placeArtifact',
+  'layer.move',
+  'layer.setBlendMode',
+  'layer.setClipping',
+  'layer.setLock',
   'layer.rename',
   'layer.setVisibility',
   'layer.setFillOpacity',
@@ -130,12 +156,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS = Object.freeze([
   'layer.effect.add',
   'layer.effect.update',
   'layer.effect.remove',
-  'layer.effect.move',
-  'file.exportNative',
-  'file.exportPng',
-  'file.exportPsd',
-  'history.undo',
-  'history.redo'
+  'layer.effect.move'
 ]);
 
 const commandIds = new Set(LIGHTTABLE_COMMAND_IDS);

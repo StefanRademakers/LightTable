@@ -10,6 +10,12 @@ export declare const LIGHTTABLE_COMMAND_IDS: readonly [
   'document.applyGeometry',
   'view.setZoom',
   'layer.createRaster',
+  'layer.duplicate',
+  'layer.delete',
+  'layer.move',
+  'layer.setBlendMode',
+  'layer.setClipping',
+  'layer.setLock',
   'layer.placeArtifact',
   'layer.rename',
   'layer.setVisibility',
@@ -30,6 +36,7 @@ export declare const LIGHTTABLE_COMMAND_IDS: readonly [
   'layer.effect.remove',
   'layer.effect.move',
   'command.batch',
+  'tool.commitGesture',
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
@@ -41,16 +48,24 @@ export declare const LIGHTTABLE_COMMAND_IDS: readonly [
 export type LightTableCommandId = typeof LIGHTTABLE_COMMAND_IDS[number];
 
 export type LightTableCommandCategory = 'document' | 'image' | 'view' | 'layer' | 'effects' | 'file' | 'text' | 'vector' | 'automation' | 'history';
-export interface LightTableCommandDefinition { readonly id: LightTableCommandId; readonly category: LightTableCommandCategory; readonly label: string; readonly description: string; readonly scope: 'workspace' | 'document'; readonly effect: 'presentation' | 'edit' | 'external-io' | 'control'; readonly invocation: 'direct' | 'parameters'; readonly agentAccess: boolean; readonly agentAccessReason?: string; readonly externalMcp: 'execute' | 'dedicated' | null; readonly externalMcpReason?: string; }
+export interface LightTableCommandDefinition { readonly id: LightTableCommandId; readonly category: LightTableCommandCategory; readonly label: string; readonly description: string; readonly scope: 'workspace' | 'document'; readonly effect: 'presentation' | 'edit' | 'external-io' | 'control'; readonly invocation: 'direct' | 'parameters'; readonly agentAccess: boolean; readonly agentAccessReason?: string; readonly externalMcp: 'execute' | 'dedicated' | null; readonly externalMcpReason?: string; readonly atomicBatch?: boolean; }
 export declare const LIGHTTABLE_COMMAND_DEFINITIONS: readonly LightTableCommandDefinition[];
 
 export type LightTableCommandParameterProperties = Readonly<Record<string, string>>;
 export declare const LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES: Readonly<Record<LightTableCommandId, LightTableCommandParameterProperties>>;
 
+export declare const LIGHTTABLE_COMMAND_EXAMPLES: Readonly<Partial<Record<LightTableCommandId, readonly Readonly<Record<string, unknown>>[]>>>;
+
 export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'document.create',
   'view.setZoom',
   'layer.createRaster',
+  'layer.duplicate',
+  'layer.delete',
+  'layer.move',
+  'layer.setBlendMode',
+  'layer.setClipping',
+  'layer.setLock',
   'layer.placeArtifact',
   'layer.rename',
   'layer.setVisibility',
@@ -70,6 +85,7 @@ export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'layer.effect.remove',
   'layer.effect.move',
   'command.batch',
+  'tool.commitGesture',
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
@@ -83,6 +99,12 @@ export type LightTableAgentAccessCommandId = typeof LIGHTTABLE_AGENT_ACCESS_COMM
 export declare const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS: readonly [
   'view.setZoom',
   'layer.createRaster',
+  'layer.duplicate',
+  'layer.delete',
+  'layer.move',
+  'layer.setBlendMode',
+  'layer.setClipping',
+  'layer.setLock',
   'layer.placeArtifact',
   'layer.rename',
   'layer.setVisibility',
@@ -101,6 +123,7 @@ export declare const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS: readonly [
   'layer.effect.remove',
   'layer.effect.move',
   'command.batch',
+  'tool.commitGesture',
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
@@ -115,9 +138,10 @@ export declare const LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS: readonly [
 ];
 
 export declare const LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS: readonly [
-  'view.setZoom',
-  'layer.createRaster',
-  'layer.placeArtifact',
+  'layer.move',
+  'layer.setBlendMode',
+  'layer.setClipping',
+  'layer.setLock',
   'layer.rename',
   'layer.setVisibility',
   'layer.setFillOpacity',
@@ -133,12 +157,7 @@ export declare const LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS: readonly [
   'layer.effect.add',
   'layer.effect.update',
   'layer.effect.remove',
-  'layer.effect.move',
-  'file.exportNative',
-  'file.exportPng',
-  'file.exportPsd',
-  'history.undo',
-  'history.redo'
+  'layer.effect.move'
 ];
 
 export declare const isLightTableCommandId: (value: unknown) => value is LightTableCommandId;

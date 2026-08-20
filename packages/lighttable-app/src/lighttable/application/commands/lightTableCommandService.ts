@@ -3,7 +3,7 @@ import type { WorkspaceSession } from '../workspace/workspaceSession';
 import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 import type { RenderTelemetrySnapshot } from '../rendering/renderTelemetry';
-import { findDocumentLayer, walkLayerTree } from '../../editor/document/layerTree';
+import { findDocumentLayer, siblingLayers, walkLayerTree } from '../../editor/document/layerTree';
 import { queryLayerCommandCapabilities } from '../layers/layerCommandCapabilities';
 import {
   LightTableArtifactRegistry,
@@ -33,10 +33,11 @@ import { parseAtomicCommandBatch, type AtomicCommandBatch } from './atomicComman
 import { AutomationTaskEventStore } from './automationTaskEventStore';
 import { startAtomicCommandBatchTask } from './atomicCommandBatchTask';
 import { isLightTableCommandId, isLightTableGestureKind, isLightTableGestureSample,
-  parseCreateDocumentOptions } from './lightTableCommandValidation';
+  parseCommittedGestureRequest, parseCreateDocumentOptions } from './lightTableCommandValidation';
 import { parseImageSizeRequest } from '../imageSize/imageSizeModel';
 import { parseDocumentGeometryRequest } from '../documentGeometry/documentGeometryModel';
 import { parseSemanticFaceWarpCommand, type SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
+import { parseSemanticLayerCommand, type SemanticLayerCommand } from './semanticLayerCommandContract';
 import {
   SemanticActionRecorder,
   type ActionRecordingSnapshot
@@ -111,6 +112,10 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     const execute = this.resolve(documentId).executeFaceWarpCommand;
     if (!execute) throw new Error('Face Warp commands are unavailable in the target document.');
     return execute(command);
+  }
+
+  executeLayerCommand(documentId: DocumentSessionId, command: SemanticLayerCommand) {
+    return this.resolve(documentId).executeLayerCommand(command);
   }
 
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
@@ -507,6 +512,17 @@ export class LightTableCommandService {
       availability('document.applyGeometry', Boolean(this.ports.applyDocumentGeometry), 'Document geometry is unavailable in this host.'),
       availability('view.setZoom', true, ''),
       availability('layer.createRaster', true, ''),
+      availability('layer.duplicate', walkLayerTree(snapshot.document.layers)
+        .some(({ node }) => node.type === 'raster' || node.type === 'text'),
+      'There is no duplicable raster or text layer.'),
+      availability('layer.delete', layerCapabilities.layerCount > 1,
+        'The document must retain at least one layer.'),
+      availability('layer.move', layerCapabilities.layerCount > 1,
+        'There is no other layer to move relative to.'),
+      availability('layer.setBlendMode', layerCapabilities.layerCount > 0, 'There are no layers.'),
+      availability('layer.setClipping', layerCapabilities.layerCount > 1,
+        'Clipping requires a lower sibling layer.'),
+      availability('layer.setLock', layerCapabilities.layerCount > 0, 'There are no layers.'),
       availability('layer.placeArtifact', true, ''),
       availability(
         'layer.rename',
@@ -532,6 +548,7 @@ export class LightTableCommandService {
       availability('layer.effect.remove', true, ''),
       availability('layer.effect.move', true, ''),
       availability('command.batch', true, ''),
+      availability('tool.commitGesture', true, ''),
       availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),
       availability('file.exportNative', true, ''),
       availability('file.exportPng', true, ''),
@@ -828,7 +845,7 @@ export class LightTableCommandService {
     try {
       const result = await this.executeParsed(documentRequest, snapshot);
       if ('code' in result) return this.reject(value.requestId, result.code, result.message, snapshot);
-      if (value.command !== 'view.setZoom') {
+      if (value.command !== 'view.setZoom' && result.changed !== false) {
         this.workspace.getDocument(documentRequest.documentId)?.markChanged();
       }
       return {
@@ -884,7 +901,7 @@ export class LightTableCommandService {
   private async executeParsed(
     request: DocumentParsedCommandRequest,
     snapshot: DocumentSessionSnapshot
-  ): Promise<{ value: unknown } | { code: LightTableCommandErrorCode; message: string }> {
+  ): Promise<{ value: unknown; changed?: boolean } | { code: LightTableCommandErrorCode; message: string }> {
     const parameters = request.parameters;
     switch (request.command) {
       case 'view.setZoom': {
@@ -915,6 +932,58 @@ export class LightTableCommandService {
           ? walkLayerTree(after.layers).find(({ node }) => !beforeIds.has(node.id))?.node ?? null
           : null;
         return { value: { created: true, layerId: created?.id ?? null } };
+      }
+      case 'layer.duplicate':
+      case 'layer.delete':
+      case 'layer.move':
+      case 'layer.setBlendMode':
+      case 'layer.setClipping':
+      case 'layer.setLock': {
+        const kinds = {
+          'layer.duplicate': 'duplicate',
+          'layer.delete': 'delete',
+          'layer.move': 'move',
+          'layer.setBlendMode': 'set-blend-mode',
+          'layer.setClipping': 'set-clipping',
+          'layer.setLock': 'set-lock'
+        } as const;
+        const command = parseSemanticLayerCommand(kinds[request.command], parameters);
+        if ('message' in command) return this.invalidParameters(command.message);
+        const targetIds = 'layerIds' in command ? command.layerIds : [command.layerId];
+        if (targetIds.some((id) => !findDocumentLayer(snapshot.document!, id))) {
+          return { code: 'command-unavailable', message: 'One or more target layers do not exist.' };
+        }
+        if (command.kind === 'duplicate') {
+          const layer = findDocumentLayer(snapshot.document!, command.layerId)!;
+          if (layer.type !== 'raster' && layer.type !== 'text') {
+            return { code: 'command-unavailable', message: 'Only raster and text layers can currently be duplicated.' };
+          }
+        }
+        if (command.kind === 'delete'
+          && !queryLayerCommandCapabilities(snapshot.document!, command.layerIds).canDeleteSelection) {
+          return { code: 'command-unavailable', message: 'The requested layers cannot be deleted.' };
+        }
+        if (command.kind === 'move') {
+          const siblings = siblingLayers(snapshot.document!, command.layerId);
+          const index = siblings.findIndex(({ id }) => id === command.layerId);
+          const targetIndex = index + (command.direction === 'up' ? 1 : -1);
+          if (index < 0 || targetIndex < 0 || targetIndex >= siblings.length) {
+            return { code: 'command-unavailable', message: `The layer cannot move ${command.direction}.` };
+          }
+        }
+        if (command.kind === 'set-clipping' && command.clipping) {
+          const siblings = siblingLayers(snapshot.document!, command.layerId);
+          if (siblings.findIndex(({ id }) => id === command.layerId) <= 0) {
+            return { code: 'command-unavailable', message: 'Clipping requires a lower sibling layer.' };
+          }
+        }
+        const beforeRevision = snapshot.document!.revision;
+        const result = await this.ports.executeLayerCommand(request.documentId, command);
+        if (!result) {
+          return { code: 'execution-failed', message: 'The layer command did not complete.' };
+        }
+        const changed = this.document(request.documentId)?.document?.revision !== beforeRevision;
+        return { value: result, changed };
       }
       case 'layer.rename': {
         if (!isRecord(parameters)) return this.invalidParameters('Rename parameters must be an object.');
@@ -985,6 +1054,37 @@ export class LightTableCommandService {
         }
         await this.ports.setLayerFillOpacity(request.documentId, layerId, parameters.opacity);
         return { value: { layerId, opacity: parameters.opacity } };
+      }
+      case 'tool.commitGesture': {
+        const committed = parseCommittedGestureRequest(parameters);
+        if ('message' in committed) return this.invalidParameters(committed.message);
+        const started = await this.beginGesture({
+          documentId: request.documentId,
+          kind: committed.kind,
+          coordinateSpace: 'document',
+          parameters: committed.parameters,
+          sample: committed.samples[0]
+        });
+        if (started.status !== 'started' || !started.gestureId) {
+          return { code: 'execution-failed', message: started.message ?? 'The tool operation did not start.' };
+        }
+        for (let offset = 1; offset < committed.samples.length; offset += 64) {
+          const updated = await this.updateGesture(
+            started.gestureId,
+            committed.samples.slice(offset, offset + 64)
+          );
+          if (updated.status === 'rejected') {
+            return { code: 'execution-failed', message: updated.message ?? 'The tool operation failed.' };
+          }
+        }
+        const finished = await this.finishGesture(started.gestureId, true);
+        if (finished.status !== 'completed') {
+          return { code: 'execution-failed', message: finished.message ?? 'The tool operation did not commit.' };
+        }
+        return { value: {
+          kind: committed.kind,
+          sampleCount: committed.samples.length
+        }, changed: false };
       }
       case 'history.undo':
       case 'history.redo': {

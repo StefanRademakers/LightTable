@@ -6,6 +6,7 @@
   "files": [
     "catalog.json",
     "parameter-properties.json",
+    "examples.json",
     "src"
   ],
   "exports": {
@@ -14,7 +15,8 @@
       "default": "./src/index.mjs"
     },
     "./catalog.json": "./catalog.json",
-    "./parameter-properties.json": "./parameter-properties.json"
+    "./parameter-properties.json": "./parameter-properties.json",
+    "./examples.json": "./examples.json"
   },
   "scripts": {
     "test": "node ../../scripts/generate-command-contract.mjs --check && node --test test",

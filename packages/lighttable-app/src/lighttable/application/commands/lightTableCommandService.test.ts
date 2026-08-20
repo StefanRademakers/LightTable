@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRasterLayer, createTextLayer, renameLayer } from '../../editor/document/documentCommands';
+import { createRasterLayer, createTextLayer, duplicateLayer, renameLayer,
+  setLayerBlendMode } from '../../editor/document/documentCommands';
 import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createVectorLiveShape } from '@lighttable/vector-core';
@@ -40,6 +41,7 @@ const setup = () => {
     executeVectorCommand: vi.fn(),
     executeLayerStyleCommand: vi.fn(),
     executeFaceWarpCommand: vi.fn(),
+    executeLayerCommand: vi.fn(),
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -61,6 +63,10 @@ const request = (command: string, documentId: string, parameters: unknown = {}) 
   documentId,
   parameters
 });
+const automationBrush = {
+  presetId: 'round', size: 24, hardness: 0.75, opacity: 1, flow: 0.5,
+  spacing: 0.05, smooth: 0.2, color: '#112233', backgroundColor: '#ffffff'
+};
 
 describe('LightTableCommandService action recording', () => {
   it('observes the same command execution path used by normal callers', async () => {
@@ -135,6 +141,45 @@ describe('LightTableCommandService action recording', () => {
     ]);
     state.service.dispose();
     state.workspace.dispose();
+  });
+
+  it('rebinds later layer operations to the duplicate created during playback', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeLayerCommand).mockImplementation((_documentId, command) => {
+      const before = state.session.getSnapshot().document!;
+      if (command.kind === 'duplicate') {
+        const after = duplicateLayer(before, command.layerId);
+        state.session.setDocument(after);
+        return { sourceLayerId: command.layerId, layerId: after.activeLayerId };
+      }
+      if (command.kind === 'set-blend-mode') {
+        state.session.setDocument(setLayerBlendMode(before, command.layerId, command.blendMode));
+        return { layerId: command.layerId, blendMode: command.blendMode };
+      }
+      return null;
+    });
+    const sourceLayerId = state.session.getSnapshot().document!.activeLayerId!;
+    state.service.startActionRecording('Duplicate and blend');
+    const duplicate = await state.service.execute(request('layer.duplicate', state.session.id,
+      { layerId: sourceLayerId }));
+    if (duplicate.status !== 'completed') throw new Error('Duplicate failed.');
+    const recordedCopyId = (duplicate.value as { layerId: string }).layerId;
+    await state.service.execute(request('layer.setBlendMode', state.session.id,
+      { layerId: recordedCopyId, blendMode: 'multiply' }));
+    state.service.stopActionRecording();
+
+    expect(state.service.actionRecordingSnapshot().steps[1]?.parameters).toEqual({
+      layerId: { $lighttableResult: { step: 1, path: 'layerId' } },
+      blendMode: 'multiply'
+    });
+    await state.service.playActionRecording();
+    const calls = vi.mocked(state.ports.executeLayerCommand).mock.calls;
+    expect(calls).toHaveLength(4);
+    expect(calls[3]?.[1]).toMatchObject({
+      kind: 'set-blend-mode', blendMode: 'multiply'
+    });
+    expect((calls[3]?.[1] as { layerId: string }).layerId).not.toBe(recordedCopyId);
+    state.service.dispose(); state.workspace.dispose();
   });
 });
 
@@ -379,6 +424,39 @@ describe('LightTableCommandService registry', () => {
     state.service.dispose(); state.workspace.dispose();
   });
 
+  it('validates and routes structural layer capabilities with stable targets', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeLayerCommand).mockImplementation((_documentId, command) => (
+      command.kind === 'duplicate'
+        ? { sourceLayerId: command.layerId, layerId: 'copy-id' }
+        : { ...command }
+    ));
+    const document = state.session.getSnapshot().document!;
+    const topId = document.activeLayerId!;
+    const results = await Promise.all([
+      state.service.execute(request('layer.duplicate', state.session.id, { layerId: topId })),
+      state.service.execute(request('layer.move', state.session.id, { layerId: topId, direction: 'down' })),
+      state.service.execute(request('layer.setBlendMode', state.session.id,
+        { layerId: topId, blendMode: 'screen' })),
+      state.service.execute(request('layer.setClipping', state.session.id,
+        { layerId: topId, clipping: true })),
+      state.service.execute(request('layer.setLock', state.session.id,
+        { layerIds: [topId], lock: 'position', locked: true })),
+      state.service.execute(request('layer.delete', state.session.id, { layerIds: [topId] }))
+    ]);
+    expect(results.every(({ status }) => status === 'completed')).toBe(true);
+    expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(6);
+
+    const malformed = await state.service.execute(request('layer.setBlendMode', state.session.id,
+      { layerId: topId, blendMode: 'unknown-mode' }));
+    const missing = await state.service.execute(request('layer.delete', state.session.id,
+      { layerIds: ['missing-layer'] }));
+    expect(malformed).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(missing).toMatchObject({ status: 'rejected', code: 'command-unavailable' });
+    expect(state.ports.executeLayerCommand).toHaveBeenCalledTimes(6);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('routes mounted document controllers and rejects calls after unmount', async () => {
     const registry = new LightTableCommandPortRegistry();
     const ports = {
@@ -393,6 +471,7 @@ describe('LightTableCommandService registry', () => {
       executeTextCommand: vi.fn(),
       executeVectorCommand: vi.fn(),
       executeLayerStyleCommand: vi.fn(),
+      executeLayerCommand: vi.fn(),
       executeAtomicBatch: vi.fn(),
       exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
       exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -466,6 +545,48 @@ describe('LightTableCommandService registry', () => {
     expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(2);
     state.service.dispose();
     state.workspace.dispose();
+  });
+
+  it('records and replays one bounded committed tool operation instead of pointer commands', async () => {
+    const state = setup();
+    const samples = Array.from({ length: 130 }, (_, index) => ({
+      x: index, y: index * 0.5, pressure: 0.75
+    }));
+    state.service.startActionRecording('One stroke');
+    const result = await state.service.execute(request('tool.commitGesture', state.session.id, {
+      kind: 'brush-stroke',
+      parameters: { layerId: state.session.getSnapshot().document!.activeLayerId,
+        channel: 'pixels', brush: automationBrush },
+      samples
+    }));
+    state.service.stopActionRecording();
+    expect(result).toMatchObject({ status: 'completed', value: {
+      kind: 'brush-stroke', sampleCount: 130
+    } });
+    expect(state.ports.beginGesture).toHaveBeenCalledTimes(1);
+    expect(state.ports.updateGesture).toHaveBeenCalledTimes(129);
+    expect(state.ports.finishGesture).toHaveBeenCalledTimes(1);
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([
+      { command: 'tool.commitGesture', replayable: true,
+        parameters: { kind: 'brush-stroke', samples } }
+    ]);
+
+    await state.service.playActionRecording();
+    expect(state.ports.beginGesture).toHaveBeenCalledTimes(2);
+    expect(state.ports.updateGesture).toHaveBeenCalledTimes(258);
+    expect(state.ports.finishGesture).toHaveBeenCalledTimes(2);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('rejects oversized committed tool operations before touching the editor hot path', async () => {
+    const state = setup();
+    const result = await state.service.execute(request('tool.commitGesture', state.session.id, {
+      kind: 'brush-stroke', parameters: {},
+      samples: Array.from({ length: 4097 }, (_, index) => ({ x: index, y: 0 }))
+    }));
+    expect(result).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(state.ports.beginGesture).not.toHaveBeenCalled();
+    state.service.dispose(); state.workspace.dispose();
   });
 
   it('validates bounded layer visibility mutations', async () => {

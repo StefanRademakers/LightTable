@@ -1,0 +1,123 @@
+Task 222 - Artist Actions and committed tool operations
+======================================================
+
+Goal
+====
+
+Deliver a broad, reusable proof that normal LightTable UI operations, recorded
+Actions and MCP calls can execute the same typed artist capabilities without
+putting command transport or recording work in realtime interaction paths.
+
+This task contributes to, but does not complete:
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 220`](../task_220_reviewed_mcp_capability_admission/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Architecture decision
+=====================
+
+Toolbar activation and pointer movement are not automatically artist commands.
+The durable capability is the committed document operation:
+
+```text
+interactive UI preview (local hot path)
+  -> one semantic commit with stable targets and complete properties
+  -> canonical document/history/render owner
+  -> Actions recording and playback
+  -> reviewed MCP execution
+```
+
+Paint, Warp, transforms, selections, crop and grading must never route every
+pointer or slider update through Actions/MCP. UI previews remain local and
+frame-paced. Actions records the final bounded operation. MCP submits the same
+operation directly and inspects its result; it does not simulate a live cursor.
+
+Photoshop inspiration, not a compatibility limit
+=================================================
+
+Adobe Actions can optionally record tool operations, preserve tool/brush
+settings, insert otherwise non-recordable menu items and apply multiple action
+descriptors as one asynchronous batch. LightTable should retain the useful
+ideas—explicit properties, stable targets, editable steps, bounded batches and
+one history publication—while supporting richer typed results and agent
+inspection than Photoshop Actions.
+
+Official references:
+
+- https://helpx.adobe.com/photoshop/using/recording-tools-actions-cs6.html
+- https://helpx.adobe.com/photoshop/desktop/automate-tasks/create-record-actions/record-an-action.html
+- https://developer.adobe.com/photoshop/uxp/ps_reference/media/batchplay/
+
+Execution checklist
+===================
+
+Contract and test foundation
+----------------------------
+
+- [x] Restore the generated command and menu-coverage checks to green.
+- [x] Add reusable typed input/result validation for the selected capabilities.
+- [x] Add examples that use stable document/layer IDs rather than UI position.
+- [ ] Build an equivalence harness that compares canonical state, history and
+      returned IDs for direct owner, Actions playback and MCP execution.
+- [x] Prove invalid targets, stale revisions and malformed properties fail
+      without partial document mutation.
+
+Layer structure vertical
+------------------------
+
+- [x] Duplicate an explicit layer and return/bind the new stable layer ID.
+- [x] Delete an explicit bounded layer set through normal undo history.
+- [x] Move a layer within its parent without index-identity leakage.
+- [x] Set blend mode, clipping, visibility and structured locks.
+- [x] Route the real menus and Layers panel through the same capabilities.
+- [x] Record and replay a representative multi-step layer Action.
+- [x] Admit the verified bounded subset to MCP and test the real adapter.
+
+Discrete toolbar verticals
+--------------------------
+
+- [x] Inventory toolbar operations as presentation-only activation, discrete
+      command, or continuous committed gesture.
+- [x] Implement a representative selection committed operation.
+- [x] Implement a representative transform committed operation.
+- [ ] Reuse existing text/vector semantic operations as toolbar equivalence
+      cases instead of adding a second implementation.
+- [ ] Record and replay one mixed mini-design Action using layers plus at least
+      two toolbar-originated committed operations.
+
+Realtime safety
+---------------
+
+- [x] Specify the common committed-operation envelope for paint, selection,
+      transform, crop, Warp and grading.
+- [x] Keep individual pointer updates and slider previews outside command recording.
+- [x] Bound sample/property payload size and reject incomplete operations.
+- [x] Coalesce one interaction into one undo/history publication.
+- [ ] Measure representative interactive paint/transform cadence before and
+      after integration; no meaningful regression is accepted.
+- [x] Prove MCP can submit one complete call with properties without requiring
+      live drawing or slider simulation.
+
+Product verification and handoff
+--------------------------------
+
+- [ ] Run focused unit and contract suites.
+- [ ] Run app typecheck, MCP tests, Actions tests and architecture boundaries.
+- [ ] Exercise the representative flow in the packaged desktop application.
+- [ ] Update command coverage and the active task status with exact evidence.
+- [ ] Commit cohesive milestones with no unrelated worktree changes.
+
+Stop conditions
+===============
+
+- Do not alter visual algorithms or defaults that require owner taste review.
+- Do not automate Photoshop or use paid/external generation providers.
+- Do not admit an operation to MCP merely because an executor exists.
+- If a realtime path cannot be integrated without measurable interaction risk,
+  retain the local hot path and document the exact blocked semantic boundary.
+- Do not mark this task done until the packaged mixed artist flow passes.

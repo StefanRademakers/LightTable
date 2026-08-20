@@ -9,7 +9,7 @@ import {
   addLayerMask,
   addRasterLayerAttachedAdjustment,
   createAdjustmentLayer,
-  duplicateLayer,
+  duplicateLayer as duplicateDocumentLayer,
   createRasterLayer,
   flattenGroup,
   flattenImage,
@@ -133,6 +133,7 @@ export interface LayerDocumentCommands {
     mode: 'replace' | 'intersect' | 'new-layer'
   ): boolean;
   duplicateActiveLayer(): boolean;
+  duplicateLayer(layerId: LayerId): LayerId | null;
   createAdjustmentLayer(): boolean;
   createCurvesAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
@@ -256,13 +257,12 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const duplicateActiveLayer = () => {
+  const duplicateLayer = (sourceId: LayerId): LayerId | null => {
     const current = dependenciesRef.current.getDocument();
-    if (!current?.activeLayerId) return false;
-    const sourceId = current.activeLayerId;
+    if (!current) return null;
     const source = findDocumentLayer(current, sourceId);
-    const next = duplicateLayer(current, sourceId);
-    if (next === current || !next.activeLayerId) return false;
+    const next = duplicateDocumentLayer(current, sourceId);
+    if (next === current || !next.activeLayerId) return null;
 
     dependenciesRef.current.applyDocumentSnapshot(next);
     if (source?.type === 'raster') {
@@ -272,7 +272,12 @@ export const createLayerDocumentCommands = (
     }
     dependenciesRef.current.pushDocumentHistory(current, next);
     dependenciesRef.current.setActiveChannel('pixels');
-    return true;
+    return next.activeLayerId;
+  };
+
+  const duplicateActiveLayer = () => {
+    const activeLayerId = dependenciesRef.current.getDocument()?.activeLayerId;
+    return activeLayerId ? duplicateLayer(activeLayerId) !== null : false;
   };
 
   const applyBackgroundRemovalMask = (
@@ -297,7 +302,7 @@ export const createLayerDocumentCommands = (
     let prepared = before;
     let targetId = sourceId;
     if (mode === 'new-layer') {
-      prepared = duplicateLayer(before, sourceId);
+      prepared = duplicateDocumentLayer(before, sourceId);
       targetId = prepared.activeLayerId ?? sourceId;
       if (prepared === before || targetId === sourceId) return false;
     }
@@ -1006,6 +1011,7 @@ export const createLayerDocumentCommands = (
     addActiveLayerMask,
     applyBackgroundRemovalMask,
     duplicateActiveLayer,
+    duplicateLayer,
     createAdjustmentLayer: createGradeAdjustmentLayer,
     createCurvesAdjustmentLayer,
     createLensFxLayer,

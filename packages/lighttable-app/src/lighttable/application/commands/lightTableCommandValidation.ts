@@ -1,6 +1,8 @@
 import type { LightTableCreateDocumentOptions,
   LightTableGestureKind, LightTableGestureSample } from './lightTableCommandContract';
 import { isLightTableCommandId } from '@lighttable/command-contract';
+import type { BrushSettings } from '../../editor/session/editorSession';
+import { BRUSH_PRESET_IDS } from '../../editor/tools/brush/brushPresets';
 
 const record = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -14,6 +16,82 @@ export const isLightTableGestureSample = (value: unknown): value is LightTableGe
   && typeof value.y === 'number' && Number.isFinite(value.y) && Math.abs(value.y) <= 10_000_000
   && (value.pressure === undefined || (typeof value.pressure === 'number' && Number.isFinite(value.pressure)
     && value.pressure >= 0 && value.pressure <= 1));
+
+export interface CommittedGestureRequest {
+  readonly kind: LightTableGestureKind;
+  readonly parameters: Record<string, unknown>;
+  readonly samples: readonly LightTableGestureSample[];
+}
+
+const unitInterval = (value: unknown): value is number => (
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+);
+const hexColor = (value: unknown): value is string => (
+  typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
+);
+
+export const parseAutomationBrushSettings = (value: unknown): BrushSettings | null => {
+  if (!record(value) || typeof value.presetId !== 'string'
+    || !BRUSH_PRESET_IDS.includes(value.presetId as BrushSettings['presetId'])
+    || typeof value.size !== 'number' || !Number.isFinite(value.size) || value.size < 0.1 || value.size > 5000
+    || !unitInterval(value.hardness) || !unitInterval(value.opacity) || !unitInterval(value.flow)
+    || typeof value.spacing !== 'number' || !Number.isFinite(value.spacing)
+    || value.spacing < 0.001 || value.spacing > 2 || !unitInterval(value.smooth)
+    || !hexColor(value.color) || !hexColor(value.backgroundColor)) return null;
+  return {
+    presetId: value.presetId as BrushSettings['presetId'],
+    size: value.size,
+    hardness: value.hardness,
+    opacity: value.opacity,
+    flow: value.flow,
+    spacing: value.spacing,
+    smooth: value.smooth,
+    color: value.color,
+    backgroundColor: value.backgroundColor
+  };
+};
+
+export const parseCommittedGestureRequest = (
+  value: unknown
+): CommittedGestureRequest | { readonly message: string } => {
+  if (!record(value) || !isLightTableGestureKind(value.kind) || !record(value.parameters)
+    || !Array.isArray(value.samples) || value.samples.length < 1 || value.samples.length > 4096
+    || !value.samples.every(isLightTableGestureSample)) {
+    return { message: 'Committed gesture requires a supported kind, parameters and 1-4096 finite samples.' };
+  }
+  let byteLength = Number.POSITIVE_INFINITY;
+  try { byteLength = new TextEncoder().encode(JSON.stringify(value)).byteLength; } catch { /* rejected below */ }
+  if (byteLength > 240 * 1024) {
+    return { message: 'Committed gesture payload exceeds the 240 KiB Actions boundary.' };
+  }
+  let parameters: Record<string, unknown>;
+  if (value.kind === 'brush-stroke') {
+    const brush = parseAutomationBrushSettings(value.parameters.brush);
+    if (typeof value.parameters.layerId !== 'string' || !value.parameters.layerId
+      || !brush || (value.parameters.channel !== 'pixels' && value.parameters.channel !== 'mask')
+      || (value.parameters.erase !== undefined && typeof value.parameters.erase !== 'boolean')) {
+      return { message: 'Committed brush stroke requires layerId, channel and complete bounded brush settings.' };
+    }
+    parameters = { layerId: value.parameters.layerId, channel: value.parameters.channel,
+      erase: value.parameters.erase === true, brush };
+  } else if (value.kind === 'layer-translate') {
+    if (typeof value.parameters.layerId !== 'string' || !value.parameters.layerId) {
+      return { message: 'Committed layer translation requires layerId.' };
+    }
+    parameters = { layerId: value.parameters.layerId };
+  } else {
+    const mode = value.parameters.mode;
+    if (mode !== 'replace' && mode !== 'add' && mode !== 'subtract' && mode !== 'intersect') {
+      return { message: 'Committed selection rectangle requires a combine mode.' };
+    }
+    parameters = { mode };
+  }
+  return {
+    kind: value.kind,
+    parameters,
+    samples: value.samples as LightTableGestureSample[]
+  };
+};
 
 export const parseCreateDocumentOptions = (value: unknown): LightTableCreateDocumentOptions | { message: string } => {
   if (!record(value)) return { message: 'Create document parameters must be an object.' };

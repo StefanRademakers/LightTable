@@ -4,6 +4,7 @@ import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lig
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
+import { parseAutomationBrushSettings } from './application/commands/lightTableCommandValidation';
 import { useDocumentHistoryController, type EditorHistoryEntry } from './application/commands/useDocumentHistoryController';
 import type { DocumentSession, DocumentSessionId } from './application/documents/documentSession';
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
@@ -4487,7 +4488,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       : document?.activeLayerId
         ? [document.activeLayerId]
         : [];
-    if (layerIds.length > 0) layerPanelController.deleteSelection(layerIds);
+    if (layerIds.length > 0
+      && !executeRegisteredCommand('layer.delete', { layerIds })) {
+      layerPanelController.deleteSelection(layerIds);
+    }
   };
   useEffect(() => {
     if (!commandPorts) return;
@@ -4525,6 +4529,30 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         applyDocument: applyDocumentSnapshot,
         recordHistory: pushDocumentHistory
       }),
+      executeLayerCommand: (command) => {
+        if (command.kind === 'duplicate') {
+          const layerId = layerDocumentCommands.duplicateLayer(command.layerId);
+          return layerId ? { sourceLayerId: command.layerId, layerId } : null;
+        }
+        if (command.kind === 'delete') {
+          layerPanelController.deleteSelection([...command.layerIds]);
+          return { layerIds: command.layerIds };
+        }
+        if (command.kind === 'move') {
+          layerPanelController.move(command.layerId, command.direction);
+          return { layerId: command.layerId, direction: command.direction };
+        }
+        if (command.kind === 'set-blend-mode') {
+          layerPanelController.setBlendMode(command.layerId, command.blendMode);
+          return { layerId: command.layerId, blendMode: command.blendMode };
+        }
+        if (command.kind === 'set-clipping') {
+          layerPanelController.setClipping(command.layerId, command.clipping);
+          return { layerId: command.layerId, clipping: command.clipping };
+        }
+        layerPanelController.setLock([...command.layerIds], command.lock, command.locked);
+        return { layerIds: command.layerIds, lock: command.lock, locked: command.locked };
+      },
       executeAtomicBatch: async (batch, signal, report) => {
         const result = await executeAtomicCommandBatch(batch, {
           fontRegistry: textFontRegistry, getDocument: () => imageDocumentRef.current,
@@ -4558,6 +4586,33 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     createRasterLayer: () => { if (!executeRegisteredCommand('layer.createRaster', {})) layerPanelController.createRasterLayer(); },
     rename: (layerId: LayerId, name: string) => { if (!executeRegisteredCommand('layer.rename', { layerId, name })) layerPanelController.rename(layerId, name); },
     setVisibility: (layerIds: LayerId[], visible: boolean) => { if (!executeRegisteredCommand('layer.setVisibility', { layerIds, visible })) layerPanelController.setVisibility(layerIds, visible); },
+    duplicateActive: () => {
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      if (!layerId || !executeRegisteredCommand('layer.duplicate', { layerId })) {
+        layerPanelController.duplicateActive();
+      }
+    },
+    deleteSelection: (layerIds: LayerId[]) => {
+      if (!executeRegisteredCommand('layer.delete', { layerIds })) layerPanelController.deleteSelection(layerIds);
+    },
+    move: (layerId: LayerId, direction: 'up' | 'down') => {
+      if (!executeRegisteredCommand('layer.move', { layerId, direction })) layerPanelController.move(layerId, direction);
+    },
+    moveActive: (direction: 'up' | 'down') => {
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      if (!layerId || !executeRegisteredCommand('layer.move', { layerId, direction })) {
+        layerPanelController.moveActive(direction);
+      }
+    },
+    setBlendMode: (layerId: LayerId, blendMode: Parameters<typeof layerPanelController.setBlendMode>[1]) => {
+      if (!executeRegisteredCommand('layer.setBlendMode', { layerId, blendMode })) layerPanelController.setBlendMode(layerId, blendMode);
+    },
+    setClipping: (layerId: LayerId, clipping: boolean) => {
+      if (!executeRegisteredCommand('layer.setClipping', { layerId, clipping })) layerPanelController.setClipping(layerId, clipping);
+    },
+    setLock: (layerIds: LayerId[], lock: Parameters<typeof layerPanelController.setLock>[1], locked: boolean) => {
+      if (!executeRegisteredCommand('layer.setLock', { layerIds, lock, locked })) layerPanelController.setLock(layerIds, lock, locked);
+    },
     setStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => {
       if (!executeRegisteredCommand('layer.effect.setEnabled', { layerId, effectId, enabled })) layerPanelController.setStyleEnabled(layerId, effectId, enabled);
     },
@@ -4797,6 +4852,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const layer = document && layerId ? findRasterLayer(document, layerId) : null;
       if (!layer) return false;
       const channel = parameters.channel === 'mask' ? 'mask' : 'pixels';
+      const brush = parseAutomationBrushSettings(parameters.brush)
+        ?? editorSessionRef.current.brush;
       return paintSessionController.begin({
         pointerId,
         layer,
@@ -4806,7 +4863,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           erase: parameters.erase === true,
           sourceToDocument: paintTargetSourceToDocument(layer, channel)
         },
-        brush: editorSession.brush,
+        brush,
         point: {
           ...sample,
           pressure: sample.pressure ?? 1
@@ -5339,7 +5396,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     layers: {
       panel: commandLayerPanelController,
-      duplicate: duplicateActiveLayer,
+      duplicate: commandLayerPanelController.duplicateActive,
       rasterizeText: rasterizeActiveTextLayer,
       convertTextToShape: () => {
         const layerId = imageDocumentRef.current?.activeLayerId;

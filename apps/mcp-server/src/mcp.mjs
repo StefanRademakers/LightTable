@@ -5,6 +5,7 @@ import {
   LIGHTTABLE_COMMAND_DEFINITIONS,
   LIGHTTABLE_COMMAND_IDS,
   LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES,
+  LIGHTTABLE_COMMAND_EXAMPLES,
   LIGHTTABLE_EXTERNAL_MCP_BATCH_OPERATION_IDS,
   LIGHTTABLE_EXTERNAL_MCP_DEDICATED_COMMAND_IDS,
   LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS
@@ -145,7 +146,8 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       ? LIGHTTABLE_COMMAND_DEFINITIONS.filter(({ id }) => id === command)
       : LIGHTTABLE_COMMAND_DEFINITIONS;
     return { protocolVersion: 1, commands: definitions.map((definition) => ({
-      ...definition, parameters: LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES[definition.id]
+      ...definition, parameters: LIGHTTABLE_COMMAND_PARAMETER_PROPERTIES[definition.id],
+      examples: LIGHTTABLE_COMMAND_EXAMPLES[definition.id] ?? []
     })) };
   }));
   server.registerTool('lighttable_execute', {

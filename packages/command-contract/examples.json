@@ -1,0 +1,55 @@
+{
+  "layer.duplicate": [
+    { "layerId": "layer-photo" }
+  ],
+  "layer.delete": [
+    { "layerIds": ["layer-draft"] }
+  ],
+  "layer.move": [
+    { "layerId": "layer-title", "direction": "up" }
+  ],
+  "layer.setBlendMode": [
+    { "layerId": "layer-texture", "blendMode": "soft-light" }
+  ],
+  "layer.setClipping": [
+    { "layerId": "layer-grade", "clipping": true }
+  ],
+  "layer.setLock": [
+    { "layerIds": ["layer-logo"], "lock": "position", "locked": true }
+  ],
+  "tool.commitGesture": [
+    {
+      "kind": "brush-stroke",
+      "parameters": {
+        "layerId": "layer-paint",
+        "channel": "pixels",
+        "erase": false,
+        "brush": {
+          "presetId": "round",
+          "size": 24,
+          "hardness": 0.75,
+          "opacity": 1,
+          "flow": 0.5,
+          "spacing": 0.05,
+          "smooth": 0.2,
+          "color": "#112233",
+          "backgroundColor": "#ffffff"
+        }
+      },
+      "samples": [
+        { "x": 40, "y": 60, "pressure": 1 },
+        { "x": 120, "y": 90, "pressure": 0.7 }
+      ]
+    },
+    {
+      "kind": "selection-rectangle",
+      "parameters": { "mode": "replace" },
+      "samples": [{ "x": 20, "y": 30 }, { "x": 260, "y": 180 }]
+    },
+    {
+      "kind": "layer-translate",
+      "parameters": { "layerId": "layer-title" },
+      "samples": [{ "x": 0, "y": 0 }, { "x": 32, "y": 16 }]
+    }
+  ]
+}

@@ -49,6 +49,23 @@ describe('executeAtomicCommandBatch', () => {
     expect(state.publish).toHaveBeenCalledOnce();
   });
 
+  it('applies structural layer properties as one atomic history publication', async () => {
+    const state = fixture();
+    await executeAtomicCommandBatch(batch([
+      { operationId: 'blend', command: 'layer.setBlendMode', parameters: {
+        layerId: state.layerId, blendMode: 'multiply'
+      } },
+      { operationId: 'lock', command: 'layer.setLock', parameters: {
+        layerIds: [state.layerId], lock: 'position', locked: true
+      } }
+    ]), state.dependencies, new AbortController().signal, () => undefined);
+    expect(findDocumentLayer(state.document, state.layerId)).toMatchObject({
+      blendMode: 'multiply', locks: { position: true }
+    });
+    expect(state.publish).toHaveBeenCalledOnce();
+    expect(state.record).toHaveBeenCalledOnce();
+  });
+
   it('keeps the exact baseline unpublished when any operation fails or is canceled', async () => {
     const state = fixture();
     await expect(executeAtomicCommandBatch(batch([

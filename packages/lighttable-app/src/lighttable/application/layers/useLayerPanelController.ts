@@ -107,6 +107,7 @@ export interface LayerPanelController {
   toggleMask(): void;
   setMaskLinked(layerId: LayerId, linked: boolean): void;
   removeMask(layerId?: LayerId): void;
+  move(layerId: LayerId, direction: 'up' | 'down'): void;
   moveActive(direction: 'up' | 'down'): void;
   setLock(layerIds: LayerId[], lock: keyof LayerLocks, locked: boolean): void;
   createRasterLayer(): void;
@@ -186,6 +187,17 @@ export const createLayerPanelController = (
     resolveDependencies().setPaintTarget('pixels');
   };
 
+  const move = (layerId: LayerId, direction: 'up' | 'down') => {
+    const dependencies = resolveDependencies();
+    const document = dependencies.getDocument();
+    if (!document || !findDocumentLayer(document, layerId)) return;
+    const siblings = siblingLayers(document, layerId);
+    const activeIndex = siblings.findIndex((layer) => layer.id === layerId);
+    const targetIndex = activeIndex + (direction === 'up' ? 1 : -1);
+    if (activeIndex < 0 || targetIndex < 0 || targetIndex >= siblings.length) return;
+    dependencies.mutateDocument((current) => moveLayer(current, layerId, targetIndex));
+  };
+
   return {
     select,
     changeChannel: (channel) => resolveDependencies().setPaintTarget(channel),
@@ -238,19 +250,11 @@ export const createLayerPanelController = (
         removeLayerMask(current, layerId));
       dependencies.setPaintTarget('pixels');
     },
+    move,
     moveActive: (direction) => {
-      const dependencies = resolveDependencies();
-      const document = dependencies.getDocument();
-      const layerId = document?.activeLayerId;
-      if (!document || !layerId) return;
-      const siblings = siblingLayers(document, layerId);
-      const activeIndex = siblings.findIndex((layer) => layer.id === layerId);
-      const targetIndex = activeIndex + (direction === 'up' ? 1 : -1);
-      if (activeIndex < 0 || targetIndex < 0 || targetIndex >= siblings.length) {
-        return;
-      }
-      dependencies.mutateDocument((current) =>
-        moveLayer(current, layerId, targetIndex));
+      const layerId = resolveDependencies().getDocument()?.activeLayerId;
+      if (!layerId) return;
+      move(layerId, direction);
     },
     setLock: (layerIds, lock, locked) =>
       mutate((current) => setLayersLock(current, layerIds, lock, locked)),
