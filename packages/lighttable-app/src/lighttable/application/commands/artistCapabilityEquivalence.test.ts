@@ -9,6 +9,7 @@ import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, LightTableCommandService,
   type LightTableCommandPorts } from './lightTableCommandService';
 import type { SemanticLayerCommand } from './semanticLayerCommandContract';
 import type { SemanticSelectionCommand } from './semanticSelectionCommandContract';
+import { executeSemanticVectorCommand } from '../vectors/semanticVectorCommandExecutor';
 
 const token = '0123456789abcdef0123456789abcdef';
 
@@ -72,10 +73,25 @@ const createHarness = () => {
     });
     return { operationCount: selection.length };
   };
+  const applyVector = (command: Parameters<typeof executeSemanticVectorCommand>[0]) => (
+    executeSemanticVectorCommand(command, {
+      getDocument: () => session.getSnapshot().document,
+      applyDocument: (document) => session.setDocument(document),
+      recordHistory: (before, after) => session.history.record({
+        id: `equivalence-history-${++historySequence}`,
+        type: `vector.${command.kind}`,
+        label: command.kind,
+        documentId: session.id,
+        undo: () => session.setDocument(before),
+        redo: () => session.setDocument(after)
+      })
+    })
+  );
   const ports: LightTableCommandPorts = {
     setZoom: vi.fn(), createRasterLayer: vi.fn(), placeArtifact: vi.fn(), renameLayer: vi.fn(),
     setLayerVisibility: vi.fn(), setLayerFillOpacity: vi.fn(), setLayerStyleEnabled: vi.fn(),
-    setLayerEffectEnabled: vi.fn(), executeTextCommand: vi.fn(), executeVectorCommand: vi.fn(),
+    setLayerEffectEnabled: vi.fn(), executeTextCommand: vi.fn(),
+    executeVectorCommand: vi.fn((_documentId, command) => applyVector(command)),
     executeLayerStyleCommand: vi.fn(), executeLayerCommand: vi.fn((_documentId, command) => applyLayer(command)),
     executeSelectionCommand: vi.fn((_documentId, command) => applySelection(command)),
     executeAtomicBatch: vi.fn(), exportNativeArtifact: vi.fn(), exportPngArtifact: vi.fn(),
@@ -117,7 +133,21 @@ const createHarness = () => {
       dirty: session.history.getSnapshot().dirty
     }
   });
-  return { workspace, session, service, adapter, topId, execute, snapshot, selectionSnapshot };
+  const designSnapshot = () => ({
+    layers: session.getSnapshot().document!.layers.map((layer) => ({
+      type: layer.type,
+      name: layer.name,
+      blendMode: layer.blendMode,
+      elementKinds: layer.type === 'vector' ? layer.elements.map(({ type }) => type) : []
+    })),
+    selection: structuredClone(selection),
+    history: {
+      undoDepth: session.history.getSnapshot().undoDepth,
+      redoDepth: session.history.getSnapshot().redoDepth
+    }
+  });
+  return { workspace, session, service, adapter, topId, execute, snapshot,
+    selectionSnapshot, designSnapshot };
 };
 
 const steps = (layerId: string) => [
@@ -214,5 +244,39 @@ describe('artist capability equivalence harness', () => {
       harness.service.dispose();
       harness.workspace.dispose();
     }
+  });
+
+  it('records and replays a mixed layer, shape and selection mini-design with stable result binding', async () => {
+    const state = createHarness();
+    state.service.startActionRecording('Badge composition');
+    const created = await state.execute('vector.create', {
+      name: 'Badge',
+      primitive: { kind: 'ellipse', x: 8, y: 8, width: 48, height: 48 },
+      style: { fill: { type: 'solid', color: [0.1, 0.4, 0.9, 1] } }
+    });
+    expect(created).toMatchObject({ status: 'completed' });
+    if (created.status !== 'completed' || typeof created.value !== 'object' || !created.value) {
+      throw new Error('Vector shape did not return its stable identity.');
+    }
+    const layerId = (created.value as { layerId: string }).layerId;
+    await state.execute('selection.applyShape', {
+      mode: 'replace',
+      shape: { kind: 'ellipse', points: [{ x: 8, y: 8 }, { x: 56, y: 56 }] },
+      featherRadius: 1,
+      antiAlias: true
+    });
+    await state.execute('layer.setBlendMode', { layerId, blendMode: 'screen' });
+    state.service.stopActionRecording();
+    const expected = state.designSnapshot();
+
+    for (let index = 0; index < 3; index += 1) await state.execute('history.undo', {});
+    expect(await state.service.playActionRecording()).toMatchObject({ status: 'completed' });
+    expect(state.designSnapshot()).toEqual(expected);
+    expect(state.service.actionRecordingSnapshot().steps[2].parameters).toMatchObject({
+      layerId: { $lighttableResult: { step: 1, path: 'layerId' } }
+    });
+
+    state.service.dispose();
+    state.workspace.dispose();
   });
 });

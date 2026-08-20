@@ -85,9 +85,9 @@ Discrete toolbar verticals
       command, or continuous committed gesture.
 - [x] Implement a representative selection committed operation.
 - [x] Implement a representative transform committed operation.
-- [ ] Reuse existing text/vector semantic operations as toolbar equivalence
+- [x] Reuse existing text/vector semantic operations as toolbar equivalence
       cases instead of adding a second implementation.
-- [ ] Record and replay one mixed mini-design Action using layers plus at least
+- [x] Record and replay one mixed mini-design Action using layers plus at least
       two toolbar-originated committed operations.
 
 Realtime safety
