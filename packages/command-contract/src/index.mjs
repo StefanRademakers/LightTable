@@ -13,6 +13,8 @@ import finalizationCommandSchemas from '../schemas/v1/finalization.json' with { 
 
 import gradeBasicCommandSchemas from '../schemas/v1/grade-basic.json' with { type: 'json' };
 
+import layerEffectsCommandSchemas from '../schemas/v1/layer-effects.json' with { type: 'json' };
+
 import layerMaskCommandSchemas from '../schemas/v1/layer-mask.json' with { type: 'json' };
 
 import layerStructureCommandSchemas from '../schemas/v1/layer-structure.json' with { type: 'json' };
@@ -92,6 +94,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'layer.setVisibility',
   'layer.setFillOpacity',
   'layer.style.setEnabled',
+  'layer.style.update',
   'layer.effect.setEnabled',
   'file.openArtifact',
   'text.create',
@@ -135,6 +138,7 @@ export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
   ...schemaModuleCommands(artifactCommandSchemas),
   ...schemaModuleCommands(finalizationCommandSchemas),
   ...schemaModuleCommands(gradeBasicCommandSchemas),
+  ...schemaModuleCommands(layerEffectsCommandSchemas),
   ...schemaModuleCommands(layerMaskCommandSchemas),
   ...schemaModuleCommands(layerStructureCommandSchemas),
   ...schemaModuleCommands(layerCommandSchemas),
@@ -174,6 +178,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'layer.setVisibility',
   'layer.setFillOpacity',
   'layer.style.setEnabled',
+  'layer.style.update',
   'layer.effect.setEnabled',
   'file.openArtifact',
   'text.create',
@@ -231,6 +236,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'layer.setVisibility',
   'layer.setFillOpacity',
   'layer.style.setEnabled',
+  'layer.style.update',
   'layer.effect.setEnabled',
   'text.create',
   'text.replaceRange',

@@ -40,5 +40,34 @@ describe('semantic Layer Style commands', () => {
       settings: { size: Number.NaN } })).toHaveProperty('message');
     expect(parseSemanticLayerStyleCommand('update', { layerId: 'layer', effectId: 'effect',
       settings: { contour: Array.from({ length: 65 }, () => 0) } })).toHaveProperty('message');
+    expect(parseSemanticLayerStyleCommand('add', { layerId: 'layer', effectKind: 'stroke',
+      settings: { distance: 12 } })).toHaveProperty('message');
+    expect(parseSemanticLayerStyleCommand('remove', { layerId: 'layer', effectId: 'effect',
+      pointerState: {} })).toHaveProperty('message');
+  });
+
+  it('rejects a valid known setting when it belongs to another target effect kind', () => {
+    const state = harness(); const layerId = state.document().activeLayerId!;
+    const effectId = executeSemanticLayerStyleCommand(
+      { kind: 'add', layerId, effectKind: 'stroke' }, state.dependencies
+    )!.effectId;
+    expect(() => executeSemanticLayerStyleCommand({
+      kind: 'update', layerId, effectId, settings: { distance: 12 }
+    }, state.dependencies)).toThrow(/target effect kind/i);
+    expect(state.history).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates bounded stack-wide scale and global light without replacing effects', () => {
+    const state = harness(); const layerId = state.document().activeLayerId!;
+    executeSemanticLayerStyleCommand({ kind: 'add', layerId, effectKind: 'drop-shadow' }, state.dependencies);
+    const result = executeSemanticLayerStyleCommand({ kind: 'stack-update', layerId,
+      settings: { scale: 1.5, globalLight: { angle: 210, altitude: 45 } } }, state.dependencies);
+    expect(result).toEqual({ layerId, settings: {
+      scale: 1.5, globalLight: { angle: 210, altitude: 45 }
+    } });
+    expect(findDocumentLayer(state.document(), layerId)?.styleStack).toMatchObject({
+      scale: 1.5, globalLight: { angle: 210, altitude: 45 }, effects: [{ kind: 'drop-shadow' }]
+    });
+    expect(state.history).toHaveBeenCalledTimes(2);
   });
 });

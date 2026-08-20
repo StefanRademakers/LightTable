@@ -59,6 +59,13 @@ test('versioned schemas describe and validate every completed command vertical',
     'text.convertToShape',
     'text.rasterize',
     'grade.setBasic',
+    'layer.style.setEnabled',
+    'layer.style.update',
+    'layer.effect.setEnabled',
+    'layer.effect.add',
+    'layer.effect.update',
+    'layer.effect.remove',
+    'layer.effect.move',
     'layer.createRaster',
     'layer.setMask',
     'layer.duplicate',
@@ -414,6 +421,45 @@ test('vector schemas resolve shared definitions and reject UI-only or contradict
   assert.deepEqual(Object.keys(remove.input.$defs), ['id']);
   assert.ok(JSON.stringify(remove).length < 1_000);
   assert.equal(validateJsonSchemaValue({ $ref: '#/$defs/missing', $defs: {} }, 1).valid, false);
+});
+
+test('layer effect schemas expose editable styles without accepting private or mixed-kind state', () => {
+  const stack = LIGHTTABLE_COMMAND_SCHEMAS['layer.style.update'];
+  const add = LIGHTTABLE_COMMAND_SCHEMAS['layer.effect.add'];
+  const update = LIGHTTABLE_COMMAND_SCHEMAS['layer.effect.update'];
+  const toggle = LIGHTTABLE_COMMAND_SCHEMAS['layer.effect.setEnabled'];
+  assert.equal(validateJsonSchemaValue(add.input, {
+    layerId: 'title', effectKind: 'drop-shadow',
+    settings: { color: { r: 0, g: 0, b: 0, a: 1 }, opacity: 0.6, size: 24, distance: 12 }
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(update.input, {
+    layerId: 'title', effectId: 'shadow', settings: { opacity: 0.4, size: 18 }
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(update.input, {
+    layerId: 'title', effectId: 'shadow', settings: { opacity: 0.4, pointerState: {} }
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(stack.input, {
+    layerId: 'title', settings: { scale: 1.5, globalLight: { angle: 120, altitude: 30 } }
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(stack.input, {
+    layerId: 'title', settings: { scale: 0 }
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(stack.input, {
+    layerId: 'title', settings: { globalLight: { angle: 120, altitude: 30, liveDrag: true } }
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(add.input, {
+    layerId: 'title', effectKind: 'stroke', settings: { fill: { type: 'color',
+      color: { r: 1, g: 1, b: 1, a: 1 }, privateTexture: true } }
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(update.input, {
+    layerId: 'title', effectId: 'shadow', settings: {}
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(toggle.result, {
+    layerId: 'title', effectId: 'shadow', enabled: false
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(add.result, {
+    layerId: 'title', effectId: 'shadow'
+  }).valid, true);
 });
 
 test('artifact schemas carry opaque handles and stable document or layer results only', () => {

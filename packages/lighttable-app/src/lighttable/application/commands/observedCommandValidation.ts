@@ -8,6 +8,7 @@ import { parseSemanticSelectionCommand } from './semanticSelectionCommandContrac
 import { parseSemanticTextCommand } from './semanticTextCommandContract';
 import { parseSemanticVectorCommand } from './semanticVectorCommandContract';
 import { parseSemanticWarpStrokeCommand } from './semanticWarpCommandContract';
+import { parseSemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 
 const valid = (parsed: object) => !('message' in parsed);
 
@@ -30,6 +31,17 @@ export const observedCommandParametersAreValid = (
     case 'selection.applyMagicWand': return valid(parseSemanticSelectionCommand(parameters));
     case 'grade.setBasic': return valid(parseSemanticBasicAdjustmentCommand(parameters));
     case 'layer.setTransform': return valid(parseSemanticLayerCommand('set-transform', parameters));
+    case 'layer.style.update': return valid(parseSemanticLayerStyleCommand('stack-update', parameters));
+    case 'layer.effect.add': return valid(parseSemanticLayerStyleCommand('add', parameters));
+    case 'layer.effect.update': return valid(parseSemanticLayerStyleCommand('update', parameters));
+    case 'layer.effect.remove': return valid(parseSemanticLayerStyleCommand('remove', parameters));
+    case 'layer.effect.move': return valid(parseSemanticLayerStyleCommand('move', parameters));
+    case 'layer.effect.setEnabled': return valid(parseSemanticLayerStyleCommand('toggle', parameters));
+    case 'layer.style.setEnabled': return typeof parameters === 'object' && parameters !== null
+      && !Array.isArray(parameters)
+      && Object.keys(parameters).length === 2
+      && typeof (parameters as Record<string, unknown>).layerId === 'string'
+      && typeof (parameters as Record<string, unknown>).enabled === 'boolean';
     default: return false;
   }
 };

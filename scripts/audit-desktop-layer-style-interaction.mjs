@@ -69,11 +69,26 @@ try {
   const escapedId = target.id.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
   const targetRow = page.locator(`[data-layer-id="${escapedId}"]`);
   await targetRow.click();
-  await targetRow.getByRole('button', { name: 'Effects', exact: true }).click();
+  const effectSummary = targetRow.locator(
+    'xpath=following-sibling::*[contains(concat(" ", normalize-space(@class), " "), " lighttable-layer-effects ")][1]'
+  ).locator('.lighttable-layer-effect--summary');
+  await effectSummary.getByRole('button', { name: 'Effects', exact: true }).click();
   const effectToggle = page.locator('.lighttable-group__toggle[title="Drop Shadow"]');
   await effectToggle.waitFor({ state: 'visible' });
   if (await effectToggle.getAttribute('aria-expanded') !== 'true') await effectToggle.click();
   const slider = page.getByRole('slider', { name: report.control, exact: true });
+  await slider.waitFor({ state: 'visible' });
+  const initialEffects = await driver.queryLayerEffects(documentId, target.id);
+  const initialShadow = initialEffects?.effects.find(({ kind }) => kind === 'drop-shadow');
+  if (!initialShadow) throw new Error('The target has no queryable Drop Shadow.');
+
+  await page.getByRole('menuitem', { name: 'View' }).click();
+  await page.getByRole('menuitem', { name: 'Actions panel' }).click();
+  const actions = page.getByRole('complementary', { name: 'Actions' });
+  const recorder = actions.locator('.lighttable-action-recorder');
+  await recorder.getByRole('button', { name: 'Record' }).click();
+  await recorder.getByText('recording', { exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'Properties', exact: true }).click();
   await slider.waitFor({ state: 'visible' });
 
   await page.evaluate(() => {
@@ -113,12 +128,30 @@ try {
   await page.keyboard.up('ArrowRight');
   const gestureMs = performance.now() - startedAt;
   await page.waitForTimeout(350);
+  const finalSliderValue = Number(await slider.inputValue());
+  await page.getByRole('menuitem', { name: 'View' }).click();
+  await page.getByRole('menuitem', { name: 'Actions panel' }).click();
+  await recorder.getByRole('button', { name: 'Stop', exact: true }).click();
+  await recorder.getByText('stopped', { exact: true }).waitFor();
+  const recording = await driver.queryActionRecording();
+  const replayable = recording?.steps.filter(({ replayable }) => replayable) ?? [];
+  const recordedUpdate = replayable.find(({ command }) => command === 'layer.effect.update');
+  const finalEffects = await driver.queryLayerEffects(documentId, target.id);
+  const finalShadow = finalEffects?.effects.find(({ id }) => id === initialShadow.id);
+  report.actions = {
+    stepCount: replayable.length,
+    commands: replayable.map(({ command }) => command),
+    byteLength: recording?.byteLength ?? null,
+    initialSize: initialShadow.settings?.size,
+    finalSize: finalShadow?.settings?.size,
+    recordedParameters: recordedUpdate?.parameters ?? null
+  };
   report.gesture = {
     requestedInputEvents: inputEvents,
     durationMs: gestureMs,
     inputEvents: await page.evaluate(() => globalThis.__lightTableStyleInteractionAudit.inputEvents),
     initialValue: range.initialValue,
-    finalValue: Number(await slider.inputValue())
+    finalValue: finalSliderValue
   };
   report.longTasks = await page.evaluate(() => globalThis.__lightTableStyleInteractionAudit.longTasks);
 
@@ -136,6 +169,28 @@ try {
   };
   report.render.publishHz = report.render.submittedFrames / (gestureMs / 1000);
   report.runtimeStopped = /document runtime stopped unexpectedly/i.test(await page.locator('body').innerText());
+
+  if (replayable.length !== 1 || recordedUpdate?.parameters?.effectId !== initialShadow.id
+    || Object.keys(recordedUpdate.parameters.settings ?? {}).join(',') !== 'size'
+    || report.actions.byteLength > 4096 || report.actions.finalSize === report.actions.initialSize) {
+    throw new Error(`Layer Style UI checkpoint was not one bounded Action: ${JSON.stringify(report.actions)}`);
+  }
+  await driver.execute(documentId, 'history.undo', {});
+  const undoneEffects = await driver.queryLayerEffects(documentId, target.id);
+  const undoneShadow = undoneEffects?.effects.find(({ id }) => id === initialShadow.id);
+  if (undoneShadow?.settings?.size !== initialShadow.settings?.size) {
+    throw new Error('Undo did not restore the pre-gesture Layer Style value.');
+  }
+  await page.getByRole('menuitem', { name: 'View' }).click();
+  await page.getByRole('menuitem', { name: 'Actions panel' }).click();
+  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
+  await recorder.getByText(/Playback: completed/i).waitFor({ timeout: 15_000 });
+  const replayedEffects = await driver.queryLayerEffects(documentId, target.id);
+  const replayedShadow = replayedEffects?.effects.find(({ id }) => id === initialShadow.id);
+  report.actions.replayedSize = replayedShadow?.settings?.size;
+  if (replayedShadow?.settings?.size !== finalShadow?.settings?.size) {
+    throw new Error(`Action playback did not restore the final Layer Style value: ${JSON.stringify(report.actions)}`);
+  }
 
   if (report.pageErrors.length || report.consoleErrors.length || report.runtimeStopped) {
     throw new Error('Layer Style interaction caused a runtime error.');

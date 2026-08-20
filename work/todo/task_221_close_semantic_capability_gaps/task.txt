@@ -83,6 +83,10 @@ Completed vertical slices
   alignment/history commit.
 - Layer via Copy through `layer.copyToNewLayer`, preserving selected-pixel and
   no-selection full-layer behavior without transporting raster data.
+- Layer Styles through shared stack/effect commands for all ten existing effect
+  kinds. The normal editor still owns responsive local previews and history
+  coalescing; only committed checkpoints enter Actions. Packaged UI recording,
+  undo/playback and external MCP lifecycle execution prove the vertical slice.
 
 Rules
 =====

@@ -27,6 +27,7 @@ export interface LayerStyleEditorDependencies {
   getRenderer(): LayerStyleInteractionPort | null;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
+  onCheckpoint?(before: ImageDocument, after: ImageDocument, layerId: LayerId): void;
 }
 
 export interface LayerStyleEditorController {
@@ -75,6 +76,7 @@ export const useLayerStyleEditorController = (
     const after = dependenciesRef.current.getDocument();
     if (after?.id === currentRequest.before.id && after !== currentRequest.before) {
       dependenciesRef.current.pushDocumentHistory(currentRequest.before, after);
+      dependenciesRef.current.onCheckpoint?.(currentRequest.before, after, currentRequest.layerId);
     }
     endRendererInteraction();
     if (close || after?.id !== currentRequest.before.id) {
@@ -151,6 +153,7 @@ export const useLayerStyleEditorController = (
     const after = dependenciesRef.current.getDocument();
     if (currentRequest && after?.id === currentRequest.before.id && after !== currentRequest.before) {
       dependenciesRef.current.pushDocumentHistory(currentRequest.before, after);
+      dependenciesRef.current.onCheckpoint?.(currentRequest.before, after, currentRequest.layerId);
     }
     if (currentRequest) endRendererInteraction();
   }, [clearCheckpointTimer, endRendererInteraction]);

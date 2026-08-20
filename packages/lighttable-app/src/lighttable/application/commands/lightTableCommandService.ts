@@ -585,6 +585,8 @@ export class LightTableCommandService {
     return {
       layerId,
       enabled: layer.styleStack.enabled,
+      scale: layer.styleStack.scale,
+      globalLight: structuredClone(layer.styleStack.globalLight),
       revision: layer.styleStack.revision,
       totalEffects: layer.styleStack.effects.length,
       truncated: layer.styleStack.effects.length > 128,
@@ -1012,9 +1014,10 @@ export class LightTableCommandService {
       }
     }
 
-    if (value.command === 'layer.effect.add' || value.command === 'layer.effect.update'
+    if (value.command === 'layer.style.update' || value.command === 'layer.effect.add' || value.command === 'layer.effect.update'
       || value.command === 'layer.effect.remove' || value.command === 'layer.effect.move') {
-      const kind = value.command.slice('layer.effect.'.length) as SemanticLayerStyleCommand['kind'];
+      const kind = value.command === 'layer.style.update' ? 'stack-update'
+        : value.command.slice('layer.effect.'.length) as SemanticLayerStyleCommand['kind'];
       const command = parseSemanticLayerStyleCommand(kind, value.parameters);
       if ('message' in command) return this.reject(value.requestId, 'invalid-parameters', command.message, snapshot);
       try {

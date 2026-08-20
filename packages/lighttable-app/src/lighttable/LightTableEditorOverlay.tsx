@@ -69,6 +69,7 @@ import {
   createSmartSelectionBackend
 } from './application/tools/smartSelection/smartSelectionBackendFactory';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
+import { observedLayerStyleCommands } from './application/styles/semanticLayerStyleObservation';
 import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useBackgroundRemovalController, type BackgroundRemovalMaskMode } from './application/backgroundRemoval/useBackgroundRemovalController';
@@ -4618,7 +4619,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
     applyDocumentSnapshot,
-    pushDocumentHistory
+    pushDocumentHistory,
+    onCheckpoint: (before, after, layerId) => {
+      const previous = findDocumentLayer(before, layerId);
+      const current = findDocumentLayer(after, layerId);
+      if (!previous || !current) return;
+      for (const operation of observedLayerStyleCommands(
+        layerId, previous.styleStack, current.styleStack
+      )) {
+        commandService?.recordObservedCommand(
+          operation.command, workspaceDocumentId as DocumentSessionId,
+          operation.parameters, operation.result
+        );
+      }
+    }
   });
   const openLayerStyleEditor = useCallback((layerId: LayerId, effectId?: LayerStyleId) => {
     layerStyleEditor.open(layerId, effectId);

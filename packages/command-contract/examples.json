@@ -102,6 +102,31 @@
   "layer.setLock": [
     { "layerIds": ["layer-logo"], "lock": "position", "locked": true }
   ],
+  "layer.style.setEnabled": [
+    { "layerId": "layer-title", "enabled": true }
+  ],
+  "layer.style.update": [
+    { "layerId": "layer-title", "settings": { "scale": 1.25,
+      "globalLight": { "angle": 120, "altitude": 30 } } }
+  ],
+  "layer.effect.setEnabled": [
+    { "layerId": "layer-title", "effectId": "effect-shadow", "enabled": false }
+  ],
+  "layer.effect.add": [
+    { "layerId": "layer-title", "effectKind": "drop-shadow",
+      "settings": { "opacity": 0.55, "color": { "r": 0, "g": 0, "b": 0, "a": 1 },
+        "angle": 120, "distance": 18, "spread": 0.08, "size": 28 } }
+  ],
+  "layer.effect.update": [
+    { "layerId": "layer-title", "effectId": "effect-shadow",
+      "settings": { "opacity": 0.4, "distance": 12, "size": 20 } }
+  ],
+  "layer.effect.remove": [
+    { "layerId": "layer-title", "effectId": "effect-shadow" }
+  ],
+  "layer.effect.move": [
+    { "layerId": "layer-title", "effectId": "effect-shadow", "targetIndex": 0 }
+  ],
   "vector.create": [
     { "layerName": "Shape", "name": "Rectangle",
       "primitive": { "kind": "rectangle", "x": 0, "y": 0, "width": 180, "height": 90,

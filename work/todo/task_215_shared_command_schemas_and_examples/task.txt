@@ -176,6 +176,18 @@ Current evidence (2026-08-20)
   document it places a layer; without one it opens a document. Real packaged
   desktop smoke additionally uploads and decodes a valid PNG, executes placement
   through external MCP and opens it through the authenticated bridge.
+- A separate Layer Effects module now owns stack enable/update and effect add,
+  update, enable, move and remove contracts. Its closed nested definitions cover
+  Drop/Inner Shadow, Outer/Inner Glow, Bevel & Emboss, Color/Gradient/Pattern
+  Overlay, Satin and Stroke without accepting private editor state or settings
+  from a different effect kind. Examples seed Actions and MCP from the same
+  source. Contextual kind validation remains at the application boundary where
+  plain JSON Schema cannot relate an existing effect ID back to its canonical
+  kind.
+- Packaged UI proof exercised 121 Blur input events while recording exactly one
+  semantic update; undo and Actions playback reproduced the canonical value.
+  The external MCP smoke executes the complete Layer Style lifecycle and checks
+  that invalid mixed-kind settings leave the document revision unchanged.
 
 Still required for completion
 =============================

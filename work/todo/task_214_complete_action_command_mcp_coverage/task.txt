@@ -209,6 +209,13 @@ Existing foundation evidence
 - Artifact handles are registry/session scoped. Durable Actions may bind a
   handle returned by an earlier producing step, but must not claim that an
   arbitrary persisted import handle remains portable across restarts.
+- Layer Style editing now has closed shared contracts for stack state and all
+  ten effect kinds. The existing editor keeps high-frequency previews local and
+  publishes one semantic checkpoint after a completed interaction. A packaged
+  120-input Blur gesture recorded one 186-byte `layer.effect.update`, retained
+  bounded rendering, undid cleanly and replayed through Actions. External MCP
+  separately proved discovery, rejection without mutation and complete effect-
+  stack add/update/toggle/move/query/remove execution.
 
 Program definition of done
 ==========================

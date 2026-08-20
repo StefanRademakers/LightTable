@@ -29,6 +29,7 @@
   "layer.setVisibility": { "layerIds": "string[]", "visible": "boolean" },
   "layer.setFillOpacity": { "layerId": "string", "opacity": "number 0..1" },
   "layer.style.setEnabled": { "layerId": "string", "enabled": "boolean" },
+  "layer.style.update": { "layerId": "string", "settings": "partial scale/global-light settings" },
   "layer.effect.setEnabled": { "layerId": "string", "effectId": "string", "enabled": "boolean" },
   "file.openArtifact": { "artifactId": "string" },
   "text.create": { "mode": "point | paragraph | path", "text": "string", "origin": "point", "name?": "string", "frame?": "size", "path?": "native path target + startOffset/side/upright/direction", "writingMode?": "writing-mode", "style?": "text-style", "paragraph?": "paragraph-style" },

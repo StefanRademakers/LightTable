@@ -116,6 +116,8 @@ export interface DocumentQueryResult {
 export interface LayerEffectsQueryResult {
   readonly layerId: LayerId;
   readonly enabled: boolean;
+  readonly scale: number;
+  readonly globalLight: { readonly angle: number; readonly altitude: number };
   readonly revision: number;
   readonly totalEffects: number;
   readonly truncated: boolean;

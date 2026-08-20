@@ -227,6 +227,24 @@ try {
       vectorCreateContract, vectorUpdateContract, vectorRemoveContract
     })}`);
   }
+  const effectAddContract = (await call('lighttable_commands', { command: 'layer.effect.add' }))
+    .structuredContent.commands?.[0]?.contract;
+  const effectUpdateContract = (await call('lighttable_commands', { command: 'layer.effect.update' }))
+    .structuredContent.commands?.[0]?.contract;
+  const styleUpdateContract = (await call('lighttable_commands', { command: 'layer.style.update' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (effectAddContract?.status !== 'complete' || effectAddContract.schemaVersion !== 1
+    || !effectAddContract.input?.properties?.effectKind?.enum?.includes('stroke')
+    || !effectAddContract.input?.$defs?.fill
+    || effectUpdateContract?.status !== 'complete' || effectUpdateContract.schemaVersion !== 1
+    || effectUpdateContract.input?.properties?.settings?.$ref !== '#/$defs/settings'
+    || effectUpdateContract.input?.$defs?.settings?.minProperties !== 1
+    || styleUpdateContract?.status !== 'complete' || styleUpdateContract.schemaVersion !== 1
+    || styleUpdateContract.input?.properties?.settings?.properties?.scale?.maximum !== 10) {
+    throw new Error(`MCP Layer Style discovery is incomplete: ${JSON.stringify({
+      effectAddContract, effectUpdateContract, styleUpdateContract
+    })}`);
+  }
   const openArtifactContract = (await call('lighttable_commands', { command: 'file.openArtifact' }))
     .structuredContent.commands?.[0]?.contract;
   const placeArtifactContract = (await call('lighttable_commands', { command: 'layer.placeArtifact' }))
@@ -354,6 +372,19 @@ try {
   if (!invalidPlacement.isError || afterInvalidPlacement.canonicalRevision !== before.canonicalRevision) {
     throw new Error(`Pointer placement state reached the layer owner: ${JSON.stringify({
       invalidPlacement, before: before.canonicalRevision, after: afterInvalidPlacement.canonicalRevision
+    })}`);
+  }
+  const invalidEffect = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'layer.effect.add', parameters: {
+      layerId: before.activeLayerId, effectKind: 'stroke', settings: { distance: 12 }
+    }
+  } });
+  const afterInvalidEffect = (await call('lighttable_document', { documentId })).structuredContent;
+  if (invalidEffect.structuredContent?.status !== 'rejected'
+    || invalidEffect.structuredContent?.code !== 'invalid-parameters'
+    || afterInvalidEffect.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Mixed-kind Layer Style settings reached the document owner: ${JSON.stringify({
+      invalidEffect, before: before.canonicalRevision, after: afterInvalidEffect.canonicalRevision
     })}`);
   }
   const sourceLayerId = before.activeLayerId;
@@ -561,6 +592,45 @@ try {
   } });
   await call('lighttable_execute', { documentId, command: 'raster.applyGradient', parameters: {
     layerId, channel: 'pixels', paint: mcpGradient, opacity: 1, blendMode: 'normal'
+  } });
+  const shadow = (await call('lighttable_execute', {
+    documentId, command: 'layer.effect.add', parameters: {
+      layerId, effectKind: 'drop-shadow', settings: {
+        color: { r: 0, g: 0, b: 0, a: 1 }, opacity: 0.55, distance: 18, spread: 0.08, size: 28
+      }
+    }
+  })).structuredContent.value;
+  const stroke = (await call('lighttable_execute', {
+    documentId, command: 'layer.effect.add', parameters: {
+      layerId, effectKind: 'stroke', settings: {
+        size: 5, position: 'outside', fill: {
+          type: 'color', color: { r: 1, g: 1, b: 1, a: 1 }
+        }
+      }
+    }
+  })).structuredContent.value;
+  if (!shadow?.effectId || !stroke?.effectId) throw new Error('MCP Layer Styles returned no stable IDs.');
+  await call('lighttable_execute', { documentId, command: 'layer.effect.update', parameters: {
+    layerId, effectId: shadow.effectId, settings: { opacity: 0.4, distance: 12, size: 20 }
+  } });
+  await call('lighttable_execute', { documentId, command: 'layer.effect.setEnabled', parameters: {
+    layerId, effectId: stroke.effectId, enabled: false
+  } });
+  await call('lighttable_execute', { documentId, command: 'layer.effect.move', parameters: {
+    layerId, effectId: stroke.effectId, targetIndex: 0
+  } });
+  await call('lighttable_execute', { documentId, command: 'layer.style.update', parameters: {
+    layerId, settings: { scale: 1.25, globalLight: { angle: 135, altitude: 35 } }
+  } });
+  const queriedStyles = (await call('lighttable_layer_effects', { documentId, layerId })).structuredContent;
+  if (queriedStyles?.scale !== 1.25 || queriedStyles.globalLight?.angle !== 135
+    || queriedStyles.effects?.[0]?.id !== stroke.effectId
+    || queriedStyles.effects?.[0]?.enabled !== false
+    || queriedStyles.effects?.find(({ id }) => id === shadow.effectId)?.settings?.size !== 20) {
+    throw new Error(`MCP Layer Style state diverged: ${JSON.stringify(queriedStyles)}`);
+  }
+  await call('lighttable_execute', { documentId, command: 'layer.effect.remove', parameters: {
+    layerId, effectId: stroke.effectId
   } });
   const layerCopy = (await call('lighttable_execute', {
     documentId, command: 'layer.copyToNewLayer', parameters: { layerId }

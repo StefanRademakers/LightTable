@@ -831,6 +831,14 @@ describe('LightTableCommandService registry', () => {
       primitive: { kind: 'ellipse', x: 0, y: 0, width: Number.NaN, height: 10 }
     }));
     expect(malformed).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(await state.service.execute(request('layer.effect.add', state.session.id, {
+      layerId: state.session.getSnapshot().document!.activeLayerId,
+      effectKind: 'stroke', settings: { distance: 12 }
+    }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(await state.service.execute(request('layer.effect.update', state.session.id, {
+      layerId: state.session.getSnapshot().document!.activeLayerId,
+      effectId: 'effect', settings: { pointerState: {} }
+    }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });
 
@@ -1562,7 +1570,7 @@ describe('LightTableCommandService registry', () => {
       .find(({ id }) => id === layerId)!.styleStack.effects[0]!;
 
     expect(state.service.queryLayerEffects(state.session.id, layerId)).toMatchObject({
-      layerId, enabled: true,
+      layerId, enabled: true, scale: 1, globalLight: { angle: 120, altitude: 30 },
       effects: [{
         id: effect.id,
         kind: 'drop-shadow',
