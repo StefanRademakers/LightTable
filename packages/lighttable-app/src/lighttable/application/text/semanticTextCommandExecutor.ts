@@ -70,6 +70,13 @@ export const pathTextCreateCommand = (
   }
 });
 
+export const textCreateCommandParameters = (
+  command: Extract<SemanticTextCommand, { kind: 'create' }>
+): Omit<Extract<SemanticTextCommand, { kind: 'create' }>, 'kind'> => {
+  const { kind: _kind, origin, ...parameters } = command;
+  return { ...parameters, origin: { x: origin.x, y: origin.y } };
+};
+
 export const semanticStylePatchFromCanonical = (
   patch: TextStylePatch
 ): SemanticTextStylePatch | null => {

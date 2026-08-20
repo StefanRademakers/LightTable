@@ -355,6 +355,8 @@ export class LightTableCommandService {
     if (!OBSERVED_STATE_ONLY_COMMANDS.has(command)) {
       this.workspace.getDocument(documentId)?.markChanged();
     }
+    const resultSchema = LIGHTTABLE_COMMAND_SCHEMAS[command]?.result;
+    if (resultSchema && !validateJsonSchemaValue(resultSchema, value).valid) return false;
     const recording = this.actionRecorder.snapshot();
     if (recording.status !== 'recording' || !recording.id) return false;
     const startedAt = Date.now();

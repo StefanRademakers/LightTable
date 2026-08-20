@@ -5,7 +5,8 @@ import { createTextLayer } from '../../editor/document/documentCommands';
 import { createImageDocument, createVectorLayer, type ImageDocument } from '../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { BUNDLED_TEXT_FONT_CATALOG } from '../../text/fonts/bundledTextFont';
-import { executeSemanticTextCommand, type SemanticTextCommandDependencies } from './semanticTextCommandExecutor';
+import { executeSemanticTextCommand, textCreateCommandParameters,
+  type SemanticTextCommandDependencies } from './semanticTextCommandExecutor';
 
 const setup = (value = 'A👋B') => {
   const source = createDefaultFlowTextSource(value);
@@ -27,6 +28,18 @@ const setup = (value = 'A👋B') => {
 };
 
 describe('semantic text command executor', () => {
+  it('projects native Type-tool creation to stable command parameters', () => {
+    const parameters = textCreateCommandParameters({
+      kind: 'create', mode: 'point', text: 'Text',
+      origin: { x: 12, y: 34, pressure: 0.75 } as { x: number; y: number },
+      writingMode: 'horizontal-tb'
+    });
+
+    expect(parameters).toEqual({ mode: 'point', text: 'Text', origin: { x: 12, y: 34 },
+      writingMode: 'horizontal-tb' });
+    expect(parameters).not.toHaveProperty('kind');
+  });
+
   it('replaces Unicode grapheme ranges atomically without corrupting surrogate pairs', async () => {
     const state = setup();
     await executeSemanticTextCommand({ kind: 'replace', layerId: state.layerId,

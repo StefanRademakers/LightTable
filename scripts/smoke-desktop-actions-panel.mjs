@@ -237,7 +237,13 @@ try {
     viewportBounds.y + viewportBounds.height * 0.28
   );
   const textInput = window.getByRole('textbox', { name: /^Edit / });
-  await textInput.waitFor({ state: 'attached', timeout: 30_000 });
+  await textInput.waitFor({ state: 'attached', timeout: 30_000 }).catch(async () => {
+    throw new Error(`Type input did not open: ${JSON.stringify({
+      recording: await driver.queryActionRecording(),
+      workspace: await driver.queryWorkspace(),
+      status: await window.locator('.lighttable-statusbar').textContent().catch(() => null)
+    })}`);
+  });
   await textInput.press('Escape');
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await recorder.locator('li').filter({ hasText: 'text.create' }).waitFor({ timeout: 30_000 });
@@ -533,16 +539,16 @@ try {
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();
-  await window.waitForFunction(
-    (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
-    before + 4,
-    { timeout: 15_000 }
-  );
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
     .waitFor({ timeout: 15_000 }).catch(async () => {
       throw new Error(`Actions playback did not complete: ${await recorder.textContent()}`);
     });
+  await window.waitForFunction(
+    (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
+    before + 4,
+    { timeout: 15_000 }
+  );
   await window.waitForFunction(
     (expected) => [...document.querySelectorAll('input[aria-label="Layer name"]')]
       .some((input) => input.value === expected),

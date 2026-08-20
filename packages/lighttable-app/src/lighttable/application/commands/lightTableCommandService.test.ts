@@ -343,7 +343,8 @@ describe('LightTableCommandService action recording', () => {
       'layer.setTransform', state.session.id, {
         layerId: state.session.getSnapshot().document!.activeLayerId,
         transform: { a: 1, b: 0, c: 0, d: 1, tx: 4, ty: 8 }
-      }, { layerId: state.session.getSnapshot().document!.activeLayerId }
+      }, { layerId: state.session.getSnapshot().document!.activeLayerId,
+        transform: { a: 1, b: 0, c: 0, d: 1, tx: 4, ty: 8 } }
     )).toBe(true);
     expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
     state.service.dispose();
@@ -360,6 +361,21 @@ describe('LightTableCommandService action recording', () => {
     )).toBe(false);
     expect(state.service.actionRecordingSnapshot().steps).toEqual([]);
     expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(0);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('records only schema-compatible observed results after publishing the committed revision', () => {
+    const state = setup();
+    state.service.startActionRecording('Invalid observed result');
+
+    expect(state.service.recordObservedCommand(
+      'text.format', state.session.id,
+      { layerId: 'text-layer', style: { syntheticBold: true } },
+      { layerId: 'text-layer', changed: true }
+    )).toBe(false);
+    expect(state.service.actionRecordingSnapshot().steps).toEqual([]);
+    expect(state.service.queryDocument(state.session.id)?.canonicalRevision).toBe(1);
     state.service.dispose();
     state.workspace.dispose();
   });

@@ -178,6 +178,7 @@ import {
 import { FlowTextEditingSessionController } from './application/text/flowTextEditingSession';
 import { executeSemanticTextCommand, paragraphTextCreateCommand, pathTextCreateCommand,
   pointTextCreateCommand,
+  textCreateCommandParameters,
   semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
 import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
@@ -4003,7 +4004,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           )
         : pointTextCreateCommand(request, editorSession.text, font,
             editorSession.brush.color, editorSession.activeTool === 'text-vertical');
-      const execution = executeRegisteredCommand('text.create', command);
+      const execution = executeRegisteredCommand('text.create', textCreateCommandParameters(command));
       void execution?.then((result) => {
         if (beginEditing && result.status === 'completed') {
           const layerId = (result.value as { layerId?: LayerId }).layerId;
@@ -4111,8 +4112,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     if (!request || !before || !font || request.documentId !== before.id) return false;
     paragraphCanvasCreationPendingRef.current = false;
     if (commandService) {
-      const execution = executeRegisteredCommand('text.create', paragraphTextCreateCommand(request,
-        editorSession.text, font, editorSession.brush.color, editorSession.activeTool === 'text-vertical'));
+      const execution = executeRegisteredCommand('text.create', textCreateCommandParameters(
+        paragraphTextCreateCommand(request, editorSession.text, font, editorSession.brush.color,
+          editorSession.activeTool === 'text-vertical')));
       void execution?.then((result) => {
         if (beginEditing && result.status === 'completed') {
           const layerId = (result.value as { layerId?: LayerId }).layerId;
@@ -6435,7 +6437,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       'text.format',
       workspaceDocumentId as DocumentSessionId,
       parameters,
-      { layerId: gesture.layerId, changed: true }
+      { layerId: gesture.layerId }
     );
   };
   const cancelTextPropertyGesture = () => {
