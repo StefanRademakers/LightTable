@@ -54,6 +54,34 @@ const selection = (): SelectionOperation[] => [{
 }];
 
 describe('TransformController', () => {
+  it('keeps repeated semantic transform previews transient until one final result', async () => {
+    const document = createImageDocument('Transform cadence', 320, 180, 'asset');
+    const text = createTextLayerNode(createDefaultTextLayerData(), 'Headline');
+    document.layers = [text];
+    document.activeLayerId = text.id;
+    const port = renderer();
+    const controller = new TransformController(port);
+    await controller.begin(document, []);
+
+    for (let index = 1; index <= 2048; index += 1) {
+      controller.update(translationMatrix(index / 8, index / 16));
+    }
+
+    // Begin publishes the identity preview once; the remaining calls are the
+    // authored transient updates. None is a durable command/history commit.
+    expect(port.updateSemanticLayerTransform).toHaveBeenCalledTimes(2049);
+    expect(port.commitLayerTransform).not.toHaveBeenCalled();
+    expect(port.cancelSemanticLayerTransform).not.toHaveBeenCalled();
+
+    const result = controller.finish(document, [], true);
+    expect(result.kind).toBe('layer');
+    if (result.kind === 'layer') {
+      expect(result.afterDocument.layers[0]?.transform).toEqual(translationMatrix(256, 128));
+    }
+    expect(port.commitLayerTransform).not.toHaveBeenCalled();
+    expect(port.cancelSemanticLayerTransform).toHaveBeenCalledOnce();
+  });
+
   it('previews and commits text transforms semantically without a pixel edit', async () => {
     const document = createImageDocument('Text transform', 320, 180, 'asset');
     const text = createTextLayerNode(createDefaultTextLayerData(), 'Headline');

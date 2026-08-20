@@ -11,6 +11,7 @@ import {
   type PaintSessionDependencies,
   type PaintSessionRendererPort
 } from './usePaintSessionController';
+import type { PaintFramePort } from './paintDabScheduler';
 
 const createPixelEdit = (): ReversiblePixelEdit => ({
   byteSize: 64,
@@ -19,7 +20,7 @@ const createPixelEdit = (): ReversiblePixelEdit => ({
   destroy: vi.fn()
 });
 
-const createFixture = () => {
+const createFixture = (frame?: PaintFramePort) => {
   let document = createImageDocument('Paint', 100, 80, 'asset');
   const layer = document.layers[0] as RasterLayer;
   const pixelEdit = createPixelEdit();
@@ -44,7 +45,7 @@ const createFixture = () => {
     setError: vi.fn()
   };
   return {
-    controller: createPaintSessionController(() => dependencies),
+    controller: createPaintSessionController(() => dependencies, undefined, frame),
     dependencies,
     history,
     layer,
@@ -55,6 +56,51 @@ const createFixture = () => {
 };
 
 describe('PaintSessionController', () => {
+  it('keeps a large coalesced recorded stroke to one frame submit, history entry and semantic commit', () => {
+    let frameCallback: (() => void) | null = null;
+    const request = vi.fn((callback: () => void) => {
+      frameCallback = callback;
+      return 31;
+    });
+    const cancel = vi.fn();
+    const fixture = createFixture({ request, cancel });
+    const onStrokeCommitted = vi.fn();
+    fixture.dependencies.onStrokeCommitted = onStrokeCommitted;
+    const samples = Array.from({ length: 2048 }, (_, index) => ({
+      x: 5 + index / 32,
+      y: 6 + index / 64,
+      pressure: 0.25 + (index % 64) / 128
+    }));
+
+    expect(fixture.controller.begin({
+      pointerId: 30,
+      layer: fixture.layer,
+      target: {
+        layerId: fixture.layer.id,
+        channel: 'pixels',
+        erase: false,
+        sourceToDocument: identityMatrix()
+      },
+      brush: createEditorSession().brush,
+      point: { x: 4, y: 5, pressure: 0.5 },
+      recordSemanticCommit: true
+    })).toBe(true);
+    expect(fixture.controller.moveMany(30, samples)).toBe(true);
+
+    expect(request).toHaveBeenCalledOnce();
+    expect(fixture.renderer.paintBrushDabs).not.toHaveBeenCalled();
+    expect(fixture.history).toHaveLength(0);
+    expect(onStrokeCommitted).not.toHaveBeenCalled();
+
+    expect(fixture.controller.finish(30)).toBe(true);
+    expect(cancel).toHaveBeenCalledWith(31);
+    expect(fixture.renderer.paintBrushDabs).toHaveBeenCalledOnce();
+    expect(fixture.history).toHaveLength(1);
+    expect(onStrokeCommitted).toHaveBeenCalledOnce();
+    expect(onStrokeCommitted.mock.calls[0]?.[0].samples).toHaveLength(2049);
+    expect(frameCallback).not.toBeNull();
+  });
+
   it('reports one bounded semantic stroke only after the pixel edit commits', () => {
     const onStrokeCommitted = vi.fn();
     const fixture = createFixture();

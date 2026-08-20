@@ -580,7 +580,7 @@ describe('LightTableCommandService registry', () => {
 
   it('records and replays one bounded committed tool operation instead of pointer commands', async () => {
     const state = setup();
-    const samples = Array.from({ length: 130 }, (_, index) => ({
+    const samples = Array.from({ length: 2048 }, (_, index) => ({
       x: index, y: index * 0.5, pressure: 0.75
     }));
     state.service.startActionRecording('One stroke');
@@ -592,19 +592,23 @@ describe('LightTableCommandService registry', () => {
     }));
     state.service.stopActionRecording();
     expect(result).toMatchObject({ status: 'completed', value: {
-      kind: 'brush-stroke', sampleCount: 130
+      kind: 'brush-stroke', sampleCount: 2048
     } });
     expect(state.ports.beginGesture).toHaveBeenCalledTimes(1);
-    expect(state.ports.updateGesture).toHaveBeenCalledTimes(129);
+    expect(state.ports.updateGesture).toHaveBeenCalledTimes(2047);
     expect(state.ports.finishGesture).toHaveBeenCalledTimes(1);
-    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([
+    const recording = state.service.actionRecordingSnapshot();
+    expect(recording.steps).toMatchObject([
       { command: 'tool.commitGesture', replayable: true,
         parameters: { kind: 'brush-stroke', samples } }
     ]);
+    expect(recording.steps).toHaveLength(1);
+    expect(recording.byteLength).toBeGreaterThan(0);
+    expect(recording.byteLength).toBeLessThanOrEqual(220 * 1024);
 
     await state.service.playActionRecording();
     expect(state.ports.beginGesture).toHaveBeenCalledTimes(2);
-    expect(state.ports.updateGesture).toHaveBeenCalledTimes(258);
+    expect(state.ports.updateGesture).toHaveBeenCalledTimes(4094);
     expect(state.ports.finishGesture).toHaveBeenCalledTimes(2);
     state.service.dispose(); state.workspace.dispose();
   });
