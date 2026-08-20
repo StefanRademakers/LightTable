@@ -120,6 +120,20 @@ describe('ActionsPanel', () => {
       .toEqual({ layerId: '' });
     expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['text.rasterize']!.input))
       .toEqual({ layerId: '' });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['raster.fill']!.input))
+      .toEqual({ layerId: '', channel: 'pixels', color: '#000000' });
+  });
+
+  it('uses shared executable examples for nested paint commands', () => {
+    const gradient = LIGHTTABLE_COMMAND_DEFINITIONS.find(({ id }) => id === 'raster.applyGradient')!;
+    const markup = renderToStaticMarkup(<CommandCatalogView
+      capabilities={[{ command: gradient.id, available: true, reason: null }]}
+      definitions={[gradient]}
+      onExecute={() => null}
+    />);
+    expect(markup).toContain('agent-sunset');
+    expect(markup).not.toContain('must contain at least');
+    expect(markup).not.toContain('disabled=""');
   });
 
   it('renders nested conditional text properties without a free-form command JSON editor', () => {

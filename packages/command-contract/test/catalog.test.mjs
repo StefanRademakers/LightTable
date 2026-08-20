@@ -72,6 +72,8 @@ test('versioned schemas describe and validate every completed command vertical',
     'layer.merge',
     'layer.flattenGroup',
     'document.flattenImage',
+    'raster.fill',
+    'raster.applyGradient',
     'selection.applyShape',
     'selection.applyMagicWand',
     'selection.modify',
@@ -350,5 +352,32 @@ test('raster and text finalization schemas retain stable layer identity', () => 
   }).valid, true);
   assert.equal(validateJsonSchemaValue(raster.input, {
     layerId: 'caption', preserveText: true
+  }).valid, false);
+});
+
+test('raster paint schemas describe final bounded GPU operations, not pointer streams', () => {
+  const fill = LIGHTTABLE_COMMAND_SCHEMAS['raster.fill'];
+  assert.equal(validateJsonSchemaValue(fill.input, {
+    layerId: 'photo', channel: 'pixels', color: '#2F80ed',
+    preserveTransparency: false, opacity: 1
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(fill.input, {
+    layerId: 'photo', channel: 'pixels', color: '#fff', pointerSamples: []
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(fill.result, {
+    layerId: 'photo', channel: 'mask'
+  }).valid, true);
+
+  const gradient = LIGHTTABLE_COMMAND_SCHEMAS['raster.applyGradient'];
+  const example = LIGHTTABLE_COMMAND_EXAMPLES['raster.applyGradient'][0];
+  assert.equal(validateJsonSchemaValue(gradient.input, example).valid, true);
+  assert.equal(validateJsonSchemaValue(gradient.result, {
+    layerId: 'photo', channel: 'pixels'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(gradient.input, {
+    ...example, paint: { ...example.paint, coordinateSpace: 'object-bounds' }
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(gradient.input, {
+    ...example, paint: { ...example.paint, pointerPath: [[0, 0], [10, 10]] }
   }).valid, false);
 });

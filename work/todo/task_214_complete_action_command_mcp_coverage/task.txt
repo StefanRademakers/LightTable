@@ -140,7 +140,9 @@ Existing foundation evidence
   Actions, packaged Agent Access and the external MCP bridge are proven.
 - Raster/mask pixel gradients now publish one final bounded paint through
   `raster.applyGradient`; pointer movement remains local and the GPU/history
-  transaction is shared by UI, Actions and Agent/MCP.
+  transaction is shared by UI, Actions and Agent/MCP. Shared schemas constrain
+  complete final paint geometry, stop counts and result identity; Actions seeds
+  nested paint state from the same documented command example.
 - Dodge, Burn and Sponge now share the bounded final brush-stroke contract.
   Effective operator settings publish only after successful GPU/history commit;
   interactive dabs remain on the existing local frame scheduler.

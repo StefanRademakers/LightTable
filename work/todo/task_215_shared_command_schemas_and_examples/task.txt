@@ -159,6 +159,10 @@ Current evidence (2026-08-20)
 - A separate finalization module now exposes explicit raster/mask inversion and
   retained-ID Text-to-Shape/Text-to-Raster results. Output types are constants,
   while live text editing and GPU payloads remain outside the command boundary.
+- A separate raster-paint module now describes solid Fill and complete final
+  Gradient paint, including bounded stops, transforms, coordinate spaces and
+  blend modes. Actions uses the shared examples for valid nested initial state;
+  MCP rejects pointer samples before the GPU/history owner.
 
 Still required for completion
 =============================

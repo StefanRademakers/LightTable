@@ -151,6 +151,7 @@ const SchemaField: React.FC<SchemaFieldProps> = ({
 
 interface CommandParameterEditorProps {
   readonly schema: LightTableJsonSchema;
+  readonly initialParameters?: Readonly<Record<string, unknown>>;
   readonly disabled: boolean;
   readonly running: boolean;
   readonly onRun: (parameters: Readonly<Record<string, unknown>>) => void;
@@ -158,11 +159,14 @@ interface CommandParameterEditorProps {
 
 export const CommandParameterEditor: React.FC<CommandParameterEditorProps> = ({
   schema,
+  initialParameters,
   disabled,
   running,
   onRun
 }) => {
-  const [parameters, setParameters] = useState(() => createCommandParameterDefaults(schema));
+  const [parameters, setParameters] = useState(() => initialParameters
+    ? structuredClone(initialParameters)
+    : createCommandParameterDefaults(schema));
   const validation = useMemo(() => validateJsonSchemaValue(schema, parameters), [parameters, schema]);
   const required = new Set(schema.required ?? []);
   const update = (name: string, value: unknown) => setParameters((current) => ({ ...current, [name]: value }));

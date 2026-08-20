@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "category": "paint",
+  "commands": {
+    "raster.fill": {
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "required": ["layerId", "channel", "color"],
+        "properties": {
+          "layerId": { "type": "string", "title": "Layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+          "channel": { "type": "string", "title": "Raster channel", "enum": ["pixels", "mask"], "default": "pixels" },
+          "color": { "type": "string", "title": "Fill color", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#000000", "x-lighttable-control": "color" },
+          "preserveTransparency": { "type": "boolean", "title": "Preserve transparency", "default": false },
+          "opacity": { "type": "number", "title": "Opacity", "minimum": 0, "maximum": 1, "default": 1 }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["layerId", "channel"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "channel": { "type": "string", "enum": ["pixels", "mask"] }
+        }
+      }
+    },
+    "raster.applyGradient": {
+      "input": {
+        "type": "object", "additionalProperties": false,
+        "required": ["layerId", "channel", "paint", "opacity", "blendMode"],
+        "properties": {
+          "layerId": { "type": "string", "title": "Layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" },
+          "channel": { "type": "string", "title": "Raster channel", "enum": ["pixels", "mask"], "default": "pixels" },
+          "paint": {
+            "type": "object", "title": "Final gradient paint", "additionalProperties": false,
+            "required": ["kind", "asset", "shape", "coordinateSpace", "transform", "reverse", "dither", "interpolation"],
+            "properties": {
+              "kind": { "type": "string", "const": "gradient" },
+              "asset": {
+                "type": "object", "additionalProperties": false,
+                "required": ["id", "name", "type", "smoothness", "colorStops", "opacityStops", "roughness", "seed"],
+                "properties": {
+                  "id": { "type": "string", "minLength": 1, "maxLength": 255 },
+                  "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+                  "type": { "type": "string", "enum": ["solid", "noise"] },
+                  "smoothness": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "roughness": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "seed": { "type": "number" },
+                  "colorStops": {
+                    "type": "array", "minItems": 2, "maxItems": 64,
+                    "items": {
+                      "type": "object", "additionalProperties": false,
+                      "required": ["id", "position", "midpoint", "color"],
+                      "properties": {
+                        "id": { "type": "string", "minLength": 1, "maxLength": 255 },
+                        "position": { "type": "number", "minimum": 0, "maximum": 1 },
+                        "midpoint": { "type": "number", "minimum": 0, "maximum": 1 },
+                        "color": {
+                          "type": "object", "additionalProperties": false,
+                          "required": ["r", "g", "b", "a"],
+                          "properties": {
+                            "r": { "type": "number", "minimum": 0, "maximum": 1 },
+                            "g": { "type": "number", "minimum": 0, "maximum": 1 },
+                            "b": { "type": "number", "minimum": 0, "maximum": 1 },
+                            "a": { "type": "number", "minimum": 0, "maximum": 1 }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "opacityStops": {
+                    "type": "array", "minItems": 2, "maxItems": 64,
+                    "items": {
+                      "type": "object", "additionalProperties": false,
+                      "required": ["id", "position", "midpoint", "opacity"],
+                      "properties": {
+                        "id": { "type": "string", "minLength": 1, "maxLength": 255 },
+                        "position": { "type": "number", "minimum": 0, "maximum": 1 },
+                        "midpoint": { "type": "number", "minimum": 0, "maximum": 1 },
+                        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+                      }
+                    }
+                  }
+                }
+              },
+              "shape": { "type": "string", "enum": ["linear", "radial", "angle", "reflected", "diamond"], "default": "linear" },
+              "coordinateSpace": { "type": "string", "enum": ["layer", "document"], "default": "document" },
+              "transform": {
+                "type": "object", "additionalProperties": false,
+                "required": ["a", "b", "c", "d", "tx", "ty"],
+                "properties": {
+                  "a": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+                  "b": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+                  "c": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+                  "d": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+                  "tx": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+                  "ty": { "type": "number", "minimum": -10000000, "maximum": 10000000 }
+                }
+              },
+              "reverse": { "type": "boolean", "default": false },
+              "dither": { "type": "boolean", "default": true },
+              "interpolation": { "type": "string", "enum": ["perceptual", "linear", "classic", "smooth"], "default": "perceptual" }
+            }
+          },
+          "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
+          "blendMode": { "type": "string", "enum": ["normal", "darken", "multiply", "color-burn", "lighten", "screen", "color-dodge", "linear-dodge", "overlay", "soft-light", "hard-light", "difference", "hue", "saturation", "color", "luminosity", "linear-burn", "darker-color", "lighter-color", "vivid-light", "linear-light", "pin-light", "hard-mix", "exclusion", "subtract", "divide"], "default": "normal" }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false,
+        "required": ["layerId", "channel"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "channel": { "type": "string", "enum": ["pixels", "mask"] }
+        }
+      }
+    }
+  }
+}

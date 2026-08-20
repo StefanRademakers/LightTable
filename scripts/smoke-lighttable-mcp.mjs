@@ -185,6 +185,23 @@ try {
       invertContract, textShapeContract, textRasterContract
     })}`);
   }
+  const fillContract = (await call('lighttable_commands', { command: 'raster.fill' }))
+    .structuredContent.commands?.[0]?.contract;
+  const rasterGradientContract = (await call('lighttable_commands', {
+    command: 'raster.applyGradient'
+  })).structuredContent.commands?.[0]?.contract;
+  if (fillContract?.status !== 'complete' || fillContract.schemaVersion !== 1
+    || fillContract.input?.properties?.color?.pattern !== '^#[0-9a-fA-F]{6}$'
+    || !fillContract.result?.properties?.channel
+    || rasterGradientContract?.status !== 'complete'
+    || rasterGradientContract.schemaVersion !== 1
+    || rasterGradientContract.input?.properties?.paint?.properties?.coordinateSpace?.enum?.includes('object-bounds')
+    || rasterGradientContract.input?.properties?.paint?.properties?.asset?.properties?.colorStops?.maxItems !== 64
+    || !rasterGradientContract.result?.properties?.layerId) {
+    throw new Error(`MCP raster paint discovery is incomplete: ${JSON.stringify({
+      fillContract, rasterGradientContract
+    })}`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
@@ -261,6 +278,20 @@ try {
   if (!invalidInvert.isError || afterInvalidInvert.canonicalRevision !== before.canonicalRevision) {
     throw new Error(`Expanded raster channel reached the GPU mutation owner: ${JSON.stringify({
       invalidInvert, before: before.canonicalRevision, after: afterInvalidInvert.canonicalRevision
+    })}`);
+  }
+  const invalidRasterGradient = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'raster.applyGradient', parameters: {
+      layerId: before.activeLayerId, channel: 'pixels', paint: mcpGradient,
+      opacity: 1, blendMode: 'normal', pointerSamples: [{ x: 0, y: 0 }]
+    }
+  } });
+  const afterInvalidRasterGradient = (await call('lighttable_document', { documentId })).structuredContent;
+  if (!invalidRasterGradient.isError
+    || afterInvalidRasterGradient.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Pointer samples reached the final raster-gradient owner: ${JSON.stringify({
+      invalidRasterGradient, before: before.canonicalRevision,
+      after: afterInvalidRasterGradient.canonicalRevision
     })}`);
   }
   const sourceLayerId = before.activeLayerId;
