@@ -29,6 +29,8 @@ import { parseSemanticTextCommand, type SemanticTextCommand } from './semanticTe
 import { parseSemanticVectorCommand, type SemanticVectorCommand } from './semanticVectorCommandContract';
 import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import { dispatchSemanticWarpStroke } from './semanticWarpCommandHandler';
+import type { SemanticFillCommand } from './semanticFillCommandContract';
+import { dispatchSemanticFill } from './semanticFillCommandHandler';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
 import { projectWarpQuery, type WarpQueryResult } from './warpQueryProjection';
@@ -118,6 +120,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   executeWarpStrokeCommand(documentId: DocumentSessionId, command: SemanticWarpStrokeCommand) {
     const execute = this.resolve(documentId).executeWarpStrokeCommand;
     if (!execute) throw new Error('Warp stroke commands are unavailable in the target document.');
+    return execute(command);
+  }
+
+  executeFillCommand(documentId: DocumentSessionId, command: SemanticFillCommand) {
+    const execute = this.resolve(documentId).executeFillCommand;
+    if (!execute) throw new Error('Fill commands are unavailable in the target document.');
     return execute(command);
   }
 
@@ -642,6 +650,8 @@ export class LightTableCommandService {
       availability('vector.remove', true, ''),
       availability('warp.applyStroke', Boolean(this.ports.executeWarpStrokeCommand),
         'Warp stroke commands are unavailable in this host.'),
+      availability('raster.fill', Boolean(this.ports.executeFillCommand),
+        'Fill commands are unavailable in this host.'),
       availability('faceWarp.applyOperation', Boolean(this.ports.executeFaceWarpCommand),
         'Face Warp commands are unavailable in this host.'),
       availability('layer.effect.add', true, ''),
@@ -919,6 +929,17 @@ export class LightTableCommandService {
       const outcome = await dispatchSemanticWarpStroke(value.parameters,
         this.ports.executeWarpStrokeCommand
           ? (command) => this.ports.executeWarpStrokeCommand!(documentRequest.documentId, command)
+          : undefined);
+      if (!outcome.ok) return this.reject(value.requestId, outcome.code, outcome.message, snapshot);
+      this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+      return { requestId: value.requestId, status: 'completed', value: outcome.value,
+        revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+    }
+
+    if (value.command === 'raster.fill') {
+      const outcome = await dispatchSemanticFill(value.parameters,
+        this.ports.executeFillCommand
+          ? (command) => this.ports.executeFillCommand!(documentRequest.documentId, command)
           : undefined);
       if (!outcome.ok) return this.reject(value.requestId, outcome.code, outcome.message, snapshot);
       this.workspace.getDocument(documentRequest.documentId)?.markChanged();

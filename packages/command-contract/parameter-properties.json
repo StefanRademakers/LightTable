@@ -28,6 +28,7 @@
   "vector.update": { "layerId": "string", "elementId": "string", "name?": "string", "transform?": "affine-matrix", "style?": "vector-style", "geometry?": "live-shape", "subpaths?": "vector-subpath[]", "fillRule?": "nonzero | evenodd" },
   "vector.remove": { "layerId": "string", "elementId": "string" },
   "warp.applyStroke": { "layerId": "string", "mode": "warp-brush-mode", "settings": "warp-brush-settings", "samples": "layer-source warp samples (1..4096, <=240 KiB)", "startedAtMs": "number", "durationMs": "number 0..3600000" },
+  "raster.fill": { "layerId": "string", "channel": "pixels | mask", "color": "#rrggbb", "preserveTransparency?": "boolean", "opacity?": "number 0..1" },
   "faceWarp.applyOperation": { "layerId": "string", "operation": "face-warp-operation" },
   "layer.effect.add": { "layerId": "string", "effectKind": "layer-effect-kind", "settings?": "layer-effect-settings" },
   "layer.effect.update": { "layerId": "string", "effectId": "string", "settings": "layer-effect-settings" },

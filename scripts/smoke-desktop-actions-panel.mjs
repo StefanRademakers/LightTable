@@ -320,10 +320,18 @@ try {
     || warpRecordingEvidence.document?.history.undoDepth !== warpTelemetryBefore?.history.undoDepth + 2) {
     throw new Error(`Warp recording did not publish two semantic history commits: ${JSON.stringify(warpRecordingEvidence)}`);
   }
+  await window.getByRole('button', { name: 'Show gradient and fill tools', exact: true }).click();
+  await window.getByRole('button', { name: 'Paint bucket (G)', exact: true }).click();
+  await window.mouse.click(
+    viewportBounds.x + viewportBounds.width * 0.24,
+    viewportBounds.y + viewportBounds.height * 0.44
+  );
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.locator('li').filter({ hasText: 'raster.fill' }).waitFor({ timeout: 15_000 });
 
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
-  for (let index = 0; index < 18; index += 1) {
+  for (let index = 0; index < 19; index += 1) {
     await window.getByRole('tab', { name: 'Actions', exact: true }).click();
     await panel.getByRole('radio', { name: 'Commands' }).click();
     const undo = panel.locator('details').filter({ hasText: 'history.undo' });
@@ -349,7 +357,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 18) throw new Error('Expected eighteen recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 19) throw new Error('Expected nineteen recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -408,6 +416,12 @@ try {
   const secondWarpText = await warpSteps.nth(1).textContent();
   if (!firstWarpText?.includes('$step7.target.layerId') || !secondWarpText?.includes('$step17.layerId')) {
     throw new Error(`Warp bindings are not stable across replay: ${JSON.stringify({ firstWarpText, secondWarpText })}`);
+  }
+  const fillStep = recorder.locator('li').filter({ hasText: 'raster.fill' });
+  await fillStep.locator('summary').click();
+  const fillStepText = await fillStep.textContent();
+  if (!fillStepText?.includes('$step18.layerId') || !fillStepText.includes('"channel": "pixels"')) {
+    throw new Error(`Recorded Fill target/channel are not stable: ${fillStepText}`);
   }
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();

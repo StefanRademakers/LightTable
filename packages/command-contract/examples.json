@@ -61,6 +61,10 @@
           "tilt": [0, 0], "timeMs": 1016 }
       ], "startedAtMs": 1000, "durationMs": 16 }
   ],
+  "raster.fill": [
+    { "layerId": "layer-photo", "channel": "pixels", "color": "#2f80ed",
+      "preserveTransparency": false, "opacity": 1 }
+  ],
   "tool.commitGesture": [
     {
       "kind": "brush-stroke",

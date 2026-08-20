@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import type { ImageDocument, LayerId } from '../../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import type { PaintChannel } from '../../../editor/session/editorSession';
+import type { SemanticFillCommand } from '../../commands/semanticFillCommandContract';
 import {
   executeFillOperation,
   type FillRendererPort
@@ -28,11 +29,18 @@ export interface FillCommandDependencies {
   pushHistoryEntry(entry: FillHistoryEntry): void;
   setStatus(message: string | null): void;
   setError(message: string | null): void;
+  onFillCommitted?(command: SemanticFillCommand, result: FillCommandResult): void;
+}
+
+export interface FillCommandResult {
+  readonly layerId: LayerId;
+  readonly channel: PaintChannel;
 }
 
 export interface FillCommandController {
   fill(color: string, preserveTransparency?: boolean): boolean;
   clearSelection(): boolean;
+  apply(command: SemanticFillCommand): FillCommandResult | null;
 }
 
 /** Owns one fill command from renderer mutation through reversible history. */
@@ -40,6 +48,8 @@ export const createFillCommandController = (
   resolveDependencies: () => FillCommandDependencies
 ): FillCommandController => {
   const execute = (
+    layerId: LayerId | undefined,
+    channel: PaintChannel,
     color: string,
     options: { readonly preserveTransparency?: boolean; readonly opacity?: number },
     status: (targetLabel: string) => string
@@ -47,17 +57,17 @@ export const createFillCommandController = (
     const dependencies = resolveDependencies();
     const before = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
-    if (!before || !renderer) return false;
+    if (!before || !renderer) return null;
     const result = executeFillOperation(
       before,
       renderer,
-      dependencies.getChannel(),
+      channel,
       color,
-      options
+      { ...options, layerId }
     );
     if (!result.ok) {
       dependencies.setError(result.message);
-      return false;
+      return null;
     }
 
     dependencies.applyDocumentSnapshot(result.document);
@@ -82,19 +92,29 @@ export const createFillCommandController = (
     });
     dependencies.setError(null);
     dependencies.setStatus(status(result.targetLabel));
-    return true;
+    return { layerId: result.layerId, channel: result.channel };
+  };
+  const executeUi = (color: string, preserveTransparency: boolean, opacity = 1) => {
+    const dependencies = resolveDependencies();
+    const document = dependencies.getDocument();
+    const layerId = document?.activeLayerId ?? undefined;
+    const channel = dependencies.getChannel();
+    const result = execute(layerId, channel, color, { preserveTransparency, opacity },
+      (targetLabel) => opacity === 0
+        ? `${targetLabel} selection cleared`
+        : `${targetLabel} filled with ${color.toUpperCase()}`);
+    if (result && layerId) dependencies.onFillCommitted?.({
+      layerId, channel, color, preserveTransparency, opacity
+    }, result);
+    return Boolean(result);
   };
   return {
-    fill: (color, preserveTransparency = false) => execute(
-      color,
-      { preserveTransparency },
-      (targetLabel) => `${targetLabel} filled with ${color.toUpperCase()}`
-    ),
-    clearSelection: () => execute(
-      '#000000',
-      { opacity: 0 },
-      (targetLabel) => `${targetLabel} selection cleared`
-    )
+    fill: (color, preserveTransparency = false) => executeUi(color, preserveTransparency),
+    clearSelection: () => executeUi('#000000', false, 0),
+    apply: (command) => execute(command.layerId, command.channel, command.color, {
+      preserveTransparency: command.preserveTransparency,
+      opacity: command.opacity
+    }, (targetLabel) => `${targetLabel} filled through command`)
   };
 };
 

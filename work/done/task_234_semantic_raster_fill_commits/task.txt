@@ -1,0 +1,76 @@
+Task 234 - Semantic raster Fill commits
+=======================================
+
+Goal
+====
+
+Expose one atomic GPU-backed Fill result through UI, Actions and reviewed
+Agent/MCP execution while retaining the renderer's reversible pixel-edit owner.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 220`](../task_220_reviewed_mcp_capability_admission/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+
+Existing owner confirmed
+========================
+
+- `fillOperation` owns one renderer transaction and fails closed when a GPU
+  target or undo snapshot is unavailable.
+- `createFillCommandController` owns document publication and one reversible
+  pixel-history entry.
+- The renderer already applies current selection and pixel/mask channel state;
+  those large transient buffers must not enter the command payload.
+
+Checklist
+=========
+
+- [x] Define a bounded semantic Fill contract with explicit layer and channel.
+- [x] Share one document/renderer/history owner between UI and command execution.
+- [x] Preserve selection-aware fill, transparency preservation and clear opacity.
+- [x] Record only after the renderer transaction and history commit succeed.
+- [x] Keep GPU pixels, selection buffers and pointer coordinates outside transport.
+- [x] Reject invalid colors, opacity, missing/locked targets and unavailable GPU state.
+- [x] Define stable result binding for the explicit target layer.
+- [x] Record, undo and replay a real packaged toolbar Fill.
+- [x] Prove packaged Agent Access and external MCP execution on an explicit layer.
+- [x] Compare observable document/history and rendered output; retain failure diagnostics.
+- [x] Run type, full app, contract, boundary, structure and packaged gates.
+
+Scope guard
+===========
+
+- This task covers solid atomic Fill/Clear semantics, not flood-fill tolerance,
+  content-aware fill or a serialized raster snapshot.
+- MCP calls one semantic operation; it never simulates a canvas click.
+- Existing local toolbar behavior and GPU undo ownership remain authoritative.
+
+Completion contract
+===================
+
+A real toolbar Fill records exactly one bounded operation after success. Actions
+and Agent/MCP replay the same renderer-backed operation on a stable explicit
+layer target, create one reversible history entry and produce verified pixels.
+
+Evidence (2026-08-20)
+=====================
+
+- The existing Fill controller now accepts an explicit layer/channel for
+  commands while toolbar Fill and Edit Clear retain their normal active-target
+  wrappers, selection behavior and reversible GPU pixel edit.
+- Only layer ID, channel, hex color, transparency policy and opacity cross the
+  semantic boundary. Renderer pixels, selection masks and click coordinates do not.
+- Packaged Actions recorded one real Paint Bucket click as `raster.fill`, bound
+  it to the preceding Warp result, undid all 19 workflow steps and replayed the
+  fill through the same controller without recursive recording.
+- Packaged Agent Access filled an explicit raster target. The external MCP
+  smoke executed the same command, decoded its returned preview and verified
+  an opaque blue-dominant rendered pixel rather than relying on command status.
+- Missing/locked targets, malformed colors/opacity, rejected GPU targets and
+  missing undo snapshots fail before document/history publication.
+- Command-contract and boundary checks, source-structure and architecture-doc
+  audits, desktop packaging, 2,580 app tests, 17 MCP tests, all-workspace
+  typecheck and all three packaged/real bridge smokes passed.

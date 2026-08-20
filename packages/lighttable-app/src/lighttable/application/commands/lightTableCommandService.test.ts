@@ -40,6 +40,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {}) => {
     executeTextCommand: vi.fn(),
     executeVectorCommand: vi.fn(),
     executeWarpStrokeCommand: vi.fn(),
+    executeFillCommand: vi.fn(),
     executeLayerStyleCommand: vi.fn(),
     executeFaceWarpCommand: vi.fn(),
     executeLayerCommand: vi.fn(),
@@ -453,6 +454,22 @@ describe('LightTableCommandService registry', () => {
       ...warpStroke(layerId), samples: []
     }));
     expect(invalid).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates and routes one explicit semantic Fill operation', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    vi.mocked(state.ports.executeFillCommand!).mockResolvedValue({ layerId, channel: 'pixels' });
+    const result = await state.service.execute(request('raster.fill', state.session.id, {
+      layerId, channel: 'pixels', color: '#2F80ED', preserveTransparency: false, opacity: 1
+    }));
+    expect(result).toMatchObject({ status: 'completed', value: { layerId, channel: 'pixels' } });
+    expect(state.ports.executeFillCommand).toHaveBeenCalledWith(state.session.id,
+      expect.objectContaining({ layerId, color: '#2f80ed', opacity: 1 }));
+    expect(await state.service.execute(request('raster.fill', state.session.id, {
+      layerId, channel: 'pixels', color: 'blue', opacity: 1
+    }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });
 

@@ -5,6 +5,7 @@ import {
   type RasterMask
 } from '../../../editor/document/documentTypes';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
+import { createRasterLayer } from '../../../editor/document/documentCommands';
 import {
   executeFillOperation,
   srgbHexToLinearRgb,
@@ -81,6 +82,27 @@ describe('executeFillOperation', () => {
       1
     );
     expect(fixture.layer.locks.transparency).toBe(false);
+  });
+
+  it('uses an explicit non-active raster target and rejects its pixel lock', () => {
+    const initial = createImageDocument('Explicit Fill', 40, 30, 'asset');
+    const original = initial.layers[0] as RasterLayer;
+    const document = createRasterLayer(initial, 'Active paint layer');
+    const renderer = createRenderer();
+    const filled = executeFillOperation(document, renderer, 'pixels', '#ffffff', {
+      layerId: original.id
+    });
+    expect(filled).toMatchObject({ ok: true, layerId: original.id });
+    expect(renderer.beginBrushStroke).toHaveBeenCalledWith(original, 'pixels');
+
+    const lockedOriginal = { ...original, locks: { ...original.locks, pixels: true } };
+    const lockedDocument = { ...document,
+      layers: document.layers.map((layer) => layer.id === original.id ? lockedOriginal : layer) };
+    const lockedRenderer = createRenderer();
+    expect(executeFillOperation(lockedDocument, lockedRenderer, 'pixels', '#ffffff', {
+      layerId: original.id
+    })).toMatchObject({ ok: false, code: 'invalid-target' });
+    expect(lockedRenderer.beginBrushStroke).not.toHaveBeenCalled();
   });
 
   it('clears selected raster pixels by writing transparent premultiplied color', () => {

@@ -126,6 +126,9 @@ Existing foundation evidence
   one bounded layer-source `warp.applyStroke` per completed gesture. Packaged
   Actions proves Push plus held Twirl undo/replay; packaged Agent Access proves
   direct execution and bounded editable-recipe query.
+- Solid raster/mask Fill now uses one explicit-target `raster.fill` capability
+  through the existing GPU transaction and reversible pixel-history owner.
+  Actions, packaged Agent Access and the external MCP bridge are proven.
 
 Program definition of done
 ==========================

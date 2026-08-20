@@ -33,7 +33,8 @@ describe('createFillCommandController', () => {
       }),
       pushHistoryEntry: vi.fn((entry: FillHistoryEntry) => history.push(entry)),
       setStatus: vi.fn(),
-      setError: vi.fn()
+      setError: vi.fn(),
+      onFillCommitted: vi.fn()
     };
     const controller = createFillCommandController(() => dependencies);
 
@@ -43,6 +44,11 @@ describe('createFillCommandController', () => {
     expect(dependencies.setStatus).toHaveBeenCalledWith(
       expect.stringContaining('#FF0000')
     );
+    expect(dependencies.onFillCommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ layerId: before.activeLayerId, channel: 'pixels',
+        color: '#ff0000', opacity: 1 }),
+      { layerId: before.activeLayerId, channel: 'pixels' }
+    );
 
     history[0].undo();
     expect(document).toBe(before);
@@ -51,6 +57,24 @@ describe('createFillCommandController', () => {
     history[0].redo();
     expect(document).not.toBe(before);
     expect(renderer.applyPixelHistory).toHaveBeenCalledWith(edit, 'redo');
+  });
+
+  it('targets commands explicitly without recursively observing them', () => {
+    let document: ImageDocument = createImageDocument('Fill command', 16, 12, 'asset');
+    const renderer = { beginBrushStroke: vi.fn(), fillLayerColor: vi.fn(() => true),
+      finishPixelEdit: vi.fn(() => pixelEdit()), cancelPixelEdit: vi.fn(),
+      applyPixelHistory: vi.fn(() => true) };
+    const onFillCommitted = vi.fn();
+    const controller = createFillCommandController(() => ({
+      getDocument: () => document, getRenderer: () => renderer, getChannel: () => 'mask',
+      applyDocumentSnapshot: (next) => { document = next; }, pushHistoryEntry: vi.fn(),
+      setStatus: vi.fn(), setError: vi.fn(), onFillCommitted
+    }));
+    const layerId = document.activeLayerId!;
+    expect(controller.apply({ layerId, channel: 'pixels', color: '#ffffff', opacity: 0.5 }))
+      .toEqual({ layerId, channel: 'pixels' });
+    expect(renderer.fillLayerColor).toHaveBeenCalledWith(layerId, 'pixels', [1, 1, 1], false, 0.5);
+    expect(onFillCommitted).not.toHaveBeenCalled();
   });
 
   it('uses the same reversible GPU transaction for clearing selected pixels', () => {

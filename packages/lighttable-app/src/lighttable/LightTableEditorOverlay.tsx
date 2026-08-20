@@ -3354,7 +3354,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyDocumentSnapshot,
     pushHistoryEntry,
     setStatus: setGradeStatus,
-    setError
+    setError,
+    onFillCommitted: (parameters, result) => commandService?.recordObservedCommand(
+      'raster.fill',
+      workspaceDocumentId as DocumentSessionId,
+      parameters,
+      result
+    )
   });
   const fillActiveTarget = fillCommandController.fill;
   fillActiveTargetRef.current = fillActiveTarget;
@@ -4657,6 +4663,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         recordHistory: pushDocumentHistory,
         createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`
       }),
+      executeFillCommand: (command) => fillCommandController.apply(command),
       executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {
         getDocument: () => imageDocumentRef.current,

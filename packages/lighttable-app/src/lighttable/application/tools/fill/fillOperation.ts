@@ -84,11 +84,13 @@ export const executeFillOperation = (
   channel: PaintChannel,
   color: string,
   options: {
+    readonly layerId?: LayerId;
     readonly preserveTransparency?: boolean;
     readonly opacity?: number;
   } = {}
 ): FillOperationResult => {
-  if (!document.activeLayerId) {
+  const targetLayerId = options.layerId ?? document.activeLayerId;
+  if (!targetLayerId) {
     return {
       ok: false,
       code: 'no-active-layer',
@@ -104,8 +106,8 @@ export const executeFillOperation = (
     };
   }
   const layer = channel === 'mask'
-    ? findDocumentLayer(document, document.activeLayerId)
-    : findRasterLayer(document, document.activeLayerId);
+    ? findDocumentLayer(document, targetLayerId)
+    : findRasterLayer(document, targetLayerId);
   if (!layer || (channel === 'mask' && !('mask' in layer && layer.mask))) {
     return {
       ok: false,
@@ -116,10 +118,8 @@ export const executeFillOperation = (
     };
   }
   const opacity = Math.max(0, Math.min(1, options.opacity ?? 1));
-  if (opacity === 0 && (
-    layer.locks.all
-    || (channel === 'pixels' && (layer.locks.pixels || layer.locks.transparency))
-  )) {
+  if (layer.locks.all || (channel === 'pixels' && (layer.locks.pixels
+    || (opacity === 0 && layer.locks.transparency)))) {
     return {
       ok: false,
       code: 'invalid-target',

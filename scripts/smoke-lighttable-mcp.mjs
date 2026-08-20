@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash, randomBytes } from 'node:crypto';
 import path from 'node:path';
 import process from 'node:process';
+import sharp from 'sharp';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { LightTableBridgeClient } from '../apps/mcp-server/src/lighttableClient.mjs';
 import { createLightTableMcpApp } from '../apps/mcp-server/src/server.mjs';
@@ -75,6 +76,9 @@ try {
   await call('lighttable_execute', { documentId, command: 'layer.rename',
     expectedDocumentRevision: createdDocument.canonicalRevision,
     parameters: { layerId, name: 'MCP editable accent' } });
+  await call('lighttable_execute', { documentId, command: 'raster.fill', parameters: {
+    layerId, channel: 'pixels', color: '#2f80ed', preserveTransparency: false, opacity: 1
+  } });
   const gesture = (await call('lighttable_gesture_begin', { documentId, kind: 'brush-stroke',
     coordinateSpace: 'document', parameters: { layerId, channel: 'pixels' },
     sample: { x: 80, y: 80, pressure: 1 } })).structuredContent;
@@ -101,6 +105,14 @@ try {
   const preview = await call('lighttable_preview', { documentId });
   const image = preview.content.find(({ type }) => type === 'image');
   if (!image) throw new Error('MCP preview did not return an image.');
+  const rendered = await sharp(Buffer.from(image.data, 'base64')).ensureAlpha().raw()
+    .toBuffer({ resolveWithObject: true });
+  const sampleOffset = (Math.min(10, rendered.info.height - 1) * rendered.info.width
+    + Math.min(10, rendered.info.width - 1)) * 4;
+  const corner = [...rendered.data.subarray(sampleOffset, sampleOffset + 4)];
+  if (corner[3] < 240 || corner[2] <= corner[0] || corner[2] <= corner[1]) {
+    throw new Error(`MCP raster Fill was not visible in the rendered preview: ${JSON.stringify(corner)}`);
+  }
 
   const exportArtifact = async (command, extension) => {
     const accepted = (await call('lighttable_execute', { documentId, command, parameters: {} })).structuredContent;

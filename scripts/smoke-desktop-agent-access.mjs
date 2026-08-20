@@ -296,6 +296,15 @@ try {
     || queriedGradient.elements?.[0]?.style?.fill?.transform?.tx !== 65) {
     throw new Error(`Agent Gradient Fill state is incomplete: ${JSON.stringify({ gradientLayer, queriedGradient })}`);
   }
+  const rasterFill = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-fill-raster', command: 'raster.fill', documentId: originalId,
+    commandParameters: { layerId, channel: 'pixels', color: '#2f80ed',
+      preserveTransparency: false, opacity: 0.35 }
+  });
+  if (rasterFill.status !== 'completed' || rasterFill.value?.layerId !== layerId
+    || rasterFill.value?.channel !== 'pixels') {
+    throw new Error(`Agent raster Fill failed: ${JSON.stringify(rasterFill)}`);
+  }
   const warpApplied = await invoke(address, token, 'command.execute', {
     commandRequestId: 'agent-warp-raster', command: 'warp.applyStroke', documentId: originalId,
     commandParameters: {
