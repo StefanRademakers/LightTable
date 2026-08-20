@@ -413,6 +413,10 @@ export class LightTableCommandService {
     this.actionPlayback.playStep(this.actionRecorder.snapshot(), sequence,
       this.workspace.getSnapshot().activeDocumentId ?? undefined)
   );
+  playActionFromStep = (sequence: number): Promise<ActionPlaybackSnapshot> => (
+    this.actionPlayback.playFrom(this.actionRecorder.snapshot(), sequence,
+      this.workspace.getSnapshot().activeDocumentId ?? undefined)
+  );
   stopActionPlayback = (): void => this.actionPlayback.stop();
 
   queryRenderTelemetry(documentId: DocumentSessionId): RenderTelemetrySnapshot | null {

@@ -7557,6 +7557,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 onClearRecording: () => { commandService?.clearActionRecording(); },
                 onPlay: () => { void commandService?.playActionRecording(); },
                 onPlayStep: (sequence) => { void commandService?.playActionStep(sequence); },
+                onPlayFromStep: (sequence) => { void commandService?.playActionFromStep(sequence); },
                 onStopPlayback: () => { commandService?.stopActionPlayback(); },
                 onSaveAction: (name) => { void commandService?.saveActionRecording(name); },
                 onLoadAction: (id) => { void commandService?.loadSavedAction(id); },

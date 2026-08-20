@@ -136,6 +136,63 @@ describe('SemanticActionPlaybackController', () => {
     expect(controller.snapshot().status).toBe('completed');
   });
 
+  it('plays one step with its transitive result producers but skips unrelated later work', async () => {
+    const dependent: ActionRecordingSnapshot = { ...recording(), steps: [
+      { ...recording().steps[0]! },
+      { ...recording().steps[1]! },
+      { ...recording().steps[1]!, sequence: 3, requestId: 'recorded-3',
+        parameters: { layerId: 'unrelated-layer', name: 'Later' },
+        result: { layerId: 'unrelated-layer', name: 'Later' } }
+    ] };
+    const execute = vi.fn(async (request) => ({ requestId: request.requestId,
+      status: 'completed' as const,
+      value: request.command === 'layer.createRaster'
+        ? { created: true, layerId: 'fresh-layer' }
+        : { layerId: 'fresh-layer', name: 'Title' },
+      revisions: { workspace: 1 } }));
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.playStep(dependent, 2, 'fresh-document');
+
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenNthCalledWith(1, expect.objectContaining({ command: 'layer.createRaster' }));
+    expect(execute).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      command: 'layer.rename', parameters: { layerId: 'fresh-layer', name: 'Title' }
+    }));
+    expect(controller.snapshot().results.map(({ sequence }) => sequence)).toEqual([1, 2]);
+  });
+
+  it('plays from a forked-document step with the document producer and all later steps', async () => {
+    const forked: ActionRecordingSnapshot = { ...recording(), steps: [{
+      ...recording().steps[0]!, command: 'document.duplicate', documentId: 'recorded-source',
+      parameters: { name: 'Variant' }, result: { documentId: 'recorded-duplicate' }
+    }, {
+      ...recording().steps[1]!, command: 'layer.createRaster', documentId: 'recorded-duplicate',
+      parameters: {}, result: { created: true, layerId: 'old-layer' }
+    }, {
+      ...recording().steps[1]!, sequence: 3, requestId: 'recorded-3',
+      documentId: 'recorded-duplicate', parameters: {
+        layerId: { $lighttableResult: { step: 2, path: 'layerId' } }, name: 'Variant paint'
+      }, result: { layerId: 'old-layer', name: 'Variant paint' }
+    }] };
+    const execute = vi.fn(async (request) => ({ requestId: request.requestId,
+      status: 'completed' as const,
+      value: request.command === 'document.duplicate' ? { documentId: 'fresh-duplicate' }
+        : request.command === 'layer.createRaster' ? { created: true, layerId: 'fresh-layer' }
+          : { layerId: 'fresh-layer', name: 'Variant paint' },
+      revisions: { workspace: 1 } }));
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.playFrom(forked, 2, 'fresh-source');
+
+    expect(execute.mock.calls.map(([request]) => request.command))
+      .toEqual(['document.duplicate', 'layer.createRaster', 'layer.rename']);
+    expect(execute).toHaveBeenNthCalledWith(2, expect.objectContaining({ documentId: 'fresh-duplicate' }));
+    expect(execute).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      documentId: 'fresh-duplicate', parameters: { layerId: 'fresh-layer', name: 'Variant paint' }
+    }));
+  });
+
   it('awaits an accepted task and binds its artifact into the following step', async () => {
     const asyncRecording: ActionRecordingSnapshot = {
       ...recording(), steps: [{ ...recording().steps[0]!, command: 'file.exportNative',

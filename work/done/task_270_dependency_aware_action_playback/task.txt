@@ -1,0 +1,54 @@
+Task 270 - Dependency-aware Action step playback
+
+Goal
+====
+
+Make Actions useful for stepwise debugging: Play Step and Play From Here must
+execute the minimal required producer steps for result/document bindings, then
+the requested range, through the normal semantic command service.
+
+Parent
+======
+
+- [`Task 219`](../../todo/task_219_durable_actions_workflows/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Discover transitive `$lighttableResult` dependencies without accepting
+  arbitrary expressions.
+- [x] Discover document-result dependencies from document.create/duplicate so
+  later steps target the fresh replay document.
+- [x] Make Play Step run prerequisites plus exactly the selected step.
+- [x] Add Play From Here with prerequisites plus all later replayable steps.
+- [x] Keep recording isolation, contract preflight, task waiting, stop and
+  result/error display unchanged.
+- [x] Add controller/service/panel tests and packaged proof using a real
+  document duplicate followed by an edit.
+- [x] Update Actions documentation/task evidence, run full gates and commit.
+
+Completed evidence (2026-08-20)
+===============================
+
+- Controller tests cover direct, transitive and document-result dependencies,
+  minimal Play Step selection and Play From Here ordering/result resolution.
+- The Actions panel exposes both controls per replayable step; no arbitrary
+  expression or recorded runtime fallback was added.
+- `npm run smoke:desktop:duplicate-image` used the visible Play From Here button
+  on step two of a recorded Duplicate -> Create Raster Action. Playback results
+  were exactly sequences 1 and 2, with the edit targeting the fresh fork.
+- That packaged route still matched normal UI and authenticated external MCP in
+  editable raster/vector/text state and byte-exact rendered pixels.
+- Focused playback/panel and automation-driver tests, app typecheck, packaged
+  distribution verification and the representative smoke passed.
+
+Constraints
+===========
+
+- Dependencies are derived only from recorded stable result bindings and
+  recorded result document identity; no DOM/UI inference.
+- Original step order remains authoritative.
+- A missing/non-replayable producer fails closed through the existing binding
+  or target validation; it is never replaced with recorded runtime state.
+- No pointer, paint, warp or slider preview path changes.

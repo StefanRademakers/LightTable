@@ -29,6 +29,7 @@ describe('ActionsPanel', () => {
       onClearRecording={() => undefined}
       onPlay={() => undefined}
       onPlayStep={() => undefined}
+      onPlayFromStep={() => undefined}
       onStopPlayback={() => undefined}
       onSaveAction={() => undefined}
       onLoadAction={() => undefined}
@@ -40,6 +41,29 @@ describe('ActionsPanel', () => {
     expect(markup).toContain('Untitled Action');
     expect(markup).toContain('Record');
     expect(markup).not.toContain('New raster layer');
+  });
+
+  it('offers dependency-aware single-step and play-from debugging controls', () => {
+    const markup = renderToStaticMarkup(<ActionsPanel
+      capabilities={[]} definitions={[definition]} onExecute={() => null}
+      recording={{ status: 'stopped', id: 'action-1', name: 'Layer setup', startedAt: 1,
+        stoppedAt: 2, byteLength: 10, limitReached: false, steps: [{
+          sequence: 1, requestId: 'request-1', command: 'layer.createRaster', documentId: 'document-1',
+          origin: 'ui', contract: { status: 'complete', schemaVersion: 1 }, parameters: {},
+          outcome: 'completed', result: { created: true, layerId: 'layer-1' },
+          startedAt: 1, durationMs: 1, replayable: true, note: null
+        }] }}
+      playback={{ status: 'idle', currentSequence: null, results: [], taskProgress: null }}
+      library={{ actions: [], selectedId: null, error: null }}
+      onStartRecording={() => undefined} onStopRecording={() => undefined}
+      onClearRecording={() => undefined} onPlay={() => undefined}
+      onPlayStep={() => undefined} onPlayFromStep={() => undefined}
+      onStopPlayback={() => undefined} onSaveAction={() => undefined}
+      onLoadAction={() => undefined} onDeleteAction={() => undefined}
+    />);
+
+    expect(markup).toContain('Play step');
+    expect(markup).toContain('Play from here');
   });
 
   it('discovers categorized commands without an arbitrary JSON executor', () => {
@@ -246,7 +270,8 @@ describe('ActionsPanel', () => {
       library={{ actions: [], selectedId: null, error: null }}
       onStartRecording={() => undefined} onStopRecording={() => undefined}
       onClearRecording={() => undefined} onPlay={() => undefined}
-      onPlayStep={() => undefined} onStopPlayback={() => undefined}
+      onPlayStep={() => undefined} onPlayFromStep={() => undefined}
+      onStopPlayback={() => undefined}
       onSaveAction={() => undefined} onLoadAction={() => undefined}
       onDeleteAction={() => undefined}
     />);

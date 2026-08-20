@@ -67,11 +67,15 @@ Current evidence (2026-08-20)
   browser-origin storage adapter.
 - Loaded document-scoped steps retarget to the active document while stable
   inter-step result bindings remain intact. Playback remains recording-isolated.
+- Play Step and Play From Here now compute the minimal transitive producer set
+  for stable result bindings and created/duplicated document identities. A
+  packaged Duplicate -> Create Layer Action started at step two, replayed the
+  required fork first and edited the fresh result document.
 - A packaged two-process smoke records create+rename, saves, fully restarts the
   app, reopens the original PSD as a fresh session, loads and replays the Action.
 - Accepted async commands now replay through subscribed document-task state,
   show progress, fail closed on missing/failure/cancel/timeout and support Stop
   through the real task owner. Completed export artifacts are available to
   later stable result bindings.
-- Action sets, user variables, dependency-aware play-from-step and explicit
+- Action sets, user variables and explicit
   migration transforms for future schema versions remain open.

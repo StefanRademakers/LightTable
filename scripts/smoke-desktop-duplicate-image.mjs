@@ -167,7 +167,10 @@ try {
     .first().click();
   await waitForDocument(driver, sourceDocumentId);
   recorder = await openActions(page);
-  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
+  const editStep = recorder.locator('.lighttable-action-recorder__steps > li')
+    .filter({ hasText: 'layer.createRaster' });
+  await editStep.locator('summary').click();
+  await editStep.getByRole('button', { name: 'Play from here', exact: true }).click();
   await page.waitForFunction((sourceId) => {
     const automation = window.__lightTableAutomation;
     return automation?.actionPlaybackSnapshot?.().status === 'completed'
@@ -176,6 +179,8 @@ try {
   const actionsDocumentId = (await driver.queryWorkspace()).activeDocumentId;
   assert.ok(actionsDocumentId && actionsDocumentId !== sourceDocumentId && actionsDocumentId !== uiDocumentId,
     'Actions did not create and activate a fresh duplicate.');
+  assert.deepEqual((await driver.queryActionPlayback()).results.map(({ sequence }) => sequence), [1, 2],
+    'Play From Here did not execute the required duplicate producer before the edit.');
   await waitForDocument(driver, actionsDocumentId);
   const actionsState = normalizeDuplicateState(await collectState(driver, actionsDocumentId));
   await writePreview(driver, actionsDocumentId, routeFiles.actions);
@@ -247,6 +252,7 @@ try {
       mcp: { documentId: mcpDocumentId }
     },
     recording: recording.steps.map(({ command, documentId, result }) => ({ command, documentId, result })),
+    actionPlayback: (await driver.queryActionPlayback()).results,
     finalLayerCount: (await driver.queryLayers(mcpDocumentId)).length,
     renderEvidence, pageErrors
   }, null, 2)}\n`);

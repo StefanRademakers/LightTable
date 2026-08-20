@@ -208,9 +208,9 @@ The profiles intentionally describe current rollout state. Generic MCP
 execution is narrower than the complete application command set, while
 document creation and artifact-open are reserved for dedicated tools with
 stronger input validation. PSD export is part of the proven remote design
-workflow. Document duplication and Face Warp remain withheld pending their own
-remote identity/result proof; they are future capability slices rather than
-permanent exclusions.
+workflow. Document duplication is now admitted after its remote identity/result
+proof; experimental Face Warp remains explicitly withheld pending its parked
+visual and product gates.
 
 `document.create` now has one closed shared workspace contract. New Document,
 the local Commands view and `lighttable_create_document` use the same numeric
@@ -319,6 +319,18 @@ marks remote execution as `mcp`, and Actions playback uses
 `actions-playback` with recording disabled. This prevents playback from
 recording itself while keeping agent edits visible in an explicitly active
 recorder. A remote caller cannot claim a different origin through its payload.
+
+Stepwise Action debugging is dependency-aware. Play Step resolves the
+transitive producer steps required by `$lighttableResult` bindings and then
+runs only the selected step. Play From Here adds those prerequisites to every
+replayable step from the chosen point onward. A later step recorded in a fresh
+document returned by `document.create` or `document.duplicate` also depends on
+that document producer, even when no parameter contains a result binding.
+Original order, schema preflight, task waiting, Stop and playback recording
+isolation remain unchanged. Missing, forward or non-replayable producers are
+not replaced by stale recorded state; the existing binding/target gate fails
+closed. Packaged proof starts from the second step of Duplicate -> Create Layer,
+runs the required Duplicate producer first and edits the fresh fork.
 
 ## Hetzner deployment example
 

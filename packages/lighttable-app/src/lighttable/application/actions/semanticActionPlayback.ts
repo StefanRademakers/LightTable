@@ -41,6 +41,50 @@ const returnedDocumentId = (value: unknown): string | null => (
     ? value.documentId : null
 );
 
+const collectResultBindingDependencies = (value: unknown, dependencies: Set<number>): void => {
+  if (!value || typeof value !== 'object') return;
+  if (!Array.isArray(value) && '$lighttableResult' in value) {
+    const binding = (value as { readonly $lighttableResult?: unknown }).$lighttableResult;
+    if (typeof binding === 'object' && binding !== null && 'step' in binding
+      && Number.isSafeInteger(binding.step) && (binding.step as number) > 0) {
+      dependencies.add(binding.step as number);
+      return;
+    }
+  }
+  if (Array.isArray(value)) value.forEach((child) => collectResultBindingDependencies(child, dependencies));
+  else Object.values(value).forEach((child) => collectResultBindingDependencies(child, dependencies));
+};
+
+const dependencyAwareSteps = (
+  recording: ActionRecordingSnapshot,
+  requested: readonly RecordedActionStep[]
+): readonly RecordedActionStep[] => {
+  const bySequence = new Map(recording.steps.map((step) => [step.sequence, step]));
+  const included = new Set(requested.map(({ sequence }) => sequence));
+  const pending = [...included];
+  while (pending.length) {
+    const sequence = pending.pop()!;
+    const step = bySequence.get(sequence);
+    if (!step) continue;
+    const dependencies = new Set<number>();
+    collectResultBindingDependencies(step.parameters, dependencies);
+    if (step.documentId) {
+      const producer = recording.steps.find((candidate) => candidate.sequence < sequence
+        && returnedDocumentId(candidate.result) === step.documentId);
+      if (producer) dependencies.add(producer.sequence);
+    }
+    for (const dependency of dependencies) {
+      const producer = bySequence.get(dependency);
+      // Forward references and non-replayable producers remain absent so the
+      // existing binding/target validation fails closed at execution time.
+      if (!producer?.replayable || producer.sequence >= sequence || included.has(producer.sequence)) continue;
+      included.add(producer.sequence);
+      pending.push(producer.sequence);
+    }
+  }
+  return recording.steps.filter(({ sequence, replayable }) => replayable && included.has(sequence));
+};
+
 export class SemanticActionPlaybackController {
   private snapshotValue = initialSnapshot();
   private readonly listeners = new Set<() => void>();
@@ -63,7 +107,14 @@ export class SemanticActionPlaybackController {
   async playStep(recording: ActionRecordingSnapshot, sequence: number,
     targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
     const step = recording.steps.find((candidate) => candidate.sequence === sequence && candidate.replayable);
-    return this.run(recording, step ? [step] : [], targetDocumentId);
+    return this.run(recording, step ? dependencyAwareSteps(recording, [step]) : [], targetDocumentId);
+  }
+
+  async playFrom(recording: ActionRecordingSnapshot, sequence: number,
+    targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
+    const steps = recording.steps.filter((candidate) => candidate.replayable
+      && candidate.sequence >= sequence);
+    return this.run(recording, dependencyAwareSteps(recording, steps), targetDocumentId);
   }
 
   stop(): void {

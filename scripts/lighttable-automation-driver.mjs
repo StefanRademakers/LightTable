@@ -65,6 +65,11 @@ export class LightTableAutomationClient {
       window.__lightTableAutomation?.actionRecordingSnapshot?.() ?? null);
   }
 
+  queryActionPlayback() {
+    return this.page.evaluate(() =>
+      window.__lightTableAutomation?.actionPlaybackSnapshot?.() ?? null);
+  }
+
   queryTask(documentId, taskId) {
     return this.page.evaluate(({ documentId, taskId }) =>
       window.__lightTableAutomation?.queryTask(documentId, taskId) ?? null,

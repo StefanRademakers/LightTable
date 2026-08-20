@@ -19,6 +19,7 @@ export interface ActionRecorderViewProps {
   readonly onClear: () => void;
   readonly onPlay: () => void;
   readonly onPlayStep: (sequence: number) => void;
+  readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
   readonly onSave: (name: string) => void;
   readonly onLoad: (id: string) => void;
@@ -42,6 +43,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
   onClear,
   onPlay,
   onPlayStep,
+  onPlayFromStep,
   onStopPlayback,
   onSave,
   onLoad,
@@ -133,6 +135,8 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
               <div className="lighttable-action-recorder__step-controls">
                 <ButtonBase type="button" onClick={() => onPlayStep(step.sequence)}
                   disabled={busy || recording.status === 'recording' || !step.replayable}>Play step</ButtonBase>
+                <ButtonBase type="button" onClick={() => onPlayFromStep(step.sequence)}
+                  disabled={busy || recording.status === 'recording' || !step.replayable}>Play from here</ButtonBase>
                 <span>{step.durationMs} ms recorded</span>
               </div>
               <dl>
