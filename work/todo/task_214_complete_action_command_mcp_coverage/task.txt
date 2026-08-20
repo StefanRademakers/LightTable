@@ -105,7 +105,8 @@ Existing foundation evidence
   document/layer targets, final slider recording and packaged Actions replay;
   `grade.queryBasic` now reads those canonical values through authenticated
   packaged Agent Access without history/recording mutation. Non-basic groups
-  remain open.
+  remain open. Shared version-1 schemas now enforce the same range map used by
+  the sliders and require a non-empty bounded patch.
 - Native point-text creation and faux-bold/italic/underline formatting now use
   shared semantic owners. Packaged Actions records, binds, undoes and replays
   UI text creation/formatting; packaged Agent Access creates, formats and

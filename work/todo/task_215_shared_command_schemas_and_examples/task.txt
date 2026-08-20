@@ -149,6 +149,10 @@ Current evidence (2026-08-20)
   sample recipes and conditional Feather state without exposing generated masks
   or pointer samples. Complete result schemas align native UI observation with
   direct Actions/MCP execution; MCP rejects private point pressure state.
+- A separate Basic Grade module now owns the document/layer target union, all
+  14 application-owned numeric ranges, non-empty partial patches and canonical
+  changed/no-op results. A drift test compares schema ranges to the real slider
+  map; MCP rejects private curve payloads before document mutation.
 
 Still required for completion
 =============================

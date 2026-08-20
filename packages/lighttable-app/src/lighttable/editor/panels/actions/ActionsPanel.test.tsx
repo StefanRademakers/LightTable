@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { LIGHTTABLE_COMMAND_DEFINITIONS, LIGHTTABLE_COMMAND_SCHEMAS } from '@lighttable/command-contract';
 import { BLEND_MODES } from '../../document/blendModes';
+import { BASIC_ADJUSTMENT_RANGES } from '../../../application/adjustments/groupVisibility';
 import { ActionsPanel } from './ActionsPanel';
 import { CommandCatalogView } from './CommandCatalogView';
 import { createCommandParameterDefaults } from './CommandParameterEditor';
@@ -101,6 +102,12 @@ describe('ActionsPanel', () => {
           contiguous: true, sampleAllLayers: false } });
     expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['selection.modify']!.input))
       .toEqual({ kind: 'modify', operation: 'all' });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['grade.setBasic']!.input))
+      .toEqual({ target: { kind: 'document' }, values: { temperature: 0 } });
+    expect(Object.fromEntries(Object.entries(
+      LIGHTTABLE_COMMAND_SCHEMAS['grade.setBasic']!.input.properties!.values.properties!
+    ).map(([key, schema]) => [key, { min: schema.minimum, max: schema.maximum }])))
+      .toEqual(BASIC_ADJUSTMENT_RANGES);
   });
 
   it('renders nested conditional text properties without a free-form command JSON editor', () => {

@@ -142,6 +142,14 @@ try {
       shapeSelectionContract, wandSelectionContract, modifySelectionContract
     })}`);
   }
+  const basicGradeContract = (await call('lighttable_commands', { command: 'grade.setBasic' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (basicGradeContract?.status !== 'complete' || basicGradeContract.schemaVersion !== 1
+    || basicGradeContract.input?.properties?.target?.oneOf?.length !== 2
+    || Object.keys(basicGradeContract.input?.properties?.values?.properties ?? {}).length !== 14
+    || !basicGradeContract.result?.properties?.changed) {
+    throw new Error(`MCP basic Grade discovery is incomplete: ${JSON.stringify(basicGradeContract)}`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
@@ -188,6 +196,17 @@ try {
   } });
   if (!invalidSelection.isError) {
     throw new Error(`Private pointer state reached the Magic Wand owner: ${JSON.stringify(invalidSelection)}`);
+  }
+  const invalidGrade = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'grade.setBasic', parameters: {
+      target: { kind: 'document' }, values: { privateCurve: [0, 1] }
+    }
+  } });
+  const afterInvalidGrade = (await call('lighttable_document', { documentId })).structuredContent;
+  if (!invalidGrade.isError || afterInvalidGrade.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Private Grade state reached the desktop mutation owner: ${JSON.stringify({
+      invalidGrade, before: before.canonicalRevision, after: afterInvalidGrade.canonicalRevision
+    })}`);
   }
   const sourceLayerId = before.activeLayerId;
   const openingLayers = (await call('lighttable_layers', { documentId })).structuredContent;

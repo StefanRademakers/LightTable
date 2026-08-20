@@ -53,6 +53,7 @@ test('current remote rollout remains a strict subset of the application command 
 
 test('versioned schemas describe and validate every completed command vertical', () => {
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
+    'grade.setBasic',
     'layer.createRaster',
     'layer.setMask',
     'layer.duplicate',
@@ -270,4 +271,24 @@ test('selection schemas bound final geometry, sampled recipes and conditional fe
   assert.equal(validateJsonSchemaValue(modify.input, {
     kind: 'modify', operation: 'invert', radius: 12
   }).valid, false);
+});
+
+test('basic Grade schema requires a bounded partial patch and explicit target', () => {
+  const grade = LIGHTTABLE_COMMAND_SCHEMAS['grade.setBasic'];
+  for (const value of [
+    { target: { kind: 'document' }, values: { exposureEV: 1.25, contrast: -20 } },
+    { target: { kind: 'layer', layerId: 'photo' }, values: {
+      temperature: -100, saturation: 100
+    } }
+  ]) assert.equal(validateJsonSchemaValue(grade.input, value).valid, true, JSON.stringify(value));
+  for (const value of [
+    { target: { kind: 'document' }, values: {} },
+    { target: { kind: 'document', activeLayerId: 'private' }, values: { exposureEV: 1 } },
+    { target: { kind: 'layer' }, values: { contrast: 1 } },
+    { target: { kind: 'document' }, values: { exposureEV: 5.01 } },
+    { target: { kind: 'document' }, values: { privateCurve: [0, 1] } }
+  ]) assert.equal(validateJsonSchemaValue(grade.input, value).valid, false, JSON.stringify(value));
+  assert.equal(validateJsonSchemaValue(grade.result, {
+    target: { kind: 'document' }, values: { exposureEV: 1.25 }, changed: true
+  }).valid, true);
 });

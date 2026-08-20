@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "category": "adjustments",
+  "commands": {
+    "grade.setBasic": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "values"],
+        "properties": {
+          "target": {
+            "title": "Grade target",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "properties": {
+                  "kind": { "type": "string", "title": "Target kind", "const": "document", "default": "document" }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "layerId"],
+                "properties": {
+                  "kind": { "type": "string", "title": "Target kind", "const": "layer", "default": "layer" },
+                  "layerId": { "type": "string", "title": "Layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" }
+                }
+              }
+            ]
+          },
+          "values": {
+            "type": "object",
+            "title": "Changed basic controls",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "maxProperties": 14,
+            "properties": {
+              "temperature": { "type": "number", "title": "Temperature", "minimum": -100, "maximum": 100, "default": 0 },
+              "tint": { "type": "number", "title": "Tint", "minimum": -100, "maximum": 100, "default": 0 },
+              "exposureEV": { "type": "number", "title": "Exposure", "minimum": -5, "maximum": 5, "default": 0, "x-lighttable-step": 0.01 },
+              "contrast": { "type": "number", "title": "Contrast", "minimum": -100, "maximum": 100, "default": 0 },
+              "highlights": { "type": "number", "title": "Highlights", "minimum": -100, "maximum": 100, "default": 0 },
+              "shadows": { "type": "number", "title": "Shadows", "minimum": -100, "maximum": 100, "default": 0 },
+              "whites": { "type": "number", "title": "Whites", "minimum": -100, "maximum": 100, "default": 0 },
+              "blacks": { "type": "number", "title": "Blacks", "minimum": -100, "maximum": 100, "default": 0 },
+              "lift": { "type": "number", "title": "Lift", "minimum": -100, "maximum": 100, "default": 0 },
+              "texture": { "type": "number", "title": "Texture", "minimum": -100, "maximum": 100, "default": 0 },
+              "clarity": { "type": "number", "title": "Clarity", "minimum": -100, "maximum": 100, "default": 0 },
+              "dehaze": { "type": "number", "title": "Dehaze", "minimum": -100, "maximum": 100, "default": 0 },
+              "vibrance": { "type": "number", "title": "Vibrance", "minimum": -100, "maximum": 100, "default": 0 },
+              "saturation": { "type": "number", "title": "Saturation", "minimum": -100, "maximum": 100, "default": 0 }
+            }
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "values", "changed"],
+        "properties": {
+          "target": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "properties": { "kind": { "type": "string", "const": "document" } }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "layerId"],
+                "properties": {
+                  "kind": { "type": "string", "const": "layer" },
+                  "layerId": { "type": "string", "minLength": 1, "maxLength": 512 }
+                }
+              }
+            ]
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "maxProperties": 14,
+            "properties": {
+              "temperature": { "type": "number", "minimum": -100, "maximum": 100 },
+              "tint": { "type": "number", "minimum": -100, "maximum": 100 },
+              "exposureEV": { "type": "number", "minimum": -5, "maximum": 5 },
+              "contrast": { "type": "number", "minimum": -100, "maximum": 100 },
+              "highlights": { "type": "number", "minimum": -100, "maximum": 100 },
+              "shadows": { "type": "number", "minimum": -100, "maximum": 100 },
+              "whites": { "type": "number", "minimum": -100, "maximum": 100 },
+              "blacks": { "type": "number", "minimum": -100, "maximum": 100 },
+              "lift": { "type": "number", "minimum": -100, "maximum": 100 },
+              "texture": { "type": "number", "minimum": -100, "maximum": 100 },
+              "clarity": { "type": "number", "minimum": -100, "maximum": 100 },
+              "dehaze": { "type": "number", "minimum": -100, "maximum": 100 },
+              "vibrance": { "type": "number", "minimum": -100, "maximum": 100 },
+              "saturation": { "type": "number", "minimum": -100, "maximum": 100 }
+            }
+          },
+          "changed": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
