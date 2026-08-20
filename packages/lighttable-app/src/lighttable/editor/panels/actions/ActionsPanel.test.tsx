@@ -85,6 +85,10 @@ describe('ActionsPanel', () => {
       .toEqual({ mode: 'point', text: 'Text', origin: { x: 0, y: 0 } });
     expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['text.format']!.input))
       .toEqual({ layerId: '' });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['layer.setTransform']!.input))
+      .toEqual({ layerId: '', transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 } });
+    expect(createCommandParameterDefaults(LIGHTTABLE_COMMAND_SCHEMAS['transform.applyFixed']!.input))
+      .toEqual({ operation: 'flip-horizontal' });
   });
 
   it('renders nested conditional text properties without a free-form command JSON editor', () => {

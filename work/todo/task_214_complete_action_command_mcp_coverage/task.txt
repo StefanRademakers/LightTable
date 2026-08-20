@@ -151,7 +151,9 @@ Existing foundation evidence
   `transform.applyFixed` execution across UI, Actions and Agent/MCP. The
   existing transform session still owns selection pixels, masks, single layers,
   layer groups, pivots and undo; no pointer or preview samples cross the command
-  boundary.
+  boundary. Exact affine `layer.setTransform` and these contextual operations
+  now also have shared version-1 input/result schemas proven through packaged
+  Actions, UI/Actions/MCP equivalence and external MCP discovery/execution.
 - The complete visible Image > Adjustments family now resolves once to an
   explicit `adjustment.create` placement and stable target ID. Local Grade /
   Curves / Lens Fx, attached adjustments and standalone adjustment layers reuse

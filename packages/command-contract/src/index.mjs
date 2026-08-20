@@ -13,6 +13,8 @@ import layerCommandSchemas from '../schemas/v1/layer.json' with { type: 'json' }
 
 import textCommandSchemas from '../schemas/v1/text.json' with { type: 'json' };
 
+import transformCommandSchemas from '../schemas/v1/transform.json' with { type: 'json' };
+
 export { validateJsonSchemaValue, formatSchemaValidationIssues } from './schema-validation.mjs';
 
 export const LIGHTTABLE_COMMAND_PROTOCOL_VERSION = 1;
@@ -90,7 +92,8 @@ export const LIGHTTABLE_COMMAND_SCHEMA_VERSION = 1;
 export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
   ...layerStructureCommandSchemas.commands,
   ...layerCommandSchemas.commands,
-  ...textCommandSchemas.commands
+  ...textCommandSchemas.commands,
+  ...transformCommandSchemas.commands
 });
 
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([

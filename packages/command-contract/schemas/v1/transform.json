@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "category": "transform",
+  "commands": {
+    "layer.setTransform": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "transform"],
+        "properties": {
+          "layerId": {
+            "type": "string",
+            "title": "Layer ID",
+            "description": "Stable ID of the layer receiving the complete affine transform.",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-lighttable-control": "layer-id"
+          },
+          "transform": {
+            "type": "object",
+            "title": "Affine transform",
+            "description": "Complete layer-local affine matrix. This replaces, rather than increments, the current transform.",
+            "additionalProperties": false,
+            "required": ["a", "b", "c", "d", "tx", "ty"],
+            "properties": {
+              "a": { "type": "number", "title": "Scale/skew X", "minimum": -10000000, "maximum": 10000000, "default": 1 },
+              "b": { "type": "number", "title": "Skew Y", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "c": { "type": "number", "title": "Skew X", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "d": { "type": "number", "title": "Scale/skew Y", "minimum": -10000000, "maximum": 10000000, "default": 1 },
+              "tx": { "type": "number", "title": "Translate X", "minimum": -10000000, "maximum": 10000000, "default": 0 },
+              "ty": { "type": "number", "title": "Translate Y", "minimum": -10000000, "maximum": 10000000, "default": 0 }
+            }
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId", "transform"],
+        "properties": {
+          "layerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "transform": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["a", "b", "c", "d", "tx", "ty"],
+            "properties": {
+              "a": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+              "b": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+              "c": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+              "d": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+              "tx": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+              "ty": { "type": "number", "minimum": -10000000, "maximum": 10000000 }
+            }
+          }
+        }
+      }
+    },
+    "transform.applyFixed": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["operation"],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "title": "Operation",
+            "description": "Discrete transform applied to the current selection, mask, layer or layer group.",
+            "enum": [
+              "rotate-180",
+              "rotate-clockwise-90",
+              "rotate-counter-clockwise-90",
+              "flip-horizontal",
+              "flip-vertical"
+            ],
+            "default": "flip-horizontal"
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["operation", "target"],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "rotate-180",
+              "rotate-clockwise-90",
+              "rotate-counter-clockwise-90",
+              "flip-horizontal",
+              "flip-vertical"
+            ]
+          },
+          "target": { "type": "string", "enum": ["selection", "mask", "layer", "layer-group"] },
+          "documentRevision": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

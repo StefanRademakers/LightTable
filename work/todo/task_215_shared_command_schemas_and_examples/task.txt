@@ -126,6 +126,20 @@ Current evidence (2026-08-20)
   libraries are checked against current input/result schemas and rewritten as
   version 2 only when compatible. Load and playback reject missing, malformed,
   newer or otherwise incompatible complete contracts before any command runs.
+- A separate Transform module now owns exact bounded affine `layer.setTransform`
+  input/results and the five contextual `transform.applyFixed` operations plus
+  their selection/mask/layer/group targets. Generated Actions defaults expose
+  the full identity matrix; MCP discovery reports both contracts as complete.
+- Packaged Actions and route-equivalence smokes exposed two prior Text contract
+  boundary errors that unit/form-only proof had missed: native Type-tool create
+  leaked the internal `kind` discriminant and pointer pressure, while observed
+  formatting returned a private `changed` flag. UI projection now emits the
+  same stable Text parameters/results as Actions and MCP. Observed complete-
+  schema results are validated before they can enter a recording.
+- Packaged UI/Actions/MCP route equivalence now passes with exact affine replay,
+  native Type-tool creation and formatting. External MCP separately proves
+  transform discovery, rejects private affine runtime fields without a revision
+  change, and executes the real contextual fixed-transform owner.
 
 Still required for completion
 =============================

@@ -97,6 +97,20 @@ try {
     || !textContract.input?.allOf || !textContract.result?.properties?.layerId) {
     throw new Error(`MCP text.create discovery is not a complete conditional contract: ${JSON.stringify(textContract)}`);
   }
+  const layerTransformContract = (await call('lighttable_commands', { command: 'layer.setTransform' }))
+    .structuredContent.commands?.[0]?.contract;
+  const fixedTransformContract = (await call('lighttable_commands', { command: 'transform.applyFixed' }))
+    .structuredContent.commands?.[0]?.contract;
+  if (layerTransformContract?.status !== 'complete' || layerTransformContract.schemaVersion !== 1
+    || !layerTransformContract.input?.properties?.transform?.properties?.tx
+    || !layerTransformContract.result?.properties?.transform
+    || fixedTransformContract?.status !== 'complete' || fixedTransformContract.schemaVersion !== 1
+    || !fixedTransformContract.input?.properties?.operation?.enum?.includes('flip-horizontal')
+    || !fixedTransformContract.result?.properties?.target) {
+    throw new Error(`MCP transform discovery is incomplete: ${JSON.stringify({
+      layerTransformContract, fixedTransformContract
+    })}`);
+  }
   const invalidText = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
     documentId, command: 'text.create', parameters: {
       mode: 'path', text: 'Missing native path target', origin: { x: 0, y: 0 },
@@ -107,6 +121,19 @@ try {
   if (!invalidText.isError || afterInvalidText.canonicalRevision !== before.canonicalRevision) {
     throw new Error(`Invalid nested Text input reached the desktop mutation owner: ${JSON.stringify({
       invalidText, before: before.canonicalRevision, after: afterInvalidText.canonicalRevision
+    })}`);
+  }
+  const invalidTransform = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+    documentId, command: 'layer.setTransform', parameters: {
+      layerId: before.activeLayerId,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0, runtimeBounds: [0, 0, 1, 1] }
+    }
+  } });
+  const afterInvalidTransform = (await call('lighttable_document', { documentId })).structuredContent;
+  if (!invalidTransform.isError || afterInvalidTransform.canonicalRevision !== before.canonicalRevision) {
+    throw new Error(`Invalid affine state reached the desktop mutation owner: ${JSON.stringify({
+      invalidTransform, before: before.canonicalRevision,
+      after: afterInvalidTransform.canonicalRevision
     })}`);
   }
   const sourceLayerId = before.activeLayerId;

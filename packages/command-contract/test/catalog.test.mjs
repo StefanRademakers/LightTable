@@ -66,7 +66,9 @@ test('versioned schemas describe and validate every completed command vertical',
     'text.create',
     'text.replaceRange',
     'text.format',
-    'text.setLayout'
+    'text.setLayout',
+    'layer.setTransform',
+    'transform.applyFixed'
   ]);
   for (const [command, schema] of Object.entries(LIGHTTABLE_COMMAND_SCHEMAS)) {
     assert.equal(schema.input.additionalProperties, false, `${command} input must be closed`);
@@ -171,4 +173,31 @@ test('shared result schemas accept canonical text IDs and optional exact font st
     assert.deepEqual(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS[command].result, value),
       { valid: true, issues: [] }, command);
   }
+});
+
+test('transform schemas distinguish exact matrices from contextual fixed operations', () => {
+  const matrix = { a: 1, b: 0, c: 0, d: 1, tx: 32, ty: 16 };
+  const setTransform = LIGHTTABLE_COMMAND_SCHEMAS['layer.setTransform'];
+  assert.equal(validateJsonSchemaValue(setTransform.input, {
+    layerId: 'hero', transform: matrix
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(setTransform.input, {
+    layerId: 'hero', transform: { ...matrix, tx: 10000001 }
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(setTransform.input, {
+    layerId: 'hero', transform: { ...matrix, runtimeBounds: [0, 0, 1, 1] }
+  }).valid, false);
+  assert.deepEqual(validateJsonSchemaValue(setTransform.result, {
+    layerId: 'hero', transform: matrix
+  }), { valid: true, issues: [] });
+
+  const fixed = LIGHTTABLE_COMMAND_SCHEMAS['transform.applyFixed'];
+  assert.equal(validateJsonSchemaValue(fixed.input, { operation: 'rotate-clockwise-90' }).valid, true);
+  assert.equal(validateJsonSchemaValue(fixed.input, { operation: 'rotate-45' }).valid, false);
+  assert.deepEqual(validateJsonSchemaValue(fixed.result, {
+    operation: 'flip-horizontal', target: 'selection', documentRevision: 7
+  }), { valid: true, issues: [] });
+  assert.equal(validateJsonSchemaValue(fixed.result, {
+    operation: 'flip-horizontal', target: 'canvas'
+  }).valid, false);
 });
