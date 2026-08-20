@@ -18,6 +18,7 @@ import type { SemanticSelectionCommand } from './semanticSelectionCommandContrac
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
 import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandContract';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
+import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId
@@ -192,6 +193,7 @@ export interface LightTableCommandPorts {
   setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): unknown | Promise<unknown>;
   executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand): unknown | Promise<unknown>;
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand): unknown | Promise<unknown>;
+  executeWarpStrokeCommand?(documentId: DocumentSessionId, command: SemanticWarpStrokeCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   executeFaceWarpCommand?(documentId: DocumentSessionId, command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(documentId: DocumentSessionId, command: SemanticLayerCommand): unknown | Promise<unknown>;
@@ -225,6 +227,7 @@ export interface DocumentLightTableCommandPorts {
   setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): unknown | Promise<unknown>;
   executeTextCommand(command: SemanticTextCommand): unknown | Promise<unknown>;
   executeVectorCommand(command: SemanticVectorCommand): unknown | Promise<unknown>;
+  executeWarpStrokeCommand?(command: SemanticWarpStrokeCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   executeFaceWarpCommand?(command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(command: SemanticLayerCommand): unknown | Promise<unknown>;

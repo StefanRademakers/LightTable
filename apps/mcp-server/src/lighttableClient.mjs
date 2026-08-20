@@ -88,6 +88,9 @@ export class MockLightTableClient {
       styleRuns: [], paragraphRuns: [], runsTruncated: false };
     if (method === 'vector.query') return { layerId: parameters.layerId, revision: 1,
       totalElements: 0, truncated: false, elements: [] };
+    if (method === 'warp.query') return { layerId: parameters.layerId, revision: 1,
+      enabled: true, totalStrokes: 0, totalSamples: 0, truncated: false,
+      settings: null, strokes: [] };
     if (method === 'grade.queryBasic') return { target: parameters.target,
       documentRevision: this.document.canonicalRevision,
       targetRevision: this.document.canonicalRevision,

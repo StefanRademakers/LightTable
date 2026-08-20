@@ -49,6 +49,8 @@ Completed vertical slices
   selection-only and preview work kept outside command transport.
 - native Gradient Fill creation and on-canvas editing, including its layer role
   and presentation; raster-pixel Gradient remains a distinct open category.
+- non-destructive Warp Push and held-mode commits, with local preview scheduling,
+  bounded Actions replay and reviewed Agent/MCP execution plus recipe query.
 
 Rules
 =====

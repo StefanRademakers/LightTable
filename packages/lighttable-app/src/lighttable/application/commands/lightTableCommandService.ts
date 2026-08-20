@@ -27,8 +27,11 @@ import {
 } from './lightTableCommandContract';
 import { parseSemanticTextCommand, type SemanticTextCommand } from './semanticTextCommandContract';
 import { parseSemanticVectorCommand, type SemanticVectorCommand } from './semanticVectorCommandContract';
+import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
+import { dispatchSemanticWarpStroke } from './semanticWarpCommandHandler';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
+import { projectWarpQuery, type WarpQueryResult } from './warpQueryProjection';
 import { parseAtomicCommandBatch, type AtomicCommandBatch } from './atomicCommandBatchContract';
 import { AutomationTaskEventStore } from './automationTaskEventStore';
 import { startAtomicCommandBatchTask } from './atomicCommandBatchTask';
@@ -110,6 +113,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
 
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand) {
     return this.resolve(documentId).executeVectorCommand(command);
+  }
+
+  executeWarpStrokeCommand(documentId: DocumentSessionId, command: SemanticWarpStrokeCommand) {
+    const execute = this.resolve(documentId).executeWarpStrokeCommand;
+    if (!execute) throw new Error('Warp stroke commands are unavailable in the target document.');
+    return execute(command);
   }
 
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand) {
@@ -566,6 +575,12 @@ export class LightTableCommandService {
     return projectEditableVectorQuery(layer, layerId);
   }
 
+  queryWarp(documentId: DocumentSessionId, layerId: LayerId): WarpQueryResult | null {
+    const document = this.document(documentId)?.document;
+    const layer = document ? findDocumentLayer(document, layerId) : null;
+    return layer?.type === 'raster' ? projectWarpQuery(layer) : null;
+  }
+
   queryBasicGrade(documentId: DocumentSessionId, value: unknown): BasicGradeQueryResult | null {
     if (!this.document(documentId)?.document) return null;
     const target = parseBasicAdjustmentTarget(value);
@@ -625,6 +640,8 @@ export class LightTableCommandService {
       availability('vector.create', true, ''),
       availability('vector.update', true, ''),
       availability('vector.remove', true, ''),
+      availability('warp.applyStroke', Boolean(this.ports.executeWarpStrokeCommand),
+        'Warp stroke commands are unavailable in this host.'),
       availability('faceWarp.applyOperation', Boolean(this.ports.executeFaceWarpCommand),
         'Face Warp commands are unavailable in this host.'),
       availability('layer.effect.add', true, ''),
@@ -896,6 +913,17 @@ export class LightTableCommandService {
       } catch (reason) {
         return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
       }
+    }
+
+    if (value.command === 'warp.applyStroke') {
+      const outcome = await dispatchSemanticWarpStroke(value.parameters,
+        this.ports.executeWarpStrokeCommand
+          ? (command) => this.ports.executeWarpStrokeCommand!(documentRequest.documentId, command)
+          : undefined);
+      if (!outcome.ok) return this.reject(value.requestId, outcome.code, outcome.message, snapshot);
+      this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+      return { requestId: value.requestId, status: 'completed', value: outcome.value,
+        revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
     }
 
     if (value.command === 'faceWarp.applyOperation') {
@@ -1357,6 +1385,7 @@ export interface LightTableAutomationDriver {
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null;
   queryText(documentId: DocumentSessionId, layerId: LayerId): EditableTextQueryResult | null;
   queryVector(documentId: DocumentSessionId, layerId: LayerId): EditableVectorQueryResult | null;
+  queryWarp?(documentId: DocumentSessionId, layerId: LayerId): WarpQueryResult | null;
   queryBasicGrade(documentId: DocumentSessionId, target: unknown): BasicGradeQueryResult | null;
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;

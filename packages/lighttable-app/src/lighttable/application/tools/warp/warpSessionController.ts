@@ -12,19 +12,13 @@ import {
   invertMatrix,
   transformPoint
 } from '../../../editor/tools/transform/affine';
-import type { AdjustmentStack } from '../../../processing/adjustmentStack';
 import {
-  addWarpNodeToStack,
-  createDefaultWarpNodeSettings,
-  createWarpModuleInstance,
-  findWarpModuleInstance,
-  readWarpNodeSettings,
   removeWarpNodeFromStack,
-  setWarpNodeSettings,
   type WarpBrushMode,
   type WarpBrushSettingsSnapshot,
   type WarpStroke
 } from '../../../effects/warp/warpTypes';
+import { applyWarpStrokeToDocument } from './warpDocumentOperation';
 import {
   WarpGestureController,
   type WarpGesturePoint
@@ -53,6 +47,7 @@ export interface WarpSessionDependencies {
   setError(message: string | null): void;
   createId(kind: 'stack' | 'module' | 'stroke'): string;
   setInteractionActive?(active: boolean): void;
+  onStrokeCommitted?(layerId: LayerId, stroke: WarpStroke): void;
 }
 
 export interface BeginWarpSession {
@@ -80,39 +75,6 @@ interface ActiveWarpSession {
   readonly layerId: RasterLayer['id'];
   readonly before: ImageDocument;
 }
-
-const emptyStack = (
-  dependencies: WarpSessionDependencies
-): AdjustmentStack => ({
-  id: dependencies.createId('stack'),
-  revision: 0,
-  modules: []
-});
-
-const documentWithStroke = (
-  document: ImageDocument,
-  layerId: RasterLayer['id'],
-  stroke: WarpStroke,
-  dependencies: WarpSessionDependencies
-): ImageDocument => {
-  const layer = findRasterLayer(document, layerId);
-  if (!layer) throw new Error('The Warp target layer no longer exists.');
-  let stack = layer.adjustmentStack
-    ? structuredClone(layer.adjustmentStack)
-    : emptyStack(dependencies);
-  let instance = findWarpModuleInstance(stack);
-  if (!instance) {
-    instance = createWarpModuleInstance(dependencies.createId('module'));
-    stack = addWarpNodeToStack(stack, instance);
-  }
-  const current = readWarpNodeSettings(findWarpModuleInstance(stack)!);
-  const strokes = current.strokes.filter(({ id }) => id !== stroke.id);
-  stack = setWarpNodeSettings(stack, {
-    ...current,
-    strokes: [...strokes, structuredClone(stroke)]
-  });
-  return setRasterLayerAdjustmentStack(document, layerId, stack);
-};
 
 const documentWithoutWarp = (
   document: ImageDocument,
@@ -181,7 +143,7 @@ export const createWarpSessionController = (
   const publishStroke = (stroke: WarpStroke): boolean => {
     const target = currentTarget();
     if (!target) return false;
-    target.dependencies.applyDocumentSnapshot(documentWithStroke(
+    target.dependencies.applyDocumentSnapshot(applyWarpStrokeToDocument(
       target.document,
       target.layer.id,
       stroke,
@@ -320,6 +282,7 @@ export const createWarpSessionController = (
           latest.applyDocumentSnapshot(after);
         }
       });
+      dependencies.onStrokeCommitted?.(session.layerId, structuredClone(stroke));
       return true;
     },
     cancel: (pointerId) => {

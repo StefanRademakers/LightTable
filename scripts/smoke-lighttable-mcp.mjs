@@ -83,6 +83,21 @@ try {
     { x: 380, y: 120, pressure: 0.9 }
   ] });
   await call('lighttable_gesture_finish', { gestureId: gesture.gestureId, commit: true });
+  await call('lighttable_execute', { documentId, command: 'warp.applyStroke', parameters: {
+    layerId, mode: 'push',
+    settings: { diameterPx: 120, strength: 0.75, hardness: 0.5, flow: 1,
+      spacing: 0.04, smooth: 0.25, pressureSize: true, pressureStrength: true },
+    samples: [
+      { positionPx: [120, 140], deltaPx: [0, 0], pressure: 1, tilt: [0, 0], timeMs: 1000 },
+      { positionPx: [148, 152], deltaPx: [28, 12], pressure: 0.8, tilt: [12, -8], timeMs: 1016 }
+    ],
+    startedAtMs: 1000, durationMs: 16
+  } });
+  const warp = (await call('lighttable_warp', { documentId, layerId })).structuredContent;
+  if (warp?.totalStrokes !== 1 || warp.totalSamples !== 2
+    || warp.strokes?.[0]?.samples?.[1]?.positionPx?.[0] !== 148) {
+    throw new Error(`MCP Warp query lost the editable recipe: ${JSON.stringify(warp)}`);
+  }
   const preview = await call('lighttable_preview', { documentId });
   const image = preview.content.find(({ type }) => type === 'image');
   if (!image) throw new Error('MCP preview did not return an image.');

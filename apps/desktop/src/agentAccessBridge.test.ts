@@ -56,7 +56,16 @@ describe('AgentAccessBridge', () => {
       body: JSON.stringify({ requestId: 'one', method: 'workspace.query', parameters: {} })
     });
     expect(await response.json()).toMatchObject({ requestId: 'one', status: 'completed' });
-    expect(calls).toEqual([{ method: 'workspace.query', parameters: {} }]);
+    const warpResponse = await fetch(`${status.address}/invoke`, {
+      method: 'POST', headers: { authorization: `Bearer ${credentials.token}` },
+      body: JSON.stringify({ requestId: 'two', method: 'warp.query',
+        parameters: { documentId: 'document-1', layerId: 'layer-1' } })
+    });
+    expect(await warpResponse.json()).toMatchObject({ requestId: 'two', status: 'completed' });
+    expect(calls).toEqual([
+      { method: 'workspace.query', parameters: {} },
+      { method: 'warp.query', parameters: { documentId: 'document-1', layerId: 'layer-1' } }
+    ]);
     expect(await bridge.disable()).toMatchObject({ enabled: false, state: 'stopped' });
     expect(calls.at(-1)).toEqual({ method: 'gesture.cancelAll', parameters: {} });
     await expect(fetch(`${status.address}/health`)).rejects.toThrow();

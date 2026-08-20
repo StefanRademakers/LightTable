@@ -1,0 +1,81 @@
+Task 233 - Semantic Warp stroke commits
+=======================================
+
+Goal
+====
+
+Expose one completed non-destructive Warp stroke to Actions and reviewed MCP
+execution while preserving the existing frame-coalesced local pointer path.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+
+Existing owner confirmed
+========================
+
+- `warpSessionController` already freezes document input into layer-source
+  coordinates, frame-coalesces previews and creates one reversible history entry.
+- The committed `WarpStroke` is a versioned non-destructive recipe in the
+  raster layer adjustment stack; replay does not need pointer simulation.
+- Push and held rate-based modes have different sampling semantics but converge
+  on the same final stroke model.
+
+Checklist
+=========
+
+- [x] Define a bounded semantic Warp stroke contract using layer-source samples.
+- [x] Validate mode, brush settings, timing, sample count and payload bytes.
+- [x] Execute directly through the Warp document/stack owner without UI pointers.
+- [x] Observe exactly one final stroke after successful UI history commit.
+- [x] Keep move/moveMany, hold ticks and preview scheduling outside command transport.
+- [x] Preserve transformed-layer coordinate semantics and immutable stroke settings.
+- [x] Define stable result binding for layer and authored stroke id.
+- [x] Cover cancel, document switch, locked target and oversized payload failures.
+- [x] Record, undo and replay representative push and held-mode packaged Actions.
+- [x] Prove packaged Agent Access execution and query the stored Warp recipe.
+- [x] Measure frame submissions/history/recorded bytes without inventing a parity score.
+- [x] Run type, contract, boundary, full app and packaged regression gates.
+
+Scope guard
+===========
+
+- No raw pointer events or per-frame previews cross Actions/MCP.
+- No rasterized displacement snapshot is used as the replay source.
+- Remote admission follows bounded schema and packaged evidence; the existing
+  experimental Face Warp command is not evidence for this distinct tool.
+
+Completion contract
+===================
+
+One real Warp gesture remains responsive, creates one history entry and records
+one bounded semantic operation. Replay restores the same editable Warp recipe
+on the explicitly targeted raster layer, including held-mode timing semantics.
+
+Evidence (2026-08-20)
+=====================
+
+- Packaged Actions recorded a real 16-move Push gesture and a stationary held
+  Twirl gesture as two operations and two history entries, then undid all 18
+  workflow operations and replayed both editable Warp recipes.
+- The final rerun contained 21 layer-source samples and about 3.6 KB of
+  serialized recipe data. The renderer reported 32 submitted frames;
+  this is telemetry for the run, not a standalone responsiveness score.
+- Pointer moves, coalesced moves, hold ticks and frame previews still call the
+  existing local session/scheduler. Only the final committed recipe is observed.
+- Packaged Agent Access executed `warp.applyStroke` on an explicit raster layer
+  and `warp.query` returned its two stored samples without UI pointer simulation.
+- The external MCP server exposes the same admitted command plus a bounded,
+  read-only `lighttable_warp` query tool. Its complete 17-test suite and the
+  real MCP-to-packaged-desktop execute/query smoke passed.
+- App typecheck, all-workspace typecheck, command-contract generation check,
+  boundary check, desktop packaging, 2,577 app tests, targeted desktop bridge
+  tests, both packaged smokes and the MCP end-to-end smoke passed.
+- The source-structure gate reopened the central command-service ownership
+  review. Warp validation/execution was extracted to a family handler; the
+  review now explicitly records Actions and gesture/task lifecycle while the
+  service remains a high-risk cohesive authority rather than an ignored hotspot.

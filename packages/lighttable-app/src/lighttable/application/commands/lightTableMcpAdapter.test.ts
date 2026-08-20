@@ -25,6 +25,7 @@ const createDriver = (): LightTableAutomationDriver => ({
   queryLayerEffects: vi.fn(() => null),
   queryText: vi.fn(() => null),
   queryVector: vi.fn(() => null),
+  queryWarp: vi.fn(() => null),
   queryBasicGrade: vi.fn(() => null),
   queryCapabilities: vi.fn(() => null),
   execute: vi.fn(async (request: unknown) => ({
@@ -140,6 +141,26 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       documentId: 'document-1', commandRequestId: 'effect-add', commandParameters: {
         layerId: 'vector-1', effectKind: 'stroke'
     } }))).toMatchObject({ status: 'completed' });
+  });
+
+  it('exposes bounded Warp queries and admitted semantic stroke execution', async () => {
+    const driver = createDriver();
+    vi.mocked(driver.queryWarp!).mockReturnValue({
+      layerId: 'raster-1' as never, revision: 3, enabled: true,
+      totalStrokes: 1, totalSamples: 2, truncated: false,
+      settings: { opacity: 1, borderMode: 'transparent', topologyMode: 'artistic',
+        edgePinning: 0, maskLinkMode: 'linked' }, strokes: []
+    });
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    expect(await adapter.invoke(request('warp.query', {
+      documentId: 'document-1', layerId: 'raster-1'
+    }))).toMatchObject({ status: 'completed', value: { totalStrokes: 1, totalSamples: 2 } });
+    expect(await adapter.invoke(request('command.execute', {
+      command: 'warp.applyStroke', documentId: 'document-1',
+      commandRequestId: 'warp-1', commandParameters: {}
+    }))).toMatchObject({ status: 'completed' });
   });
 
   it('forwards admitted structural layer commands with stable targets and revisions', async () => {

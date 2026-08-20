@@ -81,11 +81,14 @@ Current evidence (2026-08-20)
   Cancel, no-op click and marquee-only selection produce no semantic mutation.
 - Packaged Gradient Fill drags publish only their final native create/update;
   intermediate axis samples, cancellation and color-stop endpoint clicks remain local.
+- Packaged Warp recorded Push and held Twirl as two final semantic recipes and
+  two history entries while pointer/hold previews remained on the frame-coalesced
+  local controller. The final representative run retained 21 samples in about 3.6 KB
+  and reported 32 submitted frames; these measurements are not a latency score.
 
 Remaining before this task is complete
 ======================================
 
-- Warp final-stroke schema, Actions replay and remote admission;
 - representative runtime telemetry in the packaged app for commit latency and
   submitted frames, interpreted alongside interaction behavior rather than as
   a standalone responsiveness score.

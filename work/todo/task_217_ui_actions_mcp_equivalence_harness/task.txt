@@ -97,6 +97,11 @@ Current evidence (2026-08-20)
 - Packaged Actions replays a native Gradient Fill with its special layer role
   and editable axis. Packaged Agent Access creates, edits and queries the same
   role, layer presentation and gradient transform through shared contracts.
+- Packaged Actions records, binds, undoes and replays Push and held Twirl Warp
+  recipes. Packaged Agent Access executes the same `warp.applyStroke` owner and
+  reads its bounded layer-source recipe through `warp.query`; the external MCP
+  smoke also executes and queries this recipe through the real desktop bridge.
+  Rendered-output equivalence remains intentionally unclaimed.
 
 Still required for completion
 =============================

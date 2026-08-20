@@ -1,8 +1,10 @@
 import { _electron as electron } from 'playwright-core';
 import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const argument = (name, fallback) => {
@@ -13,15 +15,21 @@ const fixture = path.resolve(argument('file', 'D:\\shapes.psd'));
 const port = Number.parseInt(argument('port', process.env.LIGHTTABLE_BRIDGE_PORT ?? '8790'), 10);
 const token = process.env.LIGHTTABLE_BRIDGE_TOKEN;
 if (!token || token.length < 24) throw new Error('LIGHTTABLE_BRIDGE_TOKEN must contain at least 24 characters.');
-const executable = path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(workspace);
+const startupEvidence = path.join(workspace, 'tmp', `mcp-bridge-${process.pid}`);
+await mkdir(startupEvidence, { recursive: true });
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
-const app = await electron.launch({ executablePath: executable,
-  args: [path.join(workspace, 'apps', 'desktop')], cwd: workspace,
+const app = await electron.launch({ executablePath: launch.executablePath,
+  args: launch.args, cwd: workspace,
   env: { ...environment, LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture,
-    LIGHTTABLE_AUTOMATION_USER_DATA: path.join(workspace, 'tmp', `mcp-bridge-${process.pid}`) } });
+    LIGHTTABLE_AUTOMATION_USER_DATA: startupEvidence } });
 const page = await app.firstWindow({ timeout: 30_000 });
-await page.getByRole('button', { name: 'Open file' }).click();
+const pageErrors = [];
+page.on('pageerror', (error) => pageErrors.push(error.message));
+const open = await waitForDesktopLauncher({ app, page, outputDirectory: startupEvidence,
+  sourceFile: fixture, pageErrors, label: 'mcp-bridge' });
+await open.click();
 await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
   .waitFor({ state: 'visible', timeout: 60_000 });
 await page.waitForFunction(() => Boolean(window.__lightTableAutomation));
@@ -53,6 +61,7 @@ const invoke = (method, parameters) => page.evaluate(async ({ method, parameters
   if (method === 'layer.effects') return driver.queryLayerEffects(parameters.documentId, parameters.layerId);
   if (method === 'text.query') return driver.queryText(parameters.documentId, parameters.layerId);
   if (method === 'vector.query') return driver.queryVector(parameters.documentId, parameters.layerId);
+  if (method === 'warp.query') return driver.queryWarp?.(parameters.documentId, parameters.layerId) ?? null;
   if (method === 'grade.queryBasic') return driver.queryBasicGrade(parameters.documentId, parameters.target);
   if (method === 'command.capabilities') return driver.queryCapabilities(parameters.documentId);
   if (method === 'task.query') return driver.queryTask(parameters.documentId, parameters.taskId);

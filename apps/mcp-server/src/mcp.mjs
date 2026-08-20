@@ -132,6 +132,12 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('vector.query', input)));
+  server.registerTool('lighttable_warp', {
+    title: 'Inspect editable Warp recipe',
+    description: 'Returns bounded non-destructive Warp settings and layer-source strokes for one raster layer.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('warp.query', input)));
   server.registerTool('lighttable_grade', {
     title: 'Inspect basic Grade values',
     description: 'Returns the 14 canonical basic Grade controls for an explicit document or layer target. Read-only.',

@@ -39,6 +39,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {}) => {
     setLayerEffectEnabled: vi.fn(),
     executeTextCommand: vi.fn(),
     executeVectorCommand: vi.fn(),
+    executeWarpStrokeCommand: vi.fn(),
     executeLayerStyleCommand: vi.fn(),
     executeFaceWarpCommand: vi.fn(),
     executeLayerCommand: vi.fn(),
@@ -68,6 +69,11 @@ const automationBrush = {
   presetId: 'round', size: 24, hardness: 0.75, opacity: 1, flow: 0.5,
   spacing: 0.05, smooth: 0.2, color: '#112233', backgroundColor: '#ffffff'
 };
+const warpStroke = (layerId: string) => ({ layerId, mode: 'push',
+  settings: { diameterPx: 120, strength: 0.5, hardness: 0.6, flow: 1,
+    spacing: 0.1, smooth: 0, pressureSize: true, pressureStrength: true },
+  samples: [{ positionPx: [10, 20], deltaPx: [0, 0], pressure: 1,
+    tilt: [0, 0], timeMs: 1000 }], startedAtMs: 1000, durationMs: 0 });
 const basicValues = {
   temperature: 0, tint: 0, exposureEV: 0.75, contrast: 0,
   highlights: 0, shadows: 0, whites: 0, blacks: 0, lift: 0,
@@ -427,6 +433,26 @@ describe('LightTableCommandService registry', () => {
       primitive: { kind: 'ellipse', x: 0, y: 0, width: Number.NaN, height: 10 }
     }));
     expect(malformed).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates and routes one bounded semantic Warp recipe', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    vi.mocked(state.ports.executeWarpStrokeCommand!).mockResolvedValue({
+      layerId, strokeId: 'warp-stroke', sampleCount: 1
+    });
+    const result = await state.service.execute(request(
+      'warp.applyStroke', state.session.id, warpStroke(layerId)
+    ));
+    expect(result).toMatchObject({ status: 'completed', value: {
+      layerId, strokeId: 'warp-stroke', sampleCount: 1
+    } });
+    expect(state.ports.executeWarpStrokeCommand).toHaveBeenCalledOnce();
+    const invalid = await state.service.execute(request('warp.applyStroke', state.session.id, {
+      ...warpStroke(layerId), samples: []
+    }));
+    expect(invalid).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });
 

@@ -49,6 +49,18 @@
         "reverse": false, "dither": true, "interpolation": "perceptual" },
         "stroke": null, "opacity": 1 } }
   ],
+  "warp.applyStroke": [
+    { "layerId": "layer-photo", "mode": "push",
+      "settings": { "diameterPx": 120, "strength": 0.35, "hardness": 0.5,
+        "flow": 0.5, "spacing": 0.1, "smooth": 0.2,
+        "pressureSize": true, "pressureStrength": true },
+      "samples": [
+        { "positionPx": [220, 180], "deltaPx": [0, 0], "pressure": 1,
+          "tilt": [0, 0], "timeMs": 1000 },
+        { "positionPx": [245, 190], "deltaPx": [25, 10], "pressure": 0.8,
+          "tilt": [0, 0], "timeMs": 1016 }
+      ], "startedAtMs": 1000, "durationMs": 16 }
+  ],
   "tool.commitGesture": [
     {
       "kind": "brush-stroke",

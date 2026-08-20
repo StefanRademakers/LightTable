@@ -66,6 +66,17 @@ describe('invokeAgentDriver', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('forwards bounded Warp recipe inspection without executing a command', async () => {
+    const queryWarp = vi.fn(() => ({ totalStrokes: 1, totalSamples: 2 } as never));
+    const execute = vi.fn();
+    const driver = driverWith({ queryWarp, execute });
+    await expect(invokeAgentDriver(driver, 'warp.query', {
+      documentId: 'document-1', layerId: 'layer-1'
+    })).resolves.toMatchObject({ totalStrokes: 1, totalSamples: 2 });
+    expect(queryWarp).toHaveBeenCalledWith('document-1', 'layer-1');
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('exposes host-owned gesture cleanup without pointer simulation', async () => {
     const cancelAllGestures = vi.fn(async () => 2);
     const driver = driverWith({ cancelAllGestures });

@@ -90,7 +90,8 @@ export const TOOL_AUTOMATION_CATALOG = {
   dodge: owner('continuous', [], 'Tone-brush owner exists; committed operator settings are not exposed.'),
   burn: owner('continuous', [], 'Tone-brush owner exists; committed operator settings are not exposed.'),
   sponge: owner('continuous', [], 'Tone-brush owner exists; committed operator settings are not exposed.'),
-  warp: owner('continuous', [], 'Warp session owner exists; final mesh/operation schema and replay are open.'),
+  warp: uiCommand('continuous', ['warp.applyStroke'],
+    'UI previews remain frame-coalesced; one bounded layer-source stroke publishes after history commit.'),
   'face-warp': owner('discrete', ['faceWarp.applyOperation'], 'Semantic operations exist but remain experimentally excluded from MCP.' )
 } as const satisfies Record<ToolId, ToolAutomationDefinition>;
 

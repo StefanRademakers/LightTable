@@ -14,6 +14,7 @@ export type LightTableMcpMethod =
   | 'layer.effects'
   | 'text.query'
   | 'vector.query'
+  | 'warp.query'
   | 'grade.queryBasic'
   | 'command.capabilities'
   | 'command.execute'
@@ -159,6 +160,7 @@ export class AuthenticatedLightTableMcpAdapter {
       case 'layer.effects': return this.options.driver.queryLayerEffects(documentId, parameters.layerId as LayerId);
       case 'text.query': return this.options.driver.queryText(documentId, parameters.layerId as LayerId);
       case 'vector.query': return this.options.driver.queryVector(documentId, parameters.layerId as LayerId);
+      case 'warp.query': return this.options.driver.queryWarp?.(documentId, parameters.layerId as LayerId);
       case 'grade.queryBasic': return this.options.driver.queryBasicGrade(documentId, parameters.target);
       case 'command.capabilities': return this.options.driver.queryCapabilities(documentId);
       case 'task.query': return this.options.driver.queryTask(documentId, String(parameters.taskId ?? ''));

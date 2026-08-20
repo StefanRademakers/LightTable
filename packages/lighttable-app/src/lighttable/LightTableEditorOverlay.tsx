@@ -165,6 +165,8 @@ import { FlowTextEditingSessionController } from './application/text/flowTextEdi
 import { executeSemanticTextCommand, paragraphTextCreateCommand, pointTextCreateCommand,
   semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
+import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
+import { semanticWarpStrokeFromCommitted } from './application/commands/semanticWarpCommandContract';
 import { observedLiveShapeCreateCommand, observedLiveShapeUpdateCommand, observedVectorPathCreateCommand,
   observedVectorPathUpdateCommand } from './application/vectors/semanticVectorObservation';
 import { executeSemanticLayerStyleCommand } from './application/styles/semanticLayerStyleCommandExecutor';
@@ -3506,7 +3508,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pushHistoryEntry,
     setError,
     createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`,
-    setInteractionActive: (active) => engineRef.current?.setWarpInteractionActive(active)
+    setInteractionActive: (active) => engineRef.current?.setWarpInteractionActive(active),
+    onStrokeCommitted: (layerId, stroke) => commandService?.recordObservedCommand(
+      'warp.applyStroke',
+      workspaceDocumentId as DocumentSessionId,
+      semanticWarpStrokeFromCommitted(layerId, stroke),
+      { layerId, strokeId: stroke.id, sampleCount: stroke.samples.length }
+    )
   });
 
   const vectorToolSessionController = useVectorToolSessionController({
@@ -4643,6 +4651,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return result;
       },
       executeVectorCommand: (command) => executeSemanticVectorCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
+      executeWarpStrokeCommand: (command) => executeSemanticWarpStrokeCommand(command, {
+        getDocument: () => imageDocumentRef.current,
+        applyDocument: applyDocumentSnapshot,
+        recordHistory: pushDocumentHistory,
+        createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`
+      }),
       executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {
         getDocument: () => imageDocumentRef.current,

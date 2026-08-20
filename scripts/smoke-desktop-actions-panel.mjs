@@ -251,9 +251,79 @@ try {
     return entries.filter((entry) => entry.textContent?.includes('vector.update')).length >= 2;
   }, undefined, { timeout: 15_000 });
 
+  // Warp stays on the real pointer path while recording. Only each completed,
+  // layer-source recipe crosses the Actions boundary.
+  await window.getByRole('treeitem', { name: /Recorded Title/i }).click();
+  const warpTelemetryBefore = await window.evaluate(() => {
+    const driver = window.__lightTableAutomation;
+    const documentId = driver?.queryWorkspace()?.activeDocumentId;
+    if (documentId) driver?.resetRenderTelemetry?.(documentId);
+    return documentId ? driver?.queryDocument(documentId) : null;
+  });
+  await window.getByRole('button', { name: 'Warp', exact: true }).click();
+  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Warp' }).waitFor();
+  const warpMode = window.locator('label.lighttable-tool-options__field')
+    .filter({ hasText: /^Mode/ }).locator('select');
+  await warpMode.selectOption('push');
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.2,
+    viewportBounds.y + viewportBounds.height * 0.42
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.34,
+    viewportBounds.y + viewportBounds.height * 0.48,
+    { steps: 16 }
+  );
+  await window.mouse.up();
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.locator('li').filter({ hasText: 'warp.applyStroke' }).waitFor({ timeout: 15_000 })
+    .catch(async () => {
+      const diagnostic = await window.evaluate(() => {
+        const driver = window.__lightTableAutomation;
+        const workspace = driver?.queryWorkspace();
+        const documentId = workspace?.activeDocumentId;
+        const documentState = documentId ? driver?.queryDocument(documentId) : null;
+        const layers = documentId ? driver?.queryLayers(documentId) : null;
+        const active = layers?.find(({ id }) => id === documentState?.activeLayerId);
+        return { documentState, active,
+          warp: documentId && active ? driver?.queryWarp?.(documentId, active.id) : null };
+      });
+      throw new Error(`Native Warp did not record warp.applyStroke: ${JSON.stringify({
+        diagnostic, recorder: await recorder.textContent()
+      })}`);
+    });
+  await warpMode.selectOption('twirl-cw');
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.29,
+    viewportBounds.y + viewportBounds.height * 0.36
+  );
+  await window.mouse.down();
+  await window.waitForTimeout(180);
+  await window.mouse.up();
+  await window.waitForFunction(() => [...document.querySelectorAll('.lighttable-action-recorder li')]
+    .filter((entry) => entry.textContent?.includes('warp.applyStroke')).length === 2,
+  undefined, { timeout: 15_000 });
+  const warpRecordingEvidence = await window.evaluate(() => {
+    const driver = window.__lightTableAutomation;
+    const workspace = driver?.queryWorkspace();
+    const documentId = workspace?.activeDocumentId;
+    const layer = documentId ? driver?.queryLayers(documentId)?.find(({ name }) => name === 'Recorded Title') : null;
+    const warp = documentId && layer ? driver?.queryWarp?.(documentId, layer.id) : null;
+    const telemetry = documentId ? driver?.queryRenderTelemetry?.(documentId) : null;
+    return { warp, telemetry, document: documentId ? driver?.queryDocument(documentId) : null,
+      recipeBytes: warp ? new TextEncoder().encode(JSON.stringify(warp.strokes)).byteLength : null };
+  });
+  if (warpRecordingEvidence.warp?.totalStrokes !== 2
+    || warpRecordingEvidence.warp?.strokes?.[0]?.mode !== 'push'
+    || warpRecordingEvidence.warp?.strokes?.[1]?.mode !== 'twirl-cw'
+    || warpRecordingEvidence.document?.history.undoDepth !== warpTelemetryBefore?.history.undoDepth + 2) {
+    throw new Error(`Warp recording did not publish two semantic history commits: ${JSON.stringify(warpRecordingEvidence)}`);
+  }
+
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
-  for (let index = 0; index < 16; index += 1) {
+  for (let index = 0; index < 18; index += 1) {
     await window.getByRole('tab', { name: 'Actions', exact: true }).click();
     await panel.getByRole('radio', { name: 'Commands' }).click();
     const undo = panel.locator('details').filter({ hasText: 'history.undo' });
@@ -279,7 +349,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 16) throw new Error('Expected sixteen recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 18) throw new Error('Expected eighteen recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -329,6 +399,15 @@ try {
   if (!gradientUpdateText?.includes('$step15.layerId')
     || !gradientUpdateText.includes('$step15.elementId')) {
     throw new Error(`Recorded Gradient edit was not bound to its fill layer: ${gradientUpdateText}`);
+  }
+  const warpSteps = recorder.locator('li').filter({ hasText: 'warp.applyStroke' });
+  if (await warpSteps.count() !== 2) throw new Error('Expected push and held Warp Action steps.');
+  await warpSteps.first().locator('summary').click();
+  const firstWarpText = await warpSteps.first().textContent();
+  await warpSteps.nth(1).locator('summary').click();
+  const secondWarpText = await warpSteps.nth(1).textContent();
+  if (!firstWarpText?.includes('$step7.target.layerId') || !secondWarpText?.includes('$step17.layerId')) {
+    throw new Error(`Warp bindings are not stable across replay: ${JSON.stringify({ firstWarpText, secondWarpText })}`);
   }
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
@@ -419,6 +498,24 @@ try {
     || gradientShape.style?.fill?.kind !== 'gradient') {
     throw new Error(`Actions replay did not preserve editable Gradient Fill: ${JSON.stringify(playbackGradient)}`);
   }
+  const playbackWarp = await window.evaluate(() => {
+    const driver = window.__lightTableAutomation;
+    const documentId = driver?.queryWorkspace()?.activeDocumentId;
+    const layer = documentId ? driver?.queryLayers(documentId)?.find(({ name }) => name === 'Recorded Title') : null;
+    return documentId && layer ? driver?.queryWarp?.(documentId, layer.id) : null;
+  });
+  if (playbackWarp?.totalStrokes !== 2 || playbackWarp.totalSamples < 3
+    || playbackWarp.strokes?.[0]?.mode !== 'push'
+    || playbackWarp.strokes?.[1]?.mode !== 'twirl-cw') {
+    throw new Error(`Actions replay did not preserve editable Warp recipes: ${JSON.stringify(playbackWarp)}`);
+  }
+  process.stdout.write(`Warp Actions evidence: ${JSON.stringify({
+    historyEntries: 2,
+    semanticOperations: 2,
+    samples: warpRecordingEvidence.warp.totalSamples,
+    recipeBytes: warpRecordingEvidence.recipeBytes,
+    submittedFrames: warpRecordingEvidence.telemetry?.submittedFrames ?? null
+  })}\n`);
 
   await window.screenshot({ path: screenshot });
   if (pageErrors.length) throw new Error(`Actions panel page errors: ${pageErrors.join(' | ')}`);

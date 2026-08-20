@@ -122,6 +122,10 @@ Existing foundation evidence
 - Native Gradient Fill creation and on-canvas axis edits now share bounded
   `vector.create`/`vector.update` operations, including layer role, opacity and
   blend mode. Raster-pixel gradients remain on their separate GPU owner.
+- Native Warp now keeps frame-coalesced pointer/hold previews local and emits
+  one bounded layer-source `warp.applyStroke` per completed gesture. Packaged
+  Actions proves Push plus held Twirl undo/replay; packaged Agent Access proves
+  direct execution and bounded editable-recipe query.
 
 Program definition of done
 ==========================

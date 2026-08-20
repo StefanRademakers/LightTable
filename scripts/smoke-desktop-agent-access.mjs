@@ -296,6 +296,30 @@ try {
     || queriedGradient.elements?.[0]?.style?.fill?.transform?.tx !== 65) {
     throw new Error(`Agent Gradient Fill state is incomplete: ${JSON.stringify({ gradientLayer, queriedGradient })}`);
   }
+  const warpApplied = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-warp-raster', command: 'warp.applyStroke', documentId: originalId,
+    commandParameters: {
+      layerId, mode: 'push',
+      settings: { diameterPx: 120, strength: 0.75, hardness: 0.5, flow: 1,
+        spacing: 0.04, smooth: 0.25, pressureSize: true, pressureStrength: true },
+      samples: [
+        { positionPx: [120, 140], deltaPx: [0, 0], pressure: 1, tilt: [0, 0], timeMs: 1000 },
+        { positionPx: [148, 152], deltaPx: [28, 12], pressure: 0.8, tilt: [12, -8], timeMs: 1016 }
+      ],
+      startedAtMs: 1000, durationMs: 16
+    }
+  });
+  if (warpApplied.status !== 'completed' || !warpApplied.value?.strokeId) {
+    throw new Error(`Agent Warp command failed: ${JSON.stringify(warpApplied)}`);
+  }
+  const queriedWarp = await invoke(address, token, 'warp.query', {
+    documentId: originalId, layerId
+  });
+  if (queriedWarp?.totalStrokes !== 1 || queriedWarp.totalSamples !== 2
+    || queriedWarp.strokes?.[0]?.mode !== 'push'
+    || queriedWarp.strokes?.[0]?.samples?.[1]?.positionPx?.[0] !== 148) {
+    throw new Error(`Agent Warp query is incomplete: ${JSON.stringify(queriedWarp)}`);
+  }
   await window.getByRole('treeitem', { name: /Agent Badge/i }).waitFor();
 
   const unauthorized = await fetch(`${address}/invoke`, { method: 'POST',
