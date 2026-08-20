@@ -44,8 +44,9 @@ canonical state matches the workflow and the playback creates no recorder loop.
 Evidence
 ========
 
-- The Action library accepts only stopped, fully completed/replayable semantic
-  recordings. Known commands, sequential steps, scalar metadata and JSON
+- The Action library accepts only stopped, replayable semantic recordings;
+  synchronous steps may be completed and asynchronous steps may be accepted for
+  task-aware playback. Known commands, sequential steps, scalar metadata and JSON
   payload byte limits are revalidated during restore.
 - Desktop reads and atomically writes `actions-v1.json` through trusted IPC in
   application userData. This avoids the packaged renderer's changing localhost

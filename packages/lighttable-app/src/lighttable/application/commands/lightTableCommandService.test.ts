@@ -90,6 +90,53 @@ const basicValues = {
 };
 
 describe('LightTableCommandService action recording', () => {
+  it('records, enriches and awaits an asynchronous export during playback', async () => {
+    const state = setup();
+    state.service.startActionRecording('Export proof');
+    const accepted = await state.service.execute(request('file.exportNative', state.session.id));
+    expect(accepted.status).toBe('accepted');
+    if (accepted.status !== 'accepted') throw new Error('Export was not accepted.');
+    await vi.waitFor(() => expect(
+      state.service.queryTask(state.session.id, accepted.taskId)?.status
+    ).toBe('completed'));
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'file.exportNative', outcome: 'accepted', replayable: true,
+      result: { taskId: accepted.taskId, artifact: { id: expect.any(String) } }
+    }]);
+
+    await state.service.playActionRecording();
+
+    expect(state.ports.exportNativeArtifact).toHaveBeenCalledTimes(2);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'completed', taskProgress: null,
+      results: [{ command: 'file.exportNative', status: 'completed' }]
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('stops playback by canceling the current document task owner', async () => {
+    const state = setup({ exportNativeArtifact: vi.fn(() => new Promise<File>(() => undefined)) });
+    state.service.startActionRecording('Cancelable export');
+    const recorded = await state.service.execute(request('file.exportNative', state.session.id));
+    expect(recorded.status).toBe('accepted');
+    state.service.stopActionRecording();
+
+    const playing = state.service.playActionRecording();
+    await vi.waitFor(() => expect(state.service.actionPlaybackSnapshot().currentSequence).toBe(1));
+    const taskId = state.session.tasks.getSnapshot().activeTaskIds[0];
+    expect(taskId).toBeTruthy();
+    state.service.stopActionPlayback();
+    await playing;
+
+    expect(state.service.queryTask(state.session.id, taskId!)?.status).toBe('canceled');
+    expect(state.service.actionPlaybackSnapshot().status).toBe('stopped');
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+
   it('saves and restores a named Action through the injected storage boundary', async () => {
     let persisted: string | null = null;
     const storage: SemanticActionLibraryStorage = {

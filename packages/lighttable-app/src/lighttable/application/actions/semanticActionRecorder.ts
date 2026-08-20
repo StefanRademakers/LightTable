@@ -58,6 +58,7 @@ const initialSnapshot = (): ActionRecordingSnapshot => ({
 export class SemanticActionRecorder {
   private snapshotValue = initialSnapshot();
   private readonly listeners = new Set<() => void>();
+  private readonly completedTasks = new Map<string, unknown>();
 
   snapshot = (): ActionRecordingSnapshot => this.snapshotValue;
   subscribe = (listener: () => void): (() => void) => {
@@ -66,6 +67,7 @@ export class SemanticActionRecorder {
   };
 
   start(name = 'Untitled Action'): ActionRecordingSnapshot {
+    this.completedTasks.clear();
     const startedAt = Date.now();
     this.publish({ status: 'recording', id: `action-${startedAt}`, name: name.trim() || 'Untitled Action',
       startedAt, stoppedAt: null, steps: [], byteLength: 0, limitReached: false });
@@ -80,6 +82,7 @@ export class SemanticActionRecorder {
   }
 
   clear(): ActionRecordingSnapshot {
+    this.completedTasks.clear();
     this.publish(initialSnapshot());
     return this.snapshotValue;
   }
@@ -87,6 +90,32 @@ export class SemanticActionRecorder {
   restore(snapshot: ActionRecordingSnapshot): ActionRecordingSnapshot {
     this.publish(structuredClone(snapshot));
     return this.snapshotValue;
+  }
+
+  completeTask(taskId: string, value: unknown): boolean {
+    const index = this.snapshotValue.steps.findIndex((step) => step.outcome === 'accepted'
+      && typeof step.result === 'object' && step.result !== null
+      && 'taskId' in step.result && step.result.taskId === taskId);
+    if (index < 0) {
+      const queued = cloneBounded(value);
+      if (!queued.complete) return false;
+      this.completedTasks.set(taskId, queued.value);
+      if (this.completedTasks.size > MAX_STEPS) {
+        this.completedTasks.delete(this.completedTasks.keys().next().value!);
+      }
+      return true;
+    }
+    const previous = this.snapshotValue.steps[index]!;
+    const nextResult = cloneBounded({ taskId, ...(typeof value === 'object' && value !== null
+      ? value : { value }) });
+    if (!nextResult.complete) return false;
+    const previousBytes = cloneBounded(previous.result).bytes;
+    const byteLength = this.snapshotValue.byteLength - previousBytes + nextResult.bytes;
+    if (byteLength > MAX_BYTES) return false;
+    const steps = [...this.snapshotValue.steps];
+    steps[index] = { ...previous, result: nextResult.value };
+    this.publish({ ...this.snapshotValue, steps, byteLength });
+    return true;
   }
 
   record(request: LightTableCommandRequest, result: LightTableCommandResult, startedAt: number,
@@ -97,8 +126,13 @@ export class SemanticActionRecorder {
     const parameters = rawParameters.complete
       ? cloneBounded(bindRecordedParameters(rawParameters.value, this.snapshotValue.steps))
       : rawParameters;
+    const completedTask = result.status === 'accepted'
+      ? this.completedTasks.get(result.taskId) : undefined;
+    if (result.status === 'accepted') this.completedTasks.delete(result.taskId);
     const resultValue = cloneBounded(result.status === 'completed' ? result.value
-      : result.status === 'accepted' ? { taskId: result.taskId }
+      : result.status === 'accepted' ? { taskId: result.taskId,
+        ...(typeof completedTask === 'object' && completedTask !== null
+          ? completedTask : completedTask === undefined ? {} : { value: completedTask }) }
         : { code: result.code, message: result.message });
     const nextBytes = this.snapshotValue.byteLength + parameters.bytes + resultValue.bytes;
     if (this.snapshotValue.steps.length >= MAX_STEPS || nextBytes > MAX_BYTES) {
@@ -106,10 +140,10 @@ export class SemanticActionRecorder {
       return;
     }
     const successful = result.status === 'completed' || result.status === 'accepted';
-    const replayable = result.status === 'completed' && parameters.complete
+    const replayable = (result.status === 'completed' || result.status === 'accepted') && parameters.complete
       && !NON_REPLAYABLE_COMMANDS.has(request.command);
     const note = successful
-      ? result.status === 'accepted' ? 'Async task playback is not implemented yet.'
+      ? result.status === 'accepted' ? null
         : parameters.complete ? NON_REPLAYABLE_COMMANDS.has(request.command) ? 'Control/history commands are diagnostic only.' : null
         : 'Parameters exceeded the recorder transport boundary.'
       : 'Rejected commands are retained for debugging but are not replayable.';

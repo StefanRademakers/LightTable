@@ -9,7 +9,8 @@ import { resolveActionParameters } from './actionResultBindings';
 export interface ActionPlaybackStepResult {
   readonly sequence: number;
   readonly command: string;
-  readonly status: LightTableCommandResult['status'] | 'binding-error';
+  readonly status: LightTableCommandResult['status'] | 'binding-error'
+    | 'task-failed' | 'task-canceled' | 'task-timeout' | 'task-missing';
   readonly message: string | null;
   readonly durationMs: number;
 }
@@ -18,19 +19,30 @@ export interface ActionPlaybackSnapshot {
   readonly status: 'idle' | 'running' | 'completed' | 'failed' | 'stopped';
   readonly currentSequence: number | null;
   readonly results: readonly ActionPlaybackStepResult[];
+  readonly taskProgress: number | null;
+}
+
+export type ActionTaskWaitResult =
+  | { readonly status: 'completed'; readonly value: unknown }
+  | { readonly status: 'failed' | 'canceled' | 'timeout' | 'missing'; readonly message: string };
+export interface ActionTaskPlaybackPort {
+  wait(documentId: string, taskId: string, signal: AbortSignal,
+    onProgress: (progress: number | null) => void): Promise<ActionTaskWaitResult>;
 }
 
 type ExecuteCommand = (request: LightTableCommandRequest) => Promise<LightTableCommandResult>;
 const initialSnapshot = (): ActionPlaybackSnapshot => ({
-  status: 'idle', currentSequence: null, results: []
+  status: 'idle', currentSequence: null, results: [], taskProgress: null
 });
 
 export class SemanticActionPlaybackController {
   private snapshotValue = initialSnapshot();
   private readonly listeners = new Set<() => void>();
   private stopRequested = false;
+  private taskAbort: AbortController | null = null;
 
-  constructor(private readonly execute: ExecuteCommand) {}
+  constructor(private readonly execute: ExecuteCommand,
+    private readonly tasks?: ActionTaskPlaybackPort) {}
 
   snapshot = (): ActionPlaybackSnapshot => this.snapshotValue;
   subscribe = (listener: () => void): (() => void) => {
@@ -49,7 +61,10 @@ export class SemanticActionPlaybackController {
   }
 
   stop(): void {
-    if (this.snapshotValue.status === 'running') this.stopRequested = true;
+    if (this.snapshotValue.status === 'running') {
+      this.stopRequested = true;
+      this.taskAbort?.abort();
+    }
   }
 
   clear(): void {
@@ -60,14 +75,15 @@ export class SemanticActionPlaybackController {
     steps: readonly RecordedActionStep[], targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
     if (this.snapshotValue.status === 'running') return this.snapshotValue;
     this.stopRequested = false;
-    this.publish({ status: 'running', currentSequence: null, results: [] });
+    this.publish({ status: 'running', currentSequence: null, results: [], taskProgress: null });
     const producedResults = new Map<number, unknown>();
     for (const step of steps) {
       if (this.stopRequested) {
-        this.publish({ ...this.snapshotValue, status: 'stopped', currentSequence: null });
+        this.publish({ ...this.snapshotValue, status: 'stopped', currentSequence: null,
+          taskProgress: null });
         return this.snapshotValue;
       }
-      this.publish({ ...this.snapshotValue, currentSequence: step.sequence });
+      this.publish({ ...this.snapshotValue, currentSequence: step.sequence, taskProgress: null });
       const startedAt = Date.now();
       const parameters = resolveActionParameters(step.parameters, producedResults);
       if ('error' in parameters) {
@@ -76,7 +92,7 @@ export class SemanticActionPlaybackController {
           message: parameters.error, durationMs: Math.max(0, Date.now() - startedAt)
         };
         this.publish({ status: 'failed', currentSequence: step.sequence,
-          results: [...this.snapshotValue.results, result] });
+          results: [...this.snapshotValue.results, result], taskProgress: null });
         return this.snapshotValue;
       }
       const result = await this.execute({
@@ -95,13 +111,68 @@ export class SemanticActionPlaybackController {
       };
       const results = [...this.snapshotValue.results, entry];
       if (result.status === 'rejected') {
-        this.publish({ status: 'failed', currentSequence: step.sequence, results });
+        this.publish({ status: 'failed', currentSequence: step.sequence, results, taskProgress: null });
         return this.snapshotValue;
       }
-      if (result.status === 'completed') producedResults.set(step.sequence, result.value);
-      this.publish({ ...this.snapshotValue, results });
+      if (result.status === 'accepted') {
+        if (!this.tasks || !step.documentId) {
+          const unsupported: ActionPlaybackStepResult = { sequence: step.sequence,
+            command: step.command, status: 'task-missing',
+            message: 'No task observer is available for this Action step.',
+            durationMs: Math.max(0, Date.now() - startedAt) };
+          this.publish({ status: 'failed', currentSequence: step.sequence,
+            results: [...this.snapshotValue.results, unsupported], taskProgress: null });
+          return this.snapshotValue;
+        }
+        this.taskAbort = new AbortController();
+        const waiting = this.tasks.wait(targetDocumentId ?? step.documentId, result.taskId,
+          this.taskAbort.signal, (taskProgress) => {
+            if (this.snapshotValue.status === 'running') {
+              this.publish({ ...this.snapshotValue, taskProgress });
+            }
+          });
+        if (this.stopRequested) this.taskAbort.abort();
+        const task = await waiting;
+        this.taskAbort = null;
+        if (this.stopRequested) {
+          this.publish({ ...this.snapshotValue, status: 'stopped', currentSequence: null,
+            taskProgress: null });
+          return this.snapshotValue;
+        }
+        if (task.status !== 'completed') {
+          const terminal: ActionPlaybackStepResult = { sequence: step.sequence,
+            command: step.command, status: `task-${task.status}`,
+            message: task.message, durationMs: Math.max(0, Date.now() - startedAt) };
+          this.publish({ status: 'failed', currentSequence: step.sequence,
+            results: [...this.snapshotValue.results, terminal], taskProgress: null });
+          return this.snapshotValue;
+        }
+        if (step.command.startsWith('file.export')
+          && (!(typeof task.value === 'object' && task.value !== null && 'artifact' in task.value)
+            || task.value.artifact === null)) {
+          const missingArtifact: ActionPlaybackStepResult = { sequence: step.sequence,
+            command: step.command, status: 'task-missing',
+            message: 'The completed export did not publish an artifact.',
+            durationMs: Math.max(0, Date.now() - startedAt) };
+          this.publish({ status: 'failed', currentSequence: step.sequence,
+            results: [...this.snapshotValue.results, missingArtifact], taskProgress: null });
+          return this.snapshotValue;
+        }
+        const taskValue = typeof task.value === 'object' && task.value !== null
+          ? task.value : { value: task.value };
+        producedResults.set(step.sequence, { taskId: result.taskId, ...taskValue });
+        const completed: ActionPlaybackStepResult = { sequence: step.sequence,
+          command: step.command, status: 'completed', message: null,
+          durationMs: Math.max(0, Date.now() - startedAt) };
+        this.publish({ ...this.snapshotValue,
+          results: [...this.snapshotValue.results, completed], taskProgress: null });
+      } else {
+        producedResults.set(step.sequence, result.value);
+        this.publish({ ...this.snapshotValue, results, taskProgress: null });
+      }
     }
-    this.publish({ ...this.snapshotValue, status: 'completed', currentSequence: null });
+    this.publish({ ...this.snapshotValue, status: 'completed', currentSequence: null,
+      taskProgress: null });
     return this.snapshotValue;
   }
 

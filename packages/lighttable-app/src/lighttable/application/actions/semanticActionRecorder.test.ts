@@ -63,4 +63,21 @@ describe('SemanticActionRecorder', () => {
       name: 'Title'
     });
   });
+
+  it('enriches an accepted task result so later artifact parameters bind', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start();
+    recorder.record(request('file.exportNative'), {
+      requestId: 'request-file.exportNative', status: 'accepted', taskId: 'task-1',
+      revisions: { workspace: 1 }
+    }, Date.now());
+    expect(recorder.snapshot().steps[0]).toMatchObject({ outcome: 'accepted', replayable: true });
+    expect(recorder.completeTask('task-1', { artifact: { id: 'artifact-1' } })).toBe(true);
+    recorder.record(request('file.openArtifact', { artifactId: 'artifact-1' }),
+      completed('request-file.openArtifact'), Date.now());
+
+    expect(recorder.snapshot().steps[1]?.parameters).toEqual({
+      artifactId: { $lighttableResult: { step: 1, path: 'artifact.id' } }
+    });
+  });
 });

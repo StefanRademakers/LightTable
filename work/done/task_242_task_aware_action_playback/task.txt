@@ -1,0 +1,66 @@
+Task 242 - Task-aware Action playback
+=====================================
+
+Goal
+====
+
+Make supported asynchronous commands first-class Action steps: replay starts
+the canonical task, waits for its terminal state, exposes progress/errors and
+can bind the completed artifact into later semantic steps.
+
+Checklist
+=========
+
+- [x] Record successful `accepted` commands as replayable bounded task steps.
+- [x] Await task publication through application subscriptions, not UI polling.
+- [x] Fail closed on missing task, failure, cancellation and bounded timeout.
+- [x] Make Stop abort the current wait and request cancellation from the same
+  document task owner.
+- [x] Publish task progress and terminal outcome in the existing step inspector.
+- [x] Make completed task/artifact data available to later result bindings.
+- [x] Preserve playback recording isolation and ordinary stepwise history.
+- [x] Prove immediate+async+artifact-dependent playback with unit and packaged
+  UI/Actions evidence.
+- [x] Run full gates, update Task 219/217/220 evidence and commit.
+
+Scope guard
+===========
+
+- No timer-based polling loop is added to React or the Actions panel.
+- Async commands continue to execute through their existing document task and
+  artifact owners; Actions does not implement exports or batches itself.
+- Timeout and cancellation are workflow safety boundaries, not latency scores.
+- Atomic whole-Action rollback remains separate; this task keeps the existing
+  documented stepwise history semantics.
+
+Completion contract
+===================
+
+A recorded asynchronous export replays as one task-aware step, visibly reaches
+completed state and provides its artifact ID to a following bound command. Stop,
+missing-task, failed-task and timeout paths terminate without continuing later
+steps or recursively recording playback.
+
+Evidence
+========
+
+- Accepted command steps are replayable and remain bounded by the existing
+  recorder/library limits. Completed export metadata enriches the recorded task
+  result whether completion occurs before or after the accepted step publishes.
+- Playback subscribes directly to `DocumentTaskRegistry`, exposes progress and
+  awaits completed/failed/canceled terminal state. A 120-second timeout cancels
+  the same task owner and fails the step closed.
+- Stop aborts the current task wait and cancels its document task. A regression
+  test covers the race where Stop arrives after the step becomes current but
+  before the command returns `accepted`.
+- Nested artifact IDs participate in normal stable-result binding. Unit playback
+  proves `file.exportNative` can feed `$step1.artifact.id` into a following
+  `file.openArtifact` without retaining the old task/artifact identifiers.
+- Export artifacts are registered before task `completed` publication. The
+  packaged smoke caught and now guards this ordering invariant.
+- The packaged Actions UI records one Export LightTable task, receives the
+  completed artifact, replays it, publishes exactly one second artifact and
+  retains exactly one recorded step without recursion.
+- Full verification passes: 463 app test files / 2,607 tests, 33 desktop test
+  files / 143 tests, 17 MCP tests, all typechecks, packaging, boundary/source/
+  docs/contract audits, saved-Action restart and broad packaged Actions smokes.

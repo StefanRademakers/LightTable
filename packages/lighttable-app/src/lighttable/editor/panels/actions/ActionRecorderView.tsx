@@ -100,6 +100,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
     {playback.status !== 'idle'
       ? <p className={`lighttable-action-recorder__playback is-${playback.status}`} role="status">
           Playback: {playback.status}{playback.currentSequence ? ` at step ${playback.currentSequence}` : ''}
+          {playback.taskProgress === null ? '' : ` · ${Math.round(playback.taskProgress * 100)}%`}
         </p>
       : null}
     {recording.limitReached

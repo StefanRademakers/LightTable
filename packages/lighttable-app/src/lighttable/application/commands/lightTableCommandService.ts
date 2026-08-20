@@ -59,6 +59,7 @@ import {
 } from '../actions/semanticActionRecorder';
 import {
   SemanticActionPlaybackController,
+  type ActionTaskPlaybackPort,
   type ActionPlaybackSnapshot
 } from '../actions/semanticActionPlayback';
 import {
@@ -257,6 +258,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
 const AUTOMATION_GESTURE_LEASE_MS = 30_000;
+const ACTION_TASK_TIMEOUT_MS = 120_000;
 
 /**
  * Transport-neutral read/query and bounded command registry.
@@ -280,9 +282,11 @@ export class LightTableCommandService {
   private readonly taskEvents = new AutomationTaskEventStore();
   private readonly actionRecorder = new SemanticActionRecorder();
   private readonly actionLibrary: SemanticActionLibrary;
-  private readonly actionPlayback = new SemanticActionPlaybackController((request) => this.execute(request, {
-    origin: 'actions-playback', recording: 'ignore'
-  }));
+  private readonly actionPlayback = new SemanticActionPlaybackController(
+    (request) => this.execute(request, { origin: 'actions-playback', recording: 'ignore' }),
+    { wait: (documentId, taskId, signal, onProgress) =>
+      this.waitForActionTask(documentId as DocumentSessionId, taskId, signal, onProgress) }
+  );
 
   constructor(
     private readonly workspace: WorkspaceSession,
@@ -338,6 +342,64 @@ export class LightTableCommandService {
       error: state.error,
       artifact: this.taskArtifacts.get(taskId) ?? null
     } : null;
+  }
+
+  private waitForActionTask(
+    documentId: DocumentSessionId,
+    taskId: string,
+    signal: AbortSignal,
+    onProgress: (progress: number | null) => void
+  ): ReturnType<ActionTaskPlaybackPort['wait']> {
+    const session = this.workspace.getDocument(documentId);
+    if (!session) return Promise.resolve({ status: 'missing', message: 'The task document is no longer open.' });
+    return new Promise((resolve) => {
+      let settled = false;
+      let unsubscribe: () => void = () => undefined;
+      const finish = (result: Awaited<ReturnType<ActionTaskPlaybackPort['wait']>>) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        signal.removeEventListener('abort', abort);
+        unsubscribe();
+        resolve(result);
+      };
+      const inspect = () => {
+        const task = this.queryTask(documentId, taskId);
+        if (!task) {
+          finish({ status: 'missing', message: 'The accepted task was not published.' });
+          return;
+        }
+        onProgress(task.progress);
+        if (task.status === 'running') return;
+        if (task.status === 'completed') {
+          queueMicrotask(() => {
+            const completed = this.queryTask(documentId, taskId) ?? task;
+            finish({ status: 'completed', value: {
+              progress: completed.progress, artifact: completed.artifact
+            } });
+          });
+        } else if (task.status === 'failed') {
+          finish({ status: 'failed', message: task.error ?? 'The Action task failed.' });
+        } else {
+          finish({ status: 'canceled', message: 'The Action task was canceled.' });
+        }
+      };
+      const abort = () => {
+        session.tasks.cancel(taskId);
+        finish({ status: 'canceled', message: 'Playback stopped the Action task.' });
+      };
+      const timeout = setTimeout(() => {
+        session.tasks.cancel(taskId);
+        finish({ status: 'timeout', message: 'The Action task exceeded the 120 second playback limit.' });
+      }, ACTION_TASK_TIMEOUT_MS);
+      signal.addEventListener('abort', abort, { once: true });
+      try {
+        unsubscribe = session.tasks.subscribe(inspect);
+        if (signal.aborted) abort(); else inspect();
+      } catch {
+        finish({ status: 'missing', message: 'The task owner is unavailable.' });
+      }
+    });
   }
 
   queryTaskEvents(afterCursor = 0, limit = 100): AutomationEventQueryResult {
@@ -1063,19 +1125,19 @@ export class LightTableCommandService {
         : this.ports.exportPngArtifact.bind(this.ports);
     const kind: LightTableArtifactKind = native ? 'native-document'
       : psd ? 'psd-export' : 'png-export';
-    const running = session.tasks.run('export', native ? 'Export native document'
+    void session.tasks.run('export', native ? 'Export native document'
       : psd ? 'Export Photoshop artifact' : 'Export PNG artifact', async (task) => {
       const exported = await operation(request.documentId);
       task.throwIfCanceled();
       const file = exported instanceof File ? exported : exported.file;
       const findings = psd && !(exported instanceof File) ? exported.findings : [];
-      return this.artifacts.register(file, kind, findings);
+      const artifact = this.artifacts.register(file, kind, findings);
+      this.taskArtifacts.set(task.id, artifact);
+      this.actionRecorder.completeTask(task.id, { artifact });
+      return artifact;
     });
     const taskId = session.tasks.getSnapshot().activeTaskIds.at(-1);
     if (!taskId) return this.reject(request.requestId, 'execution-failed', 'The export task did not start.', snapshot);
-    void running.then((result) => {
-      if (result.status === 'completed') this.taskArtifacts.set(taskId, result.value);
-    });
     return {
       requestId: request.requestId,
       status: 'accepted',

@@ -387,7 +387,7 @@ const EMPTY_ACTION_RECORDING: ActionRecordingSnapshot = {
 const subscribeToNothing = () => () => undefined;
 const emptyActionRecording = () => EMPTY_ACTION_RECORDING;
 const EMPTY_ACTION_PLAYBACK: ActionPlaybackSnapshot = {
-  status: 'idle', currentSequence: null, results: []
+  status: 'idle', currentSequence: null, results: [], taskProgress: null
 };
 const emptyActionPlayback = () => EMPTY_ACTION_PLAYBACK;
 const EMPTY_ACTION_LIBRARY: SemanticActionLibrarySnapshot = {

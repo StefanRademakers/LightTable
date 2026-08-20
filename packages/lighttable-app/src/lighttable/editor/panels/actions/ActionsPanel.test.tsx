@@ -18,7 +18,7 @@ describe('ActionsPanel', () => {
       onExecute={() => null}
       recording={{ status: 'idle', id: null, name: 'Untitled Action', startedAt: null,
         stoppedAt: null, steps: [], byteLength: 0, limitReached: false }}
-      playback={{ status: 'idle', currentSequence: null, results: [] }}
+      playback={{ status: 'idle', currentSequence: null, results: [], taskProgress: null }}
       library={{ actions: [], selectedId: null, error: null }}
       onStartRecording={() => undefined}
       onStopRecording={() => undefined}
@@ -50,5 +50,23 @@ describe('ActionsPanel', () => {
     expect(markup).toContain('Properties');
     expect(markup).toContain('None');
     expect(markup).not.toContain('textarea');
+  });
+
+  it('shows subscribed asynchronous task progress in the recorder status', () => {
+    const markup = renderToStaticMarkup(<ActionsPanel
+      capabilities={[]}
+      definitions={[definition]}
+      onExecute={() => null}
+      recording={{ status: 'stopped', id: 'action-1', name: 'Export', startedAt: 1,
+        stoppedAt: 2, steps: [], byteLength: 0, limitReached: false }}
+      playback={{ status: 'running', currentSequence: 1, results: [], taskProgress: 0.42 }}
+      library={{ actions: [], selectedId: null, error: null }}
+      onStartRecording={() => undefined} onStopRecording={() => undefined}
+      onClearRecording={() => undefined} onPlay={() => undefined}
+      onPlayStep={() => undefined} onStopPlayback={() => undefined}
+      onSaveAction={() => undefined} onLoadAction={() => undefined}
+      onDeleteAction={() => undefined}
+    />);
+    expect(markup).toContain('Playback: running at step 1 · 42%');
   });
 });

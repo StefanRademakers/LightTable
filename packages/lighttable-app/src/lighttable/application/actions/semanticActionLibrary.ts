@@ -50,7 +50,7 @@ const parseStep = (value: unknown, sequence: number): RecordedActionStep | null 
     || (value.origin !== 'ui' && value.origin !== 'actions-playback'
       && value.origin !== 'mcp' && value.origin !== 'internal')
     || (value.documentId !== null && !boundedString(value.documentId, 512))
-    || value.outcome !== 'completed' || value.replayable !== true
+    || (value.outcome !== 'completed' && value.outcome !== 'accepted') || value.replayable !== true
     || !finite(value.startedAt) || !finite(value.durationMs) || value.durationMs < 0
     || (value.note !== null && (typeof value.note !== 'string' || value.note.length > 2_048))) return null;
   try {
@@ -114,7 +114,7 @@ export class SemanticActionLibrary {
     const normalizedName = name.trim();
     if (!normalizedName || normalizedName.length > 255 || recording.status !== 'stopped'
       || recording.steps.length < 1 || recording.steps.some(({ replayable, outcome }) =>
-        !replayable || outcome !== 'completed')) return null;
+        !replayable || (outcome !== 'completed' && outcome !== 'accepted'))) return null;
     const now = Date.now();
     const id = recording.id ?? `action-${now}`;
     const previous = this.snapshotValue.actions.find((action) => action.id === id);

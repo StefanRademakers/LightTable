@@ -127,6 +127,10 @@ Current evidence (2026-08-20)
 - A packaged restart harness now proves a saved create+rename Action loads into
   a fresh document session, retargets its document ID, preserves its generated
   layer binding and does not record its own playback.
+- Packaged Actions now records and replays an asynchronous native export through
+  the same document-task/artifact owners. Unit equivalence carries its newly
+  generated artifact ID into a following bound command; failure and Stop do not
+  continue later steps.
 
 Still required for completion
 =============================

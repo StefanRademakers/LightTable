@@ -17,7 +17,7 @@ const identityValues = (steps: readonly RecordedActionStep[]): Map<string, Actio
     if (!isRecord(value)) return;
     for (const [key, child] of Object.entries(value)) {
       const childPath = [...path, key];
-      if (/Id$/.test(key) && typeof child === 'string' && child) {
+      if ((key === 'id' || /Id$/.test(key)) && typeof child === 'string' && child) {
         identities.set(child, { $lighttableResult: { step, path: childPath.join('.') } });
       } else if (isRecord(child)) {
         visit(child, step, childPath);
@@ -25,7 +25,9 @@ const identityValues = (steps: readonly RecordedActionStep[]): Map<string, Actio
     }
   };
   for (const step of steps) {
-    if (step.outcome === 'completed' && step.replayable) visit(step.result, step.sequence, []);
+    if ((step.outcome === 'completed' || step.outcome === 'accepted') && step.replayable) {
+      visit(step.result, step.sequence, []);
+    }
   }
   return identities;
 };
