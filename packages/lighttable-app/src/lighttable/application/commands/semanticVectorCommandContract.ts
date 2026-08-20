@@ -1,7 +1,7 @@
-import type { GradientPaintInstance } from '@lighttable/paint-core';
 import type { AffineMatrix, ArrowheadGeometry, LiveShapeGeometry, VectorStyle,
   VectorSubpath } from '@lighttable/vector-core';
 import { BLEND_MODES, type BlendMode } from '../../editor/document/blendModes';
+import { validGradientPaintCommand } from './gradientPaintCommandContract';
 
 export interface SemanticVectorPathAnchor {
   readonly id?: string;
@@ -60,22 +60,9 @@ const point = (value: unknown) => record(value) && finite(value.x) && finite(val
 const matrix = (value: unknown) => record(value)
   && ['a', 'b', 'c', 'd', 'tx', 'ty'].every((key) => finite(value[key]));
 
-const validGradient = (value: unknown): value is GradientPaintInstance => {
-  if (!record(value) || value.kind !== 'gradient' || !record(value.asset)
-    || !Array.isArray(value.asset.colorStops) || !Array.isArray(value.asset.opacityStops)
-    || value.asset.colorStops.length < 2 || value.asset.colorStops.length > 64
-    || value.asset.opacityStops.length < 2 || value.asset.opacityStops.length > 64
-    || !matrix(value.transform)) return false;
-  return value.asset.colorStops.every((stop) => record(stop) && id(stop.id)
-      && finite(stop.position, 0, 1) && finite(stop.midpoint, 0, 1) && record(stop.color)
-      && ['r', 'g', 'b', 'a'].every((key) => finite((stop.color as Record<string, unknown>)[key], 0, 1)))
-    && value.asset.opacityStops.every((stop) => record(stop) && id(stop.id)
-      && finite(stop.position, 0, 1) && finite(stop.midpoint, 0, 1) && finite(stop.opacity, 0, 1));
-};
-
 const validPaint = (value: unknown) => record(value) && (
   (value.type === 'solid' && Array.isArray(value.color) && value.color.length === 4
-    && value.color.every((channel) => finite(channel, 0, 1))) || validGradient(value)
+    && value.color.every((channel) => finite(channel, 0, 1))) || validGradientPaintCommand(value)
 );
 const validStyle = (value: unknown) => {
   if (value === undefined) return true;

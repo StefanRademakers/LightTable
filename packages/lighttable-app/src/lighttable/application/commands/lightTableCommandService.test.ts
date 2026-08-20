@@ -41,6 +41,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {}) => {
     executeVectorCommand: vi.fn(),
     executeWarpStrokeCommand: vi.fn(),
     executeFillCommand: vi.fn(),
+    executeRasterGradientCommand: vi.fn(),
     executeLayerStyleCommand: vi.fn(),
     executeFaceWarpCommand: vi.fn(),
     executeLayerCommand: vi.fn(),
@@ -75,6 +76,10 @@ const warpStroke = (layerId: string) => ({ layerId, mode: 'push',
     spacing: 0.1, smooth: 0, pressureSize: true, pressureStrength: true },
   samples: [{ positionPx: [10, 20], deltaPx: [0, 0], pressure: 1,
     tilt: [0, 0], timeMs: 1000 }], startedAtMs: 1000, durationMs: 0 });
+const rasterGradient = (layerId: string) => ({ layerId, channel: 'pixels',
+  paint: { ...createDefaultGradientPaint('raster-command', 'document'),
+    transform: { a: 120, b: 0, c: 0, d: 120, tx: 10, ty: 20 } },
+  opacity: 0.8, blendMode: 'normal' });
 const basicValues = {
   temperature: 0, tint: 0, exposureEV: 0.75, contrast: 0,
   highlights: 0, shadows: 0, whites: 0, blacks: 0, lift: 0,
@@ -470,6 +475,24 @@ describe('LightTableCommandService registry', () => {
     expect(await state.service.execute(request('raster.fill', state.session.id, {
       layerId, channel: 'pixels', color: 'blue', opacity: 1
     }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates and routes one final raster-gradient paint', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    vi.mocked(state.ports.executeRasterGradientCommand!).mockResolvedValue({ layerId, channel: 'pixels' });
+    const result = await state.service.execute(request(
+      'raster.applyGradient', state.session.id, rasterGradient(layerId)
+    ));
+    expect(result).toMatchObject({ status: 'completed', value: { layerId, channel: 'pixels' } });
+    expect(state.ports.executeRasterGradientCommand).toHaveBeenCalledWith(state.session.id,
+      expect.objectContaining({ layerId, opacity: 0.8,
+        paint: expect.objectContaining({ coordinateSpace: 'document' }) }));
+    const oversized = rasterGradient(layerId);
+    oversized.paint.asset.name = 'x'.repeat(70 * 1024);
+    expect(await state.service.execute(request('raster.applyGradient', state.session.id, oversized)))
+      .toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });
 

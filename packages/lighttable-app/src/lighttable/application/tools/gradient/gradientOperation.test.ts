@@ -1,6 +1,7 @@
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument, type RasterLayer } from '../../../editor/document/documentTypes';
+import { createRasterLayer } from '../../../editor/document/documentCommands';
 import type { ReversiblePixelEdit } from '../../../editor/history/ReversiblePixelEdit';
 import { executeGradientOperation, type GradientRendererPort } from './gradientOperation';
 
@@ -57,6 +58,25 @@ describe('executeGradientOperation', () => {
     );
     expect(result).toMatchObject({ ok: false });
     expect(gpu.beginBrushStroke).not.toHaveBeenCalled();
+  });
+
+  it('targets a non-active raster explicitly and rejects locked pixels', () => {
+    const initial = createImageDocument('Explicit Gradient', 32, 24, 'fixture');
+    const original = initial.layers[0] as RasterLayer;
+    const document = createRasterLayer(initial, 'Active paint layer');
+    const paint = createDefaultGradientPaint('explicit-gradient', 'document');
+    const gpu = renderer();
+    expect(executeGradientOperation(document, gpu, 'pixels', paint, 1, 'normal', original.id))
+      .toMatchObject({ ok: true, layerId: original.id, channel: 'pixels' });
+    expect(gpu.beginBrushStroke).toHaveBeenCalledWith(original, 'pixels');
+
+    const locked = { ...original, locks: { ...original.locks, pixels: true } };
+    const lockedDocument = { ...document,
+      layers: document.layers.map((layer) => layer.id === original.id ? locked : layer) };
+    const lockedGpu = renderer();
+    expect(executeGradientOperation(lockedDocument, lockedGpu, 'pixels', paint, 1, 'normal', original.id))
+      .toMatchObject({ ok: false, message: expect.stringContaining('Unlock') });
+    expect(lockedGpu.beginBrushStroke).not.toHaveBeenCalled();
   });
 
   it('cancels the transaction when the GPU target is unavailable', () => {

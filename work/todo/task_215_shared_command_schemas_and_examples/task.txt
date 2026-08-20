@@ -74,6 +74,9 @@ Current evidence (2026-08-20)
 - The semantic text-style contract now explicitly distinguishes synthetic
   bold/italic from font weight/style; UI recording, command validation,
   execution, text query and the dedicated MCP text tool share those meanings.
+- Vector Gradient Fill and raster-gradient commands now consume one bounded
+  gradient-paint validator, including stop counts, IDs, coordinate space,
+  transform bounds and a 64 KiB transport ceiling.
 
 Still required for completion
 =============================

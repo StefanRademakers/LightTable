@@ -68,3 +68,6 @@ Current evidence (2026-08-20)
 - `raster.fill` is explicitly admitted as an immediate edit with bounded scalar
   parameters and no raster payload. Packaged Agent Access plus real external
   MCP-to-desktop execution passed, including decoded rendered-preview evidence.
+- `raster.applyGradient` is admitted as one bounded final paint, not a remote
+  drag. Packaged and external MCP execution passed with contrasting rendered
+  source/result evidence.

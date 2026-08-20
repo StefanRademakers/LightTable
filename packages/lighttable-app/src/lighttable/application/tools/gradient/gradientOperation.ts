@@ -26,6 +26,7 @@ export type GradientOperationResult = {
   readonly document: ImageDocument;
   readonly layerId: LayerId;
   readonly targetLabel: string;
+  readonly channel: PaintChannel;
   readonly pixelEdit: ReversiblePixelEdit;
 } | {
   readonly ok: false;
@@ -42,12 +43,13 @@ export const executeGradientOperation = (
   channel: PaintChannel,
   paint: GradientPaintInstance,
   opacity: number,
-  blendMode: BlendMode
+  blendMode: BlendMode,
+  targetLayerId: LayerId | null = document.activeLayerId
 ): GradientOperationResult => {
-  if (!document.activeLayerId) return { ok: false, message: 'Select a layer before drawing a pixel gradient.' };
+  if (!targetLayerId) return { ok: false, message: 'Select a layer before drawing a pixel gradient.' };
   const layer: LayerNode | null = channel === 'mask'
-    ? findDocumentLayer(document, document.activeLayerId)
-    : findRasterLayer(document, document.activeLayerId);
+    ? findDocumentLayer(document, targetLayerId)
+    : findRasterLayer(document, targetLayerId);
   if (!layer || (channel === 'mask' && !('mask' in layer && layer.mask))) {
     return {
       ok: false,
@@ -55,6 +57,9 @@ export const executeGradientOperation = (
         ? 'Select a layer with an editable mask before drawing a gradient.'
         : 'Select a raster layer or choose Gradient Fill mode.'
     };
+  }
+  if (layer.locks.all || (channel === 'pixels' && layer.locks.pixels)) {
+    return { ok: false, message: 'Unlock the gradient target before editing it.' };
   }
 
   let transactionOpen = false;
@@ -90,6 +95,7 @@ export const executeGradientOperation = (
         : markLayerPixelsChanged(document, layer.id, bounds(document)),
       layerId: layer.id,
       targetLabel: channel === 'mask' ? 'Mask' : layer.name,
+      channel,
       pixelEdit
     };
   } catch (reason) {

@@ -105,6 +105,9 @@ Current evidence (2026-08-20)
 - Packaged Actions records and replays a real toolbar Fill with stable target
   binding. Packaged Agent Access and external MCP execute the same explicit
   raster operation; the MCP route verifies an actual decoded preview pixel.
+- Raster Gradient has the same packaged UI/Actions/Agent/MCP route. External
+  MCP preview evidence distinguishes its blue-to-cyan result from a red source
+  fill, while the editable final paint is retained in the Action parameters.
 
 Still required for completion
 =============================

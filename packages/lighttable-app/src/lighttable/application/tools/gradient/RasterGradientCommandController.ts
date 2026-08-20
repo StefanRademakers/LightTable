@@ -10,6 +10,7 @@ import {
   executeGradientOperation,
   type GradientRendererPort
 } from './gradientOperation';
+import type { SemanticRasterGradientCommand } from '../../commands/semanticRasterGradientCommandContract';
 
 interface GradientHistoryEntry {
   byteSize: number;
@@ -30,12 +31,56 @@ export interface RasterGradientDependencies {
   pushHistoryEntry(entry: GradientHistoryEntry): void;
   setStatus(message: string | null): void;
   setError(message: string | null): void;
+  onGradientCommitted?(command: SemanticRasterGradientCommand, result: RasterGradientCommandResult): void;
+}
+
+export interface RasterGradientCommandResult {
+  readonly layerId: LayerId;
+  readonly channel: PaintChannel;
 }
 
 export class RasterGradientCommandController {
   private gesture: { pointerId: number; start: Vec2; current: Vec2 } | null = null;
 
   constructor(private readonly resolve: () => RasterGradientDependencies) {}
+
+  private applyCommand(command: SemanticRasterGradientCommand): RasterGradientCommandResult | null {
+    const dependencies = this.resolve();
+    const before = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    if (!before || !renderer) return null;
+    const result = executeGradientOperation(before, renderer, command.channel, command.paint,
+      command.opacity, command.blendMode, command.layerId);
+    if (!result.ok) {
+      dependencies.setError(result.message);
+      return null;
+    }
+    dependencies.applyDocumentSnapshot(result.document);
+    dependencies.pushHistoryEntry({
+      byteSize: result.pixelEdit.byteSize,
+      layerIds: [result.layerId],
+      undo: () => {
+        const latest = this.resolve();
+        if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
+          throw new Error('Pixel-gradient undo is no longer available.');
+        }
+        latest.applyDocumentSnapshot(before);
+      },
+      redo: () => {
+        const latest = this.resolve();
+        if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'redo')) {
+          throw new Error('Pixel-gradient redo is no longer available.');
+        }
+        latest.applyDocumentSnapshot(result.document);
+      },
+      dispose: result.pixelEdit.destroy
+    });
+    dependencies.setError(null);
+    dependencies.setStatus(`${result.targetLabel} filled with a pixel gradient`);
+    return { layerId: result.layerId, channel: result.channel };
+  }
+
+  apply(command: SemanticRasterGradientCommand) { return this.applyCommand(command); }
 
   owns(pointerId: number) { return this.gesture?.pointerId === pointerId; }
 
@@ -60,46 +105,21 @@ export class RasterGradientCommandController {
     if (Math.hypot(end.x - start.x, end.y - start.y) < 1e-4) return false;
     const dependencies = this.resolve();
     const before = dependencies.getDocument();
-    const renderer = dependencies.getRenderer();
-    if (!before || !renderer) return false;
+    if (!before) return false;
     const settings = dependencies.getSettings();
     const constrainedEnd = constrainedGradientEnd(start, end, constrain);
     const paint = gradientPaintFromDrag(settings.paint, start, constrainedEnd, settings.transparency);
-    const result = executeGradientOperation(
-      before,
-      renderer,
-      dependencies.getChannel(),
+    if (!before.activeLayerId) return false;
+    const command: SemanticRasterGradientCommand = {
+      layerId: before.activeLayerId,
+      channel: dependencies.getChannel(),
       paint,
-      settings.opacity,
-      settings.blendMode
-    );
-    if (!result.ok) {
-      dependencies.setError(result.message);
-      return false;
-    }
-    dependencies.applyDocumentSnapshot(result.document);
-    dependencies.pushHistoryEntry({
-      byteSize: result.pixelEdit.byteSize,
-      layerIds: [result.layerId],
-      undo: () => {
-        const latest = this.resolve();
-        if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'undo')) {
-          throw new Error('Pixel-gradient undo is no longer available.');
-        }
-        latest.applyDocumentSnapshot(before);
-      },
-      redo: () => {
-        const latest = this.resolve();
-        if (!latest.getRenderer()?.applyPixelHistory(result.pixelEdit, 'redo')) {
-          throw new Error('Pixel-gradient redo is no longer available.');
-        }
-        latest.applyDocumentSnapshot(result.document);
-      },
-      dispose: result.pixelEdit.destroy
-    });
-    dependencies.setError(null);
-    dependencies.setStatus(`${result.targetLabel} filled with a pixel gradient`);
-    return true;
+      opacity: settings.opacity,
+      blendMode: settings.blendMode
+    };
+    const result = this.applyCommand(command);
+    if (result) dependencies.onGradientCommitted?.(command, result);
+    return Boolean(result);
   }
 
   cancel(pointerId?: number) {

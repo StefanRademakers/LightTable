@@ -20,6 +20,7 @@ import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandCont
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
 import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
+import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type LightTableCommandId
@@ -196,6 +197,7 @@ export interface LightTableCommandPorts {
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand): unknown | Promise<unknown>;
   executeWarpStrokeCommand?(documentId: DocumentSessionId, command: SemanticWarpStrokeCommand): unknown | Promise<unknown>;
   executeFillCommand?(documentId: DocumentSessionId, command: SemanticFillCommand): unknown | Promise<unknown>;
+  executeRasterGradientCommand?(documentId: DocumentSessionId, command: SemanticRasterGradientCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(documentId: DocumentSessionId, command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   executeFaceWarpCommand?(documentId: DocumentSessionId, command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(documentId: DocumentSessionId, command: SemanticLayerCommand): unknown | Promise<unknown>;
@@ -231,6 +233,7 @@ export interface DocumentLightTableCommandPorts {
   executeVectorCommand(command: SemanticVectorCommand): unknown | Promise<unknown>;
   executeWarpStrokeCommand?(command: SemanticWarpStrokeCommand): unknown | Promise<unknown>;
   executeFillCommand?(command: SemanticFillCommand): unknown | Promise<unknown>;
+  executeRasterGradientCommand?(command: SemanticRasterGradientCommand): unknown | Promise<unknown>;
   executeLayerStyleCommand(command: SemanticLayerStyleCommand): unknown | Promise<unknown>;
   executeFaceWarpCommand?(command: SemanticFaceWarpCommand): unknown | Promise<unknown>;
   executeLayerCommand(command: SemanticLayerCommand): unknown | Promise<unknown>;

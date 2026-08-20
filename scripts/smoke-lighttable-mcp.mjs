@@ -14,6 +14,18 @@ const output = path.resolve(process.argv[3] ?? 'D:\\mediavibe\\LightTableTestFil
 const bridgePort = 18_000 + Math.floor(Math.random() * 1_000);
 const bridgeToken = randomBytes(32).toString('base64url');
 const pairingCode = randomBytes(10).toString('base64url');
+const mcpGradient = { kind: 'gradient', shape: 'linear', coordinateSpace: 'document',
+  asset: { id: 'mcp-blue-gradient', name: 'MCP blue gradient', type: 'solid',
+    smoothness: 1, roughness: 0, seed: 0,
+    colorStops: [
+      { id: 'blue', position: 0, midpoint: 0.5, color: { r: 0.05, g: 0.1, b: 0.9, a: 1 } },
+      { id: 'cyan', position: 1, midpoint: 0.5, color: { r: 0.05, g: 0.8, b: 1, a: 1 } }
+    ], opacityStops: [
+      { id: 'opaque-start', position: 0, midpoint: 0.5, opacity: 1 },
+      { id: 'opaque-end', position: 1, midpoint: 0.5, opacity: 1 }
+    ] },
+  transform: { a: 400, b: 0, c: 0, d: 400, tx: 0, ty: 0 },
+  reverse: false, dither: true, interpolation: 'perceptual' };
 const bridgeProcess = spawn(process.execPath,
   ['scripts/lighttable-mcp-automation-bridge.mjs', '--port', String(bridgePort), '--file', source], {
     cwd: root, env: { ...process.env, LIGHTTABLE_BRIDGE_TOKEN: bridgeToken },
@@ -77,7 +89,10 @@ try {
     expectedDocumentRevision: createdDocument.canonicalRevision,
     parameters: { layerId, name: 'MCP editable accent' } });
   await call('lighttable_execute', { documentId, command: 'raster.fill', parameters: {
-    layerId, channel: 'pixels', color: '#2f80ed', preserveTransparency: false, opacity: 1
+    layerId, channel: 'pixels', color: '#ed2f2f', preserveTransparency: false, opacity: 1
+  } });
+  await call('lighttable_execute', { documentId, command: 'raster.applyGradient', parameters: {
+    layerId, channel: 'pixels', paint: mcpGradient, opacity: 1, blendMode: 'normal'
   } });
   const gesture = (await call('lighttable_gesture_begin', { documentId, kind: 'brush-stroke',
     coordinateSpace: 'document', parameters: { layerId, channel: 'pixels' },

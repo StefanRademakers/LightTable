@@ -85,6 +85,8 @@ Current evidence (2026-08-20)
   two history entries while pointer/hold previews remained on the frame-coalesced
   local controller. The final representative run retained 21 samples in about 3.6 KB
   and reported 32 submitted frames; these measurements are not a latency score.
+- A packaged 18-move raster-gradient drag publishes no command before pointer-up
+  and one final paint/history entry afterward; Actions/MCP never receive moves.
 
 Remaining before this task is complete
 ======================================

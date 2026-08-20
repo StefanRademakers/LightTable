@@ -43,7 +43,8 @@ describe('RasterGradientCommandController', () => {
       applyDocumentSnapshot: vi.fn((next: ImageDocument) => { document = next; }),
       pushHistoryEntry: vi.fn((entry: { undo(): void; redo(): void }) => history.push(entry)),
       setStatus: vi.fn(),
-      setError: vi.fn()
+      setError: vi.fn(),
+      onGradientCommitted: vi.fn()
     };
     const controller = new RasterGradientCommandController(() => dependencies);
 
@@ -54,12 +55,38 @@ describe('RasterGradientCommandController', () => {
     expect(capturedPaint).not.toBeNull();
     expect(capturedPaint!.transform.b).toBeCloseTo(capturedPaint!.transform.a);
     expect(history).toHaveLength(1);
+    expect(dependencies.onGradientCommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ layerId: before.activeLayerId, channel: 'pixels', opacity: 1 }),
+      { layerId: before.activeLayerId, channel: 'pixels' }
+    );
 
     history[0].undo();
     expect(document).toBe(before);
     history[0].redo();
     expect(document).not.toBe(before);
     expect(renderer.applyPixelHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies a final command directly without observing a second UI commit', () => {
+    let document: ImageDocument = createImageDocument('Gradient command', 64, 48, 'fixture');
+    const onGradientCommitted = vi.fn();
+    const renderer = { beginBrushStroke: vi.fn(), fillLayerColor: vi.fn(() => true),
+      fillLayerGradient: vi.fn(() => true), finishPixelEdit: vi.fn(() => edit),
+      cancelPixelEdit: vi.fn(), applyPixelHistory: vi.fn(() => true) };
+    const dependencies = { getDocument: () => document, getRenderer: () => renderer,
+      getChannel: () => 'mask' as const, getSettings: () => createEditorSession().gradient,
+      applyDocumentSnapshot: (next: ImageDocument) => { document = next; },
+      pushHistoryEntry: vi.fn(), setStatus: vi.fn(), setError: vi.fn(), onGradientCommitted };
+    const controller = new RasterGradientCommandController(() => dependencies);
+    const layerId = document.activeLayerId!;
+    const paint = { ...createEditorSession().gradient.paint,
+      transform: { a: 40, b: 0, c: 0, d: 40, tx: 2, ty: 3 } };
+    expect(controller.apply({ layerId, channel: 'pixels', paint, opacity: 0.6,
+      blendMode: 'multiply' })).toEqual({ layerId, channel: 'pixels' });
+    expect(renderer.fillLayerGradient).toHaveBeenCalledWith(
+      layerId, 'pixels', paint, 0.6, 'multiply', false
+    );
+    expect(onGradientCommitted).not.toHaveBeenCalled();
   });
 
   it('treats a click without a drag as a no-op', () => {

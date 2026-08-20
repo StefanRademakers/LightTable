@@ -328,10 +328,29 @@ try {
   );
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await recorder.locator('li').filter({ hasText: 'raster.fill' }).waitFor({ timeout: 15_000 });
+  await window.getByRole('button', { name: 'Show gradient and fill tools', exact: true }).click();
+  await window.getByRole('button', { name: 'Gradient (G)', exact: true }).click();
+  await window.getByRole('combobox', { name: 'Gradient application' }).selectOption('pixels');
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.19,
+    viewportBounds.y + viewportBounds.height * 0.58
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.39,
+    viewportBounds.y + viewportBounds.height * 0.66,
+    { steps: 18 }
+  );
+  if (await recorder.locator('li').filter({ hasText: 'raster.applyGradient' }).count() !== 0) {
+    throw new Error('Raster Gradient published before pointer-up.');
+  }
+  await window.mouse.up();
+  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
+  await recorder.locator('li').filter({ hasText: 'raster.applyGradient' }).waitFor({ timeout: 15_000 });
 
   await panel.getByRole('radio', { name: 'Commands' }).click();
   await panel.getByText(/commands$/).waitFor();
-  for (let index = 0; index < 19; index += 1) {
+  for (let index = 0; index < 20; index += 1) {
     await window.getByRole('tab', { name: 'Actions', exact: true }).click();
     await panel.getByRole('radio', { name: 'Commands' }).click();
     const undo = panel.locator('details').filter({ hasText: 'history.undo' });
@@ -357,7 +376,7 @@ try {
   await panel.getByRole('radio', { name: 'Actions' }).click();
   const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
   await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 19) throw new Error('Expected nineteen recorded Undo diagnostics.');
+  if (await undoSteps.count() !== 20) throw new Error('Expected twenty recorded Undo diagnostics.');
   const undoStep = undoSteps.first();
   await undoStep.locator('summary').click();
   await undoStep.getByText('Replayable').waitFor();
@@ -422,6 +441,13 @@ try {
   const fillStepText = await fillStep.textContent();
   if (!fillStepText?.includes('$step18.layerId') || !fillStepText.includes('"channel": "pixels"')) {
     throw new Error(`Recorded Fill target/channel are not stable: ${fillStepText}`);
+  }
+  const rasterGradientStep = recorder.locator('li').filter({ hasText: 'raster.applyGradient' });
+  await rasterGradientStep.locator('summary').click();
+  const rasterGradientText = await rasterGradientStep.textContent();
+  if (!rasterGradientText?.includes('$step19.layerId')
+    || !rasterGradientText.includes('"coordinateSpace": "document"')) {
+    throw new Error(`Recorded raster Gradient lost target or final paint: ${rasterGradientText}`);
   }
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();

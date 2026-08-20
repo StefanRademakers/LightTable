@@ -129,6 +129,9 @@ Existing foundation evidence
 - Solid raster/mask Fill now uses one explicit-target `raster.fill` capability
   through the existing GPU transaction and reversible pixel-history owner.
   Actions, packaged Agent Access and the external MCP bridge are proven.
+- Raster/mask pixel gradients now publish one final bounded paint through
+  `raster.applyGradient`; pointer movement remains local and the GPU/history
+  transaction is shared by UI, Actions and Agent/MCP.
 
 Program definition of done
 ==========================

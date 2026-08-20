@@ -305,6 +305,15 @@ try {
     || rasterFill.value?.channel !== 'pixels') {
     throw new Error(`Agent raster Fill failed: ${JSON.stringify(rasterFill)}`);
   }
+  const rasterGradient = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-gradient-raster', command: 'raster.applyGradient', documentId: originalId,
+    commandParameters: { layerId, channel: 'pixels', paint: agentGradient(35),
+      opacity: 0.45, blendMode: 'normal' }
+  });
+  if (rasterGradient.status !== 'completed' || rasterGradient.value?.layerId !== layerId
+    || rasterGradient.value?.channel !== 'pixels') {
+    throw new Error(`Agent raster Gradient failed: ${JSON.stringify(rasterGradient)}`);
+  }
   const warpApplied = await invoke(address, token, 'command.execute', {
     commandRequestId: 'agent-warp-raster', command: 'warp.applyStroke', documentId: originalId,
     commandParameters: {

@@ -31,6 +31,8 @@ import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import { dispatchSemanticWarpStroke } from './semanticWarpCommandHandler';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
 import { dispatchSemanticFill } from './semanticFillCommandHandler';
+import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
+import { dispatchSemanticRasterGradient } from './semanticRasterGradientCommandHandler';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
 import { projectWarpQuery, type WarpQueryResult } from './warpQueryProjection';
@@ -126,6 +128,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   executeFillCommand(documentId: DocumentSessionId, command: SemanticFillCommand) {
     const execute = this.resolve(documentId).executeFillCommand;
     if (!execute) throw new Error('Fill commands are unavailable in the target document.');
+    return execute(command);
+  }
+
+  executeRasterGradientCommand(documentId: DocumentSessionId, command: SemanticRasterGradientCommand) {
+    const execute = this.resolve(documentId).executeRasterGradientCommand;
+    if (!execute) throw new Error('Raster-gradient commands are unavailable in the target document.');
     return execute(command);
   }
 
@@ -652,6 +660,8 @@ export class LightTableCommandService {
         'Warp stroke commands are unavailable in this host.'),
       availability('raster.fill', Boolean(this.ports.executeFillCommand),
         'Fill commands are unavailable in this host.'),
+      availability('raster.applyGradient', Boolean(this.ports.executeRasterGradientCommand),
+        'Raster-gradient commands are unavailable in this host.'),
       availability('faceWarp.applyOperation', Boolean(this.ports.executeFaceWarpCommand),
         'Face Warp commands are unavailable in this host.'),
       availability('layer.effect.add', true, ''),
@@ -940,6 +950,17 @@ export class LightTableCommandService {
       const outcome = await dispatchSemanticFill(value.parameters,
         this.ports.executeFillCommand
           ? (command) => this.ports.executeFillCommand!(documentRequest.documentId, command)
+          : undefined);
+      if (!outcome.ok) return this.reject(value.requestId, outcome.code, outcome.message, snapshot);
+      this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+      return { requestId: value.requestId, status: 'completed', value: outcome.value,
+        revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+    }
+
+    if (value.command === 'raster.applyGradient') {
+      const outcome = await dispatchSemanticRasterGradient(value.parameters,
+        this.ports.executeRasterGradientCommand
+          ? (command) => this.ports.executeRasterGradientCommand!(documentRequest.documentId, command)
           : undefined);
       if (!outcome.ok) return this.reject(value.requestId, outcome.code, outcome.message, snapshot);
       this.workspace.getDocument(documentRequest.documentId)?.markChanged();

@@ -1,0 +1,63 @@
+Task 235 - Semantic raster-gradient commits
+===========================================
+
+Goal
+====
+
+Expose the final GPU-backed pixel-gradient paint through UI, Actions and
+reviewed Agent/MCP execution without transporting drag updates or raster data.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 216`](../task_216_semantic_gesture_commit_and_performance/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Create one bounded shared gradient-paint validator for vector and raster commands.
+- [x] Define an explicit layer/channel raster-gradient contract with paint, opacity and blend mode.
+- [x] Preserve local start/move/constrain behavior and publish only after pointer-up GPU/history success.
+- [x] Execute Actions/Agent/MCP directly from the final paint without pointer simulation.
+- [x] Retain pixel/mask locks, transparency preservation and reversible GPU snapshots.
+- [x] Reject oversized stops/payloads, malformed transforms, unsupported targets and GPU failures.
+- [x] Record, bind, undo and replay a real packaged pixel-gradient drag.
+- [x] Prove packaged Agent Access and external MCP execution plus rendered preview evidence.
+- [x] Run full type, tests, contract, boundary, structure, packaging and smoke gates.
+
+Scope guard
+===========
+
+- No drag samples, renderer pixels or selection buffers cross command transport.
+- Gradient Fill vector layers stay on `vector.create`/`vector.update`; this task
+  covers destructive raster/mask pixel-gradient commits only.
+
+Completion contract
+===================
+
+One real raster-gradient drag remains local until finish, records one bounded
+final paint and one history entry, and replays through the same GPU transaction
+owner from Actions, Agent Access and external MCP.
+
+Evidence (2026-08-20)
+=====================
+
+- Vector and raster commands now share one gradient-paint validator with 2..64
+  color/opacity stops, bounded IDs/transform and a 64 KiB payload ceiling.
+- The real raster UI retained its local begin/move/constrain state. An 18-step
+  packaged drag produced no Action before pointer-up and exactly one afterward.
+- The recorded final paint bound to the preceding Fill result, survived undo of
+  the full 20-step workflow and replayed through the same reversible GPU owner.
+- Packaged Agent Access applied a final gradient paint directly. External MCP
+  first filled the target red, then applied a blue-to-cyan gradient; its decoded
+  preview contained an opaque blue-dominant corner pixel, excluding the prior
+  solid Fill as the explanation.
+- Pixel/mask locks, invalid targets, oversized paints, malformed transforms,
+  GPU rejection and unavailable undo snapshots fail closed.
+- Command-contract, boundary, structure and documentation checks, packaging,
+  2,583 app tests, 17 MCP tests, all-workspace typecheck and packaged Actions,
+  Agent Access and external MCP smokes passed.

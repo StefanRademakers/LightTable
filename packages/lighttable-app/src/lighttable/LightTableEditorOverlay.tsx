@@ -3383,7 +3383,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     applyDocumentSnapshot,
     pushHistoryEntry,
     setStatus: setGradeStatus,
-    setError
+    setError,
+    onGradientCommitted: (parameters, result) => commandService?.recordObservedCommand(
+      'raster.applyGradient',
+      workspaceDocumentId as DocumentSessionId,
+      parameters,
+      result
+    )
   };
   const publishGlobalGradeStrength = React.useCallback((strength: number) => {
     const next = Math.min(100, Math.max(0, strength));
@@ -4664,6 +4670,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         createId: (kind) => `warp-${kind}-${crypto.randomUUID()}`
       }),
       executeFillCommand: (command) => fillCommandController.apply(command),
+      executeRasterGradientCommand: (command) => rasterGradientController.apply(command),
       executeLayerStyleCommand: (command) => executeSemanticLayerStyleCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
       executeFaceWarpCommand: (command) => executeSemanticFaceWarpCommand(command, {
         getDocument: () => imageDocumentRef.current,
