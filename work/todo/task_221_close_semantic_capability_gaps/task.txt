@@ -67,6 +67,8 @@ Completed vertical slices
   existing selection, mask, single-layer and layer-group transaction owner.
 - explicit creation of every visible adjustment through `adjustment.create`,
   including local, attached and standalone adjustment-layer placements.
+- explicit raster or mask inversion through `raster.invert` and its existing
+  reversible GPU transaction.
 
 Rules
 =====

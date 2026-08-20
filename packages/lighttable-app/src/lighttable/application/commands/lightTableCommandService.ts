@@ -32,7 +32,9 @@ import { dispatchSemanticWarpStroke } from './semanticWarpCommandHandler';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
 import { dispatchSemanticFill } from './semanticFillCommandHandler';
 import type { SemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
-import { dispatchSemanticAdjustmentCreation, dispatchSemanticFixedTransform } from './semanticContextualEditDispatcher';
+import { dispatchSemanticAdjustmentCreation, dispatchSemanticFixedTransform,
+  dispatchSemanticRasterInvert } from './semanticContextualEditDispatcher';
+import { projectCommandCapabilities } from './commandCapabilityProjection';
 import { dispatchSemanticRasterGradient } from './semanticRasterGradientCommandHandler';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import { projectEditableVectorQuery } from './vectorQueryProjection';
@@ -189,6 +191,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeAdjustmentCreation']>>[0]) {
     const execute = this.resolve(documentId).executeAdjustmentCreation;
     if (!execute) throw new Error('Adjustment creation is unavailable in the target document.'); return execute(command);
+  }
+
+  executeRasterInvert(documentId: DocumentSessionId,
+    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeRasterInvert']>>[0]) {
+    const execute = this.resolve(documentId).executeRasterInvert;
+    if (!execute) throw new Error('Raster invert is unavailable in the target document.'); return execute(command);
   }
 
   queryBasicAdjustments(documentId: DocumentSessionId, target: BasicAdjustmentTarget) {
@@ -749,89 +757,7 @@ export class LightTableCommandService {
 
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null {
     const snapshot = this.document(documentId);
-    if (!snapshot?.document) return null;
-    const ready = snapshot.lifecycle === 'ready';
-    const layerCapabilities = queryLayerCommandCapabilities(snapshot.document);
-    const availability = (
-      command: LightTableCommandId,
-      available: boolean,
-      reason: string
-    ): CommandCapabilitySummary => ({
-      command,
-      available: ready && available,
-      reason: !ready ? 'The document is not ready.' : available ? null : reason
-    });
-    return [
-      availability('document.create', Boolean(this.workspacePorts), 'Document creation is unavailable in this host.'),
-      availability('document.duplicate', Boolean(this.workspacePorts), 'Document duplication is unavailable in this host.'),
-      availability('document.resizeImage', Boolean(this.ports.resizeImage), 'Image Size is unavailable in this host.'),
-      availability('document.applyGeometry', Boolean(this.ports.applyDocumentGeometry), 'Document geometry is unavailable in this host.'),
-      availability('view.setZoom', true, ''),
-      availability('layer.createRaster', true, ''),
-      availability('layer.duplicate', walkLayerTree(snapshot.document.layers)
-        .some(({ node }) => node.type === 'raster' || node.type === 'text'),
-      'There is no duplicable raster or text layer.'),
-      availability('layer.delete', layerCapabilities.layerCount > 1,
-        'The document must retain at least one layer.'),
-      availability('layer.move', layerCapabilities.layerCount > 1,
-        'There is no other layer to move relative to.'),
-      availability('layer.setBlendMode', layerCapabilities.layerCount > 0, 'There are no layers.'),
-      availability('layer.setClipping', layerCapabilities.layerCount > 1,
-        'Clipping requires a lower sibling layer.'),
-      availability('layer.setTransform', layerCapabilities.layerCount > 0, 'There are no layers.'),
-      availability('transform.applyFixed', Boolean(this.ports.executeFixedTransform)
-        && Boolean(layerCapabilities.activeLayer), 'Select an editable layer.'), availability(
-        'adjustment.create', Boolean(this.ports.executeAdjustmentCreation),
-        'Adjustment creation is unavailable in this host.'),
-      availability('layer.setMask', layerCapabilities.layerCount > 0, 'There are no layers.'),
-      availability('layer.setLock', layerCapabilities.layerCount > 0, 'There are no layers.'),
-      availability('layer.placeArtifact', true, ''),
-      availability(
-        'layer.rename',
-        Boolean(layerCapabilities.activeLayer),
-        'Select an existing layer.'
-      ),
-      availability('layer.setVisibility', true, ''),
-      availability('layer.setFillOpacity', true, ''),
-      availability('layer.style.setEnabled', true, ''),
-      availability('layer.effect.setEnabled', true, ''),
-      availability('file.openArtifact', Boolean(this.workspacePorts), 'Artifact open is unavailable in this host.'),
-      availability('text.create', true, ''),
-      availability('text.replaceRange', true, ''),
-      availability('text.format', true, ''),
-      availability('text.setLayout', true, ''),
-      availability('vector.create', true, ''),
-      availability('vector.update', true, ''),
-      availability('vector.remove', true, ''),
-      availability('warp.applyStroke', Boolean(this.ports.executeWarpStrokeCommand),
-        'Warp stroke commands are unavailable in this host.'),
-      availability('raster.fill', Boolean(this.ports.executeFillCommand),
-        'Fill commands are unavailable in this host.'),
-      availability('raster.applyGradient', Boolean(this.ports.executeRasterGradientCommand),
-        'Raster-gradient commands are unavailable in this host.'),
-      availability('faceWarp.applyOperation', Boolean(this.ports.executeFaceWarpCommand),
-        'Face Warp commands are unavailable in this host.'),
-      availability('layer.effect.add', true, ''),
-      availability('layer.effect.update', true, ''),
-      availability('layer.effect.remove', true, ''),
-      availability('layer.effect.move', true, ''),
-      availability('command.batch', true, ''),
-      availability('tool.commitGesture', true, ''),
-      availability('selection.applyShape', Boolean(this.ports.executeSelectionCommand),
-        'Selection commands are unavailable in this host.'),
-      availability('selection.applyMagicWand', Boolean(this.ports.executeSelectionCommand),
-        'Selection commands are unavailable in this host.'),
-      availability('selection.modify', Boolean(this.ports.executeSelectionCommand),
-        'Selection commands are unavailable in this host.'),
-      availability('grade.setBasic', Boolean(this.ports.executeBasicAdjustmentCommand),
-        'Basic Grade commands are unavailable in this host.'),
-      availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),
-      availability('file.exportNative', true, ''),
-      availability('file.exportPng', true, ''),
-      availability('file.exportPsd', true, ''),
-      availability('history.undo', snapshot.history.canUndo, 'There is nothing to undo.'),
-      availability('history.redo', snapshot.history.canRedo, 'There is nothing to redo.')
-    ];
+    return snapshot ? projectCommandCapabilities(snapshot, this.ports, Boolean(this.workspacePorts)) : null;
   }
 
   async execute(requestValue: unknown, context: LightTableCommandExecutionContext = {
@@ -1241,6 +1167,13 @@ export class LightTableCommandService {
         const result = await dispatchSemanticAdjustmentCreation(parameters, snapshot.document!,
           this.ports.executeAdjustmentCreation
             ? (command) => this.ports.executeAdjustmentCreation!(request.documentId, command) : undefined,
+          () => this.document(request.documentId)?.document?.revision);
+        return result.ok ? { value: result.value } : result;
+      }
+      case 'raster.invert': {
+        const result = await dispatchSemanticRasterInvert(parameters, snapshot.document!,
+          this.ports.executeRasterInvert
+            ? (command) => this.ports.executeRasterInvert!(request.documentId, command) : undefined,
           () => this.document(request.documentId)?.document?.revision);
         return result.ok ? { value: result.value } : result;
       }

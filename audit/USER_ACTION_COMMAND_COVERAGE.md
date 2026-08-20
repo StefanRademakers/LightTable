@@ -5,11 +5,11 @@ Generated from the central editor menu on 2026-08-20. This is the first checked 
 ## Current measured surface
 
 - 103 unique static executable menu actions plus 4 dynamic families;
-- 36 already routed through semantic commands;
+- 37 already routed through semantic commands;
 - 0 have a semantic command but still bypass it in this UI path;
 - 18 host/workspace operations;
 - 34 presentation-only operations;
-- 19 genuine semantic command gaps;
+- 18 genuine semantic command gaps;
 - 4 checked dynamic menu families.
 
 ## Meaning
@@ -67,7 +67,7 @@ A command-owner entry has a catalog command and canonical implementation, but th
 | `image-rotation-clockwise-90` | command | `document.applyGeometry` | 527 |
 | `image-rotation-counter-clockwise-90` | command | `document.applyGeometry` | 530 |
 | `image-size` | command | `document.resizeImage` | 507 |
-| `invert-layer-colors` | gap | No semantic raster-invert command exists. | 609 |
+| `invert-layer-colors` | command | `raster.invert` | 609 |
 | `invert-selection` | command | `selection.modify` | 419 |
 | `layer-via-copy` | gap | No semantic layer-via-copy command exists. | 567 |
 | `lock-guides` | presentation | Changes document-view guide interaction. | 847 |

@@ -35,6 +35,9 @@
     { "kind": "threshold", "placement": "attached", "layerId": "layer-photo" },
     { "kind": "curves", "placement": "adjustment-layer", "aboveLayerId": "layer-photo" }
   ],
+  "raster.invert": [
+    { "layerId": "layer-photo", "channel": "pixels" }
+  ],
   "layer.setMask": [
     { "layerId": "layer-photo", "operation": "add", "source": "reveal-all" },
     { "layerId": "layer-photo", "operation": "set-enabled", "enabled": false }

@@ -8,6 +8,8 @@ import {
   parseSemanticFixedTransformCommand,
   type SemanticFixedTransformCommand
 } from './semanticFixedTransformCommandContract';
+import { parseSemanticRasterInvertCommand,
+  type SemanticRasterInvertCommand } from './semanticRasterInvertCommandContract';
 
 type ContextualEditError = {
   readonly ok: false;
@@ -57,5 +59,21 @@ export const dispatchSemanticAdjustmentCreation = async (value: unknown, documen
   }
   return changedResult(command, execute, 'Adjustment creation is unavailable in this host.',
     { code: 'execution-failed', message: 'The adjustment could not be created.' },
+    document.revision, revision);
+};
+
+export const dispatchSemanticRasterInvert = async (value: unknown, document: ImageDocument,
+  execute: Executor<SemanticRasterInvertCommand>, revision: () => number | undefined
+): Promise<ContextualEditResult> => {
+  const command = parseSemanticRasterInvertCommand(value);
+  if ('message' in command) return { ok: false, code: 'invalid-parameters', message: command.message };
+  const layer = findDocumentLayer(document, command.layerId);
+  if (!layer || (command.channel === 'pixels' && layer.type !== 'raster')
+    || (command.channel === 'mask' && !layer.mask) || layerIsLocked(layer, 'pixels')) {
+    return { ok: false, code: 'command-unavailable',
+      message: 'The requested editable raster or mask channel is unavailable.' };
+  }
+  return changedResult(command, execute, 'Raster invert is unavailable in this host.',
+    { code: 'execution-failed', message: 'The raster channel could not be inverted.' },
     document.revision, revision);
 };

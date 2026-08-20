@@ -175,6 +175,19 @@ try {
   if (!adjustmentLayer.layerId || adjustmentLayer.layerId === layerId) {
     throw new Error('MCP adjustment layer did not return a new stable layer ID.');
   }
+  for (let pass = 0; pass < 2; pass += 1) {
+    const invertDocument = (await call('lighttable_document', { documentId })).structuredContent;
+    const inverted = (await call('lighttable_execute', {
+      documentId, command: 'raster.invert',
+      expectedDocumentRevision: invertDocument.canonicalRevision,
+      parameters: { layerId, channel: 'pixels' }
+    })).structuredContent;
+    if (inverted?.status !== 'completed' || inverted.value?.layerId !== layerId
+      || inverted.value?.channel !== 'pixels'
+      || inverted.revisions?.document <= invertDocument.canonicalRevision) {
+      throw new Error(`MCP raster invert failed on pass ${pass + 1}: ${JSON.stringify(inverted)}`);
+    }
+  }
   const mcpPath = (await call('lighttable_execute', {
     documentId, command: 'vector.create', parameters: {
       name: 'MCP Path Text curve', fillRule: 'nonzero',

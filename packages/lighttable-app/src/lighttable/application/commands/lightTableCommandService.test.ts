@@ -49,6 +49,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     executeLayerCommand: vi.fn(),
     executeFixedTransform: vi.fn(),
     executeAdjustmentCreation: vi.fn(),
+    executeRasterInvert: vi.fn(),
     executeAtomicBatch: vi.fn(),
     exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
@@ -850,6 +851,29 @@ describe('LightTableCommandService registry', () => {
       kind: 'threshold', placement: 'local', layerId
     }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     expect(state.ports.executeAdjustmentCreation).toHaveBeenCalledTimes(2);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates, records and replays explicit raster inversion', async () => {
+    const state = setup();
+    vi.mocked(state.ports.executeRasterInvert!).mockImplementation((_documentId, command) => {
+      const current = state.session.getSnapshot().document!;
+      state.session.setDocument({ ...current, revision: current.revision + 1 });
+      return command;
+    });
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    state.service.startActionRecording('Invert photo');
+    const result = await state.service.execute(request('raster.invert', state.session.id,
+      { layerId, channel: 'pixels' }));
+    state.service.stopActionRecording();
+    expect(result).toMatchObject({ status: 'completed', value: { layerId, channel: 'pixels' } });
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'raster.invert', replayable: true, parameters: { layerId, channel: 'pixels' }
+    }]);
+    await state.service.playActionRecording();
+    expect(state.ports.executeRasterInvert).toHaveBeenCalledTimes(2);
+    expect(await state.service.execute(request('raster.invert', state.session.id,
+      { layerId, channel: 'all' }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     state.service.dispose(); state.workspace.dispose();
   });
 

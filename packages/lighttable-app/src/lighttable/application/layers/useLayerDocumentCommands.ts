@@ -144,7 +144,7 @@ export interface LayerDocumentCommands {
   mergeActiveLayerDown(): boolean;
   flatten(request: FlattenRequest): boolean;
   rasterizeActiveTextLayer(): boolean;
-  invertActiveLayerColors(channel: PaintChannel): boolean;
+  invertLayerColors(layerId: LayerId, channel: PaintChannel): boolean;
   copySelectedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
   copyMergedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
   pasteSelectedContent(selection: readonly SelectionOperation[]): Promise<boolean>;
@@ -700,9 +700,8 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const invertActiveLayerColors = (channel: PaintChannel) => {
+  const invertLayerColors = (layerId: LayerId, channel: PaintChannel) => {
     const current = dependenciesRef.current.getDocument();
-    const layerId = current?.activeLayerId;
     const activeLayer = current
       ? (
           channel === 'mask'
@@ -711,10 +710,10 @@ export const createLayerDocumentCommands = (
         )
       : null;
     const renderer = dependenciesRef.current.getRenderer();
-    if (!current || !layerId || !activeLayer || !renderer) return false;
+    if (!current || !activeLayer || !renderer) return false;
     if (layerIsLocked(activeLayer, 'pixels')) {
       dependenciesRef.current.setError(
-        `Unlock the active layer before inverting its ${channel === 'mask' ? 'mask' : 'colors'}.`
+        `Unlock the target layer before inverting its ${channel === 'mask' ? 'mask' : 'colors'}.`
       );
       return false;
     }
@@ -1033,7 +1032,7 @@ export const createLayerDocumentCommands = (
     mergeActiveLayerDown,
     flatten,
     rasterizeActiveTextLayer,
-    invertActiveLayerColors,
+    invertLayerColors,
     copySelectedContent,
     copyMergedContent,
     pasteSelectedContent,

@@ -4869,6 +4869,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       executeFixedTransform: (command) => applyFixedTransformRef.current(command.operation),
       executeAdjustmentCreation: (command) => executeAdjustmentCreationRef.current(command),
+      executeRasterInvert: (command) => layerDocumentCommands.invertLayerColors(
+        command.layerId, command.channel
+      ) ? command : null,
       queryBasicAdjustments: (target) => {
         const document = imageDocumentRef.current;
         if (!document) return null;
@@ -5390,7 +5393,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   activateToolRef.current = activatePersistentTool;
 
   const invertActiveLayerColors = () => {
-    layerDocumentCommands.invertActiveLayerColors(editorSession.activeChannel);
+    const layerId = imageDocumentRef.current?.activeLayerId;
+    if (!layerId || !executeRegisteredCommand('raster.invert', {
+      layerId, channel: editorSession.activeChannel
+    })) {
+      if (layerId) layerDocumentCommands.invertLayerColors(layerId, editorSession.activeChannel);
+    }
   };
   invertActiveLayerColorsRef.current = invertActiveLayerColors;
 

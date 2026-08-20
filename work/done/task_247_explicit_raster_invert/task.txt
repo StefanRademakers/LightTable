@@ -1,0 +1,48 @@
+Task 247 - Explicit raster and mask invert
+
+Goal
+====
+
+Expose Layer > Invert Colors as one explicit raster/mask GPU commit shared by
+UI, Actions and Agent/MCP, without duplicating pixel operations or weakening
+the central command-service structure gate.
+
+Parent work
+===========
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 221`](../../todo/task_221_close_semantic_capability_gaps/task.txt)
+
+Checklist
+=========
+
+- [x] Extract read-only command capability projection from the central service
+  before adding another edit family.
+- [x] Define `raster.invert` with stable layer ID and explicit pixels/mask
+  channel.
+- [x] Generalize the existing active-layer owner to an explicit layer target
+  while preserving its GPU transaction, undo snapshot and errors.
+- [x] Route the Layer menu through the command; record one final operation only.
+- [x] Add contract/service/owner/Actions tests and packaged MCP proof.
+- [x] Update coverage and parent work, run all gates and commit.
+
+Evidence
+========
+
+- `raster.invert` accepts exactly a stable layer ID and `pixels`/`mask` channel;
+  missing layers, non-raster pixel targets, absent masks and locked targets fail
+  before touching the renderer.
+- The pre-existing layer document owner now accepts an explicit ID but retains
+  its begin/invert/finish GPU transaction, pixel-history snapshot, revision
+  update, undo/redo and error handling.
+- Layer menu and keyboard invocation resolve active target once and dispatch the
+  same command used by Actions and MCP.
+- The packaged MCP smoke inverts the explicit raster twice, proving two revision
+  increases while restoring the image before later rendered assertions.
+- Command capability projection moved out of the central service into a pure
+  read-only module; source structure passes without raising its reviewed growth
+  baseline.
+- Coverage now reports 18 genuine menu gaps.
+- Verification passed: full workspace tests (469 app files / 2646 app tests),
+  typecheck, packaged desktop boundary, external MCP smoke, source structure
+  (885 handwritten files), architecture docs, command coverage and UI boundary.

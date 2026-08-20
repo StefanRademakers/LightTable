@@ -800,12 +800,25 @@ describe('useLayerDocumentCommands', () => {
     const locked = setLayerLocked(unlocked, unlocked.activeLayerId!, true);
     const state = setup(locked);
 
-    expect(state.commands.invertActiveLayerColors('pixels')).toBe(false);
+    expect(state.commands.invertLayerColors(locked.activeLayerId!, 'pixels')).toBe(false);
 
     expect(state.renderer.beginLayerPixelEdit).not.toHaveBeenCalled();
     expect(state.dependencies.setError).toHaveBeenCalledWith(
-      expect.stringContaining('Unlock the active layer')
+      expect.stringContaining('Unlock the target layer')
     );
+  });
+
+  it('inverts an explicit raster layer through one reversible GPU edit', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const layerId = state.document().activeLayerId!;
+    const beforeRevision = state.document().revision;
+
+    expect(state.commands.invertLayerColors(layerId, 'pixels')).toBe(true);
+
+    expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(layerId, 'pixels');
+    expect(state.renderer.invertLayerColors).toHaveBeenCalledWith(layerId, 'pixels');
+    expect(state.document().revision).toBeGreaterThan(beforeRevision);
+    expect(state.historyEntries).toHaveLength(1);
   });
 
   it('copies selected pixels into one new raster layer and one history entry', () => {

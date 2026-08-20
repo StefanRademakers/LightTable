@@ -49,7 +49,7 @@
     { "id": "image-rotation-clockwise-90", "classification": "command", "command": "document.applyGeometry" },
     { "id": "image-rotation-counter-clockwise-90", "classification": "command", "command": "document.applyGeometry" },
     { "id": "image-size", "classification": "command", "command": "document.resizeImage" },
-    { "id": "invert-layer-colors", "classification": "gap", "reason": "No semantic raster-invert command exists." },
+    { "id": "invert-layer-colors", "classification": "command", "command": "raster.invert" },
     { "id": "invert-selection", "classification": "command", "command": "selection.modify" },
     { "id": "layer-via-copy", "classification": "gap", "reason": "No semantic layer-via-copy command exists." },
     { "id": "lock-guides", "classification": "presentation", "reason": "Changes document-view guide interaction." },
