@@ -48,3 +48,21 @@ Non-goals
 
 - Teach mode or automatic skill parameterization.
 - A parallel Actions-only mutation implementation.
+
+Current evidence (2026-08-20)
+=============================
+
+- Concrete stopped Actions can be user-named, explicitly saved, loaded and
+  deleted from a deterministic bounded library.
+- The version-1 envelope is limited to 32 Actions, 256 steps per Action, 2 MiB
+  per Action and 8 MiB total. Malformed, newer-version, unknown-command,
+  non-replayable and oversized content fails atomically.
+- Desktop persistence is host-owned and atomically written under app userData;
+  it does not depend on the renderer's changing localhost origin. Web uses its
+  browser-origin storage adapter.
+- Loaded document-scoped steps retarget to the active document while stable
+  inter-step result bindings remain intact. Playback remains recording-isolated.
+- A packaged two-process smoke records create+rename, saves, fully restarts the
+  app, reopens the original PSD as a fresh session, loads and replays the Action.
+- Action sets, user variables, schema-driven property editing, migrations beyond
+  version 1, play-from-step and task-aware async playback remain open.

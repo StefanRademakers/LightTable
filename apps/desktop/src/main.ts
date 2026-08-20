@@ -142,6 +142,7 @@ const NAVIGATION_ABORTED = -3;
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
 const recentProjectsPath = (): string => path.join(app.getPath('userData'), 'recent-projects.json');
+const actionLibraryPath = (): string => path.join(app.getPath('userData'), 'actions-v1.json');
 const recentProjectOperations = new RecentFileOperationQueue();
 const RECENT_THUMBNAIL_CACHE_LIMIT = 24;
 const recentThumbnailCache = new BoundedLruCache<string>(RECENT_THUMBNAIL_CACHE_LIMIT);
@@ -1574,6 +1575,26 @@ void app.whenReady().then(async () => {
   ipcMain.handle('lighttable:close-application', (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     setImmediate(() => app.quit());
+  });
+
+  ipcMain.handle('lighttable:actions-read', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    try {
+      const bytes = await readFile(actionLibraryPath());
+      if (bytes.byteLength > 8 * 1024 * 1024) throw new Error('Saved Actions exceed the storage boundary.');
+      return bytes.toString('utf8');
+    } catch (reason) {
+      if (reason && typeof reason === 'object' && 'code' in reason && reason.code === 'ENOENT') return null;
+      throw reason;
+    }
+  });
+
+  ipcMain.handle('lighttable:actions-write', async (event, value: string) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof value !== 'string') throw new Error('Saved Actions must be serialized text.');
+    const bytes = new TextEncoder().encode(value);
+    if (bytes.byteLength > 8 * 1024 * 1024) throw new Error('Saved Actions exceed the storage boundary.');
+    await atomicWriteFile({ targetPath: actionLibraryPath(), bytes });
   });
 
   ipcMain.handle('lighttable:list-recent-files', async (event) => {

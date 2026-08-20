@@ -19,12 +19,16 @@ describe('ActionsPanel', () => {
       recording={{ status: 'idle', id: null, name: 'Untitled Action', startedAt: null,
         stoppedAt: null, steps: [], byteLength: 0, limitReached: false }}
       playback={{ status: 'idle', currentSequence: null, results: [] }}
+      library={{ actions: [], selectedId: null, error: null }}
       onStartRecording={() => undefined}
       onStopRecording={() => undefined}
       onClearRecording={() => undefined}
       onPlay={() => undefined}
       onPlayStep={() => undefined}
       onStopPlayback={() => undefined}
+      onSaveAction={() => undefined}
+      onLoadAction={() => undefined}
+      onDeleteAction={() => undefined}
     />);
 
     expect(markup).toContain('Actions panel views');

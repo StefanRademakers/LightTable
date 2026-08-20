@@ -124,6 +124,9 @@ Current evidence (2026-08-20)
   `text.create`, undoes and replays it with stable result bindings. Agent Access
   and the external MCP bridge create and query the same editable native path
   references and layout settings.
+- A packaged restart harness now proves a saved create+rename Action loads into
+  a fresh document session, retargets its document ID, preserves its generated
+  layer binding and does not record its own playback.
 
 Still required for completion
 =============================

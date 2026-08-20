@@ -5,6 +5,7 @@ import { createImageDocument, createVectorLayer } from '../../editor/document/do
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createVectorLiveShape } from '@lighttable/vector-core';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
+import type { SemanticActionLibraryStorage } from '../actions/semanticActionLibrary';
 import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
 import { WorkspaceSession } from '../workspace/workspaceSession';
 import {
@@ -14,7 +15,8 @@ import {
   type LightTableCommandPorts
 } from './lightTableCommandService';
 
-const setup = (overrides: Partial<LightTableCommandPorts> = {}) => {
+const setup = (overrides: Partial<LightTableCommandPorts> = {},
+  actionLibraryStorage?: SemanticActionLibraryStorage) => {
   let id = 0;
   const workspace = new WorkspaceSession({
     createId: () => `document-${++id}` as never
@@ -56,7 +58,8 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {}) => {
     redo: vi.fn(async () => true),
     ...overrides
   };
-  const service = new LightTableCommandService(workspace, ports);
+  const service = new LightTableCommandService(workspace, ports, undefined, undefined,
+    actionLibraryStorage);
   return { workspace, session, ports, service };
 };
 
@@ -87,6 +90,32 @@ const basicValues = {
 };
 
 describe('LightTableCommandService action recording', () => {
+  it('saves and restores a named Action through the injected storage boundary', async () => {
+    let persisted: string | null = null;
+    const storage: SemanticActionLibraryStorage = {
+      read: () => persisted,
+      write: (value) => { persisted = value; }
+    };
+    const first = setup({}, storage);
+    first.service.startActionRecording('Draft');
+    await first.service.execute(request('layer.createRaster', first.session.id));
+    first.service.stopActionRecording();
+    expect(await first.service.saveActionRecording('Fresh layer')).toMatchObject({ name: 'Fresh layer' });
+    first.service.dispose();
+
+    const restored = new LightTableCommandService(first.workspace, first.ports,
+      undefined, undefined, storage);
+    expect(restored.actionLibrarySnapshot()).toMatchObject({
+      actions: [{ name: 'Fresh layer', recording: { steps: [{ command: 'layer.createRaster' }] } }]
+    });
+    const actionId = restored.actionLibrarySnapshot().actions[0]!.id;
+    expect((await restored.loadSavedAction(actionId))?.name).toBe('Fresh layer');
+    await restored.playActionRecording();
+    expect(first.ports.createRasterLayer).toHaveBeenCalledTimes(2);
+    restored.dispose();
+    first.workspace.dispose();
+  });
+
   it('records one already-committed UI owner result without executing it twice', () => {
     const state = setup();
     state.service.startActionRecording('Observed UI commit');

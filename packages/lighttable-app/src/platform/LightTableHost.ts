@@ -278,6 +278,10 @@ export interface LightTableHost {
   readonly genAi?: LightTableGenAiService;
   readonly localAi?: LightTableLocalAiService;
   readonly funnel?: LightTableFunnelTelemetry;
+  readonly actionLibrary?: {
+    read(): Promise<string | null>;
+    write(value: string): Promise<void>;
+  };
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
@@ -305,6 +309,10 @@ export interface LightTableHost {
 
 export const createBrowserHost = (): LightTableHost => ({
   kind: 'web',
+  actionLibrary: typeof localStorage === 'undefined' ? undefined : {
+    read: async () => localStorage.getItem('lighttable.actions.v1'),
+    write: async (value) => { localStorage.setItem('lighttable.actions.v1', value); }
+  },
   funnel: typeof localStorage === 'undefined'
     ? undefined
     : createLocalLightTableFunnelTelemetry(localStorage),

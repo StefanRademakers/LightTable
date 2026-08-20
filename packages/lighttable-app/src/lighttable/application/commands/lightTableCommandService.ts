@@ -61,6 +61,11 @@ import {
   SemanticActionPlaybackController,
   type ActionPlaybackSnapshot
 } from '../actions/semanticActionPlayback';
+import {
+  SemanticActionLibrary,
+  type SemanticActionLibrarySnapshot,
+  type SemanticActionLibraryStorage
+} from '../actions/semanticActionLibrary';
 export * from './lightTableCommandContract';
 
 /**
@@ -274,6 +279,7 @@ export class LightTableCommandService {
   private gestureSequence = 0;
   private readonly taskEvents = new AutomationTaskEventStore();
   private readonly actionRecorder = new SemanticActionRecorder();
+  private readonly actionLibrary: SemanticActionLibrary;
   private readonly actionPlayback = new SemanticActionPlaybackController((request) => this.execute(request, {
     origin: 'actions-playback', recording: 'ignore'
   }));
@@ -282,8 +288,10 @@ export class LightTableCommandService {
     private readonly workspace: WorkspaceSession,
     private readonly ports: LightTableCommandPorts,
     private readonly workspacePorts?: LightTableWorkspaceCommandPorts,
-    private readonly artifacts = new LightTableArtifactRegistry()
+    private readonly artifacts = new LightTableArtifactRegistry(),
+    actionLibraryStorage?: SemanticActionLibraryStorage
   ) {
+    this.actionLibrary = new SemanticActionLibrary(actionLibraryStorage);
     this.unsubscribe = workspace.subscribe(() => {
       this.workspaceRevision += 1;
       for (const [gestureId, gesture] of this.gestures) {
@@ -349,6 +357,19 @@ export class LightTableCommandService {
     this.actionPlayback.clear();
     return this.actionRecorder.clear();
   };
+  actionLibrarySnapshot = (): SemanticActionLibrarySnapshot => this.actionLibrary.snapshot();
+  subscribeActionLibrary = (listener: () => void): (() => void) => this.actionLibrary.subscribe(listener);
+  saveActionRecording = async (name: string) => {
+    const saved = await this.actionLibrary.save(this.actionRecorder.snapshot(), name);
+    if (saved) this.actionRecorder.restore(saved.recording);
+    return saved;
+  };
+  loadSavedAction = async (id: string): Promise<ActionRecordingSnapshot | null> => {
+    this.actionPlayback.clear();
+    const action = await this.actionLibrary.select(id);
+    return action ? this.actionRecorder.restore(action.recording) : null;
+  };
+  deleteSavedAction = (id: string): Promise<boolean> => this.actionLibrary.delete(id);
 
   recordObservedCommand(command: LightTableCommandId, documentId: DocumentSessionId,
     parameters: unknown, value: unknown): boolean {
@@ -373,9 +394,12 @@ export class LightTableCommandService {
   }
   actionPlaybackSnapshot = (): ActionPlaybackSnapshot => this.actionPlayback.snapshot();
   subscribeActionPlayback = (listener: () => void): (() => void) => this.actionPlayback.subscribe(listener);
-  playActionRecording = (): Promise<ActionPlaybackSnapshot> => this.actionPlayback.play(this.actionRecorder.snapshot());
+  playActionRecording = (): Promise<ActionPlaybackSnapshot> => this.actionPlayback.play(
+    this.actionRecorder.snapshot(), this.workspace.getSnapshot().activeDocumentId ?? undefined
+  );
   playActionStep = (sequence: number): Promise<ActionPlaybackSnapshot> => (
-    this.actionPlayback.playStep(this.actionRecorder.snapshot(), sequence)
+    this.actionPlayback.playStep(this.actionRecorder.snapshot(), sequence,
+      this.workspace.getSnapshot().activeDocumentId ?? undefined)
   );
   stopActionPlayback = (): void => this.actionPlayback.stop();
 

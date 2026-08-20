@@ -29,6 +29,7 @@ import { projectBasicAdjustmentValues } from './application/adjustments/basicAdj
 import { changedBasicAdjustmentValues } from './application/commands/semanticBasicAdjustmentCommandContract';
 import type { ActionRecordingSnapshot } from './application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from './application/actions/semanticActionPlayback';
+import type { SemanticActionLibrarySnapshot } from './application/actions/semanticActionLibrary';
 import { linearRgbToOklab, srgbToLinear } from './colorMath';
 import type { PointColorSample } from './pointColor';
 import { AdjustmentPresentationStore, useAdjustmentPresentationSelector,
@@ -389,6 +390,10 @@ const EMPTY_ACTION_PLAYBACK: ActionPlaybackSnapshot = {
   status: 'idle', currentSequence: null, results: []
 };
 const emptyActionPlayback = () => EMPTY_ACTION_PLAYBACK;
+const EMPTY_ACTION_LIBRARY: SemanticActionLibrarySnapshot = {
+  actions: [], selectedId: null, error: null
+};
+const emptyActionLibrary = () => EMPTY_ACTION_LIBRARY;
 const downloadEditorFile = (file: File): void => {
   const url = URL.createObjectURL(file);
   const anchor = document.createElement('a');
@@ -794,6 +799,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commandService?.subscribeActionPlayback ?? subscribeToNothing,
     commandService?.actionPlaybackSnapshot ?? emptyActionPlayback,
     commandService?.actionPlaybackSnapshot ?? emptyActionPlayback
+  );
+  const actionLibrary = useSyncExternalStore(
+    commandService?.subscribeActionLibrary ?? subscribeToNothing,
+    commandService?.actionLibrarySnapshot ?? emptyActionLibrary,
+    commandService?.actionLibrarySnapshot ?? emptyActionLibrary
   );
   const executeRegisteredCommand = useCallback((
     command: LightTableCommandId,
@@ -7091,12 +7101,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 onExecute: executeRegisteredCommand,
                 recording: actionRecording,
                 playback: actionPlayback,
+                library: actionLibrary,
                 onStartRecording: () => { commandService?.startActionRecording(); },
                 onStopRecording: () => { commandService?.stopActionRecording(); },
                 onClearRecording: () => { commandService?.clearActionRecording(); },
                 onPlay: () => { void commandService?.playActionRecording(); },
                 onPlayStep: (sequence) => { void commandService?.playActionStep(sequence); },
-                onStopPlayback: () => { commandService?.stopActionPlayback(); }
+                onStopPlayback: () => { commandService?.stopActionPlayback(); },
+                onSaveAction: (name) => { void commandService?.saveActionRecording(name); },
+                onLoadAction: (id) => { void commandService?.loadSavedAction(id); },
+                onDeleteAction: (id) => { void commandService?.deleteSavedAction(id); }
               },
               genAi: {
                 interactionActive: active,

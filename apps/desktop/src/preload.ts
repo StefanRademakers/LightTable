@@ -34,6 +34,8 @@ const bridge: LightTableDesktopBridge = {
   setFullscreen: (enabled: boolean) =>
     ipcRenderer.invoke('lighttable:set-fullscreen', enabled),
   closeApplication: () => ipcRenderer.invoke('lighttable:close-application'),
+  readActionLibrary: () => ipcRenderer.invoke('lighttable:actions-read'),
+  writeActionLibrary: (value: string) => ipcRenderer.invoke('lighttable:actions-write', value),
   onFullscreenChange: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, enabled: boolean) => listener(enabled);
     ipcRenderer.on('lighttable:fullscreen-changed', handler);

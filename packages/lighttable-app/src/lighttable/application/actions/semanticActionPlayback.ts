@@ -38,13 +38,14 @@ export class SemanticActionPlaybackController {
     return () => this.listeners.delete(listener);
   };
 
-  async play(recording: ActionRecordingSnapshot): Promise<ActionPlaybackSnapshot> {
-    return this.run(recording, recording.steps.filter(({ replayable }) => replayable));
+  async play(recording: ActionRecordingSnapshot, targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
+    return this.run(recording, recording.steps.filter(({ replayable }) => replayable), targetDocumentId);
   }
 
-  async playStep(recording: ActionRecordingSnapshot, sequence: number): Promise<ActionPlaybackSnapshot> {
+  async playStep(recording: ActionRecordingSnapshot, sequence: number,
+    targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
     const step = recording.steps.find((candidate) => candidate.sequence === sequence && candidate.replayable);
-    return this.run(recording, step ? [step] : []);
+    return this.run(recording, step ? [step] : [], targetDocumentId);
   }
 
   stop(): void {
@@ -56,7 +57,7 @@ export class SemanticActionPlaybackController {
   }
 
   private async run(recording: ActionRecordingSnapshot,
-    steps: readonly RecordedActionStep[]): Promise<ActionPlaybackSnapshot> {
+    steps: readonly RecordedActionStep[], targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
     if (this.snapshotValue.status === 'running') return this.snapshotValue;
     this.stopRequested = false;
     this.publish({ status: 'running', currentSequence: null, results: [] });
@@ -82,7 +83,7 @@ export class SemanticActionPlaybackController {
         protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
         requestId: `action-play-${recording.id ?? 'unsaved'}-${step.sequence}-${startedAt}`,
         command: step.command,
-        ...(step.documentId ? { documentId: step.documentId } : {}),
+        ...(step.documentId ? { documentId: targetDocumentId ?? step.documentId } : {}),
         parameters: parameters.value
       });
       const entry: ActionPlaybackStepResult = {

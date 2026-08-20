@@ -143,6 +143,9 @@ Existing foundation evidence
 - Native Path Text creation now shares `text.create` across UI, Actions and
   Agent/MCP, with explicit path layer/element/contour references and editable
   start-offset, side, upright and direction state.
+- Concrete Actions now have bounded version-1 save/load/delete persistence and
+  active-document replay. A packaged restart proves this workflow without
+  routing any interaction preview through storage.
 
 Program definition of done
 ==========================

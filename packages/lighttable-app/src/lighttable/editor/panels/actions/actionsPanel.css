@@ -78,6 +78,31 @@
   padding: 8px 12px;
   border-block: 1px solid var(--lt-border);
 }
+.lighttable-action-recorder__library {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--lt-border);
+}
+.lighttable-action-recorder__library label {
+  display: grid;
+  gap: 3px;
+  color: var(--lt-text-secondary);
+  font-size: var(--lt-type-small);
+}
+.lighttable-action-recorder__library input,
+.lighttable-action-recorder__library select {
+  min-width: 0;
+  height: 26px;
+  border: 1px solid var(--lt-border);
+  background: var(--lt-surface-inset);
+  color: var(--lt-text-primary);
+}
+.lighttable-action-recorder__library .lighttable-action-recorder__warning {
+  grid-column: 1 / -1;
+  padding: 0;
+}
 .lighttable-action-recorder__empty,
 .lighttable-action-recorder__warning { margin: 0; padding: 0 12px 10px; color: var(--lt-text-secondary); }
 .lighttable-action-recorder__warning { color: var(--lt-warning); }

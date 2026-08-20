@@ -47,6 +47,10 @@ const desktopFile = (payload: DesktopFilePayload | null) => {
 
 const desktopHost: LightTableHost = {
   kind: 'electron',
+  actionLibrary: {
+    read: () => window.lightTableDesktop.readActionLibrary(),
+    write: (value) => window.lightTableDesktop.writeActionLibrary(value)
+  },
   localAi: {
     status: () => window.lightTableDesktop.localAiModelStatus(),
     install: () => window.lightTableDesktop.installLocalAiModel(),

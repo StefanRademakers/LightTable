@@ -1,0 +1,63 @@
+Task 241 - Versioned saved Actions
+==================================
+
+Goal
+====
+
+Turn the single in-memory recorder into a small durable Action library so a
+named workflow can survive desktop restart and replay against the currently
+active document without creating a second mutation path.
+
+Checklist
+=========
+
+- [x] Define a strict version-1 persisted envelope and reject malformed, newer,
+  oversized or non-replayable injected content atomically.
+- [x] Bound action count, step count, per-action bytes and total stored bytes.
+- [x] Save stopped recordings under a user name with deterministic ordering;
+  load and delete them explicitly.
+- [x] Persist through an injected storage boundary; keep command-service unit
+  tests independent from browser globals.
+- [x] Replay a loaded Action against the active document while retaining stable
+  inter-step result bindings and never recording playback.
+- [x] Add an understandable saved-Actions UI without command-specific editors.
+- [x] Prove save, packaged restart, load and replay on a fresh document.
+- [x] Run full gates, update Task 219 and related parent evidence, then commit.
+
+Scope guard
+===========
+
+- This task stores complete concrete Actions; user variables, sets, migration
+  beyond version 1 and schema-generated property editors remain in Task 219.
+- Persistence occurs only at explicit save/delete boundaries, never on pointer
+  updates or render/paint hot paths.
+- Saved Actions carry semantic parameters and bindings, never pixels, document
+  snapshots, DOM state or private model reasoning.
+
+Completion contract
+===================
+
+A user records two replayable steps, names and saves the Action, restarts the
+packaged app, loads it and replays it on the new active document. The resulting
+canonical state matches the workflow and the playback creates no recorder loop.
+
+Evidence
+========
+
+- The Action library accepts only stopped, fully completed/replayable semantic
+  recordings. Known commands, sequential steps, scalar metadata and JSON
+  payload byte limits are revalidated during restore.
+- Desktop reads and atomically writes `actions-v1.json` through trusted IPC in
+  application userData. This avoids the packaged renderer's changing localhost
+  origin; persistence never runs during pointer, paint, Warp or render updates.
+- The Actions panel exposes name/save, deterministic saved selection, load and
+  delete controls while the existing step inspector remains the source view.
+- Playback substitutes the current active document for recorded document IDs
+  and retains `$lighttableResult` bindings between steps.
+- The packaged restart smoke records `layer.createRaster` + `layer.rename`,
+  closes the first process, starts a second process with the same userData,
+  reloads the Action on a fresh PSD session and proves one correctly named layer
+  plus exactly two unchanged recorded steps.
+- Full verification passes: 463 app test files / 2,598 tests, 33 desktop test
+  files / 143 tests, 17 MCP tests, all workspace typechecks, packaging,
+  boundary/source/docs/contract audits and the broad packaged Actions smoke.

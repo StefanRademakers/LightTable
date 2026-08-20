@@ -220,7 +220,7 @@ export function LightTableStandaloneApp({
         }
         return opened.value.id;
       }
-    }),
+    }, undefined, host.actionLibrary),
     [commandPorts, controller, openDocument, openDuplicatedDocument]
   );
   const [opening, setOpening] = useState(false);

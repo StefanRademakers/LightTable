@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   LIGHTTABLE_COMMAND_DEFINITIONS,
   type LightTableCommandDefinition
@@ -6,10 +6,12 @@ import {
 import { ButtonBase } from '../../../../ui/ButtonBase';
 import type { ActionRecordingSnapshot } from '../../../application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from '../../../application/actions/semanticActionPlayback';
+import type { SemanticActionLibrarySnapshot } from '../../../application/actions/semanticActionLibrary';
 
 export interface ActionRecorderViewProps {
   readonly recording: ActionRecordingSnapshot;
   readonly playback: ActionPlaybackSnapshot;
+  readonly library: SemanticActionLibrarySnapshot;
   readonly definitions?: readonly LightTableCommandDefinition[];
   readonly onStart: () => void;
   readonly onStop: () => void;
@@ -17,6 +19,9 @@ export interface ActionRecorderViewProps {
   readonly onPlay: () => void;
   readonly onPlayStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
+  readonly onSave: (name: string) => void;
+  readonly onLoad: (id: string) => void;
+  readonly onDelete: (id: string) => void;
 }
 
 const formatted = (value: unknown): string => JSON.stringify(value, (_key, candidate) => {
@@ -29,14 +34,20 @@ const formatted = (value: unknown): string => JSON.stringify(value, (_key, candi
 export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
   recording,
   playback,
+  library,
   definitions = LIGHTTABLE_COMMAND_DEFINITIONS,
   onStart,
   onStop,
   onClear,
   onPlay,
   onPlayStep,
-  onStopPlayback
+  onStopPlayback,
+  onSave,
+  onLoad,
+  onDelete
 }) => {
+  const [name, setName] = useState(recording.name);
+  useEffect(() => setName(recording.name), [recording.id, recording.name]);
   const labels = useMemo(() => new Map<string, string>(
     definitions.map(({ id, label }) => [id, label])
   ), [definitions]);
@@ -62,6 +73,29 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
             disabled={recording.status === 'recording' || replayableCount === 0}>Play</ButtonBase>}
       <ButtonBase type="button" onClick={onClear}
         disabled={busy || recording.steps.length === 0}>Clear</ButtonBase>
+    </div>
+    <div className="lighttable-action-recorder__library" aria-label="Saved Actions">
+      <label>Action name
+        <input aria-label="Action name" value={name} maxLength={255}
+          onChange={(event) => setName(event.currentTarget.value)} disabled={busy} />
+      </label>
+      <ButtonBase type="button" onClick={() => onSave(name)} disabled={busy
+        || recording.status !== 'stopped' || recording.steps.length === 0
+        || recording.steps.some(({ replayable }) => !replayable) || !name.trim()}>Save</ButtonBase>
+      <label>Saved
+        <select aria-label="Saved Actions" value={library.selectedId ?? ''}
+          onChange={(event) => event.currentTarget.value && onLoad(event.currentTarget.value)}>
+          <option value="">No saved Actions</option>
+          {library.actions.map((action) => <option key={action.id} value={action.id}>
+            {action.name} ({action.recording.steps.length})
+          </option>)}
+        </select>
+      </label>
+      <ButtonBase type="button" onClick={() => library.selectedId && onLoad(library.selectedId)}
+        disabled={busy || !library.selectedId}>Load</ButtonBase>
+      <ButtonBase type="button" onClick={() => library.selectedId && onDelete(library.selectedId)}
+        disabled={busy || !library.selectedId}>Delete</ButtonBase>
+      {library.error ? <p className="lighttable-action-recorder__warning" role="alert">{library.error}</p> : null}
     </div>
     {playback.status !== 'idle'
       ? <p className={`lighttable-action-recorder__playback is-${playback.status}`} role="status">

@@ -54,6 +54,7 @@
     "smoke:desktop:active-layer-stability": "node scripts/smoke-desktop-active-layer-stability.mjs",
     "smoke:desktop:magic-wand-actions": "node scripts/smoke-desktop-magic-wand-actions.mjs",
     "smoke:desktop:path-text-actions": "node scripts/smoke-desktop-path-text-actions.mjs",
+    "smoke:desktop:saved-actions": "node scripts/smoke-desktop-saved-actions.mjs",
     "smoke:desktop:actions:build": "npm run package:desktop:verify && npm run smoke:desktop:actions --",
     "smoke:desktop:recovery": "node scripts/smoke-desktop-recovery.mjs",
     "profile:desktop:recovery": "node scripts/profile-desktop-recovery.mjs",

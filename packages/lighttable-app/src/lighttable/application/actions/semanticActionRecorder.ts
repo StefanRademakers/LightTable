@@ -84,6 +84,11 @@ export class SemanticActionRecorder {
     return this.snapshotValue;
   }
 
+  restore(snapshot: ActionRecordingSnapshot): ActionRecordingSnapshot {
+    this.publish(structuredClone(snapshot));
+    return this.snapshotValue;
+  }
+
   record(request: LightTableCommandRequest, result: LightTableCommandResult, startedAt: number,
     recordingId = this.snapshotValue.id, origin: LightTableCommandOrigin = 'ui'): void {
     if (!recordingId || this.snapshotValue.id !== recordingId

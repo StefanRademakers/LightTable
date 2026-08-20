@@ -49,6 +49,22 @@ describe('SemanticActionPlaybackController', () => {
     });
   });
 
+  it('retargets every document-scoped step to the current active document', async () => {
+    const execute = vi.fn(async (request) => ({ requestId: request.requestId,
+      status: 'completed' as const,
+      value: request.command === 'layer.createRaster' ? { layerId: 'fresh-layer' } : {},
+      revisions: { workspace: 1 } }));
+    const controller = new SemanticActionPlaybackController(execute);
+
+    await controller.play(recording(), 'fresh-document');
+
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls.every(([request]) => request.documentId === 'fresh-document')).toBe(true);
+    expect(execute).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      parameters: { layerId: 'fresh-layer', name: 'Title' }
+    }));
+  });
+
   it('stops at the first rejected step and exposes its error', async () => {
     const execute = vi.fn(async (request) => ({
       requestId: request.requestId, status: 'rejected' as const, code: 'command-unavailable' as const,
