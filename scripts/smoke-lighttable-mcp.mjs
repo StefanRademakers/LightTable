@@ -100,6 +100,52 @@ try {
   const workspace = (await call('lighttable_workspace', {})).structuredContent;
   const documentId = workspace.activeDocumentId;
   const before = (await call('lighttable_document', { documentId })).structuredContent;
+  const controlContractIds = [
+    'view.setZoom', 'history.undo', 'history.redo', 'task.cancel',
+    'file.exportNative', 'file.exportPng', 'file.exportPsd'
+  ];
+  const controlContracts = {};
+  for (const command of controlContractIds) {
+    controlContracts[command] = (await call('lighttable_commands', { command }))
+      .structuredContent.commands?.[0]?.contract;
+  }
+  if (controlContractIds.some((command) => controlContracts[command]?.status !== 'complete'
+      || controlContracts[command]?.schemaVersion !== 1)
+    || controlContracts['view.setZoom'].input?.properties?.percent?.maximum !== 25600
+    || !controlContracts['view.setZoom'].result?.properties?.viewport
+    || controlContracts['task.cancel'].input?.properties?.taskId?.$ref !== '#/$defs/taskId'
+    || controlContracts['history.undo'].input?.additionalProperties !== false
+    || !controlContracts['history.redo'].result?.$defs?.historyResult
+    || controlContracts['file.exportPng'].result?.properties?.artifact?.allOf?.[1]
+      ?.properties?.kind?.const !== 'png-export'
+    || controlContracts['file.exportPsd'].result?.properties?.artifact?.allOf?.[1]
+      ?.properties?.kind?.const !== 'psd-export') {
+    throw new Error(`MCP control/export discovery is incomplete: ${JSON.stringify(controlContracts)}`);
+  }
+  const invalidControlInputs = [
+    ['view.setZoom', { mode: 'fit', percent: 100 }],
+    ['history.undo', { steps: 2 }],
+    ['task.cancel', { taskId: '', force: true }],
+    ['file.exportNative', { path: 'D:/private.lighttable' }],
+    ['file.exportPng', { bytesBase64: 'private' }],
+    ['file.exportPsd', { compatibilityMode: 'unchecked' }]
+  ];
+  for (const [command, parameters] of invalidControlInputs) {
+    const invalid = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+      documentId, command, parameters
+    } });
+    if (!invalid.isError) throw new Error(`MCP ${command} admitted invalid/private control state.`);
+  }
+  const zoomed = (await call('lighttable_execute', { documentId, command: 'view.setZoom',
+    parameters: { mode: 'custom', percent: 150 } })).structuredContent;
+  const zoomedDocument = (await call('lighttable_document', { documentId })).structuredContent;
+  if (zoomed.status !== 'completed' || zoomed.value?.viewport?.scale !== 1.5
+    || zoomedDocument.viewport?.zoomMode !== 'custom' || zoomedDocument.viewport?.scale !== 1.5) {
+    throw new Error(`MCP custom zoom did not reach the canonical viewport owner: ${JSON.stringify({
+      zoomed, viewport: zoomedDocument.viewport
+    })}`);
+  }
+  await call('lighttable_execute', { documentId, command: 'view.setZoom', parameters: { mode: 'fit' } });
   const textContract = (await call('lighttable_commands', { command: 'text.create' }))
     .structuredContent.commands?.[0]?.contract;
   if (textContract?.status !== 'complete' || textContract.schemaVersion !== 1

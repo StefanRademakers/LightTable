@@ -13,6 +13,8 @@ import finalizationCommandSchemas from '../schemas/v1/finalization.json' with { 
 
 import gradeBasicCommandSchemas from '../schemas/v1/grade-basic.json' with { type: 'json' };
 
+import historyCommandSchemas from '../schemas/v1/history.json' with { type: 'json' };
+
 import layerEffectsCommandSchemas from '../schemas/v1/layer-effects.json' with { type: 'json' };
 
 import layerMaskCommandSchemas from '../schemas/v1/layer-mask.json' with { type: 'json' };
@@ -27,11 +29,15 @@ import rasterPaintCommandSchemas from '../schemas/v1/raster-paint.json' with { t
 
 import selectionCommandSchemas from '../schemas/v1/selection.json' with { type: 'json' };
 
+import taskCommandSchemas from '../schemas/v1/task.json' with { type: 'json' };
+
 import textCommandSchemas from '../schemas/v1/text.json' with { type: 'json' };
 
 import transformCommandSchemas from '../schemas/v1/transform.json' with { type: 'json' };
 
 import vectorCommandSchemas from '../schemas/v1/vector.json' with { type: 'json' };
+
+import viewCommandSchemas from '../schemas/v1/view.json' with { type: 'json' };
 
 export { validateJsonSchemaValue, formatSchemaValidationIssues } from './schema-validation.mjs';
 
@@ -139,6 +145,7 @@ export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
   ...schemaModuleCommands(artifactCommandSchemas),
   ...schemaModuleCommands(finalizationCommandSchemas),
   ...schemaModuleCommands(gradeBasicCommandSchemas),
+  ...schemaModuleCommands(historyCommandSchemas),
   ...schemaModuleCommands(layerEffectsCommandSchemas),
   ...schemaModuleCommands(layerMaskCommandSchemas),
   ...schemaModuleCommands(layerStructureCommandSchemas),
@@ -146,9 +153,11 @@ export const LIGHTTABLE_COMMAND_SCHEMAS = Object.freeze({
   ...schemaModuleCommands(mergeFlattenCommandSchemas),
   ...schemaModuleCommands(rasterPaintCommandSchemas),
   ...schemaModuleCommands(selectionCommandSchemas),
+  ...schemaModuleCommands(taskCommandSchemas),
   ...schemaModuleCommands(textCommandSchemas),
   ...schemaModuleCommands(transformCommandSchemas),
-  ...schemaModuleCommands(vectorCommandSchemas)
+  ...schemaModuleCommands(vectorCommandSchemas),
+  ...schemaModuleCommands(viewCommandSchemas)
 });
 
 export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([

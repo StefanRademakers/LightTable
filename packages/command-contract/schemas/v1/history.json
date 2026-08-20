@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "category": "history",
+  "$defs": {
+    "emptyInput": { "type": "object", "additionalProperties": false, "properties": {} },
+    "historyResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changed", "documentChanged"],
+      "properties": {
+        "changed": { "const": true },
+        "documentChanged": { "type": "boolean" }
+      }
+    }
+  },
+  "commands": {
+    "history.undo": {
+      "input": { "$ref": "#/$defs/emptyInput", "type": "object", "additionalProperties": false, "properties": {} },
+      "result": { "$ref": "#/$defs/historyResult", "type": "object", "additionalProperties": false }
+    },
+    "history.redo": {
+      "input": { "$ref": "#/$defs/emptyInput", "type": "object", "additionalProperties": false, "properties": {} },
+      "result": { "$ref": "#/$defs/historyResult", "type": "object", "additionalProperties": false }
+    }
+  }
+}

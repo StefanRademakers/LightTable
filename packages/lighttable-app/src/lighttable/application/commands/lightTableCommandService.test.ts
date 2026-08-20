@@ -2074,6 +2074,39 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('preflights complete view, history, task and export contracts before their owners run', async () => {
+    const state = setup();
+    const invalid = [
+      ['view.setZoom', { mode: 'fit', percent: 100 }],
+      ['view.setZoom', { mode: 'custom' }],
+      ['history.undo', { steps: 2 }],
+      ['history.redo', { force: true }],
+      ['task.cancel', { taskId: '', force: true }],
+      ['file.exportNative', { path: 'D:/private.lighttable' }],
+      ['file.exportPng', { bytesBase64: 'private' }],
+      ['file.exportPsd', { compatibilityMode: 'unchecked' }]
+    ] as const;
+    for (const [command, parameters] of invalid) {
+      await expect(state.service.execute(request(command, state.session.id, parameters)))
+        .resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters',
+          message: expect.stringContaining('schema v1') });
+    }
+    expect(state.ports.setZoom).not.toHaveBeenCalled();
+    expect(state.ports.undo).not.toHaveBeenCalled();
+    expect(state.ports.redo).not.toHaveBeenCalled();
+    expect(state.ports.exportNativeArtifact).not.toHaveBeenCalled();
+    expect(state.ports.exportPngArtifact).not.toHaveBeenCalled();
+    expect(state.ports.exportPsdArtifact).not.toHaveBeenCalled();
+
+    await expect(state.service.execute(request('view.setZoom', state.session.id,
+      { mode: 'custom', percent: 150 }))).resolves.toMatchObject({
+      status: 'completed', value: { viewport: { zoomMode: 'custom', scale: 1.5 } }
+    });
+    expect(state.ports.setZoom).toHaveBeenCalledOnce();
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('rejects unknown commands and protocol versions without throwing', async () => {
     const state = setup();
     expect(await state.service.execute(request('internal.eval', state.session.id))).toEqual(

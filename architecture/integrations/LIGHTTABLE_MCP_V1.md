@@ -157,7 +157,10 @@ The first complete layer slices cover rename, visibility, fill opacity, blend
 mode, lock, duplicate, Layer via Copy, delete, move and clipping input/result
 contracts. The complete Text slice adds point, paragraph and native Path Text
 creation plus range replacement, conditional character/paragraph formatting
-and layout. Separate layer, layer-structure and text modules keep this from
+and layout. View zoom, Undo/Redo, task cancellation and native/PNG/PSD export
+also have closed contracts: export results carry bounded opaque metadata and
+never paths, bytes or Base64. Separate layer, layer-structure, text, view,
+history, task and artifact modules keep this from
 becoming one registry file; the generator discovers schema modules instead of
 maintaining another central import list. The local Commands editor recursively
 generates bounded nested fields and explicit optional groups without a free-form

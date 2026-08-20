@@ -188,6 +188,13 @@ Current evidence (2026-08-20)
   semantic update; undo and Actions playback reproduced the canonical value.
   The external MCP smoke executes the complete Layer Style lifecycle and checks
   that invalid mixed-kind settings leave the document revision unchanged.
+- View zoom, Undo/Redo, task cancellation and native/PNG/PSD export now publish
+  complete shared version-1 contracts. Conditional custom zoom is bounded,
+  control commands reject extra state, and exports return only typed opaque
+  artifact metadata with command-specific kinds and bounded PSD findings.
+  The external MCP smoke rejects host paths/Base64/private options, executes the
+  packaged viewport owner and produces real native/PNG/PSD artifacts through the
+  existing task and renderer owners.
 
 Still required for completion
 =============================

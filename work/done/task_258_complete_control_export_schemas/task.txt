@@ -1,0 +1,56 @@
+Task 258 - Complete Agent control and export schemas
+
+Goal
+====
+
+Replace legacy property-only discovery for the already admitted zoom, history,
+task-cancel and artifact-export commands with closed shared version-1 input and
+result schemas used by Commands, saved Actions and external MCP.
+
+Parent program
+==============
+
+- [`Task 214`](../../todo/task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../../todo/task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 220`](../../todo/task_220_reviewed_mcp_capability_admission/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- [x] Model Fit, 100% and bounded custom zoom without accepting pointer or
+      wheel-stream state.
+- [x] Model Undo and Redo as option-free controls with explicit document-change
+      results.
+- [x] Model cancellation against one bounded task ID.
+- [x] Model native, PNG and PSD export as option-free asynchronous producers of
+      opaque artifact metadata; never expose file bytes, Base64 or host paths.
+- [x] Keep PSD compatibility findings typed and bounded, and require the artifact
+      kind that belongs to the invoked export command.
+- [x] Prove shared preflight through the application command service and external
+      MCP discovery/execution on the packaged desktop.
+- [x] Run complete contract, boundary, typecheck and workspace test gates.
+
+Definition of done
+==================
+
+- Actions and MCP discover the same complete schemas and examples.
+- Invalid conditional zoom, extra export fields and private artifact bytes fail
+  before a host or renderer operation.
+- Existing packaged zoom/history/cancel/export execution still succeeds through
+  the canonical application owners.
+- No schema validation enters realtime viewport, pointer, paint or warp updates.
+
+Evidence
+========
+
+- `npm run smoke:mcp -- D:\shapes.psd D:\mediavibe\LightTableTestFiles\mcp`
+  passed complete discovery, invalid-input rejection, packaged custom zoom and
+  real native/PSD artifact production through OAuth and the desktop bridge.
+- `npm run smoke:desktop:route-equivalence` passed UI export recording/playback,
+  external PNG export and external Undo/Redo against equivalent editable state.
+- The command-service contract test proves invalid control/export payloads do
+  not invoke viewport, history or export ports; the existing cancellable task
+  test proves valid `task.cancel` reaches the shared task owner.
+- `npm run verify:command-contract`, `npm run verify:boundary`, `npm run typecheck`
+  and the complete `npm test` workspace gate passed on the final source state.

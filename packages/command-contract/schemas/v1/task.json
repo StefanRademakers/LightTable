@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "category": "automation",
+  "$defs": {
+    "taskId": { "type": "string", "title": "Task ID", "minLength": 1, "maxLength": 512 }
+  },
+  "commands": {
+    "task.cancel": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["taskId"],
+        "properties": { "taskId": { "$ref": "#/$defs/taskId" } }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["taskId"],
+        "properties": { "taskId": { "$ref": "#/$defs/taskId" } }
+      }
+    }
+  }
+}

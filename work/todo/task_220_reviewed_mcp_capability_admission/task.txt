@@ -99,6 +99,11 @@ Current evidence (2026-08-20)
   MCP input uses those schemas
   before invoking the desktop bridge; malformed/private fields were proven not
   to increment the mock desktop revision.
+- Existing remote zoom, Undo/Redo, task-cancel and native/PNG/PSD export
+  capabilities now advertise complete closed schemas rather than legacy
+  property hints. External MCP rejects pointer state, arbitrary history counts,
+  host paths and embedded bytes before the desktop bridge; packaged execution
+  proves custom zoom, history roundtrip and all three opaque export kinds.
 - Real external MCP execution now also verifies duplicate and Layer via Copy
   source/new-ID results, clipping enable/disable, down/up sibling movement and
   the exact deleted-ID result through the desktop owner.

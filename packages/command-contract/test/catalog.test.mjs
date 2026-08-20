@@ -72,12 +72,17 @@ test('current remote rollout remains a strict subset of the application command 
 
 test('versioned schemas describe and validate every completed command vertical', () => {
   assert.deepEqual(Object.keys(LIGHTTABLE_COMMAND_SCHEMAS), [
+    'file.exportNative',
+    'file.exportPng',
+    'file.exportPsd',
     'file.openArtifact',
     'layer.placeArtifact',
     'raster.invert',
     'text.convertToShape',
     'text.rasterize',
     'grade.setBasic',
+    'history.undo',
+    'history.redo',
     'layer.style.setEnabled',
     'layer.style.update',
     'layer.effect.setEnabled',
@@ -107,6 +112,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'selection.applyMagicWand',
     'selection.selectSubject',
     'selection.modify',
+    'task.cancel',
     'text.create',
     'text.replaceRange',
     'text.format',
@@ -115,7 +121,8 @@ test('versioned schemas describe and validate every completed command vertical',
     'transform.applyFixed',
     'vector.create',
     'vector.update',
-    'vector.remove'
+    'vector.remove',
+    'view.setZoom'
   ]);
   for (const [command, schema] of Object.entries(LIGHTTABLE_COMMAND_SCHEMAS)) {
     assert.equal(schema.input.additionalProperties, false, `${command} input must be closed`);
@@ -514,4 +521,66 @@ test('artifact schemas carry opaque handles and stable document or layer results
     layerId: 'placed-1', width: 512, height: 384
   }).valid, true);
   assert.deepEqual(Object.keys(open.input.$defs), ['artifactId']);
+});
+
+test('view, history and task schemas expose only bounded discrete control state', () => {
+  const zoom = LIGHTTABLE_COMMAND_SCHEMAS['view.setZoom'];
+  assert.equal(validateJsonSchemaValue(zoom.input, { mode: 'fit' }).valid, true);
+  assert.equal(validateJsonSchemaValue(zoom.input, { mode: '100' }).valid, true);
+  assert.equal(validateJsonSchemaValue(zoom.input, { mode: 'custom', percent: 150 }).valid, true);
+  assert.equal(validateJsonSchemaValue(zoom.input, { mode: 'custom' }).valid, false);
+  assert.equal(validateJsonSchemaValue(zoom.input, { mode: 'fit', percent: 100 }).valid, false);
+  assert.equal(validateJsonSchemaValue(zoom.input, { mode: 'custom', percent: 25601 }).valid, false);
+  assert.equal(validateJsonSchemaValue(zoom.input, {
+    mode: 'custom', percent: 100, pointerDelta: 2
+  }).valid, false);
+  assert.equal(validateJsonSchemaValue(zoom.result, { viewport: {
+    zoomMode: 'custom', scale: 1.5, panX: -24, panY: 16
+  } }).valid, true);
+
+  for (const command of ['history.undo', 'history.redo']) {
+    const schema = LIGHTTABLE_COMMAND_SCHEMAS[command];
+    assert.equal(validateJsonSchemaValue(schema.input, {}).valid, true);
+    assert.equal(validateJsonSchemaValue(schema.input, { steps: 2 }).valid, false);
+    assert.equal(validateJsonSchemaValue(schema.result, {
+      changed: true, documentChanged: command === 'history.undo'
+    }).valid, true);
+  }
+
+  const cancel = LIGHTTABLE_COMMAND_SCHEMAS['task.cancel'];
+  assert.equal(validateJsonSchemaValue(cancel.input, { taskId: 'task-export-1' }).valid, true);
+  assert.equal(validateJsonSchemaValue(cancel.input, { taskId: '', force: true }).valid, false);
+  assert.equal(validateJsonSchemaValue(cancel.result, { taskId: 'task-export-1' }).valid, true);
+});
+
+test('export schemas return bounded opaque metadata with command-specific kinds', () => {
+  const metadata = {
+    id: 'artifact-1', name: 'output.png', mediaType: 'image/png',
+    byteLength: 1024, createdAt: 1
+  };
+  const cases = [
+    ['file.exportNative', 'native-document'],
+    ['file.exportPng', 'png-export'],
+    ['file.exportPsd', 'psd-export']
+  ];
+  for (const [command, kind] of cases) {
+    const schema = LIGHTTABLE_COMMAND_SCHEMAS[command];
+    assert.equal(validateJsonSchemaValue(schema.input, {}).valid, true);
+    assert.equal(validateJsonSchemaValue(schema.input, { path: 'D:/output' }).valid, false);
+    assert.equal(validateJsonSchemaValue(schema.result, {
+      artifact: { ...metadata, kind }
+    }).valid, true, command);
+    assert.equal(validateJsonSchemaValue(schema.result, {
+      artifact: { ...metadata, kind: kind === 'png-export' ? 'psd-export' : 'png-export' }
+    }).valid, false, `${command} must reject another export kind`);
+    assert.equal(validateJsonSchemaValue(schema.result, {
+      artifact: { ...metadata, kind, bytesBase64: 'not-allowed' }
+    }).valid, false, `${command} must reject artifact bytes`);
+  }
+  assert.equal(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['file.exportPsd'].result, {
+    artifact: { ...metadata, kind: 'psd-export', compatibilityFindings: [{
+      severity: 'degraded-editability', code: 'face-warp-baked',
+      path: 'layers[0]', message: 'Face Warp was baked.'
+    }] }
+  }).valid, true);
 });

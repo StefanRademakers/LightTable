@@ -1,4 +1,27 @@
 {
+  "view.setZoom": [
+    { "mode": "fit" },
+    { "mode": "100" },
+    { "mode": "custom", "percent": 150 }
+  ],
+  "file.exportNative": [
+    {}
+  ],
+  "file.exportPng": [
+    {}
+  ],
+  "file.exportPsd": [
+    {}
+  ],
+  "task.cancel": [
+    { "taskId": "task-export-1" }
+  ],
+  "history.undo": [
+    {}
+  ],
+  "history.redo": [
+    {}
+  ],
   "text.create": [
     {
       "mode": "point",

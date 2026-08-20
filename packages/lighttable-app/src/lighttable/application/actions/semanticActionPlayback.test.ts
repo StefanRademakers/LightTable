@@ -24,8 +24,8 @@ const recording = (): ActionRecordingSnapshot => ({
   }, {
     sequence: 3, requestId: 'recorded-3', command: 'history.undo', documentId: 'document-1',
     origin: 'ui',
-    contract: legacyContract,
-    parameters: {}, outcome: 'completed', result: {}, startedAt: 2, durationMs: 1,
+    contract: schemaContract,
+    parameters: {}, outcome: 'completed', result: { changed: true, documentChanged: true }, startedAt: 2, durationMs: 1,
     replayable: false, note: 'diagnostic'
   }]
 });

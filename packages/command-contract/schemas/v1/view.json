@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "category": "view",
+  "commands": {
+    "view.setZoom": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mode"],
+        "properties": {
+          "mode": { "type": "string", "title": "Zoom mode", "enum": ["fit", "100", "custom"], "default": "fit" },
+          "percent": { "type": "number", "title": "Zoom percent", "minimum": 1, "maximum": 25600, "x-lighttable-step": 1 }
+        },
+        "if": { "type": "object", "properties": { "mode": { "const": "custom" } }, "required": ["mode"] },
+        "then": { "type": "object", "required": ["percent"] },
+        "else": { "type": "object", "not": { "type": "object", "required": ["percent"] } }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["viewport"],
+        "properties": {
+          "viewport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["zoomMode", "scale", "panX", "panY"],
+            "properties": {
+              "zoomMode": { "type": "string", "enum": ["fit", "100", "custom"] },
+              "scale": { "type": "number", "minimum": 0.01, "maximum": 256 },
+              "panX": { "type": "number" },
+              "panY": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

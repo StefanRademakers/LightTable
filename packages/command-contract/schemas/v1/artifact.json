@@ -4,9 +4,77 @@
   "$defs": {
     "artifactId": { "type": "string", "title": "Artifact ID", "minLength": 1, "maxLength": 256 },
     "documentId": { "type": "string", "minLength": 1, "maxLength": 512 },
-    "layerId": { "type": "string", "minLength": 1, "maxLength": 512 }
+    "layerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "emptyInput": { "type": "object", "additionalProperties": false, "properties": {} },
+    "compatibilityFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "code", "path", "message"],
+      "properties": {
+        "severity": { "type": "string", "enum": ["degraded-editability", "degraded-fidelity", "blocking"] },
+        "code": {
+          "type": "string",
+          "enum": [
+            "affine-raster-unbaked", "attached-adjustment-baked", "face-warp-baked",
+            "grade-unprojectable", "layer-style-pattern-resource", "lens-fx-unprojectable",
+            "native-adjustment-unprojectable", "psd-8-bit-export", "smart-object-source-missing",
+            "text-preserved-descriptor", "text-raster-backed", "vector-preserved-descriptor",
+            "vector-raster-backed"
+          ]
+        },
+        "path": { "type": "string", "maxLength": 4096 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 8192 }
+      }
+    },
+    "exportArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "name", "mediaType", "byteLength", "createdAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/artifactId" },
+        "kind": { "type": "string", "enum": ["native-document", "png-export", "psd-export"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "mediaType": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "byteLength": { "type": "integer", "minimum": 0, "maximum": 536870912 },
+        "createdAt": { "type": "number", "minimum": 0 },
+        "compatibilityFindings": {
+          "type": "array", "maxItems": 65536,
+          "items": { "$ref": "#/$defs/compatibilityFinding" }
+        }
+      }
+    }
   },
   "commands": {
+    "file.exportNative": {
+      "input": { "$ref": "#/$defs/emptyInput", "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["artifact"],
+        "properties": { "artifact": { "allOf": [
+          { "$ref": "#/$defs/exportArtifact" },
+          { "type": "object", "properties": { "kind": { "const": "native-document" } } }
+        ] } }
+      }
+    },
+    "file.exportPng": {
+      "input": { "$ref": "#/$defs/emptyInput", "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["artifact"],
+        "properties": { "artifact": { "allOf": [
+          { "$ref": "#/$defs/exportArtifact" },
+          { "type": "object", "properties": { "kind": { "const": "png-export" } } }
+        ] } }
+      }
+    },
+    "file.exportPsd": {
+      "input": { "$ref": "#/$defs/emptyInput", "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["artifact"],
+        "properties": { "artifact": { "allOf": [
+          { "$ref": "#/$defs/exportArtifact" },
+          { "type": "object", "properties": { "kind": { "const": "psd-export" } } }
+        ] } }
+      }
+    },
     "file.openArtifact": {
       "input": {
         "type": "object", "additionalProperties": false, "required": ["artifactId"],
