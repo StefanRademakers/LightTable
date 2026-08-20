@@ -69,7 +69,9 @@ Current evidence (2026-08-20)
   state/history proof and remain selection-only (document revision stays 0).
 - Basic Grade has UI-origin, Actions and authenticated MCP equivalence for a
   multi-property document patch; packaged Actions separately proves the real
-  Exposure slider and stable nested layer binding.
+  Exposure slider and stable nested layer binding. Packaged Agent Access now
+  also sets and reads back the canonical 14-control Grade projection while
+  proving the read leaves revision/history unchanged.
 - A packaged Agent Access flow creates vector content, applies a selection,
   transforms and blends a layer, then queries canonical state.
 - A packaged Actions flow records UI transform, selection and Brush work,

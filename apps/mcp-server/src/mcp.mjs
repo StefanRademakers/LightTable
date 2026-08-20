@@ -132,6 +132,18 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('vector.query', input)));
+  server.registerTool('lighttable_grade', {
+    title: 'Inspect basic Grade values',
+    description: 'Returns the 14 canonical basic Grade controls for an explicit document or layer target. Read-only.',
+    inputSchema: z.object({
+      documentId: z.string().min(1),
+      target: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('document') }),
+        z.object({ kind: z.literal('layer'), layerId: z.string().min(1) })
+      ])
+    }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('grade.queryBasic', input)));
   server.registerTool('lighttable_capabilities', {
     title: 'List available document commands', description: 'Reports which typed LightTable commands are currently valid and why unavailable commands are disabled.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }

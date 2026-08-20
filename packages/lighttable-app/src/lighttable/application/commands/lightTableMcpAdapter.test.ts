@@ -24,6 +24,7 @@ const createDriver = (): LightTableAutomationDriver => ({
   queryLayerEffects: vi.fn(() => null),
   queryText: vi.fn(() => null),
   queryVector: vi.fn(() => null),
+  queryBasicGrade: vi.fn(() => null),
   queryCapabilities: vi.fn(() => null),
   execute: vi.fn(async (request: unknown) => ({
     requestId: (request as { requestId: string }).requestId,
@@ -195,6 +196,28 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
         values: { exposureEV: 0.4, contrast: 12 }
       }
     }), { origin: 'mcp', recording: 'record' });
+  });
+
+  it('forwards an authenticated read-only basic Grade query', async () => {
+    const driver = createDriver();
+    vi.mocked(driver.queryBasicGrade).mockReturnValue({
+      target: { kind: 'document' }, documentRevision: 4, targetRevision: 4,
+      values: { temperature: -12, tint: 3, exposureEV: 0.5, contrast: 8,
+        highlights: 0, shadows: 0, whites: 0, blacks: 0, lift: 0,
+        texture: 0, clarity: 0, dehaze: 0, vibrance: 20, saturation: 0 }
+    });
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    expect(await adapter.invoke(request('grade.queryBasic', {
+      documentId: 'document-1', target: { kind: 'document' }
+    }))).toMatchObject({ status: 'completed', value: {
+      documentRevision: 4, values: { exposureEV: 0.5, vibrance: 20 }
+    } });
+    expect(driver.queryBasicGrade).toHaveBeenCalledWith(
+      'document-1', { kind: 'document' }
+    );
+    expect(driver.execute).not.toHaveBeenCalled();
   });
 
   it('accepts one committed tool call without requiring live MCP pointer streaming', async () => {

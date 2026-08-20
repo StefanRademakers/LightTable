@@ -1,0 +1,76 @@
+Task 225 - Query targeted basic Grade state
+============================================
+
+Goal
+====
+
+Let an agent inspect the canonical basic Grade values for an explicit document
+or layer target after UI, Actions or MCP edits, without relying on Properties
+focus and without creating history or recorder traffic.
+
+Contributes to
+==============
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 215`](../task_215_shared_command_schemas_and_examples/task.txt)
+- [`Task 217`](../task_217_ui_actions_mcp_equivalence_harness/task.txt)
+- [`Task 218`](../task_218_agent_observation_preview_and_events/task.txt)
+- [`Task 221`](../task_221_close_semantic_capability_gaps/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Define a typed query result for all 14 basic Grade values and target identity.
+- [x] Resolve document and raster/Grade Layer targets from canonical editor state.
+- [x] Reject missing or specialized targets; allow read-only inspection of locked targets.
+- [x] Expose the query through the automation driver and authenticated MCP adapter.
+- [x] Expose the same query through the local packaged-desktop MCP bridge.
+- [x] Prove the query is read-only: no history, dirty-state or Actions recording changes.
+- [x] Extend UI/Actions/MCP equivalence tests to inspect returned Grade state.
+- [x] Run a packaged command-set/query roundtrip against the desktop app.
+- [x] Update capability documentation with exact evidence and remaining gaps.
+- [x] Run type, contract, boundary and focused test gates.
+
+Scope guard
+===========
+
+- This task only observes the 14 controls already owned by `grade.setBasic`.
+- It does not add slider preview traffic, polling, image readback or visual grading claims.
+- It does not model specialized Adjustment Layers, attached adjustments or other
+  Grade groups.
+
+Completion contract
+===================
+
+Task 225 is done only when an authenticated request can set basic Grade values
+on a packaged desktop document, query the same explicit target, and receive the
+canonical values without altering document history or Actions recording.
+
+Completion evidence
+===================
+
+- `grade.queryBasic` accepts only `{kind: document}` or an explicit stable
+  `{kind: layer, layerId}` target and returns document/target revisions plus
+  exactly the 14 numeric values owned by `grade.setBasic`.
+- The query reads renderer-owned canonical document or raster/Grade Layer
+  state. Missing and specialized Adjustment Layers fail closed; pixel locking
+  is deliberately ignored for this read-only operation.
+- Unit/adapter/equivalence coverage proves the query does not execute a
+  command, append an Action step or alter history.
+- The real MCP server exposes `lighttable_grade` as a read-only typed tool.
+- The packaged desktop Agent Access smoke authenticated to the local endpoint,
+  set Exposure/Temperature/Vibrance, queried the values back, and observed no
+  change in canonical revision, dirty state, history state ID or undo depth.
+- Focused run: 58 test files and 926 tests passed. MCP-server integration tests
+  passed: 17/17. Workspace typecheck and packaged desktop distribution build
+  passed.
+
+Explicit remaining work
+=======================
+
+- non-basic Grade groups and specialized Photoshop Adjustment Layers;
+- attached adjustment targets;
+- revision-bound rendered preview and event-driven observation;
+- a deployed remote MCP tunnel roundtrip (the local packaged Agent Access
+  boundary and MCP server tool contract are proven separately).

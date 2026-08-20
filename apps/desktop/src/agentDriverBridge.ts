@@ -25,6 +25,7 @@ export const invokeAgentDriver = async (
   if (method === 'layer.effects') return driver.queryLayerEffects(documentId, layerId);
   if (method === 'text.query') return driver.queryText(documentId, layerId);
   if (method === 'vector.query') return driver.queryVector(documentId, layerId);
+  if (method === 'grade.queryBasic') return driver.queryBasicGrade(documentId, value.target);
   if (method === 'command.capabilities') {
     return driver.queryCapabilities(documentId)?.filter(({ command }) => (
       isLightTableAgentAccessCommandId(command)

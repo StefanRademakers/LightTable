@@ -21,6 +21,7 @@ import { useAdjustmentTransactionController } from './application/adjustments/us
 import { projectAdjustmentSnapshot } from './application/adjustments/projectAdjustmentSnapshot';
 import { createAdjustmentCommands } from './application/adjustments/createAdjustmentCommands';
 import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdjustmentTarget';
+import { projectBasicAdjustmentValues } from './application/adjustments/basicAdjustmentQuery';
 import { changedBasicAdjustmentValues } from './application/commands/semanticBasicAdjustmentCommandContract';
 import type { ActionRecordingSnapshot } from './application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from './application/actions/semanticActionPlayback';
@@ -4688,6 +4689,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           redo: () => publish(after)
         });
         return { target: command.target, values: command.values, changed: true };
+      },
+      queryBasicAdjustments: (target) => {
+        const document = imageDocumentRef.current;
+        if (!document) return null;
+        const resolved = resolveBasicAdjustmentTarget(
+          document,
+          documentAdjustmentsRef.current,
+          target,
+          { allowLocked: true }
+        );
+        if ('message' in resolved) throw new Error(resolved.message);
+        const layer = resolved.targetLayerId
+          ? findDocumentLayer(document, resolved.targetLayerId)
+          : null;
+        return {
+          target,
+          documentRevision: document.revision,
+          targetRevision: layer?.revision ?? document.revision,
+          values: projectBasicAdjustmentValues(resolved.adjustments)
+        };
       },
       executeAtomicBatch: async (batch, signal, report) => {
         const result = await executeAtomicCommandBatch(batch, {

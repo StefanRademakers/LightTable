@@ -77,6 +77,32 @@ try {
   if (renamed.status !== 'completed') throw new Error(`Agent edit did not complete: ${JSON.stringify(renamed)}`);
   await window.getByRole('treeitem', { name: /Renamed through Agent Access/i }).waitFor();
 
+  const gradeSet = await invoke(address, token, 'command.execute', {
+    commandRequestId: 'agent-basic-grade', command: 'grade.setBasic', documentId: originalId,
+    commandParameters: {
+      target: { kind: 'document' },
+      values: { exposureEV: 0.4, temperature: -8, vibrance: 16 }
+    }
+  });
+  if (gradeSet.status !== 'completed') {
+    throw new Error(`Agent Grade edit did not complete: ${JSON.stringify(gradeSet)}`);
+  }
+  const afterGradeSet = await invoke(address, token, 'document.query', { documentId: originalId });
+  const queriedGrade = await invoke(address, token, 'grade.queryBasic', {
+    documentId: originalId, target: { kind: 'document' }
+  });
+  const afterGradeQuery = await invoke(address, token, 'document.query', { documentId: originalId });
+  if (queriedGrade.values?.exposureEV !== 0.4 || queriedGrade.values?.temperature !== -8
+    || queriedGrade.values?.vibrance !== 16) {
+    throw new Error(`Agent Grade query returned stale values: ${JSON.stringify(queriedGrade)}`);
+  }
+  if (afterGradeQuery.canonicalRevision !== afterGradeSet.canonicalRevision
+    || afterGradeQuery.history.currentStateId !== afterGradeSet.history.currentStateId
+    || afterGradeQuery.history.undoDepth !== afterGradeSet.history.undoDepth
+    || afterGradeQuery.dirty !== afterGradeSet.dirty) {
+    throw new Error('Agent Grade query mutated the document or its history.');
+  }
+
   const shape = await invoke(address, token, 'command.execute', {
     commandRequestId: 'agent-create-badge', command: 'vector.create', documentId: originalId,
     commandParameters: {

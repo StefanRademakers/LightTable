@@ -41,8 +41,11 @@ import { parseSemanticLayerCommand, type SemanticLayerCommand } from './semantic
 import { parseSemanticSelectionCommand, type SemanticSelectionCommand } from './semanticSelectionCommandContract';
 import {
   parseSemanticBasicAdjustmentCommand,
+  parseBasicAdjustmentTarget,
+  type BasicAdjustmentTarget,
   type SemanticBasicAdjustmentCommand
 } from './semanticBasicAdjustmentCommandContract';
+import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
 import {
   SemanticActionRecorder,
   type ActionRecordingSnapshot
@@ -133,6 +136,10 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     const execute = this.resolve(documentId).executeBasicAdjustmentCommand;
     if (!execute) throw new Error('Basic Grade commands are unavailable in the target document.');
     return execute(command);
+  }
+
+  queryBasicAdjustments(documentId: DocumentSessionId, target: BasicAdjustmentTarget) {
+    return this.resolve(documentId).queryBasicAdjustments?.(target) ?? null;
   }
 
   executeAtomicBatch(documentId: DocumentSessionId, batch: AtomicCommandBatch, signal: AbortSignal,
@@ -530,6 +537,13 @@ export class LightTableCommandService {
     const document = this.document(documentId)?.document; const layer = document ? findDocumentLayer(document, layerId) : null;
     if (layer?.type !== 'vector') return null;
     return projectEditableVectorQuery(layer, layerId);
+  }
+
+  queryBasicGrade(documentId: DocumentSessionId, value: unknown): BasicGradeQueryResult | null {
+    if (!this.document(documentId)?.document) return null;
+    const target = parseBasicAdjustmentTarget(value);
+    if ('message' in target) throw new Error(target.message);
+    return this.ports.queryBasicAdjustments?.(documentId, target) ?? null;
   }
 
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null {
@@ -1303,6 +1317,7 @@ export interface LightTableAutomationDriver {
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null;
   queryText(documentId: DocumentSessionId, layerId: LayerId): EditableTextQueryResult | null;
   queryVector(documentId: DocumentSessionId, layerId: LayerId): EditableVectorQueryResult | null;
+  queryBasicGrade(documentId: DocumentSessionId, target: unknown): BasicGradeQueryResult | null;
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): boolean;

@@ -20,6 +20,21 @@ const record = (value: unknown): value is Record<string, unknown> => (
 const keys = Object.keys(BASIC_ADJUSTMENT_RANGES) as NumericAdjustmentKey[];
 const keySet = new Set<string>(keys);
 
+export const parseBasicAdjustmentTarget = (
+  value: unknown
+): BasicAdjustmentTarget | { readonly message: string } => {
+  if (!record(value)) return { message: 'Basic Grade requires an explicit target.' };
+  if (value.kind === 'document' && Object.keys(value).length === 1) {
+    return { kind: 'document' };
+  }
+  if (value.kind === 'layer' && typeof value.layerId === 'string'
+    && value.layerId.length > 0 && value.layerId.length <= 512
+    && Object.keys(value).every((key) => key === 'kind' || key === 'layerId')) {
+    return { kind: 'layer', layerId: value.layerId as LayerId };
+  }
+  return { message: 'Basic Grade target must be document or one stable layerId.' };
+};
+
 export const parseSemanticBasicAdjustmentCommand = (
   value: unknown
 ): SemanticBasicAdjustmentCommand | { readonly message: string } => {
@@ -29,16 +44,8 @@ export const parseSemanticBasicAdjustmentCommand = (
   if (Object.keys(value).some((key) => key !== 'target' && key !== 'values')) {
     return { message: 'Basic Grade contains unsupported top-level properties.' };
   }
-  let target: BasicAdjustmentTarget;
-  if (value.target.kind === 'document' && Object.keys(value.target).length === 1) {
-    target = { kind: 'document' };
-  } else if (value.target.kind === 'layer' && typeof value.target.layerId === 'string'
-    && value.target.layerId.length > 0 && value.target.layerId.length <= 512
-    && Object.keys(value.target).every((key) => key === 'kind' || key === 'layerId')) {
-    target = { kind: 'layer', layerId: value.target.layerId as LayerId };
-  } else {
-    return { message: 'Basic Grade target must be document or one stable layerId.' };
-  }
+  const target = parseBasicAdjustmentTarget(value.target);
+  if ('message' in target) return target;
   const valueKeys = Object.keys(value.values);
   if (valueKeys.length < 1 || valueKeys.length > keys.length
     || valueKeys.some((key) => !keySet.has(key))) {
@@ -63,4 +70,3 @@ export const changedBasicAdjustmentValues = (
 ): Partial<Record<NumericAdjustmentKey, number>> => Object.fromEntries(
   keys.filter((key) => before[key] !== after[key]).map((key) => [key, after[key]])
 );
-

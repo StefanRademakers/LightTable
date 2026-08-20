@@ -12,6 +12,7 @@ import type { SemanticSelectionCommand } from './semanticSelectionCommandContrac
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
 import { executeSemanticVectorCommand } from '../vectors/semanticVectorCommandExecutor';
 import { createDefaultAdjustments } from '../../types';
+import { projectBasicAdjustmentValues } from '../adjustments/basicAdjustmentQuery';
 
 const token = '0123456789abcdef0123456789abcdef';
 
@@ -127,6 +128,12 @@ const createHarness = () => {
     executeLayerStyleCommand: vi.fn(), executeLayerCommand: vi.fn((_documentId, command) => applyLayer(command)),
     executeSelectionCommand: vi.fn((_documentId, command) => applySelection(command)),
     executeBasicAdjustmentCommand: vi.fn((_documentId, command) => applyBasicAdjustment(command)),
+    queryBasicAdjustments: vi.fn((_documentId, target) => target.kind === 'document' ? ({
+      target,
+      documentRevision: session.getSnapshot().document!.revision,
+      targetRevision: session.getSnapshot().document!.revision,
+      values: projectBasicAdjustmentValues(basicAdjustments)
+    }) : null),
     executeAtomicBatch: vi.fn(), exportNativeArtifact: vi.fn(), exportPngArtifact: vi.fn(),
     exportPsdArtifact: vi.fn(), beginGesture: vi.fn(), updateGesture: vi.fn(), finishGesture: vi.fn(),
     undo: vi.fn(() => session.history.undo()), redo: vi.fn(() => session.history.redo())
@@ -369,6 +376,19 @@ describe('artist capability equivalence harness', () => {
         commandParameters: parameters
       }
     })).toMatchObject({ status: 'completed' });
+
+    const beforeQuery = mcp.gradeSnapshot().history;
+    expect(await mcp.adapter.invoke({
+      protocolVersion: 1,
+      requestId: 'mcp-query-basic-grade',
+      token,
+      method: 'grade.queryBasic',
+      parameters: { documentId: mcp.session.id, target: { kind: 'document' } }
+    })).toMatchObject({
+      status: 'completed',
+      value: { target: { kind: 'document' }, values: parameters.values }
+    });
+    expect(mcp.gradeSnapshot().history).toEqual(beforeQuery);
 
     expect(actions.gradeSnapshot()).toEqual(ui.gradeSnapshot());
     expect(mcp.gradeSnapshot()).toEqual(ui.gradeSnapshot());

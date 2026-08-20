@@ -97,7 +97,9 @@ Existing foundation evidence
   real menu/keyboard owner, Actions and admitted MCP execution.
 - Fourteen basic Grade controls now share `grade.setBasic` with explicit
   document/layer targets, final slider recording and packaged Actions replay;
-  Grade inspection and non-basic groups remain open.
+  `grade.queryBasic` now reads those canonical values through authenticated
+  packaged Agent Access without history/recording mutation. Non-basic groups
+  remain open.
 
 Program definition of done
 ==========================

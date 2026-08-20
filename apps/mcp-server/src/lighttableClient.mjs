@@ -88,6 +88,12 @@ export class MockLightTableClient {
       styleRuns: [], paragraphRuns: [], runsTruncated: false };
     if (method === 'vector.query') return { layerId: parameters.layerId, revision: 1,
       totalElements: 0, truncated: false, elements: [] };
+    if (method === 'grade.queryBasic') return { target: parameters.target,
+      documentRevision: this.document.canonicalRevision,
+      targetRevision: this.document.canonicalRevision,
+      values: { temperature: 0, tint: 0, exposureEV: 0, contrast: 0,
+        highlights: 0, shadows: 0, whites: 0, blacks: 0, lift: 0,
+        texture: 0, clarity: 0, dehaze: 0, vibrance: 0, saturation: 0 } };
     if (method === 'command.capabilities') return ['layer.createRaster', 'layer.rename',
       'layer.setVisibility', 'layer.setFillOpacity', 'history.undo', 'history.redo']
       .map((command) => ({ command, available: true, reason: null }));

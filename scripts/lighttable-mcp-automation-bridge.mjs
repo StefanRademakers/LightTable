@@ -53,6 +53,7 @@ const invoke = (method, parameters) => page.evaluate(async ({ method, parameters
   if (method === 'layer.effects') return driver.queryLayerEffects(parameters.documentId, parameters.layerId);
   if (method === 'text.query') return driver.queryText(parameters.documentId, parameters.layerId);
   if (method === 'vector.query') return driver.queryVector(parameters.documentId, parameters.layerId);
+  if (method === 'grade.queryBasic') return driver.queryBasicGrade(parameters.documentId, parameters.target);
   if (method === 'command.capabilities') return driver.queryCapabilities(parameters.documentId);
   if (method === 'task.query') return driver.queryTask(parameters.documentId, parameters.taskId);
   if (method === 'task.events') return driver.queryTaskEvents(parameters.afterCursor, parameters.limit);

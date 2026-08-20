@@ -19,7 +19,8 @@ export interface ResolvedBasicAdjustmentTarget {
 export const resolveBasicAdjustmentTarget = (
   document: ImageDocument,
   documentAdjustments: BasicAdjustments,
-  target: BasicAdjustmentTarget
+  target: BasicAdjustmentTarget,
+  options: { readonly allowLocked?: boolean } = {}
 ): ResolvedBasicAdjustmentTarget | { readonly message: string } => {
   if (target.kind === 'document') {
     return { targetLayerId: null, adjustments: cloneAdjustments(documentAdjustments) };
@@ -28,7 +29,7 @@ export const resolveBasicAdjustmentTarget = (
   if (!layer || (layer.type !== 'raster' && layer.type !== 'adjustment')) {
     return { message: 'The target layer cannot own a basic Grade.' };
   }
-  if (layerIsLocked(layer, 'pixels')) {
+  if (!options.allowLocked && layerIsLocked(layer, 'pixels')) {
     return { message: 'The target layer is locked against Grade edits.' };
   }
   if (layer.type === 'adjustment'

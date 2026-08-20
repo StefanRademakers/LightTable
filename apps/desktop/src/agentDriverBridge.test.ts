@@ -50,4 +50,19 @@ describe('invokeAgentDriver', () => {
     }
     expect(execute).toHaveBeenCalledTimes(2);
   });
+
+  it('forwards basic Grade inspection without executing a command', async () => {
+    const queryBasicGrade = vi.fn(() => ({
+      target: { kind: 'document' as const }, documentRevision: 2, targetRevision: 2,
+      values: { exposureEV: 0.4 }
+    } as never));
+    const execute = vi.fn();
+    const driver = driverWith({ queryBasicGrade, execute });
+
+    await expect(invokeAgentDriver(driver, 'grade.queryBasic', {
+      documentId: 'document-1', target: { kind: 'document' }
+    })).resolves.toMatchObject({ values: { exposureEV: 0.4 } });
+    expect(queryBasicGrade).toHaveBeenCalledWith('document-1', { kind: 'document' });
+    expect(execute).not.toHaveBeenCalled();
+  });
 });

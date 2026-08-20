@@ -42,6 +42,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_edit_text'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_text'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_vector'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_grade'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_shape'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_edit_vector'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_style'));
@@ -100,6 +101,10 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     documentId: 'document-demo', layerId: 'layer-vector'
   } });
   assert.equal(vector.structuredContent.totalElements, 0);
+  const grade = await reader.callTool({ name: 'lighttable_grade', arguments: {
+    documentId: 'document-demo', target: { kind: 'document' }
+  } });
+  assert.equal(grade.structuredContent.values.exposureEV, 0);
   const style = await editor.callTool({ name: 'lighttable_layer_style', arguments: {
     documentId: 'document-demo', layerId: 'layer-background', operation: 'add',
     effectKind: 'drop-shadow', settings: { distance: 20, size: 10 }

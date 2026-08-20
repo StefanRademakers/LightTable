@@ -28,6 +28,19 @@ Required work
 - Keep visual comparison optional and diagnostic; it may not become another
   misleading universal parity score.
 
+Current evidence (2026-08-20)
+=============================
+
+- `grade.queryBasic` provides a bounded 14-number projection for an explicit
+  document or raster/Grade Layer target; it does not expose nested Grade state.
+- Locked targets remain inspectable while the corresponding mutation command
+  remains blocked.
+- A packaged authenticated Agent Access flow sets document Grade, reads the
+  canonical values back and proves the query does not change revision, dirty
+  state or history.
+- Revision-bound rendered preview, event-driven publication and the complete
+  inspect/edit/preview/correct loop remain open.
+
 Representative proof
 ====================
 

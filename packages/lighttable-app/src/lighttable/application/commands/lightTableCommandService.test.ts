@@ -68,6 +68,11 @@ const automationBrush = {
   presetId: 'round', size: 24, hardness: 0.75, opacity: 1, flow: 0.5,
   spacing: 0.05, smooth: 0.2, color: '#112233', backgroundColor: '#ffffff'
 };
+const basicValues = {
+  temperature: 0, tint: 0, exposureEV: 0.75, contrast: 0,
+  highlights: 0, shadows: 0, whites: 0, blacks: 0, lift: 0,
+  texture: 0, clarity: 0, dehaze: 0, vibrance: 12, saturation: 0
+};
 
 describe('LightTableCommandService action recording', () => {
   it('records one already-committed UI owner result without executing it twice', () => {
@@ -680,6 +685,25 @@ describe('LightTableCommandService registry', () => {
       target: { kind: 'document' }, values: { exposureEV: 12 }
     }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     expect(executeBasicAdjustmentCommand).toHaveBeenCalledTimes(2);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('queries basic Grade state without changing history or Actions recording', () => {
+    const queryBasicAdjustments = vi.fn((_documentId, target) => ({
+      target, documentRevision: 3, targetRevision: 3, values: basicValues
+    }));
+    const state = setup({ queryBasicAdjustments });
+    state.service.startActionRecording('Read only');
+    const historyBefore = state.service.queryDocument(state.session.id)!.history;
+
+    expect(state.service.queryBasicGrade(state.session.id, { kind: 'document' }))
+      .toMatchObject({ target: { kind: 'document' }, values: { exposureEV: 0.75, vibrance: 12 } });
+    expect(state.service.actionRecordingSnapshot().steps).toHaveLength(0);
+    expect(state.service.queryDocument(state.session.id)!.history).toEqual(historyBefore);
+    expect(() => state.service.queryBasicGrade(state.session.id, { kind: 'active-layer' }))
+      .toThrow('document or one stable layerId');
+    expect(queryBasicAdjustments).toHaveBeenCalledTimes(1);
     state.service.dispose();
     state.workspace.dispose();
   });

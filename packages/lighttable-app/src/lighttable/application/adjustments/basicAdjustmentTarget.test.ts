@@ -64,5 +64,11 @@ describe('basic adjustment target resolver', () => {
       createDefaultAdjustments(),
       { kind: 'layer', layerId: locked.activeLayerId! }
     )).toHaveProperty('message');
+    expect(resolveBasicAdjustmentTarget(
+      locked,
+      createDefaultAdjustments(),
+      { kind: 'layer', layerId: locked.activeLayerId! },
+      { allowLocked: true }
+    )).toMatchObject({ targetLayerId: locked.activeLayerId });
   });
 });
