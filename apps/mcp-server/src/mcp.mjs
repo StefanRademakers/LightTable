@@ -298,8 +298,6 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       commandParameters: { name, timeoutMs: 10_000, operations } });
     if (batch?.status === 'rejected' || batch?.task?.status === 'failed') throw new Error(batch.message ?? batch.task?.error ?? 'Design batch failed.');
     await awaitDocumentRenderer(client, documentId);
-    const preview = await awaitCommand(client, { documentId, command: 'file.exportPng',
-      commandRequestId: crypto.randomUUID(), commandParameters: {} });
     const layerPage = await client.invoke('layer.list', { documentId });
     const layers = Array.isArray(layerPage) ? layerPage : layerPage?.layers ?? [];
     const titleLayer = layers.find((layer) => layer?.type === 'text' && layer?.name === title);
@@ -311,6 +309,8 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     const redo = await awaitCommand(client, { documentId, command: 'history.redo',
       commandRequestId: crypto.randomUUID(), commandParameters: {} });
     await awaitDocumentRenderer(client, documentId);
+    const preview = await awaitCommand(client, { documentId, command: 'file.exportPng',
+      commandRequestId: crypto.randomUUID(), commandParameters: {} });
     const psd = await awaitCommand(client, { documentId, command: 'file.exportPsd', commandRequestId: crypto.randomUUID(), commandParameters: {} });
     const native = await awaitCommand(client, { documentId, command: 'file.exportNative', commandRequestId: crypto.randomUUID(), commandParameters: {} });
     return { documentId, transaction: name, layerKinds: ['asset', 'point-text', 'paragraph-text', 'gradient-vector', 'drop-shadow'],

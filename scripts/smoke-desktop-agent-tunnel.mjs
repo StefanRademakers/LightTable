@@ -5,10 +5,10 @@ import path from 'node:path';
 import process from 'node:process';
 import selfsigned from 'selfsigned';
 import { DeviceTunnelBroker } from '../apps/mcp-server/src/deviceTunnel.mjs';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const desktop = path.join(root, 'apps', 'desktop');
-const executable = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(root);
 const userData = path.join(root, 'tmp', 'smoke-agent-tunnel-user-data');
 const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
 const screenshot = path.join(root, 'tmp', 'screenshots', 'agent-server-pairing.png');
@@ -49,15 +49,18 @@ tlsServer.on('upgrade', (request, socket, head) => {
 const environment = { ...process.env }; delete environment.ELECTRON_RUN_AS_NODE;
 let app;
 try {
-  app = await electron.launch({ executablePath: executable, args: [desktop], cwd: root,
+  app = await electron.launch({ executablePath: launch.executablePath, args: launch.args, cwd: root,
     env: { ...environment, LIGHTTABLE_AUTOMATION_USER_DATA: userData,
       LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture, LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS: 'true' }, timeout: 30_000 });
   const window = await app.firstWindow({ timeout: 30_000 });
-  await window.getByRole('button', { name: 'Open file' }).click();
+  const open = await waitForDesktopLauncher({ app, page: window,
+    outputDirectory: path.dirname(screenshot), sourceFile: fixture, label: 'agent-tunnel' });
+  await open.click();
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i }).waitFor({ timeout: 60_000 });
   await window.getByRole('menuitem', { name: 'Edit' }).click();
-  await window.getByRole('menuitem', { name: 'Settings...' }).click();
-  const settings = window.getByRole('dialog', { name: 'Settings' });
+  await window.getByRole('menuitem', { name: 'Preferences...' }).click();
+  const settings = window.getByRole('dialog', { name: 'Preferences' });
+  await settings.getByRole('button', { name: 'Agent Access' }).click();
   if (await settings.getByRole('checkbox').isChecked()) throw new Error('Local listener was unexpectedly enabled.');
   await settings.getByLabel('Server URL').fill(serverUrl);
   await settings.getByLabel('One-time pairing code').fill('PAIR-105');

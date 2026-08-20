@@ -137,6 +137,20 @@ Current evidence (2026-08-20)
 - That workflow now also captures a publication cursor before editing and
   requires the final document revision plus history state to appear before the
   N+1 preview is accepted.
+- The packaged secure MCP design workflow now requests its bounded preview at
+  an exact queried revision and exports final PNG, native and PSD artifacts
+  only after the same opacity edit plus undo/redo has reached the final render
+  boundary. Previously its PNG artifact was exported before that final edit.
+- Its Photoshop roundtrip no longer relies on `RMSE < 20` plus a side-by-side.
+  The reproducible report retains per-channel MAE/RMSE/maxima, pixel-delta
+  percentiles, changed-pixel ratios, source dimensions, explicit workflow
+  tolerances, a side-by-side and a 4x absolute-difference image. Aspect-ratio
+  mismatches fail instead of being stretched into a score.
+- Visual review of that evidence found that editable layer kinds and text
+  geometry survive, but the Photoshop roundtrip still has a clear global
+  gradient shift and a different title shadow. The automated interchange
+  guardrail passes (RMSE 9.79, MAE 6.27, p95 pixel delta 26), but rendered
+  equivalence is explicitly not claimed from those numbers.
 
 Still required for completion
 =============================
@@ -144,7 +158,9 @@ Still required for completion
 - high-frequency typing/IME recording and text failure equivalence across all
   three routes;
 - revision-bound rendered preview/export comparison with declared per-image
-  tolerances and retained difference artifacts;
+  tolerances and retained difference artifacts across the actual UI, Actions
+  and MCP routes; the new Photoshop interchange evidence exposes a visible
+  gradient/shadow difference and is not a substitute for that comparison;
 - the complete workflow through the external MCP bridge, not only the packaged
   in-app Agent Access route;
 - equivalent stale-revision and invalid-parameter failure evidence at every

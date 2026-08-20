@@ -8,10 +8,10 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import selfsigned from 'selfsigned';
-import sharp from 'sharp';
 import { createLightTableMcpApp } from '../apps/mcp-server/src/server.mjs';
 import { DeviceTunnelLightTableClient } from '../apps/mcp-server/src/deviceTunnelClient.mjs';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { compareRenderEvidence } from './render-comparison-evidence.mjs';
 
 class DynamicDeviceClient {
   constructor(broker) { this.broker = broker; this.client = null; }
@@ -35,6 +35,14 @@ const output = path.join(root, 'tmp', 'mcp-design-smoke');
 const userData = path.join(output, 'author-user-data');
 const reopenUserData = path.join(output, 'reopen-user-data');
 const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
+const DESIGN_RENDER_POLICY = {
+  maximumRmse: 12,
+  maximumMeanAbsoluteError: 8,
+  maximumChannelRmse: 18,
+  maximumChannelMeanAbsoluteError: 14,
+  maximumP95PixelDelta: 30,
+  maximumChangedPixelRatioAt16: 0.5
+};
 await rm(output, { recursive: true, force: true }); await mkdir(output, { recursive: true });
 
 const port = await reservePort(); const publicUrl = `https://localhost:${port}`;
@@ -66,8 +74,9 @@ try {
     sourceFile: fixture, label: 'mcp-design' });
   await openFile.click();
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i }).waitFor({ timeout: 60_000 });
-  await window.getByRole('menuitem', { name: 'Edit' }).click(); await window.getByRole('menuitem', { name: 'Settings...' }).click();
-  const settings = window.getByRole('dialog', { name: 'Settings' });
+  await window.getByRole('menuitem', { name: 'Edit' }).click(); await window.getByRole('menuitem', { name: 'Preferences...' }).click();
+  const settings = window.getByRole('dialog', { name: 'Preferences' });
+  await settings.getByRole('button', { name: 'Agent Access' }).click();
   await settings.getByLabel('Server URL').fill(publicUrl); await settings.getByLabel('One-time pairing code').fill('PAIR-106');
   await settings.getByRole('button', { name: 'Pair' }).click();
   await settings.getByText('connected', { exact: true }).waitFor({ timeout: 15_000 });
@@ -99,15 +108,31 @@ try {
   } });
   if (built.isError) throw new Error(`MCP design failed: ${built.content?.[0]?.text ?? 'unknown error'}`);
   const result = built.structuredContent;
-  const preview = await mcp.callTool({ name: 'lighttable_preview', arguments: { documentId: result.documentId } });
-  const previewImage = preview.content?.find(({ type }) => type === 'image');
-  if (!previewImage?.data) throw new Error('The GPU preview did not return PNG image data.');
-  const lightTablePng = path.join(output, 'lighttable.png'); await writeFile(lightTablePng, Buffer.from(previewImage.data, 'base64'));
-  const nativeId = result.native?.id; const psdId = result.psd?.id;
-  if (!nativeId || !psdId) {
-    throw new Error(`The design did not produce native and PSD artifacts: ${JSON.stringify(result)}`);
+  const documentQuery = await mcp.callTool({
+    name: 'lighttable_document', arguments: { documentId: result.documentId }
+  });
+  const documentState = documentQuery.structuredContent;
+  if (documentQuery.isError || typeof documentState?.canonicalRevision !== 'number') {
+    throw new Error(`The MCP design has no revision-bound document state: ${JSON.stringify(documentQuery)}`);
   }
+  const preview = await mcp.callTool({ name: 'lighttable_preview', arguments: {
+    documentId: result.documentId,
+    expectedDocumentRevision: documentState.canonicalRevision,
+    maxEdge: 1024
+  } });
+  const previewImage = preview.content?.find(({ type }) => type === 'image');
+  if (!previewImage?.data) {
+    throw new Error(`The GPU preview did not return PNG image data: ${JSON.stringify(preview)}`);
+  }
+  const revisionPreviewPath = path.join(output, 'lighttable-revision-preview.png');
+  await writeFile(revisionPreviewPath, Buffer.from(previewImage.data, 'base64'));
+  const previewId = result.preview?.id; const nativeId = result.native?.id; const psdId = result.psd?.id;
+  if (!previewId || !nativeId || !psdId) {
+    throw new Error(`The design did not produce final PNG, native and PSD artifacts: ${JSON.stringify(result)}`);
+  }
+  const finalPng = await dynamicClient.readArtifact(previewId);
   const native = await dynamicClient.readArtifact(nativeId); const psd = await dynamicClient.readArtifact(psdId);
+  const lightTablePng = path.join(output, 'lighttable.png'); await writeFile(lightTablePng, finalPng.bytes);
   const nativePath = path.join(output, 'agent-release-card.lighttable'); const psdPath = path.join(output, 'agent-release-card.psd');
   await writeFile(nativePath, native.bytes); await writeFile(psdPath, psd.bytes);
   if (Buffer.from(psd.bytes.subarray(0, 4)).toString('ascii') !== '8BPS') throw new Error('PSD export signature is invalid.');
@@ -136,10 +161,27 @@ try {
   if (layers.filter(({ kind }) => kind === 2).length < 2 || !layers.some(({ name, kind }) => name === 'Gradient card' && kind === 4)) {
     throw new Error(`Photoshop did not preserve editable text/vector layer kinds: ${JSON.stringify(layers)}`);
   }
-  const metrics = await compareRenders(lightTablePng, photoshopPng, path.join(output, 'lighttable-vs-photoshop.png'));
-  if (metrics.rmse > 20) throw new Error(`Photoshop roundtrip RMSE ${metrics.rmse.toFixed(2)} exceeds the release smoke threshold.`);
-  await writeFile(path.join(output, 'parity.json'), JSON.stringify({ ...metrics, layers }, null, 2));
-  process.stdout.write(`Packaged MCP design roundtrip passed: ${output}\n`);
+  const renderEvidence = await compareRenderEvidence({
+    leftPath: lightTablePng,
+    rightPath: photoshopPng,
+    width: 1080,
+    height: 1350,
+    sideBySidePath: path.join(output, 'lighttable-vs-photoshop.png'),
+    differencePath: path.join(output, 'lighttable-vs-photoshop-difference-x4.png'),
+    policy: DESIGN_RENDER_POLICY
+  });
+  if (!renderEvidence.passed) {
+    throw new Error(`Photoshop roundtrip render policy failed: ${JSON.stringify({
+      checks: renderEvidence.checks,
+      metrics: renderEvidence.metrics
+    })}`);
+  }
+  await writeFile(path.join(output, 'parity.json'), JSON.stringify({
+    claim: 'structural/interchange smoke; visual equivalence requires human review',
+    renderEvidence,
+    layers
+  }, null, 2));
+  process.stdout.write(`Packaged MCP design structural roundtrip passed; render evidence retained: ${output}\n`);
 } finally {
   if (previousTls === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
   else process.env.NODE_TLS_REJECT_UNAUTHORIZED = previousTls;
@@ -155,18 +197,4 @@ async function waitFor(predicate, label, timeout = 15_000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) { if (predicate()) return; await new Promise((resolve) => setTimeout(resolve, 25)); }
   throw new Error(`Timed out waiting for ${label}.`);
-}
-async function compareRenders(lightTablePath, photoshopPath, comparisonPath) {
-  const [left, right] = await Promise.all([
-    sharp(lightTablePath).resize(1080, 1350, { fit: 'fill' }).removeAlpha().raw().toBuffer(),
-    sharp(photoshopPath).resize(1080, 1350, { fit: 'fill' }).removeAlpha().raw().toBuffer()
-  ]);
-  let sum = 0;
-  for (let index = 0; index < left.length; index += 1) { const delta = left[index] - right[index]; sum += delta * delta; }
-  const rmse = Math.sqrt(sum / left.length);
-  await sharp({ create: { width: 2160, height: 1350, channels: 3, background: '#20242a' } }).composite([
-    { input: await sharp(lightTablePath).resize(1080, 1350, { fit: 'fill' }).removeAlpha().png().toBuffer(), left: 0, top: 0 },
-    { input: await sharp(photoshopPath).resize(1080, 1350, { fit: 'fill' }).removeAlpha().png().toBuffer(), left: 1080, top: 0 }
-  ]).png().toFile(comparisonPath);
-  return { rmse, width: 1080, height: 1350 };
 }
