@@ -4,6 +4,7 @@ import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lig
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
+import type { LightTablePreviewEncoding } from './application/commands/lightTableCommandContract';
 import {
   automationPaintOperatorFromPlan,
   parseAutomationBrushSettings,
@@ -398,6 +399,22 @@ const EMPTY_ACTION_LIBRARY: SemanticActionLibrarySnapshot = {
   actions: [], selectedId: null, error: null
 };
 const emptyActionLibrary = () => EMPTY_ACTION_LIBRARY;
+const encodeAgentPreview = async (source: File | Blob, name: string,
+  encoding: LightTablePreviewEncoding): Promise<File> => {
+  if (encoding.format === 'png') {
+    return source instanceof File ? source : new File([source], `${name}.png`, { type: 'image/png' });
+  }
+  const bitmap = await createImageBitmap(source);
+  try {
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('WebP preview encoding is unavailable.');
+    context.drawImage(bitmap, 0, 0);
+    const blob = await canvas.convertToBlob({ type: 'image/webp', quality: encoding.quality ?? 0.85 });
+    if (blob.type !== 'image/webp') throw new Error('The browser did not produce a WebP preview.');
+    return new File([blob], `${name}.webp`, { type: 'image/webp' });
+  } finally { bitmap.close(); }
+};
 const downloadEditorFile = (file: File): void => {
   const url = URL.createObjectURL(file);
   const anchor = document.createElement('a');
@@ -5013,7 +5030,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
-      exportPreviewArtifact: (maxEdge) => exportPreviewArtifactRef.current(maxEdge),
+      exportPreviewArtifact: async (maxEdge, encoding) => encodeAgentPreview(
+        await exportPreviewArtifactRef.current(maxEdge), 'document-preview', encoding
+      ),
+      exportLayerPreviewArtifact: async (layerId, channel, maxEdge, encoding) => {
+        const preview = await engineRef.current?.exportLayerThumbnail(
+          layerId, channel === 'mask', maxEdge, maxEdge
+        );
+        if (!preview) throw new Error(`Layer ${layerId} has no renderable ${channel} content.`);
+        return { file: await encodeAgentPreview(preview.blob, `layer-${channel}`, encoding),
+          width: preview.width, height: preview.height, sourceToOutput: preview.sourceToOutput };
+      },
       exportPsdArtifact: () => exportPsdArtifactRef.current(),
       beginGesture: (kind, pointerId, parameters, sample) => beginAutomationGestureRef.current(kind, pointerId, parameters, sample),
       updateGesture: (kind, pointerId, sample) => updateAutomationGestureRef.current(kind, pointerId, sample),

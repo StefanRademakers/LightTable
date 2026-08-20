@@ -22,7 +22,8 @@ export const invokeAgentDriver = async (
   if (method === 'workspace.query') return driver.queryWorkspace();
   if (method === 'document.query') return driver.queryDocument(documentId);
   if (method === 'document.preview') return driver.requestDocumentPreview(value);
-  if (method === 'layer.list') return driver.queryLayers(documentId);
+  if (method === 'layer.preview') return driver.requestLayerPreview(value);
+  if (method === 'layer.list') return driver.queryLayerPage(value);
   if (method === 'layer.effects') return driver.queryLayerEffects(documentId, layerId);
   if (method === 'text.query') return driver.queryText(documentId, layerId);
   if (method === 'vector.query') return driver.queryVector(documentId, layerId);

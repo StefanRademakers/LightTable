@@ -46,6 +46,8 @@ export {
   type CommandCapabilitySummary,
   type DocumentQueryResult,
   type LayerQuerySummary,
+  type LayerListQueryResult,
+  type LayerPreviewResult,
   type LightTableCommandErrorCode,
   type LightTableCommandId,
   type LightTableCommandPorts,

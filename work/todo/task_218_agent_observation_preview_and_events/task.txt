@@ -41,6 +41,16 @@ Current evidence (2026-08-20)
 - `document.preview` now produces cached, bounded 64-1024 px GPU artifacts tied
   to an exact canonical revision without moving the viewport. Stale and
   mid-render document changes fail closed, and released artifacts regenerate.
+- `layer.list` now returns compact revision-bound cursor pages (default 128,
+  maximum 256). A cursor from another document or revision fails closed, and
+  list rows no longer inline vector-element geometry.
+- `layer.preview` now returns bounded isolated raster-layer pixels or a raster
+  mask through the mounted GPU layer renderer, including exact source-to-output
+  mapping metadata and without moving the viewport.
+- Whole-document and layer MCP previews accept `knownArtifactId`; an unchanged
+  artifact returns metadata without retransferring its Base64 image payload.
+- Preview `maxEdge` is explicit (64-1024). PNG remains lossless; WebP exposes
+  real quality control from 0.1-1, and format/quality participate in cache identity.
 - Packaged external MCP now proves inspect revision N -> preview N -> semantic
   edits -> preview N+1 through the real renderer and artifact tunnel.
 - `event.query` now exposes bounded reconnect-safe document, revision, active
@@ -48,7 +58,9 @@ Current evidence (2026-08-20)
   are explicit and force canonical re-query rather than silently missing work.
 - The packaged MCP flow records a cursor before editing, observes its exact
   final revision/history publication and then requests preview N+1.
-- Targeted region/layer previews and server-push delivery remain open.
+- Arbitrary document-region preview and server-push delivery remain open.
+- Targeted text, vector, effects, Warp and basic Grade queries exist; a complete
+  type-dispatched detail query for every layer/adjustment kind remains open.
 
 Representative proof
 ====================

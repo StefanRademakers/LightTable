@@ -15,6 +15,8 @@ import {
   type LayerQuerySummary
 } from './layerQueryProjection';
 export type { LayerQuerySummary } from './layerQueryProjection';
+import { projectLayerListPage, type LayerListQueryResult } from './layerListQuery';
+export type { LayerListQueryResult } from './layerListQuery';
 import {
   LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
   type AutomationEventQueryResult, type AutomationTaskQueryResult, type CommandCapabilitySummary,
@@ -77,6 +79,8 @@ import {
   DocumentPreviewArtifactController,
   type DocumentPreviewResult
 } from './documentPreviewArtifacts';
+import { LayerPreviewArtifactController, type LayerPreviewResult } from './layerPreviewArtifacts';
+export type { LayerPreviewResult } from './layerPreviewArtifacts';
 export * from './lightTableCommandContract';
 
 export { LightTableCommandPortRegistry } from './lightTableCommandPortRegistry';
@@ -120,7 +124,22 @@ export class LightTableCommandService {
         height: snapshot.document.height
       } : null;
     },
-    render: async (documentId, maxEdge) => this.ports.exportPreviewArtifact(documentId, maxEdge),
+    render: async (documentId, maxEdge, encoding) => this.ports.exportPreviewArtifact(documentId, maxEdge, encoding),
+    register: (file, context) => this.artifacts.registerPreview(file, context),
+    query: (artifactId) => this.artifacts.query(artifactId)
+  });
+  private readonly layerPreviews = new LayerPreviewArtifactController({
+    snapshot: (documentId, layerId) => {
+      const snapshot = this.document(documentId);
+      const layer = snapshot?.document ? findDocumentLayer(snapshot.document, layerId) : null;
+      return snapshot?.document ? {
+        lifecycle: snapshot.lifecycle, canonicalRevision: snapshot.documentRevision,
+        layerExists: Boolean(layer), hasMask: Boolean(layer?.mask)
+      } : null;
+    },
+    render: async (documentId, layerId, channel, maxEdge, encoding) => (
+      this.ports.exportLayerPreviewArtifact(documentId, layerId, channel, maxEdge, encoding)
+    ),
     register: (file, context) => this.artifacts.registerPreview(file, context),
     query: (artifactId) => this.artifacts.query(artifactId)
   });
@@ -159,6 +178,7 @@ export class LightTableCommandService {
     this.artifacts.clear();
     this.taskArtifacts.clear();
     this.documentPreviews.clear();
+    this.layerPreviews.clear();
   }
 
   registerInputArtifact(file: File): LightTableArtifactMetadata {
@@ -180,11 +200,16 @@ export class LightTableCommandService {
 
   releaseArtifact(artifactId: string): boolean {
     this.documentPreviews.invalidateArtifact(artifactId);
+    this.layerPreviews.invalidateArtifact(artifactId);
     return this.artifacts.release(artifactId);
   }
 
   requestDocumentPreview(request: unknown): Promise<DocumentPreviewResult> {
     return this.documentPreviews.request(request);
+  }
+
+  requestLayerPreview(request: unknown): Promise<LayerPreviewResult> {
+    return this.layerPreviews.request(request);
   }
 
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null {
@@ -480,6 +505,22 @@ export class LightTableCommandService {
     if (!canonical) return null;
     return walkLayerTree(canonical.layers).map(({ node, parentId, path }) =>
       projectLayerQuery(node, parentId, path.length - 1));
+  }
+
+  queryLayerPage(value: unknown): LayerListQueryResult {
+    if (!isRecord(value) || typeof value.documentId !== 'string' || !value.documentId) {
+      return { status: 'rejected', code: 'invalid-request',
+        message: 'Layer list requires a documentId.' };
+    }
+    const documentId = value.documentId as DocumentSessionId;
+    const snapshot = this.document(documentId);
+    if (!snapshot?.document) {
+      return { status: 'rejected', code: 'document-not-found',
+        message: 'The layer-list document is not available.' };
+    }
+    return projectLayerListPage(
+      documentId, snapshot.document, snapshot.documentRevision, value
+    );
   }
 
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null {
@@ -1346,12 +1387,14 @@ export interface LightTableAutomationDriver {
   listArtifacts(): readonly LightTableArtifactMetadata[];
   releaseArtifact(artifactId: string): boolean;
   requestDocumentPreview(request: unknown): Promise<DocumentPreviewResult>;
+  requestLayerPreview(request: unknown): Promise<LayerPreviewResult>;
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null;
   queryTaskEvents(afterCursor?: number, limit?: number): AutomationEventQueryResult;
   queryPublicationEvents(afterCursor?: number, limit?: number): AutomationPublicationEventQueryResult;
   queryWorkspace(): WorkspaceQueryResult;
   queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null;
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null;
+  queryLayerPage(request: unknown): LayerListQueryResult;
   queryLayerEffects(documentId: DocumentSessionId, layerId: LayerId): LayerEffectsQueryResult | null;
   queryText(documentId: DocumentSessionId, layerId: LayerId): EditableTextQueryResult | null;
   queryVector(documentId: DocumentSessionId, layerId: LayerId): EditableVectorQueryResult | null;

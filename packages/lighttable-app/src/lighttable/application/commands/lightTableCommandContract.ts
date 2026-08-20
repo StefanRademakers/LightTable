@@ -186,6 +186,18 @@ export interface LightTableCreateDocumentOptions {
 
 export interface LightTableArtifactPlacement { readonly name?: string; readonly x?: number; readonly y?: number }
 
+export interface LightTableLayerPreviewRender {
+  readonly file: File; readonly width: number; readonly height: number;
+  readonly sourceToOutput: {
+    readonly a: number; readonly b: number; readonly c: number;
+    readonly d: number; readonly tx: number; readonly ty: number;
+  };
+}
+export interface LightTablePreviewEncoding {
+  readonly format: 'png' | 'webp';
+  readonly quality?: number;
+}
+
 export interface LightTableWorkspaceCommandPorts {
   openArtifact(file: File): DocumentSessionId | Promise<DocumentSessionId>;
   createDocument(options: LightTableCreateDocumentOptions): DocumentSessionId | Promise<DocumentSessionId>;
@@ -230,7 +242,11 @@ export interface LightTableCommandPorts {
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
-  exportPreviewArtifact(documentId: DocumentSessionId, maxEdge: number): File | Promise<File>;
+  exportPreviewArtifact(documentId: DocumentSessionId, maxEdge: number,
+    encoding: LightTablePreviewEncoding): File | Promise<File>;
+  exportLayerPreviewArtifact(documentId: DocumentSessionId, layerId: LayerId,
+    channel: 'pixels' | 'mask', maxEdge: number,
+    encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
   exportPsdArtifact(documentId: DocumentSessionId): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
   beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
@@ -277,7 +293,9 @@ export interface DocumentLightTableCommandPorts {
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>;
-  exportPreviewArtifact(maxEdge: number): File | Promise<File>;
+  exportPreviewArtifact(maxEdge: number, encoding: LightTablePreviewEncoding): File | Promise<File>;
+  exportLayerPreviewArtifact(layerId: LayerId, channel: 'pixels' | 'mask',
+    maxEdge: number, encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
   exportPsdArtifact(): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
   beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;

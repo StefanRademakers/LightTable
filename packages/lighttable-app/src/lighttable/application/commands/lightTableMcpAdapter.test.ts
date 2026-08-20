@@ -21,6 +21,10 @@ const createDriver = (): LightTableAutomationDriver => ({
     status: 'rejected' as const, code: 'document-not-ready' as const,
     message: 'The preview document is not ready.'
   })),
+  requestLayerPreview: vi.fn(async () => ({
+    status: 'rejected' as const, code: 'document-not-ready' as const,
+    message: 'The preview document is not ready.'
+  })),
   queryTask: vi.fn(() => null),
   queryTaskEvents: vi.fn(() => ({ cursor: 0, events: [] })),
   queryPublicationEvents: vi.fn(() => ({ cursor: 0, latestCursor: 0,
@@ -28,6 +32,9 @@ const createDriver = (): LightTableAutomationDriver => ({
   queryWorkspace: vi.fn(() => ({ revision: 1, activeDocumentId: null, documents: [] })),
   queryDocument: vi.fn(() => null),
   queryLayers: vi.fn(() => null),
+  queryLayerPage: vi.fn(() => ({ status: 'completed' as const, documentId: 'document-1',
+    canonicalRevision: 1, total: 0, offset: 0, limit: 128, truncated: false,
+    nextCursor: null, layers: [] })),
   queryLayerEffects: vi.fn(() => null),
   queryText: vi.fn(() => null),
   queryVector: vi.fn(() => null),
@@ -80,6 +87,18 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     expect(driver.execute).not.toHaveBeenCalled();
   });
 
+  it('forwards isolated layer preview requests without command mutation', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    const parameters = { documentId: 'document-1', layerId: 'layer-1', channel: 'mask',
+      expectedDocumentRevision: 7, maxEdge: 512 };
+    await adapter.invoke(request('layer.preview', parameters));
+    expect(driver.requestLayerPreview).toHaveBeenCalledWith(parameters);
+    expect(driver.execute).not.toHaveBeenCalled();
+  });
+
   it('forwards reconnect-safe publication event cursors as read-only state', async () => {
     const driver = createDriver();
     const adapter = new AuthenticatedLightTableMcpAdapter({
@@ -88,6 +107,18 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     await adapter.invoke(request('event.query', { afterCursor: 12, limit: 50 }));
     expect(driver.queryPublicationEvents).toHaveBeenCalledWith(12, 50);
     expect(driver.execute).not.toHaveBeenCalled();
+  });
+
+  it('forwards bounded layer-page revisions, cursors and limits', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    await adapter.invoke(request('layer.list', { documentId: 'document-1',
+      expectedDocumentRevision: 7, cursor: 'cursor-1', limit: 32 }));
+    expect(driver.queryLayerPage).toHaveBeenCalledWith({ documentId: 'document-1',
+      expectedDocumentRevision: 7, cursor: 'cursor-1', limit: 32 });
+    expect(driver.queryLayers).not.toHaveBeenCalled();
   });
 
   it('allows only the explicit command surface and supports revocation', async () => {

@@ -72,7 +72,11 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     finishGesture: vi.fn(async () => true),
     undo: vi.fn(async () => true),
     redo: vi.fn(async () => true),
-    ...overrides
+    ...overrides,
+    exportLayerPreviewArtifact: overrides.exportLayerPreviewArtifact ?? vi.fn(async () => ({
+      file: new File(['layer'], 'layer.png', { type: 'image/png' }), width: 40, height: 30,
+      sourceToOutput: { a: 0.5, b: 0, c: 0, d: 0.5, tx: 0, ty: 0 }
+    }))
   };
   const service = new LightTableCommandService(workspace, ports, undefined, undefined,
     actionLibraryStorage);
@@ -555,6 +559,7 @@ describe('LightTableCommandService queries', () => {
 
     expect(state.service.queryLayers(state.session.id)?.at(-1)?.vectorContent).toEqual({
       elementCount: 1,
+      truncated: false,
       elements: [expect.objectContaining({
         id: 'badge', elementType: 'live-shape', fill: 'gradient', opacity: 0.75,
         stroke: {
@@ -566,6 +571,22 @@ describe('LightTableCommandService queries', () => {
     expect(state.service.queryVector(state.session.id, vector.id)).toMatchObject({
       layerId: vector.id, totalElements: 1, truncated: false,
       elements: [expect.objectContaining({ id: 'badge', type: 'live-shape' })]
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
+  it('projects MCP layer pages without inline vector geometry', () => {
+    const state = setup();
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    const first = state.service.queryLayerPage({ documentId: state.session.id,
+      expectedDocumentRevision: revision, limit: 1 });
+    expect(first).toMatchObject({ status: 'completed', canonicalRevision: revision,
+      offset: 0, limit: 1, truncated: true, layers: [{}] });
+    if (first.status !== 'completed') throw new Error('Expected layer page.');
+    expect(state.service.queryLayerPage({ documentId: state.session.id,
+      cursor: first.nextCursor, limit: 1 })).toMatchObject({
+      status: 'completed', offset: 1, truncated: false, layers: [{}]
     });
     state.service.dispose();
     state.workspace.dispose();
@@ -850,6 +871,10 @@ describe('LightTableCommandService registry', () => {
       exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
       exportPreviewArtifact: vi.fn(async (maxEdge: number) =>
         new File(['preview'], `preview-${maxEdge}.png`, { type: 'image/png' })),
+      exportLayerPreviewArtifact: vi.fn(async () => ({
+        file: new File(['layer'], 'layer.png', { type: 'image/png' }), width: 40, height: 30,
+        sourceToOutput: { a: 0.5, b: 0, c: 0, d: 0.5, tx: 0, ty: 0 }
+      })),
       exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
       beginGesture: vi.fn(async () => true),
       updateGesture: vi.fn(async () => true),
@@ -1425,7 +1450,9 @@ describe('LightTableCommandService registry', () => {
         documentId: state.session.id, canonicalRevision: revision,
         width: 80, height: 60, maxEdge: 512
       } } });
-    expect(state.ports.exportPreviewArtifact).toHaveBeenCalledWith(state.session.id, 512);
+    expect(state.ports.exportPreviewArtifact).toHaveBeenCalledWith(
+      state.session.id, 512, { format: 'png' }
+    );
     const second = await state.service.requestDocumentPreview(request);
     expect(second).toMatchObject({ status: 'completed', reused: true });
     expect(state.ports.exportPreviewArtifact).toHaveBeenCalledOnce();
@@ -1440,6 +1467,31 @@ describe('LightTableCommandService registry', () => {
       currentRevision: revision });
     state.service.dispose();
     state.workspace.dispose();
+  });
+
+  it('serves isolated revision-bound layer pixels and invalidates their cache on release', async () => {
+    const state = setup();
+    const document = state.session.getSnapshot().document!;
+    const layerId = document.activeLayerId!;
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    const request = { documentId: state.session.id, layerId, channel: 'pixels',
+      expectedDocumentRevision: revision, maxEdge: 256 };
+    const first = await state.service.requestLayerPreview(request);
+    expect(first).toMatchObject({ status: 'completed', reused: false,
+      artifact: { preview: { documentId: state.session.id, canonicalRevision: revision,
+        width: 40, height: 30, maxEdge: 256,
+        target: { kind: 'layer', layerId, channel: 'pixels' } } } });
+    expect(state.ports.exportLayerPreviewArtifact).toHaveBeenCalledWith(
+      state.session.id, layerId, 'pixels', 256, { format: 'png' }
+    );
+    await expect(state.service.requestLayerPreview(request))
+      .resolves.toMatchObject({ status: 'completed', reused: true });
+    expect(state.ports.exportLayerPreviewArtifact).toHaveBeenCalledOnce();
+    if (first.status !== 'completed') throw new Error('Expected layer preview artifact.');
+    expect(state.service.releaseArtifact(first.artifact.id)).toBe(true);
+    await expect(state.service.requestLayerPreview(request))
+      .resolves.toMatchObject({ status: 'completed', reused: false });
+    state.service.dispose(); state.workspace.dispose();
   });
 
   it('retains successful PSD compatibility findings on the opaque artifact', async () => {

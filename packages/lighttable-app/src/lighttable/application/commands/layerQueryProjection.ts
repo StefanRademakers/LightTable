@@ -3,6 +3,7 @@ import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults'
 
 export interface VectorContentQuerySummary {
   readonly elementCount: number;
+  readonly truncated: boolean;
   readonly elements: readonly {
     readonly id: string;
     readonly elementType: 'path' | 'live-shape';
@@ -24,11 +25,14 @@ export interface VectorContentQuerySummary {
 }
 
 export function projectVectorContentQuery(
-  node: Extract<LayerNode, { readonly type: 'vector' }>
+  node: Extract<LayerNode, { readonly type: 'vector' }>,
+  includeElements = true
 ): VectorContentQuerySummary {
+  const source = includeElements ? node.elements.slice(0, 64) : [];
   return {
     elementCount: node.elements.length,
-    elements: node.elements.map((element) => ({
+    truncated: source.length < node.elements.length,
+    elements: source.map((element) => ({
       id: element.id,
       elementType: element.type,
       fill: element.style.fill === null ? 'none'
@@ -94,7 +98,8 @@ export interface LayerQuerySummary {
 export function projectLayerQuery(
   node: LayerNode,
   parentId: LayerId | null,
-  depth: number
+  depth: number,
+  options: { readonly includeVectorElements?: boolean } = {}
 ): LayerQuerySummary {
   const preservedVector = node.type !== 'vector'
     && Boolean(node.photoshop?.preserved.vectorMask);
@@ -140,6 +145,8 @@ export function projectLayerQuery(
       writingMode: null
     } : null,
     vectorRole: node.type === 'vector' ? node.role ?? 'artwork' : null,
-    vectorContent: node.type === 'vector' ? projectVectorContentQuery(node) : null
+    vectorContent: node.type === 'vector'
+      ? projectVectorContentQuery(node, options.includeVectorElements ?? true)
+      : null
   };
 }

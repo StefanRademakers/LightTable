@@ -1,0 +1,46 @@
+Task 254 - Bounded agent layer observation
+
+Goal
+====
+
+Make structural and visual layer inspection safe and useful for large editable
+documents without polling, viewport mutation or repeated full-resolution pixel
+transfer.
+
+Parent program and goal
+=======================
+
+- [`Task 214`](../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Task 218`](../task_218_agent_observation_preview_and_events/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Checklist
+=========
+
+- [x] Replace unbounded `layer.list` output with revision-bound, cursor-based
+      pages and explicit total/truncation metadata.
+- [x] Keep list rows compact; use explicit stable layer-ID queries/previews for
+      currently supported text, vector, raster, mask, effects, Warp and Grade
+      details.
+- [ ] Complete targeted detail queries for every layer and adjustment kind.
+- [x] Reject stale or cross-revision cursors so pages cannot silently describe
+      different document states.
+- [x] Add bounded layer/channel preview requests through the real GPU renderer
+      without changing the artist viewport.
+- [ ] Add arbitrary document-region previews.
+- [x] Cache current previews by revision, target, channel, size, format and
+      quality; avoid
+      re-rendering unchanged requests and document transfer on event polling.
+- [x] Prove targeted current-layer inspection, stale revision, cache/release and
+      packaged MCP image behavior, including unchanged-image transfer suppression.
+- [x] Prove bounded iterative traversal on synthetic 5,000-layer-wide and
+      2,000-level-deep documents without building a full projected layer array.
+- [x] Update Task 218/current MCP documentation with honest current/open state.
+- [ ] Run full gates, move to `work/done/` and commit the milestone.
+
+Non-goals
+=========
+
+- Returning a serialized document or raw GPU buffers.
+- Streaming the canvas, pointer samples or slider previews over MCP.
+- Performing visual interpretation inside LightTable.

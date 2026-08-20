@@ -145,6 +145,7 @@ const createHarness = () => {
     }) : null),
     executeAtomicBatch: vi.fn(), exportNativeArtifact: vi.fn(), exportPngArtifact: vi.fn(),
     exportPreviewArtifact: vi.fn(),
+    exportLayerPreviewArtifact: vi.fn(),
     exportPsdArtifact: vi.fn(), beginGesture: vi.fn(), updateGesture: vi.fn(), finishGesture: vi.fn(),
     undo: vi.fn(() => session.history.undo()), redo: vi.fn(() => session.history.redo())
   };

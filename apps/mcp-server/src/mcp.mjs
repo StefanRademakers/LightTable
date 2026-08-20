@@ -112,9 +112,13 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
   }, withResult(({ documentId }) => client.invoke('document.query', { documentId })));
   server.registerTool('lighttable_layers', {
-    title: 'List editable LightTable layers', description: 'Returns the compact editable layer tree with stable IDs, transforms, visibility, blend and type summaries.',
-    inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
-  }, withResult(({ documentId }) => client.invoke('layer.list', { documentId })));
+    title: 'List editable LightTable layers',
+    description: 'Returns one compact revision-bound page of the editable layer tree. Follow nextCursor; use targeted content queries for text, vector, effects, Grade or Warp details.',
+    inputSchema: z.object({ documentId: z.string().min(1),
+      expectedDocumentRevision: z.number().int().nonnegative().optional(),
+      cursor: z.string().max(1024).optional(), limit: z.number().int().min(1).max(256).default(128) }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('layer.list', input)));
   server.registerTool('lighttable_layer_effects', {
     title: 'Inspect layer effects', description: 'Returns canonical editable Layer Style settings for one layer.',
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
@@ -274,8 +278,9 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     await awaitDocumentRenderer(client, documentId);
     const preview = await awaitCommand(client, { documentId, command: 'file.exportPng',
       commandRequestId: crypto.randomUUID(), commandParameters: {} });
-    const layers = await client.invoke('layer.list', { documentId });
-    const titleLayer = Array.isArray(layers) ? layers.find((layer) => layer?.type === 'text' && layer?.name === title) : null;
+    const layerPage = await client.invoke('layer.list', { documentId });
+    const layers = Array.isArray(layerPage) ? layerPage : layerPage?.layers ?? [];
+    const titleLayer = layers.find((layer) => layer?.type === 'text' && layer?.name === title);
     if (!titleLayer?.id) throw new Error('The editable title layer was not published by the design transaction.');
     const revision = await awaitCommand(client, { documentId, command: 'layer.setFillOpacity',
       commandRequestId: crypto.randomUUID(), commandParameters: { layerId: titleLayer.id, opacity: 0.98 } });
@@ -455,19 +460,25 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
   }, { edit: true }));
   server.registerTool('lighttable_preview', {
     title: 'Render a LightTable document preview',
-    description: 'Returns a bounded PNG from LightTable’s GPU preview path for exactly the requested canonical document revision.',
+    description: 'Returns a bounded lossless PNG or quality-controlled WebP from LightTable’s GPU preview path for exactly the requested canonical document revision. Pass knownArtifactId to receive metadata only when unchanged.',
     inputSchema: z.object({ documentId: z.string().min(1),
       expectedDocumentRevision: z.number().int().nonnegative(),
-      maxEdge: z.number().int().min(64).max(1024).default(1024) }),
+      maxEdge: z.number().int().min(64).max(1024).default(1024),
+      format: z.enum(['png', 'webp']).default('png'),
+      quality: z.number().min(0.1).max(1).optional(),
+      knownArtifactId: z.string().min(1).max(256).optional() }),
     annotations: { readOnlyHint: true }
-  }, async ({ documentId, expectedDocumentRevision, maxEdge }) => {
+  }, async ({ documentId, expectedDocumentRevision, maxEdge, format, quality, knownArtifactId }) => {
     try {
       const preview = await client.invoke('document.preview', {
-        documentId, expectedDocumentRevision, maxEdge
+        documentId, expectedDocumentRevision, maxEdge, format, quality
       });
       if (preview?.status !== 'completed' || !preview.artifact?.id) {
         throw new Error(preview?.message ?? 'Preview rendering did not complete.');
       }
+      if (knownArtifactId === preview.artifact.id) return response({ documentId,
+        canonicalRevision: expectedDocumentRevision, artifact: preview.artifact,
+        reused: true, unchanged: true });
       const artifact = await client.readArtifact(preview.artifact.id);
       if (artifact.bytes.byteLength > 20 * 1024 * 1024) throw new Error('Preview exceeds the 20 MiB MCP response limit.');
       return { content: [
@@ -475,6 +486,41 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
         { type: 'text', text: JSON.stringify({ documentId,
           canonicalRevision: expectedDocumentRevision, artifact: preview.artifact,
           reused: preview.reused }) }
+      ] };
+    } catch (error) { return failure(error); }
+  });
+  server.registerTool('lighttable_layer_preview', {
+    title: 'Render isolated LightTable layer content',
+    description: 'Returns a bounded lossless PNG or quality-controlled WebP of one layer pixel source or raster mask for exactly one canonical document revision. Pass knownArtifactId to avoid unchanged image transfer. It does not stream the canvas or change the artist viewport.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1),
+      channel: z.enum(['pixels', 'mask']).default('pixels'),
+      expectedDocumentRevision: z.number().int().nonnegative(),
+      maxEdge: z.number().int().min(64).max(1024).default(1024),
+      format: z.enum(['png', 'webp']).default('png'),
+      quality: z.number().min(0.1).max(1).optional(),
+      knownArtifactId: z.string().min(1).max(256).optional() }),
+    annotations: { readOnlyHint: true }
+  }, async (input) => {
+    try {
+      const preview = await client.invoke('layer.preview', input);
+      if (preview?.status !== 'completed' || !preview.artifact?.id) {
+        throw new Error(preview?.message ?? 'Layer preview rendering did not complete.');
+      }
+      if (input.knownArtifactId === preview.artifact.id) return response({
+        documentId: input.documentId, layerId: input.layerId, channel: input.channel,
+        canonicalRevision: input.expectedDocumentRevision, artifact: preview.artifact,
+        reused: true, unchanged: true
+      });
+      const artifact = await client.readArtifact(preview.artifact.id);
+      if (artifact.bytes.byteLength > 20 * 1024 * 1024) {
+        throw new Error('Layer preview exceeds the 20 MiB MCP response limit.');
+      }
+      return { content: [
+        { type: 'image', data: Buffer.from(artifact.bytes).toString('base64'), mimeType: artifact.mediaType },
+        { type: 'text', text: JSON.stringify({ documentId: input.documentId,
+          layerId: input.layerId, channel: input.channel,
+          canonicalRevision: input.expectedDocumentRevision,
+          artifact: preview.artifact, reused: preview.reused }) }
       ] };
     } catch (error) { return failure(error); }
   });

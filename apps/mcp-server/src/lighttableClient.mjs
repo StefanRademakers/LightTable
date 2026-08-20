@@ -89,7 +89,23 @@ export class MockLightTableClient {
           maxEdge: parameters.maxEdge ?? 1024 } } }
       : { status: 'rejected', code: 'stale-document-revision', message: 'stale',
         currentRevision: this.document.canonicalRevision };
-    if (method === 'layer.list') return parameters.documentId === this.document.id ? this.layers : null;
+    if (method === 'layer.preview') return parameters.documentId === this.document.id
+      && parameters.expectedDocumentRevision === this.document.canonicalRevision
+      ? { status: 'completed', reused: false, artifact: { id: 'layer-preview-demo',
+        kind: 'render-preview', name: 'layer-pixels.png', mediaType: 'image/png', byteLength: 3,
+        createdAt: Date.now(), preview: { documentId: this.document.id,
+          canonicalRevision: this.document.canonicalRevision, width: 512, height: 341,
+          maxEdge: parameters.maxEdge ?? 1024, target: { kind: 'layer',
+            layerId: parameters.layerId, channel: parameters.channel,
+            sourceToOutput: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 } } } } }
+      : { status: 'rejected', code: 'stale-document-revision', message: 'stale',
+        currentRevision: this.document.canonicalRevision };
+    if (method === 'layer.list') return parameters.documentId === this.document.id ? {
+      status: 'completed', documentId: this.document.id,
+      canonicalRevision: this.document.canonicalRevision, total: this.layers.length,
+      offset: 0, limit: parameters.limit ?? 128, truncated: false,
+      nextCursor: null, layers: this.layers
+    } : { status: 'rejected', code: 'document-not-found', message: 'Document not found.' };
     if (method === 'layer.effects') return { layerId: parameters.layerId, enabled: true, revision: 0, effects: [] };
     if (method === 'text.query') return { layerId: parameters.layerId, sourceKind: 'flow', editable: true,
       revision: 1, transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
@@ -129,7 +145,9 @@ export class MockLightTableClient {
   }
 
   async readArtifact(artifactId) {
-    if (artifactId !== 'preview-demo') throw new Error('Mock artifact does not exist.');
+    if (artifactId !== 'preview-demo' && artifactId !== 'layer-preview-demo') {
+      throw new Error('Mock artifact does not exist.');
+    }
     return { bytes: new Uint8Array([1, 2, 3]), mediaType: 'image/png', name: 'preview.png' };
   }
 }

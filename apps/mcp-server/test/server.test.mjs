@@ -36,6 +36,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   const tools = await reader.listTools();
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_workspace'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_preview'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_preview'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_document'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_build_social_design'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_text'));
@@ -60,6 +61,11 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   const workspace = await reader.callTool({ name: 'lighttable_workspace', arguments: {} });
   assert.equal(workspace.isError, undefined);
   assert.equal(workspace.structuredContent.activeDocumentId, 'document-demo');
+  const layers = await reader.callTool({ name: 'lighttable_layers', arguments: {
+    documentId: 'document-demo', expectedDocumentRevision: 1, limit: 1
+  } });
+  assert.equal(layers.structuredContent.canonicalRevision, 1);
+  assert.ok(Array.isArray(layers.structuredContent.layers));
   const preview = await reader.callTool({ name: 'lighttable_preview', arguments: {
     documentId: 'document-demo', expectedDocumentRevision: 1, maxEdge: 512
   } });
@@ -67,6 +73,18 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(preview.content.some(({ type }) => type === 'image'));
   assert.match(preview.content.find(({ type }) => type === 'text').text,
     /"canonicalRevision":1/u);
+  const layerPreview = await reader.callTool({ name: 'lighttable_layer_preview', arguments: {
+    documentId: 'document-demo', layerId: 'layer-background', channel: 'pixels',
+    expectedDocumentRevision: 1, maxEdge: 512
+  } });
+  assert.equal(layerPreview.isError, undefined);
+  assert.ok(layerPreview.content.some(({ type }) => type === 'image'));
+  const unchangedLayerPreview = await reader.callTool({ name: 'lighttable_layer_preview', arguments: {
+    documentId: 'document-demo', layerId: 'layer-background', channel: 'pixels',
+    expectedDocumentRevision: 1, maxEdge: 512, knownArtifactId: 'layer-preview-demo'
+  } });
+  assert.equal(unchangedLayerPreview.content.some(({ type }) => type === 'image'), false);
+  assert.equal(unchangedLayerPreview.structuredContent.unchanged, true);
   const denied = await reader.callTool({ name: 'lighttable_execute', arguments: {
     documentId: 'document-demo', command: 'layer.createRaster', parameters: {} } });
   assert.equal(denied.isError, true);

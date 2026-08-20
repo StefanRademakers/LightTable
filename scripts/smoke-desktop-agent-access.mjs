@@ -27,6 +27,7 @@ const invoke = async (address, token, method, parameters = {}, requestId = crypt
   if (!response.ok) throw new Error(`Agent invoke failed (${response.status}): ${JSON.stringify(payload)}`);
   return payload.value;
 };
+const pageLayers = (value) => Array.isArray(value) ? value : value?.layers ?? [];
 const agentGradient = (tx) => ({ kind: 'gradient',
   asset: { id: 'agent-gradient', name: 'Agent gradient', type: 'solid', smoothness: 1,
     colorStops: [
@@ -78,7 +79,7 @@ try {
   const workspace = await invoke(address, token, 'workspace.query');
   const originalId = workspace.documents[0]?.id;
   if (!originalId) throw new Error('Agent Access could not see the open document.');
-  const layers = await invoke(address, token, 'layer.list', { documentId: originalId });
+  const layers = pageLayers(await invoke(address, token, 'layer.list', { documentId: originalId }));
   const layerId = layers[0]?.id;
   if (!layerId) throw new Error('Agent Access could not see the existing layers.');
   const renamed = await invoke(address, token, 'command.execute', {
@@ -232,7 +233,7 @@ try {
   if (transformed.status !== 'completed' || blended.status !== 'completed') {
     throw new Error('Agent badge treatment did not complete.');
   }
-  const designedLayers = await invoke(address, token, 'layer.list', { documentId: originalId });
+  const designedLayers = pageLayers(await invoke(address, token, 'layer.list', { documentId: originalId }));
   const badge = designedLayers.find(({ id }) => id === badgeLayerId);
   if (badge?.type !== 'vector' || badge.name !== 'Agent Badge' || badge.blendMode !== 'screen'
     || badge.transform?.tx !== 32 || badge.transform?.ty !== 18
@@ -294,7 +295,7 @@ try {
     }
   }
   const afterMaskDocument = await invoke(address, token, 'document.query', { documentId: originalId });
-  const maskedLayers = await invoke(address, token, 'layer.list', { documentId: originalId });
+  const maskedLayers = pageLayers(await invoke(address, token, 'layer.list', { documentId: originalId }));
   const masked = maskedLayers.find(({ id }) => id === layerId);
   if (afterMaskDocument.activeLayerId !== activeBeforeMask) {
     throw new Error('Explicit Agent mask operations changed the artist active layer.');
@@ -328,7 +329,7 @@ try {
   if (gradientEdit.status !== 'completed') {
     throw new Error(`Agent Gradient Fill edit failed: ${JSON.stringify(gradientEdit)}`);
   }
-  const gradientLayers = await invoke(address, token, 'layer.list', { documentId: originalId });
+  const gradientLayers = pageLayers(await invoke(address, token, 'layer.list', { documentId: originalId }));
   const gradientLayer = gradientLayers.find(({ id }) => id === gradientLayerId);
   const queriedGradient = await invoke(address, token, 'vector.query', {
     documentId: originalId, layerId: gradientLayerId

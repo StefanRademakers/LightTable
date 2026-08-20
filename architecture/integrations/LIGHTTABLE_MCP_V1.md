@@ -73,10 +73,23 @@ read/edit scopes require explicit desktop approval. See
 Read operations:
 
 - inspect workspace, document dimensions/aspect/revision/viewport;
-- list the compact editable layer tree;
-- inspect Layer Style effects;
+- list the compact editable layer tree in revision-bound cursor pages of at
+  most 256 rows; list rows do not inline vector geometry;
+- inspect targeted text, vector, Warp, basic Grade and Layer Style content by
+  stable layer ID;
 - query currently valid semantic commands;
-- request a PNG preview through LightTable's real export renderer.
+- request a bounded whole-document PNG through LightTable's real export
+  renderer;
+- request isolated layer pixels or a raster mask through the mounted GPU layer
+  renderer without moving the artist viewport.
+
+Whole-document and layer previews require an exact canonical document
+revision. `maxEdge` controls output size from 64-1024 pixels; PNG is lossless,
+while WebP accepts an explicit `quality` from 0.1-1. Previews are cached by
+revision, target/channel, size, format and quality. Supplying the
+last `knownArtifactId` returns metadata only when the preview is unchanged, so
+event-driven clients do not repeatedly transfer the same Base64 PNG. Arbitrary
+document-region preview remains open.
 
 Write operations:
 
@@ -102,9 +115,10 @@ the explicitly enabled host bridge.
 The server also contains a complete editable social-design workflow that uses
 the same public commands to create a document, placed artwork, gradient vector,
 point/paragraph text and a drop shadow, then verifies undo/redo and exports GPU
-preview, native and PSD artifacts. Remaining gaps include broad semantic
-coverage for transforms, masks, selections, adjustments and many interactive
-tools. Those must be added to the shared application command service first;
+preview, native and PSD artifacts. Remaining gaps include arbitrary region
+preview, complete targeted inspection for every adjustment/content type and
+broad semantic coverage for some tools. Those must be added to the shared
+application command service first;
 DOM selectors or a parallel MCP-only scene format remain forbidden.
 
 ### Exposure-list ownership
@@ -205,9 +219,12 @@ isolation before release.
 
 `npm run smoke:desktop:agent-access` verifies the product-owned bridge in one
 packaged desktop instance. `npm run smoke:mcp` remains the full remote protocol
-test and currently uses the isolated development bridge fixture. Its 2026-08-06
-run used `D:\shapes.psd`, added and renamed an editable raster layer, painted a
-single undoable stroke, fetched a GPU preview and exported all three artifacts.
+test and currently uses the isolated development bridge fixture. Its 2026-08-20
+run used `D:\shapes.psd`, traversed revision-bound layer pages, fetched both a
+whole-document PNG and isolated 256-pixel WebP raster-layer preview at quality
+0.72, proved an
+unchanged layer preview omitted image bytes, then exercised semantic edits and
+exported all three artifacts.
 Evidence is under `D:\mediavibe\LightTableTestFiles\mcp`:
 
 - `mcp-layered-design.png`;

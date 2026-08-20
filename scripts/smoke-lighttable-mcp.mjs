@@ -107,6 +107,32 @@ try {
     || openingPreviewMetadata.artifact?.preview?.maxEdge !== 256) {
     throw new Error(`Opening MCP preview lost revision context: ${JSON.stringify(openingPreviewMetadata)}`);
   }
+  if (!backgroundSourceLayerId) throw new Error('MCP fixture has no raster layer for layer preview.');
+  const openingLayerPreview = await call('lighttable_layer_preview', { documentId,
+    layerId: backgroundSourceLayerId, channel: 'pixels',
+    expectedDocumentRevision: before.canonicalRevision, maxEdge: 256,
+    format: 'webp', quality: 0.72 });
+  const openingLayerPreviewMetadata = JSON.parse(
+    openingLayerPreview.content.find(({ type }) => type === 'text')?.text ?? '{}'
+  );
+  if (!openingLayerPreview.content.some(({ type, mimeType }) => type === 'image' && mimeType === 'image/webp')
+    || openingLayerPreviewMetadata.artifact?.preview?.target?.layerId !== backgroundSourceLayerId
+    || openingLayerPreviewMetadata.artifact.preview.target.channel !== 'pixels'
+    || openingLayerPreviewMetadata.artifact.preview.quality !== 0.72) {
+    throw new Error(`Opening MCP layer preview lost target context: ${JSON.stringify(openingLayerPreviewMetadata)}`);
+  }
+  const reusedLayerPreview = await call('lighttable_layer_preview', { documentId,
+    layerId: backgroundSourceLayerId, channel: 'pixels',
+    expectedDocumentRevision: before.canonicalRevision, maxEdge: 256,
+    format: 'webp', quality: 0.72,
+    knownArtifactId: openingLayerPreviewMetadata.artifact.id });
+  const reusedLayerPreviewMetadata = reusedLayerPreview.structuredContent;
+  if (!reusedLayerPreviewMetadata.reused
+    || !reusedLayerPreviewMetadata.unchanged
+    || reusedLayerPreview.content.some(({ type }) => type === 'image')
+    || reusedLayerPreviewMetadata.artifact?.id !== openingLayerPreviewMetadata.artifact?.id) {
+    throw new Error('Unchanged MCP layer preview rendered or retransferred image bytes.');
+  }
   const openingEvents = (await call('lighttable_events', { afterCursor: 0, limit: 200 }))
     .structuredContent;
   let eventCursor = openingEvents.latestCursor;

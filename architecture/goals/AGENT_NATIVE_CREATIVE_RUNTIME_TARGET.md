@@ -189,8 +189,10 @@ Styles and real renderer preview/export paths.
 **Partial:** command coverage is incomplete; parameter properties are
 discoverable but are not yet complete shared machine schemas; Actions lacks
 durable named sets, rich parameters, gesture coalescing and task-aware
-playback; structural queries and previews are too coarse for general visual
-reasoning; equivalent UI/Actions/MCP outcomes are not yet broadly proven.
+playback; structural layer pages plus whole-document/layer/mask previews now
+cover a bounded inspection baseline, but arbitrary region preview and complete
+targeted detail queries remain open; equivalent UI/Actions/MCP outcomes are not
+yet broadly proven.
 
 **Target only:** reference decomposition, autonomous visual correction,
 editable-first reconstruction, creative branching, teach mode/skill library,

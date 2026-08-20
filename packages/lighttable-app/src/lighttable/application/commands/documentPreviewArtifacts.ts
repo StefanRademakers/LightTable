@@ -3,6 +3,7 @@ import type {
   LightTableArtifactMetadata,
   LightTablePreviewArtifactContext
 } from './lightTableArtifactRegistry';
+import type { LightTablePreviewEncoding } from './lightTableCommandContract';
 
 export const MIN_AGENT_PREVIEW_EDGE = 64;
 export const MAX_AGENT_PREVIEW_EDGE = 1024;
@@ -24,7 +25,7 @@ interface PreviewDocumentSnapshot {
 
 export interface DocumentPreviewArtifactDependencies {
   snapshot(documentId: DocumentSessionId): PreviewDocumentSnapshot | null;
-  render(documentId: DocumentSessionId, maxEdge: number): Promise<File>;
+  render(documentId: DocumentSessionId, maxEdge: number, encoding: LightTablePreviewEncoding): Promise<File>;
   register(file: File, context: LightTablePreviewArtifactContext): LightTableArtifactMetadata;
   query(artifactId: string): LightTableArtifactMetadata | null;
 }
@@ -39,6 +40,16 @@ const previewDimensions = (width: number, height: number, maxEdge: number) => {
     width: Math.max(1, Math.round(width * scale)),
     height: Math.max(1, Math.round(height * scale))
   };
+};
+
+export const parsePreviewEncoding = (value: Record<string, unknown>): LightTablePreviewEncoding | null => {
+  const format = value.format ?? 'png';
+  const quality = value.quality;
+  if (format !== 'png' && format !== 'webp') return null;
+  if (format === 'png') return quality === undefined ? { format } : null;
+  if (quality !== undefined && (typeof quality !== 'number' || !Number.isFinite(quality)
+    || quality < 0.1 || quality > 1)) return null;
+  return { format, quality: (quality as number | undefined) ?? 0.85 };
 };
 
 /**
@@ -58,13 +69,14 @@ export class DocumentPreviewArtifactController {
       ? value.expectedDocumentRevision : null;
     const requestedEdge = isRecord(value) && typeof value.maxEdge === 'number'
       ? value.maxEdge : value && isRecord(value) && value.maxEdge === undefined ? undefined : null;
+    const encoding = isRecord(value) ? parsePreviewEncoding(value) : null;
     if (!isRecord(value) || typeof value.documentId !== 'string'
       || expected === null || !Number.isSafeInteger(expected) || expected < 0
-      || requestedEdge === null
+      || requestedEdge === null || !encoding
       || (requestedEdge !== undefined && (!Number.isInteger(requestedEdge)
         || requestedEdge < MIN_AGENT_PREVIEW_EDGE || requestedEdge > MAX_AGENT_PREVIEW_EDGE))) {
       return Promise.resolve({ status: 'rejected', code: 'invalid-request',
-        message: `Preview requires documentId, expectedDocumentRevision and maxEdge ${MIN_AGENT_PREVIEW_EDGE}-${MAX_AGENT_PREVIEW_EDGE}.` });
+        message: `Preview requires documentId, expectedDocumentRevision, maxEdge ${MIN_AGENT_PREVIEW_EDGE}-${MAX_AGENT_PREVIEW_EDGE}, and PNG or WebP encoding (WebP quality 0.1-1).` });
     }
     const documentId = value.documentId as DocumentSessionId;
     const expectedRevision = expected;
@@ -79,7 +91,7 @@ export class DocumentPreviewArtifactController {
         message: 'The expected document revision is stale.',
         currentRevision: opening.canonicalRevision });
     }
-    const key = `${documentId}:${expectedRevision}:${maxEdge}`;
+    const key = `${documentId}:${expectedRevision}:${maxEdge}:${encoding.format}:${encoding.quality ?? 'lossless'}`;
     const cached = this.cache.get(key);
     const artifact = cached ? this.dependencies.query(cached) : null;
     if (artifact?.kind === 'render-preview') {
@@ -89,7 +101,7 @@ export class DocumentPreviewArtifactController {
     const pending = this.inFlight.get(key);
     if (pending) return pending;
     let request!: Promise<DocumentPreviewResult>;
-    request = this.render(documentId, expectedRevision, maxEdge, key, this.generation)
+    request = this.render(documentId, expectedRevision, maxEdge, encoding, key, this.generation)
       .finally(() => {
         if (this.inFlight.get(key) === request) this.inFlight.delete(key);
       });
@@ -110,10 +122,11 @@ export class DocumentPreviewArtifactController {
   }
 
   private async render(documentId: DocumentSessionId, expectedRevision: number,
-    maxEdge: number, key: string, generation: number): Promise<DocumentPreviewResult> {
+    maxEdge: number, encoding: LightTablePreviewEncoding, key: string,
+    generation: number): Promise<DocumentPreviewResult> {
     let file: File;
     try {
-      file = await this.dependencies.render(documentId, maxEdge);
+      file = await this.dependencies.render(documentId, maxEdge, encoding);
     } catch (reason) {
       return { status: 'rejected', code: 'renderer-unavailable',
         message: reason instanceof Error ? reason.message : 'The document preview renderer is unavailable.' };
@@ -137,7 +150,7 @@ export class DocumentPreviewArtifactController {
       documentId,
       canonicalRevision: expectedRevision,
       ...dimensions,
-      maxEdge
+      maxEdge, format: encoding.format, ...(encoding.quality === undefined ? {} : { quality: encoding.quality })
     });
     this.cache.set(key, artifact.id);
     return { status: 'completed', artifact, reused: false };

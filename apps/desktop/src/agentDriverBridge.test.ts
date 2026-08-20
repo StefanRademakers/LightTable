@@ -78,6 +78,32 @@ describe('invokeAgentDriver', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('forwards revision-bound layer pages without falling back to the unbounded query', async () => {
+    const queryLayerPage = vi.fn(() => ({ status: 'completed' as const,
+      documentId: 'document-1', canonicalRevision: 8, total: 2, offset: 0,
+      limit: 1, truncated: true, nextCursor: 'cursor-1', layers: [] }));
+    const queryLayers = vi.fn();
+    const driver = driverWith({ queryLayerPage, queryLayers });
+    const parameters = { documentId: 'document-1', expectedDocumentRevision: 8, limit: 1 };
+    await expect(invokeAgentDriver(driver, 'layer.list', parameters))
+      .resolves.toMatchObject({ canonicalRevision: 8, truncated: true });
+    expect(queryLayerPage).toHaveBeenCalledWith(parameters);
+    expect(queryLayers).not.toHaveBeenCalled();
+  });
+
+  it('forwards isolated layer previews without executing a command', async () => {
+    const requestLayerPreview = vi.fn(async () => ({ status: 'rejected' as const,
+      code: 'channel-unavailable' as const, message: 'missing mask' }));
+    const execute = vi.fn();
+    const driver = driverWith({ requestLayerPreview, execute });
+    const parameters = { documentId: 'document-1', layerId: 'layer-1', channel: 'mask',
+      expectedDocumentRevision: 8, maxEdge: 512 };
+    await expect(invokeAgentDriver(driver, 'layer.preview', parameters))
+      .resolves.toMatchObject({ code: 'channel-unavailable' });
+    expect(requestLayerPreview).toHaveBeenCalledWith(parameters);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('forwards publication event cursors without executing a command', async () => {
     const queryPublicationEvents = vi.fn(() => ({ cursor: 6, latestCursor: 8,
       oldestCursor: 1, gap: false, hasMore: true, events: [] }));

@@ -74,7 +74,8 @@ try {
   await waitFor(() => broker.status(deviceId).clients[0]?.approved === true, 'client approval');
   const workspace = await broker.invoke(deviceId, 'client-design', 'workspace.query');
   const documentId = workspace.documents[0]?.id;
-  const layers = await broker.invoke(deviceId, 'client-design', 'layer.list', { documentId });
+  const layerPage = await broker.invoke(deviceId, 'client-design', 'layer.list', { documentId });
+  const layers = Array.isArray(layerPage) ? layerPage : layerPage?.layers ?? [];
   const result = await broker.invoke(deviceId, 'client-design', 'command.execute', {
     commandRequestId: 'tunnel-rename', command: 'layer.rename', documentId,
     commandParameters: { layerId: layers[0].id, name: 'Renamed through secure tunnel' }

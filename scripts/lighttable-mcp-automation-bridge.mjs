@@ -58,7 +58,8 @@ const invoke = (method, parameters) => page.evaluate(async ({ method, parameters
   if (method === 'workspace.query') return driver.queryWorkspace();
   if (method === 'document.query') return driver.queryDocument(parameters.documentId);
   if (method === 'document.preview') return driver.requestDocumentPreview(parameters);
-  if (method === 'layer.list') return driver.queryLayers(parameters.documentId);
+  if (method === 'layer.preview') return driver.requestLayerPreview(parameters);
+  if (method === 'layer.list') return driver.queryLayerPage(parameters);
   if (method === 'layer.effects') return driver.queryLayerEffects(parameters.documentId, parameters.layerId);
   if (method === 'text.query') return driver.queryText(parameters.documentId, parameters.layerId);
   if (method === 'vector.query') return driver.queryVector(parameters.documentId, parameters.layerId);

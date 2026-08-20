@@ -9,6 +9,17 @@ export interface LightTablePreviewArtifactContext {
   readonly width: number;
   readonly height: number;
   readonly maxEdge: number;
+  readonly format?: 'png' | 'webp';
+  readonly quality?: number;
+  readonly target?: {
+    readonly kind: 'layer';
+    readonly layerId: string;
+    readonly channel: 'pixels' | 'mask';
+    readonly sourceToOutput: {
+      readonly a: number; readonly b: number; readonly c: number;
+      readonly d: number; readonly tx: number; readonly ty: number;
+    };
+  };
 }
 
 export interface LightTableArtifactMetadata {
