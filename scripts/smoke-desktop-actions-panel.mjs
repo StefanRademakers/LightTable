@@ -46,6 +46,25 @@ try {
   await recorder.getByRole('button', { name: 'Record' }).click();
   await recorder.getByText('recording', { exact: true }).waitFor();
 
+  const viewport = window.locator('.lighttable-viewport');
+  const viewportBounds = await viewport.boundingBox();
+  if (!viewportBounds) throw new Error('Actions smoke could not measure the canvas viewport.');
+  await window.keyboard.press('m');
+  await window.locator('.lighttable-tool-options__identity')
+    .filter({ hasText: 'Rectangular selection' }).waitFor();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.3,
+    viewportBounds.y + viewportBounds.height * 0.3
+  );
+  await window.mouse.down();
+  await window.mouse.move(
+    viewportBounds.x + viewportBounds.width * 0.55,
+    viewportBounds.y + viewportBounds.height * 0.55,
+    { steps: 12 }
+  );
+  await window.mouse.up();
+  await recorder.locator('li').filter({ hasText: 'selection.applyShape' }).waitFor();
+
   const layerRows = window.getByRole('treeitem');
   const before = await layerRows.count();
   await window.getByRole('menuitem', { name: 'Layer' }).click();
@@ -86,7 +105,7 @@ try {
   await undoStep.getByText('no', { exact: true }).waitFor();
   const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
   await renameStep.locator('summary').click();
-  await renameStep.getByText('$step1.layerId', { exact: false }).waitFor();
+  await renameStep.getByText('$step2.layerId', { exact: false }).waitFor();
   await recorder.getByRole('button', { name: 'Stop' }).click();
   await recorder.getByText('stopped', { exact: true }).waitFor();
   await recorder.getByRole('button', { name: 'Play', exact: true }).click();

@@ -300,6 +300,28 @@ export class LightTableCommandService {
     this.actionPlayback.clear();
     return this.actionRecorder.clear();
   };
+
+  recordObservedCommand(command: LightTableCommandId, documentId: DocumentSessionId,
+    parameters: unknown, value: unknown): boolean {
+    const recording = this.actionRecorder.snapshot();
+    if (recording.status !== 'recording' || !recording.id) return false;
+    const startedAt = Date.now();
+    const parsed = this.parseRequest({
+      protocolVersion: LIGHTTABLE_COMMAND_PROTOCOL_VERSION,
+      requestId: `observed-${command}-${crypto.randomUUID()}`,
+      command,
+      documentId,
+      parameters
+    });
+    if ('rejection' in parsed) return false;
+    this.actionRecorder.record(parsed.value, {
+      requestId: parsed.value.requestId,
+      status: 'completed',
+      value,
+      revisions: this.revisions(this.document(documentId) ?? undefined)
+    }, startedAt, recording.id, 'ui');
+    return true;
+  }
   actionPlaybackSnapshot = (): ActionPlaybackSnapshot => this.actionPlayback.snapshot();
   subscribeActionPlayback = (listener: () => void): (() => void) => this.actionPlayback.subscribe(listener);
   playActionRecording = (): Promise<ActionPlaybackSnapshot> => this.actionPlayback.play(this.actionRecorder.snapshot());

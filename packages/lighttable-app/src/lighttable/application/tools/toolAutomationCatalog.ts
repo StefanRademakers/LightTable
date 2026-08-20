@@ -24,6 +24,10 @@ const playback = (capabilities: readonly string[], note: string,
   interaction: 'discrete' | 'continuous' = 'continuous'): ToolAutomationDefinition => ({
   interaction, availability: 'playback-command-only', capabilities, note
 });
+const uiCommand = (interaction: 'discrete' | 'continuous', capabilities: readonly string[],
+  note: string): ToolAutomationDefinition => ({
+  interaction, availability: 'ui-and-command', capabilities, note
+});
 
 /**
  * Truthful automation status for every toolbar tool.
@@ -38,18 +42,18 @@ export const TOOL_AUTOMATION_CATALOG = {
     capabilities: ['view.setZoom'], note: 'Zoom state has a semantic command; click-drag zoom remains local.' },
   transform: playback(['layer.setTransform'],
     'Final affine transforms are callable; real transform UI recording and projective commits remain open.'),
-  'select-rectangle': playback(['selection.applyShape'],
-    'Final rectangle selection is callable; real UI recording remains open.'),
-  'select-ellipse': playback(['selection.applyShape'],
-    'Final ellipse selection is callable; real UI recording remains open.'),
-  'select-horizontal': playback(['selection.applyShape'],
-    'Final row selection is callable; real UI recording remains open.', 'discrete'),
-  'select-vertical': playback(['selection.applyShape'],
-    'Final column selection is callable; real UI recording remains open.', 'discrete'),
-  'select-free': playback(['selection.applyShape'],
-    'Final freehand outline is callable; real UI recording remains open.'),
-  'select-polygonal': playback(['selection.applyShape'],
-    'Final polygon outline is callable; real UI recording remains open.'),
+  'select-rectangle': uiCommand('continuous', ['selection.applyShape'],
+    'The UI records one final rectangle only after successful selection rasterization.'),
+  'select-ellipse': uiCommand('continuous', ['selection.applyShape'],
+    'The UI records one final ellipse only after successful selection rasterization.'),
+  'select-horizontal': uiCommand('discrete', ['selection.applyShape'],
+    'The UI records one final row selection.'),
+  'select-vertical': uiCommand('discrete', ['selection.applyShape'],
+    'The UI records one final column selection.'),
+  'select-free': uiCommand('continuous', ['selection.applyShape'],
+    'The UI records the bounded final outline, never pointer-move commands.'),
+  'select-polygonal': uiCommand('continuous', ['selection.applyShape'],
+    'The UI records the bounded final polygon, never intermediate clicks.'),
   'select-object': owner('continuous', [], 'Smart-selection owner exists; model/result contract is not exposed.'),
   'select-magic-wand': owner('discrete', [], 'Magic Wand owner exists; sampled selection contract is not exposed.'),
   'vector-pen': owner('continuous', ['vector.create'], 'Vector command can express the result; UI Pen commit recording is open.'),

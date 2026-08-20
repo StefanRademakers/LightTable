@@ -85,7 +85,8 @@ describe('selection session controller', () => {
   });
 
   it('publishes one pointer gesture and one selection-only history entry', async () => {
-    const state = setup();
+    const onShapeCommitted = vi.fn();
+    const state = setup({ onShapeCommitted });
     expect(state.controller.begin(7, 'select-rectangle', { x: 10, y: 10 }, 'replace')).toBe(true);
     expect(state.pointerId).toBe(7);
     expect(state.controller.move(7, { x: 40, y: 50 })).toBe(true);
@@ -97,6 +98,23 @@ describe('selection session controller', () => {
     expect(state.history[0].documentMutation).toBe(false);
     expect(state.pointerId).toBeNull();
     expect(state.draft).toBeNull();
+    expect(onShapeCommitted).toHaveBeenCalledOnce();
+    expect(onShapeCommitted).toHaveBeenCalledWith({
+      mode: 'replace',
+      shape: { kind: 'rectangle', points: [{ x: 10, y: 10 }, { x: 40, y: 50 }] },
+      featherRadius: 0,
+      antiAlias: false
+    });
+  });
+
+  it('does not report command-driven shape playback as a new UI commit', async () => {
+    const onShapeCommitted = vi.fn();
+    const state = setup({ onShapeCommitted });
+    expect(await state.controller.applyShape(
+      { kind: 'rectangle', points: [{ x: 1, y: 2 }, { x: 20, y: 30 }] },
+      'replace', 0, false
+    )).toBe(true);
+    expect(onShapeCommitted).not.toHaveBeenCalled();
   });
 
   it('feathers only the newly rasterized marquee before combining it', async () => {

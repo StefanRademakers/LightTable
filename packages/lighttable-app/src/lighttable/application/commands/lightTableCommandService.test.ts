@@ -70,6 +70,29 @@ const automationBrush = {
 };
 
 describe('LightTableCommandService action recording', () => {
+  it('records one already-committed UI owner result without executing it twice', () => {
+    const state = setup();
+    state.service.startActionRecording('Observed UI commit');
+    expect(state.service.recordObservedCommand(
+      'selection.applyShape',
+      state.session.id,
+      {
+        mode: 'replace',
+        shape: { kind: 'rectangle', points: [{ x: 2, y: 3 }, { x: 20, y: 30 }] },
+        featherRadius: 0,
+        antiAlias: false
+      },
+      { operationCount: 1 }
+    )).toBe(true);
+    expect(state.ports.executeSelectionCommand).toBeUndefined();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'selection.applyShape', outcome: 'completed', replayable: true,
+      origin: 'ui'
+    }]);
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('observes the same command execution path used by normal callers', async () => {
     const state = setup();
     const changed = vi.fn();

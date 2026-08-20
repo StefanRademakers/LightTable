@@ -72,6 +72,12 @@ export interface SelectionSessionDependencies {
     enabled: boolean;
   };
   publishSnapFeedback?(matches: readonly SnapMatch[], bounds: Rect | null): void;
+  onShapeCommitted?(command: {
+    readonly mode: SelectionCombineMode;
+    readonly shape: SelectionShape;
+    readonly featherRadius: number;
+    readonly antiAlias: boolean;
+  }): void;
 }
 
 export interface SelectionSessionController {
@@ -373,6 +379,15 @@ export const createSelectionSessionController = (
         latest.publishSelection(after, null);
         pushHistory(document, before, after);
         latest.setError(null);
+        latest.onShapeCommitted?.({
+          mode: result.mode,
+          shape: {
+            ...result.shape,
+            points: result.shape.points.map((point) => ({ ...point }))
+          },
+          featherRadius: result.featherRadius,
+          antiAlias: result.antiAlias
+        });
       })
       .catch((reason) => {
         if (!isCurrent(document, renderer)) return;

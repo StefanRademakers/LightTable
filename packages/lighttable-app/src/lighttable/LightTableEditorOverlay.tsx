@@ -2248,7 +2248,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         enabled: snap.enabled
       };
     },
-    publishSnapFeedback: (matches, bounds) => setSelectionSnapFeedback({ matches, bounds })
+    publishSnapFeedback: (matches, bounds) => setSelectionSnapFeedback({ matches, bounds }),
+    onShapeCommitted: (parameters) => {
+      commandService?.recordObservedCommand(
+        'selection.applyShape',
+        workspaceDocumentId as DocumentSessionId,
+        parameters,
+        { mode: parameters.mode, shape: parameters.shape }
+      );
+    }
   }, selectionGestureRef.current);
   const smartSelectionControllerRef = useRef<SmartSelectionToolController | null>(null);
   const smartSelectionBackendRef = useRef<ReturnType<typeof createSmartSelectionBackend> | null>(null);
