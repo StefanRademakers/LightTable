@@ -239,7 +239,7 @@ describe('createEditorMenuOptions', () => {
       .every((option) => option.disabled)).toBe(true);
     expect(options.find(({ value }) => value === 'exit-application'))
       .toMatchObject({ label: 'Exit', separatorBefore: true, disabled: false });
-    expect(options.find(({ value }) => value === 'export')?.children?.slice(0, 3)
+    expect(options.find(({ value }) => value === 'export')?.children?.slice(0, 6)
       .every((option) => option.disabled)).toBe(true);
     expect(options.find(({ value }) => value === 'export')?.children?.at(-1)?.disabled).not.toBe(true);
   });
@@ -249,14 +249,20 @@ describe('createEditorMenuOptions', () => {
     const options = createEditorMenuOptions('file', state(), labels, menuCommands);
     const children = options.find(({ value }) => value === 'export')?.children;
     expect(children?.map(({ label }) => label)).toEqual([
-      'JPG...', 'Photoshop PSD (Editable)...',
+      'PNG...', 'JPG...', 'WebP...', 'TIFF...', 'Photoshop PSD (Editable)...',
       'Photoshop PSD (Maximum Appearance)...', 'PDF...', 'Format Support...'
     ]);
     children?.[0]?.onClick?.();
     children?.[1]?.onClick?.();
     children?.[2]?.onClick?.();
     children?.[3]?.onClick?.();
+    children?.[4]?.onClick?.();
+    children?.[5]?.onClick?.();
+    children?.[6]?.onClick?.();
+    expect(menuCommands.exportPng).toHaveBeenCalledOnce();
     expect(menuCommands.exportJpeg).toHaveBeenCalledOnce();
+    expect(menuCommands.exportWebp).toHaveBeenCalledOnce();
+    expect(menuCommands.exportTiff).toHaveBeenCalledOnce();
     expect(menuCommands.exportPsd).toHaveBeenCalledOnce();
     expect(menuCommands.exportPsdMaximumAppearance).toHaveBeenCalledOnce();
     expect(menuCommands.pdfExportPreflight).toHaveBeenCalledOnce();

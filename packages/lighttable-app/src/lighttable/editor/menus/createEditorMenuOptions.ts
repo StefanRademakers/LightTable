@@ -77,6 +77,8 @@ export interface EditorMenuCommands {
   save: () => void;
   exportPng: () => void;
   exportJpeg: () => void;
+  exportWebp: () => void;
+  exportTiff: () => void;
   exportPsd: () => void;
   exportPsdMaximumAppearance: () => void;
   pdfExportPreflight: () => void;
@@ -234,7 +236,10 @@ export const createEditorMenuOptions = (
         value: 'export',
         label: 'Export',
         children: [
+          { value: 'export-png-native', label: 'PNG...', disabled: !state.hasMetadata || state.saving, onClick: commands.exportPng },
           { value: 'export-jpeg', label: 'JPG...', disabled: !state.hasMetadata || state.saving, onClick: commands.exportJpeg },
+          { value: 'export-webp', label: 'WebP...', disabled: !state.hasMetadata || state.saving, onClick: commands.exportWebp },
+          { value: 'export-tiff', label: 'TIFF...', disabled: !state.hasMetadata || state.saving, onClick: commands.exportTiff },
           { value: 'export-psd', label: 'Photoshop PSD (Editable)...', disabled: !state.hasDocument || state.saving, onClick: commands.exportPsd },
           { value: 'export-psd-appearance', label: 'Photoshop PSD (Maximum Appearance)...', disabled: !state.hasDocument || state.saving, onClick: commands.exportPsdMaximumAppearance },
           { value: 'export-pdf', label: 'PDF...', disabled: !state.hasDocument || state.saving, onClick: commands.pdfExportPreflight },
