@@ -1,0 +1,59 @@
+Task 276 - Explicit Action command-schema migrations
+====================================================
+
+Goal
+====
+
+Allow saved Actions to survive reviewed command-schema evolution without
+silently accepting old parameters/results or inventing an Actions-only command
+implementation.
+
+Parent work
+===========
+
+- [`Task 219`](../../done/task_219_durable_actions_workflows/task.txt)
+- [`Task 214`](../../task_214_complete_action_command_mcp_coverage/task.txt)
+- [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+
+Required work
+=============
+
+- Add an explicit per-command, consecutive schema-migration registry.
+- Migrate parameters and completed results before current-schema validation.
+- Let a reviewed migration rename result paths used by later recorded bindings.
+- Reject future versions, missing/duplicate/non-consecutive migrations, invalid
+  migration output and final schema mismatches before playback executes.
+- Rewrite successfully migrated libraries atomically through the existing
+  bounded storage owner.
+- Keep the current version-5 workflow envelope; command-contract evolution is
+  independent from workflow-format evolution.
+- Do not add a fake production schema-v2 merely to make a test pass.
+
+Evidence required
+=================
+
+- Unit coverage for a complete migration, chained migrations, downstream
+  result-reference rewriting and every fail-closed branch.
+- Library restore/rewrite proof using an injected future contract environment.
+- Playback contract preflight still rejects incompatible content before the
+  first executor call.
+- Full repository quality gates remain green.
+
+Evidence (2026-08-20)
+=====================
+
+- `actionCommandSchemaMigrations.ts` owns the bounded production registry and
+  pure migration engine. Entries are per-command and exactly one version wide;
+  duplicates, gaps, future versions, thrown transforms, invalid/unclonable data
+  and malformed result-path maps fail closed.
+- Each transform receives only recorded parameters, outcome and result. It may
+  return exact result-path renames, which are recursively applied only to later
+  references to that producing step.
+- `checkActionCommandContracts` migrates a cloned workflow before resolving
+  bindings and validating current input/result schemas. The existing playback
+  preflight test proves incompatible versions make zero executor calls.
+- The library uses the same environment during save and restore. A synthetic
+  test contract changes real `layer.rename` v1 field shapes to the current
+  closed schema under injected v2 metadata, then proves the version-5 envelope
+  is atomically rewritten. Production remains on real schema v1 with no fake
+  migration registration.

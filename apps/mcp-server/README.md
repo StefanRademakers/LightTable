@@ -43,7 +43,7 @@ Terminal 1:
 
 ```powershell
 $env:LIGHTTABLE_BRIDGE_TOKEN='<at-least-24-random-characters>'
-npm run mcp:bridge -- --file D:\shapes.psd
+npm run mcp:bridge -- --file D:\mediavibe\LightTableTestFiles\RandomFiles\shapes.psd
 ```
 
 Terminal 2:
@@ -63,7 +63,7 @@ bridge always binds to `127.0.0.1`; never publish it directly.
 ## Verification
 
 - `npm test -w @lighttable/mcp-server`
-- `npm run smoke:mcp -- D:\shapes.psd D:\mediavibe\LightTableTestFiles\mcp`
+- `npm run smoke:mcp -- D:\mediavibe\LightTableTestFiles\RandomFiles\shapes.psd D:\mediavibe\LightTableTestFiles\mcp`
 - `npm run smoke:desktop:mcp-design`
 
 The command-driver and MCP tests cover editable text, vector/gradient/stroke

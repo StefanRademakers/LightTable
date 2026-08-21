@@ -161,6 +161,14 @@ local recorded-step editor also consumes these generated schemas; it does not
 maintain a command-specific form catalog, invent a mutation route or alter MCP
 command contracts.
 
+Recorded command contracts have a separate explicit migration registry. A
+saved older contract loads only when every per-command version step is present
+and consecutive. Parameters and completed results migrate before validation;
+reviewed result-path renames also update later Action bindings. Future versions,
+missing/duplicate chains, invalid migration output and final schema mismatches
+fail atomically before playback. Successful upgrades rewrite the same bounded
+version-5 library and do not change MCP discovery or command semantics.
+
 Ordinary playback remains stepwise.
 The optional `Play as one undo` control compiles only stopped, completed,
 same-document steps whose commands are already in the generated atomic-batch

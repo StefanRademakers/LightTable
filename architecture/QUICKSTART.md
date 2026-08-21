@@ -555,6 +555,16 @@ one document and one history entry, or nothing on failure/cancellation. Paint,
 warp, pointer samples, host I/O, document creation and other non-batch work stay
 stepwise and never enter this compiler.
 
+Saved Action command contracts evolve independently from the version-5 library
+envelope. A reviewed registry contains only consecutive, per-command schema
+migrations. Each migration transforms recorded parameters and completed
+results before current-schema validation and may explicitly rename result paths
+referenced by later steps. Future versions, missing links, duplicate/non-
+consecutive registrations, invalid output and final schema mismatches reject
+the complete Action before execution. Successful library-load migrations are
+rewritten atomically through the existing bounded storage owner; there is no
+generic best-effort upgrader.
+
 Atomic batches are capped at 64 operations, 256 KiB and 10 seconds. They build
 against a private document value, can reference earlier operation results, and
 publish once as one named undo entry. Failure or cancellation publishes

@@ -5,6 +5,7 @@ import {
   type SemanticActionLibraryStorage
 } from './semanticActionLibrary';
 import type { ActionRecordingSnapshot } from './semanticActionRecorder';
+import type { ActionCommandContractEnvironment } from './actionCommandContracts';
 
 const recording = (): ActionRecordingSnapshot => ({
   status: 'stopped', id: 'action-1', name: 'Untitled Action', startedAt: 1, stoppedAt: 2,
@@ -239,6 +240,41 @@ describe('semantic Action library', () => {
       actions: [{ recording: { steps: [{ rationale: null }] } }] });
     expect(JSON.parse(state.value()!)).toMatchObject({ version: 5,
       actions: [{ recording: { steps: [{ rationale: null }] } }] });
+  });
+
+  it('atomically migrates a saved command contract and rewrites current storage', async () => {
+    const current = recording();
+    const oldStep = { ...current.steps[0]!, command: 'layer.rename',
+      parameters: { layerId: 'layer-1', title: 'Title' },
+      result: { renamedLayerId: 'layer-1', title: 'Title' } };
+    const state = memory(JSON.stringify({ format: 'lighttable-actions', version: 5,
+      selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID, selectedId: 'action-1',
+      sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID, name: 'Default Set', createdAt: 0, updatedAt: 0 }],
+      actions: [{ id: 'action-1', setId: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
+        name: current.name, createdAt: 1, updatedAt: 2,
+        recording: { ...current, steps: [oldStep] } }] }));
+    const environment: ActionCommandContractEnvironment = { schemaVersion: 2, migrations: [{
+      command: 'layer.rename', fromVersion: 1, toVersion: 2,
+      migrate: ({ parameters, outcome, result }) => ({
+        parameters: { layerId: (parameters as { layerId: string }).layerId,
+          name: (parameters as { title: string }).title }, outcome,
+        result: { layerId: (result as { renamedLayerId: string }).renamedLayerId,
+          name: (result as { title: string }).title }
+      })
+    }] };
+
+    const library = new SemanticActionLibrary(state.storage, environment);
+    await library.ready();
+
+    expect(library.snapshot()).toMatchObject({ error: null, actions: [{ recording: { steps: [{
+      contract: { status: 'complete', schemaVersion: 2 },
+      parameters: { layerId: 'layer-1', name: 'Title' },
+      result: { layerId: 'layer-1', name: 'Title' }
+    }] } }] });
+    expect(JSON.parse(state.value()!)).toMatchObject({ version: 5, actions: [{ recording: { steps: [{
+      contract: { status: 'complete', schemaVersion: 2 },
+      parameters: { layerId: 'layer-1', name: 'Title' }
+    }] } }] });
   });
 
   it('persists a bounded user-facing rationale in the current format', async () => {

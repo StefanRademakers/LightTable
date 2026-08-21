@@ -63,6 +63,9 @@ Current evidence (2026-08-20)
   payloads.
 - [`Task 275`](../../done/task_275_explicit_atomic_action_playback/task.txt)
   defined normal stepwise history versus explicit fail-closed one-undo playback.
+- [`Task 276`](../../done/task_276_action_command_schema_migrations/task.txt)
+  added fail-closed per-command contract migrations and downstream result-path
+  rewrites without changing the workflow envelope.
 - Concrete stopped Actions can be user-named, explicitly saved, loaded and
   deleted from a deterministic bounded library.
 - The version-5 envelope groups at most 32 Actions into at most 16 stable named
@@ -120,4 +123,8 @@ Current evidence (2026-08-20)
   unsupported nested result paths and all contract/count/size failures before
   execution. Packaged proof records two UI renames as two history entries,
   undoes them, replays them as one transaction and restores both with one Undo.
-- Explicit migration transforms for future command-schema versions remain open.
+- Older command contracts now require an explicit consecutive migration chain.
+  Parameters and completed results migrate before current validation; reviewed
+  result-path renames update later bindings. Missing, future, duplicate,
+  malformed or schema-invalid migrations retain no partial library and execute
+  no playback step.

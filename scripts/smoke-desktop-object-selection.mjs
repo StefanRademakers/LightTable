@@ -5,7 +5,8 @@ import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
-const sourceFile = path.resolve(process.argv[2] ?? 'D:\\face.jpg');
+const sourceFile = path.resolve(process.argv[2]
+  ?? 'D:\\mediavibe\\LightTableTestFiles\\RandomFiles\\face.jpg');
 const interactionMode = process.argv.includes('--subject') ? 'subject'
   : process.argv.includes('--rectangle') ? 'rectangle' : 'object-finder';
 const refineNegative = process.argv.includes('--negative');

@@ -1,6 +1,10 @@
 import { LIGHTTABLE_COMMAND_DEFINITIONS } from '@lighttable/command-contract';
 import type { ActionRecordingSnapshot, RecordedActionStep } from './semanticActionRecorder';
-import { checkActionCommandContracts, type RecordedCommandContract } from './actionCommandContracts';
+import {
+  checkActionCommandContracts,
+  type ActionCommandContractEnvironment,
+  type RecordedCommandContract
+} from './actionCommandContracts';
 import {
   validateActionVariables,
   type ActionVariableDefinition
@@ -104,7 +108,8 @@ type ParsedAction = { readonly action: SavedSemanticAction; readonly migrated: b
 const parseAction = (value: unknown, allowMissingLegacyContract: boolean,
   allowMissingVariables: boolean,
   allowMissingRationale: boolean,
-  legacySetId?: string): ParsedAction => {
+  legacySetId?: string,
+  contractEnvironment?: ActionCommandContractEnvironment): ParsedAction => {
   if (!record(value) || !boundedString(value.id, 255) || !boundedString(value.name, 255)
     || !finite(value.createdAt) || !finite(value.updatedAt) || !record(value.recording)) {
     return { error: 'Action metadata is invalid.' };
@@ -127,7 +132,7 @@ const parseAction = (value: unknown, allowMissingLegacyContract: boolean,
   const steps = recording.steps.map((step, index) => parseStep(step, index + 1, allowMissingRationale));
   if (steps.some((step) => !step)) return { error: 'Action steps are malformed.' };
   const contracts = checkActionCommandContracts(steps as StoredActionStep[], allowMissingLegacyContract,
-    variables as ActionVariableDefinition[]);
+    variables as ActionVariableDefinition[], contractEnvironment);
   if (!contracts.ok) return { error: contracts.message };
   const parsedRecording = recording as unknown as ActionRecordingSnapshot;
   const action: SavedSemanticAction = { id: value.id, setId, name: value.name,
@@ -165,7 +170,8 @@ export class SemanticActionLibrary {
   private readonly listeners = new Set<() => void>();
   private readonly readyValue: Promise<void>;
 
-  constructor(private readonly storage?: SemanticActionLibraryStorage) {
+  constructor(private readonly storage?: SemanticActionLibraryStorage,
+    private readonly contractEnvironment?: ActionCommandContractEnvironment) {
     this.snapshotValue = empty();
     try {
       const loaded = storage?.read() ?? null;
@@ -262,7 +268,7 @@ export class SemanticActionLibrary {
     const parsed = parseAction({ id, setId: this.snapshotValue.selectedSetId,
       name: normalizedName, createdAt: previous?.createdAt ?? now, updatedAt: now,
       recording: { ...recording, id, name: normalizedName, status: 'stopped', limitReached: false } },
-    false, false, false);
+    false, false, false, undefined, this.contractEnvironment);
     if ('error' in parsed) return null;
     const action = parsed.action;
     const actions = orderedActions([
@@ -312,7 +318,8 @@ export class SemanticActionLibrary {
       const parsed = value.actions.map((action) => parseAction(action, value.version === 1,
         Number(value.version) <= 3,
         Number(value.version) <= 4,
-        legacy ? LIGHTTABLE_DEFAULT_ACTION_SET_ID : undefined));
+        legacy ? LIGHTTABLE_DEFAULT_ACTION_SET_ID : undefined,
+        this.contractEnvironment));
       const invalid = parsed.find((action) => 'error' in action);
       if (invalid && 'error' in invalid) {
         return { snapshot: empty(`Saved Actions contain incompatible workflow data: ${invalid.error}`),

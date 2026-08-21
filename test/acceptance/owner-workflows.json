@@ -5,10 +5,10 @@
     {
       "id": "photo-grade",
       "title": "Photo correction and export",
-      "fixture": "D:/adamus2__0002.png",
-      "requiredFiles": ["D:/adamus2__0002.png"],
+      "fixture": "D:/mediavibe/LightTableTestFiles/RandomFiles/adamus2__0002.png",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/RandomFiles/adamus2__0002.png"],
       "canvasPolicy": "inside",
-      "automation": [{ "script": "smoke-desktop-release.mjs", "args": ["D:/adamus2__0002.png"] }],
+      "automation": [{ "script": "smoke-desktop-release.mjs", "args": ["D:/mediavibe/LightTableTestFiles/RandomFiles/adamus2__0002.png"] }],
       "ownerTask": "Open the photo, grade exposure/color, compare before/after, undo/redo, save native and export PNG."
     },
     {
@@ -23,10 +23,10 @@
     {
       "id": "point-text",
       "title": "Point text creation and editing",
-      "fixture": "D:/shapes.psd",
-      "requiredFiles": ["D:/shapes.psd"],
+      "fixture": "D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"],
       "canvasPolicy": "inside",
-      "automation": [{ "script": "smoke-desktop-type-tool.mjs", "args": ["D:/shapes.psd"] }],
+      "automation": [{ "script": "smoke-desktop-type-tool.mjs", "args": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"] }],
       "ownerTask": "Create point text directly on canvas, edit existing transformed text, select words and verify caret feel."
     },
     {
@@ -41,19 +41,19 @@
     {
       "id": "vector-shapes",
       "title": "Editable shapes and geometry",
-      "fixture": "D:/shapes.psd",
-      "requiredFiles": ["D:/shapes.psd"],
+      "fixture": "D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"],
       "canvasPolicy": "inside",
-      "automation": [{ "script": "smoke-desktop-shape-geometry.mjs", "args": ["D:/shapes.psd"] }],
+      "automation": [{ "script": "smoke-desktop-shape-geometry.mjs", "args": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"] }],
       "ownerTask": "Create and edit rectangle/ellipse/star shapes, toggle fill/stroke and transform them."
     },
     {
       "id": "gradients",
       "title": "Gradient authoring",
-      "fixture": "D:/shapes.psd",
-      "requiredFiles": ["D:/shapes.psd"],
+      "fixture": "D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"],
       "canvasPolicy": "inside",
-      "automation": [{ "script": "smoke-desktop-gradient-tool.mjs", "args": ["D:/shapes.psd"] }],
+      "automation": [{ "script": "smoke-desktop-gradient-tool.mjs", "args": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"] }],
       "ownerTask": "Create a gradient layer, add/move/remove stops and judge the on-canvas preview and undo."
     },
     {
@@ -68,10 +68,10 @@
     {
       "id": "paint-mask",
       "title": "Painting, brush gesture and mask workflow",
-      "fixture": "D:/adamus2__0002.png",
-      "requiredFiles": ["D:/adamus2__0002.png"],
+      "fixture": "D:/mediavibe/LightTableTestFiles/RandomFiles/adamus2__0002.png",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/RandomFiles/adamus2__0002.png"],
       "canvasPolicy": "inside",
-      "automation": [{ "script": "smoke-desktop-brush-ux.mjs", "args": ["D:/adamus2__0002.png"] }],
+      "automation": [{ "script": "smoke-desktop-brush-ux.mjs", "args": ["D:/mediavibe/LightTableTestFiles/RandomFiles/adamus2__0002.png"] }],
       "ownerTask": "Paint continuous strokes on a new layer, verify one undo per gesture and repeat on a mask."
     },
     {
@@ -86,19 +86,19 @@
     {
       "id": "native-save-recovery",
       "title": "Native save, reopen and crash recovery",
-      "fixture": "D:/TextTest.psd",
-      "requiredFiles": ["D:/TextTest.psd"],
+      "fixture": "D:/mediavibe/LightTableTestFiles/RandomFiles/TextTest.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/RandomFiles/TextTest.psd"],
       "canvasPolicy": "inside",
-      "automation": [{ "script": "profile-desktop-recovery.mjs", "args": ["D:/TextTest.psd", "--output={output}/recovery"] }],
+      "automation": [{ "script": "profile-desktop-recovery.mjs", "args": ["D:/mediavibe/LightTableTestFiles/RandomFiles/TextTest.psd", "--output={output}/recovery"] }],
       "ownerTask": "Edit, wait for recovery, force-close, open recovered copy, save elsewhere and reopen."
     },
     {
       "id": "psd-roundtrip",
       "title": "Editable Photoshop roundtrip",
-      "fixture": "D:/TextTest.psd",
-      "requiredFiles": ["D:/TextTest.psd"],
+      "fixture": "D:/mediavibe/LightTableTestFiles/RandomFiles/TextTest.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/RandomFiles/TextTest.psd"],
       "canvasPolicy": "inside",
-      "automation": [{ "script": "smoke-desktop-psd-roundtrip.mjs", "args": ["D:/TextTest.psd"] }],
+      "automation": [{ "script": "smoke-desktop-psd-roundtrip.mjs", "args": ["D:/mediavibe/LightTableTestFiles/RandomFiles/TextTest.psd"] }],
       "ownerTask": "Export PSD, open in Photoshop, edit supported text/vector/effect values and reopen in LightTable."
     },
     {
@@ -113,10 +113,10 @@
     {
       "id": "mcp-design",
       "title": "MCP-created editable design",
-      "fixture": "D:/shapes.psd",
-      "requiredFiles": ["D:/shapes.psd"],
+      "fixture": "D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"],
       "canvasPolicy": "inside",
-      "automation": [{ "script": "smoke-desktop-mcp-design.mjs", "args": ["D:/shapes.psd"] }],
+      "automation": [{ "script": "smoke-desktop-mcp-design.mjs", "args": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"] }],
       "ownerTask": "Pair a local agent, create/revise/undo a design and verify native plus Photoshop artifacts stay editable."
     },
     {
@@ -134,10 +134,10 @@
     {
       "id": "command-roundtrip",
       "title": "Generic command, artifact and undo roundtrip",
-      "fixture": "D:/shapes.psd",
-      "requiredFiles": ["D:/shapes.psd"],
+      "fixture": "D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd",
+      "requiredFiles": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"],
       "canvasPolicy": "inside",
-      "automation": [{ "script": "smoke-desktop-command-driver.mjs", "args": ["D:/shapes.psd"] }],
+      "automation": [{ "script": "smoke-desktop-command-driver.mjs", "args": ["D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd"] }],
       "ownerTask": "Run the same create/place/vector/effect/export sequence from the UI and confirm coherent discoverability."
     }
   ]

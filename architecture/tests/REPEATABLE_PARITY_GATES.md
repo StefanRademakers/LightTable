@@ -5,7 +5,9 @@
 - Layer Styles: `D:\mediavibe\LightTableTestFiles\psd\layer-effects-roundtrip`
 - Blend/color profiles: `D:\Mediavibe\LightTableTests\BlendColorMatrix`
 - Template endurance: `D:\mediavibe\LightTableTestFiles\psd\templates\Save the Date Invitation PSD 6`
-- Core editable fixtures: `D:\TextTest.psd`, `D:\shapes.psd`, and
+- Core editable fixtures:
+  `D:\mediavibe\LightTableTestFiles\RandomFiles\TextTest.psd`,
+  `D:\mediavibe\LightTableTestFiles\RandomFiles\shapes.psd`, and
   `D:\FormulierPersoneel.pdf`
 
 Photoshop reference PNGs and canonical PSDs are oracle data. LightTable output,

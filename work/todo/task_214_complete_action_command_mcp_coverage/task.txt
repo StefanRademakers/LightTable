@@ -55,7 +55,7 @@ vertically through multiple steps when that produces earlier product evidence.
    Compare UI, Actions and real MCP state, history and rendered results.
 5. **Agent observation loop ([Task 218](../../done/task_218_agent_observation_preview_and_events/task.txt)).**
    Add bounded structure, revision-bound preview and useful events.
-6. **Durable Actions workflows ([Task 219](../task_219_durable_actions_workflows/task.txt)).**
+6. **Durable Actions workflows ([Task 219](../../done/task_219_durable_actions_workflows/task.txt)).**
    Make recorded workflows editable, persistent, task-aware and inspectable.
 7. **Reviewed remote admission ([Task 220](../task_220_reviewed_mcp_capability_admission/task.txt)).**
    Expose proven categories with explicit permissions and remote evidence.
@@ -218,6 +218,10 @@ Existing foundation evidence
   and rejects every incompatible workflow before execution. Packaged Layer-menu
   proof records two ordinary rename history entries, undoes both, atomically
   replays them as one entry and restores the original name with one Undo.
+- Saved Action command contracts now migrate only through reviewed consecutive
+  per-command transforms. Parameters, completed results and explicitly renamed
+  downstream result bindings migrate before current-schema validation; missing,
+  future, duplicate or invalid chains reject the whole workflow before replay.
 - External raster inputs now cross the capability boundary as bounded opaque
   artifact handles. `layer.placeArtifact` reuses the existing decode/document/
   history owner, while `file.openArtifact` creates a document from the same

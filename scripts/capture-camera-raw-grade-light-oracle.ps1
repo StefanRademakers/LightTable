@@ -1,5 +1,5 @@
 param(
-  [string]$Source = 'D:\people.jpg',
+  [string]$Source = 'D:\mediavibe\LightTableTestFiles\RandomFiles\people.jpg',
   [string]$Root = 'D:\mediavibe\LightTableTests\GradeLightParity',
   [string]$CasePath = '',
   [string[]]$CaseIds = @()

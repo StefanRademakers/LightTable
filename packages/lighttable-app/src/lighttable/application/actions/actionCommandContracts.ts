@@ -9,6 +9,11 @@ import {
   validateActionVariables,
   type ActionVariableDefinition
 } from './actionResultBindings';
+import {
+  ACTION_COMMAND_SCHEMA_MIGRATIONS,
+  migrateActionCommandSteps,
+  type ActionCommandSchemaMigration
+} from './actionCommandSchemaMigrations';
 
 export type RecordedCommandContract =
   | { readonly status: 'complete'; readonly schemaVersion: number }
@@ -44,18 +49,34 @@ export type ActionContractCheck<T extends ContractStep> =
       readonly migrated: boolean }
   | { readonly ok: false; readonly sequence: number; readonly message: string };
 
+export interface ActionCommandContractEnvironment {
+  readonly schemaVersion: number;
+  readonly migrations: readonly ActionCommandSchemaMigration[];
+}
+
+const currentEnvironment: ActionCommandContractEnvironment = {
+  schemaVersion: LIGHTTABLE_COMMAND_SCHEMA_VERSION,
+  migrations: ACTION_COMMAND_SCHEMA_MIGRATIONS
+};
+
 export const checkActionCommandContracts = <T extends ContractStep>(
   steps: readonly T[], allowMissingLegacyContract = false,
-  variables: readonly ActionVariableDefinition[] = []
+  variables: readonly ActionVariableDefinition[] = [],
+  environment: ActionCommandContractEnvironment = currentEnvironment
 ): ActionContractCheck<T> => {
   const variableError = validateActionVariables(variables);
   if (variableError) return { ok: false, sequence: 0, message: variableError };
   const variableValues = new Map(variables.map(({ name, defaultValue }) => [name, defaultValue]));
+  const migration = migrateActionCommandSteps(steps, environment.schemaVersion, environment.migrations);
+  if (!migration.ok) return migration;
   const results = new Map<number, unknown>();
   const migratedSteps: (T & { readonly contract: RecordedCommandContract })[] = [];
-  let migrated = false;
-  for (const step of steps) {
-    const current = currentRecordedCommandContract(step.command);
+  let migrated = migration.migrated;
+  for (const step of migration.steps) {
+    const hasSchema = Boolean(LIGHTTABLE_COMMAND_SCHEMAS[step.command as keyof typeof LIGHTTABLE_COMMAND_SCHEMAS]);
+    const current: RecordedCommandContract = hasSchema
+      ? { status: 'complete', schemaVersion: environment.schemaVersion }
+      : { status: 'legacy-properties-only', schemaVersion: null };
     const recorded = step.contract;
     if (!recorded && !allowMissingLegacyContract) {
       return { ok: false, sequence: step.sequence,

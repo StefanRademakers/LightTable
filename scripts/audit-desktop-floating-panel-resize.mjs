@@ -5,7 +5,8 @@ import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
-const sourceFile = path.resolve(process.argv[2] ?? 'D:/shapes.psd');
+const sourceFile = path.resolve(process.argv[2]
+  ?? 'D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd');
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'quality-audit', 'floating-panel-resize');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const reportPath = path.join(outputDirectory, 'report.json');

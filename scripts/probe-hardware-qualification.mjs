@@ -11,7 +11,8 @@ const argument = (name, fallback) => {
   return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
 };
 const output = path.resolve(argument('output', path.join(workspace, 'tmp', 'hardware-qualification')));
-const fixture = path.resolve(argument('fixture', 'D:/shapes.psd'));
+const fixture = path.resolve(argument('fixture',
+  'D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd'));
 const executable = path.join(workspace, 'apps', 'desktop', 'out', 'LightTable-win32-x64', 'LightTable.exe');
 const userData = path.join(output, 'user-data');
 await Promise.all([access(executable), access(fixture), mkdir(userData, { recursive: true })]);

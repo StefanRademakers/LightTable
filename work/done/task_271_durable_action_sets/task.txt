@@ -15,7 +15,7 @@ normal Actions replay on the same semantic command owner.
 Parent
 ======
 
-- [`Task 219`](../../todo/task_219_durable_actions_workflows/task.txt)
+- [`Task 219`](../task_219_durable_actions_workflows/task.txt)
 - [`Agent-native creative runtime target`](../../../architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
 
 Checklist

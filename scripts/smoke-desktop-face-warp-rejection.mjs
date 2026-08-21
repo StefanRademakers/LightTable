@@ -6,7 +6,8 @@ import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const sourceFile = path.resolve(process.argv[2] ?? 'D:\\face.jpg');
+const sourceFile = path.resolve(process.argv[2]
+  ?? 'D:\\mediavibe\\LightTableTestFiles\\RandomFiles\\face.jpg');
 const output = path.join(root, 'tmp', 'face-warp-rejection', path.parse(sourceFile).name);
 const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(root);

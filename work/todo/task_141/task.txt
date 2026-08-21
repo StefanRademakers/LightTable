@@ -64,7 +64,7 @@ Non-negotiable execution rules
 1. Work one section and normally one control family at a time.
 2. Measure neutral, moderate, 80% and endpoint values, including both signs.
 3. Use diagnostic ramps/color targets and several real photographs. Never tune
-   only against D:\people.jpg or one grayscale ramp.
+   only against `D:\mediavibe\LightTableTestFiles\RandomFiles\people.jpg` or one grayscale ramp.
 4. Compare each product's adjusted output against its own neutral output so a
    decode/profile difference is not mistaken for a control difference.
 5. Test exact sliders in isolation first, then combinations and processing
@@ -90,7 +90,8 @@ Non-negotiable execution rules
 Phase 0 - Strengthen the oracle and corpus
 ==========================================
 
-- Inventory suitable existing photographs under D:\*.jpg and D:\*.png.
+- Inventory suitable existing photographs under
+  `D:\mediavibe\LightTableTestFiles\RandomFiles`.
 - Add a controlled corpus covering:
   - grayscale and stepped luminance ramps;
   - near-black and near-white steps;

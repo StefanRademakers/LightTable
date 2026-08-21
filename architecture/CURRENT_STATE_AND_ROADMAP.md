@@ -31,7 +31,9 @@ milestone changes those boundaries; feature task details belong in
   result bindings, schema-gated defaults/overrides, bounded user-facing step
   rationales, dependency-aware stepwise replay and explicit fail-closed one-
   undo playback for atomic-batch-compatible workflows through that same
-  semantic command service.
+  semantic command service. Saved command contracts use explicit consecutive
+  per-command migrations; missing, future or invalid migration chains fail
+  before playback and successful upgrades rewrite the bounded library.
 - Document observation includes bounded color semantics, and sRGB profile
   assignment is a metadata-only UI/Actions/MCP command with reversible history;
   Convert to Profile remains unimplemented.

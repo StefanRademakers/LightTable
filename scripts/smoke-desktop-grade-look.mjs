@@ -11,10 +11,12 @@ import { startPackagedMcpTestSession } from './packaged-mcp-test-session.mjs';
 import { compareRenderEvidence } from './render-comparison-evidence.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
-const source = path.resolve(process.argv[2] ?? 'D:/colors.png');
+const source = path.resolve(process.argv[2]
+  ?? 'D:/mediavibe/LightTableTestFiles/RandomFiles/colors.png');
 const lut = path.resolve(process.argv[3]
   ?? path.join(workspace, 'packages/lighttable-app/src/assets/luts/FGCineCold.cube'));
-const destinationSource = path.resolve(process.argv[4] ?? 'D:/people.jpg');
+const destinationSource = path.resolve(process.argv[4]
+  ?? 'D:/mediavibe/LightTableTestFiles/RandomFiles/people.jpg');
 const output = path.join(workspace, 'tmp', 'grade-look');
 const userData = path.join(output, `user-data-${process.pid}`);
 const launch = await resolveDesktopTestLaunch(workspace, { requirePackaged: true });

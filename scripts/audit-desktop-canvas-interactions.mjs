@@ -7,7 +7,8 @@ import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 import { assessGpuRetentionTrend } from './release-soak-policy.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
-const sourceFile = path.resolve(process.argv[2] ?? 'D:/shapes.psd');
+const sourceFile = path.resolve(process.argv[2]
+  ?? 'D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd');
 const launch = await resolveDesktopTestLaunch(workspaceRoot);
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'quality-audit', 'canvas-interactions');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);

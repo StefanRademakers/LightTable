@@ -21,8 +21,8 @@ const output = path.resolve(args.find((value) => value.startsWith('--output='))?
 const requested = args.filter((value) => !value.startsWith('--'));
 const defaults = [
   'D:/mediavibe/LightTable/tmp/mcp-design-smoke/agent-release-card.lighttable',
-  'D:/shapes.psd',
-  'D:/TextTest.psd',
+  'D:/mediavibe/LightTableTestFiles/RandomFiles/shapes.psd',
+  'D:/mediavibe/LightTableTestFiles/RandomFiles/TextTest.psd',
   'D:/mediavibe/LightTableTestFiles/psd/templates/Save the Date Invitation PSD 6/EHS-396/EHS-396/EHS-396.psd'
 ];
 const sources = (requested.length ? requested : defaults).slice(0, quick ? 3 : undefined)

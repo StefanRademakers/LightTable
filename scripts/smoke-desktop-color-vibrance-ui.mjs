@@ -9,7 +9,8 @@ import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
 const workspace = path.resolve(import.meta.dirname, '..');
 const output = path.join(workspace, 'tmp', 'color-vibrance-ui-smoke');
 const userData = path.join(output, `user-data-${process.pid}`);
-const sourcePath = process.argv[2] ?? 'D:\\face.jpg';
+const sourcePath = process.argv[2]
+  ?? 'D:\\mediavibe\\LightTableTestFiles\\RandomFiles\\face.jpg';
 const launch = await resolveDesktopTestLaunch(workspace);
 await mkdir(userData, { recursive: true });
 

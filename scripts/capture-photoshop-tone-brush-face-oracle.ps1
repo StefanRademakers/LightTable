@@ -1,5 +1,5 @@
 param(
-  [string]$Source = 'D:\face.jpg',
+  [string]$Source = 'D:\mediavibe\LightTableTestFiles\RandomFiles\face.jpg',
   [string]$Output = 'D:\mediavibe\LightTableTests\ToneBrush\face\photoshop'
 )
 

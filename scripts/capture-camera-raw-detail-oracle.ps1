@@ -1,5 +1,5 @@
 param(
-  [string]$Source = 'D:\people.jpg',
+  [string]$Source = 'D:\mediavibe\LightTableTestFiles\RandomFiles\people.jpg',
   [string]$Output = 'D:\mediavibe\LightTableTests\DetailParity\camera-raw'
 )
 

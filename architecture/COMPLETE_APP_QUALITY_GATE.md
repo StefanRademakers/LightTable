@@ -168,8 +168,8 @@ Test at minimum:
 
 - ordinary PNG/JPEG/WebP fast path;
 - a layered native LightTable document;
-- `D:\TextTest.psd` when available;
-- `D:\shapes.psd` when available;
+- `D:\mediavibe\LightTableTestFiles\RandomFiles\TextTest.psd` when available;
+- `D:\mediavibe\LightTableTestFiles\RandomFiles\shapes.psd` when available;
 - `D:\FormulierPersoneel.pdf` when available;
 - the current PDF corpus;
 - the Save-the-Date PSD corpus requested by the owner;
