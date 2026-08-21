@@ -28,6 +28,33 @@ The benchmark workflow is deliberately demanding:
 Passing a command-count check or producing a flat image does not meet this
 target.
 
+## Local MCP artist practice benchmark
+
+The owner-visible practice test is a fresh Codex session operating LightTable
+only through the local MCP adapter. Codex starts outside the LightTable source
+workspace and receives only:
+
+- a flat visual reference;
+- required canvas dimensions and a short design brief;
+- explicitly supplied logos, photos or other identity assets;
+- the instruction to build, inspect, correct and save the design using only
+  advertised LightTable MCP capabilities.
+
+The agent must discover capabilities, construct native editable layers, request
+revision-bound previews, evaluate and correct visible problems, then produce a
+native document and requested flat exports. Shell mutation, direct application
+automation, test-only document APIs and LightTable source inspection do not
+count as MCP execution. Afterward, packaged automation independently verifies
+final pixels, dimensions, editable layer structure, command/Actions activity
+and artifact signatures.
+
+The first practice run deliberately contains no command recipes. It tests
+whether capability discovery, schemas and errors are sufficient by themselves.
+Examples can be added later as versioned MCP resources or agent skills that
+teach layered design practice. They are a productivity and quality layer, not
+a substitute for a coherent capability surface. Cold-discovery and guided-
+example results must remain separate claims.
+
 ## Canonical architecture
 
 ```text
@@ -105,6 +132,26 @@ document revision, render settings, color/profile context and artifact.
     subject to privacy and retention policy.
 12. **Explicit authority.** Read, edit, generation, asset, export, overwrite,
     filesystem and network permissions remain separable and revocable.
+
+## Paid and externally metered capabilities
+
+Asset acquisition, hosted generation and any other operation that can consume
+credits or create an external charge are disabled by default and always user-
+configurable. They must never become an implicit fallback for an ordinary
+creative command.
+
+The capability surface reports whether such an operation is configured and
+available, its cost class, whether approval is required and an actionable
+withheld reason. Provider/model choice, per-call/session/project budgets and
+approval thresholds belong to user or project policy. Supported policies must
+include `local-only`, `free-only` and `never-generate`. Credentials remain in
+the host/provider boundary and are never returned to MCP clients. A failed or
+unavailable provider must not silently fall back to a more expensive provider.
+
+The initial local artist benchmark runs in `local-only` mode: no paid
+generation, stock purchase or metered network provider. This isolates whether
+Codex can act as an artist with LightTable's native layer, vector, text, paint,
+mask and grading capabilities.
 
 ## Interaction and performance contract
 

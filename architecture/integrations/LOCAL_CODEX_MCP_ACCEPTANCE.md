@@ -73,6 +73,10 @@ That acceptance must additionally exercise inspect -> create -> edit -> preview
 -> correct -> save/export and verify the resulting pixels and editable layers
 independently.
 
+The canonical input boundary, MCP-only execution rule, independent review and
+default `local-only` cost policy for that artist practice run are defined in
+[`../goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md`](../goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md#local-mcp-artist-practice-benchmark).
+
 The longer packaged route beneath Codex is available separately:
 
 ```powershell

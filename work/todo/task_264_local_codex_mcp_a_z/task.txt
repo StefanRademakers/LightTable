@@ -27,6 +27,11 @@ Checklist
   through the packaged automation/query route.
 - [ ] Exercise invalid schema, stale revision, missing target, reconnect and
   clean shutdown paths from the fresh Codex client.
+- [ ] Run the cold-discovery artist benchmark from the canonical agent-native
+  target with only a reference, brief and supplied assets; no command recipes,
+  source inspection or direct application automation.
+- [ ] Keep the initial artist benchmark in `local-only` mode and prove that no
+  paid generation, stock acquisition or metered provider was invoked.
 - [x] Retain a concise machine-readable transport report without image bytes,
   tokens, pairing codes or private paths.
 
@@ -58,21 +63,13 @@ Automated packaged A-Z evidence (2026-08-21)
   claim.
 
 Resume checkpoint (updated 2026-08-21)
-- Autonomous MCP/Actions expansion was deliberately paused for owner testing.
-  Native bitmap/open-with and later bounded desktop/editor fixes now occupy the
-  current dirty worktree; do not silently mix them with the stashed schema work.
-- The last uncommitted Task 276 work is recoverable in `stash@{0}` (`wip task
-  276 and relocated external fixtures`). `stash@{1}` is the earlier, narrower
-  schema-migration checkpoint. Inspect both before applying; do not apply both
-  blindly.
-- First separate, verify and commit or checkpoint the current dirty work. Then
-  resume Task 276 schema-migration verification and return here for the fresh-
-  Codex A-Z acceptance checklist above.
-- User test fixtures now live outside the repository under
+- The full current continuation procedure, verified baseline, completed Task
+  276 recovery and remaining fresh-client boundary are in
+  [`resume.md`](resume.md). Treat that file as current rather than reconstructing
+  worktree or stash state from this task history.
+- User test fixtures live outside the repository under
   `D:\mediavibe\LightTableTestFiles\RandomFiles`; keep private fixture paths and
   contents out of committed reports.
-- The full continuation procedure, verified baseline and remaining work are in
-  [`resume.md`](resume.md). Read that file before touching either stash.
 
 Constraints
 - Use the normal LightTable command/query/task/event owners; no test-only
