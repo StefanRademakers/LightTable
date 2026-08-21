@@ -1,90 +1,139 @@
-# MCP / Actions autonomous-work resume checkpoint
+# MCP / Actions recovery checkpoint
 
 Recorded: 2026-08-21
-Repository baseline before this checkpoint: `0bd4f24d` on `main`
+Branch: `main`
+Repository baseline before this documentation checkpoint: `6e856df3`
 
-## Current state
+## Why this checkpoint exists
 
-The earlier dirty bitmap/desktop/editor checkpoint has been separated and
-committed. Task 276 was restored from its full stash, verified and committed as
-`163b5ded`. Do not apply either Task 276 stash again; they are recovery copies
-of work already present in Git.
+This is the single operational handoff for the active Agent/Actions/MCP
+program. A fresh agent must reconcile it with `npm run context:agent`, current
+`HEAD`, the dirty worktree and newer owner direction. It replaces chat memory;
+it does not override code, tests or canonical architecture.
 
-Task 277 now contains the implemented and packaged Windows native bitmap Save,
-export and Open With route. macOS runtime qualification remains explicitly open.
-Task 278 remains research-only; no broad model prewarm or lifecycle claim exists.
+## Proven current product state
 
-The local MCP route now has two levels of proof:
+- The semantic command service, Actions, Agent Access and MCP share canonical
+  document/history/render owners. High-frequency paint, warp, transforms and
+  sliders keep local preview/coalescing and publish bounded final intent.
+- Actions has durable named version-5 sets, typed variables, prior-result
+  bindings, rationales, dependency-aware step playback, reviewed per-command
+  migrations and fail-closed one-undo playback for the atomic-compatible
+  subset.
+- The packaged external MCP route supports bounded discovery, structure/text/
+  adjustment queries, editable text/vector/Layer Style construction, batches,
+  events, revision-bound document/layer/mask/region previews and opaque
+  native/PNG/JPEG/WebP/TIFF/PSD artifacts where admitted.
+- `lighttable_palette` and `lighttable_layer_palette` lazily extract revision-
+  checked palettes from the real final composite or one isolated rendered
+  layer. The Color Picker uses the same document extractor; no preview decode
+  or parallel MCP quantizer exists.
+- Versioned MCP artist resources teach capability discovery, batch-first
+  construction and existing native Bezier paths. They are guidance, not a
+  second execution engine.
+- A fresh Codex client completed OAuth and explicit read-to-edit approval,
+  inspected `happy_birthday.png`, created a separate 1200x1200 document and
+  built twelve editable raster/vector/text layers through MCP only. It checked
+  the final revision-bound preview; the reference stayed unchanged and no paid
+  provider was used.
+- That cold-discovery run used 76 MCP roundtrips and exposed concrete gaps:
+  unreliable text stroke/shadow realization, missing font discovery and text
+  measurement, under-discovered batching/Bezier support and absent native SVG
+  import. The guides address discovery only; they do not prove a faster guided
+  rerun.
+- The vector engine already owns editable cubic paths, live shapes, affine
+  transforms, fills, gradients and strokes across `vector-core`,
+  `vector-rendering` and `vector-webgpu`. SVG import/export does not exist; the
+  proposed safe native subset is in
+  `architecture/features/VECTOR_ENGINE_AND_SVG_IMPORT.md`.
+
+## Current local MCP connection flow
+
+The normal packaged route is:
+
+1. **Preferences > Agent Access**;
+2. select **Local test mode**;
+3. enable **Allow agent connections**;
+4. click **Connect Codex** and confirm browser authorization;
+5. start or reload Codex once so it discovers the registration;
+6. grant the exact client read, one-time edit or persistent edit permission.
+
+The built-in MCP/OAuth endpoint is loopback-only. Local and online servers use
+the same permission UI and exact-client grant model. A persistent grant is
+OS-protected and bound to server ID, certificate fingerprint, client ID and
+scopes; another or revoked identity cannot inherit it.
+
+`npm run mcp:local:codex` remains useful as an isolated temporary-profile
+security harness. It is no longer the normal iteration route. Existing Codex
+sessions cannot discover a newly registered server dynamically.
+
+## Automated evidence beneath the real Codex run
 
 - `npm run smoke:mcp:local-codex` proves transport, approval, read-only preview,
   edit denial, revocation and explicit edit escalation.
-- `npm run smoke:mcp:local-codex:a-z` additionally proves a packaged editable
-  four-layer composition, revision-bound correction with changed preview pixels,
-  independent structure/text queries, invalid-schema/missing-target/stale-write
-  rejection, reconnect continuity and PNG/native artifact signatures.
+- `npm run smoke:mcp:local-codex:a-z` proves a packaged editable four-layer
+  composition, revision-bound correction, independent structure/text queries,
+  invalid-schema/missing-target/stale-write rejection, reconnect continuity
+  and PNG/JPEG/WebP/TIFF/native artifact signatures.
+- Packaged Preferences smoke proves local one-switch start, automatic device
+  pairing, stop and restart. Packaged outbound TLS smoke proves online pairing,
+  runtime approval, edit, reconnect and revocation.
+- These harnesses complement the owner-visible artist run; none alone proves
+  the complete creative result or release readiness.
 
-The latest 2026-08-21 A-Z report recorded 67 available commands, four editable
-layers, revision 4 to 6, exact Detail values independently queried after MCP
-mutation, and valid PNG, JPEG, WebP, TIFF and native artifact signatures, with
-no page errors. The report intentionally contains no image bytes, credentials,
-pairing codes or private fixture paths.
+## Active tasks and remaining boundaries
 
-## Remaining Task 264 boundary
+- **Task 214** remains the program owner for complete user-action, Actions and
+  MCP capability coverage.
+- **Task 220** remains open for reviewed remote admission, permissions and
+  representative packaged proof of every advertised class.
+- **Task 221** remains open for meaningful semantic artist gaps through the
+  existing application owners.
+- **Task 264** remains open for a real Codex save/export, Actions-visible
+  activity, independent packaged pixel/layer verification and explicit fresh-
+  client invalid/stale/reconnect/cleanup evidence.
+- **Task 282** remains open only for an explicit close/restart persistence check
+  after `Always allow`. The owner has already confirmed that the new packaged
+  Preferences/browser flow is materially better than terminal setup.
+- **Task 277** is complete and packaged on Windows for native JPEG/PNG/WebP/TIFF
+  open, flat representability-gated Save and OS Open With; macOS runtime
+  qualification remains open.
+- **Task 278** is research-only. Do not eagerly load all inference models or
+  claim durable optimized artifacts before its measurements and lifecycle
+  policy exist.
+- **Tasks 300 and 301** are owner-supplied MLTD and SVG drafts. Treat them as
+  active inputs, not approved architecture or permission to implement an
+  underspecified file format/importer without reconciliation.
+- Remove Object remains deferred until its product implementation is ready.
+  Model/backend names such as SAM are implementation details behind stable
+  product capabilities.
 
-Fresh-client acquisition and owner-visible native layered construction passed
-on 2026-08-21. The real Codex run inspected a flat reference, created a separate
-1200x1200 document, built twelve editable layers and checked a bounded final
-preview through MCP only. It also proved explicit read approval and a direct
-read-to-edit upgrade in the packaged Agent Access UI.
+## Worktree and recovery guardrails
 
-Task 264 remains open for native save/export, Actions-visible activity,
-independent packaged pixel/layer verification, fresh-client invalid/stale/error
-cases, reconnect and clean registration removal. Do not broaden the successful
-artist construction into those untested claims.
-
-Task 280 added the shared on-demand document palette after the first artist
-run identified the need for compact image analysis. The Color Picker and the
-read-only `lighttable_palette` MCP tool now use one revision-cached extractor;
-the packaged Color Picker smoke passed with 16 colors from a real document.
-
-Task 281 extends that same extractor and exact-texel GPU sampler to explicit
-layer analysis through `lighttable_layer_palette`. It uses an isolated
-compositor render with the requested layer's mask, processing and effects,
-then ignores transparent canvas pixels. It remains lazy and revision-bound.
-
-Task 282 shortens ordinary local iteration from a multi-terminal pairing flow
-to Preferences: enable Allow agent connections, connect Codex with one no-code
-browser confirmation, approve the exact client once or always, then reload
-Codex once.
-The packaged Preferences and outbound TLS flows are automated and green. The
-remaining owner check is the real Connect Codex browser confirmation from the
-packaged button followed by a fresh Codex session; task 282 stays in todo until
-that external UI boundary is confirmed.
-The isolated launcher remains the clean denial/escalation acceptance harness.
-
-## Active program continuation
-
-- Task 214 remains the program owner for complete semantic capability coverage.
-- Task 220 remains active for reviewed MCP admission and remote proof.
-- Task 221 remains active for meaningful artist capability gaps.
-- Remove Object stays deferred until its product implementation is ready.
-- High-frequency paint, warp, transform and sliders keep local coalesced preview;
-  MCP carries bounded final intent, not simulated pointer or slider traffic.
-- Model/backend names remain implementation details behind stable capabilities.
-
-## Worktree guardrails
-
-- Preserve the user's `.vscode/settings.json`; never stage it.
+- Preserve the user's `.vscode/settings.json`; never stage it without explicit
+  owner direction.
 - `.titlebar-verify/` is generated renderer output; never stage it.
-- The two historical Task 276 stashes may be retained as recovery until the
-  owner chooses to prune them, but must not be reapplied.
-- User test fixtures live under
-  `D:\mediavibe\LightTableTestFiles\RandomFiles` and must not enter reports or
-  commits.
+- `work/todo/task_300/` and `work/todo/task_301/` are owner-authored active task
+  inputs versioned by this checkpoint. Preserve their intent and reconcile them
+  with canonical architecture before implementation.
+- The two Task 276 stashes are historical recovery copies of work already in
+  Git. Do not apply them again.
+- Duplicate empty todo directories reported by `context:agent` are queue-
+  integrity warnings, not active work.
+- User fixtures live under
+  `D:\mediavibe\LightTableTestFiles\RandomFiles`; do not commit their contents
+  or leak private paths into public reports.
 
-## Next safe step
+## Next safe continuation
 
-Continue Task 214/220/221 capability work autonomously where evidence is local.
-Continue with the remaining Task 264 save/export, independent verification and
-error/reconnect/cleanup boundary. Task 279 owns the separate artist efficiency
-and on-demand workflow-guide improvement discovered by the first real run.
+First complete Task 282's packaged close/restart persistence check. Then finish
+Task 264 as one real Codex flow: construct or reuse an editable test document,
+save/export through MCP, observe Actions/events, independently verify pixels and
+editable layers through the packaged query/automation boundary, exercise
+invalid/stale/missing/reconnect/cleanup cases and remove the local registration.
+
+After that, use the evidence—not command counts—to choose the next Task
+214/220/221 vertical. Highest-value known candidates are reliable text
+stroke/shadow behavior, `font.list`/`font.search`, `text.measure`, lower-call
+bulk/vector/SVG construction and align/distribute. Paid or externally metered
+asset/generation flows require explicit configurable policy and user authority.

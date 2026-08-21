@@ -1,8 +1,9 @@
 Task 264 - Local Codex to LightTable MCP A-Z acceptance route
 
 Status
-Active. The isolated launcher and SDK transport proof exist; final acceptance
-through a genuinely fresh Codex session remains owner-visible work.
+Active. The isolated launcher, packaged Preferences route, SDK transport proof
+and first real Codex construction exist. The complete fresh-client save/export,
+independent verification and failure/reconnect/cleanup acceptance remains open.
 
 Goal
 Run the real LightTable desktop tunnel and a local Streamable HTTP MCP server,
@@ -48,6 +49,16 @@ Implemented foundation (2026-08-20)
   content is now the valid object `{ documentId, commands }`, not a bare array.
 - Detailed instructions and security boundaries live in
   [`architecture/integrations/LOCAL_CODEX_MCP_ACCEPTANCE.md`](../../../architecture/integrations/LOCAL_CODEX_MCP_ACCEPTANCE.md).
+
+Fast packaged Preferences route (2026-08-21)
+- **Preferences > Agent Access > Local test mode > Allow agent connections >
+  Connect Codex** starts the built-in loopback service, creates/repairs the
+  local Codex registration and opens browser authorization.
+- Local and online servers share exact-client read, one-time edit and
+  OS-protected persistent edit grants. A different/revoked server or client
+  cannot inherit them.
+- A fresh/reloaded Codex session is required after first registration. The
+  isolated launcher remains the clean terminal harness, not the normal loop.
 
 Automated packaged A-Z evidence (2026-08-21)
 - `npm run smoke:mcp:local-codex:a-z` uses the real packaged desktop, outbound

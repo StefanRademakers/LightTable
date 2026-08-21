@@ -36,7 +36,7 @@ requests may await one device and existing command/artifact limits still apply.
 
 ## UI and lifecycle
 
-**Settings > Agent Access** presents one Allow agent connections switch, a
+**Preferences > Agent Access** presents one Allow agent connections switch, a
 local/online connection mode and one connected-agent permission list. Technical
 server/device identity, endpoints and bounded event history remain available
 under Advanced. The tunnel states are offline, pairing, connecting, connected,

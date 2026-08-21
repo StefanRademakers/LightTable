@@ -243,7 +243,12 @@ replays part of that command set. Agent Access and the MCP server expose a
 permission-gated subset, including editable text/vector construction, Layer
 Styles, bounded pixel Copy/Copy Merged/Paste and real renderer preview/export
 paths. Pixel clipboard Actions regenerate session-local artifacts during replay
-instead of persisting raster bytes or host paths.
+instead of persisting raster bytes or host paths. Final-document and isolated-
+layer palettes provide compact on-demand color analysis, and versioned artist
+guides advertise batch-first construction plus existing native Bezier support.
+The packaged Preferences flow starts the local MCP server and Codex browser
+authorization without terminal command copy/paste; local and online connections
+share exact-client read/one-time-edit/persistent-edit grants.
 
 **Partial:** command coverage is incomplete; current catalog commands have
 shared machine schemas, while several artist operations still lack admitted
@@ -259,7 +264,10 @@ bounded module-registry-backed inspection for document, layer and attached
 owners. Detail sharpening/noise reduction now has a bounded mutation schema;
 the remaining non-basic adjustment mutation families remain open. Equivalent
 UI/Actions/MCP outcomes are not
-yet broadly proven.
+yet broadly proven. The first real fresh-Codex construction proved reference
+inspection, twelve editable layers and revision-bound preview, but not the
+complete save/export, independent-verification and failure/reconnect/cleanup
+acceptance.
 
 **Target only:** reference decomposition, autonomous visual correction,
 editable-first reconstruction, creative branching, teach mode/skill library,

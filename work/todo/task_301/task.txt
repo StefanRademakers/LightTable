@@ -1,0 +1,37 @@
+Task 301 - Native SVG import and export
+
+Status
+Owner-supplied design input. Architecture direction is reviewed; implementation
+has not started and the exact first acceptance slice still needs reconciliation.
+
+Goal
+Add SVG as a bounded import/export codec around LightTable's existing canonical
+vector model. Do not introduce an SVG DOM, Canvas 2D scene or external vector
+scene graph as a second document authority.
+
+Required reconciliation before implementation
+- Treat `svg20pass.md` as the owner-supplied first-pass proposal.
+- Use `architecture/features/VECTOR_ENGINE_AND_SVG_IMPORT.md` as the current
+  verified inventory and proposed safe native subset.
+- Decide whether Pass 1 owns import only or import plus a symmetric serializer.
+- Define exact payload, element, anchor, reference, nesting and output limits.
+- Select and security-review the XML parser; DTDs, external entities, scripts,
+  event handlers, `foreignObject` and network loading remain forbidden.
+- Define File Open/Place, clipboard, Actions and MCP consumers over one atomic
+  import owner and one structured conversion report.
+
+Initial product acceptance
+- Supported SVG paths/primitives/transforms/fills/strokes import as editable
+  native LightTable vector elements with no browser renderer dependency.
+- Unsupported semantics reject or use a clearly selected appearance fallback;
+  they never disappear silently.
+- A representative SVG import -> native save/reopen -> export -> reimport flow
+  preserves bounded semantic and rendered equivalence.
+- UI, Actions and MCP call the same high-level operation; MCP never emits
+  thousands of point-level mutations for one SVG.
+
+Non-goals for the first slice
+- Full SVG/CSS/filter/text compatibility.
+- Editable vector group hierarchy, masks, clipping or boolean authoring before
+  their native LightTable owners exist.
+- Using Paper.js or another external scene graph as production authority.

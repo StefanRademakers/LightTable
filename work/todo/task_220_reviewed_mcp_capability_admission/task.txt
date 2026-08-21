@@ -140,14 +140,17 @@ Current evidence (2026-08-20)
 - The local Codex acceptance launcher separates loopback MCP/OAuth from the
   encrypted desktop tunnel. Its external Streamable HTTP probe proves denial
   before approval, bounded read-only preview, edit denial, revocation and
-  explicit edit escalation against the packaged desktop. Fresh-Codex owner
-  acceptance remains tracked in Task 264.
+  explicit edit escalation against the packaged desktop. The packaged
+  Preferences route now starts the same local boundary and authorizes Codex
+  without terminal command copy/paste.
 - The extended packaged A-Z probe now also proves an editable four-layer
   text/vector/effect composition, revision-bound visual correction, independent
   text/layer queries, changed preview pixels, PNG/JPEG/WebP/TIFF/native artifacts, invalid
   schema, missing-target and stale-write rejection, plus reconnect continuity.
-  This is external SDK transport evidence; a genuinely fresh Codex client is
-  still the remaining owner-visible acceptance boundary in Task 264.
+  A genuinely fresh Codex client separately completed reference inspection,
+  twelve-layer editable construction and preview. Task 264 remains open for
+  save/export, independent verification and fresh-client failure/reconnect/
+  cleanup proof.
 - `grade.setDetail` is admitted for bounded document/layer sharpening and
   noise-reduction patches. The packaged A-Z route executes it at an expected
   revision, observes revision advancement and reads the exact values back

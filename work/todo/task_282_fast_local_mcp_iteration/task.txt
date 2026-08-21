@@ -20,4 +20,9 @@ Evidence
 - MCP server suite, distribution boundary and architecture/source audits pass.
 
 Manual owner validation remaining before moving to done
-- Click Connect Codex in the packaged UI, complete the browser confirmation and verify a fresh Codex session reuses the registration without terminal commands.
+- [x] Owner confirmed the packaged Preferences flow and browser authorization
+  are materially better than the old terminal route.
+- [ ] Close/restart LightTable and Codex after **Always allow**, then confirm the
+  same registration and client-bound edit grant are reused without another
+  pairing or approval. Keep this task in todo until that persistence boundary
+  is explicitly observed.

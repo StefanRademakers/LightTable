@@ -39,15 +39,22 @@ milestone changes those boundaries; feature task details belong in
   Convert to Profile remains unimplemented.
 - Embedded opt-in Agent Access plus outbound TLS/WSS pairing and a remote MCP
   adapter; transport, permissions and editor command semantics remain separate.
-- An opt-in local Codex launcher now pairs the packaged desktop over HTTPS/WSS
-  while serving MCP/OAuth on loopback HTTP. Its external-client smoke proves
-  read-only preview, edit denial, revocation and explicit edit escalation; the
-  final fresh-Codex artist workflow remains an active acceptance task.
+- The packaged Preferences UI can start a loopback-only MCP/OAuth server,
+  register/authorize Codex without terminal command copy/paste and use the same
+  exact-client read/one-time-edit/persistent-edit permission model as an online
+  TLS/WSS server. The older isolated launcher remains a denial/escalation test
+  harness.
 - MCP construction/query support for editable text, vectors, gradients and
   Layer Styles, including revision-bound layer pages, active-layer content
   summaries, whole-document/layer/mask/region GPU previews, unchanged-image
-  transfer suppression, bounded typed inspection for every current adjustment
-  presentation, complete layered-design transactions and export artifacts.
+  transfer suppression, on-demand final-document and isolated-layer palettes,
+  bounded typed inspection for every current adjustment presentation, artist
+  workflow guides, complete layered-design transactions and native/bitmap
+  export artifacts.
+- A real fresh Codex client has completed the first MCP-only cold-discovery
+  artist construction: a separate 1200x1200 document with twelve editable
+  raster/vector/text layers and a checked revision-bound preview. This is not
+  yet the full save/export and independent-verification acceptance.
 - Provider-neutral GenAI packages, OpenArt integration, a managed local-AI
   protocol/provider process and project-backed job/asset/history persistence.
 - Local editor inference for depth, smart selection, matte refinement,
@@ -80,6 +87,9 @@ milestone changes those boundaries; feature task details belong in
   behavior remain.
 - Vector strokes, anti-aliasing/device fixtures and overlay consolidation need
   more production validation.
+- SVG currently has a documented native import subset but no product importer
+  or exporter. It must map into the existing vector model rather than become a
+  second browser/SVG scene authority.
 - Sixteen-bit/profile-aware import exists for supported cases; explicit
   precision-preserving export and broader formats remain.
 - Panel/docking state and shared design tokens need continued stabilization.
@@ -91,6 +101,11 @@ milestone changes those boundaries; feature task details belong in
 - Product licensing has policy and fail-closed rehearsal boundaries but no
   checkout, signed activation receipt verification, device lifecycle or
   entitlement UI/service yet.
+- The local MCP flow is packaged and owner-usable, but Task 264 still requires
+  fresh-client save/export, independent pixel/layer verification and explicit
+  invalid/stale/reconnect/cleanup proof. Online multi-user deployment still
+  needs production authorization, tenant isolation, operations and security
+  review.
 
 ## Next architecture milestones
 
@@ -118,12 +133,12 @@ reconstruction concepts to current capabilities.
    primitives and complete stroke quality.
 7. Evolve warp and shared field-processing infrastructure with preview/final
    quality and dirty-region support.
-8. Extend the established semantic command surface into transforms, masks,
-   selections, adjustments and remaining tool semantics so UI, plugins and MCP
-   remain consumers of one undoable application boundary.
-9. Prove representative UI, Actions and MCP equivalence, then add bounded
-   structural/preview feedback sufficient for an agent to inspect and correct
-   native editable work without automating screen coordinates.
+8. Finish the remaining command/schema/admission gaps under Tasks 214/220/221,
+   especially richer Grade/Lens Fx, vector structure, font/text measurement,
+   asset/project flows and explicitly reviewed paid/provider authority.
+9. Complete Task 264's real Codex save/export, independent pixel/layer
+   verification, invalid/stale/reconnect/cleanup proof and measure the guided
+   batch-first workflow against the 76-call cold-discovery baseline.
 10. Define the pre-1.0 LightTable file-format contract, precision/export policy
    and migration policy only when the model is solid enough to freeze.
 

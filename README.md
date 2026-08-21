@@ -62,6 +62,13 @@ stale task counts or chat memory.
 Material under `docs/` is historical research and handoff context; it is not
 the source of architectural truth.
 
+The current Agent/Actions/MCP work is resumed through
+[`work/todo/task_264_local_codex_mcp_a_z/resume.md`](work/todo/task_264_local_codex_mcp_a_z/resume.md).
+For a local Codex practice run, the packaged desktop now owns the shortest
+route: **Preferences > Agent Access > Local test mode > Allow agent
+connections > Connect Codex**. Do not reconstruct the older multi-terminal
+pairing flow from chat; it remains only as an isolated acceptance harness.
+
 The web and desktop applications use the same `@lighttable/app` package.
 Electron is a native file-dialog and filesystem host only; it does not contain
 a second editor implementation.

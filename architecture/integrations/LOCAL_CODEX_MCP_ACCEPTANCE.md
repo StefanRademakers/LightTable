@@ -97,10 +97,12 @@ explicit edit escalation and execution through the canonical viewport owner.
 The concise report at `tmp/local-codex-mcp/report.json` contains no tokens,
 pairing codes, image bytes or private source paths.
 
-This automated probe does not replace the final fresh-Codex owner acceptance.
-That acceptance must additionally exercise inspect -> create -> edit -> preview
--> correct -> save/export and verify the resulting pixels and editable layers
-independently.
+This automated probe does not replace owner-visible Codex use. The first real
+fresh-Codex run has now proved inspect -> create -> edit -> preview -> correct
+far enough to produce and inspect a twelve-layer editable composition. The
+remaining acceptance must still save/export through that client, verify the
+resulting pixels and editable layers independently, and exercise the named
+failure/reconnect/cleanup paths.
 
 The canonical input boundary, MCP-only execution rule, independent review and
 default `local-only` cost policy for that artist practice run are defined in
@@ -115,5 +117,7 @@ npm run smoke:mcp:local-codex:a-z
 It builds and corrects an editable layered design, compares revision-bound
 previews, inspects text/layer state, verifies PNG/native artifacts, exercises
 invalid-schema, missing-target and stale-revision rejection, then reconnects.
-Its bounded report still does not replace the genuinely fresh Codex-session
-boundary described above.
+Its bounded report complements rather than replaces the real Codex run: the
+automated harness already owns deterministic schema, artifact, reconnect and
+structure checks, while Task 264 still requires those checks to be reconciled
+with the complete owner-visible save/export flow.

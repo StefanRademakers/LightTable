@@ -5,8 +5,8 @@ Status: **implemented opt-in desktop capability**, 2026-08-06.
 ## Product contract
 
 Agent Access controls the user's normal open LightTable desktop process. It is
-off by default and can be enabled, stopped or restarted from **Settings > Agent
-Access** without reopening documents. The renderer keeps the typed automation
+off by default and can be enabled, stopped or restarted from **Preferences >
+Agent Access** without reopening documents. The renderer keeps the typed automation
 driver in a closure; it is never published on `window` for this production
 path. Development Playwright automation remains a separate, explicit launch
 mode.
@@ -17,6 +17,14 @@ OS-allocated free port, and closes tracked sockets on stop and application
 quit. A 256-bit token and opaque device identity are encrypted with Electron
 `safeStorage` before persistence. Rotation immediately invalidates the old
 token.
+
+The ordinary local MCP path no longer exposes that token or port as the primary
+UX. **Local test mode** starts the built-in loopback MCP/OAuth service and
+**Connect Codex** performs registration and browser authorization. The direct
+bridge controls remain under Advanced for diagnostics and isolated acceptance.
+The same connected-client list grants read, one-time edit or persistent edit
+for local and online modes; a persistent grant is bound to exact server and
+client identity rather than a global edit switch.
 
 ## Security boundary
 

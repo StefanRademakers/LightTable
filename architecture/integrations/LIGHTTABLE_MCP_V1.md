@@ -47,9 +47,10 @@ LightTable command service -> history/document model -> GPU renderer
 
 The local bridge is owned by the normal LightTable Electron main process. It binds
 only to `127.0.0.1`, is disabled by default and requires an OS-protected,
-rotatable high-entropy device token. Enable it in **Settings > Agent Access**;
-the displayed address and token configure the private tunnel. Stopping it
-closes listeners without closing documents. See
+rotatable high-entropy device token. Its direct address/token controls remain
+under **Preferences > Agent Access > Advanced** for diagnostics and the legacy
+private-tunnel route. Stopping it closes listeners without closing documents.
+The normal local Codex route uses the built-in loopback MCP service instead. See
 [Embedded desktop Agent Access](EMBEDDED_AGENT_ACCESS.md).
 
 For the Hetzner trial, create an outbound reverse SSH tunnel from the desktop:
@@ -63,7 +64,7 @@ The MCP process on the server then uses
 a public interface. OpenAI's Secure MCP Tunnel is another suitable private
 transport when it is available for the target workspace.
 
-The production-oriented route no longer needs SSH: Settings pairs once over
+The production-oriented route no longer needs SSH: Preferences pairs once over
 HTTPS, pins the server identity and opens WSS outbound from the desktop. Client
 read/edit scopes require explicit desktop approval. See
 [Outbound Agent server pairing](OUTBOUND_AGENT_PAIRING.md).
@@ -328,14 +329,20 @@ case proves the embedded Look and its 62% strength survive transfer.
 
 A local Codex acceptance route is tracked in
 [`work/todo/task_264_local_codex_mcp_a_z/task.txt`](../../work/todo/task_264_local_codex_mcp_a_z/task.txt).
-The supported local launcher and current acceptance instructions live in
-[`LOCAL_CODEX_MCP_ACCEPTANCE.md`](LOCAL_CODEX_MCP_ACCEPTANCE.md). Codex uses the
-existing Streamable HTTP transport, but a newly configured MCP server becomes
-available only to a fresh Codex session. The launcher keeps the Codex endpoint
-loopback-only, keeps credentials out of tracked configuration and retains HTTPS/
-WSS for the desktop device tunnel. The automated packaged probe covers approval,
-read-only preview, edit denial, revocation and explicit edit escalation; final
-fresh-Codex owner acceptance remains open.
+The current acceptance instructions live in
+[`LOCAL_CODEX_MCP_ACCEPTANCE.md`](LOCAL_CODEX_MCP_ACCEPTANCE.md). The normal
+packaged route starts the loopback MCP server and Codex authorization from
+Preferences; the isolated launcher remains available for clean denial and
+scope-escalation tests. A newly registered MCP server still becomes visible
+only after a fresh/reloaded Codex session.
+
+A real fresh Codex client has already completed OAuth, explicit read/edit
+approval, capability discovery, reference inspection, twelve-layer editable
+construction and a revision-bound preview through MCP only. Task 264 remains
+open for native save/export, independent packaged pixel/layer verification and
+fresh-client invalid/stale/reconnect/cleanup evidence. Do not describe either
+the first construction or the automated A-Z harness as that complete owner
+acceptance.
 
 The product target is agent access to all user-facing functionality. Expansion
 must keep going through semantic commands, capability discovery and the normal

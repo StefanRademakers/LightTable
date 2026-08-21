@@ -60,6 +60,7 @@ the task genuinely spans every system.
 - [Missing-font recovery](features/MISSING_FONT_RECOVERY.md)
 - [Unsupported-feature recovery](features/UNSUPPORTED_FEATURE_RECOVERY.md)
 - [Vector shape and gradient authoring](features/VECTOR_SHAPE_AND_GRADIENT_AUTHORING.md)
+- [Vector engine and SVG import capability](features/VECTOR_ENGINE_AND_SVG_IMPORT.md)
 - [Selection, mask and paint workflow](features/SELECTION_MASK_AND_PAINT_WORKFLOW.md)
 - [Document image palette](features/DOCUMENT_IMAGE_PALETTE.md)
 - [Resources, workspaces and recent documents](features/RESOURCES_WORKSPACES_AND_RECENTS.md)
@@ -78,6 +79,7 @@ the task genuinely spans every system.
 - [Embedded desktop Agent Access](integrations/EMBEDDED_AGENT_ACCESS.md)
 - [Outbound Agent server pairing](integrations/OUTBOUND_AGENT_PAIRING.md)
 - [LightTable MCP v1 integration](integrations/LIGHTTABLE_MCP_V1.md)
+- [Local Codex to LightTable MCP acceptance](integrations/LOCAL_CODEX_MCP_ACCEPTANCE.md)
 - [Architecture documentation audit and handoff](ARCHITECTURE_DOCUMENTATION_AUDIT_2026-08-06.md)
 - [Change rules](CHANGE_RULES.md)
 

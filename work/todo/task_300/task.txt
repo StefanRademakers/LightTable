@@ -1,0 +1,291 @@
+MLTD File Format — Draft Specification
+
+Extension: .mltd
+Name: MediaVibe LightTable Document
+MIME: application/vnd.mediavibe.lighttable.document
+Status: Draft / extensible
+
+1. Purpose
+
+MLTD is the native document format for LightTable.
+
+Design priorities, in order:
+
+Fast preview and fast opening
+Reliable random access to document data
+Forward compatibility
+Simple third-party preview support
+File size
+
+File size is explicitly less important than runtime and preview performance.
+
+2. Container
+
+An .mltd file is a ZIP-compatible container.
+
+Example:
+
+example.mltd
+│
+├── preview.png
+├── manifest.json
+├── document/
+│   └── ...
+├── assets/
+│   └── ...
+└── metadata/
+    └── ...
+
+The container MAY contain additional files and directories in future versions.
+
+3. Fast Preview Contract
+
+Fast preview extraction is a core part of the MLTD format.
+
+The first entry in every MLTD file MUST be:
+
+preview.png
+
+The preview entry MUST:
+
+be the first ZIP local file entry;
+use ZIP STORE compression;
+not use DEFLATE;
+have its size present directly in the local file header;
+not require a ZIP data descriptor;
+contain a standard independently decodable image.
+
+This allows a preview reader to obtain the image without scanning or parsing the complete archive.
+
+Conceptually:
+
+open MLTD
+↓
+read first ZIP local header
+↓
+read preview bytes
+↓
+decode image
+↓
+display
+
+A multi-gigabyte MLTD document should therefore require reading only the preview itself to display a Quick Look / Explorer preview.
+
+A viewer SHOULD NOT need to read the ZIP central directory for the normal preview fast path.
+
+4. Preview
+
+The default preview format for MLTD v1 is:
+
+preview.png
+
+PNG is chosen primarily for:
+
+broad native decoder support;
+predictable decoding;
+lossless output;
+simple third-party implementation;
+compatibility with Windows, macOS and Linux tooling.
+
+The preview represents the rendered appearance of the document when it was last saved.
+
+Recommended preview characteristics:
+
+Format: PNG
+Color: display-ready RGB/RGBA
+Aspect ratio: identical to document
+Resolution: implementation-defined
+ZIP compression: STORE
+
+LightTable MAY choose a relatively large preview because preview speed and quality take priority over file size.
+
+Future MLTD versions MAY introduce additional preview representations while maintaining backwards compatibility.
+
+5. Manifest
+
+Every MLTD document MUST contain:
+
+manifest.json
+
+Minimal example:
+
+{
+  "format": "com.mediavibe.lighttable",
+  "formatVersion": 1,
+  "application": "LightTable",
+  "width": 4096,
+  "height": 2731,
+  "preview": "preview.png"
+}
+
+Required fields:
+
+format
+formatVersion
+
+format MUST currently be:
+
+com.mediavibe.lighttable
+
+This acts as the canonical MLTD format identifier.
+
+6. Document Data
+
+Editable LightTable state primarily lives below:
+
+/document/
+
+This may include:
+
+layer hierarchy;
+adjustment parameters;
+masks;
+vector data;
+text;
+transforms;
+effects;
+selections;
+document settings;
+other LightTable-specific state.
+
+The exact internal representation is intentionally unspecified here and may evolve independently from the basic MLTD container contract.
+
+7. Assets
+
+Associated document resources MAY be stored below:
+
+/assets/
+
+Examples:
+
+embedded images;
+masks;
+LUTs;
+generated resources;
+linked-resource metadata;
+other document assets.
+
+Compression SHOULD be selected per asset.
+
+Already-compressed data SHOULD normally use ZIP STORE rather than being compressed again.
+
+Examples:
+
+PNG       → STORE
+JPEG      → STORE
+WebP      → STORE
+AVIF      → STORE
+compressed binary → STORE
+
+large JSON/text → compression MAY be used
+raw buffers      → compression MAY be used
+
+Performance should take priority over marginal reductions in file size.
+
+8. Random Access
+
+MLTD implementations SHOULD avoid designs that require decompressing large unrelated data blocks to access a single document resource.
+
+Large independent assets SHOULD therefore normally exist as separate ZIP entries.
+
+Example:
+
+assets/image-001.bin
+assets/image-002.bin
+assets/mask-001.bin
+document/layers.json
+
+rather than:
+
+document/everything-in-one-huge-compressed-file.bin
+
+This allows LightTable to load only the data required for the current operation.
+
+9. Versioning
+
+formatVersion identifies the MLTD format generation.
+
+Example:
+
+{
+  "formatVersion": 1
+}
+
+Readers MUST tolerate unknown optional fields.
+
+Unknown files and directories SHOULD be ignored unless required by the active format version.
+
+The basic container and preview contract should remain as stable as possible across future versions.
+
+10. Lightweight Reader Contract
+
+A lightweight MLTD viewer does not need to understand the LightTable document model.
+
+Fast path
+
+A minimal viewer may:
+
+Open the file.
+Read the first ZIP local header.
+Verify that the entry is preview.png.
+Read its stored bytes directly.
+Decode and display the PNG.
+
+No complete ZIP scan is required.
+
+Validation path
+
+Software requiring stronger validation may additionally:
+
+Read manifest.json.
+Verify:
+format == "com.mediavibe.lighttable"
+Check formatVersion.
+
+This makes lightweight open-source viewers practical for:
+
+QuickLook for Windows;
+Windows Explorer thumbnail handlers;
+macOS Quick Look;
+Linux file managers;
+asset managers;
+DAM systems.
+11. File Association
+
+Recommended identifiers:
+
+Extension:
+.mltd
+
+Friendly name:
+MediaVibe LightTable Document
+
+Windows ProgID:
+MediaVibe.LightTable.Document
+
+macOS UTI:
+com.mediavibe.lighttable.document
+
+MIME:
+application/vnd.mediavibe.lighttable.document
+12. Core Compatibility Contract
+
+The stable core of MLTD is:
+
+.mltd
+  ↓
+ZIP-compatible container
+  ↓
+FIRST ENTRY = preview.png
+  ↓
+ZIP STORE / direct-access preview
+  ↓
+manifest.json
+  ↓
+format = com.mediavibe.lighttable
+  ↓
+versioned editable document data
+
+The preview fast path is considered part of the format contract and should not be broken by future LightTable versions.
+
+Everything beyond this core may evolve as LightTable develops.

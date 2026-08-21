@@ -291,6 +291,19 @@ Existing foundation evidence
   UI controls and the closed machine schema; packaged MCP execution advances
   the canonical revision and the independent adjustment query returns the
   authored `lt.detail` values.
+- The first real fresh-Codex artist run completed reference inspection,
+  twelve-layer editable raster/vector/text construction and revision-bound
+  preview through MCP only. It exposed a 76-roundtrip cold-discovery baseline,
+  text stroke/shadow realization gaps and under-discovered batching/Bezier
+  support; it did not complete save/export or independent verification.
+- Versioned artist resources now teach capability discovery, batch-first
+  construction and native Bezier paths without changing execution semantics.
+  Final-document and isolated-layer palettes provide lazy, revision-checked
+  color analysis through the same renderer-owned extractor used by the Color
+  Picker.
+- The packaged Preferences flow now starts the loopback-only MCP service and
+  Codex authorization without terminal setup. Local and online connections
+  share exact-client read, one-time edit and persistent edit permissions.
 
 Program definition of done
 ==========================

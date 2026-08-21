@@ -47,6 +47,29 @@ Do not preload `work/done/`, `architecture/reference/`, `obsolete/`, every test
 or every source file. Search those collections only to answer a concrete
 question. Context is a working set, not a measure of diligence.
 
+### Current Agent/Actions/MCP recovery capsule
+
+When the recovered work concerns Agent Access, Actions or MCP, read these after
+the reported resume checkpoint:
+
+1. [LightTable MCP v1](integrations/LIGHTTABLE_MCP_V1.md) for the current
+   command/query/permission boundary;
+2. [Local Codex acceptance](integrations/LOCAL_CODEX_MCP_ACCEPTANCE.md) for the
+   shortest packaged practice flow and the separate isolated harness;
+3. [Agent-native creative runtime target](goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md)
+   for the long-running product outcome;
+4. Tasks 214, 220, 221 and 264 for the remaining program work.
+
+Current reset fact, 2026-08-21: a fresh Codex client has already inspected a
+reference and built a separate twelve-layer editable text/vector composition
+through MCP only. Whole-document and isolated-layer palettes, bounded previews,
+artist workflow guides, batch construction and native bitmap artifacts exist.
+The ordinary local connection flow now starts inside **Preferences > Agent
+Access** and no longer requires terminal command copy/paste. The full Task 264
+save/export, independent verification, error/reconnect and cleanup acceptance
+is still open; do not turn the successful first construction into a claim that
+all artist capabilities or the complete A-Z benchmark are finished.
+
 ## Phase 2: classify the requested change
 
 | Change | Read first | Trace to |

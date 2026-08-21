@@ -60,6 +60,11 @@ If conversation context disappeared, retain these facts before touching code:
     Containers only supply flow, available space, clipping and placement;
     contextual differences use named variants and appear identically in the
     live UI Style Guide.
+12. Local Codex practice is product-owned in the packaged desktop:
+    **Preferences > Agent Access > Local test mode > Allow agent connections >
+    Connect Codex**. A fresh/reloaded Codex session is required after first
+    registration. The older terminal launcher remains an isolated security and
+    denial/escalation harness, not the normal iteration route.
 
 ## The product in one paragraph
 
@@ -513,9 +518,11 @@ proof of better architecture.
 
 [`lightTableCommandContract.ts`](../packages/lighttable-app/src/lighttable/application/commands/lightTableCommandContract.ts)
 defines protocol v1 and stable semantic command IDs. Current families cover
-documents, viewport, raster placement, layer properties, editable text,
-editable vectors, Layer Styles, Face Warp operations, atomic batches, tasks,
-native/PNG/PSD export and history.
+documents and geometry, viewport, raster placement and bounded paint recipes,
+layer properties, masks and merges, selections, Grade/adjustments, editable
+text, editable vectors, Layer Styles, atomic batches, tasks, native/bitmap/PSD
+artifacts and history. Catalog presence does not automatically grant remote
+admission.
 
 Commands address an explicit stable document ID and, where needed, stable layer,
 vector-element or effect IDs. Queries return the canonical revision and current
@@ -596,19 +603,25 @@ bridge/outbound tunnel.
 [`packages/command-contract/catalog.json`](../packages/command-contract/catalog.json)
 owns the complete command IDs plus explicit Agent Access and external MCP
 profiles. Generated validators/enums prevent string-list drift. The profiles
-are deliberately unequal: document creation and artifact-open are used only by
-dedicated validated MCP tools; PSD export is part of the proven remote design
-workflow; resize, document duplication/geometry and Face Warp are not exposed
-yet. These are incremental rollout states, not permanent exclusions: the
-product target is semantic agent access to all user-facing functionality.
+are deliberately unequal: workspace creation and artifact-open use dedicated
+validated MCP tools, while commands such as document resize, geometry,
+duplication, bitmap/PSD export and Detail Grade were admitted only after bounded
+schema and packaged evidence. Experimental Face Warp and unfinished product
+owners such as Remove Object remain withheld. These are incremental rollout
+states, not permanent exclusions: the product target is semantic agent access
+to all meaningful user-facing functionality.
 The actual Electron renderer bridge enforces this Agent Access profile and
 filters capability discovery before requests reach the full automation driver.
 
-Desktop Agent Access uses user-visible pairing, read/edit scopes, revocation,
-bounded artifacts and an outbound TLS/WSS connection; it does not expose an
-unrestricted public desktop port. This is a strong technical boundary, not a
-completed external security certification. Production still needs deployment
-hardening, operational key/token policy and independent security review.
+Desktop Agent Access uses one Preferences model for the built-in loopback test
+server and a future online server. Exact clients receive read, one-time edit or
+persistent edit permission; persistent grants are OS-protected and bound to the
+server identity, certificate fingerprint, client ID and scopes. Revocation,
+bounded artifacts and outbound TLS/WSS remain explicit. Local MCP/OAuth binds
+only to loopback and no unrestricted public desktop port is opened. This is a
+strong technical boundary, not a completed external security certification;
+production still needs deployment hardening, operational key/token policy and
+independent security review.
 
 This is the intended dependency direction:
 
@@ -631,14 +644,15 @@ GPU device or mutable document object.
 Stable IDs are necessary but not sufficient for a public ABI. Before external
 plugins depend on one, define ID lifetime across save/reopen/import, schema
 compatibility, capability negotiation, transaction and event semantics,
-resource quotas, cancellation, permissions and deprecation policy.
-
 ## Reference image to editable reconstruction
 
-The requested ChatGPT workflow is architecturally plausible and partly wired:
-MCP can already accept a public reference/generated image, register it as a
-bounded artifact, open/place it, build editable text/vector/style layers,
-execute atomic batches and ask the real GPU/export path for a PNG preview.
+The requested ChatGPT workflow is implemented far enough for a real first
+practice run: MCP can accept a bounded reference artifact, open/place it, build
+editable text/vector/style layers, execute atomic batches, query document or
+isolated-layer palettes and ask the real GPU/export path for bounded previews
+and native/bitmap artifacts. Versioned artist guides teach batch-first
+construction and native Bezier paths without injecting a large manual into
+every response.
 
 The full target loop should be:
 
@@ -662,11 +676,16 @@ flat bitmap. Pixel similarity is only one objective; editability, font/resource
 availability, layer naming, transform stability and export parity are separate
 acceptance criteria.
 
-Important gaps are scene-understanding/planning contracts, richer command
-coverage for transforms/masks/adjustments/selections, reference-to-preview
-comparison, asset/font matching, deterministic repair strategies and explicit
-human approval for ambiguous or destructive steps. Do not solve those by
-teaching the agent screen coordinates or private component state.
+On 2026-08-21 a fresh Codex client used this surface to inspect a flat birthday
+reference, create a separate 1200x1200 document and build twelve editable
+raster/vector/text layers before inspecting a revision-bound final preview.
+That proves inspect -> plan -> construct -> preview, not the remaining
+save/export, independent pixel/layer verification and failure/reconnect/cleanup
+boundary. Important gaps include reliable text stroke/shadow rendering,
+font discovery and text measurement, lower-call bulk authoring, native SVG
+import, richer vector groups/boolean operations, alignment and deterministic
+visual repair. Do not solve those by teaching screen coordinates or private
+component state.
 
 ## AI systems are separate from MCP
 
