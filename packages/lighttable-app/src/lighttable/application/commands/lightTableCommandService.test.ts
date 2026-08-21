@@ -96,6 +96,9 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
     exportPreviewArtifact: vi.fn(async (_documentId, maxEdge) =>
       new File(['preview'], `preview-${maxEdge}.png`, { type: 'image/png' })),
+    getDocumentPalette: vi.fn(async () => []),
+    getLayerPalette: vi.fn(async () => [{ rgb: [10, 20, 30] as const, hex: '#0A141E',
+      coverage: 1, pixelCount: 1200, oklab: [0.19, -0.01, -0.03] as const }]),
     exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
     beginGesture: vi.fn(async () => true),
     updateGesture: vi.fn(async () => true),
@@ -1995,6 +1998,27 @@ describe('LightTableCommandService registry', () => {
     expect(state.service.releaseArtifact(first.artifact.id)).toBe(true);
     await expect(state.service.requestLayerPreview(request))
       .resolves.toMatchObject({ status: 'completed', reused: false });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('serves a revision-bound palette for one existing layer only', async () => {
+    const state = setup();
+    const document = state.session.getSnapshot().document!;
+    const layerId = document.activeLayerId!;
+    const revision = state.service.queryDocument(state.session.id)!.canonicalRevision;
+    await expect(state.service.requestLayerPalette({ documentId: state.session.id, layerId,
+      expectedDocumentRevision: revision, colorCount: 16 })).resolves.toMatchObject({
+      status: 'completed', documentId: state.session.id, layerId,
+      canonicalRevision: revision, colors: [{ hex: '#0A141E' }]
+    });
+    expect(state.ports.getLayerPalette).toHaveBeenCalledWith(state.session.id, layerId, 16);
+    await expect(state.service.requestLayerPalette({ documentId: state.session.id,
+      layerId: 'missing-layer', expectedDocumentRevision: revision, colorCount: 16 }))
+      .resolves.toMatchObject({ status: 'rejected', code: 'layer-not-found' });
+    await expect(state.service.requestLayerPalette({ documentId: state.session.id, layerId,
+      expectedDocumentRevision: revision + 1, colorCount: 16 }))
+      .resolves.toMatchObject({ status: 'rejected', code: 'stale-document-revision',
+        currentRevision: revision });
     state.service.dispose(); state.workspace.dispose();
   });
 

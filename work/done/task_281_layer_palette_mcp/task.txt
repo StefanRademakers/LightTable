@@ -1,0 +1,18 @@
+Task 281 — Layer palette query through Agent Access and MCP
+
+Goal
+- Let an agent request the dominant rendered colors of one explicit layer without transferring a preview image.
+
+Acceptance
+- [x] Read-only request requires documentId, layerId, expectedDocumentRevision, and colorCount 1-256.
+- [x] Uses the same deterministic palette extractor as the document palette.
+- [x] Samples exact texels from an isolated compositor render, including layer masks and processing, not a thumbnail PNG.
+- [x] Ignores transparent pixels and returns stable real rendered RGB colors with coverage.
+- [x] Revision/layer validation and cache behavior are explicit.
+- [x] Desktop Agent Access, MCP adapter/server, mock, tests, and documentation remain in sync.
+
+Evidence
+- Root workspace typecheck passed.
+- Command, discovery, authenticated adapter, desktop bridge and MCP server coverage passed (989 Vitest tests; 5 MCP server tests).
+- Source-structure, architecture documentation and repository boundary audits passed.
+- The isolated render explicitly disables the normal document suffix cache, preventing analysis from poisoning interactive rendering.

@@ -88,6 +88,15 @@ export class MockLightTableClient {
           oklab: [0.79, 0.03, 0.15] }] }
       : { status: 'rejected', code: 'stale-document-revision', message: 'stale',
         currentRevision: this.document.canonicalRevision };
+    if (method === 'layer.palette') return parameters.documentId === this.document.id
+      && parameters.expectedDocumentRevision === this.document.canonicalRevision
+      && this.layers.some(({ id }) => id === parameters.layerId)
+      ? { status: 'completed', documentId: this.document.id, layerId: parameters.layerId,
+        canonicalRevision: this.document.canonicalRevision,
+        colors: [{ rgb: [240, 180, 40], hex: '#F0B428', coverage: 0.75, pixelCount: 720_000,
+          oklab: [0.79, 0.03, 0.15] }] }
+      : { status: 'rejected', code: 'layer-or-revision-not-found', message: 'stale or missing layer',
+        currentRevision: this.document.canonicalRevision };
     if (method === 'document.preview') return parameters.documentId === this.document.id
       && parameters.expectedDocumentRevision === this.document.canonicalRevision
       ? { status: 'completed', reused: false, artifact: { id: 'preview-demo',
@@ -126,7 +135,7 @@ export class MockLightTableClient {
         content: { kind: 'raster', pixelRevision: 1, source: { kind: 'runtime-raster' },
           dirtyBounds: null, localAdjustments: null, attachedAdjustmentCount: 0,
           attachedAdjustmentsTruncated: false, attachedAdjustments: [] },
-        availableQueries: ['layer.preview:pixels', 'warp.query', 'grade.queryBasic'] }
+        availableQueries: ['layer.preview:pixels', 'layer.palette', 'warp.query', 'grade.queryBasic'] }
         : { status: 'rejected', code: 'layer-not-found', message: 'Layer not found.' };
     }
     if (method === 'layer.effects') return { layerId: parameters.layerId, enabled: true, revision: 0, effects: [] };

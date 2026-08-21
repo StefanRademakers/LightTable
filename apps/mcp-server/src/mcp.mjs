@@ -148,6 +148,14 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       colorCount: z.number().int().min(1).max(256).default(16) }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('document.palette', input)));
+  server.registerTool('lighttable_layer_palette', {
+    title: 'Extract a LightTable layer palette',
+    description: 'Returns 1-256 dominant real rendered colors from one isolated layer at an exact canonical document revision. The layer mask, processing and effects are included; other layers are excluded.',
+    inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1),
+      expectedDocumentRevision: z.number().int().nonnegative(),
+      colorCount: z.number().int().min(1).max(256).default(16) }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('layer.palette', input)));
   server.registerTool('lighttable_layers', {
     title: 'List editable LightTable layers',
     description: 'Returns one compact revision-bound page of the editable layer tree. Follow nextCursor; use targeted content queries for text, vector, effects, Grade or Warp details.',

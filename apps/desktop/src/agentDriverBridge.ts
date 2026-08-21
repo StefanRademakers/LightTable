@@ -26,6 +26,10 @@ export const invokeAgentDriver = async (
     if (!driver.requestDocumentPalette) throw new Error('Document palette extraction is unavailable.');
     return driver.requestDocumentPalette(value);
   }
+  if (method === 'layer.palette') {
+    if (!driver.requestLayerPalette) throw new Error('Layer palette extraction is unavailable.');
+    return driver.requestLayerPalette(value);
+  }
   if (method === 'layer.preview') return driver.requestLayerPreview(value);
   if (method === 'layer.list') return driver.queryLayerPage(value);
   if (method === 'layer.query') return driver.queryLayerDetail(value);

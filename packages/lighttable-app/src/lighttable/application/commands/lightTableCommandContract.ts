@@ -314,6 +314,8 @@ export interface LightTableCommandPorts {
     encoding: LightTablePreviewEncoding, region?: DocumentPixelRegion): File | Promise<File>;
   getDocumentPalette?(documentId: DocumentSessionId, colorCount: number):
     readonly PaletteColor[] | Promise<readonly PaletteColor[]>;
+  getLayerPalette?(documentId: DocumentSessionId, layerId: LayerId, colorCount: number):
+    readonly PaletteColor[] | Promise<readonly PaletteColor[]>;
   exportLayerPreviewArtifact(documentId: DocumentSessionId, layerId: LayerId,
     channel: 'pixels' | 'mask', maxEdge: number,
     encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
@@ -381,6 +383,8 @@ export interface DocumentLightTableCommandPorts {
   exportPreviewArtifact(maxEdge: number, encoding: LightTablePreviewEncoding,
     region?: DocumentPixelRegion): File | Promise<File>;
   getDocumentPalette?(colorCount: number): readonly PaletteColor[] | Promise<readonly PaletteColor[]>;
+  getLayerPalette?(layerId: LayerId, colorCount: number):
+    readonly PaletteColor[] | Promise<readonly PaletteColor[]>;
   exportLayerPreviewArtifact(layerId: LayerId, channel: 'pixels' | 'mask',
     maxEdge: number, encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
   exportPsdArtifact(): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;

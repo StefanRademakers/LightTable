@@ -25,6 +25,7 @@ const createDriver = (): LightTableAutomationDriver => ({
     status: 'rejected' as const, code: 'document-not-ready' as const,
     message: 'The preview document is not ready.'
   })),
+  requestLayerPalette: vi.fn(async () => ({ status: 'completed' as const })),
   queryTask: vi.fn(() => null),
   queryTaskEvents: vi.fn(() => ({ cursor: 0, events: [] })),
   queryPublicationEvents: vi.fn(() => ({ cursor: 0, latestCursor: 0,
@@ -102,6 +103,18 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
       expectedDocumentRevision: 7, maxEdge: 512 };
     await adapter.invoke(request('layer.preview', parameters));
     expect(driver.requestLayerPreview).toHaveBeenCalledWith(parameters);
+    expect(driver.execute).not.toHaveBeenCalled();
+  });
+
+  it('forwards isolated layer palette requests without command mutation', async () => {
+    const driver = createDriver();
+    const adapter = new AuthenticatedLightTableMcpAdapter({
+      driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000
+    });
+    const parameters = { documentId: 'document-1', layerId: 'layer-1',
+      expectedDocumentRevision: 7, colorCount: 16 };
+    await adapter.invoke(request('layer.palette', parameters));
+    expect(driver.requestLayerPalette).toHaveBeenCalledWith(parameters);
     expect(driver.execute).not.toHaveBeenCalled();
   });
 

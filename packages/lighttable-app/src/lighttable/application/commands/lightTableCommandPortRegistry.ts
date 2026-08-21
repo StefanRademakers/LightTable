@@ -245,6 +245,11 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     if (!extract) throw new Error('Document palette extraction is unavailable in the target document.');
     return extract(colorCount);
   }
+  getLayerPalette(documentId: DocumentSessionId, layerId: LayerId, colorCount: number) {
+    const extract = this.resolve(documentId).getLayerPalette;
+    if (!extract) throw new Error('Layer palette extraction is unavailable in the target document.');
+    return extract(layerId, colorCount);
+  }
   exportLayerPreviewArtifact(documentId: DocumentSessionId, layerId: LayerId,
     channel: 'pixels' | 'mask', maxEdge: number,
     encoding: Parameters<DocumentLightTableCommandPorts['exportLayerPreviewArtifact']>[3]) {

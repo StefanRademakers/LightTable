@@ -47,6 +47,26 @@ import type {
 } from '../tools/paint/sampledBrushTypes';
 import { sampledBrushSourceDocument } from '../document/sampledBrushSourceDocument';
 
+const isolatedLayerTree = (
+  nodes: readonly LayerNode[],
+  layerId: LayerId
+): LayerNode[] => nodes.flatMap((node) => {
+  if (node.id === layerId) return [{ ...node, visible: true, blendMode: 'normal', clipping: false }];
+  if (node.type !== 'group') return [];
+  const children = isolatedLayerTree(node.children, layerId);
+  if (children.length === 0) return [];
+  return [{
+    ...node,
+    children,
+    visible: true,
+    opacity: 1,
+    fillOpacity: 1,
+    blendMode: 'normal',
+    clipping: false,
+    styleStack: { ...node.styleStack, enabled: false }
+  }];
+});
+
 export const projectTextEditingGeometryPreview = (
   presentation: TextLayerEditingLayout,
   canonicalLocal: AffineMatrix,
@@ -335,6 +355,37 @@ export class LayerDocumentRenderer {
     this.device.queue.submit([encoder.finish()]);
     this.releaseSubmittedResources();
     return this.runtime.textureCodec.encode(source, false, document.width, document.height);
+  }
+
+  /**
+   * Encodes one layer (or group subtree) against transparency while retaining
+   * its own mask, processing and effects. Ancestor groups only provide spatial
+   * context; their visibility, blend and effects cannot alter the requested
+   * layer's palette.
+   */
+  async encodeIsolatedLayer(
+    encoder: GPUCommandEncoder,
+    document: ImageDocument,
+    layerId: LayerId,
+    encodeAdjustment?: EncodeAdjustment
+  ): Promise<GPUTexture | null> {
+    const layers = isolatedLayerTree(document.layers, layerId);
+    if (layers.length === 0) return null;
+    const layer = findDocumentLayer(document, layerId);
+    if (layer?.type === 'text') await this.waitForTextSource(layerId);
+    if (layer?.type === 'group') await this.waitForTextSourcesForExport();
+    const isolated = { ...document, layers, activeLayerId: layerId };
+    // A non-empty exclusion set disables the compositor's document suffix
+    // cache. The sentinel matches no real layer and prevents this temporary
+    // isolated tree from populating or reusing the normal document cache.
+    try {
+      return this.encodeComposite(
+        encoder, isolated, encodeAdjustment, false,
+        new Set<LayerId>(['__lighttable_layer_palette_isolation__' as LayerId])
+      );
+    } finally {
+      this.syncDocument(document);
+    }
   }
 
   vectorPathsForTextLayer(layerId: LayerId, signal?: AbortSignal) {

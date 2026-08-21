@@ -2962,8 +2962,36 @@ export class WebGpuEngine {
     if (!this.metadata || !this.imageResources.finalTexture) {
       throw new Error('No processed image is available for palette extraction.');
     }
-    const sourceWidth = this.metadata.width;
-    const sourceHeight = this.metadata.height;
+    return this.samplePaletteTexture(
+      this.imageResources.finalTexture, this.metadata.width, this.metadata.height, targetSamples
+    );
+  }
+
+  /** Exact palette samples from one isolated, fully rendered layer. */
+  async exportLayerPaletteSamples(
+    document: ImageDocument,
+    layerId: LayerId,
+    targetSamples = 65_536
+  ) {
+    if (!this.documentRenderer) throw new Error('The LightTable layer renderer is unavailable.');
+    const encoder = this.device.createCommandEncoder({ label: `LightTable layer palette: ${layerId}` });
+    const source = await this.documentRenderer.encodeIsolatedLayer(
+      encoder, document, layerId,
+      (adjustmentEncoder, adjustmentSource, layer) =>
+        this.encodeLayerProcessing(adjustmentEncoder, adjustmentSource, layer)
+    );
+    if (!source) throw new Error(`Layer ${layerId} has no renderable content.`);
+    this.device.queue.submit([encoder.finish()]);
+    this.documentRenderer.releaseSubmittedResources();
+    return this.samplePaletteTexture(source, document.width, document.height, targetSamples);
+  }
+
+  private async samplePaletteTexture(
+    source: GPUTexture,
+    sourceWidth: number,
+    sourceHeight: number,
+    targetSamples: number
+  ) {
     const totalPixels = sourceWidth * sourceHeight;
     let width = sourceWidth;
     let height = sourceHeight;
@@ -3016,7 +3044,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
       const bindGroup = this.device.createBindGroup({
         layout: this.paletteSamplePipeline.getBindGroupLayout(0),
         entries: [
-          { binding: 0, resource: this.imageResources.finalTexture.createView() },
+          { binding: 0, resource: source.createView() },
           { binding: 1, resource: { buffer: dimensions } }
         ]
       });

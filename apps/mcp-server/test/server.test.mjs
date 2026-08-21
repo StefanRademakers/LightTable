@@ -52,6 +52,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_workspace'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_preview'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_palette'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_palette'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_preview'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_region_preview'));
@@ -180,6 +181,13 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(palette.isError, undefined);
   assert.equal(palette.structuredContent.colors[0].hex, '#F0B428');
   assert.equal(palette.structuredContent.canonicalRevision, 1);
+  const layerPalette = await reader.callTool({ name: 'lighttable_layer_palette', arguments: {
+    documentId: 'document-demo', layerId: 'layer-background',
+    expectedDocumentRevision: 1, colorCount: 16
+  } });
+  assert.equal(layerPalette.isError, undefined);
+  assert.equal(layerPalette.structuredContent.layerId, 'layer-background');
+  assert.equal(layerPalette.structuredContent.colors[0].hex, '#F0B428');
   const preview = await reader.callTool({ name: 'lighttable_preview', arguments: {
     documentId: 'document-demo', expectedDocumentRevision: 1, maxEdge: 512
   } });

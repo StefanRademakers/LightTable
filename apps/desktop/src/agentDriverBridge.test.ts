@@ -93,6 +93,19 @@ describe('invokeAgentDriver', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('forwards revision-bound layer palettes as read-only analysis', async () => {
+    const requestLayerPalette = vi.fn(async () => ({ status: 'completed',
+      documentId: 'document-1', layerId: 'layer-1', canonicalRevision: 8, colors: [] }));
+    const execute = vi.fn();
+    const driver = driverWith({ requestLayerPalette, execute });
+    const parameters = { documentId: 'document-1', layerId: 'layer-1',
+      expectedDocumentRevision: 8, colorCount: 16 };
+    await expect(invokeAgentDriver(driver, 'layer.palette', parameters))
+      .resolves.toMatchObject({ status: 'completed', layerId: 'layer-1' });
+    expect(requestLayerPalette).toHaveBeenCalledWith(parameters);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('forwards revision-bound layer pages without falling back to the unbounded query', async () => {
     const queryLayerPage = vi.fn(() => ({ status: 'completed' as const,
       documentId: 'document-1', canonicalRevision: 8, total: 2, offset: 0,

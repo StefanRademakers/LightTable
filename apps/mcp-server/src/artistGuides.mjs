@@ -13,7 +13,7 @@ Use LightTable as a native layered editor, not as a bitmap-generation endpoint.
 3. When two or more known edits belong to one logical phase, prefer lighttable_batch over repeated lighttable_execute calls.
 4. Use resultOf references inside a batch when a later operation needs an ID created by an earlier operation.
 5. Build in logical phases such as background, decoration, hero shape, typography and correction.
-6. Use lighttable_palette when dominant document colors are sufficient; transfer a bounded preview only when spatial or visual inspection is needed.
+6. Use lighttable_palette for dominant composite colors and lighttable_layer_palette for one layer's isolated rendered colors; transfer a bounded preview only when spatial or visual inspection is needed.
 7. Request a bounded preview after a phase, not after every primitive.
 8. Carry the canonical revision returned by writes and reads forward. Re-query only when state is genuinely unknown or a stale-revision response requires it.
 9. Report unsupported visual properties honestly. Do not rasterize editable content merely to hide a missing capability.

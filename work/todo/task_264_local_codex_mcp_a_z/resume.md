@@ -47,6 +47,11 @@ run identified the need for compact image analysis. The Color Picker and the
 read-only `lighttable_palette` MCP tool now use one revision-cached extractor;
 the packaged Color Picker smoke passed with 16 colors from a real document.
 
+Task 281 extends that same extractor and exact-texel GPU sampler to explicit
+layer analysis through `lighttable_layer_palette`. It uses an isolated
+compositor render with the requested layer's mask, processing and effects,
+then ignores transparent canvas pixels. It remains lazy and revision-bound.
+
 ## Active program continuation
 
 - Task 214 remains the program owner for complete semantic capability coverage.

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExtern
 import { cloneGradientPaint } from '@lighttable/paint-core';
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
-import { useDocumentPalette } from './application/color/useDocumentPalette';
+import { useDocumentPalette, useLayerPalette } from './application/color/useDocumentPalette';
 import { DocumentPaletteProvider } from '../ui/DocumentPaletteContext';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
@@ -933,7 +933,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
-  const loadDocumentPalette = useDocumentPalette(engineRef, imageDocumentRef);
+  const loadDocumentPalette = useDocumentPalette(engineRef, imageDocumentRef), loadLayerPalette = useLayerPalette(engineRef, imageDocumentRef);
   const attachColorMixerHueCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
     colorMixerHueCanvasRef.current = canvas;
     if (!canvas) return;
@@ -5268,6 +5268,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         );
       },
       getDocumentPalette: (colorCount) => loadDocumentPalette(colorCount),
+      getLayerPalette: (layerId, colorCount) => loadLayerPalette(layerId, colorCount),
       exportLayerPreviewArtifact: async (layerId, channel, maxEdge, encoding) => {
         const preview = await engineRef.current?.exportLayerThumbnail(
           layerId, channel === 'mask', maxEdge, maxEdge

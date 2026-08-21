@@ -12,7 +12,7 @@ describe('projectLayerDetailQuery', () => {
     });
     expect(result).toMatchObject({ status: 'completed', resolvedFrom: 'active-layer',
       content: { kind: 'raster', source: { kind: 'runtime-raster' } },
-      availableQueries: expect.arrayContaining(['layer.preview:pixels', 'warp.query']) });
+      availableQueries: expect.arrayContaining(['layer.preview:pixels', 'layer.palette', 'warp.query']) });
     expect(JSON.stringify(result)).not.toContain('runtimeId');
   });
 
