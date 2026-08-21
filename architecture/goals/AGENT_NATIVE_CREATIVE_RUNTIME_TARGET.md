@@ -55,6 +55,16 @@ teach layered design practice. They are a productivity and quality layer, not
 a substitute for a coherent capability surface. Cold-discovery and guided-
 example results must remain separate claims.
 
+The first owner-visible cold-discovery run completed on 2026-08-21. A fresh
+Codex client reconstructed a flat birthday reference as twelve editable native
+layers in a separate 1200x1200 document and inspected a revision-bound final
+preview without paid providers or direct application automation. This proves
+the inspect -> plan -> layered construction -> preview boundary, not the full
+save/export and independent-verification benchmark. The run required 76 MCP
+roundtrips and failed to discover some existing batching and native Bezier
+capabilities. Versioned on-demand artist guides were therefore added as a
+separate guided-workflow layer; future cold and guided results remain distinct.
+
 ## Canonical architecture
 
 ```text

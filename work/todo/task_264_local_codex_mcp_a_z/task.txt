@@ -20,17 +20,17 @@ Checklist
   preview before granting edit scope.
 - [x] Prove edit denial under read-only approval, revoke access, request approval
   again and execute only after explicit edit approval.
-- [ ] Run the real fresh-Codex owner acceptance with this launcher.
+- [x] Run the real fresh-Codex owner acceptance with this launcher.
 - [ ] Prove document creation, layered edits, Actions-visible commands,
   revision/event observation, correction and export through Codex MCP only.
 - [ ] Verify LightTable's final pixels and editable layer state independently
   through the packaged automation/query route.
 - [ ] Exercise invalid schema, stale revision, missing target, reconnect and
   clean shutdown paths from the fresh Codex client.
-- [ ] Run the cold-discovery artist benchmark from the canonical agent-native
+- [x] Run the cold-discovery artist benchmark from the canonical agent-native
   target with only a reference, brief and supplied assets; no command recipes,
   source inspection or direct application automation.
-- [ ] Keep the initial artist benchmark in `local-only` mode and prove that no
+- [x] Keep the initial artist benchmark in `local-only` mode and prove that no
   paid generation, stock acquisition or metered provider was invoked.
 - [x] Retain a concise machine-readable transport report without image bytes,
   tokens, pairing codes or private paths.
@@ -61,6 +61,20 @@ Automated packaged A-Z evidence (2026-08-21)
 - This closes the automatable product route underneath Codex. It does not turn
   the remaining genuinely fresh Codex-session acceptance into an automated
   claim.
+
+Owner-visible fresh Codex evidence (2026-08-21)
+- A genuinely fresh Codex client completed OAuth, explicit read approval and a
+  direct read-to-edit permission upgrade through the packaged Agent Access UI.
+- Through LightTable MCP only it inspected happy_birthday.png, created a
+  separate 1200x1200 8-bit sRGB document, and reconstructed the reference as
+  twelve editable raster/vector/text layers. The final bounded preview was
+  inspected at canonical revision 22; the reference remained unchanged.
+- The run used no paid provider, external generation, source mutation or direct
+  application automation. It exposed text stroke/shadow and renderer-settle
+  gaps plus a 76-call efficiency baseline.
+- Native save/export, Actions observation, independent packaged pixel/layer
+  verification and the fresh-client error/reconnect/cleanup cases remain open,
+  so Task 264 is not complete.
 
 Resume checkpoint (updated 2026-08-21)
 - The full current continuation procedure, verified baseline, completed Task

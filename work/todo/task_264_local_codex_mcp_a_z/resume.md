@@ -1,7 +1,7 @@
 # MCP / Actions autonomous-work resume checkpoint
 
 Recorded: 2026-08-21
-Repository baseline before this checkpoint: `ff2fefdf` on `main`
+Repository baseline before this checkpoint: `0bd4f24d` on `main`
 
 ## Current state
 
@@ -31,20 +31,16 @@ pairing codes or private fixture paths.
 
 ## Remaining Task 264 boundary
 
-The only acceptance claim that cannot be produced inside the already-running
-Codex session is a genuinely fresh Codex client acquiring the newly registered
-local MCP server. The remaining owner-visible run is:
+Fresh-client acquisition and owner-visible native layered construction passed
+on 2026-08-21. The real Codex run inspected a flat reference, created a separate
+1200x1200 document, built twelve editable layers and checked a bounded final
+preview through MCP only. It also proved explicit read approval and a direct
+read-to-edit upgrade in the packaged Agent Access UI.
 
-1. Start `npm run mcp:local:codex` and keep it open.
-2. Register/login using the printed `codex mcp` commands.
-3. Start a genuinely fresh Codex session.
-4. Repeat inspect, layered edit, preview, correction and export through the MCP
-   tools visible to that fresh session.
-5. Exercise the reported error paths and remove the temporary MCP registration.
-
-Do not mark Task 264 complete from the SDK A-Z probe alone. The probe proves the
-entire product route beneath Codex and leaves only fresh-client acquisition and
-owner-visible use open.
+Task 264 remains open for native save/export, Actions-visible activity,
+independent packaged pixel/layer verification, fresh-client invalid/stale/error
+cases, reconnect and clean registration removal. Do not broaden the successful
+artist construction into those untested claims.
 
 ## Active program continuation
 
@@ -69,6 +65,6 @@ owner-visible use open.
 ## Next safe step
 
 Continue Task 214/220/221 capability work autonomously where evidence is local.
-When the owner is available, perform the fresh-Codex Task 264 run above. Update
-this checkpoint whenever the worktree, stash state or remaining acceptance
-boundary changes.
+Continue with the remaining Task 264 save/export, independent verification and
+error/reconnect/cleanup boundary. Task 279 owns the separate artist efficiency
+and on-demand workflow-guide improvement discovered by the first real run.

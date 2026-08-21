@@ -73,6 +73,14 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_cancel_task'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_import_image_url'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_commands'));
+  const resources = await reader.listResources();
+  assert.deepEqual(resources.resources.map(({ uri }) => uri).sort(), [
+    'lighttable://guides/artist-onboarding',
+    'lighttable://guides/efficient-batching',
+    'lighttable://guides/native-vector-paths'
+  ]);
+  const onboarding = await reader.readResource({ uri: 'lighttable://guides/artist-onboarding' });
+  assert.match(onboarding.contents[0].text, /prefer lighttable_batch/u);
   const commandCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'layer.rename'
   } });
@@ -150,6 +158,11 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(capabilities.structuredContent.documentId, 'document-demo');
   assert.ok(Array.isArray(capabilities.structuredContent.commands));
   assert.ok(capabilities.structuredContent.commands.some(({ command }) => command === 'layer.createRaster'));
+  assert.deepEqual(capabilities.structuredContent.guides.map(({ uri }) => uri), [
+    'lighttable://guides/artist-onboarding',
+    'lighttable://guides/efficient-batching',
+    'lighttable://guides/native-vector-paths'
+  ]);
   const layers = await reader.callTool({ name: 'lighttable_layers', arguments: {
     documentId: 'document-demo', expectedDocumentRevision: 1, limit: 1
   } });

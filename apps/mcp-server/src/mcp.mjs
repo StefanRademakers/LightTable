@@ -14,6 +14,7 @@ import {
   validateJsonSchemaValue
 } from '@lighttable/command-contract';
 import { z } from 'zod';
+import { LIGHTTABLE_ARTIST_GUIDES, LIGHTTABLE_ARTIST_GUIDE_SUMMARIES } from './artistGuides.mjs';
 
 const response = (value) => ({
   content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
@@ -128,6 +129,9 @@ const downloadImage = async (value, fetchImpl = fetch, redirects = 0) => {
 
 export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) => {
   const server = new McpServer({ name: 'LightTable', version: '0.1.0' });
+  for (const guide of LIGHTTABLE_ARTIST_GUIDES) server.registerResource(guide.id, guide.uri, {
+    title: guide.title, description: guide.description, mimeType: 'text/markdown'
+  }, async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: guide.text }] }));
   server.registerTool('lighttable_workspace', {
     title: 'Inspect LightTable workspace', description: 'Lists open documents and the active stable document ID. Read-only.',
     inputSchema: z.object({}), annotations: { readOnlyHint: true }
@@ -202,11 +206,12 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('adjustment.query', input)));
   server.registerTool('lighttable_capabilities', {
-    title: 'List available document commands', description: 'Reports which typed LightTable commands are currently valid and why unavailable commands are disabled.',
+    title: 'List available document commands', description: 'Reports which typed LightTable commands are currently valid, why unavailable commands are disabled, and relevant on-demand workflow guides.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
   }, withResult(async ({ documentId }) => ({
     documentId,
-    commands: await client.invoke('command.capabilities', { documentId })
+    commands: await client.invoke('command.capabilities', { documentId }),
+    guides: LIGHTTABLE_ARTIST_GUIDE_SUMMARIES
   })));
   server.registerTool('lighttable_commands', {
     title: 'Discover LightTable commands',
@@ -241,7 +246,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
   });
   server.registerTool('lighttable_execute', {
     title: 'Execute an undoable LightTable command',
-    description: 'Executes one validated semantic command against an explicit document ID. Pass expectedDocumentRevision to reject stale edits.',
+    description: 'Executes exactly one validated semantic command against an explicit document ID. Pass expectedDocumentRevision to reject stale edits. Prefer lighttable_batch when two or more planned edits form one logical phase.',
     inputSchema: executeInputSchema,
     annotations: { readOnlyHint: false, destructiveHint: false }
   }, withResult(({ documentId, command, parameters, expectedDocumentRevision }) =>
@@ -250,7 +255,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }) }), { edit: true }));
   server.registerTool('lighttable_batch', {
     title: 'Execute an atomic LightTable command batch',
-    description: 'Runs up to 64 semantic edits as one publication and one named undo entry. Failure or cancellation publishes nothing. Query command.batch through lighttable_commands for the complete on-demand operation schema.',
+    description: 'Preferred for two or more planned edits: runs up to 64 semantic operations as one publication and one named undo entry. Failure or cancellation publishes nothing. Read lighttable://guides/efficient-batching and query command.batch through lighttable_commands for the current schema.',
     inputSchema: z.object({ documentId: z.string().min(1), name: z.string().min(1).max(128),
       timeoutMs: z.number().int().min(100).max(10_000).default(5_000),
       expectedDocumentRevision: z.number().int().nonnegative().optional(),
@@ -383,7 +388,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
   }, { edit: true }));
   server.registerTool('lighttable_create_text', {
     title: 'Create editable text',
-    description: 'Creates point or paragraph text through LightTable’s WYSIWYG text model and GPU renderer.',
+    description: 'Creates one point or paragraph text layer through LightTable’s WYSIWYG text model and GPU renderer. For multiple planned text layers, prefer lighttable_batch with text.create operations.',
     inputSchema: z.object({ documentId: z.string().min(1), mode: z.enum(['point', 'paragraph']),
       text: z.string().max(1_000_000), x: z.number().finite(), y: z.number().finite(),
       width: z.number().positive().max(10_000_000).optional(), height: z.number().positive().max(10_000_000).optional(),

@@ -1,0 +1,55 @@
+Task 279 - MCP artist efficiency and workflow onboarding
+
+Status
+Active. The first real Codex reconstruction succeeded but required 76 MCP
+roundtrips and did not discover all existing vector and batching capabilities.
+
+Goal
+Make the existing LightTable artist capability surface easier to discover and
+substantially less chatty before adding new creative primitives.
+
+Evidence
+- The owner-visible cold reconstruction of happy_birthday.png produced an
+  editable 1200x1200 design with 12 layers and a checked bounded preview.
+- The run used 22 lighttable_execute calls, 4 lighttable_batch calls, 7
+  dedicated text-create calls, 8 previews and 35 other reads.
+- The agent incorrectly reported free Bezier paths as missing even though
+  vector.create/vector.update already accept native subpaths and handles.
+
+This slice
+- [x] Advertise concise, versioned artist workflow guides through MCP resources.
+- [x] Teach batch-first construction, native Bezier subpaths and milestone-only
+  previewing with schema-valid examples.
+- [x] Point capability discovery at the relevant on-demand guides without
+  injecting a large manual into every response.
+- [x] Make single-command and dedicated text tool descriptions state when the
+  atomic batch route is preferred.
+- [x] Cover resource discovery/read and capability guide links in the MCP
+  integration test.
+
+Acceptance
+- A fresh client can list and read the artist onboarding, efficient batching
+  and native vector path guides.
+- Every command payload shown by a guide is validated by the shared command
+  contract in tests.
+- lighttable_capabilities returns guide URIs alongside document command
+  availability.
+- No production runtime reads work/ or architecture/ files.
+
+Not completed by this slice
+- text stroke/shadow renderer fixes;
+- revision/preview settle fixes;
+- font discovery or text.measure MCP tools;
+- SVG path parsing, vector.createMany, boolean paths or general align/distribute.
+
+Verification (2026-08-21)
+- `npm test --workspace @lighttable/mcp-server`: 21 tests passed, including
+  Streamable HTTP resource listing/reading and shared-schema validation of all
+  JSON command examples in the guides.
+- `npm run typecheck --workspace @lighttable/mcp-server`: passed.
+- Guided artist speed and visual quality remain a separate future benchmark;
+  this task proves guide delivery and contract correctness, not the call-count
+  reduction claim itself.
+
+Goal link
+- architecture/goals/AGENT_NATIVE_CREATIVE_RUNTIME_TARGET.md

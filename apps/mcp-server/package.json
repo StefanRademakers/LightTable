@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node src/index.mjs",
     "test": "node --test test",
-    "typecheck": "node --check src/index.mjs && node --check src/server.mjs && node --check src/mcp.mjs && node --check src/oauth.mjs && node --check src/lighttableClient.mjs && node --check src/deviceTunnel.mjs && node --check src/deviceTunnelClient.mjs && node --check src/durableState.mjs && node --check src/operations.mjs"
+    "typecheck": "node --check src/index.mjs && node --check src/server.mjs && node --check src/mcp.mjs && node --check src/artistGuides.mjs && node --check src/oauth.mjs && node --check src/lighttableClient.mjs && node --check src/deviceTunnel.mjs && node --check src/deviceTunnelClient.mjs && node --check src/durableState.mjs && node --check src/operations.mjs"
   },
   "dependencies": {
     "@lighttable/command-contract": "0.0.1",
