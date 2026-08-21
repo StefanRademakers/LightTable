@@ -5,6 +5,7 @@ import type {
   LightTableAgentTunnelStatus
 } from '../platform/LightTableHost';
 import { ActionButton } from '../ui/ActionButton';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 const unavailable: LightTableAgentAccessStatus = {
   supported: false, enabled: false, state: 'stopped'
@@ -23,6 +24,7 @@ export const AgentAccessSettingsPanel: React.FC<{
   const [pairingCode, setPairingCode] = useState('');
   const [tunnel, setTunnel] = useState<LightTableAgentTunnelStatus>(tunnelUnavailable);
   const [busy, setBusy] = useState(false);
+  const [confirmDeviceRevoke, setConfirmDeviceRevoke] = useState(false);
 
   useEffect(() => {
     if (!active || !service) return;
@@ -112,10 +114,15 @@ export const AgentAccessSettingsPanel: React.FC<{
                   <h4>Clients</h4>
                   {tunnel.clients.map((client) => <div key={client.id}>
                     <span><strong>{client.name}</strong><small>{client.approved ? client.scopes.join(' + ') : `Requests ${client.requestedScopes.join(' + ')}`}</small></span>
-                    {client.approved
-                      ? <ActionButton onClick={() => runTunnel(() => service.revokeClient(client.id))}>Revoke</ActionButton>
-                      : <><ActionButton onClick={() => runTunnel(() => service.approveClient(client.id, ['read']))}>Allow read</ActionButton>
-                        {client.requestedScopes.includes('edit') ? <ActionButton onClick={() => runTunnel(() => service.approveClient(client.id, ['read', 'edit']))}>Allow edit</ActionButton> : null}</>}
+                    {client.approved ? <>
+                      {client.requestedScopes.includes('edit') && !client.scopes.includes('edit')
+                        ? <ActionButton onClick={() => runTunnel(() => service.approveClient(client.id, ['read', 'edit']))}>Allow edit</ActionButton>
+                        : null}
+                      <ActionButton onClick={() => runTunnel(() => service.revokeClient(client.id))}>Revoke client</ActionButton>
+                    </> : <>
+                      <ActionButton onClick={() => runTunnel(() => service.approveClient(client.id, ['read']))}>Allow read</ActionButton>
+                      {client.requestedScopes.includes('edit') ? <ActionButton onClick={() => runTunnel(() => service.approveClient(client.id, ['read', 'edit']))}>Allow edit</ActionButton> : null}
+                    </>}
                   </div>)}
                 </div> : null}
                 {tunnel.activity ? <div className="lighttable-agent-settings__activity" aria-label="Current Agent action">
@@ -137,8 +144,15 @@ export const AgentAccessSettingsPanel: React.FC<{
                 {tunnel.events.length ? <div className="lighttable-agent-settings__events" aria-label="Recent Agent Access activity">
                   {tunnel.events.slice(-5).map((event) => <p key={event.id}><time>{new Date(event.at).toLocaleTimeString()}</time>{event.detail}</p>)}
                 </div> : null}
-                <ActionButton disabled={busy || !tunnel.serverUrl} onClick={() => runTunnel(() => service.revokeDevice())}>Revoke this device</ActionButton>
+                <ActionButton disabled={busy || !tunnel.serverUrl} onClick={() => setConfirmDeviceRevoke(true)}>Unpair this LightTable installation...</ActionButton>
               </div>
+              <ConfirmDialog open={confirmDeviceRevoke} title="Unpair LightTable from the MCP server?"
+                description="This removes this installation's server pairing and every client approval. Connecting again requires a new one-time pairing code."
+                confirmLabel="Unpair" danger onCancel={() => setConfirmDeviceRevoke(false)}
+                onConfirm={() => {
+                  setConfirmDeviceRevoke(false);
+                  runTunnel(() => service.revokeDevice());
+                }} />
             </>
           )}
         </div>

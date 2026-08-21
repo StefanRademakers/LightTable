@@ -71,6 +71,13 @@ describe('AgentTunnelController', () => {
     await Promise.resolve();
     expect(test.sent).toContainEqual({ type: 'result', requestId: 'replay', error: 'replay-rejected' });
     expect(test.sent).toContainEqual({ type: 'result', requestId: 'edit', error: 'client-not-approved' });
+    await test.controller.approveClient('client-1', ['read', 'edit']);
+    expect(test.controller.status().clients[0]).toMatchObject({ approved: true, scopes: ['read', 'edit'] });
+    expect(test.sent).toContainEqual({ type: 'client.approval', deviceId, clientId: 'client-1', scopes: ['read', 'edit'] });
+    test.message({ type: 'invoke', deviceId, clientId: 'client-1', requestId: 'edit-after-upgrade', nonce: 'n4',
+      timestamp: now, method: 'command.execute' });
+    await vi.waitFor(() => expect(test.invoke).toHaveBeenCalledTimes(2));
+    expect(test.sent).toContainEqual({ type: 'result', requestId: 'edit-after-upgrade', value: { ok: true } });
   });
 
   it('rejects insecure servers, expired sessions and clears all access on revoke', async () => {

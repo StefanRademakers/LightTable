@@ -238,11 +238,6 @@ if (probe) {
     documentId, command: 'view.setZoom', parameters: { mode: 'fit' }
   } });
   if (!readOnlyEdit.isError) throw new Error('Desktop read-only approval admitted an edit command.');
-  const revoke = settings.getByRole('button', { name: 'Revoke', exact: true });
-  await revoke.click();
-  await revoke.waitFor({ state: 'hidden', timeout: 10_000 });
-  const approvalRequest = await mcpClient.callTool({ name: 'lighttable_workspace', arguments: {} });
-  if (!approvalRequest.isError) throw new Error('Revoked local MCP client retained desktop access.');
   const allowEdit = settings.getByRole('button', { name: 'Allow edit' });
   await allowEdit.waitFor({ timeout: 10_000 });
   await allowEdit.click();
