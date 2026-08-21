@@ -5,6 +5,8 @@ import { FormInput } from './FormInput';
 import { OpacitySlider } from './OpacitySlider';
 import { SquareIconButton } from './SquareIconButton';
 import { sampleScreenColor } from './colorSampling';
+import { useDocumentPaletteLoader } from './DocumentPaletteContext';
+import type { PaletteColor } from '../lighttable/application/color/documentPalette';
 
 export interface ColorPickerColor { readonly r: number; readonly g: number; readonly b: number; readonly a: number }
 interface HsvColor { readonly h: number; readonly s: number; readonly v: number }
@@ -88,6 +90,21 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   const [hex, setHex] = React.useState(colorPickerHex(value));
   const [rgb, setRgb] = React.useState([byte(value.r), byte(value.g), byte(value.b)].map(String));
   const [sampling, setSampling] = React.useState(false);
+  const loadDocumentPalette = useDocumentPaletteLoader();
+  const [imagePalette, setImagePalette] = React.useState<readonly PaletteColor[] | null>(null);
+  const [paletteError, setPaletteError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!loadDocumentPalette) return;
+    let current = true;
+    setImagePalette(null);
+    setPaletteError(null);
+    void loadDocumentPalette(16).then((palette) => {
+      if (current) setImagePalette(palette);
+    }).catch((reason) => {
+      if (current) setPaletteError(reason instanceof Error ? reason.message : String(reason));
+    });
+    return () => { current = false; };
+  }, [loadDocumentPalette]);
   React.useEffect(() => {
     setHsv((current) => colorPickerHsvFromValue(value, current));
     setHex(colorPickerHex(value));
@@ -147,5 +164,20 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
       {['R', 'G', 'B'].map((label, channel) => <label key={label}><FormInput value={rgb[channel]} inputMode="numeric" aria-label={`${label} color channel`}
         onChange={(event) => { const draft = event.currentTarget.value; setRgb((current) => current.map((item, i) => i === channel ? draft : item)); const number = Number(draft); if (!Number.isInteger(number) || number < 0 || number > 255) return; const channels = [value.r, value.g, value.b]; channels[channel] = number / 255; onChange({ r: channels[0], g: channels[1], b: channels[2], a: value.a }); }} /><span>{label}</span></label>)}
     </div>
+    {loadDocumentPalette ? <section className="lighttable-color-picker-prototype__palette"
+      aria-label="Image palette">
+      <header><span className="lighttable-color-picker-prototype__palette-icon" aria-hidden="true" />
+        <span>Image Palette</span></header>
+      {paletteError ? <p role="status">Palette unavailable</p>
+        : imagePalette === null ? <p role="status">Analyzing image…</p>
+          : imagePalette.length === 0 ? <p role="status">No visible colors</p>
+            : <div className="lighttable-color-picker-prototype__palette-grid">
+              {imagePalette.map((color) => <button type="button" key={color.hex}
+                style={{ backgroundColor: color.hex }} aria-label={`Use image color ${color.hex}`}
+                title={`${color.hex} · ${Math.round(color.coverage * 100)}%`}
+                onClick={() => onChange({ r: color.rgb[0] / 255, g: color.rgb[1] / 255,
+                  b: color.rgb[2] / 255, a: value.a })} />)}
+            </div>}
+    </section> : null}
   </div>;
 };

@@ -42,6 +42,11 @@ independent packaged pixel/layer verification, fresh-client invalid/stale/error
 cases, reconnect and clean registration removal. Do not broaden the successful
 artist construction into those untested claims.
 
+Task 280 added the shared on-demand document palette after the first artist
+run identified the need for compact image analysis. The Color Picker and the
+read-only `lighttable_palette` MCP tool now use one revision-cached extractor;
+the packaged Color Picker smoke passed with 16 colors from a real document.
+
 ## Active program continuation
 
 - Task 214 remains the program owner for complete semantic capability coverage.

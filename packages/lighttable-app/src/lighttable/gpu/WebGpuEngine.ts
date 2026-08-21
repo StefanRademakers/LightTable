@@ -274,6 +274,7 @@ export class WebGpuEngine {
   private displayToLinearPipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
   private thumbnailPipeline: GPURenderPipeline | null = null;
+  private paletteSamplePipeline: GPURenderPipeline | null = null;
   private maskBlitPipeline: GPURenderPipeline | null = null;
   private channelBlitPipeline: GPURenderPipeline | null = null;
   private differencePipeline: GPURenderPipeline | null = null;
@@ -2949,6 +2950,87 @@ export class WebGpuEngine {
       'LightTable PNG export readback'
     );
     return { pixels, width: this.metadata.width, height: this.metadata.height, storage: 'u8' as const };
+  }
+
+  /**
+   * Reads a deterministic grid of exact source texels from the final composite.
+   * The small GPU pass uses textureLoad (never filtering), so every returned RGB
+   * value occurred in the rendered document while avoiding a full-size readback.
+   */
+  async exportPaletteSamples(targetSamples = 65_536) {
+    await this.prepareDocumentExport();
+    if (!this.metadata || !this.imageResources.finalTexture) {
+      throw new Error('No processed image is available for palette extraction.');
+    }
+    const sourceWidth = this.metadata.width;
+    const sourceHeight = this.metadata.height;
+    const totalPixels = sourceWidth * sourceHeight;
+    let width = sourceWidth;
+    let height = sourceHeight;
+    if (totalPixels > targetSamples) {
+      width = Math.min(sourceWidth, Math.max(1, Math.floor(Math.sqrt(
+        targetSamples * sourceWidth / sourceHeight
+      ))));
+      height = Math.min(sourceHeight, Math.max(1, Math.floor(targetSamples / width)));
+    }
+    if (!this.paletteSamplePipeline) {
+      const shader = this.device.createShaderModule({
+        label: 'LightTable exact palette sample shader',
+        code: `${FULLSCREEN_VERTEX_WGSL}
+struct PaletteSampleDimensions {
+  source: vec2<u32>,
+  output: vec2<u32>,
+};
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> dimensions: PaletteSampleDimensions;
+@fragment
+fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
+  let outputCoord = min(vec2<u32>(position.xy), dimensions.output - vec2<u32>(1u));
+  let sourceCoord = min(
+    (outputCoord * dimensions.source + dimensions.output / vec2<u32>(2u)) / dimensions.output,
+    dimensions.source - vec2<u32>(1u)
+  );
+  return textureLoad(sourceTexture, vec2<i32>(sourceCoord), 0);
+}`
+      });
+      this.paletteSamplePipeline = this.device.createRenderPipeline({
+        label: 'LightTable exact palette sampler',
+        layout: 'auto',
+        vertex: { module: shader, entryPoint: 'fullscreenVertex' },
+        fragment: { module: shader, entryPoint: 'paletteSample', targets: [{ format: 'rgba8unorm' }] },
+        primitive: { topology: 'triangle-list' }
+      });
+    }
+    const dimensions = this.device.createBuffer({
+      label: 'LightTable palette sample dimensions', size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    this.device.queue.writeBuffer(dimensions, 0, new Uint32Array([
+      sourceWidth, sourceHeight, width, height
+    ]));
+    const texture = this.device.createTexture({
+      label: 'LightTable exact palette samples', size: [width, height], format: 'rgba8unorm',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+    });
+    try {
+      const bindGroup = this.device.createBindGroup({
+        layout: this.paletteSamplePipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.imageResources.finalTexture.createView() },
+          { binding: 1, resource: { buffer: dimensions } }
+        ]
+      });
+      const encoder = this.device.createCommandEncoder({ label: 'LightTable palette sampling' });
+      this.drawFullscreenPass(encoder, this.paletteSamplePipeline, bindGroup, texture.createView());
+      this.device.queue.submit([encoder.finish()]);
+      const pixels = await readRgba8Texture(
+        this.device, texture, width, height, 'LightTable exact palette sample readback'
+      );
+      return { pixels, width, height, sourceWidth, sourceHeight };
+    } finally {
+      texture.destroy();
+      dimensions.destroy();
+    }
   }
 
   /**

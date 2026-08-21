@@ -97,8 +97,13 @@ export const ColorSwatchField: React.FC<ColorSwatchFieldProps> = ({
       ));
     };
     update();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(popoverRef.current);
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', update);
+    };
   }, [open]);
 
   React.useEffect(() => {

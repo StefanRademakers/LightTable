@@ -240,6 +240,11 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     region?: Parameters<DocumentLightTableCommandPorts['exportPreviewArtifact']>[2]) {
     return this.resolve(documentId).exportPreviewArtifact(maxEdge, encoding, region);
   }
+  getDocumentPalette(documentId: DocumentSessionId, colorCount: number) {
+    const extract = this.resolve(documentId).getDocumentPalette;
+    if (!extract) throw new Error('Document palette extraction is unavailable in the target document.');
+    return extract(colorCount);
+  }
   exportLayerPreviewArtifact(documentId: DocumentSessionId, layerId: LayerId,
     channel: 'pixels' | 'mask', maxEdge: number,
     encoding: Parameters<DocumentLightTableCommandPorts['exportLayerPreviewArtifact']>[3]) {

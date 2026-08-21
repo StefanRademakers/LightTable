@@ -1,0 +1,27 @@
+Task 280 - Shared on-demand document palette
+
+Goal
+- Extract a deterministic palette from the current final document composite.
+- Reuse the same implementation in the Color Picker and MCP image analysis.
+- Do no palette work during document load or ordinary render invalidation.
+
+Acceptance checklist
+- [x] Deterministic original-pixel sampling; no interpolating resize.
+- [x] Exact RGB histogram, OKLab weighted clustering, real-source-color representatives.
+- [x] Revision-aware histogram and per-color-count result caching.
+- [x] Color Picker requests and displays 16 colors only when opened.
+- [x] MCP exposes a bounded read-only document palette request with revision gating.
+- [x] Solid, weighted two-color, transparency, determinism, real-color and K-range tests.
+- [x] UI, app typecheck, MCP tests and architecture boundary checks pass.
+- [x] Owner-visible packaged verification recorded; task moved to done with implementation commit.
+
+Evidence
+- Root workspace typecheck passed.
+- Palette/UI tests: 16 passed; desktop Agent Access tests: 21 passed; MCP tests: 21 passed.
+- Packaged `out-verify` Color Picker smoke passed against `colors.png`, displaying and applying
+  16 image colors. Observed first on-demand runs ranged from 163-907 ms; later calls reuse the
+  revision cache.
+- Report and screenshot remain generated evidence under `tmp/color-picker-smoke/` and are not committed.
+
+Source specification
+- D:\lighttable-getPalette-spec.md (external working specification supplied by owner)

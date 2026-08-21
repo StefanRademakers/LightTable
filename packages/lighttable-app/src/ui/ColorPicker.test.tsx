@@ -2,6 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { ColorPicker, colorPickerHslToRgb, colorPickerRgbToHsl } from './ColorPicker';
+import { DocumentPaletteProvider } from './DocumentPaletteContext';
 
 const color = { r: 0.1, g: 0.4, b: 0.9, a: 1 };
 
@@ -35,5 +36,17 @@ describe('ColorPicker opacity', () => {
     expect(markup).toContain('<output>45%</output>');
     expect(markup).toContain('type="range"');
     expect(markup).toContain('value="45"');
+  });
+
+  it('only presents the on-demand image palette inside a document palette owner', () => {
+    const standalone = renderToStaticMarkup(<ColorPicker value={color} onChange={vi.fn()} />);
+    const documentPicker = renderToStaticMarkup(
+      <DocumentPaletteProvider loadPalette={vi.fn()}>
+        <ColorPicker value={color} onChange={vi.fn()} />
+      </DocumentPaletteProvider>
+    );
+    expect(standalone).not.toContain('Image Palette');
+    expect(documentPicker).toContain('Image Palette');
+    expect(documentPicker).toContain('Analyzing image');
   });
 });

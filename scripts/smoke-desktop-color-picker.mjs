@@ -44,9 +44,21 @@ try {
     .waitFor({ state: 'visible', timeout: 60_000 });
 
   const foreground = page.getByRole('button', { name: 'Foreground color', exact: true });
+  const paletteStartedAt = Date.now();
   await foreground.click();
   const picker = page.getByRole('dialog', { name: 'Color picker' });
   await picker.waitFor({ state: 'visible' });
+  for (const name of ['Hue', 'Saturation', 'Luminosity']) {
+    await picker.getByRole('slider', { name, exact: true }).waitFor({ state: 'visible' });
+  }
+  await picker.getByRole('region', { name: 'Image palette' }).waitFor({ state: 'visible' });
+  const imagePaletteColors = picker.locator('button[aria-label^="Use image color"]');
+  await imagePaletteColors.first().waitFor({ state: 'visible', timeout: 30_000 });
+  const imagePaletteColorCount = await imagePaletteColors.count();
+  const imagePaletteLoadMs = Date.now() - paletteStartedAt;
+  if (imagePaletteColorCount < 1 || imagePaletteColorCount > 16) {
+    throw new Error(`Image palette returned an invalid swatch count: ${imagePaletteColorCount}`);
+  }
   const triggerBounds = await foreground.boundingBox();
   const pickerBounds = await picker.boundingBox();
   const toolbarBounds = await page.locator('.lighttable-toolbox').boundingBox();
@@ -63,11 +75,13 @@ try {
   if (pickerBounds.x < toolbarBounds.x + toolbarBounds.width + 5) {
     throw new Error(`The color picker overlaps the toolbar: ${JSON.stringify({ toolbarBounds, pickerBounds })}`);
   }
-  for (const name of ['Hue', 'Saturation', 'Luminosity']) {
-    await picker.getByRole('slider', { name, exact: true }).waitFor({ state: 'visible' });
-  }
 
   const originalForeground = normalizedColor(await foreground.evaluate((element) => element.style.backgroundColor));
+  await imagePaletteColors.first().click();
+  const paletteForeground = normalizedColor(await foreground.evaluate((element) => element.style.backgroundColor));
+  if (paletteForeground === originalForeground) {
+    throw new Error('Selecting an Image Palette swatch did not update the foreground color.');
+  }
   const hex = picker.getByRole('textbox', { name: 'Hex color' });
   await hex.fill('#12ab34');
   const changedForeground = normalizedColor(await foreground.evaluate((element) => element.style.backgroundColor));
@@ -125,9 +139,12 @@ try {
   await writeFile(reportPath, `${JSON.stringify({
     sourceFile,
     originalForeground,
+    paletteForeground,
     committedForeground,
     beforeGradient,
     committedGradient,
+    imagePaletteColorCount,
+    imagePaletteLoadMs,
     triggerBounds,
     pickerBounds,
     toolbarBounds,

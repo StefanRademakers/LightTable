@@ -3,6 +3,7 @@ import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
 import type { DocumentPixelRegion } from '../../editor/geometry/documentRegionPreview';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 import type { RenderTelemetrySnapshot } from '../rendering/renderTelemetry';
+import type { PaletteColor } from '../color/documentPalette';
 import type { LightTableArtifactMetadata } from './lightTableArtifactRegistry';
 import type { DocumentPreviewResult } from './documentPreviewArtifacts';
 import type { ExportedPsdDocument } from '../documents/PsdExportClient';
@@ -311,6 +312,8 @@ export interface LightTableCommandPorts {
   exportBitmapArtifact(documentId: DocumentSessionId, format: LightTableBitmapExportFormat): File | Promise<File>;
   exportPreviewArtifact(documentId: DocumentSessionId, maxEdge: number,
     encoding: LightTablePreviewEncoding, region?: DocumentPixelRegion): File | Promise<File>;
+  getDocumentPalette?(documentId: DocumentSessionId, colorCount: number):
+    readonly PaletteColor[] | Promise<readonly PaletteColor[]>;
   exportLayerPreviewArtifact(documentId: DocumentSessionId, layerId: LayerId,
     channel: 'pixels' | 'mask', maxEdge: number,
     encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
@@ -377,6 +380,7 @@ export interface DocumentLightTableCommandPorts {
   exportBitmapArtifact(format: LightTableBitmapExportFormat): File | Promise<File>;
   exportPreviewArtifact(maxEdge: number, encoding: LightTablePreviewEncoding,
     region?: DocumentPixelRegion): File | Promise<File>;
+  getDocumentPalette?(colorCount: number): readonly PaletteColor[] | Promise<readonly PaletteColor[]>;
   exportLayerPreviewArtifact(layerId: LayerId, channel: 'pixels' | 'mask',
     maxEdge: number, encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
   exportPsdArtifact(): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;

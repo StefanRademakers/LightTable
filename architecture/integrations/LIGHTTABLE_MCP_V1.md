@@ -82,6 +82,8 @@ Read operations:
 - query currently valid semantic commands;
 - request a bounded whole-document PNG or WebP through LightTable's real
   renderer;
+- extract 1-256 deterministic, coverage-ranked real colors from the exact
+  final composite revision without transferring or parsing preview bytes;
 - request isolated layer pixels or a raster mask through the mounted GPU layer
   renderer without moving the artist viewport.
 - request an exact document-pixel region through the same final-composite crop

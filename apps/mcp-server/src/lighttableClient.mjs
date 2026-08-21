@@ -80,6 +80,14 @@ export class MockLightTableClient {
         title: this.document.title, lifecycle: 'ready', dirty: this.document.dirty,
         source: { name: 'mcp-demo.lighttable', mediaType: 'application/x-lighttable' } }] };
     if (method === 'document.query') return parameters.documentId === this.document.id ? this.document : null;
+    if (method === 'document.palette') return parameters.documentId === this.document.id
+      && parameters.expectedDocumentRevision === this.document.canonicalRevision
+      ? { status: 'completed', documentId: this.document.id,
+        canonicalRevision: this.document.canonicalRevision,
+        colors: [{ rgb: [240, 180, 40], hex: '#F0B428', coverage: 0.75, pixelCount: 720_000,
+          oklab: [0.79, 0.03, 0.15] }] }
+      : { status: 'rejected', code: 'stale-document-revision', message: 'stale',
+        currentRevision: this.document.canonicalRevision };
     if (method === 'document.preview') return parameters.documentId === this.document.id
       && parameters.expectedDocumentRevision === this.document.canonicalRevision
       ? { status: 'completed', reused: false, artifact: { id: 'preview-demo',

@@ -92,6 +92,7 @@ import {
   type DocumentPreviewResult
 } from './documentPreviewArtifacts';
 import { LayerPreviewArtifactController, type LayerPreviewResult } from './layerPreviewArtifacts';
+import type { PaletteColor } from '../color/documentPalette';
 export type { LayerPreviewResult } from './layerPreviewArtifacts';
 export * from './lightTableCommandContract';
 
@@ -247,6 +248,41 @@ export class LightTableCommandService {
 
   requestLayerPreview(request: unknown): Promise<LayerPreviewResult> {
     return this.layerPreviews.request(request);
+  }
+
+  async requestDocumentPalette(request: unknown): Promise<{
+    readonly status: 'completed'; readonly documentId: DocumentSessionId;
+    readonly canonicalRevision: number; readonly colors: readonly PaletteColor[];
+  } | { readonly status: 'rejected'; readonly code: string; readonly message: string;
+    readonly currentRevision?: number }> {
+    if (!isRecord(request) || typeof request.documentId !== 'string'
+      || !Number.isSafeInteger(request.expectedDocumentRevision)
+      || (request.expectedDocumentRevision as number) < 0
+      || !Number.isInteger(request.colorCount) || (request.colorCount as number) < 1
+      || (request.colorCount as number) > 256) {
+      return { status: 'rejected', code: 'invalid-request',
+        message: 'Palette requires documentId, expectedDocumentRevision and colorCount 1-256.' };
+    }
+    const documentId = request.documentId as DocumentSessionId;
+    const expectedRevision = request.expectedDocumentRevision as number;
+    const opening = this.document(documentId);
+    if (!opening?.document || opening.lifecycle !== 'ready') return {
+      status: 'rejected', code: 'document-not-ready', message: 'The palette document is not ready.'
+    };
+    if (opening.documentRevision !== expectedRevision) return {
+      status: 'rejected', code: 'stale-document-revision', message: 'The expected document revision is stale.',
+      currentRevision: opening.documentRevision
+    };
+    if (!this.ports.getDocumentPalette) return { status: 'rejected', code: 'renderer-unavailable',
+      message: 'Document palette extraction is unavailable.' };
+    const colors = await this.ports.getDocumentPalette(documentId, request.colorCount as number);
+    const closing = this.document(documentId);
+    if (!closing?.document || closing.documentRevision !== expectedRevision) return {
+      status: 'rejected', code: 'stale-document-revision',
+      message: 'The document changed while its palette was extracted.',
+      ...(closing ? { currentRevision: closing.documentRevision } : {})
+    };
+    return { status: 'completed', documentId, canonicalRevision: expectedRevision, colors };
   }
 
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null {
@@ -1633,6 +1669,7 @@ export interface LightTableAutomationDriver {
   listArtifacts(): readonly LightTableArtifactMetadata[];
   releaseArtifact(artifactId: string): boolean;
   requestDocumentPreview(request: unknown): Promise<DocumentPreviewResult>;
+  requestDocumentPalette?(request: unknown): Promise<unknown>;
   requestLayerPreview(request: unknown): Promise<LayerPreviewResult>;
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null;
   queryTaskEvents(afterCursor?: number, limit?: number): AutomationEventQueryResult;

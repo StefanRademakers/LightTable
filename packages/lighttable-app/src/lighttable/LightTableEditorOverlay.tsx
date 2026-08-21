@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExtern
 import { cloneGradientPaint } from '@lighttable/paint-core';
 import { TEXT_CONTRACT_FIXTURE_COUNT, type TextPaint, type TextWarp } from '@lighttable/text-core';
 import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
+import { useDocumentPalette } from './application/color/useDocumentPalette';
+import { DocumentPaletteProvider } from '../ui/DocumentPaletteContext';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
 import type {
@@ -26,6 +28,7 @@ import { useDocumentRuntimeServices } from './application/documents/useDocumentR
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
 import { useEditorRecoveryJournal } from './application/documents/useEditorRecoveryJournal';
+import { useEditorArtifactExportRefs } from './application/documents/useEditorArtifactExportRefs';
 import { exportEditorPngArtifact, exportEditorPreviewArtifact, exportEditorPsdArtifact } from './application/documents/editorArtifactExports';
 import type { ExportedPsdDocument } from './application/documents/PsdExportClient';
 import { hydrateDocumentFonts } from './application/documents/hydrateDocumentFonts';
@@ -930,6 +933,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
+  const loadDocumentPalette = useDocumentPalette(engineRef, imageDocumentRef);
   const attachColorMixerHueCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
     colorMixerHueCanvasRef.current = canvas;
     if (!canvas) return;
@@ -1116,22 +1120,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const cancelParagraphTextRef = useRef<() => boolean>(() => false);
   const paragraphCanvasCreationPendingRef = useRef(false);
   const finishTextEditingRef = useRef<() => boolean>(() => false);
-  const exportNativeArtifactRef = useRef<() => Promise<File>>(async () => {
-    throw new Error('The native export controller is not ready.');
-  });
-  const exportPngArtifactRef = useRef<() => Promise<File>>(async () => {
-    throw new Error('The PNG export controller is not ready.');
-  });
-  const exportBitmapArtifactRef = useRef<(format: LightTableBitmapExportFormat) => Promise<File>>(async () => {
-    throw new Error('The bitmap export controller is not ready.');
-  });
-  const exportPreviewArtifactRef = useRef<(maxEdge: number,
-    region?: DocumentPixelRegion) => Promise<File>>(async () => {
-    throw new Error('The preview export controller is not ready.');
-  });
-  const exportPsdArtifactRef = useRef<() => Promise<ExportedPsdDocument>>(async () => {
-    throw new Error('The PSD export controller is not ready.');
-  });
+  const { exportNativeArtifactRef, exportPngArtifactRef, exportBitmapArtifactRef,
+    exportPreviewArtifactRef, exportPsdArtifactRef } = useEditorArtifactExportRefs();
   const beginAutomationGestureRef = useRef<(
     kind: LightTableGestureKind,
     pointerId: number,
@@ -5277,6 +5267,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           source, region ? 'document-region-preview' : 'document-preview', encoding
         );
       },
+      getDocumentPalette: (colorCount) => loadDocumentPalette(colorCount),
       exportLayerPreviewArtifact: async (layerId, channel, maxEdge, encoding) => {
         const preview = await engineRef.current?.exportLayerThumbnail(
           layerId, channel === 'mask', maxEdge, maxEdge
@@ -6894,6 +6885,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   }, [activeTextPropertyLayer?.id, activeTextPropertyLayer?.type, showProperties]);
   return (
+    <DocumentPaletteProvider loadPalette={loadDocumentPalette}>
     <LightTableEditorShell
       screenMode={screenMode}
       active={active}
@@ -7656,5 +7648,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             })}
           />
     </LightTableEditorShell>
+    </DocumentPaletteProvider>
   );
 };

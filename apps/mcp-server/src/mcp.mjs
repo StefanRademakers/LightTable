@@ -140,6 +140,14 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     title: 'Inspect LightTable document', description: 'Returns canvas dimensions, revision, viewport, active layer, history and renderer status for one stable document ID.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
   }, withResult(({ documentId }) => client.invoke('document.query', { documentId })));
+  server.registerTool('lighttable_palette', {
+    title: 'Extract the LightTable document palette',
+    description: 'Returns 1-256 dominant real rendered colors from the exact canonical document revision. Colors are coverage-ranked, deterministic, and sampled on demand without transferring a preview image.',
+    inputSchema: z.object({ documentId: z.string().min(1),
+      expectedDocumentRevision: z.number().int().nonnegative(),
+      colorCount: z.number().int().min(1).max(256).default(16) }),
+    annotations: { readOnlyHint: true }
+  }, withResult((input) => client.invoke('document.palette', input)));
   server.registerTool('lighttable_layers', {
     title: 'List editable LightTable layers',
     description: 'Returns one compact revision-bound page of the editable layer tree. Follow nextCursor; use targeted content queries for text, vector, effects, Grade or Warp details.',

@@ -61,6 +61,7 @@ the task genuinely spans every system.
 - [Unsupported-feature recovery](features/UNSUPPORTED_FEATURE_RECOVERY.md)
 - [Vector shape and gradient authoring](features/VECTOR_SHAPE_AND_GRADIENT_AUTHORING.md)
 - [Selection, mask and paint workflow](features/SELECTION_MASK_AND_PAINT_WORKFLOW.md)
+- [Document image palette](features/DOCUMENT_IMAGE_PALETTE.md)
 - [Resources, workspaces and recent documents](features/RESOURCES_WORKSPACES_AND_RECENTS.md)
 - [Project-mode feature gating](features/PROJECT_MODE_FEATURE_GATING.md)
 - [First-run onboarding](features/FIRST_RUN_ONBOARDING.md)

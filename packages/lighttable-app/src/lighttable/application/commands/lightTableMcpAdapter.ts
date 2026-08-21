@@ -11,6 +11,7 @@ export type LightTableMcpMethod =
   | 'workspace.query'
   | 'document.query'
   | 'document.preview'
+  | 'document.palette'
   | 'layer.preview'
   | 'layer.list'
   | 'layer.query'
@@ -163,6 +164,7 @@ export class AuthenticatedLightTableMcpAdapter {
       case 'workspace.query': return this.options.driver.queryWorkspace();
       case 'document.query': return this.options.driver.queryDocument(documentId);
       case 'document.preview': return this.options.driver.requestDocumentPreview(parameters);
+      case 'document.palette': return this.options.driver.requestDocumentPalette?.(parameters);
       case 'layer.preview': return this.options.driver.requestLayerPreview(parameters);
       case 'layer.list': return this.options.driver.queryLayerPage(parameters);
       case 'layer.query': return this.options.driver.queryLayerDetail(parameters);
