@@ -225,6 +225,10 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   exportPngArtifact(documentId: DocumentSessionId) {
     return this.resolve(documentId).exportPngArtifact();
   }
+  exportBitmapArtifact(documentId: DocumentSessionId,
+    format: Parameters<DocumentLightTableCommandPorts['exportBitmapArtifact']>[0]) {
+    return this.resolve(documentId).exportBitmapArtifact(format);
+  }
   exportPreviewArtifact(documentId: DocumentSessionId, maxEdge: number,
     encoding: Parameters<DocumentLightTableCommandPorts['exportPreviewArtifact']>[1],
     region?: Parameters<DocumentLightTableCommandPorts['exportPreviewArtifact']>[2]) {

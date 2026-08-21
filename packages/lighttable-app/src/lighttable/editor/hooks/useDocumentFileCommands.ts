@@ -88,6 +88,7 @@ export interface DocumentFileCommandsOptions {
 export interface DocumentFileCommands {
   readonly saving: boolean;
   exportOutput(options?: ExportLightTableRuntimeOptions): Promise<ExportedLightTableDocument>;
+  exportBitmapArtifact(format: NativeBitmapFormatId, signal?: AbortSignal): Promise<File>;
   save(): Promise<void>;
   exportPng(): Promise<void>;
   exportJpeg(): Promise<void>;
@@ -290,10 +291,33 @@ export const useDocumentFileCommands = (
     setSaving(false);
   }, [exportOutput]);
 
+  const exportBitmapArtifact = useCallback(async (
+    format: NativeBitmapFormatId,
+    signal?: AbortSignal
+  ): Promise<File> => {
+    const current = optionsRef.current;
+    const renderer = current.getRenderer();
+    const document = current.getDocument();
+    if (!renderer || !document || !current.hasMetadata) {
+      throw new Error('LightTable is not ready yet.');
+    }
+    const definition = nativeBitmapFormat(format);
+    const bitDepth = document.colorSettings.bitDepth === 16
+      && definition.writableBitDepths.includes(16) ? 16 : 8;
+    if (!renderer.exportRgba8 || (bitDepth === 16 && !renderer.exportRgba16)) {
+      throw new Error('Native bitmap readback is unavailable in this renderer.');
+    }
+    const pixels = bitDepth === 16 ? await renderer.exportRgba16!() : await renderer.exportRgba8();
+    nativeBitmapEncoderRef.current ??= new WasmVipsEncoder();
+    const blob = await nativeBitmapEncoderRef.current.encode(pixels, format, signal);
+    const base = current.fileNameBase.replace(/\.[^.]+$/, '') || 'image';
+    const extension = format === 'jpeg' ? 'jpg' : format === 'tiff' ? 'tif' : format;
+    return new File([blob], `${base}-lighttable.${extension}`, { type: definition.mediaType });
+  }, []);
+
   const exportNativeBitmap = useCallback(async (
     format: NativeBitmapFormatId,
-    label: string,
-    extension: string
+    label: string
   ) => {
     const current = optionsRef.current;
     current.setError(null);
@@ -301,23 +325,8 @@ export const useDocumentFileCommands = (
       'export',
       `Export ${label}`,
       async (task) => {
-        const renderer = current.getRenderer();
-        const document = current.getDocument();
-        if (!renderer || !document || !current.hasMetadata) {
-          throw new Error('LightTable is not ready yet.');
-        }
-        const definition = nativeBitmapFormat(format);
-        const bitDepth = document.colorSettings.bitDepth === 16
-          && definition.writableBitDepths.includes(16) ? 16 : 8;
-        if (!renderer.exportRgba8 || (bitDepth === 16 && !renderer.exportRgba16)) {
-          throw new Error('Native bitmap readback is unavailable in this renderer.');
-        }
-        const pixels = bitDepth === 16 ? await renderer.exportRgba16!() : await renderer.exportRgba8();
-        nativeBitmapEncoderRef.current ??= new WasmVipsEncoder();
-        const blob = await nativeBitmapEncoderRef.current.encode(pixels, format, task.signal);
+        const file = await exportBitmapArtifact(format, task.signal);
         task.throwIfCanceled();
-        const base = current.fileNameBase.replace(/\.[^.]+$/, '') || 'image';
-        const file = new File([blob], `${base}-lighttable.${extension}`, { type: definition.mediaType });
         if (current.onExportFile) await current.onExportFile(file);
         else downloadOutput(file);
       }
@@ -325,12 +334,12 @@ export const useDocumentFileCommands = (
     if (result.status === 'failed') {
       current.setError(result.error.message || `${label} export failed.`);
     }
-  }, []);
+  }, [exportBitmapArtifact]);
 
-  const exportPng = useCallback(() => exportNativeBitmap('png', 'PNG', 'png'), [exportNativeBitmap]);
-  const exportJpeg = useCallback(() => exportNativeBitmap('jpeg', 'JPEG', 'jpg'), [exportNativeBitmap]);
-  const exportWebp = useCallback(() => exportNativeBitmap('webp', 'WebP', 'webp'), [exportNativeBitmap]);
-  const exportTiff = useCallback(() => exportNativeBitmap('tiff', 'TIFF', 'tif'), [exportNativeBitmap]);
+  const exportPng = useCallback(() => exportNativeBitmap('png', 'PNG'), [exportNativeBitmap]);
+  const exportJpeg = useCallback(() => exportNativeBitmap('jpeg', 'JPEG'), [exportNativeBitmap]);
+  const exportWebp = useCallback(() => exportNativeBitmap('webp', 'WebP'), [exportNativeBitmap]);
+  const exportTiff = useCallback(() => exportNativeBitmap('tiff', 'TIFF'), [exportNativeBitmap]);
 
   const exportPsdWithIntent = useCallback(async (intent: PsdExportIntent) => {
     const current = optionsRef.current;
@@ -465,6 +474,7 @@ export const useDocumentFileCommands = (
   return {
     saving,
     exportOutput,
+    exportBitmapArtifact,
     save,
     exportPng,
     exportJpeg,

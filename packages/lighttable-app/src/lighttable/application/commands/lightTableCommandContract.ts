@@ -52,6 +52,8 @@ import {
 export { LIGHTTABLE_COMMAND_PROTOCOL_VERSION };
 export type { LightTableCommandId };
 
+export type LightTableBitmapExportFormat = 'jpeg' | 'webp' | 'tiff';
+
 export type LightTableCommandErrorCode =
   | 'invalid-request' | 'unsupported-protocol' | 'unknown-command' | 'document-required'
   | 'document-not-found' | 'document-not-ready' | 'stale-workspace-revision'
@@ -304,6 +306,7 @@ export interface LightTableCommandPorts {
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(documentId: DocumentSessionId): File | Promise<File>;
   exportPngArtifact(documentId: DocumentSessionId): File | Promise<File>;
+  exportBitmapArtifact(documentId: DocumentSessionId, format: LightTableBitmapExportFormat): File | Promise<File>;
   exportPreviewArtifact(documentId: DocumentSessionId, maxEdge: number,
     encoding: LightTablePreviewEncoding, region?: DocumentPixelRegion): File | Promise<File>;
   exportLayerPreviewArtifact(documentId: DocumentSessionId, layerId: LayerId,
@@ -368,6 +371,7 @@ export interface DocumentLightTableCommandPorts {
   executeAtomicBatch(batch: AtomicCommandBatch, signal: AbortSignal,
     report: (completed: number, operationId: string) => void): unknown | Promise<unknown>;
   exportNativeArtifact(): File | Promise<File>; exportPngArtifact(): File | Promise<File>;
+  exportBitmapArtifact(format: LightTableBitmapExportFormat): File | Promise<File>;
   exportPreviewArtifact(maxEdge: number, encoding: LightTablePreviewEncoding,
     region?: DocumentPixelRegion): File | Promise<File>;
   exportLayerPreviewArtifact(layerId: LayerId, channel: 'pixels' | 'mask',

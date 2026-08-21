@@ -62,6 +62,7 @@
   "task.cancel": { "taskId": "string" },
   "file.exportNative": {},
   "file.exportPng": {},
+  "file.exportBitmap": { "format": "jpeg | webp | tiff" },
   "file.exportPsd": {},
   "history.undo": {},
   "history.redo": {}

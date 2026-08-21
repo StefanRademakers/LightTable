@@ -169,6 +169,7 @@ const createHarness = () => {
       values: projectBasicAdjustmentValues(basicAdjustments)
     }) : null),
     executeAtomicBatch: vi.fn(), exportNativeArtifact: vi.fn(), exportPngArtifact: vi.fn(),
+    exportBitmapArtifact: vi.fn(),
     exportPreviewArtifact: vi.fn(),
     exportLayerPreviewArtifact: vi.fn(),
     exportPsdArtifact: vi.fn(), beginGesture: vi.fn(), updateGesture: vi.fn(), finishGesture: vi.fn(),

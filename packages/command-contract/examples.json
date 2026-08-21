@@ -56,6 +56,11 @@
   "file.exportPng": [
     {}
   ],
+  "file.exportBitmap": [
+    { "format": "jpeg" },
+    { "format": "webp" },
+    { "format": "tiff" }
+  ],
   "file.exportPsd": [
     {}
   ],

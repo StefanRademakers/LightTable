@@ -280,6 +280,11 @@ Existing foundation evidence
   returns a fresh document identity and remaps later Action steps to that fresh
   result. Packaged proof preserves the source exactly while all three routes
   produce equal editable raster/vector/text copies and byte-exact pixels.
+- JPEG, WebP and TIFF artifact export now share one parameterized
+  `file.exportBitmap` command across Actions and MCP. It reuses the same
+  persistent native bitmap encoder owned by the local File workflow; no second
+  codec or worker path was introduced. The packaged A-Z probe validates real
+  JPEG, RIFF/WebP and little- or big-endian TIFF signatures.
 
 Program definition of done
 ==========================

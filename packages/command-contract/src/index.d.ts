@@ -67,6 +67,7 @@ export declare const LIGHTTABLE_COMMAND_IDS: readonly [
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
+  'file.exportBitmap',
   'file.exportPsd',
   'history.undo',
   'history.redo'
@@ -155,6 +156,7 @@ export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
+  'file.exportBitmap',
   'file.exportPsd',
   'history.undo',
   'history.redo'
@@ -223,6 +225,7 @@ export declare const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS: readonly [
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
+  'file.exportBitmap',
   'file.exportPsd',
   'history.undo',
   'history.redo'

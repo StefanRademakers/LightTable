@@ -78,6 +78,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'adjustment.create',
     'file.exportNative',
     'file.exportPng',
+    'file.exportBitmap',
     'file.exportPsd',
     'file.openArtifact',
     'layer.placeArtifact',
@@ -711,6 +712,22 @@ test('export schemas return bounded opaque metadata with command-specific kinds'
       artifact: { ...metadata, kind, bytesBase64: 'not-allowed' }
     }).valid, false, `${command} must reject artifact bytes`);
   }
+  const bitmapSchema = LIGHTTABLE_COMMAND_SCHEMAS['file.exportBitmap'];
+  for (const [format, kind, mediaType] of [
+    ['jpeg', 'jpeg-export', 'image/jpeg'],
+    ['webp', 'webp-export', 'image/webp'],
+    ['tiff', 'tiff-export', 'image/tiff']
+  ]) {
+    assert.equal(validateJsonSchemaValue(bitmapSchema.input, { format }).valid, true);
+    assert.equal(validateJsonSchemaValue(bitmapSchema.result, {
+      artifact: { ...metadata, kind, mediaType }
+    }).valid, true, format);
+  }
+  assert.equal(validateJsonSchemaValue(bitmapSchema.input, {}).valid, false);
+  assert.equal(validateJsonSchemaValue(bitmapSchema.input, { format: 'png' }).valid, false);
+  assert.equal(validateJsonSchemaValue(bitmapSchema.result, {
+    artifact: { ...metadata, kind: 'png-export' }
+  }).valid, false);
   assert.equal(validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['file.exportPsd'].result, {
     artifact: { ...metadata, kind: 'psd-export', compatibilityFindings: [{
       severity: 'degraded-editability', code: 'face-warp-baked',

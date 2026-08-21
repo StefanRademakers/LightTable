@@ -5,6 +5,7 @@ import { buildParagraphFrameOverlay } from '@lighttable/text-rendering';
 import { DocumentCommandHistory } from './application/commands/documentCommandHistory';
 import { LIGHTTABLE_COMMAND_PROTOCOL_VERSION, type LightTableCommandId, type LightTableCommandPortRegistry, type LightTableCommandService, type LightTableGestureKind, type LightTableGestureSample } from './application/commands/lightTableCommandService';
 import type {
+  LightTableBitmapExportFormat,
   LightTableGradeClipboardCapture,
   LightTablePreviewEncoding
 } from './application/commands/lightTableCommandContract';
@@ -1109,6 +1110,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   });
   const exportPngArtifactRef = useRef<() => Promise<File>>(async () => {
     throw new Error('The PNG export controller is not ready.');
+  });
+  const exportBitmapArtifactRef = useRef<(format: LightTableBitmapExportFormat) => Promise<File>>(async () => {
+    throw new Error('The bitmap export controller is not ready.');
   });
   const exportPreviewArtifactRef = useRef<(maxEdge: number,
     region?: DocumentPixelRegion) => Promise<File>>(async () => {
@@ -5248,6 +5252,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
+      exportBitmapArtifact: (format) => exportBitmapArtifactRef.current(format),
       exportPreviewArtifact: async (maxEdge, encoding, region) => {
         const source = await exportPreviewArtifactRef.current(maxEdge, region);
         return encodeAgentPreview(
@@ -5787,6 +5792,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const {
     saving,
     exportOutput,
+    exportBitmapArtifact,
     save: handleSave,
     exportPng: handleExportPng,
     exportJpeg: handleExportJpeg,
@@ -5859,6 +5865,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setStatus: setGradeStatus });
   exportNativeArtifactRef.current = async () => (await exportOutput({ forceLayered: true })).file;
   exportPngArtifactRef.current = () => exportEditorPngArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
+  exportBitmapArtifactRef.current = (format) => exportBitmapArtifact(format);
   exportPreviewArtifactRef.current = (maxEdge, region) => exportEditorPreviewArtifact(
     engineRef.current, imageDocumentRef.current, fileNameBase, maxEdge, region
   );

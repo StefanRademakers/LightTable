@@ -151,6 +151,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
+  'file.exportBitmap',
   'file.exportPsd',
   'history.undo',
   'history.redo'
@@ -280,6 +281,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
+  'file.exportBitmap',
   'file.exportPsd',
   'history.undo',
   'history.redo'
@@ -346,6 +348,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
+  'file.exportBitmap',
   'file.exportPsd',
   'history.undo',
   'history.redo'

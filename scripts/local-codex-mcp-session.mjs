@@ -328,9 +328,9 @@ if (probe) {
       === createHash('sha256').update(afterImage).digest('hex')) {
       throw new Error('Local MCP A-Z correction did not produce distinct rendered pixels.');
     }
-    const exportArtifact = async (command, signature, footer = false) => {
+    const exportArtifact = async (command, parameters, hasValidSignature) => {
       const accepted = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
-        documentId: designDocumentId, command, parameters: {}
+        documentId: designDocumentId, command, parameters
       } });
       if (accepted.isError || !accepted.structuredContent?.taskId) {
         throw new Error(`${command} was not accepted: ${JSON.stringify(accepted)}`);
@@ -340,15 +340,26 @@ if (probe) {
         throw new Error(`${command} did not produce an artifact: ${JSON.stringify(task)}`);
       }
       const artifact = await dynamicClient.readArtifact(task.artifact.id);
-      const offset = footer ? artifact.bytes.byteLength - 12 : 0;
-      if (offset < 0 || !Buffer.from(artifact.bytes.subarray(offset, offset + signature.length))
-        .equals(Buffer.from(signature))) {
+      if (!hasValidSignature(artifact.bytes)) {
         throw new Error(`${command} produced an invalid artifact signature.`);
       }
       return { id: task.artifact.id, bytes: artifact.bytes.byteLength };
     };
-    const png = await exportArtifact('file.exportPng', [0x89, 0x50, 0x4e, 0x47]);
-    const native = await exportArtifact('file.exportNative', [...Buffer.from('LTBLDOC1')], true);
+    const startsWith = (signature) => (bytes) => Buffer.from(bytes.subarray(0, signature.length))
+      .equals(Buffer.from(signature));
+    const png = await exportArtifact('file.exportPng', {}, startsWith([0x89, 0x50, 0x4e, 0x47]));
+    const jpeg = await exportArtifact('file.exportBitmap', { format: 'jpeg' },
+      startsWith([0xff, 0xd8, 0xff]));
+    const webp = await exportArtifact('file.exportBitmap', { format: 'webp' }, (bytes) =>
+      Buffer.from(bytes.subarray(0, 4)).equals(Buffer.from('RIFF'))
+      && Buffer.from(bytes.subarray(8, 12)).equals(Buffer.from('WEBP')));
+    const tiff = await exportArtifact('file.exportBitmap', { format: 'tiff' }, (bytes) =>
+      startsWith([0x49, 0x49, 0x2a, 0x00])(bytes)
+      || startsWith([0x4d, 0x4d, 0x00, 0x2a])(bytes));
+    const native = await exportArtifact('file.exportNative', {}, (bytes) => {
+      const offset = bytes.byteLength - 12;
+      return offset >= 0 && Buffer.from(bytes.subarray(offset, offset + 8)).equals(Buffer.from('LTBLDOC1'));
+    });
     const events = await mcpClient.callTool({ name: 'lighttable_events', arguments: {
       afterCursor: 0, limit: 200
     } });
@@ -369,7 +380,7 @@ if (probe) {
     artistFlow = { documentId: designDocumentId, beforeRevision, afterRevision,
       editableLayerCount: layers.length, previewChanged: true, invalidSchemaRejected: true,
       missingTargetRejected: true, staleRevisionRejected: true, reconnect: true,
-      exports: { png, native } };
+      exports: { png, jpeg, webp, tiff, native } };
   }
   const report = {
     generatedAt: new Date().toISOString(),

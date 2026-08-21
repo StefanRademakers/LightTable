@@ -23,10 +23,10 @@ The local MCP route now has two levels of proof:
   independent structure/text queries, invalid-schema/missing-target/stale-write
   rejection, reconnect continuity and PNG/native artifact signatures.
 
-The 2026-08-21 A-Z report recorded 65 available commands, four editable layers,
-revision 4 to 5, a 1,426,803-byte PNG and a 1,497,780-byte native artifact, with
-no page errors. The report intentionally contains no image bytes, credentials,
-pairing codes or private fixture paths.
+The latest 2026-08-21 A-Z report recorded 66 available commands, four editable
+layers, revision 4 to 5, and valid PNG, JPEG, WebP, TIFF and native artifact
+signatures, with no page errors. The report intentionally contains no image
+bytes, credentials, pairing codes or private fixture paths.
 
 ## Remaining Task 264 boundary
 

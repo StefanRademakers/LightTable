@@ -32,7 +32,7 @@
       "required": ["id", "kind", "name", "mediaType", "byteLength", "createdAt"],
       "properties": {
         "id": { "$ref": "#/$defs/artifactId" },
-        "kind": { "type": "string", "enum": ["native-document", "png-export", "psd-export"] },
+        "kind": { "type": "string", "enum": ["native-document", "png-export", "jpeg-export", "webp-export", "tiff-export", "psd-export"] },
         "name": { "type": "string", "minLength": 1, "maxLength": 4096 },
         "mediaType": { "type": "string", "minLength": 1, "maxLength": 255 },
         "byteLength": { "type": "integer", "minimum": 0, "maximum": 536870912 },
@@ -85,6 +85,19 @@
         "properties": { "artifact": { "allOf": [
           { "$ref": "#/$defs/exportArtifact" },
           { "type": "object", "properties": { "kind": { "const": "png-export" } } }
+        ] } }
+      }
+    },
+    "file.exportBitmap": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["format"],
+        "properties": { "format": { "type": "string", "enum": ["jpeg", "webp", "tiff"] } }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["artifact"],
+        "properties": { "artifact": { "allOf": [
+          { "$ref": "#/$defs/exportArtifact" },
+          { "type": "object", "properties": { "kind": { "enum": ["jpeg-export", "webp-export", "tiff-export"] } } }
         ] } }
       }
     },

@@ -968,6 +968,15 @@ export class LightTableCommandService {
       return this.reject(value.requestId, dispatched.code, dispatched.message, snapshot);
     }
 
+    if (value.command === 'file.exportBitmap') {
+      if (!isRecord(value.parameters) || Object.keys(value.parameters).length !== 1
+        || !['jpeg', 'webp', 'tiff'].includes(String(value.parameters.format))) {
+        return this.reject(value.requestId, 'invalid-parameters',
+          'Bitmap export requires format jpeg, webp or tiff.', snapshot);
+      }
+      return this.startArtifactExport(documentRequest, snapshot);
+    }
+
     if (value.command === 'file.exportNative' || value.command === 'file.exportPng'
       || value.command === 'file.exportPsd') {
       if (!isRecord(value.parameters) || Object.keys(value.parameters).length > 0) {
@@ -1154,13 +1163,20 @@ export class LightTableCommandService {
     if (!session) return this.reject(request.requestId, 'document-not-found', 'The target document is not open.');
     const native = request.command === 'file.exportNative';
     const psd = request.command === 'file.exportPsd';
+    const requestParameters = isRecord(request.parameters) ? request.parameters : {};
+    const bitmapFormat = request.command === 'file.exportBitmap'
+      ? requestParameters.format as 'jpeg' | 'webp' | 'tiff'
+      : null;
     const operation = native ? this.ports.exportNativeArtifact.bind(this.ports)
       : psd ? this.ports.exportPsdArtifact.bind(this.ports)
-        : this.ports.exportPngArtifact.bind(this.ports);
+        : bitmapFormat
+          ? (documentId: DocumentSessionId) => this.ports.exportBitmapArtifact(documentId, bitmapFormat)
+          : this.ports.exportPngArtifact.bind(this.ports);
     const kind: LightTableArtifactKind = native ? 'native-document'
-      : psd ? 'psd-export' : 'png-export';
+      : psd ? 'psd-export' : bitmapFormat ? `${bitmapFormat}-export` : 'png-export';
     void session.tasks.run('export', native ? 'Export native document'
-      : psd ? 'Export Photoshop artifact' : 'Export PNG artifact', async (task) => {
+      : psd ? 'Export Photoshop artifact'
+        : bitmapFormat ? `Export ${bitmapFormat.toUpperCase()} artifact` : 'Export PNG artifact', async (task) => {
       const exported = await operation(request.documentId);
       task.throwIfCanceled();
       const file = exported instanceof File ? exported : exported.file;

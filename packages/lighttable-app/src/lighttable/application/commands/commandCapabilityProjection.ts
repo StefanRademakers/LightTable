@@ -83,6 +83,7 @@ export const projectCommandCapabilities = (
     availability('grade.setBasic', Boolean(ports.executeBasicAdjustmentCommand), 'Basic Grade commands are unavailable in this host.'),
     availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),
     availability('file.exportNative', true, ''), availability('file.exportPng', true, ''),
+    availability('file.exportBitmap', true, ''),
     availability('file.exportPsd', true, ''),
     availability('history.undo', snapshot.history.canUndo, 'There is nothing to undo.'),
     availability('history.redo', snapshot.history.canRedo, 'There is nothing to redo.')

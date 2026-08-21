@@ -103,6 +103,8 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     undo: vi.fn(async () => true),
     redo: vi.fn(async () => true),
     ...overrides,
+    exportBitmapArtifact: overrides.exportBitmapArtifact ?? vi.fn(async (_documentId, format) =>
+      new File([format], `test.${format}`, { type: `image/${format}` })),
     exportLayerPreviewArtifact: overrides.exportLayerPreviewArtifact ?? vi.fn(async () => ({
       file: new File(['layer'], 'layer.png', { type: 'image/png' }), width: 40, height: 30,
       sourceToOutput: { a: 0.5, b: 0, c: 0, d: 0.5, tx: 0, ty: 0 }
@@ -1236,6 +1238,8 @@ describe('LightTableCommandService registry', () => {
       executeAtomicBatch: vi.fn(),
       exportNativeArtifact: vi.fn(async () => new File(['native'], 'test.lighttable')),
       exportPngArtifact: vi.fn(async () => new File(['png'], 'test.png', { type: 'image/png' })),
+      exportBitmapArtifact: vi.fn(async (format: string) =>
+        new File([format], `test.${format}`, { type: `image/${format}` })),
       exportPreviewArtifact: vi.fn(async (maxEdge: number) =>
         new File(['preview'], `preview-${maxEdge}.png`, { type: 'image/png' })),
       exportLayerPreviewArtifact: vi.fn(async () => ({
@@ -1876,19 +1880,38 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
-  it('returns task-backed opaque artifacts for native, PNG and PSD exports', async () => {
+  it('returns task-backed opaque artifacts for native, bitmap and PSD exports', async () => {
     const state = setup();
-    for (const command of ['file.exportNative', 'file.exportPng', 'file.exportPsd'] as const) {
-      const accepted = await state.service.execute(request(command, state.session.id, {}));
+    const cases = [
+      ['file.exportNative', {}, 'native-document'],
+      ['file.exportPng', {}, 'png-export'],
+      ['file.exportBitmap', { format: 'jpeg' }, 'jpeg-export'],
+      ['file.exportBitmap', { format: 'webp' }, 'webp-export'],
+      ['file.exportBitmap', { format: 'tiff' }, 'tiff-export'],
+      ['file.exportPsd', {}, 'psd-export']
+    ] as const;
+    for (const [command, parameters, kind] of cases) {
+      const accepted = await state.service.execute(request(command, state.session.id, parameters));
       expect(accepted.status).toBe('accepted');
       if (accepted.status !== 'accepted') continue;
       await vi.waitFor(() => expect(
         state.service.queryTask(state.session.id, accepted.taskId)?.status
       ).toBe('completed'));
       const artifact = state.service.queryTask(state.session.id, accepted.taskId)?.artifact;
-      expect(artifact).toEqual(expect.objectContaining({ id: expect.any(String), byteLength: expect.any(Number) }));
+      expect(artifact).toEqual(expect.objectContaining({
+        id: expect.any(String), kind, byteLength: expect.any(Number)
+      }));
       expect(state.service.queryArtifact(artifact!.id)).toEqual(artifact);
     }
+    expect(state.ports.exportBitmapArtifact).toHaveBeenNthCalledWith(
+      1, state.session.id, 'jpeg'
+    );
+    expect(state.ports.exportBitmapArtifact).toHaveBeenNthCalledWith(
+      2, state.session.id, 'webp'
+    );
+    expect(state.ports.exportBitmapArtifact).toHaveBeenNthCalledWith(
+      3, state.session.id, 'tiff'
+    );
     state.service.dispose();
     state.workspace.dispose();
   });
@@ -2307,6 +2330,8 @@ describe('LightTableCommandService registry', () => {
       ['task.cancel', { taskId: '', force: true }],
       ['file.exportNative', { path: 'D:/private.lighttable' }],
       ['file.exportPng', { bytesBase64: 'private' }],
+      ['file.exportBitmap', { format: 'png' }],
+      ['file.exportBitmap', { format: 'jpeg', quality: 90 }],
       ['file.exportPsd', { compatibilityMode: 'unchecked' }]
     ] as const;
     for (const [command, parameters] of invalid) {
@@ -2319,6 +2344,7 @@ describe('LightTableCommandService registry', () => {
     expect(state.ports.redo).not.toHaveBeenCalled();
     expect(state.ports.exportNativeArtifact).not.toHaveBeenCalled();
     expect(state.ports.exportPngArtifact).not.toHaveBeenCalled();
+    expect(state.ports.exportBitmapArtifact).not.toHaveBeenCalled();
     expect(state.ports.exportPsdArtifact).not.toHaveBeenCalled();
 
     await expect(state.service.execute(request('view.setZoom', state.session.id,

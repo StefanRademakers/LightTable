@@ -144,7 +144,7 @@ Current evidence (2026-08-20)
   acceptance remains tracked in Task 264.
 - The extended packaged A-Z probe now also proves an editable four-layer
   text/vector/effect composition, revision-bound visual correction, independent
-  text/layer queries, changed preview pixels, PNG/native artifacts, invalid
+  text/layer queries, changed preview pixels, PNG/JPEG/WebP/TIFF/native artifacts, invalid
   schema, missing-target and stale-write rejection, plus reconnect continuity.
   This is external SDK transport evidence; a genuinely fresh Codex client is
   still the remaining owner-visible acceptance boundary in Task 264.

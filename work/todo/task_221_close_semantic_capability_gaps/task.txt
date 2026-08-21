@@ -103,6 +103,10 @@ Completed vertical slices
 - complete Grade recipe copy/paste through the existing Grade transaction and
   history owner, including bounded session-only embedded Look transfer,
   destination-owned Lens FX and replay-time Action result binding.
+- JPEG, WebP and TIFF export through one bounded `file.exportBitmap` operation.
+  Local export and automation reuse the document controller's persistent
+  native bitmap encoder while MCP carries only format intent and opaque
+  artifact metadata.
 
 Rules
 =====
