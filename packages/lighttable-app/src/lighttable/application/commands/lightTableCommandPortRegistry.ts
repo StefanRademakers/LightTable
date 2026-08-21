@@ -4,6 +4,7 @@ import type { LayerStyleId } from '../../editor/styles/layerStyleTypes';
 import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandContract';
 import type { AdjustmentQueryTarget } from '../adjustments/adjustmentQuery';
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
+import type { SemanticDetailAdjustmentCommand } from './semanticDetailAdjustmentCommandContract';
 import type { SemanticFaceWarpCommand } from './semanticFaceWarpCommandContract';
 import type { SemanticFillCommand } from './semanticFillCommandContract';
 import type { SemanticLayerCommand } from './semanticLayerCommandContract';
@@ -131,6 +132,11 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   executeBasicAdjustmentCommand(documentId: DocumentSessionId, command: SemanticBasicAdjustmentCommand) {
     const execute = this.resolve(documentId).executeBasicAdjustmentCommand;
     if (!execute) throw new Error('Basic Grade commands are unavailable in the target document.');
+    return execute(command);
+  }
+  executeDetailAdjustmentCommand(documentId: DocumentSessionId, command: SemanticDetailAdjustmentCommand) {
+    const execute = this.resolve(documentId).executeDetailAdjustmentCommand;
+    if (!execute) throw new Error('Detail commands are unavailable in the target document.');
     return execute(command);
   }
   executeFixedTransform(documentId: DocumentSessionId,

@@ -302,9 +302,37 @@ if (probe) {
     const afterDocument = await mcpClient.callTool({ name: 'lighttable_document', arguments: {
       documentId: designDocumentId
     } });
-    const afterRevision = afterDocument.structuredContent?.canonicalRevision;
-    if (!Number.isInteger(afterRevision) || afterRevision <= beforeRevision) {
+    const textRevision = afterDocument.structuredContent?.canonicalRevision;
+    if (!Number.isInteger(textRevision) || textRevision <= beforeRevision) {
       throw new Error('Local MCP A-Z correction did not advance the canonical revision.');
+    }
+    const detail = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+      documentId: designDocumentId, command: 'grade.setDetail',
+      expectedDocumentRevision: textRevision,
+      parameters: { target: { kind: 'document' }, values: {
+        sharpeningAmount: 45, sharpeningRadius: 1.1, luminanceNoiseReduction: 30
+      } }
+    } });
+    if (detail.isError || detail.structuredContent?.status !== 'completed') {
+      throw new Error(`Local MCP A-Z Detail correction failed: ${JSON.stringify(detail)}`);
+    }
+    const detailDocument = await mcpClient.callTool({ name: 'lighttable_document', arguments: {
+      documentId: designDocumentId
+    } });
+    const afterRevision = detailDocument.structuredContent?.canonicalRevision;
+    if (!Number.isInteger(afterRevision) || afterRevision <= textRevision) {
+      throw new Error('Local MCP A-Z Detail correction did not advance the canonical revision.');
+    }
+    const adjustment = await mcpClient.callTool({ name: 'lighttable_adjustment', arguments: {
+      documentId: designDocumentId, expectedDocumentRevision: afterRevision,
+      target: { kind: 'document', owner: 'grade' }
+    } });
+    const detailParameters = adjustment.structuredContent?.stack?.modules
+      ?.find(({ type }) => type === 'lt.detail')?.parameters
+      ?.find(({ path }) => path === 'detail')?.value;
+    if (detailParameters?.sharpeningAmount !== 45
+      || detailParameters?.luminanceNoiseReduction !== 30) {
+      throw new Error(`Local MCP A-Z Detail state was not independently queryable: ${JSON.stringify(adjustment)}`);
     }
     const stale = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
       documentId: designDocumentId, command: 'layer.rename', expectedDocumentRevision: beforeRevision,
@@ -379,7 +407,7 @@ if (probe) {
     }
     artistFlow = { documentId: designDocumentId, beforeRevision, afterRevision,
       editableLayerCount: layers.length, previewChanged: true, invalidSchemaRejected: true,
-      missingTargetRejected: true, staleRevisionRejected: true, reconnect: true,
+      missingTargetRejected: true, staleRevisionRejected: true, detailQueried: true, reconnect: true,
       exports: { png, jpeg, webp, tiff, native } };
   }
   const report = {

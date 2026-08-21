@@ -1,6 +1,7 @@
 import type { LightTableCommandId } from './lightTableCommandContract';
 import { parseCommittedGestureRequest } from './lightTableCommandValidation';
 import { parseSemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
+import { parseSemanticDetailAdjustmentCommand } from './semanticDetailAdjustmentCommandContract';
 import { parseSemanticFillCommand } from './semanticFillCommandContract';
 import { parseSemanticLayerCommand } from './semanticLayerCommandContract';
 import { parseSemanticRasterGradientCommand } from './semanticRasterGradientCommandContract';
@@ -34,6 +35,7 @@ export const observedCommandParametersAreValid = (
     case 'selection.applyMagicWand': return valid(parseSemanticSelectionCommand(parameters));
     case 'selection.selectSubject': return valid(parseSemanticSubjectSelectionCommand(parameters));
     case 'grade.setBasic': return valid(parseSemanticBasicAdjustmentCommand(parameters));
+    case 'grade.setDetail': return valid(parseSemanticDetailAdjustmentCommand(parameters));
     case 'layer.setTransform': return valid(parseSemanticLayerCommand('set-transform', parameters));
     case 'layer.style.update': return valid(parseSemanticLayerStyleCommand('stack-update', parameters));
     case 'layer.effect.add': return valid(parseSemanticLayerStyleCommand('add', parameters));

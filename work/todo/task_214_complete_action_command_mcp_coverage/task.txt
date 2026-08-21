@@ -107,8 +107,9 @@ Existing foundation evidence
 - Fourteen basic Grade controls now share `grade.setBasic` with explicit
   document/layer targets, final slider recording and packaged Actions replay;
   `grade.queryBasic` now reads those canonical values through authenticated
-  packaged Agent Access without history/recording mutation. Non-basic groups
-  remain open. Shared version-1 schemas now enforce the same range map used by
+  packaged Agent Access without history/recording mutation. Detail now shares
+  `grade.setDetail` for ten sharpening and noise-reduction controls; remaining
+  non-basic groups stay open. Shared version-1 schemas now enforce the same range map used by
   the sliders and require a non-empty bounded patch.
 - Native point-text creation and faux-bold/italic/underline formatting now use
   shared semantic owners. Packaged Actions records, binds, undoes and replays
@@ -285,6 +286,11 @@ Existing foundation evidence
   persistent native bitmap encoder owned by the local File workflow; no second
   codec or worker path was introduced. The packaged A-Z probe validates real
   JPEG, RIFF/WebP and little- or big-endian TIFF signatures.
+- Detail sharpening and noise reduction now share `grade.setDetail` across
+  local slider commits, Actions and MCP. Ten centrally owned ranges drive both
+  UI controls and the closed machine schema; packaged MCP execution advances
+  the canonical revision and the independent adjustment query returns the
+  authored `lt.detail` values.
 
 Program definition of done
 ==========================

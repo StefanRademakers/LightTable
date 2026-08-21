@@ -29,6 +29,8 @@ import gradeBasicCommandSchemas from '../schemas/v1/grade-basic.json' with { typ
 
 import gradeClipboardCommandSchemas from '../schemas/v1/grade-clipboard.json' with { type: 'json' };
 
+import gradeDetailCommandSchemas from '../schemas/v1/grade-detail.json' with { type: 'json' };
+
 import historyCommandSchemas from '../schemas/v1/history.json' with { type: 'json' };
 
 import layerEffectsCommandSchemas from '../schemas/v1/layer-effects.json' with { type: 'json' };
@@ -148,6 +150,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'grade.copy',
   'grade.paste',
   'grade.setBasic',
+  'grade.setDetail',
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
@@ -176,6 +179,7 @@ const baseCommandSchemas = Object.freeze({
   ...schemaModuleCommands(gestureCommandSchemas),
   ...schemaModuleCommands(gradeBasicCommandSchemas),
   ...schemaModuleCommands(gradeClipboardCommandSchemas),
+  ...schemaModuleCommands(gradeDetailCommandSchemas),
   ...schemaModuleCommands(historyCommandSchemas),
   ...schemaModuleCommands(layerEffectsCommandSchemas),
   ...schemaModuleCommands(layerMaskCommandSchemas),
@@ -278,6 +282,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'grade.copy',
   'grade.paste',
   'grade.setBasic',
+  'grade.setDetail',
   'task.cancel',
   'file.exportNative',
   'file.exportPng',
@@ -345,6 +350,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'grade.copy',
   'grade.paste',
   'grade.setBasic',
+  'grade.setDetail',
   'task.cancel',
   'file.exportNative',
   'file.exportPng',

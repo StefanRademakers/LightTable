@@ -97,6 +97,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'grade.setBasic',
     'grade.copy',
     'grade.paste',
+    'grade.setDetail',
     'history.undo',
     'history.redo',
     'layer.style.setEnabled',
@@ -452,6 +453,23 @@ test('basic Grade schema requires a bounded partial patch and explicit target', 
   ]) assert.equal(validateJsonSchemaValue(grade.input, value).valid, false, JSON.stringify(value));
   assert.equal(validateJsonSchemaValue(grade.result, {
     target: { kind: 'document' }, values: { exposureEV: 1.25 }, changed: true
+  }).valid, true);
+});
+
+test('Detail schema shares bounded sharpening and noise-reduction controls', () => {
+  const detail = LIGHTTABLE_COMMAND_SCHEMAS['grade.setDetail'];
+  for (const value of LIGHTTABLE_COMMAND_EXAMPLES['grade.setDetail']) {
+    assert.equal(validateJsonSchemaValue(detail.input, value).valid, true, JSON.stringify(value));
+  }
+  for (const value of [
+    { target: { kind: 'document' }, values: {} },
+    { target: { kind: 'document' }, values: { sharpeningRadius: 0.49 } },
+    { target: { kind: 'document' }, values: { sharpeningAmount: 151 } },
+    { target: { kind: 'document' }, values: { privateKernel: [1, 2, 3] } }
+  ]) assert.equal(validateJsonSchemaValue(detail.input, value).valid, false, JSON.stringify(value));
+  assert.equal(validateJsonSchemaValue(detail.result, {
+    target: { kind: 'layer', layerId: 'portrait' },
+    values: { colorNoiseReduction: 20 }, changed: true
   }).valid, true);
 });
 

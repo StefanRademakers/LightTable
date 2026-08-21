@@ -74,6 +74,7 @@ import {
   parseSemanticBasicAdjustmentCommand,
   parseBasicAdjustmentTarget
 } from './semanticBasicAdjustmentCommandContract';
+import { parseSemanticDetailAdjustmentCommand } from './semanticDetailAdjustmentCommandContract';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
 import {
   parseAdjustmentQueryTarget,
@@ -1474,6 +1475,18 @@ export class LightTableCommandService {
         const result = await this.ports.executeBasicAdjustmentCommand(request.documentId, command);
         if (!result || typeof result !== 'object') {
           return { code: 'execution-failed', message: 'The basic Grade could not be applied.' };
+        }
+        return { value: result, changed: (result as { changed?: boolean }).changed !== false };
+      }
+      case 'grade.setDetail': {
+        const command = parseSemanticDetailAdjustmentCommand(parameters);
+        if ('message' in command) return this.invalidParameters(command.message);
+        if (!this.ports.executeDetailAdjustmentCommand) {
+          return { code: 'command-unavailable', message: 'Detail commands are unavailable in this host.' };
+        }
+        const result = await this.ports.executeDetailAdjustmentCommand(request.documentId, command);
+        if (!result || typeof result !== 'object') {
+          return { code: 'execution-failed', message: 'Detail could not be applied.' };
         }
         return { value: result, changed: (result as { changed?: boolean }).changed !== false };
       }

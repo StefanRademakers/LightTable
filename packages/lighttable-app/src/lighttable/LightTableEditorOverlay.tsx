@@ -35,7 +35,9 @@ import { createAdjustmentCommands } from './application/adjustments/createAdjust
 import { resolveBasicAdjustmentTarget } from './application/adjustments/basicAdjustmentTarget';
 import { projectBasicAdjustmentValues } from './application/adjustments/basicAdjustmentQuery';
 import { projectAdjustmentQuery } from './application/adjustments/adjustmentQuery';
+import { executeSemanticGradePatch } from './application/adjustments/executeSemanticGradePatch';
 import { changedBasicAdjustmentValues } from './application/commands/semanticBasicAdjustmentCommandContract';
+import { changedDetailAdjustmentValues } from './application/commands/semanticDetailAdjustmentCommandContract';
 import {
   resolveContextualAdjustmentCreation,
   type SemanticAdjustmentCreationCommand
@@ -2476,15 +2478,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         return;
       }
       const values = changedBasicAdjustmentValues(before, after);
-      if (!Object.keys(values).length) return;
       const target = targetLayerId
         ? { kind: 'layer' as const, layerId: targetLayerId }
         : { kind: 'document' as const };
+      if (Object.keys(values).length) {
+        commandService?.recordObservedCommand(
+          'grade.setBasic',
+          workspaceDocumentId as DocumentSessionId,
+          { target, values },
+          { target, values, changed: true }
+        );
+        return;
+      }
+      const detailValues = changedDetailAdjustmentValues(before.detail, after.detail);
+      if (!Object.keys(detailValues).length) return;
       commandService?.recordObservedCommand(
-        'grade.setBasic',
+        'grade.setDetail',
         workspaceDocumentId as DocumentSessionId,
-        { target, values },
-        { target, values, changed: true }
+        { target, values: detailValues },
+        { target, values: detailValues, changed: true }
       );
     }
   });
@@ -5120,22 +5132,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         adjustmentTransactionController.end();
         const document = imageDocumentRef.current;
         if (!document) return null;
-        const resolved = resolveBasicAdjustmentTarget(
-          document,
-          documentAdjustmentsRef.current,
-          command.target
-        );
-        if ('message' in resolved) throw new Error(resolved.message);
-        const before = cloneAdjustments(resolved.adjustments);
-        const after = cloneAdjustments(before);
-        Object.entries(command.values).forEach(([key, value]) => {
-          (after as unknown as Record<string, unknown>)[key] = value;
-        });
-        const changed = Object.keys(command.values).some((key) => (
-          (before as unknown as Record<string, unknown>)[key]
-            !== (after as unknown as Record<string, unknown>)[key]
-        ));
-        if (!changed) return { target: command.target, values: command.values, changed: false };
         const currentPropertiesTarget = propertiesTargetRef.current;
         const presented = command.target.kind === 'document'
           ? currentPropertiesTarget.kind === 'document-processing'
@@ -5143,23 +5139,36 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           : 'layerId' in currentPropertiesTarget
             && currentPropertiesTarget.layerId === command.target.layerId
             && propertiesInspectorView(document, currentPropertiesTarget) === 'grade';
-        const publish = (snapshot: BasicAdjustments) => {
-          documentProjectionController.applyAdjustmentSnapshot(
-            snapshot,
-            resolved.targetLayerId,
-            'grade',
-            presented
-          );
-        };
-        publish(after);
-        pushHistoryEntry({
-          type: 'adjustment.basic',
-          label: 'Set Basic Grade',
-          documentMutation: true,
-          undo: () => publish(before),
-          redo: () => publish(after)
+        return executeSemanticGradePatch({
+          document, documentAdjustments: documentAdjustmentsRef.current,
+          target: command.target, values: command.values,
+          historyType: 'adjustment.basic', historyLabel: 'Set Basic Grade',
+          mutate: (snapshot, values) => Object.assign(snapshot, values),
+          publish: (snapshot, targetLayerId) => documentProjectionController
+            .applyAdjustmentSnapshot(snapshot, targetLayerId, 'grade', presented),
+          pushHistoryEntry
         });
-        return { target: command.target, values: command.values, changed: true };
+      },
+      executeDetailAdjustmentCommand: (command) => {
+        adjustmentTransactionController.end();
+        const document = imageDocumentRef.current;
+        if (!document) return null;
+        const currentPropertiesTarget = propertiesTargetRef.current;
+        const presented = command.target.kind === 'document'
+          ? currentPropertiesTarget.kind === 'document-processing'
+            && currentPropertiesTarget.owner === 'grade'
+          : 'layerId' in currentPropertiesTarget
+            && currentPropertiesTarget.layerId === command.target.layerId
+            && propertiesInspectorView(document, currentPropertiesTarget) === 'grade';
+        return executeSemanticGradePatch({
+          document, documentAdjustments: documentAdjustmentsRef.current,
+          target: command.target, values: command.values,
+          historyType: 'adjustment.detail', historyLabel: 'Set Detail',
+          mutate: (snapshot, values) => Object.assign(snapshot.detail, values),
+          publish: (snapshot, targetLayerId) => documentProjectionController
+            .applyAdjustmentSnapshot(snapshot, targetLayerId, 'grade', presented),
+          pushHistoryEntry
+        });
       },
       executeFixedTransform: (command) => applyFixedTransformRef.current(command.operation),
       executeAdjustmentCreation: (command) => executeAdjustmentCreationRef.current(command),

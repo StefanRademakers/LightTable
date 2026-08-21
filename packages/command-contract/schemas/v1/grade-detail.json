@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "category": "adjustments",
+  "$defs": {
+    "target": {
+      "title": "Grade target",
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind"],
+          "properties": { "kind": { "type": "string", "const": "document", "default": "document" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "layerId"],
+          "properties": {
+            "kind": { "type": "string", "const": "layer", "default": "layer" },
+            "layerId": { "type": "string", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" }
+          }
+        }
+      ]
+    },
+    "values": {
+      "type": "object", "additionalProperties": false, "minProperties": 1, "maxProperties": 10,
+      "properties": {
+        "sharpeningAmount": { "type": "number", "title": "Sharpening amount", "minimum": 0, "maximum": 150, "default": 0 },
+        "sharpeningRadius": { "type": "number", "title": "Sharpening radius", "minimum": 0.5, "maximum": 3, "default": 1, "x-lighttable-step": 0.05 },
+        "sharpeningDetail": { "type": "number", "title": "Sharpening detail", "minimum": 0, "maximum": 100, "default": 25 },
+        "sharpeningMasking": { "type": "number", "title": "Sharpening masking", "minimum": 0, "maximum": 100, "default": 0 },
+        "luminanceNoiseReduction": { "type": "number", "title": "Luminance noise reduction", "minimum": 0, "maximum": 100, "default": 0 },
+        "luminanceDetail": { "type": "number", "title": "Luminance detail", "minimum": 0, "maximum": 100, "default": 50 },
+        "luminanceContrast": { "type": "number", "title": "Luminance contrast", "minimum": 0, "maximum": 100, "default": 0 },
+        "colorNoiseReduction": { "type": "number", "title": "Color noise reduction", "minimum": 0, "maximum": 100, "default": 0 },
+        "colorDetail": { "type": "number", "title": "Color detail", "minimum": 0, "maximum": 100, "default": 50 },
+        "colorSmoothness": { "type": "number", "title": "Color smoothness", "minimum": 0, "maximum": 100, "default": 50 }
+      }
+    }
+  },
+  "commands": {
+    "grade.setDetail": {
+      "input": {
+        "type": "object", "additionalProperties": false, "required": ["target", "values"],
+        "properties": {
+          "target": { "$ref": "#/$defs/target" },
+          "values": { "$ref": "#/$defs/values" }
+        }
+      },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["target", "values", "changed"],
+        "properties": {
+          "target": { "$ref": "#/$defs/target" },
+          "values": { "$ref": "#/$defs/values" },
+          "changed": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

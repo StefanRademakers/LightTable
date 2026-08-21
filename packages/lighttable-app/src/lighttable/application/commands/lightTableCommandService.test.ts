@@ -1719,6 +1719,33 @@ describe('LightTableCommandService registry', () => {
     state.workspace.dispose();
   });
 
+  it('validates, records and replays one final Detail patch', async () => {
+    const executeDetailAdjustmentCommand = vi.fn(async () => ({
+      target: { kind: 'document' },
+      values: { sharpeningAmount: 45, luminanceNoiseReduction: 30 },
+      changed: true
+    }));
+    const state = setup({ executeDetailAdjustmentCommand });
+    const parameters = { target: { kind: 'document' },
+      values: { sharpeningAmount: 45, luminanceNoiseReduction: 30 } };
+    state.service.startActionRecording('Sharpen and denoise');
+    await expect(state.service.execute(request('grade.setDetail', state.session.id, parameters)))
+      .resolves.toMatchObject({ status: 'completed' });
+    state.service.stopActionRecording();
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'grade.setDetail', replayable: true, parameters
+    }]);
+    await state.service.playActionRecording();
+    expect(executeDetailAdjustmentCommand).toHaveBeenCalledTimes(2);
+    for (const values of [
+      {}, { sharpeningRadius: 0.49 }, { sharpeningAmount: 151 }, { privateKernel: [1, 2, 3] }
+    ]) await expect(state.service.execute(request('grade.setDetail', state.session.id, {
+      target: { kind: 'document' }, values
+    }))).resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    expect(executeDetailAdjustmentCommand).toHaveBeenCalledTimes(2);
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('validates, records and replays profile assignment without conversion state', async () => {
     const assignDocumentProfile = vi.fn(async (_documentId, command) => ({
       ...command, profileState: 'assigned' as const, changed: true

@@ -107,6 +107,9 @@ Completed vertical slices
   Local export and automation reuse the document controller's persistent
   native bitmap encoder while MCP carries only format intent and opaque
   artifact metadata.
+- complete Detail sharpening/noise-reduction mutation through
+  `grade.setDetail`, sharing central UI ranges, the existing Grade snapshot and
+  history owner, Actions recording/replay and independent MCP observation.
 
 Rules
 =====

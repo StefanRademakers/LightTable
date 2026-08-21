@@ -199,7 +199,8 @@ workflow authoring remain open. Structural layer pages plus whole-document/layer
 cover a bounded inspection baseline including final-composite regions and an
 active-layer content dispatcher. Every current adjustment presentation now has
 bounded module-registry-backed inspection for document, layer and attached
-owners; non-basic adjustment mutation schemas remain open. Equivalent
+owners. Detail sharpening/noise reduction now has a bounded mutation schema;
+the remaining non-basic adjustment mutation families remain open. Equivalent
 UI/Actions/MCP outcomes are not
 yet broadly proven.
 

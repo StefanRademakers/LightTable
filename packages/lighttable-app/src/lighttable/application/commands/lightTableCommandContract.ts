@@ -21,6 +21,7 @@ import type { SemanticSelectionCommand } from './semanticSelectionCommandContrac
 import type { SemanticSubjectSelectionCommand, SemanticSubjectSelectionResult }
   from './semanticSubjectSelectionCommandContract';
 import type { SemanticBasicAdjustmentCommand } from './semanticBasicAdjustmentCommandContract';
+import type { SemanticDetailAdjustmentCommand } from './semanticDetailAdjustmentCommandContract';
 import type { BasicAdjustmentTarget } from './semanticBasicAdjustmentCommandContract';
 import type { BasicAdjustments } from '../../types';
 import type { BasicGradeQueryResult } from '../adjustments/basicAdjustmentQuery';
@@ -288,6 +289,7 @@ export interface LightTableCommandPorts {
   executeSubjectSelection?(documentId: DocumentSessionId, command: SemanticSubjectSelectionCommand,
     signal: AbortSignal, report: (progress: number, message: string) => void): Promise<SemanticSubjectSelectionResult>;
   executeBasicAdjustmentCommand?(documentId: DocumentSessionId, command: SemanticBasicAdjustmentCommand): unknown | Promise<unknown>;
+  executeDetailAdjustmentCommand?(documentId: DocumentSessionId, command: SemanticDetailAdjustmentCommand): unknown | Promise<unknown>;
   executeFixedTransform?(documentId: DocumentSessionId, command: SemanticFixedTransformCommand): unknown | Promise<unknown>;
   executeAdjustmentCreation?(documentId: DocumentSessionId, command: SemanticAdjustmentCreationCommand): unknown | Promise<unknown>;
   executeRasterInvert?(documentId: DocumentSessionId, command: SemanticRasterInvertCommand): unknown | Promise<unknown>;
@@ -355,6 +357,7 @@ export interface DocumentLightTableCommandPorts {
   executeSubjectSelection?(command: SemanticSubjectSelectionCommand, signal: AbortSignal,
     report: (progress: number, message: string) => void): Promise<SemanticSubjectSelectionResult>;
   executeBasicAdjustmentCommand?(command: SemanticBasicAdjustmentCommand): unknown | Promise<unknown>;
+  executeDetailAdjustmentCommand?(command: SemanticDetailAdjustmentCommand): unknown | Promise<unknown>;
   executeFixedTransform?(command: SemanticFixedTransformCommand): unknown | Promise<unknown>;
   executeAdjustmentCreation?(command: SemanticAdjustmentCreationCommand): unknown | Promise<unknown>;
   executeRasterInvert?(command: SemanticRasterInvertCommand): unknown | Promise<unknown>;

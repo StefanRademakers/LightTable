@@ -20,6 +20,7 @@ import type {
 import type { LensDistortionSettings } from '../../effects/lensDistortion/settings';
 import type { VignetteSettings } from '../../effects/vignette/settings';
 import type { DetailAdjustments } from '../../detail';
+import { DETAIL_ADJUSTMENT_RANGES } from '../../application/commands/semanticDetailAdjustmentCommandContract';
 
 export interface SliderDefinition<TKey = NumericAdjustmentKey> {
   readonly key: TKey;
@@ -92,19 +93,19 @@ export const EFFECTS_SLIDERS = SLIDERS.filter(({ key }) => EFFECT_KEYS.has(key))
 
 export type DetailSliderDefinition = SliderDefinition<keyof DetailAdjustments>;
 export const DETAIL_SHARPENING_SLIDERS: readonly DetailSliderDefinition[] = [
-  { key: 'sharpeningAmount', label: 'Amount', min: 0, max: 150 },
-  { key: 'sharpeningRadius', label: 'Radius', min: 0.5, max: 3, step: 0.05,
+  { key: 'sharpeningAmount', label: 'Amount', ...DETAIL_ADJUSTMENT_RANGES.sharpeningAmount },
+  { key: 'sharpeningRadius', label: 'Radius', ...DETAIL_ADJUSTMENT_RANGES.sharpeningRadius, step: 0.05,
     format: (value) => value.toFixed(2) },
-  { key: 'sharpeningDetail', label: 'Detail', min: 0, max: 100 },
-  { key: 'sharpeningMasking', label: 'Masking', min: 0, max: 100 }
+  { key: 'sharpeningDetail', label: 'Detail', ...DETAIL_ADJUSTMENT_RANGES.sharpeningDetail },
+  { key: 'sharpeningMasking', label: 'Masking', ...DETAIL_ADJUSTMENT_RANGES.sharpeningMasking }
 ];
 export const DETAIL_NOISE_SLIDERS: readonly DetailSliderDefinition[] = [
-  { key: 'luminanceNoiseReduction', label: 'Luminance', min: 0, max: 100 },
-  { key: 'luminanceDetail', label: 'Luminance Detail', min: 0, max: 100 },
-  { key: 'luminanceContrast', label: 'Luminance Contrast', min: 0, max: 100 },
-  { key: 'colorNoiseReduction', label: 'Color', min: 0, max: 100 },
-  { key: 'colorDetail', label: 'Color Detail', min: 0, max: 100 },
-  { key: 'colorSmoothness', label: 'Color Smoothness', min: 0, max: 100 }
+  { key: 'luminanceNoiseReduction', label: 'Luminance', ...DETAIL_ADJUSTMENT_RANGES.luminanceNoiseReduction },
+  { key: 'luminanceDetail', label: 'Luminance Detail', ...DETAIL_ADJUSTMENT_RANGES.luminanceDetail },
+  { key: 'luminanceContrast', label: 'Luminance Contrast', ...DETAIL_ADJUSTMENT_RANGES.luminanceContrast },
+  { key: 'colorNoiseReduction', label: 'Color', ...DETAIL_ADJUSTMENT_RANGES.colorNoiseReduction },
+  { key: 'colorDetail', label: 'Color Detail', ...DETAIL_ADJUSTMENT_RANGES.colorDetail },
+  { key: 'colorSmoothness', label: 'Color Smoothness', ...DETAIL_ADJUSTMENT_RANGES.colorSmoothness }
 ];
 
 export const GRAIN_SLIDERS: ReadonlyArray<

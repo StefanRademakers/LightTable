@@ -464,7 +464,7 @@ implemented. Expand only through the shared command service, prioritizing:
 
 1. layer reparenting with explicit insertion semantics;
 2. richer selection and mask properties;
-3. Grade/Lens Fx and non-basic adjustment mutation semantics;
+3. remaining Grade/Lens Fx mutation semantics beyond Basic Grade and Detail;
 4. remaining tool operations that can be expressed deterministically;
 5. richer structural and visual inspection for reference-image reconstruction;
 6. version negotiation, ID-lifetime and permission contracts suitable for a

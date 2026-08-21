@@ -22,4 +22,15 @@ describe('observed command validation', () => {
       ...intent, modelId: 'replaceable-private-model'
     })).toBe(false);
   });
+
+  it('accepts bounded Detail commits and rejects private processing state', () => {
+    expect(observedCommandParametersAreValid('grade.setDetail', {
+      target: { kind: 'document' },
+      values: { sharpeningAmount: 45, colorNoiseReduction: 20 }
+    })).toBe(true);
+    expect(observedCommandParametersAreValid('grade.setDetail', {
+      target: { kind: 'document' },
+      values: { sharpeningAmount: 45, waveletBuffers: ['private'] }
+    })).toBe(false);
+  });
 });

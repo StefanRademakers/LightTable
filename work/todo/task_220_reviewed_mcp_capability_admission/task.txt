@@ -148,3 +148,8 @@ Current evidence (2026-08-20)
   schema, missing-target and stale-write rejection, plus reconnect continuity.
   This is external SDK transport evidence; a genuinely fresh Codex client is
   still the remaining owner-visible acceptance boundary in Task 264.
+- `grade.setDetail` is admitted for bounded document/layer sharpening and
+  noise-reduction patches. The packaged A-Z route executes it at an expected
+  revision, observes revision advancement and reads the exact values back
+  through `lighttable_adjustment`; private and out-of-range fields are rejected
+  by the shared schema before reaching the desktop owner.

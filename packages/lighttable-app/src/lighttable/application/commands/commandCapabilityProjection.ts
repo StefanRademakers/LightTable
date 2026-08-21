@@ -81,6 +81,7 @@ export const projectCommandCapabilities = (
     availability('selection.selectSubject', Boolean(ports.executeSubjectSelection), 'Select Subject is unavailable in this host.'),
     availability('selection.modify', Boolean(ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
     availability('grade.setBasic', Boolean(ports.executeBasicAdjustmentCommand), 'Basic Grade commands are unavailable in this host.'),
+    availability('grade.setDetail', Boolean(ports.executeDetailAdjustmentCommand), 'Detail commands are unavailable in this host.'),
     availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),
     availability('file.exportNative', true, ''), availability('file.exportPng', true, ''),
     availability('file.exportBitmap', true, ''),

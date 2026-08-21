@@ -403,5 +403,9 @@
   "grade.setBasic": [
     { "target": { "kind": "document" }, "values": { "exposureEV": 0.35, "contrast": 12 } },
     { "target": { "kind": "layer", "layerId": "layer-photo" }, "values": { "temperature": -8, "vibrance": 15 } }
+  ],
+  "grade.setDetail": [
+    { "target": { "kind": "document" }, "values": { "sharpeningAmount": 45, "sharpeningRadius": 1.1 } },
+    { "target": { "kind": "layer", "layerId": "portrait" }, "values": { "luminanceNoiseReduction": 30, "colorNoiseReduction": 20 } }
   ]
 }

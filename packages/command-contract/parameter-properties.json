@@ -59,6 +59,7 @@
   "grade.copy": {},
   "grade.paste": { "artifactId": "session Grade clipboard artifact ID" },
   "grade.setBasic": { "target": "document | layer target", "values": "partial basic-grade values with control ranges" },
+  "grade.setDetail": { "target": "document | layer target", "values": "partial detail values with control ranges" },
   "task.cancel": { "taskId": "string" },
   "file.exportNative": {},
   "file.exportPng": {},
