@@ -52,6 +52,16 @@ layer analysis through `lighttable_layer_palette`. It uses an isolated
 compositor render with the requested layer's mask, processing and effects,
 then ignores transparent canvas pixels. It remains lazy and revision-bound.
 
+Task 282 shortens ordinary local iteration from a multi-terminal pairing flow
+to Preferences: enable Allow agent connections, connect Codex with one no-code
+browser confirmation, approve the exact client once or always, then reload
+Codex once.
+The packaged Preferences and outbound TLS flows are automated and green. The
+remaining owner check is the real Connect Codex browser confirmation from the
+packaged button followed by a fresh Codex session; task 282 stays in todo until
+that external UI boundary is confirmed.
+The isolated launcher remains the clean denial/escalation acceptance harness.
+
 ## Active program continuation
 
 - Task 214 remains the program owner for complete semantic capability coverage.

@@ -151,6 +151,7 @@ export type {
   LightTableAgentAccessService,
   LightTableAgentAccessStatus,
   LightTableAgentTunnelStatus,
+  LightTableLocalMcpTestStatus,
   LightTableAgentTunnelState,
   LightTableAgentClientScope,
   LightTableAgentClient,

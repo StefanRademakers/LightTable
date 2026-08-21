@@ -6,7 +6,8 @@ import type {
   LightTableUpdateResult,
   LightTableAgentAccessStatus,
   LightTableAgentClientScope,
-  LightTableAgentTunnelStatus
+  LightTableAgentTunnelStatus,
+  LightTableLocalMcpTestStatus
 } from '@lighttable/app';
 import type {
   LightTableLocalAiConnectionSettings,
@@ -210,7 +211,12 @@ export interface LightTableDesktopBridge {
   pairAgentServer(serverUrl: string, code: string): Promise<LightTableAgentTunnelStatus>;
   disconnectAgentServer(): Promise<LightTableAgentTunnelStatus>;
   reconnectAgentServer(): Promise<LightTableAgentTunnelStatus>;
-  approveAgentClient(clientId: string, scopes: readonly LightTableAgentClientScope[]): Promise<LightTableAgentTunnelStatus>;
+  approveAgentClient(clientId: string, scopes: readonly LightTableAgentClientScope[], persistent?: boolean): Promise<LightTableAgentTunnelStatus>;
+  localMcpTestStatus(): Promise<LightTableLocalMcpTestStatus>;
+  startLocalMcpTest(): Promise<LightTableLocalMcpTestStatus>;
+  stopLocalMcpTest(): Promise<LightTableLocalMcpTestStatus>;
+  authorizeLocalMcpCodex(): Promise<LightTableLocalMcpTestStatus>;
+  onLocalMcpTestStatus(listener: (status: LightTableLocalMcpTestStatus) => void): () => void;
   revokeAgentClient(clientId: string): Promise<LightTableAgentTunnelStatus>;
   revokeAgentDevice(): Promise<LightTableAgentTunnelStatus>;
   cancelAgentActivity(): Promise<LightTableAgentTunnelStatus>;

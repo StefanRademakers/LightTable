@@ -17,7 +17,32 @@ stays encrypted and accepts the one-day self-signed localhost certificate only
 inside the isolated launched process. Production keeps one HTTPS public origin
 unless `LIGHTTABLE_DEVICE_PUBLIC_URL` is explicitly configured.
 
-## Manual owner acceptance
+## Fast manual owner acceptance
+
+The normal iteration path is now entirely inside the packaged desktop UI:
+
+1. Open **Preferences -> Agent Access**.
+2. Select **Local test mode** and enable **Allow agent connections**.
+3. Click **Connect Codex...**. LightTable locates the installed Codex CLI,
+   creates or repairs the `lighttable-local` registration and opens the OAuth
+   browser flow. Confirm **Authorize local Codex**; no pairing code is entered.
+4. Start or reload one Codex session. Already-running sessions cannot discover
+   a newly registered MCP server dynamically.
+5. On the first request, approve the exact Codex client with **Allow once** or
+   **Always allow**. Persistent access is stored per server and client identity,
+   not as a second global edit switch.
+
+Subsequent app/server restarts reuse an OS-protected TLS identity, OAuth state
+and client-bound approval policy. Ordinarily the loop is therefore **Allow
+agent connections -> new Codex session**. A saved grant is matched to server
+ID, certificate fingerprint and client ID; another or revoked identity cannot
+inherit it.
+
+The local server binds Codex/OAuth only to `127.0.0.1:8787`. Its self-signed
+HTTPS/WSS device side binds to `localhost:8788`. Trusted no-code authorization
+is rejected by the MCP server outside its explicit insecure-loopback mode.
+
+## Isolated launcher and automated acceptance
 
 Build the packaged application once, then start the session:
 
@@ -50,6 +75,10 @@ After the run, stop the launcher with Ctrl+C and remove the opt-in client:
 codex mcp logout lighttable-local
 codex mcp remove lighttable-local
 ```
+
+This older terminal route remains useful because it creates an isolated profile
+and proves the denial/escalation gates from a clean state. It is no longer the
+shortest ordinary creative iteration path.
 
 The current Codex CLI stores registered MCP servers in the local Codex user
 configuration. LightTable does not commit a live Codex configuration, ports,

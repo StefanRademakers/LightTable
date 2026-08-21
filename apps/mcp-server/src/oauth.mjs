@@ -145,7 +145,7 @@ export class LightTableOAuthStore {
 const escapeHtml = (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;')
   .replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
-export const installOAuthRoutes = (app, store) => {
+export const installOAuthRoutes = (app, store, { trustedLocalAuthorization = false } = {}) => {
   app.use('/oauth', express.urlencoded({ extended: false, limit: '32kb' }));
   app.post('/oauth/register', express.json({ limit: '32kb' }), (req, res) => {
     try { res.status(201).json(store.register(req.body)); }
@@ -160,8 +160,12 @@ export const installOAuthRoutes = (app, store) => {
       maxAge: 10 * 60_000, path: '/oauth/authorize' });
     res.type('html').send(`<!doctype html><meta charset="utf-8"><title>Pair LightTable</title>
       <style>body{font:16px system-ui;max-width:32rem;margin:4rem auto;background:#20242a;color:#eee}input,button{font:inherit;padding:.65rem}input{width:100%;box-sizing:border-box}button{margin-top:1rem}</style>
-      <h1>Pair with LightTable</h1><p>Enter the short-lived pairing code shown by the server owner.</p>
-      <form method="post" action="/oauth/authorize">${fields}<input type="hidden" name="csrf" value="${csrf}"><label>Pairing code<input name="pairing_code" type="password" required autocomplete="one-time-code"></label><button>Authorize</button></form>`);
+      <h1>Pair with LightTable</h1>${trustedLocalAuthorization
+        ? '<p>LightTable started this loopback-only test server. Confirm access for the local Codex client.</p>'
+        : '<p>Enter the short-lived pairing code shown by the server owner.</p>'}
+      <form method="post" action="/oauth/authorize">${fields}<input type="hidden" name="csrf" value="${csrf}">${trustedLocalAuthorization
+        ? ''
+        : '<label>Pairing code<input name="pairing_code" type="password" required autocomplete="one-time-code"></label>'}<button>${trustedLocalAuthorization ? 'Authorize local Codex' : 'Authorize'}</button></form>`);
   });
   app.post('/oauth/authorize', (req, res) => {
     try {
@@ -171,7 +175,7 @@ export const installOAuthRoutes = (app, store) => {
       const code = store.authorize({ clientId: req.body.client_id, redirectUri: req.body.redirect_uri,
         responseType: req.body.response_type, scope: req.body.scope,
         codeChallenge: req.body.code_challenge, codeChallengeMethod: req.body.code_challenge_method,
-        pairingCode: req.body.pairing_code });
+        pairingCode: trustedLocalAuthorization ? store.pairingCode : req.body.pairing_code });
       const redirect = new URL(req.body.redirect_uri); redirect.searchParams.set('code', code);
       if (req.body.state) redirect.searchParams.set('state', req.body.state);
       res.redirect(303, redirect.href);

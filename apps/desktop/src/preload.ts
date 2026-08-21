@@ -111,7 +111,16 @@ const bridge: LightTableDesktopBridge = {
   pairAgentServer: (serverUrl, code) => ipcRenderer.invoke('lighttable:agent-tunnel-pair', serverUrl, code),
   disconnectAgentServer: () => ipcRenderer.invoke('lighttable:agent-tunnel-disconnect'),
   reconnectAgentServer: () => ipcRenderer.invoke('lighttable:agent-tunnel-reconnect'),
-  approveAgentClient: (clientId, scopes) => ipcRenderer.invoke('lighttable:agent-client-approve', clientId, scopes),
+  approveAgentClient: (clientId, scopes, persistent) => ipcRenderer.invoke('lighttable:agent-client-approve', clientId, scopes, persistent),
+  localMcpTestStatus: () => ipcRenderer.invoke('lighttable:local-mcp-status'),
+  startLocalMcpTest: () => ipcRenderer.invoke('lighttable:local-mcp-start'),
+  stopLocalMcpTest: () => ipcRenderer.invoke('lighttable:local-mcp-stop'),
+  authorizeLocalMcpCodex: () => ipcRenderer.invoke('lighttable:local-mcp-authorize-codex'),
+  onLocalMcpTestStatus: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof listener>[0]) => listener(status);
+    ipcRenderer.on('lighttable:local-mcp-changed', handler);
+    return () => ipcRenderer.removeListener('lighttable:local-mcp-changed', handler);
+  },
   revokeAgentClient: (clientId) => ipcRenderer.invoke('lighttable:agent-client-revoke', clientId),
   revokeAgentDevice: () => ipcRenderer.invoke('lighttable:agent-device-revoke'),
   cancelAgentActivity: () => ipcRenderer.invoke('lighttable:agent-activity-cancel'),

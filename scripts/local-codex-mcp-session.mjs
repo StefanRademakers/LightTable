@@ -154,6 +154,7 @@ await page.getByRole('menuitem', { name: 'Edit' }).click();
 await page.getByRole('menuitem', { name: 'Preferences...' }).click();
 const settings = page.getByRole('dialog', { name: 'Preferences' });
 await settings.getByRole('button', { name: 'Agent Access' }).click();
+await settings.getByLabel('Online MCP server').click();
 const serverUrlInput = settings.getByLabel('Server URL');
 const pairingCodeInput = settings.getByLabel('One-time pairing code');
 await serverUrlInput.fill(deviceOrigin);
@@ -165,9 +166,10 @@ if (await serverUrlInput.inputValue() !== deviceOrigin
   throw new Error('Local MCP pairing fields did not retain their requested values.');
 }
 await page.waitForTimeout(100);
-await settings.getByRole('button', { name: 'Pair', exact: true }).click();
+await settings.getByRole('button', { name: 'Pair server', exact: true }).click();
 try {
-  await settings.getByText('connected', { exact: true }).waitFor({ timeout: 15_000 });
+  await settings.locator('.lighttable-agent-settings__status').filter({ hasText: /connected/i })
+    .waitFor({ timeout: 15_000 });
 } catch (error) {
   const diagnostic = await captureDesktopTestState({ app, page, outputDirectory: evidenceDirectory,
     sourceFile: source ?? 'generated local MCP document', pageErrors,
@@ -210,8 +212,8 @@ if (probe) {
   }));
   const blocked = await mcpClient.callTool({ name: 'lighttable_workspace', arguments: {} });
   if (!blocked.isError) throw new Error('Local MCP request bypassed desktop approval.');
-  await settings.getByText('LightTable MCP server', { exact: true }).waitFor({ timeout: 10_000 });
-  await settings.getByRole('button', { name: 'Allow read' }).click();
+  const accessRequest = page.getByRole('dialog', { name: 'LightTable MCP server requests LightTable access' });
+  await accessRequest.getByRole('button', { name: 'Allow read only' }).click();
   const workspaceResult = await mcpClient.callTool({ name: 'lighttable_workspace', arguments: {} });
   if (workspaceResult.isError || !workspaceResult.structuredContent?.activeDocumentId) {
     throw new Error('Local MCP probe could not inspect the packaged workspace.');

@@ -165,6 +165,7 @@ export interface LightTableAgentClient {
   readonly requestedScopes: readonly LightTableAgentClientScope[];
   readonly scopes: readonly LightTableAgentClientScope[];
   readonly approved: boolean;
+  readonly persistent: boolean;
   readonly lastActivity?: number;
 }
 export interface LightTableAgentTunnelEvent {
@@ -187,6 +188,14 @@ export interface LightTableAgentTunnelStatus {
   readonly error?: string;
 }
 
+export interface LightTableLocalMcpTestStatus {
+  readonly state: 'stopped' | 'starting' | 'running' | 'authorizing' | 'error';
+  readonly endpoint?: string;
+  readonly message?: string;
+  readonly error?: string;
+  readonly restartCodexRequired: boolean;
+}
+
 export interface LightTableAgentAccessService {
   status(): Promise<LightTableAgentAccessStatus>;
   enable(options?: { readonly port?: number }): Promise<LightTableAgentAccessStatus>;
@@ -198,7 +207,12 @@ export interface LightTableAgentAccessService {
   pairServer(serverUrl: string, code: string): Promise<LightTableAgentTunnelStatus>;
   disconnectServer(): Promise<LightTableAgentTunnelStatus>;
   reconnectServer(): Promise<LightTableAgentTunnelStatus>;
-  approveClient(clientId: string, scopes: readonly LightTableAgentClientScope[]): Promise<LightTableAgentTunnelStatus>;
+  approveClient(clientId: string, scopes: readonly LightTableAgentClientScope[], persistent?: boolean): Promise<LightTableAgentTunnelStatus>;
+  localMcpStatus(): Promise<LightTableLocalMcpTestStatus>;
+  startLocalMcp(): Promise<LightTableLocalMcpTestStatus>;
+  stopLocalMcp(): Promise<LightTableLocalMcpTestStatus>;
+  authorizeCodex(): Promise<LightTableLocalMcpTestStatus>;
+  subscribeLocalMcp(listener: (status: LightTableLocalMcpTestStatus) => void): () => void;
   revokeClient(clientId: string): Promise<LightTableAgentTunnelStatus>;
   revokeDevice(): Promise<LightTableAgentTunnelStatus>;
   cancelActivity(): Promise<LightTableAgentTunnelStatus>;

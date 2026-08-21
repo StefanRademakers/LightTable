@@ -9,6 +9,7 @@ export interface AgentTunnelClient {
   readonly requestedScopes: readonly AgentClientScope[];
   readonly scopes: readonly AgentClientScope[];
   readonly approved: boolean;
+  readonly persistent: boolean;
   readonly lastActivity?: number;
 }
 
@@ -52,6 +53,22 @@ export interface AgentTunnelSessionStore {
   clear(): Promise<void>;
 }
 
+export interface AgentApprovalPolicy {
+  readonly version: 1;
+  readonly serverId: string;
+  readonly certificateSha256: string;
+  readonly grants: readonly {
+    readonly clientId: string;
+    readonly scopes: readonly AgentClientScope[];
+  }[];
+}
+
+export interface AgentApprovalPolicyStore {
+  load(): Promise<AgentApprovalPolicy | null>;
+  save(policy: AgentApprovalPolicy): Promise<void>;
+  clear(): Promise<void>;
+}
+
 export interface AgentPairingClient {
   pair(input: {
     readonly serverUrl: string; readonly code: string; readonly deviceId: string;
@@ -92,6 +109,7 @@ export class AgentTunnelController {
   private reconnectTimer: Timer | null = null;
   private replay = new Set<string>();
   private activity: AgentDesignActivity | undefined;
+  private persistentGrants = new Map<string, readonly AgentClientScope[]>();
   private readonly listeners = new Set<(status: AgentTunnelStatus) => void>();
 
   constructor(
@@ -101,7 +119,8 @@ export class AgentTunnelController {
     private readonly store: AgentTunnelSessionStore,
     private readonly invoke: (method: string, parameters: unknown) => Promise<unknown>,
     private readonly now = () => Date.now(),
-    private readonly schedule = (callback: () => void, delay: number): Timer => setTimeout(callback, delay)
+    private readonly schedule = (callback: () => void, delay: number): Timer => setTimeout(callback, delay),
+    private readonly approvalPolicyStore?: AgentApprovalPolicyStore
   ) {
     this.current = { state: 'offline', deviceId, clients: [], events: [] };
   }
@@ -123,6 +142,7 @@ export class AgentTunnelController {
       return this.publish('offline');
     }
     this.session = session;
+    await this.restoreApprovalPolicy(session);
     return this.connect();
   }
 
@@ -135,6 +155,7 @@ export class AgentTunnelController {
     const expectedCertificateSha256 = this.session?.serverUrl === url.origin
       ? this.session.certificateSha256 : undefined;
     await this.disconnect(true);
+    this.clients.clear(); this.replay.clear();
     this.publish('pairing', { serverUrl: url.origin });
     try {
       const session = await this.pairing.pair({
@@ -143,6 +164,7 @@ export class AgentTunnelController {
       this.validateSession(session, url.origin);
       this.session = session;
       await this.store.save(session);
+      await this.restoreApprovalPolicy(session);
       this.record('paired', `Paired with ${session.serverId}.`);
       return this.connect();
     } catch (reason) {
@@ -194,12 +216,19 @@ export class AgentTunnelController {
     return this.publish('offline');
   }
 
-  async approveClient(clientId: string, approvedScopes: readonly AgentClientScope[]): Promise<AgentTunnelStatus> {
+  async approveClient(clientId: string, approvedScopes: readonly AgentClientScope[], persistent = false): Promise<AgentTunnelStatus> {
     const client = this.clients.get(clientId);
     if (!client || !this.connection) return this.current;
     const allowed = scopes(approvedScopes).filter((scope) => client.requestedScopes.includes(scope));
     if (!allowed.length) return this.current;
-    const next = { ...client, approved: true, scopes: allowed, lastActivity: this.now() };
+    if (persistent) {
+      this.persistentGrants.set(clientId, allowed);
+      await this.saveApprovalPolicy();
+    }
+    const remembered = this.persistentGrants.get(clientId);
+    const next = { ...client, approved: true, scopes: allowed,
+      persistent: Boolean(remembered && allowed.every((scope) => remembered.includes(scope))),
+      lastActivity: this.now() };
     this.clients.set(clientId, next);
     this.connection.send({ type: 'client.approval', deviceId: this.deviceId, clientId, scopes: allowed });
     this.record('client-approved', `${client.name} approved for ${allowed.join(' + ')}.`);
@@ -210,6 +239,7 @@ export class AgentTunnelController {
     const client = this.clients.get(clientId);
     if (!client) return this.current;
     this.clients.delete(clientId);
+    if (this.persistentGrants.delete(clientId)) await this.saveApprovalPolicy();
     this.connection?.send({ type: 'client.revoke', deviceId: this.deviceId, clientId });
     this.record('client-revoked', `${client.name} was revoked.`);
     return this.publish(this.current.state);
@@ -223,6 +253,8 @@ export class AgentTunnelController {
     await connection?.close();
     this.session = null; this.clients.clear(); this.replay.clear();
     await this.store.clear();
+    this.persistentGrants.clear();
+    await this.approvalPolicyStore?.clear();
     this.record('revoked', reason);
     return this.publish('revoked', { error: reason });
   }
@@ -261,10 +293,13 @@ export class AgentTunnelController {
       if (typeof message.clientId !== 'string' || typeof message.name !== 'string') return;
       this.clients.set(message.clientId, {
         id: message.clientId, name: message.name.slice(0, 128), requestedScopes: scopes(message.scopes),
-        scopes: [], approved: false, lastActivity: this.now()
+        scopes: [], approved: false, persistent: false, lastActivity: this.now()
       });
       this.record('client-request', `${String(message.name).slice(0, 128)} requests access.`);
-      this.publish(this.current.state); return;
+      this.publish(this.current.state);
+      const remembered = this.persistentGrants.get(message.clientId);
+      if (remembered?.length) await this.approveClient(message.clientId, remembered);
+      return;
     }
     if (message.type !== 'invoke' || typeof message.clientId !== 'string'
       || typeof message.requestId !== 'string' || typeof message.nonce !== 'string'
@@ -384,10 +419,34 @@ export class AgentTunnelController {
       state, deviceId: this.deviceId,
       ...(this.session ? { serverUrl: this.session.serverUrl, serverId: this.session.serverId } : {}),
       ...extra, clients: [...this.clients.values()], events: [...this.events],
-      ...(this.activity ? { activity: this.activity } : {}), lastActivity: this.events.at(-1)?.at
+      ...(this.activity ? { activity: this.activity } : {}),
+      lastActivity: this.events.at(-1)?.at
     };
     for (const listener of this.listeners) listener(this.current);
     return this.current;
+  }
+
+  private async restoreApprovalPolicy(session: AgentTunnelSession): Promise<void> {
+    this.persistentGrants.clear();
+    const policy = await this.approvalPolicyStore?.load();
+    if (!policy) return;
+    if (policy.serverId !== session.serverId || policy.certificateSha256 !== session.certificateSha256) {
+      await this.approvalPolicyStore?.clear(); return;
+    }
+    for (const grant of policy.grants) this.persistentGrants.set(grant.clientId, scopes(grant.scopes));
+  }
+
+  private async saveApprovalPolicy(): Promise<void> {
+    const session = this.session;
+    if (!session || !this.persistentGrants.size) {
+      await this.approvalPolicyStore?.clear(); return;
+    }
+    await this.approvalPolicyStore?.save({
+      version: 1, serverId: session.serverId, certificateSha256: session.certificateSha256,
+      grants: [...this.persistentGrants].map(([clientId, grantedScopes]) => ({
+        clientId, scopes: [...grantedScopes]
+      }))
+    });
   }
 }
 

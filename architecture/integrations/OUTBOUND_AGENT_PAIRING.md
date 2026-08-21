@@ -36,12 +36,18 @@ requests may await one device and existing command/artifact limits still apply.
 
 ## UI and lifecycle
 
-**Settings > Agent Access** exposes server URL, pairing code, state, pinned
-server/device identity, last activity and connected clients. The states are
-offline, pairing, connecting, connected, degraded and revoked. Pending clients
-show explicit Allow read / Allow edit controls; approved clients can be revoked
-individually, and the complete device relationship can be revoked. Recent
-privacy-safe events are bounded to 100.
+**Settings > Agent Access** presents one Allow agent connections switch, a
+local/online connection mode and one connected-agent permission list. Technical
+server/device identity, endpoints and bounded event history remain available
+under Advanced. The tunnel states are offline, pairing, connecting, connected,
+degraded and revoked. Pending clients expose Allow once, Always allow and Deny;
+approved clients can be revoked individually, and the complete device
+relationship can be revoked.
+
+An Always allow grant is OS-protected and bound to the paired server ID, pinned
+TLS fingerprint, exact client ID and granted scopes. Only that returning client
+can inherit it. Another server/client identity or either revocation clears the
+applicable grant. Local and online connections use the same permission model.
 
 Unexpected disconnect uses bounded exponential reconnect (one to 30 seconds).
 The user can also disconnect or reconnect manually. An expired or server-
@@ -62,8 +68,9 @@ LIGHTTABLE_DEVICE_PAIRING_CODE=<one-time operator-issued code>
 LIGHTTABLE_SERVER_ID=<stable deployment identity>
 ```
 
-`LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS=true` exists only for the self-signed local
-test harness and must never be enabled in production. Production still requires
+The desktop transport accepts a self-signed certificate only for literal
+localhost endpoints; non-loopback servers always use ordinary PKI validation.
+Production still requires
 HTTPS/WSS with a publicly trusted certificate. OAuth/audit state is encrypted
 and durable, requests are centrally bounded and desktop routes remain
 device/client scoped. The current broker remains intentionally single-process

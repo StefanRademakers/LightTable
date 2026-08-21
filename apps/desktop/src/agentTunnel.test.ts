@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   AgentTunnelController,
+  type AgentApprovalPolicy,
   type AgentTunnelConnection,
   type AgentTunnelSession,
   type AgentTunnelSessionStore,
@@ -31,8 +32,15 @@ const harness = (now = Date.now()) => {
   const store = memoryStore();
   const invoke = vi.fn(async () => ({ ok: true }));
   const pairing = { pair: vi.fn(async () => session(now)) };
-  const controller = new AgentTunnelController(deviceId, pairing, transport, store, invoke, () => now);
-  return { controller, pairing, transport, store, invoke, sent,
+  const policyStore = {
+    value: null as AgentApprovalPolicy | null,
+    async load() { return this.value; },
+    async save(value: AgentApprovalPolicy) { this.value = value; },
+    async clear() { this.value = null; }
+  };
+  const controller = new AgentTunnelController(deviceId, pairing, transport, store, invoke,
+    () => now, (callback) => setTimeout(callback, 0), policyStore);
+  return { controller, pairing, transport, store, policyStore, invoke, sent,
     message: (value: unknown) => handlers?.onMessage(value),
     close: (reason = 'network down') => handlers?.onClose(reason) };
 };
@@ -46,6 +54,19 @@ describe('AgentTunnelController', () => {
     expect(test.controller.status()).toMatchObject({ state: 'degraded' });
     expect(await test.controller.disconnect()).toMatchObject({ state: 'offline' });
     expect(test.store.value).not.toBeNull();
+  });
+
+  it('does not carry active client approval into a newly paired server', async () => {
+    const now = Date.now(); const test = harness(now);
+    await test.controller.pair('https://agent.example', 'ABC-123');
+    test.message({ type: 'client.request', deviceId, clientId: 'same-client',
+      name: 'Agent', scopes: ['read', 'edit'] });
+    await vi.waitFor(() => expect(test.controller.status().clients).toHaveLength(1));
+    await test.controller.approveClient('same-client', ['read', 'edit']);
+    test.pairing.pair.mockResolvedValueOnce({ ...session(now), serverUrl: 'https://other.example',
+      socketUrl: 'wss://other.example/agent/tunnel', serverId: 'other-server' });
+    await test.controller.pair('https://other.example', 'OTHER-1');
+    expect(test.controller.status().clients).toEqual([]);
   });
 
   it('requires explicit scoped client approval and rejects replay and cross-device commands', async () => {
@@ -78,6 +99,41 @@ describe('AgentTunnelController', () => {
       timestamp: now, method: 'command.execute' });
     await vi.waitFor(() => expect(test.invoke).toHaveBeenCalledTimes(2));
     expect(test.sent).toContainEqual({ type: 'result', requestId: 'edit-after-upgrade', value: { ok: true } });
+  });
+
+  it('persists approval only for the exact pinned server and returning client identity', async () => {
+    const now = Date.now(); const test = harness(now);
+    await test.controller.pair('https://agent.example', 'ABC-123');
+    test.message({ type: 'client.request', deviceId, clientId: 'returning-client',
+      name: 'Codex', scopes: ['read', 'edit'] });
+    await vi.waitFor(() => expect(test.controller.status().clients[0]).toMatchObject({ approved: false }));
+    await test.controller.approveClient('returning-client', ['read', 'edit'], true);
+    expect(test.policyStore.value).toEqual({ version: 1, serverId: 'test-server',
+      certificateSha256: 'b'.repeat(64), grants: [
+        { clientId: 'returning-client', scopes: ['read', 'edit'] }
+      ] });
+    await vi.waitFor(() => expect(test.controller.status().clients[0])
+      .toMatchObject({ approved: true, persistent: true, scopes: ['read', 'edit'] }));
+    expect(test.sent).toContainEqual({ type: 'client.approval', deviceId,
+      clientId: 'returning-client', scopes: ['read', 'edit'] });
+
+    const restarted = harness(now);
+    restarted.store.value = session(now);
+    restarted.policyStore.value = test.policyStore.value;
+    await restarted.controller.restore();
+    restarted.message({ type: 'client.request', deviceId, clientId: 'other-client',
+      name: 'Other agent', scopes: ['read', 'edit'] });
+    await vi.waitFor(() => expect(restarted.controller.status().clients[0]).toMatchObject({ approved: false }));
+    restarted.message({ type: 'client.request', deviceId, clientId: 'returning-client',
+      name: 'Codex', scopes: ['read', 'edit'] });
+    await vi.waitFor(() => expect(restarted.controller.status().clients[1])
+      .toMatchObject({ approved: true, persistent: true, scopes: ['read', 'edit'] }));
+    restarted.store.value = { ...session(now), serverId: 'different-server' };
+    const changed = harness(now);
+    changed.store.value = restarted.store.value;
+    changed.policyStore.value = test.policyStore.value;
+    await changed.controller.restore();
+    expect(changed.policyStore.value).toBeNull();
   });
 
   it('rejects insecure servers, expired sessions and clears all access on revoke', async () => {

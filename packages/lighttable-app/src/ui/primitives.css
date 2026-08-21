@@ -1483,6 +1483,40 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
 .lighttable-agent-settings__results { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .lighttable-agent-settings__results li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; color: var(--color-text-muted); }
 .lighttable-agent-settings__results span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lighttable-agent-settings__primary { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 2px 0 18px; border-bottom: 1px solid var(--lt-border-subtle); }
+.lighttable-agent-settings__primary h3 { margin: 0; font-size: var(--lt-type-large); }
+.lighttable-agent-settings__primary p { max-width: 520px; margin: 6px 0 0; color: var(--color-text-muted); line-height: 1.45; }
+.lighttable-agent-settings__primary .switch-control { flex: 0 0 auto; margin-top: 2px; }
+.lighttable-agent-settings__modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0 0; padding: 0; border: 0; }
+.lighttable-agent-settings__modes legend { margin-bottom: 8px; color: var(--color-text-muted); font-size: var(--lt-type-small); }
+.lighttable-agent-settings__modes label { display: flex; min-width: 0; gap: 9px; padding: 11px; border: 1px solid var(--lt-border-subtle); border-radius: var(--lt-radius-md); background: var(--lt-surface-panel-subtle); cursor: pointer; }
+.lighttable-agent-settings__modes label:hover { border-color: var(--lt-border-strong); background: var(--lt-surface-control-hover); }
+.lighttable-agent-settings__modes label.is-selected { border-color: var(--lt-accent-border, var(--color-accent)); background: var(--lt-surface-control); }
+.lighttable-agent-settings__modes input { align-self: flex-start; margin-top: 2px; }
+.lighttable-agent-settings__modes span { display: grid; min-width: 0; gap: 3px; }
+.lighttable-agent-settings__modes small { color: var(--color-text-muted); line-height: 1.35; }
+.lighttable-agent-settings__card { margin-top: 12px; padding: 14px; border: 1px solid var(--lt-border-subtle); border-radius: var(--lt-radius-md); background: var(--lt-surface-panel-subtle); }
+.lighttable-agent-settings__card > p { color: var(--color-text-muted); line-height: 1.45; }
+.lighttable-agent-settings__card > label { display: grid; gap: 6px; margin-top: 10px; color: var(--color-text-muted); }
+.lighttable-agent-settings__card > label input { width: 100%; }
+.lighttable-agent-settings__card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.lighttable-agent-settings__card-heading h3 { margin: 0; font-size: var(--lt-type-regular); }
+.lighttable-agent-settings__card-heading p { margin: 4px 0 0; color: var(--color-text-muted); line-height: 1.4; }
+.lighttable-agent-settings__status { flex: 0 0 auto; padding: 3px 7px; border: 1px solid var(--lt-border-subtle); border-radius: 999px; color: var(--color-text-muted); background: var(--lt-surface-recessed); font-size: var(--lt-type-small); text-transform: capitalize; }
+.lighttable-agent-settings__status.is-running,
+.lighttable-agent-settings__status.is-connected { color: var(--lt-success, #79b98c); }
+.lighttable-agent-settings__status.is-error,
+.lighttable-agent-settings__status.is-revoked { color: var(--color-danger); }
+.lighttable-agent-settings__empty { margin-bottom: 0; }
+.lighttable-agent-settings__advanced { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--lt-border-subtle); }
+.lighttable-agent-settings__advanced summary { color: var(--color-text-muted); cursor: pointer; }
+.lighttable-agent-settings__advanced[open] summary { margin-bottom: 12px; color: var(--color-text); }
+.lighttable-agent-settings__advanced-block { margin: 16px 0; padding: 12px; border: 1px solid var(--lt-border-subtle); background: var(--lt-surface-recessed); }
+.lighttable-agent-settings__advanced-block h4 { margin: 0; font-size: var(--lt-type-regular); }
+.lighttable-agent-settings__advanced-block > p { margin: 5px 0 0; color: var(--color-text-muted); }
+.lighttable-agent-request { width: min(500px, calc(100vw - 32px)); }
+.lighttable-agent-request > p { margin: 16px 18px 0; line-height: 1.5; }
+.lighttable-agent-request .modal__footer { margin-top: 18px; }
 
 .lighttable-preferences {
   width: min(1080px, calc(100vw - 32px));

@@ -495,6 +495,24 @@ test('local MCP and desktop tunnel may advertise separate loopback origins', asy
   assert.equal(service.oauth.resource.href, 'http://127.0.0.1:8787/mcp');
 });
 
+test('trusted authorization is confined to explicit loopback test servers', async (context) => {
+  const service = await createLightTableMcpApp({
+    publicUrl: 'http://127.0.0.1:8787', devicePublicUrl: 'https://localhost:9443',
+    pairingCode: 'oauth-pairing', devicePairingCode: 'device-pairing',
+    client: new MockLightTableClient(), allowInsecure: true,
+    trustedLocalAuthorization: true, allowedHosts: ['127.0.0.1', 'localhost']
+  });
+  const http = await listen(service.app);
+  context.after(async () => { await service.close(); await new Promise((resolve) => http.close(resolve)); });
+  const response = await fetch(`http://127.0.0.1:${http.address().port}/oauth/authorize`);
+  const html = await response.text();
+  assert.match(html, /Authorize local Codex/u);
+  assert.doesNotMatch(html, /name="pairing_code"/u);
+  await assert.rejects(createLightTableMcpApp({ publicUrl: 'https://public.example',
+    pairingCode: 'oauth-pairing', client: new MockLightTableClient(),
+    trustedLocalAuthorization: true }), /loopback test server/u);
+});
+
 test('a separate desktop tunnel origin cannot downgrade to cleartext', async () => {
   await assert.rejects(createLightTableMcpApp({
     publicUrl: 'http://127.0.0.1:8787',

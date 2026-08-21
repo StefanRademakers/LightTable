@@ -51,6 +51,7 @@ import {
 import { resolveWorkspaceSurface } from './workspaceSurface';
 import type { GenAiAssetReference } from '@lighttable/genai-core';
 import { duplicateLayeredDocumentArtifact } from '../lighttable/application/documents/duplicateLayeredDocumentArtifact';
+import { AgentAccessRequestDialog } from './AgentAccessRequestDialog';
 
 const NewProjectDialog = lazy(async () => ({
   default: (await import('./NewProjectDialog')).NewProjectDialog
@@ -789,8 +790,11 @@ export function LightTableStandaloneApp({
     lifecycle: activeLifecycle
   });
 
+  const agentAccessRequest = <AgentAccessRequestDialog service={host.agentAccess} />;
+
   if (workspaceSurface.kind === 'project-home' && activeProject) {
     return <>
+      {agentAccessRequest}
       {deferredSurface(<ProjectHomeSurface
         project={activeProject}
         service={host.genAi}
@@ -923,6 +927,7 @@ export function LightTableStandaloneApp({
             </div>
           </section>
         </div>
+        {agentAccessRequest}
         {newProjectOpen ? deferredSurface(<NewProjectDialog open creating={projectCreating}
           location={projectLocation} error={projectError}
           onChooseLocation={() => void chooseProjectLocation()}
@@ -939,6 +944,7 @@ export function LightTableStandaloneApp({
   }
   return (
     <>
+      {agentAccessRequest}
       {fileDrop.active ? (
         <div className="lighttable-file-drop" aria-hidden="true">
           <div className="lighttable-file-drop__message">

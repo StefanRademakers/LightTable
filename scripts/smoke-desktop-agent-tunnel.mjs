@@ -61,19 +61,20 @@ try {
   await window.getByRole('menuitem', { name: 'Preferences...' }).click();
   const settings = window.getByRole('dialog', { name: 'Preferences' });
   await settings.getByRole('button', { name: 'Agent Access' }).click();
-  if (await settings.getByRole('checkbox').isChecked()) throw new Error('Local listener was unexpectedly enabled.');
+  await settings.getByLabel('Online MCP server').click();
   await settings.getByLabel('Server URL').fill(serverUrl);
   await settings.getByLabel('One-time pairing code').fill('PAIR-105');
-  await settings.getByRole('button', { name: 'Pair', exact: true }).click();
-  await settings.getByText('connected', { exact: true }).waitFor({ timeout: 15_000 }).catch(async () => {
+  await settings.getByRole('button', { name: 'Pair server', exact: true }).click();
+  const tunnelStatus = settings.locator('.lighttable-agent-settings__status');
+  await tunnelStatus.filter({ hasText: /connected/i }).waitFor({ timeout: 15_000 }).catch(async () => {
     throw new Error(`Agent tunnel did not connect: ${(await settings.innerText()).slice(-1200)}`);
   });
   await waitFor(() => broker.connections.size === 1, 'outbound TLS tunnel');
   const deviceId = [...broker.connections.keys()][0];
 
   broker.requestClient(deviceId, { id: 'client-design', name: 'Test design agent', scopes: ['read', 'edit'] });
-  await settings.getByText('Test design agent', { exact: true }).waitFor();
-  await settings.getByRole('button', { name: 'Allow edit' }).click();
+  const accessRequest = window.getByRole('dialog', { name: 'Test design agent requests LightTable access' });
+  await accessRequest.getByRole('button', { name: 'Always allow' }).click();
   await waitFor(() => broker.status(deviceId).clients[0]?.approved === true, 'client approval');
   const workspace = await broker.invoke(deviceId, 'client-design', 'workspace.query');
   const documentId = workspace.documents[0]?.id;
@@ -86,22 +87,23 @@ try {
   if (result.status !== 'completed') throw new Error('Secure tunnel edit failed.');
   await window.getByRole('treeitem', { name: /Renamed through secure tunnel/i }).waitFor();
 
+  await settings.getByText('Advanced and diagnostics', { exact: true }).click();
   broker.rotateSession(deviceId);
   await settings.getByText(/credentials were rotated/i).waitFor();
   broker.dropDevice(deviceId);
-  await settings.getByText('degraded', { exact: true }).waitFor({ timeout: 10_000 });
-  await settings.getByText('connected', { exact: true }).waitFor({ timeout: 10_000 });
+  await tunnelStatus.filter({ hasText: /degraded/i }).waitFor({ timeout: 10_000 });
+  await tunnelStatus.filter({ hasText: /connected/i }).waitFor({ timeout: 10_000 });
   await window.screenshot({ path: screenshot });
 
-  await settings.getByRole('button', { name: 'Revoke client', exact: true }).click();
+  await settings.getByRole('button', { name: 'Revoke', exact: true }).click();
   await waitFor(() => broker.status(deviceId).clients.length === 0, 'client revocation');
   await broker.invoke(deviceId, 'client-design', 'workspace.query').then(() => {
     throw new Error('A revoked client was still able to read the document.');
   }, () => undefined);
-  await settings.getByRole('button', { name: 'Unpair this LightTable installation...', exact: true }).click();
-  await page.getByRole('dialog', { name: 'Unpair LightTable from the MCP server?' })
+  await settings.getByRole('button', { name: /Unpair this LightTable installation/u }).click();
+  await window.getByRole('dialog', { name: 'Unpair LightTable from the MCP server?' })
     .getByRole('button', { name: 'Unpair', exact: true }).click();
-  await settings.getByText('revoked', { exact: true }).waitFor();
+  await tunnelStatus.filter({ hasText: /revoked/i }).waitFor();
   await waitFor(() => !broker.status(deviceId).connected, 'device revocation');
   process.stdout.write(`Desktop outbound Agent tunnel smoke passed: ${screenshot}\n`);
 } finally {

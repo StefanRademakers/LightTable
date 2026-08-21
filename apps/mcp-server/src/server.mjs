@@ -10,7 +10,7 @@ import { createRequestGuard } from './operations.mjs';
 export const createLightTableMcpApp = async ({ publicUrl, devicePublicUrl, pairingCode, client,
   allowInsecure = false, allowedHosts, devicePairingCode = pairingCode, serverId,
   oauthStateStore = null, tenantId = 'default', userId = 'owner', audit = null,
-  requestGuard = createRequestGuard(), fetchImpl = fetch } = {}) => {
+  requestGuard = createRequestGuard(), fetchImpl = fetch, trustedLocalAuthorization = false } = {}) => {
   const resource = new URL('/mcp', publicUrl);
   const issuer = new URL('/', publicUrl);
   const deviceIssuer = new URL('/', devicePublicUrl ?? publicUrl);
@@ -19,6 +19,10 @@ export const createLightTableMcpApp = async ({ publicUrl, devicePublicUrl, pairi
   }
   if (devicePublicUrl && deviceIssuer.protocol !== 'https:') {
     throw new Error('A separate desktop device origin must use HTTPS.');
+  }
+  const loopbackIssuer = ['127.0.0.1', 'localhost', '[::1]'].includes(issuer.hostname);
+  if (trustedLocalAuthorization && (!allowInsecure || !loopbackIssuer)) {
+    throw new Error('Trusted local authorization requires an explicitly insecure loopback test server.');
   }
   const app = createMcpExpressApp({ host: '0.0.0.0', allowedHosts,
     jsonLimit: '1mb' });
@@ -40,7 +44,7 @@ export const createLightTableMcpApp = async ({ publicUrl, devicePublicUrl, pairi
   app.use(mcpAuthMetadataRouter({ oauthMetadata, resourceServerUrl: resource,
     scopesSupported: oauthMetadata.scopes_supported, resourceName: 'LightTable',
     dangerouslyAllowInsecureIssuerUrl: allowInsecure }));
-  installOAuthRoutes(app, oauth);
+  installOAuthRoutes(app, oauth, { trustedLocalAuthorization });
   const deviceTunnel = new DeviceTunnelBroker({ publicUrl: deviceIssuer, pairingCode: devicePairingCode, serverId });
   app.use('/agent/pair', express.json({ limit: '16kb' }));
   deviceTunnel.installRoutes(app);

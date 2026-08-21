@@ -62,15 +62,17 @@ try {
   await settings.getByLabel(/Autosave location:/).waitFor();
   await window.screenshot({ path: preferencesScreenshot });
   await settings.getByRole('button', { name: 'Agent Access' }).click();
-  const toggle = settings.getByRole('checkbox');
+  await settings.getByText('Advanced and diagnostics', { exact: true }).click();
+  const direct = settings.locator('.lighttable-agent-settings__advanced-block');
+  const toggle = direct.getByLabel(/Enable direct endpoint|Direct endpoint enabled/);
   await toggle.click();
-  await settings.getByText(/running|error/, { exact: true }).waitFor({ timeout: 15_000 });
-  const initialError = await settings.getByRole('alert').count()
-    ? await settings.getByRole('alert').textContent()
+  await direct.getByText(/running|error/, { exact: true }).waitFor({ timeout: 15_000 });
+  const initialError = await direct.getByRole('alert').count()
+    ? await direct.getByRole('alert').textContent()
     : null;
   if (initialError) throw new Error(`Agent Access enable failed: ${initialError}`);
-  const tokenInput = settings.getByLabel('Connection token');
-  const address = (await settings.locator('dd').nth(1).textContent())?.trim();
+  const tokenInput = direct.getByLabel('Connection token');
+  const address = (await direct.locator('dd').nth(1).textContent())?.trim();
   const token = await tokenInput.inputValue();
   if (!address || !token) throw new Error('Agent Access did not publish its local credentials.');
   lastAddress = address;
@@ -445,12 +447,12 @@ try {
     throw new Error(`Interrupted Agent gesture did not start: ${JSON.stringify(interruptedGesture)}`);
   }
 
-  await settings.getByRole('button', { name: 'Stop' }).click();
-  await settings.getByText('stopped', { exact: true }).waitFor();
+  await direct.getByRole('button', { name: 'Stop' }).click();
+  await direct.getByText('stopped', { exact: true }).waitFor();
   await expectClosed(address);
   await toggle.click();
-  await settings.getByText('running', { exact: true }).waitFor();
-  const restartedAddress = (await settings.locator('dd').nth(1).textContent())?.trim();
+  await direct.getByText('running', { exact: true }).waitFor();
+  const restartedAddress = (await direct.locator('dd').nth(1).textContent())?.trim();
   const restartedToken = await tokenInput.inputValue();
   if (!restartedAddress) throw new Error('Agent Access did not restart.');
   lastAddress = restartedAddress;

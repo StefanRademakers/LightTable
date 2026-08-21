@@ -78,9 +78,11 @@ try {
   await window.getByRole('menuitem', { name: 'Edit' }).click(); await window.getByRole('menuitem', { name: 'Preferences...' }).click();
   const settings = window.getByRole('dialog', { name: 'Preferences' });
   await settings.getByRole('button', { name: 'Agent Access' }).click();
+  await settings.getByLabel('Online MCP server').click();
   await settings.getByLabel('Server URL').fill(publicUrl); await settings.getByLabel('One-time pairing code').fill('PAIR-106');
-  await settings.getByRole('button', { name: 'Pair', exact: true }).click();
-  await settings.getByText('connected', { exact: true }).waitFor({ timeout: 15_000 });
+  await settings.getByRole('button', { name: 'Pair server', exact: true }).click();
+  await settings.locator('.lighttable-agent-settings__status').filter({ hasText: /connected/i })
+    .waitFor({ timeout: 15_000 });
 
   const oauthClient = service.oauth.register({ client_name: 'Packaged MCP smoke', redirect_uris: ['http://127.0.0.1/callback'] });
   const verifier = 'v'.repeat(64);
@@ -96,8 +98,8 @@ try {
   }));
   const first = await mcp.callTool({ name: 'lighttable_workspace', arguments: {} });
   if (!first.isError) throw new Error('The first remote request bypassed explicit desktop client approval.');
-  await settings.getByText('LightTable MCP server', { exact: true }).waitFor();
-  await settings.getByRole('button', { name: 'Allow edit' }).click();
+  const accessRequest = window.getByRole('dialog', { name: 'LightTable MCP server requests LightTable access' });
+  await accessRequest.getByRole('button', { name: 'Allow once' }).click();
   await waitFor(() => dynamicClient.ready(), 'MCP client approval');
 
   const approvedWorkspace = await mcp.callTool({ name: 'lighttable_workspace', arguments: {} });

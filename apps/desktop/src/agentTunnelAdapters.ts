@@ -5,6 +5,8 @@ import path from 'node:path';
 import WebSocket from 'ws';
 import type { CredentialProtector } from './agentAccessCredentialStore';
 import type {
+  AgentApprovalPolicy,
+  AgentApprovalPolicyStore,
   AgentPairingClient,
   AgentTunnelConnection,
   AgentTunnelSession,
@@ -116,6 +118,28 @@ export class ProtectedAgentTunnelSessionStore implements AgentTunnelSessionStore
     if (!this.protector.available()) throw new Error('OS-protected tunnel storage is unavailable.');
     await mkdir(path.dirname(this.filePath), { recursive: true });
     await writeFile(this.filePath, this.protector.protect(JSON.stringify(session)), { mode: 0o600 });
+  }
+  async clear(): Promise<void> { await rm(this.filePath, { force: true }); }
+}
+
+export class ProtectedAgentApprovalPolicyStore implements AgentApprovalPolicyStore {
+  constructor(private readonly filePath: string, private readonly protector: CredentialProtector) {}
+  async load(): Promise<AgentApprovalPolicy | null> {
+    if (!this.protector.available()) return null;
+    try {
+      const value = JSON.parse(this.protector.unprotect(new Uint8Array(await readFile(this.filePath)))) as AgentApprovalPolicy;
+        return value.version === 1 && typeof value.serverId === 'string'
+          && /^[a-f\d]{64}$/iu.test(value.certificateSha256)
+          && Array.isArray(value.grants)
+          && value.grants.every((grant) => grant && typeof grant.clientId === 'string'
+            && Array.isArray(grant.scopes)
+            && grant.scopes.every((scope: unknown) => scope === 'read' || scope === 'edit')) ? value : null;
+    } catch { return null; }
+  }
+  async save(policy: AgentApprovalPolicy): Promise<void> {
+    if (!this.protector.available()) throw new Error('OS-protected approval storage is unavailable.');
+    await mkdir(path.dirname(this.filePath), { recursive: true });
+    await writeFile(this.filePath, this.protector.protect(JSON.stringify(policy)), { mode: 0o600 });
   }
   async clear(): Promise<void> { await rm(this.filePath, { force: true }); }
 }

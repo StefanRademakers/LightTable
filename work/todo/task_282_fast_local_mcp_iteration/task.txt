@@ -1,0 +1,23 @@
+Task 282 - Fast local MCP iteration from Preferences
+
+Goal
+- Reduce the normal Codex-to-LightTable test loop to one in-app access switch and, only when required, one browser authorization click.
+
+Acceptance
+- [x] Preferences offers Allow once / Always allow per exact agent client instead of a duplicate global edit switch.
+- [x] A matching returning server and client identity requesting its saved scopes is approved without another manual click.
+- [x] Changing server identity, changing client identity or revoking either cannot inherit the policy.
+- [x] Preferences can start and stop a loopback-only local MCP test server without terminal commands.
+- [x] Local OAuth and TLS identity survive server/app restarts; existing Codex authorization remains reusable.
+- [x] Codex MCP registration and login can be initiated from Preferences without command copy/paste.
+- [x] The same Preferences model supports a paired online MCP server while remote secure defaults remain unchanged.
+- [x] Tests, packaged verification and integration documentation describe the exact shortest path and restart boundary.
+
+Evidence
+- Desktop and app typechecks pass; AgentTunnelController has 11 passing focused tests.
+- Packaged local Preferences smoke proves one-switch start, automatic pairing, stop and restart.
+- Packaged outbound TLS smoke proves online pairing, runtime permission dialog, edit execution, reconnect and revocation.
+- MCP server suite, distribution boundary and architecture/source audits pass.
+
+Manual owner validation remaining before moving to done
+- Click Connect Codex in the packaged UI, complete the browser confirmation and verify a fresh Codex session reuses the registration without terminal commands.

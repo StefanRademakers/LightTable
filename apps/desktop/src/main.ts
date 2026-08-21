@@ -66,6 +66,7 @@ import { DesktopAgentAccessCredentialStore } from './agentAccessCredentialStore'
 import { AgentTunnelController, createAgentDeviceId } from './agentTunnel';
 import {
   HttpsAgentPairingClient,
+  ProtectedAgentApprovalPolicyStore,
   ProtectedAgentTunnelSessionStore,
   WebSocketAgentTunnelTransport
 } from './agentTunnelAdapters';
@@ -111,6 +112,7 @@ import { LOCAL_AI_PROVIDER_ID } from '@lighttable/genai-local';
 import { bitmapLaunchFilesFromArgv, DesktopLaunchFileQueue } from './desktopLaunchFiles';
 import { handleSquirrelStartup } from './squirrelStartup';
 import { assertNativeBitmapContainer } from './nativeBitmapContainer';
+import { LocalMcpTestServerController } from './localMcpTestServer';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -121,6 +123,7 @@ let packagedRendererServer: Server | null = null;
 let pendingUpdate: { readonly manifest: SignedUpdateManifest; readonly filePath: string } | null = null;
 let agentAccessBridge: AgentAccessBridge | null = null;
 let agentTunnel: AgentTunnelController | null = null;
+let localMcpTestServer: LocalMcpTestServerController | null = null;
 let openArtConnection: OpenArtConnectionController | null = null;
 let higgsfieldConnection: HiggsfieldConnectionController | null = null;
 let genAiProviderRegistry: GenAiProviderRegistry | null = null;
@@ -876,12 +879,19 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   agentTunnel = new AgentTunnelController(
     deviceCredentials.deviceId,
-    new HttpsAgentPairingClient(process.env.LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS === 'true'),
-    new WebSocketAgentTunnelTransport(process.env.LIGHTTABLE_AGENT_ALLOW_LOCAL_TLS === 'true'),
+    // Self-signed TLS is accepted only by the adapters' localhost branch;
+    // every non-loopback server continues to require ordinary PKI validation.
+    new HttpsAgentPairingClient(true),
+    new WebSocketAgentTunnelTransport(true),
     new ProtectedAgentTunnelSessionStore(
       path.join(app.getPath('userData'), 'agent-access', 'server-session.bin'), credentialProtector
     ),
-    invokeAgentRenderer
+    invokeAgentRenderer,
+    Date.now,
+    (callback, delay) => setTimeout(callback, delay),
+    new ProtectedAgentApprovalPolicyStore(
+      path.join(app.getPath('userData'), 'agent-access', 'approval-policy.bin'), credentialProtector
+    )
   );
   agentTunnel.subscribe((status) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -889,6 +899,16 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
   });
   void agentTunnel.restore();
+  localMcpTestServer = new LocalMcpTestServerController(
+    path.join(app.getPath('userData'), 'agent-access', 'local-mcp'), credentialProtector,
+    (serverUrl, code) => agentTunnel!.pair(serverUrl, code),
+    () => agentTunnel!.disconnect(false)
+  );
+  localMcpTestServer.subscribe((status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('lighttable:local-mcp-changed', status);
+    }
+  });
 
   ipcMain.on('lighttable:agent-access-response', (event, payload: {
     readonly id?: unknown; readonly value?: unknown; readonly error?: unknown;
@@ -1598,11 +1618,25 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('lighttable:agent-tunnel-reconnect', (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return agentTunnel?.connect();
   });
-  ipcMain.handle('lighttable:agent-client-approve', (event, clientId: string, scopes: unknown) => {
+  ipcMain.handle('lighttable:agent-client-approve', (event, clientId: string, scopes: unknown, persistent: unknown) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     if (typeof clientId !== 'string' || clientId.length > 256 || !Array.isArray(scopes)
       || scopes.some((scope) => scope !== 'read' && scope !== 'edit')) throw new Error('Invalid Agent client approval.');
-    return agentTunnel?.approveClient(clientId, scopes);
+    if (persistent !== undefined && typeof persistent !== 'boolean') throw new Error('Invalid persistent Agent approval.');
+    return agentTunnel?.approveClient(clientId, scopes, persistent === true);
+  });
+  ipcMain.handle('lighttable:local-mcp-status', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    return localMcpTestServer?.status() ?? { state: 'stopped', restartCodexRequired: false };
+  });
+  ipcMain.handle('lighttable:local-mcp-start', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return localMcpTestServer?.start();
+  });
+  ipcMain.handle('lighttable:local-mcp-stop', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return localMcpTestServer?.stop();
+  });
+  ipcMain.handle('lighttable:local-mcp-authorize-codex', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame)); return localMcpTestServer?.authorizeCodex();
   });
   ipcMain.handle('lighttable:agent-client-revoke', (event, clientId: string) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
@@ -2336,6 +2370,7 @@ app.on('before-quit', () => {
   genAiProviderRegistry?.dispose();
   genAiProviderRegistry = null;
   void localAiProcessManager?.stop();
+  void localMcpTestServer?.stop();
 });
 
 app.on('window-all-closed', () => {
@@ -2343,6 +2378,7 @@ app.on('window-all-closed', () => {
     rejectPendingAgentRequests('LightTable is closing.');
     void agentAccessBridge?.disable();
     void agentTunnel?.disconnect(false);
+    void localMcpTestServer?.stop();
     packagedRendererServer?.close();
     packagedRendererServer = null;
     app.quit();
