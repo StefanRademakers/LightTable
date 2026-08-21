@@ -28,7 +28,11 @@ export interface LayersWorkspacePanelProps {
   openMaskEditingOnDoubleClick: boolean;
   onMaskIsolationChange: (layerId: LayerId | null) => void;
   controller: LayerPanelController;
-  onSelectionChange?: (layerIds: LayerId[]) => void;
+  selectedLayerIds: readonly LayerId[];
+  onSelectionChange: (layerIds: LayerId[]) => void;
+  onLayerNamePointerDown: (layerId: LayerId, activeLayerId: LayerId | null) => void;
+  consumeLayerNameRenameGesture: (layerId: LayerId) => boolean;
+  cancelLayerNameRenameGesture: () => void;
   editingTextLayerId?: LayerId | null;
   onEditText?: (layerId: LayerId) => void;
   onOpenFontReport?: (layerId: LayerId) => void;
@@ -70,7 +74,11 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   openMaskEditingOnDoubleClick,
   onMaskIsolationChange,
   controller,
+  selectedLayerIds,
   onSelectionChange,
+  onLayerNamePointerDown,
+  consumeLayerNameRenameGesture,
+  cancelLayerNameRenameGesture,
   editingTextLayerId,
   onEditText,
   onOpenFontReport,
@@ -162,7 +170,11 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onStyleEnabled={controller.setStyleEnabled}
         onRemoveStyle={controller.removeStyle}
         onClearStyles={controller.clearStyles}
+        selectedLayerIds={selectedLayerIds}
         onSelectionChange={onSelectionChange}
+        onLayerNamePointerDown={onLayerNamePointerDown}
+        consumeLayerNameRenameGesture={consumeLayerNameRenameGesture}
+        cancelLayerNameRenameGesture={cancelLayerNameRenameGesture}
         editingTextLayerId={editingTextLayerId}
         onEditText={onEditText}
         onOpenFontReport={onOpenFontReport}

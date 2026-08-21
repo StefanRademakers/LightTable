@@ -85,6 +85,7 @@ import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useBackgroundRemovalController, type BackgroundRemovalMaskMode } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
+import { LayerNameRenameGestureController } from './application/layers/layerSelectionModel';
 import {
   adjustmentStackHasLocalProcessing,
   adjustmentStackLocalProcessingIsEnabled,
@@ -804,6 +805,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => boolean>(() => false);
   const selectedLayerIdsRef = useRef<LayerId[]>([]);
   const [selectedLayerIds, setSelectedLayerIds] = useState<LayerId[]>([]);
+  const layerNameRenameGestureControllerRef = useRef(new LayerNameRenameGestureController());
+  const handleLayerNamePointerDown = useCallback((layerId: LayerId, activeLayerId: LayerId | null) => {
+    layerNameRenameGestureControllerRef.current.begin(layerId, activeLayerId, performance.now());
+  }, []);
+  const consumeLayerNameRenameGesture = useCallback((layerId: LayerId) =>
+    layerNameRenameGestureControllerRef.current.consume(layerId), []);
+  const cancelLayerNameRenameGesture = useCallback(() =>
+    layerNameRenameGestureControllerRef.current.cancel(), []);
   const invertActiveLayerColorsRef = useRef<() => void>(() => undefined);
   const fillActiveTargetRef = useRef<(
     color: string,
@@ -6290,6 +6299,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       isolatedMaskLayerId={isolatedMaskLayerId}
       openMaskEditingOnDoubleClick={toolPreferences?.openMaskEditingOnDoubleClick ?? true}
       controller={commandLayerPanelController}
+      selectedLayerIds={selectedLayerIds}
+      onLayerNamePointerDown={handleLayerNamePointerDown}
+      consumeLayerNameRenameGesture={consumeLayerNameRenameGesture}
+      cancelLayerNameRenameGesture={cancelLayerNameRenameGesture}
       globalGradeStrength={globalGradeStrength}
       globalGradeModified={globalGradeModified}
       globalLensFxModified={globalLensFxModified}

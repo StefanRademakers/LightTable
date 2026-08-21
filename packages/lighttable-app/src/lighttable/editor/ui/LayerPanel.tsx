@@ -44,6 +44,7 @@ import {
   adjustmentLayerDefinition,
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
+import { resolveLayerSelectionGesture } from '../../application/layers/layerSelectionModel';
 
 interface LayerPanelProps {
   document: ImageDocument;
@@ -106,7 +107,11 @@ interface LayerPanelProps {
   onStyleEnabled: (layerId: LayerId, effectId: LayerStyleId, enabled: boolean) => void;
   onRemoveStyle: (layerId: LayerId, effectId: LayerStyleId) => void;
   onClearStyles: (layerId: LayerId) => void;
-  onSelectionChange?: (layerIds: LayerId[]) => void;
+  selectedLayerIds: readonly LayerId[];
+  onSelectionChange: (layerIds: LayerId[]) => void;
+  onLayerNamePointerDown: (layerId: LayerId, activeLayerId: LayerId | null) => void;
+  consumeLayerNameRenameGesture: (layerId: LayerId) => boolean;
+  cancelLayerNameRenameGesture: () => void;
   editingTextLayerId?: LayerId | null;
   onEditText?: (layerId: LayerId) => void;
   onOpenFontReport?: (layerId: LayerId) => void;
@@ -266,7 +271,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onStyleEnabled,
   onRemoveStyle,
   onClearStyles,
+  selectedLayerIds: controlledSelectedLayerIds,
   onSelectionChange,
+  onLayerNamePointerDown,
+  consumeLayerNameRenameGesture,
+  cancelLayerNameRenameGesture,
   editingTextLayerId = null,
   onEditText,
   onOpenFontReport,
@@ -290,7 +299,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onInspectAttachedAdjustment
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
-  const layerNameRenameCandidateRef = React.useRef<LayerId | null>(null);
   const layerNamePointerFocusRef = React.useRef(false);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
   const [clippingBoundaryHoverLayerId, setClippingBoundaryHoverLayerId] = React.useState<LayerId | null>(null);
@@ -308,8 +316,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const [createLayerMenuOpen, setCreateLayerMenuOpen] = React.useState(false);
   const createLayerMenuTriggerRef = React.useRef<HTMLButtonElement>(null);
   const closeCreateLayerMenu = React.useCallback(() => setCreateLayerMenuOpen(false), []);
-  const [selectedLayerIds, setSelectedLayerIds] = React.useState<Set<LayerId>>(
-    () => new Set(document.activeLayerId ? [document.activeLayerId] : [])
+  const selectedLayerIds = React.useMemo(
+    () => new Set(controlledSelectedLayerIds),
+    [controlledSelectedLayerIds]
   );
   const [moreMenu, setMoreMenu] = React.useState<{
     open: boolean;
@@ -359,66 +368,65 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   };
 
   React.useEffect(() => {
-    setSelectedLayerIds((current) => {
-      const next = new Set([...current].filter((layerId) => allLayerIds.has(layerId)));
-      if (document.activeLayerId && !next.has(document.activeLayerId)) {
-        selectionAnchorRef.current = document.activeLayerId;
-        return new Set([document.activeLayerId]);
-      }
-      if (!next.size && document.activeLayerId) next.add(document.activeLayerId);
-      return next;
-    });
+    const valid = controlledSelectedLayerIds.filter((layerId) => allLayerIds.has(layerId));
+    if (document.activeLayerId && !valid.includes(document.activeLayerId)) {
+      selectionAnchorRef.current = document.activeLayerId;
+      onSelectionChange([document.activeLayerId]);
+    } else if (!valid.length && document.activeLayerId) {
+      onSelectionChange([document.activeLayerId]);
+    } else if (valid.length !== controlledSelectedLayerIds.length) {
+      onSelectionChange(valid);
+    }
   // The layer tree revision and active id are sufficient; deriving allLayerIds
   // in the dependency list would make every render look like a selection change.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document.revision, document.activeLayerId, inspectorTarget.kind]);
+  }, [document.revision, document.activeLayerId, inspectorTarget.kind,
+    selectedIdsKey, onSelectionChange]);
 
-  React.useEffect(() => {
-    onSelectionChange?.(selectedIds);
-  // selectedIds is rebuilt while rendering; the stable id key avoids emitting
-  // selection changes merely because another panel property rendered.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIdsKey, onSelectionChange]);
+  const setSelectedLayerIds: React.Dispatch<React.SetStateAction<Set<LayerId>>> = React.useCallback(
+    (update) => {
+      const next = typeof update === 'function' ? update(selectedLayerIds) : update;
+      onSelectionChange([...next]);
+    },
+    [onSelectionChange, selectedLayerIds]
+  );
 
   const selectLayer = (
-    event: React.MouseEvent,
+    event: Pick<React.MouseEvent, 'shiftKey' | 'ctrlKey' | 'metaKey'>,
     layerId: LayerId,
     channel: PaintChannel = 'pixels'
   ) => {
-    const toggle = event.ctrlKey || event.metaKey;
-    if (event.shiftKey && selectionAnchorRef.current) {
-      const visualIds = rows.map(({ layer }) => layer.id);
-      const anchorIndex = visualIds.indexOf(selectionAnchorRef.current);
-      const layerIndex = visualIds.indexOf(layerId);
-      if (anchorIndex >= 0 && layerIndex >= 0) {
-        const [start, end] = anchorIndex < layerIndex
-          ? [anchorIndex, layerIndex]
-          : [layerIndex, anchorIndex];
-        setSelectedLayerIds(new Set(visualIds.slice(start, end + 1)));
-      }
-    } else if (toggle) {
-      const next = new Set(selectedLayerIds);
-      const removing = next.has(layerId) && next.size > 1;
-      if (removing) next.delete(layerId);
-      else next.add(layerId);
-      setSelectedLayerIds(next);
-      selectionAnchorRef.current = layerId;
-      const nextActiveId = removing
-        ? document.activeLayerId && next.has(document.activeLayerId)
-          ? document.activeLayerId
-          : [...next][0]
-        : layerId;
-      if (nextActiveId) onSelect(nextActiveId);
-      onChannelChange(channel);
-      if (nextActiveId) onInspectLayer(nextActiveId, channel);
-      return;
-    } else {
-      setSelectedLayerIds(new Set([layerId]));
-      selectionAnchorRef.current = layerId;
-    }
-    onSelect(layerId);
+    const next = resolveLayerSelectionGesture(rows.map(({ layer }) => layer.id), {
+      selectedLayerIds: selectedIds,
+      anchorLayerId: selectionAnchorRef.current,
+      activeLayerId: document.activeLayerId
+    }, {
+      targetLayerId: layerId,
+      extend: event.shiftKey,
+      toggle: event.ctrlKey || event.metaKey
+    });
+    onSelectionChange([...next.selectedLayerIds]);
+    selectionAnchorRef.current = next.anchorLayerId;
+    if (next.activeLayerId) onSelect(next.activeLayerId);
     onChannelChange(channel);
-    onInspectLayer(layerId, channel);
+    if (next.activeLayerId) onInspectLayer(next.activeLayerId, channel);
+  };
+
+  const beginLayerPointerSelection = (
+    event: React.PointerEvent<HTMLDivElement>,
+    layerId: LayerId
+  ) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    const selectionSurface = target === event.currentTarget
+      || Boolean(target.closest('.lighttable-layer__name, .lighttable-layer__thumbnail'));
+    if (!selectionSurface) return;
+    const thumbnail = target.closest('.lighttable-layer__thumbnail');
+    if (thumbnail && (event.ctrlKey || event.metaKey)) return;
+    if (event.shiftKey) event.preventDefault();
+    if (event.shiftKey || event.ctrlKey || event.metaKey || !selectedLayerIds.has(layerId)) {
+      selectLayer(event, layerId);
+    }
   };
 
   const restoreParentTarget = (layerId: LayerId) => {
@@ -773,6 +781,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               dropTarget?.layerId === layer.id ? `lighttable-layer--drop-${dropTarget.placement}` : ''
             ].filter(Boolean).join(' ')}
             style={{ paddingLeft: `${layerRowInset(depth)}px` }}
+            onPointerDown={(event) => beginLayerPointerSelection(event, layer.id)}
             onClick={(event) => {
               if (clippingGestureLayerRef.current === layer.id) {
                 clippingGestureLayerRef.current = null;
@@ -780,6 +789,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 event.stopPropagation();
                 return;
               }
+              if (event.shiftKey || event.ctrlKey || event.metaKey) return;
               selectLayer(event, layer.id);
             }}
             onDoubleClick={(event) => {
@@ -808,6 +818,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               });
             }}
             onDragStart={(event) => {
+              cancelLayerNameRenameGesture();
               if (documentFx) {
                 event.preventDefault();
                 return;
@@ -1104,6 +1115,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               draggable={renamingLayerId !== layer.id && !documentFx}
               onPointerDown={() => {
                 if (renamingLayerId === layer.id) return;
+                onLayerNamePointerDown(layer.id, document.activeLayerId);
                 layerNamePointerFocusRef.current = true;
                 requestAnimationFrame(() => {
                   layerNamePointerFocusRef.current = false;
@@ -1112,18 +1124,14 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               onClick={(event) => {
                 event.stopPropagation();
                 if (renamingLayerId !== layer.id) {
-                  if (event.detail === 1) {
-                    layerNameRenameCandidateRef.current = document.activeLayerId === layer.id
-                      ? layer.id
-                      : null;
+                  if (!event.shiftKey && !event.ctrlKey && !event.metaKey) {
+                    selectLayer(event, layer.id);
                   }
-                  selectLayer(event, layer.id);
                 }
               }}
               onDoubleClick={(event) => {
                 event.stopPropagation();
-                if (layerNameRenameCandidateRef.current !== layer.id) return;
-                layerNameRenameCandidateRef.current = null;
+                if (!consumeLayerNameRenameGesture(layer.id)) return;
                 layerNamePointerFocusRef.current = false;
                 const input = event.currentTarget;
                 input.blur();
