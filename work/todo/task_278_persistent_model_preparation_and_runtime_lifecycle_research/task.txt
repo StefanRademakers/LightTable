@@ -1,0 +1,150 @@
+Task 278 - Persistent model preparation and runtime lifecycle research
+
+Status
+Active research. Do not turn this into broad eager model loading before the
+phase measurements and artifact-compatibility decisions below exist.
+
+Goal
+Determine, across LightTable's local inference models, which expensive work is
+truly session-local and which deterministic model preparation can be performed
+once and persisted. A model may leave RAM and VRAM when it is not useful, but a
+later use should not repeat downloads, conversion, graph optimization or other
+durable preparation merely because its runtime session was released.
+
+Product boundary
+- Do not obstruct normal image editing by loading every model during app start.
+- Do not reserve RAM or VRAM indefinitely just to improve a feature the user
+  may not invoke.
+- Distinguish persistent disk artifacts from temporary worker, CPU-memory,
+  GPU-memory and prepared-image state.
+- Prefer one explicit model/runtime policy over feature-local caches and hidden
+  fallback behavior.
+- In alpha, surface initialization and backend failures. Do not silently load a
+  second large model merely to make the first route appear successful.
+- Model implementation details remain behind product capabilities such as
+  Remove Background, Object Selection, Edge Refine and Depth Estimation.
+
+Models in scope
+- BEN2 FP16 for Remove Background.
+- SAM 2.1 Small FP16 for Object Selection and Select Subject.
+- SlimSAM compatibility fallback, including whether it should remain enabled
+  during alpha and its currently unpinned `main` revision.
+- ViTMatte for Standard/High Edge Refine.
+- Depth Anything V2 Small for Lens Blur depth.
+- MediaPipe Face Landmarker/BlazeFace as a bundled comparison case.
+- Shared Transformers.js and ONNX Runtime Web initialization used by the above.
+- Local generative-provider models are a separate installation/runtime system;
+  use them only as architectural reference unless evidence justifies unifying a
+  narrow model-registry primitive.
+
+Known current evidence (2026-08-21)
+- Packaged LightTable previously served its renderer from `server.listen(0)`,
+  creating a different loopback origin after restarts. Chromium CacheStorage is
+  origin-bound. Two observed BEN2 caches at ports 3293 and 6159 each contained
+  a 208.97 MiB `model_fp16.onnx` artifact.
+- The renderer-origin fix now uses a deterministic packaged port range. Verify
+  that this actually reuses one cache for BEN2, SAM, ViTMatte and Depth across
+  packaged restarts; do not treat code inspection as runtime proof.
+- Remove Background owns its worker in an editor hook. Cancel or editor unmount
+  destroys the worker and ONNX/WebGPU session.
+- Object Selection prepares its model and one source embedding when the tool is
+  activated. Prompt operations reuse that embedding, but the worker still
+  belongs to an editor instance rather than an application runtime.
+- Balanced Object Selection catches a SAM 2.1 preparation failure and silently
+  tries SlimSAM, potentially causing two model initializations/downloads and
+  hiding the primary failure.
+- Fast Edge Refine is model-free. Standard/High lazily initialize ViTMatte only
+  after SAM candidate ranking, causing a separate late cold start. ViTMatte is
+  retained only with that Object Selection worker.
+- ONNX Runtime Web can read ORT-format models, while Transformers.js 3.8.1
+  constructs dtype-specific `.onnx` names in its high-level model loader. A
+  controlled loader boundary or artifact convention may therefore be required
+  before `.ort` can be evaluated honestly.
+
+Research questions
+- For each model, measure separately: cache lookup, network download, disk read,
+  external-data assembly, model decode/parse, graph optimization, execution
+  provider initialization, WebGPU shader/pipeline creation, weight upload,
+  input preprocessing, first inference and warm inference.
+- Which phases repeat after a worker is destroyed but the downloaded bytes
+  remain cached?
+- Which phases repeat after an ONNX session is released from RAM/VRAM?
+- Can build-time ONNX optimization or ORT-format conversion remove meaningful
+  process-cold work without changing output or restricting supported devices?
+- Are optimized artifacts portable across ONNX Runtime versions, operating
+  systems and WebGPU adapters, or must they be versioned per runtime/backend?
+- Does fixed 1024x1024 shape specialization materially improve BEN2, SAM or
+  ViTMatte initialization/inference, and does it preserve their actual input
+  contract?
+- Which Dawn/Chromium WebGPU compilation artifacts are already persisted, and
+  which model-specific GPU resources cannot survive a process or device loss?
+- Can one application-level inference runtime share worker/module/runtime setup
+  while allowing individual model sessions to be evicted independently?
+- What bounded policy should retain prepared SAM image embeddings across
+  document switches without retaining unbounded document pixels or VRAM?
+- When Edge Refine is enabled and ViTMatte is installed, is idle initialization
+  after SAM preparation beneficial, or does it compete with editing and SAM
+  interaction?
+- Should the installer bundle selected models, offer optional components, or
+  install them on first use? Compare installer size, offline behavior, update
+  duplication and first-use latency rather than choosing from convenience.
+
+Checklist
+- [ ] Inventory exact artifact names, revisions, hashes, licenses, compressed
+  and installed sizes for every model in scope.
+- [ ] Replace ambiguous `Loading model` telemetry in the research build with
+  timings for the named phases above, including cache hit/miss and backend.
+- [ ] Record five distinct cases per applicable model: first download, cached
+  process-cold, optimized-artifact process-cold, warm session, and session
+  evicted then reopened.
+- [ ] Measure wall time, disk/network bytes, persistent-cache growth, peak CPU
+  memory, retained CPU memory and retained VRAM on representative hardware.
+- [ ] Verify packaged restart cache reuse and confirm that cache growth remains
+  bounded when renderer ports, app updates and documents change.
+- [ ] Produce an offline optimized ONNX/ORT artifact for at least one small or
+  representative model before modifying every loader.
+- [ ] Compare its load time, session-creation time, inference time, artifact
+  size and output against the current pinned source model.
+- [ ] Run visual/numeric output comparisons appropriate to each feature:
+  masks for segmentation/matting and depth maps for depth estimation. A faster
+  artifact is rejected if it materially changes the user result.
+- [ ] Define an application-level runtime owner with independent model-session
+  eviction, request serialization, cancellation and device-loss behavior.
+- [ ] Define when workers, sessions, weights, embeddings and decoded source
+  images are retained or released. Include explicit RAM/VRAM budgets rather
+  than an always-warm policy.
+- [ ] Decide whether canceling a request should discard only its result, stop
+  queued work, or tear down a model session. Default toward preserving a valid
+  warm session unless memory pressure or runtime failure requires disposal.
+- [ ] Remove or explicitly expose silent SAM-to-SlimSAM fallback in alpha so
+  failures and duplicate initialization cannot be mistaken for success.
+- [ ] Decide and document the model distribution policy: bundled, optional
+  installer component, or verified first-use installation.
+- [ ] Define one app-owned persistent model registry with atomic installation,
+  exact revision, SHA-256 verification, size accounting and user-visible clear
+  controls. Browser CacheStorage alone is not the final desktop model manager.
+- [ ] Update compliance inventory for SAM 2.1 and ViTMatte before any commercial
+  distribution decision.
+- [ ] Turn accepted decisions into small implementation tasks; do not combine
+  every model migration into one unbounded production change.
+
+Required decision output
+Produce a human-readable research result with one row per model and these
+columns:
+
+Model | Download artifact | Persistent optimized artifact | Process-cold work |
+Warm-session work | Evictable state | Recommended prewarm point | RAM/VRAM cost |
+Distribution recommendation | Measured benefit | Open risk
+
+Completion gate
+This task is research-complete only when the phase timings and at least one
+optimized-artifact experiment support a concrete runtime/cache/distribution
+decision. Documentation-only speculation, green unit tests or a generic
+singleton do not complete it. Do not implement eager startup prewarming across
+all models as a substitute for this evidence.
+
+Related material
+- `architecture/QUICKSTART.md`, Model distribution and cache ownership.
+- `architecture/research/LIGHTTABLE_SMART_SELECTION_ARCHITECTURE.md`.
+- `work/done/task_134/SAM21_MATTE_REFINEMENT.md`.
+- `work/done/task_135/LIGHTTABLE_BACKGROUND_REMOVE_BEN2.md`.
