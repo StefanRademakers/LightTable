@@ -165,7 +165,7 @@ if (await serverUrlInput.inputValue() !== deviceOrigin
   throw new Error('Local MCP pairing fields did not retain their requested values.');
 }
 await page.waitForTimeout(100);
-await settings.getByRole('button', { name: 'Pair' }).click();
+await settings.getByRole('button', { name: 'Pair', exact: true }).click();
 try {
   await settings.getByText('connected', { exact: true }).waitFor({ timeout: 15_000 });
 } catch (error) {

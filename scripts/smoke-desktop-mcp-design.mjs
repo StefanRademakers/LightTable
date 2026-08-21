@@ -79,7 +79,7 @@ try {
   const settings = window.getByRole('dialog', { name: 'Preferences' });
   await settings.getByRole('button', { name: 'Agent Access' }).click();
   await settings.getByLabel('Server URL').fill(publicUrl); await settings.getByLabel('One-time pairing code').fill('PAIR-106');
-  await settings.getByRole('button', { name: 'Pair' }).click();
+  await settings.getByRole('button', { name: 'Pair', exact: true }).click();
   await settings.getByText('connected', { exact: true }).waitFor({ timeout: 15_000 });
 
   const oauthClient = service.oauth.register({ client_name: 'Packaged MCP smoke', redirect_uris: ['http://127.0.0.1/callback'] });

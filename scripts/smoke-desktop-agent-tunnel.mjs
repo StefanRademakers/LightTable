@@ -64,7 +64,7 @@ try {
   if (await settings.getByRole('checkbox').isChecked()) throw new Error('Local listener was unexpectedly enabled.');
   await settings.getByLabel('Server URL').fill(serverUrl);
   await settings.getByLabel('One-time pairing code').fill('PAIR-105');
-  await settings.getByRole('button', { name: 'Pair' }).click();
+  await settings.getByRole('button', { name: 'Pair', exact: true }).click();
   await settings.getByText('connected', { exact: true }).waitFor({ timeout: 15_000 }).catch(async () => {
     throw new Error(`Agent tunnel did not connect: ${(await settings.innerText()).slice(-1200)}`);
   });
@@ -93,12 +93,14 @@ try {
   await settings.getByText('connected', { exact: true }).waitFor({ timeout: 10_000 });
   await window.screenshot({ path: screenshot });
 
-  await settings.getByRole('button', { name: 'Revoke', exact: true }).click();
+  await settings.getByRole('button', { name: 'Revoke client', exact: true }).click();
   await waitFor(() => broker.status(deviceId).clients.length === 0, 'client revocation');
   await broker.invoke(deviceId, 'client-design', 'workspace.query').then(() => {
     throw new Error('A revoked client was still able to read the document.');
   }, () => undefined);
-  await settings.getByRole('button', { name: 'Revoke this device' }).click();
+  await settings.getByRole('button', { name: 'Unpair this LightTable installation...', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Unpair LightTable from the MCP server?' })
+    .getByRole('button', { name: 'Unpair', exact: true }).click();
   await settings.getByText('revoked', { exact: true }).waitFor();
   await waitFor(() => !broker.status(deviceId).connected, 'device revocation');
   process.stdout.write(`Desktop outbound Agent tunnel smoke passed: ${screenshot}\n`);
