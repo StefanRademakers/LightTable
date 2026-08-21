@@ -27,6 +27,17 @@ describe('SourceReplacementAuthority', () => {
     )).toThrow(/changed outside/i);
   });
 
+  it.each([
+    ['edited.webp', 'webp'],
+    ['edited.tif', 'tiff'],
+    ['edited.tiff', 'tiff']
+  ] as const)('authorizes native %s replacement', (name, format) => {
+    const authority = new SourceReplacementAuthority();
+    const identity = { size: 25, modifiedAtMs: 99 };
+    const source = authority.authorize(path.join('fixtures', name), identity);
+    expect(authority.resolve({ path: source, format }, identity)).toBe(source);
+  });
+
   it('bounds retained open-file authority', () => {
     const authority = new SourceReplacementAuthority(1);
     const identity = { size: 1, modifiedAtMs: 1 };

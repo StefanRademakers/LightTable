@@ -14,6 +14,15 @@ import { invokeAgentDriver } from './agentDriverBridge';
 import type { DesktopFilePayload } from './desktopBridge';
 import { normalizeDesktopGenAiError } from './genai/desktopGenAiError';
 
+if (navigator.userAgent.includes('Windows')) {
+  const titlebarIconUrl = new URL('../../../icon/logo_emblem.png', import.meta.url).href;
+  document.documentElement.classList.add('lighttable-windows-titlebar');
+  document.documentElement.style.setProperty(
+    '--lighttable-window-icon',
+    `url("${titlebarIconUrl}")`
+  );
+}
+
 const uiDevtoolsEnabled = import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS === 'true';
 const UiInspectorHost = uiDevtoolsEnabled
   ? React.lazy(() => import('@lighttable/app/ui-devtools').then((module) => ({
@@ -193,15 +202,39 @@ const desktopHost: LightTableHost = {
       );
     },
     async readImage() {
-      const bytes = await window.lightTableDesktop.readClipboardPng();
-      return bytes
-        ? new Blob([Uint8Array.from(bytes).buffer], { type: 'image/png' })
+      const image = await window.lightTableDesktop.readClipboardImage();
+      return image
+        ? new Blob([Uint8Array.from(image.bytes).buffer], { type: image.mediaType })
         : null;
     }
   }),
   async openFile() {
     const payload = await window.lightTableDesktop.openFile();
     return desktopFile(payload);
+  },
+  subscribeOpenFiles(listener) {
+    let disposed = false;
+    let draining = false;
+    let requestedAgain = false;
+    const drain = async (): Promise<void> => {
+      if (draining) { requestedAgain = true; return; }
+      draining = true;
+      try {
+        do {
+          requestedAgain = false;
+          const files = (await window.lightTableDesktop.takeLaunchFiles())
+            .map((payload) => desktopFile(payload))
+            .filter((file): file is File => Boolean(file));
+          if (!disposed && files.length) listener(files);
+        } while (!disposed && requestedAgain);
+      } finally {
+        draining = false;
+        if (!disposed && requestedAgain) void drain();
+      }
+    };
+    const remove = window.lightTableDesktop.onLaunchFilesAvailable(() => { void drain(); });
+    void drain();
+    return () => { disposed = true; remove(); };
   },
   async listRecentFiles() {
     return (await window.lightTableDesktop.listRecentFiles()).map((entry) => ({

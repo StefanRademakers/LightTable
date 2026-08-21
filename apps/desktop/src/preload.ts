@@ -8,6 +8,12 @@ import type {
 const bridge: LightTableDesktopBridge = {
   automationEnabled: process.argv.includes('--lighttable-automation'),
   openFile: () => ipcRenderer.invoke('lighttable:open-file'),
+  takeLaunchFiles: () => ipcRenderer.invoke('lighttable:take-launch-files'),
+  onLaunchFilesAvailable: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on('lighttable:launch-files-available', handler);
+    return () => ipcRenderer.removeListener('lighttable:launch-files-available', handler);
+  },
   listRecentFiles: () => ipcRenderer.invoke('lighttable:list-recent-files'),
   loadRecentFileThumbnail: (id: string) =>
     ipcRenderer.invoke('lighttable:load-recent-file-thumbnail', id),
@@ -68,8 +74,8 @@ const bridge: LightTableDesktopBridge = {
   applyRecoveryLocation: (path?: string) => ipcRenderer.invoke('lighttable:recovery-location-apply', path),
   writeClipboardPng: (bytes: Uint8Array) =>
     ipcRenderer.invoke('lighttable:clipboard-write-png', bytes),
-  readClipboardPng: () =>
-    ipcRenderer.invoke('lighttable:clipboard-read-png'),
+  readClipboardImage: () =>
+    ipcRenderer.invoke('lighttable:clipboard-read-image'),
   listSystemFonts: () => ipcRenderer.invoke('lighttable:list-system-fonts'),
   loadSystemFont: (assetId: string) => ipcRenderer.invoke('lighttable:load-system-font', assetId),
   releaseInfo: () => ipcRenderer.invoke('lighttable:release-info'),

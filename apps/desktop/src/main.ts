@@ -59,6 +59,7 @@ import {
   type SignedUpdateManifest
 } from './releaseUpdate';
 import type { LightTableUpdateResult } from '@lighttable/app';
+import { isNativeBitmapFormatId } from '@lighttable/app/bitmap-formats';
 import { BoundedLruCache } from './boundedLruCache';
 import { AgentAccessBridge } from './agentAccessBridge';
 import { DesktopAgentAccessCredentialStore } from './agentAccessCredentialStore';
@@ -69,6 +70,7 @@ import {
   WebSocketAgentTunnelTransport
 } from './agentTunnelAdapters';
 import { loadRendererUrlWithRetry } from './rendererNavigation';
+import { readPreferredEncodedClipboardImage } from './clipboardEncodedImage';
 import { DesktopOpenArtCredentialStore } from './genai/openArtCredentialStore';
 import { abortableDelay } from './genai/abortableDelay';
 import { createLoopbackOAuthSession } from './genai/loopbackOAuthSession';
@@ -106,6 +108,9 @@ import {
 import { OPENART_PROVIDER_ID } from '@lighttable/genai-openart';
 import { HIGGSFIELD_PROVIDER_ID } from '@lighttable/genai-higgsfield';
 import { LOCAL_AI_PROVIDER_ID } from '@lighttable/genai-local';
+import { bitmapLaunchFilesFromArgv, DesktopLaunchFileQueue } from './desktopLaunchFiles';
+import { handleSquirrelStartup } from './squirrelStartup';
+import { assertNativeBitmapContainer } from './nativeBitmapContainer';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -137,8 +142,41 @@ const pendingAgentRequests = new Map<string, {
 
 const automationUserData = process.env.LIGHTTABLE_AUTOMATION_USER_DATA;
 if (automationUserData) app.setPath('userData', path.resolve(automationUserData));
+if (process.platform === 'win32') app.setAppUserModelId('com.squirrel.LightTable.LightTable');
+const squirrelStartupHandled = handleSquirrelStartup(process.argv, process.execPath);
+if (squirrelStartupHandled) app.quit();
+const launchFileQueue = new DesktopLaunchFileQueue();
+launchFileQueue.enqueue(bitmapLaunchFilesFromArgv(process.argv));
+const hasSingleInstanceLock = !squirrelStartupHandled && app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) app.quit();
+else {
+  app.on('second-instance', (_event, argv) => {
+    const count = launchFileQueue.enqueue(bitmapLaunchFilesFromArgv(argv));
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      if (count > 0) mainWindow.webContents.send('lighttable:launch-files-available');
+    }
+  });
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault();
+    const count = launchFileQueue.enqueue([filePath]);
+    if (count > 0 && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('lighttable:launch-files-available');
+    }
+  });
+}
 
 const NAVIGATION_ABORTED = -3;
+const desktopIconPath = (kind: 'window' | 'dock' = 'window') => {
+  const fileName = kind === 'window' && process.platform === 'win32'
+    ? 'logo_emblem_ico.ico'
+    : 'logo_emblem.png';
+  return app.isPackaged
+    ? path.join(process.resourcesPath, fileName)
+    : path.resolve(app.getAppPath(), '../../icon', fileName);
+};
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
 const recentProjectsPath = (): string => path.join(app.getPath('userData'), 'recent-projects.json');
@@ -417,6 +455,28 @@ const CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2'
 };
 
+// CacheStorage is origin-bound. Random ports create a fresh origin on every
+// launch and duplicate large lazy model downloads. Packaged LightTable is
+// single-instance, so this deterministic range keeps its renderer origin
+// stable while retaining a narrow fallback for an unrelated port conflict.
+const PACKAGED_RENDERER_PORTS = [43119, 43120, 43121, 43122, 43123] as const;
+
+const listenOnPackagedRendererPort = (server: Server, port: number): Promise<boolean> =>
+  new Promise((resolve, reject) => {
+    const onError = (error: NodeJS.ErrnoException) => {
+      server.off('listening', onListening);
+      if (error.code === 'EADDRINUSE') resolve(false);
+      else reject(error);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      resolve(true);
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, '127.0.0.1');
+  });
+
 async function startPackagedRendererServer(): Promise<string> {
   const rendererRoot = path.resolve(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`);
   const server = createServer(async (request, response) => {
@@ -446,10 +506,17 @@ async function startPackagedRendererServer(): Promise<string> {
     }
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve());
-  });
+  let listening = false;
+  for (const port of PACKAGED_RENDERER_PORTS) {
+    if (await listenOnPackagedRendererPort(server, port)) {
+      listening = true;
+      break;
+    }
+  }
+  if (!listening) {
+    server.close();
+    throw new Error('LightTable could not reserve its packaged renderer port.');
+  }
   const address = server.address();
   if (!address || typeof address === 'string') {
     server.close();
@@ -506,6 +573,15 @@ async function createWindow(): Promise<void> {
     minWidth: 960,
     minHeight: 640,
     backgroundColor: '#101216',
+    icon: desktopIconPath(),
+    ...(process.platform === 'win32' ? {
+      titleBarStyle: 'hidden' as const,
+      titleBarOverlay: {
+        color: '#3a3d40',
+        symbolColor: '#f4f6f8',
+        height: 36
+      }
+    } : {}),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -597,11 +673,12 @@ async function createWindow(): Promise<void> {
   console.info('[LightTable desktop isolation]', isolation);
 }
 
-void app.whenReady().then(async () => {
+if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   // LightTable owns its visible menu and tool modifiers in the renderer. The
   // default Windows Electron menu would otherwise steal focus when Alt is used
   // for eyedropper, centre-origin drawing or zoom-out gestures.
   Menu.setApplicationMenu(null);
+  if (process.platform === 'darwin') app.dock?.setIcon(desktopIconPath('dock'));
   rendererOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
     ? MAIN_WINDOW_VITE_DEV_SERVER_URL.replace(/\/+$/, '')
     : await startPackagedRendererServer();
@@ -1566,6 +1643,21 @@ void app.whenReady().then(async () => {
     return payload;
   });
 
+  ipcMain.handle('lighttable:take-launch-files', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const payloads = [];
+    for (const filePath of launchFileQueue.takeAll()) {
+      try {
+        const payload = await readDesktopFilePayload(filePath);
+        await rememberRecentFile(filePath);
+        payloads.push(payload);
+      } catch (reason) {
+        console.warn(`[LightTable desktop] Could not open launch file ${path.basename(filePath)}.`, reason);
+      }
+    }
+    return payloads;
+  });
+
   ipcMain.handle('lighttable:set-fullscreen', async (event, enabled: boolean) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     if (typeof enabled !== 'boolean') throw new Error('Invalid fullscreen request.');
@@ -1884,7 +1976,7 @@ void app.whenReady().then(async () => {
       (payload.replaceSource !== undefined && (
         !payload.replaceSource
         || typeof payload.replaceSource.path !== 'string'
-        || (payload.replaceSource.format !== 'png' && payload.replaceSource.format !== 'jpeg')
+        || !isNativeBitmapFormatId(payload.replaceSource.format)
       )) ||
       (payload.projectManifestPath !== undefined && (
         typeof payload.projectManifestPath !== 'string'
@@ -1904,6 +1996,7 @@ void app.whenReady().then(async () => {
     try {
       let targetPath: string;
       if (payload.replaceSource) {
+        assertNativeBitmapContainer(payload.bytes, payload.replaceSource.format);
         const sourceStats = await stat(payload.replaceSource.path);
         targetPath = sourceReplacementAuthority.resolve(payload.replaceSource, {
           size: sourceStats.size,
@@ -2082,11 +2175,40 @@ void app.whenReady().then(async () => {
     clipboard.writeImage(image);
   });
 
-  ipcMain.handle('lighttable:clipboard-read-png', async (event) => {
+  ipcMain.handle('lighttable:clipboard-read-image', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const formats = clipboard.availableFormats();
+    const encoded = readPreferredEncodedClipboardImage({
+      availableFormats: () => formats,
+      readBuffer: (format) => clipboard.readBuffer(format)
+    });
+    if (encoded) {
+      if (!app.isPackaged) {
+        console.info('[LightTable clipboard] encoded image', {
+          availableFormats: formats,
+          selectedFormat: encoded.sourceFormat,
+          mediaType: encoded.mediaType,
+          byteLength: encoded.bytes.byteLength
+        });
+      }
+      return encoded;
+    }
     const image = clipboard.readImage();
     if (image.isEmpty()) return null;
-    return new Uint8Array(image.toPNG());
+    const bytes = new Uint8Array(image.toPNG());
+    if (!app.isPackaged) {
+      console.info('[LightTable clipboard] Electron bitmap fallback', {
+        availableFormats: formats,
+        selectedFormat: 'electron/native-image',
+        mediaType: 'image/png',
+        byteLength: bytes.byteLength
+      });
+    }
+    return {
+      bytes,
+      mediaType: 'image/png' as const,
+      sourceFormat: 'electron/native-image'
+    };
   });
 
   ipcMain.handle('lighttable:list-system-fonts', async (event) => {

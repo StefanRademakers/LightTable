@@ -12,3 +12,56 @@ body,
   margin: 0;
   overflow: hidden;
 }
+
+/*
+ * Windows keeps its native caption controls (including Snap Layouts) while
+ * LightTable's own menu row supplies the rest of the title bar.
+ */
+.lighttable-windows-titlebar .lighttable__header,
+.lighttable-windows-titlebar .lighttable-launcher__window-titlebar {
+  -webkit-app-region: drag;
+}
+
+.lighttable-windows-titlebar .lighttable__header {
+  box-sizing: border-box;
+  padding-right: 138px;
+}
+
+.lighttable-windows-titlebar .lighttable__app-menu .shots-app-menu__button,
+.lighttable-windows-titlebar .lighttable__project-name {
+  -webkit-app-region: no-drag;
+}
+
+.lighttable-windows-titlebar .lighttable__header .lighttable__close-button {
+  display: none;
+}
+
+.lighttable__window-icon,
+.lighttable-launcher__window-titlebar {
+  display: none;
+}
+
+.lighttable-windows-titlebar .lighttable__window-icon {
+  display: block;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  align-self: center;
+  margin: 0 4px 0 9px;
+  background: var(--lighttable-window-icon) center / contain no-repeat;
+}
+
+.lighttable-windows-titlebar .lighttable-launcher__window-titlebar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 36px;
+  padding-right: 138px;
+  border-bottom: 1px solid var(--lt-border-subtle);
+  background: var(--lt-surface-menubar);
+}
+
+.lighttable-windows-titlebar .lighttable-launcher {
+  grid-template-rows: 36px minmax(0, 1fr);
+}

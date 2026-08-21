@@ -1,4 +1,5 @@
 import type { LightTableImageDecodeMode } from '../application/rendering/rendererTypes';
+import { nativeBitmapPickerAccept } from './nativeBitmapFormats';
 
 type ImageOpenMode = LightTableImageDecodeMode | 'automatic';
 
@@ -23,10 +24,7 @@ const AUTOMATIC_FORMATS: FilePickerAcceptType[] = [
   {
     description: 'LightTable documents and images (PNG, JPEG, WebP, TIFF, PSD/PSB, PDF)',
     accept: {
-      'image/jpeg': ['.jpg', '.jpeg', '.jpe', '.jfif'],
-      'image/png': ['.png'],
-      'image/webp': ['.webp'],
-      'image/tiff': ['.tif', '.tiff'],
+      ...nativeBitmapPickerAccept(),
       'image/vnd.adobe.photoshop': ['.psd', '.psb'],
       'application/pdf': ['.pdf']
     }
@@ -36,12 +34,7 @@ const AUTOMATIC_FORMATS: FilePickerAcceptType[] = [
 const PRECISION_FORMATS: FilePickerAcceptType[] = [
   {
     description: 'Precision images (PNG, TIFF, JPEG, WebP)',
-    accept: {
-      'image/png': ['.png'],
-      'image/tiff': ['.tif', '.tiff'],
-      'image/jpeg': ['.jpg', '.jpeg', '.jpe', '.jfif'],
-      'image/webp': ['.webp']
-    }
+    accept: nativeBitmapPickerAccept()
   }
 ];
 

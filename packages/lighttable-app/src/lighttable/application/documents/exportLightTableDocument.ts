@@ -21,6 +21,18 @@ import type { BasicAdjustments } from '../../types';
 
 export interface DocumentExportRenderer {
   exportPng(): Promise<Blob>;
+  exportRgba8?(): Promise<{
+    readonly pixels: Uint8Array | Uint8ClampedArray;
+    readonly width: number;
+    readonly height: number;
+    readonly storage: 'u8';
+  }>;
+  exportRgba16?(): Promise<{
+    readonly pixels: Uint16Array;
+    readonly width: number;
+    readonly height: number;
+    readonly storage: 'f16-display';
+  }>;
   exportLayerAssets(document: ImageDocument): Promise<DocumentAssetBlob[]>;
   exportPsdLayerAssets?(document: ImageDocument): Promise<DocumentAssetBlob[]>;
   getAdjustmentStack(): AdjustmentStack;

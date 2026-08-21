@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -7,7 +8,6 @@ import {
 } from 'react';
 import type { DocumentCommandHistory } from '../../application/commands/documentCommandHistory';
 import {
-  buildLightTableOutputName,
   exportLightTableDocument,
   type DocumentExportRenderer,
   type ExportedLightTableDocument,
@@ -33,6 +33,8 @@ import type { BasicAdjustments } from '../../types';
 import type { LightTableSaveResult } from '../../../platform/LightTableHost';
 import { executeDocumentSaveTransaction } from '../../application/documents/documentSaveTransaction';
 import { planSourceFormatSave } from '../../application/documents/planSourceFormatSave';
+import { WasmVipsEncoder } from '../../image-io/WasmVipsEncoder';
+import { nativeBitmapFormat, type NativeBitmapFormatId } from '../../image-io/nativeBitmapFormats';
 
 export interface DocumentFileCommandsOptions {
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
@@ -64,10 +66,9 @@ export interface DocumentFileCommandsOptions {
     file: File,
     recipe: LightTableRecipe | null,
     transaction: { readonly id: string; readonly documentId: string; readonly revision: number },
-    replaceSource?: { readonly path: string; readonly format: 'png' | 'jpeg' }
+    replaceSource?: { readonly path: string; readonly format: NativeBitmapFormatId }
   ) => Promise<LightTableSaveResult> | LightTableSaveResult;
   readonly onExportFile?: (file: File) => Promise<unknown> | unknown;
-  readonly requestPngArtifact?: () => Promise<File>;
   readonly getDocumentRevision?: () => number;
   readonly getIsDirty?: () => boolean;
   readonly commitSavedRevision?: (revision: number) => void;
@@ -90,6 +91,8 @@ export interface DocumentFileCommands {
   save(): Promise<void>;
   exportPng(): Promise<void>;
   exportJpeg(): Promise<void>;
+  exportWebp(): Promise<void>;
+  exportTiff(): Promise<void>;
   exportPsd(): Promise<void>;
   exportPsdMaximumAppearance(): Promise<void>;
   openLocalFile(
@@ -110,25 +113,10 @@ const downloadOutput = (file: File): void => {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
-const encodeJpegFromPng = async (png: Blob): Promise<Blob> => {
-  const bitmap = await createImageBitmap(png);
-  try {
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('JPEG export canvas is unavailable.');
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, bitmap.width, bitmap.height);
-    context.drawImage(bitmap, 0, 0);
-    return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
-  } finally {
-    bitmap.close();
-  }
-};
-
 type PreparedDocumentSave = {
   readonly file: File;
   readonly recipe: LightTableRecipe | null;
-  readonly replaceSource?: { readonly path: string; readonly format: 'png' | 'jpeg' };
+  readonly replaceSource?: { readonly path: string; readonly format: NativeBitmapFormatId };
 };
 
 /**
@@ -142,6 +130,11 @@ export const useDocumentFileCommands = (
 ): DocumentFileCommands => {
   const optionsRef = useRef(options);
   optionsRef.current = options;
+  const nativeBitmapEncoderRef = useRef<WasmVipsEncoder | null>(null);
+  useEffect(() => () => {
+    nativeBitmapEncoderRef.current?.destroy();
+    nativeBitmapEncoderRef.current = null;
+  }, []);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
 
@@ -232,8 +225,14 @@ export const useDocumentFileCommands = (
               documentAdjustments: current.getDocumentAdjustments()
             });
             if (plan.kind === 'replace-source') {
-              const png = await renderer.exportPng();
-              const blob = plan.format === 'jpeg' ? await encodeJpegFromPng(png) : png;
+              if (!renderer.exportRgba8 || (plan.bitDepth === 16 && !renderer.exportRgba16)) {
+                throw new Error('Native bitmap readback is unavailable in this renderer.');
+              }
+              const pixels = plan.bitDepth === 16
+                ? await renderer.exportRgba16!()
+                : await renderer.exportRgba8();
+              nativeBitmapEncoderRef.current ??= new WasmVipsEncoder();
+              const blob = await nativeBitmapEncoderRef.current.encode(pixels, plan.format, task.signal);
               return {
                 file: new File([blob], plan.sourceName, { type: plan.mediaType }),
                 recipe: null,
@@ -291,61 +290,47 @@ export const useDocumentFileCommands = (
     setSaving(false);
   }, [exportOutput]);
 
-  const exportPng = useCallback(async () => {
+  const exportNativeBitmap = useCallback(async (
+    format: NativeBitmapFormatId,
+    label: string,
+    extension: string
+  ) => {
     const current = optionsRef.current;
     current.setError(null);
-    if (current.requestPngArtifact) {
-      try {
-        const file = await current.requestPngArtifact();
-        if (current.onExportFile) await current.onExportFile(file);
-        else downloadOutput(file);
-      } catch (reason) {
-        current.setError(reason instanceof Error ? reason.message : 'LightTable export failed.');
-      }
-      return;
-    }
     const result = await current.taskRegistry.run(
       'export',
-      'Export PNG',
+      `Export ${label}`,
       async (task) => {
         const renderer = current.getRenderer();
-        if (!renderer || !current.hasMetadata) {
+        const document = current.getDocument();
+        if (!renderer || !document || !current.hasMetadata) {
           throw new Error('LightTable is not ready yet.');
         }
-        const file = new File(
-          [await renderer.exportPng()],
-          buildLightTableOutputName(current.fileNameBase),
-          { type: 'image/png' }
-        );
+        const definition = nativeBitmapFormat(format);
+        const bitDepth = document.colorSettings.bitDepth === 16
+          && definition.writableBitDepths.includes(16) ? 16 : 8;
+        if (!renderer.exportRgba8 || (bitDepth === 16 && !renderer.exportRgba16)) {
+          throw new Error('Native bitmap readback is unavailable in this renderer.');
+        }
+        const pixels = bitDepth === 16 ? await renderer.exportRgba16!() : await renderer.exportRgba8();
+        nativeBitmapEncoderRef.current ??= new WasmVipsEncoder();
+        const blob = await nativeBitmapEncoderRef.current.encode(pixels, format, task.signal);
         task.throwIfCanceled();
+        const base = current.fileNameBase.replace(/\.[^.]+$/, '') || 'image';
+        const file = new File([blob], `${base}-lighttable.${extension}`, { type: definition.mediaType });
         if (current.onExportFile) await current.onExportFile(file);
         else downloadOutput(file);
       }
     );
     if (result.status === 'failed') {
-      current.setError(result.error.message || 'LightTable export failed.');
+      current.setError(result.error.message || `${label} export failed.`);
     }
   }, []);
 
-  const exportJpeg = useCallback(async () => {
-    const current = optionsRef.current;
-    current.setError(null);
-    const result = await current.taskRegistry.run(
-      'export',
-      'Export JPEG',
-      async (task) => {
-        const renderer = current.getRenderer();
-        if (!renderer || !current.hasMetadata) throw new Error('LightTable is not ready yet.');
-        const blob = await encodeJpegFromPng(await renderer.exportPng());
-        task.throwIfCanceled();
-        const name = `${current.fileNameBase.replace(/\.[^.]+$/, '') || 'image'}-lighttable.jpg`;
-        const file = new File([blob], name, { type: 'image/jpeg' });
-        if (current.onExportFile) await current.onExportFile(file);
-        else downloadOutput(file);
-      }
-    );
-    if (result.status === 'failed') current.setError(result.error.message || 'JPEG export failed.');
-  }, []);
+  const exportPng = useCallback(() => exportNativeBitmap('png', 'PNG', 'png'), [exportNativeBitmap]);
+  const exportJpeg = useCallback(() => exportNativeBitmap('jpeg', 'JPEG', 'jpg'), [exportNativeBitmap]);
+  const exportWebp = useCallback(() => exportNativeBitmap('webp', 'WebP', 'webp'), [exportNativeBitmap]);
+  const exportTiff = useCallback(() => exportNativeBitmap('tiff', 'TIFF', 'tif'), [exportNativeBitmap]);
 
   const exportPsdWithIntent = useCallback(async (intent: PsdExportIntent) => {
     const current = optionsRef.current;
@@ -483,6 +468,8 @@ export const useDocumentFileCommands = (
     save,
     exportPng,
     exportJpeg,
+    exportWebp,
+    exportTiff,
     exportPsd,
     exportPsdMaximumAppearance,
     openLocalFile,

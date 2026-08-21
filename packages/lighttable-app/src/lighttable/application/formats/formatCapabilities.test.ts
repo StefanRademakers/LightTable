@@ -23,4 +23,12 @@ describe('format capability projection', () => {
       LIGHTTABLE_FORMAT_CAPABILITIES.find((format) => format.id === id)?.export
     ).toBe('unavailable'));
   });
+
+  it('reports native flat Save and export for WebP and TIFF', () => {
+    for (const id of ['webp', 'tiff']) {
+      const capability = LIGHTTABLE_FORMAT_CAPABILITIES.find((format) => format.id === id);
+      expect(capability?.export).toBe('supported');
+      expect(capability?.summary).toMatch(/native flat/i);
+    }
+  });
 });

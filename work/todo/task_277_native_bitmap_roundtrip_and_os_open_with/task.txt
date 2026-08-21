@@ -1,0 +1,85 @@
+Task 277 - Native bitmap roundtrip and OS Open With
+
+Status
+Active. Windows implementation and packaged verification are complete; macOS
+package metadata is present but runtime validation remains open.
+
+Goal
+JPEG/JPG, PNG, WebP and TIFF files can be opened directly from Explorer/Finder,
+edited as flat bitmap documents, and saved back in their original native format
+and bit depth whenever the current document remains exactly representable by
+that source format.
+
+Product contract
+- `Save` preserves the trusted source path, native format and source bit depth.
+- The gate depends on current representability, not edit history: flattening or
+  collapsing supported work may make the document eligible again.
+- Never silently change format, bit depth, profile capability or flatten live
+  document semantics. If native replacement is not safe, use the LightTable
+  document / Save As route and explain why.
+- JPEG replacement is lossy and must use an explicit, stable quality policy.
+- WebP quality/lossless mode and TIFF compression must be preserved when they
+  can be determined, or surfaced as an explicit save choice rather than guessed.
+- OS registration adds LightTable to Open With / supported application lists;
+  it must not silently seize the user's default application.
+
+Checklist
+- [x] Promote JPEG, PNG, WebP and TIFF into one shared source-format capability
+  registry used by picker filters, decode routing, native-save gating, encoder
+  selection and desktop association metadata.
+- [x] Prove header/content detection and fast/precision decode routing for all
+  four formats, including JPG/JPEG and TIF/TIFF aliases.
+- [x] Extend trusted atomic source replacement to all four formats without
+  weakening external-change, path, symlink or stale-revision guards.
+- [x] Preserve native bit depth for supported flat roundtrips; reject unsupported
+  combinations explicitly instead of down-converting silently.
+- [x] Implement deterministic native-Save policies: JPEG quality 92, lossless
+  WebP and deflate TIFF. Source codec-option preservation and general export
+  controls remain outside this native flat-Save slice.
+- [x] Queue cold-start file arguments before renderer readiness and route them
+  through the same application-owned open/hydrate flow as File > Open.
+- [x] Route warm-instance Explorer launches through one-instance handling and
+  support multiple valid file arguments without duplicate opens.
+- [x] Handle macOS `open-file` through the same queue and document lifecycle.
+- [x] Register/unregister all extension aliases through installer/package
+  metadata as Open With capabilities without replacing OS defaults.
+- [x] Add unit/contract tests for format capabilities, native-save gates,
+  launch argument parsing, queues and registration plans.
+- [x] Run decoder/encoder roundtrips on representative 8-bit files and the
+  supported high-bit TIFF/PNG cases, comparing dimensions, alpha, bit depth and
+  bounded pixel error.
+- [x] Route File > Export PNG/JPG/WebP/TIFF through the same raw WebGPU readback
+  and wasm-vips encoder path; keep internal PNG artifacts on their existing
+  bounded worker until that separate performance trade-off is evaluated.
+- [x] Build the packaged app and prove cold and warm OS-open behavior on Windows.
+- [ ] Keep macOS registration/runtime validation explicitly open until exercised
+  on a signed or representative macOS build.
+
+Windows verification evidence (2026-08-21)
+- Packaged native Save: JPEG, PNG, WebP and TIFF passed at 8-bit; PNG and TIFF
+  passed at 16-bit. Dimensions, format and decoded sample depth were checked by
+  Sharp after source replacement.
+- The original smoke appeared to report 30-second saves because a Playwright
+  missing-element lookup used its 30-second default timeout before checking the
+  file. The corrected poll measures the representative 8-bit PNG Save at 248 ms
+  from Ctrl+S through externally decoded replacement.
+- Packaged File > Export from one 16-bit document produced 16-bit PNG/TIFF and
+  8-bit JPEG/WebP through the shared native bitmap codec; all outputs retained
+  the expected 64 x 48 dimensions.
+- The ineligible layered PNG case used the LightTable Save As route and left the
+  original flat PNG byte-identical.
+- Packaged OS open: `cold.png`, `cold.jpg`, `cold.webp` and `cold.tif` opened in
+  one cold process; `warm.png` reached the same workspace through second-instance
+  handoff.
+- Real HKCU registration covered every extension alias and kept the existing PNG
+  `UserChoice` unchanged. Unregister removed LightTable values while unrelated
+  AppX/Krita/Chrome OpenWith entries remained.
+- Squirrel `--silent` deliberately does not launch the install lifecycle hook;
+  the real hook and installed versioned executable were therefore tested
+  directly. Ordinary interactive Squirrel install/update invokes that hook.
+
+Completion gate
+Do not move this task to done from typechecks or registry-plan tests alone. It
+requires a packaged Windows roundtrip for all four formats and evidence that an
+ineligible document cannot overwrite the original bitmap. Platform behavior not
+exercised on macOS remains an explicit qualification gap.

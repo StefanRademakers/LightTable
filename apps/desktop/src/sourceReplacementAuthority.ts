@@ -1,8 +1,14 @@
 import path from 'node:path';
+import {
+  isNativeBitmapFormatId,
+  nativeBitmapFormat,
+  nativeBitmapFormatForFile,
+  type NativeBitmapFormatId
+} from '@lighttable/app/bitmap-formats';
 
 export interface DesktopSourceReplacement {
   readonly path: string;
-  readonly format: 'png' | 'jpeg';
+  readonly format: NativeBitmapFormatId;
 }
 
 export interface SourceFileIdentity {
@@ -11,8 +17,7 @@ export interface SourceFileIdentity {
 }
 
 const extensionMatchesFormat = (filePath: string, format: DesktopSourceReplacement['format']) => {
-  const extension = path.extname(filePath).toLocaleLowerCase('en-US');
-  return format === 'png' ? extension === '.png' : extension === '.jpg' || extension === '.jpeg';
+  return nativeBitmapFormatForFile(filePath)?.id === nativeBitmapFormat(format).id;
 };
 
 const canonicalKey = (filePath: string) => {
@@ -48,7 +53,7 @@ export class SourceReplacementAuthority {
 
   resolve(request: DesktopSourceReplacement, currentIdentity: SourceFileIdentity): string {
     if (!request || typeof request.path !== 'string' || request.path.length > 32_768
-      || (request.format !== 'png' && request.format !== 'jpeg')) {
+      || !isNativeBitmapFormatId(request.format)) {
       throw new Error('Invalid source replacement request.');
     }
     const resolved = path.resolve(request.path);

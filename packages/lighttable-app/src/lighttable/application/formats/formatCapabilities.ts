@@ -20,7 +20,7 @@ export const LIGHTTABLE_FORMAT_CAPABILITIES: readonly FormatCapability[] = Objec
   {
     id: 'png', label: 'PNG', extensions: ['.png'],
     open: 'supported', editable: 'partial', export: 'supported',
-    summary: 'Still raster import and flattened 8-bit PNG export.'
+    summary: 'Still raster import, native flat 8/16-bit Save, and flattened 8-bit quick export.'
   },
   {
     id: 'jpeg', label: 'JPEG', extensions: ['.jpg', '.jpeg', '.jpe', '.jfif'],
@@ -29,13 +29,13 @@ export const LIGHTTABLE_FORMAT_CAPABILITIES: readonly FormatCapability[] = Objec
   },
   {
     id: 'webp', label: 'WebP', extensions: ['.webp'],
-    open: 'supported', editable: 'partial', export: 'unavailable',
-    summary: 'Still raster import; animation and WebP export are unavailable.'
+    open: 'supported', editable: 'partial', export: 'supported',
+    summary: 'Still raster import plus native flat Save and export as 8-bit lossless WebP; animation is unavailable.'
   },
   {
     id: 'tiff', label: 'TIFF / BigTIFF', extensions: ['.tif', '.tiff'],
-    open: 'supported', editable: 'partial', export: 'unavailable',
-    summary: 'Precision still-raster import; multipage TIFF and export are unavailable.'
+    open: 'supported', editable: 'partial', export: 'supported',
+    summary: 'Precision still-raster import plus native flat Save and export as 8/16-bit TIFF; multipage TIFF is unavailable.'
   },
   {
     id: 'psd', label: 'Photoshop PSD', extensions: ['.psd'],

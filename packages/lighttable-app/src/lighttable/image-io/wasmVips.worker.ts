@@ -4,6 +4,8 @@ import Vips from 'wasm-vips';
 import vipsWasmUrl from 'wasm-vips/vips.wasm?url';
 import type { AdvancedSourceImageDescriptor, DecodedPixelStorage } from './types';
 import type { WasmVipsWorkerRequest, WasmVipsWorkerResponse } from './wasmVipsProtocol';
+import { nativeBitmapFormat } from './nativeBitmapFormats';
+import { halfFloatToNormalizedU16 } from './halfFloatPixels';
 
 let vipsPromise: ReturnType<typeof Vips> | null = null;
 
@@ -114,15 +116,82 @@ const decode = async (
   }
 };
 
+const encode = async (
+  request: Extract<WasmVipsWorkerRequest, { kind: 'encode' }>
+): Promise<ArrayBuffer> => {
+  const { pixels, width, height, storage, format } = request;
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1) {
+    throw new Error('Bitmap encode dimensions are invalid.');
+  }
+  const definition = nativeBitmapFormat(format);
+  const bitDepth = storage === 'u8' ? 8 : 16;
+  if (!definition.writableBitDepths.includes(bitDepth)) {
+    throw new Error(`${definition.label} does not support ${bitDepth}-bit LightTable output.`);
+  }
+  const expectedBytes = width * height * 4 * (storage === 'u8' ? 1 : 2);
+  if (!Number.isSafeInteger(expectedBytes) || pixels.byteLength !== expectedBytes) {
+    throw new Error('Bitmap encode pixel length does not match its dimensions.');
+  }
+
+  const vips = await getVips();
+  const owned: Vips.Image[] = [];
+  const own = (image: Vips.Image) => { owned.push(image); return image; };
+  try {
+    const memory = storage === 'f16-display'
+      ? halfFloatToNormalizedU16(new Uint16Array(pixels))
+      : storage === 'u16' ? new Uint16Array(pixels) : new Uint8Array(pixels);
+    const source = own(vips.Image.newFromMemory(
+      memory, width, height, 4, bitDepth === 16 ? vips.BandFormat.ushort : vips.BandFormat.uchar
+    ));
+    const interpreted = own(source.copy({ interpretation: vips.Interpretation.srgb }));
+    let bytes: Uint8Array;
+    switch (format) {
+      case 'jpeg': {
+        const flattened = own(interpreted.flatten({ background: [255, 255, 255] }));
+        bytes = flattened.jpegsaveBuffer({
+          Q: 92,
+          optimize_coding: true,
+          interlace: false,
+          subsample_mode: vips.ForeignSubsample.auto
+        });
+        break;
+      }
+      case 'png':
+        bytes = interpreted.pngsaveBuffer({ compression: 6, bitdepth: bitDepth });
+        break;
+      case 'webp':
+        // Native editing defaults to lossless WebP so Save does not introduce
+        // another lossy generation. Export UI may offer lossy quality later.
+        bytes = interpreted.webpsaveBuffer({ lossless: true, Q: 100, effort: 0 });
+        break;
+      case 'tiff':
+        bytes = interpreted.tiffsaveBuffer({
+          compression: vips.ForeignTiffCompression.deflate,
+          predictor: vips.ForeignTiffPredictor.horizontal,
+          level: 6
+        });
+        break;
+    }
+    return copyBuffer(bytes);
+  } finally {
+    for (let index = owned.length - 1; index >= 0; index -= 1) owned[index].delete();
+  }
+};
+
 self.onmessage = async ({ data }: MessageEvent<WasmVipsWorkerRequest>) => {
-  if (data.kind !== 'decode') return;
   let response: WasmVipsWorkerResponse;
   try {
-    const result = await decode(data.bytes, data.contentType);
-    response = { kind: 'decoded', requestId: data.requestId, ...result };
-    const transfer = [result.pixels];
-    if (result.descriptor.iccProfile) transfer.push(result.descriptor.iccProfile);
-    self.postMessage(response, { transfer });
+    if (data.kind === 'encode') {
+      const bytes = await encode(data);
+      response = { kind: 'encoded', requestId: data.requestId, bytes };
+      self.postMessage(response, { transfer: [bytes] });
+    } else {
+      const result = await decode(data.bytes, data.contentType);
+      response = { kind: 'decoded', requestId: data.requestId, ...result };
+      const transfer = [result.pixels];
+      if (result.descriptor.iccProfile) transfer.push(result.descriptor.iccProfile);
+      self.postMessage(response, { transfer });
+    }
   } catch (error) {
     response = {
       kind: 'error',

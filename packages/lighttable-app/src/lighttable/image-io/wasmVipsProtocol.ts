@@ -1,4 +1,5 @@
 import type { AdvancedSourceImageDescriptor } from './types';
+import type { NativeBitmapFormatId } from './nativeBitmapFormats';
 
 export interface WasmVipsDecodeRequest {
   kind: 'decode';
@@ -20,5 +21,24 @@ export interface WasmVipsDecodeFailure {
   message: string;
 }
 
-export type WasmVipsWorkerRequest = WasmVipsDecodeRequest;
-export type WasmVipsWorkerResponse = WasmVipsDecodeSuccess | WasmVipsDecodeFailure;
+export interface WasmVipsEncodeRequest {
+  kind: 'encode';
+  requestId: number;
+  pixels: ArrayBuffer;
+  width: number;
+  height: number;
+  storage: 'u8' | 'u16' | 'f16-display';
+  format: NativeBitmapFormatId;
+}
+
+export interface WasmVipsEncodeSuccess {
+  kind: 'encoded';
+  requestId: number;
+  bytes: ArrayBuffer;
+}
+
+export type WasmVipsWorkerRequest = WasmVipsDecodeRequest | WasmVipsEncodeRequest;
+export type WasmVipsWorkerResponse =
+  | WasmVipsDecodeSuccess
+  | WasmVipsEncodeSuccess
+  | WasmVipsDecodeFailure;

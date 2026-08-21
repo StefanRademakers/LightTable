@@ -81,7 +81,9 @@ const browserTransport: LightTableImageClipboardTransport = {
     }
     const items = await navigator.clipboard.read();
     for (const item of items) {
-      const type = item.types.find((candidate) => candidate.startsWith('image/'));
+      const type = ['image/png', 'image/webp', 'image/gif', 'image/avif']
+        .find((candidate) => item.types.includes(candidate))
+        ?? item.types.find((candidate) => candidate.startsWith('image/'));
       if (type) return item.getType(type);
     }
     return null;

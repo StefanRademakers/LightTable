@@ -278,6 +278,9 @@ export function LightTableStandaloneApp({
     Object.values(documentThumbnailUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
     Object.values(documentSourcePreviewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
   }, []);
+  useEffect(() => host.subscribeOpenFiles?.((files) => {
+    for (const file of files) openDocument(file, 'automatic');
+  }), [host, openDocument]);
   useEffect(() => {
     setDocumentSourcePreviewUrls((current) => {
       const openIds = new Set(documents.map(({ id }) => id));
@@ -831,6 +834,9 @@ export function LightTableStandaloneApp({
     };
     return (
       <main className={`lighttable-launcher${fileDrop.active ? ' lighttable-launcher--drop-active' : ''}`}>
+        <div className="lighttable-launcher__window-titlebar" aria-hidden="true">
+          <span className="lighttable__window-icon" />
+        </div>
         <input ref={launcherFileInputRef} type="file" accept={imagePickerAccept('automatic')} hidden
           onChange={(event) => {
             const file = event.currentTarget.files?.[0] ?? null;

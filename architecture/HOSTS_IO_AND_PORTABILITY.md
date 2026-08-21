@@ -59,15 +59,21 @@ including future 3D, AI and LightTable-specific GPU workflows.
   must report the actual result.
 - Host cancellation is a normal result, not an application error.
 
-On desktop, ordinary Save replaces an opened PNG or JPEG in its original
-format only when the current model is exactly representable as one neutral,
-full-canvas 8-bit raster. This is a current-state capability gate, not an edit-
-history rule: live Grade/Lens Fx, adjustment nodes, masks, effects, transforms,
-extra layers or retained document-only assets select the LightTable document
-writer; Flatten Image bakes those semantics and can make the source-format gate
-eligible again. JPEG replacement is necessarily lossy. TIFF, WebP, PSD and
-precision-preserving source replacement remain unavailable until their writers
-meet the same explicit capability contract.
+On desktop, ordinary Save replaces an opened JPEG, PNG, WebP or TIFF in its
+original format only when the current model is exactly representable as one
+neutral full-canvas raster. JPEG and WebP replacement is 8-bit; PNG and TIFF
+replacement supports 8-bit and 16-bit document output. This is a current-state
+capability gate, not an edit-history rule: live Grade/Lens Fx, adjustment nodes,
+masks, effects, transforms, extra layers or retained document-only assets select
+the LightTable document writer. Flatten Image bakes those semantics and can make
+the source-format gate eligible again.
+
+Native flat Save uses explicit deterministic encodings: JPEG quality 92 on a
+white background, lossless WebP, PNG compression level 6, and deflate TIFF with
+a horizontal predictor. File > Export uses the same codec policies for its PNG,
+JPEG, WebP and TIFF outputs. These are Save/export policies, not claims that
+source codec settings or arbitrary metadata round-trip. User-facing quality,
+compression, metadata and animation controls remain separate future work.
 
 The renderer may request source replacement only for the exact path returned
 by a trusted desktop open operation. The main process bounds that authority,
@@ -75,6 +81,13 @@ checks that path and format agree, refuses replacement after an external file
 change, and publishes bytes through the normal atomic writer. Web and hosted
 files continue through Save As/download because they do not own a replaceable
 filesystem target.
+
+Packaged desktop builds register JPEG/JPG, PNG, WebP and TIFF/TIF as supported
+Open With types. Windows registration uses per-user capabilities and ProgIDs
+without replacing `UserChoice`; Squirrel install/update registers them and
+uninstall removes only LightTable-owned keys and values. Cold process arguments,
+warm second-instance arguments and macOS `open-file` events enter the same
+bounded launch-file queue and application open flow.
 
 ## Clipboard
 

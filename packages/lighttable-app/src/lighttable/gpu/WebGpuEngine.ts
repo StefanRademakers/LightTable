@@ -89,10 +89,15 @@ import {
   subscribeSharedWebGpuDeviceLost
 } from './sharedWebGpuDevice';
 import { getCorePipelineBundle } from './corePipelineLibrary';
-import { DOCUMENT_THUMBNAIL_WGSL, FULLSCREEN_VERTEX_WGSL } from './shaders';
+import { DISPLAY_RESOLVE_WGSL, DOCUMENT_THUMBNAIL_WGSL, FULLSCREEN_VERTEX_WGSL } from './shaders';
 import type { DocumentPixelRegion } from '../editor/geometry/documentRegionPreview';
 import { DocumentCoreGpuResources } from './documentCoreGpuResources';
-import { encodeRgba8Png, readRgba8Texture, readRgba8TexturePixel } from './gpuReadback';
+import {
+  encodeRgba8Png,
+  readRgba16FloatTexture,
+  readRgba8Texture,
+  readRgba8TexturePixel
+} from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
 import { AdjustmentLayerRenderer } from './adjustmentLayerRenderer';
@@ -265,6 +270,7 @@ export class WebGpuEngine {
   private layerEffectRenderer: LayerEffectRenderer | null = null;
   private layerProcessingRenderer: LayerProcessingRenderer | null = null;
   private displayResolvePipeline: GPURenderPipeline | null = null;
+  private precisionExportPipeline: GPURenderPipeline | null = null;
   private displayToLinearPipeline: GPURenderPipeline | null = null;
   private blitPipeline: GPURenderPipeline | null = null;
   private thumbnailPipeline: GPURenderPipeline | null = null;
@@ -2852,6 +2858,70 @@ export class WebGpuEngine {
   }
 
   async exportPng(options: WebGpuPngExportOptions = {}) {
+    await this.prepareDocumentExport();
+    const excludedLayerIds = new Set(options.excludedLayerIds ?? []);
+    if (excludedLayerIds.size > 0) {
+      return this.exportPngWithLayerExclusions(excludedLayerIds);
+    }
+    const output = await this.exportRgba8Prepared();
+    return encodeRgba8Png(output.pixels, output.width, output.height);
+  }
+
+  /** Raw display-encoded composite for dedicated image codecs; no canvas encoding. */
+  async exportRgba8() {
+    await this.prepareDocumentExport();
+    return this.exportRgba8Prepared();
+  }
+
+  /** Reads the final display-encoded composite before its 8-bit viewport resolve. */
+  async exportRgba16() {
+    await this.prepareDocumentExport();
+    if (!this.metadata || !this.displayPostTexture) {
+      throw new Error('No high-precision processed image is available for export.');
+    }
+    if (!this.precisionExportPipeline) {
+      const vertex = this.device.createShaderModule({
+        label: 'LightTable precision export vertex shader', code: FULLSCREEN_VERTEX_WGSL
+      });
+      const fragment = this.device.createShaderModule({
+        label: 'LightTable precision export fragment shader',
+        code: `${FULLSCREEN_VERTEX_WGSL}\n${DISPLAY_RESOLVE_WGSL}`
+      });
+      this.precisionExportPipeline = this.device.createRenderPipeline({
+        label: 'LightTable precision bitmap export', layout: 'auto',
+        vertex: { module: vertex, entryPoint: 'fullscreenVertex' },
+        fragment: { module: fragment, entryPoint: 'main', targets: [{ format: 'rgba16float' }] },
+        primitive: { topology: 'triangle-list' }
+      });
+    }
+    const texture = this.device.createTexture({
+      label: 'LightTable precision bitmap export result',
+      size: [this.metadata.width, this.metadata.height],
+      format: 'rgba16float',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+    });
+    try {
+      const bindGroup = this.device.createBindGroup({
+        layout: this.precisionExportPipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: this.displayPostTexture.createView() }]
+      });
+      const encoder = this.device.createCommandEncoder({ label: 'LightTable precision bitmap export' });
+      this.drawFullscreenPass(encoder, this.precisionExportPipeline, bindGroup, texture.createView());
+      this.device.queue.submit([encoder.finish()]);
+      const pixels = await readRgba16FloatTexture(
+        this.device, texture, this.metadata.width, this.metadata.height,
+        'LightTable precision bitmap export readback'
+      );
+      return {
+        pixels, width: this.metadata.width, height: this.metadata.height,
+        storage: 'f16-display' as const
+      };
+    } finally {
+      texture.destroy();
+    }
+  }
+
+  private async prepareDocumentExport() {
     if (!this.metadata || !this.imageResources.finalTexture) throw new Error('No processed image is available for export.');
     if (this.documentRenderer && !await this.documentRenderer.waitForTextSourcesForExport()) throw new Error('Text sources changed or could not be prepared for export.');
     const coreAssetsReady = this.coreResources
@@ -2865,12 +2935,12 @@ export class WebGpuEngine {
     this.settleInteractiveRenderQuality();
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
+  }
 
-    const excludedLayerIds = new Set(options.excludedLayerIds ?? []);
-    if (excludedLayerIds.size > 0) {
-      return this.exportPngWithLayerExclusions(excludedLayerIds);
+  private async exportRgba8Prepared() {
+    if (!this.metadata || !this.imageResources.finalTexture) {
+      throw new Error('No processed image is available for export.');
     }
-
     const pixels = await readRgba8Texture(
       this.device,
       this.imageResources.finalTexture,
@@ -2878,7 +2948,7 @@ export class WebGpuEngine {
       this.metadata.height,
       'LightTable PNG export readback'
     );
-    return encodeRgba8Png(pixels, this.metadata.width, this.metadata.height);
+    return { pixels, width: this.metadata.width, height: this.metadata.height, storage: 'u8' as const };
   }
 
   /**

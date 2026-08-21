@@ -9,7 +9,6 @@ import type {
   LightTablePreviewEncoding
 } from './application/commands/lightTableCommandContract';
 import { commandDocumentTarget } from './application/commands/commandRequestScope';
-import { resolveAcceptedCommandArtifact } from './application/commands/resolveAcceptedCommandArtifact';
 import type { DocumentPixelRegion } from './editor/geometry/documentRegionPreview';
 import {
   automationPaintOperatorFromPlan,
@@ -356,6 +355,7 @@ import { parseCubeLut } from './processing/colorLookupCube';
 import {
   imagePickerAccept
 } from './image-io/supportedImageFormats';
+import type { NativeBitmapFormatId } from './image-io/nativeBitmapFormats';
 import type { PsdDecodeSuccess } from './image-io/psdProtocol';
 import type { PsdImportCompatibilityEntry } from './editor/psd/psdDocumentAdapter';
 import { PaintGestureController } from './editor/tools/paint/paintGestureController';
@@ -496,7 +496,7 @@ export interface LightTableEditorOverlayProps {
     file: File,
     recipe: LightTableRecipe | null,
     transaction: { readonly id: string; readonly documentId: string; readonly revision: number },
-    replaceSource?: { readonly path: string; readonly format: 'png' | 'jpeg' }
+    replaceSource?: { readonly path: string; readonly format: NativeBitmapFormatId }
   ) => Promise<LightTableSaveResult> | LightTableSaveResult;
   onExportFile?: (file: File) => Promise<unknown> | unknown;
   workspaceDocumentId?: string;
@@ -4632,6 +4632,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return true;
   }, [executeRegisteredCommand, mergeSelectedLayers]);
   const mergeSelectionOrActiveDown = useCallback(() => {
+    if (transformActiveRef.current()) commitTransformRef.current();
     const selectedLayerIds = selectedLayerIdsRef.current;
     if (selectedLayerIds.length > 1) return mergeLayersCommand(selectedLayerIds);
     const document = imageDocumentRef.current;
@@ -5783,25 +5784,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     });
   };
 
-  const requestPngArtifact = useCallback(async () => {
-    if (!commandService) throw new Error('The LightTable command service is unavailable.');
-    const execution = executeRegisteredCommand('file.exportPng', {});
-    if (!execution) throw new Error('PNG export is unavailable.');
-    const result = await execution;
-    const resolved = await resolveAcceptedCommandArtifact(
-      commandService,
-      workspaceDocumentId as DocumentSessionId,
-      result
-    );
-    return resolved.file;
-  }, [commandService, executeRegisteredCommand, workspaceDocumentId]);
-
   const {
     saving,
     exportOutput,
     save: handleSave,
     exportPng: handleExportPng,
     exportJpeg: handleExportJpeg,
+    exportWebp: handleExportWebp,
+    exportTiff: handleExportTiff,
     exportPsd: handleExportPsd,
     exportPsdMaximumAppearance: handleExportPsdMaximumAppearance,
     handleFastFileInput: handleLocalFile,
@@ -5819,7 +5809,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     hasMetadata: Boolean(metadata),
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
-    requestPngArtifact: commandService ? requestPngArtifact : undefined,
     getFlatAdjustments: () => adjustmentsRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
     getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
@@ -5943,6 +5932,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
       exportJpeg: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportJpeg(); },
+      exportWebp: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportWebp(); },
+      exportTiff: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportTiff(); },
       exportPsd: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsd(); },
       exportPsdMaximumAppearance: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsdMaximumAppearance(); },
       openFormatSupport: editorDialogs.openFormatSupport,
@@ -7228,6 +7219,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           <LightTableDockWorkspace
             ref={workspaceRef}
             canvasOnly={screenMode === 'canvas-only'}
+            persistenceEnabled={active}
             status={{
               status: error ?? gradeStatus ?? fontDiagnosticStatus,
               error: Boolean(error),

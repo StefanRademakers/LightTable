@@ -8,6 +8,9 @@ const path = require('node:path');
 
 const localAiProviderPath = path.resolve(__dirname, '../local-ai-provider');
 const localAiRuntimePath = path.resolve(__dirname, '../../.referenceCode/local-ai-runtime');
+const iconRoot = path.resolve(__dirname, '../../icon');
+const windowsIconPath = path.join(iconRoot, 'logo_emblem_ico.ico');
+const portableIconPath = path.join(iconRoot, 'logo_emblem.png');
 const localAiResources = [localAiProviderPath];
 if (fs.existsSync(localAiRuntimePath)) localAiResources.push(localAiRuntimePath);
 
@@ -45,20 +48,32 @@ module.exports = {
     // also inspects app.asar so a future packaging change cannot ship it.
     asar: true,
     executableName: 'LightTable',
+    icon: process.platform === 'win32' ? windowsIconPath : portableIconPath,
     appBundleId: 'com.mediavibe.lighttable',
     appCategoryType: 'public.app-category.graphics-design',
+    extendInfo: {
+      CFBundleDocumentTypes: [
+        {
+          CFBundleTypeName: 'LightTable bitmap image',
+          CFBundleTypeRole: 'Editor',
+          LSHandlerRank: 'Alternate',
+          CFBundleTypeExtensions: ['jpg', 'jpeg', 'jpe', 'jfif', 'png', 'webp', 'tif', 'tiff'],
+          LSItemContentTypes: ['public.jpeg', 'public.png', 'org.webmproject.webp', 'public.tiff']
+        }
+      ]
+    },
     appCopyright: 'Copyright (c) Mediavibe Holding B.V.',
     // The provider service is an independent loopback process, not renderer or
     // MCP code. Models remain replaceable user data and are installed outside
     // the application bundle; the small native runtime is included when a
     // platform build has staged it in .referenceCode/local-ai-runtime.
-    extraResource: localAiResources,
+    extraResource: [...localAiResources, windowsIconPath, portableIconPath],
     osxSign: macSign,
     osxNotarize: macNotarize
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({ name: 'LightTable' }),
+    new MakerSquirrel({ name: 'LightTable', setupIcon: windowsIconPath }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({}),
     new MakerDeb({})

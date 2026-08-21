@@ -95,6 +95,39 @@ export const readRgba8Texture = async (
   }
 };
 
+/** Reads raw IEEE-754 half-float RGBA words without quantizing the display result. */
+export const readRgba16FloatTexture = async (
+  device: GPUDevice,
+  texture: GPUTexture,
+  width: number,
+  height: number,
+  label = 'LightTable RGBA16F texture readback'
+) => {
+  const bytesPerPixel = 8;
+  const tightBytesPerRow = width * bytesPerPixel;
+  const bytesPerRow = alignGpuBytesPerRow(tightBytesPerRow);
+  const readBuffer = device.createBuffer({
+    label, size: bytesPerRow * height,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+  });
+  try {
+    const encoder = device.createCommandEncoder({ label });
+    encoder.copyTextureToBuffer(
+      { texture }, { buffer: readBuffer, bytesPerRow, rowsPerImage: height }, [width, height]
+    );
+    device.queue.submit([encoder.finish()]);
+    const mapped = new Uint8Array(await mapGpuBufferCopy(readBuffer));
+    const tight = new Uint8Array(tightBytesPerRow * height);
+    for (let row = 0; row < height; row += 1) {
+      tight.set(mapped.subarray(row * bytesPerRow, row * bytesPerRow + tightBytesPerRow), row * tightBytesPerRow);
+    }
+    return new Uint16Array(tight.buffer);
+  } finally {
+    if (readBuffer.mapState === 'mapped') readBuffer.unmap();
+    readBuffer.destroy();
+  }
+};
+
 export const readR8Texture = async (
   device: GPUDevice,
   texture: GPUTexture,

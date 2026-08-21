@@ -2,8 +2,13 @@ import { isIdentityAffineMatrix } from '@lighttable/vector-core';
 import type { ImageDocument, RasterLayer } from '../../editor/document/documentTypes';
 import type { BasicAdjustments } from '../../types';
 import { createDefaultAdjustments } from '../../types';
+import {
+  nativeBitmapFormat,
+  nativeBitmapFormatForFile,
+  type NativeBitmapFormatId
+} from '../../image-io/nativeBitmapFormats';
 
-export type SourceFormatSaveKind = 'png' | 'jpeg';
+export type SourceFormatSaveKind = NativeBitmapFormatId;
 
 export type SourceFormatSaveBlocker =
   | 'no-replaceable-source'
@@ -20,7 +25,8 @@ export type SourceFormatSavePlan =
       readonly format: SourceFormatSaveKind;
       readonly sourcePath: string;
       readonly sourceName: string;
-      readonly mediaType: 'image/png' | 'image/jpeg';
+      readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/tiff';
+      readonly bitDepth: 8 | 16;
     }
   | {
       readonly kind: 'lighttable-document';
@@ -41,11 +47,7 @@ export interface PlanSourceFormatSaveOptions {
 }
 
 const sourceFormat = (source: SourceFormatSaveSource): SourceFormatSaveKind | null => {
-  const extension = /\.([^.]+)$/.exec(source.name)?.[1]?.toLocaleLowerCase('en-US');
-  if (extension === 'png' && (!source.type || source.type === 'image/png')) return 'png';
-  if ((extension === 'jpg' || extension === 'jpeg')
-    && (!source.type || source.type === 'image/jpeg')) return 'jpeg';
-  return null;
+  return nativeBitmapFormatForFile(source.name, source.type)?.id ?? null;
 };
 
 const adjustmentsAreNeutral = (adjustments: BasicAdjustments): boolean =>
@@ -90,7 +92,11 @@ export const planSourceFormatSave = ({
   if (!source?.sourcePath) blockers.push('no-replaceable-source');
   const format = source ? sourceFormat(source) : null;
   if (!format) blockers.push('unsupported-source-format');
-  if (document.colorSettings.bitDepth !== 8) blockers.push('unsupported-bit-depth');
+  if (format && !nativeBitmapFormat(format).writableBitDepths.includes(
+    document.colorSettings.bitDepth as 8 | 16
+  )) {
+    blockers.push('unsupported-bit-depth');
+  }
 
   const layer = document.layers.length === 1 && document.layers[0]?.type === 'raster'
     ? document.layers[0]
@@ -105,7 +111,6 @@ export const planSourceFormatSave = ({
     || document.assets.patterns.length > 0
     || document.assets.colorLookups.length > 0
     || document.assets.preservedSources.length > 0
-    || document.assets.fonts.length > 0
   ) blockers.push('document-metadata');
 
   if (!adjustmentsAreNeutral(flatAdjustments) || !adjustmentsAreNeutral(documentAdjustments)) {
@@ -120,6 +125,7 @@ export const planSourceFormatSave = ({
     format,
     sourcePath: source.sourcePath,
     sourceName: source.name,
-    mediaType: format === 'png' ? 'image/png' : 'image/jpeg'
+    mediaType: nativeBitmapFormat(format).mediaType,
+    bitDepth: document.colorSettings.bitDepth as 8 | 16
   };
 };

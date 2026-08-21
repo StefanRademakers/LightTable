@@ -19,6 +19,7 @@ import type {
   GenAiHostPort,
   GenAiProviderSnapshot
 } from '@lighttable/genai-core';
+import type { NativeBitmapFormatId } from '../lighttable/image-io/nativeBitmapFormats';
 
 export interface LightTableMediaItem {
   id: string;
@@ -41,7 +42,7 @@ export interface LightTableSaveRequest {
   /** Replace only the exact desktop source previously authorized by an open operation. */
   replaceSource?: {
     readonly path: string;
-    readonly format: 'png' | 'jpeg';
+    readonly format: NativeBitmapFormatId;
   };
   projectManifestPath?: string;
   transaction?: {
@@ -284,6 +285,8 @@ export interface LightTableHost {
   };
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;
+  /** Delivers cold/warm OS Open With requests through the normal document path. */
+  subscribeOpenFiles?(listener: (files: readonly File[]) => void): () => void;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;
   loadRecentFileThumbnail?(id: string): Promise<string | null>;
   openRecentFile?(id: string): Promise<File | null>;

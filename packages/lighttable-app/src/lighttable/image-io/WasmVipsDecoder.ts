@@ -69,12 +69,14 @@ export class WasmVipsDecoder {
       this.pending.delete(data.requestId);
       if (data.kind === 'error') {
         pending.reject(new Error(data.message));
-      } else {
+      } else if (data.kind === 'decoded') {
         pending.resolve({
           kind: 'advanced-pixels',
           pixels: data.pixels,
           descriptor: data.descriptor
         });
+      } else {
+        pending.reject(new Error('The image codec returned an encode result for a decode request.'));
       }
     };
     worker.onerror = (event) => {

@@ -33,6 +33,7 @@ import type {
   GenAiWorkflowDefinition
 } from '@lighttable/genai-core';
 import type { LocalAiModelStatus } from './genai/localAiModelManager';
+import type { NativeBitmapFormatId } from '@lighttable/app/bitmap-formats';
 
 export interface DesktopFilePayload {
   name: string;
@@ -46,7 +47,7 @@ export interface DesktopSavePayload {
   bytes: Uint8Array;
   replaceSource?: {
     readonly path: string;
-    readonly format: 'png' | 'jpeg';
+    readonly format: NativeBitmapFormatId;
   };
   projectManifestPath?: string;
   transaction?: {
@@ -136,9 +137,17 @@ export interface DesktopSystemFontAsset {
   }[];
 }
 
+export interface DesktopClipboardImagePayload {
+  readonly bytes: Uint8Array;
+  readonly mediaType: 'image/png' | 'image/webp' | 'image/gif' | 'image/avif';
+  readonly sourceFormat: string;
+}
+
 export interface LightTableDesktopBridge {
   readonly automationEnabled: boolean;
   openFile(): Promise<DesktopFilePayload | null>;
+  takeLaunchFiles(): Promise<readonly DesktopFilePayload[]>;
+  onLaunchFilesAvailable(listener: () => void): () => void;
   listRecentFiles(): Promise<readonly DesktopRecentFile[]>;
   loadRecentFileThumbnail(id: string): Promise<string | null>;
   openRecentFile(id: string): Promise<DesktopFilePayload | null>;
@@ -182,7 +191,7 @@ export interface LightTableDesktopBridge {
   resetRecoveryLocation(): Promise<LightTableRecoveryLocation>;
   applyRecoveryLocation(path?: string): Promise<LightTableRecoveryLocation>;
   writeClipboardPng(bytes: Uint8Array): Promise<void>;
-  readClipboardPng(): Promise<Uint8Array | null>;
+  readClipboardImage(): Promise<DesktopClipboardImagePayload | null>;
   listSystemFonts(): Promise<readonly DesktopSystemFontAsset[]>;
   loadSystemFont(assetId: string): Promise<Uint8Array | null>;
   releaseInfo(): Promise<LightTableReleaseInfo>;
