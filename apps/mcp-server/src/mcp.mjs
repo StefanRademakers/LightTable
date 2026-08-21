@@ -356,7 +356,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
           fill: { enabled: true, color: '#f3ecff' } } } },
       { operationId: 'title-shadow', command: 'layer.effect.add', parameters: {
         layerId: { resultOf: 'title', field: 'layerId' }, effectKind: 'drop-shadow',
-        settings: { enabled: true, opacity: 0.55, distance: 30, size: 30, angleDegrees: 135 } } }
+        settings: { enabled: true, opacity: 0.55, distance: 30, size: 30, angle: 135 } } }
     ];
     const batch = await awaitCommand(client, { documentId, command: 'command.batch', commandRequestId: crypto.randomUUID(),
       commandParameters: { name, timeoutMs: 10_000, operations } });

@@ -34,10 +34,12 @@ if (mcpPort === devicePort) throw new Error('MCP and device ports must differ.')
 const sourceArgument = argument('file', null);
 const source = sourceArgument ? path.resolve(sourceArgument) : null;
 const probe = flag('probe');
+const fullProbe = flag('a-z');
+if (fullProbe && !probe) throw new Error('--a-z requires --probe.');
 const mcpOrigin = `http://127.0.0.1:${mcpPort}`;
 const deviceOrigin = `https://localhost:${devicePort}`;
-const oauthPairingCode = `CODEX-${randomBytes(8).toString('base64url')}`;
-const devicePairingCode = `DEVICE-${randomBytes(8).toString('base64url')}`;
+const oauthPairingCode = `CODEX-${randomBytes(8).toString('hex').toUpperCase()}`;
+const devicePairingCode = `DEVICE-${randomBytes(8).toString('hex').toUpperCase()}`;
 const evidenceDirectory = path.join(workspace, 'tmp', 'local-codex-mcp');
 await mkdir(evidenceDirectory, { recursive: true });
 const sessionDirectory = await mkdtemp(path.join(evidenceDirectory, 'profile-'));
@@ -250,6 +252,125 @@ if (probe) {
   if (edited.isError || edited.structuredContent?.value?.viewport?.scale !== 1.1) {
     throw new Error('Edit-approved local MCP command did not reach the viewport owner.');
   }
+  let artistFlow;
+  if (fullProbe) {
+    const built = await mcpClient.callTool({ name: 'lighttable_build_social_design', arguments: {
+      name: 'Local Codex A-Z', title: 'MCP A-Z',
+      body: 'Editable text, vector geometry, effects and revision-bound correction.'
+    } });
+    if (built.isError || !built.structuredContent?.documentId) {
+      throw new Error(`Local MCP A-Z could not build an editable design: ${JSON.stringify(built)}`);
+    }
+    const designDocumentId = built.structuredContent.documentId;
+    const beforeDocument = await mcpClient.callTool({ name: 'lighttable_document', arguments: {
+      documentId: designDocumentId
+    } });
+    const beforeRevision = beforeDocument.structuredContent?.canonicalRevision;
+    if (!Number.isInteger(beforeRevision)) throw new Error('Local MCP A-Z design has no canonical revision.');
+    const beforeLayers = await mcpClient.callTool({ name: 'lighttable_layers', arguments: {
+      documentId: designDocumentId
+    } });
+    const layers = beforeLayers.structuredContent?.layers ?? [];
+    const titleLayer = layers.find((layer) => layer.type === 'text' && layer.name === 'MCP A-Z');
+    if (!titleLayer?.id || !layers.some((layer) => layer.type === 'vector')) {
+      throw new Error(`Local MCP A-Z did not retain editable text/vector layers: ${JSON.stringify(layers)}`);
+    }
+    const beforePreview = await mcpClient.callTool({ name: 'lighttable_preview', arguments: {
+      documentId: designDocumentId, expectedDocumentRevision: beforeRevision,
+      maxEdge: 512, format: 'webp', quality: 0.8
+    } });
+    const beforeImage = beforePreview.content?.find(({ type, data }) => type === 'image' && data)?.data;
+    if (!beforeImage) throw new Error('Local MCP A-Z returned no pre-correction preview.');
+
+    const invalidSchema = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+      documentId: designDocumentId, command: 'layer.rename', parameters: { layerId: titleLayer.id }
+    } });
+    if (!invalidSchema.isError) throw new Error('Local MCP A-Z admitted an invalid command schema.');
+    const missingTarget = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+      documentId: designDocumentId, command: 'layer.rename',
+      parameters: { layerId: 'missing-layer', name: 'Must fail' }
+    } });
+    if (!missingTarget.isError && missingTarget.structuredContent?.status !== 'rejected') {
+      throw new Error(`Local MCP A-Z admitted a missing layer target: ${JSON.stringify(missingTarget)}`);
+    }
+
+    const corrected = await mcpClient.callTool({ name: 'lighttable_edit_text', arguments: {
+      documentId: designDocumentId, layerId: titleLayer.id, operation: 'replace',
+      start: 0, end: 7, text: 'MCP A-Z VERIFIED', expectedDocumentRevision: beforeRevision
+    } });
+    if (corrected.isError) throw new Error(`Local MCP A-Z correction failed: ${JSON.stringify(corrected)}`);
+    const afterDocument = await mcpClient.callTool({ name: 'lighttable_document', arguments: {
+      documentId: designDocumentId
+    } });
+    const afterRevision = afterDocument.structuredContent?.canonicalRevision;
+    if (!Number.isInteger(afterRevision) || afterRevision <= beforeRevision) {
+      throw new Error('Local MCP A-Z correction did not advance the canonical revision.');
+    }
+    const stale = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+      documentId: designDocumentId, command: 'layer.rename', expectedDocumentRevision: beforeRevision,
+      parameters: { layerId: titleLayer.id, name: 'Stale write' }
+    } });
+    if (!stale.isError && stale.structuredContent?.status !== 'rejected') {
+      throw new Error(`Local MCP A-Z admitted a stale revision write: ${JSON.stringify(stale)}`);
+    }
+    const textState = await mcpClient.callTool({ name: 'lighttable_text', arguments: {
+      documentId: designDocumentId, layerId: titleLayer.id
+    } });
+    if (textState.structuredContent?.content?.text !== 'MCP A-Z VERIFIED') {
+      throw new Error(`Local MCP A-Z correction was not independently queryable: ${JSON.stringify(textState)}`);
+    }
+    const afterPreview = await mcpClient.callTool({ name: 'lighttable_preview', arguments: {
+      documentId: designDocumentId, expectedDocumentRevision: afterRevision,
+      maxEdge: 512, format: 'webp', quality: 0.8
+    } });
+    const afterImage = afterPreview.content?.find(({ type, data }) => type === 'image' && data)?.data;
+    if (!afterImage || createHash('sha256').update(beforeImage).digest('hex')
+      === createHash('sha256').update(afterImage).digest('hex')) {
+      throw new Error('Local MCP A-Z correction did not produce distinct rendered pixels.');
+    }
+    const exportArtifact = async (command, signature, footer = false) => {
+      const accepted = await mcpClient.callTool({ name: 'lighttable_execute', arguments: {
+        documentId: designDocumentId, command, parameters: {}
+      } });
+      if (accepted.isError || !accepted.structuredContent?.taskId) {
+        throw new Error(`${command} was not accepted: ${JSON.stringify(accepted)}`);
+      }
+      const task = await waitForMcpTask(mcpClient, designDocumentId, accepted.structuredContent.taskId, 60_000);
+      if (task.status !== 'completed' || !task.artifact?.id) {
+        throw new Error(`${command} did not produce an artifact: ${JSON.stringify(task)}`);
+      }
+      const artifact = await dynamicClient.readArtifact(task.artifact.id);
+      const offset = footer ? artifact.bytes.byteLength - 12 : 0;
+      if (offset < 0 || !Buffer.from(artifact.bytes.subarray(offset, offset + signature.length))
+        .equals(Buffer.from(signature))) {
+        throw new Error(`${command} produced an invalid artifact signature.`);
+      }
+      return { id: task.artifact.id, bytes: artifact.bytes.byteLength };
+    };
+    const png = await exportArtifact('file.exportPng', [0x89, 0x50, 0x4e, 0x47]);
+    const native = await exportArtifact('file.exportNative', [...Buffer.from('LTBLDOC1')], true);
+    const events = await mcpClient.callTool({ name: 'lighttable_events', arguments: {
+      afterCursor: 0, limit: 200
+    } });
+    if (events.isError || !(events.structuredContent?.events?.length > 0)) {
+      throw new Error('Local MCP A-Z published no observable events.');
+    }
+    await mcpClient.close();
+    mcpClient = new Client({ name: 'Local MCP reconnect probe', version: '1.0.0' });
+    await mcpClient.connect(new StreamableHTTPClientTransport(new URL(`${mcpOrigin}/mcp`), {
+      authProvider: { token: async () => access }
+    }));
+    const reconnected = await mcpClient.callTool({ name: 'lighttable_document', arguments: {
+      documentId: designDocumentId
+    } });
+    if (reconnected.isError || reconnected.structuredContent?.canonicalRevision !== afterRevision) {
+      throw new Error('Local MCP A-Z reconnect lost canonical document state.');
+    }
+    artistFlow = { documentId: designDocumentId, beforeRevision, afterRevision,
+      editableLayerCount: layers.length, previewChanged: true, invalidSchemaRejected: true,
+      missingTargetRejected: true, staleRevisionRejected: true, reconnect: true,
+      exports: { png, native } };
+  }
   const report = {
     generatedAt: new Date().toISOString(),
     transport: { mcp: 'loopback-http', desktop: 'loopback-https-wss' },
@@ -259,6 +380,7 @@ if (probe) {
     activeDocument: true,
     desktopOpenAttempts,
     commandCount: capabilities.structuredContent.commands.length,
+    ...(artistFlow ? { artistFlow } : {}),
     pageErrors
   };
   const reportPath = path.join(evidenceDirectory, 'report.json');
@@ -272,4 +394,16 @@ if (probe) {
     process.once('SIGTERM', resolve);
   });
   await shutdown();
+}
+
+async function waitForMcpTask(client, documentId, taskId, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const response = await client.callTool({ name: 'lighttable_task', arguments: { documentId, taskId } });
+    if (response.isError) throw new Error(`Local MCP task query failed: ${JSON.stringify(response)}`);
+    const task = response.structuredContent;
+    if (task?.status && task.status !== 'running' && task.status !== 'accepted') return task;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Timed out waiting for local MCP task ${taskId}.`);
 }

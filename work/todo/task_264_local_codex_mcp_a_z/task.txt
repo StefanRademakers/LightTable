@@ -44,6 +44,19 @@ Implemented foundation (2026-08-20)
 - Detailed instructions and security boundaries live in
   [`architecture/integrations/LOCAL_CODEX_MCP_ACCEPTANCE.md`](../../../architecture/integrations/LOCAL_CODEX_MCP_ACCEPTANCE.md).
 
+Automated packaged A-Z evidence (2026-08-21)
+- `npm run smoke:mcp:local-codex:a-z` uses the real packaged desktop, outbound
+  HTTPS/WSS tunnel, loopback Streamable HTTP MCP and explicit approval gates.
+- It built a four-layer editable text/vector/effect design, queried canonical
+  state, corrected text from revision 4 to 5 and proved changed preview pixels.
+- Invalid schema, missing target and stale-revision writes were rejected.
+- A fresh SDK connection recovered revision 5 after reconnect; PNG and native
+  LightTable artifacts passed their binary signatures and contained no bytes
+  in the committed report.
+- This closes the automatable product route underneath Codex. It does not turn
+  the remaining genuinely fresh Codex-session acceptance into an automated
+  claim.
+
 Resume checkpoint (updated 2026-08-21)
 - Autonomous MCP/Actions expansion was deliberately paused for owner testing.
   Native bitmap/open-with and later bounded desktop/editor fixes now occupy the

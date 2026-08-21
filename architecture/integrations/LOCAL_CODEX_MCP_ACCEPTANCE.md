@@ -72,3 +72,15 @@ This automated probe does not replace the final fresh-Codex owner acceptance.
 That acceptance must additionally exercise inspect -> create -> edit -> preview
 -> correct -> save/export and verify the resulting pixels and editable layers
 independently.
+
+The longer packaged route beneath Codex is available separately:
+
+```powershell
+npm run smoke:mcp:local-codex:a-z
+```
+
+It builds and corrects an editable layered design, compares revision-bound
+previews, inspects text/layer state, verifies PNG/native artifacts, exercises
+invalid-schema, missing-target and stale-revision rejection, then reconnects.
+Its bounded report still does not replace the genuinely fresh Codex-session
+boundary described above.

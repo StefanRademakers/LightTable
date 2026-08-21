@@ -83,7 +83,7 @@ Existing foundation evidence
 ============================
 
 - Generated categorized command catalog and local Commands browser.
-- Checked inventory for 103 static editor-menu actions, four dynamic families
+- Checked inventory for 106 static editor-menu actions, four dynamic families
   and all 36 registered toolbar tools. The current report has one genuine menu
   gap: Remove Object remains deferred because its product owner is unfinished.
   Interactive Object Finder point/box/hover remains a canonical local owner,
