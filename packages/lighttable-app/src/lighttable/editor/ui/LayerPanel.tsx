@@ -967,9 +967,16 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     onLoadTransparencySelection(layer.id);
                     return;
                   }
-                  // Ordinary clicks, including Shift-click range selection, are
-                  // handled by the layer row. Keeping one selection path makes
-                  // thumbnail and layer-name interaction behave identically.
+                  if (event.shiftKey) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onMaskIsolationChange(null);
+                    selectLayer(event, layer.id, 'pixels');
+                    return;
+                  }
+                  // Ordinary clicks are handled by the layer row. Keeping one
+                  // selection path makes thumbnail and layer-name interaction
+                  // behave identically.
                   onMaskIsolationChange(null);
                 }}
                 onDoubleClick={(event) => {

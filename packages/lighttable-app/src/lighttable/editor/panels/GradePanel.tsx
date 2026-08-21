@@ -1021,7 +1021,6 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
         </div>
       </section>
       <div className="lighttable-panel__controls">
-        {renderLook()}
         {renderAdjustmentGroup('light', 'Light', LIGHT_SLIDERS)}
         {renderAdjustmentGroup('color', 'Color', COLOR_SLIDERS)}
         {renderAdjustmentGroup('effects', 'Texture / Clarity / Dehaze', EFFECTS_SLIDERS)}
@@ -1030,6 +1029,7 @@ export const GradePanel = ({ model, commands, gradeTitle = 'Local Grade' }: Grad
         {renderBlackWhiteMix()}
         {renderColorGrading()}
         {renderCurves()}
+        {renderLook()}
       </div>
     </aside>
   );

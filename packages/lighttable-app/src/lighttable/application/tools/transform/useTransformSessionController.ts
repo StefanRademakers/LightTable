@@ -287,7 +287,7 @@ export const useTransformSessionController = (
     setState(null);
   }, [setFrameOverride]);
 
-  const begin = useCallback(async () => {
+  const begin = useCallback(async (reportEmptyLayer = true) => {
     const current = dependenciesRef.current;
     const document = current.getDocument();
     const renderer = current.getRenderer();
@@ -392,6 +392,11 @@ export const useTransformSessionController = (
       return;
     }
     if (result.code === 'stale' || result.code === 'already-active') return;
+    if (result.code === 'empty-layer' && !reportEmptyLayer) {
+      current.setError(null);
+      setState(null);
+      return;
+    }
     if (result.message) current.setError(result.message);
   }, [setFrameOverride]);
 
@@ -624,7 +629,7 @@ export const useTransformSessionController = (
       return;
     }
     if (activeController?.state || groupRef.current || maskRef.current) return;
-    void begin();
+    void begin(false);
   }, [
     begin,
     dependencies.activeDocument?.id,

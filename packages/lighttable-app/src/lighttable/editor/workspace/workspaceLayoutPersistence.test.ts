@@ -30,7 +30,7 @@ describe('workspace layout persistence', () => {
   it('roundtrips a versioned layout and selected preset', () => {
     const storage = memoryStorage();
     persistWorkspaceLayout(storage, layout(), 'custom');
-    expect(readWorkspaceLayout(storage)).toMatchObject({ version: 2, preset: 'custom' });
+    expect(readWorkspaceLayout(storage)).toMatchObject({ version: 4, preset: 'custom' });
   });
 
   it('roundtrips the grading preset', () => {

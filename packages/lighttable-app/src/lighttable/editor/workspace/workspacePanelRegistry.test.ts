@@ -146,8 +146,8 @@ describe('workspacePanelRegistry', () => {
       defaultFloating: {
         width: 260,
         height: 370,
-        xRatio: 0.34,
-        yRatio: 0.27
+        xRatio: 0.67,
+        yRatio: 0.58
       }
     });
   });

@@ -128,6 +128,8 @@ export interface LightTableWorkspaceDocument {
 
 interface LightTableDockWorkspaceProps {
   canvasOnly?: boolean;
+  /** Only the visible document may publish the shared application workspace. */
+  persistenceEnabled?: boolean;
   documents: LightTableWorkspaceDocument[];
   activeDocumentId: string;
   panels: LightTableWorkspacePanelRegistration[];
@@ -428,6 +430,7 @@ export const LightTableDockWorkspace = forwardRef<
   LightTableDockWorkspaceProps
 >(({
   canvasOnly = false,
+  persistenceEnabled = true,
   documents,
   activeDocumentId,
   panels,
@@ -458,6 +461,8 @@ export const LightTableDockWorkspace = forwardRef<
   const dockColumnSyncFrameRef = useRef<number | null>(null);
   const panelsRef = useRef(panels);
   panelsRef.current = panels;
+  const persistenceEnabledRef = useRef(persistenceEnabled);
+  persistenceEnabledRef.current = persistenceEnabled;
   const panelLayoutSignature = panels
     .map((panel) => [
       panel.id,
@@ -583,7 +588,7 @@ export const LightTableDockWorkspace = forwardRef<
       }
       saveTimerRef.current = null;
       const api = apiRef.current;
-      if (!api) return;
+      if (!api || !persistenceEnabledRef.current) return;
       try {
         persistWorkspaceLayout(localStorage, api.toJSON(), workspacePresetRef.current);
       } catch {
@@ -610,7 +615,7 @@ export const LightTableDockWorkspace = forwardRef<
     layoutListenerRef.current?.dispose();
     layoutListenerRef.current = event.api.onDidLayoutChange(() => {
       scheduleDockColumnRefresh(event.api);
-      if (resettingLayoutRef.current) return;
+      if (resettingLayoutRef.current || !persistenceEnabledRef.current) return;
       workspacePresetRef.current = 'custom';
       setWorkspacePreset('custom');
       saveLayout();

@@ -77,6 +77,7 @@ export const EditorMenuBar = ({
         role="menubar"
         aria-label="LightTable menu"
       >
+        <span className="lighttable__window-icon" aria-hidden="true" />
         {MENU_ITEMS.map(({ id, label }, index) => (
           <ButtonBase
             key={id}

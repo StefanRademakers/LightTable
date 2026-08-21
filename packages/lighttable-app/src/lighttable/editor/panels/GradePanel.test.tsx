@@ -74,6 +74,8 @@ describe('GradePanel', () => {
     expect(enabled).toContain('>Luminance<');
     expect(enabled).toContain('>Color<');
     expect(enabled).not.toContain('>Radius<');
+    expect(enabled.indexOf('<strong>Look</strong>'))
+      .toBeGreaterThan(enabled.indexOf('<strong>Custom Curves</strong>'));
   });
 
   it('retains Gradient Map as its focused adjustment editor', () => {

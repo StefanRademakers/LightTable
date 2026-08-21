@@ -1,6 +1,6 @@
 import type { SerializedDockview } from 'dockview-react';
 
-export const LIGHTTABLE_WORKSPACE_LAYOUT_VERSION = 2;
+export const LIGHTTABLE_WORKSPACE_LAYOUT_VERSION = 4;
 export const LIGHTTABLE_WORKSPACE_STORAGE_KEY = 'lighttable.workspace.layout.v8';
 export const LIGHTTABLE_WORKSPACE_LEGACY_KEYS = [
   'lighttable.workspace.layout.v5',
