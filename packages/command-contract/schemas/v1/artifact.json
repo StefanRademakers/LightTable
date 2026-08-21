@@ -32,7 +32,7 @@
       "required": ["id", "kind", "name", "mediaType", "byteLength", "createdAt"],
       "properties": {
         "id": { "$ref": "#/$defs/artifactId" },
-        "kind": { "type": "string", "enum": ["native-document", "png-export", "jpeg-export", "webp-export", "tiff-export", "psd-export"] },
+        "kind": { "type": "string", "enum": ["native-document", "png-export", "jpeg-export", "webp-export", "tiff-export", "psd-export", "svg-export"] },
         "name": { "type": "string", "minLength": 1, "maxLength": 4096 },
         "mediaType": { "type": "string", "minLength": 1, "maxLength": 255 },
         "byteLength": { "type": "integer", "minimum": 0, "maximum": 536870912 },
@@ -108,6 +108,16 @@
         "properties": { "artifact": { "allOf": [
           { "$ref": "#/$defs/exportArtifact" },
           { "type": "object", "properties": { "kind": { "const": "psd-export" } } }
+        ] } }
+      }
+    },
+    "file.exportSvg": {
+      "input": { "$ref": "#/$defs/emptyInput", "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object", "additionalProperties": false, "required": ["artifact"],
+        "properties": { "artifact": { "allOf": [
+          { "$ref": "#/$defs/exportArtifact" },
+          { "type": "object", "properties": { "kind": { "const": "svg-export" } } }
         ] } }
       }
     },

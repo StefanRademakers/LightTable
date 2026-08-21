@@ -15,11 +15,13 @@ import {
 } from '@lighttable/command-contract';
 import { z } from 'zod';
 import { LIGHTTABLE_ARTIST_GUIDES, LIGHTTABLE_ARTIST_GUIDE_SUMMARIES } from './artistGuides.mjs';
+import { McpLatencyDiagnostics } from './latencyDiagnostics.mjs';
 
 const response = (value) => ({
   content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
   structuredContent: value
 });
+const MCP_INSTRUCTIONS = 'Start each LightTable task with one lighttable_context call. Retain its stable IDs, canonical revision and live capability list for the session; do not repeat unchanged discovery reads. Query schemas only for commands you will use, batch logical edit phases, wait for batch completion before dependent writes, preview after a phase, and use lighttable_performance when diagnosing latency.';
 const failure = (error) => ({ isError: true, content: [{ type: 'text',
   text: error instanceof Error ? error.message : String(error) }] });
 const editable = (context) => context?.http?.authInfo?.scopes?.includes('lighttable:edit') === true;
@@ -43,6 +45,20 @@ const withResult = (operation, { edit = false } = {}) => async (input, context) 
     return response(await operation(input));
   } catch (error) { return failure(error); }
 };
+
+class InstrumentedMcpServer extends McpServer {
+  constructor(serverInfo, options, diagnostics) {
+    super(serverInfo, options);
+    this.diagnostics = diagnostics;
+  }
+
+  registerTool(name, definition, handler) {
+    if (name === 'lighttable_performance') return super.registerTool(name, definition, handler);
+    return super.registerTool(name, definition, (input, context) => (
+      this.diagnostics.measureTool(name, () => handler(input, context))
+    ));
+  }
+}
 const createDocumentInput = z.object({
   name: z.string().min(1).max(255),
   width: z.number().int().min(1).max(32768),
@@ -127,8 +143,14 @@ const downloadImage = async (value, fetchImpl = fetch, redirects = 0) => {
   return { bytes, mediaType, suggestedName: decodeURIComponent(url.pathname.split('/').at(-1) || 'agent-image') };
 };
 
-export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) => {
-  const server = new McpServer({ name: 'LightTable', version: '0.1.0' });
+export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {}) => {
+  const diagnostics = new McpLatencyDiagnostics();
+  const client = diagnostics.instrument(clientInput);
+  const server = new InstrumentedMcpServer(
+    { name: 'LightTable', version: '0.1.0' },
+    { instructions: MCP_INSTRUCTIONS },
+    diagnostics
+  );
   for (const guide of LIGHTTABLE_ARTIST_GUIDES) server.registerResource(guide.id, guide.uri, {
     title: guide.title, description: guide.description, mimeType: 'text/markdown'
   }, async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: guide.text }] }));
@@ -136,6 +158,45 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
     title: 'Inspect LightTable workspace', description: 'Lists open documents and the active stable document ID. Read-only.',
     inputSchema: z.object({}), annotations: { readOnlyHint: true }
   }, withResult(() => client.invoke('workspace.query')));
+  server.registerTool('lighttable_context', {
+    title: 'Inspect current LightTable context',
+    description: 'Preferred first read: returns the workspace, one active or explicit document, its active or explicit layer summary, and live editor capabilities in one bounded tool call. Reuse the returned capabilities, stable IDs and revisions instead of re-querying unchanged state.',
+    inputSchema: z.object({
+      documentId: z.string().min(1).optional(),
+      layerId: z.string().min(1).optional()
+    }).refine(({ documentId, layerId }) => !layerId || Boolean(documentId), {
+      message: 'An explicit layerId requires an explicit documentId.'
+    }),
+    annotations: { readOnlyHint: true }
+  }, withResult(async ({ documentId: requestedDocumentId, layerId }) => {
+    const workspace = await client.invoke('workspace.query');
+    const documentId = requestedDocumentId ?? workspace?.activeDocumentId ?? null;
+    if (!documentId) return { workspace, document: null, layer: null, capabilities: null, guides: LIGHTTABLE_ARTIST_GUIDE_SUMMARIES };
+    const document = await client.invoke('document.query', { documentId });
+    if (!Number.isInteger(document?.canonicalRevision)) {
+      return { workspace, document, layer: null, capabilities: null, guides: LIGHTTABLE_ARTIST_GUIDE_SUMMARIES };
+    }
+    const layer = await client.invoke('layer.query', {
+      documentId,
+      ...(layerId ? { layerId } : {}),
+      expectedDocumentRevision: document.canonicalRevision
+    });
+    const capabilities = await client.invoke('command.capabilities', { documentId });
+    return { workspace, document, layer, capabilities, guides: LIGHTTABLE_ARTIST_GUIDE_SUMMARIES };
+  }));
+  server.registerTool('lighttable_performance', {
+    title: 'Inspect LightTable MCP latency',
+    description: 'Returns a bounded timing timeline and aggregate p50/p95/maximum durations for MCP tools and their nested LightTable bridge calls. Tool and bridge durations overlap. This excludes Codex startup, model reasoning and client-side scheduling.',
+    inputSchema: z.object({
+      limit: z.number().int().min(1).max(256).default(100),
+      resetAfterRead: z.boolean().default(false)
+    }),
+    annotations: { readOnlyHint: true }
+  }, withResult(({ limit, resetAfterRead }) => {
+    const report = diagnostics.snapshot(limit);
+    if (resetAfterRead) diagnostics.reset();
+    return report;
+  }));
   server.registerTool('lighttable_document', {
     title: 'Inspect LightTable document', description: 'Returns canvas dimensions, revision, viewport, active layer, history and renderer status for one stable document ID.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
@@ -271,7 +332,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
       ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }) }), { edit: true }));
   server.registerTool('lighttable_batch', {
     title: 'Execute an atomic LightTable command batch',
-    description: 'Preferred for two or more planned edits: runs up to 64 semantic operations as one publication and one named undo entry. Failure or cancellation publishes nothing. Read lighttable://guides/efficient-batching and query command.batch through lighttable_commands for the current schema.',
+    description: 'Preferred for two or more planned edits: runs up to 64 semantic operations as one publication and one named undo entry, waits for an accepted async batch to finish, and returns its final task duration. Failure or cancellation publishes nothing. Read lighttable://guides/efficient-batching and query command.batch through lighttable_commands for the current schema.',
     inputSchema: z.object({ documentId: z.string().min(1), name: z.string().min(1).max(128),
       timeoutMs: z.number().int().min(100).max(10_000).default(5_000),
       expectedDocumentRevision: z.number().int().nonnegative().optional(),
@@ -289,10 +350,11 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
           });
         })
   }, withResult(({ documentId, name, timeoutMs, operations, expectedDocumentRevision }) =>
-    client.invoke('command.execute', { documentId, command: 'command.batch',
+    awaitCommand(client, { documentId, command: 'command.batch',
       commandRequestId: crypto.randomUUID(), commandParameters: { name, operations,
         ...(timeoutMs === undefined ? {} : { timeoutMs }) },
-      ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }) }), { edit: true }));
+      ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }) },
+    Math.max(10_000, timeoutMs + 1_000)), { edit: true }));
   server.registerTool('lighttable_task_events', {
     title: 'Poll LightTable agent activity',
     description: 'Returns bounded task events after a reconnect-safe cursor.',
@@ -301,7 +363,7 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
   }, withResult((input) => client.invoke('task.events', input)));
   server.registerTool('lighttable_task', {
     title: 'Inspect a LightTable task',
-    description: 'Returns bounded status, progress, error and artifact metadata for one explicit document task.',
+    description: 'Returns bounded status, progress, monotonic elapsed/final duration, error and artifact metadata for one explicit document task.',
     inputSchema: z.object({
       documentId: z.string().min(1),
       taskId: z.string().min(1)
@@ -457,6 +519,19 @@ export const createLightTableMcpServer = (client, { fetchImpl = fetch } = {}) =>
           ...(underline === undefined ? {} : { underline })
         }, ...(alignment ? { paragraph: { alignment } } : {}) } });
   }, { edit: true }));
+  server.registerTool('lighttable_import_svg', {
+    title: 'Import SVG as editable vector paths',
+    description: 'Parses one bounded SVG string and atomically adds supported paths and primitives as native editable LightTable vector elements. It never rasterizes the SVG or emits point-by-point MCP mutations.',
+    inputSchema: z.object({ documentId: z.string().min(1),
+      svg: z.string().min(1).max(16_777_216),
+      layerName: z.string().min(1).max(255).optional(),
+      expectedDocumentRevision: z.number().int().nonnegative().optional() })
+  }, withResult(({ documentId, svg, layerName, expectedDocumentRevision }) =>
+    client.invoke('command.execute', { documentId, command: 'vector.importSvg',
+      commandRequestId: crypto.randomUUID(),
+      ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }),
+      commandParameters: { svg, placement: 'document', ...(layerName ? { layerName } : {}) } }),
+  { edit: true }));
   server.registerTool('lighttable_create_shape', {
     title: 'Create an editable vector shape',
     description: 'Creates a canonical rectangle, ellipse, star or line with optional solid fill and stroke.',

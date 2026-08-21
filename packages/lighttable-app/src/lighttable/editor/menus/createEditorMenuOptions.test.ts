@@ -229,6 +229,7 @@ describe('createEditorMenuOptions', () => {
       { label: 'New', shortcut: 'Ctrl+N' },
       { label: 'Open', shortcut: 'Ctrl+O' },
       { label: 'Open place...', shortcut: undefined },
+      { label: 'Import SVG as Editable Vectors...', shortcut: undefined },
       { label: 'Open Recent', shortcut: undefined },
       { label: 'Saving...', shortcut: 'Ctrl+S' },
       { label: 'Export PNG', shortcut: 'Ctrl+Shift+S' },
@@ -250,7 +251,7 @@ describe('createEditorMenuOptions', () => {
     const children = options.find(({ value }) => value === 'export')?.children;
     expect(children?.map(({ label }) => label)).toEqual([
       'PNG...', 'JPG...', 'WebP...', 'TIFF...', 'Photoshop PSD (Editable)...',
-      'Photoshop PSD (Maximum Appearance)...', 'PDF...', 'Format Support...'
+      'Photoshop PSD (Maximum Appearance)...', 'SVG (Editable Vectors)...', 'PDF...', 'Format Support...'
     ]);
     children?.[0]?.onClick?.();
     children?.[1]?.onClick?.();
@@ -259,12 +260,14 @@ describe('createEditorMenuOptions', () => {
     children?.[4]?.onClick?.();
     children?.[5]?.onClick?.();
     children?.[6]?.onClick?.();
+    children?.[7]?.onClick?.();
     expect(menuCommands.exportPng).toHaveBeenCalledOnce();
     expect(menuCommands.exportJpeg).toHaveBeenCalledOnce();
     expect(menuCommands.exportWebp).toHaveBeenCalledOnce();
     expect(menuCommands.exportTiff).toHaveBeenCalledOnce();
     expect(menuCommands.exportPsd).toHaveBeenCalledOnce();
     expect(menuCommands.exportPsdMaximumAppearance).toHaveBeenCalledOnce();
+    expect(menuCommands.exportSvg).toHaveBeenCalledOnce();
     expect(menuCommands.pdfExportPreflight).toHaveBeenCalledOnce();
   });
 
@@ -302,7 +305,7 @@ describe('createEditorMenuOptions', () => {
     }];
     const options = createEditorMenuOptions('file', state(), labels, menuCommands);
     expect(options.map(({ value }) => value)).toEqual([
-      'new-document', 'open-image', 'place-image', 'open-recent',
+      'new-document', 'open-image', 'place-image', 'import-svg', 'open-recent',
       'save-corrected', 'export-png', 'export',
       'new-project', 'open-project', 'open-recent-project', 'close-project',
       'exit-application'

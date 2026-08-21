@@ -15,8 +15,44 @@ import { VectorFillBackend, type VectorFillSurface } from '@lighttable/vector-we
 import type { VectorLayer } from '../document/documentTypes';
 import type { AffineMatrix } from './renderContract';
 
+/** Maximum flattening error in physical presentation pixels. */
 const DEFAULT_TOLERANCE_PX = 0.25;
+const MAX_PRESENTATION_SCALE = 64;
+const MAX_MULTISAMPLED_SURFACE_BYTES = 512 * 1024 * 1024;
 const GEOMETRY_CACHE_BYTES = 32 * 1024 * 1024;
+
+export const vectorSurfaceBytes = (width: number, height: number, sampleCount: 1 | 4) => (
+  width * height * (sampleCount === 4 ? 8 + 4 * 12 : 8 + 4)
+);
+
+export const vectorSurfaceSampleCount = (
+  width: number,
+  height: number,
+  antiAlias: boolean,
+  maximumMultisampledBytes = MAX_MULTISAMPLED_SURFACE_BYTES
+): 1 | 4 => antiAlias
+  && vectorSurfaceBytes(width, height, 4) <= maximumMultisampledBytes ? 4 : 1;
+
+/** Largest scale applied by the linear part of an affine transform. */
+export const maximumAffineScale = ({ a, b, c, d }: AffineMatrix) => {
+  const trace = a * a + b * b + c * c + d * d;
+  const determinant = a * d - b * c;
+  const discriminant = Math.max(0, trace * trace - 4 * determinant * determinant);
+  return Math.sqrt(Math.max(0, (trace + Math.sqrt(discriminant)) / 2));
+};
+
+/**
+ * Stable upward-rounded buckets prevent a zoom gesture from rebuilding the
+ * document composite for every fractional scale change without ever allowing
+ * the screen-space flattening error to exceed the requested tolerance.
+ */
+export const quantizePresentationScale = (scale: number) => {
+  if (!(scale > 0) || !Number.isFinite(scale)) {
+    throw new RangeError('Vector presentation scale must be finite and greater than zero.');
+  }
+  const bounded = Math.min(MAX_PRESENTATION_SCALE, Math.max(1, scale));
+  return 2 ** (Math.ceil(Math.log2(bounded) * 4) / 4);
+};
 
 interface CachedVectorGeometry {
   readonly path: VectorPath;
@@ -76,8 +112,16 @@ export class VectorLayerRenderer {
   private backend: VectorFillBackend | null = null;
   private surface: VectorFillSurface | null = null;
   private readonly geometryCache = new VectorGeometryRealizationCache();
+  private presentationScale = 1;
 
   constructor(private readonly device: GPUDevice) {}
+
+  setPresentationScale(scale: number) {
+    const next = quantizePresentationScale(scale);
+    if (next === this.presentationScale) return false;
+    this.presentationScale = next;
+    return true;
+  }
 
   encode(
     encoder: GPUCommandEncoder,
@@ -101,9 +145,15 @@ export class VectorLayerRenderer {
 
     const layerToDocument = multiplyMatrices(inheritedTransform, layer.transform);
     for (const element of layer.elements) {
+      const elementToDocument = multiplyMatrices(layerToDocument, element.transform);
+      const effectiveScale = Math.max(
+        1e-6,
+        maximumAffineScale(elementToDocument) * this.presentationScale
+      );
+      const localTolerance = DEFAULT_TOLERANCE_PX / effectiveScale;
       // Parametric shapes stay canonical in the document. Realization is a
       // renderer-local projection with the same id/style/transform/revisions.
-      const { path, realized } = this.geometryCache.realize(element, DEFAULT_TOLERANCE_PX);
+      const { path, realized } = this.geometryCache.realize(element, localTolerance);
       const renderPath: VectorPath = {
         ...path,
         transform: multiplyMatrices(layerToDocument, path.transform)
@@ -148,9 +198,11 @@ export class VectorLayerRenderer {
 
   estimatedTextureBytes() {
     if (!this.surface) return 0;
-    // Resolved rgba16float plus multisampled color and stencil attachments.
-    return this.surface.width * this.surface.height
-      * (8 + this.surface.sampleCount * 12);
+    return vectorSurfaceBytes(
+      this.surface.width,
+      this.surface.height,
+      this.surface.sampleCount === 4 ? 4 : 1
+    );
   }
 
   destroy() {
@@ -166,14 +218,24 @@ export class VectorLayerRenderer {
     dimensions: { width: number; height: number },
     antiAlias: boolean
   ) {
+    const sampleCount = vectorSurfaceSampleCount(
+      dimensions.width,
+      dimensions.height,
+      antiAlias
+    );
     if (
       this.surface
       && this.surface.width === dimensions.width
       && this.surface.height === dimensions.height
-      && this.surface.sampleCount === (antiAlias ? 4 : 1)
+      && this.surface.sampleCount === sampleCount
     ) return this.surface;
     this.surface?.dispose();
-    this.surface = backend.createSurface(dimensions.width, dimensions.height, 'rgba16float', antiAlias);
+    this.surface = backend.createSurface(
+      dimensions.width,
+      dimensions.height,
+      'rgba16float',
+      sampleCount === 4
+    );
     return this.surface;
   }
 }

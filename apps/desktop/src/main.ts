@@ -909,6 +909,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       mainWindow.webContents.send('lighttable:local-mcp-changed', status);
     }
   });
+  if (!app.isPackaged && process.env.LIGHTTABLE_AUTO_START_LOCAL_MCP === '1') {
+    void localMcpTestServer.start();
+  }
 
   ipcMain.on('lighttable:agent-access-response', (event, payload: {
     readonly id?: unknown; readonly value?: unknown; readonly error?: unknown;

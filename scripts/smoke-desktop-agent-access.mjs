@@ -474,6 +474,8 @@ try {
   }
   await settings.getByRole('button', { name: 'Stop' }).click();
   await expectClosed(restartedAddress);
+  await settings.getByRole('button', { name: 'Save' }).click();
+  await settings.waitFor({ state: 'detached' });
   if (pageErrors.length) throw new Error(`Agent Access page errors: ${pageErrors.join(' | ')}`);
   process.stdout.write(`Desktop Agent Access smoke passed: ${screenshot}\n`);
 } finally {

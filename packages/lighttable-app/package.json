@@ -31,6 +31,7 @@
     "@lighttable/text-rendering": "0.0.1",
     "@lighttable/text-webgpu": "0.0.1",
     "@lighttable/vector-core": "0.0.1",
+    "@lighttable/vector-svg": "0.0.1",
     "@lighttable/vector-rendering": "0.0.1",
     "@lighttable/vector-webgpu": "0.0.1",
     "@mediapipe/tasks-vision": "1.0.1",

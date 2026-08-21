@@ -58,8 +58,13 @@ export const LIGHTTABLE_FORMAT_CAPABILITIES: readonly FormatCapability[] = Objec
     summary: 'Planned compatibility research; no product open or export route.'
   },
   {
-    id: 'svg-eps', label: 'SVG / EPS', extensions: ['.svg', '.eps'],
+    id: 'svg', label: 'SVG', extensions: ['.svg'],
+    open: 'supported', editable: 'partial', export: 'partial',
+    summary: 'Bounded native editable paths, primitives, transforms, solid fills and strokes; unsupported semantics reject explicitly.'
+  },
+  {
+    id: 'eps', label: 'EPS', extensions: ['.eps'],
     open: 'unavailable', editable: 'unavailable', export: 'unavailable',
-    summary: 'Not currently exposed as supported product formats.'
+    summary: 'Not currently exposed as a supported product format.'
   }
 ]);

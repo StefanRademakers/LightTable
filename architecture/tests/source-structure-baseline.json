@@ -5,10 +5,10 @@
   "generatedFiles": {},
   "reviewedHotspots": {
     "packages/lighttable-app/src/lighttable/LightTableEditorOverlay.tsx": {
-      "baselineLines": 6656,
+      "baselineLines": 7678,
       "classification": "mixed-authority",
-      "responsibilities": ["editor composition", "tool and selection bindings", "panels and dialogs", "document interaction routing"],
-      "lifecycleOwners": ["mounted editor document", "tool gesture previews", "panel and async UI effects"],
+      "responsibilities": ["editor composition", "tool and selection bindings", "panels and dialogs", "document interaction routing", "host and semantic command port composition"],
+      "lifecycleOwners": ["mounted editor document", "tool gesture previews", "panel and async UI effects", "document command and artifact routing"],
       "productRisk": "high",
       "decision": "Extract cohesive tool and panel owners when behavior changes; line reduction alone is not completion."
     },

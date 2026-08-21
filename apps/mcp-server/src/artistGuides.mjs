@@ -8,15 +8,20 @@ export const LIGHTTABLE_ARTIST_GUIDES = Object.freeze([
 
 Use LightTable as a native layered editor, not as a bitmap-generation endpoint.
 
-1. Query the workspace once, then inspect the target document, its command capabilities and only the content needed for the task.
-2. Plan the layer stack before editing. Preserve text as text and vector artwork as native vectors.
-3. When two or more known edits belong to one logical phase, prefer lighttable_batch over repeated lighttable_execute calls.
-4. Use resultOf references inside a batch when a later operation needs an ID created by an earlier operation.
-5. Build in logical phases such as background, decoration, hero shape, typography and correction.
-6. Use lighttable_palette for dominant composite colors and lighttable_layer_palette for one layer's isolated rendered colors; transfer a bounded preview only when spatial or visual inspection is needed.
-7. Request a bounded preview after a phase, not after every primitive.
-8. Carry the canonical revision returned by writes and reads forward. Re-query only when state is genuinely unknown or a stale-revision response requires it.
-9. Report unsupported visual properties honestly. Do not rasterize editable content merely to hide a missing capability.
+1. Begin with lighttable_context once. It returns the workspace, active document, active layer summary and live editor capabilities in one bounded call.
+2. Keep the returned stable IDs, canonical revision and capability decisions in working memory for the session. Do not repeat unchanged workspace, document, layer or command-schema queries.
+3. Use the returned capability list as your menu, then request lighttable_commands only for command schemas that the planned work will actually execute.
+4. Plan the layer stack before editing. Preserve text as text and vector artwork as native vectors.
+   When a generated illustration already exists as SVG data, send it once through lighttable_import_svg; supported geometry becomes editable native paths and primitives in one atomic document change.
+5. When two or more known edits belong to one logical phase, prefer lighttable_batch over repeated lighttable_execute calls.
+6. Use resultOf references inside a batch when a later operation needs an ID created by an earlier operation.
+7. Build in logical phases such as background, decoration, hero shape, typography and correction.
+8. Use lighttable_palette for dominant composite colors and lighttable_layer_palette for one layer's isolated rendered colors; transfer a bounded preview only when spatial or visual inspection is needed.
+9. Request a bounded preview after a phase, not after every primitive.
+10. Carry the canonical revision returned by writes and reads forward. Re-query only when state is genuinely unknown or a stale-revision response requires it.
+11. Let lighttable_batch wait for accepted async work to finish before issuing dependent writes; use its returned task duration and revision instead of guessing that completion occurred.
+12. Use lighttable_performance at the end of a slow flow to separate MCP tool time, LightTable bridge/command time and async task duration from Codex/model time.
+13. Report unsupported visual properties honestly. Do not rasterize editable content merely to hide a missing capability.
 
 Recommended follow-up guides:
 - lighttable://guides/efficient-batching

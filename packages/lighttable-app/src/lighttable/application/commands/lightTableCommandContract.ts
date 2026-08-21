@@ -9,6 +9,7 @@ import type { DocumentPreviewResult } from './documentPreviewArtifacts';
 import type { ExportedPsdDocument } from '../documents/PsdExportClient';
 import type { SemanticTextCommand } from './semanticTextCommandContract';
 import type { SemanticVectorCommand } from './semanticVectorCommandContract';
+import type { SemanticSvgImportCommand } from '../vectors/svgDocumentCodec';
 import type { SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
 import type { VectorElement } from '@lighttable/vector-core';
 import type { AtomicCommandBatch } from './atomicCommandBatchContract';
@@ -191,6 +192,10 @@ export interface AutomationTaskQueryResult {
   readonly status: 'running' | 'completed' | 'canceled' | 'failed';
   readonly progress: number | null;
   readonly error: string | null;
+  /** Monotonic elapsed task time at the moment of this query. */
+  readonly elapsedMs: number;
+  /** Final monotonic duration, or null while the task is still running. */
+  readonly durationMs: number | null;
   readonly artifact: LightTableArtifactMetadata | null;
 }
 
@@ -280,6 +285,7 @@ export interface LightTableCommandPorts {
   setLayerEffectEnabled(documentId: DocumentSessionId, layerId: LayerId, effectId: LayerStyleId, enabled: boolean): unknown | Promise<unknown>;
   executeTextCommand(documentId: DocumentSessionId, command: SemanticTextCommand): unknown | Promise<unknown>;
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand): unknown | Promise<unknown>;
+  executeSvgImport?(documentId: DocumentSessionId, command: SemanticSvgImportCommand): unknown | Promise<unknown>;
   executeWarpStrokeCommand?(documentId: DocumentSessionId, command: SemanticWarpStrokeCommand): unknown | Promise<unknown>;
   executeFillCommand?(documentId: DocumentSessionId, command: SemanticFillCommand): unknown | Promise<unknown>;
   executeRasterGradientCommand?(documentId: DocumentSessionId, command: SemanticRasterGradientCommand): unknown | Promise<unknown>;
@@ -320,6 +326,7 @@ export interface LightTableCommandPorts {
     channel: 'pixels' | 'mask', maxEdge: number,
     encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
   exportPsdArtifact(documentId: DocumentSessionId): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
+  exportSvgArtifact?(documentId: DocumentSessionId): File | Promise<File>;
   beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
   finishGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
@@ -352,6 +359,7 @@ export interface DocumentLightTableCommandPorts {
   setLayerEffectEnabled(layerId: LayerId, effectId: LayerStyleId, enabled: boolean): unknown | Promise<unknown>;
   executeTextCommand(command: SemanticTextCommand): unknown | Promise<unknown>;
   executeVectorCommand(command: SemanticVectorCommand): unknown | Promise<unknown>;
+  executeSvgImport?(command: SemanticSvgImportCommand): unknown | Promise<unknown>;
   executeWarpStrokeCommand?(command: SemanticWarpStrokeCommand): unknown | Promise<unknown>;
   executeFillCommand?(command: SemanticFillCommand): unknown | Promise<unknown>;
   executeRasterGradientCommand?(command: SemanticRasterGradientCommand): unknown | Promise<unknown>;
@@ -388,6 +396,7 @@ export interface DocumentLightTableCommandPorts {
   exportLayerPreviewArtifact(layerId: LayerId, channel: 'pixels' | 'mask',
     maxEdge: number, encoding: LightTablePreviewEncoding): LightTableLayerPreviewRender | Promise<LightTableLayerPreviewRender>;
   exportPsdArtifact(): File | ExportedPsdDocument | Promise<File | ExportedPsdDocument>;
+  exportSvgArtifact?(): File | Promise<File>;
   beginGesture(kind: LightTableGestureKind, pointerId: number, parameters: Record<string, unknown>, sample: LightTableGestureSample): boolean | Promise<boolean>;
   updateGesture(kind: LightTableGestureKind, pointerId: number, sample: LightTableGestureSample): boolean | Promise<boolean>;
   finishGesture(kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;

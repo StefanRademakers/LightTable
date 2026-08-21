@@ -17,6 +17,7 @@ const renderer = () => ({
     height: 2,
     contentType: 'image/png'
   })),
+  initializeDocumentSurface: vi.fn(),
   setDocument: vi.fn(),
   loadLayerAssets: vi.fn(async () => undefined),
   setAdjustmentStack: vi.fn(),

@@ -35,6 +35,7 @@ import { executeDocumentSaveTransaction } from '../../application/documents/docu
 import { planSourceFormatSave } from '../../application/documents/planSourceFormatSave';
 import { WasmVipsEncoder } from '../../image-io/WasmVipsEncoder';
 import { nativeBitmapFormat, type NativeBitmapFormatId } from '../../image-io/nativeBitmapFormats';
+import { exportSvgDocument } from '../../application/vectors/svgDocumentCodec';
 
 export interface DocumentFileCommandsOptions {
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
@@ -96,6 +97,7 @@ export interface DocumentFileCommands {
   exportTiff(): Promise<void>;
   exportPsd(): Promise<void>;
   exportPsdMaximumAppearance(): Promise<void>;
+  exportSvg(): Promise<void>;
   openLocalFile(
     file: File | null,
     decodeMode: DocumentOpenMode
@@ -393,6 +395,19 @@ export const useDocumentFileCommands = (
     () => exportPsdWithIntent('maximum-appearance'),
     [exportPsdWithIntent]
   );
+  const exportSvgFile = useCallback(async () => {
+    const current = optionsRef.current;
+    current.setError(null);
+    const result = await current.taskRegistry.run('export', 'Export SVG', async (task) => {
+      const imageDocument = current.getDocument();
+      if (!imageDocument || !current.hasMetadata) throw new Error('LightTable is not ready yet.');
+      const file = exportSvgDocument(imageDocument, current.fileNameBase);
+      task.throwIfCanceled();
+      if (current.onExportFile) await current.onExportFile(file);
+      else downloadOutput(file);
+    });
+    if (result.status === 'failed') current.setError(result.error.message || 'SVG export failed.');
+  }, []);
 
   const openLocalFile = useCallback(async (
     file: File | null,
@@ -482,6 +497,7 @@ export const useDocumentFileCommands = (
     exportTiff,
     exportPsd,
     exportPsdMaximumAppearance,
+    exportSvg: exportSvgFile,
     openLocalFile,
     handleFastFileInput: (event) => handleFileInput(event, 'fast'),
     handlePrecisionFileInput: (event) =>

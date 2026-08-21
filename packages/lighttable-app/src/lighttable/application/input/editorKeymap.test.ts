@@ -76,6 +76,14 @@ describe('editor keymap', () => {
     )).toBe('open-image-size');
   });
 
+  it('routes Image Size when Windows reports Ctrl+Alt as composed AltGr input', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'î', code: 'KeyI', ctrlKey: true, altKey: true }),
+      context({ editable: true })
+    )).toBe('open-image-size');
+  });
+
   it.each([
     { key: 'l', altKey: false, shiftKey: false, kind: 'levels' },
     { key: 'm', altKey: false, shiftKey: false, kind: 'curves' },

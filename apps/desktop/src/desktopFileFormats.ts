@@ -5,7 +5,7 @@ export interface DesktopOpenDialogFilter {
 
 const DOCUMENT_EXTENSIONS = [
   ...NATIVE_BITMAP_FORMATS.flatMap((format) => format.extensions.map((value) => value.slice(1))),
-  'psd', 'psb', 'pdf', 'lighttable.png'
+  'svg', 'psd', 'psb', 'pdf', 'lighttable.png'
 ] as const;
 
 /** Keeps PDF visible as its own Windows file-type choice as well as in All supported files. */
@@ -15,6 +15,7 @@ export const createDesktopOpenDialogFilters = (): DesktopOpenDialogFilter[] => [
     extensions: [...DOCUMENT_EXTENSIONS]
   },
   { name: 'PDF documents', extensions: ['pdf'] },
+  { name: 'SVG documents', extensions: ['svg'] },
   { name: 'Photoshop documents', extensions: ['psd', 'psb'] },
   { name: 'All files', extensions: ['*'] }
 ];
@@ -23,6 +24,7 @@ const MEDIA_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
   psd: 'image/vnd.adobe.photoshop',
   psb: 'image/vnd.adobe.photoshop',
   pdf: 'application/pdf',
+  svg: 'image/svg+xml',
   mp4: 'video/mp4',
   webm: 'video/webm'
 };

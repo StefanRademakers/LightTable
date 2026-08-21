@@ -87,7 +87,7 @@ export interface LightTableImageMetadata {
   width: number;
   height: number;
   contentType: string;
-  decoder?: 'browser' | 'wasm-vips' | 'ag-psd' | 'pdfjs';
+  decoder?: 'browser' | 'wasm-vips' | 'ag-psd' | 'pdfjs' | 'native-svg';
   sourceBitDepth?: number;
   sourceFormat?: string;
   sourceInterpretation?: string;

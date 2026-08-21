@@ -131,6 +131,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'vector.create',
   'vector.update',
   'vector.remove',
+  'vector.importSvg',
   'warp.applyStroke',
   'raster.fill',
   'raster.applyGradient',
@@ -156,6 +157,7 @@ export const LIGHTTABLE_COMMAND_IDS = Object.freeze([
   'file.exportPng',
   'file.exportBitmap',
   'file.exportPsd',
+  'file.exportSvg',
   'history.undo',
   'history.redo'
 ]);
@@ -264,6 +266,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'vector.create',
   'vector.update',
   'vector.remove',
+  'vector.importSvg',
   'warp.applyStroke',
   'raster.fill',
   'raster.applyGradient',
@@ -288,6 +291,7 @@ export const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS = Object.freeze([
   'file.exportPng',
   'file.exportBitmap',
   'file.exportPsd',
+  'file.exportSvg',
   'history.undo',
   'history.redo'
 ]);
@@ -332,6 +336,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'vector.create',
   'vector.update',
   'vector.remove',
+  'vector.importSvg',
   'warp.applyStroke',
   'raster.fill',
   'raster.applyGradient',
@@ -356,6 +361,7 @@ export const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS = Object.freeze([
   'file.exportPng',
   'file.exportBitmap',
   'file.exportPsd',
+  'file.exportSvg',
   'history.undo',
   'history.redo'
 ]);

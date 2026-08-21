@@ -383,8 +383,15 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
 };
 
 export const normalizedEditorKey = (
-  input: Pick<EditorKeyboardInput, 'key' | 'code'>
+  input: Pick<EditorKeyboardInput, 'key' | 'code' | 'ctrlKey' | 'metaKey' | 'altKey'>
 ): string => {
+  // On Windows, Ctrl+Alt can be exposed as AltGr and event.key may consequently
+  // contain a composed character instead of the shortcut letter. KeyboardEvent.code
+  // remains stable (for example KeyI), so use it for modified letter chords while
+  // retaining layout-aware event.key handling for unmodified tool shortcuts.
+  if ((input.ctrlKey || input.metaKey || input.altKey) && /^Key[A-Z]$/.test(input.code)) {
+    return input.code.slice(3).toLowerCase();
+  }
   if (input.code === 'Space') return 'space';
   if (input.code === 'Backquote') return '`';
   if (input.code === 'BracketLeft') return '[';

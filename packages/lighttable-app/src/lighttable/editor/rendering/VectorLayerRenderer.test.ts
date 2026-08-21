@@ -1,6 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { createVectorLiveShape, createVectorPath, createSubpath, createAnchor } from '@lighttable/vector-core';
-import { VectorGeometryRealizationCache } from './VectorLayerRenderer';
+import {
+  maximumAffineScale,
+  quantizePresentationScale,
+  vectorSurfaceBytes,
+  vectorSurfaceSampleCount,
+  VectorGeometryRealizationCache
+} from './VectorLayerRenderer';
+
+describe('adaptive vector tessellation', () => {
+  it('measures the largest affine scale including rotation and non-uniform scale', () => {
+    expect(maximumAffineScale({ a: 0, b: 3, c: -2, d: 0, tx: 10, ty: 20 })).toBeCloseTo(3);
+    expect(maximumAffineScale({ a: 1, b: 0, c: 1, d: 1, tx: 0, ty: 0 })).toBeCloseTo(1.6180339887);
+  });
+
+  it('buckets presentation scale upward and never reduces base quality', () => {
+    expect(quantizePresentationScale(0.25)).toBe(1);
+    expect(quantizePresentationScale(1)).toBe(1);
+    expect(quantizePresentationScale(1.01)).toBeCloseTo(2 ** 0.25);
+    expect(quantizePresentationScale(8)).toBe(8);
+    expect(quantizePresentationScale(1_000)).toBe(64);
+  });
+
+  it('drops multisampling before a large vector surface exceeds its budget', () => {
+    expect(vectorSurfaceBytes(10_000, 10_000, 4)).toBe(5_600_000_000);
+    expect(vectorSurfaceBytes(10_000, 10_000, 1)).toBe(1_200_000_000);
+    expect(vectorSurfaceSampleCount(1_000, 1_000, true)).toBe(4);
+    expect(vectorSurfaceSampleCount(10_000, 10_000, true)).toBe(1);
+    expect(vectorSurfaceSampleCount(1_000, 1_000, false)).toBe(1);
+  });
+});
 
 describe('VectorGeometryRealizationCache', () => {
   it('reuses flattened path geometry across paint and transform revisions', () => {

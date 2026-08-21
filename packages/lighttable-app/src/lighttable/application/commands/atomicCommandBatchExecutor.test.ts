@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { LIGHTTABLE_COMMAND_SCHEMAS, validateJsonSchemaValue } from '@lighttable/command-contract';
+import { createDefaultFlowTextSource, createDefaultTextLayerData } from '@lighttable/text-core';
 import { createImageDocument } from '../../editor/document/documentTypes';
-import { createRasterLayer } from '../../editor/document/documentCommands';
+import { createRasterLayer, createTextLayer } from '../../editor/document/documentCommands';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import { executeAtomicCommandBatch } from './atomicCommandBatchExecutor';
 import type { AtomicCommandBatch } from './atomicCommandBatchContract';
@@ -65,6 +66,32 @@ describe('executeAtomicCommandBatch', () => {
     const shapeResult = result.results[0].value as { layerId: string };
     expect(findDocumentLayer(state.document, shapeResult.layerId as never)?.name).toBe('Agent card');
     expect(state.publish).toHaveBeenCalledOnce();
+  });
+
+  it('maps text.replaceRange to the semantic replace command inside a batch', async () => {
+    const state = fixture();
+    const textDocument = createTextLayer(state.document, {
+      ...createDefaultTextLayerData(), source: createDefaultFlowTextSource('Before')
+    }, 'Copy');
+    state.dependencies.publish(textDocument);
+    state.publish.mockClear();
+    state.record.mockClear();
+    const textLayerId = textDocument.activeLayerId!;
+
+    const result = await executeAtomicCommandBatch(batch([
+      { operationId: 'replace-copy', command: 'text.replaceRange', parameters: {
+        layerId: textLayerId, start: 0, end: 6, text: 'After'
+      } }
+    ]), state.dependencies, new AbortController().signal, () => undefined);
+
+    expect(result.results).toEqual([
+      { operationId: 'replace-copy', value: { layerId: textLayerId } }
+    ]);
+    expect(findDocumentLayer(state.document, textLayerId)).toMatchObject({
+      type: 'text', text: { source: { kind: 'flow', text: 'After' } }
+    });
+    expect(state.publish).toHaveBeenCalledOnce();
+    expect(state.record).toHaveBeenCalledOnce();
   });
 
   it('rejects unavailable or forward result references without publication', async () => {

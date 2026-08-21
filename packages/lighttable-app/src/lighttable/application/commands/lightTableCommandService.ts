@@ -4,6 +4,7 @@ import {
   formatSchemaValidationIssues,
   validateJsonSchemaValue
 } from '@lighttable/command-contract';
+import { SVG_IMPORT_MAX_BYTES } from '../vectors/svgImportLimits';
 import type { WorkspaceSession } from '../workspace/workspaceSession';
 import { layerIsLocked, type LayerId, type LayerNode } from '../../editor/document/documentTypes';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
@@ -327,11 +328,14 @@ export class LightTableCommandService {
 
   queryTask(documentId: DocumentSessionId, taskId: string): AutomationTaskQueryResult | null {
     const state = this.workspace.getDocument(documentId)?.tasks.getSnapshot().tasks[taskId];
+    const finishedAt = state?.finishedAt ?? null;
     return state ? {
       id: state.id,
       status: state.status,
       progress: state.progress,
       error: state.error,
+      elapsedMs: Math.max(0, (finishedAt ?? performance.now()) - state.startedAt),
+      durationMs: finishedAt === null ? null : Math.max(0, finishedAt - state.startedAt),
       artifact: this.taskArtifacts.get(taskId) ?? null
     } : null;
   }
@@ -1055,7 +1059,7 @@ export class LightTableCommandService {
     }
 
     if (value.command === 'file.exportNative' || value.command === 'file.exportPng'
-      || value.command === 'file.exportPsd') {
+      || value.command === 'file.exportPsd' || value.command === 'file.exportSvg') {
       if (!isRecord(value.parameters) || Object.keys(value.parameters).length > 0) {
         return this.reject(value.requestId, 'invalid-parameters', 'Export parameters must be an empty object.', snapshot);
       }
@@ -1071,9 +1075,10 @@ export class LightTableCommandService {
       }
       const file = this.artifacts.resolve(value.parameters.artifactId);
       if (!file) return this.reject(value.requestId, 'command-unavailable', 'The input artifact does not exist.', snapshot);
-      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size < 1
-        || file.size > 512 * 1024 * 1024) {
-        return this.reject(value.requestId, 'invalid-parameters', 'Place supports PNG, JPEG and WebP artifacts up to 512 MiB.', snapshot);
+      const svg = file.type === 'image/svg+xml';
+      if ((!svg && !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) || file.size < 1
+        || file.size > (svg ? SVG_IMPORT_MAX_BYTES : 512 * 1024 * 1024)) {
+        return this.reject(value.requestId, 'invalid-parameters', 'Place supports SVG up to 16 MiB and PNG, JPEG or WebP up to 512 MiB.', snapshot);
       }
       const finiteOptional = (entry: unknown) => entry === undefined
         || (typeof entry === 'number' && Number.isFinite(entry) && Math.abs(entry) <= 10_000_000);
@@ -1088,9 +1093,15 @@ export class LightTableCommandService {
         ...(typeof value.parameters.x === 'number' ? { x: value.parameters.x } : {}),
         ...(typeof value.parameters.y === 'number' ? { y: value.parameters.y } : {})
       };
+      if (svg && !this.ports.executeSvgImport) {
+        return this.reject(value.requestId, 'command-unavailable', 'SVG placement is unavailable in this host.', snapshot);
+      }
       try {
-        const placed = await this.ports.placeArtifact(documentRequest.documentId, file, placement);
-        if (!placed) return this.reject(value.requestId, 'execution-failed', 'The image could not be placed.', snapshot);
+        const placed = svg ? await this.ports.executeSvgImport?.(documentRequest.documentId, {
+          svg: await file.text(), placement: 'document', layerName: placement.name ?? file.name.replace(/\.[^.]+$/u, ''),
+          x: placement.x, y: placement.y
+        }) : await this.ports.placeArtifact(documentRequest.documentId, file, placement);
+        if (!placed) return this.reject(value.requestId, 'execution-failed', 'The artifact could not be placed.', snapshot);
         this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: placed,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
@@ -1134,6 +1145,22 @@ export class LightTableCommandService {
       try {
         const result = await this.ports.executeVectorCommand(documentRequest.documentId, command);
         if (!result) return this.reject(value.requestId, 'execution-failed', 'The vector command did not change the document.', snapshot);
+        this.workspace.getDocument(documentRequest.documentId)?.markChanged();
+        return { requestId: value.requestId, status: 'completed', value: result,
+          revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
+      } catch (reason) {
+        return this.reject(value.requestId, 'execution-failed', reason instanceof Error ? reason.message : String(reason), snapshot);
+      }
+    }
+
+    if (value.command === 'vector.importSvg') {
+      if (!this.ports.executeSvgImport) {
+        return this.reject(value.requestId, 'command-unavailable', 'SVG import is unavailable in this host.', snapshot);
+      }
+      const parameters = value.parameters as { svg: string; placement: 'document'; layerName?: string };
+      try {
+        const result = await this.ports.executeSvgImport(documentRequest.documentId, parameters);
+        if (!result) return this.reject(value.requestId, 'execution-failed', 'SVG import did not change the document.', snapshot);
         this.workspace.getDocument(documentRequest.documentId)?.markChanged();
         return { requestId: value.requestId, status: 'completed', value: result,
           revisions: this.revisions(this.document(documentRequest.documentId) ?? snapshot) };
@@ -1240,19 +1267,25 @@ export class LightTableCommandService {
     if (!session) return this.reject(request.requestId, 'document-not-found', 'The target document is not open.');
     const native = request.command === 'file.exportNative';
     const psd = request.command === 'file.exportPsd';
+    const svg = request.command === 'file.exportSvg';
     const requestParameters = isRecord(request.parameters) ? request.parameters : {};
     const bitmapFormat = request.command === 'file.exportBitmap'
       ? requestParameters.format as 'jpeg' | 'webp' | 'tiff'
       : null;
+    if (svg && !this.ports.exportSvgArtifact) {
+      return this.reject(request.requestId, 'command-unavailable', 'SVG export is unavailable in this host.', snapshot);
+    }
     const operation = native ? this.ports.exportNativeArtifact.bind(this.ports)
       : psd ? this.ports.exportPsdArtifact.bind(this.ports)
+        : svg ? this.ports.exportSvgArtifact!.bind(this.ports)
         : bitmapFormat
           ? (documentId: DocumentSessionId) => this.ports.exportBitmapArtifact(documentId, bitmapFormat)
           : this.ports.exportPngArtifact.bind(this.ports);
     const kind: LightTableArtifactKind = native ? 'native-document'
-      : psd ? 'psd-export' : bitmapFormat ? `${bitmapFormat}-export` : 'png-export';
+      : psd ? 'psd-export' : svg ? 'svg-export' : bitmapFormat ? `${bitmapFormat}-export` : 'png-export';
     void session.tasks.run('export', native ? 'Export native document'
       : psd ? 'Export Photoshop artifact'
+        : svg ? 'Export SVG artifact'
         : bitmapFormat ? `Export ${bitmapFormat.toUpperCase()} artifact` : 'Export PNG artifact', async (task) => {
       const exported = await operation(request.documentId);
       task.throwIfCanceled();

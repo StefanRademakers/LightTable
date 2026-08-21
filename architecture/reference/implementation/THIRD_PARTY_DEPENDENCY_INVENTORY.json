@@ -16,7 +16,7 @@
   },
   "summary": {
     "npmPackages": 713,
-    "npmRuntimePackages": 199,
+    "npmRuntimePackages": 202,
     "cargoPackages": 80,
     "unknownLicenses": 0
   },
@@ -1638,7 +1638,7 @@
       "name": "@xmldom/xmldom",
       "version": "0.9.10",
       "license": "MIT",
-      "role": "transitive-development",
+      "role": "direct-runtime",
       "optional": false
     },
     {
@@ -4046,7 +4046,7 @@
       "name": "node-forge",
       "version": "1.4.0",
       "license": "(BSD-3-Clause OR GPL-2.0)",
-      "role": "transitive-development",
+      "role": "transitive-runtime",
       "optional": false
     },
     {
@@ -4846,7 +4846,7 @@
       "name": "selfsigned",
       "version": "3.0.1",
       "license": "MIT",
-      "role": "direct-development",
+      "role": "direct-runtime",
       "optional": false
     },
     {
@@ -5692,7 +5692,7 @@
     {
       "ecosystem": "npm",
       "name": "ws",
-      "version": "8.18.3",
+      "version": "8.21.3",
       "license": "MIT",
       "role": "direct-runtime",
       "optional": false

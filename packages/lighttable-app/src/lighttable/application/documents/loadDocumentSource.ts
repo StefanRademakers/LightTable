@@ -11,6 +11,9 @@ import {
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import { setRasterLayerAdjustmentStack } from '../../editor/document/documentCommands';
+import { createVectorLayer } from '../../editor/document/documentCommands';
+import { importSvg, type SvgImportPlan } from '@lighttable/vector-svg';
+import { SVG_IMPORT_CODEC_LIMITS, SVG_IMPORT_MAX_BYTES } from '../vectors/svgImportLimits';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   parseLayeredDocumentFile,
@@ -47,6 +50,7 @@ export interface DocumentSourceRenderer {
     name: string,
     options?: LightTableLoadImageOptions
   ): Promise<LightTableImageMetadata>;
+  initializeDocumentSurface(metadata: LightTableImageMetadata): void;
   setDocument(document: ImageDocument): void;
   loadLayerAssets(assets: DocumentAssetBlob[]): Promise<void>;
 }
@@ -160,7 +164,7 @@ export const loadDocumentSource = async (
   if (sourceProbe.codec === 'unsupported') {
     throw new Error(
       'This file signature is not supported. LightTable currently opens '
-      + 'layered LightTable documents, PSD/PSB, PDF, PNG, JPEG, WebP, and TIFF.'
+      + 'layered LightTable documents, SVG, PSD/PSB, PDF, PNG, JPEG, WebP, and TIFF.'
     );
   }
   const layered = sourceProbe.codec === 'lighttable'
@@ -174,6 +178,7 @@ export const loadDocumentSource = async (
 
   let psdImport: PsdDecodeSuccess | null = null;
   let pdfPreview: PdfRasterPreview | null = null;
+  let svgPlan: SvgImportPlan | null = null;
   let sourceDecodeMs = 0;
   if (sourceProbe.codec === 'photoshop') {
     const sourceDecodeStartedAt = dependencies.now();
@@ -185,6 +190,17 @@ export const loadDocumentSource = async (
     pdfPreview = await dependencies.decodePdfPreview(request.blob, request.signal);
     sourceDecodeMs = dependencies.now() - sourceDecodeStartedAt;
   }
+  if (sourceProbe.codec === 'svg-native') {
+    const sourceDecodeStartedAt = dependencies.now();
+    if (request.blob.size > SVG_IMPORT_MAX_BYTES) {
+      throw new Error(`SVG input is ${request.blob.size} bytes and exceeds the 16 MiB import limit.`);
+    }
+    svgPlan = importSvg(await request.blob.text(), {
+      createId: (kind) => `svg-${kind}-${crypto.randomUUID()}`,
+      limits: SVG_IMPORT_CODEC_LIMITS
+    });
+    sourceDecodeMs = dependencies.now() - sourceDecodeStartedAt;
+  }
   if (canceled(request)) return null;
 
   const imageBlob = psdImport?.preview ?? pdfPreview?.preview ?? layered?.preview ?? request.blob;
@@ -193,13 +209,19 @@ export const loadDocumentSource = async (
     : null;
 
   const decodeStartedAt = dependencies.now();
-  const loadedMetadata = await request.renderer.loadImage(imageBlob, request.name, {
+  const loadedMetadata: LightTableImageMetadata = svgPlan ? {
+    name: request.name, width: svgPlan.width, height: svgPlan.height,
+    contentType: 'image/svg+xml', decoder: 'native-svg', sourceBitDepth: 32,
+    sourceFormat: 'SVG', sourceInterpretation: 'Editable native SVG subset',
+    decodeDurationMs: sourceDecodeMs
+  } : await request.renderer.loadImage(imageBlob, request.name, {
     decodeMode:
       psdImport || layered
         ? 'fast'
         : sourceProbe.decodeMode,
     signal: request.signal
   });
+  if (svgPlan) request.renderer.initializeDocumentSurface(loadedMetadata);
   const metadata: LightTableImageMetadata = psdImport
     ? {
         ...loadedMetadata,
@@ -240,6 +262,10 @@ export const loadDocumentSource = async (
       normalizedColorSpace: 'linear-srgb'
     }
   );
+  if (svgPlan) {
+    document = { ...document, layers: [], activeLayerId: null };
+    document = createVectorLayer(document, svgPlan.elements, request.name.replace(/\.[^.]+$/u, '') || 'Imported SVG');
+  }
   if (request.creationSettings && !layered && !semanticPsd) {
     document = {
       ...document,
@@ -289,7 +315,7 @@ export const loadDocumentSource = async (
       }
     };
   }
-  if (!layered && !semanticPsd) {
+  if (!layered && !semanticPsd && !svgPlan) {
     const initialRasterGrade = createInitialRasterGrade(request.initialAdjustments);
     const background = findDocumentLayer(document, document.activeLayerId);
     if (initialRasterGrade && background?.type === 'raster') {

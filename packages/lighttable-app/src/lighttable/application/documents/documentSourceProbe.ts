@@ -2,7 +2,7 @@ import type { LightTableImageDecodeMode } from '../rendering/rendererTypes';
 
 const LIGHTTABLE_FOOTER_MAGIC = 'LTBLDOC1';
 const LIGHTTABLE_FOOTER_SIZE = 12;
-const HEADER_SIZE = 32;
+const HEADER_SIZE = 4_096;
 
 export type DocumentSourceFormat =
   | 'lighttable'
@@ -13,6 +13,7 @@ export type DocumentSourceFormat =
   | 'psd'
   | 'psb'
   | 'pdf'
+  | 'svg'
   | 'unknown';
 
 export type DocumentSourceCodec =
@@ -21,6 +22,7 @@ export type DocumentSourceCodec =
   | 'wasm-vips'
   | 'photoshop'
   | 'pdf-raster'
+  | 'svg-native'
   | 'unsupported';
 
 export type DocumentOpenMode =
@@ -159,6 +161,21 @@ export const probeDocumentSource = async (
       decodeMode: 'fast',
       bitDepth: null
     };
+  }
+
+  let textPrefix = new TextDecoder('utf-8', { fatal: false }).decode(header)
+    .replace(/^\uFEFF?\s*/u, '')
+    .replace(/^<\?xml[^?]*\?>\s*/iu, '');
+  // XML permits comments between the declaration and the document element.
+  // Inkscape commonly writes its authoring signature there, so discard only
+  // complete leading comments while keeping the byte probe bounded.
+  while (/^<!--/u.test(textPrefix)) {
+    const next = textPrefix.replace(/^<!--[\s\S]*?-->\s*/u, '');
+    if (next === textPrefix) break;
+    textPrefix = next;
+  }
+  if (/^<svg(?:\s|>)/iu.test(textPrefix)) {
+    return { format: 'svg', codec: 'svg-native', decodeMode: 'fast', bitDepth: null };
   }
 
   return {

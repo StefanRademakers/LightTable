@@ -106,7 +106,7 @@ const clearRecoveryAttempt = (recoveryId: string): void => {
 };
 const pickBrowserPlacedImage = () => new Promise<File | null>((resolve) => {
   const input = document.createElement('input');
-  input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp';
+  input.type = 'file'; input.accept = 'image/png,image/jpeg,image/webp,image/svg+xml';
   let settled = false;
   const finish = (file: File | null) => { if (!settled) { settled = true; resolve(file); } };
   input.addEventListener('change', () => finish(input.files?.[0] ?? null), { once: true });

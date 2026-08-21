@@ -25,12 +25,16 @@ interface StrokeRun {
   closed: boolean;
 }
 
-const cleanPolyline = (points: readonly Vec2[]) => {
+const cleanPolyline = (points: readonly Vec2[], closed: boolean) => {
   const clean: Vec2[] = [];
   for (const point of points) {
     if (!clean.length || !pointsEqual(clean[clean.length - 1], point)) clean.push({ ...point });
   }
-  if (clean.length > 1 && pointsEqual(clean[0], clean[clean.length - 1])) clean.pop();
+  // A repeated endpoint may only be removed for an explicitly closed
+  // subpath. In SVG, an open subpath remains open even when its final
+  // coordinate equals its initial coordinate; removing that endpoint would
+  // drop the authored final segment and move the end cap backwards.
+  if (closed && clean.length > 1 && pointsEqual(clean[0], clean[clean.length - 1])) clean.pop();
   return clean;
 };
 
@@ -45,7 +49,7 @@ export const strokeRuns = (
   dash: readonly number[],
   dashOffset: number
 ): readonly StrokeRun[] => {
-  const points = cleanPolyline(subpath.points);
+  const points = cleanPolyline(subpath.points, subpath.closed);
   if (points.length < 2) return [];
   const pattern = normalizedDash(dash);
   if (!pattern.length) return [{ points, closed: subpath.closed }];
@@ -214,7 +218,7 @@ const appendRun = (
   tolerance: number,
   closedContourArea: number
 ) => {
-  const points = cleanPolyline(run.points);
+  const points = cleanPolyline(run.points, run.closed);
   const segmentCount = run.closed ? points.length : points.length - 1;
   if (segmentCount < 1 || stroke.width <= 0) return;
   const distances = strokeSideDistances(stroke, closedContourArea);
@@ -279,7 +283,7 @@ export const buildStrokeTriangleGeometry = (
     return { vertices: new Float32Array(), triangleCount: 0, estimatedBytes: 0 };
   }
   for (const subpath of geometry.subpaths) {
-    const contourPoints = cleanPolyline(subpath.points);
+    const contourPoints = cleanPolyline(subpath.points, subpath.closed);
     const closedContourArea = subpath.closed ? signedPolylineArea(contourPoints) : 0;
     for (const run of strokeRuns(subpath, stroke.dash, stroke.dashOffset)) {
       appendRun(values, run, stroke, geometry.key.toleranceBucket, closedContourArea);

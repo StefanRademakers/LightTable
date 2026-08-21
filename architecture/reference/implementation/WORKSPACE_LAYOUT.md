@@ -15,16 +15,27 @@ The workspace owns:
 - Scopes, Layers, Grade and Lens Fx panels;
 - later Media Browser and GenAI panels.
 
+The application editor owns:
+
+- one React editor UI and one Dockview workspace;
+- one persistent document canvas and one active presentation renderer binding;
+- active tool, tool options, colors and other application-wide interaction UI.
+
 Each document session owns:
 
 - image/layer document state;
-- WebGPU runtime and derived resources;
-- tool/session state;
+- canonical pixel, mask and embedded document resources;
+- lightweight document view state such as zoom, pan, selection and active layer;
 - undo/redo history;
 - dirty and save state.
 
-Changing the active document must never share undo history or mutable GPU image
-resources between documents.
+Shared GPU devices and pipelines are application infrastructure. Derived render
+caches may be discarded and rebuilt. A presentation renderer borrows the active
+document's resources; it does not own or destroy canonical document data.
+
+Changing the active document rebinds the one persistent canvas. It must never
+mount a complete editor/canvas per tab, reopen source bytes, share undo history
+or mutate either document.
 
 ## Dock semantics
 
@@ -37,6 +48,11 @@ resources between documents.
 The document host is stable and locked against accessory panels. It keeps its
 own document-tab strip so the persisted accessory layout never contains stale
 image-document tabs.
+
+Workspace presets may rearrange or show/hide docked accessories. They do not
+destroy the document host. Floating panel geometry is stable application UI:
+when a floating panel remains available across a preset change, its position
+and size remain exactly where the user put it.
 
 ## Scopes
 
@@ -85,9 +101,10 @@ saved document.
 - [x] Same-window floating groups.
 - [x] Versioned, separately persisted workspace layout.
 - [x] Explicit workspace-layout reset.
-- [x] Document-session controller for opening and switching multiple live
-  documents with exactly one active document.
-- [x] Inactive renderer suspension without sharing mutable document state.
+- [x] Document-session controller for opening and switching multiple documents
+  with exactly one active document.
+- [ ] One persistent editor/canvas with active-document renderer rebinding.
+- [ ] Document-owned canonical GPU resources outside the presentation renderer.
 - [x] Typed panel registry and feature-owned panel composition.
 - [ ] Rebindable Parade/Vectorscope surfaces.
 - [ ] True same-origin browser popout and multi-monitor smoke tests.

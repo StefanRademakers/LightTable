@@ -514,6 +514,28 @@ export class WebGpuEngine {
     return loaded.metadata;
   }
 
+  /**
+   * Creates the transparent backing surface required by native documents that
+   * have no decoded raster source, such as an SVG opened as editable vectors.
+   */
+  initializeDocumentSurface(metadata: LightTableImageMetadata) {
+    if (this.destroyed) throw new Error('LightTable was closed while the document was loading.');
+    this.destroyImageResources();
+    this.metadata = metadata;
+    this.imageResources.sourceTexture = this.device.createTexture({
+      label: 'LightTable transparent native document source',
+      size: [metadata.width, metadata.height],
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    });
+    this.createImageResources(metadata.width, metadata.height);
+    this.writeAdjustments();
+    this.writeOutputSettings();
+    this.renderDirty.invalidate('source');
+    this.firstFramePending = true;
+    this.requestRender();
+  }
+
   setDocument(document: ImageDocument) {
     if (!this.imageResources.sourceTexture || !this.documentRenderer) throw new Error('Load an image before creating its LightTable document.');
     const previousDocument = this.imageDocument;
@@ -2239,6 +2261,15 @@ export class WebGpuEngine {
   }
 
   resizeViewport(cssWidth: number, cssHeight: number, dpr: number, rect: ViewportRenderRect) {
+    const vectorPresentationScale = this.metadata?.width
+      ? rect.width * Math.max(1, dpr) / this.metadata.width
+      : 1;
+    if (this.documentRenderer?.setVectorPresentationScale(vectorPresentationScale)) {
+      // Vector paths are retained as cubics. Crossing a presentation-scale
+      // bucket invalidates the document composite so their temporary flattened
+      // geometry is rebuilt at an appropriate screen-space tolerance.
+      this.markDocumentDirty();
+    }
     this.viewportPresentation.resize(
       this.metadata?.width ?? null,
       cssWidth,

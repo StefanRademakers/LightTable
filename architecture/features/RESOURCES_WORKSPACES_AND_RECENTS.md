@@ -32,6 +32,14 @@ The existing `View -> Reset workspace layout` command restores the default and
 does not touch open documents. Normal layout changes are debounced and saved as
 the custom workspace.
 
+LightTable has one application workspace and one editor UI, not one workspace
+or complete React editor per document tab. Document activation changes the
+document/view binding inside the stable editor. It cannot recreate the canvas,
+redecode the source or alter canonical document state. Workspace presets only
+rearrange intended docked panels. Floating panel position and size remain
+stable across document changes and across presets where that panel remains
+floating and available.
+
 ## Desktop recent documents
 
 The desktop main process owns recents. A file is recorded only after a

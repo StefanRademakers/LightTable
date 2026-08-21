@@ -100,6 +100,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     getLayerPalette: vi.fn(async () => [{ rgb: [10, 20, 30] as const, hex: '#0A141E',
       coverage: 1, pixelCount: 1200, oklab: [0.19, -0.01, -0.03] as const }]),
     exportPsdArtifact: vi.fn(async () => new File(['psd'], 'test.psd', { type: 'image/vnd.adobe.photoshop' })),
+    exportSvgArtifact: vi.fn(async () => new File(['svg'], 'test.svg', { type: 'image/svg+xml' })),
     beginGesture: vi.fn(async () => true),
     updateGesture: vi.fn(async () => true),
     finishGesture: vi.fn(async () => true),
@@ -145,6 +146,33 @@ const basicValues = {
 };
 
 describe('LightTableCommandService action recording', () => {
+  it('records and replays native SVG import as one semantic operation', async () => {
+    const executeSvgImport = vi.fn(async () => ({
+      layerId: 'svg-layer', elementIds: ['svg-path'], width: 100, height: 100,
+      report: { warnings: [], conversions: [] }
+    }));
+    const state = setup({ executeSvgImport });
+    const parameters = {
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M0 0H100V100Z"/></svg>',
+      placement: 'document' as const,
+      layerName: 'Mark'
+    };
+    state.service.startActionRecording('Import SVG mark');
+    await state.service.execute(request('vector.importSvg', state.session.id, parameters));
+    state.service.stopActionRecording();
+
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([
+      { sequence: 1, command: 'vector.importSvg', replayable: true, parameters }
+    ]);
+    await state.service.playActionRecording();
+    expect(executeSvgImport).toHaveBeenCalledTimes(2);
+    expect(state.service.actionPlaybackSnapshot()).toMatchObject({
+      status: 'completed', results: [{ command: 'vector.importSvg', status: 'completed' }]
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('records Grade copy/paste with only a fresh opaque result binding', async () => {
     const state = setup();
     const revisionBeforeCopy = state.service.queryDocument(state.session.id)!.canonicalRevision;
@@ -256,6 +284,10 @@ describe('LightTableCommandService action recording', () => {
     await vi.waitFor(() => expect(
       state.service.queryTask(state.session.id, accepted.taskId)?.status
     ).toBe('completed'));
+    const completedTask = state.service.queryTask(state.session.id, accepted.taskId);
+    expect(completedTask?.durationMs).toEqual(expect.any(Number));
+    expect(completedTask!.durationMs).toBeGreaterThanOrEqual(0);
+    expect(completedTask!.elapsedMs).toBe(completedTask!.durationMs);
     state.service.stopActionRecording();
     expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
       command: 'file.exportNative', outcome: 'accepted', replayable: true,
@@ -1092,6 +1124,27 @@ describe('LightTableCommandService registry', () => {
     state.service.dispose(); state.workspace.dispose();
   });
 
+  it('routes one bounded SVG payload through the atomic native import owner', async () => {
+    const state = setup();
+    state.ports.executeSvgImport = vi.fn(async () => ({
+      layerId: 'svg-layer', elementIds: ['svg-element'], width: 100, height: 100,
+      report: { warnings: [], conversions: [] }
+    }));
+    const parameters = {
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M0 0H100V100Z"/></svg>',
+      placement: 'document' as const, layerName: 'Logo'
+    };
+    const result = await state.service.execute(request('vector.importSvg', state.session.id, parameters));
+    expect(result).toMatchObject({ status: 'completed', value: {
+      layerId: 'svg-layer', elementIds: ['svg-element']
+    } });
+    expect(state.ports.executeSvgImport).toHaveBeenCalledWith(state.session.id, parameters);
+    expect(await state.service.execute(request('vector.importSvg', state.session.id, {
+      svg: '<svg/>', placement: 'viewport'
+    }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('validates and routes one bounded semantic Warp recipe', async () => {
     const state = setup();
     const layerId = state.session.getSnapshot().document!.activeLayerId!;
@@ -1918,7 +1971,8 @@ describe('LightTableCommandService registry', () => {
       ['file.exportBitmap', { format: 'jpeg' }, 'jpeg-export'],
       ['file.exportBitmap', { format: 'webp' }, 'webp-export'],
       ['file.exportBitmap', { format: 'tiff' }, 'tiff-export'],
-      ['file.exportPsd', {}, 'psd-export']
+      ['file.exportPsd', {}, 'psd-export'],
+      ['file.exportSvg', {}, 'svg-export']
     ] as const;
     for (const [command, parameters, kind] of cases) {
       const accepted = await state.service.execute(request(command, state.session.id, parameters));
@@ -2183,6 +2237,23 @@ describe('LightTableCommandService registry', () => {
     state.service.dispose(); state.workspace.dispose();
   });
 
+  it('places an SVG artifact through the same atomic native import owner', async () => {
+    const state = setup();
+    const source = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>';
+    const artifact = state.service.registerInputArtifact(new File([source], 'vector.svg', { type: 'image/svg+xml' }));
+    state.ports.executeSvgImport = vi.fn(async () => ({ layerId: 'svg-layer', elementIds: ['path'],
+      width: 300, height: 150, report: { warnings: [], conversions: [] } }));
+    const result = await state.service.execute(request('layer.placeArtifact', state.session.id, {
+      artifactId: artifact.id, name: 'Placed SVG', x: 12, y: 24
+    }));
+    expect(result).toMatchObject({ status: 'completed', value: { layerId: 'svg-layer' } });
+    expect(state.ports.executeSvgImport).toHaveBeenCalledWith(state.session.id, {
+      svg: source, placement: 'document', layerName: 'Placed SVG', x: 12, y: 24
+    });
+    expect(state.ports.placeArtifact).not.toHaveBeenCalled();
+    state.service.dispose(); state.workspace.dispose();
+  });
+
   it('rejects invalid document and placement resources without invoking mutation ports', async () => {
     const state = setup();
     const service = new LightTableCommandService(state.workspace, state.ports, {
@@ -2192,7 +2263,7 @@ describe('LightTableCommandService registry', () => {
       parameters: { name: 'Huge', width: 32768, height: 32768, resolutionPpi: 72,
         bitDepth: 8, profile: 'srgb', background: { kind: 'transparent' } } }))
       .toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
-    const artifact = service.registerInputArtifact(new File(['svg'], 'vector.svg', { type: 'image/svg+xml' }));
+    const artifact = service.registerInputArtifact(new File(['gif'], 'vector.gif', { type: 'image/gif' }));
     expect(await service.execute(request('layer.placeArtifact', state.session.id, { artifactId: artifact.id })))
       .toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
     expect(await service.execute(request('layer.placeArtifact', state.session.id, {

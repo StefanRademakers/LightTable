@@ -167,10 +167,11 @@ export class MockLightTableClient {
       .map((command) => ({ command, available: true, reason: null }));
     if (method === 'artifact.list') return [];
     if (method === 'task.query') return parameters.documentId === this.document.id
-      && parameters.taskId === 'task-demo'
-      ? { id: 'task-demo', status: 'completed', progress: 1, error: null,
-        artifact: { id: 'artifact-demo', kind: 'png-export', name: 'demo.png',
-          mediaType: 'image/png', byteLength: 3, createdAt: 1 } }
+      && (parameters.taskId === 'task-demo' || parameters.taskId === 'task-batch')
+      ? { id: parameters.taskId, status: 'completed', progress: 1, error: null,
+        elapsedMs: 25, durationMs: 25,
+        artifact: parameters.taskId === 'task-demo' ? { id: 'artifact-demo', kind: 'png-export', name: 'demo.png',
+          mediaType: 'image/png', byteLength: 3, createdAt: 1 } : null }
       : null;
     if (method === 'task.events') return { cursor: 0, events: [] };
     if (method === 'event.query') return { cursor: 0, latestCursor: 0,
@@ -186,6 +187,10 @@ export class MockLightTableClient {
           rasterSurface: null, textLayout: { mode: 'point' } });
       }
       this.revision += 1; this.document.canonicalRevision += 1; this.document.dirty = true;
+      if (parameters.command === 'command.batch') {
+        return { requestId: parameters.commandRequestId, status: 'accepted', taskId: 'task-batch',
+          revisions: { workspace: this.revision, document: this.document.canonicalRevision } };
+      }
       return { requestId: parameters.commandRequestId, status: 'completed', value: { changed: true },
         revisions: { workspace: this.revision, document: this.document.canonicalRevision } };
     }

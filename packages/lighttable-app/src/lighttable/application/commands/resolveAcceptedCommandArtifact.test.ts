@@ -10,8 +10,10 @@ describe('resolveAcceptedCommandArtifact', () => {
   it('waits for one completed task artifact and resolves its File', async () => {
     const file = new File(['png'], 'result.png', { type: 'image/png' });
     const queryTask = vi.fn()
-      .mockReturnValueOnce({ id: 'task-1', status: 'running', progress: 0.5, error: null, artifact: null })
+      .mockReturnValueOnce({ id: 'task-1', status: 'running', progress: 0.5, error: null,
+        elapsedMs: 10, durationMs: null, artifact: null })
       .mockReturnValue({ id: 'task-1', status: 'completed', progress: 1, error: null,
+        elapsedMs: 20, durationMs: 20,
         artifact: { id: 'artifact-1', kind: 'png-export', name: file.name, mediaType: file.type,
           byteLength: file.size, createdAt: 1 } });
     await expect(resolveAcceptedCommandArtifact({
@@ -28,12 +30,14 @@ describe('resolveAcceptedCommandArtifact', () => {
       documentId, { requestId: 'bad', status: 'rejected', code: 'command-unavailable',
         message: 'No renderer', revisions: { workspace: 1 } })).rejects.toThrow('No renderer');
     await expect(resolveAcceptedCommandArtifact({ queryTask: () => ({ id: 'task-1', status: 'failed',
-      progress: null, error: 'GPU failed', artifact: null }), resolveArtifact: () => null },
+      progress: null, error: 'GPU failed', elapsedMs: 5, durationMs: 5, artifact: null }),
+    resolveArtifact: () => null },
     documentId, accepted)).rejects.toThrow('GPU failed');
     await expect(resolveAcceptedCommandArtifact({ queryTask: () => null, resolveArtifact: () => null },
       documentId, accepted)).rejects.toThrow('no longer available');
     await expect(resolveAcceptedCommandArtifact({ queryTask: () => ({ id: 'task-1', status: 'completed',
-      progress: 1, error: null, artifact: { id: 'gone', kind: 'png-export', name: 'gone.png',
+      progress: 1, error: null, elapsedMs: 5, durationMs: 5,
+      artifact: { id: 'gone', kind: 'png-export', name: 'gone.png',
         mediaType: 'image/png', byteLength: 1, createdAt: 1 } }),
     resolveArtifact: () => null }, documentId, accepted)).rejects.toThrow('no longer available');
   });

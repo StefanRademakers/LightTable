@@ -283,6 +283,49 @@ const createDefaultLayout = (
   applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
 };
 
+/**
+ * Rebuilds only the accessory portion of the workspace.
+ *
+ * The document host owns the live canvas surface and must never participate in
+ * a workspace-layout transaction. Floating groups are user-positioned UI and
+ * remain stable across presets; only docked accessories follow the preset.
+ */
+const rebuildAccessoryLayout = (
+  api: DockviewApi,
+  panels: LightTableWorkspacePanelRegistration[],
+  widthConstraintsEnabled: boolean,
+  preserveFloatingGroups: boolean
+) => {
+  for (const panel of panels) {
+    const existing = api.getPanel(panel.id);
+    if (!existing) continue;
+    if (preserveFloatingGroups && existing.group.api.location.type === 'floating') continue;
+    api.removePanel(existing);
+  }
+
+  for (const panel of panels) {
+    if (api.getPanel(panel.id)) continue;
+    const dockPanel = addRegisteredPanel(api, panel);
+    const floating = panel.defaultFloating;
+    if (!floating || !dockPanel) continue;
+
+    const width = Math.min(floating.width, Math.max(250, api.width - 24));
+    const height = Math.min(floating.height, Math.max(240, api.height - 24));
+    api.addFloatingGroup(dockPanel, {
+      x: Math.max(12, Math.min(Math.round(api.width * floating.xRatio), api.width - width - 12)),
+      y: Math.max(12, Math.min(Math.round(api.height * floating.yRatio), api.height - height - 12)),
+      width,
+      height
+    });
+  }
+
+  const documentHost = api.getPanel(DOCUMENT_HOST_PANEL_ID);
+  if (!documentHost) throw new Error('Workspace layout lost the document host.');
+  documentHost.group.header.hidden = true;
+  documentHost.group.locked = false;
+  applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
+};
+
 const isUsableSavedLayout = (
   layout: SerializedDockview,
   panels: LightTableWorkspacePanelRegistration[]
@@ -760,8 +803,12 @@ export const LightTableDockWorkspace = forwardRef<
     dockColumnGroupIdsRef.current = { left: [], right: [] };
     setDockColumns(EMPTY_DOCK_COLUMN_STATES);
     clearWorkspaceLayout(localStorage);
-    api.clear();
-    createDefaultLayout(api, panelsRef.current, accessoryWidthConstraintsEnabled);
+    rebuildAccessoryLayout(
+      api,
+      panelsRef.current,
+      accessoryWidthConstraintsEnabled,
+      false
+    );
     scheduleDockColumnRefresh(api);
     saveLayout();
     window.queueMicrotask(() => { resettingLayoutRef.current = false; });
@@ -781,11 +828,11 @@ export const LightTableDockWorkspace = forwardRef<
     setDockColumns(EMPTY_DOCK_COLUMN_STATES);
     clearWorkspaceLayout(localStorage);
     try {
-      api.clear();
-      createDefaultLayout(
+      rebuildAccessoryLayout(
         api,
         panelsForWorkspacePreset(panelsRef.current, preset),
-        accessoryWidthConstraintsEnabled
+        accessoryWidthConstraintsEnabled,
+        true
       );
       scheduleDockColumnRefresh(api);
       persistWorkspaceLayout(localStorage, api.toJSON(), preset);

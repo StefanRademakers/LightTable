@@ -78,14 +78,16 @@ describe('SharedWebGpuDeviceManager', () => {
     const supportedProvider = createProvider([supported.device], true);
     await new SharedWebGpuDeviceManager(supportedProvider.provider).request();
     expect(supportedProvider.requestDevice).toHaveBeenCalledWith({
-      requiredFeatures: [TEXTURE_FORMATS_TIER1]
+      requiredFeatures: [TEXTURE_FORMATS_TIER1],
+      requiredLimits: { maxTextureDimension2D: 16384, maxBufferSize: 1073741824 }
     });
 
     const unsupported = createDevice();
     const unsupportedProvider = createProvider([unsupported.device], false);
     await new SharedWebGpuDeviceManager(unsupportedProvider.provider).request();
     expect(unsupportedProvider.requestDevice).toHaveBeenCalledWith({
-      requiredFeatures: []
+      requiredFeatures: [],
+      requiredLimits: { maxTextureDimension2D: 16384, maxBufferSize: 1073741824 }
     });
   });
 

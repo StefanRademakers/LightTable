@@ -62,6 +62,7 @@ export interface EditorMenuCommands {
   newDocument: () => void;
   open: () => void;
   place: () => void;
+  importSvg: () => void;
   recentFiles: readonly LightTableRecentFile[];
   openRecent: (id: string) => void;
   clearRecent: () => void;
@@ -81,6 +82,7 @@ export interface EditorMenuCommands {
   exportTiff: () => void;
   exportPsd: () => void;
   exportPsdMaximumAppearance: () => void;
+  exportSvg: () => void;
   pdfExportPreflight: () => void;
   openFormatSupport: () => void;
   copySelectedContent: () => void;
@@ -200,6 +202,12 @@ export const createEditorMenuOptions = (
         disabled: !state.hasDocument || state.saving
       },
       {
+        value: 'import-svg',
+        label: 'Import SVG as Editable Vectors...',
+        onClick: commands.importSvg,
+        disabled: !state.hasDocument || state.saving
+      },
+      {
         value: 'open-recent',
         label: 'Open Recent',
         disabled: state.saving || commands.recentFiles.length === 0,
@@ -242,6 +250,7 @@ export const createEditorMenuOptions = (
           { value: 'export-tiff', label: 'TIFF...', disabled: !state.hasMetadata || state.saving, onClick: commands.exportTiff },
           { value: 'export-psd', label: 'Photoshop PSD (Editable)...', disabled: !state.hasDocument || state.saving, onClick: commands.exportPsd },
           { value: 'export-psd-appearance', label: 'Photoshop PSD (Maximum Appearance)...', disabled: !state.hasDocument || state.saving, onClick: commands.exportPsdMaximumAppearance },
+          { value: 'export-svg', label: 'SVG (Editable Vectors)...', disabled: !state.hasDocument || state.saving, onClick: commands.exportSvg },
           { value: 'export-pdf', label: 'PDF...', disabled: !state.hasDocument || state.saving, onClick: commands.pdfExportPreflight },
           { value: 'format-support', label: 'Format Support...', separatorBefore: true, onClick: commands.openFormatSupport }
         ]

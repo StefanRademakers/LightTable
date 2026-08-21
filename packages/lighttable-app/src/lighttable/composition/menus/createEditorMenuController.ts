@@ -27,6 +27,7 @@ export interface EditorMenuControllerOptions {
     newDocument(): void;
     open(): void;
     place(): void;
+    importSvg(): void;
     recentFiles: readonly LightTableRecentFile[];
     openRecent(id: string): void;
     clearRecent(): void;
@@ -46,6 +47,7 @@ export interface EditorMenuControllerOptions {
     exportTiff(): void;
     exportPsd(): void;
     exportPsdMaximumAppearance(): void;
+    exportSvg(): void;
     pdfExportPreflight(): void;
     openFormatSupport(): void;
   };
@@ -162,6 +164,7 @@ export const createEditorMenuController = ({
       newDocument: file.newDocument,
       open: file.open,
       place: file.place,
+      importSvg: file.importSvg,
       recentFiles: file.recentFiles,
       openRecent: file.openRecent,
       clearRecent: file.clearRecent,
@@ -181,6 +184,7 @@ export const createEditorMenuController = ({
       exportTiff: file.exportTiff,
       exportPsd: file.exportPsd,
       exportPsdMaximumAppearance: file.exportPsdMaximumAppearance,
+      exportSvg: file.exportSvg,
       pdfExportPreflight: file.pdfExportPreflight,
       openFormatSupport: file.openFormatSupport,
       copySelectedContent: edit.copySelectedContent,

@@ -45,6 +45,7 @@ export declare const LIGHTTABLE_COMMAND_IDS: readonly [
   'vector.create',
   'vector.update',
   'vector.remove',
+  'vector.importSvg',
   'warp.applyStroke',
   'raster.fill',
   'raster.applyGradient',
@@ -70,6 +71,7 @@ export declare const LIGHTTABLE_COMMAND_IDS: readonly [
   'file.exportPng',
   'file.exportBitmap',
   'file.exportPsd',
+  'file.exportSvg',
   'history.undo',
   'history.redo'
 ];
@@ -136,6 +138,7 @@ export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'vector.create',
   'vector.update',
   'vector.remove',
+  'vector.importSvg',
   'warp.applyStroke',
   'raster.fill',
   'raster.applyGradient',
@@ -160,6 +163,7 @@ export declare const LIGHTTABLE_AGENT_ACCESS_COMMAND_IDS: readonly [
   'file.exportPng',
   'file.exportBitmap',
   'file.exportPsd',
+  'file.exportSvg',
   'history.undo',
   'history.redo'
 ];
@@ -206,6 +210,7 @@ export declare const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS: readonly [
   'vector.create',
   'vector.update',
   'vector.remove',
+  'vector.importSvg',
   'warp.applyStroke',
   'raster.fill',
   'raster.applyGradient',
@@ -230,6 +235,7 @@ export declare const LIGHTTABLE_EXTERNAL_MCP_EXECUTE_COMMAND_IDS: readonly [
   'file.exportPng',
   'file.exportBitmap',
   'file.exportPsd',
+  'file.exportSvg',
   'history.undo',
   'history.redo'
 ];

@@ -13,6 +13,7 @@ describe('createEditorMenuController', () => {
   it('binds active-layer menu operations to the projected document', () => {
     const document = createImageDocument('Menu', 64, 64, 'background');
     const setVisibility = vi.fn();
+    const place = vi.fn();
     const panel = {
       setVisibility
     } as unknown as LayerPanelController;
@@ -38,7 +39,8 @@ describe('createEditorMenuController', () => {
       file: {
         newDocument: vi.fn(),
         open: vi.fn(),
-        place: vi.fn(),
+        place,
+        importSvg: place,
         recentFiles: [],
         openRecent: vi.fn(),
         clearRecent: vi.fn(),
@@ -49,6 +51,7 @@ describe('createEditorMenuController', () => {
         exportTiff: vi.fn(),
         exportPsd: vi.fn(),
         exportPsdMaximumAppearance: vi.fn(),
+        exportSvg: vi.fn(),
         pdfExportPreflight: vi.fn(),
         openFormatSupport: vi.fn()
       },
@@ -103,11 +106,13 @@ describe('createEditorMenuController', () => {
     });
 
     findOption(controller.optionsFor('layer'), 'toggle-visibility')?.onClick?.();
+    findOption(controller.optionsFor('file'), 'import-svg')?.onClick?.();
 
     expect(setVisibility).toHaveBeenCalledWith(
       [document.activeLayerId],
       false
     );
+    expect(place).toHaveBeenCalledOnce();
     expect(findOption(controller.optionsFor('edit'), 'settings')).toMatchObject({
       label: 'Preferences...',
       shortcut: 'Ctrl+K'
@@ -140,9 +145,9 @@ describe('createEditorMenuController', () => {
       },
       labels: { primaryShortcut: (key) => `Ctrl+${key}` },
       file: {
-        newDocument: vi.fn(), open: vi.fn(), place: vi.fn(), recentFiles: [],
+        newDocument: vi.fn(), open: vi.fn(), place: vi.fn(), importSvg: vi.fn(), recentFiles: [],
         openRecent: vi.fn(), clearRecent: vi.fn(), save: vi.fn(), exportPng: vi.fn(), exportJpeg: vi.fn(), exportWebp: vi.fn(), exportTiff: vi.fn(), exportPsd: vi.fn(),
-        exportPsdMaximumAppearance: vi.fn(),
+        exportPsdMaximumAppearance: vi.fn(), exportSvg: vi.fn(),
         pdfExportPreflight: vi.fn(),
         openFormatSupport: vi.fn()
       },

@@ -1,0 +1,111 @@
+Task 302 - Predictable editor, workspace and document state ownership
+
+Status
+In progress. The destructive workspace preset/reset path has been changed to
+preserve the live document host. The complete one-editor ownership refactor and
+interactive acceptance still remain.
+
+Goal
+Make LightTable behave as one stable editor application whose UI presents one
+active document at a time. A tab, workspace, panel, focus, resize or React
+lifecycle change must never mutate, reopen or replace canonical document data.
+
+Owner-confirmed mental model
+- React owns application UI, panel presentation and transient interaction UI.
+- The application owns one editor shell, one workspace layout and one active
+  renderer binding on one persistent canvas/surface. Open tabs do not each own
+  a complete editor, Dockview, canvas or prewarmed render runtime.
+- Each open document owns canonical image/layer data, document resources,
+  undo/redo, dirty/save state and lightweight per-document view state.
+- The canvas is a view of the active document. Mounting, moving, resizing or
+  replacing a canvas surface is not a document-open or document-mutation event.
+- Document data changes only through an explicit authorized operation: user
+  command/gesture, undo/redo, import/recovery, Action or MCP command.
+
+Expected user behavior
+- Switching document tabs changes document content, active-layer/selection and
+  that document's zoom/pan; the complete surrounding UI remains where it was.
+- Switching workspace presets rearranges or shows/hides intended docked panels
+  only. It does not change layers, pixels, vectors, selection, history or dirty
+  state.
+- A floating panel that exists before and after a workspace switch returns at
+  exactly the same position and size. Users must not hunt for Layers again.
+- User panel moves, sizes and visibility survive document switching.
+- A running gesture is explicitly committed or cancelled before switching
+  documents. It cannot leak into the next tab.
+- Background documents consume no full editor UI tree and no active render
+  loop. They retain canonical data and only the resources required for exact
+  continuation.
+- MCP and Actions mutate the same canonical document authority as UI commands;
+  UI lifecycle is never used as a mutation transport.
+
+Non-negotiable invariants
+- [ ] Tab activation cannot change any document revision or layer tree.
+- [ ] Workspace preset/reset cannot change any document revision or layer tree.
+- [ ] Panel dock/float/move/resize/show/hide cannot reopen a source document.
+- [ ] Canvas ref/surface lifecycle cannot reopen or mutate a document.
+- [ ] Focus, blur and React render/effect execution cannot mutate a document.
+- [ ] Exactly one application workspace/Dockview instance exists.
+- [ ] Exactly one active presentation renderer/canvas binding exists.
+- [ ] Tab switching rebinds the persistent canvas; it does not create, prewarm
+      or retain a canvas/render runtime for another document.
+- [ ] No retained full `LightTableEditorOverlay` exists per open document.
+- [ ] Canonical pixels/masks/resources outlive renderer rebinding and are
+      released only when their document closes.
+- [ ] Derived caches are disposable/rebuildable and never canonical authority.
+
+Implementation checklist
+- [x] Identify current violation: every materialized document mounts a complete
+      `LightTableEditorOverlay` and Dockview workspace.
+- [x] Identify data-loss path: preset/reset calls `api.clear()`, remounts the
+      document surface, changes `documentSurfaceRevision`, and starts a fresh
+      document-open generation that republishes the original source.
+- [x] Stop preset/reset from clearing the document host. Rebuild accessories
+      only and preserve existing floating groups during preset changes.
+- [ ] Add product regressions proving tab/layout/workspace/canvas lifecycle is
+      observationally read-only for every open document.
+- [ ] Split global editor UI state from per-document view/interaction state.
+- [ ] Remove full `EditorSession` and renderer lifecycle ownership from each
+      `DocumentSession`; retain only appropriate document/view state.
+- [ ] Extract canonical raster/mask/pattern resource ownership from
+      `LayerDocumentRenderer` into a document resource repository outside React
+      and outside the presentation renderer.
+- [ ] Make one renderer detach from one document resource repository and attach
+      to another without source decode or canonical resource destruction.
+- [ ] Compose exactly one `LightTableEditorOverlay` and one Dockview shell in
+      `LightTableStandaloneApp`; bind it to the active `DocumentSession`.
+- [ ] Make document-open identity depend only on an explicit open request/source
+      identity, never surface revision, layout, focus or view state.
+- [ ] Define and enforce gesture commit/cancel behavior at document activation.
+- [ ] Update architecture contracts that still describe one renderer/tool
+      session per document.
+
+Acceptance matrix
+- [ ] Edit document A, create/fill a layer, switch A -> B -> A: exact layer tree,
+      pixels, history, dirty state, active layer and view state return.
+- [ ] With A edited, switch Photo Edit -> GenAI -> Grading -> Photo Edit: A is
+      byte/semantically unchanged and no source decode occurs.
+- [ ] Move/resize floating Layers, switch documents: geometry is unchanged.
+- [ ] Move/resize floating Layers, switch workspaces: geometry is unchanged when
+      Layers remains floating and available.
+- [ ] Rearrange docked panels, switch documents: arrangement is unchanged.
+- [ ] Switch tabs during selection/paint/transform/text gestures: deterministic
+      commit/cancel with no cross-document mutation.
+- [ ] Invoke an MCP edit on an inactive document: canonical result appears when
+      activated without creating a second editor shell.
+- [ ] Open several large documents: only one active render loop/presentation
+      pipeline; inactive documents do not retain React editor trees.
+- [ ] Close a document: only that document's canonical resources/history are
+      disposed; UI/workspace and other documents remain stable.
+
+Verification required before done
+- Focused ownership/lifecycle tests plus workspace, document history and command
+  integration suites.
+- App typecheck, full app tests, web build and desktop package verification.
+- Manual owner validation of the acceptance matrix, especially floating panel
+  geometry, gesture switching and two edited documents.
+
+Do not mark done
+Do not mark this task done after only fixing `api.clear()` or suppressing a
+React dependency. Done requires the one-editor composition and real two-document
+manual validation. Do not retain background editor runtimes as a shortcut.

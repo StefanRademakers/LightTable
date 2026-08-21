@@ -22,10 +22,11 @@ type FilePickerWindow = Window & {
 
 const AUTOMATIC_FORMATS: FilePickerAcceptType[] = [
   {
-    description: 'LightTable documents and images (PNG, JPEG, WebP, TIFF, PSD/PSB, PDF)',
+    description: 'LightTable documents and images (PNG, JPEG, WebP, TIFF, SVG, PSD/PSB, PDF)',
     accept: {
       ...nativeBitmapPickerAccept(),
       'image/vnd.adobe.photoshop': ['.psd', '.psb'],
+      'image/svg+xml': ['.svg'],
       'application/pdf': ['.pdf']
     }
   }
@@ -53,7 +54,7 @@ export const imagePickerDescription = (mode: ImageOpenMode) =>
 export const imagePickerFormatNames = (mode: ImageOpenMode) =>
   mode === 'preserve-precision'
     ? 'PNG, TIFF, JPEG, WebP'
-    : 'PNG, JPEG, WebP, TIFF, PSD/PSB, PDF';
+    : 'PNG, JPEG, WebP, TIFF, SVG, PSD/PSB, PDF';
 
 export const isPhotoshopDocument = (blob: Blob, name: string) =>
   blob.type.toLowerCase() === 'image/vnd.adobe.photoshop'

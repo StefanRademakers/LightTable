@@ -24,6 +24,7 @@ formats lazily load the required worker/codec:
 - common PNG/JPEG/WebP and LightTable documents;
 - TIFF and high-bit-depth/profile-aware decoding through the precision worker;
 - PSD/PSB through the PSD worker and semantic importer;
+- SVG through the bounded native vector codec, without browser image decoding;
 - future RAW/NEF through an isolated decoder capability.
 
 A specialized codec may delay only documents that need it. Worker failures
@@ -58,6 +59,9 @@ including future 3D, AI and LightTable-specific GPU workflows.
 - Sixteen-bit import does not imply sixteen-bit export; the UI and exporter
   must report the actual result.
 - Host cancellation is a normal result, not an application error.
+- SVG export is available only when visible document content consists of native
+  vector layers whose Pass 1 semantics can be represented exactly; unsupported
+  paints or layer semantics reject rather than flatten silently.
 
 On desktop, ordinary Save replaces an opened JPEG, PNG, WebP or TIFF in its
 original format only when the current model is exactly representable as one

@@ -5,6 +5,7 @@ out-verify/
 out-*/
 artifacts/
 .vite/
+/.titlebar-verify/
 .electron-dev-session/
 coverage/
 /tmp/

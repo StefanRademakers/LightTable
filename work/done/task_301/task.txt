@@ -1,0 +1,67 @@
+Task 301 - Native SVG import and export
+
+Status
+Pass 1 complete and verified. Gradients, defs and use remain the explicitly
+separated Pass 2.
+
+Goal
+Add SVG as a bounded import/export codec around LightTable's existing canonical
+vector model. Do not introduce an SVG DOM, Canvas 2D scene or external vector
+scene graph as a second document authority.
+
+Required reconciliation before implementation
+- Treat `svg20pass.md` as the owner-supplied first-pass proposal.
+- Use `architecture/features/VECTOR_ENGINE_AND_SVG_IMPORT.md` as the current
+  verified inventory and proposed safe native subset.
+- Decide whether Pass 1 owns import only or import plus a symmetric serializer.
+- Define exact payload, element, anchor, reference, nesting and output limits.
+- Select and security-review the XML parser; DTDs, external entities, scripts,
+  event handlers, `foreignObject` and network loading remain forbidden.
+- Define File Open/Place, clipboard, Actions and MCP consumers over one atomic
+  import owner and one structured conversion report.
+
+Reconciled Pass 1 decision
+- Pass 1 owns import plus a symmetric exact serializer.
+- Supported input is svg/viewBox, flattened groups, path commands
+  M/L/H/V/C/S/Q/T/A/Z, rect/circle/ellipse/line/polyline/polygon, affine
+  transforms, inherited solid paint, opacity, fill rules and stroke details.
+- Unsupported semantics reject before publication; metadata-only omissions are
+  reported. There is no implicit raster fallback in editable mode.
+- Default limits are 1 MiB input, 4 MiB output, 2,048 elements, 32 nesting
+  levels, 128 attributes per element, 512 KiB path data, 256 subpaths per path,
+  65,536 total anchors and 64 dash entries.
+- `@xmldom/xmldom` is a transient XML parser only. DTD/entity/processing
+  instructions, scripts, handlers, foreign content, external resource references
+  and URL paint values are rejected; navigation attributes on flattened `<a>`
+  containers are reported and discarded. The codec performs no network I/O.
+- File Open, Place, SVG clipboard paste, Actions and MCP converge on
+  `vector.importSvg`. File also exposes an explicit editable-vector SVG import,
+  and MCP exposes the one-call `lighttable_import_svg` convenience tool. Export
+  converges on `file.exportSvg`.
+
+Implementation evidence
+- `@lighttable/vector-svg` owns parsing, conversion reporting, limits and exact
+  serialization without a retained SVG DOM.
+- Native File Open creates editable vector layers; Place and SVG clipboard use
+  the same atomic app owner. File > Export > SVG uses the exact serializer.
+- Command-contract, Actions recording/playback and generic MCP execute expose
+  the same bounded semantic commands.
+- Tests cover active XML rejection, resource limits, all Pass 1 geometry,
+  transforms/styles, command consumers and import -> native save/reopen ->
+  export -> reimport semantic preservation.
+
+Initial product acceptance
+- Supported SVG paths/primitives/transforms/fills/strokes import as editable
+  native LightTable vector elements with no browser renderer dependency.
+- Unsupported semantics reject or use a clearly selected appearance fallback;
+  they never disappear silently.
+- A representative SVG import -> native save/reopen -> export -> reimport flow
+  preserves bounded semantic and rendered equivalence.
+- UI, Actions and MCP call the same high-level operation; MCP never emits
+  thousands of point-level mutations for one SVG.
+
+Non-goals for the first slice
+- Full SVG/CSS/filter/text compatibility.
+- Editable vector group hierarchy, masks, clipping or boolean authoring before
+  their native LightTable owners exist.
+- Using Paper.js or another external scene graph as production authority.

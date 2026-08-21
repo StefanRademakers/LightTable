@@ -14,6 +14,7 @@ import type { SemanticSelectionCommand } from './semanticSelectionCommandContrac
 import type { SemanticSubjectSelectionCommand } from './semanticSubjectSelectionCommandContract';
 import type { SemanticTextCommand } from './semanticTextCommandContract';
 import type { SemanticVectorCommand } from './semanticVectorCommandContract';
+import type { SemanticSvgImportCommand } from '../vectors/svgDocumentCodec';
 import type { SemanticWarpStrokeCommand } from './semanticWarpCommandContract';
 import type {
   SemanticCopyPixelsCommand, SemanticPastePixelsCommand
@@ -91,6 +92,11 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   }
   executeVectorCommand(documentId: DocumentSessionId, command: SemanticVectorCommand) {
     return this.resolve(documentId).executeVectorCommand(command);
+  }
+  executeSvgImport(documentId: DocumentSessionId, command: SemanticSvgImportCommand) {
+    const execute = this.resolve(documentId).executeSvgImport;
+    if (!execute) throw new Error('SVG import is unavailable in the target document.');
+    return execute(command);
   }
   executeWarpStrokeCommand(documentId: DocumentSessionId, command: SemanticWarpStrokeCommand) {
     const execute = this.resolve(documentId).executeWarpStrokeCommand;
@@ -257,6 +263,11 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   }
   exportPsdArtifact(documentId: DocumentSessionId) {
     return this.resolve(documentId).exportPsdArtifact();
+  }
+  exportSvgArtifact(documentId: DocumentSessionId) {
+    const execute = this.resolve(documentId).exportSvgArtifact;
+    if (!execute) throw new Error('SVG export is unavailable in the target document.');
+    return execute();
   }
   beginGesture(documentId: DocumentSessionId, kind: LightTableGestureKind, pointerId: number,
     parameters: Record<string, unknown>, sample: LightTableGestureSample) {

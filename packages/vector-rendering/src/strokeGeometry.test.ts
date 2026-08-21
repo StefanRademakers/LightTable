@@ -51,6 +51,25 @@ describe('stroke geometry', () => {
     ]);
   });
 
+  it('retains the final segment of an open subpath that returns to its initial coordinate', () => {
+    const returningOpenPath = realizeVectorPath(createVectorPath('returning-open', 'Returning open', [
+      createSubpath('returning-open-subpath', [
+        createAnchor('start', { x: 0, y: 0 }),
+        createAnchor('turn', { x: 40, y: 20 }),
+        createAnchor('end-at-start', { x: 0, y: 0 })
+      ], false)
+    ]), 0.25);
+
+    const runs = strokeRuns(returningOpenPath.subpaths[0]!, [], 0);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      closed: false,
+      points: [{ x: 0, y: 0 }, { x: 40, y: 20 }, { x: 0, y: 0 }]
+    });
+    expect(buildStrokeTriangleGeometry(returningOpenPath, stroke()).triangleCount)
+      .toBeGreaterThanOrEqual(4);
+  });
+
   it('adds cap geometry without changing the source realization', () => {
     const source = line();
     expect(buildStrokeTriangleGeometry(source, stroke({ cap: 'square' })).triangleCount).toBe(6);

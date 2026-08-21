@@ -48,8 +48,11 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   const reader = new Client({ name: 'LightTable test reader', version: '1.0.0' });
   await reader.connect(readTransport);
   context.after(() => reader.close());
+  assert.match(reader.getInstructions(), /Start each LightTable task with one lighttable_context call/u);
   const tools = await reader.listTools();
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_workspace'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_context'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_performance'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_preview'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_palette'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_palette'));
@@ -65,6 +68,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_grade'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_adjustment'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_create_shape'));
+  assert.ok(tools.tools.some(({ name }) => name === 'lighttable_import_svg'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_edit_vector'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_layer_style'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_batch'));
@@ -83,6 +87,14 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   ]);
   const onboarding = await reader.readResource({ uri: 'lighttable://guides/artist-onboarding' });
   assert.match(onboarding.contents[0].text, /prefer lighttable_batch/u);
+  assert.match(onboarding.contents[0].text, /Begin with lighttable_context once/u);
+  const contextSnapshot = await reader.callTool({ name: 'lighttable_context', arguments: {} });
+  assert.equal(contextSnapshot.isError, undefined);
+  assert.equal(contextSnapshot.structuredContent.workspace.activeDocumentId, 'document-demo');
+  assert.equal(contextSnapshot.structuredContent.document.id, 'document-demo');
+  assert.equal(contextSnapshot.structuredContent.layer.layer.id, 'layer-background');
+  assert.ok(contextSnapshot.structuredContent.capabilities.length > 0);
+  assert.ok(contextSnapshot.structuredContent.guides.length > 0);
   const commandCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'layer.rename'
   } });
@@ -113,6 +125,16 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(geometryCatalog.structuredContent.commands[0].contract.input.oneOf.length, 4);
   assert.deepEqual(geometryCatalog.structuredContent.commands[0].contract.result.required,
     ['operation', 'width', 'height']);
+  const svgImportCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'vector.importSvg'
+  } });
+  assert.equal(svgImportCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.deepEqual(svgImportCatalog.structuredContent.commands[0].contract.input.required,
+    ['svg', 'placement']);
+  const svgExportCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'file.exportSvg'
+  } });
+  assert.equal(svgExportCatalog.structuredContent.commands[0].contract.status, 'complete');
   const profileCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'document.assignProfile'
   } });
@@ -326,6 +348,24 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     documentId: 'document-demo', command: 'document.assignProfile',
     commandParameters: { profile: 'srgb' }
   });
+  const svgParameters = {
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><rect width="20" height="10" fill="#369"/></svg>',
+    placement: 'document', layerName: 'MCP mark'
+  };
+  const importedSvg = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'vector.importSvg', parameters: svgParameters
+  } });
+  assert.equal(importedSvg.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'vector.importSvg', commandParameters: svgParameters
+  });
+  const exportedSvg = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'file.exportSvg', parameters: {}
+  } });
+  assert.equal(exportedSvg.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'file.exportSvg', commandParameters: {}
+  });
   const copiedPixels = await editor.callTool({ name: 'lighttable_execute', arguments: {
     documentId: 'document-demo', command: 'selection.copyPixels', parameters: {
       source: 'merged'
@@ -395,6 +435,15 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     documentId: 'document-demo', layerId: 'layer-text'
   } });
   assert.equal(textQuery.structuredContent.content.text, 'Text');
+  const dedicatedSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 20"><path d="M0 0H40V20Z" fill="#369"/></svg>';
+  const svgImported = await editor.callTool({ name: 'lighttable_import_svg', arguments: {
+    documentId: 'document-demo', svg: dedicatedSvg, layerName: 'Generated mark'
+  } });
+  assert.equal(svgImported.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'vector.importSvg',
+    commandParameters: { svg: dedicatedSvg, placement: 'document', layerName: 'Generated mark' }
+  });
   const shape = await editor.callTool({ name: 'lighttable_create_shape', arguments: {
     documentId: 'document-demo', shape: 'rectangle', x: 20, y: 30, width: 200, height: 120,
     fillEnabled: false, strokeEnabled: true, stroke: '#ff0000', strokeWidth: 12
@@ -435,6 +484,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     ]
   } });
   assert.equal(batch.isError, undefined);
+  assert.equal(batch.structuredContent.task.durationMs, 25);
   assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
     documentId: 'document-demo', command: 'command.batch', commandParameters: {
       name: 'MCP mini design', timeoutMs: 5000, operations: [
@@ -452,9 +502,22 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   } });
   assert.deepEqual(task.structuredContent, {
     id: 'task-demo', status: 'completed', progress: 1, error: null,
+    elapsedMs: 25, durationMs: 25,
     artifact: { id: 'artifact-demo', kind: 'png-export', name: 'demo.png',
       mediaType: 'image/png', byteLength: 3, createdAt: 1 }
   });
+  await reader.callTool({ name: 'lighttable_context', arguments: {} });
+  const performance = await reader.callTool({ name: 'lighttable_performance', arguments: {
+    limit: 256
+  } });
+  assert.equal(performance.isError, undefined);
+  assert.match(performance.structuredContent.note, /exclude Codex\/model processing/u);
+  assert.ok(performance.structuredContent.entries.some(({ kind, name }) => (
+    kind === 'tool' && name === 'lighttable_context'
+  )));
+  assert.ok(performance.structuredContent.entries.some(({ kind, name, parentToolCallId }) => (
+    kind === 'bridge' && name === 'workspace.query' && Number.isInteger(parentToolCallId)
+  )));
   const publications = await reader.callTool({ name: 'lighttable_events', arguments: { afterCursor: 0 } });
   assert.deepEqual(publications.structuredContent, { cursor: 0, latestCursor: 0,
     oldestCursor: 1, gap: false, hasMore: false, events: [] });

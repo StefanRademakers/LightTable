@@ -17,6 +17,7 @@ const metadata: LightTableImageMetadata = {
 
 const createRenderer = () => ({
   loadImage: vi.fn(async () => metadata),
+  initializeDocumentSurface: vi.fn(),
   setDocument: vi.fn(),
   loadLayerAssets: vi.fn(async () => undefined)
 }) satisfies DocumentSourceRenderer;
@@ -115,6 +116,53 @@ describe('loadDocumentSource', () => {
       decodeAndUploadMs: 1,
       documentInitMs: 1
     });
+  });
+
+  it('opens SVG directly into editable native vectors without browser image decoding', async () => {
+    const renderer = createRenderer();
+    const blob = new Blob([
+      '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect id="card" width="80" height="40"/></svg>'
+    ], { type: 'image/svg+xml' });
+    const result = await loadDocumentSource({
+      renderer, blob, name: 'card.svg', cacheKey: 'svg:1', decodeMode: 'fast',
+      initialAdjustments: createDefaultAdjustments(),
+      dependencies: {
+        probe: async () => ({ format: 'svg', codec: 'svg-native', decodeMode: 'fast', bitDepth: null }),
+        parseLayered: async () => null, now: () => 0
+      }
+    });
+    expect(result?.metadata).toMatchObject({ width: 320, height: 180, decoder: 'native-svg', sourceFormat: 'SVG' });
+    expect(result?.document.layers).toHaveLength(1);
+    expect(result?.document.layers[0]).toMatchObject({ type: 'vector', elements: [{ name: 'card' }] });
+    expect(renderer.loadImage).not.toHaveBeenCalled();
+    expect(renderer.initializeDocumentSurface).toHaveBeenCalledWith(expect.objectContaining({
+      width: 320,
+      height: 180,
+      decoder: 'native-svg'
+    }));
+    expect(renderer.setDocument).toHaveBeenCalledWith(result?.document);
+  });
+
+  it('uses an SVG viewBox as the native document surface when explicit dimensions are absent', async () => {
+    const renderer = createRenderer();
+    const blob = new Blob([
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 20 640 360"><path d="M10 20L650 380"/></svg>'
+    ], { type: 'image/svg+xml' });
+    const result = await loadDocumentSource({
+      renderer, blob, name: 'viewbox.svg', cacheKey: 'svg:viewbox', decodeMode: 'fast',
+      initialAdjustments: createDefaultAdjustments(),
+      dependencies: {
+        probe: async () => ({ format: 'svg', codec: 'svg-native', decodeMode: 'fast', bitDepth: null }),
+        parseLayered: async () => null, now: () => 0
+      }
+    });
+
+    expect(result?.document).toMatchObject({ width: 640, height: 360 });
+    expect(renderer.initializeDocumentSurface).toHaveBeenCalledWith(expect.objectContaining({
+      width: 640,
+      height: 360
+    }));
+    expect(renderer.setDocument).toHaveBeenCalledWith(result?.document);
   });
 
   it('does not mutate the renderer after cancellation during probing', async () => {

@@ -1,12 +1,11 @@
 # Vector engine and SVG import capability
 
-Status: current implementation inventory and proposed import contract, verified
-2026-08-21.
+Status: current implementation and bounded Pass 1 contract, verified 2026-08-21.
 
 ## Purpose
 
-LightTable already has a native, editable vector engine. It does not currently
-have a product SVG importer. SVG import should therefore parse SVG into the
+LightTable has a native, editable vector engine and a bounded Pass 1 SVG codec.
+SVG import parses SVG into the
 existing canonical vector model; it must not introduce an SVG DOM, Canvas 2D
 scene or browser renderer as a second document authority.
 
@@ -23,8 +22,9 @@ This document separates three things that are easy to confuse:
 | `@lighttable/vector-core` | Serializable paths and live shapes, affine transforms, cubic Bezier math, adaptive flattening, hit testing, selections, anchor/handle mutation, pen construction and path topology. It has no DOM or GPU dependency. |
 | `@lighttable/vector-rendering` | Realizes canonical curves and strokes into document-space geometry. Owns revisioned caches, stale-work rejection, stroke meshes, bounds and editing-overlay data. |
 | `@lighttable/vector-webgpu` | Native WebGPU fill, stroke and editing-overlay rendering. Uses multisampling plus stencil/cover rendering for concave and compound paths. |
+| `@lighttable/vector-svg` | Pure bounded SVG import planning and symmetric serialization over `vector-core`. XML is transient parser input and is never retained as document state. |
 | `@lighttable/lighttable-app` | Vector layers, tools, properties, document mutations, persistence, PSD interchange and shared commands. |
-| `@lighttable/command-contract` | Machine schemas used by UI recording, Actions and MCP for `vector.create`, `vector.update` and `vector.remove`. |
+| `@lighttable/command-contract` | Machine schemas used by UI recording, Actions and MCP, including `vector.importSvg` and `file.exportSvg`. |
 
 Canonical geometry stays semantic. Flattened contours, stroke triangles,
 thumbnails and GPU textures are derived caches and are never document data.
@@ -92,7 +92,7 @@ Available native behaviour includes:
 
 The following should not be presented as complete native capabilities yet:
 
-- SVG file open, place, paste or export;
+- gradients, `<defs>` and bounded `<use>` resolution in the SVG codec;
 - editable vector group hierarchy;
 - clipping groups and general SVG masks;
 - path boolean authoring (`union`, `subtract`, `intersect`, `exclude`);
@@ -107,10 +107,10 @@ The following should not be presented as complete native capabilities yet:
 Multiple subpaths are supported, but that is not the same as editable boolean
 operations or a retained SVG group tree.
 
-## Proposed SVG import contract
+## Current SVG import contract
 
-One shared import service should serve File > Open, Place, clipboard paste,
-Actions and MCP. The public machine operation should be explicit, for example:
+One shared import service serves File > Open, Place, SVG clipboard paste,
+Actions and MCP. The public machine operation is:
 
 ```json
 {
@@ -123,8 +123,8 @@ Actions and MCP. The public machine operation should be explicit, for example:
 }
 ```
 
-It should parse and validate the entire payload, produce a bounded import plan,
-then commit atomically. It should not execute a long series of public
+It parses and validates the entire payload, produces a bounded import plan,
+then commits atomically. It does not execute a long series of public
 `vector.create` calls or expose parser implementation details to MCP.
 
 ### First native subset
@@ -134,23 +134,24 @@ engine and are suitable for the first implementation:
 
 | SVG construct | Native mapping |
 | --- | --- |
-| `<svg>` width, height and `viewBox` | Document/placement transform with an explicit aspect-ratio policy. |
-| `<g>` | Inherited style and composed transform flattened into native elements; no retained editable group in the first slice. |
+| `<svg>` width, height and `viewBox` | `viewBox` user units become the editable document canvas; width/height are the fallback when no `viewBox` exists. |
+| Open filled paths and polylines | Open subpaths are closed for native fill geometry as required by SVG; an authored open stroke is preserved as a separate editable path. |
+| Element opacity with both fill and stroke | Rejected until native object-level paint compositing can preserve overlap opacity exactly; fill-opacity and stroke-opacity remain supported. |
+| `<g>` and `<a>` | Inherited style and composed transform flattened into native elements; link/navigation attributes are explicitly reported and discarded, while event handlers remain forbidden. |
 | `<path>` | Native paths. Support `M/L/H/V/C/S/Q/T/A/Z`; quadratic curves and elliptical arcs convert deterministically to cubic Beziers. |
 | `<rect>` / rounded `<rect>` | Live rectangle when semantics fit; otherwise a native path. |
 | `<circle>` / `<ellipse>` | Live ellipse when semantics fit; otherwise a native path. |
 | `<line>` | Live line or open native path. |
 | `<polyline>` / `<polygon>` | Open/closed native path. |
-| `transform` and `gradientTransform` | Composed affine matrices. |
+| `transform` | Composed affine matrices. |
 | `fill`, `fill-opacity`, `fill-rule`, `opacity` | Native solid/no fill, element opacity and fill rule. |
 | `stroke`, width, opacity, cap, join, miter, dash array/offset | Native stroke properties. SVG strokes import as centre-aligned. |
-| `<linearGradient>` / `<radialGradient>` and stops | Native linear/radial gradient when spread and coordinate semantics are representable. |
-| `<defs>` references and `<use>` | Resolve into bounded cloned native elements during import. |
 | element `id` | Stable imported name/metadata where valid; LightTable still creates collision-safe native IDs. |
 
-Presentation attributes and a small, deterministic inline `style` subset may
-be supported. Arbitrary stylesheets and a browser CSS engine should not be part
-of the first importer.
+Presentation attributes, inheritance and a small deterministic inline `style`
+subset are supported. Arbitrary stylesheets and a browser CSS engine are not.
+Gradients, `<defs>` and `<use>` are the explicitly deferred Pass 2 rather than
+being silently discarded.
 
 ### Convert only with an explicit report
 
@@ -189,14 +190,22 @@ from editable native import and must be labelled as such.
 
 ## Security and performance boundaries
 
-SVG is active XML, not merely path data. The importer must:
+SVG is active XML, not merely path data. `@lighttable/vector-svg` uses
+`@xmldom/xmldom` only to produce a transient tree. Preflight rejects DTDs,
+entities and processing instructions; semantic traversal rejects scripts,
+event attributes, foreign namespaces, `foreignObject`, external resource
+references and URL paint values. Navigation attributes on `<a>` are reported
+and discarded without dereferencing them. The codec performs no network requests.
 
-- disable DTDs and external entities;
-- perform no network requests;
-- ignore/reject scripts, event attributes and `foreignObject`;
-- bound input bytes, element count, references, nesting depth, subpaths,
-  anchors, gradient stops and expanded `<use>` instances;
-- detect cyclic references;
+Default hard limits are:
+
+- 1 MiB input and 4 MiB serialized output;
+- 2,048 source/export elements, 32 levels of nesting and 128 attributes per element;
+- 512 KiB path data, 256 subpaths per path and 65,536 total anchors;
+- 64 dash-array entries.
+
+The importer additionally must:
+
 - validate finite coordinates and transforms;
 - parse off the render-critical path and publish one atomic document change;
 - return structured warnings/errors instead of partially importing unnoticed;
@@ -206,16 +215,16 @@ MCP should send one SVG import request, not thousands of point-level calls.
 The parser output should enter the same canonical command/document boundary as
 UI import so Actions, MCP and direct user import cannot diverge.
 
-## Recommended implementation order
+## Delivery status and next order
 
-1. Add a pure, bounded SVG-to-native import planner beside `vector-core`.
-2. Cover paths, primitives, transforms, solid paint and stroke with fixtures.
-3. Add linear/radial gradients and inherited presentation attributes.
-4. Expose one shared `vector.importSvg` command and atomic batch result.
-5. Connect Place/paste and MCP to that command.
-6. Add File > Open only after document sizing and unsupported-content policy
-   are explicit.
-7. Add groups, clipping, text and hybrid raster elements only as their native
+Pass 1 now includes the pure codec package, paths/primitives/transforms/solid
+paint and stroke, the shared command, Open/Place/explicit File import/paste,
+Actions/MCP (including `lighttable_import_svg`), SVG export
+and native-save/reopen roundtrip coverage. Next:
+
+1. Add linear/radial gradients, gradient transforms, `<defs>` and bounded `<use>`.
+2. Add renderer-backed visual equivalence fixtures in addition to semantic roundtrips.
+3. Add groups, clipping, text and hybrid raster elements only as their native
    models become real.
 
 The shortest useful artist-agent improvement is therefore not a generic

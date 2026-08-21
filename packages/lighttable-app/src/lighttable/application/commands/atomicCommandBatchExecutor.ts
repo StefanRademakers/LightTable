@@ -32,6 +32,15 @@ export interface AtomicCommandBatchDependencies {
 const record = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
+const semanticTextKind = (command: AtomicBatchOperation['command']) => {
+  const kinds = {
+    'text.create': 'create',
+    'text.replaceRange': 'replace',
+    'text.format': 'format',
+    'text.setLayout': 'layout'
+  } as const;
+  return kinds[command as keyof typeof kinds];
+};
 const semanticKind = (operation: AtomicBatchOperation) => operation.command.split('.').at(-1)!;
 const resolveReferences = (value: unknown, results: ReadonlyMap<string, unknown>): unknown => {
   if (Array.isArray(value)) return value.map((entry) => resolveReferences(entry, results));
@@ -69,7 +78,9 @@ export const executeAtomicCommandBatch = async (
     }
     let result: unknown = null;
     if (operation.command.startsWith('text.')) {
-      const parsed = parseSemanticTextCommand(semanticKind(operation) as 'create' | 'replace' | 'format' | 'layout', parameters);
+      const kind = semanticTextKind(operation.command);
+      if (!kind) throw new Error(`${operation.operationId}: the text command is not atomic-batch compatible.`);
+      const parsed = parseSemanticTextCommand(kind, parameters);
       if ('message' in parsed) throw new Error(`${operation.operationId}: ${parsed.message}`);
       result = await executeSemanticTextCommand(parsed, { ...local, fontRegistry: dependencies.fontRegistry,
         getTextSettings: dependencies.getTextSettings, getForegroundColor: dependencies.getForegroundColor });

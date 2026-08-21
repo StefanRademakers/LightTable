@@ -58,3 +58,5 @@ should be shared instead of copied into each tool.
 - All selection/gizmo overlays have not yet migrated to the vector backend.
 - Bounded cover geometry and cache budgets need production measurement.
 - Shape/path editing needs continued UX work without weakening the core model.
+- SVG Pass 1 is native and editable for paths, primitives, transforms and solid
+  paint/strokes. Gradients, `<defs>` and `<use>` remain a bounded Pass 2.

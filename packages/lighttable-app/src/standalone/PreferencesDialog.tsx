@@ -160,8 +160,7 @@ export const PreferencesDialog: React.FC<PreferencesDialogProps> = ({
           void (location && host.recoveryLocation
             ? host.recoveryLocation.apply(location)
             : Promise.resolve(location)
-          ).then(() => host.localAi?.configureProviders(draft.genAi.providers))
-            .then(() => onSave({ ...draft, projects: {
+          ).then(() => onSave({ ...draft, projects: {
             folders, createFolders: draft.projects.createFolders, userFolders
           } })).catch((reason) => {
             setSaveError(reason instanceof Error ? reason.message : String(reason));

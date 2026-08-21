@@ -68,6 +68,26 @@ describe('probeDocumentSource', () => {
     });
   });
 
+  it('routes SVG text to the native editable codec without trusting MIME metadata', async () => {
+    const source = new Blob([new TextEncoder().encode(
+      '\uFEFF <?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1"/></svg>'
+    )], { type: 'application/octet-stream' });
+    await expect(probeDocumentSource(source)).resolves.toMatchObject({
+      format: 'svg', codec: 'svg-native', decodeMode: 'fast', bitDepth: null
+    });
+  });
+
+  it('recognizes an Inkscape SVG with a leading authoring comment', async () => {
+    const source = new Blob([new TextEncoder().encode(
+      '<?xml version="1.0" encoding="UTF-8"?>\n'
+      + '<!-- Created with Inkscape (http://www.inkscape.org/) -->\n'
+      + '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1"/></svg>'
+    )]);
+    await expect(probeDocumentSource(source)).resolves.toMatchObject({
+      format: 'svg', codec: 'svg-native'
+    });
+  });
+
   it('recognizes a layered LightTable document from its footer', async () => {
     const footer = new Uint8Array(12);
     footer.set(new TextEncoder().encode('LTBLDOC1'));

@@ -198,6 +198,7 @@ import { executeSemanticTextCommand, paragraphTextCreateCommand, pathTextCreateC
   textCreateCommandParameters,
   semanticParagraphPatchFromCanonical, semanticStylePatchFromCanonical } from './application/text/semanticTextCommandExecutor';
 import { executeSemanticVectorCommand } from './application/vectors/semanticVectorCommandExecutor';
+import { executeSvgImport, exportSvgDocument } from './application/vectors/svgDocumentCodec';
 import { executeSemanticWarpStrokeCommand } from './application/commands/semanticWarpCommandExecutor';
 import { semanticWarpStrokeFromCommitted } from './application/commands/semanticWarpCommandContract';
 import { observedLiveShapeCreateCommand, observedLiveShapeUpdateCommand, observedVectorPathCreateCommand,
@@ -870,6 +871,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const svgImportInputRef = useRef<HTMLInputElement | null>(null);
   const agentEvents = useAgentActivity(commandService, workspaceDocumentId);
   const actionRecording = useSyncExternalStore(
     commandService?.subscribeActionRecording ?? subscribeToNothing,
@@ -4723,6 +4725,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setError('The system clipboard does not contain an image.');
           return;
         }
+        if (clipboardImage.blob.type === 'image/svg+xml') {
+          await executeRegisteredCommand('vector.importSvg', {
+            svg: await clipboardImage.blob.text(), placement: 'document', layerName: 'Pasted SVG'
+          });
+          return;
+        }
         const file = new File(
           [clipboardImage.blob], 'Clipboard image.png',
           { type: clipboardImage.blob.type || 'image/png' }
@@ -5008,10 +5016,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory
         });
         if (!result) return null;
-        await waitForExactCommandRender(engineRef.current);
+        if (!await waitForExactCommandRender(engineRef.current)) {
+          console.warn('[LightTable render] Text edit committed while its exact render source is still pending.');
+        }
         return result;
       },
       executeVectorCommand: (command) => executeSemanticVectorCommand(command, { getDocument: () => imageDocumentRef.current, applyDocument: applyDocumentSnapshot, recordHistory: pushDocumentHistory }),
+      executeSvgImport: (command) => executeSvgImport(command, {
+        getDocument: () => imageDocumentRef.current,
+        applyDocument: applyDocumentSnapshot,
+        recordHistory: pushDocumentHistory
+      }),
       executeWarpStrokeCommand: (command) => executeSemanticWarpStrokeCommand(command, {
         getDocument: () => imageDocumentRef.current,
         applyDocument: applyDocumentSnapshot,
@@ -5256,7 +5271,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           publish: applyDocumentSnapshot, record: (before, after, label) => pushHistoryEntry({
             type: 'automation.batch', label, undo: () => applyDocumentSnapshot(before), redo: () => applyDocumentSnapshot(after) })
         }, signal, report);
-        await waitForExactCommandRender(engineRef.current, signal); return result;
+        if (!await waitForExactCommandRender(engineRef.current, signal)) {
+          console.warn('[LightTable render] Batch committed while an exact render source is still pending.');
+        }
+        return result;
       },
       exportNativeArtifact: () => exportNativeArtifactRef.current(),
       exportPngArtifact: () => exportPngArtifactRef.current(),
@@ -5278,6 +5296,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           width: preview.width, height: preview.height, sourceToOutput: preview.sourceToOutput };
       },
       exportPsdArtifact: () => exportPsdArtifactRef.current(),
+      exportSvgArtifact: () => {
+        const document = imageDocumentRef.current;
+        if (!document) throw new Error('The SVG export document is unavailable.');
+        return exportSvgDocument(document, fileNameBase);
+      },
       beginGesture: (kind, pointerId, parameters, sample) => beginAutomationGestureRef.current(kind, pointerId, parameters, sample),
       updateGesture: (kind, pointerId, sample) => updateAutomationGestureRef.current(kind, pointerId, sample),
       finishGesture: (kind, pointerId, commit) => finishAutomationGestureRef.current(kind, pointerId, commit),
@@ -5810,6 +5833,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     exportTiff: handleExportTiff,
     exportPsd: handleExportPsd,
     exportPsdMaximumAppearance: handleExportPsdMaximumAppearance,
+    exportSvg: handleExportSvg,
     handleFastFileInput: handleLocalFile,
     handlePrecisionFileInput: handleAdvancedLocalFile,
     chooseLocalFile,
@@ -5931,6 +5955,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       // layered-document import after reading the source signature.
       open: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
       place: () => { finishTextEditingRef.current(); void onRequestPlaceWorkspaceArtifact?.(workspaceDocumentId); },
+      importSvg: () => { finishTextEditingRef.current(); svgImportInputRef.current?.click(); },
       recentFiles,
       openRecent: (id) => {
         finishTextEditingRef.current();
@@ -5953,6 +5978,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       exportTiff: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportTiff(); },
       exportPsd: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsd(); },
       exportPsdMaximumAppearance: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPsdMaximumAppearance(); },
+      exportSvg: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportSvg(); },
       openFormatSupport: editorDialogs.openFormatSupport,
       pdfExportPreflight: () => {
         finishTextEditingRef.current();
@@ -6885,6 +6911,84 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       showProperties({ kind: 'layer', layerId: activeTextPropertyLayer.id });
     }
   }, [activeTextPropertyLayer?.id, activeTextPropertyLayer?.type, showProperties]);
+  const documentSurface = (
+    <EditorDocumentSurface
+      viewport={{
+        viewportRef,
+        canvasRef,
+        activeTool: editorSession.activeTool,
+        temporaryPanActive,
+        temporaryZoomActive,
+        zoomOutActive: temporaryZoomOutActive
+          || (editorSession.activeTool === 'zoom' && altPressed),
+        preciseBrushCursor,
+        eyedropperActive: pointColorPickerActive || ((editorSession.activeTool === 'brush'
+          || editorSession.activeTool === 'fill'
+          || editorSession.activeTool === 'gradient') && altPressed),
+        dragging: viewportInteraction.dragging,
+        focusPickerActive,
+        selection: editorSession.selection,
+        selectionDraft,
+        extrasVisible: editorSession.snap.extrasVisible !== false,
+        imageRect,
+        scale: activeScale,
+        viewportSize,
+        transformState,
+        loading,
+        unavailable: Boolean(error && !metadata),
+        inputBridge: textEditing.status === 'editing' ? (
+          <FlowTextEditingRuntime
+            controller={textEditingController}
+            document={imageDocument}
+            renderer={engineRef.current}
+            active={active}
+            foregroundColor={editorSession.brush.color}
+            layoutPublicationRevision={textRenderPresentation.publicationRevision}
+          />
+        ) : null,
+        cropBounds,
+        documentWidth: imageDocument?.width ?? 0,
+        documentHeight: imageDocument?.height ?? 0,
+        onCropChange: setCropBounds,
+        onCropCommit: commitCrop,
+        onCropCancel: cancelCrop,
+        onWheel: viewportInteraction.onWheel,
+        onPointerDown: viewportInteraction.onPointerDown,
+        onPointerMove: viewportInteraction.onPointerMove,
+        onPointerUp: viewportInteraction.onPointerUp,
+        onPointerCancel: viewportInteraction.onPointerCancel,
+        onPointerLeave: () => {
+          if (editorSessionRef.current.activeTool === 'select-object') {
+            smartSelectionController.clearHoverPreview();
+          }
+          if (!paintSessionController.active && !warpSessionController.active) {
+            viewportInteraction.hideBrushCursor();
+          }
+        },
+        onContextMenu: (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setToolOptionsMenu({ x: event.clientX, y: event.clientY });
+        },
+        onTransformChange: updateTransformMatrix,
+        onTransformProjectiveChange: updateTransformProjective,
+        onTransformCommitGesture: transformSession.checkpoint,
+        onTransformDuplicateChange: transformSession.setDuplicate,
+        onTransformPick: pickTransformAtPoint,
+        transformSnapTargets,
+        transformSnapEnabled: editorSession.snap.enabled,
+        transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
+        transformFrameOverride: transformSession.frameOverride,
+        onTransformSnapMatches: setTransformSnapMatches,
+        documentGuides: effectiveDocumentGuides,
+        rulersVisible: editorSession.snap.rulersVisible,
+        guidesVisible: editorSession.snap.extrasVisible !== false && editorSession.snap.guidesVisible,
+        guidesLocked: editorSession.snap.guidesLocked,
+        onGuideDraft: setGuideDraft,
+        onGuideCommit: commitDocumentGuides
+      }}
+    />
+  );
   return (
     <DocumentPaletteProvider loadPalette={loadDocumentPalette}>
     <LightTableEditorShell
@@ -7042,6 +7146,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onPrecisionFileChange={handleAdvancedLocalFile}
       overlays={(
         <>
+          <input
+            ref={svgImportInputRef}
+            type="file"
+            accept="image/svg+xml,.svg"
+            hidden
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0] ?? null;
+              event.currentTarget.value = '';
+              if (!file) return;
+              if (file.type !== 'image/svg+xml' && !file.name.toLowerCase().endsWith('.svg')) {
+                setError('Choose an SVG file to import as editable vectors.');
+                return;
+              }
+              void file.text().then((svg) => executeRegisteredCommand('vector.importSvg', {
+                svg, placement: 'document', layerName: file.name.replace(/\.[^.]+$/u, '') || 'Imported SVG'
+              })).catch((reason: unknown) => setError(
+                reason instanceof Error ? reason.message : 'The SVG file could not be read.'
+              ));
+            }}
+          />
           <EditorOverlayLayer
           dialogs={{
             controller: editorDialogs,
@@ -7264,87 +7388,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                       onClose();
                     }
                   },
-              content: workspaceDocument.id === workspaceDocumentId ? (
-                <EditorDocumentSurface
-                  viewport={{
-                    viewportRef,
-                    canvasRef,
-                    activeTool: editorSession.activeTool,
-                    temporaryPanActive,
-                    temporaryZoomActive,
-                    zoomOutActive: temporaryZoomOutActive
-                      || (editorSession.activeTool === 'zoom' && altPressed),
-                    preciseBrushCursor,
-                    eyedropperActive: pointColorPickerActive || ((editorSession.activeTool === 'brush'
-                      || editorSession.activeTool === 'fill'
-                      || editorSession.activeTool === 'gradient') && altPressed),
-                    dragging: viewportInteraction.dragging,
-                    focusPickerActive,
-                    selection: editorSession.selection,
-                    selectionDraft,
-                    extrasVisible: editorSession.snap.extrasVisible !== false,
-                    imageRect,
-                    scale: activeScale,
-                    viewportSize,
-                    transformState,
-                    loading,
-                    unavailable: Boolean(error && !metadata),
-                    inputBridge: textEditing.status === 'editing' ? (
-                      <FlowTextEditingRuntime
-                        controller={textEditingController}
-                        document={imageDocument}
-                        renderer={engineRef.current}
-                        active={active}
-                        foregroundColor={editorSession.brush.color}
-                        layoutPublicationRevision={textRenderPresentation.publicationRevision}
-                      />
-                    ) : null,
-                    cropBounds,
-                    documentWidth: imageDocument?.width ?? 0,
-                    documentHeight: imageDocument?.height ?? 0,
-                    onCropChange: setCropBounds,
-                    onCropCommit: commitCrop,
-                    onCropCancel: cancelCrop,
-                    onWheel: viewportInteraction.onWheel,
-                    onPointerDown: viewportInteraction.onPointerDown,
-                    onPointerMove: viewportInteraction.onPointerMove,
-                    onPointerUp: viewportInteraction.onPointerUp,
-                    onPointerCancel: viewportInteraction.onPointerCancel,
-                    onPointerLeave: () => {
-                      if (editorSessionRef.current.activeTool === 'select-object') {
-                        smartSelectionController.clearHoverPreview();
-                      }
-                      if (
-                        !paintSessionController.active
-                        && !warpSessionController.active
-                      ) {
-                        viewportInteraction.hideBrushCursor();
-                      }
-                    },
-                    onContextMenu: (event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setToolOptionsMenu({ x: event.clientX, y: event.clientY });
-                    },
-                    onTransformChange: updateTransformMatrix,
-                    onTransformProjectiveChange: updateTransformProjective,
-                    onTransformCommitGesture: transformSession.checkpoint,
-                    onTransformDuplicateChange: transformSession.setDuplicate,
-                    onTransformPick: pickTransformAtPoint,
-                    transformSnapTargets,
-                    transformSnapEnabled: editorSession.snap.enabled,
-                    transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
-                    transformFrameOverride: transformSession.frameOverride,
-                    onTransformSnapMatches: setTransformSnapMatches,
-                    documentGuides: effectiveDocumentGuides,
-                    rulersVisible: editorSession.snap.rulersVisible,
-                    guidesVisible: editorSession.snap.extrasVisible !== false && editorSession.snap.guidesVisible,
-                    guidesLocked: editorSession.snap.guidesLocked,
-                    onGuideDraft: setGuideDraft,
-                    onGuideCommit: commitDocumentGuides
-                  }}
-                />
-              ) : null
+              content: workspaceDocument.id === workspaceDocumentId ? documentSurface : null
             }))}
             activeDocumentId={workspaceDocumentId}
             onActiveDocumentChange={onActivateWorkspaceDocument}

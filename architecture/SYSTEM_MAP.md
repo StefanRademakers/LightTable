@@ -21,6 +21,7 @@ packages/text-rendering  Backend-neutral text realization and caches
 packages/text-webgpu     WebGPU glyph/vector text backends
 packages/vector-core     Serializable vector model, geometry and editing
 packages/vector-rendering Backend-neutral realization and revision caches
+packages/vector-svg      Bounded native SVG import/export codec over vector-core
 packages/vector-webgpu   WebGPU vector fill and editing-overlay backends
 architecture             Canonical product and engineering contracts
 fixtures                 Stable import/render regression material

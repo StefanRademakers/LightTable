@@ -114,6 +114,43 @@ describe('WorkspaceSession', () => {
     expect(workspace.getSnapshot().documents.two.document?.name).toBe('Second');
   });
 
+  it('treats tab activation as observationally read-only for canonical documents', () => {
+    const workspace = new WorkspaceSession({ createId: ids('one', 'two') });
+    const first = workspace.open({ source: source('first') });
+    const second = workspace.open({ source: source('second') });
+    if (!first.ok || !second.ok) throw new Error('Fixture failed to open.');
+
+    const firstDocument = createImageDocument('First', 16, 9, 'first');
+    const secondDocument = createImageDocument('Second', 4, 3, 'second');
+    first.value.setDocument(firstDocument);
+    second.value.setDocument(secondDocument);
+    first.value.markChanged(7);
+    second.value.markChanged(3);
+    const before = {
+      first: first.value.getSnapshot(),
+      second: second.value.getSnapshot()
+    };
+
+    workspace.activate(first.value.id);
+    workspace.activate(second.value.id);
+    workspace.activate(first.value.id);
+
+    expect(first.value.getSnapshot()).toMatchObject({
+      document: before.first.document,
+      documentRevision: 7,
+      savedRevision: before.first.savedRevision,
+      dirty: before.first.dirty
+    });
+    expect(second.value.getSnapshot()).toMatchObject({
+      document: before.second.document,
+      documentRevision: 3,
+      savedRevision: before.second.savedRevision,
+      dirty: before.second.dirty
+    });
+    expect(first.value.getSnapshot().document).toBe(firstDocument);
+    expect(second.value.getSnapshot().document).toBe(secondDocument);
+  });
+
   it('prevents dirty documents from closing without an explicit policy', () => {
     const workspace = new WorkspaceSession({
       createId: ids('one')

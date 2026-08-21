@@ -61,6 +61,7 @@ export const projectCommandCapabilities = (
     availability('text.format', true, ''), availability('text.setLayout', true, ''),
     availability('vector.create', true, ''), availability('vector.update', true, ''),
     availability('vector.remove', true, ''),
+    availability('vector.importSvg', Boolean(ports.executeSvgImport), 'SVG import is unavailable in this host.'),
     availability('warp.applyStroke', Boolean(ports.executeWarpStrokeCommand), 'Warp stroke commands are unavailable in this host.'),
     availability('raster.fill', Boolean(ports.executeFillCommand), 'Fill commands are unavailable in this host.'),
     availability('raster.applyGradient', Boolean(ports.executeRasterGradientCommand), 'Raster-gradient commands are unavailable in this host.'),
@@ -86,6 +87,7 @@ export const projectCommandCapabilities = (
     availability('file.exportNative', true, ''), availability('file.exportPng', true, ''),
     availability('file.exportBitmap', true, ''),
     availability('file.exportPsd', true, ''),
+    availability('file.exportSvg', Boolean(ports.exportSvgArtifact), 'SVG export is unavailable in this host.'),
     availability('history.undo', snapshot.history.canUndo, 'There is nothing to undo.'),
     availability('history.redo', snapshot.history.canRedo, 'There is nothing to redo.')
   ];

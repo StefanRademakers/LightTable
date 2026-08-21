@@ -25,7 +25,7 @@ export const createLightTableMcpApp = async ({ publicUrl, devicePublicUrl, pairi
     throw new Error('Trusted local authorization requires an explicitly insecure loopback test server.');
   }
   const app = createMcpExpressApp({ host: '0.0.0.0', allowedHosts,
-    jsonLimit: '1mb' });
+    jsonLimit: '20mb' });
   app.use(requestGuard);
   const oauth = new LightTableOAuthStore({ issuer, resource, pairingCode, stateStore: oauthStateStore,
     tenantId, userId });

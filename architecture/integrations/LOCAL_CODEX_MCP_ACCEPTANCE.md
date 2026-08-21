@@ -19,6 +19,15 @@ unless `LIGHTTABLE_DEVICE_PUBLIC_URL` is explicitly configured.
 
 ## Fast manual owner acceptance
 
+For a fresh source build that is immediately receptive to local MCP testing,
+run `run_mcp.bat` from the repository root. It clears generated dev caches,
+starts the embedded loopback MCP service through the explicit development-only
+auto-start flag, waits for `/health`, then opens the pre-approved
+`LightTableMCPTester` Codex session. Close any packaged LightTable instance
+already listening on ports 8787 or 8788 first. `run_clean.bat` still builds the
+same current MCP source, but intentionally leaves Agent Access stopped for
+ordinary non-MCP development.
+
 The normal iteration path is now entirely inside the packaged desktop UI:
 
 1. Open **Preferences -> Agent Access**.

@@ -73,6 +73,10 @@ read/edit scopes require explicit desktop approval. See
 
 Read operations:
 
+- request one bounded current-context snapshot that combines the workspace,
+  active or explicit document, active or explicit layer summary and live
+  editor capabilities; this is the preferred first read because it removes
+  model/tool roundtrips without creating another state owner;
 - inspect workspace, document dimensions/aspect/revision/viewport and current
   bit depth, working/blend profile and assigned-versus-assumed profile state;
 - list the compact editable layer tree in revision-bound cursor pages of at
@@ -94,6 +98,10 @@ Read operations:
 - query reconnect-safe publication pages or wait up to 10 seconds for the next
   document, revision, active-layer, selection, history, task or renderer
   publication. A cursor gap remains explicit and requires canonical re-query.
+- inspect a bounded process-local latency timeline with aggregate p50/p95/max
+  durations for MCP tools and their nested LightTable bridge/command calls.
+  Tool and bridge durations overlap; Codex startup, model reasoning and client
+  scheduling remain explicitly outside this measurement.
 
 Whole-document, region and layer previews require an exact canonical document
 revision. `maxEdge` controls output size from 64-1024 pixels; PNG is lossless,
@@ -109,6 +117,9 @@ Write operations:
 - query, create and edit point/paragraph text and layout/style runs;
 - query, create, update and remove editable vector elements, shapes, fills,
   strokes and gradients;
+- import one bounded generated SVG string through `lighttable_import_svg`; the
+  shared `vector.importSvg` owner creates native editable paths/primitives in
+  one atomic change rather than rasterizing or emitting point-level calls;
 - query, add, update, remove, move and enable/bypass Layer Style effects;
 - set zoom and undo/redo;
 - execute bounded brush, selection and layer-translate gestures;
@@ -135,6 +146,16 @@ coverage for non-basic adjustment parameters and broad semantic coverage for
 some tools. Those must be added to the shared
 application command service first;
 DOM selectors or a parallel MCP-only scene format remain forbidden.
+
+The artist-onboarding resource now directs clients to call
+`lighttable_context` once, retain stable IDs/revisions and capability decisions
+for the session, query only the command schemas required by the planned work,
+batch logical edit phases, wait for accepted batch work to finish and preview
+only after a phase. Completed async task queries expose monotonic elapsed and
+final duration. `lighttable_performance`
+is the final diagnostic read when a flow feels slow; it separates MCP handler
+time from bridge/command time but cannot attribute time spent starting or
+reasoning inside Codex.
 
 ### Exposure-list ownership
 

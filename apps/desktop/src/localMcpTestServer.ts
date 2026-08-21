@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https';
-import { access, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import selfsigned from 'selfsigned';
 import type { CredentialProtector } from './agentAccessCredentialStore';
@@ -102,6 +102,22 @@ const closeServer = (server: HttpServer | HttpsServer) => new Promise<void>((res
   server.closeAllConnections?.(); server.close(() => resolve());
 });
 
+const quarantineUnreadableOAuthState = async (store: InstanceType<typeof EncryptedJsonFileStore>,
+  filePath: string): Promise<boolean> => {
+  try {
+    store.load();
+    return false;
+  } catch {
+    try {
+      await rename(filePath, `${filePath}.invalid-${Date.now()}`);
+      return true;
+    } catch (reason) {
+      if ((reason as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      throw reason;
+    }
+  }
+};
+
 const run = (executable: string, args: readonly string[], timeoutMs = 120_000) =>
   new Promise<{ code: number; output: string }>((resolve, reject) => {
     const child = spawn(executable, [...args], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -171,15 +187,18 @@ export class LocalMcpTestServerController {
       const identity = await this.identityStore.loadOrCreate();
       const mcpOrigin = `http://127.0.0.1:${this.mcpPort}`;
       const deviceOrigin = `https://localhost:${this.devicePort}`;
+      const oauthStatePath = path.join(this.directory, 'oauth-state.bin');
+      const oauthStateStore = new EncryptedJsonFileStore({
+        path: oauthStatePath, secret: identity.stateSecret
+      });
+      const recoveredOAuthState = await quarantineUnreadableOAuthState(oauthStateStore, oauthStatePath);
       let dynamicClient: DynamicLocalDeviceClient;
       this.service = await createLightTableMcpApp({
         publicUrl: mcpOrigin, devicePublicUrl: deviceOrigin,
         pairingCode: identity.oauthPairingCode, devicePairingCode: identity.devicePairingCode,
         serverId: identity.serverId, allowInsecure: true,
         trustedLocalAuthorization: true, allowedHosts: ['127.0.0.1', 'localhost'],
-        oauthStateStore: new EncryptedJsonFileStore({
-          path: path.join(this.directory, 'oauth-state.bin'), secret: identity.stateSecret
-        }),
+        oauthStateStore,
         client: (broker: unknown) => (dynamicClient = new DynamicLocalDeviceClient(broker))
       }) as LocalMcpService;
       void dynamicClient!;
@@ -194,7 +213,9 @@ export class LocalMcpTestServerController {
       ]);
       await this.pairDesktop(deviceOrigin, identity.devicePairingCode);
       return this.publish({ state: 'running', endpoint: `${mcpOrigin}/mcp`,
-        message: 'Local MCP is running. Authorize Codex once, then start a fresh Codex session.',
+        message: recoveredOAuthState
+          ? 'Local MCP recovered unreadable OAuth state. Connect Codex again, then start a fresh session.'
+          : 'Local MCP is running. Authorize Codex once, then start a fresh Codex session.',
         restartCodexRequired: true });
     } catch (reason) {
       await this.stop(false);

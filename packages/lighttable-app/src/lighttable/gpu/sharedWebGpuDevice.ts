@@ -77,7 +77,18 @@ export class SharedWebGpuDeviceManager {
       const requiredFeatures = adapter.features.has(TEXTURE_FORMATS_TIER1)
         ? [TEXTURE_FORMATS_TIER1]
         : [];
-      const device = await adapter.requestDevice({ requiredFeatures });
+      // WebGPU device defaults can be lower than the limits advertised by the
+      // selected adapter (notably 8192 instead of 16384 texture dimensions and
+      // 256 MiB instead of 1 GiB buffers). Request the qualified adapter limits
+      // explicitly so large documents do not create invalid textures and only
+      // surface the failure later as an unrelated invalid bind group.
+      const device = await adapter.requestDevice({
+        requiredFeatures,
+        requiredLimits: {
+          maxTextureDimension2D: limits.maxTextureDimension2D,
+          maxBufferSize: limits.maxBufferSize
+        }
+      });
       this.device = device;
       void device.lost.then((info) => {
         if (this.device === device) {
