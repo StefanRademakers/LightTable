@@ -3,6 +3,9 @@
 LightTable owns a GPU-first vector stack. SVG and Canvas may be import/export
 or fallback tools, but they are not the rendering authority.
 
+The detailed current capability inventory and proposed editable SVG subset are
+documented in [features/VECTOR_ENGINE_AND_SVG_IMPORT.md](features/VECTOR_ENGINE_AND_SVG_IMPORT.md).
+
 ## Package boundaries
 
 ### `@lighttable/vector-core`
