@@ -290,6 +290,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onInspectAttachedAdjustment
 }) => {
   const draggedLayerIdRef = React.useRef<LayerId | null>(null);
+  const layerNameRenameCandidateRef = React.useRef<LayerId | null>(null);
+  const layerNamePointerFocusRef = React.useRef(false);
   const clippingGestureLayerRef = React.useRef<LayerId | null>(null);
   const [clippingBoundaryHoverLayerId, setClippingBoundaryHoverLayerId] = React.useState<LayerId | null>(null);
   const [draggedLayerId, setDraggedLayerId] = React.useState<LayerId | null>(null);
@@ -1099,24 +1101,41 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               defaultValue={layer.name}
               readOnly={renamingLayerId !== layer.id}
               tabIndex={renamingLayerId === layer.id ? 0 : -1}
-              draggable={false}
-              onPointerDown={(event) => {
-                if (renamingLayerId !== layer.id) event.preventDefault();
+              draggable={renamingLayerId !== layer.id && !documentFx}
+              onPointerDown={() => {
+                if (renamingLayerId === layer.id) return;
+                layerNamePointerFocusRef.current = true;
+                requestAnimationFrame(() => {
+                  layerNamePointerFocusRef.current = false;
+                });
               }}
               onClick={(event) => {
                 event.stopPropagation();
-                if (renamingLayerId !== layer.id) selectLayer(event, layer.id);
+                if (renamingLayerId !== layer.id) {
+                  if (event.detail === 1) {
+                    layerNameRenameCandidateRef.current = document.activeLayerId === layer.id
+                      ? layer.id
+                      : null;
+                  }
+                  selectLayer(event, layer.id);
+                }
               }}
               onDoubleClick={(event) => {
                 event.stopPropagation();
+                if (layerNameRenameCandidateRef.current !== layer.id) return;
+                layerNameRenameCandidateRef.current = null;
+                layerNamePointerFocusRef.current = false;
                 const input = event.currentTarget;
+                input.blur();
                 setRenamingLayerId(layer.id);
                 requestAnimationFrame(() => {
                   input.focus();
                   input.select();
                 });
               }}
-              onFocus={() => setRenamingLayerId(layer.id)}
+              onFocus={() => {
+                if (!layerNamePointerFocusRef.current) setRenamingLayerId(layer.id);
+              }}
               onBlur={(event) => {
                 if (renamingLayerId === layer.id) onRename(layer.id, event.currentTarget.value);
                 setRenamingLayerId((current) => current === layer.id ? null : current);
