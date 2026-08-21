@@ -90,7 +90,9 @@ and `scripts/`, excluding `tmp/`, generated builds and `.referenceCode`:
   command IDs;
 - 505 active test files and about 2,396 explicit `it`/`test` cases;
 - 40 convention-discovered packaged desktop smoke files and 13 audit scripts;
-- 3 actionable tasks, 127 completed task packages, 2 parked and 3 deferred.
+- work-queue counts are deliberately not frozen into this snapshot; run
+  `npm run context:agent` for actionable packages, resume checkpoints and queue
+  integrity warnings.
 
 These numbers are a scale/orientation snapshot, not fixed architecture. Recount
 from the active tree when making a coverage or release claim. The concentration

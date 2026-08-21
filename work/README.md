@@ -152,6 +152,31 @@ The checkpoint may occur earlier when new evidence materially changes scope or
 shows that the current approach is producing little product value. That means
 reassessing and redirecting the work, not merely stopping at an arbitrary time.
 
+## Resume checkpoints
+
+Interrupted multi-milestone work may keep one `resume.md` beside its owning
+active `task.txt`. `npm run context:agent` discovers these files automatically;
+onboarding must not depend on remembering a chat-only handoff or a hidden stash.
+
+A resume is operational, not architectural. Keep it synchronized whenever the
+owner pauses work, the active focus changes, a new stash is created, or a dirty
+worktree is handed to another session. It must state:
+
+- recording time, branch and exact baseline commit;
+- why work paused and which task currently owns the dirty paths;
+- committed/proven product state versus uncommitted or merely investigated work;
+- immutable stash hashes and whether untracked files are included;
+- exact next safe step, relevant verification and untested/manual boundaries;
+- private/external fixture locations only when necessary, without their bytes,
+  credentials or other secrets.
+
+At resume time, Git and current code remain authoritative. Reconcile the file
+against `HEAD`, `git status`, recent commits and stash contents before acting.
+Do not apply two overlapping recovery stashes blindly. When the task completes,
+move its resume with the task to `done/` or remove it if it no longer carries
+useful evidence; never leave an orphan resume presenting finished work as the
+current focus.
+
 ## Completion truthfulness
 
 A task moves to `done/` only when its stated product outcome is integrated and

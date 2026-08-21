@@ -27,6 +27,19 @@ const directories = async (relativePath) => {
   }
 };
 
+const readableFile = async (relativePath) => {
+  try {
+    return await readFile(path.join(root, relativePath), 'utf8');
+  } catch {
+    return null;
+  }
+};
+
+const firstContentLine = (value) => value
+  ?.split(/\r?\n/u)
+  .map((line) => line.trim())
+  .find(Boolean);
+
 const workspacePackages = async () => {
   const result = [];
   for (const parent of ['apps', 'packages']) {
@@ -48,7 +61,34 @@ const workspacePackages = async () => {
 const status = git('status', '--short');
 const statusLines = status === '(unavailable)' || status === '' ? [] : status.split(/\r?\n/u);
 const taskDirectories = await directories('work/todo');
+const doneDirectories = new Set(await directories('work/done'));
+const taskPackages = await Promise.all(taskDirectories.map(async (directory) => {
+  const relativePath = `work/todo/${directory}`;
+  const taskText = await readableFile(`${relativePath}/task.txt`);
+  const resumeText = await readableFile(`${relativePath}/resume.md`);
+  return {
+    directory,
+    relativePath,
+    taskText,
+    resumeText,
+    duplicateInDone: doneDirectories.has(directory)
+  };
+}));
+const activeTasks = taskPackages.filter(({ taskText }) => taskText !== null);
+const queueWarnings = taskPackages.filter(({ taskText, duplicateInDone }) => (
+  taskText === null || duplicateInDone
+));
+const resumeCheckpoints = taskPackages.filter(({ resumeText }) => resumeText !== null);
 const packages = await workspacePackages();
+const recentCommitLog = git(
+  'log', '--since=72 hours ago', '--date=short',
+  '--pretty=format:%h%x09%ad%x09%s'
+);
+const recentCommits = recentCommitLog === '(unavailable)' || recentCommitLog === ''
+  ? []
+  : recentCommitLog.split(/\r?\n/u);
+const stashLog = git('stash', 'list', '--date=iso', '--format=%gd%x09%H%x09%gs');
+const stashes = stashLog === '(unavailable)' || stashLog === '' ? [] : stashLog.split(/\r?\n/u);
 
 console.log('# LightTable agent context');
 console.log(`Repository: ${root}`);
@@ -58,19 +98,56 @@ console.log(`Worktree: ${statusLines.length === 0 ? 'clean' : `${statusLines.len
 for (const line of statusLines.slice(0, 30)) console.log(`  ${line}`);
 if (statusLines.length > 30) console.log(`  ... ${statusLines.length - 30} more; run git status --short`);
 
+console.log(`\nRecent commits (last 72 hours): ${recentCommits.length}`);
+if (recentCommits.length === 0) console.log('  (none)');
+else {
+  for (const line of recentCommits.slice(0, 20)) console.log(`  ${line}`);
+  if (recentCommits.length > 20) {
+    console.log(`  ... ${recentCommits.length - 20} more; run git log --since="72 hours ago"`);
+  }
+}
+
+console.log(`\nRecoverable Git stashes: ${stashes.length}`);
+if (stashes.length === 0) console.log('  (none)');
+else for (const line of stashes) console.log(`  ${line}`);
+
+console.log('\nResume checkpoints:');
+if (resumeCheckpoints.length === 0) console.log('  (none)');
+else {
+  for (const checkpoint of resumeCheckpoints) {
+    console.log(`  ${checkpoint.relativePath}/resume.md`);
+  }
+}
+
 console.log('\nActive task packages:');
-if (taskDirectories.length === 0) console.log('  (none)');
-else for (const task of taskDirectories) console.log(`  work/todo/${task}`);
+if (activeTasks.length === 0) console.log('  (none)');
+else {
+  for (const task of activeTasks) {
+    console.log(`  ${task.relativePath} — ${firstContentLine(task.taskText) ?? '(untitled task)'}`);
+  }
+}
+
+console.log('\nQueue integrity warnings:');
+if (queueWarnings.length === 0) console.log('  (none)');
+else {
+  for (const task of queueWarnings) {
+    const reasons = [];
+    if (task.taskText === null) reasons.push('missing task.txt; not actionable');
+    if (task.duplicateInDone) reasons.push('same package name also exists in work/done');
+    console.log(`  ${task.relativePath} — ${reasons.join('; ')}`);
+  }
+}
 
 console.log('\nWorkspace packages:');
 for (const workspacePackage of packages) console.log(`  ${workspacePackage}`);
 
 console.log('\nRecovery route:');
 console.log('  1. Read architecture/AGENT_ONBOARDING.md');
-console.log('  2. Read architecture/QUICKSTART.md for the system model');
-console.log('  3. Read architecture/CURRENT_STATE_AND_ROADMAP.md');
-console.log('  4. Read only the active task and routed contracts');
-console.log('  5. Preserve unrelated worktree changes');
+console.log('  2. Read every Resume checkpoint reported above and reconcile it with Git');
+console.log('  3. Read architecture/QUICKSTART.md for the system model');
+console.log('  4. Read architecture/CURRENT_STATE_AND_ROADMAP.md');
+console.log('  5. Read only the requested/current task and routed contracts');
+console.log('  6. Preserve unrelated worktree changes and resolve queue warnings explicitly');
 
 console.log('\nRelease truth:');
 console.log('  Technical preview != commercialReady. Never infer release approval from passing unit tests.');

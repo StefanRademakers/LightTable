@@ -55,7 +55,10 @@ After a fresh AI session or context collapse, start with
 [`architecture/AGENT_ONBOARDING.md`](architecture/AGENT_ONBOARDING.md), run
 `npm run context:agent`, and use
 [`architecture/QUICKSTART.md`](architecture/QUICKSTART.md) for the technical
-system model; then load only the contracts routed by the change.
+system model; then load only the contracts routed by the change. The context
+command also discovers active resume checkpoints, recent commits, stashes and
+malformed/duplicate queue entries so interrupted work is not reconstructed from
+stale task counts or chat memory.
 Material under `docs/` is historical research and handoff context; it is not
 the source of architectural truth.
 

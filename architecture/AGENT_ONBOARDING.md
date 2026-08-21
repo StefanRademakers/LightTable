@@ -20,13 +20,28 @@ This read-only command reports the current commit, dirty paths, active task
 packages and workspace packages. Never assume a worktree is clean and never
 overwrite changes merely because their purpose is not immediately obvious.
 
+The command also reports the last 72 hours of commits, recoverable Git stashes,
+discoverable `resume.md` checkpoints and queue-integrity warnings. This is live
+recovery evidence, not architecture. Read every reported resume checkpoint and
+reconcile its recorded baseline and next step with current `HEAD`, stashes and
+the dirty paths before trusting it. A resume records interrupted work; it never
+overrides newer code, tests or owner direction.
+
 Then read, in this order:
 
-1. the reset card and relevant system sections in
+1. every resume checkpoint reported by `context:agent`;
+2. the reset card and relevant system sections in
    [QUICKSTART.md](QUICKSTART.md);
-2. [CURRENT_STATE_AND_ROADMAP.md](CURRENT_STATE_AND_ROADMAP.md);
-3. the complete active task package under `work/todo/`, including fixtures;
-4. only the contracts selected by the routing table below.
+3. [CURRENT_STATE_AND_ROADMAP.md](CURRENT_STATE_AND_ROADMAP.md);
+4. the complete requested/current task package under `work/todo/`, including
+   fixtures;
+5. only the contracts selected by the routing table below.
+
+A directory under `work/todo/` is actionable only when it contains a readable
+`task.txt`. An empty directory, or a package name duplicated in `work/done/`, is
+a queue-integrity warning rather than evidence of open product work. Resolve or
+record those warnings; do not inflate scope or completion counts from directory
+names alone.
 
 Do not preload `work/done/`, `architecture/reference/`, `obsolete/`, every test
 or every source file. Search those collections only to answer a concrete
