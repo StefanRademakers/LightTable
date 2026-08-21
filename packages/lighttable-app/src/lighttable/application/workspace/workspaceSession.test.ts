@@ -56,7 +56,7 @@ describe('WorkspaceSession', () => {
     expect(workspace.getActiveDocument()?.id).toBe('two');
   });
 
-  it('keeps mutable editor and viewport state isolated per document', () => {
+  it('keeps document interaction and viewport state isolated per document', () => {
     const workspace = new WorkspaceSession({
       createId: ids('one', 'two')
     });
@@ -68,8 +68,11 @@ describe('WorkspaceSession', () => {
     second.value.setReady();
     first.value.updateEditor((current) => ({
       ...current,
-      activeTool: 'brush',
-      brush: { ...current.brush, size: 125 }
+      activeChannel: 'mask',
+      selection: [{
+        mode: 'replace',
+        shape: { kind: 'rectangle', points: [{ x: 1, y: 2 }, { x: 4, y: 6 }] }
+      }]
     }));
     first.value.updateViewport((current) => ({
       ...current,
@@ -79,17 +82,48 @@ describe('WorkspaceSession', () => {
     }));
 
     workspace.activate(second.value.id);
-    expect(workspace.getActiveDocument()?.getSnapshot().editor.activeTool).toBe('view');
+    expect(workspace.getActiveDocument()?.getSnapshot().editor.activeChannel).toBe('pixels');
+    expect(workspace.getActiveDocument()?.getSnapshot().editor.selection).toEqual([]);
     expect(workspace.getActiveDocument()?.getSnapshot().viewport.scale).toBe(1);
 
     workspace.activate(first.value.id);
     const restored = workspace.getActiveDocument()?.getSnapshot();
-    expect(restored?.editor.activeTool).toBe('brush');
-    expect(restored?.editor.brush.size).toBe(125);
+    expect(restored?.editor.activeChannel).toBe('mask');
+    expect(restored?.editor.selection).toEqual([{
+      mode: 'replace',
+      shape: { kind: 'rectangle', points: [{ x: 1, y: 2 }, { x: 4, y: 6 }] }
+    }]);
     expect(restored?.viewport).toMatchObject({
       zoomMode: 'custom',
       scale: 2.5,
       panX: 24
+    });
+  });
+
+  it('keeps document-wide processing isolated while the application tool stays global', () => {
+    const workspace = new WorkspaceSession({ createId: ids('one', 'two') });
+    const first = workspace.open({ source: source('first') });
+    const second = workspace.open({ source: source('second') });
+    if (!first.ok || !second.ok) throw new Error('Fixture failed to open.');
+
+    first.value.updateProcessing((current) => ({
+      ...current,
+      globalGradeStrength: 42,
+      adjustments: { ...current.adjustments, exposureEV: 1.5 },
+      groupVisibility: { ...current.groupVisibility, globalLensFx: false }
+    }));
+
+    workspace.activate(second.value.id);
+    expect(workspace.getActiveDocument()?.getSnapshot().processing).toMatchObject({
+      globalGradeStrength: 100,
+      adjustments: { exposureEV: 0 },
+      groupVisibility: { globalLensFx: true }
+    });
+    workspace.activate(first.value.id);
+    expect(workspace.getActiveDocument()?.getSnapshot().processing).toMatchObject({
+      globalGradeStrength: 42,
+      adjustments: { exposureEV: 1.5 },
+      groupVisibility: { globalLensFx: false }
     });
   });
 
@@ -299,7 +333,7 @@ describe('WorkspaceSession', () => {
     expect(workspace.getDocument(first.value.id)).toBeNull();
   });
 
-  it('keeps renderer lifecycle and GPU estimates isolated per document', () => {
+  it('stores renderer telemetry as a host projection instead of owning runtimes', () => {
     const workspace = new WorkspaceSession({
       createId: ids('one', 'two')
     });
@@ -307,17 +341,17 @@ describe('WorkspaceSession', () => {
     const second = workspace.open({ source: source('second') });
     if (!first.ok || !second.ok) throw new Error('Fixture failed to open.');
 
-    const firstGeneration = first.value.renderer.beginStart();
-    first.value.renderer.setMemoryEstimate(48_000, firstGeneration);
-    first.value.renderer.markReady(firstGeneration);
-    const secondGeneration = second.value.renderer.beginStart();
-    second.value.renderer.setMemoryEstimate(96_000, secondGeneration);
-    second.value.renderer.markReady(secondGeneration);
+    first.value.publishRendererProjection({
+      status: 'idle', generation: 3, active: false, estimatedGpuBytes: 0, error: null
+    });
+    second.value.publishRendererProjection({
+      status: 'ready', generation: 3, active: true, estimatedGpuBytes: 96_000, error: null
+    });
 
     expect(workspace.getSnapshot().documents.one.renderer).toMatchObject({
-      status: 'suspended',
+      status: 'idle',
       active: false,
-      estimatedGpuBytes: 48_000
+      estimatedGpuBytes: 0
     });
     expect(workspace.getSnapshot().documents.two.renderer).toMatchObject({
       status: 'ready',
@@ -326,18 +360,19 @@ describe('WorkspaceSession', () => {
     });
 
     workspace.activate(first.value.id);
+    // Activating canonical data cannot manufacture or switch a renderer.
     expect(workspace.getSnapshot().documents.one.renderer).toMatchObject({
+      status: 'idle',
+      active: false
+    });
+    expect(workspace.getSnapshot().documents.two.renderer).toMatchObject({
       status: 'ready',
       active: true
     });
-    expect(workspace.getSnapshot().documents.two.renderer).toMatchObject({
-      status: 'suspended',
-      active: false
-    });
 
     workspace.close(first.value.id);
-    expect(first.value.renderer.getSnapshot().status).toBe('disposed');
-    expect(second.value.renderer.getSnapshot().status).toBe('ready');
-    expect(second.value.renderer.getSnapshot().active).toBe(true);
+    expect(first.value.getSnapshot().renderer.status).toBe('disposed');
+    expect(second.value.getSnapshot().renderer.status).toBe('ready');
+    expect(second.value.getSnapshot().renderer.active).toBe(true);
   });
 });

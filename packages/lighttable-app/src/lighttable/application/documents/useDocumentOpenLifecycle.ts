@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { DocumentRendererLifecycle } from '../rendering/documentRendererLifecycle';
 import type { DisposableDocumentRenderer } from '../rendering/startDocumentRenderer';
 import type { DocumentTaskRegistry } from '../tasks/documentTaskRegistry';
@@ -70,24 +70,28 @@ export const useDocumentOpenLifecycle = <
   createRequestRef.current = createRequest;
   beforeOpenRef.current = beforeOpen;
   afterCloseRef.current = afterClose;
+  const controller = useMemo(
+    () => new DocumentOpenController<Renderer>(tasks, rendererLifecycle),
+    [rendererLifecycle, tasks]
+  );
 
   useEffect(() => {
     if (!enabled) return;
-    const controller = new DocumentOpenController<Renderer>(
-      tasks,
-      rendererLifecycle
-    );
     const guard = createDocumentOpenGenerationGuard();
     const request = createRequestRef.current(guard.context);
     if (!request) return;
 
     beforeOpenRef.current?.();
-    void controller.open(request);
+    void controller.open(request, { reuseRenderer: true });
 
     return () => {
       guard.invalidate();
-      controller.close();
-      afterCloseRef.current?.();
+      controller.cancelOpen();
     };
-  }, [enabled, generation, rendererLifecycle, tasks]);
+  }, [controller, enabled, generation]);
+
+  useEffect(() => () => {
+    controller.close();
+    afterCloseRef.current?.();
+  }, [controller]);
 };

@@ -7,7 +7,8 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  useSyncExternalStore
 } from 'react';
 import { type DocumentSessionId } from '../lighttable/application/documents/documentSession';
 import {
@@ -52,6 +53,12 @@ import { resolveWorkspaceSurface } from './workspaceSurface';
 import type { GenAiAssetReference } from '@lighttable/genai-core';
 import { duplicateLayeredDocumentArtifact } from '../lighttable/application/documents/duplicateLayeredDocumentArtifact';
 import { AgentAccessRequestDialog } from './AgentAccessRequestDialog';
+import { EditorApplicationSession } from '../lighttable/application/workspace/editorApplicationSession';
+import { DocumentTaskRegistry } from '../lighttable/application/tasks/documentTaskRegistry';
+import {
+  DocumentRendererLifecycle,
+  type DocumentRendererSnapshot
+} from '../lighttable/application/rendering/documentRendererLifecycle';
 
 const NewProjectDialog = lazy(async () => ({
   default: (await import('./NewProjectDialog')).NewProjectDialog
@@ -174,23 +181,48 @@ export function LightTableStandaloneApp({
     closeDocument: closeWorkspaceDocument,
     activateDocument
   } = useStandaloneDocumentWorkspace(host.systemFontProvider);
-  const [materializedDocumentIds, setMaterializedDocumentIds] = useState<ReadonlySet<DocumentSessionId>>(
-    () => new Set()
-  );
-  useEffect(() => {
-    const openIds = new Set(snapshot.documentOrder);
-    setMaterializedDocumentIds((current) => {
-      const next = new Set([...current].filter((id) => openIds.has(id)));
-      if (snapshot.activeDocumentId) next.add(snapshot.activeDocumentId);
-      if (next.size === current.size && [...next].every((id) => current.has(id))) return current;
-      return next;
-    });
-  }, [snapshot.activeDocumentId, snapshot.documentOrder]);
-  const materializedDocuments = useMemo(
-    () => documents.filter((document) => document.active || materializedDocumentIds.has(document.id)),
-    [documents, materializedDocumentIds]
-  );
+  const activeWorkspaceDocument = documents.find(({ active }) => active) ?? null;
   const commandPorts = useMemo(() => new LightTableCommandPortRegistry(), []);
+  const applicationEditorSession = useMemo(() => new EditorApplicationSession(), []);
+  const applicationEditorTasks = useMemo(
+    () => new DocumentTaskRegistry('application-editor' as DocumentSessionId),
+    []
+  );
+  const applicationRendererLifecycle = useMemo(
+    () => new DocumentRendererLifecycle(),
+    []
+  );
+  const applicationRendererSnapshot = useSyncExternalStore(
+    applicationRendererLifecycle.subscribe,
+    applicationRendererLifecycle.getSnapshot,
+    applicationRendererLifecycle.getSnapshot
+  );
+  const documentProjectionKey = snapshot.documentOrder.join('\u0000');
+  useEffect(() => {
+    for (const documentId of snapshot.documentOrder) {
+      const session = controller.getDocument(documentId);
+      if (!session) continue;
+      const renderer: DocumentRendererSnapshot = documentId === snapshot.activeDocumentId
+        ? { ...applicationRendererSnapshot, active: true }
+        : {
+            status: 'idle',
+            generation: applicationRendererSnapshot.generation,
+            active: false,
+            estimatedGpuBytes: 0,
+            error: null
+          };
+      session.publishRendererProjection(renderer);
+    }
+  }, [
+    applicationRendererSnapshot,
+    controller,
+    documentProjectionKey,
+    snapshot.activeDocumentId
+  ]);
+  useEffect(() => () => {
+    applicationEditorTasks.dispose();
+    applicationRendererLifecycle.dispose();
+  }, [applicationEditorTasks, applicationRendererLifecycle]);
   const commandService = useMemo(
     () => new LightTableCommandService(controller.workspace, commandPorts, {
       openArtifact: (file) => {
@@ -972,14 +1004,17 @@ export function LightTableStandaloneApp({
           {projectError}
         </ButtonBase>
       ) : null}
-      {materializedDocuments.map((document) => (
-        <Suspense key={document.id} fallback={null}>
+      {activeWorkspaceDocument ? (
+        <Suspense fallback={null}>
           <StandaloneDocumentRuntimeView
-          document={document}
+          document={activeWorkspaceDocument}
           workspaceDocuments={workspaceDocuments}
           host={host}
           commandService={commandService}
           commandPorts={commandPorts}
+          applicationEditorSession={applicationEditorSession}
+          applicationEditorTasks={applicationEditorTasks}
+          applicationRendererLifecycle={applicationRendererLifecycle}
           screenMode={screenMode}
           onScreenModeChange={changeScreenMode}
           onActivate={activateDocument}
@@ -1013,7 +1048,7 @@ export function LightTableStandaloneApp({
           onDocumentThumbnailChange={publishDocumentThumbnail}
           />
         </Suspense>
-      ))}
+      ) : null}
       <NewDocumentDialog
         open={newDialogOpen}
         clipboard={host.clipboard}

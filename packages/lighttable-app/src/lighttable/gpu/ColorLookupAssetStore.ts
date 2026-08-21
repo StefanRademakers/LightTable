@@ -1,6 +1,10 @@
 import type { DocumentAssetId } from '../editor/document/documentTypes';
 import type { ColorLookupAssetBlob } from '../editor/persistence/layeredDocumentFormat';
 import { cubeRgbaValues, parseCubeLut } from '../processing/colorLookupCube';
+import {
+  DocumentColorLookupResourceRepository,
+  type DocumentColorLookupResourceKey
+} from './DocumentColorLookupResourceRepository';
 
 export interface ColorLookupGpuAsset {
   readonly source: Blob;
@@ -12,9 +16,33 @@ export interface ColorLookupGpuAsset {
 
 /** Owns embedded .cube bytes and their document-scoped 3D GPU realizations. */
 export class ColorLookupAssetStore {
-  private readonly assets = new Map<DocumentAssetId, ColorLookupGpuAsset>();
+  private readonly repository: DocumentColorLookupResourceRepository;
+  private resourceKey: DocumentColorLookupResourceKey;
+  private readonly releaseOnClear: boolean;
 
-  constructor(private readonly device: GPUDevice) {}
+  constructor(
+    private readonly device: GPUDevice,
+    repository?: DocumentColorLookupResourceRepository,
+    resourceKey: DocumentColorLookupResourceKey = Symbol('standalone-color-lookup-resources')
+  ) {
+    this.repository = repository ?? new DocumentColorLookupResourceRepository();
+    this.resourceKey = resourceKey;
+    this.releaseOnClear = repository === undefined;
+  }
+
+  private get assets() {
+    return this.repository.acquire(this.resourceKey);
+  }
+
+  bind(resourceKey: DocumentColorLookupResourceKey): boolean {
+    const existed = this.repository.has(resourceKey);
+    if (this.releaseOnClear && resourceKey !== this.resourceKey) {
+      this.repository.release(this.resourceKey);
+    }
+    this.resourceKey = resourceKey;
+    this.repository.acquire(resourceKey);
+    return !this.releaseOnClear && existed;
+  }
 
   get(id: string | null): ColorLookupGpuAsset | null {
     return id ? this.assets.get(id as DocumentAssetId) ?? null : null;
@@ -67,7 +95,6 @@ export class ColorLookupAssetStore {
   }
 
   clear(): void {
-    this.assets.forEach(({ texture }) => texture.destroy());
-    this.assets.clear();
+    if (this.releaseOnClear) this.repository.release(this.resourceKey);
   }
 }

@@ -17,6 +17,10 @@ Owner-confirmed mental model
   a complete editor, Dockview, canvas or prewarmed render runtime.
 - Each open document owns canonical image/layer data, document resources,
   undo/redo, dirty/save state and lightweight per-document view state.
+- Active tool, tool options and colors are application-global across documents
+  and workspace presets. If a workspace intentionally changes a tool, it must
+  publish to that same application state so toolbar, options, cursor and canvas
+  overlay update atomically.
 - The canvas is a view of the active document. Mounting, moving, resizing or
   replacing a canvas surface is not a document-open or document-mutation event.
 - Document data changes only through an explicit authorized operation: user
@@ -64,20 +68,23 @@ Implementation checklist
       only and preserve existing floating groups during preset changes.
 - [ ] Add product regressions proving tab/layout/workspace/canvas lifecycle is
       observationally read-only for every open document.
-- [ ] Split global editor UI state from per-document view/interaction state.
-- [ ] Remove full `EditorSession` and renderer lifecycle ownership from each
+- [x] Split global editor UI state from per-document view/interaction state:
+      tool choice/options live in `EditorApplicationSession`; selection and
+      active pixel/mask channel remain in `DocumentSession` with zoom/pan.
+- [x] Remove full `EditorSession` and renderer lifecycle ownership from each
       `DocumentSession`; retain only appropriate document/view state.
-- [ ] Extract canonical raster/mask/pattern resource ownership from
+- [x] Extract canonical raster/mask/pattern resource ownership from
       `LayerDocumentRenderer` into a document resource repository outside React
-      and outside the presentation renderer.
-- [ ] Make one renderer detach from one document resource repository and attach
+      and outside the presentation renderer. Renderer teardown now detaches;
+      explicit document close releases only that document's resource sets.
+- [x] Make one renderer detach from one document resource repository and attach
       to another without source decode or canonical resource destruction.
-- [ ] Compose exactly one `LightTableEditorOverlay` and one Dockview shell in
+- [x] Compose exactly one `LightTableEditorOverlay` and one Dockview shell in
       `LightTableStandaloneApp`; bind it to the active `DocumentSession`.
-- [ ] Make document-open identity depend only on an explicit open request/source
+- [x] Make document-open identity depend only on an explicit open request/source
       identity, never surface revision, layout, focus or view state.
-- [ ] Define and enforce gesture commit/cancel behavior at document activation.
-- [ ] Update architecture contracts that still describe one renderer/tool
+- [x] Define and enforce gesture commit/cancel behavior at document activation.
+- [x] Update architecture contracts that still describe one renderer/tool
       session per document.
 
 Acceptance matrix

@@ -51,6 +51,18 @@ import type {
   DocumentAssetBlob
 } from '../editor/persistence/layeredDocumentFormat';
 import { LayerDocumentRenderer } from '../editor/rendering/LayerDocumentRenderer';
+import {
+  documentLayerResourceRepositoryFor,
+  type DocumentLayerResourceRepository
+} from '../editor/rendering/DocumentLayerResourceRepository';
+import {
+  documentPatternResourceRepositoryFor,
+  type DocumentPatternResourceRepository
+} from '../editor/rendering/DocumentPatternResourceRepository';
+import {
+  documentColorLookupResourceRepositoryFor,
+  type DocumentColorLookupResourceRepository
+} from './DocumentColorLookupResourceRepository';
 import type { ReversiblePixelEdit } from '../editor/history/ReversiblePixelEdit';
 import { FeatureAlignmentService } from '../editor/autoAlign/FeatureAlignmentService';
 import type {
@@ -178,7 +190,7 @@ export class WebGpuEngine {
   private readonly device: GPUDevice;
   private readonly context: GPUCanvasContext;
   private readonly canvasFormat: GPUTextureFormat;
-  private readonly callbacks: DocumentRendererCallbacks;
+  private callbacks: DocumentRendererCallbacks;
   private readonly scopeRuntime: DocumentScopeRuntime;
   private histogramRuntime: DocumentHistogramRuntime | null = null;
   private sourceLoader: DocumentSourceGpuLoader | null = null;
@@ -206,6 +218,9 @@ export class WebGpuEngine {
   private pendingTextInteractionTrace: TextInteractionTraceIdentity | null = null;
   private readonly imageResources = new DocumentImageGpuResources();
   private readonly adjustmentState = new DocumentAdjustmentState();
+  private readonly documentLayerResources: DocumentLayerResourceRepository;
+  private readonly documentPatternResources: DocumentPatternResourceRepository;
+  private readonly documentColorLookupResources: DocumentColorLookupResourceRepository;
   /** Document-only mix. Grade layers and attached grades use layer compositing instead. */
   private globalGradeStrength = 1;
   private readonly viewportPresentation: ViewportPresentationController;
@@ -223,7 +238,13 @@ export class WebGpuEngine {
     this.context = context;
     this.canvasFormat = canvasFormat;
     this.callbacks = callbacks;
-    this.colorLookupAssets = new ColorLookupAssetStore(device);
+    this.documentLayerResources = documentLayerResourceRepositoryFor(device);
+    this.documentPatternResources = documentPatternResourceRepositoryFor(device);
+    this.documentColorLookupResources = documentColorLookupResourceRepositoryFor(device);
+    this.colorLookupAssets = new ColorLookupAssetStore(
+      device,
+      this.documentColorLookupResources
+    );
     this.adjustmentLayerResources = new AdjustmentLayerGpuResources(device);
     this.adjustmentLayerRenderer = new AdjustmentLayerRenderer(
       device,
@@ -241,7 +262,7 @@ export class WebGpuEngine {
     });
     this.scopeRuntime = new DocumentScopeRuntime(
       device,
-      callbacks.onScopeError,
+      (message) => this.callbacks.onScopeError?.(message),
       () => this.requestRender()
     );
     this.deviceErrorListener = ((event: GPUUncapturedErrorEvent) => {
@@ -387,6 +408,11 @@ export class WebGpuEngine {
     return this.metadata;
   }
 
+  /** Rebinds generation-guarded UI publications without recreating the engine. */
+  updateCallbacks(callbacks: DocumentRendererCallbacks) {
+    this.callbacks = callbacks;
+  }
+
   /**
    * Controls presentation residency for a mounted document.
    *
@@ -453,7 +479,9 @@ export class WebGpuEngine {
         if (!this.destroyed && this.imageDocument) this.markDocumentDirty();
       },
       (snapshot) => this.callbacks.onTextRenderPresentation?.(snapshot),
-      (message) => this.callbacks.onFeatureError?.('text-renderer', message)
+      (message) => this.callbacks.onFeatureError?.('text-renderer', message),
+      this.documentLayerResources,
+      this.documentPatternResources
     );
     this.effectRuntime = DocumentEffectRuntime.create(
       this.device,
@@ -490,7 +518,7 @@ export class WebGpuEngine {
     this.histogramRuntime = new DocumentHistogramRuntime(
       this.device,
       pipelines.histogram,
-      this.callbacks.onHistogram,
+      (histogram) => this.callbacks.onHistogram?.(histogram),
       () => this.requestRender()
     );
   }
@@ -536,8 +564,24 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
+  /**
+   * Rebinds the persistent presentation engine to an already-open canonical
+   * document. No source bytes are decoded and retained layer pixels are not
+   * initialized again.
+   */
+  bindExistingDocument(document: ImageDocument, metadata?: LightTableImageMetadata) {
+    this.initializeDocumentSurface(metadata ?? {
+      name: document.name,
+      width: document.width,
+      height: document.height,
+      contentType: 'application/vnd.mediavibe.lighttable.document'
+    });
+    this.setDocument(document);
+  }
+
   setDocument(document: ImageDocument) {
     if (!this.imageResources.sourceTexture || !this.documentRenderer) throw new Error('Load an image before creating its LightTable document.');
+    this.colorLookupAssets.bind(document.id);
     const previousDocument = this.imageDocument;
     const firstDocument = !previousDocument || previousDocument.id !== document.id;
     if (firstDocument) this.textEditingOverlay = null;
@@ -595,6 +639,14 @@ export class WebGpuEngine {
     stageStartedAt = performance.now();
     this.markDocumentDirty();
     measure('dirty-scheduling', stageStartedAt);
+  }
+
+  /** Releases canonical GPU pixels only when the owning document closes. */
+  releaseDocumentResources(documentId: string) {
+    const layers = this.documentLayerResources.release(documentId);
+    const patterns = this.documentPatternResources.release(documentId);
+    const colorLookups = this.documentColorLookupResources.release(documentId);
+    return layers || patterns || colorLookups;
   }
 
   /**

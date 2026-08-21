@@ -283,6 +283,18 @@ export interface EditorSession {
   warp: WarpToolSettings;
 }
 
+/** Stable application/editor UI state shared by every document tab. */
+export type EditorApplicationState = Omit<
+  EditorSession,
+  'activeChannel' | 'selection' | 'vectorSelection'
+>;
+
+/** Lightweight interaction state that follows one document. */
+export type DocumentEditorState = Pick<
+  EditorSession,
+  'activeChannel' | 'selection' | 'vectorSelection'
+>;
+
 export const createEditorSession = (): EditorSession => ({
   activeTool: 'view',
   pointerId: null,
@@ -376,4 +388,36 @@ export const createEditorSession = (): EditorSession => ({
     pressureSize: true,
     pressureStrength: true
   }
+});
+
+export const editorApplicationStateFrom = (
+  session: EditorSession
+): EditorApplicationState => {
+  const { activeChannel: _activeChannel, selection: _selection,
+    vectorSelection: _vectorSelection, ...application } = session;
+  return application;
+};
+
+export const documentEditorStateFrom = (
+  session: EditorSession
+): DocumentEditorState => ({
+  activeChannel: session.activeChannel,
+  selection: [...session.selection],
+  vectorSelection: cloneVectorEditorSelection(session.vectorSelection)
+});
+
+export const createEditorApplicationState = (): EditorApplicationState =>
+  editorApplicationStateFrom(createEditorSession());
+
+export const createDocumentEditorState = (): DocumentEditorState =>
+  documentEditorStateFrom(createEditorSession());
+
+export const mergeEditorSession = (
+  application: EditorApplicationState,
+  document: DocumentEditorState
+): EditorSession => ({
+  ...application,
+  ...document,
+  selection: [...document.selection],
+  vectorSelection: cloneVectorEditorSelection(document.vectorSelection)
 });

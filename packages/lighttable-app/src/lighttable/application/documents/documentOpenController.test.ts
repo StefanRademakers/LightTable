@@ -63,4 +63,35 @@ describe('DocumentOpenController', () => {
     expect(controller.getRenderer()).toBeNull();
     expect(target.destroy).toHaveBeenCalledOnce();
   });
+
+  it('reuses one renderer while replacing only its active document binding', async () => {
+    const lifecycle = new DocumentRendererLifecycle();
+    const controller = new DocumentOpenController(
+      new DocumentTaskRegistry('application-editor' as DocumentSessionId),
+      lifecycle
+    );
+    const target = renderer();
+    const createRenderer = vi.fn(async () => target);
+    const firstHydrate = vi.fn();
+    const secondHydrate = vi.fn();
+
+    await controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['first']),
+      hydrate: firstHydrate
+    }, { reuseRenderer: true });
+    await controller.open({
+      createRenderer,
+      loadSource: async () => new Blob(['second']),
+      hydrate: secondHydrate
+    }, { reuseRenderer: true });
+
+    expect(createRenderer).toHaveBeenCalledOnce();
+    expect(firstHydrate).toHaveBeenCalledOnce();
+    expect(secondHydrate).toHaveBeenCalledOnce();
+    expect(controller.getRenderer()).toBe(target);
+    expect(target.destroy).not.toHaveBeenCalled();
+    controller.close();
+    expect(target.destroy).toHaveBeenCalledOnce();
+  });
 });

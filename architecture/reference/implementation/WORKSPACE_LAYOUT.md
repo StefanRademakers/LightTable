@@ -103,8 +103,8 @@ saved document.
 - [x] Explicit workspace-layout reset.
 - [x] Document-session controller for opening and switching multiple documents
   with exactly one active document.
-- [ ] One persistent editor/canvas with active-document renderer rebinding.
-- [ ] Document-owned canonical GPU resources outside the presentation renderer.
+- [x] One persistent editor/canvas with active-document renderer rebinding.
+- [x] Document-owned canonical GPU resources outside the presentation renderer.
 - [x] Typed panel registry and feature-owned panel composition.
 - [ ] Rebindable Parade/Vectorscope surfaces.
 - [ ] True same-origin browser popout and multi-monitor smoke tests.

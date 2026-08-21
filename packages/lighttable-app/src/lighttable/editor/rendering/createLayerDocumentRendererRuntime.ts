@@ -42,6 +42,8 @@ import { TextLayerRenderCoordinator } from '../../text/rendering/TextLayerRender
 import { ImageResizeGpuService } from './ImageResizeGpuService';
 import { DocumentGeometryGpuService } from './DocumentGeometryGpuService';
 import { LayerPresentationPicker } from './LayerPresentationPicker';
+import type { DocumentLayerResourceRepository } from './DocumentLayerResourceRepository';
+import type { DocumentPatternResourceRepository } from './DocumentPatternResourceRepository';
 export type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
 import { walkLayerTree } from '../document/layerTree';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
@@ -50,6 +52,7 @@ export type { TextRenderPresentationSnapshot } from '../../application/rendering
 export interface LayerDocumentRendererRuntime {
   textureCodec: LayerTextureCodec;
   layerResources: LayerRuntimeStore;
+  patternAssets: PatternAssetStore;
   layerStyleRenderer: LayerStyleRenderer;
   vectorLayerRenderer: VectorLayerRenderer;
   compositor: LayerCompositor;
@@ -91,7 +94,9 @@ export const createLayerDocumentRendererRuntime = (
   sampler: GPUSampler,
   onDevelopmentTextFixtureChanged: (snapshot: DevelopmentTextFixtureSnapshot) => void = () => undefined,
   onTextRenderPresentation: (snapshot: TextRenderPresentationSnapshot) => void = () => undefined,
-  onTextRenderError: (message: string) => void = () => undefined
+  onTextRenderError: (message: string) => void = () => undefined,
+  documentLayerResources?: DocumentLayerResourceRepository,
+  documentPatternResources?: DocumentPatternResourceRepository
 ): LayerDocumentRendererRuntime => {
   const pipelines = documentPipelinesFor(device);
   const resources = new DocumentResourceState();
@@ -110,8 +115,8 @@ export const createLayerDocumentRendererRuntime = (
     createRasterTexture: (label, width, height) =>
       textures.createColorSized(label, width, height),
     createMaskTexture: (label) => textures.createMask(label)
-  });
-  const patternAssets = new PatternAssetStore();
+  }, documentLayerResources);
+  const patternAssets = new PatternAssetStore(documentPatternResources);
   const submittedResources = new SubmittedResourceRetainer({
     onSubmittedWorkDone: () => device.queue.onSubmittedWorkDone()
   });
@@ -518,6 +523,7 @@ export const createLayerDocumentRendererRuntime = (
   return {
     textureCodec,
     layerResources,
+    patternAssets,
     layerStyleRenderer,
     vectorLayerRenderer,
     compositor,

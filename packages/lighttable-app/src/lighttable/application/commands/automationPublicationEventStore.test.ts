@@ -111,8 +111,10 @@ describe('AutomationPublicationEventStore', () => {
     );
 
     before = after;
-    const generation = session.renderer.beginStart();
-    session.renderer.markReady(generation);
+    const generation = 1;
+    session.publishRendererProjection({
+      status: 'ready', generation, active: true, estimatedGpuBytes: 128, error: null
+    });
     after = workspace.getSnapshot();
     expect(projectAutomationPublicationEvents(before, after)).toContainEqual(
       expect.objectContaining({ kind: 'renderer-changed', detail: expect.objectContaining({

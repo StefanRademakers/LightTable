@@ -25,6 +25,8 @@ import type {
 import { useEditorDocumentOpenRequestFactory } from './useEditorDocumentOpenRequestFactory';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 import type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
+import type { ImageDocument } from '../../editor/document/documentTypes';
+import type { LightTableImageMetadata } from '../../types';
 
 export interface EditorDocumentLifecycleControllerOptions {
   readonly enabled: boolean;
@@ -45,6 +47,8 @@ export interface EditorDocumentLifecycleControllerOptions {
     readonly decodeMode: DocumentOpenMode;
     readonly initialAdjustments: BasicAdjustments;
     readonly creationSettings?: DocumentCreationSettings;
+    readonly existingDocument?: ImageDocument | null;
+    readonly existingMetadata?: LightTableImageMetadata | null;
   };
   readonly getGroupVisibility: () => GroupVisibility;
   readonly getPublicationPorts: () => PreparedDocumentPublicationPorts;
@@ -141,11 +145,18 @@ export const useEditorDocumentLifecycleController = ({
   );
 
   const hydrate = useCallback(async (
-    _renderer: DocumentRendererPort,
+    renderer: DocumentRendererPort,
     sourceBlob: Blob,
     task: { isCurrent(): boolean; signal: AbortSignal },
     isCurrent: () => boolean
   ) => {
+    if (source.existingDocument) {
+      renderer.bindExistingDocument(
+        source.existingDocument,
+        source.existingMetadata ?? undefined
+      );
+      return;
+    }
     await loadSource({
       blob: sourceBlob,
       name: source.name,
@@ -161,7 +172,7 @@ export const useEditorDocumentLifecycleController = ({
       && task.isCurrent()
       && !rendererLifecycle.getSnapshot().active
     ) {
-      void publishInitialThumbnail?.(_renderer);
+      void publishInitialThumbnail?.(renderer);
     }
   }, [loadSource, publishInitialThumbnail, rendererLifecycle, source]);
 
@@ -175,7 +186,8 @@ export const useEditorDocumentLifecycleController = ({
       inlineSource: source.inlineSource,
       projectId: source.projectId,
       sourceFileKey: source.sourceFileKey,
-      loadSource: source.loadSource
+      loadSource: source.loadSource,
+      existingDocument: source.existingDocument
     },
     getScopeOptions,
     hydrate,

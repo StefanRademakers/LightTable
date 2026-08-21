@@ -44,10 +44,10 @@ export interface DocumentRuntimeServices {
 }
 
 /**
- * Resolves document-owned runtime services for embedded and workspace hosts.
+ * Resolves runtime services for embedded and application-owned editor hosts.
  *
- * A standalone workspace supplies its session services. Embedded callers get
- * an identically shaped owned bundle that is disposed with the document view.
+ * Standalone supplies document history plus application-level task/renderer
+ * services. Embedded callers get an owned bundle disposed with their view.
  */
 export const useDocumentRuntimeServices = ({
   documentId,

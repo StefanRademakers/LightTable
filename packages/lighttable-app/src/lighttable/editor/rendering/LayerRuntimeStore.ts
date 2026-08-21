@@ -1,5 +1,9 @@
 import type { LayerId, LayerNode, RasterLayer } from '../document/documentTypes';
 import { walkLayerTree, walkRasterLayers } from '../document/layerTree';
+import {
+  DocumentLayerResourceRepository,
+  type DocumentLayerResourceKey
+} from './DocumentLayerResourceRepository';
 
 export interface RasterLayerRuntime {
   texture: GPUTexture;
@@ -10,11 +14,6 @@ export interface RasterLayerRuntime {
 }
 
 export type RasterPixelSurface = Pick<RasterLayerRuntime, 'texture' | 'width' | 'height'>;
-
-interface NodeMaskRuntime {
-  texture: GPUTexture;
-  maskId: string;
-}
 
 export interface DerivedPreviewRuntime {
   texture: GPUTexture;
@@ -35,11 +34,48 @@ export interface LayerRuntimeStoreOptions {
  * `pruneDetached` is the explicit history-boundary cleanup operation.
  */
 export class LayerRuntimeStore {
-  private readonly rasterRuntimes = new Map<LayerId, RasterLayerRuntime>();
-  private readonly derivedPreviews = new Map<LayerId, DerivedPreviewRuntime>();
-  private readonly nodeMasks = new Map<LayerId, NodeMaskRuntime>();
+  private readonly repository: DocumentLayerResourceRepository;
+  private resourceKey: DocumentLayerResourceKey;
+  private readonly releaseOnDestroy: boolean;
 
-  constructor(private readonly options: LayerRuntimeStoreOptions) {}
+  constructor(
+    private readonly options: LayerRuntimeStoreOptions,
+    repository?: DocumentLayerResourceRepository,
+    resourceKey: DocumentLayerResourceKey = Symbol('standalone-document-resources')
+  ) {
+    this.repository = repository ?? new DocumentLayerResourceRepository();
+    this.resourceKey = resourceKey;
+    this.releaseOnDestroy = repository === undefined;
+  }
+
+  private get rasterRuntimes() {
+    return this.repository.acquire(this.resourceKey).rasterRuntimes;
+  }
+
+  private get derivedPreviews() {
+    return this.repository.acquire(this.resourceKey).derivedPreviews;
+  }
+
+  private get nodeMasks() {
+    return this.repository.acquire(this.resourceKey).nodeMasks;
+  }
+
+  /** Rebinds this renderer facade without transferring or recreating pixels. */
+  bind(resourceKey: DocumentLayerResourceKey): boolean {
+    const existed = this.repository.has(resourceKey);
+    if (this.releaseOnDestroy && resourceKey !== this.resourceKey) {
+      this.repository.release(this.resourceKey);
+    }
+    this.resourceKey = resourceKey;
+    this.repository.acquire(resourceKey);
+    return !this.releaseOnDestroy && existed;
+  }
+
+  hasResources(): boolean {
+    return this.rasterRuntimes.size > 0
+      || this.derivedPreviews.size > 0
+      || this.nodeMasks.size > 0;
+  }
 
   sync(nodes: readonly LayerNode[]) {
     walkRasterLayers(nodes).forEach(({ layer }) => {
@@ -296,14 +332,6 @@ export class LayerRuntimeStore {
   }
 
   destroy() {
-    this.rasterRuntimes.forEach((runtime) => {
-      runtime.texture.destroy();
-      runtime.maskTexture?.destroy();
-    });
-    this.rasterRuntimes.clear();
-    this.derivedPreviews.forEach((runtime) => runtime.texture.destroy());
-    this.derivedPreviews.clear();
-    this.nodeMasks.forEach((runtime) => runtime.texture.destroy());
-    this.nodeMasks.clear();
+    if (this.releaseOnDestroy) this.repository.release(this.resourceKey);
   }
 }

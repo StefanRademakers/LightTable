@@ -958,8 +958,9 @@ describe('LightTableCommandService atomic batches', () => {
     state.session.markChanged(4);
     state.session.history.record({ id: 'event-history', documentId: state.session.id,
       type: 'automation.batch', label: 'Agent edit', undo: () => undefined, redo: () => undefined });
-    const generation = state.session.renderer.beginStart();
-    state.session.renderer.markReady(generation);
+    state.session.publishRendererProjection({
+      status: 'ready', generation: 1, active: true, estimatedGpuBytes: 128, error: null
+    });
     const result = state.service.queryPublicationEvents(0, 20);
     expect(result).toMatchObject({ gap: false, hasMore: false,
       latestCursor: result.cursor });

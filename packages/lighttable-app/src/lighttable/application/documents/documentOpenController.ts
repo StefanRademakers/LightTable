@@ -31,6 +31,10 @@ export interface DocumentOpenRequest<
   readonly onSettled?: () => void;
 }
 
+export interface DocumentOpenOptions {
+  readonly reuseRenderer?: boolean;
+}
+
 /**
  * Owns renderer startup and teardown for one document session.
  *
@@ -58,8 +62,13 @@ export class DocumentOpenController<
     return this.renderer;
   }
 
-  async open(request: DocumentOpenRequest<Renderer>): Promise<void> {
-    this.close();
+  async open(
+    request: DocumentOpenRequest<Renderer>,
+    options: DocumentOpenOptions = {}
+  ): Promise<void> {
+    const reusableRenderer = options.reuseRenderer ? this.renderer : null;
+    if (reusableRenderer) this.cancelOpen();
+    else this.close();
     const token = ++this.token;
     const generation = this.lifecycle.beginStart();
     this.generation = generation;
@@ -69,6 +78,16 @@ export class DocumentOpenController<
       'Open image',
       async (task) => {
         const isCanceled = () => token !== this.token || !task.isCurrent();
+        if (reusableRenderer) {
+          request.onRendererReady?.(reusableRenderer, 0, generation);
+          const sourceStartedAt = performance.now();
+          const source = await request.loadSource(task.signal);
+          if (isCanceled()) task.throwIfCanceled();
+          request.onSourceReady?.(source, performance.now() - sourceStartedAt);
+          await request.hydrate(reusableRenderer, source, task);
+          if (isCanceled()) task.throwIfCanceled();
+          return reusableRenderer;
+        }
         const renderer = await startDocumentRenderer({
           createRenderer: request.createRenderer,
           loadSource: () => request.loadSource(task.signal),
@@ -98,11 +117,16 @@ export class DocumentOpenController<
   }
 
   close(): void {
-    this.token += 1;
-    this.tasks.cancelKind('open');
+    this.cancelOpen();
     const renderer = this.renderer;
     this.renderer = null;
     renderer?.destroy();
+  }
+
+  /** Cancels only source/hydration work while retaining the presentation engine. */
+  cancelOpen(): void {
+    this.token += 1;
+    this.tasks.cancelKind('open');
     if (this.generation) {
       this.lifecycle.reset(this.generation);
       this.generation = 0;

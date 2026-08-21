@@ -1,9 +1,8 @@
 import type { DocumentAssetId } from '../document/documentTypes';
-
-interface PatternRuntimeAsset {
-  source: Blob;
-  texture: GPUTexture;
-}
+import {
+  DocumentPatternResourceRepository,
+  type DocumentPatternResourceKey
+} from './DocumentPatternResourceRepository';
 
 /**
  * Owns immutable pattern sources and their decoded GPU textures as one unit.
@@ -11,7 +10,32 @@ interface PatternRuntimeAsset {
  * always releases the previous texture.
  */
 export class PatternAssetStore {
-  private readonly assets = new Map<DocumentAssetId, PatternRuntimeAsset>();
+  private readonly repository: DocumentPatternResourceRepository;
+  private resourceKey: DocumentPatternResourceKey;
+  private readonly releaseOnDestroy: boolean;
+
+  constructor(
+    repository?: DocumentPatternResourceRepository,
+    resourceKey: DocumentPatternResourceKey = Symbol('standalone-pattern-resources')
+  ) {
+    this.repository = repository ?? new DocumentPatternResourceRepository();
+    this.resourceKey = resourceKey;
+    this.releaseOnDestroy = repository === undefined;
+  }
+
+  private get assets() {
+    return this.repository.acquire(this.resourceKey);
+  }
+
+  bind(resourceKey: DocumentPatternResourceKey): boolean {
+    const existed = this.repository.has(resourceKey);
+    if (this.releaseOnDestroy && resourceKey !== this.resourceKey) {
+      this.repository.release(this.resourceKey);
+    }
+    this.resourceKey = resourceKey;
+    this.repository.acquire(resourceKey);
+    return !this.releaseOnDestroy && existed;
+  }
 
   getTexture(id: DocumentAssetId) {
     return this.assets.get(id)?.texture ?? null;
@@ -36,8 +60,7 @@ export class PatternAssetStore {
   }
 
   clear() {
-    this.assets.forEach(({ texture }) => texture.destroy());
-    this.assets.clear();
+    if (this.releaseOnDestroy) this.repository.release(this.resourceKey);
   }
 
   destroy() {

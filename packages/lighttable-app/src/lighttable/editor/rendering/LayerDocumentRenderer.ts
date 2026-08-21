@@ -46,6 +46,8 @@ import type {
   SampledBrushStrokePlan
 } from '../tools/paint/sampledBrushTypes';
 import { sampledBrushSourceDocument } from '../document/sampledBrushSourceDocument';
+import type { DocumentLayerResourceRepository } from './DocumentLayerResourceRepository';
+import type { DocumentPatternResourceRepository } from './DocumentPatternResourceRepository';
 
 const isolatedLayerTree = (
   nodes: readonly LayerNode[],
@@ -91,14 +93,18 @@ export class LayerDocumentRenderer {
     sampler: GPUSampler,
     onDevelopmentTextFixtureChanged?: Parameters<typeof createLayerDocumentRendererRuntime>[2],
     onTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void,
-    onTextRenderError?: (message: string) => void
+    onTextRenderError?: (message: string) => void,
+    documentLayerResources?: DocumentLayerResourceRepository,
+    documentPatternResources?: DocumentPatternResourceRepository
   ) {
     this.runtime = createLayerDocumentRendererRuntime(
       device,
       sampler,
       onDevelopmentTextFixtureChanged,
       onTextRenderPresentation,
-      onTextRenderError
+      onTextRenderError,
+      documentLayerResources,
+      documentPatternResources
     );
   }
 
@@ -111,12 +117,19 @@ export class LayerDocumentRenderer {
   }
 
   initialize(document: ImageDocument, sourceTexture: GPUTexture) {
+    this.runtime.layerResources.bind(document.id);
+    this.runtime.patternAssets.bind(document.id);
+    const retainedPixels = this.runtime.layerResources.hasResources();
     this.runtime.imageResources.begin(document.width, document.height);
     this.syncDocument(document);
-    this.runtime.importedLayerInitializer.initialize(document, sourceTexture);
+    if (!retainedPixels) {
+      this.runtime.importedLayerInitializer.initialize(document, sourceTexture);
+    }
   }
 
   syncDocument(document: ImageDocument) {
+    this.runtime.layerResources.bind(document.id);
+    this.runtime.patternAssets.bind(document.id);
     this.document = document;
     // Keep detached runtimes alive for the bounded editor history. This makes
     // delete/create/duplicate undo lossless without a synchronous GPU readback.

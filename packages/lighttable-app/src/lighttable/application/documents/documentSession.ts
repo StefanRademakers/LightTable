@@ -1,6 +1,6 @@
 import {
-  createEditorSession,
-  type EditorSession
+  createDocumentEditorState,
+  type DocumentEditorState
 } from '../../editor/session/editorSession';
 import {
   DocumentCommandHistory,
@@ -11,7 +11,6 @@ import {
   type DocumentTaskRegistrySnapshot
 } from '../tasks/documentTaskRegistry';
 import {
-  DocumentRendererLifecycle,
   type DocumentRendererSnapshot
 } from '../rendering/documentRendererLifecycle';
 import type { ImageDocument } from '../../editor/document/documentTypes';
@@ -20,6 +19,16 @@ import {
   type SystemFontByteProvider
 } from '../../text/fonts/DocumentFontRegistry';
 import { FontationsFontFaceParser } from '../../text/fonts/FontationsFontFaceParser';
+import { createDefaultAdjustments, type BasicAdjustments } from '../../types';
+import {
+  createDefaultGroupVisibility,
+  type GroupVisibility
+} from '../adjustments/groupVisibility';
+import type { LightTableImageMetadata } from '../../types';
+import type {
+  FontAssetBlob,
+  PreservedSourceAssetBlob
+} from '../../editor/persistence/layeredDocumentFormat';
 
 export type DocumentSessionId = string & {
   readonly __brand: 'DocumentSessionId';
@@ -46,6 +55,23 @@ export interface DocumentViewport {
   readonly panY: number;
 }
 
+/** Canonical document-wide processing that is not part of the layer tree. */
+export interface DocumentProcessingState {
+  readonly adjustments: BasicAdjustments;
+  readonly globalGradeStrength: number;
+  readonly groupVisibility: GroupVisibility;
+}
+
+/** Decoded source payloads required for exact save/rebind without reopening. */
+export interface DocumentLoadedSourceState {
+  readonly metadata: LightTableImageMetadata | null;
+  readonly name: string;
+  readonly blob: Blob | null;
+  readonly identity: string;
+  readonly fontAssets: readonly FontAssetBlob[];
+  readonly preservedSources: readonly PreservedSourceAssetBlob[];
+}
+
 export interface DocumentSessionSnapshot {
   readonly id: DocumentSessionId;
   readonly source: DocumentSourceDescriptor;
@@ -60,8 +86,10 @@ export interface DocumentSessionSnapshot {
   readonly renderer: DocumentRendererSnapshot;
   /** Canonical immutable layer tree for this open document. */
   readonly document: ImageDocument | null;
-  readonly editor: EditorSession;
+  readonly editor: DocumentEditorState;
   readonly viewport: DocumentViewport;
+  readonly processing: DocumentProcessingState;
+  readonly loadedSource: DocumentLoadedSourceState;
 }
 
 export type DocumentSessionListener = () => void;
@@ -70,9 +98,10 @@ export interface CreateDocumentSessionOptions {
   readonly id: DocumentSessionId;
   readonly source: DocumentSourceDescriptor;
   readonly title?: string;
-  readonly editor?: EditorSession;
+  readonly editor?: DocumentEditorState;
   readonly viewport?: DocumentViewport;
   readonly systemFontProvider?: SystemFontByteProvider;
+  readonly processing?: DocumentProcessingState;
 }
 
 const DEFAULT_VIEWPORT: DocumentViewport = {
@@ -82,8 +111,27 @@ const DEFAULT_VIEWPORT: DocumentViewport = {
   panY: 0
 };
 
-const cloneEditorSession = (session: EditorSession): EditorSession => ({
-  ...session,
+const createDefaultProcessingState = (): DocumentProcessingState => ({
+  adjustments: createDefaultAdjustments(),
+  globalGradeStrength: 100,
+  groupVisibility: createDefaultGroupVisibility()
+});
+
+const cloneProcessingState = (
+  state: DocumentProcessingState
+): DocumentProcessingState => structuredClone(state);
+
+const cloneLoadedSourceState = (
+  state: DocumentLoadedSourceState
+): DocumentLoadedSourceState => ({
+  ...state,
+  metadata: state.metadata ? { ...state.metadata } : null,
+  fontAssets: [...state.fontAssets],
+  preservedSources: [...state.preservedSources]
+});
+
+const cloneEditorSession = (session: DocumentEditorState): DocumentEditorState => ({
+  activeChannel: session.activeChannel,
   selection: [...session.selection],
   vectorSelection: {
     elements: session.vectorSelection.elements.map((reference) => ({ ...reference })),
@@ -95,25 +143,20 @@ const cloneEditorSession = (session: EditorSession): EditorSession => ({
           target: { ...session.vectorSelection.active.target }
         }
       : null
-  },
-  text: { ...session.text },
-  brush: { ...session.brush },
-  sampledBrush: { ...session.sampledBrush },
-  warp: { ...session.warp }
+  }
 });
 
 /**
  * Application-owned state for one open document.
  *
- * Canonical image data and GPU resources are attached by later migration
- * phases. This session already owns every piece of editor state that must stay
- * isolated when the workspace switches documents.
+ * Tool choice and tool options deliberately do not live here: those belong to
+ * the one application editor. Only document-specific interaction/view state
+ * follows a tab.
  */
 export class DocumentSession {
   readonly id: DocumentSessionId;
   readonly history: DocumentCommandHistory;
   readonly tasks: DocumentTaskRegistry;
-  readonly renderer: DocumentRendererLifecycle;
   readonly fonts: DocumentFontRegistry;
 
   private snapshot: DocumentSessionSnapshot;
@@ -121,13 +164,11 @@ export class DocumentSession {
   private readonly disposers = new Set<() => void>();
   private readonly unsubscribeHistory: () => void;
   private readonly unsubscribeTasks: () => void;
-  private readonly unsubscribeRenderer: () => void;
 
   constructor(options: CreateDocumentSessionOptions) {
     this.id = options.id;
     this.history = new DocumentCommandHistory(options.id);
     this.tasks = new DocumentTaskRegistry(options.id);
-    this.renderer = new DocumentRendererLifecycle();
     this.fonts = new DocumentFontRegistry({
       parser: new FontationsFontFaceParser(),
       systemProvider: options.systemFontProvider
@@ -144,10 +185,27 @@ export class DocumentSession {
       savedRevision: 0,
       history: this.history.getSnapshot(),
       tasks: this.tasks.getSnapshot(),
-      renderer: this.renderer.getSnapshot(),
+      // This is diagnostics/presentation telemetry only. The application owns
+      // the single renderer lifecycle and projects it onto the active document.
+      renderer: {
+        status: 'idle',
+        generation: 0,
+        active: false,
+        estimatedGpuBytes: 0,
+        error: null
+      },
       document: null,
-      editor: cloneEditorSession(options.editor ?? createEditorSession()),
-      viewport: { ...(options.viewport ?? DEFAULT_VIEWPORT) }
+      editor: cloneEditorSession(options.editor ?? createDocumentEditorState()),
+      viewport: { ...(options.viewport ?? DEFAULT_VIEWPORT) },
+      processing: cloneProcessingState(options.processing ?? createDefaultProcessingState()),
+      loadedSource: {
+        metadata: null,
+        name: options.source.name,
+        blob: null,
+        identity: '',
+        fontAssets: [],
+        preservedSources: []
+      }
     };
     this.unsubscribeHistory = this.history.subscribe((history) => {
       if (this.snapshot.lifecycle === 'disposed') return;
@@ -159,10 +217,6 @@ export class DocumentSession {
     this.unsubscribeTasks = this.tasks.subscribe((tasks) => {
       if (this.snapshot.lifecycle === 'disposed') return;
       this.update({ tasks });
-    });
-    this.unsubscribeRenderer = this.renderer.subscribe((renderer) => {
-      if (this.snapshot.lifecycle === 'disposed') return;
-      this.update({ renderer });
     });
   }
 
@@ -205,7 +259,7 @@ export class DocumentSession {
   }
 
   updateEditor(
-    updater: (current: EditorSession) => EditorSession
+    updater: (current: DocumentEditorState) => DocumentEditorState
   ): void {
     this.assertEditable();
     const next = cloneEditorSession(updater(cloneEditorSession(this.snapshot.editor)));
@@ -226,6 +280,38 @@ export class DocumentSession {
     this.update({
       viewport: { ...updater({ ...this.snapshot.viewport }) }
     });
+  }
+
+  updateProcessing(
+    updater: (current: DocumentProcessingState) => DocumentProcessingState
+  ): void {
+    this.assertEditable();
+    this.update({
+      processing: cloneProcessingState(updater(cloneProcessingState(this.snapshot.processing)))
+    });
+  }
+
+  updateLoadedSource(
+    updater: (current: DocumentLoadedSourceState) => DocumentLoadedSourceState
+  ): void {
+    this.assertEditable();
+    this.update({
+      loadedSource: cloneLoadedSourceState(
+        updater(cloneLoadedSourceState(this.snapshot.loadedSource))
+      )
+    });
+  }
+
+  /** Publishes diagnostics from the one application-owned presentation engine. */
+  publishRendererProjection(renderer: DocumentRendererSnapshot): void {
+    this.assertUsable();
+    const current = this.snapshot.renderer;
+    if (current.status === renderer.status
+      && current.generation === renderer.generation
+      && current.active === renderer.active
+      && current.estimatedGpuBytes === renderer.estimatedGpuBytes
+      && current.error === renderer.error) return;
+    this.update({ renderer: { ...renderer } });
   }
 
   markChanged(revision = this.snapshot.documentRevision + 1): void {
@@ -261,14 +347,19 @@ export class DocumentSession {
     if (this.snapshot.lifecycle === 'disposed') return;
     this.snapshot = {
       ...this.snapshot,
-      lifecycle: 'disposed'
+      lifecycle: 'disposed',
+      renderer: {
+        ...this.snapshot.renderer,
+        status: 'disposed',
+        active: false,
+        estimatedGpuBytes: 0,
+        error: null
+      }
     };
     this.unsubscribeHistory();
     this.unsubscribeTasks();
-    this.unsubscribeRenderer();
     this.history.dispose();
     this.tasks.dispose();
-    this.renderer.dispose();
     for (const disposer of this.disposers) disposer();
     this.disposers.clear();
     this.emit();

@@ -33,6 +33,7 @@ import {
   type EditorDocumentScopeCanvasRefs
 } from './resolveEditorDocumentCanvases';
 import type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
+import type { ImageDocument } from '../../editor/document/documentTypes';
 
 export interface EditorDocumentOpenRequestFactoryOptions {
   readonly canvases: EditorDocumentScopeCanvasRefs;
@@ -45,6 +46,7 @@ export interface EditorDocumentOpenRequestFactoryOptions {
     readonly projectId: string;
     readonly sourceFileKey: string | null;
     readonly loadSource?: DocumentSourceLoader;
+    readonly existingDocument?: ImageDocument | null;
   };
   readonly getScopeOptions: () => {
     readonly histogramVisible: boolean;
@@ -124,7 +126,9 @@ export const useEditorDocumentOpenRequestFactory = ({
       resolvedCanvases.viewport,
       lifecycleBridge.callbacks as DocumentRendererCallbacks
     ),
-    resolveSource: (signal) => resolveDocumentSource(source, signal),
+    resolveSource: source.existingDocument
+      ? async () => new Blob()
+      : (signal) => resolveDocumentSource(source, signal),
     hydrate: (renderer, sourceBlob, task) => hydrate(
       renderer,
       sourceBlob,
@@ -137,7 +141,10 @@ export const useEditorDocumentOpenRequestFactory = ({
         rendererRef.current = renderer;
       }
     },
-    configureRenderer: (renderer) => renderer.configureTextFonts(textFontRuntimePort),
+    configureRenderer: (renderer) => {
+      renderer.updateCallbacks(lifecycleBridge.callbacks);
+      renderer.configureTextFonts(textFontRuntimePort);
+    },
     lifecycleBridge
   });
 }, [

@@ -7,6 +7,7 @@ import {
 } from 'react';
 
 interface DocumentRuntimeErrorBoundaryProps {
+  readonly documentId: string;
   readonly active: boolean;
   readonly title: string;
   readonly children: ReactNode;
@@ -25,11 +26,10 @@ export const normalizeDocumentRuntimeError = (failure: unknown): Error =>
     : new Error(String(failure));
 
 /**
- * Contains render/effect failures to one document tab.
+ * Contains failures in the one active editor binding.
  *
- * GPU and async operation failures remain owned by the document controllers;
- * this boundary is the final React safety net that keeps sibling documents and
- * the workspace shell usable.
+ * GPU and async failures remain owned by application controllers; changing the
+ * active document clears a prior binding error without remounting the editor.
  */
 export class DocumentRuntimeErrorBoundary extends Component<
   DocumentRuntimeErrorBoundaryProps,
@@ -47,6 +47,12 @@ export class DocumentRuntimeErrorBoundary extends Component<
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('LightTable document runtime failed', error, info);
     this.props.onError?.(error.message);
+  }
+
+  componentDidUpdate(previous: DocumentRuntimeErrorBoundaryProps): void {
+    if (previous.documentId !== this.props.documentId && this.state.error) {
+      this.setState({ error: null });
+    }
   }
 
   private retry = (): void => {

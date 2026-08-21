@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -11,8 +12,12 @@ import type {
   DocumentSession,
   DocumentViewport
 } from '../../application/documents/documentSession';
+import type { EditorApplicationSession } from '../../application/workspace/editorApplicationSession';
 import {
   createEditorSession,
+  documentEditorStateFrom,
+  editorApplicationStateFrom,
+  mergeEditorSession,
   type EditorSession
 } from '../session/editorSession';
 import type { ImageDocument } from '../document/documentTypes';
@@ -32,24 +37,57 @@ const resolveUpdate = <T,>(current: T, update: SetStateAction<T>): T => (
  * standalone/multi-document hosts use DocumentSession as the source of truth.
  */
 export const useDocumentEditorSession = (
-  documentSession?: DocumentSession
+  documentSession?: DocumentSession,
+  applicationSession?: EditorApplicationSession
 ): [EditorSession, Dispatch<SetStateAction<EditorSession>>] => {
   const [localSession, setLocalSession] = useState<EditorSession>(createEditorSession);
-  const subscribe = documentSession?.subscribe ?? subscribeToNothing;
-  const getSnapshot = documentSession
+  const localDocumentState = useMemo(
+    () => documentEditorStateFrom(localSession),
+    [localSession]
+  );
+  const localApplicationState = useMemo(
+    () => editorApplicationStateFrom(localSession),
+    [localSession]
+  );
+  const documentSubscribe = documentSession?.subscribe ?? subscribeToNothing;
+  const getDocumentSnapshot = documentSession
     ? () => documentSession.getSnapshot().editor
-    : () => localSession;
-  const editorSession = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+    : () => localDocumentState;
+  const documentState = useSyncExternalStore(
+    documentSubscribe,
+    getDocumentSnapshot,
+    getDocumentSnapshot
+  );
+  const applicationSubscribe = applicationSession?.subscribe ?? subscribeToNothing;
+  const getApplicationSnapshot = applicationSession
+    ? applicationSession.getSnapshot
+    : () => localApplicationState;
+  const applicationState = useSyncExternalStore(
+    applicationSubscribe,
+    getApplicationSnapshot,
+    getApplicationSnapshot
+  );
+  const editorSession = useMemo(
+    () => mergeEditorSession(applicationState, documentState),
+    [applicationState, documentState]
+  );
+  const editorSessionRef = useRef(editorSession);
+  editorSessionRef.current = editorSession;
 
   const updateEditorSession = useCallback<Dispatch<SetStateAction<EditorSession>>>(
     (update) => {
-      if (documentSession) {
-        documentSession.updateEditor((current) => resolveUpdate(current, update));
-        return;
+      const current = editorSessionRef.current;
+      const next = resolveUpdate(current, update);
+      const documentInteractionChanged = next.activeChannel !== current.activeChannel
+        || next.selection !== current.selection
+        || next.vectorSelection !== current.vectorSelection;
+      if (documentInteractionChanged) {
+        documentSession?.updateEditor(() => documentEditorStateFrom(next));
       }
-      setLocalSession(update);
+      applicationSession?.publishCombinedSession(next);
+      if (!documentSession || !applicationSession) setLocalSession(next);
     },
-    [documentSession]
+    [applicationSession, documentSession]
   );
 
   return [editorSession, updateEditorSession];

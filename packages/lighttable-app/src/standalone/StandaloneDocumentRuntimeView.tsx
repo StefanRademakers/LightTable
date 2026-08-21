@@ -24,6 +24,9 @@ import type {
   LightTableCommandService
 } from '../lighttable/application/commands/lightTableCommandService';
 import type { ApplicationPreferences } from './applicationPreferences';
+import type { EditorApplicationSession } from '../lighttable/application/workspace/editorApplicationSession';
+import type { DocumentTaskRegistry } from '../lighttable/application/tasks/documentTaskRegistry';
+import type { DocumentRendererLifecycle } from '../lighttable/application/rendering/documentRendererLifecycle';
 import type { GenAiGenerationJob } from '@lighttable/genai-core';
 import { isImageEditGeneration } from '../genai/application/generationDelivery';
 
@@ -40,6 +43,9 @@ interface StandaloneDocumentRuntimeViewProps {
   readonly host: LightTableHost;
   readonly commandService: LightTableCommandService;
   readonly commandPorts: LightTableCommandPortRegistry;
+  readonly applicationEditorSession: EditorApplicationSession;
+  readonly applicationEditorTasks: DocumentTaskRegistry;
+  readonly applicationRendererLifecycle: DocumentRendererLifecycle;
   readonly screenMode: EditorScreenMode;
   readonly onScreenModeChange: (mode: EditorScreenMode) => void;
   readonly onActivate: (id: DocumentSessionId) => void;
@@ -75,10 +81,10 @@ const titleWithoutExtension = (name: string) =>
   name.replace(/\.[^.]+$/, '') || 'Untitled';
 
 /**
- * React composition boundary for exactly one open document runtime.
+ * Stable React composition boundary for the application's one editor runtime.
  *
- * A runtime owns its error containment, application services and host save
- * bridge. The workspace shell only controls ordering and activation.
+ * Changing `document` rebinds that editor to another canonical session. It
+ * must not create a second workspace, canvas or renderer runtime.
  */
 export function StandaloneDocumentRuntimeView({
   document,
@@ -86,6 +92,9 @@ export function StandaloneDocumentRuntimeView({
   host,
   commandService,
   commandPorts,
+  applicationEditorSession,
+  applicationEditorTasks,
+  applicationRendererLifecycle,
   screenMode,
   onScreenModeChange,
   onActivate,
@@ -157,6 +166,7 @@ export function StandaloneDocumentRuntimeView({
 
   return (
     <DocumentRuntimeErrorBoundary
+      documentId={id}
       active={active}
       title={file.name}
       onClose={() => onClose(id)}
@@ -176,9 +186,10 @@ export function StandaloneDocumentRuntimeView({
         workspaceDocumentId={id}
         workspaceDocuments={workspaceDocuments}
         history={session.history}
-        tasks={session.tasks}
-        rendererLifecycle={session.renderer}
+        tasks={applicationEditorTasks}
+        rendererLifecycle={applicationRendererLifecycle}
         documentSession={session}
+        applicationEditorSession={applicationEditorSession}
         commandService={commandService}
         commandPorts={commandPorts}
         imageClipboard={host.clipboard}

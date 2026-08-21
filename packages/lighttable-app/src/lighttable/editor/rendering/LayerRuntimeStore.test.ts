@@ -9,10 +9,31 @@ import {
   type RasterLayer
 } from '../document/documentTypes';
 import { LayerRuntimeStore } from './LayerRuntimeStore';
+import { DocumentLayerResourceRepository } from './DocumentLayerResourceRepository';
 
 const texture = () => ({ destroy: vi.fn() }) as unknown as GPUTexture;
 
 describe('LayerRuntimeStore', () => {
+  it('rebinds renderer facades without destroying another document pixels', () => {
+    const repository = new DocumentLayerResourceRepository();
+    const options = { createRasterTexture: texture, createMaskTexture: texture };
+    const firstRenderer = new LayerRuntimeStore(options, repository);
+    const secondRenderer = new LayerRuntimeStore(options, repository);
+    const document = createImageDocument('test', 64, 64, 'source');
+    const layer = document.layers[0] as RasterLayer;
+
+    firstRenderer.bind('document-a');
+    firstRenderer.sync(document.layers);
+    const pixels = firstRenderer.raster(layer.id)?.texture;
+    firstRenderer.destroy();
+    secondRenderer.bind('document-a');
+
+    expect(secondRenderer.raster(layer.id)?.texture).toBe(pixels);
+    expect(pixels?.destroy).not.toHaveBeenCalled();
+    repository.release('document-a');
+    expect(pixels?.destroy).toHaveBeenCalledOnce();
+  });
+
   it('retains detached raster pixels until the explicit prune boundary', () => {
     const createdRaster: GPUTexture[] = [];
     const store = new LayerRuntimeStore({
