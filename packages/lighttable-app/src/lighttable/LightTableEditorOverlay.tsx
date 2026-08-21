@@ -3202,10 +3202,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
 
   const documentLifecycleController = useEditorDocumentLifecycleController({
-    // Surface readiness gates the first renderer construction only. A later
-    // canvas/layout lifecycle event is presentation state and must never become
-    // a document-open generation or canonical-data mutation trigger.
-    enabled: open && documentSurfaceRevision > 0,
+    enabled: open,
     generation: documentOpenGeneration,
     tasks: taskRegistry,
     rendererLifecycle,

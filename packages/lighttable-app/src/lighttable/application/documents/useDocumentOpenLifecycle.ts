@@ -78,14 +78,26 @@ export const useDocumentOpenLifecycle = <
   useEffect(() => {
     if (!enabled) return;
     const guard = createDocumentOpenGenerationGuard();
-    const request = createRequestRef.current(guard.context);
-    if (!request) return;
-
-    beforeOpenRef.current?.();
-    void controller.open(request, { reuseRenderer: true });
+    let readinessFrame: number | null = null;
+    const startWhenSurfaceIsReady = () => {
+      if (!guard.context.isCurrent()) return;
+      const request = createRequestRef.current(guard.context);
+      if (!request) {
+        // Dockview commits the persistent canvas after the editor generation.
+        // Wait for that presentation surface without turning its lifecycle into
+        // a new document-open identity.
+        readinessFrame = window.requestAnimationFrame(startWhenSurfaceIsReady);
+        return;
+      }
+      readinessFrame = null;
+      beforeOpenRef.current?.();
+      void controller.open(request, { reuseRenderer: true });
+    };
+    startWhenSurfaceIsReady();
 
     return () => {
       guard.invalidate();
+      if (readinessFrame !== null) window.cancelAnimationFrame(readinessFrame);
       controller.cancelOpen();
     };
   }, [controller, enabled, generation]);
