@@ -138,9 +138,11 @@ export const startPackagedMcpTestSession = async ({
       const accessRequest = window.getByRole('dialog', { name: 'LightTable MCP server requests LightTable access' });
       await accessRequest.getByRole('button', { name: 'Allow once' }).click();
       await waitFor(() => dynamicClient?.ready(), 'MCP desktop approval');
-      const close = settings.getByRole('button', { name: 'Close' });
-      if (await close.count() && await close.isVisible()) await close.click();
-      else await window.keyboard.press('Escape');
+      // Preferences deliberately commits and closes through Save. Keeping the
+      // old Close/Escape fallback here left the modal mounted and made every
+      // following menu interaction look like a product input failure.
+      await settings.getByRole('button', { name: 'Save', exact: true }).click();
+      await settings.waitFor({ state: 'hidden' });
       return mcp;
     },
     readArtifact: (id) => dynamicClient.readArtifact(id),

@@ -10,7 +10,7 @@ import {
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
-const sourceFile = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
+const sourceFile = path.resolve(process.argv[2] ?? path.join(workspaceRoot, 'architecture', 'ui', '1.png'));
 const launch = await resolveDesktopTestLaunch(workspaceRoot);
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'type-tool-smoke');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
@@ -151,6 +151,8 @@ try {
   await page.mouse.down();
   await page.mouse.move(dragEnd.x, dragEnd.y, { steps: 8 });
   await page.mouse.up();
+  await textInput.waitFor({ state: 'attached', timeout: 30_000 });
+  await textInput.pressSequentially('Paragraph gesture');
   await page.getByRole('radio', { name: 'Convert to paragraph text' })
     .waitFor({ state: 'visible', timeout: 30_000 });
   if (await page.getByRole('radio', { name: 'Convert to paragraph text' }).getAttribute('aria-checked') !== 'true') {
@@ -173,7 +175,7 @@ try {
 
   const after = await driver.queryDocument(documentId);
   if (!after || after.layerCount !== before.layerCount + 2
-    || after.history.undoDepth !== before.history.undoDepth + 9) {
+    || after.history.undoDepth !== before.history.undoDepth + 10) {
     throw new Error(`Text orientation produced unexpected history: ${JSON.stringify({ before, after })}`);
   }
   const beforeTransformLayers = await driver.queryLayers(documentId);
@@ -182,9 +184,27 @@ try {
     throw new Error('The paragraph text layer is not the active transform target.');
   }
   await page.keyboard.press('Control+Enter');
+  await textInput.waitFor({ state: 'detached', timeout: 30_000 });
+  await driver.waitForRenderedDocument(documentId, 30_000);
   await page.keyboard.press('Control+t');
   const transformOverlay = page.getByLabel('Transform controls');
-  await transformOverlay.waitFor({ state: 'visible', timeout: 30_000 });
+  try {
+    await transformOverlay.waitFor({ state: 'visible', timeout: 30_000 });
+  } catch (error) {
+    const diagnosticPath = await captureDesktopTestState({
+      app, page, outputDirectory, sourceFile, pageErrors,
+      label: 'text-transform-unavailable', timeout: 30_000,
+      details: {
+        document: await driver.queryDocument(documentId).catch(() => null),
+        layers: await driver.queryLayers(documentId).catch(() => null),
+        activeTool: await page.locator('.lighttable-toolbox__button[aria-pressed="true"]')
+          .getAttribute('aria-label').catch(() => null),
+        visibleErrors: await page.locator('.lighttable-error, [role="alert"]')
+          .allInnerTexts().catch(() => [])
+      }
+    });
+    throw new Error(`Text Free Transform was unavailable. Diagnostic: ${diagnosticPath}`, { cause: error });
+  }
   await page.screenshot({ path: transformScreenshotPath });
   const firstHandle = transformOverlay.locator('rect').first();
   const handleBox = await firstHandle.boundingBox();

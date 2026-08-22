@@ -20,9 +20,8 @@ const argumentsFor = (name) => process.argv.flatMap((value, index) =>
 );
 
 const defaultFiles = [
-  'D:\\TextTest.psd',
-  'D:\\shapes.psd',
-  'D:\\FormulierPersoneel.pdf'
+  path.join(workspaceRoot, 'architecture', 'ui', '1.png'),
+  path.join(workspaceRoot, 'icon', 'logo_emblem.png')
 ];
 const requestedFiles = argumentsFor('file');
 const files = (requestedFiles.length ? requestedFiles : defaultFiles).map((file) => path.resolve(file));

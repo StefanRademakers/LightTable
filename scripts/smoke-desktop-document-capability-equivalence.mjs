@@ -72,6 +72,14 @@ const writeDriverPreview = async (driver, documentId, target) => {
   await writeFile(target, artifact.bytes);
 };
 
+const activateDocument = async (page, driver, documentId, title) => {
+  await page.locator('.lighttable-document-tab__title', { hasText: title }).click();
+  await page.waitForFunction((id) => {
+    const document = window.__lightTableAutomation?.queryDocument(id);
+    return document?.renderer.active && document.renderer.status === 'ready';
+  }, documentId, { timeout: 60_000 });
+};
+
 const strictRenderPolicy = {
   maximumRmse: 0, maximumMeanAbsoluteError: 0,
   maximumChannelRmse: 0, maximumChannelMeanAbsoluteError: 0,
@@ -182,8 +190,13 @@ try {
 
   const previews = Object.fromEntries(['ui', 'actions', 'mcp'].map((route) =>
     [route, path.join(output, `${route}.png`)]));
+  // LightTable intentionally owns one presentation renderer. Activate each
+  // canonical document before asking that renderer for route-comparison pixels.
+  await activateDocument(page, driver, uiDocumentId, 'Geometry UI');
   await writeDriverPreview(driver, uiDocumentId, previews.ui);
+  await activateDocument(page, driver, actionsDocumentId, 'Geometry Actions');
   await writeDriverPreview(driver, actionsDocumentId, previews.actions);
+  await activateDocument(page, driver, mcpDocumentId, 'Geometry MCP');
   mcpDocument = mcpResult(await mcp.callTool({ name: 'lighttable_document',
     arguments: { documentId: mcpDocumentId } }), 'MCP preview revision');
   const mcpPreview = await mcp.callTool({ name: 'lighttable_preview', arguments: {
