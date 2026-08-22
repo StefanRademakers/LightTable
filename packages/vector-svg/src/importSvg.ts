@@ -141,9 +141,30 @@ const LOCAL_FRAGMENT = /^#([A-Za-z_][A-Za-z0-9_.:-]*)$/u;
 const LOCAL_PAINT = /^url\(\s*(['"]?)#([A-Za-z_][A-Za-z0-9_.:-]*)\1\s*\)$/iu;
 const localPaintId = (value: string) => LOCAL_PAINT.exec(value.trim())?.[2] ?? null;
 
-const preflightReferences = (root: XmlElement) => {
-  const candidates = [root, ...Array.from({ length: root.getElementsByTagName('*').length },
-    (_, index) => root.getElementsByTagName('*').item(index) as XmlElement)];
+const collectDescendantElements = (root: XmlElement, maximum: number) => {
+  const descendants: XmlElement[] = [];
+  const pending: XmlElement[] = [];
+  const pushChildrenInReverseOrder = (element: XmlElement) => {
+    const children: XmlElement[] = [];
+    for (let child = element.firstChild; child; child = child.nextSibling) {
+      if (child.nodeType === 1) children.push(child as XmlElement);
+    }
+    for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index]!);
+  };
+  pushChildrenInReverseOrder(root);
+  while (pending.length) {
+    const element = pending.pop()!;
+    descendants.push(element);
+    if (descendants.length > maximum) {
+      throw new SvgCodecError('element-limit', `SVG exceeds the ${maximum} element limit.`);
+    }
+    pushChildrenInReverseOrder(element);
+  }
+  return descendants;
+};
+
+const preflightReferences = (root: XmlElement, descendants: readonly XmlElement[]) => {
+  const candidates = [root, ...descendants];
   for (const element of candidates) {
     const tag = (element.localName || element.tagName).toLowerCase();
     if (ACTIVE_CONTENT.has(tag)) {
@@ -217,12 +238,8 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
   const root = document.documentElement;
   if (!root || root.localName?.toLowerCase() !== 'svg') throw new SvgCodecError('invalid-root', 'SVG document must have an <svg> root.');
   if (root.namespaceURI && root.namespaceURI !== SVG_NAMESPACE) throw new SvgCodecError('invalid-namespace', 'SVG root uses an unsupported namespace.');
-  preflightReferences(root);
-  const descendantElementCount = root.getElementsByTagName('*').length;
-  if (descendantElementCount > limits.maxElements) {
-    throw new SvgCodecError('element-limit',
-      `SVG contains ${descendantElementCount} elements and exceeds the ${limits.maxElements} element limit.`);
-  }
+  const descendants = collectDescendantElements(root, limits.maxElements);
+  preflightReferences(root, descendants);
   const viewBoxRaw = root.getAttribute('viewBox');
   const provisional = viewBoxRaw ? parseNumberList(viewBoxRaw, 'viewBox') : [];
   const declaredWidth = viewBoxRaw
@@ -248,9 +265,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
   const warnings: SvgConversionNotice[] = []; const conversions: SvgConversionNotice[] = [];
   const elements: VectorElement[] = []; let sourceElementCount = 0; let totalAnchors = 0;
   const resources = new Map<string, XmlElement>();
-  const descendants = root.getElementsByTagName('*');
-  for (let index = 0; index < descendants.length; index += 1) {
-    const resource = descendants.item(index) as XmlElement;
+  for (const resource of descendants) {
     const resourceId = resource.getAttribute('id')?.trim();
     if (!resourceId) continue;
     if (resources.has(resourceId)) {

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { DOMParser } from '@xmldom/xmldom';
+import { describe, expect, it, vi } from 'vitest';
 import { exportSvg } from './exportSvg';
 import { importSvg } from './importSvg';
 import { SvgCodecError } from './types';
@@ -12,6 +13,23 @@ const SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" vi
 </svg>`;
 
 describe('native SVG codec', () => {
+  it('walks a large flat document once without xmldom descendant rescans', () => {
+    const root = new DOMParser().parseFromString('<svg/>', 'image/svg+xml').documentElement;
+    const prototype = Object.getPrototypeOf(root) as { getElementsByTagName: (...args: unknown[]) => unknown };
+    const descendantScan = vi.spyOn(prototype, 'getElementsByTagName');
+    try {
+      const shapes = Array.from({ length: 5_000 }, (_, index) =>
+        `<path id="p${index}" d="M${index} 0L${index + 1} 1" fill="none" stroke="black"/>`).join('');
+      const plan = importSvg(`<svg xmlns="http://www.w3.org/2000/svg">${shapes}</svg>`, {
+        limits: { maxInputBytes: 2 * 1024 * 1024, maxElements: 5_100, maxAnchors: 12_000 }
+      });
+      expect(plan.elements).toHaveLength(5_000);
+      expect(descendantScan).not.toHaveBeenCalled();
+    } finally {
+      descendantScan.mockRestore();
+    }
+  });
+
   it('imports the bounded native subset as editable vector elements', () => {
     const plan = importSvg(SVG);
     expect(plan).toMatchObject({ width: 100, height: 50,

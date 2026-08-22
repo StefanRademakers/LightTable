@@ -17,6 +17,7 @@ const corpus = path.resolve(argument('corpus', path.join(root, 'tmp', 'svg-corpu
 const output = path.resolve(argument('output', path.join(root, 'tmp', 'svg-corpus-smoke')));
 const fileFilter = argument('file', '').toLowerCase();
 const profilePan = argument('profile-pan', 'false') === 'true';
+const profileOpen = argument('profile-open', 'false') === 'true';
 const entries = (await readdir(corpus, { withFileTypes: true }))
   .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.svg'))
   .filter((entry) => !fileFilter || entry.name.toLowerCase().includes(fileFilter))
@@ -71,6 +72,40 @@ const differenceEvidence = async (left, right) => {
     meanAbsoluteError: absolute / channels, changedPixelRatioAt16: changedPixels / pixels };
 };
 
+const startCpuProfile = async (page) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Profiler.enable');
+  await cdp.send('Profiler.setSamplingInterval', { interval: 500 });
+  await cdp.send('Profiler.start');
+  return cdp;
+};
+
+const stopCpuProfile = async (cdp) => {
+  const { profile } = await cdp.send('Profiler.stop');
+  await cdp.detach();
+  const nodes = new Map(profile.nodes.map((node) => [node.id, node]));
+  const parents = new Map();
+  for (const node of profile.nodes) for (const child of node.children ?? []) parents.set(child, node.id);
+  const selfTime = new Map();
+  for (let index = 0; index < (profile.samples?.length ?? 0); index += 1) {
+    const nodeId = profile.samples[index];
+    if (!nodes.has(nodeId)) continue;
+    selfTime.set(nodeId, (selfTime.get(nodeId) ?? 0) + (profile.timeDeltas?.[index] ?? 0));
+  }
+  const frameSummary = ({ functionName, url, lineNumber }) => ({
+    functionName: functionName || '(anonymous)', url, line: lineNumber + 1
+  });
+  return [...selfTime.entries()].map(([nodeId, microseconds]) => {
+    const node = nodes.get(nodeId);
+    const stack = [];
+    for (let current = nodeId; current && stack.length < 14; current = parents.get(current)) {
+      const ancestor = nodes.get(current);
+      if (ancestor) stack.push(frameSummary(ancestor.callFrame));
+    }
+    return { ...frameSummary(node.callFrame), selfMs: microseconds / 1000, stack };
+  }).sort((left, right) => right.selfMs - left.selfMs).slice(0, 30);
+};
+
 const panEvidence = async (page, driver, documentId) => {
   const moveCanvas = page.getByRole('button', { name: /Move canvas/i }).first();
   if (!await moveCanvas.count()) return { available: false, reason: 'Move canvas tool unavailable.' };
@@ -80,12 +115,7 @@ const panEvidence = async (page, driver, documentId) => {
   if (!box) return { available: false, reason: 'Viewport bounds unavailable.' };
   await driver.resetRenderTelemetry(documentId);
   const start = { x: box.x + box.width * 0.45, y: box.y + box.height * 0.45 };
-  const cdp = profilePan ? await page.context().newCDPSession(page) : null;
-  if (cdp) {
-    await cdp.send('Profiler.enable');
-    await cdp.send('Profiler.setSamplingInterval', { interval: 500 });
-    await cdp.send('Profiler.start');
-  }
+  const cdp = profilePan ? await startCpuProfile(page) : null;
   const startedAt = performance.now();
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
@@ -96,32 +126,7 @@ const panEvidence = async (page, driver, documentId) => {
   ), documentId, { timeout: 10_000 });
   const settledMs = Math.round(performance.now() - startedAt);
   const telemetry = await driver.queryRenderTelemetry(documentId);
-  let cpuProfile = null;
-  if (cdp) {
-    const { profile } = await cdp.send('Profiler.stop');
-    await cdp.detach();
-    const nodes = new Map(profile.nodes.map((node) => [node.id, node]));
-    const parents = new Map();
-    for (const node of profile.nodes) for (const child of node.children ?? []) parents.set(child, node.id);
-    const selfTime = new Map();
-    for (let index = 0; index < (profile.samples?.length ?? 0); index += 1) {
-      const nodeId = profile.samples[index];
-      if (!nodes.has(nodeId)) continue;
-      selfTime.set(nodeId, (selfTime.get(nodeId) ?? 0) + (profile.timeDeltas?.[index] ?? 0));
-    }
-    const frameSummary = ({ functionName, url, lineNumber }) => ({
-      functionName: functionName || '(anonymous)', url, line: lineNumber + 1
-    });
-    cpuProfile = [...selfTime.entries()].map(([nodeId, microseconds]) => {
-      const node = nodes.get(nodeId);
-      const stack = [];
-      for (let current = nodeId; current && stack.length < 14; current = parents.get(current)) {
-        const ancestor = nodes.get(current);
-        if (ancestor) stack.push(frameSummary(ancestor.callFrame));
-      }
-      return { ...frameSummary(node.callFrame), selfMs: microseconds / 1000, stack };
-    }).sort((left, right) => right.selfMs - left.selfMs).slice(0, 20);
-  }
+  const cpuProfile = cdp ? await stopCpuProfile(cdp) : null;
   return { available: true, settledMs, inputSteps: 24, telemetry, cpuProfile };
 };
 
@@ -131,6 +136,15 @@ for (const [index, entry] of entries.entries()) {
   const profile = await mkdtemp(path.join(output, `profile-${String(index + 1).padStart(2, '0')}-`));
   const pageErrors = []; const consoleErrors = []; let app; let page;
   const startedAt = performance.now();
+  const timings = {};
+  const measure = async (name, operation) => {
+    const phaseStartedAt = performance.now();
+    try {
+      return await operation();
+    } finally {
+      timings[name] = Math.round(performance.now() - phaseStartedAt);
+    }
+  };
   try {
     const referencePath = path.join(output, `${slug}-source-reference.png`);
     const environment = {
@@ -139,44 +153,58 @@ for (const [index, entry] of entries.entries()) {
       LIGHTTABLE_AUTOMATION_OPEN_FILE: entry.source
     };
     delete environment.ELECTRON_RUN_AS_NODE;
-    app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
-      cwd: root, env: environment, timeout: 30_000 });
-    page = await app.firstWindow({ timeout: 30_000 });
+    app = await measure('launchApplicationMs', () => electron.launch({
+      executablePath: launch.executablePath, args: launch.args,
+      cwd: root, env: environment, timeout: 30_000
+    }));
+    page = await measure('firstWindowMs', () => app.firstWindow({ timeout: 30_000 }));
     page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
     page.on('console', (message) => {
       if (message.type() === 'error') consoleErrors.push(message.text());
     });
-    const open = await waitForDesktopLauncher({ app, page, outputDirectory: output,
-      sourceFile: entry.source, pageErrors, label: slug, timeout: 30_000 });
-    await open.click();
-    const driver = await attachLightTableAutomation(page, `svg-corpus-${index}`, 30_000);
-    await page.waitForFunction(() => {
+    const open = await measure('launcherReadyMs', () => waitForDesktopLauncher({
+      app, page, outputDirectory: output,
+      sourceFile: entry.source, pageErrors, label: slug, timeout: 30_000
+    }));
+    const openProfile = profileOpen ? await startCpuProfile(page) : null;
+    await measure('openIntentMs', () => open.click());
+    const driver = await measure('automationAttachMs', () =>
+      attachLightTableAutomation(page, `svg-corpus-${index}`, 30_000));
+    await measure('workspaceDocumentReadyMs', () => page.waitForFunction(() => {
       const workspace = window.__lightTableAutomation?.queryWorkspace();
       return Boolean(workspace?.activeDocumentId);
-    }, undefined, { timeout: 60_000 });
+    }, undefined, { timeout: 60_000 }));
     const workspace = await driver.queryWorkspace();
     const documentId = workspace.activeDocumentId;
-    const rendered = await driver.waitForRenderedDocument(documentId, 120_000);
-    const previewResult = await driver.requestDocumentPreview(
+    const rendered = await measure('firstRenderedDocumentMs', () =>
+      driver.waitForRenderedDocument(documentId, 120_000));
+    const openCpuProfile = openProfile ? await stopCpuProfile(openProfile) : null;
+    const previewResult = await measure('previewRequestMs', () => driver.requestDocumentPreview(
       documentId, rendered.document.canonicalRevision, 1024
-    );
+    ));
     const artifactId = previewResult?.artifact?.id ?? previewResult?.id;
-    const artifact = artifactId ? await driver.readArtifact(artifactId) : null;
+    const artifact = artifactId
+      ? await measure('previewArtifactReadMs', () => driver.readArtifact(artifactId))
+      : null;
     assert.ok(artifact?.bytes?.length, `${entry.name} produced no preview bytes.`);
     const previewPath = path.join(output, `${slug}-preview.png`);
     const screenshotPath = path.join(output, `${slug}-window.png`);
-    await Promise.all([
+    await measure('evidenceWriteMs', () => Promise.all([
       writeFile(previewPath, artifact.bytes),
       page.screenshot({ path: screenshotPath })
-    ]);
-    const pixels = await pixelEvidence(artifact.bytes);
-    const referenceBytes = await sharp(entry.source).resize({ width: pixels.width,
-      height: pixels.height, fit: 'fill' }).png().toBuffer();
-    await writeFile(referencePath, referenceBytes);
-    const difference = await differenceEvidence(artifact.bytes, referenceBytes);
-    const pan = await panEvidence(page, driver, documentId);
+    ]));
+    const pixels = await measure('pixelEvidenceMs', () => pixelEvidence(artifact.bytes));
+    const referenceBytes = await measure('referenceRenderMs', () => sharp(entry.source).resize({
+      width: pixels.width, height: pixels.height, fit: 'fill'
+    }).png().toBuffer());
+    await measure('referenceWriteMs', () => writeFile(referencePath, referenceBytes));
+    const difference = await measure('differenceEvidenceMs', () =>
+      differenceEvidence(artifact.bytes, referenceBytes));
+    const pan = await measure('panEvidenceMs', () => panEvidence(page, driver, documentId));
     assert.ok(pixels.nonTransparentPixels > 0, `${entry.name} rendered a fully transparent preview.`);
     results.push({ file: entry.name, status: 'pass', durationMs: Math.round(performance.now() - startedAt),
+      timings,
+      openCpuProfile,
       document: { id: documentId, canvas: rendered.document.canvas,
         layerCount: rendered.document.layerCount, revision: rendered.document.canonicalRevision },
       renderer: { submittedFrames: rendered.telemetry.submittedFrames,
@@ -187,6 +215,7 @@ for (const [index, entry] of entries.entries()) {
       outputDirectory: output, sourceFile: entry.source, pageErrors, label: `${slug}-failure`,
       details: { consoleErrors } }).catch(() => null) : null;
     results.push({ file: entry.name, status: 'fail', durationMs: Math.round(performance.now() - startedAt),
+      timings,
       error: error instanceof Error ? (error.stack ?? error.message) : String(error),
       diagnostic, pageErrors, consoleErrors });
   } finally {
@@ -200,7 +229,7 @@ const reportPath = path.join(output, 'report.json');
 await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 const failed = results.filter(({ status }) => status === 'fail');
 console.log(JSON.stringify({ reportPath, files: results.length, failed: failed.length,
-  results: results.map(({ file, status, durationMs, pixels, difference, pan }) => (
-    { file, status, durationMs, pixels, difference, pan }
+  results: results.map(({ file, status, durationMs, timings, pixels, difference, pan }) => (
+    { file, status, durationMs, timings, pixels, difference, pan }
   )) }, null, 2));
 if (failed.length) process.exitCode = 1;
