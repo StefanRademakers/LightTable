@@ -78,8 +78,14 @@
         "shape": { "type": "string", "enum": ["linear", "radial", "angle", "reflected", "diamond"] },
         "coordinateSpace": { "type": "string", "enum": ["object-bounds", "layer", "document"] },
         "transform": { "$ref": "#/$defs/matrix" },
+        "radialFocus": {
+          "type": "object", "additionalProperties": false, "required": ["x", "y"],
+          "properties": { "x": { "$ref": "#/$defs/number" }, "y": { "$ref": "#/$defs/number" } }
+        },
+        "radialStartRadius": { "type": "number", "minimum": 0, "exclusiveMaximum": 1 },
         "reverse": { "type": "boolean" }, "dither": { "type": "boolean" },
-        "interpolation": { "type": "string", "enum": ["perceptual", "linear", "classic", "smooth"] }
+        "interpolation": { "type": "string", "enum": ["perceptual", "linear", "classic", "smooth"] },
+        "spread": { "type": "string", "enum": ["pad", "reflect", "repeat"] }
       }
     },
     "paint": { "oneOf": [{ "$ref": "#/$defs/solidPaint" }, { "$ref": "#/$defs/gradientPaint" }] },

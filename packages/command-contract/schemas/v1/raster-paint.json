@@ -96,9 +96,19 @@
                   "ty": { "type": "number", "minimum": -10000000, "maximum": 10000000 }
                 }
               },
+              "radialFocus": {
+                "type": "object", "additionalProperties": false,
+                "required": ["x", "y"],
+                "properties": {
+                  "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+                  "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 }
+                }
+              },
+              "radialStartRadius": { "type": "number", "minimum": 0, "exclusiveMaximum": 1 },
               "reverse": { "type": "boolean", "default": false },
               "dither": { "type": "boolean", "default": true },
-              "interpolation": { "type": "string", "enum": ["perceptual", "linear", "classic", "smooth"], "default": "perceptual" }
+              "interpolation": { "type": "string", "enum": ["perceptual", "linear", "classic", "smooth"], "default": "perceptual" },
+              "spread": { "type": "string", "enum": ["pad", "reflect", "repeat"], "default": "pad" }
             }
           },
           "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
