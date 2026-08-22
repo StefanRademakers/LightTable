@@ -82,7 +82,7 @@ export const useDocumentRecoveryJournal = ({
     const timing = recoveryScheduleForPreferences(sourceByteLength, intervalMs);
     const scheduler = new RecoveryJournalScheduler({
       ...timing,
-      async checkpoint(revision) {
+      async checkpoint(revision, isCurrent) {
         const startedAt = performance.now();
         console.info(`[Recovery] Preparing revision ${revision.canonicalRevision}.`);
         const output = await currentRef.current.exportOutput({ lightweightPreview: true });
@@ -91,14 +91,14 @@ export const useDocumentRecoveryJournal = ({
           `[Recovery] Revision ${revision.canonicalRevision} prepared in `
           + `${(preparedAt - startedAt).toFixed(1)} ms (${Math.round(output.file.size / 1024)} KiB).`
         );
-        if (disposed) return;
+        if (disposed || !isCurrent()) return;
         const [documentIdHash, sourceFingerprintSha256, preparedArtifact] =
           await Promise.all([
             sha256Hex(documentId),
             sha256Hex(sourceFingerprint),
             artifactHasher.prepare(output.file)
           ]);
-        if (disposed) return;
+        if (disposed || !isCurrent()) return;
         const now = Date.now();
         const record: LightTableRecoveryRecord = {
           version: LIGHTTABLE_RECOVERY_VERSION,
@@ -124,6 +124,11 @@ export const useDocumentRecoveryJournal = ({
           artifactChecksumSha256: preparedArtifact.checksumSha256,
           mediaType: output.file.type || 'application/octet-stream'
         };
+        // Invocation of store.write is deliberately adjacent to this final
+        // guard. Once invoked, host-store serialization orders a later Save
+        // cleanup behind this write. Before invocation, a clean/newer revision
+        // invalidates the prepared artifact and it must never be published.
+        if (!isCurrent()) return;
         const result = await store.write({ documentId, record, artifact: output.file,
           ...(preparedArtifact.bytes ? { preparedBytes: preparedArtifact.bytes } : {}) });
         if (disposed) return;

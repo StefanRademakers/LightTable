@@ -8,7 +8,10 @@ export interface RecoveryJournalRevision {
 export interface RecoveryJournalSchedulerOptions {
   readonly debounceMs?: number;
   readonly maxDelayMs?: number;
-  readonly checkpoint: (revision: RecoveryJournalRevision) => Promise<void>;
+  readonly checkpoint: (
+    revision: RecoveryJournalRevision,
+    isCurrent: () => boolean
+  ) => Promise<void>;
   readonly onError?: (error: Error) => void;
   readonly setTimer?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   readonly clearTimer?: (timer: ReturnType<typeof setTimeout>) => void;
@@ -48,7 +51,7 @@ export const recoveryScheduleForPreferences = (
 export class RecoveryJournalScheduler {
   private readonly debounceMs: number;
   private readonly maxDelayMs: number;
-  private readonly checkpoint: (revision: RecoveryJournalRevision) => Promise<void>;
+  private readonly checkpoint: RecoveryJournalSchedulerOptions['checkpoint'];
   private readonly onError: (error: Error) => void;
   private readonly setTimer: NonNullable<RecoveryJournalSchedulerOptions['setTimer']>;
   private readonly clearTimer: NonNullable<RecoveryJournalSchedulerOptions['clearTimer']>;
@@ -114,8 +117,11 @@ export class RecoveryJournalScheduler {
     if (sameRevision(this.attempted, revision)) return;
     this.running = true;
     this.attempted = revision;
+    const isCurrent = () => !this.disposed
+      && Boolean(this.latest?.dirty)
+      && sameRevision(this.latest, revision);
     try {
-      await this.checkpoint(revision);
+      await this.checkpoint(revision, isCurrent);
       if (!this.disposed) this.written = revision;
     } catch (reason) {
       if (!this.disposed) {

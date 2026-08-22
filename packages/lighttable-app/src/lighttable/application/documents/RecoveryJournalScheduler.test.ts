@@ -38,7 +38,7 @@ describe('RecoveryJournalScheduler', () => {
     expect(checkpoint).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(checkpoint).toHaveBeenCalledOnce();
-    expect(checkpoint).toHaveBeenCalledWith(revision(2));
+    expect(checkpoint).toHaveBeenCalledWith(revision(2), expect.any(Function));
     scheduler.dispose();
     vi.useRealTimers();
   });
@@ -69,7 +69,7 @@ describe('RecoveryJournalScheduler', () => {
     expect(checkpoint).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(checkpoint).toHaveBeenCalledOnce();
-    expect(checkpoint).toHaveBeenCalledWith(revision(8));
+    expect(checkpoint).toHaveBeenCalledWith(revision(8), expect.any(Function));
     scheduler.dispose();
     vi.useRealTimers();
   });
@@ -90,7 +90,7 @@ describe('RecoveryJournalScheduler', () => {
     await first;
     await vi.advanceTimersByTimeAsync(5_000);
     expect(checkpoint).toHaveBeenCalledTimes(2);
-    expect(checkpoint).toHaveBeenLastCalledWith(revision(3));
+    expect(checkpoint).toHaveBeenLastCalledWith(revision(3), expect.any(Function));
     scheduler.dispose();
     vi.useRealTimers();
   });
@@ -107,6 +107,28 @@ describe('RecoveryJournalScheduler', () => {
     scheduler.dispose();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(checkpoint).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('invalidates an in-flight publication guard when Save makes the document clean', async () => {
+    vi.useFakeTimers();
+    let publicationIsCurrent: (() => boolean) | undefined;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const checkpoint = vi.fn(async (_revision, isCurrent) => {
+      publicationIsCurrent = isCurrent;
+      await gate;
+    });
+    const scheduler = new RecoveryJournalScheduler({ checkpoint });
+    scheduler.observe(revision(4));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(publicationIsCurrent?.()).toBe(true);
+
+    scheduler.observe({ ...revision(4), savedStateId: 4, dirty: false });
+    expect(publicationIsCurrent?.()).toBe(false);
+    release();
+    await gate;
+    scheduler.dispose();
     vi.useRealTimers();
   });
 

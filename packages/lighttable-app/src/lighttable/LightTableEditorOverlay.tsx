@@ -6011,8 +6011,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       else commandHistory.markSaved();
     },
     onSaveCommitted: recoveryStore
-      ? async () => {
-          await recoveryStore.remove(workspaceDocumentId);
+      ? async (savedRevision) => {
+          await recoveryStore.remove(workspaceDocumentId, savedRevision);
           await onRecoveryResolved?.();
         }
       : undefined,
