@@ -16,38 +16,68 @@ const realizedDocumentPoints = (elements: readonly VectorElement[]) => elements.
   }));
 });
 
+const keepSvgSource = async (source: string) => source;
+
 describe('SVG document codec owner', () => {
-  it('publishes a complete import once with one history boundary', () => {
+  it('publishes a complete import once with one history boundary', async () => {
     let document = createRasterLayer(createImageDocument('SVG', 200, 100, 'source'), 'Background');
     const applyDocument = vi.fn((next) => { document = next; });
     const recordHistory = vi.fn();
-    const result = executeSvgImport({
+    const result = await executeSvgImport({
       svg: '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect id="card" width="80" height="40" fill="#f00"/></svg>',
       placement: 'document', layerName: 'Logo'
-    }, { getDocument: () => document, applyDocument, recordHistory });
+    }, { getDocument: () => document, applyDocument, recordHistory, normalizeSvgSource: keepSvgSource });
     expect(result).toMatchObject({ width: 200, height: 100, elementIds: [expect.any(String)] });
     expect(applyDocument).toHaveBeenCalledOnce();
     expect(recordHistory).toHaveBeenCalledOnce();
     expect(document.layers.at(-1)).toMatchObject({ type: 'vector', name: 'Logo' });
   });
 
-  it('does not publish any partial state when SVG validation fails', () => {
+  it('does not publish any partial state when SVG validation fails', async () => {
     const document = createImageDocument('SVG', 200, 100, 'source');
     const applyDocument = vi.fn(); const recordHistory = vi.fn();
-    expect(() => executeSvgImport({ svg: '<svg><script/></svg>', placement: 'document' },
-      { getDocument: () => document, applyDocument, recordHistory })).toThrow();
+    await expect(executeSvgImport({ svg: '<svg><script/></svg>', placement: 'document' },
+      { getDocument: () => document, applyDocument, recordHistory,
+        normalizeSvgSource: keepSvgSource })).rejects.toThrow();
     expect(applyDocument).not.toHaveBeenCalled();
     expect(recordHistory).not.toHaveBeenCalled();
+  });
+
+  it('bases the atomic import on document authority read after async normalization', async () => {
+    const original = createImageDocument('Original', 200, 100, 'source');
+    const edited = createRasterLayer(original, 'User edit during normalization');
+    let document = original;
+    let releaseNormalization!: (source: string) => void;
+    const normalization = new Promise<string>((resolve) => { releaseNormalization = resolve; });
+    const applyDocument = vi.fn((next) => { document = next; });
+    const recordHistory = vi.fn();
+    const pending = executeSvgImport({
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>',
+      placement: 'document'
+    }, {
+      getDocument: () => document,
+      applyDocument,
+      recordHistory,
+      normalizeSvgSource: () => normalization
+    });
+    document = edited;
+    releaseNormalization('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>');
+    await pending;
+
+    expect(document.layers.slice(0, edited.layers.length)).toEqual(edited.layers);
+    expect(document.layers.at(-1)).toMatchObject({ type: 'vector' });
+    expect(recordHistory).toHaveBeenCalledWith(edited, document);
   });
 
   it('exports an imported vector-only document as an SVG File', async () => {
     let document = createImageDocument('Logo', 200, 100, 'source');
     document.layers = [];
     document.activeLayerId = null;
-    executeSvgImport({
+    await executeSvgImport({
       svg: '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><circle cx="50" cy="50" r="25" fill="#0f0"/></svg>',
       placement: 'document'
-    }, { getDocument: () => document, applyDocument: (next) => { document = next; }, recordHistory: () => undefined });
+    }, { getDocument: () => document, applyDocument: (next) => { document = next; },
+      recordHistory: () => undefined, normalizeSvgSource: keepSvgSource });
     const file = exportSvgDocument(document, 'Logo.lighttable');
     expect(file).toMatchObject({ name: 'Logo.svg', type: 'image/svg+xml' });
     expect(await file.text()).toContain('<ellipse');
@@ -57,10 +87,11 @@ describe('SVG document codec owner', () => {
     let document = createImageDocument('Round trip', 240, 120, 'source');
     document.layers = [];
     document.activeLayerId = null;
-    const first = executeSvgImport({
+    const first = await executeSvgImport({
       svg: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120"><g transform="translate(8 6)"><rect x="4" y="5" width="80" height="35" rx="6" fill="#369" stroke="#123" stroke-width="2"/><path d="M100 20 Q130 60 170 20" fill="none" stroke="#f60"/></g></svg>',
       placement: 'document'
-    }, { getDocument: () => document, applyDocument: (next) => { document = next; }, recordHistory: () => undefined });
+    }, { getDocument: () => document, applyDocument: (next) => { document = next; },
+      recordHistory: () => undefined, normalizeSvgSource: keepSvgSource });
     expect(first?.elementIds).toHaveLength(2);
 
     const nativeFile = buildLayeredDocumentFile(
@@ -79,10 +110,11 @@ describe('SVG document codec owner', () => {
     reimported.layers = [];
     reimported.activeLayerId = null;
     let finalDocument = reimported;
-    const second = executeSvgImport({ svg: exportedText, placement: 'document' }, {
+    const second = await executeSvgImport({ svg: exportedText, placement: 'document' }, {
       getDocument: () => finalDocument,
       applyDocument: (next) => { finalDocument = next; },
-      recordHistory: () => undefined
+      recordHistory: () => undefined,
+      normalizeSvgSource: keepSvgSource
     });
     expect(second?.elementIds).toHaveLength(2);
     expect(finalDocument.layers[0]).toMatchObject({ type: 'vector' });

@@ -22,6 +22,8 @@ const createRenderer = () => ({
   loadLayerAssets: vi.fn(async () => undefined)
 }) satisfies DocumentSourceRenderer;
 
+const keepSvgSource = async (source: string) => source;
+
 const createRequest = () => ({
   renderer: createRenderer(),
   blob: new Blob(['pixels'], { type: 'image/png' }),
@@ -128,7 +130,7 @@ describe('loadDocumentSource', () => {
       initialAdjustments: createDefaultAdjustments(),
       dependencies: {
         probe: async () => ({ format: 'svg', codec: 'svg-native', decodeMode: 'fast', bitDepth: null }),
-        parseLayered: async () => null, now: () => 0
+        parseLayered: async () => null, normalizeSvgSource: keepSvgSource, now: () => 0
       }
     });
     expect(result?.metadata).toMatchObject({ width: 320, height: 180, decoder: 'native-svg', sourceFormat: 'SVG' });
@@ -153,7 +155,7 @@ describe('loadDocumentSource', () => {
       initialAdjustments: createDefaultAdjustments(),
       dependencies: {
         probe: async () => ({ format: 'svg', codec: 'svg-native', decodeMode: 'fast', bitDepth: null }),
-        parseLayered: async () => null, now: () => 0
+        parseLayered: async () => null, normalizeSvgSource: keepSvgSource, now: () => 0
       }
     });
 

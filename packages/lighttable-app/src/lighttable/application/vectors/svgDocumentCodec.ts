@@ -4,6 +4,7 @@ import { createVectorLayer } from '../../editor/document/documentCommands';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { SVG_IMPORT_CODEC_LIMITS } from './svgImportLimits';
 import { createSvgImportIdFactory } from './svgImportIds';
+import { normalizeEditableSvgSource } from './normalizeEditableSvgSource';
 
 export interface SemanticSvgImportCommand {
   readonly svg: string;
@@ -26,15 +27,20 @@ export interface SvgImportDependencies {
   getDocument(): ImageDocument | null;
   applyDocument(document: ImageDocument): void;
   recordHistory(before: ImageDocument, after: ImageDocument): void;
+  /** Unit/host seam; production uses the locked-down reusable normalizer. */
+  normalizeSvgSource?(source: string): Promise<string>;
 }
 
-export const executeSvgImport = (
+export const executeSvgImport = async (
   command: SemanticSvgImportCommand,
   dependencies: SvgImportDependencies
-): SvgImportCommandResult | null => {
+): Promise<SvgImportCommandResult | null> => {
+  const normalizedSvg = await (dependencies.normalizeSvgSource ?? normalizeEditableSvgSource)(command.svg);
+  // Read authority after the asynchronous preparation. Import must never
+  // overwrite edits made while normalization was running.
   const before = dependencies.getDocument();
   if (!before) return null;
-  const plan = importSvg(command.svg, {
+  const plan = importSvg(normalizedSvg, {
     createId: createSvgImportIdFactory(),
     limits: SVG_IMPORT_CODEC_LIMITS
   });

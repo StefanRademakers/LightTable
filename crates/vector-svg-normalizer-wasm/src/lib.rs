@@ -83,7 +83,8 @@ fn preflight(
             if attribute_name.len() > 2 && attribute_name[..2].eq_ignore_ascii_case("on") {
                 return Err(format!("SVG event attribute {attribute_name} is forbidden."));
             }
-            if attribute_name.eq_ignore_ascii_case("href")
+            if !name.eq_ignore_ascii_case("a")
+                && attribute_name.eq_ignore_ascii_case("href")
                 && !local_fragment_reference(value)
             {
                 return Err("External and embedded SVG href resources are forbidden.".to_owned());
@@ -182,6 +183,16 @@ mod tests {
         assert!(normalize_svg_inner(css, 4096, 8192, 100, 32).is_err());
         let dtd = r#"<!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg"/>"#;
         assert!(normalize_svg_inner(dtd, 4096, 8192, 100, 32).is_err());
+    }
+
+    #[test]
+    fn flattens_external_hyperlinks_without_loading_them() {
+        let link = r#"<svg xmlns="http://www.w3.org/2000/svg"><a href="https://example.com"><path d="M0 0h5v5z"/></a></svg>"#;
+        let value = normalize_svg_inner(link, 4096, 8192, 100, 32).unwrap();
+        let result: serde_json::Value = serde_json::from_str(&value).unwrap();
+        let svg = result["svg"].as_str().unwrap();
+        assert!(!svg.contains("https://example.com"));
+        assert!(svg.contains("<path"));
     }
 
     #[test]

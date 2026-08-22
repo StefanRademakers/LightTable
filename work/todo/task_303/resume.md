@@ -107,6 +107,15 @@ Baseline: `c71254b1`
   `SVG_NORMALIZATION_AND_SECURITY_ASSESSMENT.md`. `usvg` is a candidate
   normalizer/oracle only behind LightTable preflight and resolvers that forbid
   filesystem/network resources; `usvg::Tree` is never document authority.
+- The decision is now implemented as the renderer-independent
+  `@lighttable/vector-svg-normalizer` package backed by a pinned, feature-minimal
+  `usvg` WASM crate. File Open and semantic SVG placement (including MCP) share
+  this adapter before the existing editable codec. The command route reads
+  document authority only after asynchronous normalization, so concurrent user
+  edits cannot be replaced by a stale pre-normalization snapshot.
+- The integrated packaged torture-SVG passes with 41 cached geometry entries,
+  RMSE 31.95 / MAE 6.55 against the browser oracle, versus RMSE ~38 before
+  normalization. Pan and zoom still execute zero document composites.
 
 ## Worktree ownership
 
@@ -116,13 +125,14 @@ Baseline: `c71254b1`
 ## Current focus
 
 The renderer-neutral package split, selectable Vello backend, zero-copy shared
-texture route and linear-premultiplied color contract are proven. SVG parsing
-remains a secure editable format adapter, while current WebGPU and Vello consume
-the same derived PaintScene. The next semantic dependency is hierarchy: group
-and clip stacks must exist in the canonical vector model and PaintScene before
-`<use>`, patterns, group opacity, masks or filters can be expanded safely.
-After clip parity, run bounded mutation, lifecycle, device-loss and memory
-regressions across both backends and select a production routing policy.
+texture route, linear-premultiplied color contract and secure reusable SVG
+normalization boundary are proven. Normalization recovers `<use>`, CSS, units,
+markers and basic shapes while the editable codec remains document authority.
+The next semantic dependency is hierarchy: group and clip stacks must exist in
+the canonical vector model and PaintScene before patterns, group opacity, masks
+or filters can be represented safely. After clip parity, run bounded mutation,
+lifecycle, device-loss and memory regressions across both backends and select a
+production routing policy.
 
 ## Next safe steps
 
@@ -130,11 +140,9 @@ regressions across both backends and select a production routing policy.
    mutation; compile them to explicit PaintScene push/pop operations.
 2. Implement and compare clip layers in current WebGPU and Vello, including
    nested and object-bounds cases.
-3. Evaluate a locked-down `usvg` normalizer spike for `<use>`, CSS, units and
-   markers, with all resource resolvers disabled and strict result budgets.
-4. Harden SVG save/reopen and corpus round trips for every newly admitted
+3. Harden SVG save/reopen and corpus round trips for every newly admitted
    semantic feature.
-5. Run packaged current/Vello correctness, mutation, crash, retained-memory,
+4. Run packaged current/Vello correctness, mutation, crash, retained-memory,
    lifecycle and device-loss distributions; then record backend routing policy.
 
 ## External fixtures

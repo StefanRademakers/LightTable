@@ -15,6 +15,7 @@ import { createVectorLayer } from '../../editor/document/documentCommands';
 import { importSvg, type SvgImportPlan } from '@lighttable/vector-svg';
 import { SVG_IMPORT_CODEC_LIMITS, SVG_IMPORT_MAX_BYTES } from '../vectors/svgImportLimits';
 import { createSvgImportIdFactory } from '../vectors/svgImportIds';
+import { normalizeEditableSvgSource } from '../vectors/normalizeEditableSvgSource';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   parseLayeredDocumentFile,
@@ -82,6 +83,7 @@ interface DocumentSourceLoaderDependencies {
   decodePhotoshop(blob: Blob, signal?: AbortSignal): Promise<PsdDecodeSuccess>;
   decodePdfPreview(blob: Blob, signal?: AbortSignal): Promise<PdfRasterPreview>;
   importPhotoshop(decoded: PsdDecodeSuccess, name: string): PsdDocumentImport;
+  normalizeSvgSource(source: string): Promise<string>;
   now(): number;
 }
 
@@ -102,6 +104,7 @@ const defaultDependencies: DocumentSourceLoaderDependencies = {
     return decodePdfRasterPreview(blob, signal);
   },
   importPhotoshop: importPsdDocument,
+  normalizeSvgSource: normalizeEditableSvgSource,
   now: () => performance.now()
 };
 
@@ -196,7 +199,9 @@ export const loadDocumentSource = async (
     if (request.blob.size > SVG_IMPORT_MAX_BYTES) {
       throw new Error(`SVG input is ${request.blob.size} bytes and exceeds the 16 MiB import limit.`);
     }
-    svgPlan = importSvg(await request.blob.text(), {
+    const normalizedSvg = await dependencies.normalizeSvgSource(await request.blob.text());
+    if (canceled(request)) return null;
+    svgPlan = importSvg(normalizedSvg, {
       createId: createSvgImportIdFactory(),
       limits: SVG_IMPORT_CODEC_LIMITS
     });
@@ -213,7 +218,7 @@ export const loadDocumentSource = async (
   const loadedMetadata: LightTableImageMetadata = svgPlan ? {
     name: request.name, width: svgPlan.width, height: svgPlan.height,
     contentType: 'image/svg+xml', decoder: 'native-svg', sourceBitDepth: 32,
-    sourceFormat: 'SVG', sourceInterpretation: 'Editable native SVG subset',
+    sourceFormat: 'SVG', sourceInterpretation: 'Editable normalized SVG subset',
     decodeDurationMs: sourceDecodeMs
   } : await request.renderer.loadImage(imageBlob, request.name, {
     decodeMode:

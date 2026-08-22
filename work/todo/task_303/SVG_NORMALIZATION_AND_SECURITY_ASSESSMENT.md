@@ -36,7 +36,7 @@ resolvers are replaced with resolvers that always return `None`.
 
 Measured on the SVG torture fixture on 2026-08-22:
 
-- WASM: 757,495 bytes raw / 282,343 bytes gzip.
+- WASM: 757,506 bytes raw / 282,340 bytes gzip.
 - Runtime initialization: 20.45 ms.
 - First normalization: 29.28 ms.
 - Warm normalization: 1.51 ms.
@@ -44,6 +44,12 @@ Measured on the SVG torture fixture on 2026-08-22:
 
 These figures justify product-path evaluation; they do not yet authorize replacing the editable
 codec until round-trip and unsupported-feature policy tests pass.
+
+The packaged product-path evaluation now passes on the torture fixture. File Open and semantic
+placement/MCP both use this normalizer before the existing editable codec. Ordinary `<a>` hyperlink
+targets are stripped while supported descendants are retained; resource-bearing `href` values
+remain local-fragment-only. The packaged result improves browser-oracle RMSE from roughly 38 to
+31.95 and retains zero document recomposites during pan/zoom.
 
 ## Evidence
 
