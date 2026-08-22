@@ -24,6 +24,58 @@ export interface VectorDocumentEditingSceneOverlay {
   gradientHandles: readonly VectorEditingOverlay[];
 }
 
+const EMPTY_VECTOR_DOCUMENT_EDITING_SCENE: VectorDocumentEditingSceneOverlay = {
+  paths: [],
+  unpaintedElementOutlines: [],
+  selectionFrame: null,
+  gradientHandles: []
+};
+
+const vectorSelectionIsEmpty = (selection: VectorEditorSelection) => (
+  selection.elements.length === 0
+  && selection.paths.length === 0
+  && selection.anchors.length === 0
+  && selection.active === null
+);
+
+/**
+ * Keeps document-space editing projections stable across viewport-only frames.
+ *
+ * Image documents are immutable snapshots and WebGpuEngine replaces its
+ * VectorEditorSelection object whenever the authored selection changes. Object
+ * identity is therefore the exact dependency boundary for this cache: panning
+ * and zooming may redraw the viewport, but must not traverse or clone artwork.
+ */
+export class VectorDocumentEditingSceneCache {
+  private document: Pick<ImageDocument, 'layers' | 'revision'> | null = null;
+  private documentRevision = -1;
+  private selection: VectorEditorSelection | null = null;
+  private scene: VectorDocumentEditingSceneOverlay = EMPTY_VECTOR_DOCUMENT_EDITING_SCENE;
+
+  resolve(
+    document: Pick<ImageDocument, 'layers' | 'revision'>,
+    selection: VectorEditorSelection
+  ): VectorDocumentEditingSceneOverlay {
+    if (
+      this.document === document
+      && this.documentRevision === document.revision
+      && this.selection === selection
+    ) return this.scene;
+    this.document = document;
+    this.documentRevision = document.revision;
+    this.selection = selection;
+    this.scene = buildVectorDocumentEditingSceneOverlay(document, selection);
+    return this.scene;
+  }
+
+  clear() {
+    this.document = null;
+    this.documentRevision = -1;
+    this.selection = null;
+    this.scene = EMPTY_VECTOR_DOCUMENT_EDITING_SCENE;
+  }
+}
+
 const gradientHandleOverlays = (
   document: Pick<ImageDocument, 'layers' | 'revision'>,
   selection: VectorEditorSelection
@@ -157,6 +209,10 @@ export const buildVectorDocumentEditingSceneOverlay = (
   document: Pick<ImageDocument, 'layers' | 'revision'>,
   selection: VectorEditorSelection
 ): VectorDocumentEditingSceneOverlay => {
+  // An idle vector tool has nothing to project. In particular, do not call
+  // vectorElementsTopmostFirst here: that helper intentionally clones resolved
+  // paths, which turns viewport panning into O(document geometry) allocation.
+  if (vectorSelectionIsEmpty(selection)) return EMPTY_VECTOR_DOCUMENT_EDITING_SCENE;
   const paths = buildVectorDocumentEditingOverlays(document, selection);
   const bounds = vectorElementsDocumentBounds(document, selection.elements);
   const selectionKey = selection.elements

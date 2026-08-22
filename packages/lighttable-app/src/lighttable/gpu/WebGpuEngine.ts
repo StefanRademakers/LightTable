@@ -134,7 +134,7 @@ import {
   type VectorEditingOverlayTarget
 } from '@lighttable/vector-webgpu';
 import type { VectorEditingOverlay, VectorSelectionFrame } from '@lighttable/vector-rendering';
-import { buildVectorDocumentEditingSceneOverlay } from '../application/vectors/vectorEditingOverlay';
+import { VectorDocumentEditingSceneCache } from '../application/vectors/vectorEditingOverlay';
 import { vectorLayerLocalPaintBounds } from '../application/vectors/vectorSceneQueries';
 import {
   cloneVectorEditorSelection,
@@ -335,6 +335,7 @@ export class WebGpuEngine {
   private warpInteractionActive = false;
   private lastReportedGpuBytes = -1;
   private vectorSelection = createVectorEditorSelection();
+  private readonly vectorEditingSceneCache = new VectorDocumentEditingSceneCache();
   private selectionOverlayOperations: SelectionOperation[] = [];
   private selectionOverlayDraft: SelectionShape | null = null;
   private selectionOverlayVisible = false;
@@ -3350,6 +3351,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     this.documentRenderer = null;
     this.vectorEditingOverlayBackend?.dispose();
     this.vectorEditingOverlayBackend = null;
+    this.vectorEditingSceneCache.clear();
     this.textEditingOverlayBackend?.dispose();
     this.textEditingOverlayBackend = null;
     this.selectionContourOverlayBackend?.dispose();
@@ -3365,7 +3367,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
   ) {
     const viewportRenderState = this.viewportPresentation.state;
     if (!this.imageDocument || !viewportRenderState) return;
-    const overlayScene = buildVectorDocumentEditingSceneOverlay(
+    const overlayScene = this.vectorEditingSceneCache.resolve(
       this.imageDocument,
       this.vectorSelection
     );

@@ -15,10 +15,55 @@ import {
 import { createVectorEditorSelection } from '../../editor/session/editorSession';
 import {
   buildVectorDocumentEditingOverlays,
-  buildVectorDocumentEditingSceneOverlay
+  buildVectorDocumentEditingSceneOverlay,
+  VectorDocumentEditingSceneCache
 } from './vectorEditingOverlay';
 
 describe('vector document editing overlays', () => {
+  it('does not inspect document geometry for an empty editing selection', () => {
+    const document = {
+      revision: 1,
+      get layers(): never {
+        throw new Error('empty vector overlays must not traverse artwork');
+      }
+    };
+
+    expect(buildVectorDocumentEditingSceneOverlay(
+      document,
+      createVectorEditorSelection()
+    )).toEqual({
+      paths: [],
+      unpaintedElementOutlines: [],
+      selectionFrame: null,
+      gradientHandles: []
+    });
+  });
+
+  it('reuses document-space projections across viewport-only frames', () => {
+    const cache = new VectorDocumentEditingSceneCache();
+    const document = createImageDocument('document', 100, 100, 'asset');
+    const path = createVectorPath('path');
+    const layer = createVectorLayer([path]);
+    document.layers = [layer];
+    const selection = createVectorEditorSelection();
+    selection.paths = [{ layerId: layer.id, pathId: path.id }];
+
+    const first = cache.resolve(document, selection);
+    expect(cache.resolve(document, selection)).toBe(first);
+
+    const nextSelection = createVectorEditorSelection();
+    nextSelection.paths = [{ layerId: layer.id, pathId: path.id }];
+    expect(cache.resolve(document, nextSelection)).not.toBe(first);
+
+    const beforeRevisionChange = cache.resolve(document, nextSelection);
+    document.revision += 1;
+    expect(cache.resolve(document, nextSelection)).not.toBe(beforeRevisionChange);
+
+    const nextDocument = { ...document, revision: document.revision + 1 };
+    expect(cache.resolve(nextDocument, nextSelection))
+      .not.toBe(cache.resolve(document, nextSelection));
+  });
+
   it('resolves nested scene transforms without touching raster realization', () => {
     const path = createVectorPath('path', 'Path', [createSubpath('subpath', [
       createAnchor('a', { x: 1, y: 2 }, { handleOut: { x: 3, y: 2 } }),

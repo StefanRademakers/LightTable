@@ -15,8 +15,11 @@ const argument = (name, fallback) => {
 };
 const corpus = path.resolve(argument('corpus', path.join(root, 'tmp', 'svg-corpus')));
 const output = path.resolve(argument('output', path.join(root, 'tmp', 'svg-corpus-smoke')));
+const fileFilter = argument('file', '').toLowerCase();
+const profilePan = argument('profile-pan', 'false') === 'true';
 const entries = (await readdir(corpus, { withFileTypes: true }))
   .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.svg'))
+  .filter((entry) => !fileFilter || entry.name.toLowerCase().includes(fileFilter))
   .map((entry) => ({ name: entry.name, source: path.join(corpus, entry.name) }))
   .sort((left, right) => left.name.localeCompare(right.name));
 assert.ok(entries.length, `No SVG files found in ${corpus}.`);
@@ -68,6 +71,60 @@ const differenceEvidence = async (left, right) => {
     meanAbsoluteError: absolute / channels, changedPixelRatioAt16: changedPixels / pixels };
 };
 
+const panEvidence = async (page, driver, documentId) => {
+  const moveCanvas = page.getByRole('button', { name: /Move canvas/i }).first();
+  if (!await moveCanvas.count()) return { available: false, reason: 'Move canvas tool unavailable.' };
+  await moveCanvas.click();
+  const viewport = page.locator('.lighttable-viewport');
+  const box = await viewport.boundingBox();
+  if (!box) return { available: false, reason: 'Viewport bounds unavailable.' };
+  await driver.resetRenderTelemetry(documentId);
+  const start = { x: box.x + box.width * 0.45, y: box.y + box.height * 0.45 };
+  const cdp = profilePan ? await page.context().newCDPSession(page) : null;
+  if (cdp) {
+    await cdp.send('Profiler.enable');
+    await cdp.send('Profiler.setSamplingInterval', { interval: 500 });
+    await cdp.send('Profiler.start');
+  }
+  const startedAt = performance.now();
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + Math.min(240, box.width * 0.25), start.y, { steps: 24 });
+  await page.mouse.up();
+  await page.waitForFunction((id) => (
+    (window.__lightTableAutomation?.queryRenderTelemetry?.(id)?.submittedFrames ?? 0) > 0
+  ), documentId, { timeout: 10_000 });
+  const settledMs = Math.round(performance.now() - startedAt);
+  const telemetry = await driver.queryRenderTelemetry(documentId);
+  let cpuProfile = null;
+  if (cdp) {
+    const { profile } = await cdp.send('Profiler.stop');
+    await cdp.detach();
+    const nodes = new Map(profile.nodes.map((node) => [node.id, node]));
+    const parents = new Map();
+    for (const node of profile.nodes) for (const child of node.children ?? []) parents.set(child, node.id);
+    const selfTime = new Map();
+    for (let index = 0; index < (profile.samples?.length ?? 0); index += 1) {
+      const nodeId = profile.samples[index];
+      if (!nodes.has(nodeId)) continue;
+      selfTime.set(nodeId, (selfTime.get(nodeId) ?? 0) + (profile.timeDeltas?.[index] ?? 0));
+    }
+    const frameSummary = ({ functionName, url, lineNumber }) => ({
+      functionName: functionName || '(anonymous)', url, line: lineNumber + 1
+    });
+    cpuProfile = [...selfTime.entries()].map(([nodeId, microseconds]) => {
+      const node = nodes.get(nodeId);
+      const stack = [];
+      for (let current = nodeId; current && stack.length < 14; current = parents.get(current)) {
+        const ancestor = nodes.get(current);
+        if (ancestor) stack.push(frameSummary(ancestor.callFrame));
+      }
+      return { ...frameSummary(node.callFrame), selfMs: microseconds / 1000, stack };
+    }).sort((left, right) => right.selfMs - left.selfMs).slice(0, 20);
+  }
+  return { available: true, settledMs, inputSteps: 24, telemetry, cpuProfile };
+};
+
 for (const [index, entry] of entries.entries()) {
   await access(entry.source);
   const slug = `${String(index + 1).padStart(2, '0')}-${entry.name.replace(/[^a-z0-9.-]+/giu, '-')}`;
@@ -117,13 +174,14 @@ for (const [index, entry] of entries.entries()) {
       height: pixels.height, fit: 'fill' }).png().toBuffer();
     await writeFile(referencePath, referenceBytes);
     const difference = await differenceEvidence(artifact.bytes, referenceBytes);
+    const pan = await panEvidence(page, driver, documentId);
     assert.ok(pixels.nonTransparentPixels > 0, `${entry.name} rendered a fully transparent preview.`);
     results.push({ file: entry.name, status: 'pass', durationMs: Math.round(performance.now() - startedAt),
       document: { id: documentId, canvas: rendered.document.canvas,
         layerCount: rendered.document.layerCount, revision: rendered.document.canonicalRevision },
       renderer: { submittedFrames: rendered.telemetry.submittedFrames,
         compositeExecutions: rendered.telemetry.stages?.['document-composite']?.executions ?? 0 },
-      pixels, difference, pageErrors, consoleErrors, previewPath, referencePath, screenshotPath });
+      pixels, difference, pan, pageErrors, consoleErrors, previewPath, referencePath, screenshotPath });
   } catch (error) {
     const diagnostic = app && page ? await captureDesktopTestState({ app, page,
       outputDirectory: output, sourceFile: entry.source, pageErrors, label: `${slug}-failure`,
@@ -142,7 +200,7 @@ const reportPath = path.join(output, 'report.json');
 await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 const failed = results.filter(({ status }) => status === 'fail');
 console.log(JSON.stringify({ reportPath, files: results.length, failed: failed.length,
-  results: results.map(({ file, status, durationMs, pixels, difference }) => (
-    { file, status, durationMs, pixels, difference }
+  results: results.map(({ file, status, durationMs, pixels, difference, pan }) => (
+    { file, status, durationMs, pixels, difference, pan }
   )) }, null, 2));
 if (failed.length) process.exitCode = 1;
