@@ -197,6 +197,7 @@ export function LightTableStandaloneApp({
     applicationRendererLifecycle.getSnapshot,
     applicationRendererLifecycle.getSnapshot
   );
+  const applicationServicesLeaseRef = useRef(0);
   const documentProjectionKey = snapshot.documentOrder.join('\u0000');
   useEffect(() => {
     for (const documentId of snapshot.documentOrder) {
@@ -219,9 +220,19 @@ export function LightTableStandaloneApp({
     documentProjectionKey,
     snapshot.activeDocumentId
   ]);
-  useEffect(() => () => {
-    applicationEditorTasks.dispose();
-    applicationRendererLifecycle.dispose();
+  useEffect(() => {
+    const lease = ++applicationServicesLeaseRef.current;
+    return () => {
+      // Development Strict Mode disconnects and immediately reconnects effects
+      // while preserving memoized application services. Defer terminal cleanup
+      // so that reconnect can claim a new lease; a real unmount/HMR replacement
+      // cannot, and therefore still disposes the old task/renderer owners.
+      queueMicrotask(() => {
+        if (applicationServicesLeaseRef.current !== lease) return;
+        applicationEditorTasks.dispose();
+        applicationRendererLifecycle.dispose();
+      });
+    };
   }, [applicationEditorTasks, applicationRendererLifecycle]);
   const commandService = useMemo(
     () => new LightTableCommandService(controller.workspace, commandPorts, {
