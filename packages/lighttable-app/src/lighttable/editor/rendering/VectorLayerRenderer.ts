@@ -25,6 +25,7 @@ import { vectorRendererBackendSelection } from '../../gpu/vectorRendererBackendD
 const DEFAULT_TOLERANCE_PX = 0.25;
 const MAX_MULTISAMPLED_SURFACE_BYTES = 512 * 1024 * 1024;
 const GEOMETRY_CACHE_BYTES = 32 * 1024 * 1024;
+let vectorRendererResourceSequence = 0;
 
 export const vectorSurfaceBytes = (width: number, height: number, sampleCount: 1 | 4) => (
   width * height * (sampleCount === 4 ? 8 + 4 * 12 : 8 + 4)
@@ -166,6 +167,7 @@ export class VectorGeometryRealizationCache {
  * documents do not allocate vector resources or compile vector pipelines.
  */
 export class VectorLayerRenderer {
+  private readonly velloResourceNamespace = `vector-renderer-${++vectorRendererResourceSequence}`;
   private backend: VectorFillBackend | null = null;
   private surface: VectorFillSurface | null = null;
   private vello: VelloPaintSceneBackend | null = null;
@@ -259,6 +261,7 @@ export class VectorLayerRenderer {
       if (layerIds.has(layerId)) continue;
       entry.surface.dispose();
       this.velloSurfaces.delete(layerId);
+      this.vello?.releaseSource(this.velloSourceKey(layerId));
     }
   }
 
@@ -312,7 +315,10 @@ export class VectorLayerRenderer {
     this.surface = null;
     this.backend?.dispose();
     this.backend = null;
-    for (const entry of this.velloSurfaces.values()) entry.surface.dispose();
+    for (const [layerId, entry] of this.velloSurfaces) {
+      entry.surface.dispose();
+      this.vello?.releaseSource(this.velloSourceKey(layerId));
+    }
     this.velloSurfaces.clear();
     this.vello = null;
     this.velloFailure = null;
@@ -329,6 +335,7 @@ export class VectorLayerRenderer {
       this.velloUnsupportedLayerEncodes += 1;
       this.velloSurfaces.get(layer.id)?.surface.dispose();
       this.velloSurfaces.delete(layer.id);
+      this.vello?.releaseSource(this.velloSourceKey(layer.id));
       return null;
     }
     try {
@@ -351,7 +358,11 @@ export class VectorLayerRenderer {
         this.velloSurfaces.set(layer.id, entry);
       }
       if (entry.renderedSceneKey !== compiled.sceneKey) {
-        const metrics = backend.render(entry.surface, compiled.scene, compiled.sceneKey);
+        const metrics = backend.render(
+          entry.surface,
+          compiled.scene,
+          this.velloSourceKey(layer.id)
+        );
         this.velloSceneRenders += 1;
         if (metrics.sceneCacheHit) this.velloSceneCacheHits += 1;
         entry.renderedSceneKey = compiled.sceneKey;
@@ -360,7 +371,10 @@ export class VectorLayerRenderer {
     } catch (reason) {
       this.velloFailure = reason instanceof Error ? reason.message : String(reason);
       console.error('[LightTable vector] Vello backend disabled; using current WebGPU renderer.', reason);
-      for (const entry of this.velloSurfaces.values()) entry.surface.dispose();
+      for (const [layerId, entry] of this.velloSurfaces) {
+        entry.surface.dispose();
+        this.vello?.releaseSource(this.velloSourceKey(layerId));
+      }
       this.velloSurfaces.clear();
       this.vello = null;
       return null;
@@ -391,5 +405,9 @@ export class VectorLayerRenderer {
       sampleCount === 4
     );
     return this.surface;
+  }
+
+  private velloSourceKey(layerId: string) {
+    return `${this.velloResourceNamespace}:${layerId}`;
   }
 }

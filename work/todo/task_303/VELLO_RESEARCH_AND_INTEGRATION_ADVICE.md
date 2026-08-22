@@ -950,6 +950,16 @@ Keep LightTable's text editing/layout representation and use Vello only downstre
 
 Do not immediately discard Vello. Investigate a persistent scene API, lower-frequency mutation bridge, packed commands, shared memory, native Electron module, or moving the rendering ownership boundary.
 
+Implemented evidence (2026-08-22): the first product bridge serialized every
+PaintScene fragment for every edit. A revision-keyed incremental source API now
+uploads only changed fragments, retains the current native fragment scenes and
+assembles them in stable paint order. On the 26,492-element VORTEXT fixture,
+six representative transform mutations improved from 189-308 ms to 86-133 ms
+without visual-threshold failures or estimated GPU growth. Explicit source
+release is wired to layer/document renderer disposal. The remaining cost is
+the O(n) app projection plus Vello fragment append; a packed bridge is not yet
+justified until lifecycle and device-loss evidence passes.
+
 ### Case F - our exact visual semantics differ
 
 Preserve the LightTable semantics. Write an adapter or retain the native path for that feature.

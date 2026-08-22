@@ -12,7 +12,16 @@ export interface VelloPaintSceneSurface {
 export interface VelloPaintSceneRenderMetrics {
   readonly sceneCacheHit: boolean;
   readonly compiledSceneEntries: number;
+  readonly uploadedFragments: number;
 }
+
+interface SyncedScene {
+  readonly revisions: ReadonlyMap<string, string>;
+  readonly order: readonly string[];
+}
+
+const equalOrder = (left: readonly string[], right: readonly string[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
 
 /**
  * Thin zero-copy consumer for LightTable's shared immutable paint scene.
@@ -21,6 +30,7 @@ export interface VelloPaintSceneRenderMetrics {
  */
 export class VelloPaintSceneBackend {
   private readonly runtime;
+  private readonly syncedScenes = new Map<string, SyncedScene>();
 
   constructor(private readonly device: GPUDevice, runtime?: VelloRuntime) {
     this.runtime = runtime ?? activeVelloWebGpuRuntime(device);
@@ -53,19 +63,45 @@ export class VelloPaintSceneBackend {
   render(
     surface: VelloPaintSceneSurface,
     scene: PaintScene,
-    sceneKey = `${scene.sourceId}:${scene.sourceRevision}`
+    sourceKey = scene.sourceId
   ): VelloPaintSceneRenderMetrics {
     assertPaintSceneIsValid(scene);
-    const sceneCacheHit = this.runtime.bridge.render_paint_scene_texture(
+    const previous = this.syncedScenes.get(sourceKey);
+    const revisions = new Map(scene.fragments.map(fragment => [
+      fragment.stableId, fragment.revisionKey
+    ]));
+    const order = scene.fragments.map(fragment => fragment.stableId);
+    const upserts = scene.fragments.filter(fragment =>
+      previous?.revisions.get(fragment.stableId) !== fragment.revisionKey
+    );
+    const removals = previous
+      ? [...previous.revisions.keys()].filter(stableId => !revisions.has(stableId))
+      : [];
+    const update = {
+      sourceRevision: scene.sourceRevision,
+      order: !previous || !equalOrder(previous.order, order)
+        ? scene.fragments.map(({ stableId }) => ({ stableId }))
+        : undefined,
+      upserts,
+      removals
+    };
+    const sceneCacheHit = this.runtime.bridge.render_incremental_paint_scene_texture(
       surface.texture,
       surface.width,
       surface.height,
-      sceneKey,
-      JSON.stringify(scene)
+      sourceKey,
+      JSON.stringify(update)
     );
+    this.syncedScenes.set(sourceKey, { revisions, order });
     return {
       sceneCacheHit,
-      compiledSceneEntries: this.runtime.bridge.scene_cache_entries()
+      compiledSceneEntries: this.runtime.bridge.scene_cache_entries(),
+      uploadedFragments: upserts.length
     };
+  }
+
+  releaseSource(sourceKey: string): void {
+    this.syncedScenes.delete(sourceKey);
+    this.runtime.bridge.release_paint_scene_source(sourceKey);
   }
 }

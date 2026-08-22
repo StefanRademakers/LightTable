@@ -9,6 +9,12 @@ export class VelloInteropDevice {
     device_handle(): any;
     diagnostics_json(): string;
     dispose(): void;
+    release_paint_scene_source(source_id: string): void;
+    /**
+     * Applies a bounded fragment delta and renders the current source scene.
+     * Returns true only when the already-compiled source revision was reused.
+     */
+    render_incremental_paint_scene_texture(texture: any, width: number, height: number, source_id: string, update_json: string): boolean;
     /**
      * Returns true when the compiled Vello scene was already cached.
      */
@@ -25,6 +31,8 @@ export interface InitOutput {
     readonly vellointeropdevice_device_handle: (a: number) => [number, number, number];
     readonly vellointeropdevice_diagnostics_json: (a: number) => [number, number];
     readonly vellointeropdevice_dispose: (a: number) => void;
+    readonly vellointeropdevice_release_paint_scene_source: (a: number, b: number, c: number) => void;
+    readonly vellointeropdevice_render_incremental_paint_scene_texture: (a: number, b: any, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
     readonly vellointeropdevice_render_paint_scene_texture: (a: number, b: any, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
     readonly vellointeropdevice_scene_cache_entries: (a: number) => number;
     readonly wasm_bindgen__convert__closures_____invoke__h815b7f6b18672e9f: (a: number, b: number, c: any) => [number, number];

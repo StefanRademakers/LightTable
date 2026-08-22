@@ -15,6 +15,14 @@ export interface GeneratedVelloDevice {
     sceneKey: string,
     sceneJson: string
   ): boolean;
+  render_incremental_paint_scene_texture(
+    texture: GPUTexture,
+    width: number,
+    height: number,
+    sourceId: string,
+    updateJson: string
+  ): boolean;
+  release_paint_scene_source(sourceId: string): void;
   scene_cache_entries(): number;
   dispose(): void;
   free(): void;

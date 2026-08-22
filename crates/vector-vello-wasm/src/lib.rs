@@ -7,6 +7,7 @@ use wasm_bindgen::prelude::*;
 const MAX_CACHED_SCENES: usize = 64;
 const MAX_SCENE_JSON_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SCENE_KEY_BYTES: usize = 1024;
+const MAX_INCREMENTAL_SOURCES: usize = 64;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,8 +18,24 @@ struct PaintScene {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PaintSceneFragment {
+    stable_id: String,
     paths: Vec<PaintScenePath>,
     commands: Vec<PaintSceneCommand>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PaintSceneFragmentRef {
+    stable_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PaintSceneUpdate {
+    source_revision: String,
+    order: Option<Vec<PaintSceneFragmentRef>>,
+    upserts: Vec<PaintSceneFragment>,
+    removals: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -262,116 +279,114 @@ fn gradient_brush(
     Ok((gradient, path_transform.inverse() * scene_transform))
 }
 
-fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
+fn encode_paint_scene_fragment(fragment: PaintSceneFragment) -> Result<vello::Scene, String> {
     use vello::kurbo::{Affine, Cap, Join, Stroke};
     use vello::peniko::Fill;
 
     let mut scene = vello::Scene::new();
-    for fragment in value.fragments {
-        let mut clip_depth = 0usize;
-        let paths: HashMap<String, vello::kurbo::BezPath> = fragment
-            .paths
-            .into_iter()
-            .map(|path| (path.stable_id, bez_path(&path.commands)))
-            .collect();
-        for command in fragment.commands {
-            match command {
-                PaintSceneCommand::PushClip {
-                    path_id,
-                    transform,
-                    fill_rule,
-                } => {
-                    let path = paths
-                        .get(&path_id)
-                        .ok_or_else(|| format!("clip references missing path {path_id}"))?;
-                    let fill = match fill_rule {
-                        FillRule::Nonzero => Fill::NonZero,
-                        FillRule::Evenodd => Fill::EvenOdd,
-                    };
-                    scene.push_clip_layer(fill, Affine::new(transform), path);
-                    clip_depth += 1;
+    let mut clip_depth = 0usize;
+    let paths: HashMap<String, vello::kurbo::BezPath> = fragment
+        .paths
+        .into_iter()
+        .map(|path| (path.stable_id, bez_path(&path.commands)))
+        .collect();
+    for command in fragment.commands {
+        match command {
+            PaintSceneCommand::PushClip {
+                path_id,
+                transform,
+                fill_rule,
+            } => {
+                let path = paths
+                    .get(&path_id)
+                    .ok_or_else(|| format!("clip references missing path {path_id}"))?;
+                let fill = match fill_rule {
+                    FillRule::Nonzero => Fill::NonZero,
+                    FillRule::Evenodd => Fill::EvenOdd,
+                };
+                scene.push_clip_layer(fill, Affine::new(transform), path);
+                clip_depth += 1;
+            }
+            PaintSceneCommand::PopClip => {
+                if clip_depth == 0 {
+                    return Err("paint scene pops an empty clip stack".into());
                 }
-                PaintSceneCommand::PopClip => {
-                    if clip_depth == 0 {
-                        return Err("paint scene pops an empty clip stack".into());
+                scene.pop_layer();
+                clip_depth -= 1;
+            }
+            PaintSceneCommand::FillPath {
+                path_id,
+                transform,
+                fill_rule,
+                paint,
+            } => {
+                let path = paths
+                    .get(&path_id)
+                    .ok_or_else(|| format!("fill references missing path {path_id}"))?;
+                let path_transform = Affine::new(transform);
+                let fill = match fill_rule {
+                    FillRule::Nonzero => Fill::NonZero,
+                    FillRule::Evenodd => Fill::EvenOdd,
+                };
+                match paint {
+                    PaintScenePaint::Solid { color: paint } => {
+                        scene.fill(fill, path_transform, color(paint), None, path);
                     }
-                    scene.pop_layer();
-                    clip_depth -= 1;
-                }
-                PaintSceneCommand::FillPath {
-                    path_id,
-                    transform,
-                    fill_rule,
-                    paint,
-                } => {
-                    let path = paths
-                        .get(&path_id)
-                        .ok_or_else(|| format!("fill references missing path {path_id}"))?;
-                    let path_transform = Affine::new(transform);
-                    let fill = match fill_rule {
-                        FillRule::Nonzero => Fill::NonZero,
-                        FillRule::Evenodd => Fill::EvenOdd,
-                    };
-                    match paint {
-                        PaintScenePaint::Solid { color: paint } => {
-                            scene.fill(fill, path_transform, color(paint), None, path);
-                        }
-                        gradient @ PaintScenePaint::Gradient { .. } => {
-                            let (brush, brush_transform) =
-                                gradient_brush(gradient, path_transform)?;
-                            scene.fill(fill, path_transform, &brush, Some(brush_transform), path);
-                        }
+                    gradient @ PaintScenePaint::Gradient { .. } => {
+                        let (brush, brush_transform) = gradient_brush(gradient, path_transform)?;
+                        scene.fill(fill, path_transform, &brush, Some(brush_transform), path);
                     }
                 }
-                PaintSceneCommand::StrokePath {
-                    path_id,
-                    transform,
-                    paint,
-                    stroke,
-                } => {
-                    let path = paths
-                        .get(&path_id)
-                        .ok_or_else(|| format!("stroke references missing path {path_id}"))?;
-                    let cap = match stroke.cap {
-                        StrokeCap::Butt => Cap::Butt,
-                        StrokeCap::Round => Cap::Round,
-                        StrokeCap::Square => Cap::Square,
-                    };
-                    let join = match stroke.join {
-                        StrokeJoin::Miter => Join::Miter,
-                        StrokeJoin::Round => Join::Round,
-                        StrokeJoin::Bevel => Join::Bevel,
-                    };
-                    let mut style = Stroke::new(stroke.width)
-                        .with_caps(cap)
-                        .with_join(join)
-                        .with_miter_limit(stroke.miter_limit);
-                    if !stroke.dash.is_empty() {
-                        style = style.with_dashes(stroke.dash_offset, stroke.dash);
+            }
+            PaintSceneCommand::StrokePath {
+                path_id,
+                transform,
+                paint,
+                stroke,
+            } => {
+                let path = paths
+                    .get(&path_id)
+                    .ok_or_else(|| format!("stroke references missing path {path_id}"))?;
+                let cap = match stroke.cap {
+                    StrokeCap::Butt => Cap::Butt,
+                    StrokeCap::Round => Cap::Round,
+                    StrokeCap::Square => Cap::Square,
+                };
+                let join = match stroke.join {
+                    StrokeJoin::Miter => Join::Miter,
+                    StrokeJoin::Round => Join::Round,
+                    StrokeJoin::Bevel => Join::Bevel,
+                };
+                let mut style = Stroke::new(stroke.width)
+                    .with_caps(cap)
+                    .with_join(join)
+                    .with_miter_limit(stroke.miter_limit);
+                if !stroke.dash.is_empty() {
+                    style = style.with_dashes(stroke.dash_offset, stroke.dash);
+                }
+                let path_transform = Affine::new(transform);
+                match paint {
+                    PaintScenePaint::Solid { color: paint } => {
+                        scene.stroke(&style, path_transform, color(paint), None, path);
                     }
-                    let path_transform = Affine::new(transform);
-                    match paint {
-                        PaintScenePaint::Solid { color: paint } => {
-                            scene.stroke(&style, path_transform, color(paint), None, path);
-                        }
-                        gradient @ PaintScenePaint::Gradient { .. } => {
-                            let (brush, brush_transform) =
-                                gradient_brush(gradient, path_transform)?;
-                            scene.stroke(
-                                &style,
-                                path_transform,
-                                &brush,
-                                Some(brush_transform),
-                                path,
-                            );
-                        }
+                    gradient @ PaintScenePaint::Gradient { .. } => {
+                        let (brush, brush_transform) = gradient_brush(gradient, path_transform)?;
+                        scene.stroke(&style, path_transform, &brush, Some(brush_transform), path);
                     }
                 }
             }
         }
-        if clip_depth != 0 {
-            return Err("paint scene fragment leaves clip layers unclosed".into());
-        }
+    }
+    if clip_depth != 0 {
+        return Err("paint scene fragment leaves clip layers unclosed".into());
+    }
+    Ok(scene)
+}
+
+fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
+    let mut scene = vello::Scene::new();
+    for fragment in value.fragments {
+        scene.append(&encode_paint_scene_fragment(fragment)?, None);
     }
     Ok(scene)
 }
@@ -394,25 +409,32 @@ mod paint_scene_tests {
 
     #[test]
     fn accepts_balanced_clip_layers() {
-        let value = PaintScene { fragments: vec![PaintSceneFragment {
-            paths: vec![path()],
-            commands: vec![
-                PaintSceneCommand::PushClip {
-                    path_id: "clip".into(),
-                    transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-                    fill_rule: FillRule::Nonzero,
-                },
-                PaintSceneCommand::PopClip,
-            ],
-        }] };
+        let value = PaintScene {
+            fragments: vec![PaintSceneFragment {
+                stable_id: "clipped".into(),
+                paths: vec![path()],
+                commands: vec![
+                    PaintSceneCommand::PushClip {
+                        path_id: "clip".into(),
+                        transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                        fill_rule: FillRule::Nonzero,
+                    },
+                    PaintSceneCommand::PopClip,
+                ],
+            }],
+        };
         assert!(encode_paint_scene(value).is_ok());
     }
 
     #[test]
     fn rejects_unbalanced_clip_layers() {
-        let value = PaintScene { fragments: vec![PaintSceneFragment {
-            paths: vec![], commands: vec![PaintSceneCommand::PopClip],
-        }] };
+        let value = PaintScene {
+            fragments: vec![PaintSceneFragment {
+                stable_id: "invalid".into(),
+                paths: vec![],
+                commands: vec![PaintSceneCommand::PopClip],
+            }],
+        };
         match encode_paint_scene(value) {
             Err(message) => assert_eq!(message, "paint scene pops an empty clip stack"),
             Ok(_) => panic!("unbalanced clip stack was accepted"),
@@ -424,6 +446,51 @@ mod paint_scene_tests {
 struct SceneCache {
     entries: HashMap<String, vello::Scene>,
     order: VecDeque<String>,
+}
+
+#[derive(Clone)]
+struct IncrementalFragment {
+    scene: vello::Scene,
+}
+
+struct IncrementalScene {
+    source_revision: String,
+    order: Vec<PaintSceneFragmentRef>,
+    fragments: HashMap<String, IncrementalFragment>,
+    compiled: vello::Scene,
+}
+
+#[derive(Default)]
+struct IncrementalSceneCache {
+    entries: HashMap<String, IncrementalScene>,
+    order: VecDeque<String>,
+}
+
+impl IncrementalSceneCache {
+    fn insert(&mut self, source_id: String, scene: IncrementalScene) {
+        if !self.entries.contains_key(&source_id) {
+            while self.entries.len() >= MAX_INCREMENTAL_SOURCES {
+                if let Some(oldest) = self.order.pop_front() {
+                    self.entries.remove(&oldest);
+                } else {
+                    self.entries.clear();
+                    break;
+                }
+            }
+            self.order.push_back(source_id.clone());
+        }
+        self.entries.insert(source_id, scene);
+    }
+
+    fn clear(&mut self) {
+        self.entries.clear();
+        self.order.clear();
+    }
+
+    fn remove(&mut self, source_id: &str) {
+        self.entries.remove(source_id);
+        self.order.retain(|candidate| candidate != source_id);
+    }
 }
 
 impl SceneCache {
@@ -459,6 +526,7 @@ pub struct VelloInteropDevice {
     queue: wgpu::Queue,
     renderer: RefCell<Option<vello::Renderer>>,
     scenes: RefCell<SceneCache>,
+    incremental_scenes: RefCell<IncrementalSceneCache>,
     diagnostics_json: String,
 }
 
@@ -480,6 +548,54 @@ impl VelloInteropDevice {
             );
         }
         Ok(RefMut::map(renderer, |value| value.as_mut().unwrap()))
+    }
+
+    fn render_scene_to_texture(
+        &self,
+        texture: JsValue,
+        width: u32,
+        height: u32,
+        scene: &vello::Scene,
+    ) -> Result<(), JsValue> {
+        let texture = texture
+            .dyn_into::<wgpu::webgpu::GpuTexture>()
+            .map_err(|_| JsValue::from_str("value is not a GPUTexture"))?;
+        let wrapped = self.device.create_texture_from_webgpu_handle(
+            texture,
+            &wgpu::TextureDescriptor {
+                label: Some("LightTable Vello paint-scene surface"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::STORAGE_BINDING,
+                view_formats: &[],
+            },
+            None,
+        );
+        let view = wrapped.create_view(&wgpu::TextureViewDescriptor::default());
+        self.renderer_mut()?
+            .render_to_texture(
+                &self.device,
+                &self.queue,
+                scene,
+                &view,
+                &vello::RenderParams {
+                    base_color: vello::peniko::Color::TRANSPARENT,
+                    width,
+                    height,
+                    antialiasing_method: vello::AaConfig::Area,
+                },
+            )
+            .map_err(|error| JsValue::from_str(&format!("Vello paint-scene render: {error}")))
     }
 }
 
@@ -527,6 +643,7 @@ impl VelloInteropDevice {
             queue,
             renderer: RefCell::new(None),
             scenes: RefCell::new(SceneCache::default()),
+            incremental_scenes: RefCell::new(IncrementalSceneCache::default()),
             diagnostics_json,
         })
     }
@@ -569,59 +686,144 @@ impl VelloInteropDevice {
                 .map_err(|error| JsValue::from_str(&format!("paint scene: {error}")))?;
             self.scenes.borrow_mut().insert(scene_key.to_owned(), scene);
         }
-        let texture = texture
-            .dyn_into::<wgpu::webgpu::GpuTexture>()
-            .map_err(|_| JsValue::from_str("value is not a GPUTexture"))?;
-        let wrapped = self.device.create_texture_from_webgpu_handle(
-            texture,
-            &wgpu::TextureDescriptor {
-                label: Some("LightTable Vello paint-scene surface"),
-                size: wgpu::Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_SRC
-                    | wgpu::TextureUsages::STORAGE_BINDING,
-                view_formats: &[],
-            },
-            None,
-        );
-        let view = wrapped.create_view(&wgpu::TextureViewDescriptor::default());
         let scenes = self.scenes.borrow();
         let scene = scenes
             .entries
             .get(scene_key)
             .ok_or_else(|| JsValue::from_str("compiled Vello scene cache entry disappeared"))?;
-        self.renderer_mut()?
-            .render_to_texture(
-                &self.device,
-                &self.queue,
-                scene,
-                &view,
-                &vello::RenderParams {
-                    base_color: vello::peniko::Color::TRANSPARENT,
-                    width,
-                    height,
-                    antialiasing_method: vello::AaConfig::Area,
-                },
-            )
-            .map_err(|error| JsValue::from_str(&format!("Vello paint-scene render: {error}")))?;
+        self.render_scene_to_texture(texture, width, height, scene)?;
+        Ok(cache_hit)
+    }
+
+    /// Applies a bounded fragment delta and renders the current source scene.
+    /// Returns true only when the already-compiled source revision was reused.
+    pub fn render_incremental_paint_scene_texture(
+        &self,
+        texture: JsValue,
+        width: u32,
+        height: u32,
+        source_id: &str,
+        update_json: &str,
+    ) -> Result<bool, JsValue> {
+        if source_id.len() > MAX_SCENE_KEY_BYTES {
+            return Err(JsValue::from_str(
+                "Vello source id exceeds its bounded limit",
+            ));
+        }
+        if update_json.len() > MAX_SCENE_JSON_BYTES {
+            return Err(JsValue::from_str(
+                "Vello paint-scene update exceeds its bounded JSON limit",
+            ));
+        }
+        let update: PaintSceneUpdate = serde_json::from_str(update_json)
+            .map_err(|error| JsValue::from_str(&format!("paint scene update JSON: {error}")))?;
+        let mut encoded_upserts = HashMap::new();
+        for fragment in update.upserts {
+            if encoded_upserts.contains_key(&fragment.stable_id) {
+                return Err(JsValue::from_str(
+                    "paint scene update contains duplicate upserts",
+                ));
+            }
+            let stable_id = fragment.stable_id.clone();
+            let scene = encode_paint_scene_fragment(fragment)
+                .map_err(|error| JsValue::from_str(&format!("paint scene fragment: {error}")))?;
+            encoded_upserts.insert(stable_id, IncrementalFragment { scene });
+        }
+
+        let mut cache = self.incremental_scenes.borrow_mut();
+        let existing = cache.entries.get(source_id);
+        let order = update
+            .order
+            .clone()
+            .or_else(|| existing.map(|entry| entry.order.clone()))
+            .ok_or_else(|| {
+                JsValue::from_str("initial paint scene update requires fragment order")
+            })?;
+        let mut identities = std::collections::HashSet::new();
+        for item in &order {
+            if !identities.insert(item.stable_id.as_str()) {
+                return Err(JsValue::from_str(
+                    "paint scene order contains duplicate fragment ids",
+                ));
+            }
+            let available = encoded_upserts.contains_key(&item.stable_id)
+                || existing
+                    .map(|entry| entry.fragments.contains_key(&item.stable_id))
+                    .unwrap_or(false);
+            if !available {
+                return Err(JsValue::from_str(
+                    "paint scene order references a missing fragment",
+                ));
+            }
+        }
+        for removed in &update.removals {
+            if identities.contains(removed.as_str()) {
+                return Err(JsValue::from_str(
+                    "removed paint scene fragment remains in order",
+                ));
+            }
+        }
+        let cache_hit = existing
+            .map(|entry| entry.source_revision == update.source_revision)
+            .unwrap_or(false)
+            && encoded_upserts.is_empty()
+            && update.removals.is_empty()
+            && update.order.is_none();
+
+        if !cache_hit {
+            if let Some(entry) = cache.entries.get_mut(source_id) {
+                for removed in update.removals {
+                    entry.fragments.remove(&removed);
+                }
+                entry.fragments.extend(encoded_upserts);
+                entry.compiled.reset();
+                for item in &order {
+                    let fragment = entry.fragments.get(&item.stable_id).ok_or_else(|| {
+                        JsValue::from_str("paint scene fragment disappeared during assembly")
+                    })?;
+                    entry.compiled.append(&fragment.scene, None);
+                }
+                entry.source_revision = update.source_revision;
+                entry.order = order;
+            } else {
+                let fragments = encoded_upserts;
+                let mut compiled = vello::Scene::new();
+                for item in &order {
+                    let fragment = fragments.get(&item.stable_id).ok_or_else(|| {
+                        JsValue::from_str("paint scene fragment disappeared during assembly")
+                    })?;
+                    compiled.append(&fragment.scene, None);
+                }
+                cache.insert(
+                    source_id.to_owned(),
+                    IncrementalScene {
+                        source_revision: update.source_revision,
+                        order,
+                        fragments,
+                        compiled,
+                    },
+                );
+            }
+        }
+        let entry = cache
+            .entries
+            .get(source_id)
+            .ok_or_else(|| JsValue::from_str("incremental Vello scene cache entry disappeared"))?;
+        self.render_scene_to_texture(texture, width, height, &entry.compiled)?;
         Ok(cache_hit)
     }
 
     pub fn scene_cache_entries(&self) -> usize {
-        self.scenes.borrow().entries.len()
+        self.scenes.borrow().entries.len() + self.incremental_scenes.borrow().entries.len()
+    }
+
+    pub fn release_paint_scene_source(&self, source_id: &str) {
+        self.incremental_scenes.borrow_mut().remove(source_id);
     }
 
     pub fn dispose(&self) {
         self.scenes.borrow_mut().clear();
+        self.incremental_scenes.borrow_mut().clear();
         *self.renderer.borrow_mut() = None;
     }
 }

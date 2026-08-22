@@ -129,6 +129,22 @@ Baseline: `c71254b1`
   can be roughly 0.3 s slower), so this supports complexity-aware/default-Vello
   evaluation but is not yet enough to freeze routing policy. Both backends keep
   pan/zoom near 60 fps with zero document recomposites.
+- The packaged six-edit mutation bake-off is now recorded for the torture SVG
+  and VORTEXT. Both backends restore the original image (no pixel above the
+  comparison threshold), retain zero additional estimated GPU bytes and add
+  only about 0.7-1.4 MB forced-GC JS heap in the bounded run. On VORTEXT the
+  current renderer needs roughly 1.0-1.3 seconds per half-pixel transform,
+  while the first full-scene Vello bridge needs 189-308 ms.
+- `@lighttable/vector-vello` now synchronizes revision-keyed PaintScene
+  fragments incrementally. After the first upload, one edited element sends
+  one fragment instead of serializing all 26,492 elements; Rust retains only
+  the current fragments for each bounded source and reassembles them in paint
+  order. VORTEXT mutation falls again to 86-133 ms with oracle parity unchanged
+  (`RMSE 1.38`) and ~57 MB estimated texture memory. Closing/removing a layer
+  explicitly releases its native fragment state, rather than waiting for the
+  bounded 64-source eviction policy. Backend source keys are namespaced per
+  document renderer, so opening the same canonical layer IDs twice cannot
+  alias native mutable cache state.
 
 ## Worktree ownership
 
@@ -142,10 +158,10 @@ texture route, linear-premultiplied color contract and secure reusable SVG
 normalization boundary are proven. Normalization recovers `<use>`, CSS, units,
 markers and basic shapes while the editable codec remains document authority.
 The next semantic dependency is hierarchy: group and clip stacks must exist in
-the canonical vector model and PaintScene before patterns, group opacity, masks
-or filters can be represented safely. After clip parity, run bounded mutation,
-lifecycle, device-loss and memory regressions across both backends and select a
-production routing policy.
+the canonical document model and PaintScene projection before patterns, group
+opacity, masks or filters can be represented safely. Mutation and immediate
+source-release evidence now pass; broader repeated open/close, device-loss and
+memory distributions are still required before selecting production routing.
 
 ## Next safe steps
 
@@ -155,8 +171,8 @@ production routing policy.
    nested and object-bounds cases.
 3. Harden SVG save/reopen and corpus round trips for every newly admitted
    semantic feature.
-4. Run packaged current/Vello correctness, mutation, crash, retained-memory,
-   lifecycle and device-loss distributions; then record backend routing policy.
+4. Run packaged current/Vello repeated open/close, crash, retained-memory and
+   device-loss distributions; then record backend routing policy.
 
 ## External fixtures
 
