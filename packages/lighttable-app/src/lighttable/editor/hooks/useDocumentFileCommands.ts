@@ -105,6 +105,7 @@ export interface DocumentFileCommands {
   handleFastFileInput(event: ChangeEvent<HTMLInputElement>): Promise<void>;
   handlePrecisionFileInput(event: ChangeEvent<HTMLInputElement>): Promise<void>;
   chooseLocalFile(decodeMode: DocumentOpenMode): Promise<void>;
+  deliverExportFile(file: File): Promise<void>;
 }
 
 const downloadOutput = (file: File): void => {
@@ -486,6 +487,12 @@ export const useDocumentFileCommands = (
     }
   }, [openLocalFile]);
 
+  const deliverExportFile = useCallback(async (file: File) => {
+    const current = optionsRef.current;
+    if (current.onExportFile) await current.onExportFile(file);
+    else downloadOutput(file);
+  }, []);
+
   return {
     saving,
     exportOutput,
@@ -502,6 +509,7 @@ export const useDocumentFileCommands = (
     handleFastFileInput: (event) => handleFileInput(event, 'fast'),
     handlePrecisionFileInput: (event) =>
       handleFileInput(event, 'preserve-precision'),
-    chooseLocalFile
+    chooseLocalFile,
+    deliverExportFile
   };
 };

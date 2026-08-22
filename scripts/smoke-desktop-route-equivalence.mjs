@@ -15,7 +15,8 @@ import { startPackagedMcpTestSession } from './packaged-mcp-test-session.mjs';
 import { compareRenderEvidence } from './render-comparison-evidence.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
+const fixture = path.resolve(process.argv[2]
+  ?? path.join(root, 'architecture', 'ui', '1.png'));
 const output = path.join(root, 'tmp', 'route-equivalence-smoke');
 await Promise.all([access(fixture), mkdir(output, { recursive: true })]);
 const uiExportPath = path.join(output, 'ui-file-menu-export.png');
@@ -115,6 +116,14 @@ const writeDriverPreview = async (driver, documentId, target) => {
     throw new Error(`Preview ${target} has no bytes: ${JSON.stringify(artifact)}`);
   }
   await writeFile(target, file.bytes);
+};
+
+const activateDocument = async (page, driver, documentId, title) => {
+  await page.locator('.lighttable-document-tab__title', { hasText: title }).click();
+  await page.waitForFunction((id) => {
+    const document = window.__lightTableAutomation?.queryDocument(id);
+    return document?.renderer.active && document.renderer.status === 'ready';
+  }, documentId, { timeout: 60_000 });
 };
 
 const keyboardHistory = async (window, driver, documentId, direction) => {
@@ -305,16 +314,18 @@ try {
   await textInput.waitFor({ state: 'attached' });
   workflowPhase = 'ui-text-typing';
   await textInput.pressSequentially(highFrequencyText);
-  workflowPhase = 'ui-text-composition';
-  await textInput.evaluate((input, text) => {
-    input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
-    input.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: '編' }));
-    input.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: text }));
-    input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: text }));
-  }, composedText);
-  await waitForRecorded('text.replaceRange', 2);
+  // A caret round-trip is a real transaction boundary and commits the first
+  // contiguous typing group. Synthetic CompositionEvent dispatch does not
+  // reproduce Chromium's trusted IME ordering; composition has dedicated
+  // controller tests, while this packaged proof owns real keyboard routes.
+  await textInput.press('ArrowLeft');
+  await textInput.press('ArrowRight');
+  await waitForRecorded('text.replaceRange');
+  workflowPhase = 'ui-text-second-typing-group';
+  await textInput.pressSequentially(composedText);
   workflowPhase = 'ui-text-finish';
   await textInput.press('Escape');
+  await waitForRecorded('text.replaceRange', 2);
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await waitForRecorded('text.create')
     .catch(async () => {
@@ -499,8 +510,11 @@ try {
 
   const previewPaths = Object.fromEntries(['ui', 'actions', 'mcp'].map((route) =>
     [route, path.join(output, `${route}.png`)]));
+  await activateDocument(window, driver, uiDocumentId, 'UI route');
   await writeDriverPreview(driver, uiDocumentId, previewPaths.ui);
+  await activateDocument(window, driver, actionsDocumentId, 'Actions route');
   await writeDriverPreview(driver, actionsDocumentId, previewPaths.actions);
+  await activateDocument(window, driver, mcpDocumentId, 'MCP route');
   const mcpDocument = mcpResult(await mcp.callTool({
     name: 'lighttable_document', arguments: { documentId: mcpDocumentId }
   }), 'MCP final revision');

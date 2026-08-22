@@ -414,6 +414,37 @@ const EMPTY_ACTION_RECORDING: ActionRecordingSnapshot = {
   steps: [], variables: [], byteLength: 0, limitReached: false
 };
 const subscribeToNothing = () => () => undefined;
+
+const waitForCommandArtifact = (
+  service: LightTableCommandService,
+  documentId: DocumentSessionId,
+  taskId: string
+) => new Promise<File>((resolve, reject) => {
+  const startedAt = performance.now();
+  const inspect = () => {
+    const task = service.queryTask(documentId, taskId);
+    if (!task) {
+      reject(new Error('The export task was not published.'));
+      return;
+    }
+    if (task.status === 'running' || (task.status === 'completed' && !task.artifact)) {
+      if (performance.now() - startedAt >= 30_000) {
+        reject(new Error('The export did not finish within 30 seconds.'));
+      } else {
+        setTimeout(inspect, 16);
+      }
+      return;
+    }
+    if (task.status !== 'completed' || !task.artifact) {
+      reject(new Error(task.error ?? 'The export did not complete.'));
+      return;
+    }
+    const file = service.resolveArtifact(task.artifact.id);
+    if (!file) reject(new Error('The exported artifact is unavailable.'));
+    else resolve(file);
+  };
+  inspect();
+});
 const emptyActionRecording = () => EMPTY_ACTION_RECORDING;
 const EMPTY_ACTION_PLAYBACK: ActionPlaybackSnapshot = {
   status: 'idle', currentSequence: null, results: [], taskProgress: null
@@ -629,6 +660,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   recoveryNotice = null,
   onRecoveryResolved
 }) => {
+  // Ref-owned interaction controllers outlive document-tab switches. They
+  // must resolve ownership at commit time instead of capturing the document
+  // that was active when the persistent overlay first mounted.
+  const workspaceDocumentIdRef = useRef(workspaceDocumentId);
+  workspaceDocumentIdRef.current = workspaceDocumentId;
   const openArtProviderId = 'openart' as import('@lighttable/genai-core').GenAiProviderId;
   const editGenAiProviderId = (genAiPreferences?.editProviderId || openArtProviderId) as
     import('@lighttable/genai-core').GenAiProviderId;
@@ -1175,6 +1211,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const cancelParagraphTextRef = useRef<() => boolean>(() => false);
   const paragraphCanvasCreationPendingRef = useRef(false);
   const finishTextEditingRef = useRef<() => boolean>(() => false);
+  const quickExportPngRef = useRef<() => Promise<void>>(async () => undefined);
   const { exportNativeArtifactRef, exportPngArtifactRef, exportBitmapArtifactRef,
     exportPreviewArtifactRef, exportPsdArtifactRef } = useEditorArtifactExportRefs();
   const beginAutomationGestureRef = useRef<(
@@ -2261,21 +2298,34 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     engineRef.current?.setDocument(pending);
     setImageDocument(pending);
   };
+  const textEditingPortsRef = useRef({
+    applyDocument: applyTextEditingDocument,
+    flushDocument: flushTextEditingDocument,
+    pushHistoryEntry,
+    commandService
+  });
+  textEditingPortsRef.current = {
+    applyDocument: applyTextEditingDocument,
+    flushDocument: flushTextEditingDocument,
+    pushHistoryEntry,
+    commandService
+  };
   const textEditingControllerRef = useRef<FlowTextEditingSessionController | null>(null);
   textEditingControllerRef.current ??= new FlowTextEditingSessionController(() => ({
     getDocument: () => pendingTextDocumentRef.current ?? imageDocumentRef.current,
-    applyDocument: applyTextEditingDocument,
+    applyDocument: (document) => textEditingPortsRef.current.applyDocument(document),
     pushHistory: (entry) => {
-      flushTextEditingDocument();
-      pushHistoryEntry({
+      const ports = textEditingPortsRef.current;
+      ports.flushDocument();
+      ports.pushHistoryEntry({
         ...entry,
         type: `text.${entry.group}`,
         label: entry.group === 'composition' ? 'Compose text' : 'Edit text'
       });
       if (entry.semanticReplacement) {
-        commandService?.recordObservedCommand(
+        ports.commandService?.recordObservedCommand(
           'text.replaceRange',
-          workspaceDocumentId as DocumentSessionId,
+          workspaceDocumentIdRef.current as DocumentSessionId,
           entry.semanticReplacement,
           { layerId: entry.semanticReplacement.layerId }
         );
@@ -3443,7 +3493,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     commands: {
       openFile: () => { finishTextEditingRef.current(); void chooseLocalFile('automatic'); },
       saveFile: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
-      quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
+      quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void quickExportPngRef.current(); },
       openImageSize: editorDialogs.openImageSize,
       applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
       isTransformActive: () => transformActiveRef.current(),
@@ -5970,6 +6020,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     handleFastFileInput: handleLocalFile,
     handlePrecisionFileInput: handleAdvancedLocalFile,
     chooseLocalFile,
+    deliverExportFile,
     fileInputRef,
     advancedFileInputRef
   } = useEditorDocumentFileController({
@@ -6038,6 +6089,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   );
   exportPsdArtifactRef.current = () => exportEditorPsdArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
 
+  const exportPngThroughCommand = useCallback(async () => {
+    const execution = executeRegisteredCommand('file.exportPng', {});
+    if (!execution || !commandService) {
+      await handleExportPng();
+      return;
+    }
+    try {
+      const result = await execution;
+      if (result.status !== 'accepted') return;
+      const file = await waitForCommandArtifact(
+        commandService, workspaceDocumentId as DocumentSessionId, result.taskId
+      );
+      await deliverExportFile(file);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, [commandService, deliverExportFile, executeRegisteredCommand, handleExportPng, workspaceDocumentId]);
+  quickExportPngRef.current = exportPngThroughCommand;
+
   const duplicateImage = useCallback(async (name: string) => {
     if (!commandService || duplicateImageBusy) return;
     setDuplicateImageBusy(true);
@@ -6105,7 +6175,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       closeProject: () => onCloseProject?.(),
       exitApplication: onExitApplication,
       save: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
-      exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportPng(); },
+      exportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void exportPngThroughCommand(); },
       exportJpeg: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportJpeg(); },
       exportWebp: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportWebp(); },
       exportTiff: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleExportTiff(); },
