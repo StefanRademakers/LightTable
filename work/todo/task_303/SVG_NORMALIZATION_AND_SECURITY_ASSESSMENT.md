@@ -23,6 +23,28 @@ untrusted SVG bytes
 editable import route and must never silently replace unsupported editable
 semantics with a bitmap.
 
+## Implemented package boundary
+
+`@lighttable/vector-svg-normalizer` now owns the optional normalization phase. Its native core is
+`crates/vector-svg-normalizer-wasm`, pinned to `usvg` 0.48.1 and compiled without text, system-font,
+SVGZ, or raster-decoder features. It has no dependency on the LightTable document model,
+`PaintScene`, React, or either GPU backend.
+
+The native boundary rejects DTDs, processing instructions, active elements, event attributes,
+external/data `href` values, CSS imports and non-local `url()` references. Both `usvg` image
+resolvers are replaced with resolvers that always return `None`.
+
+Measured on the SVG torture fixture on 2026-08-22:
+
+- WASM: 757,495 bytes raw / 282,343 bytes gzip.
+- Runtime initialization: 20.45 ms.
+- First normalization: 29.28 ms.
+- Warm normalization: 1.51 ms.
+- Input/output: 14,887 / 21,169 bytes; 122 input elements, maximum depth 4.
+
+These figures justify product-path evaluation; they do not yet authorize replacing the editable
+codec until round-trip and unsupported-feature policy tests pass.
+
 ## Evidence
 
 - `usvg` resolves inherited/default attributes, CSS, basic shapes, path command

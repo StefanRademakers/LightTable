@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "sourceHash": "1b67944db0e208f3704946b04972f9f03f9a3b3ac39c8792157f8abec9a5850c",
+  "usvgVersion": "0.48.1",
+  "wasmBindgenVersion": "0.2.126",
+  "rustTarget": "wasm32-unknown-unknown",
+  "outputs": {
+    "vector_svg_normalizer_wasm.js": "8cfa0f966779df567628b6897898bf6de31b7bde649a4762e675e4d48da7a7e4",
+    "vector_svg_normalizer_wasm.d.ts": "274f9909e7cf98254fc97786093a4c76981daed4a345cc22e7a0e4a8944c0d8a",
+    "vector_svg_normalizer_wasm_bg.wasm": "5f78fb2ab406c73922d3ceaa5d9dff3c3e846642f9eacd1290569961f785bcdc",
+    "vector_svg_normalizer_wasm_bg.wasm.d.ts": "93da6e5e741bd66ca047fa75e53c56f7f75501026b584235b0c694eb36b0ce8e"
+  }
+}
