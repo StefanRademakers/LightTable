@@ -1,4 +1,4 @@
-import type { PaintScene } from '@lighttable/paint-scene';
+import { assertPaintSceneIsValid, type PaintScene } from '@lighttable/paint-scene';
 import { activeVelloWebGpuRuntime, type VelloRuntime } from './velloRuntime';
 
 export interface VelloPaintSceneSurface {
@@ -55,6 +55,7 @@ export class VelloPaintSceneBackend {
     scene: PaintScene,
     sceneKey = `${scene.sourceId}:${scene.sourceRevision}`
   ): VelloPaintSceneRenderMetrics {
+    assertPaintSceneIsValid(scene);
     const sceneCacheHit = this.runtime.bridge.render_paint_scene_texture(
       surface.texture,
       surface.width,

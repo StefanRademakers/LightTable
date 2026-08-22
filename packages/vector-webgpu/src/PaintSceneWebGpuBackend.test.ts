@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PaintScenePath } from '@lighttable/paint-scene';
-import { paintScenePathToVectorPath } from './PaintSceneWebGpuBackend';
+import { PaintSceneWebGpuBackend, paintScenePathToVectorPath } from './PaintSceneWebGpuBackend';
 
 const curvedClosedPath: PaintScenePath = {
   stableId: 'shape:path',
@@ -36,5 +36,23 @@ describe('paintScenePathToVectorPath', () => {
     expect(() => paintScenePathToVectorPath({
       stableId: 'bad', revisionKey: '1', commands: [{ kind: 'line', x: 1, y: 2 }]
     })).toThrow('starts without move');
+  });
+
+  it('does not silently render through an unsupported persistent clip stack', () => {
+    const backend = Object.create(PaintSceneWebGpuBackend.prototype) as PaintSceneWebGpuBackend;
+    expect(() => backend.encode({} as GPUCommandEncoder, {
+      schemaVersion: 3,
+      sourceId: 'clip',
+      sourceRevision: '1',
+      fragments: [{
+        stableId: 'clip-fragment', revisionKey: '1', paths: [{
+          stableId: 'clip', revisionKey: '1', commands: []
+        }],
+        commands: [
+          { kind: 'push-clip', pathId: 'clip', transform: [1, 0, 0, 1, 0, 0], fillRule: 'nonzero' },
+          { kind: 'pop-clip' }
+        ]
+      }]
+    }, {} as never)).toThrow('does not support persistent clip stacks');
   });
 });

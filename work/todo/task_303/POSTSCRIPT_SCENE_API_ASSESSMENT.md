@@ -196,3 +196,18 @@ for cross-rasterizer acceptance.
 This is enough evidence to continue with a selectable backend, not enough to
 make it default: real imported scenes, gradients/clips, mutation updates,
 device loss, disposal and packaged lifecycle remain required gates.
+
+## Clip-stack contract implemented
+
+PaintScene schema 3 adds ordered, fragment-local `push-clip` / `pop-clip`
+commands referencing revisioned paths. The shared validator rejects missing or
+duplicate paths, stack underflow and clips crossing cacheable fragment
+boundaries before a backend is called. The pinned Vello encoder maps these
+commands directly to `Scene::push_clip_layer` / `pop_layer` and independently
+validates stack balance inside WASM.
+
+The current WebGPU PaintScene consumer explicitly rejects persistent clips. Its
+stencil attachment is cleared and discarded for each fill/stroke draw, so
+pretending to support a clip stack would silently render wrong pixels. Product
+routing must remain capability-based until that backend gains a real retained
+clip implementation or clipped scenes are proven and routed to Vello.

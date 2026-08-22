@@ -50,5 +50,48 @@ describe('VelloPaintSceneBackend', () => {
     surface.dispose();
     expect(destroy).toHaveBeenCalledTimes(1);
   });
-});
 
+  it('passes a balanced clip stack to the native Vello encoder', () => {
+    const render = vi.fn(() => false);
+    const runtime = { bridge: {
+      render_paint_scene_texture: render,
+      scene_cache_entries: vi.fn(() => 1)
+    } } as unknown as VelloRuntime;
+    const backend = new VelloPaintSceneBackend({} as GPUDevice, runtime);
+    const clipped: PaintScene = {
+      schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
+      sourceId: 'clip', sourceRevision: '1',
+      fragments: [{
+        stableId: 'clipped', revisionKey: '1',
+        paths: [{ stableId: 'outline', revisionKey: '1', commands: [] }],
+        commands: [
+          { kind: 'push-clip', pathId: 'outline', transform: [1, 0, 0, 1, 0, 0], fillRule: 'evenodd' },
+          { kind: 'pop-clip' }
+        ]
+      }]
+    };
+    backend.render({
+      texture: {} as GPUTexture, width: 32, height: 32, estimatedBytes: 4096, dispose: vi.fn()
+    }, clipped);
+    expect(render).toHaveBeenCalledWith(
+      expect.anything(), 32, 32, 'clip:1', JSON.stringify(clipped)
+    );
+  });
+
+  it('rejects an unbalanced clip stack before crossing the WASM boundary', () => {
+    const render = vi.fn();
+    const runtime = { bridge: {
+      render_paint_scene_texture: render,
+      scene_cache_entries: vi.fn()
+    } } as unknown as VelloRuntime;
+    const backend = new VelloPaintSceneBackend({} as GPUDevice, runtime);
+    expect(() => backend.render({
+      texture: {} as GPUTexture, width: 32, height: 32, estimatedBytes: 4096, dispose: vi.fn()
+    }, {
+      schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
+      sourceId: 'bad', sourceRevision: '1',
+      fragments: [{ stableId: 'bad', revisionKey: '1', paths: [], commands: [{ kind: 'pop-clip' }] }]
+    })).toThrow('empty clip stack');
+    expect(render).not.toHaveBeenCalled();
+  });
+});

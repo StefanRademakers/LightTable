@@ -31,6 +31,14 @@ struct PaintScenePath {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 enum PaintSceneCommand {
+    PushClip {
+        #[serde(rename = "pathId")]
+        path_id: String,
+        transform: [f64; 6],
+        #[serde(rename = "fillRule")]
+        fill_rule: FillRule,
+    },
+    PopClip,
     FillPath {
         #[serde(rename = "pathId")]
         path_id: String,
@@ -260,6 +268,7 @@ fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
 
     let mut scene = vello::Scene::new();
     for fragment in value.fragments {
+        let mut clip_depth = 0usize;
         let paths: HashMap<String, vello::kurbo::BezPath> = fragment
             .paths
             .into_iter()
@@ -267,6 +276,28 @@ fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
             .collect();
         for command in fragment.commands {
             match command {
+                PaintSceneCommand::PushClip {
+                    path_id,
+                    transform,
+                    fill_rule,
+                } => {
+                    let path = paths
+                        .get(&path_id)
+                        .ok_or_else(|| format!("clip references missing path {path_id}"))?;
+                    let fill = match fill_rule {
+                        FillRule::Nonzero => Fill::NonZero,
+                        FillRule::Evenodd => Fill::EvenOdd,
+                    };
+                    scene.push_clip_layer(fill, Affine::new(transform), path);
+                    clip_depth += 1;
+                }
+                PaintSceneCommand::PopClip => {
+                    if clip_depth == 0 {
+                        return Err("paint scene pops an empty clip stack".into());
+                    }
+                    scene.pop_layer();
+                    clip_depth -= 1;
+                }
                 PaintSceneCommand::FillPath {
                     path_id,
                     transform,
@@ -338,8 +369,55 @@ fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
                 }
             }
         }
+        if clip_depth != 0 {
+            return Err("paint scene fragment leaves clip layers unclosed".into());
+        }
     }
     Ok(scene)
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod paint_scene_tests {
+    use super::*;
+
+    fn path() -> PaintScenePath {
+        PaintScenePath {
+            stable_id: "clip".into(),
+            commands: vec![
+                PaintScenePathCommand::Move { x: 0.0, y: 0.0 },
+                PaintScenePathCommand::Line { x: 10.0, y: 0.0 },
+                PaintScenePathCommand::Line { x: 10.0, y: 10.0 },
+                PaintScenePathCommand::Close,
+            ],
+        }
+    }
+
+    #[test]
+    fn accepts_balanced_clip_layers() {
+        let value = PaintScene { fragments: vec![PaintSceneFragment {
+            paths: vec![path()],
+            commands: vec![
+                PaintSceneCommand::PushClip {
+                    path_id: "clip".into(),
+                    transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                    fill_rule: FillRule::Nonzero,
+                },
+                PaintSceneCommand::PopClip,
+            ],
+        }] };
+        assert!(encode_paint_scene(value).is_ok());
+    }
+
+    #[test]
+    fn rejects_unbalanced_clip_layers() {
+        let value = PaintScene { fragments: vec![PaintSceneFragment {
+            paths: vec![], commands: vec![PaintSceneCommand::PopClip],
+        }] };
+        match encode_paint_scene(value) {
+            Err(message) => assert_eq!(message, "paint scene pops an empty clip stack"),
+            Ok(_) => panic!("unbalanced clip stack was accepted"),
+        }
+    }
 }
 
 #[derive(Default)]

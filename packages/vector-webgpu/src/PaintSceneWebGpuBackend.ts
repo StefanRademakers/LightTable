@@ -1,6 +1,8 @@
+import { assertPaintSceneIsValid } from '@lighttable/paint-scene';
 import type {
   PaintScene,
   PaintSceneCommand,
+  PaintSceneDrawCommand,
   PaintSceneFragment,
   PaintScenePath,
   PaintScenePathCommand
@@ -95,7 +97,7 @@ export const paintScenePathToVectorPath = (
 
 const commandPath = (
   geometry: VectorPath,
-  command: PaintSceneCommand
+  command: PaintSceneDrawCommand
 ): VectorPath => ({
   ...geometry,
   fillRule: command.kind === 'fill-path' ? command.fillRule : 'nonzero',
@@ -123,7 +125,7 @@ const commandPath = (
 });
 
 const commandPaint = (
-  paint: PaintSceneCommand['paint'],
+  paint: PaintSceneDrawCommand['paint'],
   stableId: string
 ): NonNullable<VectorPath['style']['fill']> => {
   if (paint.kind === 'solid') return { type: 'solid', color: paint.color };
@@ -216,6 +218,11 @@ export class PaintSceneWebGpuBackend {
     target: VectorFillTarget,
     requestedTolerance = 0.25
   ): PaintSceneWebGpuEncodeMetrics {
+    assertPaintSceneIsValid(scene);
+    if (scene.fragments.some(fragment => fragment.commands.some(command =>
+      command.kind === 'push-clip' || command.kind === 'pop-clip'))) {
+      throw new Error('The current WebGPU paint-scene backend does not support persistent clip stacks.');
+    }
     const tolerance = quantizeDocumentTolerance(requestedTolerance);
     let pathCount = 0;
     let commandCount = 0;
@@ -226,6 +233,7 @@ export class PaintSceneWebGpuBackend {
       pathCount += paths.size;
       for (const command of fragment.commands) {
         commandCount += 1;
+        if (command.kind === 'push-clip' || command.kind === 'pop-clip') continue;
         const cached = paths.get(command.pathId);
         if (!cached) throw new Error(
           `Paint-scene fragment ${fragment.stableId} references missing path ${command.pathId}.`

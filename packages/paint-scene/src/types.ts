@@ -3,7 +3,7 @@
  * experiments. This is derived data: source formats and LightTable documents
  * remain the serialization authority.
  */
-export const PAINT_SCENE_SCHEMA_VERSION = 2 as const;
+export const PAINT_SCENE_SCHEMA_VERSION = 3 as const;
 
 export type PaintSceneMatrix = readonly [number, number, number, number, number, number];
 /** Unpremultiplied linear-sRGB RGBA, matching LightTable's compositor space. */
@@ -63,7 +63,7 @@ interface PaintScenePathBase {
   readonly transform: PaintSceneMatrix;
 }
 
-export type PaintSceneCommand =
+export type PaintSceneDrawCommand =
   | (PaintScenePathBase & {
     readonly kind: 'fill-path';
     readonly fillRule: 'nonzero' | 'evenodd';
@@ -74,6 +74,13 @@ export type PaintSceneCommand =
     readonly paint: PaintScenePaint;
     readonly stroke: PaintSceneStroke;
   });
+
+export type PaintSceneCommand = PaintSceneDrawCommand
+  | (PaintScenePathBase & {
+    readonly kind: 'push-clip';
+    readonly fillRule: 'nonzero' | 'evenodd';
+  })
+  | { readonly kind: 'pop-clip' };
 
 /** A cacheable unit. revisionKey changes iff its rendered result changes. */
 export interface PaintSceneFragment {

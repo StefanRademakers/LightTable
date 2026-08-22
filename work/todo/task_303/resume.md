@@ -116,6 +116,11 @@ Baseline: `c71254b1`
 - The integrated packaged torture-SVG passes with 41 cached geometry entries,
   RMSE 31.95 / MAE 6.55 against the browser oracle, versus RMSE ~38 before
   normalization. Pan and zoom still execute zero document composites.
+- PaintScene schema 3 now expresses fragment-local persistent clip stacks.
+  Shared validation rejects missing paths and unbalanced/cross-fragment stacks;
+  Vello maps them to native clip layers and validates again inside WASM. The
+  current PaintScene backend fails explicitly because its per-draw stencil
+  lifecycle cannot preserve clips; it never silently renders unclipped pixels.
 
 ## Worktree ownership
 

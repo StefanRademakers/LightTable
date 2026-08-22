@@ -71,6 +71,9 @@ describe('compileVectorPaintScene', () => {
       transform: [2, 0, 0, 3, 4, 5],
       paint: { kind: 'gradient', shape: 'linear', transform: [20, 0, 0, 60, 4, 35] }
     });
+    if (!command || (command.kind !== 'fill-path' && command.kind !== 'stroke-path')) {
+      throw new Error('Expected paint command fixture.');
+    }
     if (command.paint.kind !== 'gradient') throw new Error('Expected gradient fixture.');
     expect(command.paint.stops).toHaveLength(256);
     expect(command.paint.stops[0].color).toEqual([0, 0, 0, 1]);

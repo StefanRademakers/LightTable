@@ -50,7 +50,9 @@ describe('Vello paint-scene projection', () => {
     const compiled = compileVelloVectorLayerScene(layer, translationMatrix(100, 200));
 
     expect(compiled.status).toBe('ready');
-    expect(compiled.scene.fragments[0].commands[0].transform).toEqual([
+    const command = compiled.scene.fragments[0].commands[0];
+    expect(command?.kind).toBe('fill-path');
+    expect(command && command.kind !== 'pop-clip' ? command.transform : null).toEqual([
       1, 0, 0, 1, 113, 224
     ]);
     expect(layer.transform).toEqual(translationMatrix(10, 20));
