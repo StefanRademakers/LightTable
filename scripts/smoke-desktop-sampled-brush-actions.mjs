@@ -5,7 +5,7 @@ import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
+const fixture = path.resolve(process.argv[2] ?? path.join(root, 'architecture', 'ui', '1.png'));
 const outputDirectory = path.join(root, 'tmp', 'sampled-brush-actions-smoke');
 await Promise.all([access(fixture), mkdir(outputDirectory, { recursive: true })]);
 const userData = await mkdtemp(path.join(outputDirectory, 'profile-'));
