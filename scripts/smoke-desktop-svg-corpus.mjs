@@ -19,6 +19,7 @@ const fileFilter = argument('file', '').toLowerCase();
 const profilePan = argument('profile-pan', 'false') === 'true';
 const profileZoom = argument('profile-zoom', 'false') === 'true';
 const profileOpen = argument('profile-open', 'false') === 'true';
+const profileMutation = argument('profile-mutation', 'false') === 'true';
 const entries = (await readdir(corpus, { withFileTypes: true }))
   .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.svg'))
   .filter((entry) => !fileFilter || entry.name.toLowerCase().includes(fileFilter))
@@ -199,6 +200,104 @@ const zoomEvidence = async (page, driver, documentId) => {
   };
 };
 
+const rendererMemoryEvidence = async (page, driver, documentId) => {
+  const document = await driver.queryDocument(documentId);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('HeapProfiler.enable');
+  await cdp.send('HeapProfiler.collectGarbage');
+  await cdp.send('Performance.enable');
+  const { metrics } = await cdp.send('Performance.getMetrics');
+  await cdp.detach();
+  const metric = (name) => metrics.find((entry) => entry.name === name)?.value ?? null;
+  const browserHeap = await page.evaluate(() => {
+    const memory = performance.memory;
+    return memory ? {
+      usedJsHeapBytes: memory.usedJSHeapSize,
+      totalJsHeapBytes: memory.totalJSHeapSize,
+      jsHeapLimitBytes: memory.jsHeapSizeLimit
+    } : null;
+  });
+  return {
+    estimatedGpuBytes: document?.renderer?.estimatedGpuBytes ?? null,
+    history: document?.history ? {
+      undoDepth: document.history.undoDepth,
+      redoDepth: document.history.redoDepth,
+      estimatedBytes: document.history.estimatedBytes
+    } : null,
+    browserHeap,
+    cdp: {
+      jsHeapUsedBytes: metric('JSHeapUsedSize'),
+      jsHeapTotalBytes: metric('JSHeapTotalSize'),
+      nodes: metric('Nodes'),
+      documents: metric('Documents')
+    }
+  };
+};
+
+const mutationEvidence = async (page, driver, documentId, originalPreviewBytes) => {
+  if (!profileMutation) return { available: false, reason: 'Mutation profiling disabled.' };
+  const layerProjection = await driver.queryLayers(documentId);
+  const layers = Array.isArray(layerProjection) ? layerProjection : layerProjection?.layers;
+  const layer = layers?.find((candidate) => candidate.type === 'vector');
+  if (!layer) return { available: false, reason: 'No vector layer available.' };
+  const vector = await driver.queryVector(documentId, layer.id);
+  const element = vector?.elements?.[0];
+  if (!element) return { available: false, reason: 'No editable vector element available.' };
+
+  const original = element.transform;
+  const before = await rendererMemoryEvidence(page, driver, documentId);
+  const samples = [];
+  const cdp = await startCpuProfile(page);
+  for (let index = 0; index < 6; index += 1) {
+    const transform = { ...original, tx: original.tx + (index % 2 === 0 ? 0.5 : 0) };
+    await driver.resetRenderTelemetry(documentId);
+    const startedAt = performance.now();
+    const command = await driver.execute(documentId, 'vector.update', {
+      layerId: layer.id,
+      elementId: element.id,
+      transform
+    });
+    const rendered = await driver.waitForRenderedDocument(documentId, 120_000);
+    samples.push({
+      index,
+      durationMs: Math.round(performance.now() - startedAt),
+      canonicalRevision: rendered.document.canonicalRevision,
+      commandStatus: command.status,
+      telemetry: rendered.telemetry
+    });
+  }
+  const cpuProfile = await stopCpuProfile(cdp);
+  const after = await rendererMemoryEvidence(page, driver, documentId);
+  const finalDocument = await driver.queryDocument(documentId);
+  const finalPreviewResult = await driver.requestDocumentPreview(
+    documentId, finalDocument.canonicalRevision, 1024
+  );
+  const finalArtifactId = finalPreviewResult?.artifact?.id ?? finalPreviewResult?.id;
+  const finalArtifact = finalArtifactId ? await driver.readArtifact(finalArtifactId) : null;
+  const restoredPreview = finalArtifact?.bytes?.length
+    ? await differenceEvidence(finalArtifact.bytes, originalPreviewBytes)
+    : { comparable: false, reason: 'Final mutation preview unavailable.' };
+  return {
+    available: true,
+    layerId: layer.id,
+    elementId: element.id,
+    iterations: samples.length,
+    before,
+    after,
+    delta: {
+      estimatedGpuBytes: after.estimatedGpuBytes === null || before.estimatedGpuBytes === null
+        ? null : after.estimatedGpuBytes - before.estimatedGpuBytes,
+      jsHeapUsedBytes: after.cdp.jsHeapUsedBytes === null || before.cdp.jsHeapUsedBytes === null
+        ? null : after.cdp.jsHeapUsedBytes - before.cdp.jsHeapUsedBytes,
+      nodes: after.cdp.nodes === null || before.cdp.nodes === null
+        ? null : after.cdp.nodes - before.cdp.nodes
+    },
+    restoredPreview,
+    samples,
+    cpuProfile
+  };
+};
+
 for (const [index, entry] of entries.entries()) {
   await access(entry.source);
   const slug = `${String(index + 1).padStart(2, '0')}-${entry.name.replace(/[^a-z0-9.-]+/giu, '-')}`;
@@ -271,6 +370,9 @@ for (const [index, entry] of entries.entries()) {
       differenceEvidence(artifact.bytes, referenceBytes));
     const pan = await measure('panEvidenceMs', () => panEvidence(page, driver, documentId));
     const zoom = await measure('zoomEvidenceMs', () => zoomEvidence(page, driver, documentId));
+    const mutation = await measure('mutationEvidenceMs', () => mutationEvidence(
+      page, driver, documentId, artifact.bytes
+    ));
     assert.ok(pixels.nonTransparentPixels > 0, `${entry.name} rendered a fully transparent preview.`);
     results.push({ file: entry.name, status: 'pass', durationMs: Math.round(performance.now() - startedAt),
       timings,
@@ -279,7 +381,8 @@ for (const [index, entry] of entries.entries()) {
         layerCount: rendered.document.layerCount, revision: rendered.document.canonicalRevision },
       renderer: { submittedFrames: rendered.telemetry.submittedFrames,
         compositeExecutions: rendered.telemetry.stages?.['document-composite']?.executions ?? 0 },
-      pixels, difference, pan, zoom, pageErrors, consoleErrors, previewPath, referencePath, screenshotPath });
+      pixels, difference, pan, zoom, mutation,
+      pageErrors, consoleErrors, previewPath, referencePath, screenshotPath });
   } catch (error) {
     const diagnostic = app && page ? await captureDesktopTestState({ app, page,
       outputDirectory: output, sourceFile: entry.source, pageErrors, label: `${slug}-failure`,
@@ -298,8 +401,22 @@ const report = { generatedAt: new Date().toISOString(), mode: launch.mode,
 const reportPath = path.join(output, 'report.json');
 await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 const failed = results.filter(({ status }) => status === 'fail');
+const mutationSummary = (mutation) => !mutation?.available ? mutation : ({
+  available: true,
+  iterations: mutation.iterations,
+  delta: mutation.delta,
+  restoredPreview: mutation.restoredPreview,
+  samples: mutation.samples.map((sample) => ({
+    durationMs: sample.durationMs,
+    documentComposite: sample.telemetry.stages?.['document-composite']
+  })),
+  cpuTop: mutation.cpuProfile?.slice(0, 10).map(({ functionName, selfMs, url, line }) => ({
+    functionName, selfMs, url, line
+  })) ?? null
+});
 console.log(JSON.stringify({ reportPath, files: results.length, failed: failed.length,
-  results: results.map(({ file, status, durationMs, timings, pixels, difference, pan, zoom }) => (
-    { file, status, durationMs, timings, pixels, difference, pan, zoom }
+  results: results.map(({ file, status, durationMs, timings, pixels, difference, pan, zoom, mutation }) => (
+    { file, status, durationMs, timings, pixels, difference, pan, zoom,
+      mutation: mutationSummary(mutation) }
   )) }, null, 2));
 if (failed.length) process.exitCode = 1;

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRasterLayer, deleteLayer } from '../../editor/document/documentCommands';
+import { createRasterLayer, createVectorLayer, deleteLayer,
+  replaceVectorPath } from '../../editor/document/documentCommands';
+import { createVectorPath } from '@lighttable/vector-core';
 import {
   createImageDocument,
   type ImageDocument
@@ -61,6 +63,26 @@ describe('document mutation controller', () => {
     state.controller.change((current) => deleteLayer(current, createdId!));
     expect(state.history[1].layerIds).toEqual([createdId]);
     expect(state.history[1].byteSize).toBe(32 * 24 * 8);
+  });
+
+  it('accounts canonical vector snapshots retained by history', () => {
+    const state = setup();
+    state.controller.change((current) => createVectorLayer(current, [createVectorPath('path')]));
+    const layerId = state.document?.activeLayerId;
+    const layer = state.document?.layers.find(({ id }) => id === layerId);
+    if (layer?.type !== 'vector') throw new Error('Expected vector layer.');
+    const path = layer.elements[0];
+    if (path?.type !== 'path') throw new Error('Expected vector path.');
+
+    state.controller.change((current) => replaceVectorPath(current, layer.id, {
+      ...path,
+      transform: { ...path.transform, tx: 4 },
+      transformRevision: path.transformRevision + 1
+    }));
+
+    expect(state.history[0].byteSize).toBeGreaterThan(0);
+    expect(state.history[1].byteSize).toBeGreaterThan(0);
+    expect(state.history[1].layerIds).toEqual([]);
   });
 
   it('coalesces repeated previews into one transaction', () => {

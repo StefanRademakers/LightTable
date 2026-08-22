@@ -315,8 +315,23 @@ const validatedVectorElements = (elements: readonly VectorElement[]) => {
       throw new Error(`Duplicate vector element id ${parsed.id}.`);
     }
     ids.add(parsed.id);
-    return cloneVectorElement(parsed);
+    return parsed;
   });
+};
+
+/**
+ * Canonical vector elements are immutable snapshots. A mutation may reuse all
+ * unchanged element references after the changed/untrusted element has crossed
+ * `parseVectorElement`; walking and cloning every path and anchor here turns a
+ * one-element edit into an O(total document geometry) allocation.
+ */
+const claimUniqueCanonicalVectorElements = (elements: readonly VectorElement[]) => {
+  const ids = new Set<string>();
+  for (const element of elements) {
+    if (ids.has(element.id)) throw new Error(`Duplicate vector element id ${element.id}.`);
+    ids.add(element.id);
+  }
+  return [...elements];
 };
 
 /** Inserts a native vector layer without allocating a raster backing store. */
@@ -425,7 +440,7 @@ const updateVectorLayerElements = (
   change: (layer: VectorLayer) => readonly VectorElement[]
 ) => updateLayer(document, layerId, (layer) => {
   if (layer.type !== 'vector') return layer;
-  const elements = validatedVectorElements(change(layer));
+  const elements = claimUniqueCanonicalVectorElements(change(layer));
   return {
     ...layer,
     elements,
@@ -438,17 +453,21 @@ export const replaceVectorLayerElements = (
   document: ImageDocument,
   layerId: LayerId,
   elements: readonly VectorElement[]
-) => updateVectorLayerElements(document, layerId, () => elements);
+) => {
+  const canonical = validatedVectorElements(elements);
+  return updateVectorLayerElements(document, layerId, () => canonical);
+};
 
 export const appendVectorElement = (
   document: ImageDocument,
   layerId: LayerId,
   element: VectorElement
 ) => updateVectorLayerElements(document, layerId, (layer) => {
-  if (layer.elements.some(({ id }) => id === element.id)) {
-    throw new Error(`Vector element ${element.id} already exists in layer ${layer.name}.`);
+  const canonical = parseVectorElement(element, 'Appended vector element');
+  if (layer.elements.some(({ id }) => id === canonical.id)) {
+    throw new Error(`Vector element ${canonical.id} already exists in layer ${layer.name}.`);
   }
-  return [...layer.elements, element];
+  return [...layer.elements, canonical];
 });
 
 export const replaceVectorElement = (
@@ -456,13 +475,14 @@ export const replaceVectorElement = (
   layerId: LayerId,
   element: VectorElement
 ) => updateVectorLayerElements(document, layerId, (layer) => {
-  const index = layer.elements.findIndex(({ id }) => id === element.id);
-  if (index < 0) throw new Error(`Unknown vector element ${element.id}.`);
-  if (layer.elements[index].type !== element.type) {
-    throw new Error(`Vector element ${element.id} cannot change type implicitly.`);
+  const canonical = parseVectorElement(element, 'Replacement vector element');
+  const index = layer.elements.findIndex(({ id }) => id === canonical.id);
+  if (index < 0) throw new Error(`Unknown vector element ${canonical.id}.`);
+  if (layer.elements[index].type !== canonical.type) {
+    throw new Error(`Vector element ${canonical.id} cannot change type implicitly.`);
   }
   const elements = [...layer.elements];
-  elements[index] = element;
+  elements[index] = canonical;
   return elements;
 });
 

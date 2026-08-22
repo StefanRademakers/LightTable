@@ -1,9 +1,11 @@
 import { useMemo, useRef } from 'react';
 import type {
   ImageDocument,
-  LayerId
+  LayerId,
+  VectorLayer
 } from '../../editor/document/documentTypes';
-import { walkRasterLayers } from '../../editor/document/layerTree';
+import type { VectorElement, VectorPaint } from '@lighttable/vector-core';
+import { walkLayerTree, walkRasterLayers } from '../../editor/document/layerTree';
 
 export interface DocumentMutationHistoryEntry {
   readonly layerIds?: readonly LayerId[];
@@ -73,6 +75,64 @@ const rasterResourceRetention = (
   return { layerIds, byteSize };
 };
 
+const stringBytes = (value: string) => value.length * 2;
+
+const vectorPaintBytes = (paint: VectorPaint | null): number => {
+  if (!paint) return 0;
+  if ('type' in paint) return 64;
+  return 256
+    + stringBytes(paint.asset.id)
+    + stringBytes(paint.asset.name)
+    + paint.asset.colorStops.reduce((bytes, stop) => bytes + 96 + stringBytes(stop.id), 0)
+    + paint.asset.opacityStops.reduce((bytes, stop) => bytes + 64 + stringBytes(stop.id), 0);
+};
+
+/** Approximate retained canonical JS data, excluding backend-derived resources. */
+const vectorElementBytes = (element: VectorElement | undefined): number => {
+  if (!element) return 0;
+  const styleBytes = 160
+    + vectorPaintBytes(element.style.fill)
+    + (element.style.stroke
+      ? 192 + vectorPaintBytes(element.style.stroke.paint) + element.style.stroke.dash.length * 8
+      : 0);
+  const common = 256 + stringBytes(element.id) + stringBytes(element.name) + styleBytes;
+  if (element.type === 'live-shape') return common + 256;
+  return common + element.subpaths.reduce((bytes, subpath) => (
+    bytes + 96 + stringBytes(subpath.id) + subpath.anchors.reduce(
+      (anchorBytes, anchor) => anchorBytes + 192 + stringBytes(anchor.id),
+      0
+    )
+  ), 0);
+};
+
+const vectorSnapshotRetentionBytes = (before: ImageDocument, after: ImageDocument): number => {
+  const vectors = (document: ImageDocument) => {
+    const entries: Array<readonly [LayerId, VectorLayer]> = [];
+    for (const { node } of walkLayerTree(document.layers)) {
+      if (node.type === 'vector') entries.push([node.id, node]);
+    }
+    return new Map(entries);
+  };
+  const beforeLayers = vectors(before);
+  const afterLayers = vectors(after);
+  let bytes = 0;
+  for (const layerId of new Set([...beforeLayers.keys(), ...afterLayers.keys()])) {
+    const previous = beforeLayers.get(layerId);
+    const next = afterLayers.get(layerId);
+    if (previous === next) continue;
+    const previousElements = new Map(previous?.elements.map((element) => [element.id, element]));
+    const nextElements = new Map(next?.elements.map((element) => [element.id, element]));
+    bytes += 256;
+    for (const elementId of new Set([...previousElements.keys(), ...nextElements.keys()])) {
+      const beforeElement = previousElements.get(elementId);
+      const afterElement = nextElements.get(elementId);
+      if (beforeElement === afterElement) continue;
+      bytes += Math.max(vectorElementBytes(beforeElement), vectorElementBytes(afterElement));
+    }
+  }
+  return bytes;
+};
+
 /**
  * Owns canonical document mutations and their reversible transaction boundary.
  *
@@ -104,9 +164,10 @@ export const createDocumentMutationController = (
     }
     const documentId = before.id;
     const retained = rasterResourceRetention(before, after);
+    const vectorBytes = vectorSnapshotRetentionBytes(before, after);
     resolveDependencies().pushHistoryEntry({
       layerIds: retained.layerIds,
-      byteSize: retained.byteSize,
+      byteSize: retained.byteSize + vectorBytes,
       undo: () => applyForDocument(documentId, before),
       redo: () => applyForDocument(documentId, after)
     });

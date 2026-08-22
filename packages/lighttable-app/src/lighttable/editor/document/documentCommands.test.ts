@@ -162,8 +162,10 @@ describe('LightTable document commands', () => {
 
     const second = createVectorPath('second', 'Second');
     const appended = appendVectorPath(withVector, vectorId, second);
+    const appendedLayer = findDocumentLayer(appended, vectorId);
     const replacement = { ...second, name: 'Renamed', styleRevision: 1 };
     const replaced = replaceVectorPath(appended, vectorId, replacement);
+    const replacedLayer = findDocumentLayer(replaced, vectorId);
     const deleted = deleteVectorPaths(replaced, vectorId, [first.id]);
     const result = findDocumentLayer(deleted, vectorId);
 
@@ -172,6 +174,10 @@ describe('LightTable document commands', () => {
     expect(result.elements).toHaveLength(1);
     expect(result.elements[0]?.name).toBe('Renamed');
     expect(result.elements[0]).not.toBe(replacement);
+    expect(appendedLayer?.type === 'vector' ? appendedLayer.elements[0] : null)
+      .toBe(vector.elements[0]);
+    expect(replacedLayer?.type === 'vector' ? replacedLayer.elements[0] : null)
+      .toBe(vector.elements[0]);
     expect(deleted.revision).toBe(withVector.revision + 3);
   });
 

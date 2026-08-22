@@ -38,6 +38,19 @@ Baseline: `c71254b1`
   texture on the Rust/wgpu-owned browser device, Rust wraps it, Vello renders a
   background and circle, and JavaScript reads both expected pixels byte-exact.
   This proves a zero-copy Vello resource boundary is technically available.
+- Heavy vector mutation no longer reparses and deep-clones every element in the
+  layer. Unchanged canonical elements are structurally shared while the changed
+  or untrusted element still crosses strict parsing. Across six packaged
+  VORTEXT transform mutations, forced-GC retained JS heap growth fell from
+  142,820,324 bytes to 1,441,392 bytes; GPU bytes remained unchanged. Restoring
+  the original transform produced an exact final preview (`RMSE 0`).
+- Vector history now reports approximate retained canonical bytes rather than
+  incorrectly reporting zero. The same six mutations report 10,872 retained
+  bytes across six undo entries.
+- Heavy VORTEXT mutation is still expensive: representative composites encode
+  in roughly 0.27-0.78 seconds. CPU evidence is led by many render-pass starts,
+  buffer writes, bind groups and geometry encoding. The Vello scene bake-off
+  must attack this remaining full-layer/backend submission cost.
 
 ## Worktree ownership
 
@@ -48,10 +61,11 @@ Baseline: `c71254b1`
 
 The PostScript-style API assessment is recorded in
 `POSTSCRIPT_SCENE_API_ASSESSMENT.md`. The bounded wgpu/Electron zero-copy
-prerequisite and actual Vello render pass. Next, profile mutation and renderer
-memory, and define only the minimum immutable
-scene slice shared by one SVG and one PDF page fixture. Evaluate CPU/GPU/worker
-choices against the improved native path.
+prerequisite and actual Vello render pass. Mutation and retained-memory evidence
+now identify full-layer backend submission as the dominant remaining vector edit
+cost. Next, define only the minimum immutable scene slice shared by one SVG and
+one PDF page fixture and bake it off against both backends. Evaluate
+CPU/GPU/worker choices against the improved native path.
 
 ## Next safe steps
 
