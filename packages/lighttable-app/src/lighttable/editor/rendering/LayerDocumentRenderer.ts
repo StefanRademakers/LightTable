@@ -46,8 +46,6 @@ import type {
   SampledBrushStrokePlan
 } from '../tools/paint/sampledBrushTypes';
 import { sampledBrushSourceDocument } from '../document/sampledBrushSourceDocument';
-import type { DocumentLayerResourceRepository } from './DocumentLayerResourceRepository';
-import type { DocumentPatternResourceRepository } from './DocumentPatternResourceRepository';
 
 const isolatedLayerTree = (
   nodes: readonly LayerNode[],
@@ -94,8 +92,8 @@ export class LayerDocumentRenderer {
     onDevelopmentTextFixtureChanged?: Parameters<typeof createLayerDocumentRendererRuntime>[2],
     onTextRenderPresentation?: (snapshot: TextRenderPresentationSnapshot) => void,
     onTextRenderError?: (message: string) => void,
-    documentLayerResources?: DocumentLayerResourceRepository,
-    documentPatternResources?: DocumentPatternResourceRepository
+    documentLayerResources?: Parameters<typeof createLayerDocumentRendererRuntime>[5],
+    documentPatternResources?: Parameters<typeof createLayerDocumentRendererRuntime>[6]
   ) {
     this.runtime = createLayerDocumentRendererRuntime(
       device,
