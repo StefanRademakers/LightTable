@@ -1,6 +1,6 @@
 import { DOMParser } from '@xmldom/xmldom';
 import { describe, expect, it, vi } from 'vitest';
-import { exportSvg } from './exportSvg';
+import { exportSvg, exportSvgScene } from './exportSvg';
 import { importSvg } from './importSvg';
 import { SvgCodecError } from './types';
 
@@ -333,12 +333,19 @@ describe('native SVG codec', () => {
     })).toThrow(/depth limit/u);
   });
 
-  it('skips group opacity that would change overlap compositing and keeps supported siblings', () => {
-    const plan = importSvg('<svg xmlns="http://www.w3.org/2000/svg"><g id="unsupported" opacity=".5"><rect width="10" height="10"/></g><circle id="visible" cx="5" cy="5" r="4"/></svg>');
-    expect(plan.elements.map(({ name }) => name)).toEqual(['visible']);
-    expect(plan.report.warnings).toContainEqual(expect.objectContaining({
-      code: 'ignored-group-opacity', element: 'unsupported'
+  it('preserves group opacity as an isolated scene node and round-trips it', () => {
+    const plan = importSvg('<svg xmlns="http://www.w3.org/2000/svg"><g id="faded" opacity=".5"><rect id="inside" width="10" height="10"/></g><circle id="visible" cx="5" cy="5" r="4"/></svg>');
+    expect(plan.elements.map(({ name }) => name)).toEqual(['inside', 'visible']);
+    expect(plan.nodes[0]).toMatchObject({
+      kind: 'group', name: 'faded', opacity: 0.5,
+      children: [{ kind: 'element', element: { name: 'inside' } }]
+    });
+    expect(plan.report.conversions).toContainEqual(expect.objectContaining({
+      code: 'preserved-group-opacity', element: 'faded'
     }));
+    const output = exportSvgScene(plan.nodes, { width: plan.width, height: plan.height });
+    expect(output).toContain('<g id="faded" opacity="0.5">');
+    expect(importSvg(output).nodes[0]).toMatchObject({ kind: 'group', opacity: 0.5 });
   });
 
   it('flattens an anchor container and explicitly discards navigation behavior', () => {

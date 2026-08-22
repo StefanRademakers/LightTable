@@ -7,6 +7,7 @@ import {
   createLayerId,
   layerIsLocked,
   type ImageDocument,
+  type GroupLayer,
   type AttachedAdjustment,
   type LayerId,
   type LayerLocks,
@@ -359,6 +360,57 @@ export const createVectorLayer = (
     document,
     insertLayerNode(document.layers, layer, parentId, insertionIndex),
     layer.id
+  );
+};
+
+export type VectorLayerTreeNode = GroupLayer | VectorLayer;
+
+/**
+ * Atomically inserts a trusted vector/group subtree prepared by an import
+ * adapter. The document command owns identity and vector validation so SVG,
+ * PDF and future AI/EPS adapters cannot bypass canonical invariants.
+ */
+export const insertVectorLayerTree = (
+  document: ImageDocument,
+  source: VectorLayerTreeNode,
+  aboveLayerId = document.activeLayerId ?? undefined
+): ImageDocument => {
+  const existingIds = new Set(walkLayerTree(document.layers).map(({ node }) => node.id));
+  const incomingIds = new Set<string>();
+  const prepare = (node: VectorLayerTreeNode): VectorLayerTreeNode => {
+    if (existingIds.has(node.id) || incomingIds.has(node.id)) {
+      throw new Error(`Duplicate imported layer id ${node.id}.`);
+    }
+    incomingIds.add(node.id);
+    if (!isFiniteAffineMatrix(node.transform)) {
+      throw new Error(`Imported layer ${node.id} has an invalid transform.`);
+    }
+    if (!Number.isFinite(node.opacity) || node.opacity < 0 || node.opacity > 1) {
+      throw new Error(`Imported layer ${node.id} has invalid opacity.`);
+    }
+    if (node.type === 'vector') {
+      return { ...node, elements: validatedVectorElements(node.elements) };
+    }
+    return {
+      ...node,
+      children: node.children.map((child) => {
+        if (child.type !== 'group' && child.type !== 'vector') {
+          throw new Error('A native vector import tree may contain only group and vector layers.');
+        }
+        return prepare(child);
+      })
+    };
+  };
+  const node = prepare(source);
+  const anchor = aboveLayerId ? findLayerNode(document.layers, aboveLayerId) : null;
+  const parentId = anchor?.parentId ?? null;
+  const insertionIndex = anchor
+    ? anchor.path[anchor.path.length - 1] + 1
+    : document.layers.length;
+  return updateDocument(
+    document,
+    insertLayerNode(document.layers, node, parentId, insertionIndex),
+    node.id
   );
 };
 

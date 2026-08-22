@@ -83,6 +83,45 @@ describe('SVG document codec owner', () => {
     expect(await file.text()).toContain('<ellipse');
   });
 
+  it('maps SVG group opacity to canonical isolated groups and exports it losslessly', async () => {
+    let document = createImageDocument('Opacity', 100, 100, 'source');
+    document.layers = [];
+    document.activeLayerId = null;
+    const imported = await executeSvgImport({
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><g id="faded" opacity=".4"><rect width="60" height="60" fill="#f00"/><rect x="30" y="30" width="60" height="60" fill="#00f"/></g></svg>',
+      placement: 'document', layerName: 'Grouped SVG'
+    }, {
+      getDocument: () => document,
+      applyDocument: (next) => { document = next; },
+      recordHistory: () => undefined,
+      normalizeSvgSource: keepSvgSource
+    });
+    expect(imported?.elementIds).toHaveLength(2);
+    expect(document.layers[0]).toMatchObject({
+      type: 'group', name: 'Grouped SVG', compositing: 'pass-through',
+      children: [{
+        type: 'group', name: 'faded', opacity: 0.4, compositing: 'isolated',
+        children: [{ type: 'vector', elements: [{}, {}] }]
+      }]
+    });
+
+    const exported = await exportSvgDocument(document, 'opacity.lighttable').text();
+    expect(exported).toContain('id="faded" opacity="0.4"');
+    let reopened = createImageDocument('Reopen', 100, 100, 'source');
+    reopened.layers = [];
+    reopened.activeLayerId = null;
+    await executeSvgImport({ svg: exported, placement: 'document' }, {
+      getDocument: () => reopened,
+      applyDocument: (next) => { reopened = next; },
+      recordHistory: () => undefined,
+      normalizeSvgSource: keepSvgSource
+    });
+    const outer = reopened.layers[0];
+    expect(outer?.type === 'group' ? outer.children[0] : null).toMatchObject({
+      type: 'group', name: 'faded', opacity: 0.4, compositing: 'isolated'
+    });
+  });
+
   it('preserves native vector semantics through save, reopen, export, and re-import', async () => {
     let document = createImageDocument('Round trip', 240, 120, 'source');
     document.layers = [];

@@ -8,7 +8,8 @@ import { finiteNumber, parseLength, parseNumberList } from './numbers';
 import { parseSvgPathData } from './pathData';
 import { parseSvgTransform } from './transform';
 import { DEFAULT_SVG_CODEC_LIMITS, SvgCodecError, type SvgCodecLimits,
-  type SvgConversionNotice, type SvgImportOptions, type SvgImportPlan, type SvgViewBox } from './types';
+  type SvgConversionNotice, type SvgImportOptions, type SvgImportPlan, type SvgSceneNode,
+  type SvgViewBox } from './types';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const DRAWABLES = new Set(['path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon']);
@@ -263,7 +264,8 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     : identityAffineMatrix();
   let id = 0; const createId = options.createId ?? ((kind) => `svg-${kind}-${++id}`);
   const warnings: SvgConversionNotice[] = []; const conversions: SvgConversionNotice[] = [];
-  const elements: VectorElement[] = []; let sourceElementCount = 0; let totalAnchors = 0;
+  const elements: VectorElement[] = []; const nodes: SvgSceneNode[] = [];
+  let sourceElementCount = 0; let totalAnchors = 0;
   const resources = new Map<string, XmlElement>();
   for (const resource of descendants) {
     const resourceId = resource.getAttribute('id')?.trim();
@@ -527,7 +529,13 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     return renderable;
   };
 
-  const visit = (element: XmlElement, parentStyle: StyleContext, parentTransform: AffineMatrix, depth: number) => {
+  const visit = (
+    element: XmlElement,
+    parentStyle: StyleContext,
+    parentTransform: AffineMatrix,
+    depth: number,
+    target: SvgSceneNode[]
+  ) => {
     if (depth > limits.maxDepth) throw new SvgCodecError('nesting-limit', 'SVG nesting exceeds the depth limit.');
     const tag = (element.localName || element.tagName).toLowerCase();
     sourceElementCount += 1;
@@ -555,11 +563,6 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     }
     if (!validateAttributes(element, tag)) return;
     const style = inheritedStyle(element, parentStyle);
-    if ((tag === 'svg' || tag === 'g' || tag === 'a') && style.opacity !== 1) {
-      warnings.push({ code: 'ignored-group-opacity', element: nameOf(element),
-        message: `Ignored <${tag}> because group opacity cannot be flattened without changing compositing.` });
-      return;
-    }
     const transform = multiplyMatrices(parentTransform, parseSvgTransform(element.getAttribute('transform')));
     if (tag === 'svg' || tag === 'g' || tag === 'a') {
       if ((tag === 'g' || tag === 'a') && element.getAttribute('transform')?.trim()) conversions.push({
@@ -570,7 +573,22 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
         code: 'flattened-link-container', element: nameOf(element),
         message: 'Flattened a non-interactive SVG link container into editable native elements.'
       });
-      for (const child of elementChildren(element)) visit(child, style.inherited, transform, depth + 1);
+      let childTarget = target;
+      if (style.opacity !== 1) {
+        const group: SvgSceneNode = {
+          kind: 'group', name: nameOf(element), opacity: style.opacity,
+          // Transforms remain flattened into leaf geometry for now. Keeping
+          // the compositing boundary is the semantic requirement for opacity.
+          transform: identityAffineMatrix(), children: []
+        };
+        target.push(group);
+        childTarget = group.children as SvgSceneNode[];
+        conversions.push({ code: 'preserved-group-opacity', element: nameOf(element),
+          message: `Preserved <${tag}> opacity as an isolated editable group.` });
+      }
+      for (const child of elementChildren(element)) {
+        visit(child, style.inherited, transform, depth + 1, childTarget);
+      }
       return;
     }
     if (elementChildren(element).length) throw new SvgCodecError('drawable-children', `<${tag}> cannot contain child elements in editable import.`);
@@ -672,6 +690,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
         strokeVector.style = { ...vectorStyle, fill: null };
         vector.style = { ...vectorStyle, stroke: null };
         elements.push(vector, strokeVector);
+        target.push({ kind: 'element', element: vector }, { kind: 'element', element: strokeVector });
         conversions.push({
           code: 'split-open-fill-and-stroke',
           element: elementName,
@@ -681,14 +700,23 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
       }
     }
     elements.push(vector);
+    target.push({ kind: 'element', element: vector });
   };
 
   const rootAttributesSupported = validateAttributes(root, 'svg');
   const rootStyle = rootAttributesSupported ? inheritedStyle(root, DEFAULT_STYLE)
     : { inherited: DEFAULT_STYLE, opacity: 1 };
-  if (rootStyle.opacity !== 1) throw new SvgCodecError('group-opacity', 'Root SVG opacity cannot be flattened safely.');
+  let rootTarget = nodes;
+  if (rootStyle.opacity !== 1) {
+    const group: SvgSceneNode = { kind: 'group', name: nameOf(root), opacity: rootStyle.opacity,
+      transform: identityAffineMatrix(), children: [] };
+    nodes.push(group); rootTarget = group.children as SvgSceneNode[];
+    conversions.push({ code: 'preserved-group-opacity', element: nameOf(root),
+      message: 'Preserved root SVG opacity as an isolated editable group.' });
+  }
   for (const child of elementChildren(root)) visit(child, rootStyle.inherited,
-    multiplyMatrices(baseTransform, parseSvgTransform(root.getAttribute('transform'))), 1);
+    multiplyMatrices(baseTransform, parseSvgTransform(root.getAttribute('transform'))), 1, rootTarget);
   if (!elements.length) throw new SvgCodecError('empty-svg', 'SVG contains no supported editable geometry.');
-  return { width, height, viewBox, elements, sourceElementCount, report: { warnings, conversions } };
+  return { width, height, viewBox, elements, nodes, sourceElementCount,
+    report: { warnings, conversions } };
 };

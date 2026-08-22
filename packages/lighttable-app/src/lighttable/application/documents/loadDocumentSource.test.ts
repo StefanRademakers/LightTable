@@ -145,6 +145,38 @@ describe('loadDocumentSource', () => {
     expect(renderer.setDocument).toHaveBeenCalledWith(result?.document);
   });
 
+  it('preserves SVG group opacity as an isolated canonical group during File Open', async () => {
+    const renderer = createRenderer();
+    const blob = new Blob([
+      '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180">' +
+      '<g id="faded" opacity="0.4"><rect id="card" width="80" height="40"/></g></svg>'
+    ], { type: 'image/svg+xml' });
+    const result = await loadDocumentSource({
+      renderer, blob, name: 'faded.svg', cacheKey: 'svg:opacity', decodeMode: 'fast',
+      initialAdjustments: createDefaultAdjustments(),
+      dependencies: {
+        probe: async () => ({ format: 'svg', codec: 'svg-native', decodeMode: 'fast', bitDepth: null }),
+        parseLayered: async () => null, normalizeSvgSource: keepSvgSource, now: () => 0
+      }
+    });
+
+    expect(result?.document.layers).toHaveLength(1);
+    expect(result?.document.layers[0]).toMatchObject({
+      type: 'group',
+      name: 'faded',
+      compositing: 'pass-through',
+      children: [{
+        type: 'group',
+        name: 'faded',
+        opacity: 0.4,
+        compositing: 'isolated',
+        children: [{ type: 'vector', elements: [{ name: 'card' }] }]
+      }]
+    });
+    expect(renderer.loadImage).not.toHaveBeenCalled();
+    expect(renderer.setDocument).toHaveBeenCalledWith(result?.document);
+  });
+
   it('uses an SVG viewBox as the native document surface when explicit dimensions are absent', async () => {
     const renderer = createRenderer();
     const blob = new Blob([

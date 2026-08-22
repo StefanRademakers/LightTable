@@ -1,7 +1,12 @@
-import { cloneVectorElement, multiplyMatrices, translationMatrix } from '@lighttable/vector-core';
-import { exportSvg, importSvg, type SvgConversionReport } from '@lighttable/vector-svg';
-import { createVectorLayer } from '../../editor/document/documentCommands';
-import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
+import { cloneVectorElement } from '@lighttable/vector-core';
+import {
+  exportSvgScene,
+  importSvg,
+  type SvgConversionReport,
+  type SvgSceneNode
+} from '@lighttable/vector-svg';
+import type { ImageDocument, LayerId, LayerNode } from '../../editor/document/documentTypes';
+import { materializeSvgImportPlan } from './materializeSvgImportPlan';
 import { SVG_IMPORT_CODEC_LIMITS } from './svgImportLimits';
 import { createSvgImportIdFactory } from './svgImportIds';
 import { normalizeEditableSvgSource } from './normalizeEditableSvgSource';
@@ -44,43 +49,61 @@ export const executeSvgImport = async (
     createId: createSvgImportIdFactory(),
     limits: SVG_IMPORT_CODEC_LIMITS
   });
-  const offset = translationMatrix(command.x ?? 0, command.y ?? 0);
-  const elements = plan.elements.map((source) => {
-    const element = cloneVectorElement(source);
-    element.transform = multiplyMatrices(offset, element.transform);
-    return element;
-  });
-  const after = createVectorLayer(before, elements, command.layerName?.trim() || 'Imported SVG');
-  const layerId = after.activeLayerId;
-  if (!layerId) return null;
-  dependencies.applyDocument(after);
-  dependencies.recordHistory(before, after);
-  return { layerId, elementIds: elements.map(({ id }) => id), width: plan.width,
-    height: plan.height, report: plan.report };
+  const materialized = materializeSvgImportPlan(
+    before,
+    plan,
+    command.layerName?.trim() || 'Imported SVG',
+    { x: command.x, y: command.y }
+  );
+  dependencies.applyDocument(materialized.document);
+  dependencies.recordHistory(before, materialized.document);
+  return {
+    layerId: materialized.layerId,
+    elementIds: materialized.elementIds,
+    width: plan.width,
+    height: plan.height,
+    report: plan.report
+  };
 };
 
-const exactSvgElements = (document: ImageDocument) => {
+const exactSvgScene = (document: ImageDocument) => {
   const visible = document.layers.filter(({ visible }) => visible);
   if (!visible.length) throw new Error('SVG export requires at least one visible vector layer.');
-  if (visible.some((layer) => layer.type !== 'vector')) {
-    throw new Error('SVG export supports documents whose visible content consists only of native vector layers.');
-  }
-  return visible.flatMap((layer) => {
-    if (layer.type !== 'vector') return [];
-    if (layer.opacity !== 1 || layer.fillOpacity !== 1 || layer.blendMode !== 'normal'
+  const convert = (layer: LayerNode): SvgSceneNode | null => {
+    if (!layer.visible) return null;
+    if (layer.fillOpacity !== 1 || layer.blendMode !== 'normal'
       || layer.clipping || layer.mask || layer.styleStack.effects.length) {
-      throw new Error(`Vector layer “${layer.name}” has layer semantics that Pass 1 SVG export cannot represent exactly.`);
+      throw new Error(
+        `Vector layer “${layer.name}” has semantics that SVG export cannot represent exactly.`
+      );
     }
-    return layer.elements.map((source) => {
-      const element = cloneVectorElement(source);
-      element.transform = multiplyMatrices(layer.transform, element.transform);
-      return element;
-    });
-  });
+    if (layer.type === 'group') {
+      const children = layer.children
+        .map(convert)
+        .filter((node): node is SvgSceneNode => Boolean(node));
+      return children.length ? {
+        kind: 'group', name: layer.name, opacity: layer.opacity,
+        transform: { ...layer.transform }, children
+      } : null;
+    }
+    if (layer.type !== 'vector') {
+      throw new Error(
+        'SVG export supports documents whose visible content consists only of native vector layers and groups.'
+      );
+    }
+    return {
+      kind: 'group', name: layer.name, opacity: layer.opacity,
+      transform: { ...layer.transform },
+      children: layer.elements.map(source => ({
+        kind: 'element' as const, element: cloneVectorElement(source)
+      }))
+    };
+  };
+  return visible.map(convert).filter((node): node is SvgSceneNode => Boolean(node));
 };
 
 export const exportSvgDocument = (document: ImageDocument, name: string) => {
-  const svg = exportSvg(exactSvgElements(document), {
+  const svg = exportSvgScene(exactSvgScene(document), {
     width: document.width, height: document.height, title: document.name
   });
   return new File([svg], `${name.replace(/\.[^.]+$/u, '') || 'LightTable'}.svg`, {

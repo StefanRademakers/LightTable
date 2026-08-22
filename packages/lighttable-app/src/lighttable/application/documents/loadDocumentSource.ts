@@ -11,11 +11,11 @@ import {
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import { setRasterLayerAdjustmentStack } from '../../editor/document/documentCommands';
-import { createVectorLayer } from '../../editor/document/documentCommands';
 import { importSvg, type SvgImportPlan } from '@lighttable/vector-svg';
 import { SVG_IMPORT_CODEC_LIMITS, SVG_IMPORT_MAX_BYTES } from '../vectors/svgImportLimits';
 import { createSvgImportIdFactory } from '../vectors/svgImportIds';
 import { normalizeEditableSvgSource } from '../vectors/normalizeEditableSvgSource';
+import { materializeSvgImportPlan } from '../vectors/materializeSvgImportPlan';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   parseLayeredDocumentFile,
@@ -270,7 +270,11 @@ export const loadDocumentSource = async (
   );
   if (svgPlan) {
     document = { ...document, layers: [], activeLayerId: null };
-    document = createVectorLayer(document, svgPlan.elements, request.name.replace(/\.[^.]+$/u, '') || 'Imported SVG');
+    document = materializeSvgImportPlan(
+      document,
+      svgPlan,
+      request.name.replace(/\.[^.]+$/u, '') || 'Imported SVG'
+    ).document;
   }
   if (request.creationSettings && !layered && !semanticPsd) {
     document = {

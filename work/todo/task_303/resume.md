@@ -155,6 +155,19 @@ Baseline: `c71254b1`
   fragment and one retained source on each of six edits (`133, 99, 93, 96, 93,
   90 ms`), zero estimated GPU growth and exact restored pixels (`RMSE 0`). This
   makes incremental behavior and lifecycle retention directly auditable.
+- SVG group opacity is no longer discarded. `@lighttable/vector-svg` preserves
+  the ordered opacity-group paint tree while retaining its flat compatibility
+  projection; the application adapter maps it atomically to existing canonical
+  `GroupLayer`/`VectorLayer` nodes. Opacity groups use isolated compositing,
+  remain editable and survive SVG export/re-import. File Open and semantic
+  import/MCP share the same materializer and document command validation.
+- A fresh packaged Vello four-file corpus passes after the hierarchy change.
+  VORTEXT still retains one native scene source, reaches first render in 3,178
+  ms, keeps browser-oracle RMSE 1.38 and performs zero document composites
+  during pan/zoom. The general vector render fixture uses three bounded scene
+  sources rather than expanding into per-element document layers. The current
+  backend package could not be refreshed because its `app.asar` was held open
+  by a running LightTable process; focused backend-neutral tests pass.
 
 ## Worktree ownership
 
@@ -167,16 +180,17 @@ The renderer-neutral package split, selectable Vello backend, zero-copy shared
 texture route, linear-premultiplied color contract and secure reusable SVG
 normalization boundary are proven. Normalization recovers `<use>`, CSS, units,
 markers and basic shapes while the editable codec remains document authority.
-The next semantic dependency is hierarchy: group and clip stacks must exist in
-the canonical document model and PaintScene projection before patterns, group
-opacity, masks or filters can be represented safely. Mutation and immediate
-source-release evidence now pass; broader repeated open/close, device-loss and
-memory distributions are still required before selecting production routing.
+The first hierarchy dependency, SVG opacity groups, now uses existing canonical
+document groups rather than establishing a second vector-tree authority. Clip
+stacks remain the next semantic dependency before patterns, masks or filters
+can be represented safely. Mutation and immediate source-release evidence now
+pass; broader repeated open/close, device-loss and memory distributions are
+still required before selecting production routing.
 
 ## Next safe steps
 
-1. Add canonical group/clip-stack semantics without flattening or document
-   mutation; compile them to explicit PaintScene push/pop operations.
+1. Add canonical clip-stack semantics without flattening or document mutation;
+   compile them to explicit PaintScene push/pop operations.
 2. Implement and compare clip layers in current WebGPU and Vello, including
    nested and object-bounds cases.
 3. Harden SVG save/reopen and corpus round trips for every newly admitted

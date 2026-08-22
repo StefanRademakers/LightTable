@@ -1,4 +1,4 @@
-import type { VectorElement } from '@lighttable/vector-core';
+import type { AffineMatrix, VectorElement } from '@lighttable/vector-core';
 
 export interface SvgCodecLimits {
   readonly maxInputBytes: number;
@@ -45,9 +45,21 @@ export interface SvgImportPlan {
   readonly height: number;
   readonly viewBox: SvgViewBox;
   readonly elements: readonly VectorElement[];
+  /** Ordered paint tree; `elements` remains its compatibility flat projection. */
+  readonly nodes: readonly SvgSceneNode[];
   readonly sourceElementCount: number;
   readonly report: SvgConversionReport;
 }
+
+export type SvgSceneNode =
+  | { readonly kind: 'element'; readonly element: VectorElement }
+  | {
+    readonly kind: 'group';
+    readonly name: string;
+    readonly opacity: number;
+    readonly transform: AffineMatrix;
+    readonly children: readonly SvgSceneNode[];
+  };
 
 export interface SvgImportOptions {
   readonly limits?: Partial<SvgCodecLimits>;
