@@ -38,6 +38,7 @@ import {
   LightTableCommandPortRegistry,
   LightTableCommandService
 } from '../lighttable/application/commands/lightTableCommandService';
+import { createDocumentSessionCommandPorts } from '../lighttable/application/commands/documentSessionCommandPorts';
 import type {
   LightTableRecoveryListing,
   LightTableRecoveryRecord
@@ -182,8 +183,20 @@ export function LightTableStandaloneApp({
     activateDocument
   } = useStandaloneDocumentWorkspace(host.systemFontProvider);
   const activeWorkspaceDocument = documents.find(({ active }) => active) ?? null;
-  const commandPorts = useMemo(() => new LightTableCommandPortRegistry(), []);
   const applicationEditorSession = useMemo(() => new EditorApplicationSession(), []);
+  const canonicalCommandPorts = useMemo(
+    () => new WeakMap<object, ReturnType<typeof createDocumentSessionCommandPorts>>(),
+    []
+  );
+  const commandPorts = useMemo(() => new LightTableCommandPortRegistry((documentId) => {
+    const session = controller.workspace.getDocument(documentId);
+    if (!session) return null;
+    const existing = canonicalCommandPorts.get(session);
+    if (existing) return existing;
+    const created = createDocumentSessionCommandPorts(session, applicationEditorSession);
+    canonicalCommandPorts.set(session, created);
+    return created;
+  }), [applicationEditorSession, canonicalCommandPorts, controller.workspace]);
   const applicationEditorTasks = useMemo(
     () => new DocumentTaskRegistry('application-editor' as DocumentSessionId),
     []

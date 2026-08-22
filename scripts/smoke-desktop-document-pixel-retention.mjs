@@ -121,6 +121,31 @@ try {
   const secondBaseline = await previewMetrics(secondId, 'png');
   const secondLayerIds = (await driver.queryLayers(secondId)).map((layer) => layer.id);
 
+  // A document-addressed semantic mutation must not use tab activation as its
+  // transport. Keep the second document visible while editing the first, then
+  // prove canonical state/revision/history changed only on the requested ID.
+  const inactiveTargetId = firstLayerIds.at(-1);
+  if (!inactiveTargetId) throw new Error('The first document has no editable layer.');
+  const inactiveBefore = await driver.queryDocument(firstId);
+  await driver.execute(firstId, 'layer.rename', {
+    layerId: inactiveTargetId,
+    name: 'Inactive document edit'
+  });
+  const inactiveAfter = await driver.queryDocument(firstId);
+  const workspaceAfterInactiveEdit = await driver.queryWorkspace();
+  const inactiveLayer = (await driver.queryLayers(firstId))
+    .find(({ id }) => id === inactiveTargetId);
+  if (workspaceAfterInactiveEdit.activeDocumentId !== secondId) {
+    throw new Error('Editing an inactive document changed the visible document.');
+  }
+  if (inactiveAfter.canonicalRevision !== inactiveBefore.canonicalRevision + 1
+    || inactiveAfter.history.undoDepth !== inactiveBefore.history.undoDepth + 1
+    || inactiveLayer?.name !== 'Inactive document edit') {
+    throw new Error(`Inactive document mutation was not canonical: ${JSON.stringify({
+      inactiveBefore, inactiveAfter, inactiveLayer
+    })}`);
+  }
+
   const firstTab = page.getByRole('tab', { name: new RegExp(path.basename(firstFile), 'i') });
   const secondTab = page.getByRole('tab', { name: new RegExp(path.basename(secondFile), 'i') });
   const photoWorkspace = page.getByRole('radio', { name: 'Switch to Photo edit workspace' });
@@ -162,6 +187,13 @@ try {
     launchMode: launch.mode,
     first: { file: firstFile, documentId: firstId, baseline: firstBaseline },
     second: { file: secondFile, documentId: secondId, baseline: secondBaseline },
+    inactiveCommand: {
+      targetDocumentId: firstId,
+      visibleDocumentId: workspaceAfterInactiveEdit.activeDocumentId,
+      layerId: inactiveTargetId,
+      canonicalRevision: inactiveAfter.canonicalRevision,
+      undoDepth: inactiveAfter.history.undoDepth
+    },
     cycles,
     pageErrors
   };

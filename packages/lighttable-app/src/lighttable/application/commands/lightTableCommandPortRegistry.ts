@@ -32,6 +32,12 @@ import type {
 export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   private readonly documents = new Map<DocumentSessionId, DocumentLightTableCommandPorts>();
 
+  constructor(
+    private readonly resolveCanonical?: (
+      documentId: DocumentSessionId
+    ) => DocumentLightTableCommandPorts | null
+  ) {}
+
   register(documentId: DocumentSessionId, ports: DocumentLightTableCommandPorts): () => void {
     this.documents.set(documentId, ports);
     return () => {
@@ -291,7 +297,16 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   }
 
   private resolve(documentId: DocumentSessionId): DocumentLightTableCommandPorts {
-    const ports = this.documents.get(documentId);
+    const mounted = this.documents.get(documentId);
+    const canonical = this.resolveCanonical?.(documentId) ?? null;
+    const ports = mounted && canonical
+      ? new Proxy(canonical, {
+          get: (target, property, receiver) => (
+            Reflect.get(mounted, property, mounted)
+            ?? Reflect.get(target, property, receiver)
+          )
+        })
+      : mounted ?? canonical;
     if (!ports) throw new Error('The target document command controller is not mounted.');
     return ports;
   }
