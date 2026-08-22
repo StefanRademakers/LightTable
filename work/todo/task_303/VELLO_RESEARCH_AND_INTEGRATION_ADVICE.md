@@ -1132,6 +1132,17 @@ Optimize for this:
 
 > **LightTable should own the document model, scene semantics, editing model and compositing architecture. Specialized renderers should be interchangeable implementation tools underneath that model.**
 
+## 2026-08-22 packaged SVG corpus update
+
+After secure `usvg` normalization, both packaged backends pass all four SVGs in
+`RandomFiles`. The decisive large-scene case is VORTEXT (7.2 MB, 26,492 cached
+geometry entries): current first-render is 3,089 ms with RMSE 6.36 and ~109 MB
+estimated GPU textures; Vello first-render is 2,545 ms with RMSE 1.38 and ~57 MB.
+Pan and zoom cause zero scene/document recomposites on both. Smaller scenes have
+mixed cold latency, including cases where Vello is about 0.3 s slower, so the
+remaining decision is a measured routing/startup/lifecycle policy rather than
+whether Vello is viable for complex production vectors.
+
 If our renderer is better for a task, keep it and improve it.
 
 If Vello is dramatically better for a task, use it.

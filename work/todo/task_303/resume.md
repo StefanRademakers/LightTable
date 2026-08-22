@@ -121,6 +121,14 @@ Baseline: `c71254b1`
   Vello maps them to native clip layers and validates again inside WASM. The
   current PaintScene backend fails explicitly because its per-draw stencil
   lifecycle cannot preserve clips; it never silently renders unclipped pixels.
+- A packaged four-file corpus run passes on both backends after normalization.
+  The 7.2 MB VORTEXT scene contains 26,492 geometry entries and reaches first
+  rendered state in 3,089 ms on current versus 2,545 ms on Vello. Vello also
+  reduces browser-oracle RMSE from 6.36 to 1.38 and estimated GPU texture bytes
+  from ~109 MB to ~57 MB. Smaller files show mixed first-render latency (Vello
+  can be roughly 0.3 s slower), so this supports complexity-aware/default-Vello
+  evaluation but is not yet enough to freeze routing policy. Both backends keep
+  pan/zoom near 60 fps with zero document recomposites.
 
 ## Worktree ownership
 
