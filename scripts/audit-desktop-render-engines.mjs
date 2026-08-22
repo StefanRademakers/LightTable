@@ -4,6 +4,10 @@ import path from 'node:path';
 import process from 'node:process';
 import { _electron as electron } from 'playwright-core';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import {
+  resolveDesktopTestLaunch,
+  waitForDesktopLauncher
+} from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
 const argument = (name, fallback = null) => {
@@ -14,18 +18,28 @@ const engine = argument('engine');
 const sourceFile = path.resolve(argument('file') ?? '');
 const iterations = Number.parseInt(argument('iterations', '8'), 10);
 const targetName = argument('layer-name');
+const expectedBackend = argument('expected-backend');
 const targetType = engine === 'vector' ? 'vector' : engine === 'text' ? 'text' : null;
 if (!['compositor', 'vector', 'text'].includes(engine) || !sourceFile) {
   throw new Error('Usage: audit-desktop-render-engines.mjs --engine <compositor|vector|text> --file <path> [--iterations 8] [--layer-name name]');
 }
 if (!Number.isInteger(iterations) || iterations < 3) throw new Error('Iterations must be at least 3.');
+if (expectedBackend && !['current', 'vello'].includes(expectedBackend)) {
+  throw new Error('--expected-backend must be current or vello.');
+}
 
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
-const outputDirectory = path.join(workspaceRoot, 'tmp', 'quality-audit', 'render-engines', engine);
+const launch = await resolveDesktopTestLaunch(workspaceRoot);
+const outputDirectory = path.resolve(argument(
+  'output', path.join(workspaceRoot, 'tmp', 'quality-audit', 'render-engines', engine)
+));
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);
 const reportPath = path.join(outputDirectory, 'report.json');
 const screenshotPath = path.join(outputDirectory, 'reference.png');
-await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
+await Promise.all([
+  access(sourceFile),
+  access(launch.executablePath),
+  mkdir(userDataPath, { recursive: true })
+]);
 
 const hash = (buffer) => createHash('sha256').update(buffer).digest('hex');
 const percentile = (values, fraction) => {
@@ -40,6 +54,9 @@ const summarize = (values) => ({
 });
 const parseRenderTelemetry = (text) => {
   const integer = (label) => Number(text.match(new RegExp(`${label}: (\\d+)`, 'i'))?.[1] ?? 0);
+  const vectorBackendMatch = text.match(
+    /Vector backend: selected (current|vello); active (current|vello|none)/iu
+  );
   const stages = {};
   for (const stage of [
     'document-composite', 'source-geometry', 'linear-spatial',
@@ -64,6 +81,10 @@ const parseRenderTelemetry = (text) => {
     correctionFrames: integer('Correction frames'),
     scopeAnalysisPasses: integer('Scope analysis passes'),
     scopeDisplayPasses: integer('Scope display passes'),
+    vectorBackend: vectorBackendMatch ? {
+      selected: vectorBackendMatch[1],
+      active: vectorBackendMatch[2]
+    } : null,
     stages
   };
 };
@@ -71,11 +92,13 @@ const parseRenderTelemetry = (text) => {
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
 const report = {
-  engine, sourceFile, iterations, targetName, cycles: [], pageErrors: [], consoleErrors: []
+  engine, sourceFile, iterations, targetName, expectedBackend,
+  mode: launch.mode, executablePath: launch.executablePath,
+  cycles: [], pageErrors: [], consoleErrors: []
 };
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(workspaceRoot, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspaceRoot,
   env: {
     ...launchEnvironment,
@@ -91,7 +114,15 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') report.consoleErrors.push(message.text());
   });
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const openButton = await waitForDesktopLauncher({
+    app,
+    page,
+    outputDirectory,
+    sourceFile,
+    pageErrors: report.pageErrors,
+    label: `render-${engine}`
+  });
+  await openButton.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 90_000 });
   const driver = await attachLightTableAutomation(page, `render-${engine}`);
@@ -188,6 +219,11 @@ try {
   }
   report.telemetry = await captureTelemetry();
   report.after = { ...(await memory()), ...(await driver.queryDocument(documentId))?.renderer };
+  if (expectedBackend && report.telemetry.parsed.vectorBackend?.selected !== expectedBackend) {
+    throw new Error(
+      `Expected vector backend ${expectedBackend}, observed ${report.telemetry.parsed.vectorBackend?.selected ?? 'unknown'}.`
+    );
+  }
   report.longTasks = await page.evaluate(() => globalThis.__lightTableEngineAudit.longTasks);
   report.runtimeStopped = /document runtime stopped unexpectedly/i.test(await page.locator('body').innerText());
   report.summary = {
