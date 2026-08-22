@@ -293,13 +293,32 @@ const createDefaultLayout = (
 const rebuildAccessoryLayout = (
   api: DockviewApi,
   panels: LightTableWorkspacePanelRegistration[],
+  basePanels: readonly LightTableWorkspacePanelRegistration[],
   widthConstraintsEnabled: boolean,
   preserveFloatingGroups: boolean
 ) => {
+  const preservedPanelIds = new Set<string>();
+  if (preserveFloatingGroups) {
+    const basePanelsById = new Map(basePanels.map((panel) => [panel.id, panel]));
+    api.groups.forEach((group) => {
+      if (group.api.location.type !== 'floating') return;
+      group.panels.forEach((panel) => {
+        const requested = panels.find((candidate) => candidate.id === panel.id);
+        const base = basePanelsById.get(panel.id);
+        if (
+          requested
+          && base
+          && requested.defaultPosition.referencePanelId === base.defaultPosition.referencePanelId
+          && requested.defaultPosition.direction === base.defaultPosition.direction
+        ) preservedPanelIds.add(panel.id);
+      });
+    });
+  }
+
   for (const panel of panels) {
     const existing = api.getPanel(panel.id);
     if (!existing) continue;
-    if (preserveFloatingGroups && existing.group.api.location.type === 'floating') continue;
+    if (preservedPanelIds.has(panel.id)) continue;
     api.removePanel(existing);
   }
 
@@ -324,6 +343,22 @@ const rebuildAccessoryLayout = (
   documentHost.group.header.hidden = true;
   documentHost.group.locked = false;
   applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
+};
+
+const activateWorkspacePresetPanels = (
+  api: DockviewApi,
+  preset: SelectableLightTableWorkspacePreset
+) => {
+  const activePanelIds = preset === 'grading'
+    ? [LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes, LIGHTTABLE_WORKSPACE_PANEL_IDS.properties]
+    : preset === 'ai-generation'
+      ? [
+          LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
+          LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
+          LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi
+        ]
+      : [LIGHTTABLE_WORKSPACE_PANEL_IDS.layers, LIGHTTABLE_WORKSPACE_PANEL_IDS.properties];
+  activePanelIds.forEach((panelId) => api.getPanel(panelId)?.api.setActive());
 };
 
 const isUsableSavedLayout = (
@@ -806,6 +841,7 @@ export const LightTableDockWorkspace = forwardRef<
     rebuildAccessoryLayout(
       api,
       panelsRef.current,
+      panelsRef.current,
       accessoryWidthConstraintsEnabled,
       false
     );
@@ -828,12 +864,15 @@ export const LightTableDockWorkspace = forwardRef<
     setDockColumns(EMPTY_DOCK_COLUMN_STATES);
     clearWorkspaceLayout(localStorage);
     try {
+      const presetPanels = panelsForWorkspacePreset(panelsRef.current, preset);
       rebuildAccessoryLayout(
         api,
-        panelsForWorkspacePreset(panelsRef.current, preset),
+        presetPanels,
+        panelsRef.current,
         accessoryWidthConstraintsEnabled,
         true
       );
+      activateWorkspacePresetPanels(api, preset);
       scheduleDockColumnRefresh(api);
       persistWorkspaceLayout(localStorage, api.toJSON(), preset);
     } finally {

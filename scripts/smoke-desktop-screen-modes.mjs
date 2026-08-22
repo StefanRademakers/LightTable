@@ -1,24 +1,25 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import {
   captureDesktopTestState,
+  resolveDesktopTestLaunch,
   waitForDesktopLauncher
 } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const sourceFile = 'generated-screen-mode-document';
 const output = path.join(root, 'tmp', 'screen-mode-smoke');
-const executablePath = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
 const reportPath = path.join(output, 'report.json');
 
-await Promise.all([access(executablePath), mkdir(output, { recursive: true })]);
+await mkdir(output, { recursive: true });
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
+const launch = await resolveDesktopTestLaunch(root);
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(root, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: root,
   env: {
     ...env,
@@ -67,6 +68,40 @@ try {
       cause: error
     });
   }
+
+  const workspaceInvariantSnapshot = () => page.evaluate(() => {
+    const driver = window.__lightTableAutomation;
+    const documentId = driver?.queryWorkspace()?.activeDocumentId;
+    const documentState = documentId ? driver?.queryDocument(documentId) : null;
+    const layersGroup = [...document.querySelectorAll('.dv-groupview')]
+      .find((group) => [...group.querySelectorAll('.dv-tab')]
+        .some((tab) => tab.textContent?.trim() === 'Layers'));
+    const bounds = layersGroup?.getBoundingClientRect();
+    return {
+      document: documentState ? {
+        id: documentState.id,
+        title: documentState.title,
+        canonicalRevision: documentState.canonicalRevision,
+        activeLayerId: documentState.activeLayerId,
+        layerCount: documentState.layerCount,
+        canvas: documentState.canvas,
+        history: documentState.history
+      } : null,
+      layersFrame: bounds ? {
+        x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height
+      } : null
+    };
+  });
+  const initialWorkspaceInvariant = await workspaceInvariantSnapshot();
+  const assertWorkspaceInvariant = async (label) => {
+    const current = await workspaceInvariantSnapshot();
+    if (JSON.stringify(current) !== JSON.stringify(initialWorkspaceInvariant)) {
+      throw new Error(`${label} changed document state or floating Layers geometry: ${JSON.stringify({
+        initial: initialWorkspaceInvariant,
+        current
+      })}`);
+    }
+  };
 
   await page.screenshot({ path: path.join(output, '01-normal.png') });
   const normalViewport = page.viewportSize();
@@ -132,6 +167,7 @@ try {
   ));
   await page.locator('.dv-active-tab').filter({ hasText: /^Scopes$/ }).waitFor({ state: 'visible' });
   await page.locator('.lighttable-document-host').waitFor({ state: 'visible' });
+  await assertWorkspaceInvariant('Grading workspace');
   const gradingGeometry = await page.evaluate(() => {
     const groupForActiveTab = (label) => [...document.querySelectorAll('.dv-groupview')]
       .find((group) => [...group.querySelectorAll('.dv-active-tab')]
@@ -172,6 +208,7 @@ try {
     '[aria-label="Switch to Gen AI workspace"][aria-checked="true"]'
   ));
   await page.locator('.dv-active-tab').filter({ hasText: /^GenAI$/ }).waitFor({ state: 'visible' });
+  await assertWorkspaceInvariant('Gen AI workspace');
   await page.screenshot({ path: path.join(output, '06-genai-workspace.png') });
 
   await photoWorkspace.click();
@@ -179,7 +216,20 @@ try {
     '[aria-label="Switch to Photo edit workspace"][aria-checked="true"]'
   ));
   await page.locator('.dv-active-tab').filter({ hasText: /^Properties$/ }).waitFor({ state: 'visible' });
+  await assertWorkspaceInvariant('Photo edit workspace');
   await page.screenshot({ path: path.join(output, '07-photo-edit-workspace.png') });
+
+  for (let cycle = 2; cycle <= 3; cycle += 1) {
+    await gradingWorkspace.click();
+    await page.locator('.dv-active-tab').filter({ hasText: /^Scopes$/ }).waitFor({ state: 'visible' });
+    await assertWorkspaceInvariant(`Grading workspace cycle ${cycle}`);
+    await genAiWorkspace.click();
+    await page.locator('.dv-active-tab').filter({ hasText: /^GenAI$/ }).waitFor({ state: 'visible' });
+    await assertWorkspaceInvariant(`Gen AI workspace cycle ${cycle}`);
+    await photoWorkspace.click();
+    await page.locator('.dv-active-tab').filter({ hasText: /^Properties$/ }).waitFor({ state: 'visible' });
+    await assertWorkspaceInvariant(`Photo edit workspace cycle ${cycle}`);
+  }
   if (pageErrors.length) throw new Error(`Renderer errors: ${JSON.stringify(pageErrors)}`);
 
   await writeFile(reportPath, `${JSON.stringify({
