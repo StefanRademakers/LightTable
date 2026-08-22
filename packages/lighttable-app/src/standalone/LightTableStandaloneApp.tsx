@@ -975,7 +975,9 @@ export function LightTableStandaloneApp({
                         id: record.recoveryId, title: record.sourceName || 'Recovered document',
                         subtitle: `Last edit ${new Date(record.updatedAt).toLocaleString()}`,
                         available: true, previewUrl: recoveryPreviews[record.recoveryId],
-                        loadPreview: () => previewRecovery(record), onOpen: () => void openRecovery(record)
+                        loadPreview: () => previewRecovery(record), onOpen: () => void openRecovery(record),
+                        removeLabel: `Discard recovery for ${record.sourceName || 'Recovered document'}`,
+                        onRemove: () => void resolveRecovery(record.recoveryId)
                       }))} /> : <p className="lighttable-launcher__empty">No recovery records.</p>}
                 </>
               )}

@@ -2,11 +2,11 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveDesktopTestLaunch } from './desktop-test-startup.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
-const desktopAppPath = path.join(workspaceRoot, 'apps', 'desktop');
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
-const sourceFile = path.resolve(process.argv[2] || 'D:\\TextTest.psd');
+const sourceFile = path.resolve(process.argv[2]
+  || path.join(workspaceRoot, 'architecture', 'ui', '1.png'));
 const runId = new Date().toISOString().replaceAll(/[:.]/g, '-');
 const outputDirectory = path.join(workspaceRoot, 'tmp', 'recovery-smoke', runId);
 const userDataPath = path.join(outputDirectory, 'user-data');
@@ -14,17 +14,18 @@ const savedFile = path.join(outputDirectory, 'TextTest-recovered-lighttable.png'
 const diagnostics = { sourceFile, outputDirectory, stages: [], pageErrors: [] };
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
+const desktopLaunch = await resolveDesktopTestLaunch(workspaceRoot, { requirePackaged: true });
 
 await Promise.all([
   access(sourceFile),
-  access(executablePath),
+  access(desktopLaunch.executablePath),
   mkdir(userDataPath, { recursive: true })
 ]);
 
 const launch = async (environment = {}) => {
   const app = await electron.launch({
-    executablePath,
-    args: [desktopAppPath],
+    executablePath: desktopLaunch.executablePath,
+    args: desktopLaunch.args,
     cwd: workspaceRoot,
     env: {
       ...launchEnvironment,
@@ -50,7 +51,7 @@ let second;
 let third;
 try {
   first = await launch({ LIGHTTABLE_AUTOMATION_OPEN_FILE: sourceFile });
-  await first.window.getByRole('button', { name: 'Open file' }).click();
+  await first.window.getByRole('button', { name: 'Open', exact: true }).click();
   await first.window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 45_000 });
   await first.window.getByRole('button', { name: 'Rectangle (U)' }).click();
@@ -71,19 +72,19 @@ try {
   first = null;
 
   second = await launch({ LIGHTTABLE_AUTOMATION_SAVE_FILE: savedFile });
-  const recoveryHeading = second.window.getByRole('heading', { name: 'Recoverable work' });
+  await second.window.getByRole('button', { name: /Recovery Records/ }).click();
+  const recoveryHeading = second.window.getByRole('heading', { name: 'Recovery Records' });
   await recoveryHeading.waitFor({ state: 'visible', timeout: 30_000 });
-  const openButton = second.window.getByRole('button', { name: 'Open recovered copy' });
-  const previewButton = second.window.getByRole('button', { name: 'Preview' });
-  const discardButton = second.window.getByRole('button', { name: 'Discard' });
-  for (const control of [openButton, previewButton, discardButton]) {
+  const openButton = second.window.locator('.lighttable-launcher-gallery__card')
+    .getByRole('button').first();
+  const discardButton = second.window.getByRole('button', { name: /Discard recovery for/ });
+  for (const control of [openButton, discardButton]) {
     if (!(await control.isEnabled()) || !(await control.evaluate((node) => node.tabIndex >= 0))) {
       throw new Error('A recovery action is not keyboard focusable.');
     }
   }
   await second.window.screenshot({ path: path.join(outputDirectory, '01-recovery-startup.png') });
-  await previewButton.click();
-  await second.window.locator('.lighttable-launcher__recovery-preview img')
+  await second.window.locator('.lighttable-launcher-gallery__preview img')
     .waitFor({ state: 'visible', timeout: 15_000 });
   await second.window.screenshot({ path: path.join(outputDirectory, '02-recovery-preview.png') });
   await openButton.click();
@@ -119,7 +120,7 @@ try {
   second = null;
 
   third = await launch({ LIGHTTABLE_AUTOMATION_OPEN_FILE: savedFile });
-  await third.window.getByRole('button', { name: 'Open file' }).click();
+  await third.window.getByRole('button', { name: 'Open', exact: true }).click();
   await third.window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 45_000 });
   const reopenedLayers = await layerProjection(third.window);

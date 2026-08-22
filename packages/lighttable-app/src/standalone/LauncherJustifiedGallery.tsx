@@ -13,7 +13,12 @@ export interface LauncherGalleryItem {
   readonly onOpen: () => void;
   readonly onReveal?: () => void;
   readonly onRemove?: () => void;
+  readonly removeLabel?: string;
 }
+
+export const launcherGalleryShowsRemoveAction = (item: LauncherGalleryItem): boolean => (
+  Boolean(item.onRemove) && (item.available === false || Boolean(item.removeLabel))
+);
 
 const GAP = 8;
 const INSET = 8;
@@ -82,8 +87,9 @@ const GalleryCard = ({ item, preview, opening, height, onPreview, onRatio, onCon
         {item.subtitle ? <small title={item.subtitle}>{item.subtitle}</small> : null}
       </span>
     </ButtonBase>
-    {!available && item.onRemove ? <ButtonBase className="lighttable-launcher-gallery__remove"
-      type="button" onClick={item.onRemove} aria-label={`Remove ${item.title}`}>×</ButtonBase> : null}
+    {launcherGalleryShowsRemoveAction(item) ? <ButtonBase
+      className="lighttable-launcher-gallery__remove" type="button" onClick={item.onRemove}
+      aria-label={item.removeLabel ?? `Remove ${item.title}`}>×</ButtonBase> : null}
   </article>;
 };
 
@@ -134,7 +140,8 @@ export const LauncherJustifiedGallery = ({ items, opening }: {
     { value: 'open', label: 'Open', disabled: menu.item.available === false, onClick: menu.item.onOpen },
     { value: 'reveal', label: 'Open File Location', disabled: menu.item.available === false || !menu.item.onReveal,
       onClick: menu.item.onReveal },
-    { value: 'remove', label: 'Remove from Recents', separatorBefore: true, disabled: !menu.item.onRemove,
+    { value: 'remove', label: menu.item.removeLabel ?? 'Remove from Recents', separatorBefore: true,
+      disabled: !menu.item.onRemove,
       onClick: menu.item.onRemove }
   ] : [];
 
@@ -152,7 +159,7 @@ export const LauncherJustifiedGallery = ({ items, opening }: {
           onRatio={(ratio) => setRatios((current) => Math.abs((current[item.id] ?? 0) - ratio) < 0.0001
             ? current : { ...current, [item.id]: ratio })}
           onContextMenu={(event) => {
-            if (!item.onReveal) return;
+            if (!item.onReveal && !item.onRemove) return;
             event.preventDefault();
             setMenu({ item, x: event.clientX, y: event.clientY });
           }} /></div>;
