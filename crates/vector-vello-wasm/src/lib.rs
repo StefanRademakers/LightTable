@@ -8,11 +8,14 @@ const MAX_CACHED_SCENES: usize = 64;
 const MAX_SCENE_JSON_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SCENE_KEY_BYTES: usize = 1024;
 const MAX_INCREMENTAL_SOURCES: usize = 64;
+const MAX_COMPOSITION_DEPTH: usize = 64;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PaintScene {
     fragments: Vec<PaintSceneFragment>,
+    clips: Vec<PaintSceneClip>,
+    composition: Vec<PaintSceneCompositionNode>,
 }
 
 #[derive(Deserialize)]
@@ -23,19 +26,38 @@ struct PaintSceneFragment {
     commands: Vec<PaintSceneCommand>,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PaintSceneFragmentRef {
+struct PaintSceneClip {
     stable_id: String,
+    path: PaintScenePath,
+    transform: [f64; 6],
+    fill_rule: FillRule,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+enum PaintSceneCompositionNode {
+    Fragment {
+        #[serde(rename = "stableId")]
+        stable_id: String,
+    },
+    Clip {
+        #[serde(rename = "stableId")]
+        stable_id: String,
+        children: Vec<PaintSceneCompositionNode>,
+    },
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PaintSceneUpdate {
     source_revision: String,
-    order: Option<Vec<PaintSceneFragmentRef>>,
+    composition: Option<Vec<PaintSceneCompositionNode>>,
     upserts: Vec<PaintSceneFragment>,
     removals: Vec<String>,
+    clip_upserts: Vec<PaintSceneClip>,
+    clip_removals: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -144,7 +166,7 @@ enum PaintScenePathCommand {
     Close,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum FillRule {
     Nonzero,
@@ -383,11 +405,137 @@ fn encode_paint_scene_fragment(fragment: PaintSceneFragment) -> Result<vello::Sc
     Ok(scene)
 }
 
-fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
-    let mut scene = vello::Scene::new();
-    for fragment in value.fragments {
-        scene.append(&encode_paint_scene_fragment(fragment)?, None);
+#[derive(Clone)]
+struct EncodedClip {
+    path: vello::kurbo::BezPath,
+    transform: [f64; 6],
+    fill_rule: FillRule,
+}
+
+fn encode_clip(clip: PaintSceneClip) -> EncodedClip {
+    EncodedClip {
+        path: bez_path(&clip.path.commands),
+        transform: clip.transform,
+        fill_rule: clip.fill_rule,
     }
+}
+
+fn append_composition(
+    target: &mut vello::Scene,
+    nodes: &[PaintSceneCompositionNode],
+    fragments: &HashMap<String, IncrementalFragment>,
+    clips: &HashMap<String, EncodedClip>,
+) -> Result<(), String> {
+    use vello::kurbo::Affine;
+    use vello::peniko::Fill;
+
+    for node in nodes {
+        match node {
+            PaintSceneCompositionNode::Fragment { stable_id } => {
+                let fragment = fragments.get(stable_id).ok_or_else(|| {
+                    format!("composition references missing fragment {stable_id}")
+                })?;
+                target.append(&fragment.scene, None);
+            }
+            PaintSceneCompositionNode::Clip {
+                stable_id,
+                children,
+            } => {
+                let clip = clips
+                    .get(stable_id)
+                    .ok_or_else(|| format!("composition references missing clip {stable_id}"))?;
+                let fill = match clip.fill_rule {
+                    FillRule::Nonzero => Fill::NonZero,
+                    FillRule::Evenodd => Fill::EvenOdd,
+                };
+                target.push_clip_layer(fill, Affine::new(clip.transform), &clip.path);
+                append_composition(target, children, fragments, clips)?;
+                target.pop_layer();
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_composition(
+    nodes: &[PaintSceneCompositionNode],
+    fragments: &HashMap<String, IncrementalFragment>,
+    clips: &HashMap<String, EncodedClip>,
+    referenced_fragments: &mut std::collections::HashSet<String>,
+    depth: usize,
+) -> Result<(), String> {
+    if depth > MAX_COMPOSITION_DEPTH {
+        return Err(format!(
+            "composition exceeds {MAX_COMPOSITION_DEPTH} levels"
+        ));
+    }
+    for node in nodes {
+        match node {
+            PaintSceneCompositionNode::Fragment { stable_id } => {
+                if !fragments.contains_key(stable_id) {
+                    return Err(format!(
+                        "composition references missing fragment {stable_id}"
+                    ));
+                }
+                if !referenced_fragments.insert(stable_id.clone()) {
+                    return Err(format!(
+                        "composition references fragment {stable_id} more than once"
+                    ));
+                }
+            }
+            PaintSceneCompositionNode::Clip {
+                stable_id,
+                children,
+            } => {
+                if !clips.contains_key(stable_id) {
+                    return Err(format!("composition references missing clip {stable_id}"));
+                }
+                if children.is_empty() {
+                    return Err(format!("composition clip {stable_id} has no children"));
+                }
+                validate_composition(children, fragments, clips, referenced_fragments, depth + 1)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_complete_composition(
+    nodes: &[PaintSceneCompositionNode],
+    fragments: &HashMap<String, IncrementalFragment>,
+    clips: &HashMap<String, EncodedClip>,
+) -> Result<(), String> {
+    let mut referenced_fragments = std::collections::HashSet::new();
+    validate_composition(nodes, fragments, clips, &mut referenced_fragments, 1)?;
+    if referenced_fragments.len() != fragments.len() {
+        return Err("composition omits one or more fragments".into());
+    }
+    Ok(())
+}
+
+fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
+    let mut fragments = HashMap::new();
+    for fragment in value.fragments {
+        let stable_id = fragment.stable_id.clone();
+        if fragments.contains_key(&stable_id) {
+            return Err(format!(
+                "paint scene contains duplicate fragment {stable_id}"
+            ));
+        }
+        let scene = encode_paint_scene_fragment(fragment)?;
+        fragments.insert(stable_id, IncrementalFragment { scene });
+    }
+    let mut clips = HashMap::new();
+    for clip in value.clips {
+        let stable_id = clip.stable_id.clone();
+        if clips.contains_key(&stable_id) {
+            return Err(format!("paint scene contains duplicate clip {stable_id}"));
+        }
+        clips.insert(stable_id, encode_clip(clip));
+    }
+    validate_complete_composition(&value.composition, &fragments, &clips)?;
+    let mut scene = vello::Scene::new();
+    append_composition(&mut scene, &value.composition, &fragments, &clips)?;
     Ok(scene)
 }
 
@@ -422,6 +570,10 @@ mod paint_scene_tests {
                     PaintSceneCommand::PopClip,
                 ],
             }],
+            clips: vec![],
+            composition: vec![PaintSceneCompositionNode::Fragment {
+                stable_id: "clipped".into(),
+            }],
         };
         assert!(encode_paint_scene(value).is_ok());
     }
@@ -433,6 +585,10 @@ mod paint_scene_tests {
                 stable_id: "invalid".into(),
                 paths: vec![],
                 commands: vec![PaintSceneCommand::PopClip],
+            }],
+            clips: vec![],
+            composition: vec![PaintSceneCompositionNode::Fragment {
+                stable_id: "invalid".into(),
             }],
         };
         match encode_paint_scene(value) {
@@ -455,8 +611,9 @@ struct IncrementalFragment {
 
 struct IncrementalScene {
     source_revision: String,
-    order: Vec<PaintSceneFragmentRef>,
+    composition: Vec<PaintSceneCompositionNode>,
     fragments: HashMap<String, IncrementalFragment>,
+    clips: HashMap<String, EncodedClip>,
     compiled: vello::Scene,
 }
 
@@ -729,81 +886,63 @@ impl VelloInteropDevice {
                 .map_err(|error| JsValue::from_str(&format!("paint scene fragment: {error}")))?;
             encoded_upserts.insert(stable_id, IncrementalFragment { scene });
         }
+        let mut encoded_clip_upserts = HashMap::new();
+        for clip in update.clip_upserts {
+            if encoded_clip_upserts.contains_key(&clip.stable_id) {
+                return Err(JsValue::from_str(
+                    "paint scene update contains duplicate clip upserts",
+                ));
+            }
+            let stable_id = clip.stable_id.clone();
+            encoded_clip_upserts.insert(stable_id, encode_clip(clip));
+        }
 
         let mut cache = self.incremental_scenes.borrow_mut();
         let existing = cache.entries.get(source_id);
-        let order = update
-            .order
+        let composition = update
+            .composition
             .clone()
-            .or_else(|| existing.map(|entry| entry.order.clone()))
-            .ok_or_else(|| {
-                JsValue::from_str("initial paint scene update requires fragment order")
-            })?;
-        let mut identities = std::collections::HashSet::new();
-        for item in &order {
-            if !identities.insert(item.stable_id.as_str()) {
-                return Err(JsValue::from_str(
-                    "paint scene order contains duplicate fragment ids",
-                ));
-            }
-            let available = encoded_upserts.contains_key(&item.stable_id)
-                || existing
-                    .map(|entry| entry.fragments.contains_key(&item.stable_id))
-                    .unwrap_or(false);
-            if !available {
-                return Err(JsValue::from_str(
-                    "paint scene order references a missing fragment",
-                ));
-            }
-        }
-        for removed in &update.removals {
-            if identities.contains(removed.as_str()) {
-                return Err(JsValue::from_str(
-                    "removed paint scene fragment remains in order",
-                ));
-            }
-        }
+            .or_else(|| existing.map(|entry| entry.composition.clone()))
+            .ok_or_else(|| JsValue::from_str("initial paint scene update requires composition"))?;
         let cache_hit = existing
             .map(|entry| entry.source_revision == update.source_revision)
             .unwrap_or(false)
             && encoded_upserts.is_empty()
+            && encoded_clip_upserts.is_empty()
             && update.removals.is_empty()
-            && update.order.is_none();
+            && update.clip_removals.is_empty()
+            && update.composition.is_none();
 
         if !cache_hit {
-            if let Some(entry) = cache.entries.get_mut(source_id) {
-                for removed in update.removals {
-                    entry.fragments.remove(&removed);
-                }
-                entry.fragments.extend(encoded_upserts);
-                entry.compiled.reset();
-                for item in &order {
-                    let fragment = entry.fragments.get(&item.stable_id).ok_or_else(|| {
-                        JsValue::from_str("paint scene fragment disappeared during assembly")
-                    })?;
-                    entry.compiled.append(&fragment.scene, None);
-                }
-                entry.source_revision = update.source_revision;
-                entry.order = order;
-            } else {
-                let fragments = encoded_upserts;
-                let mut compiled = vello::Scene::new();
-                for item in &order {
-                    let fragment = fragments.get(&item.stable_id).ok_or_else(|| {
-                        JsValue::from_str("paint scene fragment disappeared during assembly")
-                    })?;
-                    compiled.append(&fragment.scene, None);
-                }
-                cache.insert(
-                    source_id.to_owned(),
-                    IncrementalScene {
-                        source_revision: update.source_revision,
-                        order,
-                        fragments,
-                        compiled,
-                    },
-                );
+            let mut fragments = existing
+                .map(|entry| entry.fragments.clone())
+                .unwrap_or_default();
+            let mut clips = existing
+                .map(|entry| entry.clips.clone())
+                .unwrap_or_default();
+            for removed in update.removals {
+                fragments.remove(&removed);
             }
+            for removed in update.clip_removals {
+                clips.remove(&removed);
+            }
+            fragments.extend(encoded_upserts);
+            clips.extend(encoded_clip_upserts);
+            let mut compiled = vello::Scene::new();
+            validate_complete_composition(&composition, &fragments, &clips)
+                .map_err(|error| JsValue::from_str(&format!("paint scene composition: {error}")))?;
+            append_composition(&mut compiled, &composition, &fragments, &clips)
+                .map_err(|error| JsValue::from_str(&format!("paint scene composition: {error}")))?;
+            cache.insert(
+                source_id.to_owned(),
+                IncrementalScene {
+                    source_revision: update.source_revision,
+                    composition,
+                    fragments,
+                    clips,
+                    compiled,
+                },
+            );
         }
         let entry = cache
             .entries

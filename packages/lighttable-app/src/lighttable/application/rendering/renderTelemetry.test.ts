@@ -57,6 +57,7 @@ describe('RenderTelemetry', () => {
         velloSceneCacheHits: 1,
         velloSceneEntries: 2,
         velloUploadedFragments: 3,
+        velloUploadedClips: 1,
         velloUnsupportedLayerEncodes: 3,
         geometryCache: { entries: 1, bytes: 128, hits: 2, misses: 1, evictions: 0 }
       }

@@ -143,6 +143,8 @@ export const compilePdfPaintScene = (
     schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
     sourceId: page.sourceObjectId,
     sourceRevision: options.sourceRevision,
-    fragments
+    fragments,
+    clips: [],
+    composition: fragments.map(({ stableId }) => ({ kind: 'fragment' as const, stableId }))
   }, issues);
 };

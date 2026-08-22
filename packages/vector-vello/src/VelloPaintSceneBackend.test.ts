@@ -7,7 +7,9 @@ const scene: PaintScene = {
   schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
   sourceId: 'fixture',
   sourceRevision: '7',
-  fragments: []
+  fragments: [],
+  clips: [],
+  composition: []
 };
 
 describe('VelloPaintSceneBackend', () => {
@@ -26,10 +28,13 @@ describe('VelloPaintSceneBackend', () => {
     expect(backend.render({
       texture, width: 320, height: 180, estimatedBytes: 230_400,
       dispose: vi.fn()
-    }, scene)).toEqual({ sceneCacheHit: false, compiledSceneEntries: 3, uploadedFragments: 0 });
+    }, scene)).toEqual({
+      sceneCacheHit: false, compiledSceneEntries: 3, uploadedFragments: 0, uploadedClips: 0
+    });
     expect(render).toHaveBeenCalledWith(
       texture, 320, 180, 'fixture', JSON.stringify({
-        sourceRevision: '7', order: [], upserts: [], removals: []
+        sourceRevision: '7', composition: [], upserts: [], removals: [],
+        clipUpserts: [], clipRemovals: []
       })
     );
   });
@@ -70,15 +75,17 @@ describe('VelloPaintSceneBackend', () => {
           { kind: 'push-clip', pathId: 'outline', transform: [1, 0, 0, 1, 0, 0], fillRule: 'evenodd' },
           { kind: 'pop-clip' }
         ]
-      }]
+      }],
+      clips: [],
+      composition: [{ kind: 'fragment', stableId: 'clipped' }]
     };
     backend.render({
       texture: {} as GPUTexture, width: 32, height: 32, estimatedBytes: 4096, dispose: vi.fn()
     }, clipped);
     expect(render).toHaveBeenCalledWith(
       expect.anything(), 32, 32, 'clip', JSON.stringify({
-        sourceRevision: '1', order: [{ stableId: 'clipped' }],
-        upserts: clipped.fragments, removals: []
+        sourceRevision: '1', composition: clipped.composition,
+        upserts: clipped.fragments, removals: [], clipUpserts: [], clipRemovals: []
       })
     );
   });
@@ -95,7 +102,8 @@ describe('VelloPaintSceneBackend', () => {
     }, {
       schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
       sourceId: 'bad', sourceRevision: '1',
-      fragments: [{ stableId: 'bad', revisionKey: '1', paths: [], commands: [{ kind: 'pop-clip' }] }]
+      fragments: [{ stableId: 'bad', revisionKey: '1', paths: [], commands: [{ kind: 'pop-clip' }] }],
+      clips: [], composition: [{ kind: 'fragment', stableId: 'bad' }]
     })).toThrow('empty clip stack');
     expect(render).not.toHaveBeenCalled();
   });
@@ -114,7 +122,9 @@ describe('VelloPaintSceneBackend', () => {
       stableId: 'a', revisionKey: '1', paths: [], commands: []
     }, {
       stableId: 'b', revisionKey: '1', paths: [], commands: []
-    }] };
+    }], composition: [
+      { kind: 'fragment', stableId: 'a' }, { kind: 'fragment', stableId: 'b' }
+    ] };
     backend.render(surface, first);
     const changed: PaintScene = { ...first, sourceRevision: '8', fragments: [
       first.fragments[0], { ...first.fragments[1], revisionKey: '2' }
@@ -122,8 +132,45 @@ describe('VelloPaintSceneBackend', () => {
     expect(backend.render(surface, changed).uploadedFragments).toBe(1);
     const calls = render.mock.calls as unknown as string[][];
     expect(JSON.parse(calls[1][4])).toEqual({
-      sourceRevision: '8', upserts: [changed.fragments[1]], removals: []
+      sourceRevision: '8', upserts: [changed.fragments[1]], removals: [],
+      clipUpserts: [], clipRemovals: []
     });
+  });
+
+  it('uploads clip resources independently from unchanged child fragments', () => {
+    const render = vi.fn(() => false);
+    const runtime = { bridge: {
+      render_incremental_paint_scene_texture: render,
+      scene_cache_entries: vi.fn(() => 1)
+    } } as unknown as VelloRuntime;
+    const backend = new VelloPaintSceneBackend({} as GPUDevice, runtime);
+    const surface = {
+      texture: {} as GPUTexture, width: 32, height: 32, estimatedBytes: 4096, dispose: vi.fn()
+    };
+    const clipped: PaintScene = {
+      ...scene,
+      fragments: [{ stableId: 'child', revisionKey: '1', paths: [], commands: [] }],
+      clips: [{
+        stableId: 'mask', revisionKey: '1',
+        path: { stableId: 'mask:path', revisionKey: '1', commands: [] },
+        transform: [1, 0, 0, 1, 0, 0], fillRule: 'nonzero'
+      }],
+      composition: [{
+        kind: 'clip', stableId: 'mask', children: [{ kind: 'fragment', stableId: 'child' }]
+      }]
+    };
+    expect(backend.render(surface, clipped)).toMatchObject({
+      uploadedFragments: 1, uploadedClips: 1
+    });
+    const changed = {
+      ...clipped, sourceRevision: '8',
+      clips: [{ ...clipped.clips[0], revisionKey: '2', transform: [1, 0, 0, 1, 2, 0] as const }]
+    };
+    expect(backend.render(surface, changed)).toMatchObject({
+      uploadedFragments: 0, uploadedClips: 1
+    });
+    const calls = render.mock.calls as unknown as string[][];
+    expect(JSON.parse(calls[1][4])).toMatchObject({ upserts: [], clipUpserts: changed.clips });
   });
 
   it('releases native fragment state with its source lifecycle', () => {

@@ -3,7 +3,7 @@
  * experiments. This is derived data: source formats and LightTable documents
  * remain the serialization authority.
  */
-export const PAINT_SCENE_SCHEMA_VERSION = 3 as const;
+export const PAINT_SCENE_SCHEMA_VERSION = 4 as const;
 
 export type PaintSceneMatrix = readonly [number, number, number, number, number, number];
 /** Unpremultiplied linear-sRGB RGBA, matching LightTable's compositor space. */
@@ -97,11 +97,39 @@ export interface PaintScenePath {
   readonly commands: readonly PaintScenePathCommand[];
 }
 
+/**
+ * A cacheable clipping resource. Source-format coordinate systems and child
+ * transforms are resolved by the adapter before this renderer boundary.
+ * Compound contours live in `path`, so a clip remains one atomic mask.
+ */
+export interface PaintSceneClip {
+  readonly stableId: string;
+  readonly revisionKey: string;
+  readonly path: PaintScenePath;
+  readonly transform: PaintSceneMatrix;
+  readonly fillRule: 'nonzero' | 'evenodd';
+}
+
+/**
+ * Renderer-neutral scene composition. Leaves retain independent fragment
+ * revisions; clip nodes therefore do not force their descendants into one
+ * monolithic upload/cache entry.
+ */
+export type PaintSceneCompositionNode =
+  | { readonly kind: 'fragment'; readonly stableId: string }
+  | {
+    readonly kind: 'clip';
+    readonly stableId: string;
+    readonly children: readonly PaintSceneCompositionNode[];
+  };
+
 export interface PaintScene {
   readonly schemaVersion: typeof PAINT_SCENE_SCHEMA_VERSION;
   readonly sourceId: string;
   readonly sourceRevision: string;
   readonly fragments: readonly PaintSceneFragment[];
+  readonly clips: readonly PaintSceneClip[];
+  readonly composition: readonly PaintSceneCompositionNode[];
 }
 
 export type PaintSceneCapabilityFallback = 'current-backend' | 'rasterize' | 'preserve-only';

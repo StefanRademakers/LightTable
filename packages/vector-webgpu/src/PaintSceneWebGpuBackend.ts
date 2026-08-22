@@ -219,6 +219,9 @@ export class PaintSceneWebGpuBackend {
     requestedTolerance = 0.25
   ): PaintSceneWebGpuEncodeMetrics {
     assertPaintSceneIsValid(scene);
+    if (scene.composition.some(node => node.kind === 'clip')) {
+      throw new Error('The current WebGPU paint-scene backend does not support hierarchical clips.');
+    }
     if (scene.fragments.some(fragment => fragment.commands.some(command =>
       command.kind === 'push-clip' || command.kind === 'pop-clip'))) {
       throw new Error('The current WebGPU paint-scene backend does not support persistent clip stacks.');
@@ -228,7 +231,11 @@ export class PaintSceneWebGpuBackend {
     let commandCount = 0;
     let encodedDrawCount = 0;
 
-    for (const fragment of scene.fragments) {
+    const fragments = new Map(scene.fragments.map(fragment => [fragment.stableId, fragment]));
+    for (const node of scene.composition) {
+      if (node.kind !== 'fragment') continue;
+      const fragment = fragments.get(node.stableId);
+      if (!fragment) throw new Error(`Paint-scene composition references missing fragment ${node.stableId}.`);
       const paths = this.fragmentPaths(fragment, tolerance);
       pathCount += paths.size;
       for (const command of fragment.commands) {

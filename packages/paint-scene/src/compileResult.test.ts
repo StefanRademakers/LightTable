@@ -17,7 +17,9 @@ const scene = (commandCount: number): PaintScene => ({
       fillRule: 'nonzero' as const,
       paint: { kind: 'solid' as const, color: [0, 0, 0, 1] }
     }))
-  }]
+  }],
+  clips: [],
+  composition: [{ kind: 'fragment', stableId: 'item' }]
 });
 
 const issue: PaintSceneCapabilityIssue = {

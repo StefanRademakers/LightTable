@@ -180,6 +180,7 @@ export class VectorLayerRenderer {
   private velloSceneRenders = 0;
   private velloSceneCacheHits = 0;
   private velloUploadedFragments = 0;
+  private velloUploadedClips = 0;
   private velloUnsupportedLayerEncodes = 0;
 
   constructor(private readonly device: GPUDevice) {}
@@ -286,6 +287,7 @@ export class VectorLayerRenderer {
       velloSceneCacheHits: this.velloSceneCacheHits,
       velloSceneEntries: this.vello?.sceneEntries() ?? 0,
       velloUploadedFragments: this.velloUploadedFragments,
+      velloUploadedClips: this.velloUploadedClips,
       velloUnsupportedLayerEncodes: this.velloUnsupportedLayerEncodes,
       geometryCache: this.geometryCache.metrics()
     } as const;
@@ -297,6 +299,7 @@ export class VectorLayerRenderer {
     this.velloSceneRenders = 0;
     this.velloSceneCacheHits = 0;
     this.velloUploadedFragments = 0;
+    this.velloUploadedClips = 0;
     this.velloUnsupportedLayerEncodes = 0;
   }
 
@@ -370,6 +373,7 @@ export class VectorLayerRenderer {
         this.velloSceneRenders += 1;
         if (metrics.sceneCacheHit) this.velloSceneCacheHits += 1;
         this.velloUploadedFragments += metrics.uploadedFragments;
+        this.velloUploadedClips += metrics.uploadedClips;
         entry.renderedSceneKey = compiled.sceneKey;
       }
       return entry.surface.texture;

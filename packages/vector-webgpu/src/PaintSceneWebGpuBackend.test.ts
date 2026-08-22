@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PaintScenePath } from '@lighttable/paint-scene';
+import { PAINT_SCENE_SCHEMA_VERSION, type PaintScenePath } from '@lighttable/paint-scene';
 import { PaintSceneWebGpuBackend, paintScenePathToVectorPath } from './PaintSceneWebGpuBackend';
 
 const curvedClosedPath: PaintScenePath = {
@@ -41,7 +41,7 @@ describe('paintScenePathToVectorPath', () => {
   it('does not silently render through an unsupported persistent clip stack', () => {
     const backend = Object.create(PaintSceneWebGpuBackend.prototype) as PaintSceneWebGpuBackend;
     expect(() => backend.encode({} as GPUCommandEncoder, {
-      schemaVersion: 3,
+      schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
       sourceId: 'clip',
       sourceRevision: '1',
       fragments: [{
@@ -52,7 +52,26 @@ describe('paintScenePathToVectorPath', () => {
           { kind: 'push-clip', pathId: 'clip', transform: [1, 0, 0, 1, 0, 0], fillRule: 'nonzero' },
           { kind: 'pop-clip' }
         ]
-      }]
+      }],
+      clips: [],
+      composition: [{ kind: 'fragment', stableId: 'clip-fragment' }]
     }, {} as never)).toThrow('does not support persistent clip stacks');
+  });
+
+  it('does not flatten hierarchical clips into unclipped draw order', () => {
+    const backend = Object.create(PaintSceneWebGpuBackend.prototype) as PaintSceneWebGpuBackend;
+    expect(() => backend.encode({} as GPUCommandEncoder, {
+      schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
+      sourceId: 'group-clip', sourceRevision: '1',
+      fragments: [{ stableId: 'child', revisionKey: '1', paths: [], commands: [] }],
+      clips: [{
+        stableId: 'mask', revisionKey: '1',
+        path: { stableId: 'mask:path', revisionKey: '1', commands: [] },
+        transform: [1, 0, 0, 1, 0, 0], fillRule: 'nonzero'
+      }],
+      composition: [{
+        kind: 'clip', stableId: 'mask', children: [{ kind: 'fragment', stableId: 'child' }]
+      }]
+    }, {} as never)).toThrow('does not support hierarchical clips');
   });
 });

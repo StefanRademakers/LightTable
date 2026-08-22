@@ -252,6 +252,8 @@ export const compileVectorPaintScene = (
     schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
     sourceId: options.sourceId,
     sourceRevision: options.sourceRevision,
-    fragments
+    fragments,
+    clips: [],
+    composition: fragments.map(({ stableId }) => ({ kind: 'fragment' as const, stableId }))
   }, issues);
 };

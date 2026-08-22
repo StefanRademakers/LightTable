@@ -13,15 +13,14 @@ export interface VelloPaintSceneRenderMetrics {
   readonly sceneCacheHit: boolean;
   readonly compiledSceneEntries: number;
   readonly uploadedFragments: number;
+  readonly uploadedClips: number;
 }
 
 interface SyncedScene {
-  readonly revisions: ReadonlyMap<string, string>;
-  readonly order: readonly string[];
+  readonly fragmentRevisions: ReadonlyMap<string, string>;
+  readonly clipRevisions: ReadonlyMap<string, string>;
+  readonly composition: string;
 }
-
-const equalOrder = (left: readonly string[], right: readonly string[]) =>
-  left.length === right.length && left.every((value, index) => value === right[index]);
 
 /**
  * Thin zero-copy consumer for LightTable's shared immutable paint scene.
@@ -70,23 +69,32 @@ export class VelloPaintSceneBackend {
     }
     assertPaintSceneIsValid(scene);
     const previous = this.syncedScenes.get(sourceKey);
-    const revisions = new Map(scene.fragments.map(fragment => [
+    const fragmentRevisions = new Map(scene.fragments.map(fragment => [
       fragment.stableId, fragment.revisionKey
     ]));
-    const order = scene.fragments.map(fragment => fragment.stableId);
+    const clipRevisions = new Map(scene.clips.map(clip => [clip.stableId, clip.revisionKey]));
+    const composition = JSON.stringify(scene.composition);
     const upserts = scene.fragments.filter(fragment =>
-      previous?.revisions.get(fragment.stableId) !== fragment.revisionKey
+      previous?.fragmentRevisions.get(fragment.stableId) !== fragment.revisionKey
     );
     const removals = previous
-      ? [...previous.revisions.keys()].filter(stableId => !revisions.has(stableId))
+      ? [...previous.fragmentRevisions.keys()].filter(stableId => !fragmentRevisions.has(stableId))
+      : [];
+    const clipUpserts = scene.clips.filter(clip =>
+      previous?.clipRevisions.get(clip.stableId) !== clip.revisionKey
+    );
+    const clipRemovals = previous
+      ? [...previous.clipRevisions.keys()].filter(stableId => !clipRevisions.has(stableId))
       : [];
     const update = {
       sourceRevision: scene.sourceRevision,
-      order: !previous || !equalOrder(previous.order, order)
-        ? scene.fragments.map(({ stableId }) => ({ stableId }))
+      composition: !previous || previous.composition !== composition
+        ? scene.composition
         : undefined,
       upserts,
-      removals
+      removals,
+      clipUpserts,
+      clipRemovals
     };
     const sceneCacheHit = this.runtime.bridge.render_incremental_paint_scene_texture(
       surface.texture,
@@ -95,11 +103,12 @@ export class VelloPaintSceneBackend {
       sourceKey,
       JSON.stringify(update)
     );
-    this.syncedScenes.set(sourceKey, { revisions, order });
+    this.syncedScenes.set(sourceKey, { fragmentRevisions, clipRevisions, composition });
     return {
       sceneCacheHit,
       compiledSceneEntries: this.runtime.bridge.scene_cache_entries(),
-      uploadedFragments: upserts.length
+      uploadedFragments: upserts.length,
+      uploadedClips: clipUpserts.length
     };
   }
 

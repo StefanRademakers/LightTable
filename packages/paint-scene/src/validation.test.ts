@@ -9,7 +9,9 @@ const scene = (commands: PaintScene['fragments'][number]['commands']): PaintScen
     stableId: 'fragment', revisionKey: '1',
     paths: [{ stableId: 'clip', revisionKey: '1', commands: [] }],
     commands
-  }]
+  }],
+  clips: [],
+  composition: [{ kind: 'fragment', stableId: 'fragment' }]
 });
 
 describe('paint-scene validation', () => {
@@ -28,5 +30,31 @@ describe('paint-scene validation', () => {
       { kind: 'push-clip', pathId: 'clip', transform: [1, 0, 0, 1, 0, 0], fillRule: 'nonzero' }
     ]))).toThrow('unclosed');
   });
-});
 
+  it('validates hierarchical clip composition without duplicating fragments', () => {
+    const clipped: PaintScene = {
+      ...scene([]),
+      clips: [{
+        stableId: 'group-mask', revisionKey: '1',
+        path: { stableId: 'mask-path', revisionKey: '1', commands: [] },
+        transform: [1, 0, 0, 1, 0, 0], fillRule: 'nonzero'
+      }],
+      composition: [{
+        kind: 'clip', stableId: 'group-mask',
+        children: [{ kind: 'fragment', stableId: 'fragment' }]
+      }]
+    };
+    expect(() => assertPaintSceneIsValid(clipped)).not.toThrow();
+    expect(() => assertPaintSceneIsValid({
+      ...clipped,
+      composition: [
+        { kind: 'fragment', stableId: 'fragment' },
+        { kind: 'fragment', stableId: 'fragment' }
+      ]
+    })).toThrow('more than once');
+    expect(() => assertPaintSceneIsValid({
+      ...clipped,
+      composition: [{ kind: 'clip', stableId: 'missing', children: clipped.composition }]
+    })).toThrow('missing clip');
+  });
+});
