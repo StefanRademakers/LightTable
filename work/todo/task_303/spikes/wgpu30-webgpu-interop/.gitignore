@@ -1,4 +1,5 @@
 /pkg/
 /probe-result.json
+/bakeoff-dist/
+/bakeoff-report*.json
 /target/
-

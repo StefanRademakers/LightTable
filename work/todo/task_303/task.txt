@@ -41,11 +41,11 @@ remain explicit at each importer/exporter boundary.
 
 - [x] Production-packaged pathological zoom/pan baseline with correctness
       images; representative corpus and mutation coverage continue below.
-- [ ] Profile-ranked improvements to the current LightTable vector backend
-      (first cache/zoom invalidation win proven; cold-open work remains).
-- [ ] Minimal renderer-neutral compiled-scene contract where measurements
+- [x] Profile-ranked improvements to the current LightTable vector backend,
+      including cold-open traversal, cache/zoom invalidation and mutation reuse.
+- [x] Minimal renderer-neutral compiled-scene contract where measurements
       justify it, with current backend parity and no interaction regression.
-- [ ] Vello Electron/WASM zero-copy interoperability verdict.
+- [x] Vello Electron/WASM zero-copy interoperability verdict.
 - [ ] If interoperability succeeds, meaningful selectable Vello backend and
       bake-off; otherwise a documented evidence-backed architecture decision.
 - [ ] SVG plus future AI/EPS/PDF compatibility consequences documented and

@@ -34,3 +34,22 @@ shape and has Rust/Vello decode and render that exact command stream. The next
 proof is compiling representative native-vector/PDF fixtures and measuring the
 same scene in both backends for pixels, cold render, mutation, pan/zoom, memory,
 binary size and round-trip behavior.
+
+## Shared-backend bake-off
+
+The production TypeScript packages include a current-WebGPU consumer for the
+same paint-scene contract. Build the WASM module as above, then run the bounded
+Electron comparison:
+
+```powershell
+npx vite build --config vite.bakeoff.config.ts
+node run-bakeoff.mjs 5
+```
+
+`BACKEND_BAKEOFF_EVIDENCE.json` records full-texture correctness, five fresh
+process cold/warm distributions, phase working-set snapshots and WASM size.
+The Vello reference patch also changes the final storage write to premultiplied
+RGBA because LightTable's compositing contract is premultiplied; upstream Vello
+0.10 deliberately writes straight alpha. Without that explicit adaptation,
+semi-transparent pixels are representation-incompatible despite correct shape
+coverage.

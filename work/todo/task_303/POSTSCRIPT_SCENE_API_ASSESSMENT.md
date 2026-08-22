@@ -170,3 +170,29 @@ and renders it through Vello into the shared JavaScript-owned texture. Both the
 transparent background and solid interior samples are byte-exact. This closes
 the API/serialization interop prerequisite; performance and feature parity are
 still open gates.
+
+## First shared-scene bake-off
+
+The current LT WebGPU backend now consumes the same scene through a dedicated
+adapter while retaining its existing stencil/fill/stroke implementation. Five
+fresh Electron processes rendered 256 cubic paths with 512 fill/stroke commands
+on the same device:
+
+| Metric (p50) | Current LT | Vello 0.10 |
+| --- | ---: | ---: |
+| Cold call + GPU completion | 55.1 ms | 43.0 ms |
+| Warm call + GPU completion | 18.9 ms | 4.8 ms |
+| GPU-process working-set delta | 28,488 KiB | 10,164 KiB incremental |
+| Tab-process working-set delta | 22,932 KiB | 5,080 KiB incremental |
+
+The Vello WASM is 1,960,473 bytes raw and 531,698 bytes gzip. Upstream Vello
+0.10 stores straight-alpha output; LightTable intermediates are premultiplied.
+The reproducible integration patch writes Vello's already-premultiplied `fg`
+value directly, avoiding an extra conversion pass. Focused RMSE is 1.03 for
+opaque fill, 0.51 for alpha fill and 2.11 for fill plus stroke. Remaining edge
+differences are antialiasing coverage, so exact byte equality is inappropriate
+for cross-rasterizer acceptance.
+
+This is enough evidence to continue with a selectable backend, not enough to
+make it default: real imported scenes, gradients/clips, mutation updates,
+device loss, disposal and packaged lifecycle remain required gates.

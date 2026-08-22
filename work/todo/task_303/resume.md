@@ -69,6 +69,23 @@ Baseline: `c71254b1`
   texture. Transparent and filled sample pixels both pass byte-exact. Vello is
   therefore proven against the intended backend contract, not only a hardcoded
   Rust scene.
+- `@lighttable/vector-webgpu` now has a current-backend consumer for that exact
+  scene. It reconstructs exact cubic authority once per path revision, caches
+  path plus realization, and retains the existing LT stencil/fill/stroke engine.
+- Five fresh Electron-process bake-offs compare 256 cubic paths and 512
+  fill/stroke commands on the same device and target dimensions. Final p50
+  totals: current cold 55.1 ms / warm 18.9 ms; Vello cold 43.0 ms / warm 4.8 ms.
+  Vello's 1.96 MB WASM payload compresses to 531,698 bytes.
+- Vello 0.10 writes straight-alpha output, while LT requires premultiplied
+  intermediate textures. The reproducible reference patch changes the final
+  storage write without an extra pass. With it, opaque fill RMSE is 1.03,
+  alpha-fill RMSE 0.51, and fill+stroke RMSE 2.11 on the focused parity cases.
+  The dense scene RMSE is 8.06; remaining differences are AA/stroke-edge
+  coverage and require product acceptance thresholds rather than exact pixels.
+- Lazy backend memory evidence: current rendering adds p50 ~28,488 KiB to the
+  GPU process and ~22,932 KiB to the tab process; initializing/rendering Vello
+  adds ~10,164 KiB GPU and ~5,080 KiB tab after that. These are process working
+  set deltas, not exact GPU allocation accounting.
 
 ## Worktree ownership
 
@@ -82,10 +99,11 @@ The PostScript-style API assessment is recorded in
 prerequisite and actual Vello render pass. Mutation and retained-memory evidence
 now identify full-layer backend submission as the dominant remaining vector edit
 cost. The minimum immutable scene slice shared by native vector and PDF path
-fixtures now exists and passes its focused suites. Vello now consumes that
-serialized contract. Next, feed the exact same scene into a current-backend
-encoder, then measure pixels, cold render, mutation, memory and binary cost. Evaluate
-CPU/GPU/worker choices against the improved native path.
+fixtures now exists and passes its focused suites. Both the current backend and
+Vello consume it, and the first bounded bake-off passes its correctness gate.
+Next, make Vello selectable only in dev/product diagnostics, exercise real
+imported scenes and mutation/lifecycle behavior, and extend supported paint
+features only where parity evidence passes.
 
 ## Next safe steps
 

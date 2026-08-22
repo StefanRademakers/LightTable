@@ -37,3 +37,14 @@ index a11fbb57..6c3e1b7f 100644
              view_formats: vec![],
          };
          let (target_texture, target_view) = create_targets(width, height, &device_handle.device);
+diff --git a/vello_shaders/shader/fine.wgsl b/vello_shaders/shader/fine.wgsl
+index 55f615de..6ecab87f 100644
+--- a/vello_shaders/shader/fine.wgsl
++++ b/vello_shaders/shader/fine.wgsl
+@@ -1392,5 +1392,5 @@ fn main(
+             // Max with a small epsilon to avoid NaNs
+             let a_inv = 1.0 / max(fg.a, 1e-6);
+             let rgba_sep = vec4(fg.rgb * a_inv, fg.a);
+-            textureStore(output, vec2<i32>(coords), rgba_sep);
++            textureStore(output, vec2<i32>(coords), fg);
+         }

@@ -1,0 +1,1216 @@
+{
+  "generatedAt": "2026-08-22T11:38:19.806Z",
+  "repetitions": 5,
+  "scene": {
+    "fragments": 256,
+    "paths": 256,
+    "commands": 512,
+    "serializedBytes": 258587,
+    "serializeMs": 0.5
+  },
+  "correctness": [
+    {
+      "pixels": {
+        "rmse": 8.057546113888607,
+        "changedChannelRatio": 0.08782958984375,
+        "alphaOccupancyMismatchRatio": 0.01171875
+      },
+      "parityCases": {
+        "opaqueFill": {
+          "difference": {
+            "rmse": 1.0269203619013014,
+            "changedChannelRatio": 0.0029449462890625,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "alphaFill": {
+          "difference": {
+            "rmse": 0.510793533807631,
+            "changedChannelRatio": 0.00225830078125,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              15,
+              19,
+              102,
+              127
+            ],
+            "vello": [
+              15,
+              19,
+              102,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "opaqueFillStroke": {
+          "difference": {
+            "rmse": 2.112143726891443,
+            "changedChannelRatio": 0.0053558349609375,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              181,
+              163,
+              19,
+              191
+            ],
+            "vello": [
+              157,
+              141,
+              17,
+              166
+            ]
+          }
+        }
+      }
+    },
+    {
+      "pixels": {
+        "rmse": 8.057546113888607,
+        "changedChannelRatio": 0.08782958984375,
+        "alphaOccupancyMismatchRatio": 0.01171875
+      },
+      "parityCases": {
+        "opaqueFill": {
+          "difference": {
+            "rmse": 1.0269203619013014,
+            "changedChannelRatio": 0.0029449462890625,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "alphaFill": {
+          "difference": {
+            "rmse": 0.510793533807631,
+            "changedChannelRatio": 0.00225830078125,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              15,
+              19,
+              102,
+              127
+            ],
+            "vello": [
+              15,
+              19,
+              102,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "opaqueFillStroke": {
+          "difference": {
+            "rmse": 2.112143726891443,
+            "changedChannelRatio": 0.0053558349609375,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              181,
+              163,
+              19,
+              191
+            ],
+            "vello": [
+              157,
+              141,
+              17,
+              166
+            ]
+          }
+        }
+      }
+    },
+    {
+      "pixels": {
+        "rmse": 8.057546113888607,
+        "changedChannelRatio": 0.08782958984375,
+        "alphaOccupancyMismatchRatio": 0.01171875
+      },
+      "parityCases": {
+        "opaqueFill": {
+          "difference": {
+            "rmse": 1.0269203619013014,
+            "changedChannelRatio": 0.0029449462890625,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "alphaFill": {
+          "difference": {
+            "rmse": 0.510793533807631,
+            "changedChannelRatio": 0.00225830078125,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              15,
+              19,
+              102,
+              127
+            ],
+            "vello": [
+              15,
+              19,
+              102,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "opaqueFillStroke": {
+          "difference": {
+            "rmse": 2.112143726891443,
+            "changedChannelRatio": 0.0053558349609375,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              181,
+              163,
+              19,
+              191
+            ],
+            "vello": [
+              157,
+              141,
+              17,
+              166
+            ]
+          }
+        }
+      }
+    },
+    {
+      "pixels": {
+        "rmse": 8.057546113888607,
+        "changedChannelRatio": 0.08782958984375,
+        "alphaOccupancyMismatchRatio": 0.01171875
+      },
+      "parityCases": {
+        "opaqueFill": {
+          "difference": {
+            "rmse": 1.0269203619013014,
+            "changedChannelRatio": 0.0029449462890625,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "alphaFill": {
+          "difference": {
+            "rmse": 0.510793533807631,
+            "changedChannelRatio": 0.00225830078125,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              15,
+              19,
+              102,
+              127
+            ],
+            "vello": [
+              15,
+              19,
+              102,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "opaqueFillStroke": {
+          "difference": {
+            "rmse": 2.112143726891443,
+            "changedChannelRatio": 0.0053558349609375,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              181,
+              163,
+              19,
+              191
+            ],
+            "vello": [
+              157,
+              141,
+              17,
+              166
+            ]
+          }
+        }
+      }
+    },
+    {
+      "pixels": {
+        "rmse": 8.057546113888607,
+        "changedChannelRatio": 0.08782958984375,
+        "alphaOccupancyMismatchRatio": 0.01171875
+      },
+      "parityCases": {
+        "opaqueFill": {
+          "difference": {
+            "rmse": 1.0269203619013014,
+            "changedChannelRatio": 0.0029449462890625,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "alphaFill": {
+          "difference": {
+            "rmse": 0.510793533807631,
+            "changedChannelRatio": 0.00225830078125,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              15,
+              19,
+              102,
+              127
+            ],
+            "vello": [
+              15,
+              19,
+              102,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "opaqueFillStroke": {
+          "difference": {
+            "rmse": 2.112143726891443,
+            "changedChannelRatio": 0.0053558349609375,
+            "alphaOccupancyMismatchRatio": 0.000732421875
+          },
+          "center": {
+            "current": [
+              31,
+              38,
+              204,
+              255
+            ],
+            "vello": [
+              31,
+              38,
+              204,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              181,
+              163,
+              19,
+              191
+            ],
+            "vello": [
+              157,
+              141,
+              17,
+              166
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "current": {
+    "coldCallMs": {
+      "samples": [
+        19.200000002980232,
+        19.100000008940697,
+        18.5,
+        19,
+        18.599999994039536
+      ],
+      "min": 18.5,
+      "p50": 19,
+      "p95": 19.100000008940697,
+      "max": 19.200000002980232
+    },
+    "coldGpuCompletionMs": {
+      "samples": [
+        37.099999994039536,
+        37.20000000298023,
+        35.5,
+        35.5,
+        36.5
+      ],
+      "min": 35.5,
+      "p50": 36.5,
+      "p95": 37.099999994039536,
+      "max": 37.20000000298023
+    },
+    "warmCallP50Ms": {
+      "samples": [
+        6.299999997019768,
+        6,
+        5.800000011920929,
+        5.9000000059604645,
+        6.200000002980232
+      ],
+      "min": 5.800000011920929,
+      "p50": 6,
+      "p95": 6.200000002980232,
+      "max": 6.299999997019768
+    },
+    "warmGpuCompletionP50Ms": {
+      "samples": [
+        12.900000005960464,
+        12.400000005960464,
+        12.899999991059303,
+        13.399999991059303,
+        12.700000002980232
+      ],
+      "min": 12.400000005960464,
+      "p50": 12.899999991059303,
+      "p95": 12.900000005960464,
+      "max": 13.399999991059303
+    },
+    "coldTotalMs": {
+      "samples": [
+        56.29999999701977,
+        56.30000001192093,
+        54,
+        54.5,
+        55.099999994039536
+      ],
+      "min": 54,
+      "p50": 55.099999994039536,
+      "p95": 56.29999999701977,
+      "max": 56.30000001192093
+    },
+    "warmTotalP50Ms": {
+      "samples": [
+        19.200000002980232,
+        18.400000005960464,
+        18.700000002980232,
+        19.299999997019768,
+        18.900000005960464
+      ],
+      "min": 18.400000005960464,
+      "p50": 18.900000005960464,
+      "p95": 19.200000002980232,
+      "max": 19.299999997019768
+    },
+    "gpuProcessDeltaKb": {
+      "samples": [
+        28528,
+        28488,
+        28560,
+        27836,
+        28340
+      ],
+      "min": 27836,
+      "p50": 28488,
+      "p95": 28528,
+      "max": 28560
+    },
+    "tabProcessDeltaKb": {
+      "samples": [
+        22868,
+        22852,
+        23352,
+        24072,
+        22932
+      ],
+      "min": 22852,
+      "p50": 22932,
+      "p95": 23352,
+      "max": 24072
+    }
+  },
+  "vello": {
+    "coldCallMs": {
+      "samples": [
+        9.200000002980232,
+        9.400000005960464,
+        9.5,
+        9.899999991059303,
+        9.700000002980232
+      ],
+      "min": 9.200000002980232,
+      "p50": 9.5,
+      "p95": 9.700000002980232,
+      "max": 9.899999991059303
+    },
+    "coldGpuCompletionMs": {
+      "samples": [
+        34.8999999910593,
+        33.79999999701977,
+        33.3999999910593,
+        33.099999994039536,
+        33.29999999701977
+      ],
+      "min": 33.099999994039536,
+      "p50": 33.3999999910593,
+      "p95": 33.79999999701977,
+      "max": 34.8999999910593
+    },
+    "warmCallP50Ms": {
+      "samples": [
+        1.7999999970197678,
+        1.7999999970197678,
+        1.7000000029802322,
+        1.7000000029802322,
+        1.800000011920929
+      ],
+      "min": 1.7000000029802322,
+      "p50": 1.7999999970197678,
+      "p95": 1.7999999970197678,
+      "max": 1.800000011920929
+    },
+    "warmGpuCompletionP50Ms": {
+      "samples": [
+        3.2999999970197678,
+        3.4000000059604645,
+        3.1000000089406967,
+        3.1000000089406967,
+        3
+      ],
+      "min": 3,
+      "p50": 3.1000000089406967,
+      "p95": 3.2999999970197678,
+      "max": 3.4000000059604645
+    },
+    "wasmRawBytes": 1960473,
+    "wasmGzipBytes": 531698,
+    "coldTotalMs": {
+      "samples": [
+        44.099999994039536,
+        43.20000000298023,
+        42.8999999910593,
+        42.99999998509884,
+        43
+      ],
+      "min": 42.8999999910593,
+      "p50": 43,
+      "p95": 43.20000000298023,
+      "max": 44.099999994039536
+    },
+    "warmTotalP50Ms": {
+      "samples": [
+        5.0999999940395355,
+        5.200000002980232,
+        4.800000011920929,
+        4.800000011920929,
+        4.800000011920929
+      ],
+      "min": 4.800000011920929,
+      "p50": 4.800000011920929,
+      "p95": 5.0999999940395355,
+      "max": 5.200000002980232
+    },
+    "gpuProcessIncrementalDeltaKb": {
+      "samples": [
+        10240,
+        10164,
+        10168,
+        10052,
+        6120
+      ],
+      "min": 6120,
+      "p50": 10164,
+      "p95": 10168,
+      "max": 10240
+    },
+    "tabProcessIncrementalDeltaKb": {
+      "samples": [
+        5368,
+        5852,
+        5080,
+        4724,
+        4504
+      ],
+      "min": 4504,
+      "p50": 5080,
+      "p95": 5368,
+      "max": 5852
+    }
+  },
+  "phaseMetrics": [
+    {
+      "baseline": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKb": 98676,
+          "peakWorkingSetKb": 101040
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKb": 148616,
+          "peakWorkingSetKb": 148616
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49692,
+          "peakWorkingSetKb": 51604
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKb": 81352,
+          "peakWorkingSetKb": 81352
+        }
+      ],
+      "current": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.07588787774546289,
+          "workingSetKb": 98816,
+          "peakWorkingSetKb": 101040
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 1.9677873777154928,
+          "workingSetKb": 177144,
+          "peakWorkingSetKb": 177144
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49692,
+          "peakWorkingSetKb": 51604
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 2.3767651544073316,
+          "workingSetKb": 104220,
+          "peakWorkingSetKb": 104220
+        }
+      ],
+      "vello": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.15788701255047888,
+          "workingSetKb": 98832,
+          "peakWorkingSetKb": 101040
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 1.9385596228665551,
+          "workingSetKb": 187384,
+          "peakWorkingSetKb": 187384
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49692,
+          "peakWorkingSetKb": 51604
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 2.9516870839070504,
+          "workingSetKb": 109588,
+          "peakWorkingSetKb": 110224
+        }
+      ]
+    },
+    {
+      "baseline": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKb": 98284,
+          "peakWorkingSetKb": 101372
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKb": 148600,
+          "peakWorkingSetKb": 148600
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49732,
+          "peakWorkingSetKb": 51644
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKb": 83992,
+          "peakWorkingSetKb": 83992
+        }
+      ],
+      "current": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.08162714590429009,
+          "workingSetKb": 98292,
+          "peakWorkingSetKb": 101372
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 2.005677225747648,
+          "workingSetKb": 177088,
+          "peakWorkingSetKb": 177088
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49732,
+          "peakWorkingSetKb": 51644
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 2.437587445276182,
+          "workingSetKb": 106844,
+          "peakWorkingSetKb": 106844
+        }
+      ],
+      "vello": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.10441795563123789,
+          "workingSetKb": 98300,
+          "peakWorkingSetKb": 101372
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 1.8847165269047583,
+          "workingSetKb": 187252,
+          "peakWorkingSetKb": 187252
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49732,
+          "peakWorkingSetKb": 51644
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 2.995297968760348,
+          "workingSetKb": 112696,
+          "peakWorkingSetKb": 112696
+        }
+      ]
+    },
+    {
+      "baseline": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKb": 98824,
+          "peakWorkingSetKb": 101244
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKb": 148736,
+          "peakWorkingSetKb": 148736
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49812,
+          "peakWorkingSetKb": 51724
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKb": 81924,
+          "peakWorkingSetKb": 81924
+        }
+      ],
+      "current": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.05994689475085191,
+          "workingSetKb": 98892,
+          "peakWorkingSetKb": 101244
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 2.0137665525227133,
+          "workingSetKb": 177296,
+          "peakWorkingSetKb": 177296
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49812,
+          "peakWorkingSetKb": 51724
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 2.430100480559196,
+          "workingSetKb": 105276,
+          "peakWorkingSetKb": 105276
+        }
+      ],
+      "vello": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.09072077283221848,
+          "workingSetKb": 98900,
+          "peakWorkingSetKb": 101244
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 1.9129282702927382,
+          "workingSetKb": 187464,
+          "peakWorkingSetKb": 187464
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49812,
+          "peakWorkingSetKb": 51724
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 3.068687003703044,
+          "workingSetKb": 110356,
+          "peakWorkingSetKb": 110648
+        }
+      ]
+    },
+    {
+      "baseline": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKb": 100704,
+          "peakWorkingSetKb": 103796
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKb": 149704,
+          "peakWorkingSetKb": 149704
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49844,
+          "peakWorkingSetKb": 51756
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKb": 81268,
+          "peakWorkingSetKb": 81268
+        }
+      ],
+      "current": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.053050067119042504,
+          "workingSetKb": 100772,
+          "peakWorkingSetKb": 103796
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 2.0172011459478685,
+          "workingSetKb": 177540,
+          "peakWorkingSetKb": 177540
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49844,
+          "peakWorkingSetKb": 51756
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 2.4482876378183236,
+          "workingSetKb": 105340,
+          "peakWorkingSetKb": 105340
+        }
+      ],
+      "vello": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.09656421825710743,
+          "workingSetKb": 100780,
+          "peakWorkingSetKb": 103796
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 1.8766438780638959,
+          "workingSetKb": 187592,
+          "peakWorkingSetKb": 187592
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49844,
+          "peakWorkingSetKb": 51756
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 3.0735764321105172,
+          "workingSetKb": 110064,
+          "peakWorkingSetKb": 110064
+        }
+      ]
+    },
+    {
+      "baseline": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKb": 98260,
+          "peakWorkingSetKb": 101316
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKb": 148128,
+          "peakWorkingSetKb": 148128
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49856,
+          "peakWorkingSetKb": 51768
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKb": 81216,
+          "peakWorkingSetKb": 81216
+        }
+      ],
+      "current": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.05420322610674166,
+          "workingSetKb": 98264,
+          "peakWorkingSetKb": 101316
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 2.021565382909921,
+          "workingSetKb": 176468,
+          "peakWorkingSetKb": 176468
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49856,
+          "peakWorkingSetKb": 51768
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 2.4463872185572226,
+          "workingSetKb": 104148,
+          "peakWorkingSetKb": 104148
+        }
+      ],
+      "vello": [
+        {
+          "type": "Browser",
+          "cpuPercent": 0.11247321770340875,
+          "workingSetKb": 98272,
+          "peakWorkingSetKb": 101316
+        },
+        {
+          "type": "GPU",
+          "cpuPercent": 1.969592604793707,
+          "workingSetKb": 182588,
+          "peakWorkingSetKb": 182588
+        },
+        {
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 49856,
+          "peakWorkingSetKb": 51768
+        },
+        {
+          "type": "Tab",
+          "cpuPercent": 3.1594091287465296,
+          "workingSetKb": 108652,
+          "peakWorkingSetKb": 109832
+        }
+      ]
+    }
+  ],
+  "gpuFeatureStatus": {
+    "2d_canvas": "enabled",
+    "direct_rendering_display_compositor": "disabled_off_ok",
+    "gpu_compositing": "enabled",
+    "multiple_raster_threads": "enabled_on",
+    "opengl": "enabled_on",
+    "rasterization": "enabled",
+    "raw_draw": "disabled_off_ok",
+    "skia_graphite": "disabled_off",
+    "trees_in_viz": "disabled_off",
+    "video_decode": "enabled",
+    "video_encode": "enabled",
+    "webgl": "enabled",
+    "webgl2": "enabled",
+    "webgpu": "enabled",
+    "webnn": "disabled_off"
+  }
+}

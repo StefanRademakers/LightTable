@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@lighttable/paint-core": "0.0.1",
+    "@lighttable/paint-scene": "0.0.1",
     "@lighttable/vector-core": "0.0.1",
     "@lighttable/vector-rendering": "0.0.1"
   },

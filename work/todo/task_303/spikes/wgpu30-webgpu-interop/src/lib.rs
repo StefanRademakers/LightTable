@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
@@ -156,7 +156,25 @@ fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
 pub struct InteropDevice {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    renderer: RefCell<vello::Renderer>,
+    renderer: RefCell<Option<vello::Renderer>>,
+}
+
+impl InteropDevice {
+    fn renderer_mut(&self) -> Result<RefMut<'_, vello::Renderer>, JsValue> {
+        let mut renderer = self.renderer.borrow_mut();
+        if renderer.is_none() {
+            *renderer = Some(vello::Renderer::new(
+                &self.device,
+                vello::RendererOptions {
+                    use_cpu: false,
+                    antialiasing_support: vello::AaSupport::area_only(),
+                    num_init_threads: std::num::NonZeroUsize::new(1),
+                    pipeline_cache: None,
+                },
+            ).map_err(|error| JsValue::from_str(&format!("vello renderer: {error}")))?);
+        }
+        Ok(RefMut::map(renderer, |value| value.as_mut().unwrap()))
+    }
 }
 
 #[wasm_bindgen]
@@ -173,20 +191,10 @@ impl InteropDevice {
             .request_device(&wgpu::DeviceDescriptor::default())
             .await
             .map_err(|error| JsValue::from_str(&format!("device: {error}")))?;
-        let renderer = vello::Renderer::new(
-            &device,
-            vello::RendererOptions {
-                use_cpu: false,
-                antialiasing_support: vello::AaSupport::area_only(),
-                num_init_threads: std::num::NonZeroUsize::new(1),
-                pipeline_cache: None,
-            },
-        )
-        .map_err(|error| JsValue::from_str(&format!("vello renderer: {error}")))?;
         Ok(Self {
             device,
             queue,
-            renderer: RefCell::new(renderer),
+            renderer: RefCell::new(None),
         })
     }
 
@@ -232,8 +240,7 @@ impl InteropDevice {
             &vello::kurbo::Circle::new((f64::from(width) / 2.0, f64::from(height) / 2.0), 20.0),
         );
         let view = wrapped.create_view(&wgpu::TextureViewDescriptor::default());
-        self.renderer
-            .borrow_mut()
+        self.renderer_mut()?
             .render_to_texture(
                 &self.device,
                 &self.queue,
@@ -282,7 +289,7 @@ impl InteropDevice {
             None,
         );
         let view = wrapped.create_view(&wgpu::TextureViewDescriptor::default());
-        self.renderer.borrow_mut().render_to_texture(
+        self.renderer_mut()?.render_to_texture(
             &self.device,
             &self.queue,
             &scene,
