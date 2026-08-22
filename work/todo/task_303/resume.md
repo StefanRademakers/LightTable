@@ -86,6 +86,27 @@ Baseline: `c71254b1`
   GPU process and ~22,932 KiB to the tab process; initializing/rendering Vello
   adds ~10,164 KiB GPU and ~5,080 KiB tab after that. These are process working
   set deltas, not exact GPU allocation accounting.
+- The selectable Vello backend is integrated in `@lighttable/vector-vello`,
+  selected through the dedicated dev/package commands, surfaced in renderer
+  telemetry, and falls back explicitly when PaintScene reports unsupported
+  semantics. Its package output remains separate from the normal backend.
+- Vello now writes LightTable's exact linear-premultiplied texture contract.
+  A raw texture probe identified the previous display-sRGB encoding error;
+  focused current/Vello centers are byte-equal or differ by one rounding unit.
+- Backend-neutral gradient paint now covers linear, radial, angle and reflected
+  geometry with bounded sampled ramps. SVG radial gradients preserve the full
+  two-circle geometry (`fx`, `fy`, SVG 2 `fr`) through editable import, save,
+  reopen, current WebGPU and Vello. Document-space SVG gradient export also
+  removes the owning element transform to prevent double transformation on
+  reopen.
+- Packaged current and Vello runs of `svg_vector_render_test.svg` both pass.
+  Current versus Vello preview RMSE is 3.24, MAE 0.45 byte/channel, with 1.85%
+  of pixels differing by more than 16 (primarily antialiasing boundaries).
+  Both pan/zoom traces perform zero document composites and zero scene rerenders.
+- The SVG normalization/security decision is recorded in
+  `SVG_NORMALIZATION_AND_SECURITY_ASSESSMENT.md`. `usvg` is a candidate
+  normalizer/oracle only behind LightTable preflight and resolvers that forbid
+  filesystem/network resources; `usvg::Tree` is never document authority.
 
 ## Worktree ownership
 
@@ -94,25 +115,27 @@ Baseline: `c71254b1`
 
 ## Current focus
 
-The PostScript-style API assessment is recorded in
-`POSTSCRIPT_SCENE_API_ASSESSMENT.md`. The bounded wgpu/Electron zero-copy
-prerequisite and actual Vello render pass. Mutation and retained-memory evidence
-now identify full-layer backend submission as the dominant remaining vector edit
-cost. The minimum immutable scene slice shared by native vector and PDF path
-fixtures now exists and passes its focused suites. Both the current backend and
-Vello consume it, and the first bounded bake-off passes its correctness gate.
-Next, make Vello selectable only in dev/product diagnostics, exercise real
-imported scenes and mutation/lifecycle behavior, and extend supported paint
-features only where parity evidence passes.
+The renderer-neutral package split, selectable Vello backend, zero-copy shared
+texture route and linear-premultiplied color contract are proven. SVG parsing
+remains a secure editable format adapter, while current WebGPU and Vello consume
+the same derived PaintScene. The next semantic dependency is hierarchy: group
+and clip stacks must exist in the canonical vector model and PaintScene before
+`<use>`, patterns, group opacity, masks or filters can be expanded safely.
+After clip parity, run bounded mutation, lifecycle, device-loss and memory
+regressions across both backends and select a production routing policy.
 
 ## Next safe steps
 
-1. Commit the verified baseline harness and first renderer improvement.
-2. Run the representative SVG corpus and capture cold-open/mutation profiles.
-3. Rank CPU realization, GPU upload, pass/bind-group and memory costs.
-4. Implement only the next highest measured current-renderer win.
-5. Build the isolated Vello WebGPU interoperability spike before choosing a
-   product integration architecture.
+1. Add canonical group/clip-stack semantics without flattening or document
+   mutation; compile them to explicit PaintScene push/pop operations.
+2. Implement and compare clip layers in current WebGPU and Vello, including
+   nested and object-bounds cases.
+3. Evaluate a locked-down `usvg` normalizer spike for `<use>`, CSS, units and
+   markers, with all resource resolvers disabled and strict result budgets.
+4. Harden SVG save/reopen and corpus round trips for every newly admitted
+   semantic feature.
+5. Run packaged current/Vello correctness, mutation, crash, retained-memory,
+   lifecycle and device-loss distributions; then record backend routing policy.
 
 ## External fixtures
 

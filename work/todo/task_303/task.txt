@@ -46,9 +46,9 @@ remain explicit at each importer/exporter boundary.
 - [x] Minimal renderer-neutral compiled-scene contract where measurements
       justify it, with current backend parity and no interaction regression.
 - [x] Vello Electron/WASM zero-copy interoperability verdict.
-- [ ] If interoperability succeeds, meaningful selectable Vello backend and
+- [x] If interoperability succeeds, meaningful selectable Vello backend and
       bake-off; otherwise a documented evidence-backed architecture decision.
-- [ ] SVG plus future AI/EPS/PDF compatibility consequences documented and
+- [x] SVG plus future AI/EPS/PDF compatibility consequences documented and
       reflected in importer/compiler boundaries.
 - [ ] Bounded correctness, crash, memory and lifecycle regression selection.
 - [ ] Owner-visible final report with commits, measurements, rejected paths,
