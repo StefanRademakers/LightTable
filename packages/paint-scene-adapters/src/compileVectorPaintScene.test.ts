@@ -1,0 +1,47 @@
+import { describe, expect, it } from 'vitest';
+import type { VectorPath } from '@lighttable/vector-core';
+import { compileVectorPaintScene } from './compileVectorPaintScene';
+
+const path = (): VectorPath => ({
+  id: 'curve', type: 'path', name: 'Curve', fillRule: 'evenodd',
+  transform: { a: 2, b: 0, c: 0, d: 2, tx: 4, ty: 5 },
+  geometryRevision: 2, transformRevision: 3, styleRevision: 4,
+  style: { fill: { type: 'solid', color: [1, 0, 0, 0.5] }, stroke: null, opacity: 0.5 },
+  subpaths: [{
+    id: 'subpath', closed: true,
+    anchors: [
+      { id: 'a', position: { x: 0, y: 0 }, handleIn: { x: -1, y: 0 }, handleOut: { x: 1, y: 0 }, mode: 'smooth' },
+      { id: 'b', position: { x: 4, y: 0 }, handleIn: { x: 3, y: 0 }, handleOut: null, mode: 'corner' }
+    ]
+  }]
+});
+
+describe('compileVectorPaintScene', () => {
+  it('preserves cubic closing geometry, transforms and revision keys', () => {
+    const result = compileVectorPaintScene([path()], { sourceId: 'doc', sourceRevision: '9' });
+    expect(result.status).toBe('ready');
+    expect(result.scene.fragments[0].revisionKey).toBe('2:3:4');
+    expect(result.scene.fragments[0].commands[0]).toMatchObject({
+      kind: 'fill-path', fillRule: 'evenodd', transform: [2, 0, 0, 2, 4, 5], color: [1, 0, 0, 0.25],
+      path: [
+        { kind: 'move', x: 0, y: 0 },
+        { kind: 'cubic', control1X: 1, control1Y: 0, control2X: 3, control2Y: 0, x: 4, y: 0 },
+        { kind: 'cubic', control1X: 4, control1Y: 0, control2X: -1, control2Y: 0, x: 0, y: 0 },
+        { kind: 'close' }
+      ]
+    });
+  });
+
+  it('reports gradients instead of silently reducing or dropping them', () => {
+    const value = path();
+    value.style.fill = {
+      kind: 'gradient', shape: 'linear', coordinateSpace: 'object-bounds',
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      reverse: false, dither: false, interpolation: 'linear',
+      asset: { id: 'g', name: 'g', type: 'solid', smoothness: 1, colorStops: [], opacityStops: [], roughness: 0, seed: 0 }
+    };
+    const result = compileVectorPaintScene([value], { sourceId: 'doc', sourceRevision: '10' });
+    expect(result.status).toBe('unsupported');
+    expect(result.issues).toEqual([expect.objectContaining({ feature: 'gradient-fill', fallback: 'current-backend' })]);
+  });
+});

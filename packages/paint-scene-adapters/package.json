@@ -1,0 +1,23 @@
+{
+  "name": "@lighttable/paint-scene-adapters",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "files": ["src"],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lighttable/paint-scene": "0.0.1",
+    "@lighttable/pdf-core": "0.0.1",
+    "@lighttable/vector-core": "0.0.1"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

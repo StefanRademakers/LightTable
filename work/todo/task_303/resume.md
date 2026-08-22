@@ -51,6 +51,16 @@ Baseline: `c71254b1`
   in roughly 0.27-0.78 seconds. CPU evidence is led by many render-pass starts,
   buffer writes, bind groups and geometry encoding. The Vello scene bake-off
   must attack this remaining full-layer/backend submission cost.
+- A minimal renderer-neutral `@lighttable/paint-scene` contract now represents
+  exact move/line/cubic/close paths, affine transforms, solid fills and centered
+  solid strokes. `@lighttable/paint-scene-adapters` compiles both native vector
+  elements and PDF page scenes without making either source core depend on a
+  backend package. Stable fragment/revision keys are canonical-data revisions,
+  never viewport revisions.
+- The adapter result is capability-gated: gradients, inside/outside strokes,
+  PDF clips, non-normal blends, masks, transparency groups, CMYK/resource paint,
+  text/images/forms and preserved operators produce explicit fallback issues.
+  A lossy result can never be reported as `ready`.
 
 ## Worktree ownership
 
@@ -63,8 +73,10 @@ The PostScript-style API assessment is recorded in
 `POSTSCRIPT_SCENE_API_ASSESSMENT.md`. The bounded wgpu/Electron zero-copy
 prerequisite and actual Vello render pass. Mutation and retained-memory evidence
 now identify full-layer backend submission as the dominant remaining vector edit
-cost. Next, define only the minimum immutable scene slice shared by one SVG and
-one PDF page fixture and bake it off against both backends. Evaluate
+cost. The minimum immutable scene slice shared by native vector and PDF path
+fixtures now exists and passes its focused suites. Next, feed the exact same
+serialized scene into the Vello interop probe and a current-backend encoder,
+then measure pixels, cold render, mutation, memory and binary cost. Evaluate
 CPU/GPU/worker choices against the improved native path.
 
 ## Next safe steps

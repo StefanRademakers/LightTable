@@ -146,3 +146,17 @@ Next define only the smallest scene slice needed for one representative SVG and
 one PDF page-scene fixture. Compile that identical slice
 to the current backend and Vello. Do not migrate canonical document types until
 pixel, latency, memory, mutation and round-trip gates all pass.
+
+## Minimal shared slice implemented
+
+The first slice is now implemented as `@lighttable/paint-scene`, with source
+compilers isolated in `@lighttable/paint-scene-adapters`. It intentionally
+contains only exact cubic paths, affine transforms, solid fills and centered
+solid strokes. Native vector and PDF fixtures compile to the same command
+types. Stable fragment revisions derive from canonical/source revisions, not
+zoom or pan.
+
+This is not a claim of PDF/SVG parity. Every feature outside this slice returns
+an explicit capability issue and selects `current-backend`, `rasterize` or
+`preserve-only` fallback. The next backend bake-off therefore cannot silently
+reward Vello for dropping clips, color spaces, masks, gradients or blends.
