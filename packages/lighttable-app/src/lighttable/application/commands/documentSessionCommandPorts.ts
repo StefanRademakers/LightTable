@@ -32,6 +32,26 @@ const requiresPresentation = (operation: string): never => {
   throw new Error(`${operation} requires the active document presentation renderer.`);
 };
 
+const CANONICAL_PORTS = new Set<string>([
+  'setZoom', 'createRasterLayer', 'renameLayer', 'setLayerVisibility',
+  'setLayerFillOpacity', 'setLayerStyleEnabled', 'setLayerEffectEnabled',
+  'executeTextCommand', 'executeVectorCommand', 'executeSvgImport',
+  'executeWarpStrokeCommand', 'executeLayerStyleCommand', 'executeFaceWarpCommand',
+  'executeLayerCommand', 'executeAtomicBatch', 'exportSvgArtifact'
+]);
+
+const CANONICAL_COMMANDS = new Set<string>([
+  'document.create', 'document.duplicate', 'file.openArtifact',
+  'view.setZoom', 'layer.createRaster', 'layer.delete', 'layer.move',
+  'layer.setBlendMode', 'layer.setClipping', 'layer.setTransform', 'layer.setLock',
+  'layer.rename', 'layer.setVisibility', 'layer.setFillOpacity',
+  'layer.style.setEnabled', 'layer.style.update', 'layer.effect.setEnabled',
+  'layer.effect.add', 'layer.effect.update', 'layer.effect.remove', 'layer.effect.move',
+  'text.create', 'text.replaceRange', 'text.format', 'text.setLayout',
+  'vector.create', 'vector.update', 'vector.remove', 'vector.importSvg',
+  'warp.applyStroke', 'faceWarp.applyOperation', 'command.batch', 'file.exportSvg'
+]);
+
 /**
  * Creates the document-lifetime semantic command owner.
  *
@@ -69,6 +89,8 @@ export const createDocumentSessionCommandPorts = (
   const change = mutation.change;
 
   return {
+    supportsPort: (port) => CANONICAL_PORTS.has(port),
+    supportsCommand: (command) => CANONICAL_COMMANDS.has(command),
     setZoom: (viewport) => session.updateViewport(() => viewport),
     createRasterLayer: () => {
       change((document) => createRasterLayer(document));

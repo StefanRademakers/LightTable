@@ -263,6 +263,10 @@ export interface LightTableWorkspaceCommandPorts {
 }
 
 export interface LightTableCommandPorts {
+  /** Reports whether the concrete owner for one document implements a port. */
+  supportsPort?(documentId: DocumentSessionId, port: string): boolean;
+  /** Reports whether the concrete owner can execute a complete semantic command. */
+  supportsCommand?(documentId: DocumentSessionId, command: LightTableCommandId): boolean;
   resizeImage?(documentId: DocumentSessionId, request: ImageSizeRequest): void | Promise<void>;
   applyDocumentGeometry?(documentId: DocumentSessionId, request: DocumentGeometryRequest): void | Promise<void>;
   assignDocumentProfile?(documentId: DocumentSessionId,
@@ -337,6 +341,10 @@ export interface LightTableCommandPorts {
 }
 
 export interface DocumentLightTableCommandPorts {
+  /** Overrides structural method detection for ports represented by rejecting fallbacks. */
+  supportsPort?(port: string): boolean;
+  /** Overrides command availability when one port handles mixed renderer requirements. */
+  supportsCommand?(command: LightTableCommandId): boolean;
   resizeImage?(request: ImageSizeRequest): void | Promise<void>;
   applyDocumentGeometry?(request: DocumentGeometryRequest): void | Promise<void>;
   assignDocumentProfile?(command: SemanticAssignProfileCommand):

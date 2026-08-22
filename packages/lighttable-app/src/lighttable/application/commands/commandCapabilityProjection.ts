@@ -14,24 +14,32 @@ export const projectCommandCapabilities = (
 ): readonly CommandCapabilitySummary[] | null => {
   if (!snapshot.document) return null;
   const ready = snapshot.lifecycle === 'ready';
+  const supports = (port: string, fallback: unknown): boolean => (
+    ports.supportsPort?.(snapshot.id, port) ?? Boolean(fallback)
+  );
   const layerCapabilities = queryLayerCommandCapabilities(snapshot.document);
   const availability = (command: LightTableCommandId, available: boolean,
-    reason: string): CommandCapabilitySummary => ({ command, available: ready && available,
-    reason: !ready ? 'The document is not ready.' : available ? null : reason });
+    reason: string): CommandCapabilitySummary => {
+    const ownerSupportsCommand = ports.supportsCommand?.(snapshot.id, command) ?? true;
+    const commandAvailable = available && ownerSupportsCommand;
+    return { command, available: ready && commandAvailable,
+      reason: !ready ? 'The document is not ready.' : commandAvailable ? null
+        : ownerSupportsCommand ? reason : 'The command requires the active document renderer.' };
+  };
   return [
     availability('document.create', workspaceCommandsAvailable, 'Document creation is unavailable in this host.'),
     availability('document.duplicate', workspaceCommandsAvailable, 'Document duplication is unavailable in this host.'),
-    availability('document.resizeImage', Boolean(ports.resizeImage), 'Image Size is unavailable in this host.'),
-    availability('document.applyGeometry', Boolean(ports.applyDocumentGeometry), 'Document geometry is unavailable in this host.'),
-    availability('document.assignProfile', Boolean(ports.assignDocumentProfile),
+    availability('document.resizeImage', supports('resizeImage', ports.resizeImage), 'Image Size is unavailable in this host.'),
+    availability('document.applyGeometry', supports('applyDocumentGeometry', ports.applyDocumentGeometry), 'Document geometry is unavailable in this host.'),
+    availability('document.assignProfile', supports('assignDocumentProfile', ports.assignDocumentProfile),
       'Assign Profile is unavailable in this host.'),
-    availability('selection.copyPixels', Boolean(ports.copyPixels),
+    availability('selection.copyPixels', supports('copyPixels', ports.copyPixels),
       'Pixel copy is unavailable in this host.'),
-    availability('selection.pastePixels', Boolean(ports.pastePixels),
+    availability('selection.pastePixels', supports('pastePixels', ports.pastePixels),
       'Pixel paste is unavailable in this host.'),
-    availability('grade.copy', Boolean(ports.copyGrade),
+    availability('grade.copy', supports('copyGrade', ports.copyGrade),
       'Copy Grade is unavailable in this host.'),
-    availability('grade.paste', Boolean(ports.pasteGrade),
+    availability('grade.paste', supports('pasteGrade', ports.pasteGrade),
       'Paste Grade is unavailable in this host.'),
     availability('view.setZoom', true, ''), availability('layer.createRaster', true, ''),
     availability('layer.duplicate', walkLayerTree(snapshot.document.layers)
@@ -44,12 +52,12 @@ export const projectCommandCapabilities = (
     availability('layer.setBlendMode', layerCapabilities.layerCount > 0, 'There are no layers.'),
     availability('layer.setClipping', layerCapabilities.layerCount > 1, 'Clipping requires a lower sibling layer.'),
     availability('layer.setTransform', layerCapabilities.layerCount > 0, 'There are no layers.'),
-    availability('transform.applyFixed', Boolean(ports.executeFixedTransform)
+    availability('transform.applyFixed', supports('executeFixedTransform', ports.executeFixedTransform)
       && Boolean(layerCapabilities.activeLayer), 'Select an editable layer.'),
-    availability('adjustment.create', Boolean(ports.executeAdjustmentCreation), 'Adjustment creation is unavailable in this host.'),
+    availability('adjustment.create', supports('executeAdjustmentCreation', ports.executeAdjustmentCreation), 'Adjustment creation is unavailable in this host.'),
     availability('layer.setMask', layerCapabilities.layerCount > 0, 'There are no layers.'),
-    availability('layer.removeBackground', Boolean(ports.executeBackgroundRemoval), 'Remove Background is unavailable in this host.'),
-    availability('layer.autoAlign', Boolean(ports.executeAutoAlign), 'Auto Align is unavailable in this host.'),
+    availability('layer.removeBackground', supports('executeBackgroundRemoval', ports.executeBackgroundRemoval), 'Remove Background is unavailable in this host.'),
+    availability('layer.autoAlign', supports('executeAutoAlign', ports.executeAutoAlign), 'Auto Align is unavailable in this host.'),
     availability('layer.setLock', layerCapabilities.layerCount > 0, 'There are no layers.'),
     availability('layer.placeArtifact', true, ''),
     availability('layer.rename', Boolean(layerCapabilities.activeLayer), 'Select an existing layer.'),
@@ -61,33 +69,33 @@ export const projectCommandCapabilities = (
     availability('text.format', true, ''), availability('text.setLayout', true, ''),
     availability('vector.create', true, ''), availability('vector.update', true, ''),
     availability('vector.remove', true, ''),
-    availability('vector.importSvg', Boolean(ports.executeSvgImport), 'SVG import is unavailable in this host.'),
-    availability('warp.applyStroke', Boolean(ports.executeWarpStrokeCommand), 'Warp stroke commands are unavailable in this host.'),
-    availability('raster.fill', Boolean(ports.executeFillCommand), 'Fill commands are unavailable in this host.'),
-    availability('raster.applyGradient', Boolean(ports.executeRasterGradientCommand), 'Raster-gradient commands are unavailable in this host.'),
-    availability('raster.invert', Boolean(ports.executeRasterInvert), 'Raster invert is unavailable in this host.'),
-    availability('text.convertToShape', Boolean(ports.executeTextToShape), 'Text-to-shape conversion is unavailable in this host.'),
-    availability('text.rasterize', Boolean(ports.executeTextRasterize), 'Text rasterization is unavailable in this host.'),
-    availability('layer.merge', Boolean(ports.executeLayerMerge) && layerCapabilities.layerCount > 1,
+    availability('vector.importSvg', supports('executeSvgImport', ports.executeSvgImport), 'SVG import is unavailable in this host.'),
+    availability('warp.applyStroke', supports('executeWarpStrokeCommand', ports.executeWarpStrokeCommand), 'Warp stroke commands are unavailable in this host.'),
+    availability('raster.fill', supports('executeFillCommand', ports.executeFillCommand), 'Fill commands are unavailable in this host.'),
+    availability('raster.applyGradient', supports('executeRasterGradientCommand', ports.executeRasterGradientCommand), 'Raster-gradient commands are unavailable in this host.'),
+    availability('raster.invert', supports('executeRasterInvert', ports.executeRasterInvert), 'Raster invert is unavailable in this host.'),
+    availability('text.convertToShape', supports('executeTextToShape', ports.executeTextToShape), 'Text-to-shape conversion is unavailable in this host.'),
+    availability('text.rasterize', supports('executeTextRasterize', ports.executeTextRasterize), 'Text rasterization is unavailable in this host.'),
+    availability('layer.merge', supports('executeLayerMerge', ports.executeLayerMerge) && layerCapabilities.layerCount > 1,
       'Layer merge is unavailable or fewer than two layers exist.'),
-    availability('layer.flattenGroup', Boolean(ports.executeFlattenGroup), 'Group flatten is unavailable in this host.'),
-    availability('document.flattenImage', Boolean(ports.executeFlattenImage) && layerCapabilities.layerCount > 0,
+    availability('layer.flattenGroup', supports('executeFlattenGroup', ports.executeFlattenGroup), 'Group flatten is unavailable in this host.'),
+    availability('document.flattenImage', supports('executeFlattenImage', ports.executeFlattenImage) && layerCapabilities.layerCount > 0,
       'Image flatten is unavailable or the image has no layers.'),
-    availability('faceWarp.applyOperation', Boolean(ports.executeFaceWarpCommand), 'Face Warp commands are unavailable in this host.'),
+    availability('faceWarp.applyOperation', supports('executeFaceWarpCommand', ports.executeFaceWarpCommand), 'Face Warp commands are unavailable in this host.'),
     availability('layer.effect.add', true, ''), availability('layer.effect.update', true, ''),
     availability('layer.effect.remove', true, ''), availability('layer.effect.move', true, ''),
     availability('command.batch', true, ''), availability('tool.commitGesture', true, ''),
-    availability('selection.applyShape', Boolean(ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
-    availability('selection.applyMagicWand', Boolean(ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
-    availability('selection.selectSubject', Boolean(ports.executeSubjectSelection), 'Select Subject is unavailable in this host.'),
-    availability('selection.modify', Boolean(ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
-    availability('grade.setBasic', Boolean(ports.executeBasicAdjustmentCommand), 'Basic Grade commands are unavailable in this host.'),
-    availability('grade.setDetail', Boolean(ports.executeDetailAdjustmentCommand), 'Detail commands are unavailable in this host.'),
+    availability('selection.applyShape', supports('executeSelectionCommand', ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
+    availability('selection.applyMagicWand', supports('executeSelectionCommand', ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
+    availability('selection.selectSubject', supports('executeSubjectSelection', ports.executeSubjectSelection), 'Select Subject is unavailable in this host.'),
+    availability('selection.modify', supports('executeSelectionCommand', ports.executeSelectionCommand), 'Selection commands are unavailable in this host.'),
+    availability('grade.setBasic', supports('executeBasicAdjustmentCommand', ports.executeBasicAdjustmentCommand), 'Basic Grade commands are unavailable in this host.'),
+    availability('grade.setDetail', supports('executeDetailAdjustmentCommand', ports.executeDetailAdjustmentCommand), 'Detail commands are unavailable in this host.'),
     availability('task.cancel', snapshot.tasks.activeTaskIds.length > 0, 'There is no running task.'),
     availability('file.exportNative', true, ''), availability('file.exportPng', true, ''),
     availability('file.exportBitmap', true, ''),
     availability('file.exportPsd', true, ''),
-    availability('file.exportSvg', Boolean(ports.exportSvgArtifact), 'SVG export is unavailable in this host.'),
+    availability('file.exportSvg', supports('exportSvgArtifact', ports.exportSvgArtifact), 'SVG export is unavailable in this host.'),
     availability('history.undo', snapshot.history.canUndo, 'There is nothing to undo.'),
     availability('history.redo', snapshot.history.canRedo, 'There is nothing to redo.')
   ];

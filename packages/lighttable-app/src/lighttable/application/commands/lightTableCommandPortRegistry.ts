@@ -25,7 +25,8 @@ import type {
   LightTableArtifactPlacement,
   LightTableCommandPorts,
   LightTableGestureKind,
-  LightTableGestureSample
+  LightTableGestureSample,
+  LightTableCommandId
 } from './lightTableCommandContract';
 
 /** Resolves transport-neutral commands to the mounted owner of one document. */
@@ -45,7 +46,23 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     };
   }
 
-  has(documentId: DocumentSessionId): boolean { return this.documents.has(documentId); }
+  has(documentId: DocumentSessionId): boolean {
+    return this.documents.has(documentId) || Boolean(this.resolveCanonical?.(documentId));
+  }
+  supportsPort(documentId: DocumentSessionId, port: string): boolean {
+    const supports = (owner: DocumentLightTableCommandPorts | null | undefined): boolean => {
+      if (!owner) return false;
+      if (owner.supportsPort) return owner.supportsPort(port);
+      return typeof Reflect.get(owner, port, owner) === 'function';
+    };
+    return supports(this.documents.get(documentId))
+      || supports(this.resolveCanonical?.(documentId));
+  }
+  supportsCommand(documentId: DocumentSessionId, command: LightTableCommandId): boolean {
+    const mounted = this.documents.get(documentId);
+    if (mounted) return mounted.supportsCommand?.(command) ?? true;
+    return this.resolveCanonical?.(documentId)?.supportsCommand?.(command) ?? false;
+  }
   setZoom(documentId: DocumentSessionId, viewport: DocumentViewport) {
     return this.resolve(documentId).setZoom(viewport);
   }

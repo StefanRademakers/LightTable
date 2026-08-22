@@ -42,6 +42,15 @@ describe('document-lifetime command ownership', () => {
     const secondBefore = second.value.getSnapshot().document;
     const firstLayerId = first.value.getSnapshot().document!.activeLayerId!;
 
+    expect(registry.has(first.value.id)).toBe(true);
+    expect(service.queryCapabilities(first.value.id)).toEqual(expect.arrayContaining([
+      { command: 'layer.rename', available: true, reason: null },
+      { command: 'raster.fill', available: false,
+        reason: 'The command requires the active document renderer.' },
+      { command: 'file.exportNative', available: false,
+        reason: 'The command requires the active document renderer.' }
+    ]));
+
     const result = await service.execute({
       protocolVersion: 1,
       requestId: 'inactive-rename',
