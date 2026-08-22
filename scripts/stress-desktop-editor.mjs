@@ -311,7 +311,7 @@ const exerciseDocument = async (window, iteration, actions) => {
     await window.mouse.up();
     actions.push({ iteration, action: 'temporary-paint-stroke' });
 
-    await window.getByRole('button', { name: 'Delete layer or mask' }).click();
+    await window.getByRole('button', { name: 'Delete selected layer item' }).click();
     await window.waitForFunction(
       (expected) => document.querySelectorAll('.lighttable-layer').length === expected,
       baselineLayerCount,
@@ -333,6 +333,7 @@ const runFile = async (sourceFile, fileIndex) => {
     actions: [],
     console: [],
     pageErrors: [],
+    rendererCrashes: [],
     samples: [],
     failures: []
   };
@@ -359,6 +360,7 @@ const runFile = async (sourceFile, fileIndex) => {
       }
     });
     window.on('pageerror', (error) => result.pageErrors.push(error.stack ?? error.message));
+    window.on('crash', () => result.rendererCrashes.push('Renderer process crashed.'));
 
     const openFileButton = await waitForDesktopLauncher({
       app: electronApp,
@@ -433,6 +435,13 @@ const runFile = async (sourceFile, fileIndex) => {
     if (diagnoseDom) result.detachedDom = await collectDetachedDomNodes(cdp);
     if (result.pageErrors.length) {
       result.failures.push(`Page errors: ${result.pageErrors.join(' | ')}`);
+    }
+    const consoleErrors = result.console.filter(({ type }) => type === 'error');
+    if (consoleErrors.length) {
+      result.failures.push(`Console errors: ${consoleErrors.map(({ text }) => text).join(' | ')}`);
+    }
+    if (result.rendererCrashes.length) {
+      result.failures.push(result.rendererCrashes.join(' | '));
     }
     if (result.growth.suspicious) {
       result.failures.push(`Suspicious retained growth: ${result.growth.reasons.join('; ')}`);

@@ -63,6 +63,7 @@ for (const testCase of cases) {
   try {
     const page = await app.firstWindow({ timeout: 30_000 });
     page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
+    page.on('crash', () => pageErrors.push('Renderer process crashed.'));
     page.on('console', (message) => {
       if (message.type() === 'error') {
         pageErrors.push(`[console:${message.type()}] ${message.text()}`);
@@ -135,6 +136,7 @@ for (const testCase of cases) {
     const metadata = await sharp(flatBytes).metadata();
     results.push({
       case: testCase.id,
+      passed: true,
       format: testCase.format,
       dimensions: { width: metadata.width, height: metadata.height },
       bitDepth: metadata.depth,
@@ -143,10 +145,22 @@ for (const testCase of cases) {
       saveMs,
       saveTimeline
     });
+  } catch (reason) {
+    results.push({
+      case: testCase.id,
+      passed: false,
+      format: testCase.format,
+      error: reason instanceof Error ? (reason.stack ?? reason.message) : String(reason),
+      pageErrors
+    });
   } finally {
     await app.evaluate(({ app: electronApp }) => electronApp.quit()).catch(() => {});
     await app.close().catch(() => {});
   }
 }
 
-console.log(JSON.stringify({ passed: true, formats: results }, null, 2));
+const failures = results.filter(({ passed }) => !passed);
+console.log(JSON.stringify({ passed: failures.length === 0, formats: results }, null, 2));
+if (failures.length > 0) {
+  throw new Error(`Native bitmap Save failed for: ${failures.map(({ case: id }) => id).join(', ')}.`);
+}

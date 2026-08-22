@@ -1,6 +1,7 @@
 import { _electron as electron } from 'playwright-core';
 import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
@@ -49,6 +50,12 @@ const waitFor = async (predicate, message, timeout = 90_000) => {
 
 try {
   const page = await app.firstWindow({ timeout: 30_000 });
+  const runtimeErrors = [];
+  page.on('pageerror', (error) => runtimeErrors.push(error.stack ?? error.message));
+  page.on('crash', () => runtimeErrors.push('Renderer process crashed.'));
+  page.on('console', (message) => {
+    if (message.type() === 'error') runtimeErrors.push(`[console:error] ${message.text()}`);
+  });
   const driver = await attachLightTableAutomation(page, 'os-open-smoke');
   const coldWorkspace = await waitFor(async () => {
     const workspace = await driver.queryWorkspace().catch(() => null);
@@ -62,11 +69,29 @@ try {
     windowsHide: true,
     stdio: 'ignore'
   });
+  // Subscribe immediately: a correctly single-instanced process can exit
+  // before the existing window has finished publishing its new document.
+  const secondExit = new Promise((resolve) => second.once('exit', (code, signal) => {
+    resolve({ code, signal });
+  }));
   const warmWorkspace = await waitFor(async () => {
     const workspace = await driver.queryWorkspace().catch(() => null);
     return workspace?.documents?.length === 5 ? workspace : null;
   }, 'Warm second-instance launch did not open its bitmap in the existing app.');
-  await new Promise((resolve) => second.once('exit', resolve));
+  const exit = await Promise.race([
+    secondExit,
+    delay(10_000).then(() => null)
+  ]);
+  if (!exit) {
+    second.kill();
+    throw new Error('Warm second-instance process did not exit within 10 seconds.');
+  }
+  if (exit.code !== 0) {
+    throw new Error(`Warm second-instance process exited with ${JSON.stringify(exit)}.`);
+  }
+  if (runtimeErrors.length > 0) {
+    throw new Error(`OS-open runtime errors: ${runtimeErrors.join(' | ')}`);
+  }
   console.log(JSON.stringify({
     passed: true,
     coldDocuments: coldWorkspace.documents.map(({ title }) => title),
