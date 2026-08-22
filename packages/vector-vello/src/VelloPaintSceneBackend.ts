@@ -103,9 +103,14 @@ export class VelloPaintSceneBackend {
     };
   }
 
-  releaseSource(sourceKey: string): void {
+  releaseSource(sourceKey: string): number {
     this.syncedScenes.delete(sourceKey);
-    if (this.runtime.released) return;
+    if (this.runtime.released) return 0;
     this.runtime.bridge.release_paint_scene_source(sourceKey);
+    return this.runtime.bridge.scene_cache_entries();
+  }
+
+  sceneEntries(): number {
+    return this.runtime.released ? 0 : this.runtime.bridge.scene_cache_entries();
   }
 }

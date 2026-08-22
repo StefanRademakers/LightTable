@@ -150,6 +150,11 @@ Baseline: `c71254b1`
   attempts explicitly and source cleanup becomes idempotent instead of calling
   through a freed WASM object. Shared-device reacquisition tests and Vello
   teardown tests pass; a packaged forced-loss journey is still outstanding.
+- Renderer telemetry now exposes native Vello source-entry count and uploaded
+  fragment count. A fresh packaged VORTEXT run reports exactly one uploaded
+  fragment and one retained source on each of six edits (`133, 99, 93, 96, 93,
+  90 ms`), zero estimated GPU growth and exact restored pixels (`RMSE 0`). This
+  makes incremental behavior and lifecycle retention directly auditable.
 
 ## Worktree ownership
 

@@ -21,6 +21,8 @@ export interface VectorBackendTelemetrySnapshot {
   readonly velloLayerEncodes: number;
   readonly velloSceneRenders: number;
   readonly velloSceneCacheHits: number;
+  readonly velloSceneEntries: number;
+  readonly velloUploadedFragments: number;
   readonly velloUnsupportedLayerEncodes: number;
   readonly geometryCache: {
     readonly entries: number;
@@ -172,6 +174,8 @@ export const formatRenderTelemetry = (snapshot: RenderTelemetrySnapshot) => {
         + `; Vello encodes ${snapshot.vectorBackend.velloLayerEncodes}`
         + `; Vello scene renders ${snapshot.vectorBackend.velloSceneRenders}`
         + `; Vello cache hits ${snapshot.vectorBackend.velloSceneCacheHits}`
+        + `; Vello scene entries ${snapshot.vectorBackend.velloSceneEntries}`
+        + `; Vello uploaded fragments ${snapshot.vectorBackend.velloUploadedFragments}`
         + `; unsupported fallbacks ${snapshot.vectorBackend.velloUnsupportedLayerEncodes}`
         + `; surfaces ${snapshot.vectorBackend.velloSurfaces}`
         + (snapshot.vectorBackend.velloFailure
