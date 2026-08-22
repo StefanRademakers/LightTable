@@ -42,10 +42,11 @@ Baseline: `c71254b1`
 
 ## Current focus
 
-Commit the proven cache and fixed-surface zoom correction, then extend the
-baseline across representative small/pathological SVG scenes and mutation.
-Profile cold-open next; separately build the bounded Vello interoperability
-spike and evaluate CPU/GPU/worker choices against this improved native path.
+The PostScript-style API assessment is recorded in
+`POSTSCRIPT_SCENE_API_ASSESSMENT.md`. Next, profile mutation and renderer memory,
+then define only the minimum immutable scene slice shared by one SVG and one
+PDF page fixture. Separately build the bounded Vello interoperability spike and
+evaluate CPU/GPU/worker choices against the improved native path.
 
 ## Next safe steps
 
