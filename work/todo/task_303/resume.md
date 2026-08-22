@@ -26,6 +26,14 @@ Baseline: `c71254b1`
   145,829 ms to 956 ms, settle time from 145,258 ms to 667 ms, p95 frame
   interval from 666.63 ms to 16.74 ms, and document composites from 11 to 0.
   Pixel counts and reference RMSE remained identical.
+- The full four-file external SVG corpus passes packaged open, preview, pan and
+  zoom evidence. Every pan and zoom gesture submits presentation frames with
+  zero document composites; representative zoom p95 intervals are ~16.7 ms.
+- SVG import now uses one UUID namespace per import plus monotonic element,
+  subpath and anchor counters. VORTEXT open profiles removed 137.4 ms of
+  `randomUUID` self-time. Three packaged A/B runs changed median first render
+  from 2,949 ms to 2,795 ms and median total evidence time from 8,457 ms to
+  8,261 ms, with identical pixel evidence.
 
 ## Worktree ownership
 

@@ -3,6 +3,7 @@ import { exportSvg, importSvg, type SvgConversionReport } from '@lighttable/vect
 import { createVectorLayer } from '../../editor/document/documentCommands';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { SVG_IMPORT_CODEC_LIMITS } from './svgImportLimits';
+import { createSvgImportIdFactory } from './svgImportIds';
 
 export interface SemanticSvgImportCommand {
   readonly svg: string;
@@ -34,7 +35,7 @@ export const executeSvgImport = (
   const before = dependencies.getDocument();
   if (!before) return null;
   const plan = importSvg(command.svg, {
-    createId: (kind) => `svg-${kind}-${crypto.randomUUID()}`,
+    createId: createSvgImportIdFactory(),
     limits: SVG_IMPORT_CODEC_LIMITS
   });
   const offset = translationMatrix(command.x ?? 0, command.y ?? 0);

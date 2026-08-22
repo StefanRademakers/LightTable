@@ -14,6 +14,7 @@ import { setRasterLayerAdjustmentStack } from '../../editor/document/documentCom
 import { createVectorLayer } from '../../editor/document/documentCommands';
 import { importSvg, type SvgImportPlan } from '@lighttable/vector-svg';
 import { SVG_IMPORT_CODEC_LIMITS, SVG_IMPORT_MAX_BYTES } from '../vectors/svgImportLimits';
+import { createSvgImportIdFactory } from '../vectors/svgImportIds';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   parseLayeredDocumentFile,
@@ -196,7 +197,7 @@ export const loadDocumentSource = async (
       throw new Error(`SVG input is ${request.blob.size} bytes and exceeds the 16 MiB import limit.`);
     }
     svgPlan = importSvg(await request.blob.text(), {
-      createId: (kind) => `svg-${kind}-${crypto.randomUUID()}`,
+      createId: createSvgImportIdFactory(),
       limits: SVG_IMPORT_CODEC_LIMITS
     });
     sourceDecodeMs = dependencies.now() - sourceDecodeStartedAt;
