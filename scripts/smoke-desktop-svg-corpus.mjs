@@ -17,6 +17,7 @@ const corpus = path.resolve(argument('corpus', path.join(root, 'tmp', 'svg-corpu
 const output = path.resolve(argument('output', path.join(root, 'tmp', 'svg-corpus-smoke')));
 const fileFilter = argument('file', '').toLowerCase();
 const profilePan = argument('profile-pan', 'false') === 'true';
+const profileZoom = argument('profile-zoom', 'false') === 'true';
 const profileOpen = argument('profile-open', 'false') === 'true';
 const entries = (await readdir(corpus, { withFileTypes: true }))
   .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.svg'))
@@ -130,6 +131,74 @@ const panEvidence = async (page, driver, documentId) => {
   return { available: true, settledMs, inputSteps: 24, telemetry, cpuProfile };
 };
 
+const percentile = (values, fraction) => {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)];
+};
+
+const zoomEvidence = async (page, driver, documentId) => {
+  const viewport = page.locator('.lighttable-viewport');
+  const box = await viewport.boundingBox();
+  if (!box) return { available: false, reason: 'Viewport bounds unavailable.' };
+  await page.keyboard.press('Control+1');
+  await page.waitForFunction(() => [...document.querySelectorAll('.lighttable-toolbar__meta')]
+    .some((node) => node.textContent?.includes('100%')), undefined, { timeout: 5_000 });
+  const center = { x: box.x + box.width * 0.5, y: box.y + box.height * 0.5 };
+  await page.mouse.move(center.x, center.y);
+  await driver.resetRenderTelemetry(documentId);
+  await page.evaluate(() => {
+    const sample = { startedAt: performance.now(), previous: performance.now(), intervals: [], stopped: false };
+    const tick = (now) => {
+      sample.intervals.push(now - sample.previous);
+      sample.previous = now;
+      if (!sample.stopped) requestAnimationFrame(tick);
+    };
+    window.__lightTableZoomFrameSample = sample;
+    requestAnimationFrame(tick);
+  });
+  const cdp = profileZoom ? await startCpuProfile(page) : null;
+  const startedAt = performance.now();
+  await page.keyboard.down('Control');
+  for (let index = 0; index < 24; index += 1) await page.mouse.wheel(0, -48);
+  await page.keyboard.up('Control');
+  await page.waitForFunction((id) => (
+    (window.__lightTableAutomation?.queryRenderTelemetry?.(id)?.submittedFrames ?? 0) > 0
+  ), documentId, { timeout: 30_000 });
+  await page.waitForTimeout(250);
+  const settledMs = Math.round(performance.now() - startedAt);
+  const frameIntervals = await page.evaluate(() => {
+    const sample = window.__lightTableZoomFrameSample;
+    if (!sample) return [];
+    sample.stopped = true;
+    delete window.__lightTableZoomFrameSample;
+    return sample.intervals;
+  });
+  const telemetry = await driver.queryRenderTelemetry(documentId);
+  const cpuProfile = cdp ? await stopCpuProfile(cdp) : null;
+  const zoomText = await page.locator('.lighttable-toolbar__meta')
+    .filter({ hasText: /ready/i }).first().textContent().catch(() => null);
+  await page.keyboard.press('Control+0');
+  const meaningfulIntervals = frameIntervals.filter((value) => value > 0 && value < 5_000);
+  return {
+    available: true,
+    settledMs,
+    inputSteps: 24,
+    finalStatus: zoomText,
+    animationFrames: meaningfulIntervals.length,
+    frameIntervalMs: {
+      median: percentile(meaningfulIntervals, 0.5),
+      p95: percentile(meaningfulIntervals, 0.95),
+      p99: percentile(meaningfulIntervals, 0.99),
+      maximum: Math.max(0, ...meaningfulIntervals),
+      over16_7: meaningfulIntervals.filter((value) => value > 16.7).length,
+      over33_3: meaningfulIntervals.filter((value) => value > 33.3).length
+    },
+    telemetry,
+    cpuProfile
+  };
+};
+
 for (const [index, entry] of entries.entries()) {
   await access(entry.source);
   const slug = `${String(index + 1).padStart(2, '0')}-${entry.name.replace(/[^a-z0-9.-]+/giu, '-')}`;
@@ -201,6 +270,7 @@ for (const [index, entry] of entries.entries()) {
     const difference = await measure('differenceEvidenceMs', () =>
       differenceEvidence(artifact.bytes, referenceBytes));
     const pan = await measure('panEvidenceMs', () => panEvidence(page, driver, documentId));
+    const zoom = await measure('zoomEvidenceMs', () => zoomEvidence(page, driver, documentId));
     assert.ok(pixels.nonTransparentPixels > 0, `${entry.name} rendered a fully transparent preview.`);
     results.push({ file: entry.name, status: 'pass', durationMs: Math.round(performance.now() - startedAt),
       timings,
@@ -209,7 +279,7 @@ for (const [index, entry] of entries.entries()) {
         layerCount: rendered.document.layerCount, revision: rendered.document.canonicalRevision },
       renderer: { submittedFrames: rendered.telemetry.submittedFrames,
         compositeExecutions: rendered.telemetry.stages?.['document-composite']?.executions ?? 0 },
-      pixels, difference, pan, pageErrors, consoleErrors, previewPath, referencePath, screenshotPath });
+      pixels, difference, pan, zoom, pageErrors, consoleErrors, previewPath, referencePath, screenshotPath });
   } catch (error) {
     const diagnostic = app && page ? await captureDesktopTestState({ app, page,
       outputDirectory: output, sourceFile: entry.source, pageErrors, label: `${slug}-failure`,
@@ -229,7 +299,7 @@ const reportPath = path.join(output, 'report.json');
 await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 const failed = results.filter(({ status }) => status === 'fail');
 console.log(JSON.stringify({ reportPath, files: results.length, failed: failed.length,
-  results: results.map(({ file, status, durationMs, timings, pixels, difference, pan }) => (
-    { file, status, durationMs, timings, pixels, difference, pan }
+  results: results.map(({ file, status, durationMs, timings, pixels, difference, pan, zoom }) => (
+    { file, status, durationMs, timings, pixels, difference, pan, zoom }
   )) }, null, 2));
 if (failed.length) process.exitCode = 1;

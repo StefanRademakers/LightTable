@@ -1,0 +1,61 @@
+# Task 303 - Scalable vector rendering architecture and Vello bake-off
+
+Owner direction: execute the complete research and integration program in
+`VELLO_RESEARCH_AND_INTEGRATION_ADVICE.md` as an evidence-led product task.
+Vello must be tested as a real backend candidate, while improvements to the
+current renderer remain equally valid when they win on correctness, latency,
+memory and maintainability.
+
+## Product outcome
+
+Large editable vector documents must open and remain interactive under pan,
+zoom and isolated edits without document mutation, CPU image readback or
+unbounded renderer memory. LightTable continues to own document semantics,
+editing, history and compositing. Renderer-specific state remains derived and
+replaceable.
+
+The architecture must admit SVG today and future AI, EPS and semantic PDF
+adapters without making any source format or renderer a second document
+authority. Format-specific fidelity, security, editability and fallback rules
+remain explicit at each importer/exporter boundary.
+
+## Non-negotiable gates
+
+- Establish production-packaged baselines before changing renderer behavior.
+- Measure cold open, warm pan, zoom, mutation, GPU work, CPU work and memory;
+  report distributions rather than average FPS alone.
+- Preserve fill/stroke/order/opacity/gradient/transform/clip/color semantics.
+- No document mutation for rendering, workspace changes, pan or zoom.
+- No GPU-to-CPU-to-GPU image route in normal vector rendering.
+- Prove or disprove Chromium WebGPU to Rust/WASM/Vello zero-copy
+  interoperability with a bounded executable spike before committing to a
+  Vello production backend.
+- Keep editor overlays on their existing retained native fast path unless
+  measurement proves another path better.
+- Any compiled scene is a deterministic revision-keyed projection of the
+  canonical document, not a second mutable model.
+- Rejected experiments leave no product code behind; retain only concise
+  durable evidence.
+
+## Milestones
+
+- [x] Production-packaged pathological zoom/pan baseline with correctness
+      images; representative corpus and mutation coverage continue below.
+- [ ] Profile-ranked improvements to the current LightTable vector backend
+      (first cache/zoom invalidation win proven; cold-open work remains).
+- [ ] Minimal renderer-neutral compiled-scene contract where measurements
+      justify it, with current backend parity and no interaction regression.
+- [ ] Vello Electron/WASM zero-copy interoperability verdict.
+- [ ] If interoperability succeeds, meaningful selectable Vello backend and
+      bake-off; otherwise a documented evidence-backed architecture decision.
+- [ ] SVG plus future AI/EPS/PDF compatibility consequences documented and
+      reflected in importer/compiler boundaries.
+- [ ] Bounded correctness, crash, memory and lifecycle regression selection.
+- [ ] Owner-visible final report with commits, measurements, rejected paths,
+      remaining risks and manual validation requirements.
+
+## Commit policy
+
+Commit each independently verified improvement with focused tests and measured
+before/after evidence. Do not combine speculative Vello plumbing with proven
+LightTable renderer wins in one commit.
