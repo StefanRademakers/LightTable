@@ -53,6 +53,22 @@ describe('gradient paint contract', () => {
     expect(clone.transform).not.toBe(paint.transform);
   });
 
+  it('validates and clones SVG-compatible radial focal geometry', () => {
+    const paint = {
+      kind: 'gradient' as const, asset, shape: 'radial' as const,
+      coordinateSpace: 'object-bounds' as const, transform: identityPaintTransform(),
+      radialFocus: { x: -0.25, y: 0.2 }, radialStartRadius: 0.1,
+      reverse: false, dither: false, interpolation: 'classic' as const
+    };
+    expect(gradientPaintIsValid(paint)).toBe(true);
+    const clone = cloneGradientPaint(paint);
+    expect(clone.radialFocus).toEqual(paint.radialFocus);
+    expect(clone.radialFocus).not.toBe(paint.radialFocus);
+    expect(gradientPaintIsValid({ ...paint, radialFocus: { x: 0.95, y: 0 }, radialStartRadius: 0.1 }))
+      .toBe(false);
+    expect(gradientPaintIsValid({ ...paint, shape: 'linear' })).toBe(false);
+  });
+
   it('samples independent color and opacity stops with midpoint semantics', () => {
     const sampled = sampleGradientAsset({
       ...asset,

@@ -76,4 +76,22 @@ describe('compileVectorPaintScene', () => {
     expect(command.paint.stops[0].color).toEqual([0, 0, 0, 1]);
     expect(command.paint.stops.at(-1)?.color).toEqual([1, 1, 1, 1]);
   });
+
+  it('preserves radial focal geometry in the backend-neutral scene', () => {
+    const value = createVectorLiveShape('radial', {
+      kind: 'ellipse', width: 20, height: 10
+    });
+    value.style.fill = {
+      ...createDefaultGradientPaint('radial-gradient'),
+      shape: 'radial', radialFocus: { x: -0.25, y: 0.125 }, radialStartRadius: 0.2
+    };
+    const result = compileVectorPaintScene([value], { sourceId: 'doc', sourceRevision: '12' });
+    expect(result.status).toBe('ready');
+    expect(result.scene.fragments[0].commands[0]).toMatchObject({
+      paint: {
+        kind: 'gradient', shape: 'radial', radialFocus: [-0.25, 0.125],
+        radialStartRadius: 0.2
+      }
+    });
+  });
 });

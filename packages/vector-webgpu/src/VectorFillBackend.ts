@@ -257,13 +257,18 @@ export class VectorFillBackend {
     this.device.queue.writeBuffer(settings, 0, new Float32Array([
       target.origin.x, target.origin.y, target.width, target.height,
       path.transform.a, path.transform.b, path.transform.c, path.transform.d,
-      path.transform.tx, path.transform.ty, 0, 0,
+      path.transform.tx, path.transform.ty,
+      gradient?.shape === 'radial' ? gradient.radialFocus?.x ?? 0 : 0,
+      gradient?.shape === 'radial' ? gradient.radialFocus?.y ?? 0 : 0,
       ...color,
       gradientMapping?.a ?? 1, gradientMapping?.c ?? 0, gradientMapping?.tx ?? 0,
       gradient ? gradientSpreadCode(gradient.spread) : 0,
       gradientMapping?.b ?? 0, gradientMapping?.d ?? 1, gradientMapping?.ty ?? 0,
       gradient ? gradientShapeCode(gradient.shape) : 0,
-      gradient ? 1 : 0, gradient?.reverse ? 1 : 0, opacity, gradient?.dither ? 1 : 0
+      gradient ? 1 : 0, gradient?.reverse ? 1 : 0, opacity,
+      gradient?.shape === 'radial'
+        ? (gradient.dither ? -((gradient.radialStartRadius ?? 0) + 1) : gradient.radialStartRadius ?? 0)
+        : (gradient?.dither ? 1 : 0)
     ]));
     const lut = gradient ? this.gradientLut(gradient) : this.solidLut;
     const bindGroup = this.device.createBindGroup({

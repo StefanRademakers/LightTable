@@ -78,7 +78,26 @@ fn coverFragment(input: CoverOutput) -> @location(0) vec4f {
   );
   let shape = u32(settings.gradientRow1.w + 0.5);
   var position = point.x;
-  if (shape == 1u) { position = length(point); }
+  if (shape == 1u) {
+    // Solve the SVG two-circle radial gradient with a zero-radius start
+    // circle at the focal point and a unit end circle at the origin.
+    // translation.zw is otherwise unused by vector geometry.
+    let focus = settings.translation.zw;
+    let q = point - focus;
+    let radialOptions = settings.gradientOptions.w;
+    let startRadius = select(radialOptions, -radialOptions - 1.0, radialOptions < 0.0);
+    let radiusDelta = 1.0 - startRadius;
+    let direction = -focus;
+    let a = dot(direction, direction) - radiusDelta * radiusDelta;
+    let b = -2.0 * (dot(q, direction) + startRadius * radiusDelta);
+    let c = dot(q, q) - startRadius * startRadius;
+    if (abs(a) < 0.000001) {
+      position = select(length(point), -c / b, abs(b) > 0.000001);
+    } else {
+      let discriminant = max(0.0, b * b - 4.0 * a * c);
+      position = (-b - sqrt(discriminant)) / (2.0 * a);
+    }
+  }
   if (shape == 2u) { position = fract(atan2(point.y, point.x) / 6.28318530718 + 1.0); }
   if (shape == 3u) { position = abs(point.x); }
   if (shape == 4u) { position = abs(point.x) + abs(point.y); }
@@ -91,7 +110,8 @@ fn coverFragment(input: CoverOutput) -> @location(0) vec4f {
   let lower = u32(floor(scaled));
   let upper = min(255u, lower + 1u);
   var color = mix(gradientLut[lower], gradientLut[upper], fract(scaled));
-  if (settings.gradientOptions.w > 0.5) {
+  let dither = select(settings.gradientOptions.w > 0.5, settings.gradientOptions.w < 0.0, shape == 1u);
+  if (dither) {
     let noise = fract(sin(dot(input.documentPosition, vec2f(12.9898, 78.233))) * 43758.5453) - 0.5;
     color = vec4f(
       clamp(color.rgb + vec3f(noise / 255.0), vec3f(0.0), vec3f(1.0)),

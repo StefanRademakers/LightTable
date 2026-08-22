@@ -81,6 +81,12 @@ const gradientPaint = (
     kind: 'gradient',
     shape: paint.shape,
     transform: matrix(sceneTransform),
+    ...(paint.shape === 'radial' && paint.radialFocus
+      ? { radialFocus: [paint.radialFocus.x, paint.radialFocus.y] as const }
+      : {}),
+    ...(paint.shape === 'radial' && paint.radialStartRadius !== undefined
+      ? { radialStartRadius: paint.radialStartRadius }
+      : {}),
     spread: paint.spread ?? 'pad',
     dither: paint.dither,
     stops: Array.from({ length: GRADIENT_RAMP_SAMPLES }, (_, index) => {

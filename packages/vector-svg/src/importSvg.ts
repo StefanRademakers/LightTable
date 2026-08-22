@@ -278,7 +278,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     value: string | null,
     name: string,
     fallback: string,
-    axis: 'x' | 'y',
+    axis: 'x' | 'y' | 'radius',
     units: 'objectBoundingBox' | 'userSpaceOnUse'
   ) => {
     const raw = value?.trim() || fallback;
@@ -286,6 +286,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     if (percentage) {
       const ratio = finiteNumber(percentage[1]!, name) / 100;
       if (units === 'objectBoundingBox') return ratio;
+      if (axis === 'radius') return ratio * Math.hypot(viewBox.width, viewBox.height) / Math.SQRT2;
       return (axis === 'x' ? viewBox.minX : viewBox.minY)
         + ratio * (axis === 'x' ? viewBox.width : viewBox.height);
     }
@@ -304,12 +305,16 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     return stop.getAttribute(name);
   };
 
-  const linearGradientPaint = (
+  const gradientPaint = (
     gradient: XmlElement,
     currentTransform: AffineMatrix,
     paintOpacity: number
   ): GradientPaintInstance => {
     const gradientId = gradient.getAttribute('id')!.trim();
+    const gradientTag = (gradient.localName || gradient.tagName).toLowerCase();
+    if (gradientTag !== 'lineargradient' && gradientTag !== 'radialgradient') {
+      throw new SvgCodecError('unsupported-paint-server', `Resource “${gradientId}” is not an SVG gradient.`);
+    }
     const chain: XmlElement[] = [];
     const visited = new Set<string>();
     let template: XmlElement | null = gradient;
@@ -326,7 +331,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
       if (!href) break;
       const referencedId: string | undefined = LOCAL_FRAGMENT.exec(href.trim())?.[1];
       const referenced: XmlElement | null = referencedId ? resources.get(referencedId) ?? null : null;
-      if (!referenced || (referenced.localName || referenced.tagName).toLowerCase() !== 'lineargradient') {
+      if (!referenced || (referenced.localName || referenced.tagName).toLowerCase() !== gradientTag) {
         throw new SvgCodecError('unsupported-gradient-template',
           `Gradient “${gradientId}” references an unsupported template.`);
       }
@@ -345,20 +350,45 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     if (spreadRaw !== 'pad' && spreadRaw !== 'reflect' && spreadRaw !== 'repeat') {
       throw new SvgCodecError('unsupported-gradient-spread', `Gradient “${gradientId}” has invalid spreadMethod.`);
     }
-    const x1 = gradientCoordinate(inheritedAttribute('x1'), 'x1', '0%', 'x', unitsRaw);
-    const y1 = gradientCoordinate(inheritedAttribute('y1'), 'y1', '0%', 'y', unitsRaw);
-    const x2 = gradientCoordinate(inheritedAttribute('x2'), 'x2', '100%', 'x', unitsRaw);
-    const y2 = gradientCoordinate(inheritedAttribute('y2'), 'y2', '0%', 'y', unitsRaw);
-    const dx = x2 - x1; const dy = y2 - y1;
-    if (Math.hypot(dx, dy) < 1e-12) {
-      throw new SvgCodecError('degenerate-gradient', `Gradient “${gradientId}” has coincident endpoints.`);
+    let gradientGeometry: AffineMatrix;
+    let radialFocus: { x: number; y: number } | undefined;
+    let radialStartRadius: number | undefined;
+    if (gradientTag === 'lineargradient') {
+      const x1 = gradientCoordinate(inheritedAttribute('x1'), 'x1', '0%', 'x', unitsRaw);
+      const y1 = gradientCoordinate(inheritedAttribute('y1'), 'y1', '0%', 'y', unitsRaw);
+      const x2 = gradientCoordinate(inheritedAttribute('x2'), 'x2', '100%', 'x', unitsRaw);
+      const y2 = gradientCoordinate(inheritedAttribute('y2'), 'y2', '0%', 'y', unitsRaw);
+      const dx = x2 - x1; const dy = y2 - y1;
+      if (Math.hypot(dx, dy) < 1e-12) {
+        throw new SvgCodecError('degenerate-gradient', `Gradient “${gradientId}” has coincident endpoints.`);
+      }
+      gradientGeometry = { a: dx, b: dy, c: -dy, d: dx, tx: x1, ty: y1 };
+    } else {
+      const cx = gradientCoordinate(inheritedAttribute('cx'), 'cx', '50%', 'x', unitsRaw);
+      const cy = gradientCoordinate(inheritedAttribute('cy'), 'cy', '50%', 'y', unitsRaw);
+      const r = gradientCoordinate(inheritedAttribute('r'), 'r', '50%', 'radius', unitsRaw);
+      if (!(r > 0)) throw new SvgCodecError('degenerate-gradient', `Gradient “${gradientId}” must have a positive radius.`);
+      const fx = gradientCoordinate(inheritedAttribute('fx'), 'fx', String(cx), 'x', unitsRaw);
+      const fy = gradientCoordinate(inheritedAttribute('fy'), 'fy', String(cy), 'y', unitsRaw);
+      const fr = gradientCoordinate(inheritedAttribute('fr'), 'fr', '0', 'radius', unitsRaw);
+      if (fr < 0 || fr >= r) throw new SvgCodecError('invalid-gradient-radius', `Gradient “${gradientId}” has an invalid focal radius.`);
+      radialFocus = { x: (fx - cx) / r, y: (fy - cy) / r };
+      radialStartRadius = fr / r;
+      const focusDistance = Math.hypot(radialFocus.x, radialFocus.y);
+      const maximumFocusDistance = Math.max(0, 1 - radialStartRadius) * (1 - 1e-7);
+      if (focusDistance > maximumFocusDistance && focusDistance > 0) {
+        const scale = maximumFocusDistance / focusDistance;
+        radialFocus = { x: radialFocus.x * scale, y: radialFocus.y * scale };
+        conversions.push({
+          code: 'clamped-radial-focal-circle', element: gradientId,
+          message: `Moved SVG radial gradient “${gradientId}” focal circle inside its end circle as required by SVG rendering semantics.`
+        });
+      }
+      gradientGeometry = { a: r, b: 0, c: 0, d: r, tx: cx, ty: cy };
     }
-    const gradientVector: AffineMatrix = {
-      a: dx, b: dy, c: -dy, d: dx, tx: x1, ty: y1
-    };
     let transform = multiplyMatrices(
       parseSvgTransform(inheritedAttribute('gradientTransform')),
-      gradientVector
+      gradientGeometry
     );
     if (unitsRaw === 'userSpaceOnUse') transform = multiplyMatrices(currentTransform, transform);
 
@@ -398,9 +428,11 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
       kind: 'gradient',
       asset: { id: gradientId, name: gradientId, type: 'solid', smoothness: 1,
         colorStops, opacityStops, roughness: 0, seed: 0 },
-      shape: 'linear',
+      shape: gradientTag === 'lineargradient' ? 'linear' : 'radial',
       coordinateSpace: unitsRaw === 'objectBoundingBox' ? 'object-bounds' : 'document',
       transform,
+      ...(radialFocus ? { radialFocus } : {}),
+      ...(radialStartRadius ? { radialStartRadius } : {}),
       reverse: false,
       dither: true,
       interpolation: 'classic',
@@ -423,15 +455,15 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     }
     const resource = resources.get(referenceId);
     const resourceTag = resource && (resource.localName || resource.tagName).toLowerCase();
-    if (!resource || resourceTag !== 'lineargradient') {
+    if (!resource || (resourceTag !== 'lineargradient' && resourceTag !== 'radialgradient')) {
       warnings.push({ code: 'ignored-unsupported-paint-server', element: owner,
         message: `Ignored unsupported local SVG paint server “#${referenceId}”.` });
       return null;
     }
     try {
-      const paint = linearGradientPaint(resource, currentTransform, paintOpacity);
-      conversions.push({ code: 'resolved-linear-gradient', element: owner,
-        message: `Resolved local SVG linear gradient “#${referenceId}” to native editable paint.` });
+      const paint = gradientPaint(resource, currentTransform, paintOpacity);
+      conversions.push({ code: `resolved-${paint.shape}-gradient`, element: owner,
+        message: `Resolved local SVG ${paint.shape} gradient “#${referenceId}” to native editable paint.` });
       return paint;
     } catch (reason) {
       if (!(reason instanceof SvgCodecError)) throw reason;
@@ -510,7 +542,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     if (METADATA.has(tag)) {
       warnings.push({ code: 'ignored-metadata', element: tag, message: `Ignored non-rendering <${tag}> metadata.` }); return;
     }
-    if (tag === 'defs' || tag === 'lineargradient') return;
+    if (tag === 'defs' || tag === 'lineargradient' || tag === 'radialgradient') return;
     if (UNSUPPORTED.has(tag) || (tag !== 'svg' && tag !== 'g' && tag !== 'a' && !DRAWABLES.has(tag))) {
       warnings.push({ code: 'ignored-unsupported-element', element: nameOf(element),
         message: `Ignored unsupported SVG element <${tag}>.` });

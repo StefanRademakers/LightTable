@@ -23,6 +23,9 @@ export interface PaintSceneGradientPaint {
   readonly kind: 'gradient';
   readonly shape: 'linear' | 'radial' | 'angle' | 'reflected' | 'diamond';
   readonly transform: PaintSceneMatrix;
+  /** Focal point in normalized radial space; only valid for radial paint. */
+  readonly radialFocus?: readonly [number, number];
+  readonly radialStartRadius?: number;
   readonly spread: 'pad' | 'reflect' | 'repeat';
   readonly dither: boolean;
   readonly stops: readonly PaintSceneGradientStop[];

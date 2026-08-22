@@ -1,5 +1,5 @@
-import { isIdentityAffineMatrix, realizeLiveShape, type SolidPaint, type VectorElement,
-  type VectorStyle } from '@lighttable/vector-core';
+import { invertMatrix, isIdentityAffineMatrix, multiplyMatrices, realizeLiveShape,
+  type AffineMatrix, type SolidPaint, type VectorElement, type VectorStyle } from '@lighttable/vector-core';
 import { sampleGradientAsset, type GradientPaintInstance } from '@lighttable/paint-core';
 import { serializeSolidPaint } from './color';
 import { serializeSvgPathData } from './pathData';
@@ -15,8 +15,9 @@ interface GradientExportRegistry {
 }
 
 const registerGradient = (gradient: GradientPaintInstance, registry: GradientExportRegistry) => {
-  if (gradient.asset.type !== 'solid' || gradient.shape !== 'linear') {
-    throw new SvgCodecError('unsupported-export-paint', 'SVG export currently supports solid and linear-gradient vector paint.');
+  if (gradient.asset.type !== 'solid'
+    || (gradient.shape !== 'linear' && gradient.shape !== 'radial')) {
+    throw new SvgCodecError('unsupported-export-paint', 'SVG export currently supports solid, linear-gradient and radial-gradient vector paint.');
   }
   const key = JSON.stringify(gradient);
   const cached = registry.ids.get(key);
@@ -31,11 +32,23 @@ const paint = (
   value: VectorStyle['fill'],
   role: 'fill' | 'stroke',
   registry: GradientExportRegistry,
+  elementTransform: AffineMatrix,
   opacity = 1
 ) => {
   if (value === null) return [`${role}="none"`];
   if ('kind' in value) {
-    return [`${role}="url(#${registerGradient(value, registry)})"`,
+    let exportPaint = value;
+    if (value.coordinateSpace !== 'object-bounds') {
+      const inverse = invertMatrix(elementTransform);
+      if (!inverse) throw new SvgCodecError('noninvertible-gradient-transform',
+        'SVG export cannot express a document-space gradient on a non-invertible element transform.');
+      exportPaint = {
+        ...value,
+        coordinateSpace: 'document',
+        transform: multiplyMatrices(inverse, value.transform)
+      };
+    }
+    return [`${role}="url(#${registerGradient(exportPaint, registry)})"`,
       ...(opacity < 1 ? [`${role}-opacity="${number(opacity)}"`] : [])];
   }
   if (value.type !== 'solid') throw new SvgCodecError('unsupported-export-paint', 'SVG export encountered unknown vector paint.');
@@ -43,12 +56,17 @@ const paint = (
   const combinedOpacity = serialized.alpha * opacity;
   return [`${role}="${serialized.color}"`, ...(combinedOpacity < 1 ? [`${role}-opacity="${number(combinedOpacity)}"`] : [])];
 };
-const styleAttributes = (style: VectorStyle, registry: GradientExportRegistry) => {
-  const attributes = [...paint(style.fill, 'fill', registry)];
+const styleAttributes = (
+  style: VectorStyle,
+  registry: GradientExportRegistry,
+  elementTransform: AffineMatrix
+) => {
+  const attributes = [...paint(style.fill, 'fill', registry, elementTransform)];
   if (style.stroke) attributes.push(...paint(
     style.stroke.paint,
     'stroke',
     registry,
+    elementTransform,
     style.stroke.opacity ?? 1
   ),
     `stroke-width="${number(style.stroke.width)}"`, `stroke-linecap="${style.stroke.cap}"`,
@@ -61,7 +79,8 @@ const styleAttributes = (style: VectorStyle, registry: GradientExportRegistry) =
 };
 
 const serializeElement = (element: VectorElement, registry: GradientExportRegistry) => {
-  const attributes = [`id="${escape(element.name || element.id)}"`, ...styleAttributes(element.style, registry)];
+  const attributes = [`id="${escape(element.name || element.id)}"`,
+    ...styleAttributes(element.style, registry, element.transform)];
   if (!isIdentityAffineMatrix(element.transform)) attributes.push(`transform="${serializeTransform(element.transform)}"`);
   if (element.type === 'live-shape' && element.geometry.kind === 'rectangle') {
     const radii = element.geometry.cornerRadii;
@@ -100,6 +119,10 @@ const gradientDefinition = (gradient: GradientPaintInstance, id: string) => {
       sampled.a < 1 ? ` stop-opacity="${number(sampled.a)}"` : ''}/>`;
   }).join('\n');
   const transform = gradient.transform;
+  if (gradient.shape === 'radial') {
+    const focus = gradient.radialFocus ?? { x: 0, y: 0 };
+    return `    <radialGradient id="${id}" gradientUnits="${units}" cx="0" cy="0" r="1" fx="${number(focus.x)}" fy="${number(focus.y)}" fr="${number(gradient.radialStartRadius ?? 0)}" gradientTransform="${serializeTransform(transform)}" spreadMethod="${gradient.spread ?? 'pad'}">\n${stops}\n    </radialGradient>`;
+  }
   return `    <linearGradient id="${id}" gradientUnits="${units}" x1="0" y1="0" x2="1" y2="0" gradientTransform="${serializeTransform(transform)}" spreadMethod="${gradient.spread ?? 'pad'}">\n${stops}\n    </linearGradient>`;
 };
 

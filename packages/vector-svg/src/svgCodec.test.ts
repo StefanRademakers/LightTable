@@ -128,6 +128,51 @@ describe('native SVG codec', () => {
       kind: 'gradient', coordinateSpace: 'document',
       transform: { a: 100, b: 0, c: 0, d: 100, tx: 5, ty: 7 }
     });
+
+    const serialized = exportSvg(plan.elements, { width: plan.width, height: plan.height });
+    const roundTrip = importSvg(serialized);
+    expect(roundTrip.elements[0]?.style.fill).toMatchObject({
+      kind: 'gradient', coordinateSpace: 'document',
+      transform: { a: 100, b: 0, c: 0, d: 100, tx: 5, ty: 7 }
+    });
+  });
+
+  it('imports and exports editable two-circle radial gradients without flattening focus', () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
+      <defs><radialGradient id="spot" cx="50%" cy="40%" r="60%" fx="30%" fy="25%" fr="5%"
+        spreadMethod="repeat"><stop stop-color="white"/><stop offset="1" stop-color="blue"/></radialGradient></defs>
+      <circle id="orb" cx="100" cy="50" r="40" fill="url(#spot)"/>
+    </svg>`;
+    const first = importSvg(source);
+    expect(first.elements[0]?.style.fill).toMatchObject({
+      kind: 'gradient', shape: 'radial', coordinateSpace: 'object-bounds', spread: 'repeat',
+      transform: { a: 0.6, d: 0.6, tx: 0.5, ty: 0.4 },
+      radialFocus: { x: expect.closeTo(-1 / 3, 12), y: expect.closeTo(-0.25, 12) },
+      radialStartRadius: expect.closeTo(1 / 12, 12)
+    });
+    expect(first.report.conversions).toContainEqual(expect.objectContaining({
+      code: 'resolved-radial-gradient', element: 'orb'
+    }));
+
+    const serialized = exportSvg(first.elements, { width: first.width, height: first.height });
+    expect(serialized).toContain('<radialGradient');
+    const second = importSvg(serialized);
+    expect(second.elements[0]?.style.fill).toMatchObject({
+      kind: 'gradient', shape: 'radial', spread: 'repeat',
+      radialFocus: { x: expect.closeTo(-1 / 3, 5), y: -0.25 },
+      radialStartRadius: expect.closeTo(1 / 12, 5)
+    });
+  });
+
+  it('clamps an out-of-range SVG focal circle instead of rejecting safe geometry', () => {
+    const plan = importSvg(`<svg xmlns="http://www.w3.org/2000/svg"><defs>
+      <radialGradient id="g" cx=".5" cy=".5" r=".5" fx="2" fy=".5" fr=".1">
+        <stop stop-color="white"/><stop offset="1" stop-color="black"/>
+      </radialGradient></defs><rect width="10" height="10" fill="url(#g)"/></svg>`);
+    expect(plan.elements[0]?.style.fill).toMatchObject({ kind: 'gradient', shape: 'radial' });
+    expect(plan.report.conversions).toContainEqual(expect.objectContaining({
+      code: 'clamped-radial-focal-circle', element: 'g'
+    }));
   });
 
   it('inherits local gradient templates with a bounded resource chain', () => {

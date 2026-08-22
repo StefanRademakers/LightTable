@@ -57,6 +57,10 @@ enum PaintScenePaint {
     Gradient {
         shape: GradientShape,
         transform: [f64; 6],
+        #[serde(rename = "radialFocus")]
+        radial_focus: Option<[f64; 2]>,
+        #[serde(rename = "radialStartRadius")]
+        radial_start_radius: Option<f64>,
         spread: GradientSpread,
         #[serde(rename = "dither")]
         _dither: bool,
@@ -187,6 +191,8 @@ fn gradient_brush(
     let PaintScenePaint::Gradient {
         shape,
         transform,
+        radial_focus,
+        radial_start_radius,
         spread,
         _dither: _,
         stops,
@@ -211,7 +217,15 @@ fn gradient_brush(
         .collect();
     let mut gradient = match shape {
         GradientShape::Linear => Gradient::new_linear((0.0, 0.0), (1.0, 0.0)),
-        GradientShape::Radial => Gradient::new_radial((0.0, 0.0), 1.0),
+        GradientShape::Radial => {
+            let focus = radial_focus.unwrap_or([0.0, 0.0]);
+            Gradient::new_two_point_radial(
+                (focus[0], focus[1]),
+                radial_start_radius.unwrap_or(0.0) as f32,
+                (0.0, 0.0),
+                1.0_f32,
+            )
+        }
         GradientShape::Angle => Gradient::new_sweep((0.0, 0.0), 0.0, TAU),
         GradientShape::Reflected => {
             let mirrored: Vec<ColorStop> = stops

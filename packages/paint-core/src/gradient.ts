@@ -48,6 +48,14 @@ export interface GradientPaintInstance {
   readonly coordinateSpace: 'object-bounds' | 'layer' | 'document';
   /** Maps normalized gradient space into the selected coordinate space. */
   readonly transform: PaintAffineTransform;
+  /**
+   * SVG-compatible focal point in normalized radial-gradient space. The
+   * radial end circle is centered at (0, 0) with radius 1. Omitted means a
+   * concentric radial gradient. Non-radial paints must omit this value.
+   */
+  readonly radialFocus?: Readonly<{ x: number; y: number }>;
+  /** Radius of the radial start circle in normalized end-circle units. */
+  readonly radialStartRadius?: number;
   readonly reverse: boolean;
   readonly dither: boolean;
   readonly interpolation: 'perceptual' | 'linear' | 'classic' | 'smooth';
@@ -106,7 +114,8 @@ export const cloneGradientAsset = (asset: GradientAsset): GradientAsset => ({
 export const cloneGradientPaint = (paint: GradientPaintInstance): GradientPaintInstance => ({
   ...paint,
   asset: cloneGradientAsset(paint.asset),
-  transform: { ...paint.transform }
+  transform: { ...paint.transform },
+  ...(paint.radialFocus ? { radialFocus: { ...paint.radialFocus } } : {})
 });
 
 export const gradientAssetIsValid = (asset: GradientAsset): boolean => {
@@ -130,6 +139,17 @@ export const gradientAssetIsValid = (asset: GradientAsset): boolean => {
 
 export const gradientPaintIsValid = (paint: GradientPaintInstance): boolean => {
   const finiteTransform = Object.values(paint.transform).every(Number.isFinite);
+  const validRadialFocus = paint.radialFocus === undefined
+    || (paint.shape === 'radial'
+      && Number.isFinite(paint.radialFocus.x)
+      && Number.isFinite(paint.radialFocus.y)
+      && Math.hypot(paint.radialFocus.x, paint.radialFocus.y)
+        + (paint.radialStartRadius ?? 0) < 1);
+  const validRadialStartRadius = paint.radialStartRadius === undefined
+    || (paint.shape === 'radial'
+      && Number.isFinite(paint.radialStartRadius)
+      && paint.radialStartRadius >= 0
+      && paint.radialStartRadius < 1);
   return paint.kind === 'gradient'
     && gradientAssetIsValid(paint.asset)
     && ['linear', 'radial', 'angle', 'reflected', 'diamond'].includes(paint.shape)
@@ -138,6 +158,8 @@ export const gradientPaintIsValid = (paint: GradientPaintInstance): boolean => {
     && (paint.spread === undefined || ['pad', 'reflect', 'repeat'].includes(paint.spread))
     && typeof paint.reverse === 'boolean'
     && typeof paint.dither === 'boolean'
+    && validRadialFocus
+    && validRadialStartRadius
     && finiteTransform;
 };
 

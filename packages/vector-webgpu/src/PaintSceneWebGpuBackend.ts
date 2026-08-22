@@ -164,6 +164,12 @@ const commandPaint = (
       c: paint.transform[2], d: paint.transform[3],
       tx: paint.transform[4], ty: paint.transform[5]
     },
+    ...(paint.shape === 'radial' && paint.radialFocus
+      ? { radialFocus: { x: paint.radialFocus[0], y: paint.radialFocus[1] } }
+      : {}),
+    ...(paint.shape === 'radial' && paint.radialStartRadius !== undefined
+      ? { radialStartRadius: paint.radialStartRadius }
+      : {}),
     reverse: false,
     dither: paint.dither,
     interpolation: 'classic',
