@@ -188,6 +188,43 @@ describe('native SVG codec', () => {
       .toHaveLength(2);
   });
 
+  it('ignores foreign editor elements while importing supported SVG siblings', () => {
+    const plan = importSvg(`<svg xmlns="http://www.w3.org/2000/svg"
+      xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd">
+      <sodipodi:namedview id="editor-view"><sodipodi:guide position="1,2"/></sodipodi:namedview>
+      <path id="visible" d="M0 0L10 10"/>
+    </svg>`);
+    expect(plan.elements).toHaveLength(1);
+    expect(plan.elements[0]?.name).toBe('visible');
+    expect(plan.report.warnings).toContainEqual(expect.objectContaining({
+      code: 'ignored-foreign-element', element: 'editor-view'
+    }));
+  });
+
+  it('skips unknown SVG subtrees without losing supported siblings', () => {
+    const plan = importSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+      <futureShape id="unknown"><path id="nested" d="M0 0L2 2"/></futureShape>
+      <circle id="visible" cx="5" cy="5" r="4"/>
+    </svg>`);
+    expect(plan.elements).toHaveLength(1);
+    expect(plan.elements[0]?.name).toBe('visible');
+    expect(plan.report.warnings).toContainEqual(expect.objectContaining({
+      code: 'ignored-unsupported-element', element: 'unknown'
+    }));
+  });
+
+  it('skips known but unsupported passive elements and keeps supported siblings', () => {
+    const plan = importSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+      <text x="1" y="2">Not editable yet</text>
+      <rect id="visible" width="10" height="10"/>
+    </svg>`);
+    expect(plan.elements).toHaveLength(1);
+    expect(plan.elements[0]?.name).toBe('visible');
+    expect(plan.report.warnings).toContainEqual(expect.objectContaining({
+      code: 'ignored-unsupported-element', element: 'text'
+    }));
+  });
+
   it('still rejects references carried by a foreign namespace', () => {
     expect(() => importSvg(`<svg xmlns="http://www.w3.org/2000/svg"
       xmlns:xlink="http://www.w3.org/1999/xlink">

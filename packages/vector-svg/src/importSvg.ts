@@ -11,7 +11,8 @@ import { DEFAULT_SVG_CODEC_LIMITS, SvgCodecError, type SvgCodecLimits,
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const DRAWABLES = new Set(['path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon']);
-const FORBIDDEN = new Set(['script', 'foreignobject', 'image', 'text', 'style', 'iframe', 'object',
+const ACTIVE_CONTENT = new Set(['script', 'foreignobject', 'iframe', 'object']);
+const UNSUPPORTED = new Set(['image', 'text', 'style',
   'animate', 'animatemotion', 'animatetransform', 'set', 'filter', 'mask', 'clippath', 'pattern',
   'marker', 'lineargradient', 'radialgradient', 'use', 'defs']);
 const METADATA = new Set(['title', 'desc', 'metadata']);
@@ -237,13 +238,25 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     sourceElementCount += 1;
     if (sourceElementCount > limits.maxElements) throw new SvgCodecError('element-limit',
       `SVG exceeds the ${limits.maxElements} element limit.`);
-    if (element.namespaceURI && element.namespaceURI !== SVG_NAMESPACE) throw new SvgCodecError('foreign-namespace', `Foreign SVG namespace on <${tag}> is forbidden.`);
-    if (FORBIDDEN.has(tag)) throw new SvgCodecError('unsupported-element', `SVG element <${tag}> is unsupported in editable import.`);
+    if (element.namespaceURI && element.namespaceURI !== SVG_NAMESPACE) {
+      warnings.push({ code: 'ignored-foreign-element', element: nameOf(element),
+        message: `Ignored non-SVG extension element <${element.tagName}>.` });
+      return;
+    }
+    if (ACTIVE_CONTENT.has(tag)) throw new SvgCodecError('active-content', `Active SVG element <${tag}> is forbidden.`);
     if (METADATA.has(tag)) {
       warnings.push({ code: 'ignored-metadata', element: tag, message: `Ignored non-rendering <${tag}> metadata.` }); return;
     }
-    if (tag !== 'svg' && tag !== 'g' && tag !== 'a' && !DRAWABLES.has(tag)) throw new SvgCodecError('unsupported-element', `Unsupported SVG element <${tag}>.`);
-    if (tag === 'svg' && element !== root) throw new SvgCodecError('nested-svg', 'Nested <svg> viewports are unsupported.');
+    if (UNSUPPORTED.has(tag) || (tag !== 'svg' && tag !== 'g' && tag !== 'a' && !DRAWABLES.has(tag))) {
+      warnings.push({ code: 'ignored-unsupported-element', element: nameOf(element),
+        message: `Ignored unsupported SVG element <${tag}>.` });
+      return;
+    }
+    if (tag === 'svg' && element !== root) {
+      warnings.push({ code: 'ignored-unsupported-element', element: nameOf(element),
+        message: 'Ignored unsupported nested <svg> viewport.' });
+      return;
+    }
     validateAttributes(element, tag);
     const style = inheritedStyle(element, parentStyle);
     if ((tag === 'svg' || tag === 'g' || tag === 'a') && style.opacity !== 1) {
