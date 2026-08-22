@@ -38,6 +38,15 @@ describe('native SVG codec', () => {
     expect(plan.elements[0]?.transform).toMatchObject({ a: 1, d: 1, tx: 80, ty: 80 });
   });
 
+  it('rounds fractional SVG dimensions up to a valid GPU pixel surface', () => {
+    const plan = importSvg('<svg xmlns="http://www.w3.org/2000/svg" width="357.57196" height="479.54791"><rect width="10" height="10"/></svg>');
+    expect(plan).toMatchObject({
+      width: 358,
+      height: 480,
+      viewBox: { width: 357.57196, height: 479.54791 }
+    });
+  });
+
   it('exports and reimports a semantically equivalent native subset', () => {
     const first = importSvg(SVG);
     const serialized = exportSvg(first.elements, { width: first.width, height: first.height, title: 'Round trip' });
@@ -136,9 +145,12 @@ describe('native SVG codec', () => {
     });
   });
 
-  it('rejects object opacity where fill and stroke overlap cannot be composited atomically', () => {
-    expect(() => importSvg('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0 Q10 20 20 0 Z" fill="#000" stroke="#f00" opacity=".5"/></svg>'))
-      .toThrowError(/object-level overlap compositing/u);
+  it('skips object opacity that cannot be composited atomically and keeps supported siblings', () => {
+    const plan = importSvg('<svg xmlns="http://www.w3.org/2000/svg"><path id="unsupported" d="M0 0 Q10 20 20 0 Z" fill="#000" stroke="#f00" opacity=".5"/><rect id="visible" width="10" height="10"/></svg>');
+    expect(plan.elements.map(({ name }) => name)).toEqual(['visible']);
+    expect(plan.report.warnings).toContainEqual(expect.objectContaining({
+      code: 'ignored-object-opacity', element: 'unsupported'
+    }));
   });
 
   it.each([
@@ -162,9 +174,12 @@ describe('native SVG codec', () => {
     })).toThrow(/depth limit/u);
   });
 
-  it('rejects group opacity because flattening would change overlap compositing', () => {
-    expect(() => importSvg('<svg xmlns="http://www.w3.org/2000/svg"><g opacity=".5"><rect width="10" height="10"/></g></svg>'))
-      .toThrow(/cannot be flattened/u);
+  it('skips group opacity that would change overlap compositing and keeps supported siblings', () => {
+    const plan = importSvg('<svg xmlns="http://www.w3.org/2000/svg"><g id="unsupported" opacity=".5"><rect width="10" height="10"/></g><circle id="visible" cx="5" cy="5" r="4"/></svg>');
+    expect(plan.elements.map(({ name }) => name)).toEqual(['visible']);
+    expect(plan.report.warnings).toContainEqual(expect.objectContaining({
+      code: 'ignored-group-opacity', element: 'unsupported'
+    }));
   });
 
   it('flattens an anchor container and explicitly discards navigation behavior', () => {

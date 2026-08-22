@@ -26,6 +26,9 @@ const GEOMETRY_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = Object.
   circle: ['cx', 'cy', 'r'], ellipse: ['cx', 'cy', 'rx', 'ry'],
   line: ['x1', 'y1', 'x2', 'y2'], polyline: ['points'], polygon: ['points']
 });
+const RENDERING_HINT_ATTRIBUTES = new Set([
+  'shape-rendering', 'color-rendering', 'image-rendering', 'text-rendering'
+]);
 
 interface StyleContext {
   fill: string; fillOpacity: number; fillRule: 'nonzero' | 'evenodd';
@@ -193,8 +196,12 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
   // Editable import treats viewBox user units as canonical document pixels.
   // width/height describe an SVG presentation viewport and must not shrink or
   // stretch the native geometry/canvas when both representations are present.
-  const width = viewBoxRaw ? viewBox.width : declaredWidth;
-  const height = viewBoxRaw ? viewBox.height : declaredHeight;
+  // SVG user units may be fractional; LightTable's backing surface is a
+  // pixel-addressed GPU texture and therefore requires positive integers.
+  // Ceil preserves the final fractional row/column while geometry remains in
+  // the original authored user units.
+  const width = Math.max(1, Math.ceil(viewBoxRaw ? viewBox.width : declaredWidth));
+  const height = Math.max(1, Math.ceil(viewBoxRaw ? viewBox.height : declaredHeight));
   const baseTransform = viewBoxRaw
     ? translationMatrix(-viewBox.minX, -viewBox.minY)
     : identityAffineMatrix();
@@ -205,6 +212,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
   const validateAttributes = (element: XmlElement, tag: string) => {
     if (element.attributes.length > limits.maxAttributesPerElement) throw new SvgCodecError('attribute-limit', `<${tag}> exceeds the attribute limit.`);
     const allowed = new Set([...GLOBAL_ATTRIBUTES, ...(GEOMETRY_ATTRIBUTES[tag] ?? [])]);
+    let renderable = true;
     for (let index = 0; index < element.attributes.length; index += 1) {
       const attribute = element.attributes.item(index)!; const name = attribute.name;
       if (tag === 'a' && (/href$/iu.test(name)
@@ -214,22 +222,44 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
         continue;
       }
       if (/^on/iu.test(name)) throw new SvgCodecError('event-handler', `SVG event attribute “${name}” is forbidden.`);
-      if (/href$/iu.test(name) || /url\s*\(/iu.test(attribute.value)) throw new SvgCodecError('external-reference', `SVG reference attribute “${name}” is unsupported.`);
+      if (/href$/iu.test(name) || /url\s*\(/iu.test(attribute.value)) {
+        const localReference = /url\s*\(\s*(['"]?)#[^)]+\1\s*\)/iu.test(attribute.value);
+        if (!localReference) throw new SvgCodecError('external-reference', `SVG reference attribute “${name}” is unsupported.`);
+        warnings.push({ code: 'ignored-reference-element', element: nameOf(element),
+          message: `Ignored <${tag}> because local SVG reference “${name}” is not supported yet.` });
+        renderable = false;
+        continue;
+      }
+      if (name === 'style') {
+        const unsupportedProperty = attribute.value.split(';').map((declaration) => {
+          const separator = declaration.indexOf(':');
+          return separator < 0 ? '' : declaration.slice(0, separator).trim().toLowerCase();
+        }).find((entry) => entry && !PRESENTATION.has(entry) && entry !== 'opacity');
+        if (unsupportedProperty) {
+          warnings.push({ code: 'ignored-unsupported-style', element: nameOf(element),
+            message: `Ignored <${tag}> because inline SVG property “${unsupportedProperty}” is unsupported.` });
+          renderable = false;
+          continue;
+        }
+      }
       if (!allowed.has(name) && !name.startsWith('xmlns:')) {
-        if (name === 'class') throw new SvgCodecError('unsupported-css', 'SVG class-based styling is unsupported.');
         // Namespaced attributes from authoring tools (for example
         // sodipodi:version, sodipodi:nodetypes and inkscape:label) do not
         // participate in SVG rendering. Strict reference and active-content
         // checks have already run above, so discard this editor metadata.
         if ((attribute.namespaceURI && attribute.namespaceURI !== SVG_NAMESPACE)
+          || RENDERING_HINT_ATTRIBUTES.has(name)
           || name.startsWith('data-') || name.startsWith('aria-') || name === 'role'
           || name === 'xml:lang' || name === 'xml:space') {
           warnings.push({ code: 'ignored-metadata-attribute', element: nameOf(element), message: `Ignored non-presentation attribute “${name}”.` });
         } else {
-          throw new SvgCodecError('unsupported-attribute', `Unsupported SVG attribute “${name}” on <${tag}>.`);
+          warnings.push({ code: 'ignored-unsupported-attribute', element: nameOf(element),
+            message: `Ignored <${tag}> because SVG attribute “${name}” is unsupported.` });
+          renderable = false;
         }
       }
     }
+    return renderable;
   };
 
   const visit = (element: XmlElement, parentStyle: StyleContext, parentTransform: AffineMatrix, depth: number) => {
@@ -257,10 +287,12 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
         message: 'Ignored unsupported nested <svg> viewport.' });
       return;
     }
-    validateAttributes(element, tag);
+    if (!validateAttributes(element, tag)) return;
     const style = inheritedStyle(element, parentStyle);
     if ((tag === 'svg' || tag === 'g' || tag === 'a') && style.opacity !== 1) {
-      throw new SvgCodecError('group-opacity', 'Group/root opacity cannot be flattened without changing overlap compositing.');
+      warnings.push({ code: 'ignored-group-opacity', element: nameOf(element),
+        message: `Ignored <${tag}> because group opacity cannot be flattened without changing compositing.` });
+      return;
     }
     const transform = multiplyMatrices(parentTransform, parseSvgTransform(element.getAttribute('transform')));
     if (tag === 'svg' || tag === 'g' || tag === 'a') {
@@ -325,10 +357,9 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     vector.style = vectorStyle;
 
     if (vectorStyle.opacity !== 1 && vectorStyle.fill && vectorStyle.stroke) {
-      throw new SvgCodecError(
-        'paint-opacity-compositing',
-        `SVG element <${tag}> combines fill, stroke and opacity; native import cannot preserve object-level overlap compositing.`
-      );
+      warnings.push({ code: 'ignored-object-opacity', element: elementName,
+        message: `Ignored <${tag}> because combined fill, stroke and opacity cannot preserve overlap compositing.` });
+      return;
     }
 
     if (vector.type === 'path' && vectorStyle.fill
@@ -376,9 +407,10 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     elements.push(vector);
   };
 
-  const rootStyle = inheritedStyle(root, DEFAULT_STYLE);
+  const rootAttributesSupported = validateAttributes(root, 'svg');
+  const rootStyle = rootAttributesSupported ? inheritedStyle(root, DEFAULT_STYLE)
+    : { inherited: DEFAULT_STYLE, opacity: 1 };
   if (rootStyle.opacity !== 1) throw new SvgCodecError('group-opacity', 'Root SVG opacity cannot be flattened safely.');
-  validateAttributes(root, 'svg');
   for (const child of elementChildren(root)) visit(child, rootStyle.inherited,
     multiplyMatrices(baseTransform, parseSvgTransform(root.getAttribute('transform'))), 1);
   if (!elements.length) throw new SvgCodecError('empty-svg', 'SVG contains no supported editable geometry.');
