@@ -2319,15 +2319,6 @@ export class WebGpuEngine {
   }
 
   resizeViewport(cssWidth: number, cssHeight: number, dpr: number, rect: ViewportRenderRect) {
-    const vectorPresentationScale = this.metadata?.width
-      ? rect.width * Math.max(1, dpr) / this.metadata.width
-      : 1;
-    if (this.documentRenderer?.setVectorPresentationScale(vectorPresentationScale)) {
-      // Vector paths are retained as cubics. Crossing a presentation-scale
-      // bucket invalidates the document composite so their temporary flattened
-      // geometry is rebuilt at an appropriate screen-space tolerance.
-      this.markDocumentDirty();
-    }
     this.viewportPresentation.resize(
       this.metadata?.width ?? null,
       cssWidth,

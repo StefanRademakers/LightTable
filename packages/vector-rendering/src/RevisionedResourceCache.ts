@@ -5,7 +5,6 @@ export interface DisposableResource {
 interface CacheEntry<T> {
   value: T;
   bytes: number;
-  touched: number;
 }
 
 export interface ResourceCacheMetrics {
@@ -19,7 +18,6 @@ export interface ResourceCacheMetrics {
 /** Weighted LRU for derived CPU data or explicitly disposable backend data. */
 export class RevisionedResourceCache<T> {
   private readonly entries = new Map<string, CacheEntry<T>>();
-  private clock = 0;
   private bytes = 0;
   private hits = 0;
   private misses = 0;
@@ -41,7 +39,10 @@ export class RevisionedResourceCache<T> {
       return undefined;
     }
     this.hits += 1;
-    entry.touched = ++this.clock;
+    // Map preserves insertion order. Moving a hit to the tail maintains an
+    // exact LRU queue without scanning every cached resource during eviction.
+    this.entries.delete(key);
+    this.entries.set(key, entry);
     return entry.value;
   }
 
@@ -50,7 +51,7 @@ export class RevisionedResourceCache<T> {
       throw new RangeError('Cached resource size must be finite and non-negative.');
     }
     this.delete(key);
-    this.entries.set(key, { value, bytes, touched: ++this.clock });
+    this.entries.set(key, { value, bytes });
     this.bytes += bytes;
     this.trim();
     return value;
@@ -94,15 +95,8 @@ export class RevisionedResourceCache<T> {
 
   private trim() {
     while (this.bytes > this.maxBytes && this.entries.size > 0) {
-      let oldestKey: string | null = null;
-      let oldestTouch = Number.POSITIVE_INFINITY;
-      for (const [key, entry] of this.entries) {
-        if (entry.touched < oldestTouch) {
-          oldestTouch = entry.touched;
-          oldestKey = key;
-        }
-      }
-      if (oldestKey === null) return;
+      const oldestKey = this.entries.keys().next().value as string | undefined;
+      if (oldestKey === undefined) return;
       this.evictions += 1;
       this.delete(oldestKey);
     }

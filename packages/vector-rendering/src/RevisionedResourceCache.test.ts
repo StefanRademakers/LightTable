@@ -30,4 +30,20 @@ describe('RevisionedResourceCache', () => {
     expect(second.dispose).toHaveBeenCalledTimes(1);
     expect(third.dispose).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps exact LRU order through repeated hits and budget pressure', () => {
+    const cache = new RevisionedResourceCache<string>(3);
+    cache.set('a', 'A', 1);
+    cache.set('b', 'B', 1);
+    cache.set('c', 'C', 1);
+    expect(cache.get('a')).toBe('A');
+    expect(cache.get('b')).toBe('B');
+
+    cache.set('d', 'D', 1);
+    expect(cache.get('c')).toBeUndefined();
+    expect(cache.get('a')).toBe('A');
+    expect(cache.get('b')).toBe('B');
+    expect(cache.get('d')).toBe('D');
+    expect(cache.metrics()).toMatchObject({ entries: 3, bytes: 3, evictions: 1 });
+  });
 });

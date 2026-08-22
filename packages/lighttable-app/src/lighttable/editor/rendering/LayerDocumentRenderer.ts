@@ -158,11 +158,6 @@ export class LayerDocumentRenderer {
     this.runtime.textLayerCoordinator.setActive(active);
   }
 
-  /** Updates renderer-only vector quality without mutating the document. */
-  setVectorPresentationScale(scale: number) {
-    return this.runtime.vectorLayerRenderer.setPresentationScale(scale);
-  }
-
   textEditingLayout(layerId: LayerId) {
     const presentation = this.runtime.textLayerCoordinator.editingLayout(layerId);
     const layer = this.document ? findDocumentLayer(this.document, layerId) : null;

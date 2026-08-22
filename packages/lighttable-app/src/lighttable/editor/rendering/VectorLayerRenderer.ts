@@ -17,7 +17,6 @@ import type { AffineMatrix } from './renderContract';
 
 /** Maximum flattening error in physical presentation pixels. */
 const DEFAULT_TOLERANCE_PX = 0.25;
-const MAX_PRESENTATION_SCALE = 64;
 const MAX_MULTISAMPLED_SURFACE_BYTES = 512 * 1024 * 1024;
 const GEOMETRY_CACHE_BYTES = 32 * 1024 * 1024;
 
@@ -42,17 +41,13 @@ export const maximumAffineScale = ({ a, b, c, d }: AffineMatrix) => {
 };
 
 /**
- * Stable upward-rounded buckets prevent a zoom gesture from rebuilding the
- * document composite for every fractional scale change without ever allowing
- * the screen-space flattening error to exceed the requested tolerance.
+ * Curves are flattened for the document-sized vector surface. Viewport zoom
+ * transforms that retained surface and therefore cannot reveal detail from a
+ * denser mesh; only authored geometry transforms affect document-pixel error.
  */
-export const quantizePresentationScale = (scale: number) => {
-  if (!(scale > 0) || !Number.isFinite(scale)) {
-    throw new RangeError('Vector presentation scale must be finite and greater than zero.');
-  }
-  const bounded = Math.min(MAX_PRESENTATION_SCALE, Math.max(1, scale));
-  return 2 ** (Math.ceil(Math.log2(bounded) * 4) / 4);
-};
+export const vectorGeometryTolerance = (elementToDocument: AffineMatrix) => (
+  DEFAULT_TOLERANCE_PX / Math.max(1e-6, maximumAffineScale(elementToDocument))
+);
 
 interface CachedVectorGeometry {
   readonly path: VectorPath;
@@ -112,16 +107,8 @@ export class VectorLayerRenderer {
   private backend: VectorFillBackend | null = null;
   private surface: VectorFillSurface | null = null;
   private readonly geometryCache = new VectorGeometryRealizationCache();
-  private presentationScale = 1;
 
   constructor(private readonly device: GPUDevice) {}
-
-  setPresentationScale(scale: number) {
-    const next = quantizePresentationScale(scale);
-    if (next === this.presentationScale) return false;
-    this.presentationScale = next;
-    return true;
-  }
 
   encode(
     encoder: GPUCommandEncoder,
@@ -146,11 +133,7 @@ export class VectorLayerRenderer {
     const layerToDocument = multiplyMatrices(inheritedTransform, layer.transform);
     for (const element of layer.elements) {
       const elementToDocument = multiplyMatrices(layerToDocument, element.transform);
-      const effectiveScale = Math.max(
-        1e-6,
-        maximumAffineScale(elementToDocument) * this.presentationScale
-      );
-      const localTolerance = DEFAULT_TOLERANCE_PX / effectiveScale;
+      const localTolerance = vectorGeometryTolerance(elementToDocument);
       // Parametric shapes stay canonical in the document. Realization is a
       // renderer-local projection with the same id/style/transform/revisions.
       const { path, realized } = this.geometryCache.realize(element, localTolerance);

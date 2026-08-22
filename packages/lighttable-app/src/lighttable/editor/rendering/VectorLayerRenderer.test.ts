@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createVectorLiveShape, createVectorPath, createSubpath, createAnchor } from '@lighttable/vector-core';
 import {
   maximumAffineScale,
-  quantizePresentationScale,
+  vectorGeometryTolerance,
   vectorSurfaceBytes,
   vectorSurfaceSampleCount,
   VectorGeometryRealizationCache
@@ -14,12 +14,10 @@ describe('adaptive vector tessellation', () => {
     expect(maximumAffineScale({ a: 1, b: 0, c: 1, d: 1, tx: 0, ty: 0 })).toBeCloseTo(1.6180339887);
   });
 
-  it('buckets presentation scale upward and never reduces base quality', () => {
-    expect(quantizePresentationScale(0.25)).toBe(1);
-    expect(quantizePresentationScale(1)).toBe(1);
-    expect(quantizePresentationScale(1.01)).toBeCloseTo(2 ** 0.25);
-    expect(quantizePresentationScale(8)).toBe(8);
-    expect(quantizePresentationScale(1_000)).toBe(64);
+  it('adapts to authored document transforms without coupling geometry to viewport zoom', () => {
+    expect(vectorGeometryTolerance({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 })).toBe(0.25);
+    expect(vectorGeometryTolerance({ a: 4, b: 0, c: 0, d: 4, tx: 0, ty: 0 })).toBe(0.0625);
+    expect(vectorGeometryTolerance({ a: 0.25, b: 0, c: 0, d: 0.25, tx: 0, ty: 0 })).toBe(1);
   });
 
   it('drops multisampling before a large vector surface exceeds its budget', () => {
