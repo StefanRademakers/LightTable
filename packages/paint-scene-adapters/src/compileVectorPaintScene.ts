@@ -99,11 +99,12 @@ export const compileVectorPaintScene = (
     const pathCommands = compileVectorPathCommands(path);
     const commands: PaintSceneCommand[] = [];
     const stableId = element.id;
+    const pathId = `${element.id}:path`;
 
     if (path.style.fill) {
       if (isSolidPaint(path.style.fill)) {
         commands.push({
-          kind: 'fill-path', path: pathCommands, transform: matrix(path.transform),
+          kind: 'fill-path', pathId, transform: matrix(path.transform),
           fillRule: path.fillRule, color: color(path.style.fill, path.style.opacity)
         });
       } else {
@@ -121,7 +122,7 @@ export const compileVectorPaintScene = (
         });
       } else if (isSolidPaint(path.style.stroke.paint)) {
         commands.push({
-          kind: 'stroke-path', path: pathCommands, transform: matrix(path.transform),
+          kind: 'stroke-path', pathId, transform: matrix(path.transform),
           color: color(
             path.style.stroke.paint,
             path.style.opacity * (path.style.stroke.opacity ?? 1)
@@ -143,6 +144,7 @@ export const compileVectorPaintScene = (
     return {
       stableId,
       revisionKey: `${element.geometryRevision}:${element.transformRevision}:${element.styleRevision}`,
+      paths: [{ stableId: pathId, revisionKey: String(element.geometryRevision), commands: pathCommands }],
       commands
     };
   });

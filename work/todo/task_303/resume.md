@@ -61,6 +61,14 @@ Baseline: `c71254b1`
   PDF clips, non-normal blends, masks, transparency groups, CMYK/resource paint,
   text/images/forms and preserved operators produce explicit fallback issues.
   A lossy result can never be reported as `ready`.
+- Paint paths are separate revision-keyed fragment resources referenced by
+  `pathId`; a fill plus stroke neither serializes geometry twice nor invalidates
+  geometry merely because paint/transform state changed.
+- The Electron 39 Vello probe now decodes the serialized schema-1 paint scene,
+  resolves its path resources and renders into the JavaScript-owned shared
+  texture. Transparent and filled sample pixels both pass byte-exact. Vello is
+  therefore proven against the intended backend contract, not only a hardcoded
+  Rust scene.
 
 ## Worktree ownership
 
@@ -74,9 +82,9 @@ The PostScript-style API assessment is recorded in
 prerequisite and actual Vello render pass. Mutation and retained-memory evidence
 now identify full-layer backend submission as the dominant remaining vector edit
 cost. The minimum immutable scene slice shared by native vector and PDF path
-fixtures now exists and passes its focused suites. Next, feed the exact same
-serialized scene into the Vello interop probe and a current-backend encoder,
-then measure pixels, cold render, mutation, memory and binary cost. Evaluate
+fixtures now exists and passes its focused suites. Vello now consumes that
+serialized contract. Next, feed the exact same scene into a current-backend
+encoder, then measure pixels, cold render, mutation, memory and binary cost. Evaluate
 CPU/GPU/worker choices against the improved native path.
 
 ## Next safe steps

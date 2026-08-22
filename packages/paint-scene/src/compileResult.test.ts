@@ -9,9 +9,10 @@ const scene = (commandCount: number): PaintScene => ({
   fragments: [{
     stableId: 'item',
     revisionKey: '1',
+    paths: [{ stableId: 'path', revisionKey: '1', commands: [] }],
     commands: Array.from({ length: commandCount }, () => ({
       kind: 'fill-path' as const,
-      path: [],
+      pathId: 'path',
       transform: [1, 0, 0, 1, 0, 0],
       fillRule: 'nonzero' as const,
       color: [0, 0, 0, 1]

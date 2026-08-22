@@ -32,7 +32,7 @@ export interface PaintSceneStroke {
 }
 
 interface PaintScenePathBase {
-  readonly path: readonly PaintScenePathCommand[];
+  readonly pathId: string;
   readonly transform: PaintSceneMatrix;
 }
 
@@ -52,7 +52,15 @@ export type PaintSceneCommand =
 export interface PaintSceneFragment {
   readonly stableId: string;
   readonly revisionKey: string;
+  readonly paths: readonly PaintScenePath[];
   readonly commands: readonly PaintSceneCommand[];
+}
+
+/** Geometry revision is independent from paint/transform revisions. */
+export interface PaintScenePath {
+  readonly stableId: string;
+  readonly revisionKey: string;
+  readonly commands: readonly PaintScenePathCommand[];
 }
 
 export interface PaintScene {

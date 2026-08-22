@@ -21,14 +21,18 @@ describe('compileVectorPaintScene', () => {
     const result = compileVectorPaintScene([path()], { sourceId: 'doc', sourceRevision: '9' });
     expect(result.status).toBe('ready');
     expect(result.scene.fragments[0].revisionKey).toBe('2:3:4');
-    expect(result.scene.fragments[0].commands[0]).toMatchObject({
-      kind: 'fill-path', fillRule: 'evenodd', transform: [2, 0, 0, 2, 4, 5], color: [1, 0, 0, 0.25],
-      path: [
+    expect(result.scene.fragments[0].paths[0]).toMatchObject({
+      stableId: 'curve:path', revisionKey: '2',
+      commands: [
         { kind: 'move', x: 0, y: 0 },
         { kind: 'cubic', control1X: 1, control1Y: 0, control2X: 3, control2Y: 0, x: 4, y: 0 },
         { kind: 'cubic', control1X: 4, control1Y: 0, control2X: -1, control2Y: 0, x: 0, y: 0 },
         { kind: 'close' }
       ]
+    });
+    expect(result.scene.fragments[0].commands[0]).toMatchObject({
+      kind: 'fill-path', fillRule: 'evenodd', transform: [2, 0, 0, 2, 4, 5], color: [1, 0, 0, 0.25],
+      pathId: 'curve:path'
     });
   });
 

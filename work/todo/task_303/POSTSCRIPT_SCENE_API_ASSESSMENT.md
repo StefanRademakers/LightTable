@@ -156,7 +156,17 @@ solid strokes. Native vector and PDF fixtures compile to the same command
 types. Stable fragment revisions derive from canonical/source revisions, not
 zoom or pan.
 
+Geometry is stored once as a separately revisioned fragment path and paint
+commands reference it by id. This avoids doubling large path payloads for
+fill-plus-stroke and allows style-only edits to retain backend geometry.
+
 This is not a claim of PDF/SVG parity. Every feature outside this slice returns
 an explicit capability issue and selects `current-backend`, `rasterize` or
 `preserve-only` fallback. The next backend bake-off therefore cannot silently
 reward Vello for dropping clips, color spaces, masks, gradients or blends.
+
+The Electron/wgpu probe now deserializes this exact schema, resolves path ids
+and renders it through Vello into the shared JavaScript-owned texture. Both the
+transparent background and solid interior samples are byte-exact. This closes
+the API/serialization interop prerequisite; performance and feature parity are
+still open gates.

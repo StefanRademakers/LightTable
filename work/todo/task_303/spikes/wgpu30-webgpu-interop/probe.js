@@ -51,8 +51,80 @@ try {
   const expectedCenter = [242, 140, 168, 255];
   const close = (actual, expected) =>
     actual.every((value, index) => Math.abs(value - expected[index]) <= 1);
-  const ok = close(corner, expectedCorner) && close(center, expectedCenter);
-  globalThis.__interopResult = { ok, corner, expectedCorner, center, expectedCenter };
+  const directInteropOk = close(corner, expectedCorner) && close(center, expectedCenter);
+
+  const paintSceneTexture = device.createTexture({
+    label: 'LightTable serialized paint-scene texture',
+    size: [width, height, 1],
+    format: 'rgba8unorm',
+    usage:
+      GPUTextureUsage.RENDER_ATTACHMENT |
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_SRC |
+      GPUTextureUsage.STORAGE_BINDING,
+  });
+  const paintScene = {
+    schemaVersion: 1,
+    sourceId: 'interop-fixture',
+    sourceRevision: '1',
+    fragments: [{
+      stableId: 'rect',
+      revisionKey: '1:0:0',
+      paths: [{
+        stableId: 'rect:path',
+        revisionKey: '1',
+        commands: [
+          { kind: 'move', x: 8, y: 8 },
+          { kind: 'line', x: 56, y: 8 },
+          { kind: 'line', x: 56, y: 56 },
+          { kind: 'line', x: 8, y: 56 },
+          { kind: 'close' },
+        ],
+      }],
+      commands: [{
+        kind: 'fill-path',
+        pathId: 'rect:path',
+        fillRule: 'nonzero',
+        transform: [1, 0, 0, 1, 0, 0],
+        color: [1, 0.25, 0, 1],
+      }],
+    }],
+  };
+  if (!interop.render_paint_scene_texture(
+    paintSceneTexture,
+    width,
+    height,
+    JSON.stringify(paintScene),
+  )) {
+    throw new Error('Rust rejected the serialized paint-scene texture');
+  }
+  await device.queue.onSubmittedWorkDone();
+  const sceneReadback = device.createBuffer({
+    label: 'LightTable paint-scene readback',
+    size: bytesPerRow * height,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+  });
+  const sceneEncoder = device.createCommandEncoder();
+  sceneEncoder.copyTextureToBuffer(
+    { texture: paintSceneTexture },
+    { buffer: sceneReadback, bytesPerRow, rowsPerImage: height },
+    [width, height, 1],
+  );
+  device.queue.submit([sceneEncoder.finish()]);
+  await sceneReadback.mapAsync(GPUMapMode.READ);
+  const sceneBytes = new Uint8Array(sceneReadback.getMappedRange());
+  const sceneCorner = [...sceneBytes.slice(0, 4)];
+  const sceneCenter = [...sceneBytes.slice(centerOffset, centerOffset + 4)];
+  sceneReadback.unmap();
+  const expectedSceneCorner = [0, 0, 0, 0];
+  const expectedSceneCenter = [255, 64, 0, 255];
+  const paintSceneOk = close(sceneCorner, expectedSceneCorner)
+    && close(sceneCenter, expectedSceneCenter);
+  const ok = directInteropOk && paintSceneOk;
+  globalThis.__interopResult = {
+    ok, directInteropOk, corner, expectedCorner, center, expectedCenter,
+    paintSceneOk, sceneCorner, expectedSceneCorner, sceneCenter, expectedSceneCenter,
+  };
   console.log(`${ok ? 'INTEROP_PASS' : 'INTEROP_FAIL'} ${JSON.stringify(globalThis.__interopResult)}`);
 } catch (error) {
   fail(error);

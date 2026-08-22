@@ -29,6 +29,8 @@ D:\mediavibe\LightTable\node_modules\electron\dist\electron.exe electron-main.cj
 ```
 
 `INTEROP_PASS` proves Vello can render into the shared texture without a CPU or
-GPU texture copy. The next proof is not more interop plumbing: it is compiling
-the same representative LightTable SVG/PDF paint scene to both backends and
-measuring pixels, cold render, mutation, pan/zoom, memory and round-trip behavior.
+GPU texture copy. The probe also serializes the schema-1 `@lighttable/paint-scene`
+shape and has Rust/Vello decode and render that exact command stream. The next
+proof is compiling representative native-vector/PDF fixtures and measuring the
+same scene in both backends for pixels, cold render, mutation, pan/zoom, memory,
+binary size and round-trip behavior.

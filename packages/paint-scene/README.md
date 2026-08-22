@@ -5,7 +5,9 @@ contract used to compare rendering backends. It is derived and disposable:
 LightTable documents and format-specific source models remain authoritative.
 
 The first schema slice supports exact move/line/cubic/close paths, solid fills,
-centered solid strokes and affine transforms. Capability loss is never implicit:
+centered solid strokes and affine transforms. Paths are revisioned once per
+fragment and paint commands reference them by id, so fill/stroke serialization
+does not duplicate heavy geometry. Capability loss is never implicit:
 adapters must return an issue for every unsupported, omitted or reduced feature,
 and a result containing issues cannot have `ready` status.
 

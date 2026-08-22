@@ -67,6 +67,7 @@ export const compilePdfPaintScene = (
   const issues: PaintSceneCapabilityIssue[] = [];
   const fragments = page.items.map((item, index) => {
     const stableId = item.sourceObjectId ?? `page-${page.pageIndex}:item-${index}`;
+    const pathId = `${stableId}:path`;
     const commands: PaintSceneCommand[] = [];
     const blockingFeature = blockingStateFeature(item.paintState);
     if (blockingFeature) {
@@ -74,7 +75,7 @@ export const compilePdfPaintScene = (
         issues, stableId, blockingFeature,
         `PDF ${blockingFeature} semantics are preserved but not represented by the initial shared scene.`
       );
-      return { stableId, revisionKey: `${options.sourceRevision}:${index}`, commands };
+      return { stableId, revisionKey: `${options.sourceRevision}:${index}`, paths: [], commands };
     }
 
     if (item.kind !== 'path') {
@@ -82,7 +83,7 @@ export const compilePdfPaintScene = (
         issues, stableId, `pdf-${item.kind}`,
         `PDF ${item.kind} content remains in the PDF scene until the shared scene supports it.`
       );
-      return { stableId, revisionKey: `${options.sourceRevision}:${index}`, commands };
+      return { stableId, revisionKey: `${options.sourceRevision}:${index}`, paths: [], commands };
     }
 
     const path = pathCommands(item.path);
@@ -90,7 +91,7 @@ export const compilePdfPaintScene = (
       const fill = supportedColor(item.paintState.fillPaint, item.paintState.fillAlpha);
       if (fill) {
         commands.push({
-          kind: 'fill-path', path, transform: item.localToPage,
+          kind: 'fill-path', pathId, transform: item.localToPage,
           fillRule: item.fillRule, color: fill
         });
       } else {
@@ -104,7 +105,7 @@ export const compilePdfPaintScene = (
       const stroke = supportedColor(item.paintState.strokePaint, item.paintState.strokeAlpha);
       if (stroke) {
         commands.push({
-          kind: 'stroke-path', path, transform: item.localToPage, color: stroke,
+          kind: 'stroke-path', pathId, transform: item.localToPage, color: stroke,
           stroke: {
             width: item.paintState.stroke.width,
             cap: item.paintState.stroke.cap,
@@ -121,7 +122,12 @@ export const compilePdfPaintScene = (
         );
       }
     }
-    return { stableId, revisionKey: `${options.sourceRevision}:${index}`, commands };
+    return {
+      stableId,
+      revisionKey: `${options.sourceRevision}:${index}`,
+      paths: [{ stableId: pathId, revisionKey: `${options.sourceRevision}:${index}:geometry`, commands: path }],
+      commands
+    };
   });
 
   page.preservedUnsupported.forEach((operation, index) => addIssue(
