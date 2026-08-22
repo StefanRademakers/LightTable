@@ -5946,6 +5946,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       transformSession.isActive()
     );
     if (plan.finishTransform) transformSession.commit();
+    if (plan.restartTransform) transformSession.begin();
     if (plan.nextTool) {
       if (
         (selectionSessionController.draft || editorSession.activeTool === 'select-magic-wand')

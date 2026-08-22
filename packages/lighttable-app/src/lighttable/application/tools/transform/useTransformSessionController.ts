@@ -85,6 +85,7 @@ export interface TransformSessionDependencies {
 export interface TransformSessionController {
   state: TransformSessionState | null;
   frameOverride: TransformSessionFrame | null;
+  begin(): void;
   update(matrix: AffineMatrix): void;
   updateProjective(quad: TransformQuad): void;
   checkpoint(): void;
@@ -129,6 +130,7 @@ export const useTransformSessionController = (
     setFrameOverrideState(frame);
   }, []);
   const selectedLayerKey = (dependencies.selectedLayerIds ?? []).join('\u0000');
+  const automaticLaunchKeyRef = useRef<string | null>(null);
   const lastLayerTransformRef = useRef<AffineMatrix | null>(null);
   const groupRef = useRef<{
     before: ImageDocument;
@@ -605,6 +607,7 @@ export const useTransformSessionController = (
     }
     const activeController = controllerRef.current;
     if (dependencies.activeTool !== 'transform') {
+      automaticLaunchKeyRef.current = null;
       activeController?.invalidatePendingLaunch();
       if (activeController?.state || groupRef.current || maskRef.current) finish(true);
       return;
@@ -629,6 +632,16 @@ export const useTransformSessionController = (
       return;
     }
     if (activeController?.state || groupRef.current || maskRef.current) return;
+    const automaticLaunchKey = [
+      dependencies.activeDocument?.id ?? '', dependencies.activeLayerId ?? '',
+      dependencies.activeChannel, selectedLayerKey
+    ].join('\u0000');
+    // Tool/document/target activation opens one transaction. An explicit
+    // commit or cancel leaves the selected Transform tool dormant until the
+    // user activates it again; otherwise Enter/Escape immediately recreate
+    // the overlay and Ctrl+T can only commit that surprise transaction.
+    if (automaticLaunchKeyRef.current === automaticLaunchKey) return;
+    automaticLaunchKeyRef.current = automaticLaunchKey;
     void begin(false);
   }, [
     begin,
@@ -662,6 +675,7 @@ export const useTransformSessionController = (
   return {
     state,
     frameOverride,
+    begin: () => { void begin(); },
     update,
     updateProjective,
     checkpoint,
