@@ -1,0 +1,39 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index fa4e1898..df362d90 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -139,6 +139,6 @@ vello_dev_macros = { path = "sparse_strips/vello_dev_macros" }
+ # NOTE: The wgpu and naga versions should be kept in sync, and make sure to keep this
+ # in sync with the version badge in README.md and vello/README.md
+-wgpu = { version = "29.0.3", default-features = false, features = ["std", "wgsl"] }
++wgpu = { version = "30.0.0", default-features = false, features = ["std", "wgsl"] }
+ naga = { version = "29.0.3", default-features = false }
+ log = "0.4.29"
+ image = { version = "0.25.10", default-features = false }
+diff --git a/vello/src/lib.rs b/vello/src/lib.rs
+index 92cd9f9b..cadee8ca 100644
+--- a/vello/src/lib.rs
++++ b/vello/src/lib.rs
+@@ -756,7 +756,9 @@ impl Renderer {
+             let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
+             buf_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
+             receiver.receive().await.expect("channel was closed")?;
+-            let mapped = buf_slice.get_mapped_range();
++            let mapped = buf_slice
++                .get_mapped_range()
++                .expect("mapped Vello bump allocator buffer");
+             bump = Some(bytemuck::pod_read_unaligned(&mapped));
+         }
+         // TODO: apply logic to determine whether we need to rerun coarse, and also
+diff --git a/vello/src/util.rs b/vello/src/util.rs
+index a11fbb57..6c3e1b7f 100644
+--- a/vello/src/util.rs
++++ b/vello/src/util.rs
+@@ -94,6 +94,7 @@ impl RenderContext {
+             present_mode,
+             desired_maximum_frame_latency: 2,
+             alpha_mode: wgpu::CompositeAlphaMode::Auto,
++            color_space: wgpu::SurfaceColorSpace::Auto,
+             view_formats: vec![],
+         };
+         let (target_texture, target_view) = create_targets(width, height, &device_handle.device);

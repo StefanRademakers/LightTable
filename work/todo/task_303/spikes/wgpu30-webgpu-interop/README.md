@@ -1,16 +1,26 @@
 # wgpu 30 browser-WebGPU interop spike
 
-This isolated probe tests the ownership model required for a zero-copy Vello
-backend in LightTable:
+This isolated probe tests a real Vello scene through the ownership model
+required for a zero-copy Vello backend in LightTable:
 
 1. Rust/wgpu requests the browser `GPUDevice`.
 2. Rust exports that exact device to JavaScript.
 3. JavaScript creates a `GPUTexture` on it.
-4. Rust wraps and clears that foreign texture through wgpu.
-5. JavaScript reads the same texture back and checks the pixel value.
+4. Rust wraps that foreign texture and Vello renders a background plus circle.
+5. JavaScript reads the same texture back and checks both pixel values.
 
-The probe deliberately does not depend on product code. Build the WASM module,
-generate bindings, and execute it in LightTable's Electron version:
+The probe deliberately does not depend on product code. It uses pinned Vello
+commit `3fabef9315914fc2fa32eed12afac8922785396b`. Vello 0.10 currently pins
+wgpu 29; `vello-wgpu30.patch` contains the three small changes needed by this
+configuration. Prepare the ignored reference worktree from the repository root:
+
+```powershell
+git -C .referenceCode/vello worktree add --detach ../vello-wgpu30-interop 3fabef9315914fc2fa32eed12afac8922785396b
+git -C .referenceCode/vello-wgpu30-interop apply ../../work/todo/task_303/spikes/wgpu30-webgpu-interop/vello-wgpu30.patch
+```
+
+Then build the WASM module, generate bindings, and execute it in LightTable's
+Electron version:
 
 ```powershell
 cargo build --release --target wasm32-unknown-unknown
@@ -18,7 +28,7 @@ D:\mediavibe\LightTable\.tools\text-wasm\bin\wasm-bindgen.exe --target web --out
 D:\mediavibe\LightTable\node_modules\electron\dist\electron.exe electron-main.cjs
 ```
 
-`INTEROP_PASS` proves texture sharing without a CPU or GPU copy. It does not yet
-prove Vello compatibility; Vello itself must next be compiled against the same
-wgpu major and render a representative LightTable scene into the shared texture.
-
+`INTEROP_PASS` proves Vello can render into the shared texture without a CPU or
+GPU texture copy. The next proof is not more interop plumbing: it is compiling
+the same representative LightTable SVG/PDF paint scene to both backends and
+measuring pixels, cold render, mutation, pan/zoom, memory and round-trip behavior.

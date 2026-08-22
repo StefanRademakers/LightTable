@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -5,6 +6,7 @@ use wasm_bindgen::JsCast;
 pub struct InteropDevice {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    renderer: RefCell<vello::Renderer>,
 }
 
 #[wasm_bindgen]
@@ -21,7 +23,21 @@ impl InteropDevice {
             .request_device(&wgpu::DeviceDescriptor::default())
             .await
             .map_err(|error| JsValue::from_str(&format!("device: {error}")))?;
-        Ok(Self { device, queue })
+        let renderer = vello::Renderer::new(
+            &device,
+            vello::RendererOptions {
+                use_cpu: false,
+                antialiasing_support: vello::AaSupport::area_only(),
+                num_init_threads: std::num::NonZeroUsize::new(1),
+                pipeline_cache: None,
+            },
+        )
+        .map_err(|error| JsValue::from_str(&format!("vello renderer: {error}")))?;
+        Ok(Self {
+            device,
+            queue,
+            renderer: RefCell::new(renderer),
+        })
     }
 
     pub fn device_handle(&self) -> Result<JsValue, JsValue> {
@@ -31,7 +47,7 @@ impl InteropDevice {
             .ok_or_else(|| JsValue::from_str("wgpu did not select the browser WebGPU backend"))
     }
 
-    pub fn wrap_texture(
+    pub fn render_vello_texture(
         &self,
         texture: JsValue,
         width: u32,
@@ -51,39 +67,36 @@ impl InteropDevice {
                 format: wgpu::TextureFormat::Rgba8Unorm,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                     | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_SRC,
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::STORAGE_BINDING,
                 view_formats: &[],
             },
             None,
         );
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("LightTable zero-copy interop probe encoder"),
-        });
-        {
-            let view = wrapped.create_view(&wgpu::TextureViewDescriptor::default());
-            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("LightTable zero-copy interop probe clear"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.125,
-                            g: 0.5,
-                            b: 0.875,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-        }
-        self.queue.submit([encoder.finish()]);
+        let mut scene = vello::Scene::new();
+        scene.fill(
+            vello::peniko::Fill::NonZero,
+            vello::kurbo::Affine::IDENTITY,
+            vello::peniko::Color::from_rgb8(242, 140, 168),
+            None,
+            &vello::kurbo::Circle::new((f64::from(width) / 2.0, f64::from(height) / 2.0), 20.0),
+        );
+        let view = wrapped.create_view(&wgpu::TextureViewDescriptor::default());
+        self.renderer
+            .borrow_mut()
+            .render_to_texture(
+                &self.device,
+                &self.queue,
+                &scene,
+                &view,
+                &vello::RenderParams {
+                    base_color: vello::peniko::Color::from_rgb8(8, 16, 24),
+                    width,
+                    height,
+                    antialiasing_method: vello::AaConfig::Area,
+                },
+            )
+            .map_err(|error| JsValue::from_str(&format!("vello render: {error}")))?;
         Ok(wrapped.size().width == width && wrapped.size().height == height)
     }
 }

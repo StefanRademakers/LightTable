@@ -9,8 +9,8 @@ try {
   await init();
   const interop = await InteropDevice.create();
   const device = interop.device_handle();
-  const width = 4;
-  const height = 4;
+  const width = 64;
+  const height = 64;
   const texture = device.createTexture({
     label: 'LightTable JS-owned interop texture',
     size: [width, height, 1],
@@ -18,10 +18,11 @@ try {
     usage:
       GPUTextureUsage.RENDER_ATTACHMENT |
       GPUTextureUsage.TEXTURE_BINDING |
-      GPUTextureUsage.COPY_SRC,
+      GPUTextureUsage.COPY_SRC |
+      GPUTextureUsage.STORAGE_BINDING,
   });
 
-  if (!interop.wrap_texture(texture, width, height)) {
+  if (!interop.render_vello_texture(texture, width, height)) {
     throw new Error('Rust rejected the foreign texture dimensions');
   }
   await device.queue.onSubmittedWorkDone();
@@ -40,14 +41,19 @@ try {
   );
   device.queue.submit([encoder.finish()]);
   await readback.mapAsync(GPUMapMode.READ);
-  const pixel = [...new Uint8Array(readback.getMappedRange()).slice(0, 4)];
+  const bytes = new Uint8Array(readback.getMappedRange());
+  const corner = [...bytes.slice(0, 4)];
+  const centerOffset = 32 * bytesPerRow + 32 * 4;
+  const center = [...bytes.slice(centerOffset, centerOffset + 4)];
   readback.unmap();
 
-  const expected = [32, 128, 223, 255];
-  const ok = pixel.every((value, index) => Math.abs(value - expected[index]) <= 1);
-  globalThis.__interopResult = { ok, pixel, expected };
+  const expectedCorner = [8, 16, 24, 255];
+  const expectedCenter = [242, 140, 168, 255];
+  const close = (actual, expected) =>
+    actual.every((value, index) => Math.abs(value - expected[index]) <= 1);
+  const ok = close(corner, expectedCorner) && close(center, expectedCenter);
+  globalThis.__interopResult = { ok, corner, expectedCorner, center, expectedCenter };
   console.log(`${ok ? 'INTEROP_PASS' : 'INTEROP_FAIL'} ${JSON.stringify(globalThis.__interopResult)}`);
 } catch (error) {
   fail(error);
 }
-
