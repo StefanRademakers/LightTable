@@ -42,6 +42,7 @@ export interface VelloRuntime {
   readonly bridge: GeneratedVelloDevice;
   readonly device: GPUDevice;
   readonly diagnostics: VelloWebGpuDiagnostics;
+  released: boolean;
 }
 
 let runtime: VelloRuntime | null = null;
@@ -55,7 +56,8 @@ const load = async (): Promise<VelloRuntime> => {
   return {
     bridge,
     device,
-    diagnostics: JSON.parse(bridge.diagnostics_json()) as VelloWebGpuDiagnostics
+    diagnostics: JSON.parse(bridge.diagnostics_json()) as VelloWebGpuDiagnostics,
+    released: false
   };
 };
 
@@ -79,6 +81,7 @@ export const activeVelloWebGpuRuntime = (device: GPUDevice): VelloRuntime => {
 
 export const releaseVelloWebGpuRuntime = (device: GPUDevice) => {
   if (!runtime || runtime.device !== device) return;
+  runtime.released = true;
   runtime.bridge.dispose();
   runtime.bridge.free();
   runtime = null;

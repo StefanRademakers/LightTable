@@ -145,6 +145,11 @@ Baseline: `c71254b1`
   bounded 64-source eviction policy. Backend source keys are namespaced per
   document renderer, so opening the same canonical layer IDs twice cannot
   alias native mutable cache state.
+- Device-loss teardown now marks the shared Vello runtime released before its
+  WASM bridge is disposed. Existing document renderers fail subsequent render
+  attempts explicitly and source cleanup becomes idempotent instead of calling
+  through a freed WASM object. Shared-device reacquisition tests and Vello
+  teardown tests pass; a packaged forced-loss journey is still outstanding.
 
 ## Worktree ownership
 

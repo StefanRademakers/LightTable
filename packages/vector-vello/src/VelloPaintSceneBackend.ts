@@ -65,6 +65,9 @@ export class VelloPaintSceneBackend {
     scene: PaintScene,
     sourceKey = scene.sourceId
   ): VelloPaintSceneRenderMetrics {
+    if (this.runtime.released) {
+      throw new Error('The Vello WebGPU runtime was released after device loss.');
+    }
     assertPaintSceneIsValid(scene);
     const previous = this.syncedScenes.get(sourceKey);
     const revisions = new Map(scene.fragments.map(fragment => [
@@ -102,6 +105,7 @@ export class VelloPaintSceneBackend {
 
   releaseSource(sourceKey: string): void {
     this.syncedScenes.delete(sourceKey);
+    if (this.runtime.released) return;
     this.runtime.bridge.release_paint_scene_source(sourceKey);
   }
 }

@@ -137,4 +137,17 @@ describe('VelloPaintSceneBackend', () => {
     backend.releaseSource('layer-7');
     expect(release).toHaveBeenCalledWith('layer-7');
   });
+
+  it('keeps teardown idempotent after the shared runtime was released', () => {
+    const release = vi.fn();
+    const runtime = { released: true, bridge: {
+      release_paint_scene_source: release
+    } } as unknown as VelloRuntime;
+    const backend = new VelloPaintSceneBackend({} as GPUDevice, runtime);
+    backend.releaseSource('closed-document');
+    expect(release).not.toHaveBeenCalled();
+    expect(() => backend.render({
+      texture: {} as GPUTexture, width: 1, height: 1, estimatedBytes: 4, dispose: vi.fn()
+    }, scene)).toThrow('released after device loss');
+  });
 });
