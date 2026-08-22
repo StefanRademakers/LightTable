@@ -3,10 +3,34 @@
  * experiments. This is derived data: source formats and LightTable documents
  * remain the serialization authority.
  */
-export const PAINT_SCENE_SCHEMA_VERSION = 1 as const;
+export const PAINT_SCENE_SCHEMA_VERSION = 2 as const;
 
 export type PaintSceneMatrix = readonly [number, number, number, number, number, number];
+/** Unpremultiplied linear-sRGB RGBA, matching LightTable's compositor space. */
 export type PaintSceneColor = readonly [number, number, number, number];
+
+export interface PaintSceneGradientStop {
+  readonly offset: number;
+  readonly color: PaintSceneColor;
+}
+
+/**
+ * Backend-neutral gradient geometry. `transform` maps the normalized gradient
+ * coordinate system into scene/document space; source-format coordinate
+ * systems have already been resolved by the adapter.
+ */
+export interface PaintSceneGradientPaint {
+  readonly kind: 'gradient';
+  readonly shape: 'linear' | 'radial' | 'angle' | 'reflected' | 'diamond';
+  readonly transform: PaintSceneMatrix;
+  readonly spread: 'pad' | 'reflect' | 'repeat';
+  readonly dither: boolean;
+  readonly stops: readonly PaintSceneGradientStop[];
+}
+
+export type PaintScenePaint =
+  | { readonly kind: 'solid'; readonly color: PaintSceneColor }
+  | PaintSceneGradientPaint;
 
 export type PaintScenePathCommand =
   | { readonly kind: 'move'; readonly x: number; readonly y: number }
@@ -40,11 +64,11 @@ export type PaintSceneCommand =
   | (PaintScenePathBase & {
     readonly kind: 'fill-path';
     readonly fillRule: 'nonzero' | 'evenodd';
-    readonly color: PaintSceneColor;
+    readonly paint: PaintScenePaint;
   })
   | (PaintScenePathBase & {
     readonly kind: 'stroke-path';
-    readonly color: PaintSceneColor;
+    readonly paint: PaintScenePaint;
     readonly stroke: PaintSceneStroke;
   });
 

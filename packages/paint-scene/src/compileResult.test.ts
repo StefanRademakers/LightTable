@@ -15,7 +15,7 @@ const scene = (commandCount: number): PaintScene => ({
       pathId: 'path',
       transform: [1, 0, 0, 1, 0, 0],
       fillRule: 'nonzero' as const,
-      color: [0, 0, 0, 1]
+      paint: { kind: 'solid' as const, color: [0, 0, 0, 1] }
     }))
   }]
 });

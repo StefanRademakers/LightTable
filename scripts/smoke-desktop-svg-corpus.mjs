@@ -380,7 +380,8 @@ for (const [index, entry] of entries.entries()) {
       document: { id: documentId, canvas: rendered.document.canvas,
         layerCount: rendered.document.layerCount, revision: rendered.document.canonicalRevision },
       renderer: { submittedFrames: rendered.telemetry.submittedFrames,
-        compositeExecutions: rendered.telemetry.stages?.['document-composite']?.executions ?? 0 },
+        compositeExecutions: rendered.telemetry.stages?.['document-composite']?.executions ?? 0,
+        vectorBackend: rendered.telemetry.vectorBackend ?? null },
       pixels, difference, pan, zoom, mutation,
       pageErrors, consoleErrors, previewPath, referencePath, screenshotPath });
   } catch (error) {

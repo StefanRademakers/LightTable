@@ -1,0 +1,11 @@
+[package]
+name = "lighttable-vello-color-contract"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+vello = { path = "../../../../../.tools/vector-vello/vello-patched/vello", default-features = false }
+vello_encoding = { path = "../../../../../.tools/vector-vello/vello-patched/vello_encoding" }

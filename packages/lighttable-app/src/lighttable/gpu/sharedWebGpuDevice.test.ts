@@ -16,7 +16,15 @@ const deferred = <Value>() => {
 const createDevice = () => {
   const lost = deferred<GPUDeviceLostInfo>();
   return {
-    device: { lost: lost.promise } as GPUDevice,
+    device: {
+      lost: lost.promise,
+      features: new Set<GPUFeatureName>(),
+      limits: {
+        maxTextureDimension2D: 16384, maxBufferSize: 1024 * 1024 * 1024,
+        maxStorageBufferBindingSize: 128 * 1024 * 1024,
+        maxComputeWorkgroupStorageSize: 32 * 1024
+      }
+    } as unknown as GPUDevice,
     lost
   };
 };
@@ -134,5 +142,33 @@ describe('SharedWebGpuDeviceManager', () => {
     await expect(manager.request()).rejects.toThrow('adapter failed');
     await expect(manager.request()).resolves.toBe(device.device);
     expect(provider.requestAdapter).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses and releases an explicitly shared direct device without requesting another adapter', async () => {
+    const direct = createDevice();
+    const release = vi.fn();
+    const provider: WebGpuAdapterProvider = { requestAdapter: vi.fn() };
+    const manager = new SharedWebGpuDeviceManager(provider, {
+      request: vi.fn(async () => ({
+        device: direct.device,
+        diagnostics: {
+          vendor: 'vello-vendor', architecture: 'discrete',
+          device: 'vello-device', description: 'Vello shared device'
+        }
+      })),
+      release
+    });
+
+    expect(await manager.request()).toBe(direct.device);
+    expect(provider.requestAdapter).not.toHaveBeenCalled();
+    expect(manager.diagnostics()).toMatchObject({
+      vendor: 'vello-vendor', description: 'Vello shared device'
+    });
+
+    const info = { message: 'lost', reason: 'unknown' } as GPUDeviceLostInfo;
+    direct.lost.resolve(info);
+    await direct.device.lost;
+    await Promise.resolve();
+    expect(release).toHaveBeenCalledWith(direct.device);
   });
 });

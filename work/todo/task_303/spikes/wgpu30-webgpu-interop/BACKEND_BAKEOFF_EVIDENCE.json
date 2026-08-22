@@ -1,18 +1,18 @@
 {
-  "generatedAt": "2026-08-22T11:38:19.806Z",
+  "generatedAt": "2026-08-22T12:45:05.173Z",
   "repetitions": 5,
   "scene": {
     "fragments": 256,
     "paths": 256,
     "commands": 512,
-    "serializedBytes": 258587,
-    "serializeMs": 0.5
+    "serializedBytes": 271387,
+    "serializeMs": 0.9000000059604645
   },
   "correctness": [
     {
       "pixels": {
-        "rmse": 8.057546113888607,
-        "changedChannelRatio": 0.08782958984375,
+        "rmse": 8.066630879892882,
+        "changedChannelRatio": 0.08978271484375,
         "alphaOccupancyMismatchRatio": 0.01171875
       },
       "parityCases": {
@@ -88,8 +88,8 @@
         },
         "opaqueFillStroke": {
           "difference": {
-            "rmse": 2.112143726891443,
-            "changedChannelRatio": 0.0053558349609375,
+            "rmse": 2.114584135108633,
+            "changedChannelRatio": 0.0054779052734375,
             "alphaOccupancyMismatchRatio": 0.000732421875
           },
           "center": {
@@ -116,8 +116,183 @@
             "vello": [
               157,
               141,
-              17,
+              16,
               166
+            ]
+          }
+        },
+        "linearMidtoneOpaque": {
+          "difference": {
+            "rmse": 0.20937645755089682,
+            "changedChannelRatio": 0.000133514404296875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              55,
+              55,
+              55,
+              255
+            ],
+            "vello": [
+              55,
+              55,
+              55,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearMidtoneAlpha": {
+          "difference": {
+            "rmse": 0.10357088737158478,
+            "changedChannelRatio": 0.000125885009765625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              27,
+              27,
+              27,
+              127
+            ],
+            "vello": [
+              27,
+              27,
+              27,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "primaryAlpha": {
+          "difference": {
+            "rmse": 0.13785797683610387,
+            "changedChannelRatio": 0.00011444091796875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              127,
+              0,
+              0,
+              127
+            ],
+            "vello": [
+              128,
+              0,
+              0,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientOpaque": {
+          "difference": {
+            "rmse": 0.2018013891408572,
+            "changedChannelRatio": 0.00012302398681640625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              12,
+              0,
+              14,
+              255
+            ],
+            "vello": [
+              13,
+              0,
+              13,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientAlpha": {
+          "difference": {
+            "rmse": 0.10093140763831426,
+            "changedChannelRatio": 0.0000667572021484375,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              6,
+              0,
+              7,
+              127
+            ],
+            "vello": [
+              7,
+              0,
+              6,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
             ]
           }
         }
@@ -125,8 +300,8 @@
     },
     {
       "pixels": {
-        "rmse": 8.057546113888607,
-        "changedChannelRatio": 0.08782958984375,
+        "rmse": 8.066630879892882,
+        "changedChannelRatio": 0.08978271484375,
         "alphaOccupancyMismatchRatio": 0.01171875
       },
       "parityCases": {
@@ -202,8 +377,8 @@
         },
         "opaqueFillStroke": {
           "difference": {
-            "rmse": 2.112143726891443,
-            "changedChannelRatio": 0.0053558349609375,
+            "rmse": 2.114584135108633,
+            "changedChannelRatio": 0.0054779052734375,
             "alphaOccupancyMismatchRatio": 0.000732421875
           },
           "center": {
@@ -230,8 +405,183 @@
             "vello": [
               157,
               141,
-              17,
+              16,
               166
+            ]
+          }
+        },
+        "linearMidtoneOpaque": {
+          "difference": {
+            "rmse": 0.20937645755089682,
+            "changedChannelRatio": 0.000133514404296875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              55,
+              55,
+              55,
+              255
+            ],
+            "vello": [
+              55,
+              55,
+              55,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearMidtoneAlpha": {
+          "difference": {
+            "rmse": 0.10357088737158478,
+            "changedChannelRatio": 0.000125885009765625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              27,
+              27,
+              27,
+              127
+            ],
+            "vello": [
+              27,
+              27,
+              27,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "primaryAlpha": {
+          "difference": {
+            "rmse": 0.13785797683610387,
+            "changedChannelRatio": 0.00011444091796875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              127,
+              0,
+              0,
+              127
+            ],
+            "vello": [
+              128,
+              0,
+              0,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientOpaque": {
+          "difference": {
+            "rmse": 0.2018013891408572,
+            "changedChannelRatio": 0.00012302398681640625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              12,
+              0,
+              14,
+              255
+            ],
+            "vello": [
+              13,
+              0,
+              13,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientAlpha": {
+          "difference": {
+            "rmse": 0.10093140763831426,
+            "changedChannelRatio": 0.0000667572021484375,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              6,
+              0,
+              7,
+              127
+            ],
+            "vello": [
+              7,
+              0,
+              6,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
             ]
           }
         }
@@ -239,8 +589,8 @@
     },
     {
       "pixels": {
-        "rmse": 8.057546113888607,
-        "changedChannelRatio": 0.08782958984375,
+        "rmse": 8.066630879892882,
+        "changedChannelRatio": 0.08978271484375,
         "alphaOccupancyMismatchRatio": 0.01171875
       },
       "parityCases": {
@@ -316,8 +666,8 @@
         },
         "opaqueFillStroke": {
           "difference": {
-            "rmse": 2.112143726891443,
-            "changedChannelRatio": 0.0053558349609375,
+            "rmse": 2.114584135108633,
+            "changedChannelRatio": 0.0054779052734375,
             "alphaOccupancyMismatchRatio": 0.000732421875
           },
           "center": {
@@ -344,8 +694,183 @@
             "vello": [
               157,
               141,
-              17,
+              16,
               166
+            ]
+          }
+        },
+        "linearMidtoneOpaque": {
+          "difference": {
+            "rmse": 0.20937645755089682,
+            "changedChannelRatio": 0.000133514404296875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              55,
+              55,
+              55,
+              255
+            ],
+            "vello": [
+              55,
+              55,
+              55,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearMidtoneAlpha": {
+          "difference": {
+            "rmse": 0.10357088737158478,
+            "changedChannelRatio": 0.000125885009765625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              27,
+              27,
+              27,
+              127
+            ],
+            "vello": [
+              27,
+              27,
+              27,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "primaryAlpha": {
+          "difference": {
+            "rmse": 0.13785797683610387,
+            "changedChannelRatio": 0.00011444091796875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              127,
+              0,
+              0,
+              127
+            ],
+            "vello": [
+              128,
+              0,
+              0,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientOpaque": {
+          "difference": {
+            "rmse": 0.2018013891408572,
+            "changedChannelRatio": 0.00012302398681640625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              12,
+              0,
+              14,
+              255
+            ],
+            "vello": [
+              13,
+              0,
+              13,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientAlpha": {
+          "difference": {
+            "rmse": 0.10093140763831426,
+            "changedChannelRatio": 0.0000667572021484375,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              6,
+              0,
+              7,
+              127
+            ],
+            "vello": [
+              7,
+              0,
+              6,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
             ]
           }
         }
@@ -353,8 +878,8 @@
     },
     {
       "pixels": {
-        "rmse": 8.057546113888607,
-        "changedChannelRatio": 0.08782958984375,
+        "rmse": 8.066630879892882,
+        "changedChannelRatio": 0.08978271484375,
         "alphaOccupancyMismatchRatio": 0.01171875
       },
       "parityCases": {
@@ -430,8 +955,8 @@
         },
         "opaqueFillStroke": {
           "difference": {
-            "rmse": 2.112143726891443,
-            "changedChannelRatio": 0.0053558349609375,
+            "rmse": 2.114584135108633,
+            "changedChannelRatio": 0.0054779052734375,
             "alphaOccupancyMismatchRatio": 0.000732421875
           },
           "center": {
@@ -458,8 +983,183 @@
             "vello": [
               157,
               141,
-              17,
+              16,
               166
+            ]
+          }
+        },
+        "linearMidtoneOpaque": {
+          "difference": {
+            "rmse": 0.20937645755089682,
+            "changedChannelRatio": 0.000133514404296875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              55,
+              55,
+              55,
+              255
+            ],
+            "vello": [
+              55,
+              55,
+              55,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearMidtoneAlpha": {
+          "difference": {
+            "rmse": 0.10357088737158478,
+            "changedChannelRatio": 0.000125885009765625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              27,
+              27,
+              27,
+              127
+            ],
+            "vello": [
+              27,
+              27,
+              27,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "primaryAlpha": {
+          "difference": {
+            "rmse": 0.13785797683610387,
+            "changedChannelRatio": 0.00011444091796875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              127,
+              0,
+              0,
+              127
+            ],
+            "vello": [
+              128,
+              0,
+              0,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientOpaque": {
+          "difference": {
+            "rmse": 0.2018013891408572,
+            "changedChannelRatio": 0.00012302398681640625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              12,
+              0,
+              14,
+              255
+            ],
+            "vello": [
+              13,
+              0,
+              13,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientAlpha": {
+          "difference": {
+            "rmse": 0.10093140763831426,
+            "changedChannelRatio": 0.0000667572021484375,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              6,
+              0,
+              7,
+              127
+            ],
+            "vello": [
+              7,
+              0,
+              6,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
             ]
           }
         }
@@ -467,8 +1167,8 @@
     },
     {
       "pixels": {
-        "rmse": 8.057546113888607,
-        "changedChannelRatio": 0.08782958984375,
+        "rmse": 8.066630879892882,
+        "changedChannelRatio": 0.08978271484375,
         "alphaOccupancyMismatchRatio": 0.01171875
       },
       "parityCases": {
@@ -544,8 +1244,8 @@
         },
         "opaqueFillStroke": {
           "difference": {
-            "rmse": 2.112143726891443,
-            "changedChannelRatio": 0.0053558349609375,
+            "rmse": 2.114584135108633,
+            "changedChannelRatio": 0.0054779052734375,
             "alphaOccupancyMismatchRatio": 0.000732421875
           },
           "center": {
@@ -572,8 +1272,183 @@
             "vello": [
               157,
               141,
-              17,
+              16,
               166
+            ]
+          }
+        },
+        "linearMidtoneOpaque": {
+          "difference": {
+            "rmse": 0.20937645755089682,
+            "changedChannelRatio": 0.000133514404296875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              55,
+              55,
+              55,
+              255
+            ],
+            "vello": [
+              55,
+              55,
+              55,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearMidtoneAlpha": {
+          "difference": {
+            "rmse": 0.10357088737158478,
+            "changedChannelRatio": 0.000125885009765625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              27,
+              27,
+              27,
+              127
+            ],
+            "vello": [
+              27,
+              27,
+              27,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "primaryAlpha": {
+          "difference": {
+            "rmse": 0.13785797683610387,
+            "changedChannelRatio": 0.00011444091796875,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              127,
+              0,
+              0,
+              127
+            ],
+            "vello": [
+              128,
+              0,
+              0,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientOpaque": {
+          "difference": {
+            "rmse": 0.2018013891408572,
+            "changedChannelRatio": 0.00012302398681640625,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              12,
+              0,
+              14,
+              255
+            ],
+            "vello": [
+              13,
+              0,
+              13,
+              255
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "linearGradientAlpha": {
+          "difference": {
+            "rmse": 0.10093140763831426,
+            "changedChannelRatio": 0.0000667572021484375,
+            "alphaOccupancyMismatchRatio": 0.0000457763671875
+          },
+          "center": {
+            "current": [
+              6,
+              0,
+              7,
+              127
+            ],
+            "vello": [
+              7,
+              0,
+              6,
+              128
+            ]
+          },
+          "edge": {
+            "current": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "vello": [
+              0,
+              0,
+              0,
+              0
             ]
           }
         }
@@ -584,214 +1459,214 @@
     "coldCallMs": {
       "samples": [
         19.200000002980232,
-        19.100000008940697,
-        18.5,
-        19,
-        18.599999994039536
+        19.099999994039536,
+        17.799999997019768,
+        18.30000001192093,
+        18.299999997019768
       ],
-      "min": 18.5,
-      "p50": 19,
-      "p95": 19.100000008940697,
+      "min": 17.799999997019768,
+      "p50": 18.30000001192093,
+      "p95": 19.099999994039536,
       "max": 19.200000002980232
     },
     "coldGpuCompletionMs": {
       "samples": [
-        37.099999994039536,
-        37.20000000298023,
-        35.5,
-        35.5,
-        36.5
+        42.099999994039536,
+        37.5,
+        38,
+        35.099999994039536,
+        38.599999994039536
       ],
-      "min": 35.5,
-      "p50": 36.5,
-      "p95": 37.099999994039536,
-      "max": 37.20000000298023
+      "min": 35.099999994039536,
+      "p50": 38,
+      "p95": 38.599999994039536,
+      "max": 42.099999994039536
     },
     "warmCallP50Ms": {
       "samples": [
-        6.299999997019768,
-        6,
-        5.800000011920929,
-        5.9000000059604645,
-        6.200000002980232
+        6.800000011920929,
+        6.5999999940395355,
+        6.5,
+        6.100000008940697,
+        6.299999997019768
       ],
-      "min": 5.800000011920929,
-      "p50": 6,
-      "p95": 6.200000002980232,
-      "max": 6.299999997019768
+      "min": 6.100000008940697,
+      "p50": 6.5,
+      "p95": 6.5999999940395355,
+      "max": 6.800000011920929
     },
     "warmGpuCompletionP50Ms": {
       "samples": [
-        12.900000005960464,
-        12.400000005960464,
-        12.899999991059303,
+        14.100000008940697,
+        13.899999991059303,
+        13.599999994039536,
         13.399999991059303,
-        12.700000002980232
+        14.299999997019768
       ],
-      "min": 12.400000005960464,
-      "p50": 12.899999991059303,
-      "p95": 12.900000005960464,
-      "max": 13.399999991059303
+      "min": 13.399999991059303,
+      "p50": 13.899999991059303,
+      "p95": 14.100000008940697,
+      "max": 14.299999997019768
     },
     "coldTotalMs": {
       "samples": [
-        56.29999999701977,
-        56.30000001192093,
-        54,
-        54.5,
-        55.099999994039536
+        61.29999999701977,
+        56.599999994039536,
+        55.79999999701977,
+        53.400000005960464,
+        56.8999999910593
       ],
-      "min": 54,
-      "p50": 55.099999994039536,
-      "p95": 56.29999999701977,
-      "max": 56.30000001192093
+      "min": 53.400000005960464,
+      "p50": 56.599999994039536,
+      "p95": 56.8999999910593,
+      "max": 61.29999999701977
     },
     "warmTotalP50Ms": {
       "samples": [
-        19.200000002980232,
-        18.400000005960464,
-        18.700000002980232,
-        19.299999997019768,
-        18.900000005960464
+        20.900000020861626,
+        20.49999998509884,
+        20.099999994039536,
+        19.5,
+        20.599999994039536
       ],
-      "min": 18.400000005960464,
-      "p50": 18.900000005960464,
-      "p95": 19.200000002980232,
-      "max": 19.299999997019768
+      "min": 19.5,
+      "p50": 20.49999998509884,
+      "p95": 20.599999994039536,
+      "max": 20.900000020861626
     },
     "gpuProcessDeltaKb": {
       "samples": [
-        28528,
-        28488,
-        28560,
-        27836,
-        28340
+        27724,
+        28500,
+        28656,
+        28592,
+        28624
       ],
-      "min": 27836,
-      "p50": 28488,
-      "p95": 28528,
-      "max": 28560
+      "min": 27724,
+      "p50": 28592,
+      "p95": 28624,
+      "max": 28656
     },
     "tabProcessDeltaKb": {
       "samples": [
-        22868,
-        22852,
-        23352,
-        24072,
-        22932
+        24352,
+        24224,
+        24540,
+        24036,
+        24204
       ],
-      "min": 22852,
-      "p50": 22932,
-      "p95": 23352,
-      "max": 24072
+      "min": 24036,
+      "p50": 24224,
+      "p95": 24352,
+      "max": 24540
     }
   },
   "vello": {
     "coldCallMs": {
       "samples": [
-        9.200000002980232,
-        9.400000005960464,
-        9.5,
-        9.899999991059303,
-        9.700000002980232
+        11.299999997019768,
+        10.399999991059303,
+        10.100000008940697,
+        10.299999997019768,
+        10.400000005960464
       ],
-      "min": 9.200000002980232,
-      "p50": 9.5,
-      "p95": 9.700000002980232,
-      "max": 9.899999991059303
+      "min": 10.100000008940697,
+      "p50": 10.399999991059303,
+      "p95": 10.400000005960464,
+      "max": 11.299999997019768
     },
     "coldGpuCompletionMs": {
       "samples": [
-        34.8999999910593,
-        33.79999999701977,
+        35.20000000298023,
+        35.5,
         33.3999999910593,
-        33.099999994039536,
-        33.29999999701977
+        34.599999994039536,
+        34.3999999910593
       ],
-      "min": 33.099999994039536,
-      "p50": 33.3999999910593,
-      "p95": 33.79999999701977,
-      "max": 34.8999999910593
+      "min": 33.3999999910593,
+      "p50": 34.599999994039536,
+      "p95": 35.20000000298023,
+      "max": 35.5
     },
     "warmCallP50Ms": {
       "samples": [
-        1.7999999970197678,
-        1.7999999970197678,
-        1.7000000029802322,
-        1.7000000029802322,
-        1.800000011920929
+        0.6000000089406967,
+        0.5,
+        0.6000000089406967,
+        0.5,
+        0.5
       ],
-      "min": 1.7000000029802322,
-      "p50": 1.7999999970197678,
-      "p95": 1.7999999970197678,
-      "max": 1.800000011920929
+      "min": 0.5,
+      "p50": 0.5,
+      "p95": 0.6000000089406967,
+      "max": 0.6000000089406967
     },
     "warmGpuCompletionP50Ms": {
       "samples": [
-        3.2999999970197678,
         3.4000000059604645,
-        3.1000000089406967,
-        3.1000000089406967,
-        3
+        3.5,
+        3.4000000059604645,
+        3.2999999970197678,
+        2.9000000059604645
       ],
-      "min": 3,
-      "p50": 3.1000000089406967,
-      "p95": 3.2999999970197678,
-      "max": 3.4000000059604645
+      "min": 2.9000000059604645,
+      "p50": 3.4000000059604645,
+      "p95": 3.4000000059604645,
+      "max": 3.5
     },
-    "wasmRawBytes": 1960473,
-    "wasmGzipBytes": 531698,
+    "wasmRawBytes": 2057845,
+    "wasmGzipBytes": 559038,
     "coldTotalMs": {
       "samples": [
-        44.099999994039536,
-        43.20000000298023,
-        42.8999999910593,
-        42.99999998509884,
-        43
+        46.5,
+        45.8999999910593,
+        43.5,
+        44.8999999910593,
+        44.79999999701977
       ],
-      "min": 42.8999999910593,
-      "p50": 43,
-      "p95": 43.20000000298023,
-      "max": 44.099999994039536
+      "min": 43.5,
+      "p50": 44.8999999910593,
+      "p95": 45.8999999910593,
+      "max": 46.5
     },
     "warmTotalP50Ms": {
       "samples": [
-        5.0999999940395355,
-        5.200000002980232,
-        4.800000011920929,
-        4.800000011920929,
-        4.800000011920929
+        4.000000014901161,
+        4,
+        4.000000014901161,
+        3.7999999970197678,
+        3.4000000059604645
       ],
-      "min": 4.800000011920929,
-      "p50": 4.800000011920929,
-      "p95": 5.0999999940395355,
-      "max": 5.200000002980232
+      "min": 3.4000000059604645,
+      "p50": 4,
+      "p95": 4.000000014901161,
+      "max": 4.000000014901161
     },
     "gpuProcessIncrementalDeltaKb": {
       "samples": [
-        10240,
-        10164,
-        10168,
-        10052,
-        6120
+        7960,
+        6436,
+        9388,
+        7800,
+        9984
       ],
-      "min": 6120,
-      "p50": 10164,
-      "p95": 10168,
-      "max": 10240
+      "min": 6436,
+      "p50": 7960,
+      "p95": 9388,
+      "max": 9984
     },
     "tabProcessIncrementalDeltaKb": {
       "samples": [
-        5368,
-        5852,
-        5080,
-        4724,
-        4504
+        3308,
+        3340,
+        3048,
+        3204,
+        3104
       ],
-      "min": 4504,
-      "p50": 5080,
-      "p95": 5368,
-      "max": 5852
+      "min": 3048,
+      "p50": 3204,
+      "p95": 3308,
+      "max": 3340
     }
   },
   "phaseMetrics": [
@@ -800,78 +1675,78 @@
         {
           "type": "Browser",
           "cpuPercent": 0,
-          "workingSetKb": 98676,
-          "peakWorkingSetKb": 101040
+          "workingSetKb": 100804,
+          "peakWorkingSetKb": 102684
         },
         {
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKb": 148616,
-          "peakWorkingSetKb": 148616
+          "workingSetKb": 149592,
+          "peakWorkingSetKb": 149592
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49692,
-          "peakWorkingSetKb": 51604
+          "workingSetKb": 49984,
+          "peakWorkingSetKb": 51992
         },
         {
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKb": 81352,
-          "peakWorkingSetKb": 81352
+          "workingSetKb": 84400,
+          "peakWorkingSetKb": 84400
         }
       ],
       "current": [
         {
           "type": "Browser",
-          "cpuPercent": 0.07588787774546289,
-          "workingSetKb": 98816,
-          "peakWorkingSetKb": 101040
+          "cpuPercent": 0.06302871192232362,
+          "workingSetKb": 100812,
+          "peakWorkingSetKb": 102684
         },
         {
           "type": "GPU",
-          "cpuPercent": 1.9677873777154928,
-          "workingSetKb": 177144,
-          "peakWorkingSetKb": 177144
+          "cpuPercent": 1.969360969861718,
+          "workingSetKb": 177316,
+          "peakWorkingSetKb": 177316
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49692,
-          "peakWorkingSetKb": 51604
+          "workingSetKb": 49984,
+          "peakWorkingSetKb": 51992
         },
         {
           "type": "Tab",
-          "cpuPercent": 2.3767651544073316,
-          "workingSetKb": 104220,
-          "peakWorkingSetKb": 104220
+          "cpuPercent": 2.301332441987939,
+          "workingSetKb": 108752,
+          "peakWorkingSetKb": 108752
         }
       ],
       "vello": [
         {
           "type": "Browser",
-          "cpuPercent": 0.15788701255047888,
-          "workingSetKb": 98832,
-          "peakWorkingSetKb": 101040
+          "cpuPercent": 0.1118269009962427,
+          "workingSetKb": 100816,
+          "peakWorkingSetKb": 102684
         },
         {
           "type": "GPU",
-          "cpuPercent": 1.9385596228665551,
-          "workingSetKb": 187384,
-          "peakWorkingSetKb": 187384
+          "cpuPercent": 2.039672762647817,
+          "workingSetKb": 185276,
+          "peakWorkingSetKb": 185276
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49692,
-          "peakWorkingSetKb": 51604
+          "workingSetKb": 49984,
+          "peakWorkingSetKb": 51992
         },
         {
           "type": "Tab",
-          "cpuPercent": 2.9516870839070504,
-          "workingSetKb": 109588,
-          "peakWorkingSetKb": 110224
+          "cpuPercent": 1.9872744971433045,
+          "workingSetKb": 112060,
+          "peakWorkingSetKb": 113104
         }
       ]
     },
@@ -880,78 +1755,78 @@
         {
           "type": "Browser",
           "cpuPercent": 0,
-          "workingSetKb": 98284,
-          "peakWorkingSetKb": 101372
+          "workingSetKb": 98548,
+          "peakWorkingSetKb": 100864
         },
         {
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKb": 148600,
-          "peakWorkingSetKb": 148600
+          "workingSetKb": 148384,
+          "peakWorkingSetKb": 148384
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49732,
-          "peakWorkingSetKb": 51644
+          "workingSetKb": 50012,
+          "peakWorkingSetKb": 52020
         },
         {
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKb": 83992,
-          "peakWorkingSetKb": 83992
+          "workingSetKb": 81648,
+          "peakWorkingSetKb": 81648
         }
       ],
       "current": [
         {
           "type": "Browser",
-          "cpuPercent": 0.08162714590429009,
-          "workingSetKb": 98292,
-          "peakWorkingSetKb": 101372
+          "cpuPercent": 0.05294623115051295,
+          "workingSetKb": 98560,
+          "peakWorkingSetKb": 100864
         },
         {
           "type": "GPU",
-          "cpuPercent": 2.005677225747648,
-          "workingSetKb": 177088,
-          "peakWorkingSetKb": 177088
+          "cpuPercent": 2.006744807344973,
+          "workingSetKb": 176884,
+          "peakWorkingSetKb": 176884
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49732,
-          "peakWorkingSetKb": 51644
+          "workingSetKb": 50012,
+          "peakWorkingSetKb": 52020
         },
         {
           "type": "Tab",
-          "cpuPercent": 2.437587445276182,
-          "workingSetKb": 106844,
-          "peakWorkingSetKb": 106844
+          "cpuPercent": 2.3955118292629485,
+          "workingSetKb": 105872,
+          "peakWorkingSetKb": 105872
         }
       ],
       "vello": [
         {
           "type": "Browser",
-          "cpuPercent": 0.10441795563123789,
-          "workingSetKb": 98300,
-          "peakWorkingSetKb": 101372
+          "cpuPercent": 0.13462409593175653,
+          "workingSetKb": 98560,
+          "peakWorkingSetKb": 100864
         },
         {
           "type": "GPU",
-          "cpuPercent": 1.8847165269047583,
-          "workingSetKb": 187252,
-          "peakWorkingSetKb": 187252
+          "cpuPercent": 2.01125143395608,
+          "workingSetKb": 183320,
+          "peakWorkingSetKb": 183320
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49732,
-          "peakWorkingSetKb": 51644
+          "workingSetKb": 50012,
+          "peakWorkingSetKb": 52020
         },
         {
           "type": "Tab",
-          "cpuPercent": 2.995297968760348,
-          "workingSetKb": 112696,
-          "peakWorkingSetKb": 112696
+          "cpuPercent": 1.6376256003620169,
+          "workingSetKb": 109212,
+          "peakWorkingSetKb": 110732
         }
       ]
     },
@@ -960,78 +1835,78 @@
         {
           "type": "Browser",
           "cpuPercent": 0,
-          "workingSetKb": 98824,
-          "peakWorkingSetKb": 101244
+          "workingSetKb": 98336,
+          "peakWorkingSetKb": 100520
         },
         {
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKb": 148736,
-          "peakWorkingSetKb": 148736
+          "workingSetKb": 147988,
+          "peakWorkingSetKb": 147988
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49812,
-          "peakWorkingSetKb": 51724
+          "workingSetKb": 49836,
+          "peakWorkingSetKb": 51844
         },
         {
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKb": 81924,
-          "peakWorkingSetKb": 81924
+          "workingSetKb": 81804,
+          "peakWorkingSetKb": 81804
         }
       ],
       "current": [
         {
           "type": "Browser",
-          "cpuPercent": 0.05994689475085191,
-          "workingSetKb": 98892,
-          "peakWorkingSetKb": 101244
+          "cpuPercent": 0.03874980279346893,
+          "workingSetKb": 98344,
+          "peakWorkingSetKb": 100520
         },
         {
           "type": "GPU",
-          "cpuPercent": 2.0137665525227133,
-          "workingSetKb": 177296,
-          "peakWorkingSetKb": 177296
+          "cpuPercent": 1.9801169734251767,
+          "workingSetKb": 176644,
+          "peakWorkingSetKb": 176644
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49812,
-          "peakWorkingSetKb": 51724
+          "workingSetKb": 49836,
+          "peakWorkingSetKb": 51844
         },
         {
           "type": "Tab",
-          "cpuPercent": 2.430100480559196,
-          "workingSetKb": 105276,
-          "peakWorkingSetKb": 105276
+          "cpuPercent": 2.3290154010340958,
+          "workingSetKb": 106344,
+          "peakWorkingSetKb": 106344
         }
       ],
       "vello": [
         {
           "type": "Browser",
-          "cpuPercent": 0.09072077283221848,
-          "workingSetKb": 98900,
-          "peakWorkingSetKb": 101244
+          "cpuPercent": 0.12729406912742097,
+          "workingSetKb": 98348,
+          "peakWorkingSetKb": 100520
         },
         {
           "type": "GPU",
-          "cpuPercent": 1.9129282702927382,
-          "workingSetKb": 187464,
-          "peakWorkingSetKb": 187464
+          "cpuPercent": 2.0596057654685236,
+          "workingSetKb": 186032,
+          "peakWorkingSetKb": 186032
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49812,
-          "peakWorkingSetKb": 51724
+          "workingSetKb": 49836,
+          "peakWorkingSetKb": 51844
         },
         {
           "type": "Tab",
-          "cpuPercent": 3.068687003703044,
-          "workingSetKb": 110356,
-          "peakWorkingSetKb": 110648
+          "cpuPercent": 1.5734721958625926,
+          "workingSetKb": 109392,
+          "peakWorkingSetKb": 111284
         }
       ]
     },
@@ -1040,78 +1915,78 @@
         {
           "type": "Browser",
           "cpuPercent": 0,
-          "workingSetKb": 100704,
-          "peakWorkingSetKb": 103796
+          "workingSetKb": 100888,
+          "peakWorkingSetKb": 103012
         },
         {
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKb": 149704,
-          "peakWorkingSetKb": 149704
+          "workingSetKb": 148656,
+          "peakWorkingSetKb": 148656
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49844,
-          "peakWorkingSetKb": 51756
+          "workingSetKb": 49680,
+          "peakWorkingSetKb": 51688
         },
         {
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKb": 81268,
-          "peakWorkingSetKb": 81268
+          "workingSetKb": 81768,
+          "peakWorkingSetKb": 81768
         }
       ],
       "current": [
         {
           "type": "Browser",
-          "cpuPercent": 0.053050067119042504,
-          "workingSetKb": 100772,
-          "peakWorkingSetKb": 103796
+          "cpuPercent": 0.0490056848746186,
+          "workingSetKb": 100964,
+          "peakWorkingSetKb": 103012
         },
         {
           "type": "GPU",
-          "cpuPercent": 2.0172011459478685,
-          "workingSetKb": 177540,
-          "peakWorkingSetKb": 177540
+          "cpuPercent": 2.020812488569,
+          "workingSetKb": 177248,
+          "peakWorkingSetKb": 177248
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49844,
-          "peakWorkingSetKb": 51756
+          "workingSetKb": 49680,
+          "peakWorkingSetKb": 51688
         },
         {
           "type": "Tab",
-          "cpuPercent": 2.4482876378183236,
-          "workingSetKb": 105340,
-          "peakWorkingSetKb": 105340
+          "cpuPercent": 2.4004112510701803,
+          "workingSetKb": 105804,
+          "peakWorkingSetKb": 105804
         }
       ],
       "vello": [
         {
           "type": "Browser",
-          "cpuPercent": 0.09656421825710743,
-          "workingSetKb": 100780,
-          "peakWorkingSetKb": 103796
+          "cpuPercent": 0.09316665630762218,
+          "workingSetKb": 100964,
+          "peakWorkingSetKb": 103012
         },
         {
           "type": "GPU",
-          "cpuPercent": 1.8766438780638959,
-          "workingSetKb": 187592,
-          "peakWorkingSetKb": 187592
+          "cpuPercent": 2.034758707163656,
+          "workingSetKb": 185048,
+          "peakWorkingSetKb": 185048
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49844,
-          "peakWorkingSetKb": 51756
+          "workingSetKb": 49680,
+          "peakWorkingSetKb": 51688
         },
         {
           "type": "Tab",
-          "cpuPercent": 3.0735764321105172,
-          "workingSetKb": 110064,
-          "peakWorkingSetKb": 110064
+          "cpuPercent": 1.7065378977411052,
+          "workingSetKb": 109008,
+          "peakWorkingSetKb": 110200
         }
       ]
     },
@@ -1121,77 +1996,77 @@
           "type": "Browser",
           "cpuPercent": 0,
           "workingSetKb": 98260,
-          "peakWorkingSetKb": 101316
+          "peakWorkingSetKb": 100376
         },
         {
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKb": 148128,
-          "peakWorkingSetKb": 148128
+          "workingSetKb": 149724,
+          "peakWorkingSetKb": 149724
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49856,
-          "peakWorkingSetKb": 51768
+          "workingSetKb": 49836,
+          "peakWorkingSetKb": 51844
         },
         {
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKb": 81216,
-          "peakWorkingSetKb": 81216
+          "workingSetKb": 81752,
+          "peakWorkingSetKb": 81752
         }
       ],
       "current": [
         {
           "type": "Browser",
-          "cpuPercent": 0.05420322610674166,
-          "workingSetKb": 98264,
-          "peakWorkingSetKb": 101316
+          "cpuPercent": 0.04612470396046512,
+          "workingSetKb": 98268,
+          "peakWorkingSetKb": 100376
         },
         {
           "type": "GPU",
-          "cpuPercent": 2.021565382909921,
-          "workingSetKb": 176468,
-          "peakWorkingSetKb": 176468
+          "cpuPercent": 1.9358186666009336,
+          "workingSetKb": 178348,
+          "peakWorkingSetKb": 178348
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49856,
-          "peakWorkingSetKb": 51768
+          "workingSetKb": 49836,
+          "peakWorkingSetKb": 51844
         },
         {
           "type": "Tab",
-          "cpuPercent": 2.4463872185572226,
-          "workingSetKb": 104148,
-          "peakWorkingSetKb": 104148
+          "cpuPercent": 2.306000032873515,
+          "workingSetKb": 105956,
+          "peakWorkingSetKb": 105956
         }
       ],
       "vello": [
         {
           "type": "Browser",
-          "cpuPercent": 0.11247321770340875,
+          "cpuPercent": 0.10078713756546175,
           "workingSetKb": 98272,
-          "peakWorkingSetKb": 101316
+          "peakWorkingSetKb": 100376
         },
         {
           "type": "GPU",
-          "cpuPercent": 1.969592604793707,
-          "workingSetKb": 182588,
-          "peakWorkingSetKb": 182588
+          "cpuPercent": 2.0681595536246697,
+          "workingSetKb": 188332,
+          "peakWorkingSetKb": 188332
         },
         {
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKb": 49856,
-          "peakWorkingSetKb": 51768
+          "workingSetKb": 49836,
+          "peakWorkingSetKb": 51844
         },
         {
           "type": "Tab",
-          "cpuPercent": 3.1594091287465296,
-          "workingSetKb": 108652,
-          "peakWorkingSetKb": 109832
+          "cpuPercent": 1.687437991097246,
+          "workingSetKb": 109060,
+          "peakWorkingSetKb": 110204
         }
       ]
     }

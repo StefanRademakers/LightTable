@@ -10,10 +10,12 @@ const isolationHeaders = {
 };
 
 const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS === '1';
+const vectorBackend = process.env.LIGHTTABLE_VECTOR_BACKEND === 'vello' ? 'vello' : 'current';
 
 export default defineConfig({
   define: {
-    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false')
+    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false'),
+    'import.meta.env.VITE_LIGHTTABLE_VECTOR_BACKEND': JSON.stringify(vectorBackend)
   },
   plugins: [react()],
   // Resolve the workspace package as first-party source. Besides preserving
@@ -45,6 +47,15 @@ export default defineConfig({
       '@lighttable/vector-core': fileURLToPath(
         new URL('../../packages/vector-core/src/index.ts', import.meta.url)
       ),
+      '@lighttable/paint-scene': fileURLToPath(
+        new URL('../../packages/paint-scene/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/paint-scene-adapters': fileURLToPath(
+        new URL('../../packages/paint-scene-adapters/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/vector-vello': fileURLToPath(
+        new URL('../../packages/vector-vello/src/index.ts', import.meta.url)
+      ),
       '@lighttable/vector-rendering': fileURLToPath(
         new URL('../../packages/vector-rendering/src/index.ts', import.meta.url)
       ),
@@ -69,6 +80,9 @@ export default defineConfig({
       '@lighttable/text-webgpu',
       '@lighttable/vector-core',
       '@lighttable/vector-rendering',
+      '@lighttable/paint-scene',
+      '@lighttable/paint-scene-adapters',
+      '@lighttable/vector-vello',
       '@lighttable/vector-webgpu'
     ]
   },

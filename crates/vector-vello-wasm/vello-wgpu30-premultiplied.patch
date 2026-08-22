@@ -1,0 +1,201 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index fa4e1898..df362d90 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -138,7 +138,7 @@ vello_dev_macros = { path = "sparse_strips/vello_dev_macros" }
+ 
+ # NOTE: The wgpu and naga versions should be kept in sync, and make sure to keep this
+ # in sync with the version badge in README.md and vello/README.md
+-wgpu = { version = "29.0.3", default-features = false, features = ["std", "wgsl"] }
++wgpu = { version = "30.0.0", default-features = false, features = ["std", "wgsl"] }
+ naga = { version = "29.0.3", default-features = false }
+ log = "0.4.29"
+ image = { version = "0.25.10", default-features = false }
+diff --git a/vello/src/lib.rs b/vello/src/lib.rs
+index 92cd9f9b..cadee8ca 100644
+--- a/vello/src/lib.rs
++++ b/vello/src/lib.rs
+@@ -756,7 +756,9 @@ impl Renderer {
+             let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
+             buf_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
+             receiver.receive().await.expect("channel was closed")?;
+-            let mapped = buf_slice.get_mapped_range();
++            let mapped = buf_slice
++                .get_mapped_range()
++                .expect("mapped Vello bump allocator buffer");
+             bump = Some(bytemuck::pod_read_unaligned(&mapped));
+         }
+         // TODO: apply logic to determine whether we need to rerun coarse, and also
+diff --git a/vello/src/util.rs b/vello/src/util.rs
+index a11fbb57..6c3e1b7f 100644
+--- a/vello/src/util.rs
++++ b/vello/src/util.rs
+@@ -94,6 +94,7 @@ impl RenderContext {
+             present_mode,
+             desired_maximum_frame_latency: 2,
+             alpha_mode: wgpu::CompositeAlphaMode::Auto,
++            color_space: wgpu::SurfaceColorSpace::Auto,
+             view_formats: vec![],
+         };
+         let (target_texture, target_view) = create_targets(width, height, &device_handle.device);
+diff --git a/vello_encoding/src/draw.rs b/vello_encoding/src/draw.rs
+index 024324f3..5714fdff 100644
+--- a/vello_encoding/src/draw.rs
++++ b/vello_encoding/src/draw.rs
+@@ -4,11 +4,21 @@
+ use bytemuck::{Pod, Zeroable};
+ use peniko::{
+     BlendMode,
+-    color::{AlphaColor, ColorSpace, DynamicColor, OpaqueColor, PremulColor, Srgb},
++    color::{AlphaColor, ColorSpace, DynamicColor, LinearSrgb, OpaqueColor, PremulColor},
+ };
+ 
+ use super::Monoid;
+ 
++#[inline]
++fn pack_linear_components([r, g, b, a]: [f32; 4]) -> u32 {
++    let quantize = |value: f32| ((value.clamp(0.0, 1.0) * 255.0) + 0.5) as u32;
++    quantize(r) | (quantize(g) << 8) | (quantize(b) << 16) | (quantize(a) << 24)
++}
++
++pub(crate) fn pack_linear_alpha(color: AlphaColor<LinearSrgb>) -> u32 {
++    pack_linear_components(color.premultiply().components)
++}
++
+ /// Draw tag representation.
+ #[derive(Copy, Clone, PartialEq, Eq, Pod, Zeroable)]
+ #[repr(C)]
+@@ -76,7 +86,7 @@ pub struct DrawColor {
+ impl<CS: ColorSpace> From<AlphaColor<CS>> for DrawColor {
+     fn from(color: AlphaColor<CS>) -> Self {
+         Self {
+-            rgba: color.convert::<Srgb>().premultiply().to_rgba8().to_u32(),
++            rgba: pack_linear_alpha(color.convert::<LinearSrgb>()),
+         }
+     }
+ }
+@@ -84,11 +94,7 @@ impl<CS: ColorSpace> From<AlphaColor<CS>> for DrawColor {
+ impl From<DynamicColor> for DrawColor {
+     fn from(color: DynamicColor) -> Self {
+         Self {
+-            rgba: color
+-                .to_alpha_color::<Srgb>()
+-                .premultiply()
+-                .to_rgba8()
+-                .to_u32(),
++            rgba: pack_linear_alpha(color.to_alpha_color::<LinearSrgb>()),
+         }
+     }
+ }
+@@ -96,12 +102,7 @@ impl From<DynamicColor> for DrawColor {
+ impl<CS: ColorSpace> From<OpaqueColor<CS>> for DrawColor {
+     fn from(color: OpaqueColor<CS>) -> Self {
+         Self {
+-            rgba: color
+-                .convert::<Srgb>()
+-                .with_alpha(1.)
+-                .premultiply()
+-                .to_rgba8()
+-                .to_u32(),
++            rgba: pack_linear_alpha(color.convert::<LinearSrgb>().with_alpha(1.)),
+         }
+     }
+ }
+@@ -109,7 +110,7 @@ impl<CS: ColorSpace> From<OpaqueColor<CS>> for DrawColor {
+ impl<CS: ColorSpace> From<PremulColor<CS>> for DrawColor {
+     fn from(color: PremulColor<CS>) -> Self {
+         Self {
+-            rgba: color.convert::<Srgb>().to_rgba8().to_u32(),
++            rgba: pack_linear_components(color.convert::<LinearSrgb>().components),
+         }
+     }
+ }
+@@ -273,7 +274,7 @@ impl Monoid for DrawMonoid {
+ 
+ #[cfg(test)]
+ mod tests {
+-    use peniko::Color;
++    use peniko::color::{AlphaColor, LinearSrgb};
+ 
+     use super::DrawColor;
+ 
+@@ -282,7 +283,7 @@ mod tests {
+         // `DrawColor` should be packed little-endian with red the least significant byte.
+         //
+         // If this changes intentionally, the `DrawColor` docs also need updating.
+-        let c = Color::from_rgba8(0x00, 0xca, 0xfe, 0xff);
++        let c = AlphaColor::<LinearSrgb>::new([0.0, 0xca as f32 / 255.0, 0xfe as f32 / 255.0, 1.0]);
+         assert_eq!(
+             bytemuck::bytes_of(&DrawColor::from(c)),
+             [0x00, 0xca, 0xfe, 0xff]
+@@ -292,7 +293,13 @@ mod tests {
+     #[test]
+     fn draw_color_premultiplied() {
+         // If this changes intentionally, the `DrawColor` docs also need updating.
+-        let c = Color::from_rgba8(0x00, 0xca, 0xfe, 0x00);
++        let c = AlphaColor::<LinearSrgb>::new([0.0, 0xca as f32 / 255.0, 0xfe as f32 / 255.0, 0.0]);
+         assert_eq!(DrawColor::from(c).rgba, 0);
+     }
++
++    #[test]
++    fn draw_color_uses_linear_premultiplied_bytes() {
++        let c = AlphaColor::<LinearSrgb>::new([0.21404114, 0.21404114, 0.21404114, 0.5]);
++        assert_eq!(DrawColor::from(c).rgba, 0x801b_1b1b);
++    }
+ }
+diff --git a/vello_encoding/src/ramp_cache.rs b/vello_encoding/src/ramp_cache.rs
+index 926f5abe..952131d3 100644
+--- a/vello_encoding/src/ramp_cache.rs
++++ b/vello_encoding/src/ramp_cache.rs
+@@ -6,9 +6,11 @@ use std::hash::Hash;
+ use std::hash::Hasher;
+ 
+ use peniko::color::cache_key::{BitEq, BitHash, CacheKey};
+-use peniko::color::{HueDirection, Srgb};
++use peniko::color::{HueDirection, LinearSrgb};
+ use peniko::{ColorStop, ColorStops, InterpolationAlphaSpace};
+ 
++use crate::draw::pack_linear_alpha;
++
+ const N_SAMPLES: usize = 512;
+ const RETAINED_COUNT: usize = 64;
+ 
+@@ -121,7 +123,7 @@ fn make_ramp(
+     interpolation_alpha_space: InterpolationAlphaSpace,
+ ) -> impl Iterator<Item = u32> + '_ {
+     let mut last_u = 0.0;
+-    let mut last_c = stops[0].color.to_alpha_color::<Srgb>();
++    let mut last_c = stops[0].color.to_alpha_color::<LinearSrgb>();
+     let mut this_u = last_u;
+     let mut this_c = last_c;
+     let mut j = 0;
+@@ -132,7 +134,7 @@ fn make_ramp(
+             last_c = this_c;
+             if let Some(s) = stops.get(j + 1) {
+                 this_u = s.offset;
+-                this_c = s.color.to_alpha_color::<Srgb>();
++                this_c = s.color.to_alpha_color::<LinearSrgb>();
+                 j += 1;
+             } else {
+                 break;
+@@ -150,6 +152,6 @@ fn make_ramp(
+                 InterpolationAlphaSpace::Unpremultiplied => last_c + (this_c - last_c) * t,
+             }
+         };
+-        c.premultiply().to_rgba8().to_u32()
++        pack_linear_alpha(c)
+     })
+ }
+diff --git a/vello_shaders/shader/fine.wgsl b/vello_shaders/shader/fine.wgsl
+index 55f615de..6ecab87f 100644
+--- a/vello_shaders/shader/fine.wgsl
++++ b/vello_shaders/shader/fine.wgsl
+@@ -1392,7 +1392,7 @@ fn main(
+             // Max with a small epsilon to avoid NaNs
+             let a_inv = 1.0 / max(fg.a, 1e-6);
+             let rgba_sep = vec4(fg.rgb * a_inv, fg.a);
+-            textureStore(output, vec2<i32>(coords), rgba_sep);
++            textureStore(output, vec2<i32>(coords), fg);
+         }
+     } 
+ }

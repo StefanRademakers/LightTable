@@ -5,10 +5,20 @@ import {
   type PaintSceneColor,
   type PaintSceneCommand,
   type PaintSceneCompileResult,
+  type PaintSceneGradientPaint,
   type PaintSceneMatrix,
+  type PaintScenePaint,
   type PaintScenePathCommand
 } from '@lighttable/paint-scene';
 import {
+  gradientPaintIsValid,
+  sampleGradientAsset,
+  type GradientPaintInstance
+} from '@lighttable/paint-core';
+import {
+  identityAffineMatrix,
+  multiplyMatrices,
+  pathBounds,
   realizeLiveShape,
   type AffineMatrix,
   type SolidPaint,
@@ -22,6 +32,8 @@ export interface CompileVectorPaintSceneOptions {
   readonly sourceId: string;
   /** Canonical document/layer revision, not a view or renderer revision. */
   readonly sourceRevision: string;
+  /** Maps vector-layer coordinates into the backend-neutral scene. */
+  readonly parentTransform?: AffineMatrix;
 }
 
 const matrix = (value: AffineMatrix): PaintSceneMatrix =>
@@ -32,6 +44,60 @@ const isSolidPaint = (paint: VectorPaint): paint is SolidPaint => 'type' in pain
 const color = (paint: SolidPaint, opacity: number): PaintSceneColor => [
   paint.color[0], paint.color[1], paint.color[2], paint.color[3] * opacity
 ];
+
+const solidPaint = (paint: SolidPaint, opacity: number): PaintScenePaint => ({
+  kind: 'solid',
+  color: color(paint, opacity)
+});
+
+const GRADIENT_RAMP_SAMPLES = 256;
+const srgbToLinear = (value: number) => value <= 0.04045
+  ? value / 12.92
+  : ((value + 0.055) / 1.055) ** 2.4;
+
+const gradientPaint = (
+  paint: GradientPaintInstance,
+  opacity: number,
+  path: VectorPath,
+  parentTransform: AffineMatrix,
+  pathTransform: AffineMatrix
+): PaintSceneGradientPaint | null => {
+  if (!gradientPaintIsValid(paint) || paint.asset.type !== 'solid' || paint.shape === 'diamond') {
+    return null;
+  }
+  const bounds = pathBounds(path);
+  let sceneTransform: AffineMatrix;
+  if (paint.coordinateSpace === 'object-bounds') {
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) return null;
+    sceneTransform = multiplyMatrices(pathTransform, multiplyMatrices({
+      a: bounds.width, b: 0, c: 0, d: bounds.height, tx: bounds.x, ty: bounds.y
+    }, paint.transform));
+  } else if (paint.coordinateSpace === 'layer') {
+    sceneTransform = multiplyMatrices(parentTransform, paint.transform);
+  } else {
+    sceneTransform = paint.transform;
+  }
+  return {
+    kind: 'gradient',
+    shape: paint.shape,
+    transform: matrix(sceneTransform),
+    spread: paint.spread ?? 'pad',
+    dither: paint.dither,
+    stops: Array.from({ length: GRADIENT_RAMP_SAMPLES }, (_, index) => {
+      const offset = index / (GRADIENT_RAMP_SAMPLES - 1);
+      const sample = sampleGradientAsset(paint.asset, paint.reverse ? 1 - offset : offset);
+      return {
+        offset,
+        color: [
+          srgbToLinear(sample.r),
+          srgbToLinear(sample.g),
+          srgbToLinear(sample.b),
+          sample.a * opacity
+        ] as PaintSceneColor
+      };
+    })
+  };
+};
 
 const appendSegment = (
   commands: PaintScenePathCommand[],
@@ -81,7 +147,7 @@ const unsupportedPaint = (
 ) => issues.push({
   stableId,
   feature: `gradient-${target}`,
-  reason: `The initial shared paint-scene slice does not encode ${target} gradients yet.`,
+  reason: `The gradient ${target} cannot be represented by the shared paint scene.`,
   fallback: 'current-backend'
 });
 
@@ -94,21 +160,30 @@ export const compileVectorPaintScene = (
   options: CompileVectorPaintSceneOptions
 ): PaintSceneCompileResult => {
   const issues: PaintSceneCapabilityIssue[] = [];
+  const parentTransform = options.parentTransform ?? identityAffineMatrix();
   const fragments = elements.map(element => {
     const path = element.type === 'live-shape' ? realizeLiveShape(element) : element;
     const pathCommands = compileVectorPathCommands(path);
     const commands: PaintSceneCommand[] = [];
     const stableId = element.id;
     const pathId = `${element.id}:path`;
+    const pathTransform = multiplyMatrices(parentTransform, path.transform);
 
     if (path.style.fill) {
       if (isSolidPaint(path.style.fill)) {
         commands.push({
-          kind: 'fill-path', pathId, transform: matrix(path.transform),
-          fillRule: path.fillRule, color: color(path.style.fill, path.style.opacity)
+          kind: 'fill-path', pathId, transform: matrix(pathTransform),
+          fillRule: path.fillRule, paint: solidPaint(path.style.fill, path.style.opacity)
         });
       } else {
-        unsupportedPaint(issues, stableId, 'fill');
+        const paint = gradientPaint(
+          path.style.fill, path.style.opacity, path, parentTransform, pathTransform
+        );
+        if (paint) commands.push({
+          kind: 'fill-path', pathId, transform: matrix(pathTransform),
+          fillRule: path.fillRule, paint
+        });
+        else unsupportedPaint(issues, stableId, 'fill');
       }
     }
 
@@ -122,8 +197,8 @@ export const compileVectorPaintScene = (
         });
       } else if (isSolidPaint(path.style.stroke.paint)) {
         commands.push({
-          kind: 'stroke-path', pathId, transform: matrix(path.transform),
-          color: color(
+          kind: 'stroke-path', pathId, transform: matrix(pathTransform),
+          paint: solidPaint(
             path.style.stroke.paint,
             path.style.opacity * (path.style.stroke.opacity ?? 1)
           ),
@@ -137,7 +212,25 @@ export const compileVectorPaintScene = (
           }
         });
       } else {
-        unsupportedPaint(issues, stableId, 'stroke');
+        const paint = gradientPaint(
+          path.style.stroke.paint,
+          path.style.opacity * (path.style.stroke.opacity ?? 1),
+          path,
+          parentTransform,
+          pathTransform
+        );
+        if (paint) commands.push({
+          kind: 'stroke-path', pathId, transform: matrix(pathTransform), paint,
+          stroke: {
+            width: path.style.stroke.width,
+            cap: path.style.stroke.cap,
+            join: path.style.stroke.join,
+            miterLimit: path.style.stroke.miterLimit,
+            dash: [...path.style.stroke.dash],
+            dashOffset: path.style.stroke.dashOffset
+          }
+        });
+        else unsupportedPaint(issues, stableId, 'stroke');
       }
     }
 

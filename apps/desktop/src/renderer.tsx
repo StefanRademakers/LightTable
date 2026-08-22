@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom/client';
 import {
   createLightTableImageClipboard,
   createLocalLightTableFunnelTelemetry,
+  configureVectorRendererBackend,
   LightTableStandaloneApp,
   type LightTableAutomationDriver,
   type LightTableHost
@@ -13,6 +14,10 @@ import './renderer.css';
 import { invokeAgentDriver } from './agentDriverBridge';
 import type { DesktopFilePayload } from './desktopBridge';
 import { normalizeDesktopGenAiError } from './genai/desktopGenAiError';
+
+configureVectorRendererBackend(
+  import.meta.env.VITE_LIGHTTABLE_VECTOR_BACKEND === 'vello' ? 'vello' : 'current'
+);
 
 if (navigator.userAgent.includes('Windows')) {
   const titlebarIconUrl = new URL('../../../icon/logo_emblem.png', import.meta.url).href;

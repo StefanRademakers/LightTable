@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createVectorLiveShape, createVectorPath, createSubpath, createAnchor } from '@lighttable/vector-core';
 import {
+  createVectorLiveShape,
+  createVectorPath,
+  createSubpath,
+  createAnchor,
+  translationMatrix
+} from '@lighttable/vector-core';
+import { createVectorLayer } from '../document/documentTypes';
+import {
+  compileVelloVectorLayerScene,
   maximumAffineScale,
   vectorGeometryTolerance,
   vectorSurfaceBytes,
@@ -26,6 +34,45 @@ describe('adaptive vector tessellation', () => {
     expect(vectorSurfaceSampleCount(1_000, 1_000, true)).toBe(4);
     expect(vectorSurfaceSampleCount(10_000, 10_000, true)).toBe(1);
     expect(vectorSurfaceSampleCount(1_000, 1_000, false)).toBe(1);
+  });
+});
+
+describe('Vello paint-scene projection', () => {
+  it('combines inherited, layer and exact path transforms without mutating authority', () => {
+    const path = createVectorPath('path', 'Path', [createSubpath('outline', [
+      createAnchor('a', { x: 0, y: 0 }),
+      createAnchor('b', { x: 20, y: 10 })
+    ], false)]);
+    path.transform = translationMatrix(3, 4);
+    const layer = createVectorLayer([path], 'Vello layer');
+    layer.transform = translationMatrix(10, 20);
+
+    const compiled = compileVelloVectorLayerScene(layer, translationMatrix(100, 200));
+
+    expect(compiled.status).toBe('ready');
+    expect(compiled.scene.fragments[0].commands[0].transform).toEqual([
+      1, 0, 0, 1, 113, 224
+    ]);
+    expect(layer.transform).toEqual(translationMatrix(10, 20));
+    expect(layer.elements[0].transform).toEqual(translationMatrix(3, 4));
+  });
+
+  it('changes the bounded scene revision for authored or inherited geometry state', () => {
+    const layer = createVectorLayer([createVectorLiveShape('shape', {
+      kind: 'rectangle',
+      width: 40,
+      height: 20,
+      cornerRadii: [0, 0, 0, 0],
+      linkedCorners: true
+    })]);
+    const first = compileVelloVectorLayerScene(layer, translationMatrix(0, 0));
+    const moved = compileVelloVectorLayerScene(layer, translationMatrix(1, 0));
+    layer.elements[0].styleRevision += 1;
+    const restyled = compileVelloVectorLayerScene(layer, translationMatrix(0, 0));
+
+    expect(first.sceneKey).not.toBe(moved.sceneKey);
+    expect(first.sceneKey).not.toBe(restyled.sceneKey);
+    expect(first.sceneKey.length).toBeLessThan(128);
   });
 });
 

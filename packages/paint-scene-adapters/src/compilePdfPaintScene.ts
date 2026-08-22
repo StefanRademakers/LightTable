@@ -92,7 +92,7 @@ export const compilePdfPaintScene = (
       if (fill) {
         commands.push({
           kind: 'fill-path', pathId, transform: item.localToPage,
-          fillRule: item.fillRule, color: fill
+          fillRule: item.fillRule, paint: { kind: 'solid', color: fill }
         });
       } else {
         addIssue(
@@ -105,7 +105,8 @@ export const compilePdfPaintScene = (
       const stroke = supportedColor(item.paintState.strokePaint, item.paintState.strokeAlpha);
       if (stroke) {
         commands.push({
-          kind: 'stroke-path', pathId, transform: item.localToPage, color: stroke,
+            kind: 'stroke-path', pathId, transform: item.localToPage,
+            paint: { kind: 'solid', color: stroke },
           stroke: {
             width: item.paintState.stroke.width,
             cap: item.paintState.stroke.cap,

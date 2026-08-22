@@ -152,6 +152,7 @@ export class LayerCompositor {
     const visibleLeafNodes = analysis.visibleLeafNodes.filter(
       layer => !excludedLayerIds.has(layer.id)
     );
+    vectors.retainLayerIds(new Set(visibleLeafNodes.map(layer => layer.id)));
     if (!analysis.activeLayerStyles) {
       layerStyles.releaseTargets();
       layerStyles.releaseCache();

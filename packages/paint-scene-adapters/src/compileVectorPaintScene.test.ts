@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { VectorPath } from '@lighttable/vector-core';
+import { createVectorLiveShape, type VectorPath } from '@lighttable/vector-core';
+import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { compileVectorPaintScene } from './compileVectorPaintScene';
 
 const path = (): VectorPath => ({
@@ -31,7 +32,8 @@ describe('compileVectorPaintScene', () => {
       ]
     });
     expect(result.scene.fragments[0].commands[0]).toMatchObject({
-      kind: 'fill-path', fillRule: 'evenodd', transform: [2, 0, 0, 2, 4, 5], color: [1, 0, 0, 0.25],
+      kind: 'fill-path', fillRule: 'evenodd', transform: [2, 0, 0, 2, 4, 5],
+      paint: { kind: 'solid', color: [1, 0, 0, 0.25] },
       pathId: 'curve:path'
     });
   });
@@ -47,5 +49,31 @@ describe('compileVectorPaintScene', () => {
     const result = compileVectorPaintScene([value], { sourceId: 'doc', sourceRevision: '10' });
     expect(result.status).toBe('unsupported');
     expect(result.issues).toEqual([expect.objectContaining({ feature: 'gradient-fill', fallback: 'current-backend' })]);
+  });
+
+  it('resolves a valid object-bounds gradient into scene space with a bounded sampled ramp', () => {
+    const value = createVectorLiveShape('gradient-rect', {
+      kind: 'rectangle', width: 10, height: 20,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    value.transform = { a: 2, b: 0, c: 0, d: 3, tx: 4, ty: 5 };
+    value.style.fill = createDefaultGradientPaint('gradient');
+
+    const result = compileVectorPaintScene([value], {
+      sourceId: 'doc', sourceRevision: '11'
+    });
+
+    expect(result.status).toBe('ready');
+    expect(result.issues).toEqual([]);
+    const command = result.scene.fragments[0].commands[0];
+    expect(command).toMatchObject({
+      kind: 'fill-path',
+      transform: [2, 0, 0, 3, 4, 5],
+      paint: { kind: 'gradient', shape: 'linear', transform: [20, 0, 0, 60, 4, 35] }
+    });
+    if (command.paint.kind !== 'gradient') throw new Error('Expected gradient fixture.');
+    expect(command.paint.stops).toHaveLength(256);
+    expect(command.paint.stops[0].color).toEqual([0, 0, 0, 1]);
+    expect(command.paint.stops.at(-1)?.color).toEqual([1, 1, 1, 1]);
   });
 });

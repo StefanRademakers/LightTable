@@ -10,6 +10,7 @@ import type {
   VectorPath,
   VectorSubpath
 } from '@lighttable/vector-core';
+import type { GradientPaintInstance } from '@lighttable/paint-core';
 import {
   quantizeDocumentTolerance,
   realizeVectorPath,
@@ -104,11 +105,11 @@ const commandPath = (
     tx: command.transform[4], ty: command.transform[5]
   },
   style: command.kind === 'fill-path' ? {
-    fill: { type: 'solid', color: command.color }, stroke: null, opacity: 1
+    fill: commandPaint(command.paint, command.pathId), stroke: null, opacity: 1
   } : {
     fill: null,
     stroke: {
-      paint: { type: 'solid', color: command.color },
+      paint: commandPaint(command.paint, command.pathId),
       width: command.stroke.width,
       alignment: 'center',
       cap: command.stroke.cap,
@@ -120,6 +121,55 @@ const commandPath = (
     opacity: 1
   }
 });
+
+const commandPaint = (
+  paint: PaintSceneCommand['paint'],
+  stableId: string
+): NonNullable<VectorPath['style']['fill']> => {
+  if (paint.kind === 'solid') return { type: 'solid', color: paint.color };
+  const linearToSrgb = (value: number) => value <= 0.0031308
+    ? value * 12.92
+    : 1.055 * value ** (1 / 2.4) - 0.055;
+  return {
+    kind: 'gradient',
+    asset: {
+      id: `${stableId}:paint-scene-gradient`,
+      name: 'Paint scene gradient',
+      type: 'solid',
+      smoothness: 1,
+      colorStops: paint.stops.map((stop, index) => ({
+        id: `${stableId}:color:${index}`,
+        position: stop.offset,
+        midpoint: 0.5,
+        color: {
+          r: linearToSrgb(stop.color[0]),
+          g: linearToSrgb(stop.color[1]),
+          b: linearToSrgb(stop.color[2]),
+          a: stop.color[3]
+        }
+      })),
+      opacityStops: paint.stops.map((stop, index) => ({
+        id: `${stableId}:opacity:${index}`,
+        position: stop.offset,
+        midpoint: 0.5,
+        opacity: 1
+      })),
+      roughness: 0,
+      seed: 0
+    },
+    shape: paint.shape,
+    coordinateSpace: 'document',
+    transform: {
+      a: paint.transform[0], b: paint.transform[1],
+      c: paint.transform[2], d: paint.transform[3],
+      tx: paint.transform[4], ty: paint.transform[5]
+    },
+    reverse: false,
+    dither: paint.dither,
+    interpolation: 'classic',
+    spread: paint.spread
+  } satisfies GradientPaintInstance;
+};
 
 export interface PaintSceneWebGpuEncodeMetrics {
   readonly fragmentCount: number;

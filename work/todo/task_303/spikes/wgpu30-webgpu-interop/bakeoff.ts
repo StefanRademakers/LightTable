@@ -1,4 +1,4 @@
-import init, { InteropDevice } from './pkg/interop.js';
+import init, { VelloInteropDevice } from '../../../../../packages/vector-vello/src/generated/vector_vello_wasm.js';
 import type { PaintScene, PaintScenePathCommand } from '@lighttable/paint-scene';
 import { PAINT_SCENE_SCHEMA_VERSION } from '@lighttable/paint-scene';
 import { PaintSceneWebGpuBackend } from '@lighttable/vector-webgpu';
@@ -35,7 +35,11 @@ const circleCommands = (radius: number): readonly PaintScenePathCommand[] => {
 const createScene = (
   columns = 16,
   rows = 16,
-  options: { fillAlpha?: number; stroke?: boolean } = {}
+  options: {
+    fillAlpha?: number;
+    fillColor?: readonly [number, number, number];
+    stroke?: boolean;
+  } = {}
 ): PaintScene => ({
   schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
   sourceId: 'backend-bakeoff',
@@ -48,12 +52,20 @@ const createScene = (
     const commands: PaintScene['fragments'][number]['commands'][number][] = [{
       kind: 'fill-path', pathId, fillRule: 'nonzero',
       transform: [1, 0, 0, 1, 16 + column * 32, 16 + row * 32],
-      color: [0.12 + column / 24, 0.15 + row / 24, 0.8, options.fillAlpha ?? 0.9]
+      paint: {
+        kind: 'solid',
+        color: [
+          options.fillColor?.[0] ?? 0.12 + column / 24,
+          options.fillColor?.[1] ?? 0.15 + row / 24,
+          options.fillColor?.[2] ?? 0.8,
+          options.fillAlpha ?? 0.9
+        ]
+      }
     }];
     if (options.stroke ?? true) commands.push({
       kind: 'stroke-path', pathId,
       transform: [1, 0, 0, 1, 16 + column * 32, 16 + row * 32],
-      color: [0.95, 0.85, 0.1, 1],
+      paint: { kind: 'solid', color: [0.95, 0.85, 0.1, 1] },
       stroke: { width: 1.5, cap: 'round', join: 'round', miterLimit: 4, dash: [], dashOffset: 0 }
     });
     return {
@@ -64,6 +76,43 @@ const createScene = (
     };
   })
 });
+
+const createGradientScene = (alpha = 1): PaintScene => {
+  const scene = createScene(1, 1, { fillAlpha: alpha, stroke: false });
+  const srgbToLinear = (value: number) => value <= 0.04045
+    ? value / 12.92
+    : ((value + 0.055) / 1.055) ** 2.4;
+  const stops = Array.from({ length: 256 }, (_, index) => {
+    const offset = index / 255;
+    return {
+      offset,
+      color: [
+        srgbToLinear(0.5 * (1 - offset)),
+        0,
+        srgbToLinear(0.5 * offset),
+        alpha
+      ] as const
+    };
+  });
+  return {
+    ...scene,
+    sourceRevision: `gradient:${alpha}`,
+    fragments: scene.fragments.map((fragment) => ({
+      ...fragment,
+      commands: fragment.commands.map((command) => ({
+        ...command,
+        paint: {
+          kind: 'gradient' as const,
+          shape: 'linear' as const,
+          transform: [20, 0, 0, 1, 6, 0] as const,
+          spread: 'pad' as const,
+          dither: false,
+          stops
+        }
+      }))
+    }))
+  };
+};
 
 const texture = (device: GPUDevice, label: string) => device.createTexture({
   label,
@@ -122,7 +171,7 @@ const fail = (error: unknown) => {
 
 try {
   await init();
-  const interop = await InteropDevice.create();
+  const interop = await VelloInteropDevice.create();
   const device = interop.device_handle() as GPUDevice;
   const scene = createScene();
   const serializeStarted = performance.now();
@@ -167,7 +216,7 @@ try {
   const velloGpu: number[] = [];
   for (let run = 0; run < 6; run += 1) {
     const callStarted = performance.now();
-    interop.render_paint_scene_texture(velloTexture, width, height, serialized);
+    interop.render_paint_scene_texture(velloTexture, width, height, 'baseline', serialized);
     velloCalls.push(performance.now() - callStarted);
     const gpuStarted = performance.now();
     await device.queue.onSubmittedWorkDone();
@@ -199,7 +248,13 @@ try {
     device.queue.submit([encoder.finish()]);
     await device.queue.onSubmittedWorkDone();
     await current.notifySubmitted();
-    interop.render_paint_scene_texture(velloTexture, width, height, JSON.stringify(caseScene));
+    interop.render_paint_scene_texture(
+      velloTexture,
+      width,
+      height,
+      `${caseScene.sourceId}:${caseScene.sourceRevision}:${Math.random()}`,
+      JSON.stringify(caseScene)
+    );
     await device.queue.onSubmittedWorkDone();
     const currentCasePixels = await readTexture(device, currentSurface.color);
     const velloCasePixels = await readTexture(device, velloTexture);
@@ -218,7 +273,24 @@ try {
   const parityCases = {
     opaqueFill: await renderParityCase(createScene(4, 4, { fillAlpha: 1, stroke: false })),
     alphaFill: await renderParityCase(createScene(4, 4, { fillAlpha: 0.5, stroke: false })),
-    opaqueFillStroke: await renderParityCase(createScene(4, 4, { fillAlpha: 1, stroke: true }))
+    opaqueFillStroke: await renderParityCase(createScene(4, 4, { fillAlpha: 1, stroke: true })),
+    linearMidtoneOpaque: await renderParityCase(createScene(1, 1, {
+      fillAlpha: 1,
+      fillColor: [0.21404114, 0.21404114, 0.21404114],
+      stroke: false
+    })),
+    linearMidtoneAlpha: await renderParityCase(createScene(1, 1, {
+      fillAlpha: 0.5,
+      fillColor: [0.21404114, 0.21404114, 0.21404114],
+      stroke: false
+    })),
+    primaryAlpha: await renderParityCase(createScene(1, 1, {
+      fillAlpha: 0.5,
+      fillColor: [1, 0, 0],
+      stroke: false
+    })),
+    linearGradientOpaque: await renderParityCase(createGradientScene()),
+    linearGradientAlpha: await renderParityCase(createGradientScene(0.5))
   };
   const report = {
     scene: {

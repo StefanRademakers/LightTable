@@ -245,6 +245,14 @@ export class LayerDocumentRenderer {
     return this.runtime.compositor.topmostSuffixCacheTelemetry();
   }
 
+  vectorBackendTelemetry() {
+    return this.runtime.vectorLayerRenderer.backendDiagnostics();
+  }
+
+  resetVectorBackendTelemetry() {
+    this.runtime.vectorLayerRenderer.resetBackendTelemetry();
+  }
+
   setTopmostSuffixCacheEnabled(enabled: boolean) {
     this.runtime.compositor.setTopmostSuffixCacheEnabled(enabled);
   }

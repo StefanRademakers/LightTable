@@ -13,3 +13,7 @@ export {
 } from './platform/LightTableFunnelTelemetry';
 export type { LightTableHost } from './platform/LightTableHost';
 export type { LightTableAutomationDriver } from './lighttable/application/commands/lightTableCommandService';
+export {
+  configureVectorRendererBackend,
+  type VectorRendererBackendSelection
+} from './lighttable/gpu/vectorRendererBackendDiagnostics';

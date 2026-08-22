@@ -2881,6 +2881,7 @@ export class WebGpuEngine {
       ...this.renderTelemetry.snapshot(),
       gpuTextureBytes: this.estimatedGpuTextureBytes(),
       processingSuffixCache: this.documentRenderer?.processingCacheTelemetry() ?? null,
+      vectorBackend: this.documentRenderer?.vectorBackendTelemetry() ?? null,
       deformation: this.layerEffectRenderer?.deformationTelemetry() ?? null
     };
   }
@@ -2894,6 +2895,7 @@ export class WebGpuEngine {
 
   resetRenderTelemetry() {
     this.renderTelemetry.reset();
+    this.documentRenderer?.resetVectorBackendTelemetry();
   }
 
   private drawFullscreenPass(

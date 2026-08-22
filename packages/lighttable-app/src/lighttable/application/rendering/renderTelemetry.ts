@@ -12,6 +12,25 @@ export interface RenderStageTelemetrySnapshot {
   readonly maximumEncodeMs: number;
 }
 
+export interface VectorBackendTelemetrySnapshot {
+  readonly selected: 'current' | 'vello';
+  readonly active: 'unexercised' | 'current' | 'vello' | 'mixed';
+  readonly velloFailure: string | null;
+  readonly velloSurfaces: number;
+  readonly currentLayerEncodes: number;
+  readonly velloLayerEncodes: number;
+  readonly velloSceneRenders: number;
+  readonly velloSceneCacheHits: number;
+  readonly velloUnsupportedLayerEncodes: number;
+  readonly geometryCache: {
+    readonly entries: number;
+    readonly bytes: number;
+    readonly hits: number;
+    readonly misses: number;
+    readonly evictions: number;
+  };
+}
+
 export interface RenderTelemetrySnapshot {
   readonly renderCalls: number;
   readonly submittedFrames: number;
@@ -21,6 +40,7 @@ export interface RenderTelemetrySnapshot {
   readonly scopeDisplayPasses: number;
   readonly stages: Readonly<Record<RenderTelemetryStage, RenderStageTelemetrySnapshot>>;
   readonly gpuTextureBytes?: number;
+  readonly vectorBackend?: VectorBackendTelemetrySnapshot | null;
   readonly deformation?: MeshDeformationTelemetry | null;
   /** Canonical document revision currently owned by the mounted renderer view. */
   readonly presentedDocumentRevision?: number | null;
@@ -146,6 +166,18 @@ export const formatRenderTelemetry = (snapshot: RenderTelemetrySnapshot) => {
     `Correction frames: ${correctionFrames}`,
     `Scope analysis passes: ${snapshot.scopeAnalysisPasses}`,
     `Scope display passes: ${snapshot.scopeDisplayPasses}`,
+    ...(snapshot.vectorBackend ? [
+      `Vector backend: selected ${snapshot.vectorBackend.selected}; active ${snapshot.vectorBackend.active}`
+        + `; current encodes ${snapshot.vectorBackend.currentLayerEncodes}`
+        + `; Vello encodes ${snapshot.vectorBackend.velloLayerEncodes}`
+        + `; Vello scene renders ${snapshot.vectorBackend.velloSceneRenders}`
+        + `; Vello cache hits ${snapshot.vectorBackend.velloSceneCacheHits}`
+        + `; unsupported fallbacks ${snapshot.vectorBackend.velloUnsupportedLayerEncodes}`
+        + `; surfaces ${snapshot.vectorBackend.velloSurfaces}`
+        + (snapshot.vectorBackend.velloFailure
+          ? `; failure ${snapshot.vectorBackend.velloFailure}`
+          : '')
+    ] : []),
     ...stageLines
   ].join('\n');
 };

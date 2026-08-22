@@ -134,6 +134,10 @@ export {
   type LightTableRecipe
 } from './lighttable/lightTableRecipe';
 export { renderLightTableGrade } from './lighttable/renderLightTableGrade';
+export {
+  configureVectorRendererBackend,
+  type VectorRendererBackendSelection
+} from './lighttable/gpu/vectorRendererBackendDiagnostics';
 export { useLightTableRecipe } from './lighttable/useLightTableRecipe';
 export type { BasicAdjustments } from './lighttable/types';
 export type {

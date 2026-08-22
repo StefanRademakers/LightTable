@@ -4,11 +4,20 @@ import {
   type WebGpuLimitSnapshot,
   type WebGpuSupportTier
 } from './webGpuSupportTier';
+import { lockVectorRendererBackendSelection } from './vectorRendererBackendDiagnostics';
 
 export const TEXTURE_FORMATS_TIER1: GPUFeatureName = 'texture-formats-tier1';
 
 export interface WebGpuAdapterProvider {
   requestAdapter(options?: GPURequestAdapterOptions): Promise<GPUAdapter | null>;
+}
+
+interface DirectWebGpuDeviceProvider {
+  request(): Promise<{
+    readonly device: GPUDevice;
+    readonly diagnostics: Omit<SharedWebGpuDiagnosticSnapshot, 'features' | 'limits' | 'support'>;
+  }>;
+  release(device: GPUDevice): void;
 }
 
 export type SharedWebGpuDeviceLostListener = (info: GPUDeviceLostInfo) => void;
@@ -37,7 +46,10 @@ export class SharedWebGpuDeviceManager {
   private adapterSnapshot: SharedWebGpuDiagnosticSnapshot | null = null;
   private readonly lostListeners = new Set<SharedWebGpuDeviceLostListener>();
 
-  constructor(private readonly adapterProvider: WebGpuAdapterProvider) {}
+  constructor(
+    private readonly adapterProvider: WebGpuAdapterProvider,
+    private readonly directProvider: DirectWebGpuDeviceProvider | null = null
+  ) {}
 
   request(): Promise<GPUDevice> {
     if (this.device) return Promise.resolve(this.device);
@@ -57,6 +69,23 @@ export class SharedWebGpuDeviceManager {
 
   private async acquire(): Promise<GPUDevice> {
     try {
+      if (this.directProvider) {
+        const result = await this.directProvider.request();
+        const limits = snapshotWebGpuLimits(result.device.limits);
+        const support = classifyWebGpuSupport(limits);
+        if (support.id === 'below-floor') {
+          this.directProvider.release(result.device);
+          throw new Error(`${support.label}. ${support.action}`);
+        }
+        this.adapterSnapshot = {
+          ...result.diagnostics,
+          features: [...result.device.features].map(String).sort(),
+          limits,
+          support
+        };
+        this.bindDeviceLoss(result.device);
+        return result.device;
+      }
       const adapter = await this.adapterProvider.requestAdapter({
         powerPreference: 'high-performance'
       });
@@ -89,14 +118,7 @@ export class SharedWebGpuDeviceManager {
           maxBufferSize: limits.maxBufferSize
         }
       });
-      this.device = device;
-      void device.lost.then((info) => {
-        if (this.device === device) {
-          this.device = null;
-          this.pending = null;
-        }
-        for (const listener of this.lostListeners) listener(info);
-      });
+      this.bindDeviceLoss(device);
       return device;
     } catch (reason) {
       this.device = null;
@@ -104,6 +126,18 @@ export class SharedWebGpuDeviceManager {
     } finally {
       this.pending = null;
     }
+  }
+
+  private bindDeviceLoss(device: GPUDevice) {
+    this.device = device;
+    void device.lost.then((info) => {
+      if (this.device === device) {
+        this.device = null;
+        this.pending = null;
+        this.directProvider?.release(device);
+      }
+      for (const listener of this.lostListeners) listener(info);
+    });
   }
 }
 
@@ -115,7 +149,29 @@ const getBrowserManager = () => {
       'WebGPU is not available in this browser. Use a current Chromium-based desktop browser.'
     );
   }
-  browserManager ??= new SharedWebGpuDeviceManager(navigator.gpu);
+  if (!browserManager) {
+    const backend = lockVectorRendererBackendSelection();
+    const directProvider: DirectWebGpuDeviceProvider | null = backend === 'vello' ? {
+      request: async () => {
+        const runtime = await import('@lighttable/vector-vello')
+          .then((module) => module.requestVelloWebGpuRuntime());
+        return {
+          device: runtime.device,
+          diagnostics: {
+            vendor: String(runtime.diagnostics.vendor),
+            architecture: runtime.diagnostics.architecture,
+            device: String(runtime.diagnostics.device),
+            description: `${runtime.diagnostics.description} (${runtime.diagnostics.backend})`
+          }
+        };
+      },
+      release: (device) => {
+        void import('@lighttable/vector-vello')
+          .then((module) => module.releaseVelloWebGpuRuntime(device));
+      }
+    } : null;
+    browserManager = new SharedWebGpuDeviceManager(navigator.gpu, directProvider);
+  }
   return browserManager;
 };
 

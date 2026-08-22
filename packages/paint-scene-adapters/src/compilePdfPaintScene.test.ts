@@ -31,8 +31,8 @@ describe('compilePdfPaintScene', () => {
     const result = compilePdfPaintScene(page(), { sourceRevision: 'sha256' });
     expect(result.status).toBe('ready');
     expect(result.scene.fragments[0].commands).toEqual([
-      expect.objectContaining({ kind: 'fill-path', color: [1, 0.5, 0, 0.75], transform: [1, 0, 0, 1, 4, 5] }),
-      expect.objectContaining({ kind: 'stroke-path', color: [0.25, 0.25, 0.25, 0.5], stroke: expect.objectContaining({ dashOffset: 1 }) })
+      expect.objectContaining({ kind: 'fill-path', paint: { kind: 'solid', color: [1, 0.5, 0, 0.75] }, transform: [1, 0, 0, 1, 4, 5] }),
+      expect.objectContaining({ kind: 'stroke-path', paint: { kind: 'solid', color: [0.25, 0.25, 0.25, 0.5] }, stroke: expect.objectContaining({ dashOffset: 1 }) })
     ]);
     expect(result.scene.fragments[0].paths[0].commands[1]).toEqual({
       kind: 'cubic', control1X: 2, control1Y: 3, control2X: 4, control2Y: 5, x: 6, y: 7
