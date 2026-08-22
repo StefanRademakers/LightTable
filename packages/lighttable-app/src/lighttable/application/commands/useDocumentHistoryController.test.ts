@@ -18,6 +18,7 @@ const setup = () => {
   const history = new DocumentCommandHistory(documentId);
   let document: ImageDocument | null = createImageDocument('Image', 32, 24, 'image');
   const pruneLayerRuntimes = vi.fn<(
+    documentResourceKey: string,
     rasterIds: ReadonlySet<LayerId>,
     maskIds: ReadonlySet<LayerId>
   ) => void>();
@@ -37,6 +38,7 @@ const setup = () => {
     pruneLayerRuntimes,
     finishOpenTransactions,
     setError,
+    getDocument: () => document,
     setDocument: (next: ImageDocument | null) => { document = next; }
   };
 };
@@ -65,7 +67,8 @@ describe('document history controller', () => {
       undo: () => undefined,
       redo: () => undefined
     });
-    const keep = state.pruneLayerRuntimes.mock.lastCall?.[0];
+    const [resourceKey, keep] = state.pruneLayerRuntimes.mock.lastCall!;
+    expect(resourceKey).toBe(state.getDocument()!.id);
     expect(keep?.has(retained)).toBe(true);
     expect(keep?.size).toBeGreaterThan(1);
   });
@@ -81,7 +84,7 @@ describe('document history controller', () => {
 
     state.controller.pruneResources();
 
-    const [rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
+    const [, rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
     expect(rasterIds.has(textId)).toBe(false);
     expect(maskIds.has(textId)).toBe(true);
   });
@@ -102,7 +105,7 @@ describe('document history controller', () => {
       redo: () => undefined
     });
 
-    const [rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
+    const [, rasterIds, maskIds] = state.pruneLayerRuntimes.mock.lastCall!;
     expect(rasterIds.has(textId)).toBe(false);
     expect(maskIds.has(textId)).toBe(true);
   });

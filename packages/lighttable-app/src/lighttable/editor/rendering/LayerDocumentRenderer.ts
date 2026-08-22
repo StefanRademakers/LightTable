@@ -192,10 +192,15 @@ export class LayerDocumentRenderer {
   }
 
   pruneDetachedRuntimes(
+    documentResourceKey: string,
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId>
   ) {
-    this.runtime.layerRuntimeCoordinator.pruneDetached(keepRasterLayerIds, keepMaskLayerIds);
+    this.runtime.layerRuntimeCoordinator.pruneDetachedFor(
+      documentResourceKey,
+      keepRasterLayerIds,
+      keepMaskLayerIds
+    );
   }
 
   private maskTextureFor(layerId: LayerId) {

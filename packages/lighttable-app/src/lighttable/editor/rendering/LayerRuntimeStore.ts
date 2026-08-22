@@ -296,23 +296,50 @@ export class LayerRuntimeStore {
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId> = keepRasterLayerIds
   ) {
+    return this.pruneResourceSet(
+      this.repository.acquire(this.resourceKey),
+      keepRasterLayerIds,
+      keepMaskLayerIds
+    );
+  }
+
+  /** Prunes one named document without rebinding the active renderer facade. */
+  pruneDetachedFor(
+    resourceKey: DocumentLayerResourceKey,
+    keepRasterLayerIds: ReadonlySet<LayerId>,
+    keepMaskLayerIds: ReadonlySet<LayerId> = keepRasterLayerIds
+  ) {
+    const resources = this.repository.get(resourceKey);
+    if (!resources) return [];
+    return this.pruneResourceSet(
+      resources,
+      keepRasterLayerIds,
+      keepMaskLayerIds
+    );
+  }
+
+  private pruneResourceSet(
+    resources: ReturnType<DocumentLayerResourceRepository['acquire']>,
+    keepRasterLayerIds: ReadonlySet<LayerId>,
+    keepMaskLayerIds: ReadonlySet<LayerId>
+  ) {
     const removedLayerIds: LayerId[] = [];
-    this.rasterRuntimes.forEach((runtime, id) => {
+    resources.rasterRuntimes.forEach((runtime, id) => {
       if (keepRasterLayerIds.has(id)) return;
       runtime.texture.destroy();
       runtime.maskTexture?.destroy();
-      this.rasterRuntimes.delete(id);
+      resources.rasterRuntimes.delete(id);
       removedLayerIds.push(id);
     });
-    this.nodeMasks.forEach((runtime, id) => {
+    resources.nodeMasks.forEach((runtime, id) => {
       if (keepMaskLayerIds.has(id)) return;
       runtime.texture.destroy();
-      this.nodeMasks.delete(id);
+      resources.nodeMasks.delete(id);
     });
-    this.derivedPreviews.forEach((runtime, id) => {
+    resources.derivedPreviews.forEach((runtime, id) => {
       if (keepMaskLayerIds.has(id)) return;
       runtime.texture.destroy();
-      this.derivedPreviews.delete(id);
+      resources.derivedPreviews.delete(id);
       if (!removedLayerIds.includes(id)) removedLayerIds.push(id);
     });
     return removedLayerIds;

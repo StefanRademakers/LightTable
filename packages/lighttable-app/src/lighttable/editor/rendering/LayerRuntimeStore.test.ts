@@ -57,6 +57,30 @@ describe('LayerRuntimeStore', () => {
     expect(createdRaster[0].destroy).toHaveBeenCalledOnce();
   });
 
+  it('prunes an explicitly named document without touching the active document', () => {
+    const repository = new DocumentLayerResourceRepository();
+    const store = new LayerRuntimeStore(
+      { createRasterTexture: texture, createMaskTexture: texture },
+      repository
+    );
+    const first = createImageDocument('first', 64, 64, 'first-source');
+    const second = createImageDocument('second', 64, 64, 'second-source');
+    const firstLayer = first.layers[0] as RasterLayer;
+    const secondLayer = second.layers[0] as RasterLayer;
+
+    store.bind(first.id);
+    store.sync(first.layers);
+    const firstPixels = store.raster(firstLayer.id)!.texture;
+    store.bind(second.id);
+    store.sync(second.layers);
+    const secondPixels = store.raster(secondLayer.id)!.texture;
+
+    expect(store.pruneDetachedFor(first.id, new Set())).toEqual([firstLayer.id]);
+    expect(firstPixels.destroy).toHaveBeenCalledOnce();
+    expect(secondPixels.destroy).not.toHaveBeenCalled();
+    expect(store.raster(secondLayer.id)?.texture).toBe(secondPixels);
+  });
+
   it('owns raster and non-raster mask replacement lifecycles', () => {
     const masks: GPUTexture[] = [];
     const store = new LayerRuntimeStore({

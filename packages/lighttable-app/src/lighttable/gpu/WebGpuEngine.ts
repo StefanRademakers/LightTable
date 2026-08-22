@@ -853,10 +853,15 @@ export class WebGpuEngine {
   }
 
   pruneLayerRuntimes(
+    documentResourceKey: string,
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId>
   ) {
-    this.documentRenderer?.pruneDetachedRuntimes(keepRasterLayerIds, keepMaskLayerIds);
+    this.documentRenderer?.pruneDetachedRuntimes(
+      documentResourceKey,
+      keepRasterLayerIds,
+      keepMaskLayerIds
+    );
   }
 
   cancelPixelEdit() {

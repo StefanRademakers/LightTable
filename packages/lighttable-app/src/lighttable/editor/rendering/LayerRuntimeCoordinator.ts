@@ -8,6 +8,7 @@ import {
   type RasterRenderContract
 } from './renderContract';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
+import type { DocumentLayerResourceKey } from './DocumentLayerResourceRepository';
 
 export interface LayerRuntimeCoordinatorOptions {
   store: LayerRuntimeStore;
@@ -31,6 +32,20 @@ export class LayerRuntimeCoordinator {
     keepMaskLayerIds: ReadonlySet<LayerId> = keepRasterLayerIds
   ) {
     const removed = this.options.store.pruneDetached(keepRasterLayerIds, keepMaskLayerIds);
+    removed.forEach((layerId) => this.options.invalidateLayer(layerId));
+    return removed;
+  }
+
+  pruneDetachedFor(
+    documentResourceKey: DocumentLayerResourceKey,
+    keepRasterLayerIds: ReadonlySet<LayerId>,
+    keepMaskLayerIds: ReadonlySet<LayerId> = keepRasterLayerIds
+  ) {
+    const removed = this.options.store.pruneDetachedFor(
+      documentResourceKey,
+      keepRasterLayerIds,
+      keepMaskLayerIds
+    );
     removed.forEach((layerId) => this.options.invalidateLayer(layerId));
     return removed;
   }

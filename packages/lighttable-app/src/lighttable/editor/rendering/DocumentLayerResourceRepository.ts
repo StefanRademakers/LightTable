@@ -49,6 +49,10 @@ export class DocumentLayerResourceRepository {
     return this.sets.has(key);
   }
 
+  get(key: DocumentLayerResourceKey): DocumentLayerResourceSet | undefined {
+    return this.sets.get(key);
+  }
+
   acquire(key: DocumentLayerResourceKey): DocumentLayerResourceSet {
     const existing = this.sets.get(key);
     if (existing) return existing;

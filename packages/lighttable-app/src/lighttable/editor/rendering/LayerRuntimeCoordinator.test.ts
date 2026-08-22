@@ -48,6 +48,7 @@ describe('LayerRuntimeCoordinator', () => {
     const store = {
       sync: vi.fn(),
       pruneDetached: vi.fn(() => [layerId('removed')]),
+      pruneDetachedFor: vi.fn(() => [layerId('removed-from-document')]),
       raster: vi.fn(() => ({ texture }))
     };
     const invalidateLayer = vi.fn();
@@ -64,6 +65,15 @@ describe('LayerRuntimeCoordinator', () => {
     ]);
     expect(store.sync).toHaveBeenCalledWith(document.layers);
     expect(invalidateLayer).toHaveBeenCalledWith('removed');
+    expect(coordinator.pruneDetachedFor('document-a', new Set())).toEqual([
+      layerId('removed-from-document')
+    ]);
+    expect(store.pruneDetachedFor).toHaveBeenCalledWith(
+      'document-a',
+      new Set(),
+      new Set()
+    );
+    expect(invalidateLayer).toHaveBeenCalledWith('removed-from-document');
     expect(coordinator.resolveRenderContract(layer)?.texture).toBe(texture);
   });
 

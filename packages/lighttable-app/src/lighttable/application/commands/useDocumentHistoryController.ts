@@ -22,6 +22,7 @@ export interface EditorHistoryEntry {
 
 export interface HistoryRuntimePruner {
   pruneLayerRuntimes(
+    documentResourceKey: string,
     keepRasterLayerIds: ReadonlySet<LayerId>,
     keepMaskLayerIds: ReadonlySet<LayerId>
   ): void;
@@ -72,7 +73,13 @@ export const createDocumentHistoryController = (
       keepRasterLayers.add(id as LayerId);
       keepMasks.add(id as LayerId);
     });
-    dependencies.getRenderer()?.pruneLayerRuntimes(keepRasterLayers, keepMasks);
+    if (document) {
+      dependencies.getRenderer()?.pruneLayerRuntimes(
+        document.id,
+        keepRasterLayers,
+        keepMasks
+      );
+    }
   };
 
   const runHistoryOperation = async (
