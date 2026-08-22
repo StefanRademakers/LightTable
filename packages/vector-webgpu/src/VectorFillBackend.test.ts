@@ -292,7 +292,8 @@ describe('VectorFillBackend', () => {
           },
           shape: 'linear' as const, coordinateSpace: 'object-bounds' as const,
           transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
-          reverse: false, dither: true, interpolation: 'perceptual' as const
+          reverse: false, dither: true, interpolation: 'perceptual' as const,
+          spread: 'reflect' as const
         }
       }
     };
@@ -312,7 +313,7 @@ describe('VectorFillBackend', () => {
     expect(writes.some((value) => value.length === 256 * 4)).toBe(true);
     const settings = writes.find((value) => value.length === 28);
     expect(settings?.slice(16, 23)).toEqual(new Float32Array([
-      0.01, 0, 0, 0, 0, 0.01, 0
+      0.01, 0, 0, 1, 0, 0.01, 0
     ]));
     backend.dispose();
   });

@@ -18,6 +18,23 @@ const rgba = (value: readonly [number, number, number, number], opacity = 1) => 
   a: Math.round(Math.min(1, Math.max(0, value[3] * opacity)) * 255)
 });
 
+const photoshopGradientGeometry = (paint: GradientPaintInstance) => {
+  if (paint.coordinateSpace !== 'object-bounds' || (paint.spread ?? 'pad') !== 'pad') return null;
+  const { a, b, c, d, tx, ty } = paint.transform;
+  const extent = Math.hypot(a, b);
+  const tolerance = Math.max(1, extent) * 1e-6;
+  if (extent < 1e-9 || Math.abs(c + b) > tolerance || Math.abs(d - a) > tolerance) return null;
+  const radial = paint.shape !== 'linear';
+  const scale = (radial ? extent * 2 : extent) * 100;
+  const offsetX = (tx - 0.5 + (radial ? 0 : a * 0.5)) * 200;
+  const offsetY = (ty - 0.5 + (radial ? 0 : b * 0.5)) * 200;
+  return {
+    angle: Math.atan2(-b, a) * 180 / Math.PI,
+    scale,
+    offset: { x: offsetX, y: offsetY }
+  };
+};
+
 const gradient = (paint: GradientPaintInstance, opacity = 1): VectorContent => paint.asset.type === 'noise'
   ? ({
     name: paint.asset.name,
@@ -27,7 +44,8 @@ const gradient = (paint: GradientPaintInstance, opacity = 1): VectorContent => p
     colorModel: 'rgb' as const,
     min: [0, 0, 0, 0], max: [1, 1, 1, 1],
     style: paint.shape, reverse: paint.reverse, dither: paint.dither,
-    interpolationMethod: paint.interpolation
+    interpolationMethod: paint.interpolation,
+    ...photoshopGradientGeometry(paint)
   })
   : ({
     name: paint.asset.name,
@@ -42,7 +60,8 @@ const gradient = (paint: GradientPaintInstance, opacity = 1): VectorContent => p
       opacity: stop.opacity * opacity, location: stop.position, midpoint: stop.midpoint
     })),
     style: paint.shape, reverse: paint.reverse, dither: paint.dither,
-    interpolationMethod: paint.interpolation
+    interpolationMethod: paint.interpolation,
+    ...photoshopGradientGeometry(paint)
   });
 
 const content = (paint: VectorPaint, opacity = 1): VectorContent => {
@@ -116,6 +135,13 @@ export const exportVectorLayerToPsd = (
     return undefined;
   }
   const style = projected[0]!.style;
+  const gradientPaints = [style.fill, style.stroke?.paint].filter(
+    (paint): paint is GradientPaintInstance => Boolean(paint && 'kind' in paint)
+  );
+  // PSD gradients are object-relative, clamped and similarity-transformed.
+  // Refuse native projection when SVG/PDF semantics cannot round-trip; the
+  // document exporter can then choose an explicit raster fallback.
+  if (gradientPaints.some((paint) => !photoshopGradientGeometry(paint))) return undefined;
   return {
     vectorMask: {
       fillStartsWithAllPixels: false,

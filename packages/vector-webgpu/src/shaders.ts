@@ -82,7 +82,11 @@ fn coverFragment(input: CoverOutput) -> @location(0) vec4f {
   if (shape == 2u) { position = fract(atan2(point.y, point.x) / 6.28318530718 + 1.0); }
   if (shape == 3u) { position = abs(point.x); }
   if (shape == 4u) { position = abs(point.x) + abs(point.y); }
-  position = clamp(select(position, 1.0 - position, settings.gradientOptions.y > 0.5), 0.0, 1.0);
+  let spread = u32(settings.gradientRow0.w + 0.5);
+  if (spread == 0u) { position = clamp(position, 0.0, 1.0); }
+  if (spread == 1u) { position = 1.0 - abs(fract(position * 0.5) * 2.0 - 1.0); }
+  if (spread == 2u) { position = fract(position); }
+  position = select(position, 1.0 - position, settings.gradientOptions.y > 0.5);
   let scaled = position * 255.0;
   let lower = u32(floor(scaled));
   let upper = min(255u, lower + 1u);

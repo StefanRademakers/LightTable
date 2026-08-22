@@ -1,5 +1,6 @@
 import { isIdentityAffineMatrix, realizeLiveShape, type SolidPaint, type VectorElement,
   type VectorStyle } from '@lighttable/vector-core';
+import { sampleGradientAsset, type GradientPaintInstance } from '@lighttable/paint-core';
 import { serializeSolidPaint } from './color';
 import { serializeSvgPathData } from './pathData';
 import { serializeTransform } from './transform';
@@ -8,16 +9,48 @@ import { DEFAULT_SVG_CODEC_LIMITS, SvgCodecError, type SvgExportOptions } from '
 const escape = (value: string) => value.replace(/&/gu, '&amp;').replace(/"/gu, '&quot;')
   .replace(/</gu, '&lt;').replace(/>/gu, '&gt;');
 const number = (value: number) => Number(value.toFixed(6)).toString();
-const paint = (value: VectorStyle['fill'], role: 'fill' | 'stroke', opacity = 1) => {
+interface GradientExportRegistry {
+  readonly ids: Map<string, string>;
+  readonly definitions: GradientPaintInstance[];
+}
+
+const registerGradient = (gradient: GradientPaintInstance, registry: GradientExportRegistry) => {
+  if (gradient.asset.type !== 'solid' || gradient.shape !== 'linear') {
+    throw new SvgCodecError('unsupported-export-paint', 'SVG export currently supports solid and linear-gradient vector paint.');
+  }
+  const key = JSON.stringify(gradient);
+  const cached = registry.ids.get(key);
+  if (cached) return cached;
+  const id = `lighttable-gradient-${registry.definitions.length + 1}`;
+  registry.ids.set(key, id);
+  registry.definitions.push(gradient);
+  return id;
+};
+
+const paint = (
+  value: VectorStyle['fill'],
+  role: 'fill' | 'stroke',
+  registry: GradientExportRegistry,
+  opacity = 1
+) => {
   if (value === null) return [`${role}="none"`];
-  if (!('type' in value) || value.type !== 'solid') throw new SvgCodecError('unsupported-export-paint', 'Pass 1 SVG export supports only solid vector paint.');
+  if ('kind' in value) {
+    return [`${role}="url(#${registerGradient(value, registry)})"`,
+      ...(opacity < 1 ? [`${role}-opacity="${number(opacity)}"`] : [])];
+  }
+  if (value.type !== 'solid') throw new SvgCodecError('unsupported-export-paint', 'SVG export encountered unknown vector paint.');
   const serialized = serializeSolidPaint(value as SolidPaint);
   const combinedOpacity = serialized.alpha * opacity;
   return [`${role}="${serialized.color}"`, ...(combinedOpacity < 1 ? [`${role}-opacity="${number(combinedOpacity)}"`] : [])];
 };
-const styleAttributes = (style: VectorStyle) => {
-  const attributes = [...paint(style.fill, 'fill')];
-  if (style.stroke) attributes.push(...paint(style.stroke.paint, 'stroke', style.stroke.opacity ?? 1),
+const styleAttributes = (style: VectorStyle, registry: GradientExportRegistry) => {
+  const attributes = [...paint(style.fill, 'fill', registry)];
+  if (style.stroke) attributes.push(...paint(
+    style.stroke.paint,
+    'stroke',
+    registry,
+    style.stroke.opacity ?? 1
+  ),
     `stroke-width="${number(style.stroke.width)}"`, `stroke-linecap="${style.stroke.cap}"`,
     `stroke-linejoin="${style.stroke.join}"`, `stroke-miterlimit="${number(style.stroke.miterLimit)}"`,
     ...(style.stroke.dash.length ? [`stroke-dasharray="${style.stroke.dash.map(number).join(' ')}"`] : []),
@@ -27,8 +60,8 @@ const styleAttributes = (style: VectorStyle) => {
   return attributes;
 };
 
-const serializeElement = (element: VectorElement) => {
-  const attributes = [`id="${escape(element.name || element.id)}"`, ...styleAttributes(element.style)];
+const serializeElement = (element: VectorElement, registry: GradientExportRegistry) => {
+  const attributes = [`id="${escape(element.name || element.id)}"`, ...styleAttributes(element.style, registry)];
   if (!isIdentityAffineMatrix(element.transform)) attributes.push(`transform="${serializeTransform(element.transform)}"`);
   if (element.type === 'live-shape' && element.geometry.kind === 'rectangle') {
     const radii = element.geometry.cornerRadii;
@@ -54,15 +87,38 @@ const serializeElement = (element: VectorElement) => {
   return `<path ${attributes.join(' ')}/>`;
 };
 
+const gradientDefinition = (gradient: GradientPaintInstance, id: string) => {
+  const units = gradient.coordinateSpace === 'object-bounds' ? 'objectBoundingBox' : 'userSpaceOnUse';
+  const stops = [...new Set([
+    ...gradient.asset.colorStops.map(({ position }) => position),
+    ...gradient.asset.opacityStops.map(({ position }) => position)
+  ])].sort((left, right) => left - right).map((position) => {
+    const sampled = sampleGradientAsset(gradient.asset, position);
+    const serialized = serializeSolidPaint({ type: 'solid',
+      color: [sampled.r, sampled.g, sampled.b, 1] });
+    return `      <stop offset="${number(position)}" stop-color="${serialized.color}"${
+      sampled.a < 1 ? ` stop-opacity="${number(sampled.a)}"` : ''}/>`;
+  }).join('\n');
+  const transform = gradient.transform;
+  return `    <linearGradient id="${id}" gradientUnits="${units}" x1="0" y1="0" x2="1" y2="0" gradientTransform="${serializeTransform(transform)}" spreadMethod="${gradient.spread ?? 'pad'}">\n${stops}\n    </linearGradient>`;
+};
+
 export const exportSvg = (elements: readonly VectorElement[], options: SvgExportOptions) => {
   const limits = { ...DEFAULT_SVG_CODEC_LIMITS, ...options.limits };
   if (!Number.isFinite(options.width) || !Number.isFinite(options.height)
     || options.width <= 0 || options.height <= 0) throw new SvgCodecError('invalid-export-size', 'SVG export dimensions must be positive and finite.');
   if (!elements.length) throw new SvgCodecError('empty-export', 'SVG export requires at least one vector element.');
   if (elements.length > limits.maxElements) throw new SvgCodecError('element-limit', 'SVG export exceeds the element limit.');
+  const gradients: GradientExportRegistry = { ids: new Map(), definitions: [] };
   const title = options.title ? `\n  <title>${escape(options.title)}</title>` : '';
-  const body = elements.map((element) => `  ${serializeElement(element)}`).join('\n');
-  const output = `<svg xmlns="http://www.w3.org/2000/svg" width="${number(options.width)}" height="${number(options.height)}" viewBox="0 0 ${number(options.width)} ${number(options.height)}">${title}\n${body}\n</svg>\n`;
+  const body = elements.map((element) => `  ${serializeElement(element, gradients)}`).join('\n');
+  const definitions = gradients.definitions.length
+    ? `\n  <defs>\n${gradients.definitions.map((gradient, index) => gradientDefinition(
+      gradient,
+      `lighttable-gradient-${index + 1}`
+    )).join('\n')}\n  </defs>`
+    : '';
+  const output = `<svg xmlns="http://www.w3.org/2000/svg" width="${number(options.width)}" height="${number(options.height)}" viewBox="0 0 ${number(options.width)} ${number(options.height)}">${title}${definitions}\n${body}\n</svg>\n`;
   if (new TextEncoder().encode(output).byteLength > limits.maxOutputBytes) {
     throw new SvgCodecError('output-limit', 'SVG export exceeds the byte limit.');
   }

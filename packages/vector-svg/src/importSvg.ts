@@ -1,8 +1,9 @@
 import { DOMParser, type Element as XmlElement } from '@xmldom/xmldom';
+import type { GradientPaintInstance } from '@lighttable/paint-core';
 import { createVectorLiveShape, createVectorPath, identityAffineMatrix, multiplyMatrices,
   translationMatrix, type AffineMatrix, type VectorElement, type VectorPaint,
   type VectorStyle, type VectorSubpath } from '@lighttable/vector-core';
-import { parseSvgColor } from './color';
+import { linearChannelToSrgb, parseSvgColor } from './color';
 import { finiteNumber, parseLength, parseNumberList } from './numbers';
 import { parseSvgPathData } from './pathData';
 import { parseSvgTransform } from './transform';
@@ -119,11 +120,13 @@ const inheritedStyle = (element: XmlElement, parent: StyleContext) => {
   return { inherited: next, opacity: opacity === null ? 1 : boundedUnit(opacity, 'opacity') };
 };
 
-const nativeStyle = (context: StyleContext, opacity: number): VectorStyle => {
-  const fill = parseSvgColor(context.fill, context.color);
-  const resolvedFill: VectorPaint | null = fill ? { ...fill,
-    color: [fill.color[0], fill.color[1], fill.color[2], fill.color[3] * context.fillOpacity] } : null;
-  const strokePaint = parseSvgColor(context.stroke, context.color);
+const nativeStyle = (
+  context: StyleContext,
+  opacity: number,
+  resolvePaint: (value: string, opacity: number) => VectorPaint | null
+): VectorStyle => {
+  const resolvedFill = resolvePaint(context.fill, context.fillOpacity);
+  const strokePaint = resolvePaint(context.stroke, 1);
   return {
     fill: resolvedFill,
     stroke: strokePaint ? { paint: strokePaint, opacity: context.strokeOpacity,
@@ -132,6 +135,41 @@ const nativeStyle = (context: StyleContext, opacity: number): VectorStyle => {
       dash: [...context.strokeDash], dashOffset: context.strokeDashOffset } : null,
     opacity
   };
+};
+
+const LOCAL_FRAGMENT = /^#([A-Za-z_][A-Za-z0-9_.:-]*)$/u;
+const LOCAL_PAINT = /^url\(\s*(['"]?)#([A-Za-z_][A-Za-z0-9_.:-]*)\1\s*\)$/iu;
+const localPaintId = (value: string) => LOCAL_PAINT.exec(value.trim())?.[2] ?? null;
+
+const preflightReferences = (root: XmlElement) => {
+  const candidates = [root, ...Array.from({ length: root.getElementsByTagName('*').length },
+    (_, index) => root.getElementsByTagName('*').item(index) as XmlElement)];
+  for (const element of candidates) {
+    const tag = (element.localName || element.tagName).toLowerCase();
+    if (ACTIVE_CONTENT.has(tag)) {
+      throw new SvgCodecError('active-content', `Active SVG element <${tag}> is forbidden.`);
+    }
+    for (let index = 0; index < element.attributes.length; index += 1) {
+      const attribute = element.attributes.item(index)!;
+      if (/^on/iu.test(attribute.name)) {
+        throw new SvgCodecError('event-handler', `SVG event attribute “${attribute.name}” is forbidden.`);
+      }
+      if (/href$/iu.test(attribute.name) && tag !== 'a'
+        && !LOCAL_FRAGMENT.test(attribute.value.trim())) {
+        throw new SvgCodecError('external-reference',
+          `External SVG reference attribute “${attribute.value}” is forbidden.`);
+      }
+      if (/url\s*\(/iu.test(attribute.value)) {
+        const withoutLocalFragments = attribute.value.replace(
+          /url\(\s*(['"]?)#[A-Za-z_][A-Za-z0-9_.:-]*\1\s*\)/giu,
+          ''
+        );
+        if (/url\s*\(/iu.test(withoutLocalFragments)) {
+          throw new SvgCodecError('external-reference', `External SVG URL in “${attribute.name}” is forbidden.`);
+        }
+      }
+    }
+  }
 };
 
 const parseViewBox = (root: XmlElement, width: number, height: number): SvgViewBox => {
@@ -179,6 +217,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
   const root = document.documentElement;
   if (!root || root.localName?.toLowerCase() !== 'svg') throw new SvgCodecError('invalid-root', 'SVG document must have an <svg> root.');
   if (root.namespaceURI && root.namespaceURI !== SVG_NAMESPACE) throw new SvgCodecError('invalid-namespace', 'SVG root uses an unsupported namespace.');
+  preflightReferences(root);
   const descendantElementCount = root.getElementsByTagName('*').length;
   if (descendantElementCount > limits.maxElements) {
     throw new SvgCodecError('element-limit',
@@ -208,6 +247,184 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
   let id = 0; const createId = options.createId ?? ((kind) => `svg-${kind}-${++id}`);
   const warnings: SvgConversionNotice[] = []; const conversions: SvgConversionNotice[] = [];
   const elements: VectorElement[] = []; let sourceElementCount = 0; let totalAnchors = 0;
+  const resources = new Map<string, XmlElement>();
+  const descendants = root.getElementsByTagName('*');
+  for (let index = 0; index < descendants.length; index += 1) {
+    const resource = descendants.item(index) as XmlElement;
+    const resourceId = resource.getAttribute('id')?.trim();
+    if (!resourceId) continue;
+    if (resources.has(resourceId)) {
+      throw new SvgCodecError('duplicate-resource-id', `SVG resource id “${resourceId}” is ambiguous.`);
+    }
+    resources.set(resourceId, resource);
+  }
+
+  const gradientCoordinate = (
+    value: string | null,
+    name: string,
+    fallback: string,
+    axis: 'x' | 'y',
+    units: 'objectBoundingBox' | 'userSpaceOnUse'
+  ) => {
+    const raw = value?.trim() || fallback;
+    const percentage = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))%$/u.exec(raw);
+    if (percentage) {
+      const ratio = finiteNumber(percentage[1]!, name) / 100;
+      if (units === 'objectBoundingBox') return ratio;
+      return (axis === 'x' ? viewBox.minX : viewBox.minY)
+        + ratio * (axis === 'x' ? viewBox.width : viewBox.height);
+    }
+    return finiteNumber(raw.replace(/px$/iu, ''), name);
+  };
+
+  const stopProperty = (stop: XmlElement, name: 'stop-color' | 'stop-opacity') => {
+    const inline = stop.getAttribute('style') ?? '';
+    for (const declaration of inline.split(';')) {
+      const separator = declaration.indexOf(':');
+      if (separator < 0) continue;
+      if (declaration.slice(0, separator).trim().toLowerCase() === name) {
+        return declaration.slice(separator + 1).trim();
+      }
+    }
+    return stop.getAttribute(name);
+  };
+
+  const linearGradientPaint = (
+    gradient: XmlElement,
+    currentTransform: AffineMatrix,
+    paintOpacity: number
+  ): GradientPaintInstance => {
+    const gradientId = gradient.getAttribute('id')!.trim();
+    const chain: XmlElement[] = [];
+    const visited = new Set<string>();
+    let template: XmlElement | null = gradient;
+    while (template) {
+      const templateId = template.getAttribute('id')?.trim() || gradientId;
+      if (visited.has(templateId)) {
+        throw new SvgCodecError('resource-cycle', `Gradient “${gradientId}” contains a reference cycle.`);
+      }
+      if (chain.length >= limits.maxDepth) {
+        throw new SvgCodecError('resource-depth', `Gradient “${gradientId}” exceeds the resource depth limit.`);
+      }
+      visited.add(templateId); chain.push(template);
+      const href: string | null = template.getAttribute('href') || template.getAttribute('xlink:href');
+      if (!href) break;
+      const referencedId: string | undefined = LOCAL_FRAGMENT.exec(href.trim())?.[1];
+      const referenced: XmlElement | null = referencedId ? resources.get(referencedId) ?? null : null;
+      if (!referenced || (referenced.localName || referenced.tagName).toLowerCase() !== 'lineargradient') {
+        throw new SvgCodecError('unsupported-gradient-template',
+          `Gradient “${gradientId}” references an unsupported template.`);
+      }
+      template = referenced;
+    }
+    const inheritedAttribute = (name: string) => chain.find((candidate) => candidate.hasAttribute(name))
+      ?.getAttribute(name) ?? null;
+    const stopOwner = chain.find((candidate) => elementChildren(candidate).some((child) => (
+      (child.localName || child.tagName).toLowerCase() === 'stop'
+    ))) ?? gradient;
+    const unitsRaw = inheritedAttribute('gradientUnits') || 'objectBoundingBox';
+    if (unitsRaw !== 'objectBoundingBox' && unitsRaw !== 'userSpaceOnUse') {
+      throw new SvgCodecError('unsupported-gradient-units', `Gradient “${gradientId}” has invalid gradientUnits.`);
+    }
+    const spreadRaw = inheritedAttribute('spreadMethod') || 'pad';
+    if (spreadRaw !== 'pad' && spreadRaw !== 'reflect' && spreadRaw !== 'repeat') {
+      throw new SvgCodecError('unsupported-gradient-spread', `Gradient “${gradientId}” has invalid spreadMethod.`);
+    }
+    const x1 = gradientCoordinate(inheritedAttribute('x1'), 'x1', '0%', 'x', unitsRaw);
+    const y1 = gradientCoordinate(inheritedAttribute('y1'), 'y1', '0%', 'y', unitsRaw);
+    const x2 = gradientCoordinate(inheritedAttribute('x2'), 'x2', '100%', 'x', unitsRaw);
+    const y2 = gradientCoordinate(inheritedAttribute('y2'), 'y2', '0%', 'y', unitsRaw);
+    const dx = x2 - x1; const dy = y2 - y1;
+    if (Math.hypot(dx, dy) < 1e-12) {
+      throw new SvgCodecError('degenerate-gradient', `Gradient “${gradientId}” has coincident endpoints.`);
+    }
+    const gradientVector: AffineMatrix = {
+      a: dx, b: dy, c: -dy, d: dx, tx: x1, ty: y1
+    };
+    let transform = multiplyMatrices(
+      parseSvgTransform(inheritedAttribute('gradientTransform')),
+      gradientVector
+    );
+    if (unitsRaw === 'userSpaceOnUse') transform = multiplyMatrices(currentTransform, transform);
+
+    const colorStops: GradientPaintInstance['asset']['colorStops'] = [];
+    const opacityStops: GradientPaintInstance['asset']['opacityStops'] = [];
+    let previousOffset = 0;
+    for (const stop of elementChildren(stopOwner)) {
+      if ((stop.localName || stop.tagName).toLowerCase() !== 'stop') continue;
+      const offsetRaw = stop.getAttribute('offset')?.trim() || '0';
+      const percentage = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))%$/u.exec(offsetRaw);
+      const parsedOffset = percentage
+        ? finiteNumber(percentage[1]!, 'gradient stop offset') / 100
+        : finiteNumber(offsetRaw, 'gradient stop offset');
+      const offset = Math.max(previousOffset, Math.min(1, Math.max(0, parsedOffset)));
+      previousOffset = offset;
+      const parsedColor = parseSvgColor(stopProperty(stop, 'stop-color') || 'black', 'black');
+      if (!parsedColor) throw new SvgCodecError('invalid-gradient-stop', `Gradient “${gradientId}” has no stop color.`);
+      const stopOpacity = boundedUnit(stopProperty(stop, 'stop-opacity') || '1', 'stop-opacity');
+      const stopId = `${gradientId}:stop:${colorStops.length}`;
+      colorStops.push({ id: stopId, position: offset, midpoint: 0.5,
+        color: {
+          r: linearChannelToSrgb(parsedColor.color[0]),
+          g: linearChannelToSrgb(parsedColor.color[1]),
+          b: linearChannelToSrgb(parsedColor.color[2]),
+          a: 1
+        } });
+      opacityStops.push({ id: `${stopId}:opacity`, position: offset, midpoint: 0.5,
+        opacity: parsedColor.color[3] * stopOpacity * paintOpacity });
+    }
+    if (!colorStops.length) {
+      colorStops.push({ id: `${gradientId}:transparent`, position: 0, midpoint: 0.5,
+        color: { r: 0, g: 0, b: 0, a: 1 } });
+      opacityStops.push({ id: `${gradientId}:transparent:opacity`, position: 0, midpoint: 0.5,
+        opacity: 0 });
+    }
+    return {
+      kind: 'gradient',
+      asset: { id: gradientId, name: gradientId, type: 'solid', smoothness: 1,
+        colorStops, opacityStops, roughness: 0, seed: 0 },
+      shape: 'linear',
+      coordinateSpace: unitsRaw === 'objectBoundingBox' ? 'object-bounds' : 'document',
+      transform,
+      reverse: false,
+      dither: true,
+      interpolation: 'classic',
+      spread: spreadRaw
+    };
+  };
+
+  const resolvePaint = (
+    value: string,
+    color: string,
+    paintOpacity: number,
+    currentTransform: AffineMatrix,
+    owner: string
+  ): VectorPaint | null => {
+    const referenceId = localPaintId(value);
+    if (!referenceId) {
+      const solid = parseSvgColor(value, color);
+      return solid ? { ...solid, color: [solid.color[0], solid.color[1], solid.color[2],
+        solid.color[3] * paintOpacity] } : null;
+    }
+    const resource = resources.get(referenceId);
+    const resourceTag = resource && (resource.localName || resource.tagName).toLowerCase();
+    if (!resource || resourceTag !== 'lineargradient') {
+      warnings.push({ code: 'ignored-unsupported-paint-server', element: owner,
+        message: `Ignored unsupported local SVG paint server “#${referenceId}”.` });
+      return null;
+    }
+    try {
+      const paint = linearGradientPaint(resource, currentTransform, paintOpacity);
+      conversions.push({ code: 'resolved-linear-gradient', element: owner,
+        message: `Resolved local SVG linear gradient “#${referenceId}” to native editable paint.` });
+      return paint;
+    } catch (reason) {
+      if (!(reason instanceof SvgCodecError)) throw reason;
+      warnings.push({ code: 'ignored-invalid-paint-server', element: owner,
+        message: `Ignored local SVG paint server “#${referenceId}”: ${reason.message}` });
+      return null;
+    }
+  };
 
   const validateAttributes = (element: XmlElement, tag: string) => {
     if (element.attributes.length > limits.maxAttributesPerElement) throw new SvgCodecError('attribute-limit', `<${tag}> exceeds the attribute limit.`);
@@ -225,6 +442,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
       if (/href$/iu.test(name) || /url\s*\(/iu.test(attribute.value)) {
         const localReference = /url\s*\(\s*(['"]?)#[^)]+\1\s*\)/iu.test(attribute.value);
         if (!localReference) throw new SvgCodecError('external-reference', `SVG reference attribute “${name}” is unsupported.`);
+        if ((name === 'fill' || name === 'stroke') && localPaintId(attribute.value)) continue;
         warnings.push({ code: 'ignored-reference-element', element: nameOf(element),
           message: `Ignored <${tag}> because local SVG reference “${name}” is not supported yet.` });
         renderable = false;
@@ -277,6 +495,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     if (METADATA.has(tag)) {
       warnings.push({ code: 'ignored-metadata', element: tag, message: `Ignored non-rendering <${tag}> metadata.` }); return;
     }
+    if (tag === 'defs' || tag === 'lineargradient') return;
     if (UNSUPPORTED.has(tag) || (tag !== 'svg' && tag !== 'g' && tag !== 'a' && !DRAWABLES.has(tag))) {
       warnings.push({ code: 'ignored-unsupported-element', element: nameOf(element),
         message: `Ignored unsupported SVG element <${tag}>.` });
@@ -308,7 +527,17 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
       return;
     }
     if (elementChildren(element).length) throw new SvgCodecError('drawable-children', `<${tag}> cannot contain child elements in editable import.`);
-    const elementName = nameOf(element); const vectorStyle = nativeStyle(style.inherited, style.opacity);
+    const elementName = nameOf(element); const vectorStyle = nativeStyle(
+      style.inherited,
+      style.opacity,
+      (value, paintOpacity) => resolvePaint(
+        value,
+        style.inherited.color,
+        paintOpacity,
+        transform,
+        elementName
+      )
+    );
     let vector: VectorElement;
     if (tag === 'path') {
       const parsed = parseSvgPathData(element.getAttribute('d') ?? '', createId, limits);

@@ -49,9 +49,9 @@ export const parseSvgColor = (input: string, currentColor = 'black'): SolidPaint
     srgbToLinear(rgba[2]), rgba[3]] };
 };
 
-const linearToSrgb = (channel: number) => channel <= 0.0031308
+export const linearChannelToSrgb = (channel: number) => channel <= 0.0031308
   ? channel * 12.92 : 1.055 * channel ** (1 / 2.4) - 0.055;
-const hex = (channel: number) => Math.round(Math.min(1, Math.max(0, linearToSrgb(channel))) * 255)
+const hex = (channel: number) => Math.round(Math.min(1, Math.max(0, linearChannelToSrgb(channel))) * 255)
   .toString(16).padStart(2, '0');
 
 export const serializeSolidPaint = (paint: SolidPaint) => ({

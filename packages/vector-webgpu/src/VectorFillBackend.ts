@@ -66,6 +66,9 @@ const premultiplied = (paint: Extract<VectorPaint, { type: 'solid' }>, opacity: 
 const gradientShapeCode = (shape: GradientPaintInstance['shape']) =>
   ({ linear: 0, radial: 1, angle: 2, reflected: 3, diamond: 4 })[shape];
 
+const gradientSpreadCode = (spread: GradientPaintInstance['spread']) =>
+  ({ pad: 0, reflect: 1, repeat: 2 })[spread ?? 'pad'];
+
 const gradientKey = (paint: GradientPaintInstance) => JSON.stringify(paint.asset);
 
 const srgbToLinear = (value: number) => value <= 0.04045
@@ -256,7 +259,8 @@ export class VectorFillBackend {
       path.transform.a, path.transform.b, path.transform.c, path.transform.d,
       path.transform.tx, path.transform.ty, 0, 0,
       ...color,
-      gradientMapping?.a ?? 1, gradientMapping?.c ?? 0, gradientMapping?.tx ?? 0, 0,
+      gradientMapping?.a ?? 1, gradientMapping?.c ?? 0, gradientMapping?.tx ?? 0,
+      gradient ? gradientSpreadCode(gradient.spread) : 0,
       gradientMapping?.b ?? 0, gradientMapping?.d ?? 1, gradientMapping?.ty ?? 0,
       gradient ? gradientShapeCode(gradient.shape) : 0,
       gradient ? 1 : 0, gradient?.reverse ? 1 : 0, opacity, gradient?.dither ? 1 : 0

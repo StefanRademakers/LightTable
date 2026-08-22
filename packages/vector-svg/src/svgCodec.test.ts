@@ -59,6 +59,102 @@ describe('native SVG codec', () => {
     expect(second.elements[1]).toMatchObject({ type: 'path', fillRule: 'evenodd' });
   });
 
+  it('resolves local linear-gradient paint and preserves it through SVG export', () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
+      <defs>
+        <linearGradient id="sky" x1="10%" y1="20%" x2="90%" y2="70%"
+          gradientTransform="rotate(12)" spreadMethod="reflect">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity=".25"/>
+          <stop offset="40%" stop-color="#34c759"/>
+          <stop offset="100%" stop-color="#007aff"/>
+        </linearGradient>
+      </defs>
+      <rect id="gradient-card" width="180" height="80" fill="url(#sky)" fill-opacity=".8"/>
+    </svg>`;
+    const first = importSvg(source);
+    expect(first.elements).toHaveLength(1);
+    expect(first.elements[0]?.style.fill).toMatchObject({
+      kind: 'gradient', shape: 'linear', coordinateSpace: 'object-bounds', spread: 'reflect',
+      asset: { colorStops: [
+        { position: 0, color: { r: expect.closeTo(1, 12), g: expect.closeTo(1, 12),
+          b: expect.closeTo(1, 12) } },
+        { position: 0.4, color: { r: expect.closeTo(52 / 255, 6), g: expect.closeTo(199 / 255, 6),
+          b: expect.closeTo(89 / 255, 6) } },
+        { position: 1, color: { r: 0, g: expect.closeTo(122 / 255, 6), b: expect.closeTo(1, 12) } }
+      ] }
+    });
+    expect(first.elements[0]?.style.fill && 'kind' in first.elements[0].style.fill
+      ? first.elements[0].style.fill.asset.opacityStops.map(({ opacity }) => opacity)
+      : []).toEqual([0.2, 0.8, 0.8]);
+    expect(first.report.conversions).toContainEqual(expect.objectContaining({
+      code: 'resolved-linear-gradient', element: 'gradient-card'
+    }));
+
+    const serialized = exportSvg(first.elements, { width: first.width, height: first.height });
+    expect(serialized).toContain('<defs>');
+    expect(serialized).toContain('fill="url(#lighttable-gradient-1)"');
+    expect(serialized).toContain('spreadMethod="reflect"');
+    const second = importSvg(serialized);
+    expect(second.elements[0]?.style.fill).toMatchObject({
+      kind: 'gradient', shape: 'linear', coordinateSpace: 'object-bounds', spread: 'reflect'
+    });
+  });
+
+  it('maps user-space gradients through the current SVG transform', () => {
+    const plan = importSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 20 200 100">
+      <defs><linearGradient id="g" gradientUnits="userSpaceOnUse"
+        x1="10" y1="20" x2="110" y2="20"><stop stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs>
+      <g transform="translate(5 7)"><rect width="50" height="20" fill="url(#g)"/></g>
+    </svg>`);
+    expect(plan.elements[0]?.style.fill).toMatchObject({
+      kind: 'gradient', coordinateSpace: 'document',
+      transform: { a: 100, b: 0, c: 0, d: 100, tx: 5, ty: 7 }
+    });
+  });
+
+  it('inherits local gradient templates with a bounded resource chain', () => {
+    const plan = importSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="base" x1=".2" x2=".8"><stop stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient>
+        <linearGradient id="derived" href="#base" spreadMethod="repeat"/>
+      </defs>
+      <rect width="10" height="10" fill="url(#derived)"/>
+    </svg>`);
+    expect(plan.elements[0]?.style.fill).toMatchObject({
+      kind: 'gradient', spread: 'repeat', transform: { a: expect.closeTo(0.6, 12), tx: 0.2 },
+      asset: { colorStops: [{ position: 0 }, { position: 1 }] }
+    });
+  });
+
+  it('skips cyclic local gradient resources without losing supported geometry', () => {
+    const plan = importSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="a" href="#b"/><linearGradient id="b" href="#a"/></defs>
+      <rect id="safe-shape" width="10" height="10" fill="url(#a)" stroke="black"/>
+    </svg>`);
+    expect(plan.elements[0]).toMatchObject({ name: 'safe-shape', style: { fill: null } });
+    expect(plan.report.warnings).toContainEqual(expect.objectContaining({
+      code: 'ignored-invalid-paint-server', element: 'safe-shape'
+    }));
+  });
+
+  it.each([
+    'https://example.test/gradient.svg#g',
+    'file:///C:/secret.svg#g',
+    'data:image/svg+xml;base64,PHN2Zy8+#g',
+    '//example.test/gradient.svg#g'
+  ])('rejects external gradient resources without loading them: %s', (reference) => {
+    expect(() => importSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+      <rect width="10" height="10" fill="url(${reference})"/>
+    </svg>`)).toThrowError(/External SVG URL/u);
+  });
+
+  it('rejects ambiguous duplicate local resource ids', () => {
+    expect(() => importSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="g"/><linearGradient id="g"/></defs>
+      <rect width="10" height="10" fill="url(#g)"/>
+    </svg>`)).toThrowError(/ambiguous/u);
+  });
+
   it('supports relative path commands and smooth cubic reflection', () => {
     const plan = importSvg('<svg xmlns="http://www.w3.org/2000/svg"><path d="m10 10 c5 0 5 10 10 10 s5 10 10 10 z"/></svg>');
     const path = plan.elements[0];

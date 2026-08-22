@@ -51,6 +51,8 @@ export interface GradientPaintInstance {
   readonly reverse: boolean;
   readonly dither: boolean;
   readonly interpolation: 'perceptual' | 'linear' | 'classic' | 'smooth';
+  /** Format-neutral behavior outside the authored 0..1 interval. */
+  readonly spread?: 'pad' | 'reflect' | 'repeat';
 }
 
 export const identityPaintTransform = (): PaintAffineTransform => ({
@@ -91,7 +93,8 @@ export const createDefaultGradientPaint = (
   transform: { ...identityPaintTransform(), ty: 0.5 },
   reverse: false,
   dither: true,
-  interpolation: 'perceptual'
+  interpolation: 'perceptual',
+  spread: 'pad'
 });
 
 export const cloneGradientAsset = (asset: GradientAsset): GradientAsset => ({
@@ -132,6 +135,7 @@ export const gradientPaintIsValid = (paint: GradientPaintInstance): boolean => {
     && ['linear', 'radial', 'angle', 'reflected', 'diamond'].includes(paint.shape)
     && ['object-bounds', 'layer', 'document'].includes(paint.coordinateSpace)
     && ['perceptual', 'linear', 'classic', 'smooth'].includes(paint.interpolation)
+    && (paint.spread === undefined || ['pad', 'reflect', 'repeat'].includes(paint.spread))
     && typeof paint.reverse === 'boolean'
     && typeof paint.dither === 'boolean'
     && finiteTransform;
