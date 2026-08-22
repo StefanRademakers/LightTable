@@ -134,7 +134,16 @@ backend and remains compatible with LightTable's WebGPU device/compositor.
 
 ## Next proof
 
-Define only the smallest scene slice needed for one representative SVG and one
-PDF page-scene fixture. Compile that identical slice to the current backend and
-Vello. Do not migrate canonical document types until pixel, latency, memory,
-mutation and round-trip gates all pass.
+The prerequisite wgpu 30 browser-WebGPU bridge is now executable evidence. In
+LightTable's Electron 39, Rust/wgpu requested the device, JavaScript created a
+texture on that exact device, Rust wrapped and cleared the foreign texture, and
+JavaScript read `[32, 127, 223, 255]` back for an expected
+`[32, 128, 223, 255]` clear. This proves shared device/texture ownership without
+a CPU or GPU texture copy. The isolated source is under
+`spikes/wgpu30-webgpu-interop/`.
+
+Next compile an actual Vello scene against the same wgpu major and render into
+that shared texture. Then define only the smallest scene slice needed for one
+representative SVG and one PDF page-scene fixture. Compile that identical slice
+to the current backend and Vello. Do not migrate canonical document types until
+pixel, latency, memory, mutation and round-trip gates all pass.

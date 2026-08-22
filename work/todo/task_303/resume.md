@@ -34,6 +34,11 @@ Baseline: `c71254b1`
   `randomUUID` self-time. Three packaged A/B runs changed median first render
   from 2,949 ms to 2,795 ms and median total evidence time from 8,457 ms to
   8,261 ms, with identical pixel evidence.
+- The isolated wgpu 30 interop probe passes in Electron 39. JavaScript creates a
+  texture on the Rust/wgpu-owned browser device, Rust wraps and clears it, and
+  JavaScript reads the expected pixel back. This proves a zero-copy resource
+  boundary is technically available for a Vello backend; Vello rendering itself
+  remains the next proof.
 
 ## Worktree ownership
 
@@ -43,10 +48,11 @@ Baseline: `c71254b1`
 ## Current focus
 
 The PostScript-style API assessment is recorded in
-`POSTSCRIPT_SCENE_API_ASSESSMENT.md`. Next, profile mutation and renderer memory,
-then define only the minimum immutable scene slice shared by one SVG and one
-PDF page fixture. Separately build the bounded Vello interoperability spike and
-evaluate CPU/GPU/worker choices against the improved native path.
+`POSTSCRIPT_SCENE_API_ASSESSMENT.md`. The bounded wgpu/Electron zero-copy
+prerequisite passes. Next, render an actual Vello scene through that boundary,
+profile mutation and renderer memory, and define only the minimum immutable
+scene slice shared by one SVG and one PDF page fixture. Evaluate CPU/GPU/worker
+choices against the improved native path.
 
 ## Next safe steps
 

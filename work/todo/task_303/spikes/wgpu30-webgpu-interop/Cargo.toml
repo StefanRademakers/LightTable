@@ -1,0 +1,16 @@
+[package]
+name = "lighttable-wgpu30-webgpu-interop-spike"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+js-sys = "=0.3.103"
+wasm-bindgen = "=0.2.126"
+wasm-bindgen-futures = "=0.4.76"
+wgpu = { version = "30.0.0", default-features = false, features = ["webgpu", "wgsl"] }
+
+[workspace]
