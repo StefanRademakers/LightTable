@@ -45,6 +45,8 @@ export interface DocumentOpenLifecycleOptions<
   ) => DocumentOpenRequest<Renderer> | null;
   readonly beforeOpen?: () => void;
   readonly afterClose?: () => void;
+  /** Generation-local health gate for retaining an existing renderer. */
+  readonly canReuseRenderer?: () => boolean;
 }
 
 /**
@@ -62,14 +64,17 @@ export const useDocumentOpenLifecycle = <
   rendererLifecycle,
   createRequest,
   beforeOpen,
-  afterClose
+  afterClose,
+  canReuseRenderer
 }: DocumentOpenLifecycleOptions<Renderer>): void => {
   const createRequestRef = useRef(createRequest);
   const beforeOpenRef = useRef(beforeOpen);
   const afterCloseRef = useRef(afterClose);
+  const canReuseRendererRef = useRef(canReuseRenderer);
   createRequestRef.current = createRequest;
   beforeOpenRef.current = beforeOpen;
   afterCloseRef.current = afterClose;
+  canReuseRendererRef.current = canReuseRenderer;
   const controller = useMemo(
     () => new DocumentOpenController<Renderer>(tasks, rendererLifecycle),
     [rendererLifecycle, tasks]
@@ -91,7 +96,9 @@ export const useDocumentOpenLifecycle = <
       }
       readinessFrame = null;
       beforeOpenRef.current?.();
-      void controller.open(request, { reuseRenderer: true });
+      void controller.open(request, {
+        reuseRenderer: canReuseRendererRef.current?.() ?? true
+      });
     };
     startWhenSurfaceIsReady();
 

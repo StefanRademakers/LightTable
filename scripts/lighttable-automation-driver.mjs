@@ -60,6 +60,12 @@ export class LightTableAutomationClient {
     documentId);
   }
 
+  forceDeviceLossForAutomation(documentId) {
+    return this.page.evaluate((id) =>
+      window.__lightTableAutomation?.forceDeviceLossForAutomation?.(id) ?? false,
+    documentId);
+  }
+
   queryActionRecording() {
     return this.page.evaluate(() =>
       window.__lightTableAutomation?.actionRecordingSnapshot?.() ?? null);

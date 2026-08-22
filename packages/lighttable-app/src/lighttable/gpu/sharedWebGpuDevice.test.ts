@@ -171,4 +171,34 @@ describe('SharedWebGpuDeviceManager', () => {
     await Promise.resolve();
     expect(release).toHaveBeenCalledWith(direct.device);
   });
+
+  it('waits for direct-runtime release before reacquiring after device loss', async () => {
+    const first = createDevice();
+    const second = createDevice();
+    const releaseGate = deferred<void>();
+    const devices = [first.device, second.device];
+    const request = vi.fn(async () => ({
+      device: devices.shift()!,
+      diagnostics: {
+        vendor: 'vello-vendor', architecture: 'discrete',
+        device: 'vello-device', description: 'Vello shared device'
+      }
+    }));
+    const manager = new SharedWebGpuDeviceManager(
+      { requestAdapter: vi.fn() },
+      { request, release: vi.fn(async () => releaseGate.promise) }
+    );
+
+    expect(await manager.request()).toBe(first.device);
+    first.lost.resolve({ message: 'lost', reason: 'unknown' } as GPUDeviceLostInfo);
+    await first.device.lost;
+    await Promise.resolve();
+    const reacquired = manager.request();
+    await Promise.resolve();
+    expect(request).toHaveBeenCalledTimes(1);
+
+    releaseGate.resolve();
+    await expect(reacquired).resolves.toBe(second.device);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
 });

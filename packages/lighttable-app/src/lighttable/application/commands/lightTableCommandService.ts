@@ -514,6 +514,11 @@ export class LightTableCommandService {
     return true;
   }
 
+  forceDeviceLossForAutomation(documentId: DocumentSessionId): boolean {
+    if (this.document(documentId)?.lifecycle !== 'ready') return false;
+    return this.ports.forceDeviceLossForAutomation?.(documentId) ?? false;
+  }
+
   async beginGesture(request: unknown): Promise<LightTableGestureResult> {
     if (!isRecord(request) || typeof request.documentId !== 'string'
       || !isLightTableGestureKind(request.kind) || request.coordinateSpace !== 'document'
@@ -650,7 +655,8 @@ export class LightTableCommandService {
       renderer: {
         status: document.renderer.status,
         active: document.renderer.active,
-        estimatedGpuBytes: document.renderer.estimatedGpuBytes
+        estimatedGpuBytes: document.renderer.estimatedGpuBytes,
+        error: document.renderer.error?.slice(0, 4096) ?? null
       }
     };
   }
@@ -1769,5 +1775,7 @@ export interface LightTableAutomationDriver {
   actionRecordingSnapshot?(): ActionRecordingSnapshot;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): boolean;
+  /** Internal packaged-test seam; intentionally absent from MCP command projection. */
+  forceDeviceLossForAutomation?(documentId: DocumentSessionId): boolean;
   execute(request: unknown, context?: LightTableCommandExecutionContext): Promise<LightTableCommandResult>;
 }

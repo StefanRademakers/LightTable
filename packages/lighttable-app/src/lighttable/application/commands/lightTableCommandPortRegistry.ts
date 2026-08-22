@@ -312,6 +312,9 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
   resetRenderTelemetry(documentId: DocumentSessionId) {
     this.resolve(documentId).resetRenderTelemetry?.();
   }
+  forceDeviceLossForAutomation(documentId: DocumentSessionId) {
+    return this.resolve(documentId).forceDeviceLossForAutomation?.() ?? false;
+  }
 
   private resolve(documentId: DocumentSessionId): DocumentLightTableCommandPorts {
     const mounted = this.documents.get(documentId);

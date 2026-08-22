@@ -433,6 +433,13 @@ export class WebGpuEngine {
     }
   }
 
+  /** Internal automation seam for proving complete device-loss recovery. */
+  forceDeviceLossForAutomation(): boolean {
+    if (this.destroyed) return false;
+    this.device.destroy();
+    return true;
+  }
+
   private createStaticResources() {
     const coreResources = new DocumentCoreGpuResources(
       this.device,

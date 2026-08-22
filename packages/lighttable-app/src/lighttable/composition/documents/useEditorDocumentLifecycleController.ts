@@ -69,6 +69,7 @@ export interface EditorDocumentLifecycleControllerOptions {
   readonly logTimings?: (timings: LightTableStartupTimings) => void;
   readonly beforeOpen?: () => void;
   readonly afterClose?: () => void;
+  readonly canReuseRenderer?: () => boolean;
 }
 
 export interface EditorDocumentSourceLoad {
@@ -118,7 +119,8 @@ export const useEditorDocumentLifecycleController = ({
   publishLoading,
   logTimings,
   beforeOpen,
-  afterClose
+  afterClose,
+  canReuseRenderer
 }: EditorDocumentLifecycleControllerOptions): EditorDocumentLifecycleController => {
   const sourceLoadController = useMemo(
     () => createDocumentSourceLoadController({
@@ -210,7 +212,8 @@ export const useEditorDocumentLifecycleController = ({
     rendererLifecycle,
     createRequest,
     beforeOpen,
-    afterClose
+    afterClose,
+    canReuseRenderer
   });
 
   return { loadSource };

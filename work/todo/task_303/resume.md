@@ -168,6 +168,16 @@ Baseline: `c71254b1`
   sources rather than expanding into per-element document layers. The current
   backend package could not be refreshed because its `app.asar` was held open
   by a running LightTable process; focused backend-neutral tests pass.
+- Packaged forced-device-loss recovery now passes on the 26,492-element
+  VORTEXT scene. LightTable publishes the failed renderer state, retires the
+  unhealthy engine, waits for the direct Vello runtime to release, acquires a
+  new device/runtime and returns with `selected=vello`, `active=vello` and one
+  retained scene source. Canonical revision, complete layer projection and
+  preview SHA-256 remain unchanged, with no page/console errors. The Vello
+  runtime registry is keyed by concrete `GPUDevice` in a versioned global
+  store so eager renderer and lazy device chunks share one ownership boundary.
+  The internal loss trigger is automation-only and is not a command/MCP
+  capability.
 
 ## Worktree ownership
 
@@ -184,8 +194,9 @@ The first hierarchy dependency, SVG opacity groups, now uses existing canonical
 document groups rather than establishing a second vector-tree authority. Clip
 stacks remain the next semantic dependency before patterns, masks or filters
 can be represented safely. Mutation and immediate source-release evidence now
-pass; broader repeated open/close, device-loss and memory distributions are
-still required before selecting production routing.
+pass, including one packaged forced-loss recovery; broader repeated open/close
+and retained-memory distributions are still required before selecting
+production routing.
 
 ## Next safe steps
 
@@ -195,8 +206,8 @@ still required before selecting production routing.
    nested and object-bounds cases.
 3. Harden SVG save/reopen and corpus round trips for every newly admitted
    semantic feature.
-4. Run packaged current/Vello repeated open/close, crash, retained-memory and
-   device-loss distributions; then record backend routing policy.
+4. Run packaged current/Vello repeated open/close, crash and retained-memory
+   distributions; then record backend routing policy.
 
 ## External fixtures
 

@@ -742,6 +742,25 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     rendererLifecycle.getSnapshot,
     rendererLifecycle.getSnapshot
   );
+  const [rendererRecoverySequence, setRendererRecoverySequence] = useState(0);
+  const recoveredFailureGenerationRef = useRef<number | null>(null);
+  const consecutiveDeviceLossRecoveriesRef = useRef(0);
+  const replaceRendererOnNextOpenRef = useRef(false);
+  useEffect(() => {
+    if (rendererSnapshot.status === 'ready') {
+      consecutiveDeviceLossRecoveriesRef.current = 0;
+      return undefined;
+    }
+    if (rendererSnapshot.status !== 'failed'
+      || !/^WebGPU device lost:/u.test(rendererSnapshot.error ?? '')
+      || recoveredFailureGenerationRef.current === rendererSnapshot.generation
+      || consecutiveDeviceLossRecoveriesRef.current >= 2) return undefined;
+    recoveredFailureGenerationRef.current = rendererSnapshot.generation;
+    consecutiveDeviceLossRecoveriesRef.current += 1;
+    replaceRendererOnNextOpenRef.current = true;
+    const timer = window.setTimeout(() => setRendererRecoverySequence(value => value + 1), 50);
+    return () => window.clearTimeout(timer);
+  }, [rendererSnapshot.error, rendererSnapshot.generation, rendererSnapshot.status]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const commandRequestSequenceRef = useRef(0);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -3240,7 +3259,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     loadSource,
     projectId,
     sourceDecodeMode,
-    documentCreationSettings
+    documentCreationSettings,
+    rendererRecoverySequence
   ]);
 
   const existingDocumentForRebind = documentSession?.getSnapshot().document ?? null;
@@ -3299,7 +3319,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     beforeOpen: existingDocumentForRebind
       ? beforeExistingDocumentRebind
       : beforeDocumentOpen,
-    afterClose: afterDocumentClose
+    afterClose: afterDocumentClose,
+    canReuseRenderer: () => {
+      const replace = replaceRendererOnNextOpenRef.current;
+      replaceRendererOnNextOpenRef.current = false;
+      return !replace;
+    }
   });
 
   const paragraphCreationOverlay = useMemo(() => {
@@ -5496,7 +5521,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           presentedDocumentRevision: imageDocumentRef.current?.revision ?? null
         } : null;
       },
-      resetRenderTelemetry: () => engineRef.current?.resetRenderTelemetry()
+      resetRenderTelemetry: () => engineRef.current?.resetRenderTelemetry(),
+      forceDeviceLossForAutomation: () => engineRef.current?.forceDeviceLossForAutomation() ?? false
     });
   }, [applyActualZoom, applyExactZoom, applyFitZoom, applyRedoEditor, applyUndoEditor,
     commandPorts, layerDocumentCommands, layerPanelController, workspaceDocumentId]);

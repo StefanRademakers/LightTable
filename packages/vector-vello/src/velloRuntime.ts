@@ -45,44 +45,70 @@ export interface VelloRuntime {
   released: boolean;
 }
 
-let runtime: VelloRuntime | null = null;
-let pending: Promise<VelloRuntime> | null = null;
+interface VelloRuntimeStore {
+  current: VelloRuntime | null;
+  pending: Promise<VelloRuntime> | null;
+  readonly byDevice: WeakMap<GPUDevice, VelloRuntime>;
+}
+
+const runtimeStoreKey = Symbol.for('@lighttable/vector-vello/runtime-store-v1');
+const runtimeGlobal = globalThis as typeof globalThis & {
+  [runtimeStoreKey]?: VelloRuntimeStore;
+};
+const runtimeStore = runtimeGlobal[runtimeStoreKey] ??= {
+  current: null,
+  pending: null,
+  byDevice: new WeakMap<GPUDevice, VelloRuntime>()
+};
 
 const load = async (): Promise<VelloRuntime> => {
   const generated = await import('./generated/vector_vello_wasm.js') as GeneratedVelloModule;
   await generated.default();
   const bridge = await generated.VelloInteropDevice.create();
   const device = bridge.device_handle();
-  return {
+  const value = {
     bridge,
     device,
     diagnostics: JSON.parse(bridge.diagnostics_json()) as VelloWebGpuDiagnostics,
     released: false
   };
+  runtimeStore.byDevice.set(device, value);
+  return value;
 };
 
 export const requestVelloWebGpuRuntime = async (): Promise<VelloRuntime> => {
-  if (runtime) return runtime;
-  pending ??= load().then((value) => {
-    runtime = value;
+  if (runtimeStore.current) {
+    return runtimeStore.current;
+  }
+  runtimeStore.pending ??= load().then((value) => {
+    runtimeStore.current = value;
     return value;
   }).finally(() => {
-    pending = null;
+    runtimeStore.pending = null;
   });
-  return pending;
+  return runtimeStore.pending;
 };
 
 export const activeVelloWebGpuRuntime = (device: GPUDevice): VelloRuntime => {
-  if (!runtime || runtime.device !== device) {
-    throw new Error('The selected WebGPU device is not owned by the active Vello runtime.');
+  const owned = runtimeStore.byDevice.get(device);
+  if (!owned || owned.released) {
+    throw new Error(
+      'The selected WebGPU device is not owned by the active Vello runtime '
+      + `(current=${Boolean(runtimeStore.current)}, `
+      + `sameDevice=${runtimeStore.current?.device === device}, `
+      + `currentReleased=${runtimeStore.current?.released ?? 'none'}, mapped=${Boolean(owned)}, `
+      + `mappedReleased=${owned?.released ?? 'none'}).`
+    );
   }
-  return runtime;
+  return owned;
 };
 
 export const releaseVelloWebGpuRuntime = (device: GPUDevice) => {
-  if (!runtime || runtime.device !== device) return;
-  runtime.released = true;
-  runtime.bridge.dispose();
-  runtime.bridge.free();
-  runtime = null;
+  const owned = runtimeStore.byDevice.get(device);
+  if (!owned || owned.released) return;
+  owned.released = true;
+  owned.bridge.dispose();
+  owned.bridge.free();
+  runtimeStore.byDevice.delete(device);
+  if (runtimeStore.current === owned) runtimeStore.current = null;
 };

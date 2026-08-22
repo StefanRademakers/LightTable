@@ -17,7 +17,7 @@ interface DirectWebGpuDeviceProvider {
     readonly device: GPUDevice;
     readonly diagnostics: Omit<SharedWebGpuDiagnosticSnapshot, 'features' | 'limits' | 'support'>;
   }>;
-  release(device: GPUDevice): void;
+  release(device: GPUDevice): void | Promise<void>;
 }
 
 export type SharedWebGpuDeviceLostListener = (info: GPUDeviceLostInfo) => void;
@@ -44,6 +44,7 @@ export class SharedWebGpuDeviceManager {
   private device: GPUDevice | null = null;
   private pending: Promise<GPUDevice> | null = null;
   private adapterSnapshot: SharedWebGpuDiagnosticSnapshot | null = null;
+  private pendingDirectRelease: Promise<void> | null = null;
   private readonly lostListeners = new Set<SharedWebGpuDeviceLostListener>();
 
   constructor(
@@ -70,11 +71,12 @@ export class SharedWebGpuDeviceManager {
   private async acquire(): Promise<GPUDevice> {
     try {
       if (this.directProvider) {
+        if (this.pendingDirectRelease) await this.pendingDirectRelease;
         const result = await this.directProvider.request();
         const limits = snapshotWebGpuLimits(result.device.limits);
         const support = classifyWebGpuSupport(limits);
         if (support.id === 'below-floor') {
-          this.directProvider.release(result.device);
+          await this.directProvider.release(result.device);
           throw new Error(`${support.label}. ${support.action}`);
         }
         this.adapterSnapshot = {
@@ -134,7 +136,16 @@ export class SharedWebGpuDeviceManager {
       if (this.device === device) {
         this.device = null;
         this.pending = null;
-        this.directProvider?.release(device);
+        if (this.directProvider) {
+          const release = Promise.resolve().then(() => this.directProvider!.release(device));
+          const pending = release.finally(() => {
+            if (this.pendingDirectRelease === pending) this.pendingDirectRelease = null;
+          });
+          this.pendingDirectRelease = pending;
+          // Keep a rejected release observable to the next acquire without an
+          // unhandled rejection when no document immediately retries.
+          void pending.catch(() => undefined);
+        }
       }
       for (const listener of this.lostListeners) listener(info);
     });
@@ -166,7 +177,7 @@ const getBrowserManager = () => {
         };
       },
       release: (device) => {
-        void import('@lighttable/vector-vello')
+        return import('@lighttable/vector-vello')
           .then((module) => module.releaseVelloWebGpuRuntime(device));
       }
     } : null;

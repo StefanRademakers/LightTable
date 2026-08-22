@@ -106,6 +106,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     finishGesture: vi.fn(async () => true),
     undo: vi.fn(async () => true),
     redo: vi.fn(async () => true),
+    forceDeviceLossForAutomation: vi.fn(() => true),
     ...overrides,
     exportBitmapArtifact: overrides.exportBitmapArtifact ?? vi.fn(async (_documentId, format) =>
       new File([format], `test.${format}`, { type: `image/${format}` })),
@@ -823,6 +824,8 @@ describe('LightTableCommandService queries', () => {
     expect(state.service.queryRenderTelemetry(state.session.id)).toBe(telemetry);
     expect(state.service.resetRenderTelemetry(state.session.id)).toBe(true);
     expect(state.ports.resetRenderTelemetry).toHaveBeenCalledWith(state.session.id);
+    expect(state.service.forceDeviceLossForAutomation(state.session.id)).toBe(true);
+    expect(state.ports.forceDeviceLossForAutomation).toHaveBeenCalledWith(state.session.id);
     state.service.dispose();
     state.workspace.dispose();
   });

@@ -134,6 +134,7 @@ export interface DocumentQueryResult {
     readonly status: DocumentSessionSnapshot['renderer']['status'];
     readonly active: boolean;
     readonly estimatedGpuBytes: number;
+    readonly error: string | null;
   };
 }
 
@@ -338,6 +339,8 @@ export interface LightTableCommandPorts {
   redo(documentId: DocumentSessionId): boolean | Promise<boolean>;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): void;
+  /** Internal packaged-test seam; never projected into command/MCP capabilities. */
+  forceDeviceLossForAutomation?(documentId: DocumentSessionId): boolean;
 }
 
 export interface DocumentLightTableCommandPorts {
@@ -410,4 +413,6 @@ export interface DocumentLightTableCommandPorts {
   finishGesture(kind: LightTableGestureKind, pointerId: number, commit: boolean): boolean | Promise<boolean>;
   undo(): boolean | Promise<boolean>; redo(): boolean | Promise<boolean>;
   queryRenderTelemetry?(): RenderTelemetrySnapshot | null; resetRenderTelemetry?(): void;
+  /** Internal packaged-test seam; never projected into command/MCP capabilities. */
+  forceDeviceLossForAutomation?(): boolean;
 }
