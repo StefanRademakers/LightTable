@@ -174,6 +174,24 @@ mod tests {
     }
 
     #[test]
+    fn preserves_local_clip_paths_as_normalized_geometry() {
+        let source = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><defs><circle id="c" cx="5" cy="5" r="4"/><clipPath id="clip"><use href="#c"/></clipPath></defs><rect width="20" height="20" clip-path="url(#clip)"/></svg>"##;
+        let value = normalize_svg_inner(source, 4096, 8192, 100, 32).unwrap();
+        let result: serde_json::Value = serde_json::from_str(&value).unwrap();
+        let svg = result["svg"].as_str().unwrap();
+        assert!(svg.contains("clip-path=\"url(#clip)\""));
+        assert!(svg.contains("<clipPath id=\"clip\""));
+        assert!(!svg.contains("<use"));
+
+        let object_box = r##"<svg xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="box" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".4"/></clipPath></defs><rect x="10" y="20" width="100" height="50" clip-path="url(#box)"/></svg>"##;
+        let value = normalize_svg_inner(object_box, 4096, 8192, 100, 32).unwrap();
+        let result: serde_json::Value = serde_json::from_str(&value).unwrap();
+        let svg = result["svg"].as_str().unwrap();
+        assert!(svg.contains("<clipPath id=\"box\" transform=\"matrix(100 0 0 50 10 20)\""));
+        assert!(!svg.contains("clipPathUnits="));
+    }
+
+    #[test]
     fn rejects_external_resources_and_active_content() {
         let external = r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="file:///secret.png"/></svg>"#;
         assert!(normalize_svg_inner(external, 4096, 8192, 100, 32).is_err());

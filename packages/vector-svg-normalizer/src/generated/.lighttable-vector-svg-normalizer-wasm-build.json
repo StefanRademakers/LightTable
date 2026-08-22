@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceHash": "8c3ca5e38148c6153f9fc98a2c2854410ea801d25b5ed006a0547e55d0a5538e",
+  "sourceHash": "28c5089779a81b266ca6a1ad27bb5e9f5d9ee316d3ed2748e95007a044f3ac89",
   "usvgVersion": "0.48.1",
   "wasmBindgenVersion": "0.2.126",
   "rustTarget": "wasm32-unknown-unknown",

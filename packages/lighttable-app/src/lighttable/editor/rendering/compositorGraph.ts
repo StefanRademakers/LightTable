@@ -187,4 +187,5 @@ export const groupNeedsCompositingEnvelope = (
   || group.opacity < 0.99999
   || group.blendMode !== 'normal'
   || layerStyleStackIsActive(group.styleStack)
+  || Boolean(group.vectorClip?.enabled)
   || Boolean(group.mask?.enabled && maskTextureAvailable);

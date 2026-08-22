@@ -76,6 +76,32 @@ describe('Vello paint-scene projection', () => {
     expect(first.sceneKey).not.toBe(restyled.sceneKey);
     expect(first.sceneKey.length).toBeLessThan(128);
   });
+
+  it('projects a canonical vector clip into Vello composition without mutating it', () => {
+    const artwork = createVectorLiveShape('art', {
+      kind: 'rectangle', width: 100, height: 80,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    const mask = createVectorLiveShape('mask-shape', {
+      kind: 'ellipse', width: 60, height: 40
+    });
+    mask.transform = translationMatrix(20, 15);
+    const layer = createVectorLayer([artwork], 'Clipped vector');
+    layer.vectorClip = {
+      id: 'clip', name: 'Clip', enabled: true, inverted: false,
+      elements: [mask], revision: 2
+    };
+    const compiled = compileVelloVectorLayerScene(layer, translationMatrix(5, 7));
+    expect(compiled.status).toBe('ready');
+    expect(compiled.scene.composition).toEqual([{
+      kind: 'clip', stableId: 'clip',
+      children: [{ kind: 'fragment', stableId: 'art' }]
+    }]);
+    expect(compiled.scene.clips[0]?.path.commands[0]).toMatchObject({
+      kind: 'move', x: 55, y: 22
+    });
+    expect(mask.transform).toEqual(translationMatrix(20, 15));
+  });
 });
 
 describe('VectorGeometryRealizationCache', () => {

@@ -122,6 +122,49 @@ describe('SVG document codec owner', () => {
     });
   });
 
+  it('keeps an SVG clip as canonical editable vector data through save and export', async () => {
+    let document = createImageDocument('Clip', 100, 80, 'source');
+    document.layers = [];
+    document.activeLayerId = null;
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80">
+      <defs><clipPath id="round-card"><path d="M10 10 L70 10 L70 60 L10 60 Z"/></clipPath></defs>
+      <g clip-path="url(#round-card)"><path id="art" d="M0 0 L90 0 L90 70 L0 70 Z" fill="#f00"/></g>
+    </svg>`;
+    await executeSvgImport({ svg: source, placement: 'document', layerName: 'Clipped art' }, {
+      getDocument: () => document,
+      applyDocument: (next) => { document = next; },
+      recordHistory: () => undefined,
+      normalizeSvgSource: keepSvgSource
+    });
+    const root = document.layers[0];
+    const clippedGroup = root?.type === 'group' ? root.children[0] : null;
+    const vector = clippedGroup?.type === 'group' ? clippedGroup.children[0] : null;
+    expect(vector).toMatchObject({
+      type: 'vector', vectorClip: {
+        name: 'round-card', enabled: true, inverted: false,
+        elements: [{ type: 'path', subpaths: [{ closed: true }] }]
+      }
+    });
+
+    const nativeFile = buildLayeredDocumentFile(
+      new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' }),
+      document,
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      [],
+      'clip.lighttable.png'
+    );
+    const reopened = await parseLayeredDocumentFile(nativeFile);
+    const reopenedRoot = reopened?.document.layers[0];
+    const reopenedGroup = reopenedRoot?.type === 'group' ? reopenedRoot.children[0] : null;
+    const reopenedVector = reopenedGroup?.type === 'group' ? reopenedGroup.children[0] : null;
+    expect(reopenedVector?.type === 'vector' ? reopenedVector.vectorClip : null)
+      .toMatchObject({ name: 'round-card', elements: [{ type: 'path' }] });
+
+    const exported = await exportSvgDocument(reopened!.document, 'clip.lighttable.png').text();
+    expect(exported).toContain('<clipPath id=');
+    expect(exported).toContain('clip-path="url(#');
+  });
+
   it('preserves native vector semantics through save, reopen, export, and re-import', async () => {
     let document = createImageDocument('Round trip', 240, 120, 'source');
     document.layers = [];

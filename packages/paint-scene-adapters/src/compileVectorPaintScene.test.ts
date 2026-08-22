@@ -97,4 +97,37 @@ describe('compileVectorPaintScene', () => {
       }
     });
   });
+
+  it('bakes one canonical vector clip into independent scene composition', () => {
+    const clip = path();
+    clip.id = 'mask-shape';
+    const result = compileVectorPaintScene([path()], {
+      sourceId: 'doc', sourceRevision: '13',
+      parentTransform: { a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 20 },
+      clip: { stableId: 'clip', revisionKey: '4', elements: [clip] }
+    });
+    expect(result.status).toBe('ready');
+    expect(result.scene.clips[0]).toMatchObject({
+      stableId: 'clip', revisionKey: '4', fillRule: 'evenodd'
+    });
+    expect(result.scene.clips[0]?.path.commands[0]).toEqual({
+      kind: 'move', x: 14, y: 25
+    });
+    expect(result.scene.composition).toEqual([{
+      kind: 'clip', stableId: 'clip',
+      children: [{ kind: 'fragment', stableId: 'curve' }]
+    }]);
+  });
+
+  it('does not approximate a multi-operand vector clip union', () => {
+    const result = compileVectorPaintScene([path()], {
+      sourceId: 'doc', sourceRevision: '14',
+      clip: { stableId: 'clip', revisionKey: '1', elements: [path(), path()] }
+    });
+    expect(result.status).toBe('partial');
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      feature: 'compound-vector-clip-union', fallback: 'preserve-only'
+    }));
+    expect(result.scene.clips).toEqual([]);
+  });
 });

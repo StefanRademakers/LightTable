@@ -2,6 +2,7 @@ import {
   type GroupLayer,
   type ImageDocument,
   type LayerId,
+  type LayerNode,
   type RasterMask,
   type Rect,
   type VectorLayer,
@@ -152,7 +153,17 @@ export class LayerCompositor {
     const visibleLeafNodes = analysis.visibleLeafNodes.filter(
       layer => !excludedLayerIds.has(layer.id)
     );
-    vectors.retainLayerIds(new Set(visibleLeafNodes.map(layer => layer.id)));
+    const retainedVectorResources = new Set(visibleLeafNodes.map(layer => layer.id));
+    const retainGroupVectorClips = (nodes: readonly LayerNode[]) => {
+      for (const node of nodes) {
+        if (!node.visible || node.opacity <= 0 || excludedLayerIds.has(node.id)) continue;
+        if (node.type !== 'group') continue;
+        if (node.vectorClip?.enabled) retainedVectorResources.add(node.id);
+        retainGroupVectorClips(node.children);
+      }
+    };
+    retainGroupVectorClips(document.layers);
+    vectors.retainLayerIds(retainedVectorResources);
     if (!analysis.activeLayerStyles) {
       layerStyles.releaseTargets();
       layerStyles.releaseCache();
@@ -762,7 +773,38 @@ export class LayerCompositor {
       this.options.submittedResources.retainTexture(groupB);
       this.options.clearTexture(encoder, groupA);
       const [groupResult] = renderNodes(childPlan, groupA, groupB, groupTransform);
-      const maskTexture = this.options.maskTextureFor(group.id);
+      const rasterMaskTexture = this.options.maskTextureFor(group.id);
+      if (group.vectorClip?.enabled && group.mask?.enabled && rasterMaskTexture) {
+        throw new Error(
+          `Group “${group.name}” combines raster and vector masks; exact mask multiplication is required.`
+        );
+      }
+      const vectorMaskTexture = group.vectorClip?.enabled
+        ? vectors.encodeMask(
+            encoder,
+            group.vectorClip,
+            groupTransform,
+            { width, height },
+            group.id
+          )
+        : null;
+      const maskTexture = vectorMaskTexture ?? rasterMaskTexture;
+      const mask = vectorMaskTexture ? {
+        id: group.vectorClip!.id,
+        enabled: true,
+        linked: false,
+        transform: identityAffineMatrix(),
+        density: 1,
+        feather: 0,
+        revision: group.vectorClip!.revision,
+        pixelRevision: group.vectorClip!.revision,
+        dirtyBounds: null
+      } satisfies RasterMask : group.mask;
+      if (vectorMaskTexture && layerStyleStackIsActive(group.styleStack)) {
+        throw new Error(
+          `Group “${group.name}” combines a vector clip with layer styles; exact style masking is required.`
+        );
+      }
       const styledGroup = layerStyleStackIsActive(group.styleStack)
         ? layerStyles.encode(
             encoder,
@@ -780,7 +822,7 @@ export class LayerCompositor {
         opacity: group.opacity,
         blendMode: group.blendMode,
         maskTexture,
-        mask: styledGroup ? null : group.mask,
+        mask: styledGroup ? null : mask,
         clippingTexture,
         sourceBounds: styledGroup?.bounds
       });

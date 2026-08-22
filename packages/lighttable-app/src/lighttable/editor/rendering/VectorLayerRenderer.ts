@@ -12,12 +12,22 @@ import {
   serializeVectorGeometryKey,
   type RealizedVectorGeometry
 } from '@lighttable/vector-rendering';
-import { VectorFillBackend, type VectorFillSurface } from '@lighttable/vector-webgpu';
+import {
+  VectorFillBackend,
+  VectorMaskCompositeBackend,
+  type VectorFillSurface,
+  type VectorMaskCompositeSurface
+} from '@lighttable/vector-webgpu';
 import {
   VelloPaintSceneBackend,
   type VelloPaintSceneSurface
 } from '@lighttable/vector-vello';
-import type { VectorLayer } from '../document/documentTypes';
+import {
+  createVectorLayer,
+  type LayerId,
+  type VectorClip,
+  type VectorLayer
+} from '../document/documentTypes';
 import type { AffineMatrix } from './renderContract';
 import { vectorRendererBackendSelection } from '../../gpu/vectorRendererBackendDiagnostics';
 
@@ -97,7 +107,17 @@ export const vectorLayerPaintSceneRevision = (
     String(element.geometryRevision),
     String(element.transformRevision),
     String(element.styleRevision)
-  ])
+  ]),
+  ...(layer.vectorClip ? [
+    layer.vectorClip.id,
+    String(layer.vectorClip.enabled),
+    String(layer.vectorClip.inverted),
+    String(layer.vectorClip.revision),
+    ...layer.vectorClip.elements.flatMap(element => [
+      element.id, String(element.geometryRevision),
+      String(element.transformRevision), String(element.styleRevision)
+    ])
+  ] : [])
 ]);
 
 export const compileVelloVectorLayerScene = (
@@ -109,7 +129,16 @@ export const compileVelloVectorLayerScene = (
   const result = compileVectorPaintScene(layer.elements, {
     sourceId: layer.id,
     sourceRevision,
-    parentTransform: layerToDocument
+    parentTransform: layerToDocument,
+    ...(layer.vectorClip?.enabled && !layer.vectorClip.inverted ? {
+      clip: {
+        stableId: layer.vectorClip.id,
+        revisionKey: `${layer.vectorClip.revision}:${layer.vectorClip.elements.map(element => [
+          element.id, element.geometryRevision, element.transformRevision
+        ].join(':')).join('|')}`,
+        elements: layer.vectorClip.elements
+      }
+    } : {})
   });
   return {
     ...result,
@@ -170,6 +199,9 @@ export class VectorLayerRenderer {
   private readonly velloResourceNamespace = `vector-renderer-${++vectorRendererResourceSequence}`;
   private backend: VectorFillBackend | null = null;
   private surface: VectorFillSurface | null = null;
+  private vectorMaskSurface: VectorFillSurface | null = null;
+  private vectorMaskOutput: VectorMaskCompositeSurface | null = null;
+  private vectorMaskComposite: VectorMaskCompositeBackend | null = null;
   private vello: VelloPaintSceneBackend | null = null;
   private readonly velloSurfaces = new Map<string, VelloLayerSurface>();
   private velloFailure: string | null = null;
@@ -191,6 +223,9 @@ export class VectorLayerRenderer {
     inheritedTransform: AffineMatrix,
     dimensions: { width: number; height: number }
   ): GPUTexture {
+    if (layer.vectorClip?.enabled && layer.vectorClip.inverted) {
+      throw new Error(`Inverted vector clip on “${layer.name}” is not supported yet.`);
+    }
     if (this.selectedBackend === 'vello' && !this.velloFailure) {
       const vello = this.encodeVello(layer, inheritedTransform, dimensions);
       if (vello) {
@@ -255,7 +290,49 @@ export class VectorLayerRenderer {
         }
       );
     }
-    return surface.color;
+    const clip = layer.vectorClip?.enabled ? layer.vectorClip : null;
+    if (!clip) return surface.color;
+    if (clip.elements.length !== 1) {
+      throw new Error(
+        `Vector clip on “${layer.name}” requires an exact boolean union of multiple operands.`
+      );
+    }
+    const maskSurface = this.ensureVectorMaskSurface(backend, dimensions, layer.antiAlias);
+    const clearMask = encoder.beginRenderPass({
+      label: `Clear vector clip: ${layer.name}`,
+      colorAttachments: [{
+        view: maskSurface.renderColorView,
+        resolveTarget: maskSurface.sampleCount > 1 ? maskSurface.colorView : undefined,
+        clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store'
+      }]
+    });
+    clearMask.end();
+    const clipElement = clip.elements[0]!;
+    const clipToDocument = multiplyMatrices(layerToDocument, clipElement.transform);
+    const { path: clipPath, realized: clipGeometry } = this.geometryCache.realize(
+      clipElement,
+      vectorGeometryTolerance(clipToDocument)
+    );
+    backend.encodeFill(encoder, {
+      ...clipPath,
+      transform: multiplyMatrices(layerToDocument, clipPath.transform),
+      style: {
+        fill: { type: 'solid', color: [1, 1, 1, 1] },
+        stroke: null,
+        opacity: 1
+      }
+    }, clipGeometry, {
+      colorView: maskSurface.renderColorView,
+      resolveView: maskSurface.sampleCount > 1 ? maskSurface.colorView : null,
+      stencilView: maskSurface.stencilView,
+      format: maskSurface.format,
+      sampleCount: maskSurface.sampleCount,
+      origin: { x: 0, y: 0 }, width: maskSurface.width, height: maskSurface.height
+    });
+    const output = this.ensureVectorMaskOutput(dimensions);
+    (this.vectorMaskComposite ??= new VectorMaskCompositeBackend(this.device))
+      .encode(encoder, surface.color, maskSurface.color, output);
+    return output.texture;
   }
 
   retainLayerIds(layerIds: ReadonlySet<string>) {
@@ -265,6 +342,29 @@ export class VectorLayerRenderer {
       this.velloSurfaces.delete(layerId);
       this.vello?.releaseSource(this.velloSourceKey(layerId));
     }
+  }
+
+  /** Renders canonical clip geometry as white premultiplied coverage. */
+  encodeMask(
+    encoder: GPUCommandEncoder,
+    clip: VectorClip,
+    inheritedTransform: AffineMatrix,
+    dimensions: { width: number; height: number },
+    resourceId: LayerId
+  ) {
+    if (clip.inverted) throw new Error(`Inverted vector clip “${clip.name}” is not supported yet.`);
+    const layer = createVectorLayer(clip.elements, clip.name);
+    layer.id = resourceId;
+    layer.elements = layer.elements.map(element => ({
+      ...element,
+      style: {
+        fill: { type: 'solid', color: [1, 1, 1, 1] },
+        stroke: null,
+        opacity: 1
+      },
+      styleRevision: element.styleRevision + clip.revision + 1
+    }));
+    return this.encode(encoder, layer, inheritedTransform, dimensions);
   }
 
   backendDiagnostics() {
@@ -313,13 +413,26 @@ export class VectorLayerRenderer {
       this.surface.height,
       this.surface.sampleCount === 4 ? 4 : 1
     ) : 0;
-    return current + [...this.velloSurfaces.values()]
+    const currentClip = (this.vectorMaskSurface ? vectorSurfaceBytes(
+      this.vectorMaskSurface.width,
+      this.vectorMaskSurface.height,
+      this.vectorMaskSurface.sampleCount === 4 ? 4 : 1
+    ) : 0) + (this.vectorMaskOutput
+      ? this.vectorMaskOutput.width * this.vectorMaskOutput.height * 8
+      : 0);
+    return current + currentClip + [...this.velloSurfaces.values()]
       .reduce((bytes, entry) => bytes + entry.surface.estimatedBytes, 0);
   }
 
   destroy() {
     this.surface?.dispose();
     this.surface = null;
+    this.vectorMaskSurface?.dispose();
+    this.vectorMaskSurface = null;
+    this.vectorMaskOutput?.dispose();
+    this.vectorMaskOutput = null;
+    this.vectorMaskComposite?.dispose();
+    this.vectorMaskComposite = null;
     this.backend?.dispose();
     this.backend = null;
     for (const [layerId, entry] of this.velloSurfaces) {
@@ -414,6 +527,39 @@ export class VectorLayerRenderer {
       sampleCount === 4
     );
     return this.surface;
+  }
+
+  private ensureVectorMaskSurface(
+    backend: VectorFillBackend,
+    dimensions: { width: number; height: number },
+    antiAlias: boolean
+  ) {
+    const sampleCount = vectorSurfaceSampleCount(
+      dimensions.width, dimensions.height, antiAlias
+    );
+    if (
+      this.vectorMaskSurface
+      && this.vectorMaskSurface.width === dimensions.width
+      && this.vectorMaskSurface.height === dimensions.height
+      && this.vectorMaskSurface.sampleCount === sampleCount
+    ) return this.vectorMaskSurface;
+    this.vectorMaskSurface?.dispose();
+    this.vectorMaskSurface = backend.createSurface(
+      dimensions.width, dimensions.height, 'rgba16float', sampleCount === 4
+    );
+    return this.vectorMaskSurface;
+  }
+
+  private ensureVectorMaskOutput(dimensions: { width: number; height: number }) {
+    if (
+      this.vectorMaskOutput
+      && this.vectorMaskOutput.width === dimensions.width
+      && this.vectorMaskOutput.height === dimensions.height
+    ) return this.vectorMaskOutput;
+    this.vectorMaskOutput?.dispose();
+    const backend = this.vectorMaskComposite ??= new VectorMaskCompositeBackend(this.device);
+    this.vectorMaskOutput = backend.createSurface(dimensions.width, dimensions.height);
+    return this.vectorMaskOutput;
   }
 
   private velloSourceKey(layerId: string) {

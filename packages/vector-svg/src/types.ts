@@ -51,6 +51,12 @@ export interface SvgImportPlan {
   readonly report: SvgConversionReport;
 }
 
+export interface SvgClipPath {
+  readonly id: string;
+  readonly name: string;
+  readonly elements: readonly VectorElement[];
+}
+
 export type SvgSceneNode =
   | { readonly kind: 'element'; readonly element: VectorElement }
   | {
@@ -58,6 +64,8 @@ export type SvgSceneNode =
     readonly name: string;
     readonly opacity: number;
     readonly transform: AffineMatrix;
+    /** Local, editable geometry used as this paint group's clipping path. */
+    readonly clipPath?: SvgClipPath;
     readonly children: readonly SvgSceneNode[];
   };
 

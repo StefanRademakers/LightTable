@@ -389,10 +389,21 @@ export const insertVectorLayerTree = (
       throw new Error(`Imported layer ${node.id} has invalid opacity.`);
     }
     if (node.type === 'vector') {
-      return { ...node, elements: validatedVectorElements(node.elements) };
+      return {
+        ...node,
+        elements: validatedVectorElements(node.elements),
+        vectorClip: node.vectorClip ? {
+          ...node.vectorClip,
+          elements: validatedVectorElements(node.vectorClip.elements)
+        } : null
+      };
     }
     return {
       ...node,
+      vectorClip: node.vectorClip ? {
+        ...node.vectorClip,
+        elements: validatedVectorElements(node.vectorClip.elements)
+      } : null,
       children: node.children.map((child) => {
         if (child.type !== 'group' && child.type !== 'vector') {
           throw new Error('A native vector import tree may contain only group and vector layers.');
@@ -456,6 +467,7 @@ export const replaceTextLayerWithVectorPaths = (
     type: 'vector',
     antiAlias: true,
     elements,
+    vectorClip: null,
     revision: layer.revision + 1,
     geometryRevision: layer.geometryRevision + 1,
     modifiedAt: Date.now()
@@ -1192,6 +1204,12 @@ export const duplicateLayer = (document: ImageDocument, layerId: LayerId): Image
           }
           return cloned;
         }),
+        vectorClip: source.vectorClip ? {
+          ...source.vectorClip,
+          id: `vector-clip-${crypto.randomUUID()}`,
+          revision: 0,
+          elements: source.vectorClip.elements.map(cloneVectorElement)
+        } : null,
         styleStack: duplicateLayerStyleStack(source.styleStack),
         mask: source.mask ? {
           ...source.mask, id: `mask-${crypto.randomUUID()}`, revision: 0, pixelRevision: 0

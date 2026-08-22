@@ -1,4 +1,4 @@
-import { identityAffineMatrix, translationMatrix } from '@lighttable/vector-core';
+import { cloneVectorElement, identityAffineMatrix, translationMatrix } from '@lighttable/vector-core';
 import type { SvgImportPlan, SvgSceneNode } from '@lighttable/vector-svg';
 import {
   createGroupLayer as createGroupLayerNode,
@@ -32,11 +32,34 @@ const materializeNodes = (
     flush();
     const children = materializeNodes(node.children, node.name || vectorName);
     if (!children.length) continue;
+    if (node.clipPath) {
+      const vectorClip = {
+        id: node.clipPath.id,
+        name: node.clipPath.name,
+        enabled: true,
+        inverted: false,
+        elements: node.clipPath.elements.map(cloneVectorElement),
+        revision: 0
+      };
+      if (children.length === 1 && children[0]?.type === 'vector') {
+        children[0].vectorClip = vectorClip;
+      }
+    }
     const group = createGroupLayerNode(node.name || 'SVG Group');
     group.opacity = node.opacity;
     group.transform = { ...node.transform };
     group.compositing = 'isolated';
     group.children = children;
+    if (node.clipPath && (children.length !== 1 || children[0]?.type !== 'vector')) {
+      group.vectorClip = {
+        id: node.clipPath.id,
+        name: node.clipPath.name,
+        enabled: true,
+        inverted: false,
+        elements: node.clipPath.elements.map(cloneVectorElement),
+        revision: 0
+      };
+    }
     result.push(group);
   }
   flush();

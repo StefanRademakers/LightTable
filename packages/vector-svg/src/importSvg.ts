@@ -1,6 +1,6 @@
 import { DOMParser, type Element as XmlElement } from '@xmldom/xmldom';
 import type { GradientPaintInstance } from '@lighttable/paint-core';
-import { createVectorLiveShape, createVectorPath, identityAffineMatrix, multiplyMatrices,
+import { cloneVectorElement, createVectorLiveShape, createVectorPath, identityAffineMatrix, multiplyMatrices,
   translationMatrix, type AffineMatrix, type VectorElement, type VectorPaint,
   type VectorStyle, type VectorSubpath } from '@lighttable/vector-core';
 import { linearChannelToSrgb, parseSvgColor } from './color';
@@ -9,7 +9,7 @@ import { parseSvgPathData } from './pathData';
 import { parseSvgTransform } from './transform';
 import { DEFAULT_SVG_CODEC_LIMITS, SvgCodecError, type SvgCodecLimits,
   type SvgConversionNotice, type SvgImportOptions, type SvgImportPlan, type SvgSceneNode,
-  type SvgViewBox } from './types';
+  type SvgClipPath, type SvgViewBox } from './types';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const DRAWABLES = new Set(['path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon']);
@@ -21,7 +21,7 @@ const METADATA = new Set(['title', 'desc', 'metadata']);
 const PRESENTATION = new Set(['fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-opacity',
   'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-dasharray',
   'stroke-dashoffset', 'color']);
-const GLOBAL_ATTRIBUTES = new Set(['id', 'transform', 'style', 'opacity', ...PRESENTATION]);
+const GLOBAL_ATTRIBUTES = new Set(['id', 'transform', 'style', 'opacity', 'clip-path', ...PRESENTATION]);
 const GEOMETRY_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = Object.freeze({
   svg: ['width', 'height', 'viewBox', 'preserveAspectRatio', 'version', 'xmlns'],
   g: [], a: [], path: ['d'], rect: ['x', 'y', 'width', 'height', 'rx', 'ry'],
@@ -276,6 +276,80 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     resources.set(resourceId, resource);
   }
 
+  const localPaintServerId = (value: string, label: string) => {
+    const match = /^url\(\s*(['"]?)#([A-Za-z_][A-Za-z0-9_.:-]*)\1\s*\)$/iu.exec(value.trim());
+    if (!match) throw new SvgCodecError('unsupported-reference', `${label} must use a local url(#id) reference.`);
+    return match[2]!;
+  };
+
+  const resolveClipPath = (
+    value: string | null,
+    referenceTransform: AffineMatrix,
+    referenceName: string
+  ): SvgClipPath | undefined => {
+    if (!value || value.trim().toLowerCase() === 'none') return undefined;
+    const resourceId = localPaintServerId(value, 'clip-path');
+    const resource = resources.get(resourceId);
+    if (!resource || (resource.localName || resource.tagName).toLowerCase() !== 'clippath') {
+      throw new SvgCodecError('missing-clip-path', `SVG clip-path “${resourceId}” is missing.`);
+    }
+    if (resource.getAttribute('clipPathUnits') === 'objectBoundingBox') {
+      throw new SvgCodecError(
+        'unnormalized-object-bounds-clip',
+        'objectBoundingBox clip paths must be normalized before editable import.'
+      );
+    }
+    const clipElements: VectorElement[] = [];
+    const visitClip = (node: XmlElement, parent: AffineMatrix, depth: number): void => {
+      if (depth > limits.maxDepth) throw new SvgCodecError('resource-depth', `Clip path “${resourceId}” exceeds the resource depth limit.`);
+      const tag = (node.localName || node.tagName).toLowerCase();
+      const transform = multiplyMatrices(parent, parseSvgTransform(node.getAttribute('transform')));
+      if (tag === 'g') {
+        elementChildren(node).forEach(child => visitClip(child, transform, depth + 1));
+        return;
+      }
+      if (tag !== 'path') {
+        throw new SvgCodecError(
+          'unnormalized-clip-geometry',
+          `Clip path “${resourceId}” contains <${tag}>; normalize it to path geometry first.`
+        );
+      }
+      const parsed = parseSvgPathData(node.getAttribute('d') ?? '', createId, limits);
+      totalAnchors += parsed.anchorCount;
+      if (totalAnchors > limits.maxAnchors) throw new SvgCodecError('anchor-limit', 'SVG exceeds the total anchor limit.');
+      const path = createVectorPath(
+        createId('element'),
+        `${referenceName} clip`,
+        parsed.subpaths.map(subpath => subpath.closed ? subpath : { ...subpath, closed: true })
+      );
+      const rule = node.getAttribute('clip-rule') ?? node.getAttribute('fill-rule') ?? 'nonzero';
+      if (rule !== 'nonzero' && rule !== 'evenodd') {
+        throw new SvgCodecError('unsupported-clip-rule', `Clip path “${resourceId}” has an unsupported fill rule.`);
+      }
+      path.fillRule = rule;
+      path.transform = transform;
+      path.style = {
+        fill: { type: 'solid', color: [1, 1, 1, 1] },
+        stroke: null,
+        opacity: 1
+      };
+      clipElements.push(path);
+    };
+    const clipTransform = multiplyMatrices(
+      referenceTransform,
+      parseSvgTransform(resource.getAttribute('transform'))
+    );
+    elementChildren(resource).forEach(child => visitClip(child, clipTransform, 1));
+    if (!clipElements.length) {
+      throw new SvgCodecError('empty-clip-path', `SVG clip-path “${resourceId}” has no geometry.`);
+    }
+    return {
+      id: `svg-clip-${resourceId}-${createId('element')}`,
+      name: resourceId,
+      elements: clipElements.map(cloneVectorElement)
+    };
+  };
+
   const gradientCoordinate = (
     value: string | null,
     name: string,
@@ -492,6 +566,10 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
         const localReference = /url\s*\(\s*(['"]?)#[^)]+\1\s*\)/iu.test(attribute.value);
         if (!localReference) throw new SvgCodecError('external-reference', `SVG reference attribute “${name}” is unsupported.`);
         if ((name === 'fill' || name === 'stroke') && localPaintId(attribute.value)) continue;
+        if (name === 'clip-path') {
+          localPaintServerId(attribute.value, 'clip-path');
+          continue;
+        }
         warnings.push({ code: 'ignored-reference-element', element: nameOf(element),
           message: `Ignored <${tag}> because local SVG reference “${name}” is not supported yet.` });
         renderable = false;
@@ -564,6 +642,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
     if (!validateAttributes(element, tag)) return;
     const style = inheritedStyle(element, parentStyle);
     const transform = multiplyMatrices(parentTransform, parseSvgTransform(element.getAttribute('transform')));
+    const clipPath = resolveClipPath(element.getAttribute('clip-path'), transform, nameOf(element));
     if (tag === 'svg' || tag === 'g' || tag === 'a') {
       if ((tag === 'g' || tag === 'a') && element.getAttribute('transform')?.trim()) conversions.push({
         code: 'flattened-group-transform', element: nameOf(element),
@@ -574,22 +653,35 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
         message: 'Flattened a non-interactive SVG link container into editable native elements.'
       });
       let childTarget = target;
-      if (style.opacity !== 1) {
+      if (style.opacity !== 1 || clipPath) {
         const group: SvgSceneNode = {
           kind: 'group', name: nameOf(element), opacity: style.opacity,
           // Transforms remain flattened into leaf geometry for now. Keeping
           // the compositing boundary is the semantic requirement for opacity.
-          transform: identityAffineMatrix(), children: []
+          transform: identityAffineMatrix(),
+          ...(clipPath ? { clipPath } : {}),
+          children: []
         };
         target.push(group);
         childTarget = group.children as SvgSceneNode[];
-        conversions.push({ code: 'preserved-group-opacity', element: nameOf(element),
+        if (style.opacity !== 1) conversions.push({ code: 'preserved-group-opacity', element: nameOf(element),
           message: `Preserved <${tag}> opacity as an isolated editable group.` });
+        if (clipPath) conversions.push({ code: 'preserved-vector-clip', element: nameOf(element),
+          message: `Preserved <${tag}> clip-path as editable vector geometry.` });
       }
       for (const child of elementChildren(element)) {
         visit(child, style.inherited, transform, depth + 1, childTarget);
       }
       return;
+    }
+    let nodeTarget = target;
+    if (clipPath) {
+      const group: SvgSceneNode = {
+        kind: 'group', name: `${nameOf(element)} clipped`, opacity: 1,
+        transform: identityAffineMatrix(), clipPath, children: []
+      };
+      target.push(group);
+      nodeTarget = group.children as SvgSceneNode[];
     }
     if (elementChildren(element).length) throw new SvgCodecError('drawable-children', `<${tag}> cannot contain child elements in editable import.`);
     const elementName = nameOf(element); const vectorStyle = nativeStyle(
@@ -690,7 +782,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
         strokeVector.style = { ...vectorStyle, fill: null };
         vector.style = { ...vectorStyle, stroke: null };
         elements.push(vector, strokeVector);
-        target.push({ kind: 'element', element: vector }, { kind: 'element', element: strokeVector });
+        nodeTarget.push({ kind: 'element', element: vector }, { kind: 'element', element: strokeVector });
         conversions.push({
           code: 'split-open-fill-and-stroke',
           element: elementName,
@@ -700,7 +792,7 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
       }
     }
     elements.push(vector);
-    target.push({ kind: 'element', element: vector });
+    nodeTarget.push({ kind: 'element', element: vector });
   };
 
   const rootAttributesSupported = validateAttributes(root, 'svg');

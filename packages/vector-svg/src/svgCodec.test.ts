@@ -348,6 +348,33 @@ describe('native SVG codec', () => {
     expect(importSvg(output).nodes[0]).toMatchObject({ kind: 'group', opacity: 0.5 });
   });
 
+  it('preserves normalized local clip paths as editable geometry and round-trips them', () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 30">
+      <defs><clipPath id="card-clip" transform="translate(3 4)">
+        <path fill="#000" stroke="none" d="M0 0 L20 0 L20 10 L0 10 Z"/>
+      </clipPath></defs>
+      <g clip-path="url(#card-clip)"><path id="card" d="M0 0 L30 0 L30 20 L0 20 Z"/></g>
+    </svg>`;
+    const plan = importSvg(source);
+    expect(plan.nodes[0]).toMatchObject({
+      kind: 'group',
+      clipPath: {
+        name: 'card-clip',
+        elements: [{ type: 'path', transform: { tx: 3, ty: 4 } }]
+      },
+      children: [{ kind: 'element', element: { name: 'card' } }]
+    });
+    expect(plan.report.conversions).toContainEqual(expect.objectContaining({
+      code: 'preserved-vector-clip'
+    }));
+    const output = exportSvgScene(plan.nodes, { width: plan.width, height: plan.height });
+    expect(output).toContain('<clipPath id=');
+    expect(output).toContain('clip-path="url(#');
+    expect(importSvg(output).nodes[0]).toMatchObject({
+      kind: 'group', clipPath: { elements: [{ type: 'path' }] }
+    });
+  });
+
   it('flattens an anchor container and explicitly discards navigation behavior', () => {
     const plan = importSvg('<svg xmlns="http://www.w3.org/2000/svg"><a href="https://example.test" target="_blank"><path d="M0 0L10 10"/></a></svg>');
     expect(plan.elements).toHaveLength(1);

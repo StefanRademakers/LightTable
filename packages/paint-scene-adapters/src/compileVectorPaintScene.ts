@@ -20,6 +20,7 @@ import {
   multiplyMatrices,
   pathBounds,
   realizeLiveShape,
+  transformPoint,
   type AffineMatrix,
   type SolidPaint,
   type VectorElement,
@@ -34,10 +35,38 @@ export interface CompileVectorPaintSceneOptions {
   readonly sourceRevision: string;
   /** Maps vector-layer coordinates into the backend-neutral scene. */
   readonly parentTransform?: AffineMatrix;
+  /** Optional canonical vector clip, expressed in the same layer space. */
+  readonly clip?: {
+    readonly stableId: string;
+    readonly revisionKey: string;
+    readonly elements: readonly VectorElement[];
+  };
 }
 
 const matrix = (value: AffineMatrix): PaintSceneMatrix =>
   [value.a, value.b, value.c, value.d, value.tx, value.ty];
+
+const transformedPathCommands = (
+  commands: readonly PaintScenePathCommand[],
+  transform: AffineMatrix
+): PaintScenePathCommand[] => commands.map((command) => {
+  if (command.kind === 'close') return command;
+  if (command.kind === 'move' || command.kind === 'line') {
+    const point = transformPoint(transform, command);
+    return { kind: command.kind, x: point.x, y: point.y };
+  }
+  const control1 = transformPoint(transform, {
+    x: command.control1X, y: command.control1Y
+  });
+  const control2 = transformPoint(transform, {
+    x: command.control2X, y: command.control2Y
+  });
+  const point = transformPoint(transform, command);
+  return {
+    kind: 'cubic', control1X: control1.x, control1Y: control1.y,
+    control2X: control2.x, control2Y: control2.y, x: point.x, y: point.y
+  };
+});
 
 const isSolidPaint = (paint: VectorPaint): paint is SolidPaint => 'type' in paint && paint.type === 'solid';
 
@@ -248,12 +277,58 @@ export const compileVectorPaintScene = (
     };
   });
 
+  const clipElement = options.clip?.elements.length === 1
+    ? options.clip.elements[0]
+    : null;
+  const clipPath = clipElement
+    ? (clipElement.type === 'live-shape' ? realizeLiveShape(clipElement) : clipElement)
+    : null;
+  const clipCommands = clipPath ? transformedPathCommands(
+    compileVectorPathCommands(clipPath),
+    multiplyMatrices(parentTransform, clipPath.transform)
+  ) : [];
+  if (options.clip && options.clip.elements.length !== 1) {
+    issues.push({
+      stableId: options.clip.stableId,
+      feature: 'compound-vector-clip-union',
+      reason: 'Multiple vector clip operands require an exact boolean union before rendering.',
+      fallback: 'preserve-only'
+    });
+  } else if (options.clip && clipCommands.length === 0) {
+    issues.push({
+      stableId: options.clip.stableId,
+      feature: 'empty-vector-clip',
+      reason: 'The canonical vector clip contains no drawable contours.',
+      fallback: 'preserve-only'
+    });
+  }
+  const clips = options.clip && clipCommands.length ? [{
+    stableId: options.clip.stableId,
+    revisionKey: options.clip.revisionKey,
+    path: {
+      stableId: `${options.clip.stableId}:path`,
+      revisionKey: options.clip.revisionKey,
+      commands: clipCommands
+    },
+    transform: matrix(identityAffineMatrix()),
+    // Separate clip elements are a geometric union. Nonzero winding preserves
+    // that union after the adapter bakes every child transform into one path.
+    fillRule: clipPath?.fillRule ?? 'nonzero'
+  }] : [];
+  const flatComposition = fragments.map(({ stableId }) => ({
+    kind: 'fragment' as const, stableId
+  }));
+
   return createPaintSceneCompileResult({
     schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
     sourceId: options.sourceId,
     sourceRevision: options.sourceRevision,
     fragments,
-    clips: [],
-    composition: fragments.map(({ stableId }) => ({ kind: 'fragment' as const, stableId }))
+    clips,
+    composition: clips.length ? [{
+      kind: 'clip' as const,
+      stableId: clips[0]!.stableId,
+      children: flatComposition
+    }] : flatComposition
   }, issues);
 };

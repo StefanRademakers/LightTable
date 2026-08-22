@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createVectorLiveShape } from '@lighttable/vector-core';
 import {
   createGroupLayer,
   createImageDocument,
@@ -90,6 +91,31 @@ describe('compositorGraph', () => {
     };
     expect(groupNeedsCompositingEnvelope(group, false)).toBe(false);
     expect(groupNeedsCompositingEnvelope(group, true)).toBe(true);
+  });
+
+  it('always isolates an enabled canonical group vector clip', () => {
+    const group = createGroupLayer('vector clipped');
+    group.children = [raster('inside')];
+    group.vectorClip = {
+      id: 'vector-clip',
+      name: 'Vector clip',
+      enabled: true,
+      inverted: false,
+      elements: [createVectorLiveShape('clip-shape', {
+        kind: 'rectangle',
+        width: 32,
+        height: 24,
+        cornerRadii: [0, 0, 0, 0],
+        linkedCorners: true
+      })],
+      revision: 0
+    };
+
+    expect(groupNeedsCompositingEnvelope(group, false)).toBe(true);
+    expect(buildCompositorPlan([group]).entries[0]?.groupNeedsEnvelope).toBe(true);
+
+    group.vectorClip.enabled = false;
+    expect(groupNeedsCompositingEnvelope(group, false)).toBe(false);
   });
 
   it('detects only effective visible Adjustment Layers', () => {

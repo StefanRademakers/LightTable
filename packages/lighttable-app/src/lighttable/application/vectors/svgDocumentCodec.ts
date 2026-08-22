@@ -78,12 +78,23 @@ const exactSvgScene = (document: ImageDocument) => {
       );
     }
     if (layer.type === 'group') {
+      if (layer.vectorClip?.enabled && layer.vectorClip.inverted) {
+        throw new Error(`Vector clip “${layer.vectorClip.name}” is inverted and cannot be exported exactly to SVG.`);
+      }
       const children = layer.children
         .map(convert)
         .filter((node): node is SvgSceneNode => Boolean(node));
       return children.length ? {
         kind: 'group', name: layer.name, opacity: layer.opacity,
-        transform: { ...layer.transform }, children
+        transform: { ...layer.transform },
+        ...(layer.vectorClip?.enabled ? {
+          clipPath: {
+            id: layer.vectorClip.id,
+            name: layer.vectorClip.name,
+            elements: layer.vectorClip.elements.map(cloneVectorElement)
+          }
+        } : {}),
+        children
       } : null;
     }
     if (layer.type !== 'vector') {
@@ -91,9 +102,19 @@ const exactSvgScene = (document: ImageDocument) => {
         'SVG export supports documents whose visible content consists only of native vector layers and groups.'
       );
     }
+    if (layer.vectorClip?.enabled && layer.vectorClip.inverted) {
+      throw new Error(`Vector clip “${layer.vectorClip.name}” is inverted and cannot be exported exactly to SVG.`);
+    }
     return {
       kind: 'group', name: layer.name, opacity: layer.opacity,
       transform: { ...layer.transform },
+      ...(layer.vectorClip?.enabled ? {
+        clipPath: {
+          id: layer.vectorClip.id,
+          name: layer.vectorClip.name,
+          elements: layer.vectorClip.elements.map(cloneVectorElement)
+        }
+      } : {}),
       children: layer.elements.map(source => ({
         kind: 'element' as const, element: cloneVectorElement(source)
       }))

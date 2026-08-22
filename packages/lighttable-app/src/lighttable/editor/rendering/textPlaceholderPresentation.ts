@@ -90,6 +90,7 @@ export const textPlaceholderVectorLayer = (layer: TextLayer): VectorLayer => {
     type: 'vector',
     name: `${layer.name} (text renderer unavailable)`,
     antiAlias: true,
-    elements: [shape]
+    elements: [shape],
+    vectorClip: null
   };
 };

@@ -14,6 +14,10 @@ interface GradientExportRegistry {
   readonly ids: Map<string, string>;
   readonly definitions: { readonly id: string; readonly gradient: GradientPaintInstance }[];
   readonly usedIds: Set<string>;
+  readonly clipDefinitions: {
+    readonly id: string;
+    readonly elements: readonly VectorElement[];
+  }[];
 }
 
 const claimId = (requested: string, registry: GradientExportRegistry) => {
@@ -132,6 +136,11 @@ const serializeNode = (
     return `${indent}${serializeElement(node.element, registry, parentTransform)}`;
   }
   const attributes = [`id="${escape(claimId(node.name, registry))}"`];
+  if (node.clipPath) {
+    const clipId = claimId(node.clipPath.id || node.clipPath.name || 'lighttable-clip', registry);
+    registry.clipDefinitions.push({ id: clipId, elements: node.clipPath.elements });
+    attributes.push(`clip-path="url(#${escape(clipId)})"`);
+  }
   if (node.opacity < 1) attributes.push(`opacity="${number(node.opacity)}"`);
   if (!isIdentityAffineMatrix(node.transform)) {
     attributes.push(`transform="${serializeTransform(node.transform)}"`);
@@ -161,6 +170,21 @@ const gradientDefinition = (gradient: GradientPaintInstance, id: string) => {
   return `    <linearGradient id="${id}" gradientUnits="${units}" x1="0" y1="0" x2="1" y2="0" gradientTransform="${serializeTransform(transform)}" spreadMethod="${gradient.spread ?? 'pad'}">\n${stops}\n    </linearGradient>`;
 };
 
+const clipDefinition = (
+  elements: readonly VectorElement[],
+  id: string
+) => `    <clipPath id="${escape(id)}">\n${elements.map((element) => {
+  const path = element.type === 'path' ? element : realizeLiveShape(element);
+  const attributes = [
+    `d="${serializeSvgPathData(path.subpaths)}"`,
+    `fill-rule="${path.fillRule}"`
+  ];
+  if (!isIdentityAffineMatrix(path.transform)) {
+    attributes.push(`transform="${serializeTransform(path.transform)}"`);
+  }
+  return `      <path ${attributes.join(' ')}/>`;
+}).join('\n')}\n    </clipPath>`;
+
 export const exportSvgScene = (nodes: readonly SvgSceneNode[], options: SvgExportOptions) => {
   const limits = { ...DEFAULT_SVG_CODEC_LIMITS, ...options.limits };
   if (!Number.isFinite(options.width) || !Number.isFinite(options.height)
@@ -176,16 +200,19 @@ export const exportSvgScene = (nodes: readonly SvgSceneNode[], options: SvgExpor
     }
   };
   inspect(nodes, 1);
-  const gradients: GradientExportRegistry = { ids: new Map(), definitions: [], usedIds: new Set() };
+  const gradients: GradientExportRegistry = {
+    ids: new Map(), definitions: [], usedIds: new Set(), clipDefinitions: []
+  };
   const title = options.title ? `\n  <title>${escape(options.title)}</title>` : '';
   const body = nodes.map(node => serializeNode(
     node, gradients, { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }, 1
   )).join('\n');
-  const definitions = gradients.definitions.length
-    ? `\n  <defs>\n${gradients.definitions.map(({ gradient, id }) => gradientDefinition(
-      gradient,
-      id
-    )).join('\n')}\n  </defs>`
+  const definitionEntries = [
+    ...gradients.definitions.map(({ gradient, id }) => gradientDefinition(gradient, id)),
+    ...gradients.clipDefinitions.map(({ elements, id }) => clipDefinition(elements, id))
+  ];
+  const definitions = definitionEntries.length
+    ? `\n  <defs>\n${definitionEntries.join('\n')}\n  </defs>`
     : '';
   const output = `<svg xmlns="http://www.w3.org/2000/svg" width="${number(options.width)}" height="${number(options.height)}" viewBox="0 0 ${number(options.width)} ${number(options.height)}">${title}${definitions}\n${body}\n</svg>\n`;
   if (new TextEncoder().encode(output).byteLength > limits.maxOutputBytes) {

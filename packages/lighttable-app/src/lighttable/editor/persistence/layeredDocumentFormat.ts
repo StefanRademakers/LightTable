@@ -13,7 +13,8 @@ import type {
   NormalizedImportProvenance,
   PhotoshopImportReport,
   PhotoshopLayerMetadata,
-  RasterMask
+  RasterMask,
+  VectorClip
 } from '../document/documentTypes';
 import { walkLayerTree } from '../document/layerTree';
 import { parseLightTableSettings } from '../../lightTableRecipe';
@@ -95,6 +96,7 @@ interface GroupLayerManifestEntry extends CommonLayerManifestEntry {
   type: 'group';
   compositing: 'pass-through' | 'isolated';
   mask: RasterMaskManifestEntry | null;
+  vectorClip?: VectorClipManifestEntry | null;
   children: LayerManifestEntry[];
 }
 
@@ -110,7 +112,17 @@ interface VectorLayerManifestEntry extends CommonLayerManifestEntry {
   role: 'artwork' | 'gradient-fill';
   antiAlias: boolean;
   elements: VectorElement[];
+  vectorClip?: VectorClipManifestEntry | null;
   mask: RasterMaskManifestEntry | null;
+}
+
+interface VectorClipManifestEntry {
+  id: string;
+  name: string;
+  enabled: boolean;
+  inverted: boolean;
+  revision: number;
+  elements: VectorElement[];
 }
 
 interface TextLayerManifestEntry extends CommonLayerManifestEntry {
@@ -323,6 +335,14 @@ export const buildLayeredDocumentFile = (
         ...common,
         type: 'group',
         compositing: layer.compositing,
+        vectorClip: layer.vectorClip ? {
+          id: layer.vectorClip.id,
+          name: layer.vectorClip.name,
+          enabled: layer.vectorClip.enabled,
+          inverted: layer.vectorClip.inverted,
+          revision: layer.vectorClip.revision,
+          elements: layer.vectorClip.elements.map(cloneVectorElement)
+        } : null,
         mask,
         children: layer.children.map(serializeLayer)
       };
@@ -373,6 +393,14 @@ export const buildLayeredDocumentFile = (
         role: layer.role ?? 'artwork',
         antiAlias: layer.antiAlias,
         elements: layer.elements.map(cloneVectorElement),
+        vectorClip: layer.vectorClip ? {
+          id: layer.vectorClip.id,
+          name: layer.vectorClip.name,
+          enabled: layer.vectorClip.enabled,
+          inverted: layer.vectorClip.inverted,
+          revision: layer.vectorClip.revision,
+          elements: layer.vectorClip.elements.map(cloneVectorElement)
+        } : null,
         mask
       };
     }
@@ -922,6 +950,29 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         || (entry.compositing !== 'pass-through' && entry.compositing !== 'isolated')
       ) throw new Error(`Group ${path} in the LightTable document is invalid.`);
       const parsedMask = parseMask();
+      let vectorClip: VectorClip | null = null;
+      if (entry.vectorClip !== null && entry.vectorClip !== undefined) {
+        if (
+          !isRecord(entry.vectorClip)
+          || typeof entry.vectorClip.id !== 'string'
+          || typeof entry.vectorClip.name !== 'string'
+          || typeof entry.vectorClip.enabled !== 'boolean'
+          || typeof entry.vectorClip.inverted !== 'boolean'
+          || typeof entry.vectorClip.revision !== 'number'
+          || !Number.isInteger(entry.vectorClip.revision)
+          || entry.vectorClip.revision < 0
+          || !Array.isArray(entry.vectorClip.elements)
+        ) throw new Error(`Group vector clip ${path} in the LightTable document is invalid.`);
+        vectorClip = {
+          id: entry.vectorClip.id,
+          name: entry.vectorClip.name,
+          enabled: entry.vectorClip.enabled,
+          inverted: entry.vectorClip.inverted,
+          revision: entry.vectorClip.revision,
+          elements: entry.vectorClip.elements.map((candidate, index) =>
+            parseVectorElement(candidate, `Group ${path} vector clip element ${index + 1}`))
+        };
+      }
       if (parsedMask.blob || parsedPreview.blob) {
         assets.push({ layerId: id, pixels: parsedPreview.blob ?? new Blob(), mask: parsedMask.blob });
       }
@@ -930,6 +981,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         type: 'group',
         compositing: entry.compositing,
         children: entry.children.map((child, index) => parseLayer(child, `${path}.${index + 1}`)),
+        vectorClip,
         mask: parsedMask.mask
       };
     }
@@ -961,6 +1013,29 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         throw new Error(`Vector layer ${path} has an invalid role.`);
       }
       const parsedMask = parseMask();
+      let vectorClip: VectorClip | null = null;
+      if (entry.vectorClip !== null && entry.vectorClip !== undefined) {
+        if (
+          !isRecord(entry.vectorClip)
+          || typeof entry.vectorClip.id !== 'string'
+          || typeof entry.vectorClip.name !== 'string'
+          || typeof entry.vectorClip.enabled !== 'boolean'
+          || typeof entry.vectorClip.inverted !== 'boolean'
+          || typeof entry.vectorClip.revision !== 'number'
+          || !Number.isInteger(entry.vectorClip.revision)
+          || entry.vectorClip.revision < 0
+          || !Array.isArray(entry.vectorClip.elements)
+        ) throw new Error(`Vector clip ${path} in the LightTable document is invalid.`);
+        vectorClip = {
+          id: entry.vectorClip.id,
+          name: entry.vectorClip.name,
+          enabled: entry.vectorClip.enabled,
+          inverted: entry.vectorClip.inverted,
+          revision: entry.vectorClip.revision,
+          elements: entry.vectorClip.elements.map((candidate, index) =>
+            parseVectorElement(candidate, `Layer ${path} vector clip element ${index + 1}`))
+        };
+      }
       if (parsedMask.blob || parsedPreview.blob) {
         assets.push({ layerId: id, pixels: parsedPreview.blob ?? new Blob(), mask: parsedMask.blob });
       }
@@ -971,6 +1046,7 @@ export const parseLayeredDocumentFile = async (blob: Blob): Promise<ParsedLayere
         antiAlias: entry.antiAlias,
         elements: entry.elements.map((candidate, index) =>
           parseVectorElement(candidate, `Layer ${path} element ${index + 1}`)),
+        vectorClip,
         mask: parsedMask.mask
       };
     }

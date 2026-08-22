@@ -231,6 +231,8 @@ export interface GroupLayer extends CommonLayer {
   /** Bottom-most child first, matching the document root ordering. */
   children: LayerNode[];
   compositing: 'pass-through' | 'isolated';
+  /** Editable vector geometry clipping the fully composed child result. */
+  vectorClip: VectorClip | null;
   mask: RasterMask | null;
 }
 
@@ -262,7 +264,18 @@ export interface VectorLayer extends CommonLayer {
    * derived geometry back into the document.
    */
   elements: VectorElement[];
+  /** Editable vector geometry that clips this layer before layer compositing. */
+  vectorClip: VectorClip | null;
   mask: RasterMask | null;
+}
+
+export interface VectorClip {
+  id: string;
+  name: string;
+  enabled: boolean;
+  inverted: boolean;
+  elements: VectorElement[];
+  revision: number;
 }
 
 /** Native text composes the frozen text payload with the existing layer base. */
@@ -284,12 +297,18 @@ export const semanticLayerDependencyKey = (layer: LayerNode): string | null => {
     return `text:${revisions.content}:${revisions.font}:${revisions.layout}:${revisions.paint}:${revisions.path}:${revisions.geometry}`;
   }
   if (layer.type === 'vector') {
+    const clip = layer.vectorClip
+      ? `:clip:${layer.vectorClip.id}:${layer.vectorClip.enabled}:${layer.vectorClip.inverted}`
+        + `:${layer.vectorClip.revision}:${layer.vectorClip.elements.map((element) => [
+          element.id, element.geometryRevision, element.transformRevision, element.styleRevision
+        ].join(':')).join('|')}`
+      : '';
     return `vector:${layer.elements.map((element) => [
       element.id,
       element.geometryRevision,
       element.transformRevision,
       element.styleRevision
-    ].join(':')).join('|')}`;
+    ].join(':')).join('|')}${clip}`;
   }
   return null;
 };
@@ -463,6 +482,7 @@ export const createGroupLayer = (name = 'Group'): GroupLayer => ({
   type: 'group',
   children: [],
   compositing: 'pass-through',
+  vectorClip: null,
   mask: null
 });
 
@@ -488,6 +508,7 @@ export const createVectorLayer = (
   role,
   antiAlias: true,
   elements: elements.map(cloneVectorElement),
+  vectorClip: null,
   mask: null
 });
 

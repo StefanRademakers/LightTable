@@ -845,6 +845,7 @@ export const importPsdDocument = (
         ...common,
         type: 'group',
         compositing: node.blendMode === 'pass through' ? 'pass-through' : 'isolated',
+        vectorClip: null,
         mask: node.mask ? {
           id: node.mask.id,
           enabled: node.mask.enabled,
@@ -911,6 +912,7 @@ export const importPsdDocument = (
           type: 'vector',
           antiAlias: true,
           elements: vectorImport.elements,
+          vectorClip: null,
           mask: node.mask ? {
             id: node.mask.id,
             enabled: node.mask.enabled,
@@ -1056,6 +1058,7 @@ export const importPsdDocument = (
           modifiedAt: now,
           antiAlias: true,
           elements: [textImport.path],
+          vectorClip: null,
           mask: null
         };
         return [pathLayer, layer];
