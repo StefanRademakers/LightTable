@@ -184,30 +184,28 @@ Baseline: `c71254b1`
 - `work/todo/task_303/` belongs to this active renderer program.
 - `work/todo/task_304/` belongs to the owner and must remain untouched.
 
-## Current focus
+## Final closure
 
-The renderer-neutral package split, selectable Vello backend, zero-copy shared
-texture route, linear-premultiplied color contract and secure reusable SVG
-normalization boundary are proven. Normalization recovers `<use>`, CSS, units,
-markers and basic shapes while the editable codec remains document authority.
-The first hierarchy dependency, SVG opacity groups, now uses existing canonical
-document groups rather than establishing a second vector-tree authority. Clip
-stacks remain the next semantic dependency before patterns, masks or filters
-can be represented safely. Mutation and immediate source-release evidence now
-pass, including one packaged forced-loss recovery; broader repeated open/close
-and retained-memory distributions are still required before selecting
-production routing.
+Task 303 is complete at `da214c62`. See `FINAL_REPORT.md` for the routing
+decision, package ownership, packaged distributions, rejected paths and manual
+promotion gates. Current WebGPU remains the shipping default; Vello remains a
+real selectable hybrid device/backend and wins the pathological editable-scene
+mutation and texture-memory cases. Both backends pass 16 packaged close/reopen
+cycles with flat estimated GPU bytes and bounded forced-GC heap. Vello's
+reproducible first-close latency and the explicit compound/inverted/mixed-mask
+clip gaps block automatic default promotion.
 
-## Next safe steps
+## Follow-up product work
 
-1. Add canonical clip-stack semantics without flattening or document mutation;
-   compile them to explicit PaintScene push/pop operations.
-2. Implement and compare clip layers in current WebGPU and Vello, including
-   nested and object-bounds cases.
-3. Harden SVG save/reopen and corpus round trips for every newly admitted
-   semantic feature.
-4. Run packaged current/Vello repeated open/close, crash and retained-memory
-   distributions; then record backend routing policy.
+1. Implement exact boolean union for multi-operand vector clips.
+2. Add inverted clips and exact vector+raster group-mask multiplication.
+3. Preserve exact vector-clip ordering with group layer styles.
+4. Diagnose the reproducible first Vello document-close latency before default
+   promotion.
+5. Extend editable SVG coverage to patterns, masks, filters, images and text,
+   with the same explicit security and fidelity boundaries.
+6. Repeat the packaged distributions on a second GPU vendor and a lower-tier
+   qualified machine.
 
 ## External fixtures
 

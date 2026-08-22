@@ -50,8 +50,8 @@ remain explicit at each importer/exporter boundary.
       bake-off; otherwise a documented evidence-backed architecture decision.
 - [x] SVG plus future AI/EPS/PDF compatibility consequences documented and
       reflected in importer/compiler boundaries.
-- [ ] Bounded correctness, crash, memory and lifecycle regression selection.
-- [ ] Owner-visible final report with commits, measurements, rejected paths,
+- [x] Bounded correctness, crash, memory and lifecycle regression selection.
+- [x] Owner-visible final report with commits, measurements, rejected paths,
       remaining risks and manual validation requirements.
 
 ## Commit policy
