@@ -102,12 +102,21 @@ for (const testCase of cases) {
           previousSaveState = stateKey;
           saveTimeline.push({ atMs: Math.round(performance.now() - saveStartedAt), toolbarStatus, tasks: documentState?.tasks ?? null });
         }
-        try {
-          const metadata = await sharp(sourceFile).metadata();
-          return metadata.width === 32 && metadata.height === 24
-            && metadata.format === testCase.format && metadata.depth === testCase.depth;
-        } catch { return false; }
-      }, `Save did not replace the original ${testCase.id} with a valid native file.`, 60_000);
+        // Do not open the source while LightTable is replacing it. On Windows,
+        // repeatedly probing WebP through libvips can hold a sharing-sensitive
+        // read handle exactly while the app performs its atomic rename. The
+        // application transaction is the synchronization boundary; validate
+        // the resulting file only after that transaction marks the revision
+        // clean and its task has retired.
+        return Boolean(documentState)
+          && documentState.dirty === false
+          && documentState.tasks?.activeCount === 0;
+      }, `Save did not commit the ${testCase.id} document revision.`, 60_000);
+      const metadata = await sharp(sourceFile).metadata();
+      if (metadata.width !== 32 || metadata.height !== 24
+        || metadata.format !== testCase.format || metadata.depth !== testCase.depth) {
+        throw new Error(`Save did not replace the original ${testCase.id} with a valid native file.`);
+      }
     } catch (reason) {
       const body = (await page.locator('body').innerText().catch(() => '')).slice(-4_000);
       throw new Error(`${reason instanceof Error ? reason.message : String(reason)}\nUI: ${body}\n${pageErrors.join('\n')}`);
