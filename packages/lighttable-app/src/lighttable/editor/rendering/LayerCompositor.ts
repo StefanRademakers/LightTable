@@ -84,6 +84,13 @@ interface LayerCompositorOptions {
   ) => void;
 }
 
+const rasterLayerHasEnabledProcessing = (
+  layer: Extract<LayerNode, { type: 'raster' }>
+) => Boolean(
+  layer.adjustmentStack
+  || layer.attachedAdjustments?.some(({ enabled }) => enabled)
+);
+
 /**
  * Evaluates the document compositor plan into a GPU texture.
  *
@@ -353,7 +360,7 @@ export class LayerCompositor {
         && !transformSessions.current
         && !geometryPreview
         && !layerStyleStackIsActive(layer.styleStack)
-        && !layer.adjustmentStack
+        && !rasterLayerHasEnabledProcessing(layer)
         && isIdentityAffineMatrix(layer.transform)
         && layer.width === width
         && layer.height === height
@@ -711,7 +718,7 @@ export class LayerCompositor {
       const ungradedForegroundTexture = transformUsesPreview && activeTransform
         ? activeTransform.previewTexture ?? runtime.texture
         : runtime.texture;
-      const foregroundTexture = layer.adjustmentStack && encodeAdjustment
+      const foregroundTexture = rasterLayerHasEnabledProcessing(layer) && encodeAdjustment
         ? encodeAdjustment(encoder, ungradedForegroundTexture, layer)
         : ungradedForegroundTexture;
       const renderContract = rasterRenderContract(layer, foregroundTexture);

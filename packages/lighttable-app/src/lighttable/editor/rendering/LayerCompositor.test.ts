@@ -60,6 +60,79 @@ describe('LayerCompositor', () => {
     expect(layerStyles.releaseCache).toHaveBeenCalledOnce();
   });
 
+  it('processes a raster layer whose only grade is an enabled attached adjustment', () => {
+    const document = createImageDocument('Attached grade', 64, 32, 'source');
+    const layer = document.layers[0];
+    if (layer.type !== 'raster') throw new Error('fixture raster missing');
+    layer.attachedAdjustments = [{
+      id: 'color-vibrance',
+      name: 'Color and Vibrance',
+      adjustmentKind: 'color-vibrance',
+      enabled: true,
+      revision: 1,
+      adjustmentStack: {
+        id: 'color-vibrance-stack',
+        revision: 1,
+        modules: [{
+          id: 'color-vibrance-module',
+          type: 'lt.photoshop-adjustment',
+          enabled: true,
+          revision: 1,
+          settings: { kind: 'color-vibrance' }
+        }]
+      }
+    }];
+    const source = texture();
+    const processed = texture();
+    const compositeA = texture();
+    const compositeB = texture();
+    const encodeAdjustment = vi.fn(() => processed);
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer: vi.fn() },
+        createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: {
+        raster: vi.fn(() => ({
+          texture: source,
+          width: 64,
+          height: 32,
+          maskTexture: null
+        }))
+      } as never,
+      targets: {
+        ensure: vi.fn(() => [compositeA, compositeB]),
+        destroy: vi.fn()
+      } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: vi.fn(), retainLayerIds: vi.fn() } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(texture),
+      clearTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+
+    compositor.encode({} as GPUCommandEncoder, document, encodeAdjustment);
+
+    expect(encodeAdjustment).toHaveBeenCalledOnce();
+    expect(encodeAdjustment).toHaveBeenCalledWith(expect.anything(), source, layer);
+
+    encodeAdjustment.mockClear();
+    layer.attachedAdjustments[0]!.enabled = false;
+    expect(compositor.encode({} as GPUCommandEncoder, document, encodeAdjustment)).toBe(source);
+    expect(encodeAdjustment).not.toHaveBeenCalled();
+  });
+
   it('composites a tight placed raster projective preview at document dimensions', () => {
     const document = createImageDocument('Placed transform', 1280, 720, 'source');
     const layer = document.layers[0];
