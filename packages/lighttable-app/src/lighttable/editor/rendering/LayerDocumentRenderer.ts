@@ -248,12 +248,15 @@ export class LayerDocumentRenderer {
   vectorBackendTelemetry() {
     const vector = this.runtime.vectorLayerRenderer.backendDiagnostics();
     if (!vector.detailedProfile?.enabled) return vector;
+    const islands = this.runtime.compositor.renderIslandTelemetry();
     return {
       ...vector,
+      renderIslandPlan: islands.plan,
       detailedProfile: {
         ...vector.detailedProfile,
         phases: {
           ...vector.detailedProfile.phases,
+          'render-island-planning': islands.timing,
           'final-layer-composite': this.runtime.compositor.compositeTelemetry()
         }
       }

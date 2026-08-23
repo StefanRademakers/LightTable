@@ -18,7 +18,8 @@ Acceptance checklist
 [x] Determine minimal compositing boundaries for the representative fixture.
 [x] Assess JSON, binary, typed arrays, shared memory and retained Rust mutations.
 [x] Preserve normal-build behavior; GPU timestamp instrumentation is diagnostic.
-[ ] Implement the render-island planner and retained cross-layer Rust scene.
+[x] Implement the pure render-island planner and diagnostic projection.
+[ ] Integrate island-owned retained surfaces and cross-layer Rust scenes.
 [ ] Implement bounded active/warm/cold/evicted resource policy.
 [ ] Obtain exclusive GPU timestamps through a supported native/capture path.
 

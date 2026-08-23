@@ -49,6 +49,7 @@ import {
   documentBlendProfileGpuValue,
   documentBlendQuantization
 } from '../color/documentColorTransform';
+import { planRenderIslands, type RenderIslandPlan } from './RenderIslandPlanner';
 
 interface LayerCompositorOptions {
   device: GPUDevice;
@@ -102,6 +103,11 @@ export class LayerCompositor {
   private compositeTotalMs = 0;
   private compositeLastMs = 0;
   private compositeMaximumMs = 0;
+  private islandPlan: RenderIslandPlan | null = null;
+  private islandPlanningExecutions = 0;
+  private islandPlanningTotalMs = 0;
+  private islandPlanningLastMs = 0;
+  private islandPlanningMaximumMs = 0;
 
   constructor(private readonly options: LayerCompositorOptions) {}
 
@@ -120,6 +126,11 @@ export class LayerCompositor {
     this.compositeTotalMs = 0;
     this.compositeLastMs = 0;
     this.compositeMaximumMs = 0;
+    this.islandPlan = null;
+    this.islandPlanningExecutions = 0;
+    this.islandPlanningTotalMs = 0;
+    this.islandPlanningLastMs = 0;
+    this.islandPlanningMaximumMs = 0;
   }
 
   compositeTelemetry() {
@@ -128,6 +139,39 @@ export class LayerCompositor {
       totalMs: this.compositeTotalMs,
       lastMs: this.compositeLastMs,
       maximumMs: this.compositeMaximumMs
+    };
+  }
+
+  renderIslandTelemetry() {
+    return {
+      plan: this.islandPlan ? {
+        canonicalVectorLayerCount: this.islandPlan.canonicalVectorLayerCount,
+        projectedSurfaceCount: this.islandPlan.projectedSurfaceCount,
+        directVectorRuns: this.islandPlan.islands.filter(
+          ({ role }) => role === 'direct-vector-run'
+        ).length,
+        isolatedVectorGroups: this.islandPlan.islands.filter(
+          ({ role }) => role === 'isolated-vector-group'
+        ).length,
+        velloEligibleIslands: this.islandPlan.islands.filter(
+          ({ backendEligibility }) => backendEligibility.vello
+        ).length,
+        islands: this.islandPlan.islands.map(island => ({
+          candidateKey: island.candidateKey,
+          role: island.role,
+          canonicalLayerIds: island.canonicalLayerIds,
+          isolationOwnerId: island.isolationOwnerId,
+          backendEligibility: island.backendEligibility,
+          complexity: island.complexity,
+          boundaryReasons: island.boundaryReasons
+        }))
+      } : null,
+      timing: {
+        executions: this.islandPlanningExecutions,
+        totalMs: this.islandPlanningTotalMs,
+        lastMs: this.islandPlanningLastMs,
+        maximumMs: this.islandPlanningMaximumMs
+      }
     };
   }
 
@@ -165,6 +209,15 @@ export class LayerCompositor {
     this.blendQuantization = documentBlendQuantization(document.colorSettings.bitDepth);
     layerStyles.setBlendProfile?.(this.blendProfile, this.blendQuantization);
     this.options.syncDocument(document);
+    if (this.compositeProfilingEnabled) {
+      const planningStartedAt = performance.now();
+      this.islandPlan = planRenderIslands(document.layers);
+      const durationMs = performance.now() - planningStartedAt;
+      this.islandPlanningExecutions += 1;
+      this.islandPlanningTotalMs += durationMs;
+      this.islandPlanningLastMs = durationMs;
+      this.islandPlanningMaximumMs = Math.max(this.islandPlanningMaximumMs, durationMs);
+    }
     const analysis = analyzeDocumentComposite(
       document.layers,
       (layerId) => Boolean(this.options.maskTextureFor(layerId))

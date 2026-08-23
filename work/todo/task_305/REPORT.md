@@ -259,6 +259,33 @@ feature support, with parity fallback—not a magic layer-count threshold.
 7. Capture exclusive GPU timestamps on a supported native/Dawn diagnostic path
    before claiming GPU percentages or selecting thresholds.
 
-This pass deliberately does not merge layers or implement the island planner as
-an opportunistic patch. Those changes need a typed semantic plan and oracle
-coverage because a wrong boundary silently changes pixels.
+This pass deliberately does not merge layers or wire island ownership into the
+renderer as an opportunistic patch. Resource integration needs the typed
+semantic plan and oracle coverage below because a wrong boundary silently
+changes pixels.
+
+## Phase 1 follow-up: semantic planner implemented
+
+The pure `RenderIslandPlanner` is now implemented and connected only to
+diagnostic telemetry. It does not yet own rendering resources and therefore
+cannot change document pixels.
+
+The production-packaged representative fixture reports:
+
+- 16 canonical vector layers in the current import;
+- 5 projected surfaces;
+- 3 direct vector runs;
+- 2 observable isolated-opacity groups;
+- 5 Vello-eligible islands;
+- 0.07 ms planning time for the measured mutation frame.
+
+The earlier 17-layer count came from a different captured import state; the
+architectural result is unchanged. The current canonical document can reduce
+from 16 per-layer surfaces to five true boundaries.
+
+The live diagnostic also exposed that SVG import marks many neutral `<g>`
+nodes as `compositing: isolated`. The planner does not blindly convert that
+flag into a surface. Opacity-1, normal source-over vector groups are associative
+and therefore unobservable as isolation boundaries. Isolation is retained when
+group opacity, descendant blend/processing, masks, effects or clipping make it
+observable. Tests cover both the collapsible and observable cases.

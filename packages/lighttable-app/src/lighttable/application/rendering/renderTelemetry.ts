@@ -29,6 +29,25 @@ export interface VectorBackendTelemetrySnapshot {
   readonly velloUnchangedSceneReuses?: number;
   readonly velloSurfaceRecreations?: number;
   readonly velloReleasedSources?: number;
+  readonly renderIslandPlan?: {
+    readonly canonicalVectorLayerCount: number;
+    readonly projectedSurfaceCount: number;
+    readonly directVectorRuns: number;
+    readonly isolatedVectorGroups: number;
+    readonly velloEligibleIslands: number;
+    readonly islands: readonly {
+      readonly candidateKey: string;
+      readonly role: 'direct-vector-run' | 'isolated-vector-group';
+      readonly canonicalLayerIds: readonly string[];
+      readonly isolationOwnerId: string | null;
+      readonly backendEligibility: { readonly native: true; readonly vello: boolean };
+      readonly complexity: {
+        readonly canonicalLayerCount: number;
+        readonly vectorElementCount: number;
+      };
+      readonly boundaryReasons: readonly string[];
+    }[];
+  } | null;
   readonly detailedProfile?: {
     readonly enabled: boolean;
     readonly actualGpuTimingAvailable: boolean;
