@@ -65,6 +65,7 @@ import {
 } from './layerTree';
 import { addLayerStyle } from '../styles/layerStyleCommands';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
+import { createDefaultGradientPaint } from '@lighttable/paint-core';
 
 describe('LightTable document commands', () => {
   it('creates a tight placed raster with document-space placement', () => {
@@ -311,6 +312,27 @@ describe('LightTable document commands', () => {
     expect(layer?.transform).toEqual(translationMatrix(12, -7));
     expect(layer?.mask?.linked).toBe(false);
     expect(layer?.mask?.transform).toEqual(translationMatrix(0, 0));
+  });
+
+  it('carries document-space vector paint with a whole-layer transform', () => {
+    const source = createImageDocument('Vector gradient', 100, 50, 'asset');
+    const shape = createVectorLiveShape('gradient-circle', {
+      kind: 'ellipse', width: 20, height: 20
+    });
+    shape.style.fill = {
+      ...createDefaultGradientPaint('normalized-svg-gradient', 'document'),
+      shape: 'radial',
+      transform: translationMatrix(30, 20)
+    };
+    const withVector = createVectorLayer(source, [shape]);
+    const layerId = withVector.activeLayerId!;
+
+    const moved = setLayerTransform(withVector, layerId, translationMatrix(12, -7));
+    const layer = findDocumentLayer(moved, layerId);
+    const fill = layer?.type === 'vector' ? layer.elements[0]?.style.fill : null;
+
+    expect(fill && 'kind' in fill ? fill.transform : null)
+      .toEqual(translationMatrix(42, 13));
   });
 
   it('transforms an unlinked mask without changing layer geometry', () => {

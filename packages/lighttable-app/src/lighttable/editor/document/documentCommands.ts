@@ -27,6 +27,7 @@ import {
   convertLiveShapeToPath,
   createVectorLiveShape,
   parseVectorElement,
+  transformVectorElementDocumentPaint,
   type VectorElement,
   type VectorLiveShape,
   type VectorPath
@@ -995,8 +996,51 @@ export const setLayersLock = (
     : document;
 };
 
-export const setLayerTransform = (document: ImageDocument, layerId: LayerId, transform: AffineMatrix) =>
-  updateLayer(document, layerId, (layer) => {
+export const setLayerTransform = (
+  document: ImageDocument,
+  layerId: LayerId,
+  transform: AffineMatrix
+) => {
+  const sceneTransforms = buildSceneTransformIndex(document);
+  const resolved = sceneTransforms.get(layerId);
+  const parentToDocument = resolved?.parentId
+    ? sceneTransforms.get(resolved.parentId)?.localToDocument ?? null
+    : identityAffineMatrix();
+  const nextLocalToDocument = parentToDocument
+    ? multiplyMatrices(parentToDocument, transform)
+    : null;
+  const documentOperation = nextLocalToDocument && resolved?.documentToLocal
+    ? multiplyMatrices(nextLocalToDocument, resolved.documentToLocal)
+    : null;
+  const now = Date.now();
+  const carryDocumentPaint = (node: LayerNode, incrementOwner: boolean): LayerNode => {
+    if (!documentOperation) return node;
+    if (node.type === 'vector') {
+      const elements = node.elements.map((element) =>
+        transformVectorElementDocumentPaint(element, documentOperation));
+      if (!elements.some((element, index) => element !== node.elements[index])) return node;
+      return {
+        ...node,
+        elements,
+        ...(incrementOwner ? {
+          revision: node.revision + 1,
+          modifiedAt: now
+        } : {})
+      };
+    }
+    if (node.type !== 'group') return node;
+    const children = node.children.map((child) => carryDocumentPaint(child, true));
+    if (!children.some((child, index) => child !== node.children[index])) return node;
+    return {
+      ...node,
+      children,
+      ...(incrementOwner ? {
+        revision: node.revision + 1,
+        modifiedAt: now
+      } : {})
+    };
+  };
+  return updateLayer(document, layerId, (layer) => {
     if (!isFiniteAffineMatrix(transform)) return layer;
     if (
       layer.transform.a === transform.a
@@ -1017,15 +1061,17 @@ export const setLayerTransform = (document: ImageDocument, layerId: LayerId, tra
           revision: layer.mask.revision + 1
         }
       : layer.mask;
+    const paintedLayer = carryDocumentPaint(layer, false);
     return {
-      ...layer,
+      ...paintedLayer,
       transform: { ...transform },
       mask,
-      geometryRevision: layer.geometryRevision + 1,
-      revision: layer.revision + 1,
-      modifiedAt: Date.now()
+      geometryRevision: paintedLayer.geometryRevision + 1,
+      revision: paintedLayer.revision + 1,
+      modifiedAt: now
     };
   });
+};
 
 /** Records a raster surface whose pixels now live directly in document space. */
 export const setRasterLayerDocumentSurface = (

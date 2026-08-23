@@ -330,7 +330,6 @@ import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeo
 import type { SnapMatch } from './application/tools/snapping/snapEngine';
 import { addDocumentGuide, clearDocumentGuides, replaceDocumentGuides } from './editor/document/guideCommands';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
-import { transformVectorElementDocumentPaint } from '@lighttable/vector-core';
 import { isVectorEditorTool } from './editor/tools/vectorToolCatalog';
 import type { VectorElementCreationTransaction } from './application/vectors/VectorDocumentController';
 import {
@@ -384,7 +383,6 @@ import {
   mergeLayers as mergeDocumentLayers,
   setRasterLayerAdjustmentStack,
   setLayerTransform,
-  replaceVectorLayerElements
 } from './editor/document/documentCommands';
 import { invertMatrix, transformPoint } from './editor/geometry/affine';
 import {
@@ -3954,15 +3952,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ? engine.updateSemanticLayerTransform(layer, matrix)
         : engine.cancelSemanticLayerTransform(layer);
     },
-    commitLayerTransformPreview: (before, layerId, matrix, documentOperation) => {
+    commitLayerTransformPreview: (before, layerId, matrix, _documentOperation) => {
       const source = findDocumentLayer(before, layerId);
       if (source?.type !== 'vector') return false;
-      let after = setLayerTransform(before, layerId, matrix);
-      const painted = source.elements.map((element) =>
-        transformVectorElementDocumentPaint(element, documentOperation));
-      if (painted.some((element, index) => element !== source.elements[index])) {
-        after = replaceVectorLayerElements(after, layerId, painted);
-      }
+      const after = setLayerTransform(before, layerId, matrix);
       applyDocumentSnapshot(after);
       pushDocumentHistory(before, after);
       return true;
