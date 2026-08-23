@@ -33,9 +33,8 @@ import {
   scaleMatrix,
   transformedBounds
 } from '../../../editor/tools/transform/affine';
-import { layerDocumentSnapBounds } from '../snapping/layerSnapGeometry';
-import { unionSnapRects } from '../snapping/snapEngine';
 import {
+  measureTransformGroupBounds,
   topLevelTransformLayerIds,
   transformLayerGroupInDocumentSpace
 } from '../snapping/groupLayerTransform';
@@ -345,11 +344,13 @@ export const useTransformSessionController = (
         return candidate && !layerIsLocked(candidate, 'position');
       });
     if (groupIds.length > 1) {
-      const bounds = unionSnapRects(groupIds.flatMap((layerId) => {
-        const candidate = findDocumentLayer(document, layerId);
-        const rect = candidate ? layerDocumentSnapBounds(document, candidate) : null;
-        return rect ? [rect] : [];
-      }));
+      const bounds = await measureTransformGroupBounds(document, groupIds, renderer);
+      const latest = dependenciesRef.current;
+      const latestSelectionKey = [...new Set(latest.selectedLayerIds ?? [])].join('\u0000');
+      if (
+        document.id !== latest.getDocument()?.id
+        || requestedSelectionKey !== latestSelectionKey
+      ) return;
       if (!bounds) {
         current.setError('The selected layers have no measurable content yet.');
         return;
