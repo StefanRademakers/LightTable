@@ -860,13 +860,13 @@ export class VectorLayerRenderer {
     }
   }
 
-  canRenderIslands(islands: readonly RetainedRenderIsland[]) {
+  canRenderIsland(island: RetainedRenderIsland) {
     if (this.selectedBackend !== 'vello' || this.velloFailure) return false;
-    return islands.every(island => island.backendEligibility.vello
+    return island.backendEligibility.vello
       && (island.role === 'direct-vector-run' || !island.boundaryReasons.some(reason => (
         ['clipping-chain', 'derived-preview', 'layer-effects'].includes(reason)
         || (reason === 'layer-mask' && !island.islandVectorClip)
-      ))));
+      )));
   }
 
   /**

@@ -113,6 +113,7 @@ export class LayerCompositor {
   private islandPlanningTotalMs = 0;
   private islandPlanningLastMs = 0;
   private islandPlanningMaximumMs = 0;
+  private velloIslandCandidateKeys = new Set<string>();
   private readonly retainedIslands = new RetainedRenderIslandRegistry();
 
   constructor(private readonly options: LayerCompositorOptions) {}
@@ -137,6 +138,7 @@ export class LayerCompositor {
     this.islandPlanningTotalMs = 0;
     this.islandPlanningLastMs = 0;
     this.islandPlanningMaximumMs = 0;
+    this.velloIslandCandidateKeys.clear();
   }
 
   compositeTelemetry() {
@@ -169,7 +171,10 @@ export class LayerCompositor {
           isolationOwnerId: island.isolationOwnerId,
           backendEligibility: island.backendEligibility,
           complexity: island.complexity,
-          boundaryReasons: island.boundaryReasons
+          boundaryReasons: island.boundaryReasons,
+          selectedBackend: this.velloIslandCandidateKeys.has(island.candidateKey)
+            ? 'vello' as const
+            : 'current' as const
         }))
       } : null,
       timing: {
@@ -227,24 +232,32 @@ export class LayerCompositor {
       this.islandPlanningMaximumMs = Math.max(this.islandPlanningMaximumMs, durationMs);
     }
     const islandTextures = new Map<string, GPUTexture>();
-    let islandRenderingActive = vectorRenderIslandsEnabled()
+    this.velloIslandCandidateKeys.clear();
+    const islandRenderingEnabled = vectorRenderIslandsEnabled()
       && excludedLayerIds.size === 0
-      && typeof vectors.canRenderIslands === 'function'
-      && vectors.canRenderIslands(retainedIslandPlan.islands)
-      && retainedIslandPlan.islands.every(island => island.members.every(
+      && typeof vectors.canRenderIsland === 'function';
+    const renderableIslands = islandRenderingEnabled
+      ? retainedIslandPlan.islands.filter(island => (
+        vectors.canRenderIsland(island)
+        && island.members.every(
         ({ layer }) => !geometryPreviews.resolve(layer.id, layer.geometryRevision)
-      ));
+        )
+      ))
+      : [];
+    let islandRenderingActive = renderableIslands.length > 0;
     if (islandRenderingActive) {
-      vectors.prepareIslandFrame(retainedIslandPlan.islands);
-      for (const island of retainedIslandPlan.islands) {
+      vectors.prepareIslandFrame(renderableIslands);
+      for (const island of renderableIslands) {
         if (!island.members.some(member => member.participates)) continue;
         const texture = vectors.encodeIsland(island, { width, height });
         if (!texture) {
           islandRenderingActive = false;
           islandTextures.clear();
+          this.velloIslandCandidateKeys.clear();
           break;
         }
         islandTextures.set(island.resourceId, texture);
+        this.velloIslandCandidateKeys.add(island.candidateKey);
       }
     }
     const analysis = analyzeDocumentComposite(
@@ -258,14 +271,20 @@ export class LayerCompositor {
       layer => !excludedLayerIds.has(layer.id)
     );
     const retainedIslandOwnerIds = new Set(
-      retainedIslandPlan.islands.flatMap(island => (
+      renderableIslands.flatMap(island => (
         island.isolationOwnerId ? [island.isolationOwnerId] : []
       ))
+    );
+    const retainedIslandLayerIds = new Set(
+      renderableIslands.flatMap(island => island.canonicalLayerIds)
     );
     const retainedVectorResources = new Set<string>();
     const retainDocumentVectorResources = (nodes: readonly LayerNode[]) => {
       for (const node of nodes) {
-        if (node.type === 'text' || (!islandRenderingActive && node.type === 'vector')) {
+        if (
+          node.type === 'text'
+          || (node.type === 'vector' && !retainedIslandLayerIds.has(node.id))
+        ) {
           retainedVectorResources.add(node.id);
         }
         if (node.type !== 'group') continue;
@@ -280,7 +299,7 @@ export class LayerCompositor {
     };
     retainDocumentVectorResources(document.layers);
     if (islandRenderingActive) {
-      for (const island of retainedIslandPlan.islands) {
+      for (const island of renderableIslands) {
         retainedVectorResources.add(island.resourceId);
       }
     }

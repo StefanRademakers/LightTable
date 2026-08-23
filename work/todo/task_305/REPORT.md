@@ -478,3 +478,25 @@ Evidence:
 - `tmp/task-305-vortex-open-profile/report.json`
 - `tmp/task-305-vortex-detailed-open/report.json`
 - `tmp/task-305-vortex-batched-open/report.json`
+
+## Phase 6: semantic per-island backend routing
+
+Backend eligibility is now applied per retained island rather than as an
+all-or-nothing document switch. A supported island may render through Vello
+while an adjacent island with an inverted clip, unsupported effect, derived
+preview or other explicit boundary continues through the established per-layer
+renderer. Raster interleaves and compositor ordering remain authoritative.
+
+This is a conservative hybrid route, not yet a performance cost model: native
+LightTable remains the fallback for unsupported islands, while eligible islands
+use Vello in a Vello-selected package. A genuine Vello encode/runtime failure
+still clears the partial island result and falls back deterministically for the
+whole frame. Telemetry now reports the actually selected backend per planned
+island.
+
+A mixed vector/raster unit gate proves one eligible island uses Vello while an
+inverted-clip island uses the canonical per-layer fallback in the same frame.
+The packaged layered SVG regression remains at five surfaces with unchanged
+pixel evidence and no backend failure.
+
+Evidence: `tmp/task-305-hybrid-regression/report.json`.

@@ -370,6 +370,67 @@ describe('LayerCompositor', () => {
     expect(drawFullscreen).toHaveBeenCalledOnce();
   });
 
+  it('routes supported islands to Vello while preserving per-layer fallback', () => {
+    const document = createImageDocument('Hybrid vectors', 64, 32, 'source');
+    const raster = document.layers[0];
+    const eligible = createVectorLayer([], 'Eligible');
+    const fallback = createVectorLayer([], 'Fallback');
+    fallback.vectorClip = {
+      id: 'inverted', name: 'Inverted', enabled: true, inverted: true,
+      elements: [], revision: 0
+    };
+    document.layers = [eligible, raster, fallback];
+    document.activeLayerId = fallback.id;
+    const compositeA = texture(); const compositeB = texture();
+    const islandTexture = texture(); const fallbackTexture = texture(); const rasterTexture = texture();
+    const encodedIslands: { canonicalLayerIds: readonly string[] }[] = [];
+    const encodedLayers: unknown[] = [];
+    const encodeIsland = vi.fn((island: { canonicalLayerIds: readonly string[] }) => {
+      encodedIslands.push(island); return islandTexture;
+    });
+    const encodeVector = vi.fn((_encoder: unknown, layer: unknown) => {
+      encodedLayers.push(layer); return fallbackTexture;
+    });
+    const vectors = {
+      canRenderIsland: vi.fn((island: { backendEligibility: { vello: boolean } }) => (
+        island.backendEligibility.vello
+      )),
+      prepareIslandFrame: vi.fn(), encodeIsland,
+      encode: encodeVector, retainLayerIds: vi.fn()
+    };
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer: vi.fn() }, createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => ({ texture: rasterTexture, maskTexture: null })) } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: vectors as never,
+      dimensions: () => ({ width: 64, height: 32 }), syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null), createTexture: vi.fn(texture),
+      clearTexture: vi.fn(), drawFullscreen: vi.fn()
+    });
+
+    compositor.resetCompositeTelemetry();
+    compositor.encode({} as GPUCommandEncoder, document);
+
+    expect(encodeIsland).toHaveBeenCalledOnce();
+    expect(encodedIslands[0]?.canonicalLayerIds).toEqual([eligible.id]);
+    expect(encodeVector).toHaveBeenCalledOnce();
+    expect(encodedLayers[0]).toBe(fallback);
+    expect(compositor.renderIslandTelemetry().plan?.islands.map(island => (
+      island.selectedBackend
+    ))).toEqual(['vello', 'current']);
+  });
+
   it('renders fixture text as a derived GPU vector placeholder without hiding raster layers', () => {
     const document = createImageDocument('Text fixture', 64, 32, 'source');
     const textLayer = createTextLayerNode(createDefaultTextLayerData(), 'Headline');
