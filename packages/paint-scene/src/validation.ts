@@ -75,9 +75,4 @@ export const assertPaintSceneIsValid = (scene: PaintScene): void => {
     }
   };
   visit(scene.composition, 1);
-  for (const fragmentId of fragmentIds) {
-    if (!referencedFragments.has(fragmentId)) {
-      throw new Error(`Paint-scene composition omits fragment ${fragmentId}.`);
-    }
-  }
 };

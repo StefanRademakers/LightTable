@@ -4,7 +4,13 @@ import {
   type VectorElement,
   type VectorPath
 } from '@lighttable/vector-core';
-import { compileVectorPaintScene } from '@lighttable/paint-scene-adapters';
+import {
+  compileVectorPaintSceneIslandMember,
+  composeVectorPaintSceneIsland,
+  compileVectorPaintScene,
+  compileVectorPaintSceneIsland,
+  type CompiledVectorPaintSceneIslandMember
+} from '@lighttable/paint-scene-adapters';
 import {
   quantizeDocumentTolerance,
   realizeVectorPath,
@@ -20,6 +26,7 @@ import {
 } from '@lighttable/vector-webgpu';
 import {
   VelloPaintSceneBackend,
+  type VelloPaintSceneRenderMetrics,
   type VelloPaintSceneProfilePhase,
   type VelloPaintSceneSurface
 } from '@lighttable/vector-vello';
@@ -31,6 +38,7 @@ import {
 } from '../document/documentTypes';
 import type { AffineMatrix } from './renderContract';
 import { vectorRendererBackendSelection } from '../../gpu/vectorRendererBackendDiagnostics';
+import type { RetainedRenderIsland } from './RetainedRenderIslandRegistry';
 
 /** Maximum flattening error in physical presentation pixels. */
 const DEFAULT_TOLERANCE_PX = 0.25;
@@ -76,6 +84,29 @@ interface VelloLayerSurface {
   readonly surface: VelloPaintSceneSurface;
   renderedSceneKey: string | null;
   renderedDependency: VelloLayerDependency | null;
+  renderedIslandDependency: VelloIslandDependency | null;
+  retainedIslandProjection: RetainedIslandProjection | null;
+}
+
+export interface RetainedIslandProjection {
+  readonly members: ReadonlyMap<string, {
+    readonly sourceRevision: string;
+    readonly compiled: CompiledVectorPaintSceneIslandMember;
+  }>;
+  readonly islandClipRevision: string;
+  readonly compiledIslandClip: ReturnType<typeof compileVectorPaintScene> | null;
+}
+
+interface VelloIslandDependency {
+  readonly members: readonly {
+    readonly elements: readonly VectorElement[];
+    readonly layerToDocument: string;
+    readonly clipElements: readonly VectorElement[] | null;
+    readonly clipRevision: number;
+    readonly participates: boolean;
+  }[];
+  readonly islandClipElements: readonly VectorElement[] | null;
+  readonly islandClipRevision: string;
 }
 
 interface VelloLayerDependency {
@@ -109,6 +140,35 @@ const sameVelloLayerDependency = (
   && left.clipRevision === right.clipRevision
   && left.clipEnabled === right.clipEnabled
   && left.clipInverted === right.clipInverted;
+
+const velloIslandDependency = (island: RetainedRenderIsland): VelloIslandDependency => ({
+  members: island.members.map(({ layer, layerToDocument, participates }) => ({
+    elements: layer.elements,
+    layerToDocument: matrixFingerprint(layerToDocument),
+    clipElements: layer.vectorClip?.elements ?? null,
+    clipRevision: layer.vectorClip?.revision ?? -1,
+    participates
+  })),
+  islandClipElements: island.islandVectorClip?.elements ?? null,
+  islandClipRevision: island.islandVectorClip?.revisionKey ?? ''
+});
+
+const sameVelloIslandDependency = (
+  left: VelloIslandDependency | null,
+  right: VelloIslandDependency
+) => left !== null
+  && left.members.length === right.members.length
+  && left.islandClipElements === right.islandClipElements
+  && left.islandClipRevision === right.islandClipRevision
+  && left.members.every((member, index) => {
+    const candidate = right.members[index];
+    return candidate !== undefined
+      && member.elements === candidate.elements
+      && member.layerToDocument === candidate.layerToDocument
+      && member.clipElements === candidate.clipElements
+      && member.clipRevision === candidate.clipRevision
+      && member.participates === candidate.participates;
+  });
 
 export interface VectorTimingAggregate {
   readonly executions: number;
@@ -218,6 +278,150 @@ export const compileVelloVectorLayerScene = (
   };
 };
 
+export const vectorIslandPaintSceneRevision = (island: RetainedRenderIsland) => fnv1a64([
+  island.resourceId,
+  island.role,
+  island.isolationOwnerId ?? '',
+  island.islandVectorClip?.revisionKey ?? '',
+  ...island.members.flatMap(({ layer, layerToDocument, participates }) => [
+    layer.id,
+    vectorLayerPaintSceneRevision(layer, layerToDocument),
+    String(participates)
+  ])
+]);
+
+export const compileVelloVectorIslandScene = (
+  island: RetainedRenderIsland,
+  profile?: (phase: VectorDetailedProfilePhase, durationMs: number) => void,
+  sourceRevision = vectorIslandPaintSceneRevision(island)
+) => {
+  const compilationStartedAt = profile ? performance.now() : 0;
+  const result = compileVectorPaintSceneIsland(
+    island.resourceId,
+    sourceRevision,
+    island.members.map(({ layer, layerToDocument, participates }) => ({
+      layerId: layer.id,
+      sourceRevision: vectorLayerPaintSceneRevision(layer, layerToDocument),
+      elements: layer.elements,
+      parentTransform: layerToDocument,
+      participates,
+      ...(layer.vectorClip?.enabled && !layer.vectorClip.inverted ? {
+        clip: {
+          stableId: layer.vectorClip.id,
+          revisionKey: `${layer.vectorClip.revision}:${layer.vectorClip.elements.map(element => [
+            element.id, element.geometryRevision, element.transformRevision
+          ].join(':')).join('|')}`,
+          elements: layer.vectorClip.elements
+        }
+      } : {})
+    })),
+    {
+      ...(island.islandVectorClip ? {
+        clip: {
+          stableId: island.islandVectorClip.stableId,
+          revisionKey: island.islandVectorClip.revisionKey,
+          elements: island.islandVectorClip.elements,
+          parentTransform: island.islandVectorClip.parentTransform,
+          stableIdNamespace: island.isolationOwnerId ?? island.resourceId
+        }
+      } : {}),
+      ...(profile ? {
+        now: () => performance.now(),
+        profile: (phase, durationMs) => profile(
+        phase === 'js-object-construction'
+          ? 'paint-scene-js-object-construction'
+          : phase === 'scene-validation'
+            ? 'paint-scene-validation'
+            : phase,
+        durationMs
+      )
+      } : {})
+    }
+  );
+  profile?.('paint-scene-compilation', performance.now() - compilationStartedAt);
+  return { ...result, sceneKey: `${island.resourceId}:${sourceRevision}` };
+};
+
+export const compileRetainedVelloVectorIslandScene = (
+  island: RetainedRenderIsland,
+  previous: RetainedIslandProjection | null,
+  profile?: (phase: VectorDetailedProfilePhase, durationMs: number) => void,
+  sourceRevision = vectorIslandPaintSceneRevision(island)
+) => {
+  const compilationStartedAt = profile ? performance.now() : 0;
+  const adapterProfile = profile ? ((phase: 'canonical-projection'
+    | 'js-object-construction' | 'scene-validation', durationMs: number) => profile(
+    phase === 'js-object-construction'
+      ? 'paint-scene-js-object-construction'
+      : phase === 'scene-validation'
+        ? 'paint-scene-validation'
+        : phase,
+    durationMs
+  )) : undefined;
+  const members = new Map<string, {
+    sourceRevision: string;
+    compiled: CompiledVectorPaintSceneIslandMember;
+  }>();
+  let compiledMemberCount = 0;
+  const compiled = island.members.map(({ layer, layerToDocument, participates }) => {
+    const memberRevision = vectorLayerPaintSceneRevision(layer, layerToDocument);
+    const member = {
+      layerId: layer.id,
+      sourceRevision: memberRevision,
+      elements: layer.elements,
+      parentTransform: layerToDocument,
+      participates,
+      ...(layer.vectorClip?.enabled && !layer.vectorClip.inverted ? {
+        clip: {
+          stableId: layer.vectorClip.id,
+          revisionKey: `${layer.vectorClip.revision}:${layer.vectorClip.elements.map(element => [
+            element.id, element.geometryRevision, element.transformRevision
+          ].join(':')).join('|')}`,
+          elements: layer.vectorClip.elements
+        }
+      } : {})
+    };
+    const cached = previous?.members.get(layer.id);
+    const result = cached?.sourceRevision === memberRevision
+      ? { member, result: cached.compiled.result }
+      : compileVectorPaintSceneIslandMember(island.resourceId, member, {
+          ...(adapterProfile ? { profile: adapterProfile } : {}),
+          ...(profile ? { now: () => performance.now() } : {})
+        });
+    if (cached?.sourceRevision !== memberRevision) compiledMemberCount += 1;
+    members.set(layer.id, { sourceRevision: memberRevision, compiled: result });
+    return result;
+  });
+  const islandClipRevision = island.islandVectorClip?.revisionKey ?? '';
+  const compiledIslandClip = island.islandVectorClip
+    ? previous?.islandClipRevision === islandClipRevision
+      ? previous.compiledIslandClip
+      : compileVectorPaintScene([], {
+          sourceId: `${island.resourceId}:island-clip`,
+          sourceRevision: islandClipRevision,
+          parentTransform: island.islandVectorClip.parentTransform,
+          stableIdNamespace: island.isolationOwnerId ?? island.resourceId,
+          clip: {
+            stableId: island.islandVectorClip.stableId,
+            revisionKey: islandClipRevision,
+            elements: island.islandVectorClip.elements
+          },
+          ...(adapterProfile ? { profile: adapterProfile } : {}),
+          ...(profile ? { now: () => performance.now() } : {})
+        })
+    : null;
+  const result = composeVectorPaintSceneIsland(
+    island.resourceId, sourceRevision, compiled, compiledIslandClip
+  );
+  profile?.('paint-scene-compilation', performance.now() - compilationStartedAt);
+  return {
+    ...result,
+    sceneKey: `${island.resourceId}:${sourceRevision}`,
+    compiledMemberCount,
+    projection: { members, islandClipRevision, compiledIslandClip } satisfies RetainedIslandProjection
+  };
+};
+
 /**
  * Bounded CPU-side projection cache. Geometry revisions, rather than object
  * identity, are authoritative so transforms and paint changes reuse the same
@@ -287,6 +491,7 @@ export class VectorLayerRenderer {
   private velloUploadedClips = 0;
   private velloUnsupportedLayerEncodes = 0;
   private velloFullCompilations = 0;
+  private velloProjectedIslandMembers = 0;
   private velloUnchangedSceneReuses = 0;
   private velloSurfaceRecreations = 0;
   private velloReleasedSources = 0;
@@ -415,6 +620,120 @@ export class VectorLayerRenderer {
     return output.texture;
   }
 
+  encodeIsland(
+    island: RetainedRenderIsland,
+    dimensions: { width: number; height: number }
+  ): GPUTexture | null {
+    if (this.selectedBackend !== 'vello' || this.velloFailure) return null;
+    if (!island.backendEligibility.vello) return null;
+    const dependencyStartedAt = this.detailedProfilingEnabled ? performance.now() : 0;
+    const dependency = velloIslandDependency(island);
+    const existing = this.velloSurfaces.get(island.resourceId);
+    if (
+      existing
+      && existing.surface.width === dimensions.width
+      && existing.surface.height === dimensions.height
+      && sameVelloIslandDependency(existing.renderedIslandDependency, dependency)
+    ) {
+      if (this.detailedProfilingEnabled) {
+        this.recordDetailedPhase('dependency-key', performance.now() - dependencyStartedAt);
+      }
+      this.velloUnchangedSceneReuses += 1;
+      this.velloLayerEncodes += 1;
+      return existing.surface.texture;
+    }
+    const sourceRevision = vectorIslandPaintSceneRevision(island);
+    if (
+      existing
+      && existing.surface.width === dimensions.width
+      && existing.surface.height === dimensions.height
+      && existing.renderedSceneKey === `${island.resourceId}:${sourceRevision}`
+    ) {
+      existing.renderedIslandDependency = dependency;
+      if (this.detailedProfilingEnabled) {
+        this.recordDetailedPhase('dependency-key', performance.now() - dependencyStartedAt);
+      }
+      this.velloUnchangedSceneReuses += 1;
+      this.velloLayerEncodes += 1;
+      return existing.surface.texture;
+    }
+    if (this.detailedProfilingEnabled) {
+      this.recordDetailedPhase('dependency-key', performance.now() - dependencyStartedAt);
+    }
+    this.velloFullCompilations += 1;
+    const compiled = compileRetainedVelloVectorIslandScene(
+      island,
+      existing?.retainedIslandProjection ?? null,
+      this.detailedProfilingEnabled
+        ? (phase, durationMs) => this.recordDetailedPhase(phase, durationMs)
+        : undefined,
+      sourceRevision
+    );
+    if (compiled.status !== 'ready') {
+      this.velloUnsupportedLayerEncodes += 1;
+      return null;
+    }
+    this.velloProjectedIslandMembers += compiled.compiledMemberCount;
+    try {
+      const backend = this.vello ??= new VelloPaintSceneBackend(this.device);
+      let entry = this.velloSurfaces.get(island.resourceId);
+      if (
+        !entry
+        || entry.surface.width !== dimensions.width
+        || entry.surface.height !== dimensions.height
+      ) {
+        if (entry) {
+          this.velloSurfaceRecreations += 1;
+          this.disposeVelloSurface(entry.surface);
+        }
+        const surfaceStartedAt = this.detailedProfilingEnabled ? performance.now() : 0;
+        entry = {
+          surface: backend.createSurface(
+            dimensions.width,
+            dimensions.height,
+            `LightTable Vello island: ${island.resourceId}`
+          ),
+          renderedSceneKey: null,
+          renderedDependency: null,
+          renderedIslandDependency: null,
+          retainedIslandProjection: null
+        };
+        if (this.detailedProfilingEnabled) {
+          this.recordDetailedPhase(
+            'texture-surface-creation', performance.now() - surfaceStartedAt
+          );
+        }
+        this.velloSurfaces.set(island.resourceId, entry);
+      }
+      if (entry.renderedSceneKey !== compiled.sceneKey) {
+        const metrics = backend.render(
+          entry.surface,
+          compiled.scene,
+          this.velloSourceKey(island.resourceId)
+        );
+        this.recordVelloRenderMetrics(metrics);
+        entry.renderedSceneKey = compiled.sceneKey;
+        entry.renderedIslandDependency = dependency;
+        entry.retainedIslandProjection = compiled.projection;
+      }
+      this.velloLayerEncodes += 1;
+      return entry.surface.texture;
+    } catch (reason) {
+      this.velloFailure = reason instanceof Error ? reason.message : String(reason);
+      console.error('[LightTable vector] Vello island backend failed; using layer fallback.', reason);
+      return null;
+    }
+  }
+
+  canRenderIslands(islands: readonly RetainedRenderIsland[]) {
+    if (this.selectedBackend !== 'vello' || this.velloFailure) return false;
+    return islands.every(island => island.backendEligibility.vello
+      && (island.role === 'direct-vector-run' || !island.boundaryReasons.some(reason => (
+        ['clipping-chain', 'derived-preview', 'layer-effects'].includes(reason)
+        || (reason === 'layer-mask' && !island.islandVectorClip)
+      ))));
+  }
+
   retainLayerIds(layerIds: ReadonlySet<string>) {
     for (const [layerId, entry] of this.velloSurfaces) {
       if (layerIds.has(layerId)) continue;
@@ -461,6 +780,7 @@ export class VectorLayerRenderer {
             : 'unexercised',
       velloFailure: this.velloFailure,
       velloSurfaces: this.velloSurfaces.size,
+      velloResourceIds: [...this.velloSurfaces.keys()],
       currentLayerEncodes: this.currentLayerEncodes,
       velloLayerEncodes: this.velloLayerEncodes,
       velloSceneRenders: this.velloSceneRenders,
@@ -470,6 +790,7 @@ export class VectorLayerRenderer {
       velloUploadedClips: this.velloUploadedClips,
       velloUnsupportedLayerEncodes: this.velloUnsupportedLayerEncodes,
       velloFullCompilations: this.velloFullCompilations,
+      velloProjectedIslandMembers: this.velloProjectedIslandMembers,
       velloUnchangedSceneReuses: this.velloUnchangedSceneReuses,
       velloSurfaceRecreations: this.velloSurfaceRecreations,
       velloReleasedSources: this.velloReleasedSources,
@@ -493,6 +814,7 @@ export class VectorLayerRenderer {
     this.velloUploadedClips = 0;
     this.velloUnsupportedLayerEncodes = 0;
     this.velloFullCompilations = 0;
+    this.velloProjectedIslandMembers = 0;
     this.velloUnchangedSceneReuses = 0;
     this.velloSurfaceRecreations = 0;
     this.velloReleasedSources = 0;
@@ -628,7 +950,9 @@ export class VectorLayerRenderer {
             `LightTable Vello layer: ${layer.name}`
           ),
           renderedSceneKey: null,
-          renderedDependency: null
+          renderedDependency: null,
+          renderedIslandDependency: null,
+          retainedIslandProjection: null
         };
         if (this.detailedProfilingEnabled) {
           this.recordDetailedPhase(
@@ -682,6 +1006,22 @@ export class VectorLayerRenderer {
       lastMs: durationMs,
       maximumMs: Math.max(current.maximumMs, durationMs)
     });
+  }
+
+  private recordVelloRenderMetrics(metrics: VelloPaintSceneRenderMetrics) {
+    this.velloSceneRenders += 1;
+    if (metrics.sceneCacheHit) this.velloSceneCacheHits += 1;
+    this.velloUploadedFragments += metrics.uploadedFragments;
+    this.velloUploadedClips += metrics.uploadedClips;
+    for (const [phase, durationMs] of Object.entries(metrics.profile.phasesMs)) {
+      if (durationMs !== undefined) {
+        this.recordDetailedPhase(phase as VelloPaintSceneProfilePhase, durationMs);
+      }
+    }
+    if (metrics.profile.actualGpuRenderMs !== null && metrics.profile.actualGpuRenderMs > 0) {
+      this.velloGpuRenderSamples += 1;
+      this.velloGpuRenderTotalMs += metrics.profile.actualGpuRenderMs;
+    }
   }
 
   private disposeVelloSurface(surface: VelloPaintSceneSurface) {

@@ -6,6 +6,7 @@ import {
   createLightTableImageClipboard,
   createLocalLightTableFunnelTelemetry,
   configureVectorRendererBackend,
+  configureVectorRenderIslands,
   LightTableStandaloneApp,
   type LightTableAutomationDriver,
   type LightTableHost
@@ -18,6 +19,7 @@ import { normalizeDesktopGenAiError } from './genai/desktopGenAiError';
 configureVectorRendererBackend(
   import.meta.env.VITE_LIGHTTABLE_VECTOR_BACKEND === 'vello' ? 'vello' : 'current'
 );
+configureVectorRenderIslands(import.meta.env.VITE_LIGHTTABLE_VECTOR_ISLANDS !== 'false');
 
 if (navigator.userAgent.includes('Windows')) {
   const titlebarIconUrl = new URL('../../../icon/logo_emblem.png', import.meta.url).href;

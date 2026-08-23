@@ -20,7 +20,9 @@ Acceptance checklist
 [x] Preserve normal-build behavior; GPU timestamp instrumentation is diagnostic.
 [x] Implement the pure render-island planner and diagnostic projection.
 [x] Add deterministic retained runtime-ID reconciliation for island split/merge.
-[ ] Integrate island-owned retained surfaces and cross-layer Rust scenes.
+[~] Integrate island-owned retained surfaces and cross-layer Rust scenes.
+    Active diagnostic path is 17 -> 6 with incremental retained members; the
+    five-surface/pixel-oracle gate remains open for nested clipped opacity.
 [ ] Implement bounded active/warm/cold/evicted resource policy.
 [ ] Obtain exclusive GPU timestamps through a supported native/capture path.
 

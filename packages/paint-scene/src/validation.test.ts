@@ -57,4 +57,11 @@ describe('paint-scene validation', () => {
       composition: [{ kind: 'clip', stableId: 'missing', children: clipped.composition }]
     })).toThrow('missing clip');
   });
+
+  it('allows retained hidden fragments outside the active composition', () => {
+    expect(() => assertPaintSceneIsValid({
+      ...scene([]),
+      composition: []
+    })).not.toThrow();
+  });
 });

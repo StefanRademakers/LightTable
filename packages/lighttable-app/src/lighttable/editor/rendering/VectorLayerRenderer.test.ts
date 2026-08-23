@@ -9,12 +9,16 @@ import {
 import { createVectorLayer } from '../document/documentTypes';
 import {
   compileVelloVectorLayerScene,
+  compileVelloVectorIslandScene,
+  compileRetainedVelloVectorIslandScene,
   maximumAffineScale,
   vectorGeometryTolerance,
   vectorSurfaceBytes,
   vectorSurfaceSampleCount,
   VectorGeometryRealizationCache
 } from './VectorLayerRenderer';
+import { planRenderIslands } from './RenderIslandPlanner';
+import { RetainedRenderIslandRegistry } from './RetainedRenderIslandRegistry';
 
 describe('adaptive vector tessellation', () => {
   it('measures the largest affine scale including rotation and non-uniform scale', () => {
@@ -38,6 +42,54 @@ describe('adaptive vector tessellation', () => {
 });
 
 describe('Vello paint-scene projection', () => {
+  it('retains layer-qualified fragments while visibility mutates only island composition', () => {
+    const first = createVectorLayer([createVectorLiveShape('first', {
+      kind: 'ellipse', width: 40, height: 20
+    })]);
+    const second = createVectorLayer([createVectorLiveShape('second', {
+      kind: 'ellipse', width: 20, height: 10
+    })]);
+    const registry = new RetainedRenderIslandRegistry();
+    const visibleIsland = registry.reconcile(planRenderIslands([first, second])).islands[0];
+    const visible = compileVelloVectorIslandScene(visibleIsland);
+    second.visible = false;
+    const hiddenIsland = registry.reconcile(planRenderIslands([first, second])).islands[0];
+    const hidden = compileVelloVectorIslandScene(hiddenIsland);
+
+    expect(visible.scene.fragments).toHaveLength(2);
+    expect(hidden.scene.fragments.map(({ stableId }) => stableId)).toEqual(
+      visible.scene.fragments.map(({ stableId }) => stableId)
+    );
+    expect(visible.scene.composition).toHaveLength(2);
+    expect(hidden.scene.composition).toHaveLength(1);
+    expect(hidden.sceneKey).not.toBe(visible.sceneKey);
+    expect(hiddenIsland.resourceId).toBe(visibleIsland.resourceId);
+  });
+
+  it('reprojects only the changed member while Rust-facing fragments stay retained', () => {
+    const first = createVectorLayer([createVectorLiveShape('first', {
+      kind: 'ellipse', width: 40, height: 20
+    })]);
+    const second = createVectorLayer([createVectorLiveShape('second', {
+      kind: 'ellipse', width: 20, height: 10
+    })]);
+    const registry = new RetainedRenderIslandRegistry();
+    let island = registry.reconcile(planRenderIslands([first, second])).islands[0];
+    const initial = compileRetainedVelloVectorIslandScene(island, null);
+    expect(initial.compiledMemberCount).toBe(2);
+
+    second.elements[0].transform = translationMatrix(2, 0);
+    second.elements[0].transformRevision += 1;
+    island = registry.reconcile(planRenderIslands([first, second])).islands[0];
+    const edited = compileRetainedVelloVectorIslandScene(island, initial.projection);
+
+    expect(edited.compiledMemberCount).toBe(1);
+    expect(edited.projection.members.get(first.id)?.compiled.result).toBe(
+      initial.projection.members.get(first.id)?.compiled.result
+    );
+    expect(edited.scene.fragments).toHaveLength(2);
+  });
+
   it('combines inherited, layer and exact path transforms without mutating authority', () => {
     const path = createVectorPath('path', 'Path', [createSubpath('outline', [
       createAnchor('a', { x: 0, y: 0 }),

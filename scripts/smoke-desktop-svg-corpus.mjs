@@ -374,11 +374,13 @@ for (const [index, entry] of entries.entries()) {
       page, driver, documentId, artifact.bytes
     ));
     assert.ok(pixels.nonTransparentPixels > 0, `${entry.name} rendered a fully transparent preview.`);
+    const layers = await driver.queryLayers(documentId);
     results.push({ file: entry.name, status: 'pass', durationMs: Math.round(performance.now() - startedAt),
       timings,
       openCpuProfile,
       document: { id: documentId, canvas: rendered.document.canvas,
         layerCount: rendered.document.layerCount, revision: rendered.document.canonicalRevision },
+      layers: Array.isArray(layers) ? layers : layers?.layers ?? null,
       renderer: { submittedFrames: rendered.telemetry.submittedFrames,
         compositeExecutions: rendered.telemetry.stages?.['document-composite']?.executions ?? 0,
         vectorBackend: rendered.telemetry.vectorBackend ?? null },

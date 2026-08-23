@@ -297,3 +297,41 @@ remaining split/merge cases use deterministic maximum layer overlap with anchor
 tie-breaking. Tests prove identity survives visibility, immutable canonical
 object replacement, child insertion and island splits, and that deleted islands
 produce explicit release IDs.
+
+## Phase 2: active island resources and retained member projection
+
+The diagnostic Vello path now allocates and renders by stable
+`renderIslandResourceId`. Canonical layers remain independently editable and
+the per-layer Vello route remains selectable as the pixel oracle/fallback.
+Cross-layer island scenes use layer-qualified stable fragment IDs. A changed
+member is projected again; unchanged member PaintScene results are retained in
+JS and unchanged Rust/Vello fragments stay resident. Visibility changes mutate
+composition only and may omit hidden retained fragments without deleting them.
+
+Measured production-package evidence:
+
+- per-layer oracle: 17 Vello surfaces / 17 Rust scene entries / 177.72 MiB;
+- active island route: 5 artwork islands plus 1 still-external scoped vector
+  mask / 6 Rust scene entries / 113.10 MiB;
+- warm element mutation: 1 island compilation, **1 projected member**, 1 Rust
+  fragment upload; unchanged island members are reused;
+- eight hide/show cycles: exact restored screenshots, zero GPU-memory delta,
+  zero surface recreation/release, and no fragment uploads;
+- mutation restore reproduces the island preview exactly (RMSE 0).
+
+The strict oracle gate is not yet green: island versus per-layer output is
+RMSE 1.028 (MAE 0.040, maximum channel delta 64). Differences affect 3,426
+preview pixels, predominantly antialiased content in the final vector run.
+The island route therefore must not replace the oracle yet. The previous
+five-surface claim also omitted the separate scoped vector-mask surface. To
+reach five actual resources rather than five artwork islands, PaintScene needs
+nested opacity/isolation composition so the clipped group containing an
+opacity child can become one retained island instead of an island plus mask
+surface.
+
+Evidence:
+
+- `tmp/task-305-m1-oracle/report.json`
+- `tmp/task-305-m1-islands/report.json`
+- `tmp/task-305-m2-retained/report.json`
+- `tmp/task-305-m2-compositor-fixed/report.json`

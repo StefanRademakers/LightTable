@@ -136,6 +136,7 @@ export {
 export { renderLightTableGrade } from './lighttable/renderLightTableGrade';
 export {
   configureVectorRendererBackend,
+  configureVectorRenderIslands,
   type VectorRendererBackendSelection
 } from './lighttable/gpu/vectorRendererBackendDiagnostics';
 export { useLightTableRecipe } from './lighttable/useLightTableRecipe';

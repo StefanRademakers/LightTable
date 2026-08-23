@@ -1,5 +1,10 @@
 import type { LayerId, LayerNode, VectorLayer } from '../document/documentTypes';
 import { layerStyleStackIsActive } from '../styles/layerStyleDefaults';
+import {
+  identityAffineMatrix,
+  multiplyMatrices,
+  type AffineMatrix
+} from '@lighttable/vector-core';
 
 export type RenderIslandRole = 'direct-vector-run' | 'isolated-vector-group';
 
@@ -37,8 +42,20 @@ export interface RenderIslandPlanEntry {
   readonly anchorLayerId: LayerId;
   readonly role: RenderIslandRole;
   readonly canonicalLayerIds: readonly LayerId[];
+  readonly members: readonly {
+    readonly layer: VectorLayer;
+    readonly layerToDocument: AffineMatrix;
+    readonly participates: boolean;
+  }[];
   readonly scopePath: readonly LayerId[];
   readonly isolationOwnerId: LayerId | null;
+  readonly islandVectorClip: {
+    readonly stableId: string;
+    readonly revisionKey: string;
+    readonly elements: readonly import('@lighttable/vector-core').VectorElement[];
+    readonly parentTransform: AffineMatrix;
+    readonly inverted: boolean;
+  } | null;
   readonly backendEligibility: RenderIslandBackendEligibility;
   readonly complexity: RenderIslandComplexity;
   readonly boundaryReasons: readonly RenderIslandBoundaryReason[];
@@ -54,14 +71,18 @@ interface VectorToken {
   readonly kind: 'vector';
   readonly layer: VectorLayer;
   readonly scopePath: readonly LayerId[];
+  readonly layerToDocument: AffineMatrix;
+  readonly participates: boolean;
 }
 
 interface ForcedIslandToken {
   readonly kind: 'forced-island';
-  readonly layers: readonly VectorLayer[];
+  readonly members: readonly VectorToken[];
   readonly scopePath: readonly LayerId[];
   readonly isolationOwnerId: LayerId;
   readonly reasons: readonly RenderIslandBoundaryReason[];
+  readonly islandVectorClip: RenderIslandPlanEntry['islandVectorClip'];
+  readonly forcedVelloEligible: boolean;
 }
 
 interface BarrierToken {
@@ -90,23 +111,39 @@ const groupBoundaryReasons = (
   if (group.clipping) reasons.push('clipping-chain');
   if (group.blendMode !== 'normal') reasons.push('non-normal-blend');
   if (group.mask?.enabled) reasons.push('layer-mask');
+  if (group.vectorClip?.enabled) reasons.push('layer-mask');
   if (layerStyleStackIsActive(group.styleStack)) reasons.push('layer-effects');
   if (group.derivedPreview) reasons.push('derived-preview');
   return reasons;
 };
 
-const collectPureVectorLayers = (nodes: readonly LayerNode[]): VectorLayer[] | null => {
-  const result: VectorLayer[] = [];
+const collectPureVectorMembers = (
+  nodes: readonly LayerNode[],
+  inheritedTransform: AffineMatrix,
+  scopePath: readonly LayerId[],
+  inheritedVisible: boolean
+): VectorToken[] | null => {
+  const result: VectorToken[] = [];
   for (const node of nodes) {
     if (node.type === 'vector') {
       // Nested layer isolation still needs its own boundary with today's
       // PaintScene contract; do not hide it inside a group-wide island.
       if (vectorBoundaryReasons(node).length > 0) return null;
-      result.push(node);
+      result.push({
+        kind: 'vector', layer: node, scopePath,
+        layerToDocument: multiplyMatrices(inheritedTransform, node.transform),
+        participates: inheritedVisible && node.visible && node.opacity > 0
+      });
       continue;
     }
     if (node.type !== 'group' || groupBoundaryReasons(node).length > 0) return null;
-    const children = collectPureVectorLayers(node.children);
+    const childScope = [...scopePath, node.id];
+    const children = collectPureVectorMembers(
+      node.children,
+      multiplyMatrices(inheritedTransform, node.transform),
+      childScope,
+      inheritedVisible && node.visible && node.opacity > 0
+    );
     if (!children) return null;
     result.push(...children);
   }
@@ -116,18 +153,29 @@ const collectPureVectorLayers = (nodes: readonly LayerNode[]): VectorLayer[] | n
 const tokenize = (
   nodes: readonly LayerNode[],
   scopePath: readonly LayerId[],
+  inheritedTransform: AffineMatrix,
+  inheritedVisible: boolean,
   output: IslandToken[]
 ) => {
   for (const node of nodes) {
     if (node.type === 'vector') {
       const reasons = vectorBoundaryReasons(node);
       if (reasons.length === 0) {
-        output.push({ kind: 'vector', layer: node, scopePath });
+        output.push({
+          kind: 'vector', layer: node, scopePath,
+          layerToDocument: multiplyMatrices(inheritedTransform, node.transform),
+          participates: inheritedVisible && node.visible && node.opacity > 0
+        });
       } else {
         output.push({ kind: 'barrier', reason: reasons[0] });
         output.push({
-          kind: 'forced-island', layers: [node], scopePath,
-          isolationOwnerId: node.id, reasons
+          kind: 'forced-island', members: [{
+            kind: 'vector', layer: node, scopePath,
+            layerToDocument: multiplyMatrices(inheritedTransform, node.transform),
+            participates: inheritedVisible && node.visible && node.opacity > 0
+          }], scopePath,
+          isolationOwnerId: node.id, reasons, islandVectorClip: null,
+          forcedVelloEligible: true
         });
         output.push({ kind: 'barrier', reason: reasons[0] });
       }
@@ -135,7 +183,11 @@ const tokenize = (
     }
     if (node.type === 'group') {
       const childScope = [...scopePath, node.id];
-      const vectorChildren = collectPureVectorLayers(node.children);
+      const childTransform = multiplyMatrices(inheritedTransform, node.transform);
+      const childVisible = inheritedVisible && node.visible && node.opacity > 0;
+      const vectorChildren = collectPureVectorMembers(
+        node.children, childTransform, childScope, childVisible
+      );
       const reasons = [
         ...groupBoundaryReasons(node),
         // Normal source-over is associative. An opacity-1 isolated group made
@@ -147,17 +199,27 @@ const tokenize = (
           : [])
       ];
       if (reasons.length === 0) {
-        tokenize(node.children, childScope, output);
+        tokenize(node.children, childScope, childTransform, childVisible, output);
         continue;
       }
       output.push({ kind: 'barrier', reason: reasons[0] });
       if (vectorChildren?.length) {
         output.push({
-          kind: 'forced-island', layers: vectorChildren, scopePath: childScope,
-          isolationOwnerId: node.id, reasons
+          kind: 'forced-island', members: vectorChildren, scopePath: childScope,
+          isolationOwnerId: node.id, reasons,
+          islandVectorClip: node.vectorClip?.enabled ? {
+            stableId: node.vectorClip.id,
+            revisionKey: `${node.vectorClip.revision}:${node.vectorClip.elements.map(element => [
+              element.id, element.geometryRevision, element.transformRevision
+            ].join(':')).join('|')}`,
+            elements: node.vectorClip.elements,
+            parentTransform: childTransform,
+            inverted: node.vectorClip.inverted
+          } : null,
+          forcedVelloEligible: !node.mask?.enabled
         });
       } else {
-        tokenize(node.children, childScope, output);
+        tokenize(node.children, childScope, childTransform, childVisible, output);
       }
       output.push({ kind: 'barrier', reason: reasons[0] });
       continue;
@@ -174,23 +236,32 @@ const tokenize = (
 };
 
 const entry = (
-  layers: readonly VectorLayer[],
+  members: readonly VectorToken[],
   role: RenderIslandRole,
   scopePath: readonly LayerId[],
   isolationOwnerId: LayerId | null,
-  reasons: readonly RenderIslandBoundaryReason[]
+  reasons: readonly RenderIslandBoundaryReason[],
+  islandVectorClip: RenderIslandPlanEntry['islandVectorClip'] = null,
+  forcedVelloEligible = true
 ): RenderIslandPlanEntry => {
+  const layers = members.map(({ layer }) => layer);
   const canonicalLayerIds = layers.map(({ id }) => id);
   return {
     candidateKey: [role, ...scopePath, ...canonicalLayerIds].join(':'),
     anchorLayerId: layers[0].id,
     role,
     canonicalLayerIds,
+    members: members.map(({ layer, layerToDocument, participates }) => ({
+      layer, layerToDocument, participates
+    })),
     scopePath,
     isolationOwnerId,
+    islandVectorClip,
     backendEligibility: {
       native: true,
       vello: layers.every(layer => !layer.vectorClip?.inverted)
+        && !islandVectorClip?.inverted
+        && forcedVelloEligible
     },
     complexity: {
       canonicalLayerCount: layers.length,
@@ -206,13 +277,13 @@ const entry = (
  */
 export const planRenderIslands = (nodes: readonly LayerNode[]): RenderIslandPlan => {
   const tokens: IslandToken[] = [];
-  tokenize(nodes, [], tokens);
+  tokenize(nodes, [], identityAffineMatrix(), true, tokens);
   const islands: RenderIslandPlanEntry[] = [];
   let run: VectorToken[] = [];
   const flush = (boundaryReasons: readonly RenderIslandBoundaryReason[] = []) => {
     if (run.length === 0) return;
     islands.push(entry(
-      run.map(({ layer }) => layer),
+      run,
       'direct-vector-run',
       run[0].scopePath,
       null,
@@ -230,8 +301,9 @@ export const planRenderIslands = (nodes: readonly LayerNode[]): RenderIslandPlan
     if (token.kind === 'forced-island') {
       flush(pendingReasons);
       islands.push(entry(
-        token.layers, 'isolated-vector-group', token.scopePath,
-        token.isolationOwnerId, token.reasons
+        token.members, 'isolated-vector-group', token.scopePath,
+        token.isolationOwnerId, token.reasons, token.islandVectorClip,
+        token.forcedVelloEligible
       ));
       pendingReasons = [...token.reasons];
       continue;

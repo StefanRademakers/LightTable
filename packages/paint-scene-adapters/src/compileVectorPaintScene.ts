@@ -4,6 +4,7 @@ import {
   type PaintSceneCapabilityIssue,
   type PaintSceneColor,
   type PaintSceneCommand,
+  type PaintScene,
   type PaintSceneCompileResult,
   type PaintSceneGradientPaint,
   type PaintSceneMatrix,
@@ -35,6 +36,8 @@ export interface CompileVectorPaintSceneOptions {
   readonly sourceRevision: string;
   /** Maps vector-layer coordinates into the backend-neutral scene. */
   readonly parentTransform?: AffineMatrix;
+  /** Prevents canonical element IDs from colliding in cross-layer scenes. */
+  readonly stableIdNamespace?: string;
   /** Optional canonical vector clip, expressed in the same layer space. */
   readonly clip?: {
     readonly stableId: string;
@@ -213,8 +216,10 @@ export const compileVectorPaintScene = (
     }
     const objectStartedAt = profileNow?.() ?? 0;
     const commands: PaintSceneCommand[] = [];
-    const stableId = element.id;
-    const pathId = `${element.id}:path`;
+    const stableId = options.stableIdNamespace
+      ? `${options.stableIdNamespace}:${element.id}`
+      : element.id;
+    const pathId = `${stableId}:path`;
 
     if (path.style.fill) {
       if (isSolidPaint(path.style.fill)) {
@@ -323,11 +328,14 @@ export const compileVectorPaintScene = (
       fallback: 'preserve-only'
     });
   }
+  const clipStableId = options.clip && options.stableIdNamespace
+    ? `${options.stableIdNamespace}:${options.clip.stableId}`
+    : options.clip?.stableId;
   const clips = options.clip && clipCommands.length ? [{
-    stableId: options.clip.stableId,
+    stableId: clipStableId!,
     revisionKey: options.clip.revisionKey,
     path: {
-      stableId: `${options.clip.stableId}:path`,
+      stableId: `${clipStableId}:path`,
       revisionKey: options.clip.revisionKey,
       commands: clipCommands
     },
@@ -361,4 +369,101 @@ export const compileVectorPaintScene = (
     options.profile('scene-validation', profileNow!() - validationStartedAt);
   }
   return result;
+};
+
+export interface VectorPaintSceneIslandMember {
+  readonly layerId: string;
+  readonly sourceRevision: string;
+  readonly elements: readonly VectorElement[];
+  readonly parentTransform: AffineMatrix;
+  readonly participates?: boolean;
+  readonly clip?: CompileVectorPaintSceneOptions['clip'];
+}
+
+export interface CompileVectorPaintSceneIslandOptions {
+  readonly profile?: CompileVectorPaintSceneOptions['profile'];
+  readonly now?: CompileVectorPaintSceneOptions['now'];
+  readonly clip?: CompileVectorPaintSceneOptions['clip'] & {
+    readonly parentTransform: AffineMatrix;
+    readonly stableIdNamespace: string;
+  };
+}
+
+export interface CompiledVectorPaintSceneIslandMember {
+  readonly member: VectorPaintSceneIslandMember;
+  readonly result: PaintSceneCompileResult;
+}
+
+export const compileVectorPaintSceneIslandMember = (
+  sourceId: string,
+  member: VectorPaintSceneIslandMember,
+  options: Pick<CompileVectorPaintSceneIslandOptions, 'profile' | 'now'> = {}
+): CompiledVectorPaintSceneIslandMember => ({
+  member,
+  result: compileVectorPaintScene(member.elements, {
+    sourceId: `${sourceId}:${member.layerId}`,
+    sourceRevision: member.sourceRevision,
+    parentTransform: member.parentTransform,
+    stableIdNamespace: member.layerId,
+    ...(member.clip ? { clip: member.clip } : {}),
+    ...(options.profile ? { profile: options.profile } : {}),
+    ...(options.now ? { now: options.now } : {})
+  })
+});
+
+export const composeVectorPaintSceneIsland = (
+  sourceId: string,
+  sourceRevision: string,
+  compiled: readonly CompiledVectorPaintSceneIslandMember[],
+  compiledIslandClip: PaintSceneCompileResult | null = null
+): PaintSceneCompileResult => {
+  const flatComposition = compiled.flatMap(({ member, result }) => (
+    member.participates === false ? [] : result.scene.composition
+  ));
+  const scene: PaintScene = {
+    schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
+    sourceId,
+    sourceRevision,
+    fragments: compiled.flatMap(({ result }) => result.scene.fragments),
+    clips: [
+      ...compiled.flatMap(({ result }) => result.scene.clips),
+      ...(compiledIslandClip?.scene.clips ?? [])
+    ],
+    composition: compiledIslandClip?.scene.clips[0] ? [{
+      kind: 'clip',
+      stableId: compiledIslandClip.scene.clips[0].stableId,
+      children: flatComposition
+    }] : flatComposition
+  };
+  return createPaintSceneCompileResult(scene, [
+    ...compiled.flatMap(({ result }) => result.issues),
+    ...(compiledIslandClip?.issues ?? [])
+  ]);
+};
+
+/**
+ * Projects independently editable canonical layers into one retained scene.
+ * Fragment IDs remain stable and layer-qualified; no canonical data is merged.
+ */
+export const compileVectorPaintSceneIsland = (
+  sourceId: string,
+  sourceRevision: string,
+  members: readonly VectorPaintSceneIslandMember[],
+  options: CompileVectorPaintSceneIslandOptions = {}
+): PaintSceneCompileResult => {
+  const compiled = members.map(member => compileVectorPaintSceneIslandMember(
+    sourceId, member, options
+  ));
+  const compiledIslandClip = options.clip ? compileVectorPaintScene([], {
+    sourceId: `${sourceId}:island-clip`,
+    sourceRevision: options.clip.revisionKey,
+    parentTransform: options.clip.parentTransform,
+    stableIdNamespace: options.clip.stableIdNamespace,
+    clip: options.clip,
+    ...(options.profile ? { profile: options.profile } : {}),
+    ...(options.now ? { now: options.now } : {})
+  }) : null;
+  return composeVectorPaintSceneIsland(
+    sourceId, sourceRevision, compiled, compiledIslandClip
+  );
 };

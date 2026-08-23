@@ -24,7 +24,9 @@ const result = spawnSync(
       // Keep a selectable backend bakeoff independent from the normal package.
       // On Windows an open LightTable.exe locks its own app.asar; a dedicated
       // output also prevents one backend build from silently replacing the other.
-      ...(target === 'package:desktop' ? { LIGHTTABLE_PACKAGE_OUT: 'out-vello' } : {})
+      ...(target === 'package:desktop'
+        ? { LIGHTTABLE_PACKAGE_OUT: process.env.LIGHTTABLE_PACKAGE_OUT || 'out-vello' }
+        : {})
     }
   }
 );

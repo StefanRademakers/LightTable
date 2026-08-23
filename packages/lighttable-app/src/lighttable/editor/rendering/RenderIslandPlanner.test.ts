@@ -57,7 +57,11 @@ describe('RenderIslandPlanner', () => {
     second.revision += 1;
     const hidden = planRenderIslands([first, second]);
 
-    expect(hidden).toEqual(before);
+    expect(hidden.islands.map(({ candidateKey }) => candidateKey)).toEqual(
+      before.islands.map(({ candidateKey }) => candidateKey)
+    );
+    expect(hidden.islands[0].canonicalLayerIds).toEqual(before.islands[0].canonicalLayerIds);
+    expect(hidden.islands[0].members[1].participates).toBe(false);
   });
 
   it('splits at raster, adjustment and text interleaves', () => {

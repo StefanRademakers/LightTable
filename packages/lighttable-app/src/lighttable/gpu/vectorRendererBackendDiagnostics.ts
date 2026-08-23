@@ -2,6 +2,7 @@ export type VectorRendererBackendSelection = 'current' | 'vello';
 
 let selection: VectorRendererBackendSelection = 'current';
 let locked = false;
+let renderIslandsEnabled = true;
 
 /**
  * Diagnostic-only backend selection. Hosts must call this before the first
@@ -18,8 +19,17 @@ export const configureVectorRendererBackend = (
 
 export const vectorRendererBackendSelection = () => selection;
 
+/** Keeps the per-layer Vello path available as a pixel-parity oracle/fallback. */
+export const configureVectorRenderIslands = (enabled: boolean) => {
+  if (locked && enabled !== renderIslandsEnabled) {
+    throw new Error('Vector render-island mode cannot change after WebGPU initialization.');
+  }
+  renderIslandsEnabled = enabled;
+};
+
+export const vectorRenderIslandsEnabled = () => renderIslandsEnabled;
+
 export const lockVectorRendererBackendSelection = () => {
   locked = true;
   return selection;
 };
-

@@ -15,5 +15,6 @@ export type { LightTableHost } from './platform/LightTableHost';
 export type { LightTableAutomationDriver } from './lighttable/application/commands/lightTableCommandService';
 export {
   configureVectorRendererBackend,
+  configureVectorRenderIslands,
   type VectorRendererBackendSelection
 } from './lighttable/gpu/vectorRendererBackendDiagnostics';

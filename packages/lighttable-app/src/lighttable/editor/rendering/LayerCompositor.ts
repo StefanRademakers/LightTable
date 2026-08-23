@@ -43,6 +43,7 @@ import type { TransformSessionStore } from './TransformSessionStore';
 import type { EncodeAdjustment } from './RasterDocumentOperations';
 import type { VectorLayerRenderer } from './VectorLayerRenderer';
 import { textPlaceholderVectorLayer } from './textPlaceholderPresentation';
+import { vectorRenderIslandsEnabled } from '../../gpu/vectorRendererBackendDiagnostics';
 import type { DevelopmentTextFixtureRenderer } from '../../text/rendering/DevelopmentTextFixtureRenderer';
 import type { TextLayerRenderer } from '../../text/rendering/TextLayerRenderer';
 import {
@@ -50,6 +51,10 @@ import {
   documentBlendQuantization
 } from '../color/documentColorTransform';
 import { planRenderIslands, type RenderIslandPlan } from './RenderIslandPlanner';
+import {
+  RetainedRenderIslandRegistry,
+  type RetainedRenderIsland
+} from './RetainedRenderIslandRegistry';
 
 interface LayerCompositorOptions {
   device: GPUDevice;
@@ -108,6 +113,7 @@ export class LayerCompositor {
   private islandPlanningTotalMs = 0;
   private islandPlanningLastMs = 0;
   private islandPlanningMaximumMs = 0;
+  private readonly retainedIslands = new RetainedRenderIslandRegistry();
 
   constructor(private readonly options: LayerCompositorOptions) {}
 
@@ -209,9 +215,30 @@ export class LayerCompositor {
     this.blendQuantization = documentBlendQuantization(document.colorSettings.bitDepth);
     layerStyles.setBlendProfile?.(this.blendProfile, this.blendQuantization);
     this.options.syncDocument(document);
+    const planningStartedAt = this.compositeProfilingEnabled ? performance.now() : 0;
+    const plannedIslands = planRenderIslands(document.layers);
+    const retainedIslandPlan = this.retainedIslands.reconcile(plannedIslands);
+    const islandTextures = new Map<string, GPUTexture>();
+    let islandRenderingActive = vectorRenderIslandsEnabled()
+      && excludedLayerIds.size === 0
+      && typeof vectors.canRenderIslands === 'function'
+      && vectors.canRenderIslands(retainedIslandPlan.islands)
+      && retainedIslandPlan.islands.every(island => island.members.every(
+        ({ layer }) => !geometryPreviews.resolve(layer.id, layer.geometryRevision)
+      ));
+    if (islandRenderingActive) {
+      for (const island of retainedIslandPlan.islands) {
+        const texture = vectors.encodeIsland(island, { width, height });
+        if (!texture) {
+          islandRenderingActive = false;
+          islandTextures.clear();
+          break;
+        }
+        islandTextures.set(island.resourceId, texture);
+      }
+    }
     if (this.compositeProfilingEnabled) {
-      const planningStartedAt = performance.now();
-      this.islandPlan = planRenderIslands(document.layers);
+      this.islandPlan = plannedIslands;
       const durationMs = performance.now() - planningStartedAt;
       this.islandPlanningExecutions += 1;
       this.islandPlanningTotalMs += durationMs;
@@ -228,19 +255,45 @@ export class LayerCompositor {
     const visibleLeafNodes = analysis.visibleLeafNodes.filter(
       layer => !excludedLayerIds.has(layer.id)
     );
-    const retainedVectorResources = new Set<LayerId>();
+    const retainedIslandOwnerIds = new Set(
+      retainedIslandPlan.islands.flatMap(island => (
+        island.isolationOwnerId ? [island.isolationOwnerId] : []
+      ))
+    );
+    const retainedVectorResources = new Set<string>();
     const retainDocumentVectorResources = (nodes: readonly LayerNode[]) => {
       for (const node of nodes) {
-        if (node.type === 'vector' || node.type === 'text') {
+        if (node.type === 'text' || (!islandRenderingActive && node.type === 'vector')) {
           retainedVectorResources.add(node.id);
         }
         if (node.type !== 'group') continue;
-        if (node.vectorClip) retainedVectorResources.add(node.id);
+        if (
+          node.vectorClip
+          && (!islandRenderingActive || !retainedIslandOwnerIds.has(node.id))
+        ) {
+          retainedVectorResources.add(node.id);
+        }
         retainDocumentVectorResources(node.children);
       }
     };
     retainDocumentVectorResources(document.layers);
+    if (islandRenderingActive) {
+      for (const island of retainedIslandPlan.islands) {
+        retainedVectorResources.add(island.resourceId);
+      }
+    }
     vectors.retainLayerIds(retainedVectorResources);
+    const retainedIslandByLayerId = new Map<LayerId, RetainedRenderIsland>();
+    const retainedIslandByOwnerId = new Map<LayerId, RetainedRenderIsland>();
+    for (const island of retainedIslandPlan.islands) {
+      for (const layerId of island.canonicalLayerIds) {
+        retainedIslandByLayerId.set(layerId, island);
+      }
+      if (island.isolationOwnerId) {
+        retainedIslandByOwnerId.set(island.isolationOwnerId, island);
+      }
+    }
+    const compositedIslandIds = new Set<string>();
     if (!analysis.activeLayerStyles) {
       layerStyles.releaseTargets();
       layerStyles.releaseCache();
@@ -352,6 +405,20 @@ export class LayerCompositor {
       const { node } = entry;
       if (excludedLayerIds.has(node.id)) return [background, target];
       if (!node.visible || node.opacity <= 0) return [background, target];
+      if (islandRenderingActive && node.type === 'group') {
+        const island = retainedIslandByOwnerId.get(node.id);
+        const texture = island ? islandTextures.get(island.resourceId) : null;
+        if (island && texture && !compositedIslandIds.has(island.resourceId)) {
+          compositedIslandIds.add(island.resourceId);
+          compositeTexture(background, texture, target, {
+            label: `LightTable vector island group settings: ${node.name}`,
+            opacity: node.opacity,
+            blendMode: node.blendMode,
+            clippingTexture
+          });
+          return [target, background];
+        }
+      }
       if (node.type === 'group') {
         return renderGroup(entry, background, target, clippingTexture, inheritedTransform);
       }
@@ -419,6 +486,25 @@ export class LayerCompositor {
       }
 
       if (node.type === 'vector') {
+        if (islandRenderingActive) {
+          const island = retainedIslandByLayerId.get(node.id);
+          if (island) {
+            if (compositedIslandIds.has(island.resourceId)) return [background, target];
+            const texture = islandTextures.get(island.resourceId);
+            if (texture) {
+              compositedIslandIds.add(island.resourceId);
+              compositeTexture(background, texture, target, {
+                label: `LightTable vector island settings: ${island.resourceId}`,
+                opacity: island.role === 'direct-vector-run'
+                  ? 1
+                  : node.opacity * node.fillOpacity,
+                blendMode: island.role === 'direct-vector-run' ? 'normal' : node.blendMode,
+                clippingTexture
+              });
+              return [target, background];
+            }
+          }
+        }
         const geometryPreview = geometryPreviews.resolve(node.id, node.geometryRevision);
         return renderVectorLayer(
           geometryPreview ? { ...node, transform: geometryPreview } : node,

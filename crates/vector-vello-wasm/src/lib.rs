@@ -537,9 +537,8 @@ fn validate_complete_composition(
 ) -> Result<(), String> {
     let mut referenced_fragments = std::collections::HashSet::new();
     validate_composition(nodes, fragments, clips, &mut referenced_fragments, 1)?;
-    if referenced_fragments.len() != fragments.len() {
-        return Err("composition omits one or more fragments".into());
-    }
+    // Retained fragments may be absent from composition while hidden. They
+    // stay encoded and warm so visibility changes only mutate composition.
     Ok(())
 }
 

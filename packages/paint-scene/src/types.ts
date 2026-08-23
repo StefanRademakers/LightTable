@@ -113,7 +113,8 @@ export interface PaintSceneClip {
 /**
  * Renderer-neutral scene composition. Leaves retain independent fragment
  * revisions; clip nodes therefore do not force their descendants into one
- * monolithic upload/cache entry.
+ * monolithic upload/cache entry. A retained fragment may intentionally be
+ * absent from composition while hidden, without being removed from the scene.
  */
 export type PaintSceneCompositionNode =
   | { readonly kind: 'fragment'; readonly stableId: string }
