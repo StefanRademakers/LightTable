@@ -41,14 +41,30 @@ export const executeSvgImport = async (
   dependencies: SvgImportDependencies
 ): Promise<SvgImportCommandResult | null> => {
   const normalizedSvg = await (dependencies.normalizeSvgSource ?? normalizeEditableSvgSource)(command.svg);
+  let sourcePlan: ReturnType<typeof importSvg> | null = null;
+  try {
+    sourcePlan = importSvg(command.svg, {
+      createId: createSvgImportIdFactory(),
+      limits: SVG_IMPORT_CODEC_LIMITS
+    });
+  } catch {
+    // The locked-down normalizer remains authoritative for SVG features that
+    // the editable source parser cannot safely or exactly interpret itself.
+  }
+  const sourceLostRenderableSemantics = sourcePlan?.report.warnings.some(({ code }) => (
+    code === 'ignored-unsupported-attribute'
+      || code === 'ignored-unsupported-element'
+      || code === 'ignored-unsupported-style'
+      || code === 'ignored-foreign-element'
+  ));
+  const plan = sourcePlan && !sourceLostRenderableSemantics ? sourcePlan : importSvg(normalizedSvg, {
+    createId: createSvgImportIdFactory(),
+    limits: SVG_IMPORT_CODEC_LIMITS
+  });
   // Read authority after the asynchronous preparation. Import must never
   // overwrite edits made while normalization was running.
   const before = dependencies.getDocument();
   if (!before) return null;
-  const plan = importSvg(normalizedSvg, {
-    createId: createSvgImportIdFactory(),
-    limits: SVG_IMPORT_CODEC_LIMITS
-  });
   const materialized = materializeSvgImportPlan(
     before,
     plan,

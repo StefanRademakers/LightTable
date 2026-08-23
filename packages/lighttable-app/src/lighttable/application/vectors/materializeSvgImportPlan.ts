@@ -18,18 +18,14 @@ const materializeNodes = (
   vectorName: string
 ): VectorLayerTreeNode[] => {
   const result: VectorLayerTreeNode[] = [];
-  let pending: SvgSceneNode[] = [];
-  const flush = () => {
-    const elements = pending.flatMap(node => node.kind === 'element' ? [node.element] : []);
-    pending = [];
-    if (elements.length) result.push(createVectorLayerNode(elements, vectorName));
-  };
   for (const node of nodes) {
     if (node.kind === 'element') {
-      pending.push(node);
+      result.push(createVectorLayerNode(
+        [node.element],
+        node.element.name.trim() || vectorName
+      ));
       continue;
     }
-    flush();
     const children = materializeNodes(node.children, node.name || vectorName);
     if (!children.length) continue;
     if (node.clipPath) {
@@ -62,7 +58,6 @@ const materializeNodes = (
     }
     result.push(group);
   }
-  flush();
   return result;
 };
 

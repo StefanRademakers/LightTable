@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createImageDocument } from '../../editor/document/documentTypes';
+import { createImageDocument, type LayerNode } from '../../editor/document/documentTypes';
 import { createRasterLayer } from '../../editor/document/documentCommands';
 import { realizeLiveShape, transformPoint, type VectorElement } from '@lighttable/vector-core';
 import { realizeVectorPath } from '@lighttable/vector-rendering';
@@ -17,6 +17,23 @@ const realizedDocumentPoints = (elements: readonly VectorElement[]) => elements.
 });
 
 const keepSvgSource = async (source: string) => source;
+
+const vectorElementsIn = (nodes: readonly LayerNode[]): readonly VectorElement[] => nodes.flatMap(
+  (node) => node.type === 'group'
+    ? vectorElementsIn(node.children)
+    : node.type === 'vector' ? node.elements : []
+);
+
+const layerNamed = (nodes: readonly LayerNode[], name: string): LayerNode | null => {
+  for (const node of nodes) {
+    if (node.name === name) return node;
+    if (node.type === 'group') {
+      const nested = layerNamed(node.children, name);
+      if (nested) return nested;
+    }
+  }
+  return null;
+};
 
 describe('SVG document codec owner', () => {
   it('publishes a complete import once with one history boundary', async () => {
@@ -101,7 +118,10 @@ describe('SVG document codec owner', () => {
       type: 'group', name: 'Grouped SVG', compositing: 'pass-through',
       children: [{
         type: 'group', name: 'faded', opacity: 0.4, compositing: 'isolated',
-        children: [{ type: 'vector', elements: [{}, {}] }]
+        children: [
+          { type: 'vector', name: 'rect', elements: [{}] },
+          { type: 'vector', name: 'rect', elements: [{}] }
+        ]
       }]
     });
 
@@ -116,8 +136,7 @@ describe('SVG document codec owner', () => {
       recordHistory: () => undefined,
       normalizeSvgSource: keepSvgSource
     });
-    const outer = reopened.layers[0];
-    expect(outer?.type === 'group' ? outer.children[0] : null).toMatchObject({
+    expect(layerNamed(reopened.layers, 'faded')).toMatchObject({
       type: 'group', name: 'faded', opacity: 0.4, compositing: 'isolated'
     });
   });
@@ -184,7 +203,9 @@ describe('SVG document codec owner', () => {
       'round-trip-lighttable.png'
     );
     const reopened = await parseLayeredDocumentFile(nativeFile);
-    expect(reopened?.document.layers[0]).toMatchObject({ type: 'vector' });
+    expect(reopened?.document.layers[0]).toMatchObject({
+      type: 'group', children: [{ type: 'group', name: 'g' }]
+    });
 
     const exported = exportSvgDocument(reopened!.document, 'round-trip-lighttable.png');
     const exportedText = await exported.text();
@@ -199,23 +220,22 @@ describe('SVG document codec owner', () => {
       normalizeSvgSource: keepSvgSource
     });
     expect(second?.elementIds).toHaveLength(2);
-    expect(finalDocument.layers[0]).toMatchObject({ type: 'vector' });
-    if (reopened?.document.layers[0]?.type === 'vector' && finalDocument.layers[0]?.type === 'vector') {
-      expect(finalDocument.layers[0].elements.map(({ type }) => type))
-        .toEqual(reopened.document.layers[0].elements.map(({ type }) => type));
-      expect(finalDocument.layers[0].elements.map(({ style }) => style.fill))
-        .toEqual(reopened.document.layers[0].elements.map(({ style }) => style.fill));
-      const beforeRender = realizedDocumentPoints(reopened.document.layers[0].elements);
-      const afterRender = realizedDocumentPoints(finalDocument.layers[0].elements);
-      expect(afterRender.map((element) => element.map(({ closed, points }) => ({ closed, count: points.length }))))
-        .toEqual(beforeRender.map((element) => element.map(({ closed, points }) => ({ closed, count: points.length }))));
-      afterRender.forEach((element, elementIndex) => element.forEach((subpath, subpathIndex) => {
-        subpath.points.forEach((point, pointIndex) => {
-          const expected = beforeRender[elementIndex]![subpathIndex]!.points[pointIndex]!;
-          expect(point.x).toBeCloseTo(expected.x, 4);
-          expect(point.y).toBeCloseTo(expected.y, 4);
-        });
-      }));
-    }
+    expect(finalDocument.layers[0]).toMatchObject({ type: 'group' });
+    const beforeElements = vectorElementsIn(reopened!.document.layers);
+    const afterElements = vectorElementsIn(finalDocument.layers);
+    expect(afterElements.map(({ type }) => type)).toEqual(beforeElements.map(({ type }) => type));
+    expect(afterElements.map(({ style }) => style.fill))
+      .toEqual(beforeElements.map(({ style }) => style.fill));
+    const beforeRender = realizedDocumentPoints(beforeElements);
+    const afterRender = realizedDocumentPoints(afterElements);
+    expect(afterRender.map((element) => element.map(({ closed, points }) => ({ closed, count: points.length }))))
+      .toEqual(beforeRender.map((element) => element.map(({ closed, points }) => ({ closed, count: points.length }))));
+    afterRender.forEach((element, elementIndex) => element.forEach((subpath, subpathIndex) => {
+      subpath.points.forEach((point, pointIndex) => {
+        const expected = beforeRender[elementIndex]![subpathIndex]!.points[pointIndex]!;
+        expect(point.x).toBeCloseTo(expected.x, 4);
+        expect(point.y).toBeCloseTo(expected.y, 4);
+      });
+    }));
   });
 });

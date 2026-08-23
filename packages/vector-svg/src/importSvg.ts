@@ -207,7 +207,12 @@ const elementChildren = (element: XmlElement) => {
   for (let child = element.firstChild; child; child = child.nextSibling) if (child.nodeType === 1) result.push(child as XmlElement);
   return result;
 };
-const nameOf = (element: XmlElement) => element.getAttribute('id')?.trim() || element.localName || element.tagName;
+const nameOf = (element: XmlElement) => element.getAttribute('data-name')?.trim()
+  || element.getAttribute('aria-label')?.trim()
+  || element.getAttribute('inkscape:label')?.trim()
+  || element.getAttribute('id')?.trim()
+  || element.localName
+  || element.tagName;
 const coordinate = (element: XmlElement, name: string, fallback = 0) => {
   const value = element.getAttribute(name); return value === null ? fallback : finiteNumber(value.replace(/px$/iu, ''), name);
 };
@@ -657,7 +662,12 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
         message: 'Flattened a non-interactive SVG link container into editable native elements.'
       });
       let childTarget = target;
-      if (style.opacity !== 1 || clipPath) {
+      // A source group is an authoring boundary even when it has no isolated
+      // compositing effect. Preserve that hierarchy for the canonical layer
+      // tree; geometry transforms remain flattened into leaves until the SVG
+      // codec can retain group-local coordinate systems without changing
+      // gradient and clip semantics.
+      if (tag === 'g' || tag === 'a' || style.opacity !== 1 || clipPath) {
         const group: SvgSceneNode = {
           kind: 'group', name: nameOf(element), opacity: style.opacity,
           // Transforms remain flattened into leaf geometry for now. Keeping
