@@ -307,6 +307,7 @@ describe('VectorToolSessionController', () => {
 
     expect(state.controller.pointerDown(20, { x: 90, y: 65 }, { hitRadius: 3 })).toBe(true);
     expect(state.selection.elements).toEqual([{ layerId: layer.id, elementId: shape.id }]);
+    expect(state.controller.pointerMove(20, { x: 100, y: 70 })).toBe(true);
     expect(state.controller.pointerMove(20, { x: 110, y: 75 })).toBe(true);
     expect(state.history).toHaveLength(0);
     expect(state.controller.pointerUp(20, { x: 110, y: 75 })).toBe(true);
@@ -319,7 +320,7 @@ describe('VectorToolSessionController', () => {
       type: 'live-shape',
       geometry: shape.geometry,
       transform: { a: 1, b: 0, c: 0, d: 1, tx: 30, ty: 25 },
-      transformRevision: 1
+      transformRevision: 2
     });
   });
 

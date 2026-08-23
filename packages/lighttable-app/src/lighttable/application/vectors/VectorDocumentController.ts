@@ -75,6 +75,22 @@ interface ActiveElementCreation {
   beforeDocument: ImageDocument;
 }
 
+const sameTransform = (left: AffineMatrix, right: AffineMatrix) => (
+  left.a === right.a && left.b === right.b && left.c === right.c
+  && left.d === right.d && left.tx === right.tx && left.ty === right.ty
+);
+
+const sameElementGeometry = (left: VectorElement, right: VectorElement) => {
+  if (left.type !== right.type) return false;
+  if (left.type === 'live-shape') {
+    return right.type === 'live-shape'
+      && JSON.stringify(left.geometry) === JSON.stringify(right.geometry);
+  }
+  return right.type === 'path'
+    && JSON.stringify([left.fillRule, left.subpaths])
+      === JSON.stringify([right.fillRule, right.subpaths]);
+};
+
 export interface VectorElementCreationTransaction {
   readonly beforeDocument: ImageDocument;
   readonly previewDocument: ImageDocument;
@@ -466,7 +482,29 @@ export class VectorDocumentController {
       if (preview.id !== target.elementId || preview.type !== target.openingElement.type) {
         throw new Error('Interactive vector mutation cannot change element identity or type.');
       }
-      next = replaceVectorElement(next, target.layerId, preview);
+      // Gesture callbacks intentionally derive every preview from the stable
+      // opening element so transforms never accumulate floating-point drift.
+      // Their factory revision is therefore also stable (for example every
+      // pointer move reports transform revision 1). Retained renderers need a
+      // monotonic revision for each distinct preview or they correctly reuse
+      // stale pixels while the interaction cage continues moving.
+      const revisioned = cloneVectorElement(preview);
+      if (preview.geometryRevision !== target.openingElement.geometryRevision) {
+        revisioned.geometryRevision = sameElementGeometry(preview, current)
+          ? current.geometryRevision
+          : Math.max(preview.geometryRevision, current.geometryRevision + 1);
+      }
+      if (preview.transformRevision !== target.openingElement.transformRevision) {
+        revisioned.transformRevision = sameTransform(preview.transform, current.transform)
+          ? current.transformRevision
+          : Math.max(preview.transformRevision, current.transformRevision + 1);
+      }
+      if (preview.styleRevision !== target.openingElement.styleRevision) {
+        revisioned.styleRevision = JSON.stringify(preview.style) === JSON.stringify(current.style)
+          ? current.styleRevision
+          : Math.max(preview.styleRevision, current.styleRevision + 1);
+      }
+      next = replaceVectorElement(next, target.layerId, revisioned);
     }
     dependencies.applyDocumentSnapshot(next);
     active.changed = true;
