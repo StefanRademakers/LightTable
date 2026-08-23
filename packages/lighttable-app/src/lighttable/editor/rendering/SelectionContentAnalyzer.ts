@@ -1,4 +1,4 @@
-import type { RasterLayer } from '../document/documentTypes';
+import type { LayerId, LayerNode, RasterLayer } from '../document/documentTypes';
 import {
   selectionCoverageBounds,
   type SelectionCoverageBounds
@@ -15,6 +15,7 @@ interface SelectionContentAnalyzerOptions {
   pipelines: () => ToolPipelineBundle;
   ensureTargets: () => void;
   rasterRuntime: (layerId: RasterLayer['id']) => RasterLayerRuntime | null;
+  maskTexture: (layerId: LayerId) => GPUTexture | null;
   createCoverageTexture: (label: string, width: number, height: number) => GPUTexture;
   drawFullscreen: (
     encoder: GPUCommandEncoder,
@@ -68,11 +69,11 @@ export class SelectionContentAnalyzer {
     }
   }
 
-  async measureMask(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
-    const { device, ensureTargets, rasterRuntime } = this.options;
+  async measureMask(layer: LayerNode): Promise<SelectionCoverageBounds | null> {
+    const { device, ensureTargets, maskTexture } = this.options;
     ensureTargets();
-    const maskTexture = rasterRuntime(layer.id)?.maskTexture;
-    if (!maskTexture) return null;
+    const source = maskTexture(layer.id);
+    if (!source) return null;
     const { width, height } = this.options.dimensions();
     const generation = this.options.generation();
     const bytesPerRow = Math.ceil(width / 256) * 256;
@@ -87,7 +88,7 @@ export class SelectionContentAnalyzer {
         label: 'LightTable measure layer mask content'
       });
       encoder.copyTextureToBuffer(
-        { texture: maskTexture },
+        { texture: source },
         { buffer: readBuffer, bytesPerRow, rowsPerImage: height },
         [width, height]
       );

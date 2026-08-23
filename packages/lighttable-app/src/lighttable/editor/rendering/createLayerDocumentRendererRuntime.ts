@@ -315,6 +315,7 @@ export const createLayerDocumentRendererRuntime = (
     pipelines: toolPipelines.get,
     ensureTargets: ensureSelectionTargets,
     rasterRuntime: (layerId) => layerResources.raster(layerId),
+    maskTexture: (layerId) => layerResources.maskTexture(layerId),
     createCoverageTexture: (label, width, height) =>
       textures.createMaskSized(label, width, height),
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>

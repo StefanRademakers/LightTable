@@ -3,6 +3,7 @@ import {
   layerIsLocked,
   type ImageDocument,
   type LayerId,
+  type LayerNode,
   type RasterLayer
 } from '../../../editor/document/documentTypes';
 import type { PaintChannel } from '../../../editor/session/editorSession';
@@ -48,7 +49,7 @@ import {
 export interface TransformEditorRendererPort extends TransformRendererPort {
   setDocument(document: ImageDocument): void;
   applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo'): boolean;
-  measureLayerMaskContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null>;
+  measureLayerMaskContent(layer: LayerNode): Promise<SelectionCoverageBounds | null>;
 }
 
 export interface TransformHistoryEntry {
@@ -300,7 +301,7 @@ export const useTransformSessionController = (
     }
     const activeLayer = findDocumentLayer(document, document.activeLayerId);
     if (current.activeChannel === 'mask') {
-      if (!activeLayer || activeLayer.type !== 'raster' || !activeLayer.mask
+      if (!activeLayer || !activeLayer.mask
         || layerIsLocked(activeLayer, 'position')) {
         current.setError(null);
         setState(null);

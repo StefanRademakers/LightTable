@@ -1473,7 +1473,7 @@ export class WebGpuEngine {
     return this.documentRenderer?.measureLayerContent(layer) ?? null;
   }
 
-  async measureLayerMaskContent(layer: RasterLayer) {
+  async measureLayerMaskContent(layer: LayerNode) {
     return this.documentRenderer?.measureLayerMaskContent(layer) ?? null;
   }
 

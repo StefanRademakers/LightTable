@@ -68,6 +68,22 @@ const isolatedLayerTree = (
   }];
 });
 
+export const projectLayerMaskPresentation = (
+  document: ImageDocument | null,
+  layer: LayerNode | null,
+  texture: GPUTexture | null
+) => {
+  if (!texture || !document || !layer?.mask) return null;
+  const inverseTransform = invertMatrix(layer.mask.transform);
+  if (!inverseTransform) return null;
+  return {
+    texture,
+    inverseTransform,
+    canvasWidth: document.width,
+    canvasHeight: document.height
+  };
+};
+
 export const projectTextEditingGeometryPreview = (
   presentation: TextLayerEditingLayout,
   canonicalLocal: AffineMatrix,
@@ -218,19 +234,7 @@ export class LayerDocumentRenderer {
   maskPresentation(layerId: LayerId) {
     const texture = this.maskTextureFor(layerId);
     const layer = this.document ? findDocumentLayer(this.document, layerId) : null;
-    if (!texture || !this.document || layer?.type !== 'raster' || !layer.mask) {
-      return null;
-    }
-    const inverseTransform = invertMatrix(layer.mask.transform);
-    if (!inverseTransform) {
-      return null;
-    }
-    return {
-      texture,
-      inverseTransform,
-      canvasWidth: this.document.width,
-      canvasHeight: this.document.height
-    };
+    return projectLayerMaskPresentation(this.document, layer, texture);
   }
 
   resolveRasterRenderContract(layer: RasterLayer): RasterRenderContract | null {
@@ -709,7 +713,8 @@ export class LayerDocumentRenderer {
 
   invertLayerColors(layerId: LayerId, channel: PaintChannel = 'pixels') {
     const layer = this.document ? findDocumentLayer(this.document, layerId) : null;
-    if (!layer || layer.type !== 'raster') return false;
+    if (!layer || (channel === 'pixels' && layer.type !== 'raster')
+      || (channel === 'mask' && !layer.mask)) return false;
     const transform = channel === 'mask'
       ? layer.mask?.transform ?? identityAffineMatrix()
       : buildSceneTransformIndex(this.document!).get(layerId)?.localToDocument ?? layer.transform;
@@ -895,7 +900,7 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionContentAnalyzer.measure(layer, false);
   }
 
-  async measureLayerMaskContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {
+  async measureLayerMaskContent(layer: LayerNode): Promise<SelectionCoverageBounds | null> {
     return this.runtime.selectionContentAnalyzer.measureMask(layer);
   }
 
