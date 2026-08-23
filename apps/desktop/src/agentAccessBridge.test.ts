@@ -21,7 +21,9 @@ describe('AgentAccessBridge', () => {
   });
 
   it('closes and replaces a Fetch-forbidden automatic listener before publishing', async () => {
-    const forbiddenPort = 6667;
+    // 10080 is Fetch-forbidden but remains bindable on supported Windows CI;
+    // several lower forbidden ports are reserved by the operating system.
+    const forbiddenPort = 10080;
     const bridge = new AgentAccessBridge(store(), async () => null, '0.1.0', [], {
       automaticPortCandidates: [forbiddenPort, 0]
     });
@@ -36,6 +38,23 @@ describe('AgentAccessBridge', () => {
     });
     await new Promise<void>((resolve) => replacement.close(() => resolve()));
     await bridge.disable();
+  });
+
+  it('continues automatic port selection after a candidate cannot bind', async () => {
+    const occupied = createServer();
+    await new Promise<void>((resolve) => occupied.listen(0, '127.0.0.1', resolve));
+    const address = occupied.address();
+    if (!address || typeof address === 'string') throw new Error('Test port unavailable.');
+    const bridge = new AgentAccessBridge(store(), async () => null, '0.1.0', [], {
+      automaticPortCandidates: [address.port, 0]
+    });
+
+    const status = await bridge.enable();
+    expect(status).toMatchObject({ enabled: true, state: 'running' });
+    expect(status.port).not.toBe(address.port);
+
+    await bridge.disable();
+    await new Promise<void>((resolve) => occupied.close(() => resolve()));
   });
 
   it('binds loopback, exposes only public health metadata and invokes an authenticated driver', async () => {

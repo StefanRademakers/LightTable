@@ -127,6 +127,7 @@ export class AgentAccessBridge {
     this.credentials = await this.credentialStore.loadOrCreate();
     const automatic = port === 0;
     const candidates = this.options.automaticPortCandidates ?? [];
+    let lastAutomaticError: string | undefined;
     for (let attempt = 0; attempt < (automatic ? AUTOMATIC_PORT_ATTEMPTS : 1); attempt += 1) {
       const server = createServer((request, response) => void this.handle(request, response));
       server.on('connection', (socket) => {
@@ -154,17 +155,24 @@ export class AgentAccessBridge {
       } catch (reason) {
         server.closeAllConnections();
         server.close();
+        const error = reason instanceof Error ? reason.message : String(reason);
+        if (automatic) {
+          lastAutomaticError = error;
+          continue;
+        }
         return this.publish({
           supported: true, enabled: false, state: 'error',
           deviceId: this.credentials.deviceId,
-          error: reason instanceof Error ? reason.message : String(reason)
+          error
         });
       }
     }
     return this.publish({
       supported: true, enabled: false, state: 'error',
       deviceId: this.credentials.deviceId,
-      error: 'Unable to select a Fetch-compatible local port.'
+      error: lastAutomaticError
+        ? `Unable to select a Fetch-compatible local port: ${lastAutomaticError}`
+        : 'Unable to select a Fetch-compatible local port.'
     });
   }
 
