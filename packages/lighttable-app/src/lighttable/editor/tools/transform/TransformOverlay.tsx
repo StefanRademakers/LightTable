@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import type { Rect } from '../../document/documentTypes';
 import {
   aroundPoint,
@@ -20,7 +20,6 @@ import {
   type TransformFrameMode,
   type TransformSessionFrame
 } from './transformSessionFrame';
-import { LatestFrameScheduler } from './LatestFrameScheduler';
 
 interface TransformOverlayProps {
   state: TransformSessionState;
@@ -106,25 +105,15 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   onSnapMatches
 }) => {
   const dragRef = useRef<DragState | null>(null);
-  const frameSchedulerRef = useRef<LatestFrameScheduler | null>(null);
-  if (!frameSchedulerRef.current) {
-    frameSchedulerRef.current = new LatestFrameScheduler(
-      (callback) => window.requestAnimationFrame(callback),
-      (frame) => window.cancelAnimationFrame(frame)
-    );
-  }
-  useEffect(() => () => frameSchedulerRef.current?.cancel(), []);
   const scheduleAffine = (matrix: AffineMatrix, matches: readonly SnapMatch[] = []) => {
-    frameSchedulerRef.current!.schedule(() => {
-      onSnapMatches?.(matches);
-      onChange(matrix);
-    });
+    // The renderer already coalesces dirty presentation to the next frame.
+    // Another rAF here adds a complete frame of avoidable input latency.
+    onSnapMatches?.(matches);
+    onChange(matrix);
   };
   const scheduleProjective = (quad: TransformQuad, matches: readonly SnapMatch[] = []) => {
-    frameSchedulerRef.current!.schedule(() => {
-      onSnapMatches?.(matches);
-      onProjectiveChange(quad);
-    });
+    onSnapMatches?.(matches);
+    onProjectiveChange(quad);
   };
   const toScreen = (point: TransformPoint) => ({
     x: imageRect.x + point.x * scale,
@@ -328,9 +317,6 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       if (movedPixels <= 3) onPickLayer(point, event.shiftKey);
     }
     dragRef.current = null;
-    // The durable checkpoint must include the newest input sample even when
-    // pointer-up arrives before the browser's next animation frame.
-    frameSchedulerRef.current?.flush();
     onSnapMatches?.([]);
     event.currentTarget.releasePointerCapture(event.pointerId);
     event.preventDefault();

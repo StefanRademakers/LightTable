@@ -431,13 +431,16 @@ describe('LayerCompositor', () => {
     ))).toEqual(['vello', 'current']);
   });
 
-  it('moves a retained vector preview in the compositor without rerasterizing its geometry', () => {
+  it('moves a clipped retained vector preview as painted pixels without rerasterizing geometry', () => {
     const document = createImageDocument('Vector transform', 64, 32, 'source');
+    const base = document.layers[0]!;
     const vector = createVectorLayer([], 'Shape');
-    document.layers = [vector];
+    vector.clipping = true;
+    document.layers = [base, vector];
     document.activeLayerId = vector.id;
     const preview = translationMatrix(17, 9);
     const compositeA = texture(); const compositeB = texture();
+    const baseTexture = texture();
     const vectorTexture = texture();
     const encodeIsland = vi.fn(() => texture());
     const encodeVector = vi.fn(() => vectorTexture);
@@ -450,7 +453,9 @@ describe('LayerCompositor', () => {
       sampler: {} as GPUSampler,
       compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
       adjustmentMixPipeline: {} as GPURenderPipeline,
-      layerResources: { raster: vi.fn(() => null) } as never,
+      layerResources: { raster: vi.fn((layerId: string) => layerId === base.id ? ({
+        texture: baseTexture, width: 64, height: 32, maskTexture: null, maskId: null
+      }) : null) } as never,
       targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
       submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
       transformSessions: { current: null } as never,
@@ -477,7 +482,9 @@ describe('LayerCompositor', () => {
       expect.anything(),
       { width: 64, height: 32 }
     );
-    const values = vi.mocked(writeBuffer).mock.calls[0][2] as Float32Array;
+    const values = vi.mocked(writeBuffer).mock.calls
+      .map((call) => call[2] as Float32Array)
+      .find((value) => value[6] === -17 && value[10] === -9)!;
     expect(values[4]).toBe(1);
     expect(values[5]).toBe(0);
     expect(values[6]).toBe(-17);

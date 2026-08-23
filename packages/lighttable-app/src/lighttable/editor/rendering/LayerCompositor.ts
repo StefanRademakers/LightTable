@@ -546,8 +546,6 @@ export class LayerCompositor {
         if (
           geometryPreview
           && !node.mask?.enabled
-          && !node.clipping
-          && !clippingTexture
           && !layerStyleStackIsActive(node.styleStack)
         ) {
           const sourceToDocument = multiplyMatrices(inheritedTransform, node.transform);
@@ -568,6 +566,9 @@ export class LayerCompositor {
             && Math.abs(sourceToPreview.c) <= 1e-6
             && Math.abs(sourceToPreview.d - 1) <= 1e-6
           ) {
+            // Translate the already-painted canonical surface. SVG
+            // user/document-space gradients then remain attached. Clipping is
+            // still evaluated afterwards, in document space, by the compositor.
             return renderVectorLayer(
               node,
               background,
