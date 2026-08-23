@@ -66,6 +66,8 @@ export interface TransformSessionDependencies {
   activeLayerId: LayerId | null;
   activeChannel: PaintChannel;
   selectedLayerIds?: readonly LayerId[];
+  /** Advances for an explicit canvas auto-select request, even for the same layer. */
+  activationRevision?: number;
   selection: SelectionOperation[];
   getDocument(): ImageDocument | null;
   getRenderer(): TransformEditorRendererPort | null;
@@ -639,7 +641,8 @@ export const useTransformSessionController = (
     if (activeController?.state || groupRef.current || maskRef.current) return;
     const automaticLaunchKey = [
       dependencies.activeDocument?.id ?? '', dependencies.activeLayerId ?? '',
-      dependencies.activeChannel, selectedLayerKey
+      dependencies.activeChannel, selectedLayerKey,
+      String(dependencies.activationRevision ?? 0)
     ].join('\u0000');
     // Tool/document/target activation opens one transaction. An explicit
     // commit or cancel leaves the selected Transform tool dormant until the
@@ -654,6 +657,7 @@ export const useTransformSessionController = (
     dependencies.activeLayerId,
     dependencies.activeChannel,
     dependencies.activeTool,
+    dependencies.activationRevision,
     finish,
     selectedLayerKey,
     state?.layerId

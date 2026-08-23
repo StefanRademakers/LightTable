@@ -889,6 +889,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   ) => boolean>(() => false);
   const selectedLayerIdsRef = useRef<LayerId[]>([]);
   const [selectedLayerIds, setSelectedLayerIds] = useState<LayerId[]>([]);
+  const [transformActivationRevision, setTransformActivationRevision] = useState(0);
   const layerNameRenameGestureControllerRef = useRef(new LayerNameRenameGestureController());
   const handleLayerNamePointerDown = useCallback((layerId: LayerId, activeLayerId: LayerId | null) => {
     layerNameRenameGestureControllerRef.current.begin(layerId, activeLayerId, performance.now());
@@ -4503,10 +4504,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       getCurrentDocument: () => imageDocumentRef.current
     }).then((pick) => {
       if (!pick) return;
-      const currentDocument = imageDocumentRef.current;
-      if (!currentDocument) return;
-      if (currentDocument.activeLayerId !== pick.layerId) commitTransformRef.current();
+      if (!imageDocumentRef.current) return;
+      // Canvas auto-select is a single-target operation. Retire any active
+      // single/group preview first, then collapse panel selection and request a
+      // fresh gizmo even when the hit is already the active layer.
+      if (transformActiveRef.current()) commitTransformRef.current();
+      selectedLayerIdsRef.current = [pick.layerId];
+      setSelectedLayerIds([pick.layerId]);
       selectLayerRef.current(pick.layerId);
+      setTransformActivationRevision((current) => current + 1);
     }).catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : 'The layer could not be selected.');
     });
@@ -5735,6 +5741,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     activeLayerId: imageDocument?.activeLayerId ?? null,
     activeChannel: editorSession.activeChannel,
     selectedLayerIds,
+    activationRevision: transformActivationRevision,
     selection: editorSession.selection,
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
