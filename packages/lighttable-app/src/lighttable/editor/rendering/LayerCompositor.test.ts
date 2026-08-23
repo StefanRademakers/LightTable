@@ -431,7 +431,7 @@ describe('LayerCompositor', () => {
     ))).toEqual(['vello', 'current']);
   });
 
-  it('bypasses a retained island while a vector layer has a transform preview', () => {
+  it('moves a retained vector preview in the compositor without rerasterizing its geometry', () => {
     const document = createImageDocument('Vector transform', 64, 32, 'source');
     const vector = createVectorLayer([], 'Shape');
     document.layers = [vector];
@@ -441,9 +441,10 @@ describe('LayerCompositor', () => {
     const vectorTexture = texture();
     const encodeIsland = vi.fn(() => texture());
     const encodeVector = vi.fn(() => vectorTexture);
+    const writeBuffer = vi.fn();
     const compositor = new LayerCompositor({
       device: {
-        queue: { writeBuffer: vi.fn() }, createBuffer: vi.fn(() => ({})),
+        queue: { writeBuffer }, createBuffer: vi.fn(() => ({})),
         createBindGroup: vi.fn(() => ({}))
       } as unknown as GPUDevice,
       sampler: {} as GPUSampler,
@@ -472,10 +473,17 @@ describe('LayerCompositor', () => {
     expect(encodeIsland).not.toHaveBeenCalled();
     expect(encodeVector).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ id: vector.id, transform: preview }),
+      expect.objectContaining({ id: vector.id, transform: vector.transform }),
       expect.anything(),
       { width: 64, height: 32 }
     );
+    const values = vi.mocked(writeBuffer).mock.calls[0][2] as Float32Array;
+    expect(values[4]).toBe(1);
+    expect(values[5]).toBe(0);
+    expect(values[6]).toBe(-17);
+    expect(values[8]).toBe(0);
+    expect(values[9]).toBe(1);
+    expect(values[10]).toBe(-9);
   });
 
   it('renders fixture text as a derived GPU vector placeholder without hiding raster layers', () => {

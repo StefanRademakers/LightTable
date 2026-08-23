@@ -52,7 +52,7 @@ export interface DocumentViewportSurfaceProps {
   onTransformCommitGesture: () => void;
   onTransformDuplicateChange: (duplicate: boolean) => void;
   onTransformPick: (point: { x: number; y: number }, extend: boolean) => void;
-  transformSnapTargets?: readonly SnapFeature[];
+  getTransformSnapTargets?: () => readonly SnapFeature[];
   transformSnapEnabled?: boolean;
   transformFrameMode?: TransformFrameMode;
   transformFrameOverride?: TransformSessionFrame | null;
@@ -111,7 +111,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
   onTransformCommitGesture,
   onTransformDuplicateChange,
   onTransformPick,
-  transformSnapTargets,
+  getTransformSnapTargets,
   transformSnapEnabled,
   transformFrameMode,
   transformFrameOverride,
@@ -199,7 +199,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
           onCommitGesture={onTransformCommitGesture}
           onDuplicateChange={onTransformDuplicateChange}
           onPickLayer={onTransformPick}
-          snapTargets={transformSnapTargets}
+          getSnapTargets={getTransformSnapTargets}
           snapEnabled={transformSnapEnabled}
           frameMode={transformFrameMode}
           frameOverride={transformFrameOverride}

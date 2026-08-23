@@ -5802,22 +5802,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const transformFrame = useMemo(() => transformState
     ? buildTransformEditingFrame(transformState, activeScale, activeTransformFrame ?? undefined)
     : null, [activeScale, activeTransformFrame, transformState]);
-  const transformSnapTargets = useMemo(() => imageDocument && transformState
-    ? buildLayerSnapTargets(imageDocument, {
+  const getTransformSnapTargets = useCallback(() => {
+    const document = imageDocumentRef.current;
+    const snap = editorSessionRef.current.snap;
+    return document && transformState
+      ? buildLayerSnapTargets(document, {
         excludedLayerIds: new Set([
           transformState.layerId,
           ...selectedLayerIdsRef.current
         ]),
-        includeCanvas: editorSession.snap.targets.documentBounds,
-        includeLayers: editorSession.snap.targets.layers,
-        includeGuides: editorSession.snap.targets.guides,
-        includeGrid: editorSession.snap.targets.grid && editorSession.snap.gridVisible,
-        gridSpacing: editorSession.snap.gridSpacing / Math.max(1, editorSession.snap.gridSubdivisions),
-        gridOriginX: editorSession.snap.gridOriginX,
-        gridOriginY: editorSession.snap.gridOriginY,
+        includeCanvas: snap.targets.documentBounds,
+        includeLayers: snap.targets.layers,
+        includeGuides: snap.targets.guides,
+        includeGrid: snap.targets.grid && snap.gridVisible,
+        gridSpacing: snap.gridSpacing / Math.max(1, snap.gridSubdivisions),
+        gridOriginX: snap.gridOriginX,
+        gridOriginY: snap.gridOriginY,
         movingBounds: transformFrame?.bounds
       })
-    : [], [editorSession.snap, imageDocument, transformFrame, transformState]);
+      : [];
+  }, [transformFrame?.bounds, transformState]);
   useEffect(() => {
     engineRef.current?.setTransformEditingFrame(transformFrame);
   }, [transformFrame]);
@@ -7278,7 +7282,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         onTransformCommitGesture: transformSession.checkpoint,
         onTransformDuplicateChange: transformSession.setDuplicate,
         onTransformPick: pickTransformAtPoint,
-        transformSnapTargets,
+        getTransformSnapTargets,
         transformSnapEnabled: editorSession.snap.enabled,
         transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
         transformFrameOverride: transformSession.frameOverride,

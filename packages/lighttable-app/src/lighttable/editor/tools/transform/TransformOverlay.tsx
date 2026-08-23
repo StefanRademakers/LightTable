@@ -35,7 +35,8 @@ interface TransformOverlayProps {
   frameMode?: TransformFrameMode;
   frameOverride?: TransformSessionFrame | null;
   onPickLayer?: (point: TransformPoint, extend: boolean) => void;
-  snapTargets?: readonly SnapFeature[];
+  /** Builds immutable snap geometry once at gesture start, never per pointer move. */
+  getSnapTargets?: () => readonly SnapFeature[];
   snapEnabled?: boolean;
   onSnapMatches?: (matches: readonly SnapMatch[]) => void;
 }
@@ -52,6 +53,7 @@ interface DragState {
   angle: number;
   projectiveQuad: TransformQuad | null;
   projectiveCorner: number | null;
+  snapTargets: readonly SnapFeature[];
   changed: boolean;
 }
 
@@ -99,7 +101,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   frameMode = 'document',
   frameOverride = null,
   onPickLayer,
-  snapTargets = [],
+  getSnapTargets = () => [],
   snapEnabled = true,
   onSnapMatches
 }) => {
@@ -210,6 +212,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         { ...geometry.corners[3] }
       ],
       projectiveCorner,
+      snapTargets: getSnapTargets(),
       changed: false
     };
     onSnapMatches?.([]);
@@ -234,7 +237,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       const snapped = snapProjectiveTranslation(
         drag.projectiveQuad,
         { x: dx, y: dy },
-        snapTargets,
+        drag.snapTargets,
         scale,
         snapEnabled,
         event.ctrlKey || event.metaKey
@@ -246,7 +249,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         geometry.source,
         drag.matrix,
         { x: current.x - drag.start.x, y: current.y - drag.start.y },
-        snapTargets,
+        drag.snapTargets,
         scale,
         snapEnabled,
         event.ctrlKey || event.metaKey

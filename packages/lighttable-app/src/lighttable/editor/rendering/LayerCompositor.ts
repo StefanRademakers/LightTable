@@ -372,6 +372,8 @@ export class LayerCompositor {
         mask?: RasterMask | null;
         clippingTexture?: GPUTexture | null;
         sourceBounds?: Rect;
+        /** Maps destination document pixels back into an already-rendered source. */
+        sourceInverseTransform?: AffineMatrix;
       }
     ) => {
       const compositeStartedAt = this.compositeProfilingEnabled ? performance.now() : 0;
@@ -382,7 +384,8 @@ export class LayerCompositor {
         Boolean(settings.mask?.enabled && settings.maskTexture),
         blendModeGpuValue(settings.blendMode),
         Boolean(settings.clippingTexture),
-        { a: 1, b: 0, c: 0, d: 1, tx: -sourceBounds.x, ty: -sourceBounds.y },
+        settings.sourceInverseTransform
+          ?? { a: 1, b: 0, c: 0, d: 1, tx: -sourceBounds.x, ty: -sourceBounds.y },
         { width: sourceBounds.width, height: sourceBounds.height },
         settings.mask ?? null,
         invertMatrix(settings.mask?.transform ?? identityAffineMatrix()) ?? identityAffineMatrix()
@@ -525,6 +528,41 @@ export class LayerCompositor {
           }
         }
         const geometryPreview = geometryPreviews.resolve(node.id, node.geometryRevision);
+        if (
+          geometryPreview
+          && !node.mask?.enabled
+          && !node.clipping
+          && !clippingTexture
+          && !layerStyleStackIsActive(node.styleStack)
+        ) {
+          const sourceToDocument = multiplyMatrices(inheritedTransform, node.transform);
+          const previewToDocument = multiplyMatrices(inheritedTransform, geometryPreview);
+          const documentToSource = invertMatrix(sourceToDocument);
+          const documentToPreview = invertMatrix(previewToDocument);
+          const sourceToPreview = documentToSource
+            ? multiplyMatrices(previewToDocument, documentToSource)
+            : null;
+          // Pure moves do not change vector coverage. Keep the canonical Vello
+          // surface warm and move its pixels in the compositor instead of
+          // rasterizing a document-sized vector surface on every pointer frame.
+          if (
+            sourceToPreview
+            && documentToPreview
+            && Math.abs(sourceToPreview.a - 1) <= 1e-6
+            && Math.abs(sourceToPreview.b) <= 1e-6
+            && Math.abs(sourceToPreview.c) <= 1e-6
+            && Math.abs(sourceToPreview.d - 1) <= 1e-6
+          ) {
+            return renderVectorLayer(
+              node,
+              background,
+              target,
+              clippingTexture,
+              inheritedTransform,
+              multiplyMatrices(sourceToDocument, documentToPreview)
+            );
+          }
+        }
         return renderVectorLayer(
           geometryPreview ? { ...node, transform: geometryPreview } : node,
           background,
@@ -773,7 +811,8 @@ export class LayerCompositor {
       background: GPUTexture,
       target: GPUTexture,
       clippingTexture: GPUTexture | null,
-      inheritedTransform: AffineMatrix
+      inheritedTransform: AffineMatrix,
+      sourceInverseTransform?: AffineMatrix
     ): [GPUTexture, GPUTexture] => {
       const foreground = vectors.encode(
         encoder,
@@ -804,7 +843,8 @@ export class LayerCompositor {
         maskTexture,
         mask: styled ? null : layer.mask,
         clippingTexture,
-        sourceBounds: styled?.bounds
+        sourceBounds: styled?.bounds,
+        sourceInverseTransform
       });
       return [target, background];
     };
