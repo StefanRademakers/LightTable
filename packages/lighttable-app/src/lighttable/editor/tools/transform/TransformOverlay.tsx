@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import type { Rect } from '../../document/documentTypes';
 import {
   aroundPoint,
@@ -20,6 +20,7 @@ import {
   type TransformFrameMode,
   type TransformSessionFrame
 } from './transformSessionFrame';
+import { LatestFrameScheduler } from './LatestFrameScheduler';
 
 interface TransformOverlayProps {
   state: TransformSessionState;
@@ -103,6 +104,26 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
   onSnapMatches
 }) => {
   const dragRef = useRef<DragState | null>(null);
+  const frameSchedulerRef = useRef<LatestFrameScheduler | null>(null);
+  if (!frameSchedulerRef.current) {
+    frameSchedulerRef.current = new LatestFrameScheduler(
+      (callback) => window.requestAnimationFrame(callback),
+      (frame) => window.cancelAnimationFrame(frame)
+    );
+  }
+  useEffect(() => () => frameSchedulerRef.current?.cancel(), []);
+  const scheduleAffine = (matrix: AffineMatrix, matches: readonly SnapMatch[] = []) => {
+    frameSchedulerRef.current!.schedule(() => {
+      onSnapMatches?.(matches);
+      onChange(matrix);
+    });
+  };
+  const scheduleProjective = (quad: TransformQuad, matches: readonly SnapMatch[] = []) => {
+    frameSchedulerRef.current!.schedule(() => {
+      onSnapMatches?.(matches);
+      onProjectiveChange(quad);
+    });
+  };
   const toScreen = (point: TransformPoint) => ({
     x: imageRect.x + point.x * scale,
     y: imageRect.y + point.y * scale
@@ -206,7 +227,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         index === drag.projectiveCorner ? current : { ...point }
       )) as unknown as TransformQuad;
       drag.changed = true;
-      onProjectiveChange(next);
+      scheduleProjective(next);
     } else if (state.projectiveQuad && drag.handle === 'body' && drag.projectiveQuad) {
       const dx = current.x - drag.start.x;
       const dy = current.y - drag.start.y;
@@ -218,9 +239,8 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         snapEnabled,
         event.ctrlKey || event.metaKey
       );
-      onSnapMatches?.(snapped.matches);
       drag.changed = true;
-      onProjectiveChange(snapped.value);
+      scheduleProjective(snapped.value, snapped.matches);
     } else if (drag.handle === 'body') {
       const snapped = snapAffineTranslation(
         geometry.source,
@@ -231,18 +251,17 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         snapEnabled,
         event.ctrlKey || event.metaKey
       );
-      onSnapMatches?.(snapped.matches);
       drag.changed = true;
-      onChange(snapped.value);
+      scheduleAffine(snapped.value, snapped.matches);
     } else if (drag.handle === 'rotate' && !state.projectiveQuad) {
-      onSnapMatches?.([]);
       const angle = Math.atan2(current.y - drag.pivot.y, current.x - drag.pivot.x);
       let delta = angle - drag.angle;
       if (event.shiftKey) delta = Math.round(delta / (Math.PI / 12)) * (Math.PI / 12);
       drag.changed = true;
-      onChange(multiplyMatrices(aroundPoint(rotationMatrix(delta), drag.pivot), drag.matrix));
+      scheduleAffine(multiplyMatrices(
+        aroundPoint(rotationMatrix(delta), drag.pivot), drag.matrix
+      ));
     } else if (!state.projectiveQuad) {
-      onSnapMatches?.([]);
       const local = pointInTransformFrame(drag.matrix, drag.frameMatrix, current);
       if (!local) return;
       const horizontal = !['north', 'south'].includes(drag.handle);
@@ -269,7 +288,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
           drag.frameMatrix,
           aroundPoint(shear, drag.anchor)
         );
-        if (next) onChange(next);
+        if (next) scheduleAffine(next);
         event.preventDefault();
         event.stopPropagation();
         return;
@@ -291,7 +310,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
         drag.frameMatrix,
         aroundPoint(scaleMatrix(scaleX, scaleY), drag.anchor)
       );
-      if (next) onChange(next);
+      if (next) scheduleAffine(next);
     }
     event.preventDefault();
     event.stopPropagation();
@@ -306,6 +325,9 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
       if (movedPixels <= 3) onPickLayer(point, event.shiftKey);
     }
     dragRef.current = null;
+    // The durable checkpoint must include the newest input sample even when
+    // pointer-up arrives before the browser's next animation frame.
+    frameSchedulerRef.current?.flush();
     onSnapMatches?.([]);
     event.currentTarget.releasePointerCapture(event.pointerId);
     event.preventDefault();

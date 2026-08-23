@@ -89,8 +89,8 @@ export interface TransformSessionController {
   state: TransformSessionState | null;
   frameOverride: TransformSessionFrame | null;
   begin(): void;
-  update(matrix: AffineMatrix): void;
-  updateProjective(quad: TransformQuad): void;
+  update(matrix: AffineMatrix): TransformSessionState | null;
+  updateProjective(quad: TransformQuad): TransformSessionState | null;
   checkpoint(): void;
   alignFrameToDocument(): void;
   commit(): void;
@@ -485,8 +485,9 @@ export const useTransformSessionController = (
             multiplyMatrices(matrix, mask.maskTransform)
           );
       current.applyDocumentSnapshot(after);
-      setState((active) => active ? { ...active, matrix: { ...matrix } } : active);
-      return;
+      const next = state ? { ...state, matrix: { ...matrix } } : null;
+      if (next) setState(next);
+      return next;
     }
     const group = groupRef.current;
     if (group) {
@@ -494,17 +495,18 @@ export const useTransformSessionController = (
       dependenciesRef.current.applyDocumentSnapshot(
         transformLayerGroupInDocumentSpace(group.before, group.layerIds, matrix)
       );
-      setState((current) => current ? { ...current, matrix: { ...matrix } } : current);
-      return;
+      const next = state ? { ...state, matrix: { ...matrix } } : null;
+      if (next) setState(next);
+      return next;
     }
-    const next = controllerRef.current?.update(matrix);
-    if (next) setState(next);
-  }, []);
+    // Single-layer pointer previews are renderer-owned transient state. React
+    // receives the durable checkpoint once, after pointer-up.
+    return controllerRef.current?.update(matrix) ?? null;
+  }, [state]);
 
   const updateProjective = useCallback((quad: TransformQuad) => {
-    if (maskRef.current) return;
-    const next = controllerRef.current?.updateProjective(quad);
-    if (next) setState(next);
+    if (maskRef.current) return null;
+    return controllerRef.current?.updateProjective(quad) ?? null;
   }, []);
 
   const applyFixed = useCallback(async (operation: FixedTransformOperation) => {

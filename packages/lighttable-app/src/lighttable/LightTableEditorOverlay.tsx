@@ -319,6 +319,11 @@ import { pickCurrentTransformLayer } from './application/tools/transform/transfo
 import { resolveTransformCanvasLayerSelection } from './application/tools/transform/transformCanvasLayerSelection';
 import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
 import { transformSessionFrame } from './editor/tools/transform/transformSessionFrame';
+import type {
+  AffineMatrix,
+  TransformQuad,
+  TransformSessionState
+} from './editor/tools/transform/transformTypes';
 import { buildSmartGuideEditingFrame } from './editor/tools/transform/smartGuideEditingFrame';
 import { buildDocumentGridFrame, buildDocumentGuideFrame } from './editor/tools/transform/layoutGuideEditingFrame';
 import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeometry';
@@ -1188,7 +1193,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [temporaryEraseActive, setTemporaryEraseActive] = useState(false);
   const [temporaryZoomActive, setTemporaryZoomActive] = useState(false);
   const [temporaryZoomOutActive, setTemporaryZoomOutActive] = useState(false);
-  const [transformSnapMatches, setTransformSnapMatches] = useState<readonly SnapMatch[]>([]);
+  const transformSnapMatchesRef = useRef<readonly SnapMatch[]>([]);
   const [selectionSnapFeedback, setSelectionSnapFeedback] = useState<{
     matches: readonly SnapMatch[];
     bounds: Rect | null;
@@ -5822,13 +5827,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         && editorSession.snap.smartGuidesVisible
         && (transformFrame || selectionSnapFeedback.bounds)
         ? buildSmartGuideEditingFrame(
-            transformFrame ? transformSnapMatches : selectionSnapFeedback.matches,
+            transformFrame ? transformSnapMatchesRef.current : selectionSnapFeedback.matches,
             transformFrame?.bounds ?? selectionSnapFeedback.bounds!,
             activeScale
           )
         : null
     );
-  }, [activeScale, editorSession.snap.extrasVisible, editorSession.snap.smartGuidesVisible, selectionSnapFeedback, transformFrame, transformSnapMatches]);
+  }, [activeScale, editorSession.snap.extrasVisible, editorSession.snap.smartGuidesVisible, selectionSnapFeedback, transformFrame]);
   useEffect(() => {
     const engine = engineRef.current;
     engine?.setDocumentGuideEditingFrame(
@@ -5850,10 +5855,42 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     );
   }, [activeScale, editorSession.snap, effectiveDocumentGuides, imageDocument]);
   useEffect(() => {
-    if (!transformState) setTransformSnapMatches([]);
+    if (!transformState) {
+      transformSnapMatchesRef.current = [];
+      engineRef.current?.setSmartGuideEditingFrame(null);
+    }
   }, [transformState]);
-  const updateTransformMatrix = transformSession.update;
-  const updateTransformProjective = transformSession.updateProjective;
+  const publishTransientTransformFrame = useCallback((next: TransformSessionState | null) => {
+    if (!next) return;
+    const frame = transformSession.frameOverride ?? transformSessionFrame(
+      next,
+      toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document'
+    );
+    const editingFrame = buildTransformEditingFrame(next, activeScale, frame);
+    const engine = engineRef.current;
+    engine?.setTransformEditingFrame(editingFrame);
+    engine?.setSmartGuideEditingFrame(
+      editorSession.snap.extrasVisible !== false
+        && editorSession.snap.smartGuidesVisible
+        ? buildSmartGuideEditingFrame(
+            transformSnapMatchesRef.current,
+            editingFrame.bounds,
+            activeScale
+          )
+        : null
+    );
+  }, [activeScale, editorSession.snap.extrasVisible, editorSession.snap.smartGuidesVisible,
+    toolPreferences?.preserveTransformLocalAxes, transformSession.frameOverride]);
+  const updateTransformMatrix = useCallback((matrix: AffineMatrix) => {
+    publishTransientTransformFrame(transformSession.update(matrix));
+  }, [publishTransientTransformFrame, transformSession.update]);
+  const updateTransformProjective = useCallback((quad: TransformQuad) => {
+    publishTransientTransformFrame(transformSession.updateProjective(quad));
+  }, [publishTransientTransformFrame, transformSession.updateProjective]);
+  const publishTransformSnapMatches = useCallback((matches: readonly SnapMatch[]) => {
+    transformSnapMatchesRef.current = matches;
+    if (matches.length === 0) engineRef.current?.setSmartGuideEditingFrame(null);
+  }, []);
   commitTransformRef.current = transformSession.commit;
   cancelTransformRef.current = transformSession.cancel;
   resetTransformRef.current = transformSession.reset;
@@ -7245,7 +7282,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         transformSnapEnabled: editorSession.snap.enabled,
         transformFrameMode: toolPreferences?.preserveTransformLocalAxes ? 'local' : 'document',
         transformFrameOverride: transformSession.frameOverride,
-        onTransformSnapMatches: setTransformSnapMatches,
+        onTransformSnapMatches: publishTransformSnapMatches,
         documentGuides: effectiveDocumentGuides,
         rulersVisible: editorSession.snap.rulersVisible,
         guidesVisible: editorSession.snap.extrasVisible !== false && editorSession.snap.guidesVisible,

@@ -901,7 +901,7 @@ export class WebGpuEngine {
 
   beginLayerTransform(layer: RasterLayer, useSelection: boolean) {
     this.documentRenderer?.beginTransform(layer, useSelection);
-    this.markDocumentDirty();
+    this.markDocumentPreviewDirty();
   }
 
   setDuplicateLayerTransform(duplicate: boolean) {
@@ -910,7 +910,7 @@ export class WebGpuEngine {
 
   updateLayerTransform(matrix: AffineMatrix) {
     const changed = this.documentRenderer?.updateTransform(matrix) ?? false;
-    if (changed) this.markDocumentDirty();
+    if (changed) this.markDocumentPreviewDirty();
     return changed;
   }
 
@@ -919,7 +919,7 @@ export class WebGpuEngine {
     destination: import('../editor/tools/transform/transformTypes').TransformQuad
   ) {
     const changed = this.documentRenderer?.updateProjectiveTransform(source, destination) ?? false;
-    if (changed) this.markDocumentDirty();
+    if (changed) this.markDocumentPreviewDirty();
     return changed;
   }
 
@@ -931,7 +931,7 @@ export class WebGpuEngine {
 
   cancelLayerTransform() {
     const changed = this.documentRenderer?.cancelTransform() ?? false;
-    if (changed) this.markDocumentDirty();
+    if (changed) this.markDocumentPreviewDirty();
     return changed;
   }
 
@@ -960,7 +960,7 @@ export class WebGpuEngine {
     const renderer = this.documentRenderer;
     if (!renderer || (layer.type !== 'text' && layer.type !== 'vector')) return false;
     const changed = renderer.setGeometryPreview(layer, layer.transform);
-    if (changed) this.markDocumentDirty();
+    if (changed) this.markDocumentPreviewDirty();
     return changed;
   }
 
@@ -968,7 +968,7 @@ export class WebGpuEngine {
     const renderer = this.documentRenderer;
     if (!renderer || (layer.type !== 'text' && layer.type !== 'vector')) return false;
     const changed = renderer.setGeometryPreview(layer, matrix);
-    if (changed) this.markDocumentDirty();
+    if (changed) this.markDocumentPreviewDirty();
     return changed;
   }
 
@@ -976,7 +976,7 @@ export class WebGpuEngine {
     const renderer = this.documentRenderer;
     if (!renderer) return false;
     const changed = renderer.setGeometryPreview(layer, null);
-    if (changed) this.markDocumentDirty();
+    if (changed) this.markDocumentPreviewDirty();
     return changed;
   }
 
@@ -1637,6 +1637,16 @@ export class WebGpuEngine {
   private markDocumentDirty() {
     this.renderDirty.invalidate('document');
     this.scopeRuntime.markImageDirty();
+    this.requestRender();
+  }
+
+  /**
+   * Schedules transient interaction presentation without waking histogram or
+   * scope analysis. Canonical pointer-up publication performs the full dirty
+   * transition once; preview frames only need document compositing.
+   */
+  private markDocumentPreviewDirty() {
+    this.renderDirty.invalidate('document');
     this.requestRender();
   }
 
