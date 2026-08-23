@@ -7,39 +7,33 @@ repo_prefix="${repo_root}/"
 
 stop_lighttable_development_processes() {
   local process_table
+  local cwd_process_table
   process_table="$(mktemp "${TMPDIR:-/tmp}/lighttable-processes.XXXXXX")"
-  trap 'rm -f "$process_table"' RETURN
+  cwd_process_table="$(mktemp "${TMPDIR:-/tmp}/lighttable-cwd-processes.XXXXXX")"
+  trap 'rm -f "$process_table" "$cwd_process_table"' RETURN
 
   ps -axo pid=,ppid=,comm=,args= >"$process_table"
 
-  local cwd_matched_pids
-  cwd_matched_pids=""
   if command -v lsof >/dev/null 2>&1; then
-    cwd_matched_pids="$(
-      lsof -Fn -a -d cwd 2>/dev/null |
-        awk -v repo="$repo_root" '
-          /^p/ { pid = substr($0, 2); next }
-          /^n/ {
-            path = substr($0, 2)
-            if (path == repo || index(path, repo "/") == 1) {
-              print pid
-            }
+    lsof -Fn -a -d cwd 2>/dev/null |
+      awk -v repo="$repo_root" '
+        /^p/ { pid = substr($0, 2); next }
+        /^n/ {
+          path = substr($0, 2)
+          if (path == repo || index(path, repo "/") == 1) {
+            print pid
           }
-        ' |
-        sort -u
-    )"
+        }
+      ' |
+      sort -u >"$cwd_process_table"
   fi
 
   local matched_pids
   matched_pids="$(
-    awk -v repo="$repo_root" -v current_pid="$$" -v cwd_pids="$cwd_matched_pids" '
-      BEGIN {
-        split(cwd_pids, cwd_ids, /[[:space:]]+/)
-        for (i in cwd_ids) {
-          if (cwd_ids[i] != "") {
-            cwd_hit[cwd_ids[i]] = 1
-          }
-        }
+    awk -v repo="$repo_root" -v current_pid="$$" '
+      FILENAME == ARGV[1] {
+        if ($1 != "") cwd_hit[$1] = 1
+        next
       }
 
       {
@@ -83,7 +77,7 @@ stop_lighttable_development_processes() {
           }
         }
       }
-    ' "$process_table"
+    ' "$cwd_process_table" "$process_table"
   )"
 
   if [ -z "$matched_pids" ]; then
