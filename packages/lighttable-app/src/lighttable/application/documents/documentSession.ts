@@ -29,6 +29,10 @@ import type {
   FontAssetBlob,
   PreservedSourceAssetBlob
 } from '../../editor/persistence/layeredDocumentFormat';
+import type {
+  DocumentStartupTimeline,
+  DocumentStartupTimelineSnapshot
+} from '../telemetry/documentStartupTimeline';
 
 export type DocumentSessionId = string & {
   readonly __brand: 'DocumentSessionId';
@@ -160,6 +164,7 @@ export class DocumentSession {
   readonly fonts: DocumentFontRegistry;
 
   private snapshot: DocumentSessionSnapshot;
+  private startupTimeline: DocumentStartupTimeline | null = null;
   private readonly listeners = new Set<DocumentSessionListener>();
   private readonly disposers = new Set<() => void>();
   private readonly unsubscribeHistory: () => void;
@@ -221,6 +226,14 @@ export class DocumentSession {
   }
 
   getSnapshot = (): DocumentSessionSnapshot => this.snapshot;
+
+  setStartupTimeline(timeline: DocumentStartupTimeline): void {
+    this.startupTimeline = timeline;
+  }
+
+  startupTimelineSnapshot(): DocumentStartupTimelineSnapshot | null {
+    return this.startupTimeline?.snapshot() ?? null;
+  }
 
   subscribe = (listener: DocumentSessionListener): (() => void) => {
     // React external-store consumers may reconnect a passive subscription

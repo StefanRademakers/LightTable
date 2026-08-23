@@ -72,6 +72,12 @@ export type SvgSceneNode =
 export interface SvgImportOptions {
   readonly limits?: Partial<SvgCodecLimits>;
   readonly createId?: (kind: 'element' | 'subpath' | 'anchor') => string;
+  /** Optional monotonic diagnostics; never participates in SVG semantics. */
+  readonly trace?: {
+    readonly onParseBegin?: () => void;
+    readonly onParseEnd?: () => void;
+    readonly onCanonicalBegin?: () => void;
+  };
 }
 
 export interface SvgExportOptions {

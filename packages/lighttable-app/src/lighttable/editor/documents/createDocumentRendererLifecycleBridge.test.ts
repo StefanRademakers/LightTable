@@ -11,6 +11,7 @@ const canvases = {
 };
 
 const createRenderer = () => ({
+  setStartupTimeline: vi.fn(),
   setActive: vi.fn(),
   setLensBlurDepthVisualization: vi.fn(),
   setScopeOptions: vi.fn(),

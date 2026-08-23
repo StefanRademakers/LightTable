@@ -71,6 +71,7 @@
     "smoke:desktop:recovery": "node scripts/smoke-desktop-recovery.mjs",
     "profile:desktop:recovery": "node scripts/profile-desktop-recovery.mjs",
     "profile:browser:recovery": "node scripts/profile-browser-recovery.mjs",
+    "profile:desktop:vortext": "node scripts/measure-warm-vortext-first-pixel.mjs",
     "acceptance:owner": "node scripts/run-owner-acceptance.mjs",
     "probe:hardware": "node scripts/probe-hardware-qualification.mjs",
     "rehearse:commercial": "node scripts/rehearse-commercial-lifecycle.mjs",

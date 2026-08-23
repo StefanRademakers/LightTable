@@ -45,6 +45,7 @@ import {
   type DocumentOpenMode,
   type DocumentSourceProbe
 } from './documentSourceProbe';
+import type { DocumentStartupTimeline } from '../telemetry/documentStartupTimeline';
 
 export interface DocumentSourceRenderer {
   loadImage(
@@ -55,6 +56,8 @@ export interface DocumentSourceRenderer {
   initializeDocumentSurface(metadata: LightTableImageMetadata): void;
   setDocument(document: ImageDocument): void;
   loadLayerAssets(assets: DocumentAssetBlob[]): Promise<void>;
+  waitForPresentation(): Promise<void>;
+  armStartupPresentation(): void;
 }
 
 export interface DocumentSourceLoadTimings {
@@ -122,12 +125,27 @@ export interface LoadDocumentSourceRequest {
   readonly creationSettings?: DocumentCreationSettings;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
+  readonly startupTimeline?: DocumentStartupTimeline | null;
   /** Test seam; production callers use the default import adapters. */
   readonly dependencies?: Partial<DocumentSourceLoaderDependencies>;
 }
 
 const canceled = (request: LoadDocumentSourceRequest) =>
   request.signal?.aborted || request.isCanceled?.() === true;
+
+/**
+ * A raw SVG may be browser-rasterized in parallel with usvg only when it has
+ * no construct capable of resolving another resource. This is deliberately
+ * conservative: uncertain inputs take the normalized preview path.
+ */
+export const svgAllowsIsolatedRawPreview = (source: string): boolean => !(
+  /<(?:image|feImage|script|style|link|foreignObject|iframe|object|embed|audio|video)\b/iu.test(source)
+  || /(?:<!DOCTYPE|<!ENTITY|<\?xml-stylesheet)\b/iu.test(source)
+  || /\bstyle\s*=/iu.test(source)
+  || /\b(?:href|xlink:href)\s*=\s*["'](?!#)[^"']+/iu.test(source)
+  || /url\(\s*["']?(?!#)/iu.test(source)
+  || /@import\b/iu.test(source)
+);
 
 const createInitialRasterGrade = (
   adjustments: BasicAdjustments
@@ -199,11 +217,60 @@ export const loadDocumentSource = async (
     if (request.blob.size > SVG_IMPORT_MAX_BYTES) {
       throw new Error(`SVG input is ${request.blob.size} bytes and exceeds the 16 MiB import limit.`);
     }
-    const normalizedSvg = await dependencies.normalizeSvgSource(await request.blob.text());
+    const svgSource = await request.blob.text();
+    const isolatedPreview = svgAllowsIsolatedRawPreview(svgSource)
+      ? request.renderer.loadImage(
+          new Blob([svgSource], { type: 'image/svg+xml' }),
+          request.name,
+          { decodeMode: 'fast', signal: request.signal }
+        ).catch(() => null)
+      : null;
+    let previewMetadata = isolatedPreview ? await isolatedPreview : null;
+    let previewPresented = false;
+    if (previewMetadata) {
+      request.renderer.armStartupPresentation();
+      request.renderer.setDocument(createImageDocument(
+        request.name,
+        previewMetadata.width,
+        previewMetadata.height,
+        `${request.cacheKey}:svg-preview`
+      ));
+      await request.renderer.waitForPresentation();
+      previewPresented = true;
+      if (canceled(request)) return null;
+    }
+    request.startupTimeline?.mark('usvg-normalization-begin');
+    const normalizedSvg = await dependencies.normalizeSvgSource(svgSource);
+    request.startupTimeline?.mark('usvg-normalization-end');
     if (canceled(request)) return null;
+    // Put the already-sanitized/normalized SVG on the existing GPU canvas as
+    // a transient source presentation. Canonical editable objects and Vello
+    // resources continue loading afterwards and atomically replace it. The
+    // preview is renderer state only; it never enters document history/data.
+    previewMetadata ??= await request.renderer.loadImage(
+        new Blob([normalizedSvg], { type: 'image/svg+xml' }),
+        request.name,
+        { decodeMode: 'fast', signal: request.signal }
+      );
+    if (!previewPresented) {
+      request.renderer.armStartupPresentation();
+      request.renderer.setDocument(createImageDocument(
+        request.name,
+        previewMetadata.width,
+        previewMetadata.height,
+        `${request.cacheKey}:svg-preview`
+      ));
+      await request.renderer.waitForPresentation();
+      if (canceled(request)) return null;
+    }
     svgPlan = importSvg(normalizedSvg, {
       createId: createSvgImportIdFactory(),
-      limits: SVG_IMPORT_CODEC_LIMITS
+      limits: SVG_IMPORT_CODEC_LIMITS,
+      trace: {
+        onParseBegin: () => request.startupTimeline?.mark('svg-parse-begin'),
+        onParseEnd: () => request.startupTimeline?.mark('svg-parse-end'),
+        onCanonicalBegin: () => request.startupTimeline?.mark('canonical-object-creation-begin')
+      }
     });
     sourceDecodeMs = dependencies.now() - sourceDecodeStartedAt;
   }
@@ -227,7 +294,6 @@ export const loadDocumentSource = async (
         : sourceProbe.decodeMode,
     signal: request.signal
   });
-  if (svgPlan) request.renderer.initializeDocumentSurface(loadedMetadata);
   const metadata: LightTableImageMetadata = psdImport
     ? {
         ...loadedMetadata,
@@ -275,6 +341,9 @@ export const loadDocumentSource = async (
       svgPlan,
       request.name.replace(/\.[^.]+$/u, '') || 'Imported SVG'
     ).document;
+    request.startupTimeline?.mark('canonical-object-creation-end', {
+      elementCount: svgPlan.elements.length
+    });
   }
   if (request.creationSettings && !layered && !semanticPsd) {
     document = {
@@ -340,6 +409,11 @@ export const loadDocumentSource = async (
     throw new Error('The layered LightTable preview does not match its document dimensions.');
   }
 
+  // Retire the transient SVG raster and its layer runtime immediately before
+  // the editable canonical document takes ownership. Both operations occur in
+  // one JS turn, so no transparent intermediate frame can be presented.
+  if (svgPlan) request.renderer.initializeDocumentSurface(metadata);
+  request.renderer.armStartupPresentation();
   request.renderer.setDocument(document);
   if (layered) {
     await request.renderer.loadLayerAssets([

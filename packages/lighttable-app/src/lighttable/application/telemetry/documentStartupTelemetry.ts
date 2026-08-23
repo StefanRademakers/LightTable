@@ -1,4 +1,9 @@
 import type { LightTableStartupTimings } from './editorTelemetry';
+import type {
+  DocumentStartupTimeline,
+  DocumentStartupTimelineEvent,
+  DocumentStartupTimelineStage
+} from './documentStartupTimeline';
 
 export type StartupClock = () => number;
 
@@ -13,15 +18,28 @@ export class DocumentStartupTelemetry {
   private startedAt = 0;
   private awaitingFirstFrame = false;
   private timings: LightTableStartupTimings = {};
+  private timeline: DocumentStartupTimeline | null = null;
 
   constructor(now: StartupClock = () => performance.now()) {
     this.now = now;
   }
 
-  begin(): void {
+  begin(timeline?: DocumentStartupTimeline): void {
     this.startedAt = this.now();
     this.awaitingFirstFrame = true;
     this.timings = {};
+    this.timeline = timeline ?? null;
+  }
+
+  markTimelineStage(
+    stage: DocumentStartupTimelineStage,
+    detail?: DocumentStartupTimelineEvent['detail']
+  ): number | null {
+    return this.timeline?.mark(stage, detail) ?? null;
+  }
+
+  activeTimeline(): DocumentStartupTimeline | null {
+    return this.timeline;
   }
 
   merge(timings: LightTableStartupTimings): void {

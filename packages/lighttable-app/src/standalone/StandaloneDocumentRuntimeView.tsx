@@ -125,7 +125,7 @@ export function StandaloneDocumentRuntimeView({
   const {
     id,
     active,
-    runtime: { file, decodeMode, creationSettings },
+    runtime: { file, decodeMode, creationSettings, startupTimeline },
     session
   } = document;
 
@@ -181,6 +181,7 @@ export function StandaloneDocumentRuntimeView({
         sourceBlob={file}
         sourceDecodeMode={decodeMode}
         documentCreationSettings={creationSettings}
+        startupTimeline={startupTimeline}
         fileNameBase={titleWithoutExtension(file.name)}
         subjectLabel={file.name}
         workspaceDocumentId={id}

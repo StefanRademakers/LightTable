@@ -9,6 +9,7 @@ import type { WorkspaceSession } from '../workspace/workspaceSession';
 import { layerIsLocked, type LayerId, type LayerNode } from '../../editor/document/documentTypes';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 import type { RenderTelemetrySnapshot } from '../rendering/renderTelemetry';
+import type { DocumentStartupTimelineSnapshot } from '../telemetry/documentStartupTimeline';
 import { findDocumentLayer, siblingLayers, walkLayerTree } from '../../editor/document/layerTree';
 import { queryLayerCommandCapabilities } from '../layers/layerCommandCapabilities';
 import {
@@ -504,6 +505,11 @@ export class LightTableCommandService {
     return this.document(documentId)?.lifecycle === 'ready'
       ? this.ports.queryRenderTelemetry?.(documentId) ?? null
       : null;
+  }
+
+  /** Internal performance evidence seam; intentionally absent from MCP. */
+  queryStartupTimeline(documentId: DocumentSessionId): DocumentStartupTimelineSnapshot | null {
+    return this.workspace.getDocument(documentId)?.startupTimelineSnapshot() ?? null;
   }
 
   resetRenderTelemetry(documentId: DocumentSessionId): boolean {
@@ -1774,6 +1780,7 @@ export interface LightTableAutomationDriver {
   /** Read-only diagnostic projection of the visible Actions recorder. */
   actionRecordingSnapshot?(): ActionRecordingSnapshot;
   queryRenderTelemetry?(documentId: DocumentSessionId): RenderTelemetrySnapshot | null;
+  queryStartupTimeline?(documentId: DocumentSessionId): DocumentStartupTimelineSnapshot | null;
   resetRenderTelemetry?(documentId: DocumentSessionId): boolean;
   /** Internal packaged-test seam; intentionally absent from MCP command projection. */
   forceDeviceLossForAutomation?(documentId: DocumentSessionId): boolean;

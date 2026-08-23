@@ -5,6 +5,7 @@ import {
 } from '../../types';
 import {
   loadDocumentSource,
+  svgAllowsIsolatedRawPreview,
   type DocumentSourceRenderer
 } from './loadDocumentSource';
 
@@ -19,7 +20,9 @@ const createRenderer = () => ({
   loadImage: vi.fn(async () => metadata),
   initializeDocumentSurface: vi.fn(),
   setDocument: vi.fn(),
-  loadLayerAssets: vi.fn(async () => undefined)
+  loadLayerAssets: vi.fn(async () => undefined),
+  waitForPresentation: vi.fn(async () => undefined),
+  armStartupPresentation: vi.fn()
 }) satisfies DocumentSourceRenderer;
 
 const keepSvgSource = async (source: string) => source;
@@ -120,7 +123,7 @@ describe('loadDocumentSource', () => {
     });
   });
 
-  it('opens SVG directly into editable native vectors without browser image decoding', async () => {
+  it('shows a transient SVG preview before publishing editable native vectors', async () => {
     const renderer = createRenderer();
     const blob = new Blob([
       '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect id="card" width="80" height="40"/></svg>'
@@ -136,7 +139,11 @@ describe('loadDocumentSource', () => {
     expect(result?.metadata).toMatchObject({ width: 320, height: 180, decoder: 'native-svg', sourceFormat: 'SVG' });
     expect(result?.document.layers).toHaveLength(1);
     expect(result?.document.layers[0]).toMatchObject({ type: 'vector', elements: [{ name: 'card' }] });
-    expect(renderer.loadImage).not.toHaveBeenCalled();
+    expect(renderer.loadImage).toHaveBeenCalledOnce();
+    expect(renderer.loadImage).toHaveBeenCalledWith(expect.any(Blob), 'card.svg', {
+      decodeMode: 'fast', signal: undefined
+    });
+    expect(renderer.waitForPresentation).toHaveBeenCalledOnce();
     expect(renderer.initializeDocumentSurface).toHaveBeenCalledWith(expect.objectContaining({
       width: 320,
       height: 180,
@@ -173,8 +180,20 @@ describe('loadDocumentSource', () => {
         children: [{ type: 'vector', elements: [{ name: 'card' }] }]
       }]
     });
-    expect(renderer.loadImage).not.toHaveBeenCalled();
+    expect(renderer.loadImage).toHaveBeenCalledOnce();
     expect(renderer.setDocument).toHaveBeenCalledWith(result?.document);
+  });
+
+  it('permits parallel raw preview only for isolated SVG sources', () => {
+    expect(svgAllowsIsolatedRawPreview(
+      '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1"/></svg>'
+    )).toBe(true);
+    expect(svgAllowsIsolatedRawPreview('<svg><image href="https://example.test/a.png"/></svg>')).toBe(false);
+    expect(svgAllowsIsolatedRawPreview('<svg><a href="https://example.test/">x</a></svg>')).toBe(false);
+    expect(svgAllowsIsolatedRawPreview('<svg><rect style="fill:url(https://example.test/a)"/></svg>')).toBe(false);
+    expect(svgAllowsIsolatedRawPreview('<svg><script>alert(1)</script></svg>')).toBe(false);
+    expect(svgAllowsIsolatedRawPreview('<svg><style>.x{fill:red}</style></svg>')).toBe(false);
+    expect(svgAllowsIsolatedRawPreview('<!DOCTYPE svg SYSTEM "https://example.test/svg.dtd"><svg/>')).toBe(false);
   });
 
   it('uses an SVG viewBox as the native document surface when explicit dimensions are absent', async () => {

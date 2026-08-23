@@ -229,16 +229,20 @@ export const importSvg = (svg: string, options: SvgImportOptions = {}): SvgImpor
   if (/<\?/u.test(withoutDeclaration)) throw new SvgCodecError('forbidden-xml', 'SVG processing instructions are forbidden.');
   let parserMessage = '';
   let document: ReturnType<DOMParser['parseFromString']>;
+  options.trace?.onParseBegin?.();
   try {
     document = new DOMParser({ onError: (_level, message) => { parserMessage = message; } })
       .parseFromString(svg, 'image/svg+xml');
   } catch (reason) {
     throw new SvgCodecError('invalid-xml', `SVG XML is invalid: ${reason instanceof Error ? reason.message : String(reason)}`);
+  } finally {
+    options.trace?.onParseEnd?.();
   }
   if (parserMessage) throw new SvgCodecError('invalid-xml', `SVG XML is invalid: ${parserMessage}`);
   const root = document.documentElement;
   if (!root || root.localName?.toLowerCase() !== 'svg') throw new SvgCodecError('invalid-root', 'SVG document must have an <svg> root.');
   if (root.namespaceURI && root.namespaceURI !== SVG_NAMESPACE) throw new SvgCodecError('invalid-namespace', 'SVG root uses an unsupported namespace.');
+  options.trace?.onCanonicalBegin?.();
   const descendants = collectDescendantElements(root, limits.maxElements);
   preflightReferences(root, descendants);
   const viewBoxRaw = root.getAttribute('viewBox');

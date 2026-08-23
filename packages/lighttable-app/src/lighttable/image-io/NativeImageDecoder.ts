@@ -1,5 +1,23 @@
 import type { NativeDecodedImage } from './types';
 
+const bitmapOptions: ImageBitmapOptions = {
+  colorSpaceConversion: 'none',
+  premultiplyAlpha: 'none'
+};
+
+const decodeSvgBitmap = async (blob: Blob): Promise<ImageBitmap> => {
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = url;
+    await image.decode();
+    return createImageBitmap(image, bitmapOptions);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
+
 /**
  * Fast path for ordinary web images.
  *
@@ -7,10 +25,16 @@ import type { NativeDecodedImage } from './types';
  * worker, inspect the complete Blob, or import an optional WASM decoder.
  */
 export const decodeNativeImage = async (blob: Blob): Promise<NativeDecodedImage> => {
-  const bitmap = await createImageBitmap(blob, {
-    colorSpaceConversion: 'none',
-    premultiplyAlpha: 'none'
-  });
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(blob, bitmapOptions);
+  } catch (reason) {
+    if (blob.type !== 'image/svg+xml') throw reason;
+    // Chromium's Blob overload rejects SVG while its decoded-image overload
+    // renders the same sanitized source correctly. Keep this fallback SVG-only
+    // so ordinary bitmap ingest remains the single-call native fast path.
+    bitmap = await decodeSvgBitmap(blob);
+  }
 
   if (!bitmap.width || !bitmap.height) {
     bitmap.close();

@@ -50,6 +50,32 @@ describe('LightTable native image decoder', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it('uses a decoded-image fallback only for SVG blobs', async () => {
+    const close = vi.fn();
+    const bitmap = { width: 320, height: 180, close } as unknown as ImageBitmap;
+    const create = vi.fn()
+      .mockRejectedValueOnce(new Error('Blob SVG unsupported'))
+      .mockResolvedValueOnce(bitmap);
+    class TestImage {
+      decoding = '';
+      src = '';
+      decode = vi.fn(async () => undefined);
+    }
+    vi.stubGlobal('createImageBitmap', create);
+    vi.stubGlobal('Image', TestImage);
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test-svg');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
+    const result = await decodeNativeImage(new Blob(['<svg/>'], { type: 'image/svg+xml' }));
+
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls[1]?.[0]).toBeInstanceOf(TestImage);
+    expect(revoke).toHaveBeenCalledWith('blob:test-svg');
+    expect(result.descriptor).toMatchObject({ width: 320, height: 180, contentType: 'image/svg+xml' });
+    result.close();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it('keeps the native fast path usable after advanced image I/O is unavailable', async () => {
     vi.stubGlobal('crossOriginIsolated', false);
     vi.stubGlobal('SharedArrayBuffer', undefined);

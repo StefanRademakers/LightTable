@@ -32,5 +32,6 @@ export const prepareAndPublishDocumentSource = async ({
     name: request.name,
     identity: sourceIdentity
   }, publication);
+  request.startupTimeline?.mark('document-publish');
   return true;
 };

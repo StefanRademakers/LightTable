@@ -22,6 +22,7 @@ import {
 import type { SystemFontByteProvider } from '../lighttable/text/fonts/DocumentFontRegistry';
 import type { LightTableRecoveryRecord } from '../platform/LightTableRecoveryStore';
 import type { DocumentCreationSettings } from '../lighttable/editor/document/documentTypes';
+import { DocumentStartupTimeline } from '../lighttable/application/telemetry/documentStartupTimeline';
 
 export type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
 
@@ -64,17 +65,24 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
   const openDocument = useCallback((
     file: File,
     decodeMode: StandaloneDecodeMode = 'automatic',
-    creationSettings?: DocumentCreationSettings
-  ) => controller.open({
-    source: {
-      id: standaloneSourceIdentity(file, decodeMode),
-      name: file.name,
-      mediaType: file.type || 'application/octet-stream',
-      byteLength: file.size
-    },
-    title: file.name,
-    payload: { file, decodeMode, ...(creationSettings ? { creationSettings } : {}) }
-  }), [controller]);
+    creationSettings?: DocumentCreationSettings,
+    suppliedTimeline?: DocumentStartupTimeline
+  ) => {
+    const startupTimeline = suppliedTimeline ?? new DocumentStartupTimeline();
+    startupTimeline.mark('bytes-available', { byteLength: file.size });
+    const opened = controller.open({
+      source: {
+        id: standaloneSourceIdentity(file, decodeMode),
+        name: file.name,
+        mediaType: file.type || 'application/octet-stream',
+        byteLength: file.size
+      },
+      title: file.name,
+      payload: { file, decodeMode, startupTimeline, ...(creationSettings ? { creationSettings } : {}) }
+    });
+    if (opened.ok) opened.value.setStartupTimeline(startupTimeline);
+    return opened;
+  }, [controller]);
 
   const openRecoveredDocument = useCallback((
     file: File,
@@ -82,6 +90,8 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
     crashLoop: boolean
   ) => {
     const originalName = record.sourceName || 'Recovered document';
+    const startupTimeline = new DocumentStartupTimeline();
+    startupTimeline.mark('bytes-available', { byteLength: file.size });
     const opened = controller.open({
       source: {
         id: `recovery:${record.recoveryId}:${file.size}`,
@@ -93,14 +103,20 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
       payload: {
         file,
         decodeMode: 'automatic',
+        startupTimeline,
         recovery: { recoveryId: record.recoveryId, originalName, crashLoop }
       }
     });
-    if (opened.ok) opened.value.markChanged();
+    if (opened.ok) {
+      opened.value.setStartupTimeline(startupTimeline);
+      opened.value.markChanged();
+    }
     return opened;
   }, [controller]);
 
   const openDuplicatedDocument = useCallback((file: File, title: string) => {
+    const startupTimeline = new DocumentStartupTimeline();
+    startupTimeline.mark('bytes-available', { byteLength: file.size });
     const opened = controller.open({
       source: {
         id: `duplicate:${crypto.randomUUID()}`,
@@ -109,9 +125,12 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
         byteLength: file.size
       },
       title,
-      payload: { file, decodeMode: 'automatic' }
+      payload: { file, decodeMode: 'automatic', startupTimeline }
     });
-    if (opened.ok) opened.value.markChanged();
+    if (opened.ok) {
+      opened.value.setStartupTimeline(startupTimeline);
+      opened.value.markChanged();
+    }
     return opened;
   }, [controller]);
 

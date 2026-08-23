@@ -11,6 +11,7 @@ import {
 import type {
   StandaloneDocumentRuntime
 } from './standaloneDocumentRuntime';
+import { DocumentStartupTimeline } from '../lighttable/application/telemetry/documentStartupTimeline';
 
 const ids = (...values: string[]) => {
   let index = 0;
@@ -22,6 +23,15 @@ const file = (name: string) => new File(['image'], name, {
   lastModified: 1
 });
 
+const runtime = (
+  sourceFile: File,
+  decodeMode: StandaloneDocumentRuntime['decodeMode']
+): StandaloneDocumentRuntime => ({
+  file: sourceFile,
+  decodeMode,
+  startupTimeline: new DocumentStartupTimeline(() => 0)
+});
+
 describe('projectStandaloneDocumentWorkspace', () => {
   it('projects ordered host runtimes and application sessions without copying them', () => {
     const controller = new DocumentWorkspaceController<StandaloneDocumentRuntime>({
@@ -31,11 +41,11 @@ describe('projectStandaloneDocumentWorkspace', () => {
     const secondFile = file('second.png');
     const first = controller.open({
       source: { id: 'first', name: firstFile.name, mediaType: firstFile.type },
-      payload: { file: firstFile, decodeMode: 'fast' }
+      payload: runtime(firstFile, 'fast')
     });
     const second = controller.open({
       source: { id: 'second', name: secondFile.name, mediaType: secondFile.type },
-      payload: { file: secondFile, decodeMode: 'preserve-precision' }
+      payload: runtime(secondFile, 'preserve-precision')
     });
     if (!first.ok || !second.ok) throw new Error('Fixture failed to open.');
     first.value.markChanged();
@@ -61,7 +71,7 @@ describe('projectStandaloneDocumentWorkspace', () => {
     const sourceFile = file('first.png');
     const opened = controller.open({
       source: { id: 'first', name: sourceFile.name, mediaType: sourceFile.type },
-      payload: { file: sourceFile, decodeMode: 'fast' }
+      payload: runtime(sourceFile, 'fast')
     });
     if (!opened.ok) throw new Error('Fixture failed to open.');
 

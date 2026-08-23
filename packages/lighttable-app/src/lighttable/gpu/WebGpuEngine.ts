@@ -96,6 +96,7 @@ import {
 } from '../processing/adjustmentStack';
 import { DocumentAdjustmentState } from '../processing/documentAdjustmentState';
 import type { WebGpuScopeOptions } from './WebGpuScopeEngine';
+import type { DocumentStartupTimeline } from '../application/telemetry/documentStartupTimeline';
 import {
   requestSharedWebGpuDevice,
   subscribeSharedWebGpuDeviceLost
@@ -186,6 +187,9 @@ export interface WebGpuPngExportOptions {
 }
 
 export class WebGpuEngine {
+  private startupTimeline: DocumentStartupTimeline | null = null;
+  private startupPresentationArmed = false;
+  private readonly presentationWaiters = new Set<() => void>();
   private readonly canvas: HTMLCanvasElement;
   private readonly device: GPUDevice;
   private readonly context: GPUCanvasContext;
@@ -412,6 +416,25 @@ export class WebGpuEngine {
   /** Rebinds generation-guarded UI publications without recreating the engine. */
   updateCallbacks(callbacks: DocumentRendererCallbacks) {
     this.callbacks = callbacks;
+  }
+
+  setStartupTimeline(timeline: DocumentStartupTimeline | null) {
+    this.startupTimeline = timeline;
+    this.startupPresentationArmed = false;
+    this.documentRenderer?.setStartupTimeline(timeline);
+  }
+
+  armStartupPresentation() {
+    this.startupPresentationArmed = true;
+  }
+
+  /** Resolves after the next corrected canvas submission has had a paint opportunity. */
+  waitForPresentation(): Promise<void> {
+    if (this.destroyed) return Promise.reject(new Error('LightTable renderer is closed.'));
+    return new Promise((resolve) => {
+      this.presentationWaiters.add(resolve);
+      this.requestRender();
+    });
   }
 
   /**
@@ -2842,6 +2865,10 @@ export class WebGpuEngine {
       scopePasses.displayPasses
     );
     this.device.queue.submit([encoder.finish()]);
+    if (this.startupPresentationArmed) {
+      this.startupTimeline?.mark('first-gpu-queue-submission', { backend: 'lighttable' });
+      this.startupTimeline?.mark('first-compositor-submission');
+    }
     if (renderedCorrection) this.callbacks.onCompositeRendered?.();
     if (textInteractionTrace) {
       this.pendingTextInteractionTrace = null;
@@ -2873,10 +2900,31 @@ export class WebGpuEngine {
       }
     });
     this.reportGpuMemoryEstimate();
-    if (renderedCorrection && this.firstFramePending) {
+    if (renderedCorrection && this.firstFramePending && this.startupPresentationArmed) {
       this.firstFramePending = false;
+      const startupTimeline = this.startupTimeline;
       void this.device.queue.onSubmittedWorkDone().then(() => {
-        if (!this.destroyed) this.callbacks.onFirstFrame?.();
+        if (this.destroyed) return;
+        this.callbacks.onFirstFrame?.();
+        if (startupTimeline && this.startupTimeline === startupTimeline) {
+          startupTimeline.mark('request-animation-frame');
+        }
+        requestAnimationFrame(() => {
+          if (this.destroyed) return;
+          // A paint/composite opportunity occurs between animation frames.
+          // The second callback is the earliest browser-owned boundary at
+          // which the submitted canvas can conservatively be called visible.
+          requestAnimationFrame(() => {
+            if (this.destroyed) return;
+            if (startupTimeline && this.startupTimeline === startupTimeline) {
+              startupTimeline.mark('canvas-presentation');
+              startupTimeline.mark('first-pixel-visible');
+            }
+            const waiters = [...this.presentationWaiters];
+            this.presentationWaiters.clear();
+            for (const resolve of waiters) resolve();
+          });
+        });
       });
     }
     this.documentRenderer?.releaseSubmittedResources();
@@ -3315,6 +3363,9 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
 
   destroy() {
     this.destroyed = true;
+    const presentationWaiters = [...this.presentationWaiters];
+    this.presentationWaiters.clear();
+    for (const resolve of presentationWaiters) resolve();
     this.paintInteractionActive = false;
     this.warpInteractionActive = false;
     // The isolated mask texture is borrowed from the document renderer. Drop

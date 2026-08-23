@@ -46,6 +46,7 @@ import {
   vectorRendererDetailedProfilingEnabled
 } from '../../gpu/vectorRendererBackendDiagnostics';
 import type { RetainedRenderIsland } from './RetainedRenderIslandRegistry';
+import type { DocumentStartupTimeline } from '../../application/telemetry/documentStartupTimeline';
 
 /** Maximum flattening error in physical presentation pixels. */
 const DEFAULT_TOLERANCE_PX = 0.25;
@@ -586,6 +587,7 @@ export class VectorGeometryRealizationCache {
  * documents do not allocate vector resources or compile vector pipelines.
  */
 export class VectorLayerRenderer {
+  private startupTimeline: DocumentStartupTimeline | null = null;
   private readonly velloResourceNamespace = `vector-renderer-${++vectorRendererResourceSequence}`;
   private backend: VectorFillBackend | null = null;
   private surface: VectorFillSurface | null = null;
@@ -625,6 +627,10 @@ export class VectorLayerRenderer {
     if (!Number.isSafeInteger(maximumVelloSurfaceBytes) || maximumVelloSurfaceBytes < 0) {
       throw new RangeError('Vello surface cache budget must be a non-negative safe integer.');
     }
+  }
+
+  setStartupTimeline(timeline: DocumentStartupTimeline | null) {
+    this.startupTimeline = timeline;
   }
 
   encode(
@@ -841,11 +847,20 @@ export class VectorLayerRenderer {
       const renderSurface = entry.surface;
       if (!renderSurface) throw new Error('Vello island surface was not materialized.');
       if (entry.renderedSceneKey !== compiled.sceneKey) {
+        this.startupTimeline?.mark('first-island-submission', {
+          backend: 'vello',
+          resourceId: island.resourceId,
+          fragments: compiled.compiledFragmentCount
+        });
         const metrics = backend.render(
           renderSurface,
           compiled.scene,
           this.velloSourceKey(island.resourceId)
         );
+        // Vello submits its command buffer inside the synchronous WASM call.
+        // This marker therefore means the first Vello queue submission has
+        // returned to LightTable, not that its GPU work has completed.
+        this.startupTimeline?.mark('first-gpu-queue-submission', { backend: 'vello' });
         this.recordVelloRenderMetrics(metrics);
         entry.renderedSceneKey = compiled.sceneKey;
         entry.renderedIslandDependency = dependency;

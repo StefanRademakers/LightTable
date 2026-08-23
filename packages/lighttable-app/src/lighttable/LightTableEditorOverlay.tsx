@@ -125,6 +125,7 @@ import { TextSelectionGestureController } from './application/text/TextSelection
 import { textSelectionForGranularity, type TextSelectionGranularity } from './application/text/flowTextEditing';
 import type { LightTableStartupTimings } from './application/telemetry/editorTelemetry';
 import { DocumentStartupTelemetry } from './application/telemetry/documentStartupTelemetry';
+import type { DocumentStartupTimeline } from './application/telemetry/documentStartupTimeline';
 import { buildEditorStatus } from './application/telemetry/editorStatus';
 import type { ReferenceDifferenceMetrics, TextRenderPresentationSnapshot } from './application/rendering/rendererTypes';
 import { formatRenderTelemetry } from './application/rendering/renderTelemetry';
@@ -523,6 +524,7 @@ export interface LightTableEditorOverlayProps {
   sourceBlob?: Blob | null;
   sourceDecodeMode?: DocumentOpenMode;
   documentCreationSettings?: DocumentCreationSettings;
+  startupTimeline?: DocumentStartupTimeline;
   loadSource?: (request: {
     projectId: string;
     sourceFileKey: string;
@@ -611,6 +613,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   sourceBlob: initialSourceBlob = null,
   sourceDecodeMode = 'automatic',
   documentCreationSettings,
+  startupTimeline,
   loadSource,
   initialRecipe = null,
   fileNameBase,
@@ -3095,7 +3098,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       initialAdjustments: initialRecipe?.settings,
       port: {
         resetTelemetry: () => {
-          startupTelemetryRef.current.begin();
+          startupTelemetryRef.current.begin(startupTimeline);
           setStartupTimings(null);
           setLoading(true);
         },
@@ -3190,7 +3193,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     resetLensBlurDepth,
     setEditorSession,
     setImageDocument,
-    setView
+    setView,
+    startupTimeline
   ]);
 
   const beforeExistingDocumentRebind = useCallback(() => {

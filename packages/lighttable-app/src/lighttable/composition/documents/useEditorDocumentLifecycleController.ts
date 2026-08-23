@@ -140,6 +140,7 @@ export const useEditorDocumentLifecycleController = ({
       decodeMode: request.decodeMode,
       initialAdjustments: request.initialAdjustments,
       creationSettings: request.creationSettings,
+      startupTimeline: telemetryRef.current.activeTimeline(),
       signal: request.signal,
       isCanceled: request.isCanceled
     }),

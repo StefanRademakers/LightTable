@@ -106,6 +106,10 @@ export class LayerDocumentRenderer {
     );
   }
 
+  setStartupTimeline(timeline: import('../../application/telemetry/documentStartupTimeline').DocumentStartupTimeline | null) {
+    this.runtime.vectorLayerRenderer.setStartupTimeline(timeline);
+  }
+
   async initializeLayerStylePipeline() {
     await this.runtime.layerStyleRenderer.initialize();
   }

@@ -20,6 +20,8 @@ const renderer = () => ({
   initializeDocumentSurface: vi.fn(),
   setDocument: vi.fn(),
   loadLayerAssets: vi.fn(async () => undefined),
+  waitForPresentation: vi.fn(async () => undefined),
+  armStartupPresentation: vi.fn(),
   setAdjustmentStack: vi.fn(),
   setAdjustments: vi.fn(),
   measureReferenceDifference: vi.fn(async () => ({

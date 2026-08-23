@@ -122,19 +122,23 @@ export const useEditorDocumentOpenRequestFactory = ({
   });
 
   return createEditorDocumentOpenRequest({
-    createRenderer: () => createWebGpuDocumentRenderer(
-      resolvedCanvases.viewport,
-      lifecycleBridge.callbacks as DocumentRendererCallbacks
-    ),
+    createRenderer: () => {
+      telemetryRef.current.markTimelineStage('gpu-device-requested', { warmReuse: false });
+      return createWebGpuDocumentRenderer(
+        resolvedCanvases.viewport,
+        lifecycleBridge.callbacks as DocumentRendererCallbacks
+      );
+    },
     resolveSource: source.existingDocument
       ? async () => new Blob()
       : (signal) => resolveDocumentSource(source, signal),
-    hydrate: (renderer, sourceBlob, task) => hydrate(
-      renderer,
-      sourceBlob,
-      task,
-      isCurrent
-    ),
+    hydrate: (renderer, sourceBlob, task) => {
+      // Attach the trace only when the selected source is ready to hydrate.
+      // A reused renderer may still owe a frame for the previous document;
+      // counting that submission would produce a fast but false milestone.
+      renderer.setStartupTimeline(telemetryRef.current.activeTimeline());
+      return hydrate(renderer, sourceBlob, task, isCurrent);
+    },
     rendererSlot: {
       get: () => rendererRef.current,
       set: (renderer) => {

@@ -54,6 +54,12 @@ export class LightTableAutomationClient {
     documentId);
   }
 
+  queryStartupTimeline(documentId) {
+    return this.page.evaluate((id) =>
+      window.__lightTableAutomation?.queryStartupTimeline?.(id) ?? null,
+    documentId);
+  }
+
   resetRenderTelemetry(documentId) {
     return this.page.evaluate((id) =>
       window.__lightTableAutomation?.resetRenderTelemetry?.(id) ?? false,

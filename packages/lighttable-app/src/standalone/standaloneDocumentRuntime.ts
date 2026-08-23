@@ -2,6 +2,7 @@ import type {
   DocumentOpenMode
 } from '../lighttable/application/documents/documentSourceProbe';
 import type { DocumentCreationSettings } from '../lighttable/editor/document/documentTypes';
+import type { DocumentStartupTimeline } from '../lighttable/application/telemetry/documentStartupTimeline';
 
 export type StandaloneDecodeMode = DocumentOpenMode;
 
@@ -9,6 +10,7 @@ export interface StandaloneDocumentRuntime {
   readonly file: File;
   readonly decodeMode: StandaloneDecodeMode;
   readonly creationSettings?: DocumentCreationSettings;
+  readonly startupTimeline: DocumentStartupTimeline;
   readonly recovery?: {
     readonly recoveryId: string;
     readonly originalName: string;

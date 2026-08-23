@@ -7,8 +7,11 @@ import type {
 import type { DocumentStartupTelemetry } from '../../application/telemetry/documentStartupTelemetry';
 import type { LightTableStartupTimings } from '../../application/telemetry/editorTelemetry';
 import type { WebGpuScopeOptions } from '../../gpu/WebGpuScopeEngine';
+import type { DocumentStartupTimeline } from '../../application/telemetry/documentStartupTimeline';
+import { vectorRendererBackendSelection } from '../../gpu/vectorRendererBackendDiagnostics';
 
 export interface EditorDocumentRenderer {
+  setStartupTimeline(timeline: DocumentStartupTimeline | null): void;
   setActive(active: boolean): void;
   setLensBlurDepthVisualization(enabled: boolean): void;
   setScopeOptions(
@@ -107,6 +110,14 @@ export const createDocumentRendererLifecycleBridge = <
     callbacks,
     onRendererReady: (createdRenderer, elapsedMs) => {
       renderer = createdRenderer;
+      const timeline = options.telemetry.activeTimeline();
+      const warmReuse = elapsedMs === 0;
+      timeline?.mark('gpu-device-requested', { warmReuse });
+      timeline?.mark('gpu-adapter-ready', { warmReuse, coalesced: true });
+      timeline?.mark('gpu-device-ready', { warmReuse });
+      if (vectorRendererBackendSelection() === 'vello') {
+        timeline?.mark('vello-runtime-ready', { warmReuse });
+      }
       options.telemetry.rendererReady(elapsedMs);
       createdRenderer.setActive(options.lifecycle.getSnapshot().active);
       createdRenderer.setLensBlurDepthVisualization(false);

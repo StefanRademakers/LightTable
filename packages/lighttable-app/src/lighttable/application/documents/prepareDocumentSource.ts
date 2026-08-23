@@ -12,6 +12,7 @@ import {
   type DocumentSourceRenderer,
   type LoadedDocumentSource
 } from './loadDocumentSource';
+import type { DocumentStartupTimeline } from '../telemetry/documentStartupTimeline';
 
 export interface PreparedDocumentSource {
   readonly loaded: LoadedDocumentSource;
@@ -29,6 +30,7 @@ export interface PrepareDocumentSourceRequest {
   readonly groupVisibility: GroupVisibility;
   readonly signal?: AbortSignal;
   readonly isCanceled?: () => boolean;
+  readonly startupTimeline?: DocumentStartupTimeline | null;
 }
 
 /**
@@ -50,6 +52,7 @@ export const prepareDocumentSource = async (
     decodeMode: request.decodeMode,
     initialAdjustments: request.initialAdjustments,
     creationSettings: request.creationSettings,
+    startupTimeline: request.startupTimeline,
     signal: request.signal,
     isCanceled
   });

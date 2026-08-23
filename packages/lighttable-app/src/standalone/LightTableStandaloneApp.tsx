@@ -60,6 +60,7 @@ import {
   DocumentRendererLifecycle,
   type DocumentRendererSnapshot
 } from '../lighttable/application/rendering/documentRendererLifecycle';
+import { DocumentStartupTimeline } from '../lighttable/application/telemetry/documentStartupTimeline';
 
 const NewProjectDialog = lazy(async () => ({
   default: (await import('./NewProjectDialog')).NewProjectDialog
@@ -645,11 +646,13 @@ export function LightTableStandaloneApp({
     decodeMode: StandaloneDecodeMode = 'automatic'
   ) => {
     if (!host.openFile) return;
+    const startupTimeline = new DocumentStartupTimeline();
     setOpening(true);
     try {
       const file = await host.openFile();
       if (file) {
-        openDocument(file, decodeMode);
+        startupTimeline.mark('bytes-available', { byteLength: file.size });
+        openDocument(file, decodeMode, undefined, startupTimeline);
         await refreshRecentFiles();
       }
     } finally {
@@ -659,10 +662,14 @@ export function LightTableStandaloneApp({
 
   const openRecentDocument = useCallback(async (id: string) => {
     if (!host.openRecentFile) return;
+    const startupTimeline = new DocumentStartupTimeline();
     setOpening(true);
     try {
       const file = await host.openRecentFile(id);
-      if (file) openDocument(file);
+      if (file) {
+        startupTimeline.mark('bytes-available', { byteLength: file.size });
+        openDocument(file, 'automatic', undefined, startupTimeline);
+      }
       await refreshRecentFiles();
     } finally {
       setOpening(false);
