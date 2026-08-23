@@ -45,6 +45,7 @@ import {
   type TransformFrameMode,
   type TransformSessionFrame
 } from '../../../editor/tools/transform/transformSessionFrame';
+import { resolveTransformTargetLayerIds } from './transformTargetSelection';
 
 export interface TransformEditorRendererPort extends TransformRendererPort {
   setDocument(document: ImageDocument): void;
@@ -131,7 +132,11 @@ export const useTransformSessionController = (
     frameOverrideRef.current = frame;
     setFrameOverrideState(frame);
   }, []);
-  const selectedLayerKey = (dependencies.selectedLayerIds ?? []).join('\u0000');
+  const transformTargetLayerIds = resolveTransformTargetLayerIds(
+    dependencies.activeLayerId,
+    dependencies.selectedLayerIds ?? []
+  );
+  const selectedLayerKey = transformTargetLayerIds.join('\u0000');
   const automaticLaunchKeyRef = useRef<string | null>(null);
   const lastLayerTransformRef = useRef<AffineMatrix | null>(null);
   const groupRef = useRef<{
@@ -300,6 +305,23 @@ export const useTransformSessionController = (
       return;
     }
     const activeLayer = findDocumentLayer(document, document.activeLayerId);
+    const requestedLayerIds = resolveTransformTargetLayerIds(
+      document.activeLayerId,
+      current.selectedLayerIds ?? []
+    );
+    const requestedSelectionKey = requestedLayerIds.join('\u0000');
+    const launchIsCurrent = () => {
+      const latest = dependenciesRef.current;
+      const latestDocument = latest.getDocument();
+      return latest.activeTool === 'transform'
+        && latestDocument?.id === document.id
+        && latestDocument.activeLayerId === document.activeLayerId
+        && latest.activeChannel === current.activeChannel
+        && resolveTransformTargetLayerIds(
+          latestDocument.activeLayerId,
+          latest.selectedLayerIds ?? []
+        ).join('\u0000') === requestedSelectionKey;
+    };
     if (current.activeChannel === 'mask') {
       if (!activeLayer || !activeLayer.mask
         || layerIsLocked(activeLayer, 'position')) {
@@ -308,7 +330,7 @@ export const useTransformSessionController = (
         return;
       }
       const measured = await renderer.measureLayerMaskContent(activeLayer);
-      if (document.id !== dependenciesRef.current.getDocument()?.id) return;
+      if (!launchIsCurrent()) return;
       if (!measured) {
         current.setError('The active layer mask has no measurable content.');
         return;
@@ -338,20 +360,14 @@ export const useTransformSessionController = (
       current.setError(null);
       return;
     }
-    const requestedSelectionKey = [...new Set(current.selectedLayerIds ?? [])].join('\u0000');
-    const groupIds = topLevelTransformLayerIds(document, current.selectedLayerIds ?? [])
+    const groupIds = topLevelTransformLayerIds(document, requestedLayerIds)
       .filter((layerId) => {
         const candidate = findDocumentLayer(document, layerId);
         return candidate && !layerIsLocked(candidate, 'position');
       });
     if (groupIds.length > 1) {
       const bounds = await measureTransformGroupBounds(document, groupIds, renderer);
-      const latest = dependenciesRef.current;
-      const latestSelectionKey = [...new Set(latest.selectedLayerIds ?? [])].join('\u0000');
-      if (
-        document.id !== latest.getDocument()?.id
-        || requestedSelectionKey !== latestSelectionKey
-      ) return;
+      if (!launchIsCurrent()) return;
       if (!bounds) {
         current.setError('The selected layers have no measurable content yet.');
         return;
@@ -389,6 +405,14 @@ export const useTransformSessionController = (
     controllerRef.current = controller;
     controllerDocumentIdRef.current = document.id;
     const result = await controller.begin(document, current.selection);
+    if (!launchIsCurrent()) {
+      if (result.ok) controller.finish(null, [], false);
+      if (controllerRef.current === controller) {
+        controllerDocumentIdRef.current = null;
+        setState(null);
+      }
+      return;
+    }
     if (result.ok) {
       setState(result.state);
       setFrameOverride(continuationFrameRef.current);
@@ -624,7 +648,7 @@ export const useTransformSessionController = (
     const activeGroupKey = groupRef.current?.requestedSelectionKey ?? null;
     if (
       (activeGroupKey !== null && activeGroupKey !== selectedLayerKey)
-      || (activeController?.state && (dependencies.selectedLayerIds?.length ?? 0) > 1)
+      || (activeController?.state && transformTargetLayerIds.length > 1)
     ) {
       finish(true);
       return;
@@ -662,7 +686,8 @@ export const useTransformSessionController = (
     dependencies.activationRevision,
     finish,
     selectedLayerKey,
-    state?.layerId
+    state?.layerId,
+    transformTargetLayerIds.length
   ]);
 
   useEffect(() => () => {

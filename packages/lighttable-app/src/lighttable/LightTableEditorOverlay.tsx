@@ -3920,6 +3920,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     )
   });
 
+  const replaceLayerSelection = useCallback((layerId: LayerId) => {
+    transformPickRevisionRef.current += 1;
+    selectedLayerIdsRef.current = [layerId];
+    setSelectedLayerIds([layerId]);
+  }, []);
+
   const vectorToolSessionController = useVectorToolSessionController({
     document: imageDocument,
     selection: editorSession.vectorSelection,
@@ -3941,6 +3947,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     rasterizeShape: (transaction) => rasterizeShapeRef.current(transaction),
     onLiveShapeCommitted: ({ layerId, element, existingLayerId, layerName }) => {
+      replaceLayerSelection(layerId);
       const parameters = observedLiveShapeCreateCommand(element, existingLayerId, layerName);
       if (!parameters) return;
       commandService?.recordObservedCommand(
@@ -3951,6 +3958,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       );
     },
     onPenPathCommitted: ({ operation, layerId, layerName, path, existingLayerId }) => {
+      if (operation === 'create') replaceLayerSelection(layerId);
       const parameters = operation === 'create'
         ? observedVectorPathCreateCommand(path, existingLayerId, layerName)
         : observedVectorPathUpdateCommand(path, layerId);
@@ -3971,6 +3979,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     },
     onGradientCommitted: ({ operation, layerId, layerName, layerRole, layerOpacity,
       layerBlendMode, element }) => {
+      if (operation === 'create') replaceLayerSelection(layerId);
       const parameters = operation === 'create'
         ? observedLiveShapeCreateCommand(element, undefined, layerName, {
             role: layerRole,

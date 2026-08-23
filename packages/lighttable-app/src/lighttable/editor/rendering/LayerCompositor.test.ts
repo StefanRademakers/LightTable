@@ -431,6 +431,53 @@ describe('LayerCompositor', () => {
     ))).toEqual(['vello', 'current']);
   });
 
+  it('bypasses a retained island while a vector layer has a transform preview', () => {
+    const document = createImageDocument('Vector transform', 64, 32, 'source');
+    const vector = createVectorLayer([], 'Shape');
+    document.layers = [vector];
+    document.activeLayerId = vector.id;
+    const preview = translationMatrix(17, 9);
+    const compositeA = texture(); const compositeB = texture();
+    const vectorTexture = texture();
+    const encodeIsland = vi.fn(() => texture());
+    const encodeVector = vi.fn(() => vectorTexture);
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer: vi.fn() }, createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => null) } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: {
+        resolve: vi.fn((layerId: string) => layerId === vector.id ? preview : null)
+      } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: {
+        canRenderIsland: vi.fn(() => true), prepareIslandFrame: vi.fn(), encodeIsland,
+        encode: encodeVector, retainLayerIds: vi.fn()
+      } as never,
+      dimensions: () => ({ width: 64, height: 32 }), syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null), createTexture: vi.fn(texture),
+      clearTexture: vi.fn(), drawFullscreen: vi.fn()
+    });
+
+    compositor.encode({} as GPUCommandEncoder, document);
+
+    expect(encodeIsland).not.toHaveBeenCalled();
+    expect(encodeVector).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: vector.id, transform: preview }),
+      expect.anything(),
+      { width: 64, height: 32 }
+    );
+  });
+
   it('renders fixture text as a derived GPU vector placeholder without hiding raster layers', () => {
     const document = createImageDocument('Text fixture', 64, 32, 'source');
     const textLayer = createTextLayerNode(createDefaultTextLayerData(), 'Headline');
