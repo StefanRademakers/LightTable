@@ -26,10 +26,18 @@ case "$(uname -m)" in
     ;;
 esac
 
+app_path="apps/desktop/out-local-release/LightTable-darwin-${desktop_arch}/LightTable.app"
+app_executable="$(pwd)/${app_path}/Contents/MacOS/LightTable"
+if [ -x "$app_executable" ] && pgrep -f "^${app_executable}([[:space:]]|$)" >/dev/null 2>&1; then
+  echo "[LightTable] The production package is still running from $app_path." >&2
+  echo "[LightTable] Close that LightTable window before rebuilding; macOS may lock or retain the package." >&2
+  echo "[LightTable] The build did not start, so no generated package was changed." >&2
+  exit 1
+fi
+
 echo "[LightTable] Building an optimized production package with the hybrid vector renderer..."
 LIGHTTABLE_PACKAGE_OUT=out-local-release npm run package:desktop
 
-app_path="apps/desktop/out-local-release/LightTable-darwin-${desktop_arch}/LightTable.app"
 if [ ! -d "$app_path" ]; then
   echo "[LightTable] Packaged application was not found: $app_path" >&2
   exit 1
