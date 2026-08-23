@@ -532,3 +532,31 @@ the remaining startup/import scheduling path still needs measurement before a
 larger transport or importer rewrite is justified.
 
 Evidence: `tmp/task-305-vector-stress/report.json`.
+
+### Cold-start decomposition and GPU timestamp verdict
+
+The same stress metadata separates renderer startup from source complexity:
+
+| Phase | Layered fixture | 26k-path VORTEXT |
+| --- | ---: | ---: |
+| WebGPU runtime ready | 1,517 ms | 1,470 ms |
+| source decode | 27 ms | 552 ms |
+| canonical layer initialization | 4 ms | 152 ms |
+| first frame (cumulative) | 2,973 ms | 4,116 ms |
+
+Thus roughly 1.5 seconds is cold WebGPU/device initialization shared by both
+documents. The pathological source adds about 525 ms decode, 148 ms canonical
+initialization and the previously measured initial retained projection/render
+work. Optimizing only Vello cannot remove the full cold-start latency.
+
+A separate package was built with Vello's pinned `gpu-profiler` feature and
+the detailed LightTable profile enabled. The packaged workload still reported
+`actualGpuTimingAvailable: false`; Chromium's exposed adapter/device path did
+not produce supported exclusive Vello timestamp samples. This is a negative
+capability result, not permission to relabel synchronous WASM time as GPU time.
+Queue-completion wall time remains available but is deliberately reported as
+wall time shared with the LightTable queue.
+
+Evidence: `tmp/task-305-vortex-gpu-profile/report.json`. The generated WASM was
+rebuilt immediately afterwards without the diagnostic feature; normal package
+artifacts remain the committed configuration.
