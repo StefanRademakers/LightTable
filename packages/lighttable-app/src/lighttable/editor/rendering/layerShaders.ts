@@ -1959,7 +1959,14 @@ fn main(input: VertexOutput) -> @location(0) f32 {
 `;
 
 export const LAYER_INVERT_COLORS_WGSL = /* wgsl */ `
+struct InvertSettings {
+  transformRow0: vec4f,
+  transformRow1: vec4f,
+}
+
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var selectionTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> settings: InvertSettings;
 
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
@@ -1969,7 +1976,20 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   // Raster layers use premultiplied linear RGBA. Invert the straight color
   // while retaining both transparency and valid premultiplied output.
   let inverted = max(vec3f(source.a) - source.rgb, vec3f(0.0));
-  return vec4f(inverted, source.a);
+  let documentPosition = vec2f(
+    dot(settings.transformRow0.xyz, vec3f(vec2f(pixel), 1.0)),
+    dot(settings.transformRow1.xyz, vec3f(vec2f(pixel), 1.0))
+  );
+  let selectionDimensions = vec2i(textureDimensions(selectionTexture));
+  let selectionInside = all(documentPosition >= vec2f(0.0))
+    && all(documentPosition < vec2f(selectionDimensions));
+  let selectionPixel = clamp(vec2i(documentPosition), vec2i(0), selectionDimensions - vec2i(1));
+  let selection = select(
+    0.0,
+    clamp(textureLoad(selectionTexture, selectionPixel, 0).r, 0.0, 1.0),
+    selectionInside
+  );
+  return mix(source, vec4f(inverted, source.a), selection);
 }
 `;
 

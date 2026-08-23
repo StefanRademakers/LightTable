@@ -227,9 +227,12 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command('image.adjustments.black-white', { key: 'b', primary: true, alt: true, shift: true }, {
       type: 'apply-adjustment', kind: 'black-white'
     }, { when: (context) => !context.saving }),
-    command('image.adjustments.invert', { key: 'i', primary: true, alt: false, shift: false }, {
-      type: 'apply-adjustment', kind: 'invert'
-    }, { when: (context) => !context.saving }),
+    command(
+      'layer.invert-target',
+      { key: 'i', primary: true, alt: false, shift: false },
+      'invert-active-target',
+      { when: (context) => !context.saving && context.hasActiveLayer }
+    ),
     command('history.undo', { key: 'z', primary: true, alt: false, shift: false }, 'undo', {
       allowWhileEditing: true
     }),

@@ -198,6 +198,26 @@ describe('RasterPaintService', () => {
     expect(test.createdTextures).toHaveLength(0);
   });
 
+  it('maps the document selection through the raster transform when inverting', () => {
+    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
+    const test = harness(true, { width: 12, height: 7 });
+
+    expect(test.service.invertColors(layerId, 'pixels', {
+      a: 2, b: 3, c: 4, d: 5, tx: 6, ty: 7
+    })).toBe(true);
+
+    expect(test.ensureSelectionTargets).toHaveBeenCalledOnce();
+    expect(test.createBuffer).toHaveBeenCalledWith(expect.objectContaining({ size: 32 }));
+    const values = test.writeBuffer.mock.calls[0]?.[2] as Float32Array;
+    expect([...values]).toEqual([2, 4, 6, 0, 3, 5, 7, 0]);
+    expect(test.copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: test.createdTextures[0] },
+      expect.anything(),
+      [12, 7]
+    );
+    expect(test.invalidateLayer).toHaveBeenCalledWith(layerId);
+  });
+
   it('captures conservative local brush bounds before submitting dabs', () => {
     vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, STORAGE: 4 });
     const test = harness();

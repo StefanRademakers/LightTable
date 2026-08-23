@@ -89,8 +89,7 @@ describe('editor keymap', () => {
     { key: 'm', altKey: false, shiftKey: false, kind: 'curves' },
     { key: 'u', altKey: false, shiftKey: false, kind: 'hue-saturation' },
     { key: 'b', altKey: false, shiftKey: false, kind: 'color-balance' },
-    { key: 'b', altKey: true, shiftKey: true, kind: 'black-white' },
-    { key: 'i', altKey: false, shiftKey: false, kind: 'invert' }
+    { key: 'b', altKey: true, shiftKey: true, kind: 'black-white' }
   ])('routes the Photoshop $kind shortcut to its contextual smart adjustment', ({
     key, altKey, shiftKey, kind
   }) => {
@@ -99,6 +98,14 @@ describe('editor keymap', () => {
       input({ key, code: `Key${key.toUpperCase()}`, metaKey: true, altKey, shiftKey }),
       context({ hasActiveLayer: true })
     )).toEqual({ type: 'apply-adjustment', kind });
+  });
+
+  it('routes Cmd/Ctrl+I to the active pixel or mask target', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'i', code: 'KeyI', ctrlKey: true }),
+      context({ hasActiveLayer: true })
+    )).toBe('invert-active-target');
   });
 
   it('routes Photoshop-compatible view overlay shortcuts', () => {

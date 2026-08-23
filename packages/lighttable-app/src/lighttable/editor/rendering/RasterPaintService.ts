@@ -495,12 +495,18 @@ export class RasterPaintService {
     return true;
   }
 
-  invertColors(layerId: LayerId, channel: PaintChannel = 'pixels') {
+  invertColors(
+    layerId: LayerId,
+    channel: PaintChannel = 'pixels',
+    transform: AffineMatrix = identityAffineMatrix()
+  ) {
+    this.options.ensureSelectionTargets();
     const runtime = this.options.layerResources.raster(layerId);
     const target = channel === 'mask'
       ? this.options.maskTextureFor(layerId)
       : runtime?.texture;
-    if (!target) return false;
+    const selection = this.options.selectionTextures.mask;
+    if (!target || !selection) return false;
     this.options.captureAllHistory(layerId, channel);
     const pipelines = this.options.pipelines();
     const { width, height } = channel === 'pixels' && runtime
@@ -510,9 +516,22 @@ export class RasterPaintService {
       ? this.options.createMaskTexture('LightTable inverted mask')
       : this.options.createTextureSized('LightTable inverted layer colors', width, height);
     const pipeline = channel === 'mask' ? pipelines.maskInvertColors : pipelines.invertColors;
+    const settings = this.options.device.createBuffer({
+      label: 'LightTable invert colors settings',
+      size: 32,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    this.options.device.queue.writeBuffer(settings, 0, new Float32Array([
+      transform.a, transform.c, transform.tx, 0,
+      transform.b, transform.d, transform.ty, 0
+    ]));
     const bindGroup = this.options.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
-      entries: [{ binding: 0, resource: target.createView() }]
+      entries: [
+        { binding: 0, resource: target.createView() },
+        { binding: 1, resource: selection.createView() },
+        { binding: 2, resource: { buffer: settings } }
+      ]
     });
     const encoder = this.options.device.createCommandEncoder({
       label: 'LightTable invert layer colors'
@@ -532,8 +551,10 @@ export class RasterPaintService {
     this.options.device.queue.submit([encoder.finish()]);
     this.options.invalidateLayer(layerId);
     this.options.releaseSubmittedResources();
-    void this.options.device.queue.onSubmittedWorkDone()
-      .then(() => result.destroy());
+    void this.options.device.queue.onSubmittedWorkDone().then(() => {
+      result.destroy();
+      settings.destroy();
+    });
     return true;
   }
 

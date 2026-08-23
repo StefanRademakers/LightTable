@@ -20,6 +20,7 @@ import type { SelectionCoverageBounds } from '../selection/selectionCoverage';
 import type { DocumentAssetBlob } from '../persistence/layeredDocumentFormat';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
 import { findDocumentLayer } from '../document/layerTree';
+import { buildSceneTransformIndex } from '../document/sceneTransformGraph';
 import { invertMatrix, multiplyMatrices } from '../tools/transform/affine';
 import type { TextLayerEditingLayout } from '../../text/rendering/TextLayerRenderCoordinator';
 import {
@@ -707,7 +708,12 @@ export class LayerDocumentRenderer {
   }
 
   invertLayerColors(layerId: LayerId, channel: PaintChannel = 'pixels') {
-    return this.runtime.rasterPaint.invertColors(layerId, channel);
+    const layer = this.document ? findDocumentLayer(this.document, layerId) : null;
+    if (!layer || layer.type !== 'raster') return false;
+    const transform = channel === 'mask'
+      ? layer.mask?.transform ?? identityAffineMatrix()
+      : buildSceneTransformIndex(this.document!).get(layerId)?.localToDocument ?? layer.transform;
+    return this.runtime.rasterPaint.invertColors(layerId, channel, transform);
   }
 
   bakeSelectionIntoLayerMask(layerId: LayerId) {
