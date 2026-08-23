@@ -5,12 +5,18 @@ import {
   createDefaultTextLayerData
 } from '@lighttable/text-core';
 import {
+  addRasterLayerAttachedAdjustment,
   createTextLayer,
+  removeRasterLayerAttachedAdjustment,
   renameLayer,
+  setRasterLayerAttachedAdjustmentEnabled,
   setLayerLocked,
   setLayerOpacity,
   setLayerVisibility
 } from '../../editor/document/documentCommands';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
+import { createDefaultAdjustments } from '../../types';
 import { createAdjustmentLayer, createImageDocument } from '../../editor/document/documentTypes';
 import {
   documentCompositeRenderStatesEqual,
@@ -18,9 +24,6 @@ import {
 } from './documentRenderState';
 import { applyTextLayerDataMutation } from '../../editor/document/textLayerCommands';
 import { findDocumentLayer } from '../../editor/document/layerTree';
-import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
-import { selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
-import { createDefaultAdjustments } from '../../types';
 
 describe('document render state', () => {
   it('ignores insertion-only text metadata but observes paint revisions', () => {
@@ -133,6 +136,36 @@ describe('document render state', () => {
     };
 
     expect(documentRenderStatesEqual(document, changed)).toBe(false);
+  });
+
+  it('invalidates cached pixels for attached adjustment mutations', () => {
+    const document = createImageDocument('Image', 64, 32, 'asset');
+    const layerId = document.layers[0].id;
+    const settings = createDefaultAdjustments();
+    settings.photoshopAdjustment.kind = 'invert';
+    const adjustment = {
+      id: 'invert',
+      adjustmentKind: 'invert' as const,
+      name: 'Invert',
+      enabled: true,
+      revision: 0,
+      adjustmentStack: selectAdjustmentLayerModules(
+        createAdjustmentStackFromBasicAdjustments(settings),
+        'invert'
+      )
+    };
+    const added = addRasterLayerAttachedAdjustment(document, layerId, adjustment);
+    const disabled = setRasterLayerAttachedAdjustmentEnabled(added, layerId, adjustment.id, false);
+    const removed = removeRasterLayerAttachedAdjustment(disabled, layerId, adjustment.id);
+
+    for (const [before, after] of [
+      [document, added],
+      [added, disabled],
+      [disabled, removed]
+    ] as const) {
+      expect(documentRenderStatesEqual(before, after)).toBe(false);
+      expect(documentCompositeRenderStatesEqual(before, after)).toBe(false);
+    }
   });
 
   it('detects render-bearing preview changes that retain the canonical revision', () => {

@@ -64,6 +64,7 @@ const layerRenderStatesEqual = (left: LayerNode, right: LayerNode): boolean => {
 
   if (left.type === 'raster' && right.type === 'raster') {
     return left.adjustmentStack === right.adjustmentStack
+      && left.attachedAdjustments === right.attachedAdjustments
       && left.pixelRevision === right.pixelRevision
       && left.width === right.width
       && left.height === right.height
