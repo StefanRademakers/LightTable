@@ -5118,6 +5118,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     ),
     duplicateActiveLayer,
     rasterizeActiveTextLayer,
+    rasterizeActiveLayer: layerDocumentCommands.rasterizeActiveLayer,
     loadLayerMaskSelection: selectionSessionController.selectLayerMask,
     loadLayerTransparencySelection: selectionSessionController.selectLayerTransparency,
     mergeActiveLayerDown: mergeSelectionOrActiveDown,

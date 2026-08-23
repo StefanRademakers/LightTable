@@ -43,6 +43,7 @@ const renderer = (edit: ReversiblePixelEdit = pixelEdit()): LayerCommandRenderer
   commitRasterDestination: vi.fn(),
   releaseRasterDestination: vi.fn(() => true),
   rasterizeText: vi.fn(() => true),
+  rasterizeLayer: vi.fn(() => true),
   invertLayerColors: vi.fn(() => true),
   bakeSelectionIntoLayerMask: vi.fn(() => true),
   applyGeneratedLayerMask: vi.fn(() => true),
@@ -436,6 +437,30 @@ describe('useLayerDocumentCommands', () => {
     state.historyEntries[0].redo();
     expect(state.document().layers.at(-1)?.type).toBe('raster');
     expect(state.renderer.applyPixelHistory).toHaveBeenLastCalledWith(expect.anything(), 'redo');
+  });
+
+  it('rasterizes a semantic vector layer through one reversible full-canvas destination', async () => {
+    const document = createImageDocument('Vector rasterize', 32, 24, 'asset');
+    const vector = createVectorLayer([
+      createVectorPath('rasterize-path', 'Shape', [createSubpath('contour')])
+    ], 'Shape');
+    document.layers = [vector];
+    document.activeLayerId = vector.id;
+    const state = setup(document);
+
+    await expect(state.commands.rasterizeActiveLayer()).resolves.toBe(true);
+
+    const destination = state.document().layers[0]!;
+    expect(destination).toMatchObject({ type: 'raster', name: 'Shape', width: 32, height: 24 });
+    expect(destination.id).not.toBe(vector.id);
+    expect(state.renderer.rasterizeLayer).toHaveBeenCalledWith(
+      document, vector.id, destination.id
+    );
+    expect(state.historyEntries).toHaveLength(1);
+    state.historyEntries[0]!.undo();
+    expect(state.document().layers[0]).toMatchObject({ id: vector.id, type: 'vector' });
+    state.historyEntries[0]!.redo();
+    expect(state.document().layers[0]).toMatchObject({ id: destination.id, type: 'raster' });
   });
 
   it('waits for a newly published text source before an automated rasterization', async () => {

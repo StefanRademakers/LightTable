@@ -144,6 +144,47 @@ export class RasterDocumentOperations {
     return true;
   }
 
+  rasterizeLayer(
+    document: ImageDocument,
+    sourceId: LayerId,
+    destinationId: LayerId,
+    encodeAdjustment?: EncodeAdjustment
+  ) {
+    const { device, layerResources } = this.options;
+    const source = findLayerNode(document.layers, sourceId)?.node;
+    const destination = layerResources.raster(destinationId);
+    if (!source || !destination || sourceId === destinationId) return false;
+    if (hasMissingContributingRasterRuntime([source], layerResources)) return false;
+    if (this.options.textSourceReady && findContributingTextLayers([source]).some(
+      (layer) => !this.options.textSourceReady!(layer)
+    )) return false;
+    const { width, height } = this.options.dimensions();
+    if (destination.width !== width || destination.height !== height) return false;
+
+    const encoder = device.createCommandEncoder({ label: 'LightTable rasterize layer' });
+    const intrinsicSource: LayerNode = {
+      ...source,
+      visible: true,
+      opacity: 1,
+      blendMode: 'normal',
+      clipping: false
+    };
+    const rasterizedTexture = this.options.encodeComposite(
+      encoder,
+      { ...document, layers: [intrinsicSource], activeLayerId: sourceId },
+      encodeAdjustment
+    );
+    encoder.copyTextureToTexture(
+      { texture: rasterizedTexture },
+      { texture: destination.texture },
+      [width, height]
+    );
+    device.queue.submit([encoder.finish()]);
+    this.options.releaseSubmittedResources();
+    this.options.invalidateLayer(destinationId);
+    return true;
+  }
+
   merge(
     document: ImageDocument,
     layerIds: readonly LayerId[],

@@ -32,6 +32,7 @@ import {
   moveLayerRelative,
   moveLayerSelection,
   renameLayer,
+  rasterizeLayer,
   removeLayerMask,
   setLayerBlendMode,
   setLayerClipping,
@@ -624,6 +625,49 @@ describe('LightTable document commands', () => {
           });
         }
       }
+    }
+  });
+
+  it('projects every canonical layer type to a fresh raster while preserving stack relationships', () => {
+    type Kind = 'raster' | 'shape' | 'gradient' | 'adjustment' | 'text' | 'group';
+    const append = (source: ImageDocument, kind: Kind): ImageDocument => {
+      if (kind === 'raster') return createRasterLayer(source, 'Raster');
+      if (kind === 'shape') return createVectorLayer(source, [
+        createVectorLiveShape('rasterize-shape', {
+          kind: 'rectangle', width: 12, height: 9,
+          cornerRadii: [0, 0, 0, 0], linkedCorners: true
+        }, 'Shape')
+      ], 'Shape');
+      if (kind === 'gradient') return createGradientFillLayer(source, undefined, 'Gradient');
+      if (kind === 'adjustment') return createAdjustmentLayer(
+        source,
+        createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+        'Adjustment'
+      );
+      if (kind === 'text') return createTextLayer(source, createDefaultTextLayerData(), 'Text');
+      const withChild = createRasterLayer(source, 'Group child');
+      return groupLayers(withChild, [withChild.activeLayerId!], 'Group');
+    };
+
+    for (const kind of [
+      'raster', 'shape', 'gradient', 'adjustment', 'text', 'group'
+    ] as const) {
+      let document = append(createImageDocument(kind, 64, 48, 'background'), kind);
+      const sourceId = document.activeLayerId!;
+      document = setLayerOpacity(document, sourceId, 0.6);
+      document = setLayerBlendMode(document, sourceId, 'multiply');
+      document = setLayerClipping(document, sourceId, true);
+      const result = rasterizeLayer(document, sourceId);
+      const replacement = findRasterLayer(result, result.activeLayerId!);
+
+      expect(result, kind).not.toBe(document);
+      expect(replacement, kind).toMatchObject({
+        type: 'raster', width: 64, height: 48,
+        opacity: 0.6, fillOpacity: 1, blendMode: 'multiply', clipping: true,
+        adjustmentStack: null, mask: null
+      });
+      expect(replacement?.id, kind).not.toBe(sourceId);
+      expect(replacement?.styleStack.effects, kind).toEqual([]);
     }
   });
 

@@ -52,6 +52,7 @@ const setup = (initialDocument: ImageDocument) => {
     addActiveLayerMask: vi.fn(() => true),
     duplicateActiveLayer: vi.fn(() => true),
     rasterizeActiveTextLayer: vi.fn(() => true),
+    rasterizeActiveLayer: vi.fn(async () => true),
     loadLayerMaskSelection: vi.fn(),
     loadLayerTransparencySelection: vi.fn(),
     mergeActiveLayerDown: vi.fn(),

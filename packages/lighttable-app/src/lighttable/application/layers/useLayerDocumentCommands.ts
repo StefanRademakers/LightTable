@@ -21,6 +21,7 @@ import {
   markLayerPixelsChanged,
   mergeLayers as mergeDocumentLayers,
   moveLayerRelative,
+  rasterizeLayer as rasterizeDocumentLayer,
   rasterizeTextLayer
 } from '../../editor/document/documentCommands';
 import { createPlacedRasterLayer } from '../../editor/document/placedRasterLayerCommand';
@@ -81,6 +82,11 @@ export interface LayerCommandRendererPort {
     document: ImageDocument,
     source: import('../../editor/document/documentTypes').TextLayer,
     destination: import('../../editor/document/documentTypes').RasterLayer
+  ): boolean;
+  rasterizeLayer(
+    document: ImageDocument,
+    sourceId: LayerId,
+    destinationId: LayerId
   ): boolean;
   waitForTextSource?(layerId: LayerId): Promise<boolean>;
   invertLayerColors(layerId: LayerId, channel?: PaintChannel): boolean;
@@ -152,6 +158,9 @@ export interface LayerDocumentCommands {
   rasterizeTextLayer(layerId: LayerId): boolean;
   rasterizeTextLayerWhenReady(layerId: LayerId): Promise<boolean>;
   rasterizeActiveTextLayer(): boolean;
+  rasterizeLayer(layerId: LayerId): boolean;
+  rasterizeLayerWhenReady(layerId: LayerId): Promise<boolean>;
+  rasterizeActiveLayer(): Promise<boolean>;
   invertLayerColors(layerId: LayerId, channel: PaintChannel): boolean;
   copySelectedContent(selection: readonly SelectionOperation[]): Promise<PixelClipboardCapture | null>;
   copyMergedContent(selection: readonly SelectionOperation[]): Promise<PixelClipboardCapture | null>;
@@ -774,6 +783,68 @@ export const createLayerDocumentCommands = (
     }
   };
 
+  const rasterizeLayerById = (layerId: LayerId) => {
+    const dependencies = dependenciesRef.current;
+    const current = dependencies.getDocument();
+    const renderer = dependencies.getRenderer();
+    const source = current ? findDocumentLayer(current, layerId) : null;
+    if (!current || !source || !renderer) {
+      dependencies.setError('Select a layer to rasterize.');
+      return false;
+    }
+    const next = rasterizeDocumentLayer(current, source.id);
+    const destination = findRasterLayer(next, next.activeLayerId);
+    if (next === current || !destination) {
+      dependencies.setError('The layer is locked or cannot be rasterized.');
+      return false;
+    }
+    if (!renderer.prepareRasterDestination(destination)) {
+      dependencies.setError('The raster destination could not be allocated on the GPU.');
+      return false;
+    }
+    if (!renderer.rasterizeLayer(current, source.id, destination.id)) {
+      renderer.releaseRasterDestination(destination.id);
+      dependencies.setError('The layer could not be rasterized on the GPU.');
+      return false;
+    }
+
+    dependencies.applyDocumentSnapshot(next);
+    dependencies.pushHistoryEntry({
+      byteSize: current.width * current.height * 8,
+      layerIds: [source.id, destination.id],
+      undo: () => dependenciesRef.current.applyDocumentSnapshot(current),
+      redo: () => dependenciesRef.current.applyDocumentSnapshot(next)
+    });
+    renderer.commitRasterDestination(destination.id);
+    dependencies.setActiveChannel('pixels');
+    dependencies.setError(null);
+    dependencies.setStatus(`${source.name} rasterized`);
+    return true;
+  };
+
+  const rasterizeLayerWhenReady = async (layerId: LayerId) => {
+    await waitForTextTargets([layerId]);
+    if (rasterizeLayerById(layerId)) return true;
+    throw new Error('The prepared layer could not be rasterized.');
+  };
+
+  const rasterizeActiveLayer = async () => {
+    const activeLayerId = dependenciesRef.current.getDocument()?.activeLayerId;
+    if (!activeLayerId) {
+      const message = 'Select a layer to rasterize.';
+      dependenciesRef.current.setError(message);
+      return false;
+    }
+    try {
+      return await rasterizeLayerWhenReady(activeLayerId);
+    } catch (reason) {
+      dependenciesRef.current.setError(
+        reason instanceof Error ? reason.message : 'The layer could not be rasterized.'
+      );
+      return false;
+    }
+  };
+
   const rasterizeActiveTextLayer = () => {
     const activeLayerId = dependenciesRef.current.getDocument()?.activeLayerId;
     if (!activeLayerId) {
@@ -1131,6 +1202,9 @@ export const createLayerDocumentCommands = (
     rasterizeTextLayer: rasterizeTextLayerById,
     rasterizeTextLayerWhenReady,
     rasterizeActiveTextLayer,
+    rasterizeLayer: rasterizeLayerById,
+    rasterizeLayerWhenReady,
+    rasterizeActiveLayer,
     invertLayerColors,
     copySelectedContent,
     copyMergedContent,

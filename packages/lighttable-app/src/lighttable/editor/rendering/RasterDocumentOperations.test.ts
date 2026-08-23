@@ -138,6 +138,60 @@ describe('RasterDocumentOperations', () => {
     expect(createCommandEncoder).not.toHaveBeenCalled();
   });
 
+  it('rasterizes one semantic layer with outer stack relationships neutralized', () => {
+    const document = createImageDocument('Rasterize', 64, 32, 'background');
+    const source = createVectorLayer([
+      createVectorLiveShape('shape', { kind: 'ellipse', width: 20, height: 12 }, 'Shape')
+    ], 'Shape');
+    source.opacity = 0.4;
+    source.blendMode = 'multiply';
+    source.clipping = true;
+    document.layers = [source];
+    document.activeLayerId = source.id;
+    const destinationId = layerId('rasterized-destination');
+    const destinationTexture = texture('destination');
+    const renderedTexture = texture('rendered');
+    const copyTextureToTexture = vi.fn();
+    const submit = vi.fn();
+    const encodeComposite = vi.fn(() => renderedTexture);
+    const operations = new RasterDocumentOperations({
+      device: {
+        createCommandEncoder: () => ({
+          copyTextureToTexture,
+          finish: () => 'rasterize commands'
+        }),
+        queue: { submit }
+      } as unknown as GPUDevice,
+      layerResources: {
+        raster: (id: LayerId) => id === destinationId
+          ? { texture: destinationTexture, width: 64, height: 32 }
+          : null
+      } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      encodeComposite,
+      invalidateLayer: vi.fn(),
+      releaseSubmittedResources: vi.fn()
+    });
+
+    expect(operations.rasterizeLayer(document, source.id, destinationId)).toBe(true);
+    expect(encodeComposite).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        layers: [expect.objectContaining({
+          id: source.id, visible: true, opacity: 1,
+          blendMode: 'normal', clipping: false
+        })]
+      }),
+      undefined
+    );
+    expect(copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: renderedTexture },
+      { texture: destinationTexture },
+      [64, 32]
+    );
+    expect(submit).toHaveBeenCalledWith(['rasterize commands']);
+  });
+
   it('composites a cached vector presentation into the raster destination', () => {
     const document = createImageDocument('Shape merge', 64, 32, 'background');
     const vector = createVectorLayer([], 'Shape');

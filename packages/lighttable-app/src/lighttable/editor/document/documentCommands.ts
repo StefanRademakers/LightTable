@@ -1423,6 +1423,55 @@ export const rasterizeTextLayer = (
 };
 
 /**
+ * Replaces any canonical layer node with a fresh full-canvas raster target.
+ * The renderer bakes the node's intrinsic presentation into that target while
+ * these outer compositing properties stay live so the surrounding stack keeps
+ * the same blend relationship.
+ */
+export const rasterizeLayer = (
+  document: ImageDocument,
+  layerId: LayerId
+): ImageDocument => {
+  const source = findLayerNode(document.layers, layerId)?.node ?? null;
+  if (!source || layerIsLocked(source, 'pixels')) return document;
+  const id = createLayerId();
+  const now = Date.now();
+  const replacement: RasterLayer = {
+    id,
+    type: 'raster',
+    name: source.name,
+    visible: source.visible,
+    locks: { ...source.locks },
+    opacity: source.opacity,
+    // Fill opacity, masks, processing and styles are evaluated while creating
+    // the pixels. Overall opacity/blend/clipping remain stack relationships.
+    fillOpacity: 1,
+    blendMode: source.blendMode,
+    clipping: source.clipping,
+    styleStack: createDefaultLayerStyleStack(),
+    transform: identityAffineMatrix(),
+    adjustmentStack: null,
+    createdAt: source.createdAt,
+    width: document.width,
+    height: document.height,
+    offsetX: 0,
+    offsetY: 0,
+    pixelSource: { kind: 'runtime-raster', runtimeId: id },
+    mask: null,
+    geometryRevision: source.geometryRevision + 1,
+    pixelRevision: source.type === 'raster' ? source.pixelRevision + 1 : 1,
+    revision: source.revision + 1,
+    modifiedAt: now,
+    dirtyBounds: { x: 0, y: 0, width: document.width, height: document.height }
+  };
+  return updateDocument(
+    document,
+    updateLayerNode(document.layers, layerId, () => replacement),
+    replacement.id
+  );
+};
+
+/**
  * Returns a lossless merge plan for a Layers-panel selection.
  *
  * Selected layers must be contiguous siblings. Every semantic layer type is

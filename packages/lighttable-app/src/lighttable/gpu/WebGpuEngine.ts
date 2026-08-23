@@ -1631,6 +1631,17 @@ export class WebGpuEngine {
     return changed;
   }
 
+  rasterizeLayer(document: ImageDocument, sourceId: LayerId, destinationId: LayerId) {
+    const changed = this.documentRenderer?.rasterizeLayer(
+      document,
+      sourceId,
+      destinationId,
+      (encoder, source, layer) => this.encodeLayerProcessing(encoder, source, layer)
+    ) ?? false;
+    if (changed) this.markDocumentDirty();
+    return changed;
+  }
+
   vectorPathsForTextLayer(layerId: LayerId, signal?: AbortSignal) {
     return this.documentRenderer?.vectorPathsForTextLayer(layerId, signal)
       ?? Promise.resolve(null);

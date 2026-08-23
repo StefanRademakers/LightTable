@@ -543,6 +543,20 @@ export class LayerDocumentRenderer {
     );
   }
 
+  rasterizeLayer(
+    document: ImageDocument,
+    sourceId: LayerId,
+    destinationId: LayerId,
+    encodeAdjustment?: EncodeAdjustment
+  ) {
+    return this.runtime.rasterDocumentOperations.rasterizeLayer(
+      document,
+      sourceId,
+      destinationId,
+      encodeAdjustment
+    );
+  }
+
   beginStroke(layer: LayerNode, channel: PaintChannel) {
     if (layerIsLocked(layer, 'pixels') || !layer.visible) throw new Error('Select a visible, unlocked layer before painting.');
     if (channel === 'pixels' && layer.type !== 'raster') {
