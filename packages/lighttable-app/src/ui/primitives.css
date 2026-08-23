@@ -2293,6 +2293,13 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   cursor: crosshair;
   touch-action: none;
 }
+.lighttable-color-picker-prototype__sv:focus,
+.lighttable-color-picker-prototype__sv:focus-visible {
+  outline: 0;
+}
+.lighttable-color-picker-prototype__sv:focus-visible .lighttable-color-picker-prototype__sv-marker {
+  box-shadow: 0 0 0 1px #000, 0 0 0 3px var(--lt-focus-ring);
+}
 .lighttable-color-picker-prototype__sv-marker {
   position: absolute;
   width: 12px;

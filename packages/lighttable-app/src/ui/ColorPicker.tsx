@@ -124,11 +124,24 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
     const bounds = element.getBoundingClientRect();
     commitHsv({ h: hsv.h, s: clamp((x - bounds.left) / bounds.width), v: 1 - clamp((y - bounds.top) / bounds.height) });
   };
+  const handleSvKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 0.1 : 0.01;
+    let next: HsvColor | null = null;
+    if (event.key === 'ArrowLeft') next = { ...hsv, s: clamp(hsv.s - step) };
+    else if (event.key === 'ArrowRight') next = { ...hsv, s: clamp(hsv.s + step) };
+    else if (event.key === 'ArrowDown') next = { ...hsv, v: clamp(hsv.v - step) };
+    else if (event.key === 'ArrowUp') next = { ...hsv, v: clamp(hsv.v + step) };
+    if (!next) return;
+    event.preventDefault();
+    event.stopPropagation();
+    commitHsv(next);
+  };
   return <div className="lighttable-color-picker-prototype" role="dialog" aria-label="Color picker"
     data-suite-control="color-picker">
     <div className="lighttable-color-picker-prototype__sv" role="slider" aria-label="Saturation and brightness"
       aria-valuetext={`${Math.round(hsv.s * 100)}% saturation, ${Math.round(hsv.v * 100)}% brightness`}
       tabIndex={0} style={{ '--lighttable-picker-hue': `hsl(${hsv.h} 100% 50%)` } as React.CSSProperties}
+      onKeyDown={handleSvKeyDown}
       onPointerDown={(event) => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); updateSv(event.currentTarget, event.clientX, event.clientY); }}
       onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updateSv(event.currentTarget, event.clientX, event.clientY); }}>
       <span className="lighttable-color-picker-prototype__sv-marker" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
