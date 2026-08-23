@@ -92,7 +92,7 @@ if [ ! -d "node_modules" ]; then
   npm ci
 fi
 
-echo "[LightTable] Running boundary checks, typechecking, tests and builds..."
+echo "[LightTable] Running boundary checks, typechecking, tests and hybrid-renderer builds..."
 LIGHTTABLE_PACKAGE_OUT=out-verify npm run verify
 
 if [ "$(uname -s)" = "Darwin" ]; then
@@ -107,9 +107,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
   esac
 
   app_path="apps/desktop/out-verify/LightTable-darwin-${desktop_arch}/LightTable.app"
-  release_dir="apps/desktop/out-verify/release/darwin/${desktop_arch}"
   release_version="$(node -p "require('./apps/desktop/package.json').version")"
-  mac_zip="$release_dir/LightTable-${release_version}-darwin-${desktop_arch}.zip"
+  maker_zip_dir="apps/desktop/out-verify/make/zip/darwin/${desktop_arch}"
+  mac_zip="$maker_zip_dir/LightTable-darwin-${desktop_arch}-${release_version}.zip"
 
   if [ -n "${LIGHTTABLE_MAC_SIGN_IDENTITY:-}" ]; then
     signing_kind="developer-id"
@@ -127,32 +127,26 @@ if [ "$(uname -s)" = "Darwin" ]; then
 
   validate_macos_app "$app_path" "$signing_kind" "$signing_team"
 
-  mkdir -p "$release_dir"
-  zip_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/lighttable-release.XXXXXX")"
+  echo "[LightTable] Creating macOS ZIP from the verified desktop package..."
+  LIGHTTABLE_PACKAGE_OUT=out-verify npm run make --workspace @lighttable/desktop -- --skip-package
+  [ -f "$mac_zip" ] || fail "macOS maker completed without producing: $mac_zip"
+
   extract_dir="$(mktemp -d "${TMPDIR:-/tmp}/lighttable-verify.XXXXXX")"
   cleanup_release_temp() {
-    local temp_path
-    for temp_path in "$zip_tmp_dir" "$extract_dir"; do
-      case "$(basename "$temp_path")" in
-        lighttable-release.*|lighttable-verify.*)
-          [ -d "$temp_path" ] && rm -rf -- "$temp_path"
-          ;;
-        *)
-          echo "[LightTable] Refusing to remove unexpected temporary path: $temp_path" >&2
-          ;;
-      esac
-    done
+    case "$(basename "$extract_dir")" in
+      lighttable-verify.*)
+        [ -d "$extract_dir" ] && rm -rf -- "$extract_dir"
+        ;;
+      *)
+        echo "[LightTable] Refusing to remove unexpected temporary path: $extract_dir" >&2
+        ;;
+    esac
   }
   trap cleanup_release_temp EXIT
 
-  staged_zip="$zip_tmp_dir/$(basename "$mac_zip")"
-  echo "[LightTable] Creating macOS release ZIP from the validated package (${desktop_arch})..."
-  ditto -c -k --sequesterRsrc --keepParent "$app_path" "$staged_zip" \
-    || fail "Could not create the macOS release ZIP."
-  ditto -x -k "$staged_zip" "$extract_dir" \
+  ditto -x -k "$mac_zip" "$extract_dir" \
     || fail "Could not extract the macOS release ZIP for verification."
   validate_macos_app "$extract_dir/LightTable.app" "$signing_kind" "$signing_team"
-  mv -f "$staged_zip" "$mac_zip"
 
   if [ "$signing_kind" = "adhoc" ]; then
     signing_summary="ad-hoc private test build (not notarized)"

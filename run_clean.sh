@@ -11,7 +11,7 @@ if ! ./scripts/clean-dev.sh; then
 fi
 
 echo
-echo "[LightTable] Starting a fresh desktop development build..."
+echo "[LightTable] Starting a fresh desktop development build with the hybrid vector renderer..."
 echo
 
 npm run dev:desktop

@@ -26,7 +26,7 @@ stop_lighttable_development_processes() {
             }
           }
         ' |
-        tr '\n' ' '
+        sort -u
     )"
   fi
 
@@ -34,7 +34,7 @@ stop_lighttable_development_processes() {
   matched_pids="$(
     awk -v repo="$repo_root" -v current_pid="$$" -v cwd_pids="$cwd_matched_pids" '
       BEGIN {
-        split(cwd_pids, cwd_ids, "\n")
+        split(cwd_pids, cwd_ids, /[[:space:]]+/)
         for (i in cwd_ids) {
           if (cwd_ids[i] != "") {
             cwd_hit[cwd_ids[i]] = 1
@@ -171,6 +171,7 @@ clean_generated_path() {
 stop_lighttable_development_processes
 
 clean_generated_path "apps/desktop/.vite"
+clean_generated_path "apps/desktop/.electron-dev-session"
 clean_generated_path "node_modules/.vite"
 clean_generated_path "apps/desktop/node_modules/.vite"
 clean_generated_path "apps/web/node_modules/.vite"

@@ -23,7 +23,7 @@
     "./schemas/v1/text.json": "./schemas/v1/text.json"
   },
   "scripts": {
-    "test": "node ../../scripts/generate-command-contract.mjs --check && node --test test",
+    "test": "node ../../scripts/generate-command-contract.mjs --check && node --test",
     "typecheck": "node --check src/index.mjs"
   }
 }
