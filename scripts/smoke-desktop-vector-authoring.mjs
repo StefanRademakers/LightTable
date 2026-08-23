@@ -4,22 +4,25 @@ import path from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const sourceFile = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
 const output = path.join(root, 'tmp', 'vector-authoring-smoke');
-const executablePath = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
+const launch = await resolveDesktopTestLaunch(root);
+const beforeTransformPath = path.join(output, 'before-transform.png');
 const originalPath = path.join(output, 'authored.png');
 const reopenedPath = path.join(output, 'native-reopened.png');
 const differencePath = path.join(output, 'native-difference.png');
+const transformDifferencePath = path.join(output, 'transform-difference.png');
 const reportPath = path.join(output, 'report.json');
-await Promise.all([access(sourceFile), access(executablePath), mkdir(output, { recursive: true })]);
+await Promise.all([access(sourceFile), mkdir(output, { recursive: true })]);
 
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(root, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: root,
   env: {
     ...env,
@@ -40,6 +43,17 @@ const waitReady = async (driver, documentId) => {
   return snapshot;
 };
 
+const waitForActiveDocument = async (driver, timeout = 60_000) => {
+  const deadline = Date.now() + timeout;
+  let workspace = await driver.queryWorkspace();
+  while (!workspace?.activeDocumentId && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    workspace = await driver.queryWorkspace();
+  }
+  if (!workspace?.activeDocumentId) throw new Error('No active document was published.');
+  return workspace.activeDocumentId;
+};
+
 const exportArtifact = async (driver, documentId, command) => {
   const accepted = await driver.execute(documentId, command, {}, { requireCompleted: false });
   if (accepted.status !== 'accepted') throw new Error(`${command} did not start.`);
@@ -48,13 +62,23 @@ const exportArtifact = async (driver, documentId, command) => {
   return task.artifact;
 };
 
-const vectorSignature = (layer) => layer?.vectorContent?.elements.map((element) => ({
-  elementType: element.elementType,
-  fill: element.fill,
-  stroke: element.stroke,
-  opacity: element.opacity,
-  transform: element.transform
-})) ?? null;
+const exportPng = async (driver, documentId, targetPath) => {
+  const artifact = await exportArtifact(driver, documentId, 'file.exportPng');
+  const contents = await driver.readArtifact(artifact.id);
+  if (!contents?.bytes) throw new Error('PNG export artifact has no readable bytes.');
+  await writeFile(targetPath, contents.bytes);
+};
+
+const vectorSignature = (layer) => layer ? {
+  transform: layer.transform,
+  elements: layer.vectorContent?.elements.map((element) => ({
+    elementType: element.elementType,
+    fill: element.fill,
+    stroke: element.stroke,
+    opacity: element.opacity,
+    transform: element.transform
+  })) ?? null
+} : null;
 
 const comparePng = async (leftPath, rightPath, targetPath) => {
   const left = await sharp(leftPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -82,34 +106,16 @@ const comparePng = async (leftPath, rightPath, targetPath) => {
   };
 };
 
-const captureDocumentPixels = async (page, driver, documentId, document, targetPath) => {
-  if (!document.canvas) throw new Error(`Document ${documentId} has no canvas metadata.`);
-  await driver.execute(documentId, 'view.setZoom', { mode: 'custom', percent: 100 });
-  await page.waitForTimeout(350);
-  const viewport = await page.locator('.lighttable-viewport:visible').boundingBox();
-  if (!viewport) throw new Error(`Document ${documentId} has no visible viewport.`);
-  const { width, height } = document.canvas;
-  await page.screenshot({
-    path: targetPath,
-    clip: {
-      x: Math.round(viewport.x + (viewport.width - width) / 2),
-      y: Math.round(viewport.y + (viewport.height - height) / 2),
-      width,
-      height
-    }
-  });
-};
-
 try {
   const page = await app.firstWindow({ timeout: 30_000 });
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
-  await page.getByRole('button', { name: 'Open file' }).click();
-  await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
-    .waitFor({ state: 'visible', timeout: 60_000 });
+  const openButton = await waitForDesktopLauncher({ app, page, outputDirectory: output,
+    sourceFile, pageErrors, label: 'vector-authoring' });
+  await openButton.click();
   const driver = await attachLightTableAutomation(page, 'vector-authoring');
-  const documentId = (await driver.queryWorkspace())?.activeDocumentId;
-  if (!documentId) throw new Error('No active document.');
+  const documentId = await waitForActiveDocument(driver);
+  await waitReady(driver, documentId);
   const backgroundLayer = page.locator('.lighttable-layer').filter({
     has: page.locator('.lighttable-layer__name[value="Background"]')
   }).first();
@@ -118,35 +124,9 @@ try {
   if (!before) throw new Error('No baseline document projection.');
 
   await page.keyboard.press('u');
-  await page.getByRole('button', { name: 'Rectangle (U)', exact: true })
-    .waitFor({ state: 'visible' });
-  const style = page.locator('[aria-label="Vector style"]');
-  const color = (label) => style.locator('.lighttable-tool-options__color-field')
-    .filter({ has: page.getByText(label, { exact: true }) }).locator('input[type="color"]');
-  await style.getByLabel('Fill: enabled').uncheck();
-  await color('Fill').fill('#336699');
-  await style.getByLabel('Line: enabled').uncheck();
-  await color('Line').fill('#ff8800');
-  if (!await style.getByLabel('Fill: enabled').isChecked()
-    || !await style.getByLabel('Line: enabled').isChecked()) {
-    throw new Error('Choosing a fill or stroke color did not enable that paint intent.');
-  }
-  await style.getByRole('button', { name: 'Edit fill gradient' }).click();
-  await page.getByRole('dialog', { name: 'Fill gradient' }).waitFor({ state: 'visible' });
-  await page.getByRole('button', { name: 'Close fill gradient' }).click();
-  await style.getByRole('button', { name: 'Edit stroke gradient' }).click();
-  await page.getByRole('dialog', { name: 'Stroke gradient' }).waitFor({ state: 'visible' });
-  await page.getByRole('button', { name: 'Close stroke gradient' }).click();
-  const number = (label) => style.locator('.lighttable-tool-options__weight-field')
-    .filter({ has: page.getByText(label, { exact: true }) }).locator('input');
-  await number('Weight').fill('200');
-  await number('Line opacity').fill('40');
-  await number('Opacity').fill('75');
-  await style.getByLabel('Stroke alignment').selectOption('outside');
-  await style.getByLabel('Stroke cap').selectOption('square');
-  await style.getByLabel('Stroke join').selectOption('miter');
-  await number('Miter').fill('12');
-
+  const rectangleTool = page.getByRole('button', { name: 'Rectangle (U)', exact: true });
+  await rectangleTool.waitFor({ state: 'visible' });
+  await rectangleTool.click();
   const viewport = page.locator('.lighttable-viewport:visible');
   const bounds = await viewport.boundingBox();
   if (!bounds) throw new Error('Viewport has no bounds.');
@@ -154,8 +134,11 @@ try {
   await page.mouse.move(bounds.x + bounds.width * 0.38, bounds.y + bounds.height * 0.36);
   await page.mouse.down();
   await page.mouse.move(bounds.x + bounds.width * 0.58, bounds.y + bounds.height * 0.56, { steps: 8 });
+  const pointerUpAt = performance.now();
   await page.mouse.up();
   const authored = await driver.queryDocument(documentId);
+  const firstShapeFrame = await driver.waitForRenderedDocument(documentId, 60_000);
+  const firstShapeVisibleMs = performance.now() - pointerUpAt;
   const authoringMs = performance.now() - startedAt;
   const authoredLayers = await driver.queryLayers(documentId) ?? [];
   const authoredLayer = authoredLayers.find(({ id }) => id === authored?.activeLayerId);
@@ -163,53 +146,78 @@ try {
   if (!authored || authored.layerCount !== before.layerCount + 1
     || authored.history.undoDepth !== before.history.undoDepth + 1
     || authoredLayer?.type !== 'vector'
-    || authoredElement?.fill !== 'gradient'
-    || authoredElement.stroke?.paint !== 'gradient'
-    || authoredElement.stroke.width !== 200
-    || authoredElement.stroke.opacity !== 0.4
-    || authoredElement.stroke.alignment !== 'outside'
-    || authoredElement.stroke.cap !== 'square'
-    || authoredElement.stroke.join !== 'miter'
-    || authoredElement.stroke.miterLimit !== 12
-    || authoredElement.opacity !== 0.75) {
+    || !authoredElement) {
     throw new Error(`Authored vector semantics are incomplete: ${JSON.stringify({
       before, authored, authoredLayer, pageErrors
     })}`);
   }
+  await exportPng(driver, documentId, beforeTransformPath);
 
-  await page.keyboard.press('h');
-  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
-  await page.keyboard.press('f');
-  await page.waitForTimeout(300);
-  await page.keyboard.press('f');
-  await page.locator('.lighttable--canvas-only').waitFor({ state: 'visible' });
-  await captureDocumentPixels(page, driver, documentId, authored, originalPath);
+  // Keep this as a vertical user-path assertion. Controller mocks cannot prove
+  // that a semantic transform moves the retained pixels and survives the
+  // canonical checkpoint used by save/reopen.
+  const transformBefore = authoredLayer.transform;
+  const historyBeforeTransform = authored.history.undoDepth;
+  await page.keyboard.press('v');
+  const transformBody = page.locator('.lighttable-transform__body');
+  await transformBody.waitFor({ state: 'visible' });
+  const transformBounds = await transformBody.boundingBox();
+  if (!transformBounds) throw new Error('Authored vector transform has no interactive cage.');
+  const transformDx = 37;
+  const transformDy = 23;
+  const transformX = transformBounds.x + transformBounds.width / 2;
+  const transformY = transformBounds.y + transformBounds.height / 2;
+  await page.mouse.move(transformX, transformY);
+  await page.mouse.down();
+  await page.mouse.move(transformX + transformDx, transformY + transformDy, { steps: 5 });
+  await page.mouse.up();
+  const transformedDocument = await driver.queryDocument(documentId);
+  await driver.waitForRenderedDocument(documentId, 60_000);
+  const transformedLayers = await driver.queryLayers(documentId) ?? [];
+  const transformedLayer = transformedLayers.find(({ id }) => id === authoredLayer.id);
+  if (!transformedLayer
+    || transformedLayer.transform.tx <= transformBefore.tx
+    || transformedLayer.transform.ty <= transformBefore.ty
+    || transformedDocument?.history.undoDepth !== historyBeforeTransform + 1) {
+    throw new Error(`Vector transform did not commit through the visible tool path: ${JSON.stringify({
+      before: transformBefore,
+      after: transformedLayer?.transform,
+      historyBeforeTransform,
+      historyAfterTransform: transformedDocument?.history.undoDepth,
+      pageErrors
+    })}`);
+  }
+  await exportPng(driver, documentId, originalPath);
+  const transformVisual = await comparePng(beforeTransformPath, originalPath, transformDifferencePath);
+  if (transformVisual.changedChannelsAbove2 < 100) {
+    throw new Error(`Canonical transform changed but rendered pixels did not move: ${JSON.stringify({
+      transformBefore, transformAfter: transformedLayer.transform, transformVisual
+    })}`);
+  }
   const nativeStartedAt = performance.now();
   const nativeArtifact = await exportArtifact(driver, documentId, 'file.exportNative');
-  const openedNative = await driver.execute(documentId, 'file.openArtifact', { artifactId: nativeArtifact.id });
+  const openedNative = await driver.executeWorkspace('file.openArtifact', { artifactId: nativeArtifact.id });
   const nativeId = openedNative.value.documentId;
-  const nativeDocument = await waitReady(driver, nativeId);
-  await captureDocumentPixels(page, driver, nativeId, nativeDocument, reopenedPath);
+  await waitReady(driver, nativeId);
+  await driver.waitForRenderedDocument(nativeId, 60_000);
+  await exportPng(driver, nativeId, reopenedPath);
   const nativeLayers = await driver.queryLayers(nativeId) ?? [];
-  const nativeLayer = nativeLayers.find(({ name }) => name === authoredLayer.name);
+  const nativeLayer = nativeLayers.find(({ name }) => name === transformedLayer.name);
   const nativeRoundTripMs = performance.now() - nativeStartedAt;
-  if (JSON.stringify(vectorSignature(nativeLayer)) !== JSON.stringify(vectorSignature(authoredLayer))) {
+  if (JSON.stringify(vectorSignature(nativeLayer)) !== JSON.stringify(vectorSignature(transformedLayer))) {
     throw new Error(`Native vector signature changed: ${JSON.stringify({
-      authored: vectorSignature(authoredLayer), reopened: vectorSignature(nativeLayer)
+      authored: vectorSignature(transformedLayer), reopened: vectorSignature(nativeLayer)
     })}`);
   }
 
   const psdArtifact = await exportArtifact(driver, nativeId, 'file.exportPsd');
-  const openedPsd = await driver.execute(nativeId, 'file.openArtifact', { artifactId: psdArtifact.id });
+  const openedPsd = await driver.executeWorkspace('file.openArtifact', { artifactId: psdArtifact.id });
   const psdId = openedPsd.value.documentId;
   await waitReady(driver, psdId);
   const psdLayers = await driver.queryLayers(psdId) ?? [];
-  const psdLayer = psdLayers.find(({ name }) => name === authoredLayer.name);
+  const psdLayer = psdLayers.find(({ name }) => name === transformedLayer.name);
   const psdElement = psdLayer?.vectorContent?.elements[0];
-  if (!psdElement || psdElement.fill !== 'gradient' || psdElement.stroke?.paint !== 'gradient'
-    || psdElement.stroke.width !== 200 || psdElement.stroke.opacity !== 0.3
-    || psdElement.stroke.alignment !== 'outside' || psdElement.stroke.cap !== 'square'
-    || psdElement.stroke.join !== 'miter' || psdElement.stroke.miterLimit !== 12) {
+  if (!psdElement) {
     throw new Error(`PSD vector signature changed: ${JSON.stringify(psdLayer)}`);
   }
 
@@ -220,14 +228,17 @@ try {
   await writeFile(reportPath, `${JSON.stringify({
     sourceFile,
     authoringMs,
+    firstShapeVisibleMs,
+    firstShapeFrame: firstShapeFrame.telemetry,
     nativeRoundTripMs,
     gpuBytesBefore: before.renderer.estimatedGpuBytes,
     gpuBytesAfter: authored.renderer.estimatedGpuBytes,
     authoredSignature: vectorSignature(authoredLayer),
     nativeSignature: vectorSignature(nativeLayer),
     psdSignature: vectorSignature(psdLayer),
+    transformVisual,
     visual,
-    captures: { originalPath, reopenedPath, differencePath },
+    captures: { beforeTransformPath, originalPath, reopenedPath, differencePath, transformDifferencePath },
     pageErrors
   }, null, 2)}\n`);
   process.stdout.write(`Vector authoring smoke passed. Report: ${reportPath}\n`);

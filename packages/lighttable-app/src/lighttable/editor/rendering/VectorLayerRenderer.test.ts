@@ -175,6 +175,8 @@ describe('Vello paint-scene projection', () => {
     const restyled = compileVelloVectorLayerScene(layer, translationMatrix(0, 0));
 
     expect(first.sceneKey).not.toBe(moved.sceneKey);
+    expect(first.scene.fragments[0]?.revisionKey)
+      .not.toBe(moved.scene.fragments[0]?.revisionKey);
     expect(first.sceneKey).not.toBe(restyled.sceneKey);
     expect(first.sceneKey.length).toBeLessThan(128);
   });

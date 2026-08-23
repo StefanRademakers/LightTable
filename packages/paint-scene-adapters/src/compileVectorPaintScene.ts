@@ -212,6 +212,7 @@ export const compileVectorPaintScene = (
     const path = element.type === 'live-shape' ? realizeLiveShape(element) : element;
     const pathCommands = compileVectorPathCommands(path);
     const pathTransform = multiplyMatrices(parentTransform, path.transform);
+    const projectedTransformRevision = matrix(pathTransform).join(',');
     if (options.profile) {
       options.profile('canonical-projection', profileNow!() - projectionStartedAt);
     }
@@ -289,7 +290,10 @@ export const compileVectorPaintScene = (
 
     const fragment = {
       stableId,
-      revisionKey: `${element.geometryRevision}:${element.transformRevision}:${element.styleRevision}`,
+      // Retained backends diff fragments by this key. A parent layer/group
+      // transform changes command transforms without changing canonical
+      // element revisions, so it must invalidate the fragment projection.
+      revisionKey: `${element.geometryRevision}:${element.transformRevision}:${element.styleRevision}:${projectedTransformRevision}`,
       paths: [{ stableId: pathId, revisionKey: String(element.geometryRevision), commands: pathCommands }],
       commands
     };
@@ -334,10 +338,10 @@ export const compileVectorPaintScene = (
     : options.clip?.stableId;
   const clips = options.clip && clipCommands.length ? [{
     stableId: clipStableId!,
-    revisionKey: options.clip.revisionKey,
+    revisionKey: `${options.clip.revisionKey}:${matrix(parentTransform).join(',')}`,
     path: {
       stableId: `${clipStableId}:path`,
-      revisionKey: options.clip.revisionKey,
+      revisionKey: `${options.clip.revisionKey}:${matrix(parentTransform).join(',')}`,
       commands: clipCommands
     },
     transform: matrix(identityAffineMatrix()),

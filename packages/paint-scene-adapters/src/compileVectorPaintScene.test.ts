@@ -21,7 +21,7 @@ describe('compileVectorPaintScene', () => {
   it('preserves cubic closing geometry, transforms and revision keys', () => {
     const result = compileVectorPaintScene([path()], { sourceId: 'doc', sourceRevision: '9' });
     expect(result.status).toBe('ready');
-    expect(result.scene.fragments[0].revisionKey).toBe('2:3:4');
+    expect(result.scene.fragments[0].revisionKey).toBe('2:3:4:2,0,0,2,4,5');
     expect(result.scene.fragments[0].paths[0]).toMatchObject({
       stableId: 'curve:path', revisionKey: '2',
       commands: [
@@ -108,7 +108,7 @@ describe('compileVectorPaintScene', () => {
     });
     expect(result.status).toBe('ready');
     expect(result.scene.clips[0]).toMatchObject({
-      stableId: 'clip', revisionKey: '4', fillRule: 'evenodd'
+      stableId: 'clip', revisionKey: '4:1,0,0,1,10,20', fillRule: 'evenodd'
     });
     expect(result.scene.clips[0]?.path.commands[0]).toEqual({
       kind: 'move', x: 14, y: 25
