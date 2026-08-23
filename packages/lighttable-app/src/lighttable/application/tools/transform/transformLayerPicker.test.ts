@@ -13,7 +13,7 @@ import {
   createSubpath,
   createVectorPath
 } from '@lighttable/vector-core';
-import { pickTransformLayer } from './transformLayerPicker';
+import { pickCurrentTransformLayer, pickTransformLayer } from './transformLayerPicker';
 
 describe('pickTransformLayer', () => {
   it('offers visible drawable layers to the renderer from top to bottom', async () => {
@@ -130,5 +130,54 @@ describe('pickTransformLayer', () => {
     expect(pickTopLayerAtPoint).toHaveBeenCalledWith(
       [vector.id, raster.id], { x: 5, y: 5 }, new Set([vector.id])
     );
+  });
+});
+
+describe('pickCurrentTransformLayer', () => {
+  it('repeats the full topmost-first query when publication replaces the snapshot', async () => {
+    const bottom = createImageDocument('bottom', 32, 32, 'bottom').layers[0]!;
+    const top = createImageDocument('top', 32, 32, 'top').layers[0]!;
+    const initial = {
+      ...createImageDocument('test', 32, 32, 'test'),
+      layers: [bottom]
+    };
+    const latest = { ...initial, revision: initial.revision + 1, layers: [bottom, top] };
+    let current = initial;
+    const pickTopLayerAtPoint = vi.fn(async (ids: readonly LayerId[]) => {
+      if (current === initial) current = latest;
+      return ids[0] ?? null;
+    });
+
+    await expect(pickCurrentTransformLayer({
+      initialDocument: initial,
+      point: { x: 4, y: 5 },
+      picker: { pickTopLayerAtPoint },
+      isCurrent: () => true,
+      getCurrentDocument: () => current
+    })).resolves.toEqual({ layerId: top.id });
+
+    expect(pickTopLayerAtPoint).toHaveBeenNthCalledWith(
+      1, [bottom.id], { x: 4, y: 5 }, new Set()
+    );
+    expect(pickTopLayerAtPoint).toHaveBeenNthCalledWith(
+      2, [top.id, bottom.id], { x: 4, y: 5 }, new Set()
+    );
+  });
+
+  it('drops an obsolete click when a newer pointer request supersedes it', async () => {
+    const document = createImageDocument('test', 32, 32, 'test');
+    let current = true;
+    const pickTopLayerAtPoint = vi.fn(async () => {
+      current = false;
+      return document.activeLayerId;
+    });
+
+    await expect(pickCurrentTransformLayer({
+      initialDocument: document,
+      point: { x: 4, y: 5 },
+      picker: { pickTopLayerAtPoint },
+      isCurrent: () => current,
+      getCurrentDocument: () => document
+    })).resolves.toBeNull();
   });
 });

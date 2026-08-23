@@ -315,7 +315,7 @@ import {
 } from './application/tools/faceWarp/faceWarpDetectionReview';
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController, type FixedTransformOperation } from './application/tools/transform/useTransformSessionController';
-import { pickTransformLayer } from './application/tools/transform/transformLayerPicker';
+import { pickCurrentTransformLayer } from './application/tools/transform/transformLayerPicker';
 import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
 import { transformSessionFrame } from './editor/tools/transform/transformSessionFrame';
 import { buildSmartGuideEditingFrame } from './editor/tools/transform/smartGuideEditingFrame';
@@ -4493,13 +4493,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pickTransformAtPoint = (point: { x: number; y: number }) => {
     if (historySnapshot.busy || !editorSession.transformAutoSelectLayer || !imageDocument) return;
     const renderer = engineRef.current;
-    const sourceDocument = imageDocument;
     if (!renderer) return;
     const revision = ++transformPickRevisionRef.current;
-    void pickTransformLayer(sourceDocument, point, renderer).then((pick) => {
-      if (revision !== transformPickRevisionRef.current
-        || !pick || imageDocumentRef.current !== sourceDocument) return;
-      if (sourceDocument.activeLayerId !== pick.layerId) commitTransformRef.current();
+    void pickCurrentTransformLayer({
+      initialDocument: imageDocument,
+      point,
+      picker: renderer,
+      isCurrent: () => revision === transformPickRevisionRef.current,
+      getCurrentDocument: () => imageDocumentRef.current
+    }).then((pick) => {
+      if (!pick) return;
+      const currentDocument = imageDocumentRef.current;
+      if (!currentDocument) return;
+      if (currentDocument.activeLayerId !== pick.layerId) commitTransformRef.current();
       selectLayerRef.current(pick.layerId);
     }).catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : 'The layer could not be selected.');

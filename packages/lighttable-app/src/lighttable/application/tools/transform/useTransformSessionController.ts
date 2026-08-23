@@ -420,7 +420,12 @@ export const useTransformSessionController = (
       continuationFrameRef.current = null;
     }
     finish(true, true);
-  }, [finish, state]);
+    // Pointer-up is a durable checkpoint, not an explicit exit from the Move
+    // tool. Re-open against the committed document so the gizmo immediately
+    // follows the new layer bounds. `begin` consumes the continuation frame,
+    // preserving local axes across consecutive move/scale/rotate gestures.
+    void begin(false);
+  }, [begin, finish, state]);
 
   const alignFrameToDocument = useCallback(() => {
     const controllerState = controllerRef.current?.state;

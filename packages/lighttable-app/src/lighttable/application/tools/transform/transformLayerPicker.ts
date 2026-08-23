@@ -21,6 +21,14 @@ export interface TransformLayerPick {
   readonly layerId: LayerId;
 }
 
+export interface CurrentTransformLayerPickRequest {
+  readonly initialDocument: ImageDocument;
+  readonly point: SelectionPoint;
+  readonly picker: TransformLayerAlphaPicker;
+  readonly isCurrent: () => boolean;
+  readonly getCurrentDocument: () => ImageDocument | null;
+}
+
 const drawableLayersTopmostFirst = (
   nodes: readonly LayerNode[],
   ancestorsVisible = true,
@@ -53,4 +61,26 @@ export const pickTransformLayer = async (
   );
   const layer = layerId ? findDocumentLayer(document, layerId) : null;
   return layer ? { layerId: layer.id } : null;
+};
+
+/**
+ * Resolves one user click against a stable immutable document snapshot.
+ *
+ * GPU alpha readback is asynchronous. If an edit publishes a replacement
+ * snapshot while it is in flight, repeat the complete topmost-first query on
+ * that latest snapshot instead of applying or silently dropping a stale hit.
+ */
+export const pickCurrentTransformLayer = async (
+  request: CurrentTransformLayerPickRequest
+): Promise<TransformLayerPick | null> => {
+  let sourceDocument = request.initialDocument;
+  while (request.isCurrent()) {
+    const pick = await pickTransformLayer(sourceDocument, request.point, request.picker);
+    if (!request.isCurrent()) return null;
+    const currentDocument = request.getCurrentDocument();
+    if (!currentDocument || currentDocument.id !== sourceDocument.id) return null;
+    if (currentDocument === sourceDocument) return pick;
+    sourceDocument = currentDocument;
+  }
+  return null;
 };
