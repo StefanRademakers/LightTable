@@ -35,10 +35,13 @@ const readableFile = async (relativePath) => {
   }
 };
 
-const firstContentLine = (value) => value
-  ?.split(/\r?\n/u)
-  .map((line) => line.trim())
-  .find(Boolean);
+const firstContentLine = (value) => {
+  const line = value
+    ?.split(/\r?\n/u)
+    .map((candidate) => candidate.trim())
+    .find(Boolean);
+  return line?.replace(/^#+\s*/u, '');
+};
 
 const workspacePackages = async () => {
   const result = [];
@@ -60,8 +63,12 @@ const workspacePackages = async () => {
 
 const status = git('status', '--short');
 const statusLines = status === '(unavailable)' || status === '' ? [] : status.split(/\r?\n/u);
-const taskDirectories = await directories('work/todo');
-const doneDirectories = new Set(await directories('work/done'));
+const queueNames = ['todo', 'todoLater', 'parked', 'done'];
+const queueDirectories = new Map(await Promise.all(queueNames.map(async (queue) => (
+  [queue, await directories(`work/${queue}`)]
+))));
+const taskDirectories = queueDirectories.get('todo');
+const doneDirectories = new Set(queueDirectories.get('done'));
 const taskPackages = await Promise.all(taskDirectories.map(async (directory) => {
   const relativePath = `work/todo/${directory}`;
   const taskText = await readableFile(`${relativePath}/task.txt`);
@@ -75,9 +82,50 @@ const taskPackages = await Promise.all(taskDirectories.map(async (directory) => 
   };
 }));
 const activeTasks = taskPackages.filter(({ taskText }) => taskText !== null);
-const queueWarnings = taskPackages.filter(({ taskText, duplicateInDone }) => (
-  taskText === null || duplicateInDone
-));
+const queueWarnings = [];
+for (const task of taskPackages) {
+  const reasons = [];
+  if (task.taskText === null) reasons.push('missing task.txt; not actionable');
+  if (task.duplicateInDone) reasons.push('same package name also exists in work/done');
+  if (reasons.length > 0) queueWarnings.push({ relativePath: task.relativePath, reasons });
+}
+const queuedIds = new Map();
+for (const queue of ['todo', 'todoLater', 'parked']) {
+  for (const directory of queueDirectories.get(queue)) {
+    const relativePath = `work/${queue}/${directory}`;
+    if (await readableFile(`${relativePath}/task.txt`) === null) {
+      if (queue !== 'todo') {
+        queueWarnings.push({ relativePath, reasons: ['missing task.txt'] });
+      }
+    }
+    const match = /^task_(\d+)/u.exec(directory);
+    if (!match) continue;
+    const id = Number.parseInt(match[1], 10);
+    const entries = queuedIds.get(id) ?? [];
+    entries.push({ queue, relativePath });
+    queuedIds.set(id, entries);
+  }
+}
+for (const [id, entries] of queuedIds) {
+  if (new Set(entries.map(({ queue }) => queue)).size <= 1) continue;
+  for (const entry of entries) {
+    queueWarnings.push({
+      relativePath: entry.relativePath,
+      reasons: [`task ID ${id} also appears in another queue`]
+    });
+  }
+}
+for (const directory of doneDirectories) {
+  const match = /^task_(\d+)/u.exec(directory);
+  if (!match) continue;
+  const id = Number.parseInt(match[1], 10);
+  for (const entry of queuedIds.get(id) ?? []) {
+    queueWarnings.push({
+      relativePath: entry.relativePath,
+      reasons: [`task ID ${id} also exists in work/done`]
+    });
+  }
+}
 const resumeCheckpoints = taskPackages.filter(({ resumeText }) => resumeText !== null);
 const packages = await workspacePackages();
 const recentCommitLog = git(
@@ -131,10 +179,7 @@ console.log('\nQueue integrity warnings:');
 if (queueWarnings.length === 0) console.log('  (none)');
 else {
   for (const task of queueWarnings) {
-    const reasons = [];
-    if (task.taskText === null) reasons.push('missing task.txt; not actionable');
-    if (task.duplicateInDone) reasons.push('same package name also exists in work/done');
-    console.log(`  ${task.relativePath} — ${reasons.join('; ')}`);
+    console.log(`  ${task.relativePath} — ${task.reasons.join('; ')}`);
   }
 }
 

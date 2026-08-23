@@ -1,4 +1,9 @@
-# LightTable AI Import — TODO
+# Task 304 - Native Adobe Illustrator import
+
+Status: active product specification. This task must reuse the canonical
+`vector-core`/`paint-core` document model, renderer-neutral `paint-scene`
+boundary and hybrid retained renderer; it must not introduce another document
+authority or renderer-specific import model.
 
 ## Goal
 
@@ -7,17 +12,12 @@ Add first-class Adobe Illustrator `.ai` import to LightTable without routing thr
 Target architecture:
 
 ```text
-.ai
- ↓
-AI/PDF Parser
- ↓
-AI Import Model
- ↓
-Normalization
- ↓
-LightTable Vector DOM
- ↓
-WebGPU Renderer
+.ai bytes
+  -> bounded AI/PDF parser
+  -> format-neutral imported-vector model
+  -> canonical LightTable document/resources
+  -> renderer-neutral PaintScene projection
+  -> retained hybrid Vello/native renderer
 ```
 
 The renderer should never need to know whether vector content originated from AI, PDF, SVG, EPS, or another format.
@@ -310,7 +310,7 @@ ImportedVectorDocument
       ↓
 normalizeVectorDocument()
       ↓
-LightTable Vector DOM
+canonical LightTable document/resources
 ```
 
 ### TODO
@@ -330,9 +330,8 @@ LightTable Vector DOM
 
 ## 12. Renderer Gaps
 
-Compare imported AI requirements with the current SVG/vector renderer.
-
-Current renderer already appears to support much of the required base:
+Compare imported AI requirements with the current canonical vector and hybrid
+renderer contracts. The admitted path currently supports:
 
 - Paths
 - Bézier curves
@@ -342,12 +341,14 @@ Current renderer already appears to support much of the required base:
 - Fill rules
 - Transforms
 - Linear/radial gradients
-- Patterns
-- Clipping
-- Masks
+- bounded single-operand vector clipping
 - Opacity
-- Reuse
+- retained reusable geometry/fragments
 - Nested vector scenes
+
+Do not count SVG patterns, embedded images, imported text layout, richer masks,
+compound clip booleans, CMYK/spot color or mesh gradients as implemented. They
+remain explicit importer/renderer gaps in the current architecture roadmap.
 
 ### TODO
 

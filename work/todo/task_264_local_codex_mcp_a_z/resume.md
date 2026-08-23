@@ -1,8 +1,8 @@
 # MCP / Actions recovery checkpoint
 
-Recorded: 2026-08-21
+Recorded: 2026-08-23
 Branch: `main`
-Repository baseline before this documentation checkpoint: `6e856df3`
+Repository baseline before this documentation checkpoint: `bb03da24`
 
 ## Why this checkpoint exists
 
@@ -36,15 +36,17 @@ it does not override code, tests or canonical architecture.
   built twelve editable raster/vector/text layers through MCP only. It checked
   the final revision-bound preview; the reference stayed unchanged and no paid
   provider was used.
-- That cold-discovery run used 76 MCP roundtrips and exposed concrete gaps:
-  unreliable text stroke/shadow realization, missing font discovery and text
-  measurement, under-discovered batching/Bezier support and absent native SVG
-  import. The guides address discovery only; they do not prove a faster guided
-  rerun.
-- The vector engine already owns editable cubic paths, live shapes, affine
-  transforms, fills, gradients and strokes across `vector-core`,
-  `vector-rendering` and `vector-webgpu`. SVG import/export does not exist; the
-  proposed safe native subset is in
+- That cold-discovery run used 76 MCP roundtrips and exposed concrete gaps at
+  that checkpoint: unreliable text stroke/shadow realization, missing font
+  discovery and text measurement, under-discovered batching/Bezier support and
+  absent native SVG import. SVG import has since been implemented; the text and
+  discovery gaps plus a faster guided rerun remain unproven.
+- The vector engine owns editable cubic paths, live shapes, affine transforms,
+  fills, gradients, strokes and bounded vector clips across the reusable vector
+  packages. SVG Open/Place/import/paste/Actions/MCP and symmetric export now
+  share secure normalization and canonical document owners. Patterns, embedded
+  images, imported text layout, richer masks and compound clip booleans remain
+  explicit gaps documented in
   `architecture/features/VECTOR_ENGINE_AND_SVG_IMPORT.md`.
 
 ## Current local MCP connection flow
@@ -101,9 +103,12 @@ sessions cannot discover a newly registered server dynamically.
 - **Task 278** is research-only. Do not eagerly load all inference models or
   claim durable optimized artifacts before its measurements and lifecycle
   policy exist.
-- **Tasks 300 and 301** are owner-supplied MLTD and SVG drafts. Treat them as
-  active inputs, not approved architecture or permission to implement an
-  underspecified file format/importer without reconciliation.
+- **Task 300** is an owner-supplied MLTD draft parked in `work/todoLater`; the
+  current roadmap defers format freeze until the document/resource model and
+  migration policy are mature.
+- **Task 301** completed the initial SVG importer. Tasks 303, 305 and 306
+  completed the renderer bake-off, retained hybrid integration and warm
+  first-useful-pixel pass; their historical reports now live under `work/done`.
 - Remove Object remains deferred until its product implementation is ready.
   Model/backend names such as SAM are implementation details behind stable
   product capabilities.
@@ -113,9 +118,8 @@ sessions cannot discover a newly registered server dynamically.
 - Preserve the user's `.vscode/settings.json`; never stage it without explicit
   owner direction.
 - `.titlebar-verify/` is generated renderer output; never stage it.
-- `work/todo/task_300/` and `work/todo/task_301/` are owner-authored active task
-  inputs versioned by this checkpoint. Preserve their intent and reconcile them
-  with canonical architecture before implementation.
+- `work/todoLater/task_300/` is owner-authored parked design input. Preserve its
+  intent and reconcile it with canonical architecture before implementation.
 - The two Task 276 stashes are historical recovery copies of work already in
   Git. Do not apply them again.
 - Duplicate empty todo directories reported by `context:agent` are queue-

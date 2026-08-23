@@ -1,0 +1,12 @@
+# Task 306 - VORTEXT warm first-useful-pixel pass
+
+Status: complete and archived.
+
+Goal: present useful `VORTEXT.SVG` pixels in under 500 ms in a warm packaged
+LightTable application without replacing the editable canonical/Vello result
+or weakening the secure SVG normalization boundary.
+
+The five-run packaged result was 428--446 ms, with final canonical-island and
+non-blank canvas verification. Full evidence, limitations and the distinction
+between first useful pixels and final edit-readiness are recorded in
+`REPORT.md`.

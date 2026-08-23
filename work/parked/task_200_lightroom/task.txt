@@ -1,1 +1,8 @@
-read the attached md files in this dir.
+# Task 200 - RAW photo and Lightroom-style workflow research
+
+Status: parked future product direction; not an active implementation task.
+
+The attached Apple ProRAW/DNG and batch-photo workflow documents are research
+inputs. Reconcile decoder, color, project/index, cache and document-residency
+assumptions with current architecture before creating bounded implementation
+tasks.

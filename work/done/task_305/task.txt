@@ -1,5 +1,9 @@
 LightTable Vello path decomposition and render-island architecture
 
+Status: complete and archived. The production hybrid renderer and retained
+island architecture are active; REPORT.md preserves the measured evolution and
+the one unavailable Chromium GPU-timestamp capability as a negative result.
+
 Goal
 Profile the complete Vello update path without attributing LightTable integration
 cost to Vello itself. Remove avoidable unchanged-scene work, establish correct
@@ -29,6 +33,9 @@ Acceptance checklist
     source that still has a canonical JS projection.
 [x] Stress packaged layered and 26k-path SVG workloads across repeated layer,
     zoom, pan and panel actions without crashes or suspicious resource growth.
-[ ] Obtain exclusive GPU timestamps through a supported native/capture path.
+[x] Determine whether exclusive GPU timestamps are available through the
+    packaged Chromium path. The diagnostic build reported
+    `actualGpuTimingAvailable: false`; queue-completion wall time remains the
+    honest supported metric until a separate native/capture path is introduced.
 
 Evidence and conclusions are in REPORT.md.

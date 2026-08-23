@@ -6,6 +6,11 @@ machines.
 - `todo/` contains actionable task packages.
 - `done/` contains completed task packages and their original reference
   material.
+- `todoLater/` contains valid future work that is deliberately not in the
+  active execution order.
+- `parked/` contains blocked, historical or research packages that require an
+  explicit reactivation decision; a parked package must not describe itself as
+  current work.
 
 Each task keeps its instructions, screenshots and other fixtures together in
 one directory. When a task is completed and verified, move that complete task
@@ -26,6 +31,11 @@ Candidate-specific or superseded task packages are removed from the active
 queue once their reusable knowledge is captured in `architecture/`. Git history
 retains the original package; `done/` is reserved for work that actually met
 its completion contract.
+
+Every `todo/`, `todoLater/` and `parked/` package must contain a readable
+`task.txt`. Numeric task IDs must not appear in more than one queue. Empty
+duplicate directories and generated build output inside task packages are
+queue-integrity defects, not work items or evidence.
 
 ## Autonomous queue command
 

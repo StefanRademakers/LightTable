@@ -1,6 +1,10 @@
 # Task 118 — Professional Face Warp: HQ implementation and USP path
 
-Status: IN PROGRESS — IMPLEMENTATION STABLE, EXTERNAL HQ EVIDENCE STILL REQUIRED
+Status: PARKED — IMPLEMENTATION FOUNDATION STABLE, EXTERNAL HQ EVIDENCE STILL REQUIRED
+
+This package is not in the active execution queue. Reactivate it only for a
+bounded external-quality evidence pass against the current Face Warp code and
+architecture; do not resume its historical implementation sequence blindly.
 
 ## Objective
 

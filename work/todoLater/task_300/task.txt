@@ -1,4 +1,10 @@
-MLTD File Format — Draft Specification
+# Task 300 - MLTD file-format draft specification
+
+Queue status: parked design input. The current roadmap deliberately defers
+freezing the pre-1.0 native format until the document/resource model and
+migration policy are mature. This draft is not an executable implementation
+task and must be reconciled with current architecture before promotion back to
+`work/todo/`. It does not replace the current `.lt` save contract.
 
 Extension: .mltd
 Name: MediaVibe LightTable Document

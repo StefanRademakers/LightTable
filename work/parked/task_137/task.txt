@@ -1,2 +1,7 @@
-free ai provider.
-lees de md file..
+# Task 137 - Local AI provider research reference
+
+Status: parked historical proposal. The provider-neutral GenAI packages and
+`apps/local-ai-provider` now implement the current product boundary. Read
+`LIGHTTABLE_LOCAL_AI_PROVIDER_IMPLEMENTATION.md` only as original design input;
+use current architecture and Task 278 for unresolved model preparation,
+distribution and runtime-lifecycle decisions.

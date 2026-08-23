@@ -128,9 +128,9 @@ reports:
   recovery publication after Save and restored an explicit recovery-discard
   workflow. Treat these as regression boundaries, not incidental fixes.
 
-Task 303's report is a dated backend bake-off; Task 305 and current code
-supersede its former "current backend by default" decision. Read historical
-measurements for evidence, not as today's launch configuration. Read
+Archived Task 303 is a dated backend bake-off; archived Task 305 and current
+code supersede its former "current backend by default" decision. Read their
+historical measurements for evidence, not as today's launch configuration. Read
 [Vector system](VECTOR_SYSTEM.md),
 [Vector engine and SVG import](features/VECTOR_ENGINE_AND_SVG_IMPORT.md),
 [Rendering and processing](RENDERING_AND_PROCESSING.md) and

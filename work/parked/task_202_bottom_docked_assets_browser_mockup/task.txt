@@ -1,1 +1,7 @@
-bottom docket asset browser...
+# Task 202 - Bottom-docked Assets browser concept
+
+Status: parked UI concept; not approved current workspace behavior.
+
+The attached image is a visual reference only. Any reactivation must reconcile
+the concept with the application-wide Dockview/workspace ownership contract and
+must not make panel layout document-owned.
