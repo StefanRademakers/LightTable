@@ -218,6 +218,14 @@ export class LayerCompositor {
     const planningStartedAt = this.compositeProfilingEnabled ? performance.now() : 0;
     const plannedIslands = planRenderIslands(document.layers);
     const retainedIslandPlan = this.retainedIslands.reconcile(plannedIslands);
+    if (this.compositeProfilingEnabled) {
+      this.islandPlan = plannedIslands;
+      const durationMs = performance.now() - planningStartedAt;
+      this.islandPlanningExecutions += 1;
+      this.islandPlanningTotalMs += durationMs;
+      this.islandPlanningLastMs = durationMs;
+      this.islandPlanningMaximumMs = Math.max(this.islandPlanningMaximumMs, durationMs);
+    }
     const islandTextures = new Map<string, GPUTexture>();
     let islandRenderingActive = vectorRenderIslandsEnabled()
       && excludedLayerIds.size === 0
@@ -238,14 +246,6 @@ export class LayerCompositor {
         }
         islandTextures.set(island.resourceId, texture);
       }
-    }
-    if (this.compositeProfilingEnabled) {
-      this.islandPlan = plannedIslands;
-      const durationMs = performance.now() - planningStartedAt;
-      this.islandPlanningExecutions += 1;
-      this.islandPlanningTotalMs += durationMs;
-      this.islandPlanningLastMs = durationMs;
-      this.islandPlanningMaximumMs = Math.max(this.islandPlanningMaximumMs, durationMs);
     }
     const analysis = analyzeDocumentComposite(
       document.layers,

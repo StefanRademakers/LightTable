@@ -426,13 +426,20 @@ Evidence: `tmp/task-305-lifecycle/report.json`.
 The latest six-edit packaged profile no longer supports prioritizing binary
 transport or a more granular sub-fragment ABI. Excluding the first JIT sample,
 ordinary edits project and upload one fragment; document composite costs
-1.12--2.41 ms, PaintScene compilation 0.12--1.14 ms, JS/WASM roundtrip
+1.09--2.38 ms, PaintScene compilation 0.09--1.06 ms, JS/WASM roundtrip
 0.48--0.60 ms, Rust fragment encoding about 0.01 ms, and Vello CPU submit
-0.32--0.41 ms. Island planning (0.78--2.05 ms) is now often the largest named
-CPU phase. A finer mutation ABI remains a future option for demonstrated large
+0.33--0.44 ms. A finer mutation ABI remains a future option for demonstrated large
 single-fragment workloads, not the next production bottleneck.
 
-Evidence: `tmp/task-305-opacity-mutation/report.json`.
+The original measurement incorrectly reported island planning as 0.78--2.05 ms
+because the timer ended after `encodeIsland`; it therefore included compilation
+and rendering. The timer boundary is corrected. Actual warm planning is only
+0.035--0.045 ms after the first sample and is not a current bottleneck.
+
+Evidence:
+
+- `tmp/task-305-opacity-mutation/report.json` (superseded timer boundary)
+- `tmp/task-305-corrected-mutation/report.json`
 
 ## Phase 5: measured initial-scene path and batched first projection
 
