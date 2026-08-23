@@ -52,6 +52,26 @@ describe('RetainedRenderIslandRegistry', () => {
     expect(edited.releasedResourceIds).toEqual([]);
   });
 
+  it('retains the resource while canonical reorder changes composition order', () => {
+    const first = vector('first');
+    const second = vector('second');
+    const group = createGroupLayer('opacity');
+    group.opacity = 0.6;
+    group.children = [first, second];
+    const registry = new RetainedRenderIslandRegistry();
+    const initial = registry.reconcile(planRenderIslands([group])).islands[0];
+
+    group.children = [second, first];
+    group.revision += 1;
+    const reordered = registry.reconcile(planRenderIslands([group])).islands[0];
+
+    expect(reordered.resourceId).toBe(initial.resourceId);
+    expect(reordered.composition).toEqual([
+      { kind: 'member', layerId: second.id },
+      { kind: 'member', layerId: first.id }
+    ]);
+  });
+
   it('releases every retained identity on clear', () => {
     const registry = new RetainedRenderIslandRegistry();
     const retained = registry.reconcile(planRenderIslands([vector('one')])).islands[0];

@@ -161,4 +161,28 @@ describe('RenderIslandPlanner', () => {
     ]);
     expect(plan.islands[0].backendEligibility.vello).toBe(true);
   });
+
+  it('does not fold unsupported nested compositing into an outer vector clip', () => {
+    const plain = vector('plain');
+    const nested = createGroupLayer('nested');
+    nested.opacity = 0.5;
+    const blended = vector('blended');
+    blended.blendMode = 'multiply';
+    nested.children = [blended];
+    const clipped = createGroupLayer('clipped');
+    clipped.vectorClip = {
+      id: 'outer-clip', name: 'Outer clip', enabled: true, inverted: false,
+      elements: [], revision: 1
+    };
+    clipped.children = [plain, nested];
+
+    const plan = planRenderIslands([clipped]);
+
+    expect(plan.islands.every(island => island.islandVectorClip === null)).toBe(true);
+    expect(plan.islands.every(island => island.canonicalLayerIds.length === 1)).toBe(true);
+    expect(plan.islands.some(island => (
+      island.canonicalLayerIds.includes(blended.id)
+      && island.boundaryReasons.includes('non-normal-blend')
+    ))).toBe(true);
+  });
 });

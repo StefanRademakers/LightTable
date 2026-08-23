@@ -227,7 +227,9 @@ export class LayerCompositor {
         ({ layer }) => !geometryPreviews.resolve(layer.id, layer.geometryRevision)
       ));
     if (islandRenderingActive) {
+      vectors.prepareIslandFrame(retainedIslandPlan.islands);
       for (const island of retainedIslandPlan.islands) {
+        if (!island.members.some(member => member.participates)) continue;
         const texture = vectors.encodeIsland(island, { width, height });
         if (!texture) {
           islandRenderingActive = false;

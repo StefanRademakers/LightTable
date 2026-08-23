@@ -370,3 +370,66 @@ island renderer a universal pixel oracle. The per-layer path remains selectable
 until the broader compositing parity matrix and fallback gates are complete.
 
 Evidence: `tmp/task-305-opacity-island/report.json`.
+
+### Four-file packaged corpus gate
+
+The same commit was packaged twice, once with retained islands enabled and once
+with `LIGHTTABLE_VECTOR_ISLANDS=0`. All four files in the current external SVG
+corpus opened and completed pan/zoom evidence without a Vello failure:
+
+| File | Oracle -> island surfaces | Oracle -> island GPU MiB | Oracle/island preview |
+| --- | ---: | ---: | --- |
+| `complexahexagon.svg` | 1 -> 1 | 28 -> 28 | exact |
+| `Lion_héraldique.svg` | 1 -> 1 | 9 -> 9 | exact |
+| `svg_vector_render_test.svg` | 17 -> 5 | 178 -> 107 | RMSE 1.0292 |
+| `VORTEXT.SVG` | 1 -> 1 | 54 -> 54 | one channel differs by 1 |
+
+The island optimization is therefore neutral for already-single-surface files
+and materially reduces only the layered fixture. It does not improve initial
+open time by itself: `VORTEXT.SVG` still needed about 3.0--3.2 seconds to first
+render. Those timings identify import/projection/initial scene construction as
+a separate production issue rather than evidence for more aggressive island
+merging.
+
+Evidence:
+
+- `tmp/task-305-opacity-corpus/report.json`
+- `tmp/task-305-opacity-corpus-oracle/report.json`
+
+## Phase 4: explicit active/warm/cold texture lifecycle
+
+Vector islands now distinguish render activity from canonical retention:
+
+- active: at least one member participates in the current composition;
+- warm: fully hidden, with its last texture, JS projection and Rust scene kept;
+- cold: the texture was evicted under the 256 MiB per-document Vello surface
+  budget, while JS projection and Rust scene remain retained;
+- evicted: the canonical resource was deleted and both texture and Rust source
+  are released.
+
+Fully hidden islands are no longer rerendered as transparent. Re-showing an
+unchanged warm island reuses its existing texture. Budget pressure selects the
+least-recently-used warm surface only; active surfaces are never opportunistically
+destroyed, even when the active working set itself exceeds the cache budget.
+
+An eight-cycle packaged hide/show audit on the representative layered SVG
+reported exact restored screenshots, zero GPU-byte growth, zero Vello scene
+renders, zero fragment or clip uploads, zero surface recreation, zero Rust
+source releases, and 72 unchanged-scene reuses. A unit-level pressure gate
+proves the hidden warm texture becomes cold before the active texture and that
+the retained resource entry survives for rehydration.
+
+Evidence: `tmp/task-305-lifecycle/report.json`.
+
+## Current warm-edit priority correction
+
+The latest six-edit packaged profile no longer supports prioritizing binary
+transport or a more granular sub-fragment ABI. Excluding the first JIT sample,
+ordinary edits project and upload one fragment; document composite costs
+1.12--2.41 ms, PaintScene compilation 0.12--1.14 ms, JS/WASM roundtrip
+0.48--0.60 ms, Rust fragment encoding about 0.01 ms, and Vello CPU submit
+0.32--0.41 ms. Island planning (0.78--2.05 ms) is now often the largest named
+CPU phase. A finer mutation ABI remains a future option for demonstrated large
+single-fragment workloads, not the next production bottleneck.
+
+Evidence: `tmp/task-305-opacity-mutation/report.json`.

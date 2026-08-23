@@ -15,7 +15,8 @@ import {
   vectorGeometryTolerance,
   vectorSurfaceBytes,
   vectorSurfaceSampleCount,
-  VectorGeometryRealizationCache
+  VectorGeometryRealizationCache,
+  VectorLayerRenderer
 } from './VectorLayerRenderer';
 import { planRenderIslands } from './RenderIslandPlanner';
 import { RetainedRenderIslandRegistry } from './RetainedRenderIslandRegistry';
@@ -42,6 +43,48 @@ describe('adaptive vector tessellation', () => {
 });
 
 describe('Vello paint-scene projection', () => {
+  it('evicts a hidden warm texture before an active one and keeps the resource cold', () => {
+    const activeLayer = createVectorLayer([], 'active');
+    const hiddenLayer = createVectorLayer([], 'hidden');
+    hiddenLayer.opacity = 0.5;
+    hiddenLayer.visible = false;
+    const registry = new RetainedRenderIslandRegistry();
+    const islands = registry.reconcile(planRenderIslands([activeLayer, hiddenLayer])).islands;
+    const active = islands.find(island => island.members.some(member => member.participates))!;
+    const hidden = islands.find(island => island.members.every(member => !member.participates))!;
+    const renderer = new VectorLayerRenderer({} as GPUDevice, 100);
+    const disposed: string[] = [];
+    const resources = (renderer as unknown as {
+      velloSurfaces: Map<string, {
+        surface: { estimatedBytes: number; dispose: () => void } | null;
+        renderedSceneKey: string | null;
+        renderedDependency: null;
+        renderedIslandDependency: null;
+        retainedIslandProjection: null;
+        lastTouched: number;
+      }>;
+    }).velloSurfaces;
+    const resource = (id: string, lastTouched: number) => ({
+      surface: { estimatedBytes: 80, dispose: () => disposed.push(id) },
+      renderedSceneKey: 'ready', renderedDependency: null,
+      renderedIslandDependency: null, retainedIslandProjection: null, lastTouched
+    });
+    resources.set(active.resourceId, resource(active.resourceId, 2));
+    resources.set(hidden.resourceId, resource(hidden.resourceId, 1));
+
+    renderer.prepareIslandFrame(islands);
+
+    expect(disposed).toEqual([hidden.resourceId]);
+    expect(resources.get(active.resourceId)?.surface).not.toBeNull();
+    expect(resources.get(hidden.resourceId)).toMatchObject({
+      surface: null, renderedSceneKey: null
+    });
+    expect(renderer.backendDiagnostics()).toMatchObject({
+      velloSurfaces: 1, velloWarmSurfaces: 0,
+      velloColdResources: 1, velloSurfaceEvictions: 1
+    });
+  });
+
   it('retains layer-qualified fragments while visibility mutates only island composition', () => {
     const first = createVectorLayer([createVectorLiveShape('first', {
       kind: 'ellipse', width: 40, height: 20

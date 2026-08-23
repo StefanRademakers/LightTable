@@ -43,6 +43,7 @@ import type { RetainedRenderIsland } from './RetainedRenderIslandRegistry';
 /** Maximum flattening error in physical presentation pixels. */
 const DEFAULT_TOLERANCE_PX = 0.25;
 const MAX_MULTISAMPLED_SURFACE_BYTES = 512 * 1024 * 1024;
+const DEFAULT_VELLO_SURFACE_CACHE_BYTES = 256 * 1024 * 1024;
 const GEOMETRY_CACHE_BYTES = 32 * 1024 * 1024;
 let vectorRendererResourceSequence = 0;
 
@@ -81,11 +82,12 @@ interface CachedVectorGeometry {
 }
 
 interface VelloLayerSurface {
-  readonly surface: VelloPaintSceneSurface;
+  surface: VelloPaintSceneSurface | null;
   renderedSceneKey: string | null;
   renderedDependency: VelloLayerDependency | null;
   renderedIslandDependency: VelloIslandDependency | null;
   retainedIslandProjection: RetainedIslandProjection | null;
+  lastTouched: number;
 }
 
 export interface RetainedIslandProjection {
@@ -559,6 +561,9 @@ export class VectorLayerRenderer {
   private vectorMaskComposite: VectorMaskCompositeBackend | null = null;
   private vello: VelloPaintSceneBackend | null = null;
   private readonly velloSurfaces = new Map<string, VelloLayerSurface>();
+  private activeVelloResourceIds = new Set<string>();
+  private velloResourceClock = 0;
+  private velloSurfaceEvictions = 0;
   private velloFailure: string | null = null;
   private readonly geometryCache = new VectorGeometryRealizationCache();
   private readonly selectedBackend = vectorRendererBackendSelection();
@@ -580,7 +585,14 @@ export class VectorLayerRenderer {
   private detailedProfilingEnabled = false;
   private readonly detailedPhases = new Map<VectorDetailedProfilePhase, VectorTimingAggregate>();
 
-  constructor(private readonly device: GPUDevice) {}
+  constructor(
+    private readonly device: GPUDevice,
+    private readonly maximumVelloSurfaceBytes = DEFAULT_VELLO_SURFACE_CACHE_BYTES
+  ) {
+    if (!Number.isSafeInteger(maximumVelloSurfaceBytes) || maximumVelloSurfaceBytes < 0) {
+      throw new RangeError('Vello surface cache budget must be a non-negative safe integer.');
+    }
+  }
 
   encode(
     encoder: GPUCommandEncoder,
@@ -711,7 +723,7 @@ export class VectorLayerRenderer {
     const existing = this.velloSurfaces.get(island.resourceId);
     if (
       existing
-      && existing.surface.width === dimensions.width
+      && existing.surface?.width === dimensions.width
       && existing.surface.height === dimensions.height
       && sameVelloIslandDependency(existing.renderedIslandDependency, dependency)
     ) {
@@ -720,12 +732,13 @@ export class VectorLayerRenderer {
       }
       this.velloUnchangedSceneReuses += 1;
       this.velloLayerEncodes += 1;
+      existing.lastTouched = ++this.velloResourceClock;
       return existing.surface.texture;
     }
     const sourceRevision = vectorIslandPaintSceneRevision(island);
     if (
       existing
-      && existing.surface.width === dimensions.width
+      && existing.surface?.width === dimensions.width
       && existing.surface.height === dimensions.height
       && existing.renderedSceneKey === `${island.resourceId}:${sourceRevision}`
     ) {
@@ -735,6 +748,7 @@ export class VectorLayerRenderer {
       }
       this.velloUnchangedSceneReuses += 1;
       this.velloLayerEncodes += 1;
+      existing.lastTouched = ++this.velloResourceClock;
       return existing.surface.texture;
     }
     if (this.detailedProfilingEnabled) {
@@ -760,24 +774,28 @@ export class VectorLayerRenderer {
       let entry = this.velloSurfaces.get(island.resourceId);
       if (
         !entry
-        || entry.surface.width !== dimensions.width
+        || entry.surface?.width !== dimensions.width
         || entry.surface.height !== dimensions.height
       ) {
-        if (entry) {
+        if (entry?.surface) {
           this.velloSurfaceRecreations += 1;
           this.disposeVelloSurface(entry.surface);
+          entry.surface = null;
         }
+        this.ensureVelloSurfaceCapacity(dimensions.width * dimensions.height * 4, island.resourceId);
         const surfaceStartedAt = this.detailedProfilingEnabled ? performance.now() : 0;
-        entry = {
-          surface: backend.createSurface(
+        const surface = backend.createSurface(
             dimensions.width,
             dimensions.height,
             `LightTable Vello island: ${island.resourceId}`
-          ),
+          );
+        entry = entry ? { ...entry, surface, renderedSceneKey: null } : {
+          surface,
           renderedSceneKey: null,
           renderedDependency: null,
           renderedIslandDependency: null,
-          retainedIslandProjection: null
+          retainedIslandProjection: null,
+          lastTouched: ++this.velloResourceClock
         };
         if (this.detailedProfilingEnabled) {
           this.recordDetailedPhase(
@@ -786,9 +804,12 @@ export class VectorLayerRenderer {
         }
         this.velloSurfaces.set(island.resourceId, entry);
       }
+      entry.lastTouched = ++this.velloResourceClock;
+      const renderSurface = entry.surface;
+      if (!renderSurface) throw new Error('Vello island surface was not materialized.');
       if (entry.renderedSceneKey !== compiled.sceneKey) {
         const metrics = backend.render(
-          entry.surface,
+          renderSurface,
           compiled.scene,
           this.velloSourceKey(island.resourceId)
         );
@@ -798,7 +819,7 @@ export class VectorLayerRenderer {
         entry.retainedIslandProjection = compiled.projection;
       }
       this.velloLayerEncodes += 1;
-      return entry.surface.texture;
+      return renderSurface.texture;
     } catch (reason) {
       this.velloFailure = reason instanceof Error ? reason.message : String(reason);
       console.error('[LightTable vector] Vello island backend failed; using layer fallback.', reason);
@@ -815,13 +836,29 @@ export class VectorLayerRenderer {
       ))));
   }
 
+  /**
+   * Marks current-frame resources before encoding. Fully hidden islands stay
+   * warm: their last pixels and retained Rust fragments survive without an
+   * unnecessary transparent rerender. Under pressure only warm textures become
+   * cold; the JS projection and Rust scene remain available for rehydration.
+   */
+  prepareIslandFrame(islands: readonly RetainedRenderIsland[]) {
+    this.activeVelloResourceIds = new Set(islands
+      .filter(island => island.members.some(member => member.participates))
+      .map(island => island.resourceId));
+    this.trimWarmVelloSurfacesToBudget();
+  }
+
   retainLayerIds(layerIds: ReadonlySet<string>) {
     for (const [layerId, entry] of this.velloSurfaces) {
       if (layerIds.has(layerId)) continue;
-      this.disposeVelloSurface(entry.surface);
+      if (entry.surface) this.disposeVelloSurface(entry.surface);
       this.velloSurfaces.delete(layerId);
       this.releaseVelloSource(layerId);
     }
+    this.activeVelloResourceIds = new Set(
+      [...this.activeVelloResourceIds].filter(resourceId => layerIds.has(resourceId))
+    );
   }
 
   /** Renders canonical clip geometry as white premultiplied coverage. */
@@ -849,7 +886,9 @@ export class VectorLayerRenderer {
 
   backendDiagnostics() {
     const currentActive = this.backend !== null;
-    const velloActive = this.velloSurfaces.size > 0;
+    const velloSurfaceEntries = [...this.velloSurfaces.values()];
+    const velloSurfaceCount = velloSurfaceEntries.filter(entry => entry.surface !== null).length;
+    const velloActive = velloSurfaceCount > 0;
     return {
       selected: this.selectedBackend,
       active: currentActive && velloActive
@@ -860,8 +899,17 @@ export class VectorLayerRenderer {
             ? 'current'
             : 'unexercised',
       velloFailure: this.velloFailure,
-      velloSurfaces: this.velloSurfaces.size,
-      velloResourceIds: [...this.velloSurfaces.keys()],
+      velloSurfaces: velloSurfaceCount,
+      velloResourceIds: [...this.velloSurfaces]
+        .filter(([, entry]) => entry.surface !== null)
+        .map(([resourceId]) => resourceId),
+      velloWarmSurfaces: [...this.velloSurfaces]
+        .filter(([resourceId, entry]) => (
+          entry.surface !== null && !this.activeVelloResourceIds.has(resourceId)
+        )).length,
+      velloColdResources: velloSurfaceEntries.filter(entry => entry.surface === null).length,
+      velloSurfaceEvictions: this.velloSurfaceEvictions,
+      velloSurfaceBudgetBytes: this.maximumVelloSurfaceBytes,
       currentLayerEncodes: this.currentLayerEncodes,
       velloLayerEncodes: this.velloLayerEncodes,
       velloSceneRenders: this.velloSceneRenders,
@@ -901,6 +949,7 @@ export class VectorLayerRenderer {
     this.velloUnchangedSceneReuses = 0;
     this.velloSurfaceRecreations = 0;
     this.velloReleasedSources = 0;
+    this.velloSurfaceEvictions = 0;
     this.velloGpuRenderSamples = 0;
     this.velloGpuRenderTotalMs = 0;
     this.detailedProfilingEnabled = true;
@@ -931,7 +980,7 @@ export class VectorLayerRenderer {
       ? this.vectorMaskOutput.width * this.vectorMaskOutput.height * 8
       : 0);
     return current + currentClip + [...this.velloSurfaces.values()]
-      .reduce((bytes, entry) => bytes + entry.surface.estimatedBytes, 0);
+      .reduce((bytes, entry) => bytes + (entry.surface?.estimatedBytes ?? 0), 0);
   }
 
   destroy() {
@@ -946,10 +995,11 @@ export class VectorLayerRenderer {
     this.backend?.dispose();
     this.backend = null;
     for (const [layerId, entry] of this.velloSurfaces) {
-      this.disposeVelloSurface(entry.surface);
+      if (entry.surface) this.disposeVelloSurface(entry.surface);
       this.releaseVelloSource(layerId);
     }
     this.velloSurfaces.clear();
+    this.activeVelloResourceIds.clear();
     this.vello = null;
     this.velloFailure = null;
     this.geometryCache.clear();
@@ -966,7 +1016,7 @@ export class VectorLayerRenderer {
     const existing = this.velloSurfaces.get(layer.id);
     if (
       existing
-      && existing.surface.width === dimensions.width
+      && existing.surface?.width === dimensions.width
       && existing.surface.height === dimensions.height
       && sameVelloLayerDependency(existing.renderedDependency, dependency)
     ) {
@@ -974,12 +1024,13 @@ export class VectorLayerRenderer {
         this.recordDetailedPhase('dependency-key', performance.now() - dependencyStartedAt);
       }
       this.velloUnchangedSceneReuses += 1;
+      existing.lastTouched = ++this.velloResourceClock;
       return existing.surface.texture;
     }
     let sourceRevision: string | null = null;
     if (
       existing
-      && existing.surface.width === dimensions.width
+      && existing.surface?.width === dimensions.width
       && existing.surface.height === dimensions.height
     ) {
       sourceRevision = vectorLayerPaintSceneRevision(layer, layerToDocument);
@@ -989,6 +1040,7 @@ export class VectorLayerRenderer {
           this.recordDetailedPhase('dependency-key', performance.now() - dependencyStartedAt);
         }
         this.velloUnchangedSceneReuses += 1;
+        existing.lastTouched = ++this.velloResourceClock;
         return existing.surface.texture;
       }
     }
@@ -1008,7 +1060,7 @@ export class VectorLayerRenderer {
     if (compiled.status !== 'ready') {
       this.velloUnsupportedLayerEncodes += 1;
       const unsupported = this.velloSurfaces.get(layer.id);
-      if (unsupported) this.disposeVelloSurface(unsupported.surface);
+      if (unsupported?.surface) this.disposeVelloSurface(unsupported.surface);
       this.velloSurfaces.delete(layer.id);
       this.releaseVelloSource(layer.id);
       return null;
@@ -1018,24 +1070,27 @@ export class VectorLayerRenderer {
       let entry = this.velloSurfaces.get(layer.id);
       if (
         !entry
-        || entry.surface.width !== dimensions.width
+        || entry.surface?.width !== dimensions.width
         || entry.surface.height !== dimensions.height
       ) {
-        if (entry) {
+        if (entry?.surface) {
           this.velloSurfaceRecreations += 1;
           this.disposeVelloSurface(entry.surface);
+          entry.surface = null;
         }
         const surfaceStartedAt = this.detailedProfilingEnabled ? performance.now() : 0;
-        entry = {
-          surface: backend.createSurface(
+        const surface = backend.createSurface(
             dimensions.width,
             dimensions.height,
             `LightTable Vello layer: ${layer.name}`
-          ),
+          );
+        entry = entry ? { ...entry, surface, renderedSceneKey: null } : {
+          surface,
           renderedSceneKey: null,
           renderedDependency: null,
           renderedIslandDependency: null,
-          retainedIslandProjection: null
+          retainedIslandProjection: null,
+          lastTouched: ++this.velloResourceClock
         };
         if (this.detailedProfilingEnabled) {
           this.recordDetailedPhase(
@@ -1044,9 +1099,12 @@ export class VectorLayerRenderer {
         }
         this.velloSurfaces.set(layer.id, entry);
       }
+      entry.lastTouched = ++this.velloResourceClock;
+      const renderSurface = entry.surface;
+      if (!renderSurface) throw new Error('Vello layer surface was not materialized.');
       if (entry.renderedSceneKey !== compiled.sceneKey) {
         const metrics = backend.render(
-          entry.surface,
+          renderSurface,
           compiled.scene,
           this.velloSourceKey(layer.id)
         );
@@ -1066,12 +1124,12 @@ export class VectorLayerRenderer {
         entry.renderedSceneKey = compiled.sceneKey;
         entry.renderedDependency = dependency;
       }
-      return entry.surface.texture;
+      return renderSurface.texture;
     } catch (reason) {
       this.velloFailure = reason instanceof Error ? reason.message : String(reason);
       console.error('[LightTable vector] Vello backend disabled; using current WebGPU renderer.', reason);
       for (const [layerId, entry] of this.velloSurfaces) {
-        this.disposeVelloSurface(entry.surface);
+        if (entry.surface) this.disposeVelloSurface(entry.surface);
         this.releaseVelloSource(layerId);
       }
       this.velloSurfaces.clear();
@@ -1105,6 +1163,38 @@ export class VectorLayerRenderer {
       this.velloGpuRenderSamples += 1;
       this.velloGpuRenderTotalMs += metrics.profile.actualGpuRenderMs;
     }
+  }
+
+  private ensureVelloSurfaceCapacity(requiredBytes: number, protectedResourceId: string) {
+    while (this.velloSurfaceBytes() + requiredBytes > this.maximumVelloSurfaceBytes) {
+      const victim = [...this.velloSurfaces]
+        .filter(([resourceId, entry]) => (
+          resourceId !== protectedResourceId
+          && entry.surface !== null
+          && !this.activeVelloResourceIds.has(resourceId)
+        ))
+        .sort((left, right) => left[1].lastTouched - right[1].lastTouched)[0];
+      if (!victim) return;
+      this.makeVelloResourceCold(victim[0], victim[1]);
+    }
+  }
+
+  private trimWarmVelloSurfacesToBudget() {
+    this.ensureVelloSurfaceCapacity(0, '');
+  }
+
+  private velloSurfaceBytes() {
+    return [...this.velloSurfaces.values()].reduce(
+      (bytes, entry) => bytes + (entry.surface?.estimatedBytes ?? 0), 0
+    );
+  }
+
+  private makeVelloResourceCold(_resourceId: string, entry: VelloLayerSurface) {
+    if (!entry.surface) return;
+    this.disposeVelloSurface(entry.surface);
+    entry.surface = null;
+    entry.renderedSceneKey = null;
+    this.velloSurfaceEvictions += 1;
   }
 
   private disposeVelloSurface(surface: VelloPaintSceneSurface) {
