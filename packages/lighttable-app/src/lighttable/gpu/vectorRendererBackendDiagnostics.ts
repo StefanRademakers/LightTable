@@ -3,6 +3,7 @@ export type VectorRendererBackendSelection = 'current' | 'vello';
 let selection: VectorRendererBackendSelection = 'current';
 let locked = false;
 let renderIslandsEnabled = true;
+let detailedProfilingEnabled = false;
 
 /**
  * Diagnostic-only backend selection. Hosts must call this before the first
@@ -28,6 +29,16 @@ export const configureVectorRenderIslands = (enabled: boolean) => {
 };
 
 export const vectorRenderIslandsEnabled = () => renderIslandsEnabled;
+
+/** Build/host diagnostic only; production packages leave this disabled. */
+export const configureVectorRendererDetailedProfiling = (enabled: boolean) => {
+  if (locked && enabled !== detailedProfilingEnabled) {
+    throw new Error('Vector renderer profiling cannot change after WebGPU initialization.');
+  }
+  detailedProfilingEnabled = enabled;
+};
+
+export const vectorRendererDetailedProfilingEnabled = () => detailedProfilingEnabled;
 
 export const lockVectorRendererBackendSelection = () => {
   locked = true;

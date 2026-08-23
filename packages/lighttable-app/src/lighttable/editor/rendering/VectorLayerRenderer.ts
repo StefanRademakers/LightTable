@@ -5,6 +5,10 @@ import {
   type VectorPath
 } from '@lighttable/vector-core';
 import {
+  createPaintSceneCompileResult,
+  PAINT_SCENE_SCHEMA_VERSION
+} from '@lighttable/paint-scene';
+import {
   composeVectorPaintSceneIsland,
   composeVectorPaintSceneParts,
   compileVectorPaintScene,
@@ -37,7 +41,10 @@ import {
   type VectorLayer
 } from '../document/documentTypes';
 import type { AffineMatrix } from './renderContract';
-import { vectorRendererBackendSelection } from '../../gpu/vectorRendererBackendDiagnostics';
+import {
+  vectorRendererBackendSelection,
+  vectorRendererDetailedProfilingEnabled
+} from '../../gpu/vectorRendererBackendDiagnostics';
 import type { RetainedRenderIsland } from './RetainedRenderIslandRegistry';
 
 /** Maximum flattening error in physical presentation pixels. */
@@ -428,10 +435,33 @@ export const compileRetainedVelloVectorIslandScene = (
       compiledClip = cached.compiledClip;
     } else {
       compiledMemberCount += 1;
-      const parts = layer.elements.map(element => {
+      const initialBatch = !cached && layer.elements.length > 1
+        ? compileVectorPaintScene(layer.elements, {
+            sourceId: `${island.resourceId}:${layer.id}:initial`,
+            sourceRevision: memberRevision,
+            parentTransform: layerToDocument,
+            stableIdNamespace: layer.id,
+            ...(adapterProfile ? { profile: adapterProfile } : {}),
+            ...(profile ? { now: () => performance.now() } : {})
+          })
+        : null;
+      const parts = layer.elements.map((element, index) => {
         const revision = vectorElementPaintSceneRevision(layer.id, element, layerToDocument);
         const cachedElement = cached?.elements.get(element.id);
-        const projected = cachedElement?.revision === revision
+        const initialFragment = initialBatch?.scene.fragments[index];
+        const initialIssues = initialFragment
+          ? initialBatch.issues.filter(issue => issue.stableId === initialFragment.stableId)
+          : [];
+        const projected = initialFragment
+          ? createPaintSceneCompileResult({
+              schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
+              sourceId: `${island.resourceId}:${layer.id}:${element.id}`,
+              sourceRevision: revision,
+              fragments: [initialFragment],
+              clips: [],
+              composition: [{ kind: 'fragment', stableId: initialFragment.stableId }]
+            }, initialIssues)
+          : cachedElement?.revision === revision
           ? cachedElement.compiled
           : compileVectorPaintScene([element], {
               sourceId: `${island.resourceId}:${layer.id}:${element.id}`,
@@ -441,7 +471,7 @@ export const compileRetainedVelloVectorIslandScene = (
               ...(adapterProfile ? { profile: adapterProfile } : {}),
               ...(profile ? { now: () => performance.now() } : {})
             });
-        if (cachedElement?.revision !== revision) compiledFragmentCount += 1;
+        if (initialFragment || cachedElement?.revision !== revision) compiledFragmentCount += 1;
         elements.set(element.id, { revision, compiled: projected });
         return projected;
       });
@@ -460,9 +490,12 @@ export const compileRetainedVelloVectorIslandScene = (
         : null;
       result = {
         member,
-        result: composeVectorPaintSceneParts(
-          `${island.resourceId}:${layer.id}`, memberRevision, parts, compiledClip
-        )
+        result: initialBatch && !compiledClip
+          ? initialBatch
+          : composeVectorPaintSceneParts(
+              `${island.resourceId}:${layer.id}`, memberRevision,
+              initialBatch ? [initialBatch] : parts, compiledClip
+            )
       };
     }
     members.set(layer.id, {
@@ -582,7 +615,7 @@ export class VectorLayerRenderer {
   private velloReleasedSources = 0;
   private velloGpuRenderSamples = 0;
   private velloGpuRenderTotalMs = 0;
-  private detailedProfilingEnabled = false;
+  private detailedProfilingEnabled = vectorRendererDetailedProfilingEnabled();
   private readonly detailedPhases = new Map<VectorDetailedProfilePhase, VectorTimingAggregate>();
 
   constructor(

@@ -12,12 +12,14 @@ const isolationHeaders = {
 const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS === '1';
 const vectorBackend = process.env.LIGHTTABLE_VECTOR_BACKEND === 'vello' ? 'vello' : 'current';
 const vectorRenderIslands = process.env.LIGHTTABLE_VECTOR_ISLANDS !== '0';
+const vectorDetailedProfiling = process.env.LIGHTTABLE_VECTOR_PROFILE === '1';
 
 export default defineConfig({
   define: {
     'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false'),
     'import.meta.env.VITE_LIGHTTABLE_VECTOR_BACKEND': JSON.stringify(vectorBackend),
-    'import.meta.env.VITE_LIGHTTABLE_VECTOR_ISLANDS': JSON.stringify(vectorRenderIslands ? 'true' : 'false')
+    'import.meta.env.VITE_LIGHTTABLE_VECTOR_ISLANDS': JSON.stringify(vectorRenderIslands ? 'true' : 'false'),
+    'import.meta.env.VITE_LIGHTTABLE_VECTOR_PROFILE': JSON.stringify(vectorDetailedProfiling ? 'true' : 'false')
   },
   // Keep the Electron renderer on the same first-party source/HMR graph as
   // the web host. CSS edits in @lighttable/app then update without restarting

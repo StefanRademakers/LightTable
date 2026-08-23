@@ -16,5 +16,6 @@ export type { LightTableAutomationDriver } from './lighttable/application/comman
 export {
   configureVectorRendererBackend,
   configureVectorRenderIslands,
+  configureVectorRendererDetailedProfiling,
   type VectorRendererBackendSelection
 } from './lighttable/gpu/vectorRendererBackendDiagnostics';

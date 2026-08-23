@@ -110,17 +110,22 @@ describe('Vello paint-scene projection', () => {
   });
 
   it('reprojects only the changed member while Rust-facing fragments stay retained', () => {
-    const first = createVectorLayer([createVectorLiveShape('first', {
-      kind: 'ellipse', width: 40, height: 20
-    })]);
+    const first = createVectorLayer([
+      createVectorLiveShape('first', { kind: 'ellipse', width: 40, height: 20 }),
+      createVectorLiveShape('first-2', { kind: 'ellipse', width: 10, height: 10 })
+    ]);
     const second = createVectorLayer([createVectorLiveShape('second', {
       kind: 'ellipse', width: 20, height: 10
     })]);
     const registry = new RetainedRenderIslandRegistry();
     let island = registry.reconcile(planRenderIslands([first, second])).islands[0];
-    const initial = compileRetainedVelloVectorIslandScene(island, null);
+    const initialPhases: string[] = [];
+    const initial = compileRetainedVelloVectorIslandScene(
+      island, null, (phase) => initialPhases.push(phase)
+    );
     expect(initial.compiledMemberCount).toBe(2);
-    expect(initial.compiledFragmentCount).toBe(2);
+    expect(initial.compiledFragmentCount).toBe(3);
+    expect(initialPhases.filter(phase => phase === 'paint-scene-validation')).toHaveLength(2);
 
     second.elements[0].transform = translationMatrix(2, 0);
     second.elements[0].transformRevision += 1;
@@ -132,7 +137,7 @@ describe('Vello paint-scene projection', () => {
     expect(edited.projection.members.get(first.id)?.compiled.result).toBe(
       initial.projection.members.get(first.id)?.compiled.result
     );
-    expect(edited.scene.fragments).toHaveLength(2);
+    expect(edited.scene.fragments).toHaveLength(3);
   });
 
   it('combines inherited, layer and exact path transforms without mutating authority', () => {

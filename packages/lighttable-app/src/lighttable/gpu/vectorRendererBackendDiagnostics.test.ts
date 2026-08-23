@@ -12,5 +12,15 @@ describe('vector renderer backend diagnostics', () => {
     );
     expect(() => diagnostics.configureVectorRendererBackend('vello')).not.toThrow();
   });
-});
 
+  it('locks diagnostic profiling with the renderer configuration', async () => {
+    vi.resetModules();
+    const diagnostics = await import('./vectorRendererBackendDiagnostics');
+    diagnostics.configureVectorRendererDetailedProfiling(true);
+    expect(diagnostics.vectorRendererDetailedProfilingEnabled()).toBe(true);
+    diagnostics.lockVectorRendererBackendSelection();
+    expect(() => diagnostics.configureVectorRendererDetailedProfiling(false)).toThrow(
+      /cannot change after WebGPU initialization/
+    );
+  });
+});

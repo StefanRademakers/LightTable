@@ -6,6 +6,7 @@ import {
   createLightTableImageClipboard,
   createLocalLightTableFunnelTelemetry,
   configureVectorRendererBackend,
+  configureVectorRendererDetailedProfiling,
   configureVectorRenderIslands,
   LightTableStandaloneApp,
   type LightTableAutomationDriver,
@@ -20,6 +21,9 @@ configureVectorRendererBackend(
   import.meta.env.VITE_LIGHTTABLE_VECTOR_BACKEND === 'vello' ? 'vello' : 'current'
 );
 configureVectorRenderIslands(import.meta.env.VITE_LIGHTTABLE_VECTOR_ISLANDS !== 'false');
+configureVectorRendererDetailedProfiling(
+  import.meta.env.VITE_LIGHTTABLE_VECTOR_PROFILE === 'true'
+);
 
 if (navigator.userAgent.includes('Windows')) {
   const titlebarIconUrl = new URL('../../../icon/logo_emblem.png', import.meta.url).href;

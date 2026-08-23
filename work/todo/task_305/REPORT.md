@@ -433,3 +433,41 @@ CPU phase. A finer mutation ABI remains a future option for demonstrated large
 single-fragment workloads, not the next production bottleneck.
 
 Evidence: `tmp/task-305-opacity-mutation/report.json`.
+
+## Phase 5: measured initial-scene path and batched first projection
+
+A build-only `LIGHTTABLE_VECTOR_PROFILE=1` switch now enables detailed vector
+profiling before the first WebGPU render. It is compiled out as disabled in
+normal packages and is locked with the backend/device configuration, so it
+cannot mutate renderer behavior halfway through a document session.
+
+The 7.2 MiB `VORTEXT.SVG` contains 26,492 literal `<path>` elements (not SVG
+`<use>` instances). Its initial detailed path measured approximately:
+
+- PaintScene projection: 126 ms;
+- JSON stringify: 47 ms;
+- Rust JSON deserialization: 319 ms;
+- Rust fragment encoding: 58 ms;
+- Vello scene preparation and CPU submit: 48 ms;
+- total synchronous JS/WASM render call: 456 ms.
+
+This establishes two different priorities: JSON/binary transport is still not
+important for warm edits, but deserialization is material for exceptionally
+large initial scenes. It nevertheless explains hundreds of milliseconds, not
+the complete three-second first-image latency; the CPU profile also contains
+about 358 ms garbage collection and substantial idle/async wait time.
+
+Initial retained projection now compiles all elements of a previously unseen
+canonical vector layer as one batch, then seeds the element-granular cache from
+that already validated result. VORTEXT validation calls dropped from 26,492 to
+1 and measured PaintScene compilation dropped from 126.16 to 99.24 ms. The
+complete first-render sample moved from 3,704 to 3,533 ms, but that wall-clock
+difference is treated as noisy rather than a claimed 171 ms improvement. Warm
+edits still reproject only their changed element. Output remained effectively
+identical (two channels differed by one between independent Vello captures).
+
+Evidence:
+
+- `tmp/task-305-vortex-open-profile/report.json`
+- `tmp/task-305-vortex-detailed-open/report.json`
+- `tmp/task-305-vortex-batched-open/report.json`
