@@ -19,6 +19,7 @@ Acceptance checklist
 [x] Assess JSON, binary, typed arrays, shared memory and retained Rust mutations.
 [x] Preserve normal-build behavior; GPU timestamp instrumentation is diagnostic.
 [x] Implement the pure render-island planner and diagnostic projection.
+[x] Add deterministic retained runtime-ID reconciliation for island split/merge.
 [ ] Integrate island-owned retained surfaces and cross-layer Rust scenes.
 [ ] Implement bounded active/warm/cold/evicted resource policy.
 [ ] Obtain exclusive GPU timestamps through a supported native/capture path.

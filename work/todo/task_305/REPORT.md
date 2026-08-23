@@ -289,3 +289,11 @@ flag into a surface. Opacity-1, normal source-over vector groups are associative
 and therefore unobservable as isolation boundaries. Isolation is retained when
 group opacity, descendant blend/processing, masks, effects or clipping make it
 observable. Tests cover both the collapsible and observable cases.
+
+Runtime identity is handled by a separate `RetainedRenderIslandRegistry`.
+Canonical layer IDs are never rewritten. Exact plan matches retain their
+resource ID; an isolated island then matches its canonical isolation owner;
+remaining split/merge cases use deterministic maximum layer overlap with anchor
+tie-breaking. Tests prove identity survives visibility, immutable canonical
+object replacement, child insertion and island splits, and that deleted islands
+produce explicit release IDs.
