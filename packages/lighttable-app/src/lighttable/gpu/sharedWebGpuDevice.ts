@@ -4,7 +4,7 @@ import {
   type WebGpuLimitSnapshot,
   type WebGpuSupportTier
 } from './webGpuSupportTier';
-import { lockVectorRendererBackendSelection } from './vectorRendererBackendDiagnostics';
+import { lockVectorRendererConfiguration } from './vectorRendererBackendDiagnostics';
 
 export const TEXTURE_FORMATS_TIER1: GPUFeatureName = 'texture-formats-tier1';
 
@@ -161,8 +161,8 @@ const getBrowserManager = () => {
     );
   }
   if (!browserManager) {
-    const backend = lockVectorRendererBackendSelection();
-    const directProvider: DirectWebGpuDeviceProvider | null = backend === 'vello' ? {
+    lockVectorRendererConfiguration();
+    const directProvider: DirectWebGpuDeviceProvider = {
       request: async () => {
         const runtime = await import('@lighttable/vector-vello')
           .then((module) => module.requestVelloWebGpuRuntime());
@@ -180,7 +180,7 @@ const getBrowserManager = () => {
         return import('@lighttable/vector-vello')
           .then((module) => module.releaseVelloWebGpuRuntime(device));
       }
-    } : null;
+    };
     browserManager = new SharedWebGpuDeviceManager(navigator.gpu, directProvider);
   }
   return browserManager;

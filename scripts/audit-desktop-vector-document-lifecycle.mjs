@@ -13,7 +13,7 @@ const argument = (name, fallback = null) => {
 };
 const sourceFile = path.resolve(argument('file') ?? '');
 const cycles = Number.parseInt(argument('cycles', '6'), 10);
-const expectedBackend = argument('expected-backend');
+const expectedBackend = 'hybrid';
 const profileFirstClose = argument('profile-first-close', 'false') === 'true';
 const directClick = argument('direct-click', 'true') === 'true';
 const outputDirectory = path.resolve(argument(
@@ -21,7 +21,6 @@ const outputDirectory = path.resolve(argument(
 ));
 assert.ok(sourceFile, 'Usage: audit-desktop-vector-document-lifecycle.mjs --file <SVG>');
 assert.ok(Number.isInteger(cycles) && cycles >= 3, '--cycles must be at least 3.');
-assert.ok(['current', 'vello'].includes(expectedBackend), '--expected-backend must be current or vello.');
 
 const launch = await resolveDesktopTestLaunch(root);
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}`);

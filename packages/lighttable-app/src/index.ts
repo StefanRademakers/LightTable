@@ -135,10 +135,7 @@ export {
 } from './lighttable/lightTableRecipe';
 export { renderLightTableGrade } from './lighttable/renderLightTableGrade';
 export {
-  configureVectorRendererBackend,
-  configureVectorRenderIslands,
-  configureVectorRendererDetailedProfiling,
-  type VectorRendererBackendSelection
+  configureVectorRendererDetailedProfiling
 } from './lighttable/gpu/vectorRendererBackendDiagnostics';
 export { useLightTableRecipe } from './lighttable/useLightTableRecipe';
 export type { BasicAdjustments } from './lighttable/types';

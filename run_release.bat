@@ -10,7 +10,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [LightTable] Building an optimized production package...
+echo [LightTable] Building an optimized production package with the hybrid vector renderer...
 set "LIGHTTABLE_PACKAGE_OUT=out-local-release"
 call npm run package:desktop
 if errorlevel 1 (

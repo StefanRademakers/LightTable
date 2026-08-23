@@ -14,8 +14,6 @@ const argument = (name, fallback = null) => {
 };
 const sourceFile = path.resolve(argument('file') ?? '');
 const output = path.resolve(argument('output', path.join(root, 'tmp', 'device-loss-audit')));
-const expectedBackend = argument('backend', 'vello');
-assert.ok(['current', 'vello'].includes(expectedBackend), '--backend must be current or vello.');
 assert.ok(sourceFile, 'Usage: audit-desktop-device-loss.mjs --file <path> [--output <path>]');
 await Promise.all([access(sourceFile), mkdir(output, { recursive: true })]);
 
@@ -91,12 +89,10 @@ try {
   assert.equal(report.layersStable, true, 'Canonical layers changed during GPU recovery.');
   assert.equal(report.revisionStable, true, 'Canonical document revision changed during GPU recovery.');
   assert.equal(report.previewStable, true, 'Recovered pixels differ from the pre-loss preview.');
-  assert.equal(report.telemetry?.vectorBackend?.selected, expectedBackend);
-  assert.equal(report.telemetry?.vectorBackend?.active, expectedBackend,
-    `${expectedBackend} did not remain active after recovery: ${report.telemetry?.vectorBackend?.velloFailure ?? 'unknown failure'}`);
-  if (expectedBackend === 'vello') {
-    assert.equal(report.telemetry?.vectorBackend?.velloFailure, null);
-  }
+  assert.equal(report.telemetry?.vectorBackend?.selected, 'hybrid');
+  assert.equal(report.telemetry?.vectorBackend?.active, 'vello',
+    `Vello did not remain active after recovery: ${report.telemetry?.vectorBackend?.velloFailure ?? 'unknown failure'}`);
+  assert.equal(report.telemetry?.vectorBackend?.velloFailure, null);
   assert.equal(report.pageErrors.length, 0, 'Page errors were observed during device recovery.');
   assert.equal(report.consoleErrors.length, 0, 'Console errors were observed during device recovery.');
 } catch (error) {

@@ -43,7 +43,6 @@ import type { TransformSessionStore } from './TransformSessionStore';
 import type { EncodeAdjustment } from './RasterDocumentOperations';
 import type { VectorLayerRenderer } from './VectorLayerRenderer';
 import { textPlaceholderVectorLayer } from './textPlaceholderPresentation';
-import { vectorRenderIslandsEnabled } from '../../gpu/vectorRendererBackendDiagnostics';
 import type { DevelopmentTextFixtureRenderer } from '../../text/rendering/DevelopmentTextFixtureRenderer';
 import type { TextLayerRenderer } from '../../text/rendering/TextLayerRenderer';
 import {
@@ -233,8 +232,7 @@ export class LayerCompositor {
     }
     const islandTextures = new Map<string, GPUTexture>();
     this.velloIslandCandidateKeys.clear();
-    const islandRenderingEnabled = vectorRenderIslandsEnabled()
-      && excludedLayerIds.size === 0
+    const islandRenderingEnabled = excludedLayerIds.size === 0
       && typeof vectors.canRenderIsland === 'function';
     const renderableIslands = islandRenderingEnabled
       ? retainedIslandPlan.islands.filter(island => (

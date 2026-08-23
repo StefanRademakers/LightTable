@@ -5,9 +5,7 @@ import ReactDOM from 'react-dom/client';
 import {
   createLightTableImageClipboard,
   createLocalLightTableFunnelTelemetry,
-  configureVectorRendererBackend,
   configureVectorRendererDetailedProfiling,
-  configureVectorRenderIslands,
   LightTableStandaloneApp,
   type LightTableAutomationDriver,
   type LightTableHost
@@ -17,10 +15,6 @@ import { invokeAgentDriver } from './agentDriverBridge';
 import type { DesktopFilePayload } from './desktopBridge';
 import { normalizeDesktopGenAiError } from './genai/desktopGenAiError';
 
-configureVectorRendererBackend(
-  import.meta.env.VITE_LIGHTTABLE_VECTOR_BACKEND === 'vello' ? 'vello' : 'current'
-);
-configureVectorRenderIslands(import.meta.env.VITE_LIGHTTABLE_VECTOR_ISLANDS !== 'false');
 configureVectorRendererDetailedProfiling(
   import.meta.env.VITE_LIGHTTABLE_VECTOR_PROFILE === 'true'
 );

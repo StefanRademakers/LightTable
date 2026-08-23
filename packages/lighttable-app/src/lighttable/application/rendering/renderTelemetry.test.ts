@@ -47,7 +47,7 @@ describe('RenderTelemetry', () => {
     const report = formatRenderTelemetry({
       ...telemetry,
       vectorBackend: {
-        selected: 'vello',
+        selected: 'hybrid',
         active: 'mixed',
         velloFailure: null,
         velloSurfaces: 2,
@@ -63,7 +63,7 @@ describe('RenderTelemetry', () => {
       }
     });
 
-    expect(report).toContain('Vector backend: selected vello; active mixed');
+    expect(report).toContain('Vector backend: selected hybrid; active mixed');
     expect(report).toContain('Vello scene renders 2');
     expect(report).toContain('unsupported fallbacks 3');
   });

@@ -22,7 +22,7 @@ if not exist "node_modules\" (
   if errorlevel 1 goto :failed
 )
 
-echo [LightTable] Running boundary checks, typechecking, tests and builds...
+echo [LightTable] Running boundary checks, typechecking, tests and hybrid-renderer builds...
 set "LIGHTTABLE_PACKAGE_OUT=out-verify"
 call npm run verify
 if errorlevel 1 goto :failed

@@ -15,7 +15,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [LightTable] Starting a fresh desktop development build...
+echo [LightTable] Starting a fresh desktop development build with the hybrid vector renderer...
 echo.
 
 call npm run dev:desktop

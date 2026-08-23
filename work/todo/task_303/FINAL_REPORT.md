@@ -121,8 +121,8 @@ The reusable commands are:
 
 ```powershell
 $env:LIGHTTABLE_TEST_EXECUTABLE='D:\path\to\LightTable.exe'
-npm run audit:desktop:render-engine -- --engine vector --file 'D:\path\scene.svg' --expected-backend vello
-npm run audit:desktop:vector-lifecycle -- --file 'D:\path\scene.svg' --cycles 16 --expected-backend vello
+npm run audit:desktop:render-engine -- --engine vector --file 'D:\path\scene.svg'
+npm run audit:desktop:vector-lifecycle -- --file 'D:\path\scene.svg' --cycles 16
 ```
 
 ## SVG and scene semantics delivered

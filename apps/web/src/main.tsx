@@ -2,15 +2,8 @@ import '@fontsource/inter/400.css';
 import '@fontsource/inter/600.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import {
-  configureVectorRendererBackend,
-  LightTableStandaloneApp
-} from '@lighttable/app/standalone';
+import { LightTableStandaloneApp } from '@lighttable/app/standalone';
 import './web.css';
-
-configureVectorRendererBackend(
-  import.meta.env.VITE_LIGHTTABLE_VECTOR_BACKEND === 'vello' ? 'vello' : 'current'
-);
 
 const uiDevtoolsEnabled = import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS === 'true';
 const UiInspectorHost = uiDevtoolsEnabled

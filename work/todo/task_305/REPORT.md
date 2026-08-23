@@ -373,8 +373,11 @@ Evidence: `tmp/task-305-opacity-island/report.json`.
 
 ### Four-file packaged corpus gate
 
-The same commit was packaged twice, once with retained islands enabled and once
-with `LIGHTTABLE_VECTOR_ISLANDS=0`. All four files in the current external SVG
+For this historical parity measurement, the same commit was packaged twice,
+once with retained islands enabled and once with the then-available island
+oracle disabled. That diagnostic switch has since been removed: retained
+render-island routing is now an invariant of LightTable's hybrid renderer. All
+four files in the current external SVG
 corpus opened and completed pan/zoom evidence without a Vello failure:
 
 | File | Oracle -> island surfaces | Oracle -> island GPU MiB | Oracle/island preview |

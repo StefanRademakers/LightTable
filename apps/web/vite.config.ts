@@ -10,12 +10,9 @@ const isolationHeaders = {
 };
 
 const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS === '1';
-const vectorBackend = process.env.LIGHTTABLE_VECTOR_BACKEND === 'vello' ? 'vello' : 'current';
-
 export default defineConfig({
   define: {
-    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false'),
-    'import.meta.env.VITE_LIGHTTABLE_VECTOR_BACKEND': JSON.stringify(vectorBackend)
+    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false')
   },
   plugins: [react()],
   // Resolve the workspace package as first-party source. Besides preserving

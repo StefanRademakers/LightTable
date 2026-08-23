@@ -4,7 +4,7 @@ setlocal
 cd /d "%~dp0"
 title LightTable Desktop Dev
 
-echo [LightTable] Starting desktop development with live reload...
+echo [LightTable] Starting desktop development with the hybrid vector renderer and live reload...
 echo [LightTable] Repository: %CD%
 echo.
 

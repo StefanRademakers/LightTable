@@ -18,15 +18,12 @@ const engine = argument('engine');
 const sourceFile = path.resolve(argument('file') ?? '');
 const iterations = Number.parseInt(argument('iterations', '8'), 10);
 const targetName = argument('layer-name');
-const expectedBackend = argument('expected-backend');
+const expectedBackend = 'hybrid';
 const targetType = engine === 'vector' ? 'vector' : engine === 'text' ? 'text' : null;
 if (!['compositor', 'vector', 'text'].includes(engine) || !sourceFile) {
   throw new Error('Usage: audit-desktop-render-engines.mjs --engine <compositor|vector|text> --file <path> [--iterations 8] [--layer-name name]');
 }
 if (!Number.isInteger(iterations) || iterations < 3) throw new Error('Iterations must be at least 3.');
-if (expectedBackend && !['current', 'vello'].includes(expectedBackend)) {
-  throw new Error('--expected-backend must be current or vello.');
-}
 
 const launch = await resolveDesktopTestLaunch(workspaceRoot);
 const outputDirectory = path.resolve(argument(
@@ -55,7 +52,7 @@ const summarize = (values) => ({
 const parseRenderTelemetry = (text) => {
   const integer = (label) => Number(text.match(new RegExp(`${label}: (\\d+)`, 'i'))?.[1] ?? 0);
   const vectorBackendMatch = text.match(
-    /Vector backend: selected (current|vello); active (current|vello|none)/iu
+    /Vector backend: selected (hybrid); active (current|vello|mixed|unexercised)/iu
   );
   const stages = {};
   for (const stage of [
@@ -219,7 +216,7 @@ try {
   }
   report.telemetry = await captureTelemetry();
   report.after = { ...(await memory()), ...(await driver.queryDocument(documentId))?.renderer };
-  if (expectedBackend && report.telemetry.parsed.vectorBackend?.selected !== expectedBackend) {
+  if (report.telemetry.parsed.vectorBackend?.selected !== expectedBackend) {
     throw new Error(
       `Expected vector backend ${expectedBackend}, observed ${report.telemetry.parsed.vectorBackend?.selected ?? 'unknown'}.`
     );

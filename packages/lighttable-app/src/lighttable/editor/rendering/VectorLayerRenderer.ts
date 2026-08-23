@@ -41,10 +41,7 @@ import {
   type VectorLayer
 } from '../document/documentTypes';
 import type { AffineMatrix } from './renderContract';
-import {
-  vectorRendererBackendSelection,
-  vectorRendererDetailedProfilingEnabled
-} from '../../gpu/vectorRendererBackendDiagnostics';
+import { vectorRendererDetailedProfilingEnabled } from '../../gpu/vectorRendererBackendDiagnostics';
 import type { RetainedRenderIsland } from './RetainedRenderIslandRegistry';
 import type { DocumentStartupTimeline } from '../../application/telemetry/documentStartupTimeline';
 
@@ -601,7 +598,6 @@ export class VectorLayerRenderer {
   private velloSurfaceEvictions = 0;
   private velloFailure: string | null = null;
   private readonly geometryCache = new VectorGeometryRealizationCache();
-  private readonly selectedBackend = vectorRendererBackendSelection();
   private currentLayerEncodes = 0;
   private velloLayerEncodes = 0;
   private velloSceneRenders = 0;
@@ -642,7 +638,7 @@ export class VectorLayerRenderer {
     if (layer.vectorClip?.enabled && layer.vectorClip.inverted) {
       throw new Error(`Inverted vector clip on “${layer.name}” is not supported yet.`);
     }
-    if (this.selectedBackend === 'vello' && !this.velloFailure) {
+    if (!this.velloFailure) {
       const vello = this.encodeVello(layer, inheritedTransform, dimensions);
       if (vello) {
         this.velloLayerEncodes += 1;
@@ -755,7 +751,7 @@ export class VectorLayerRenderer {
     island: RetainedRenderIsland,
     dimensions: { width: number; height: number }
   ): GPUTexture | null {
-    if (this.selectedBackend !== 'vello' || this.velloFailure) return null;
+    if (this.velloFailure) return null;
     if (!island.backendEligibility.vello) return null;
     const dependencyStartedAt = this.detailedProfilingEnabled ? performance.now() : 0;
     const dependency = velloIslandDependency(island);
@@ -876,7 +872,7 @@ export class VectorLayerRenderer {
   }
 
   canRenderIsland(island: RetainedRenderIsland) {
-    if (this.selectedBackend !== 'vello' || this.velloFailure) return false;
+    if (this.velloFailure) return false;
     return island.backendEligibility.vello
       && (island.role === 'direct-vector-run' || !island.boundaryReasons.some(reason => (
         ['clipping-chain', 'derived-preview', 'layer-effects'].includes(reason)
@@ -938,7 +934,7 @@ export class VectorLayerRenderer {
     const velloSurfaceCount = velloSurfaceEntries.filter(entry => entry.surface !== null).length;
     const velloActive = velloSurfaceCount > 0;
     return {
-      selected: this.selectedBackend,
+      selected: 'hybrid' as const,
       active: currentActive && velloActive
         ? 'mixed'
         : velloActive

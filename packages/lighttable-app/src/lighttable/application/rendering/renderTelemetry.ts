@@ -13,7 +13,7 @@ export interface RenderStageTelemetrySnapshot {
 }
 
 export interface VectorBackendTelemetrySnapshot {
-  readonly selected: 'current' | 'vello';
+  readonly selected: 'hybrid';
   readonly active: 'unexercised' | 'current' | 'vello' | 'mixed';
   readonly velloFailure: string | null;
   readonly velloSurfaces: number;
