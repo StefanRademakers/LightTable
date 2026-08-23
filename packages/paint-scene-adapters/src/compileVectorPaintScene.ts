@@ -41,6 +41,12 @@ export interface CompileVectorPaintSceneOptions {
     readonly revisionKey: string;
     readonly elements: readonly VectorElement[];
   };
+  /** Optional diagnostics hook. Omitted from interactive production renders. */
+  readonly profile?: (
+    phase: 'canonical-projection' | 'js-object-construction' | 'scene-validation',
+    durationMs: number
+  ) => void;
+  readonly now?: () => number;
 }
 
 const matrix = (value: AffineMatrix): PaintSceneMatrix =>
@@ -195,14 +201,20 @@ export const compileVectorPaintScene = (
   options: CompileVectorPaintSceneOptions
 ): PaintSceneCompileResult => {
   const issues: PaintSceneCapabilityIssue[] = [];
+  const profileNow = options.profile ? options.now ?? Date.now : null;
   const parentTransform = options.parentTransform ?? identityAffineMatrix();
   const fragments = elements.map(element => {
+    const projectionStartedAt = profileNow?.() ?? 0;
     const path = element.type === 'live-shape' ? realizeLiveShape(element) : element;
     const pathCommands = compileVectorPathCommands(path);
+    const pathTransform = multiplyMatrices(parentTransform, path.transform);
+    if (options.profile) {
+      options.profile('canonical-projection', profileNow!() - projectionStartedAt);
+    }
+    const objectStartedAt = profileNow?.() ?? 0;
     const commands: PaintSceneCommand[] = [];
     const stableId = element.id;
     const pathId = `${element.id}:path`;
-    const pathTransform = multiplyMatrices(parentTransform, path.transform);
 
     if (path.style.fill) {
       if (isSolidPaint(path.style.fill)) {
@@ -269,14 +281,19 @@ export const compileVectorPaintScene = (
       }
     }
 
-    return {
+    const fragment = {
       stableId,
       revisionKey: `${element.geometryRevision}:${element.transformRevision}:${element.styleRevision}`,
       paths: [{ stableId: pathId, revisionKey: String(element.geometryRevision), commands: pathCommands }],
       commands
     };
+    if (options.profile) {
+      options.profile('js-object-construction', profileNow!() - objectStartedAt);
+    }
+    return fragment;
   });
 
+  const clipProjectionStartedAt = profileNow?.() ?? 0;
   const clipElement = options.clip?.elements.length === 1
     ? options.clip.elements[0]
     : null;
@@ -287,6 +304,10 @@ export const compileVectorPaintScene = (
     compileVectorPathCommands(clipPath),
     multiplyMatrices(parentTransform, clipPath.transform)
   ) : [];
+  if (options.profile) {
+    options.profile('canonical-projection', profileNow!() - clipProjectionStartedAt);
+  }
+  const finalObjectsStartedAt = profileNow?.() ?? 0;
   if (options.clip && options.clip.elements.length !== 1) {
     issues.push({
       stableId: options.clip.stableId,
@@ -319,7 +340,12 @@ export const compileVectorPaintScene = (
     kind: 'fragment' as const, stableId
   }));
 
-  return createPaintSceneCompileResult({
+  if (options.profile) {
+    options.profile('js-object-construction', profileNow!() - finalObjectsStartedAt);
+  }
+
+  const validationStartedAt = profileNow?.() ?? 0;
+  const result = createPaintSceneCompileResult({
     schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
     sourceId: options.sourceId,
     sourceRevision: options.sourceRevision,
@@ -331,4 +357,8 @@ export const compileVectorPaintScene = (
       children: flatComposition
     }] : flatComposition
   }, issues);
+  if (options.profile) {
+    options.profile('scene-validation', profileNow!() - validationStartedAt);
+  }
+  return result;
 };

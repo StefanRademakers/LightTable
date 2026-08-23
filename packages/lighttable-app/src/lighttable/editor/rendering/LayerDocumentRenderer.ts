@@ -246,11 +246,23 @@ export class LayerDocumentRenderer {
   }
 
   vectorBackendTelemetry() {
-    return this.runtime.vectorLayerRenderer.backendDiagnostics();
+    const vector = this.runtime.vectorLayerRenderer.backendDiagnostics();
+    if (!vector.detailedProfile?.enabled) return vector;
+    return {
+      ...vector,
+      detailedProfile: {
+        ...vector.detailedProfile,
+        phases: {
+          ...vector.detailedProfile.phases,
+          'final-layer-composite': this.runtime.compositor.compositeTelemetry()
+        }
+      }
+    };
   }
 
   resetVectorBackendTelemetry() {
     this.runtime.vectorLayerRenderer.resetBackendTelemetry();
+    this.runtime.compositor.resetCompositeTelemetry();
   }
 
   setTopmostSuffixCacheEnabled(enabled: boolean) {

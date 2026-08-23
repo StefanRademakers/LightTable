@@ -97,6 +97,11 @@ export class LayerCompositor {
   private topmostBaseHits = 0;
   private topmostBaseMisses = 0;
   private topmostSuffixCacheEnabled = true;
+  private compositeProfilingEnabled = false;
+  private compositeExecutions = 0;
+  private compositeTotalMs = 0;
+  private compositeLastMs = 0;
+  private compositeMaximumMs = 0;
 
   constructor(private readonly options: LayerCompositorOptions) {}
 
@@ -106,6 +111,23 @@ export class LayerCompositor {
       hits: this.topmostBaseHits,
       misses: this.topmostBaseMisses,
       bytes: this.topmostBaseTexture ? width * height * 8 : 0
+    };
+  }
+
+  resetCompositeTelemetry() {
+    this.compositeProfilingEnabled = true;
+    this.compositeExecutions = 0;
+    this.compositeTotalMs = 0;
+    this.compositeLastMs = 0;
+    this.compositeMaximumMs = 0;
+  }
+
+  compositeTelemetry() {
+    return {
+      executions: this.compositeExecutions,
+      totalMs: this.compositeTotalMs,
+      lastMs: this.compositeLastMs,
+      maximumMs: this.compositeMaximumMs
     };
   }
 
@@ -153,16 +175,18 @@ export class LayerCompositor {
     const visibleLeafNodes = analysis.visibleLeafNodes.filter(
       layer => !excludedLayerIds.has(layer.id)
     );
-    const retainedVectorResources = new Set(visibleLeafNodes.map(layer => layer.id));
-    const retainGroupVectorClips = (nodes: readonly LayerNode[]) => {
+    const retainedVectorResources = new Set<LayerId>();
+    const retainDocumentVectorResources = (nodes: readonly LayerNode[]) => {
       for (const node of nodes) {
-        if (!node.visible || node.opacity <= 0 || excludedLayerIds.has(node.id)) continue;
+        if (node.type === 'vector' || node.type === 'text') {
+          retainedVectorResources.add(node.id);
+        }
         if (node.type !== 'group') continue;
-        if (node.vectorClip?.enabled) retainedVectorResources.add(node.id);
-        retainGroupVectorClips(node.children);
+        if (node.vectorClip) retainedVectorResources.add(node.id);
+        retainDocumentVectorResources(node.children);
       }
     };
-    retainGroupVectorClips(document.layers);
+    retainDocumentVectorResources(document.layers);
     vectors.retainLayerIds(retainedVectorResources);
     if (!analysis.activeLayerStyles) {
       layerStyles.releaseTargets();
@@ -225,6 +249,7 @@ export class LayerCompositor {
         sourceBounds?: Rect;
       }
     ) => {
+      const compositeStartedAt = this.compositeProfilingEnabled ? performance.now() : 0;
       const sourceBounds = settings.sourceBounds ?? { x: 0, y: 0, width, height };
       const settingsBuffer = this.createCompositeSettingsBuffer(
         settings.label,
@@ -255,6 +280,13 @@ export class LayerCompositor {
         target.createView(),
         { r: 0, g: 0, b: 0, a: 0 }
       );
+      if (this.compositeProfilingEnabled) {
+        const durationMs = performance.now() - compositeStartedAt;
+        this.compositeExecutions += 1;
+        this.compositeTotalMs += durationMs;
+        this.compositeLastMs = durationMs;
+        this.compositeMaximumMs = Math.max(this.compositeMaximumMs, durationMs);
+      }
     };
 
     const renderNode = (

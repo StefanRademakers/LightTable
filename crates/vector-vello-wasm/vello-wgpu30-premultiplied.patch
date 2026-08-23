@@ -11,6 +11,14 @@ index fa4e1898..df362d90 100644
  naga = { version = "29.0.3", default-features = false }
  log = "0.4.29"
  image = { version = "0.25.10", default-features = false }
+@@ -149,6 +149,6 @@ anyhow = "1.0.102"
+ pollster = "0.4.0"
+ web-time = "1.1.0"
+-wgpu-profiler = "0.27.0"
++wgpu-profiler = "0.28.0"
+ winit = "0.30.13"
+ scenes = { path = "examples/scenes" }
+ svg = "0.18.0"
 diff --git a/vello/src/lib.rs b/vello/src/lib.rs
 index 92cd9f9b..cadee8ca 100644
 --- a/vello/src/lib.rs

@@ -20,6 +20,7 @@ import {
 } from '@lighttable/vector-webgpu';
 import {
   VelloPaintSceneBackend,
+  type VelloPaintSceneProfilePhase,
   type VelloPaintSceneSurface
 } from '@lighttable/vector-vello';
 import {
@@ -74,7 +75,62 @@ interface CachedVectorGeometry {
 interface VelloLayerSurface {
   readonly surface: VelloPaintSceneSurface;
   renderedSceneKey: string | null;
+  renderedDependency: VelloLayerDependency | null;
 }
+
+interface VelloLayerDependency {
+  readonly elements: readonly VectorElement[];
+  readonly layerToDocument: string;
+  readonly clipElements: readonly VectorElement[] | null;
+  readonly clipRevision: number;
+  readonly clipEnabled: boolean;
+  readonly clipInverted: boolean;
+}
+
+const velloLayerDependency = (
+  layer: VectorLayer,
+  layerToDocument: AffineMatrix
+): VelloLayerDependency => ({
+  elements: layer.elements,
+  layerToDocument: matrixFingerprint(layerToDocument),
+  clipElements: layer.vectorClip?.elements ?? null,
+  clipRevision: layer.vectorClip?.revision ?? -1,
+  clipEnabled: layer.vectorClip?.enabled ?? false,
+  clipInverted: layer.vectorClip?.inverted ?? false
+});
+
+const sameVelloLayerDependency = (
+  left: VelloLayerDependency | null,
+  right: VelloLayerDependency
+) => left !== null
+  && left.elements === right.elements
+  && left.layerToDocument === right.layerToDocument
+  && left.clipElements === right.clipElements
+  && left.clipRevision === right.clipRevision
+  && left.clipEnabled === right.clipEnabled
+  && left.clipInverted === right.clipInverted;
+
+export interface VectorTimingAggregate {
+  readonly executions: number;
+  readonly totalMs: number;
+  readonly lastMs: number;
+  readonly maximumMs: number;
+}
+
+export type VectorDetailedProfilePhase = VelloPaintSceneProfilePhase
+  | 'dependency-key'
+  | 'paint-scene-compilation'
+  | 'canonical-projection'
+  | 'paint-scene-js-object-construction'
+  | 'paint-scene-validation'
+  | 'texture-surface-creation'
+  | 'texture-surface-disposal'
+  | 'rust-source-release'
+  | 'gpu-queue-completion-wall';
+
+const emptyVectorTiming = (): VectorTimingAggregate => ({
+  executions: 0, totalMs: 0, lastMs: 0, maximumMs: 0
+});
 
 const matrixFingerprint = (matrix: AffineMatrix) =>
   [matrix.a, matrix.b, matrix.c, matrix.d, matrix.tx, matrix.ty]
@@ -99,7 +155,6 @@ export const vectorLayerPaintSceneRevision = (
   layerToDocument: AffineMatrix
 ) => fnv1a64([
   layer.id,
-  String(layer.revision),
   String(layer.elements.length),
   matrixFingerprint(layerToDocument),
   ...layer.elements.flatMap(element => [
@@ -122,10 +177,15 @@ export const vectorLayerPaintSceneRevision = (
 
 export const compileVelloVectorLayerScene = (
   layer: VectorLayer,
-  inheritedTransform: AffineMatrix
+  inheritedTransform: AffineMatrix,
+  profile?: (phase: VectorDetailedProfilePhase, durationMs: number) => void,
+  dependency?: { readonly layerToDocument: AffineMatrix; readonly sourceRevision: string }
 ) => {
-  const layerToDocument = multiplyMatrices(inheritedTransform, layer.transform);
-  const sourceRevision = vectorLayerPaintSceneRevision(layer, layerToDocument);
+  const layerToDocument = dependency?.layerToDocument
+    ?? multiplyMatrices(inheritedTransform, layer.transform);
+  const sourceRevision = dependency?.sourceRevision
+    ?? vectorLayerPaintSceneRevision(layer, layerToDocument);
+  const compilationStartedAt = profile ? performance.now() : 0;
   const result = compileVectorPaintScene(layer.elements, {
     sourceId: layer.id,
     sourceRevision,
@@ -138,8 +198,20 @@ export const compileVelloVectorLayerScene = (
         ].join(':')).join('|')}`,
         elements: layer.vectorClip.elements
       }
+    } : {}),
+    ...(profile ? {
+      now: () => performance.now(),
+      profile: (phase, durationMs) => profile(
+        phase === 'js-object-construction'
+          ? 'paint-scene-js-object-construction'
+          : phase === 'scene-validation'
+            ? 'paint-scene-validation'
+            : phase,
+        durationMs
+      )
     } : {})
   });
+  profile?.('paint-scene-compilation', performance.now() - compilationStartedAt);
   return {
     ...result,
     sceneKey: `${layer.id}:${sourceRevision}`
@@ -214,6 +286,14 @@ export class VectorLayerRenderer {
   private velloUploadedFragments = 0;
   private velloUploadedClips = 0;
   private velloUnsupportedLayerEncodes = 0;
+  private velloFullCompilations = 0;
+  private velloUnchangedSceneReuses = 0;
+  private velloSurfaceRecreations = 0;
+  private velloReleasedSources = 0;
+  private velloGpuRenderSamples = 0;
+  private velloGpuRenderTotalMs = 0;
+  private detailedProfilingEnabled = false;
+  private readonly detailedPhases = new Map<VectorDetailedProfilePhase, VectorTimingAggregate>();
 
   constructor(private readonly device: GPUDevice) {}
 
@@ -338,9 +418,9 @@ export class VectorLayerRenderer {
   retainLayerIds(layerIds: ReadonlySet<string>) {
     for (const [layerId, entry] of this.velloSurfaces) {
       if (layerIds.has(layerId)) continue;
-      entry.surface.dispose();
+      this.disposeVelloSurface(entry.surface);
       this.velloSurfaces.delete(layerId);
-      this.vello?.releaseSource(this.velloSourceKey(layerId));
+      this.releaseVelloSource(layerId);
     }
   }
 
@@ -389,6 +469,17 @@ export class VectorLayerRenderer {
       velloUploadedFragments: this.velloUploadedFragments,
       velloUploadedClips: this.velloUploadedClips,
       velloUnsupportedLayerEncodes: this.velloUnsupportedLayerEncodes,
+      velloFullCompilations: this.velloFullCompilations,
+      velloUnchangedSceneReuses: this.velloUnchangedSceneReuses,
+      velloSurfaceRecreations: this.velloSurfaceRecreations,
+      velloReleasedSources: this.velloReleasedSources,
+      detailedProfile: {
+        enabled: this.detailedProfilingEnabled,
+        actualGpuTimingAvailable: this.velloGpuRenderSamples > 0,
+        actualGpuRenderSamples: this.velloGpuRenderSamples,
+        actualGpuRenderTotalMs: this.velloGpuRenderTotalMs,
+        phases: Object.fromEntries(this.detailedPhases)
+      },
       geometryCache: this.geometryCache.metrics()
     } as const;
   }
@@ -401,10 +492,24 @@ export class VectorLayerRenderer {
     this.velloUploadedFragments = 0;
     this.velloUploadedClips = 0;
     this.velloUnsupportedLayerEncodes = 0;
+    this.velloFullCompilations = 0;
+    this.velloUnchangedSceneReuses = 0;
+    this.velloSurfaceRecreations = 0;
+    this.velloReleasedSources = 0;
+    this.velloGpuRenderSamples = 0;
+    this.velloGpuRenderTotalMs = 0;
+    this.detailedProfilingEnabled = true;
+    this.detailedPhases.clear();
   }
 
   notifySubmitted() {
-    return this.backend?.notifySubmitted() ?? Promise.resolve();
+    const current = this.backend?.notifySubmitted() ?? Promise.resolve();
+    if (!this.vello || !this.detailedProfilingEnabled) return current;
+    const startedAt = performance.now();
+    const velloQueue = this.device.queue.onSubmittedWorkDone().then(() => {
+      this.recordDetailedPhase('gpu-queue-completion-wall', performance.now() - startedAt);
+    });
+    return Promise.all([current, velloQueue]).then(() => undefined);
   }
 
   estimatedTextureBytes() {
@@ -436,8 +541,8 @@ export class VectorLayerRenderer {
     this.backend?.dispose();
     this.backend = null;
     for (const [layerId, entry] of this.velloSurfaces) {
-      entry.surface.dispose();
-      this.vello?.releaseSource(this.velloSourceKey(layerId));
+      this.disposeVelloSurface(entry.surface);
+      this.releaseVelloSource(layerId);
     }
     this.velloSurfaces.clear();
     this.vello = null;
@@ -450,12 +555,57 @@ export class VectorLayerRenderer {
     inheritedTransform: AffineMatrix,
     dimensions: { width: number; height: number }
   ): GPUTexture | null {
-    const compiled = compileVelloVectorLayerScene(layer, inheritedTransform);
+    const dependencyStartedAt = this.detailedProfilingEnabled ? performance.now() : 0;
+    const layerToDocument = multiplyMatrices(inheritedTransform, layer.transform);
+    const dependency = velloLayerDependency(layer, layerToDocument);
+    const existing = this.velloSurfaces.get(layer.id);
+    if (
+      existing
+      && existing.surface.width === dimensions.width
+      && existing.surface.height === dimensions.height
+      && sameVelloLayerDependency(existing.renderedDependency, dependency)
+    ) {
+      if (this.detailedProfilingEnabled) {
+        this.recordDetailedPhase('dependency-key', performance.now() - dependencyStartedAt);
+      }
+      this.velloUnchangedSceneReuses += 1;
+      return existing.surface.texture;
+    }
+    let sourceRevision: string | null = null;
+    if (
+      existing
+      && existing.surface.width === dimensions.width
+      && existing.surface.height === dimensions.height
+    ) {
+      sourceRevision = vectorLayerPaintSceneRevision(layer, layerToDocument);
+      if (existing.renderedSceneKey === `${layer.id}:${sourceRevision}`) {
+        existing.renderedDependency = dependency;
+        if (this.detailedProfilingEnabled) {
+          this.recordDetailedPhase('dependency-key', performance.now() - dependencyStartedAt);
+        }
+        this.velloUnchangedSceneReuses += 1;
+        return existing.surface.texture;
+      }
+    }
+    if (this.detailedProfilingEnabled) {
+      this.recordDetailedPhase('dependency-key', performance.now() - dependencyStartedAt);
+    }
+    this.velloFullCompilations += 1;
+    sourceRevision ??= vectorLayerPaintSceneRevision(layer, layerToDocument);
+    const compiled = compileVelloVectorLayerScene(
+      layer,
+      inheritedTransform,
+      this.detailedProfilingEnabled
+        ? (phase, durationMs) => this.recordDetailedPhase(phase, durationMs)
+        : undefined,
+      { layerToDocument, sourceRevision }
+    );
     if (compiled.status !== 'ready') {
       this.velloUnsupportedLayerEncodes += 1;
-      this.velloSurfaces.get(layer.id)?.surface.dispose();
+      const unsupported = this.velloSurfaces.get(layer.id);
+      if (unsupported) this.disposeVelloSurface(unsupported.surface);
       this.velloSurfaces.delete(layer.id);
-      this.vello?.releaseSource(this.velloSourceKey(layer.id));
+      this.releaseVelloSource(layer.id);
       return null;
     }
     try {
@@ -466,15 +616,25 @@ export class VectorLayerRenderer {
         || entry.surface.width !== dimensions.width
         || entry.surface.height !== dimensions.height
       ) {
-        entry?.surface.dispose();
+        if (entry) {
+          this.velloSurfaceRecreations += 1;
+          this.disposeVelloSurface(entry.surface);
+        }
+        const surfaceStartedAt = this.detailedProfilingEnabled ? performance.now() : 0;
         entry = {
           surface: backend.createSurface(
             dimensions.width,
             dimensions.height,
             `LightTable Vello layer: ${layer.name}`
           ),
-          renderedSceneKey: null
+          renderedSceneKey: null,
+          renderedDependency: null
         };
+        if (this.detailedProfilingEnabled) {
+          this.recordDetailedPhase(
+            'texture-surface-creation', performance.now() - surfaceStartedAt
+          );
+        }
         this.velloSurfaces.set(layer.id, entry);
       }
       if (entry.renderedSceneKey !== compiled.sceneKey) {
@@ -487,19 +647,58 @@ export class VectorLayerRenderer {
         if (metrics.sceneCacheHit) this.velloSceneCacheHits += 1;
         this.velloUploadedFragments += metrics.uploadedFragments;
         this.velloUploadedClips += metrics.uploadedClips;
+        for (const [phase, durationMs] of Object.entries(metrics.profile.phasesMs)) {
+          if (durationMs !== undefined) {
+            this.recordDetailedPhase(phase as VelloPaintSceneProfilePhase, durationMs);
+          }
+        }
+        if (metrics.profile.actualGpuRenderMs !== null && metrics.profile.actualGpuRenderMs > 0) {
+          this.velloGpuRenderSamples += 1;
+          this.velloGpuRenderTotalMs += metrics.profile.actualGpuRenderMs;
+        }
         entry.renderedSceneKey = compiled.sceneKey;
+        entry.renderedDependency = dependency;
       }
       return entry.surface.texture;
     } catch (reason) {
       this.velloFailure = reason instanceof Error ? reason.message : String(reason);
       console.error('[LightTable vector] Vello backend disabled; using current WebGPU renderer.', reason);
       for (const [layerId, entry] of this.velloSurfaces) {
-        entry.surface.dispose();
-        this.vello?.releaseSource(this.velloSourceKey(layerId));
+        this.disposeVelloSurface(entry.surface);
+        this.releaseVelloSource(layerId);
       }
       this.velloSurfaces.clear();
       this.vello = null;
       return null;
+    }
+  }
+
+  private recordDetailedPhase(phase: VectorDetailedProfilePhase, durationMs: number) {
+    if (!this.detailedProfilingEnabled) return;
+    const current = this.detailedPhases.get(phase) ?? emptyVectorTiming();
+    this.detailedPhases.set(phase, {
+      executions: current.executions + 1,
+      totalMs: current.totalMs + durationMs,
+      lastMs: durationMs,
+      maximumMs: Math.max(current.maximumMs, durationMs)
+    });
+  }
+
+  private disposeVelloSurface(surface: VelloPaintSceneSurface) {
+    const startedAt = this.detailedProfilingEnabled ? performance.now() : 0;
+    surface.dispose();
+    if (this.detailedProfilingEnabled) {
+      this.recordDetailedPhase('texture-surface-disposal', performance.now() - startedAt);
+    }
+  }
+
+  private releaseVelloSource(layerId: string) {
+    if (!this.vello) return;
+    const startedAt = this.detailedProfilingEnabled ? performance.now() : 0;
+    this.vello.releaseSource(this.velloSourceKey(layerId));
+    this.velloReleasedSources += 1;
+    if (this.detailedProfilingEnabled) {
+      this.recordDetailedPhase('rust-source-release', performance.now() - startedAt);
     }
   }
 

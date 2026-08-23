@@ -155,6 +155,42 @@ describe('LayerCompositor', () => {
     expect(clearTexture).toHaveBeenCalledWith(expect.anything(), transparentTarget);
   });
 
+  it('retains hidden canonical vector resources while skipping their composite', () => {
+    const document = createImageDocument('Hidden vector', 64, 32, 'source');
+    const hidden = createVectorLayer([], 'Hidden artwork');
+    hidden.visible = false;
+    document.layers = [hidden];
+    document.activeLayerId = hidden.id;
+    const transparentTarget = texture();
+    const retainLayerIds = vi.fn();
+    const encodeVector = vi.fn();
+    const compositor = new LayerCompositor({
+      device: {} as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: {} as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => null) } as never,
+      targets: { ensureSingle: vi.fn(() => transparentTarget) } as never,
+      submittedResources: {} as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: encodeVector, retainLayerIds } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(),
+      clearTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+
+    expect(compositor.encode({} as GPUCommandEncoder, document)).toBe(transparentTarget);
+    expect(retainLayerIds).toHaveBeenCalledOnce();
+    expect([...retainLayerIds.mock.calls[0][0]]).toEqual([hidden.id]);
+    expect(encodeVector).not.toHaveBeenCalled();
+  });
+
   it('feeds standalone adjustment nodes from bottom to top through separate GPU passes', () => {
     const document = createImageDocument('Ordered adjustments', 64, 32, 'source');
     const curves = createAdjustmentLayer({

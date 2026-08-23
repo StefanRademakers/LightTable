@@ -78,6 +78,13 @@ import { createLoopbackOAuthSession } from './genai/loopbackOAuthSession';
 import { OpenArtConnectionController } from './genai/openArtConnectionController';
 import { OpenArtCatalogStore } from './genai/openArtCatalogStore';
 import { DesktopHiggsfieldCredentialStore } from './genai/higgsfieldCredentialStore';
+
+// Diagnostic builds may opt into Dawn timestamp queries. This deliberately
+// remains environment-gated because allow_unsafe_apis weakens WebGPU's normal
+// cross-origin timing protections and must never become a production default.
+if (process.env.LIGHTTABLE_GPU_TIMESTAMP_PROFILING === '1') {
+  app.commandLine.appendSwitch('enable-dawn-features', 'allow_unsafe_apis');
+}
 import { HiggsfieldConnectionController } from './genai/higgsfieldConnectionController';
 import { GenAiProviderRegistry } from './genai/providerRegistry';
 import { GenerationRuntimeRegistry } from './genai/generationRuntimeRegistry';

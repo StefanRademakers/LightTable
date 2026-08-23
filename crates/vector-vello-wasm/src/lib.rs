@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::cell::{RefCell, RefMut};
 use std::collections::{HashMap, VecDeque};
 use wasm_bindgen::JsCast;
@@ -9,6 +9,36 @@ const MAX_SCENE_JSON_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SCENE_KEY_BYTES: usize = 1024;
 const MAX_INCREMENTAL_SOURCES: usize = 64;
 const MAX_COMPOSITION_DEPTH: usize = 64;
+
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IncrementalProfile {
+    total_ms: f64,
+    deserialization_ms: f64,
+    fragment_encoding_ms: f64,
+    scene_synchronization_ms: f64,
+    scene_preparation_ms: f64,
+    vello_render_submit_cpu_ms: f64,
+    actual_gpu_render_ms: Option<f64>,
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = performance, js_name = now)]
+    fn performance_now() -> f64;
+}
+
+fn now_ms() -> f64 {
+    performance_now()
+}
+
+#[cfg(feature = "gpu-profiler")]
+fn gpu_query_elapsed_ms(query: &wgpu_profiler::GpuTimerQueryResult) -> f64 {
+    if let Some(time) = &query.time {
+        return (time.end - time.start) * 1000.0;
+    }
+    query.nested_queries.iter().map(gpu_query_elapsed_ms).sum()
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -684,6 +714,7 @@ pub struct VelloInteropDevice {
     renderer: RefCell<Option<vello::Renderer>>,
     scenes: RefCell<SceneCache>,
     incremental_scenes: RefCell<IncrementalSceneCache>,
+    last_incremental_profile: RefCell<IncrementalProfile>,
     diagnostics_json: String,
 }
 
@@ -713,7 +744,7 @@ impl VelloInteropDevice {
         width: u32,
         height: u32,
         scene: &vello::Scene,
-    ) -> Result<(), JsValue> {
+    ) -> Result<Option<f64>, JsValue> {
         let texture = texture
             .dyn_into::<wgpu::webgpu::GpuTexture>()
             .map_err(|_| JsValue::from_str("value is not a GPUTexture"))?;
@@ -739,7 +770,8 @@ impl VelloInteropDevice {
             None,
         );
         let view = wrapped.create_view(&wgpu::TextureViewDescriptor::default());
-        self.renderer_mut()?
+        let mut renderer = self.renderer_mut()?;
+        renderer
             .render_to_texture(
                 &self.device,
                 &self.queue,
@@ -752,7 +784,15 @@ impl VelloInteropDevice {
                     antialiasing_method: vello::AaConfig::Area,
                 },
             )
-            .map_err(|error| JsValue::from_str(&format!("Vello paint-scene render: {error}")))
+            .map_err(|error| JsValue::from_str(&format!("Vello paint-scene render: {error}")))?;
+        #[cfg(feature = "gpu-profiler")]
+        {
+            let elapsed = renderer.profile_result.take()
+                .map(|results| results.iter().map(gpu_query_elapsed_ms).sum());
+            Ok(elapsed)
+        }
+        #[cfg(not(feature = "gpu-profiler"))]
+        Ok(None)
     }
 }
 
@@ -777,7 +817,17 @@ impl VelloInteropDevice {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("LightTable shared Vello WebGPU device"),
-                required_features: wgpu::Features::empty(),
+                required_features: {
+                    #[cfg(feature = "gpu-profiler")]
+                    {
+                        let timer_features = wgpu::Features::TIMESTAMP_QUERY
+                            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
+                            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
+                        adapter.features() & timer_features
+                    }
+                    #[cfg(not(feature = "gpu-profiler"))]
+                    wgpu::Features::empty()
+                },
                 required_limits,
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
                 memory_hints: wgpu::MemoryHints::MemoryUsage,
@@ -793,6 +843,14 @@ impl VelloInteropDevice {
             "backend": format!("{:?}", adapter_info.backend),
             "maxTextureDimension2D": adapter_limits.max_texture_dimension_2d,
             "maxBufferSize": adapter_limits.max_buffer_size,
+            "profilingBuild": cfg!(feature = "gpu-profiler"),
+            "timestampQueryAvailable": adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY),
+            "timestampInsideEncodersAvailable": adapter.features().contains(
+                wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
+            ),
+            "timestampInsidePassesAvailable": adapter.features().contains(
+                wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES
+            ),
         })
         .to_string();
         Ok(Self {
@@ -801,6 +859,7 @@ impl VelloInteropDevice {
             renderer: RefCell::new(None),
             scenes: RefCell::new(SceneCache::default()),
             incremental_scenes: RefCell::new(IncrementalSceneCache::default()),
+            last_incremental_profile: RefCell::new(IncrementalProfile::default()),
             diagnostics_json,
         })
     }
@@ -862,6 +921,7 @@ impl VelloInteropDevice {
         source_id: &str,
         update_json: &str,
     ) -> Result<bool, JsValue> {
+        let total_started_at = now_ms();
         if source_id.len() > MAX_SCENE_KEY_BYTES {
             return Err(JsValue::from_str(
                 "Vello source id exceeds its bounded limit",
@@ -872,8 +932,11 @@ impl VelloInteropDevice {
                 "Vello paint-scene update exceeds its bounded JSON limit",
             ));
         }
+        let deserialize_started_at = now_ms();
         let update: PaintSceneUpdate = serde_json::from_str(update_json)
             .map_err(|error| JsValue::from_str(&format!("paint scene update JSON: {error}")))?;
+        let deserialization_ms = now_ms() - deserialize_started_at;
+        let fragment_encoding_started_at = now_ms();
         let mut encoded_upserts = HashMap::new();
         for fragment in update.upserts {
             if encoded_upserts.contains_key(&fragment.stable_id) {
@@ -896,7 +959,9 @@ impl VelloInteropDevice {
             let stable_id = clip.stable_id.clone();
             encoded_clip_upserts.insert(stable_id, encode_clip(clip));
         }
+        let fragment_encoding_ms = now_ms() - fragment_encoding_started_at;
 
+        let synchronization_started_at = now_ms();
         let mut cache = self.incremental_scenes.borrow_mut();
         let existing = cache.entries.get(source_id);
         let composition = update
@@ -913,6 +978,7 @@ impl VelloInteropDevice {
             && update.clip_removals.is_empty()
             && update.composition.is_none();
 
+        let mut scene_preparation_ms = 0.0;
         if !cache_hit {
             let mut fragments = existing
                 .map(|entry| entry.fragments.clone())
@@ -928,6 +994,7 @@ impl VelloInteropDevice {
             }
             fragments.extend(encoded_upserts);
             clips.extend(encoded_clip_upserts);
+            let preparation_started_at = now_ms();
             let mut compiled = vello::Scene::new();
             validate_complete_composition(&composition, &fragments, &clips)
                 .map_err(|error| JsValue::from_str(&format!("paint scene composition: {error}")))?;
@@ -943,13 +1010,34 @@ impl VelloInteropDevice {
                     compiled,
                 },
             );
+            scene_preparation_ms = now_ms() - preparation_started_at;
         }
+        let scene_synchronization_ms = now_ms() - synchronization_started_at
+            - scene_preparation_ms;
         let entry = cache
             .entries
             .get(source_id)
             .ok_or_else(|| JsValue::from_str("incremental Vello scene cache entry disappeared"))?;
-        self.render_scene_to_texture(texture, width, height, &entry.compiled)?;
+        let render_started_at = now_ms();
+        let actual_gpu_render_ms = self.render_scene_to_texture(
+            texture, width, height, &entry.compiled
+        )?;
+        let vello_render_submit_cpu_ms = now_ms() - render_started_at;
+        *self.last_incremental_profile.borrow_mut() = IncrementalProfile {
+            total_ms: now_ms() - total_started_at,
+            deserialization_ms,
+            fragment_encoding_ms,
+            scene_synchronization_ms: scene_synchronization_ms.max(0.0),
+            scene_preparation_ms,
+            vello_render_submit_cpu_ms,
+            actual_gpu_render_ms,
+        };
         Ok(cache_hit)
+    }
+
+    pub fn incremental_profile_json(&self) -> String {
+        serde_json::to_string(&*self.last_incremental_profile.borrow())
+            .unwrap_or_else(|_| "{}".to_owned())
     }
 
     pub fn scene_cache_entries(&self) -> usize {

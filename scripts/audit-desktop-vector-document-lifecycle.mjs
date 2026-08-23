@@ -14,6 +14,8 @@ const argument = (name, fallback = null) => {
 const sourceFile = path.resolve(argument('file') ?? '');
 const cycles = Number.parseInt(argument('cycles', '6'), 10);
 const expectedBackend = argument('expected-backend');
+const profileFirstClose = argument('profile-first-close', 'false') === 'true';
+const directClick = argument('direct-click', 'true') === 'true';
 const outputDirectory = path.resolve(argument(
   'output', path.join(root, 'tmp', 'quality-audit', 'vector-document-lifecycle')
 ));
@@ -31,6 +33,29 @@ const report = {
   generatedAt: new Date().toISOString(), sourceFile, cycles, expectedBackend,
   mode: launch.mode, executablePath: launch.executablePath,
   samples: [], pageErrors: [], consoleErrors: []
+};
+
+const summarizeCpuProfile = (profile) => {
+  const nodes = new Map(profile.nodes.map(node => [node.id, node]));
+  const parents = new Map();
+  for (const node of profile.nodes) for (const child of node.children ?? []) parents.set(child, node.id);
+  const selfTime = new Map();
+  for (let index = 0; index < (profile.samples?.length ?? 0); index += 1) {
+    const nodeId = profile.samples[index];
+    if (!nodes.has(nodeId)) continue;
+    selfTime.set(nodeId, (selfTime.get(nodeId) ?? 0) + (profile.timeDeltas?.[index] ?? 0));
+  }
+  const frame = ({ functionName, url, lineNumber }) => ({
+    functionName: functionName || '(anonymous)', url, line: lineNumber + 1
+  });
+  return [...selfTime].map(([nodeId, microseconds]) => {
+    const stack = [];
+    for (let current = nodeId; current && stack.length < 16; current = parents.get(current)) {
+      const node = nodes.get(current);
+      if (node) stack.push(frame(node.callFrame));
+    }
+    return { ...frame(nodes.get(nodeId).callFrame), selfMs: microseconds / 1000, stack };
+  }).sort((left, right) => right.selfMs - left.selfMs).slice(0, 40);
 };
 const app = await electron.launch({
   executablePath: launch.executablePath,
@@ -79,14 +104,32 @@ try {
     renderer: first.document.renderer,
     vectorBackend: first.telemetry.vectorBackend ?? null
   };
+  report.layers = await driver.queryLayers(first.document.id);
 
   for (let cycle = 1; cycle <= cycles; cycle += 1) {
     const workspace = await driver.queryWorkspace();
     const closingId = workspace?.activeDocumentId;
     assert.ok(closingId, `Cycle ${cycle} has no active document to close.`);
-    page.once('dialog', dialog => dialog.accept());
-    const closeStartedAt = performance.now();
-    await page.locator('.lighttable-document-tab--active .lighttable-document-tab__close').click();
+    const closeTimeline = {
+      dialogSeenMs: null, dialogAcceptMs: null, clickReturnMs: null, stateCommitMs: null
+    };
+    let closeStartedAt = 0;
+    page.once('dialog', async dialog => {
+      closeTimeline.dialogSeenMs = performance.now() - closeStartedAt;
+      const acceptStartedAt = performance.now();
+      await dialog.accept();
+      closeTimeline.dialogAcceptMs = performance.now() - acceptStartedAt;
+    });
+    if (profileFirstClose && cycle === 1) {
+      await cdp.send('Profiler.enable');
+      await cdp.send('Profiler.setSamplingInterval', { interval: 500 });
+      await cdp.send('Profiler.start');
+    }
+    closeStartedAt = performance.now();
+    const closeButton = page.locator('.lighttable-document-tab--active .lighttable-document-tab__close');
+    if (directClick) await closeButton.evaluate(element => element.click());
+    else await closeButton.click();
+    closeTimeline.clickReturnMs = performance.now() - closeStartedAt;
     const closeDeadline = Date.now() + 30_000;
     let closedWorkspace = await driver.queryWorkspace();
     while (closedWorkspace?.activeDocumentId === closingId && Date.now() < closeDeadline) {
@@ -95,6 +138,11 @@ try {
     }
     assert.notEqual(closedWorkspace?.activeDocumentId, closingId, `Cycle ${cycle} did not close.`);
     const closeMs = performance.now() - closeStartedAt;
+    closeTimeline.stateCommitMs = closeMs;
+    if (profileFirstClose && cycle === 1) {
+      const { profile } = await cdp.send('Profiler.stop');
+      report.firstCloseCpuProfile = summarizeCpuProfile(profile);
+    }
 
     const openStartedAt = performance.now();
     const launcherOpen = page.getByRole('button', { name: 'Open', exact: true });
@@ -106,7 +154,7 @@ try {
     const reopened = await activeRenderedDocument();
     const openMs = performance.now() - openStartedAt;
     report.samples.push({
-      cycle, closeMs, openMs,
+      cycle, closeMs, closeTimeline, openMs,
       documentId: reopened.document.id,
       lifecycle: reopened.document.lifecycle,
       renderer: reopened.document.renderer,

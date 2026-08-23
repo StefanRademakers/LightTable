@@ -9,6 +9,7 @@ export class VelloInteropDevice {
     device_handle(): any;
     diagnostics_json(): string;
     dispose(): void;
+    incremental_profile_json(): string;
     release_paint_scene_source(source_id: string): void;
     /**
      * Applies a bounded fragment delta and renders the current source scene.
@@ -31,6 +32,7 @@ export interface InitOutput {
     readonly vellointeropdevice_device_handle: (a: number) => [number, number, number];
     readonly vellointeropdevice_diagnostics_json: (a: number) => [number, number];
     readonly vellointeropdevice_dispose: (a: number) => void;
+    readonly vellointeropdevice_incremental_profile_json: (a: number) => [number, number];
     readonly vellointeropdevice_release_paint_scene_source: (a: number, b: number, c: number) => void;
     readonly vellointeropdevice_render_incremental_paint_scene_texture: (a: number, b: any, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
     readonly vellointeropdevice_render_paint_scene_texture: (a: number, b: any, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];

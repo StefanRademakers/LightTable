@@ -22,6 +22,7 @@ export interface GeneratedVelloDevice {
     sourceId: string,
     updateJson: string
   ): boolean;
+  incremental_profile_json(): string;
   release_paint_scene_source(sourceId: string): void;
   scene_cache_entries(): number;
   dispose(): void;

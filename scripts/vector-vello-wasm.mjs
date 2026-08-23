@@ -40,6 +40,8 @@ const generatedFiles = [
   join(generatedRoot, 'vector_vello_wasm_bg.wasm'),
   join(generatedRoot, 'vector_vello_wasm_bg.wasm.d.ts')
 ];
+const profilingBuild = process.env.LIGHTTABLE_VECTOR_VELLO_PROFILE === '1';
+const buildFeatures = profilingBuild ? ['gpu-profiler'] : [];
 const hashRoots = [
   join(repoRoot, 'rust-toolchain.toml'),
   join(repoRoot, 'scripts', 'vector-vello-wasm.mjs'),
@@ -117,6 +119,7 @@ const generatedOutputIsCurrent = (hash) => {
       && manifest.velloCommit === velloCommit
       && manifest.wasmBindgenVersion === wasmBindgenVersion
       && manifest.rustTarget === rustTarget
+      && JSON.stringify(manifest.buildFeatures ?? []) === JSON.stringify(buildFeatures)
       && generatedFiles.every((file) => {
         const name = file.slice(generatedRoot.length + 1).replaceAll('\\', '/');
         return manifest.outputs?.[name] === outputHash(file);
@@ -179,14 +182,16 @@ const build = () => {
     ]);
   }
   const hash = sourceHash();
-  console.log('[LightTable Vello WASM] Building pinned release module...');
-  run('cargo', [
+  console.log(`[LightTable Vello WASM] Building pinned release module${profilingBuild ? ' with GPU timestamps' : ''}...`);
+  const cargoArguments = [
     'build',
     '--locked',
     '--release',
     '--target', rustTarget,
     '--manifest-path', join(crateRoot, 'Cargo.toml')
-  ], { env: { CARGO_TARGET_DIR: targetRoot } });
+  ];
+  if (buildFeatures.length) cargoArguments.push('--features', buildFeatures.join(','));
+  run('cargo', cargoArguments, { env: { CARGO_TARGET_DIR: targetRoot } });
 
   mkdirSync(generatedRoot, { recursive: true });
   const wasmInput = join(
@@ -221,6 +226,7 @@ const build = () => {
       velloCommit,
       wasmBindgenVersion,
       rustTarget,
+      buildFeatures,
       outputs
     }, null, 2)}\n`);
   } finally {

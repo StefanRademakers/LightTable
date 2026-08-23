@@ -28,7 +28,7 @@ describe('VelloPaintSceneBackend', () => {
     expect(backend.render({
       texture, width: 320, height: 180, estimatedBytes: 230_400,
       dispose: vi.fn()
-    }, scene)).toEqual({
+    }, scene)).toMatchObject({
       sceneCacheHit: false, compiledSceneEntries: 3, uploadedFragments: 0, uploadedClips: 0
     });
     expect(render).toHaveBeenCalledWith(

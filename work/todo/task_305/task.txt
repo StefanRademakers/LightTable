@@ -1,0 +1,25 @@
+LightTable Vello path decomposition and render-island architecture
+
+Goal
+Profile the complete Vello update path without attributing LightTable integration
+cost to Vello itself. Remove avoidable unchanged-scene work, establish correct
+visibility retention, diagnose the first-close spike, and specify the production
+render-island architecture without changing canonical document editability.
+
+Acceptance checklist
+[x] Separate canonical projection, JS PaintScene construction, validation,
+    JSON serialization, JS/WASM transfer estimate, Rust deserialization,
+    fragment encoding, scene synchronization, Vello preparation and CPU submit.
+[x] Measure cache/dependency work, surface lifecycle and final LT compositing.
+[x] Ensure unchanged scenes never enter PaintScene compilation or WASM.
+[x] Keep hidden canonical vector resources warm; release only deleted resources.
+[x] Classify the 264 encode visits in the representative layered SVG workload.
+[x] Identify the first-close 1.3 s observation by exact blocking location.
+[x] Determine minimal compositing boundaries for the representative fixture.
+[x] Assess JSON, binary, typed arrays, shared memory and retained Rust mutations.
+[x] Preserve normal-build behavior; GPU timestamp instrumentation is diagnostic.
+[ ] Implement the render-island planner and retained cross-layer Rust scene.
+[ ] Implement bounded active/warm/cold/evicted resource policy.
+[ ] Obtain exclusive GPU timestamps through a supported native/capture path.
+
+Evidence and conclusions are in REPORT.md.

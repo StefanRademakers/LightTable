@@ -25,6 +25,22 @@ export interface VectorBackendTelemetrySnapshot {
   readonly velloUploadedFragments: number;
   readonly velloUploadedClips: number;
   readonly velloUnsupportedLayerEncodes: number;
+  readonly velloFullCompilations?: number;
+  readonly velloUnchangedSceneReuses?: number;
+  readonly velloSurfaceRecreations?: number;
+  readonly velloReleasedSources?: number;
+  readonly detailedProfile?: {
+    readonly enabled: boolean;
+    readonly actualGpuTimingAvailable: boolean;
+    readonly actualGpuRenderSamples?: number;
+    readonly actualGpuRenderTotalMs?: number;
+    readonly phases: Readonly<Record<string, {
+      readonly executions: number;
+      readonly totalMs: number;
+      readonly lastMs: number;
+      readonly maximumMs: number;
+    }>>;
+  };
   readonly geometryCache: {
     readonly entries: number;
     readonly bytes: number;
@@ -179,6 +195,10 @@ export const formatRenderTelemetry = (snapshot: RenderTelemetrySnapshot) => {
         + `; Vello uploaded fragments ${snapshot.vectorBackend.velloUploadedFragments}`
         + `; Vello uploaded clips ${snapshot.vectorBackend.velloUploadedClips}`
         + `; unsupported fallbacks ${snapshot.vectorBackend.velloUnsupportedLayerEncodes}`
+        + `; full compilations ${snapshot.vectorBackend.velloFullCompilations ?? 'n/a'}`
+        + `; unchanged reuses ${snapshot.vectorBackend.velloUnchangedSceneReuses ?? 'n/a'}`
+        + `; surface recreations ${snapshot.vectorBackend.velloSurfaceRecreations ?? 'n/a'}`
+        + `; released sources ${snapshot.vectorBackend.velloReleasedSources ?? 'n/a'}`
         + `; surfaces ${snapshot.vectorBackend.velloSurfaces}`
         + (snapshot.vectorBackend.velloFailure
           ? `; failure ${snapshot.vectorBackend.velloFailure}`

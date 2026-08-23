@@ -77,6 +77,19 @@ describe('Vello paint-scene projection', () => {
     expect(first.sceneKey.length).toBeLessThan(128);
   });
 
+  it('keeps presentation-only visibility and opacity out of the retained scene revision', () => {
+    const layer = createVectorLayer([createVectorLiveShape('shape', {
+      kind: 'ellipse', width: 40, height: 20
+    })]);
+    const first = compileVelloVectorLayerScene(layer, translationMatrix(0, 0));
+    layer.visible = false;
+    layer.opacity = 0.25;
+    layer.revision += 2;
+    const presentationOnly = compileVelloVectorLayerScene(layer, translationMatrix(0, 0));
+
+    expect(presentationOnly.sceneKey).toBe(first.sceneKey);
+  });
+
   it('projects a canonical vector clip into Vello composition without mutating it', () => {
     const artwork = createVectorLiveShape('art', {
       kind: 'rectangle', width: 100, height: 80,

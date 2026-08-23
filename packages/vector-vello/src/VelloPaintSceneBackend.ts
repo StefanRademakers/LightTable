@@ -14,6 +14,35 @@ export interface VelloPaintSceneRenderMetrics {
   readonly compiledSceneEntries: number;
   readonly uploadedFragments: number;
   readonly uploadedClips: number;
+  readonly profile: VelloPaintSceneRenderProfile;
+}
+
+export type VelloPaintSceneProfilePhase =
+  | 'cache-lookup-invalidation'
+  | 'js-object-construction'
+  | 'json-stringify'
+  | 'js-wasm-roundtrip'
+  | 'js-wasm-transfer-estimate'
+  | 'rust-deserialization'
+  | 'rust-fragment-encoding'
+  | 'rust-scene-synchronization'
+  | 'vello-scene-preparation'
+  | 'vello-render-submit-cpu';
+
+export interface VelloPaintSceneRenderProfile {
+  readonly phasesMs: Readonly<Partial<Record<VelloPaintSceneProfilePhase, number>>>;
+  /** Timestamp queries are reported separately; a synchronous WASM call is not GPU execution. */
+  readonly actualGpuRenderMs: number | null;
+}
+
+interface RustIncrementalProfile {
+  readonly totalMs: number;
+  readonly deserializationMs: number;
+  readonly fragmentEncodingMs: number;
+  readonly sceneSynchronizationMs: number;
+  readonly scenePreparationMs: number;
+  readonly velloRenderSubmitCpuMs: number;
+  readonly actualGpuRenderMs: number | null;
 }
 
 interface SyncedScene {
@@ -68,6 +97,7 @@ export class VelloPaintSceneBackend {
       throw new Error('The Vello WebGPU runtime was released after device loss.');
     }
     assertPaintSceneIsValid(scene);
+    const cacheStartedAt = performance.now();
     const previous = this.syncedScenes.get(sourceKey);
     const fragmentRevisions = new Map(scene.fragments.map(fragment => [
       fragment.stableId, fragment.revisionKey
@@ -86,6 +116,8 @@ export class VelloPaintSceneBackend {
     const clipRemovals = previous
       ? [...previous.clipRevisions.keys()].filter(stableId => !clipRevisions.has(stableId))
       : [];
+    const cacheLookupInvalidationMs = performance.now() - cacheStartedAt;
+    const objectStartedAt = performance.now();
     const update = {
       sourceRevision: scene.sourceRevision,
       composition: !previous || previous.composition !== composition
@@ -96,19 +128,51 @@ export class VelloPaintSceneBackend {
       clipUpserts,
       clipRemovals
     };
+    const jsObjectConstructionMs = performance.now() - objectStartedAt;
+    const stringifyStartedAt = performance.now();
+    const updateJson = JSON.stringify(update);
+    const jsonStringifyMs = performance.now() - stringifyStartedAt;
+    const wasmStartedAt = performance.now();
     const sceneCacheHit = this.runtime.bridge.render_incremental_paint_scene_texture(
       surface.texture,
       surface.width,
       surface.height,
       sourceKey,
-      JSON.stringify(update)
+      updateJson
     );
+    const jsWasmRoundtripMs = performance.now() - wasmStartedAt;
+    const rustProfile = typeof this.runtime.bridge.incremental_profile_json === 'function'
+      ? JSON.parse(this.runtime.bridge.incremental_profile_json()) as RustIncrementalProfile
+      : {
+          totalMs: jsWasmRoundtripMs,
+          deserializationMs: 0,
+          fragmentEncodingMs: 0,
+          sceneSynchronizationMs: 0,
+          scenePreparationMs: 0,
+          velloRenderSubmitCpuMs: jsWasmRoundtripMs,
+          actualGpuRenderMs: null
+        };
     this.syncedScenes.set(sourceKey, { fragmentRevisions, clipRevisions, composition });
     return {
       sceneCacheHit,
       compiledSceneEntries: this.runtime.bridge.scene_cache_entries(),
       uploadedFragments: upserts.length,
-      uploadedClips: clipUpserts.length
+      uploadedClips: clipUpserts.length,
+      profile: {
+        phasesMs: {
+          'cache-lookup-invalidation': cacheLookupInvalidationMs,
+          'js-object-construction': jsObjectConstructionMs,
+          'json-stringify': jsonStringifyMs,
+          'js-wasm-roundtrip': jsWasmRoundtripMs,
+          'js-wasm-transfer-estimate': Math.max(0, jsWasmRoundtripMs - rustProfile.totalMs),
+          'rust-deserialization': rustProfile.deserializationMs,
+          'rust-fragment-encoding': rustProfile.fragmentEncodingMs,
+          'rust-scene-synchronization': rustProfile.sceneSynchronizationMs,
+          'vello-scene-preparation': rustProfile.scenePreparationMs,
+          'vello-render-submit-cpu': rustProfile.velloRenderSubmitCpuMs
+        },
+        actualGpuRenderMs: rustProfile.actualGpuRenderMs
+      }
     };
   }
 
