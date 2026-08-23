@@ -88,6 +88,10 @@ export class DocumentScopeRuntime {
     this.engine?.markImageDirty();
   }
 
+  markPresentationDirty(): void {
+    this.engine?.markPresentationDirty();
+  }
+
   resize(): boolean {
     return this.engine?.resize() ?? false;
   }

@@ -441,6 +441,15 @@ export class WebGpuScopeEngine {
     this.analysisDirty = true;
   }
 
+  /**
+   * Re-presents retained scope bins after this document regains ownership of
+   * the shared workspace canvases. The sampled image did not necessarily
+   * change, so this deliberately avoids scheduling another analysis pass.
+   */
+  markPresentationDirty() {
+    this.displayDirty = true;
+  }
+
   resize(): boolean {
     if (this.destroyed || this.failed) return false;
     const nextVisibility = this.resolveCanvasVisibility();

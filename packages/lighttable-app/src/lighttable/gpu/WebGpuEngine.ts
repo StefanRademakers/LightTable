@@ -456,6 +456,11 @@ export class WebGpuEngine {
     this.documentRenderer?.setActive(active);
     if (active) {
       this.scopeRuntime.resize();
+      // Scope canvases belong to the workspace UI and are shared by retained
+      // document renderers. Another active document may have presented into
+      // them while this renderer was suspended, so local clean display state
+      // cannot prove that the shared canvases still contain this document.
+      this.scopeRuntime.markPresentationDirty();
       this.requestRender();
     }
   }
