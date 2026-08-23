@@ -69,6 +69,10 @@ unavailable when isolation is possible.
 Device loss destroys resource graphs and offers a clean renderer rebuild from
 canonical state. React Strict Mode mount/unmount is treated as a lifecycle
 test: disposal is idempotent and subscriptions never retain disposed owners.
+The hybrid vector path must release/recreate the shared Vello/native device
+graph, detect a missing bounded Rust scene and rehydrate it from canonical-
+derived PaintScene. A renderer-only SVG preview may disappear during recovery;
+it must never be substituted for canonical content.
 
 ## Test ladder
 
@@ -93,6 +97,12 @@ must retain their explicit `not-measured` extrapolation. See
 Every regression fix should add the narrowest stable test that would have
 caught it. A UI screenshot is evidence, not a replacement for a model,
 planning or pixel test.
+
+For first-pixel claims, a canvas screenshot proves that useful pixels were
+presented only when paired with monotonic startup events, queue completion and
+a browser paint opportunity. The harness must then wait for the editable
+canonical/island result and reject blank output, renderer errors or a preview
+that masks final-render failure.
 
 ## Release gates
 

@@ -32,9 +32,19 @@ making the production application depend on the governance tools.
 ## Workspace
 
 The workspace supports multiple open documents and exactly one active
-document. Document tabs switch document-scoped state: canonical document,
-history, tools, selection, viewport, tasks and renderer. Panel layout is a
-workspace preference, not document content.
+document. Document tabs switch the canonical document, history, document
+selection/active layer, viewport and source/revision context beneath one
+persistent editor/canvas runtime. The active tool, tool options and Dockview
+layout are application/editor state: they remain stable across document tabs
+and workspace presets. If the active document cannot support a tool, the
+overlay and controls project that capability explicitly; they do not silently
+change document content or resurrect a document-private tool state.
+
+Only one Dockview shell, canvas and `LightTableEditorOverlay` are mounted.
+Inactive `DocumentSession`s retain canonical data and history, not hidden
+workspace trees or active render loops. Rebinding must commit/cancel any live
+gesture through its controller, reject stale async results and render the newly
+active session without copying pixels between documents.
 
 Panels have stable IDs and can be docked, tabbed, resized and floated. Dockview
 owns the panel/group layout mechanics and serialized layout graph;
@@ -72,6 +82,10 @@ primary workspace presets. `Photo edit` uses the canonical fresh layout;
 Scopes in a left column while retaining contextual Properties on the right and Layers as a
 floating group. Applying a preset persists its Dockview graph. A manual dock
 change marks that graph `custom` and clears the active preset indication.
+Switching presets rearranges/activates panels only. It must preserve the active
+document, canonical layers/pixels, current tool and valid floating-panel
+placement. Returning to a preset restores that preset's persisted layout rather
+than manufacturing a layout from document data.
 
 ## Design tokens and controls
 

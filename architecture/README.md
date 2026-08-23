@@ -116,6 +116,13 @@ the task genuinely spans every system.
   transform to identity with newly measured bounds.
 - **Dirty-only rendering**: only stages invalidated by a semantic change may
   execute. A UI update is not automatically an image recomposition.
+- **Render island**: a disposable retained render projection over one or more
+  independently editable canonical vector layers, split only at observable
+  compositor boundaries. It is never a layer merge or document authority.
+- **First useful pixel**: the first verified non-blank presented document
+  image after queue completion and a browser paint opportunity. It is not
+  automatically final editable readiness; a renderer-only SVG preview must
+  later be replaced by the canonical retained result.
 
 ## Updating this context
 

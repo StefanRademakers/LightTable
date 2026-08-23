@@ -8,17 +8,29 @@ milestone changes those boundaries; feature task details belong in
 
 - Independent repository with shared web and Electron hosts.
 - Explicit host capabilities and LightTable-owned assets/UI/CSS.
-- Multi-document workspace with one active document and paused background
-  renderers.
-- Document-scoped history, tasks, tools, viewport and renderer lifecycle.
+- Multi-document workspace with one active document, one persistent
+  editor/canvas/Dockview runtime and inactive canonical sessions without
+  recurring background rendering.
+- Document-scoped history, source, viewport and revisions plus application-wide
+  workspace layout and tool state; tab/preset switches do not mutate documents.
 - Canonical raster, group, adjustment and vector layers with masks, clipping,
   styles and scene transforms.
 - Pure compositor planning before GPU encoding.
 - Semantic dirty domains and animation-frame invalidation scheduling.
 - Ordered processing instances and registered GPU effect executors.
 - Lazy optional effects/codecs and explicit GPU resource lifecycle.
-- Three-package vector architecture with editable paths and WebGPU fill/overlay
-  backends.
+- Reusable vector stack across `vector-core`, `vector-rendering`,
+  `vector-svg-normalizer`, `vector-svg`, `paint-scene`,
+  `paint-scene-adapters`, `vector-vello` and `vector-webgpu`.
+- One default hybrid renderer: stable semantic render islands, retained
+  cross-layer fragments/scenes, per-island Vello/native admission on a shared
+  GPU device and bounded active/warm/cold/evicted resource ownership.
+- Shared secure SVG Open/Place/import/paste/Actions/MCP routes with editable
+  paths and primitives, linear/radial gradients, opacity groups, bounded local
+  vector clips and symmetric SVG export for the admitted subset.
+- Warm packaged `VORTEXT.SVG` first-useful-pixel evidence of 428--446 ms across
+  five runs. The transient preview is renderer-only and the final editable
+  canonical/Vello result is still required before the harness passes.
 - Semantic point, paragraph, vertical and imported path text with lazy
   Rust/Wasm shaping, WebGPU realization and bounded inactive-layer caches.
 - PSD export release candidate for the verified 8-bit RGB semantic subset,
@@ -74,8 +86,9 @@ milestone changes those boundaries; feature task details belong in
   facades. Viewport measurement, sampling-quality settling and timer cleanup now
   have a typed application owner; continue extracting similarly cohesive
   controllers and GPU resource owners.
-- Some renderer paths still need to consume the resolved scene-transform graph
-  consistently, especially nested groups, masks, bounds and selection tools.
+- Some renderer and tool paths still need to consume the resolved
+  scene-transform graph consistently, especially advanced nested masks,
+  boolean clip geometry and selection/tool bounds.
 - Processing is semantically node-based, but not every grade/spatial operation
   has a completely independent generic executor.
 - Smart Objects, Smart Filters, advanced text recovery/editing and full PSD
@@ -85,11 +98,17 @@ milestone changes those boundaries; feature task details belong in
 - Warp has a working persistent displacement direction, but smoothing,
   reconstruction, freeze/thaw, higher-quality resampling and production edge
   behavior remain.
-- Vector strokes, anti-aliasing/device fixtures and overlay consolidation need
-  more production validation.
-- SVG currently has a documented native import subset but no product importer
-  or exporter. It must map into the existing vector model rather than become a
-  second browser/SVG scene authority.
+- Hybrid vector output still needs broader GPU/vendor evidence and exact parity
+  gates for compound/inverted clips, raster+vector mask multiplication, clip
+  ordering with layer effects and richer blend/isolation cases. Native
+  LightTable remains the explicit island fallback; silent reduction is invalid.
+- SVG patterns, filters, embedded images, native text-layout import, richer
+  masks, external resources and complete CSS semantics remain unsupported or
+  explicitly skipped. Multi-operand clip union and path boolean authoring need
+  exact geometry rather than antialiased alpha approximations.
+- Cold WebGPU startup and final edit-readiness for very large SVGs remain slower
+  than first useful pixels. Large initial scene deserialization is material;
+  warm JSON/Wasm transport is not the present bottleneck.
 - Sixteen-bit/profile-aware import exists for supported cases; explicit
   precision-preserving export and broader formats remain.
 - Panel/docking state and shared design tokens need continued stabilization.
@@ -129,8 +148,9 @@ reconstruction concepts to current capabilities.
    symmetric.
 5. Keep the established PSD/color/effects gates strict while adding Smart
    Object, missing-font, adjustment, pattern and 16-bit export mappings.
-6. Consolidate selection, transform, path and brush overlays on the vector GPU
-   primitives and complete stroke quality.
+6. Complete the hybrid vector parity matrix, exact clip/mask semantics and
+   second-vendor/lower-tier packaged evidence; continue consolidating selection,
+   transform, path and brush overlays on native vector GPU primitives.
 7. Evolve warp and shared field-processing infrastructure with preview/final
    quality and dirty-region support.
 8. Finish the remaining command/schema/admission gaps under Tasks 214/220/221,
@@ -141,6 +161,9 @@ reconstruction concepts to current capabilities.
    batch-first workflow against the 76-call cold-discovery baseline.
 10. Define the pre-1.0 LightTable file-format contract, precision/export policy
    and migration policy only when the model is solid enough to freeze.
+11. Reduce cold GPU/device startup and large-scene canonical/edit-ready latency
+    without weakening the renderer-only preview boundary or duplicating
+    canonical state.
 
 ## Not a goal
 

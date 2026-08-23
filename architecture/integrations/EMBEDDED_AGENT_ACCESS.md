@@ -1,6 +1,6 @@
 # Embedded desktop Agent Access
 
-Status: **implemented opt-in desktop capability**, 2026-08-06.
+Status: **implemented opt-in desktop capability**, updated 2026-08-23.
 
 ## Product contract
 
@@ -17,6 +17,12 @@ OS-allocated free port, and closes tracked sockets on stop and application
 quit. A 256-bit token and opaque device identity are encrypted with Electron
 `safeStorage` before persistence. Rotation immediately invalidates the old
 token.
+
+Automatic direct-bridge startup retries a bounded set of loopback candidates
+when a candidate is occupied, reserved or forbidden by Fetch. An explicitly
+requested port still fails visibly rather than silently moving. This direct
+bridge allocation is separate from the normal local MCP/OAuth test origins
+documented by the local Codex acceptance flow.
 
 The ordinary local MCP path no longer exposes that token or port as the primary
 UX. **Local test mode** starts the built-in loopback MCP/OAuth service and

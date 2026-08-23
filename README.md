@@ -19,6 +19,12 @@ state, S3 details or application routes.
   attached-adjustment order are semantic; optimization may only fuse proven
   equivalent nodes. Working composition uses linear-light `rgba16float`, while
   the current released PSD writer remains an explicit 8-bit RGB subset.
+- Vector layers use one hybrid retained renderer. Semantic render islands keep
+  canonical layers editable, eligible islands use Vello, and unsupported
+  or specialized paths use native LightTable WebGPU on the same shared device.
+- SVG Open/import/paste/Actions/MCP use a secure local-only normalizer plus an
+  editable codec; paths, primitives, linear/radial gradients, opacity groups
+  and bounded vector clips round-trip through the admitted SVG subset.
 - Photoshop-family adjustment descriptors now round-trip for the supported
   set. Color Lookup can load a 3D `.cube` file, retain its exact bytes as a
   LightTable document asset and embed it in supported PSD interchange.
@@ -37,6 +43,11 @@ npm run audit:ui-boundary
 npm run build:web
 npm run package:desktop
 ```
+
+These commands all build the same hybrid renderer; the former `:vello`
+variants are retired. Root scripts verify generated text, SVG-normalizer and
+Vello WASM bindings through `ensure:wasm`. `package:desktop` creates an unpacked
+application; use `make:desktop` or `build.bat` when an installer is required.
 
 Vite hot-updates the standalone web editor. Electron Forge hot-updates renderer
 code and CSS; changes to Electron main/preload or packaging require restarting

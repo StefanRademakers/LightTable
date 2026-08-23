@@ -164,9 +164,9 @@ export const planRecoveryWorkspace = (
 /**
  * Host-neutral workspace shell.
  *
- * Each open document owns a mounted editor runtime. Inactive runtimes stay
- * mounted so their undo stack, selections, tools, layers and GPU document
- * remain isolated and intact while another tab is active.
+ * Open documents own canonical sessions and source/history state. Exactly one
+ * editor/canvas/workspace runtime binds to the active session; inactive
+ * documents do not keep hidden React or GPU editor trees mounted.
  */
 export function LightTableStandaloneApp({
   host = createBrowserHost(),

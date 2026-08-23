@@ -2,6 +2,13 @@
 
 Recorded: 2026-08-22
 
+> Historical decision snapshot. Task 305 and commit `9e07bd97` supersede the
+> launch/routing decision below: LightTable now ships one hybrid renderer,
+> retained islands are invariant, and eligible islands use Vello with native
+> LightTable fallback on the shared device. The measurements and package
+> boundaries remain evidence; the former selectable-backend/default
+> recommendation is not current configuration.
+
 Branch: `main`
 
 Baseline: `c71254b1`
@@ -18,13 +25,13 @@ correctness/performance/lifecycle evidence for both backends.
 
 The production routing decision is deliberately conservative:
 
-- **Current WebGPU remains the normal shipping default.** It has the broadest
+- **At this checkpoint, Current WebGPU remained the normal shipping default.** It had the broadest
   proven editor integration and wins the broad 17-surface recomposition case.
-- **Vello remains an explicitly build-selectable hybrid backend.** In Vello
+- **At this checkpoint, Vello was an explicitly build-selectable hybrid backend.** In Vello
   mode, supported PaintScene content uses Vello and explicit unsupported
   content can use the LightTable backend on the same Vello-owned browser
   device. This is the only current mode that admits both implementations.
-- **Do not auto-select per document yet.** Device ownership is locked before
+- **The checkpoint did not auto-select per document.** Device ownership was locked before
   first WebGPU initialization. A browser-owned current device cannot later be
   replaced by Vello without rebuilding every dependent GPU resource.
 - **Promotion criterion:** remove the reproducible first-close latency spike,
@@ -191,7 +198,8 @@ render incorrect pixels:
 
 ## Manual validation still requested
 
-Before changing the shipping default, manually inspect on at least one second
+Before treating the current hybrid renderer as release-qualified, manually
+inspect on at least one second
 GPU/vendor and one lower-tier qualified machine:
 
 - gradient and clipped-edge appearance at 25%, 100%, 400% and high-DPI scale;
@@ -200,6 +208,7 @@ GPU/vendor and one lower-tier qualified machine:
 - save, reopen, undo and SVG re-export after editing admitted clip geometry;
 - device loss/recovery while two vector documents are open.
 
-Task 303 is complete as an evidence-led architecture and backend bake-off. The
-remaining items above are scoped product features or promotion gates, not
-hidden correctness claims.
+Task 303 is complete as an evidence-led architecture and backend bake-off. Its
+subsequent production integration is tracked by Task 305 and the canonical
+architecture documents. The remaining items above are scoped product features
+or release gates, not hidden correctness claims.

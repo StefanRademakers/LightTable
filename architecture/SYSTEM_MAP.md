@@ -14,6 +14,8 @@ packages/genai-higgsfield Higgsfield adapter, normalization and provider fixture
 packages/genai-local     Host-neutral local-provider protocol and contracts
 packages/genai-openart   OpenArt adapter, schema normalization and provider fixtures
 packages/paint-core      Host-neutral paint gesture and dab contracts
+packages/paint-scene     Validated renderer-neutral retained scene/fragment contract
+packages/paint-scene-adapters Canonical vector/PDF projections with explicit capability loss
 packages/pdf-core        Normalized PDF display-list/document contracts
 packages/text-core       Serializable text model and layout contracts
 packages/text-layout-wasm Rust/Wasm shaping and paragraph runtime
@@ -21,7 +23,9 @@ packages/text-rendering  Backend-neutral text realization and caches
 packages/text-webgpu     WebGPU glyph/vector text backends
 packages/vector-core     Serializable vector model, geometry and editing
 packages/vector-rendering Backend-neutral realization and revision caches
-packages/vector-svg      Bounded native SVG import/export codec over vector-core
+packages/vector-svg      Bounded editable SVG import/export codec over vector-core
+packages/vector-svg-normalizer Secure local-only usvg/Wasm normalization boundary
+packages/vector-vello    Retained Vello/Wasm scene sync and zero-copy shared-device backend
 packages/vector-webgpu   WebGPU vector fill and editing-overlay backends
 architecture             Canonical product and engineering contracts
 fixtures                 Stable import/render regression material
@@ -36,15 +40,17 @@ architecture/obsolete    Superseded historical material
 ```text
 Web / Electron / StoryBuilder host capabilities
                     |
-Application shell and multi-document workspace
+Application shell, multi-document sessions and one editor/workspace runtime
                     |
-Per-document session, commands, tasks, tools and viewport
+Active document binding, commands, tasks, tools and viewport
                     |
 Canonical document tree and scene transforms
                     |
 Renderer facade and semantic dirty-state scheduler
                     |
-Content: compositor plan -> processing runtime -> composited texture
+Content: compositor plan -> vector render islands -> processing -> composite
+                    |
+        per-island Vello/native WebGPU on one shared device
                     |
 Presentation: viewport sampling -> visible canvas
         |                                      |
@@ -71,14 +77,17 @@ clipboard and optional media browsing. Hosts do not contain editor logic.
 
 `WorkspaceSession` owns ordered open documents and exactly one active document.
 `DocumentWorkspaceController` pairs each host-neutral session with an opaque
-source payload. Activation suspends background renderers while retaining their
-resources for fast tab switching.
+source payload. One application editor/canvas/Dockview runtime binds to the
+active session; inactive sessions retain canonical data/history/source state,
+not duplicate mounted editor trees or recurring render work.
 
 ### Document session
 
-Owns one document's canonical tree, editor state, viewport, command history,
-asynchronous task registry and renderer lifecycle. Nothing transient for one
-document may be stored as singleton root state.
+Owns one document's canonical tree, viewport, command history, asynchronous
+task state and persistence/revision lifecycle. Application-wide tool and
+workspace layout state live in `EditorApplicationSession` and Dockview, while
+gesture previews remain controller/runtime state. None of these projections may
+silently become document data.
 
 ### Document model
 
@@ -101,6 +110,13 @@ content revision rather than the viewport revision.
 boundary, canvas pixel sizing, interactive sampling quality and settle-timer
 lifecycle. `WebGpuEngine` consumes that retained presentation state; it does
 not independently own another viewport model.
+
+For vector content, `RenderIslandPlanner` derives semantic islands without
+changing canonical layers. `RetainedRenderIslandRegistry` preserves stable
+runtime resource identities across immutable document snapshots and valid
+split/merge transitions. Eligible islands use retained Vello scenes; unsupported
+islands and specialized overlays use native LightTable WebGPU. Both feed the
+same compositor on one shared `GPUDevice`.
 
 ### UI
 

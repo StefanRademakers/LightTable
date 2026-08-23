@@ -86,7 +86,7 @@ Baseline: `c71254b1`
   GPU process and ~22,932 KiB to the tab process; initializing/rendering Vello
   adds ~10,164 KiB GPU and ~5,080 KiB tab after that. These are process working
   set deltas, not exact GPU allocation accounting.
-- The selectable Vello backend is integrated in `@lighttable/vector-vello`,
+- At the Task 303 checkpoint, a selectable Vello backend was integrated in `@lighttable/vector-vello`,
   selected through the dedicated dev/package commands, surfaced in renderer
   telemetry, and falls back explicitly when PaintScene reports unsupported
   semantics. Its package output remains separate from the normal backend.
@@ -186,14 +186,13 @@ Baseline: `c71254b1`
 
 ## Final closure
 
-Task 303 is complete at `da214c62`. See `FINAL_REPORT.md` for the routing
-decision, package ownership, packaged distributions, rejected paths and manual
-promotion gates. Current WebGPU remains the shipping default; Vello remains a
-real selectable hybrid device/backend and wins the pathological editable-scene
-mutation and texture-memory cases. Both backends pass 16 packaged close/reopen
-cycles with flat estimated GPU bytes and bounded forced-GC heap. Vello's
-reproducible first-close latency and the explicit compound/inverted/mixed-mask
-clip gaps block automatic default promotion.
+Task 303 completed its bake-off at `da214c62`. Its launch decision is historical:
+Task 305 and `9e07bd97` subsequently made one retained hybrid renderer the
+normal product, removed backend launch switches and routed admitted islands to
+Vello with native LightTable fallback on the shared device. See the canonical
+architecture documents for current behavior and `FINAL_REPORT.md` for the
+original measurements/package conclusions. The explicit compound,
+inverted/mixed-mask clip gaps and broader hardware qualification remain open.
 
 ## Follow-up product work
 

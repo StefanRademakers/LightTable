@@ -1,6 +1,27 @@
 # Build and distribution
 
-Status: automated internal distribution boundary, 16 August 2026.
+Status: automated internal distribution boundary, 23 August 2026.
+
+## Renderer build invariant
+
+All normal web and desktop outputs now contain LightTable's single hybrid
+vector renderer. `npm run dev:web`, `npm run dev:desktop`,
+`npm run build:web`, `npm run package:desktop`, `run_clean.bat`,
+`run_dev.bat`, `run_release.bat` and `build.bat` do not select competing
+renderer products. The retired `dev:*:vello`, `package:desktop:vello` and
+`LIGHTTABLE_VECTOR_BACKEND` product switches must not be used in onboarding or
+restored as release variants.
+
+The root `ensure:wasm` gate verifies generated text shaping, SVG normalizer and
+Vello WASM bindings before development/typecheck/build. The Vello source is
+pinned and its reviewed compatibility patch is verified by the generator; a
+local `.referenceCode` checkout is research only and is not shipped.
+
+`npm run package:desktop` creates the unpacked application under the configured
+Forge output directory (normally `apps/desktop/out/LightTable-win32-x64` on
+Windows). It does not create an installer. `npm run make:desktop` creates maker
+artifacts. On Windows, `build.bat` runs the full `npm run verify` boundary and
+then makes the Squirrel installer in `apps/desktop/out-verify/make/...`.
 
 ## Supported outputs
 

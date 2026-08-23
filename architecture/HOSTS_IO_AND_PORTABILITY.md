@@ -24,7 +24,10 @@ formats lazily load the required worker/codec:
 - common PNG/JPEG/WebP and LightTable documents;
 - TIFF and high-bit-depth/profile-aware decoding through the precision worker;
 - PSD/PSB through the PSD worker and semantic importer;
-- SVG through the bounded native vector codec, without browser image decoding;
+- SVG through secure local-only usvg normalization and the bounded editable
+  vector codec. A conservatively preflighted warm open may use a transient
+  browser/GPU first-pixel preview, but canonical import never uses browser
+  pixels as document authority;
 - future RAW/NEF through an isolated decoder capability.
 
 A specialized codec may delay only documents that need it. Worker failures
@@ -60,8 +63,10 @@ including future 3D, AI and LightTable-specific GPU workflows.
   must report the actual result.
 - Host cancellation is a normal result, not an application error.
 - SVG export is available only when visible document content consists of native
-  vector layers whose Pass 1 semantics can be represented exactly; unsupported
-  paints or layer semantics reject rather than flatten silently.
+  vector/group content whose admitted paths, primitives, transforms, solid or
+  linear/radial gradient paint, opacity groups and vector clips can be
+  represented exactly. Unsupported semantics reject rather than flatten
+  silently.
 
 On desktop, ordinary Save replaces an opened JPEG, PNG, WebP or TIFF in its
 original format only when the current model is exactly representable as one
@@ -100,6 +105,12 @@ also interoperating with OS image clipboard formats. Copy uses active-layer
 pixels inside the selection; Copy Merged uses the visible composite. Paste
 creates a layer at the source bounds when LightTable metadata is available and
 uses selection/document placement policy for external bitmap data.
+
+The rich in-app payload is authoritative when available. OS clipboard PNG/
+native-image transport must encode the same display/color contract rather than
+reinterpret linear working bytes as sRGB; copying merged pixels out and pasting
+them back into a new layer must preserve rendered color within the verified
+round-trip tolerance.
 
 ## Portability boundary
 

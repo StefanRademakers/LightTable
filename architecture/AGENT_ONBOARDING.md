@@ -60,7 +60,7 @@ the reported resume checkpoint:
    for the long-running product outcome;
 4. Tasks 214, 220, 221 and 264 for the remaining program work.
 
-Current reset fact, 2026-08-21: a fresh Codex client has already inspected a
+Current reset fact, updated 2026-08-23: a fresh Codex client has already inspected a
 reference and built a separate twelve-layer editable text/vector composition
 through MCP only. Whole-document and isolated-layer palettes, bounded previews,
 artist workflow guides, batch construction and native bitmap artifacts exist.
@@ -68,7 +68,73 @@ The ordinary local connection flow now starts inside **Preferences > Agent
 Access** and no longer requires terminal command copy/paste. The full Task 264
 save/export, independent verification, error/reconnect and cleanup acceptance
 is still open; do not turn the successful first construction into a claim that
-all artist capabilities or the complete A-Z benchmark are finished.
+all artist capabilities or the complete A-Z benchmark are finished. Automatic
+startup of the direct embedded bridge now retries bounded loopback ports
+instead of treating one occupied port as a permanent Agent Access failure.
+
+### Current renderer/editor recovery capsule
+
+When the recovered work concerns rendering, SVG, document startup, canvas
+tools or workspace state, use this reset state before reading historical task
+reports:
+
+- **Current, 2026-08-23:** LightTable has one shipping **hybrid vector
+  renderer**. There are no normal `:vello` development/package switches and no
+  per-document backend mode. `run_clean.bat`, `run_dev.bat`, `run_release.bat`,
+  `build.bat`, `npm run dev:desktop` and `npm run package:desktop` all build the
+  same hybrid architecture.
+- A pure `RenderIslandPlanner` projects independently editable canonical vector
+  layers into the minimum currently representable compositing islands. Stable
+  runtime resource IDs, retained cross-layer PaintScene fragments and Vello
+  Rust scenes are derived resources; they never merge or rewrite document
+  layers.
+- Backend admission is **per island**. Eligible vector islands use
+  retained Vello; unsupported islands and specialized editor paths use the
+  native LightTable WebGPU implementation on the same shared `GPUDevice`.
+  Inverted clips, unsupported masks/effects and other explicit boundaries must
+  fall back or fail visibly, never silently lose semantics.
+- Island resources have active/warm/cold/evicted states. Visibility affects
+  compositing, not canonical ownership. A hidden island stays warm; memory
+  pressure may evict its texture while retaining the JS projection and Rust
+  scene; deleted canonical content releases both.
+- Pan and zoom are presentation-only. They must not rebuild PaintScene,
+  retessellate document geometry or recompose document pixels. Retained vector
+  geometry is adaptive to authored/document scale, not viewport zoom.
+- Untrusted SVG uses `@lighttable/vector-svg-normalizer` (pinned, local-only
+  `usvg` WASM) before the editable `@lighttable/vector-svg` codec. The current
+  product routes Open, Place/import, paste, Actions and MCP through the shared
+  boundary. Linear/radial gradients, opacity groups and bounded local vector
+  clips are current; patterns, filters, SVG text/images and richer mask/boolean
+  semantics remain incomplete.
+- Warm `VORTEXT.SVG` time-to-first-useful-pixel is proven below 500 ms in five
+  packaged runs (428--446 ms). A conservative transient browser-rendered SVG
+  preview may provide those first pixels, but it is renderer-only, cannot enter
+  history/save/document state, and must be replaced by the final editable
+  canonical Vello result. Cold GPU startup and final edit-readiness remain
+  separate performance work.
+- Document data and editor/workspace state are separate authorities. Switching
+  document tabs or Dockview presets must not mutate pixels/layers. Workspace
+  layout and the active tool are application/editor state; canonical content
+  changes only through an explicit user, command, Action or MCP operation.
+- Recent stability fixes preserve raster pixels across renderer rebinding,
+  overlap bitmap decode with GPU startup, preserve Copy Merged color through
+  the OS clipboard, invalidate attached adjustments, keep transform gizmos
+  alive after gestures/picks, use tight multi-layer bounds, restore
+  selection-aware pixel Invert and support topmost alpha-aware Shift-click
+  canvas layer selection.
+- The same stabilization pass made command availability independent from a
+  hidden editor mount, preserved application services through React Strict Mode
+  reconnects, made workspace preset switching deterministic, rejected stale
+  recovery publication after Save and restored an explicit recovery-discard
+  workflow. Treat these as regression boundaries, not incidental fixes.
+
+Task 303's report is a dated backend bake-off; Task 305 and current code
+supersede its former "current backend by default" decision. Read historical
+measurements for evidence, not as today's launch configuration. Read
+[Vector system](VECTOR_SYSTEM.md),
+[Vector engine and SVG import](features/VECTOR_ENGINE_AND_SVG_IMPORT.md),
+[Rendering and processing](RENDERING_AND_PROCESSING.md) and
+[Performance contract](PERFORMANCE_CONTRACT.md) for the durable contracts.
 
 ## Phase 2: classify the requested change
 
@@ -76,7 +142,7 @@ all artist capabilities or the complete A-Z benchmark are finished.
 | --- | --- | --- |
 | canvas interaction, tool or shortcut | [INPUT_TOOLS_AND_HISTORY.md](INPUT_TOOLS_AND_HISTORY.md) | input router -> document controller -> preview -> one history commit |
 | transform, bounds, masks or layer semantics | [DOCUMENT_AND_SCENE_MODEL.md](DOCUMENT_AND_SCENE_MODEL.md) | canonical operation -> scene graph -> renderer contract -> export |
-| compositor, shader, effect or performance | [RENDERING_AND_PROCESSING.md](RENDERING_AND_PROCESSING.md) and [PERFORMANCE_CONTRACT.md](PERFORMANCE_CONTRACT.md) | dirty domain -> retained resource owner -> encoder stage -> telemetry |
+| compositor, shader, vector backend, effect or performance | [RENDERING_AND_PROCESSING.md](RENDERING_AND_PROCESSING.md), [VECTOR_SYSTEM.md](VECTOR_SYSTEM.md) and [PERFORMANCE_CONTRACT.md](PERFORMANCE_CONTRACT.md) | dirty domain -> render island/resource owner -> encoder stage -> telemetry |
 | visible UI, panel, workspace or accessibility | [UI_WORKSPACE_AND_DESIGN_SYSTEM.md](UI_WORKSPACE_AND_DESIGN_SYSTEM.md) and [ACCESSIBILITY_KEYBOARD_AND_FOCUS.md](ACCESSIBILITY_KEYBOARD_AND_FOCUS.md) | shared primitive/model -> projected panel -> desktop smoke |
 | PSD, PDF, color or format behavior | [PHOTOSHOP_INTERCHANGE.md](PHOTOSHOP_INTERCHANGE.md) or [PDF_OPEN_AND_EXPORT_AUDIT.md](PDF_OPEN_AND_EXPORT_AUDIT.md) | importer model -> representability -> worker/export -> real oracle |
 | MCP, Agent Access or command exposure | [integrations/LIGHTTABLE_MCP_V1.md](integrations/LIGHTTABLE_MCP_V1.md) | stable command ID -> validation/permission -> driver -> adapter |
@@ -110,6 +176,10 @@ maximum indirection; it is reusable ownership with desktop-class latency.
 - The canonical document never contains DOM nodes, GPU handles or host paths.
 - WebGPU performs high-volume rendering; workers/Wasm/Rust own suitable codecs,
   shaping and bounded analysis. CPU readback in a hot path requires evidence.
+- Vello and native LightTable WebGPU are cooperating backends behind one hybrid
+  renderer, not user modes. Backend-specific state is disposable projection;
+  canonical vectors, PaintScene capability reports and compositor order remain
+  authoritative.
 - Preview and final quality may differ deliberately. Pointer-up produces one
   semantic, undoable commit.
 - Optional resources are lazy, revision-keyed, cancellable and explicitly

@@ -1,5 +1,12 @@
 # Vello path decomposition and render-island architecture
 
+Current configuration, 23 August 2026: the phases below culminated in one
+shipping hybrid renderer. Retained render islands are always planned; backend
+admission is per island; eligible islands use Vello and unsupported or
+specialized paths use native LightTable WebGPU on the same shared device. The
+temporary oracle/backend launch switches mentioned in intermediate phases have
+been removed.
+
 ## Outcome
 
 The current cost is not inherent Vello cost. On a warm mutation of the

@@ -176,18 +176,25 @@ Test at minimum:
 - large, off-canvas, masked, styled, text, vector and adjustment-layer cases.
 
 For external corpora, first inventory dimensions, layers and feature clusters.
-Then run each file in its own desktop document runtime. Exercise layer
-selection, visibility, panel switching, pan and zoom. Use at least six rounds
+Then bind each file/session through the application's one persistent desktop
+editor runtime and also exercise multi-tab rebinding. Exercise layer selection,
+visibility, tool and workspace switching, panel movement, pan and zoom. Assert
+that these view/editor operations do not mutate canonical document revisions or
+discard raster/vector sources. Use at least six rounds
 when a two-round run flags retained growth; this distinguishes one-time lazy
 mounts from a continuing leak.
 
 Record separately:
 
 - first useful frame and phase timings;
+- final editable/canonical readiness separately from any transient first-pixel
+  preview;
 - reconstruction/reference difference;
 - page/runtime/console/GPU errors;
 - heap, DOM, listeners and GPU stable-tail growth;
 - baseline GPU residency per document;
+- render-island count, active backend, retained fragment uploads and
+  active/warm/cold resource transitions for representative vector documents;
 - missing editable semantics and missing UI properties.
 
 ## Phase 6 — quality-of-life and code review pass

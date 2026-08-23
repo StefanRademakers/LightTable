@@ -75,7 +75,9 @@ Measurements stay separate:
 
 - input-to-submit and input-to-GPU completion come from the Type Tool trace;
 - final settle is measured after the action and two animation frames;
-- first useful frame comes from startup phase metadata after `ready`;
+- first useful frame comes from document startup phase metadata and a confirmed
+  presented frame; final editable readiness is recorded separately when an SVG
+  first-pixel preview is possible;
 - heap, DOM and listeners use forced-GC stable tails;
 - owned GPU bytes come from renderer ownership estimates;
 - unchanged background submissions come from reset render telemetry;
@@ -87,7 +89,23 @@ missing/non-positive GPU ownership or absent final render samples are invalid,
 not fast. Mutation/history residency is reported separately from the warm
 non-mutating canvas tail; paint undo resources must not be mislabeled as a
 leak. Early/deferred screenshots are evidence only after a ready, settled,
-positive-GPU sample.
+positive-GPU sample. A preview screenshot cannot mask a failed final canonical
+render.
+
+## 23 August 2026 hybrid-vector development evidence
+
+On the same high-end Windows discrete-GPU development class, five warm packaged
+open/close cycles of the 26,492-path `VORTEXT.SVG` reached first useful pixels
+in 428--446 ms (median 445 ms). Every run subsequently presented the editable
+canonical document through one retained Vello island, held the reported GPU
+estimate at 57,016,384 bytes and produced no page/renderer/Vello/console error.
+The final editable result arrived roughly 1.0--1.25 s after selection.
+
+This is narrow renderer evidence, not a replacement release soak or a public
+minimum-hardware claim. The first pixels may come from a security-gated
+renderer-only SVG preview; the harness separately waits for the final island.
+Windows integrated, other discrete vendors and Apple Silicon remain required
+cells for hybrid-renderer qualification.
 
 ## 6 August 2026 development-system evidence
 

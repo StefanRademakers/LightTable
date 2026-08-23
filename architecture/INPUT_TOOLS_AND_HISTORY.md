@@ -27,6 +27,13 @@ A tool owns:
 - one reversible command per completed gesture;
 - dirty regions and render invalidation.
 
+The selected tool and its options live in the one `EditorApplicationSession`,
+not in each document. A gesture still captures an explicit active
+`DocumentSessionId`, canonical revision and edit target. Switching tabs or
+workspace presets rebinds the overlay to the same tool state; it must cancel or
+commit the old gesture safely and cannot copy preview/document data across
+sessions.
+
 Paint, erase, fill, selection, transform, warp, vector shape/path editing, pan
 and zoom should reuse shared brush, scene-transform, overlay and scheduling
 systems. A tool may not patch layer offsets or GPU resources directly to make a
@@ -130,6 +137,29 @@ Freehand and polygonal selections follow the same capture rule for feather and
 anti-alias; freehand smoothing remains specific to sampled pointer input and
 does not invent curved geometry for a polygonal lasso.
 
+`Ctrl/Cmd+I` is the destructive pixel Invert command for the active raster
+target and respects the active document-space selection. Image > Adjustments >
+Invert is the separate editable attached-adjustment route. These commands must
+not be aliased: one changes selected pixels, the other changes the canonical
+processing stack.
+
+## Transform selection and bounds
+
+The Transform tool (`V`) keeps its gizmo active after a move/scale/rotate
+gesture and after canvas auto-selection. With Auto select layer enabled, a
+canvas click queries the actual visual stack topmost-first, skips hidden,
+transparent or position-locked candidates and uses vector hit testing/GPU alpha
+for painted content. A normal click replaces the selected layer set. Shift-click
+spatially toggles the painted hit into that set; it is not Layers-panel range
+selection. Clicking empty canvas preserves the selection, and toggling cannot
+leave the canonical selection empty.
+
+The group transform cage is the union of measured visible-content bounds in
+document space, not layer texture allocation rectangles. Raster tight-alpha
+bounds and semantic vector/text bounds are transformed through the scene graph
+before union. Async GPU picks and bound measurements carry document/selection
+revisions; a newer panel selection or tab change invalidates their result.
+
 Selection visualization is presentation-only and must stay cheap while
 panning/zooming. Consolidate outlines and handles onto shared GPU vector overlay
 primitives. Animated ants may submit a bounded overlay frame, but their phase
@@ -162,7 +192,10 @@ undo resource accounting.
 
 ## Multi-document safety
 
-Commands, tasks, tools, clipboard previews, viewport state and renderers always
-belong to a `DocumentSessionId`. Late worker/GPU callbacks are guarded against
-closed or replaced sessions. Switching the active document changes presentation
-and pauses/resumes renderers; it must not move canonical state between sessions.
+Commands, document tasks, gesture previews, clipboard payload targets, viewport
+state and renderer publications always address a `DocumentSessionId`. Tool and
+tool-option state is application-wide, but every operation launched from it is
+session/revision-bound. Late worker/GPU callbacks are guarded against closed,
+replaced or inactive source sessions. Switching the active document rebinds one
+editor/renderer runtime; it must not move or mutate canonical state between
+sessions.

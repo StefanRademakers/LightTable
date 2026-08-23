@@ -1,15 +1,16 @@
 # LightTable application package
 
-Status: current package boundary, updated 31 July 2026.
+Status: current package boundary, updated 23 August 2026.
 
 This directory contains the host-neutral LightTable application used by both
 the web and Electron hosts. StoryBuilder is an adapter/consumer; it is not the
 owner of editor state, assets, UI, GPU resources or persistence behavior.
 
 LightTable supports multiple open document sessions with exactly one active
-document. Canonical document data is serializable and document-scoped. React,
-GPU resources, workspace layout and host storage handles are projections or
-services, never the document source of truth.
+document and one persistent editor/canvas/Dockview runtime. Canonical document
+data is serializable and document-scoped. React, GPU resources, tool/workspace
+state and host storage handles are projections or services, never the document
+source of truth.
 
 ## Current boundaries
 
@@ -28,6 +29,12 @@ professional raster ingest, scopes and an alpha Warp implementation. Feature
 presence in a UI is not sufficient proof of production readiness; use tests and
 the owning implementation tracker.
 
+Vector content uses the default hybrid renderer: semantic render islands keep
+canonical layers independently editable, eligible retained islands use Vello,
+and unsupported/specialized islands use native LightTable WebGPU on the shared
+device. SVG normalization, editable SVG semantics, PaintScene and both backend
+packages remain reusable dependencies rather than application document models.
+
 ## Architecture and current work
 
 Read these repository documents before changing cross-cutting behavior:
@@ -44,10 +51,11 @@ live under `architecture/ux/`. Research and implementation records under
 `architecture/reference/` are supporting context, not current contracts.
 Retired handoffs under `architecture/obsolete/` must not drive new code.
 
-The immediate direction is to finish the production decomposition while
-keeping working rendering math intact, complete the ordered processing
-executor model, and evolve Warp through the extracted document, command,
-processing and renderer boundaries.
+The immediate direction is to finish hybrid vector clip/mask/blend parity and
+cross-vendor evidence, reduce cold/edit-ready startup cost, keep document/UI
+authority stable, complete the ordered processing executor model, and evolve
+Warp through the extracted document, command, processing and renderer
+boundaries.
 
 ## Non-negotiable validation
 

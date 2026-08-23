@@ -74,6 +74,7 @@ const rendererFacadeImports = new Set([
   '../document/documentTypes',
   '../document/imageResizeTypes',
   '../document/layerTree',
+  '../document/sceneTransformGraph',
   '../document/sampledBrushSourceDocument',
   '../history/ReversiblePixelEdit',
   '../persistence/layeredDocumentFormat',

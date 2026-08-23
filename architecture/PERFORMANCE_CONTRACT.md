@@ -35,6 +35,13 @@ mask, processing stack, styles, composite content and presentation. A viewport
 revision is not a content revision. Cache ownership must include byte estimates,
 explicit invalidation, disposal and device-loss behavior.
 
+Vector caching is island- and fragment-aware. An unchanged island must be
+rejected by dependency identity before PaintScene construction or WASM. A
+normal edit projects/uploads changed fragments only. Visibility skips
+compositing but retains the island; warm textures may become cold under the
+per-document budget while JS/Rust scene state remains independently retained.
+Pan/zoom must produce zero document composites and zero island scene rebuilds.
+
 Scopes depend on visible composite content, not pan/zoom. Reuse their analysis
 until that content revision changes. Hidden or collapsed scopes do no work;
 interactive scope refresh may run at a lower cadence than the viewport.
@@ -65,11 +72,36 @@ These are engineering goals, not claims that every device meets them today:
 - Heavy effects degrade preview work rather than input responsiveness.
 - Opening a normal image reaches first useful frame without initializing every
   optional subsystem.
+- A warm application targets first useful document pixels within 500 ms. This
+  is distinct from final editable readiness and cold process/device startup.
 - Background documents and unchanged scopes consume no recurring GPU work.
 
 Instrument first frame phases, GPU-owned texture estimates, stage cache hits,
 scope refreshes and interaction frame intervals. Optimize measured ownership,
 not isolated microbenchmarks.
+
+`DocumentStartupTimeline` is the current monotonic document-scoped trace. For
+SVG it can record file selection/bytes, parse and usvg normalization,
+canonical construction/publication, adapter/device/Vello readiness, first
+island/GPU/compositor submissions, animation-frame presentation and first
+visible pixel. `FIRST PIXEL VISIBLE` requires queue completion plus a browser
+paint opportunity; a screenshot is useful evidence only when the harness also
+waits for and verifies the final editable canonical island.
+
+Current packaged Windows/discrete-GPU evidence for the 26,492-path
+`VORTEXT.SVG` is five warm first-pixel samples of 428--446 ms. The conservative
+early SVG preview is renderer-only; final editable readiness remains roughly
+1.0--1.25 s in those runs. Cold measurements have shown about 1.5 s in shared
+WebGPU/device initialization on the measured system, so a warm target is not a
+cold-launch claim.
+
+Warm-edit profiling also constrains priorities: PaintScene object construction
+and LightTable orchestration have been material, while JSON plus JS/WASM
+transport is small for one-fragment deltas. Large initial scenes do spend
+material time in Rust JSON deserialization, so binary bootstrap remains a
+measured future option, not a blanket warm-path rewrite. Chromium currently
+does not expose reliable exclusive Vello GPU timestamps in the packaged path;
+queue-completion wall time must not be relabelled as GPU execution time.
 
 The production hardware/soak gate, provisional Windows targets and physical
 device claim boundary are defined in `SUPPORTED_HARDWARE_AND_SOAK_GATE.md`.

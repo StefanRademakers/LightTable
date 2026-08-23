@@ -65,6 +65,16 @@ If conversation context disappeared, retain these facts before touching code:
     Connect Codex**. A fresh/reloaded Codex session is required after first
     registration. The older terminal launcher remains an isolated security and
     denial/escalation harness, not the normal iteration route.
+13. Vector rendering is one hybrid retained system, not a launch switch:
+    canonical layers -> semantic render islands -> per-island Vello/native
+    realization -> the LightTable compositor on one shared `GPUDevice`.
+14. One application editor/canvas runtime rebinds to the active canonical
+    `DocumentSession`. Open documents retain data/history/source state, not a
+    hidden React/Dockview/WebGPU editor tree per tab. Workspace layout and tool
+    state are application/editor state and do not travel with document pixels.
+15. Warm SVG startup may show a conservative renderer-only preview before the
+    editable canonical Vello island is ready. It may improve first pixels but
+    may never become document/history/save authority.
 
 ## The product in one paragraph
 
@@ -85,16 +95,16 @@ marketed internally as a finished generic SDK yet.
 
 ### Measured repository snapshot
 
-Measured on 2026-08-14 from tracked active source under `apps/`, `packages/`
+Measured on 2026-08-23 from tracked active source under `apps/`, `packages/`
 and `scripts/`, excluding `tmp/`, generated builds and `.referenceCode`:
 
-- 4 apps and 13 package directories;
-- 1,364 tracked TS/TSX/JS/CSS/WGSL/Rust source files, about 199,685 lines;
-- `@lighttable/app` contains about 154,911 of those lines and 1,008 files;
+- 4 apps and 19 npm workspace packages;
+- about 1,795 tracked TS/TSX/JS/CSS/WGSL/Rust source files and 272,585 lines;
+- `@lighttable/app` contains about 201,109 of those lines and 1,276 files;
 - 36 registered editor tools, 12 stable workspace panel IDs and 30 semantic
   command IDs;
-- 505 active test files and about 2,396 explicit `it`/`test` cases;
-- 40 convention-discovered packaged desktop smoke files and 13 audit scripts;
+- the app package alone currently runs more than 2,900 unit tests; use the
+  current test/audit scripts for an exact repository-wide count;
 - work-queue counts are deliberately not frozen into this snapshot; run
   `npm run context:agent` for actionable packages, resume checkpoints and queue
   integrity warnings.
@@ -154,8 +164,10 @@ npm run dev:desktop
 Both hosts mount the same `LightTableStandaloneApp`. The web entry point is
 [`apps/web/src/main.tsx`](../apps/web/src/main.tsx); the desktop renderer entry
 point is [`apps/desktop/src/renderer.tsx`](../apps/desktop/src/renderer.tsx).
-Text shaping depends on the Rust/Wasm runtime, so the root scripts call
-`ensure:text-wasm` before development, tests and builds.
+Text shaping, SVG normalization and Vello depend on generated Rust/Wasm
+runtimes, so root development, typecheck and build scripts call `ensure:wasm`.
+Do not restore the retired `dev:desktop:vello` or `package:desktop:vello`
+switches; the ordinary product is the hybrid renderer.
 
 Useful first checks:
 
@@ -176,12 +188,13 @@ affected boundary.
 web / Electron / StoryBuilder host
         -> LightTableStandaloneApp
         -> DocumentWorkspaceController + WorkspaceSession
-        -> one mounted DocumentSession/runtime per open document
-        -> LightTableEditorOverlay composition root
+        -> open canonical DocumentSessions + one active session binding
+        -> one persistent LightTableEditorOverlay/canvas/workspace runtime
         -> projected panel/tool controllers and semantic commands
         -> canonical ImageDocument + scene transform graph
         -> LayerDocumentRenderer
-        -> LayerCompositor + processing/effect runtimes
+        -> LayerCompositor + RenderIslandPlanner + processing/effect runtimes
+        -> per-island retained Vello or native LightTable WebGPU realization
         -> WebGpuEngine frame coordination
         -> display texture, viewport sampling, overlays and scopes
 ```
@@ -244,14 +257,19 @@ These are deliberately different concepts:
 - [`DocumentWorkspaceController`](../packages/lighttable-app/src/lighttable/application/workspace/documentWorkspaceController.ts)
   retains the opaque host source for exactly the session lifetime.
 - A `DocumentSession` owns one canonical document, dirty/saved revisions,
-  viewport, editor session, command history, tasks and renderer lifecycle.
+  document viewport, command history and document task state.
+- `EditorApplicationSession` owns application-wide editor choices such as the
+  active tool. Dockview owns one application workspace layout. They are rebound
+  to the active document; neither is canonical document content.
 - Dockview layout and workspace presets own panel placement only. They are not
   document data and must never change image semantics.
 
-All document runtimes remain mounted when tabs change. Inactive sessions keep
-their undo/tool/layer state and reconstructable GPU resources, but rendering is
-suspended. This is why fast tab switching must be fixed at session activation
-and invalidation boundaries, not by remounting the editor.
+Exactly one editor/canvas/Dockview runtime is mounted. Switching tabs commits
+or cancels the active gesture through its controller, detaches the old renderer
+projection and binds that same runtime to the selected canonical session.
+Inactive documents retain their canonical tree, history, source and session
+metadata; they do not retain duplicate React workspace shells or active GPU
+render loops. A tab or workspace switch must never publish document mutations.
 
 ### Project mode is persistence, but currently also a GenAI gate
 
@@ -478,7 +496,10 @@ stage or invalidation rule.
 | `text-layout-wasm` | Rust/Wasm shaping and paragraphs | real independent runtime |
 | `text-rendering` / `text-webgpu` | realization/cache contracts and WebGPU backends | reusable with integration work |
 | `vector-core` | geometry, editing and serializable vector model | strong host-neutral boundary |
-| `vector-rendering` / `vector-webgpu` | backend-neutral realization and WebGPU fills/overlays | reusable with integration work |
+| `vector-svg-normalizer` / `vector-svg` | secure static-SVG normalization plus editable SVG import/export semantics | real reusable codec boundary; bounded subset |
+| `paint-scene` / `paint-scene-adapters` | validated renderer-neutral retained scene plus canonical/PDF projections | active Vello/native boundary |
+| `vector-rendering` / `vector-webgpu` | backend-neutral realization and native WebGPU fills/strokes/overlays | active native/specialized hybrid path |
+| `vector-vello` | retained Rust/Vello fragments, clips, scenes and shared-device surfaces | active heavy-vector hybrid path |
 | `paint-core` | gesture and dab contracts | narrow; raster brush engine remains app-heavy |
 | `pdf-core` | normalized PDF/display-list contracts and probing | contract layer; app owns adapters/workflow |
 | `genai-core` | provider-neutral requests, jobs and presentation contracts | strong provider boundary |
@@ -531,9 +552,10 @@ capabilities. Mutations may include `expectedDocumentRevision` and
 editing the wrong state.
 
 [`LightTableCommandService`](../packages/lighttable-app/src/lighttable/application/commands/lightTableCommandService.ts)
-is the shared application service. Each mounted document registers narrow
-`DocumentLightTableCommandPorts`; the service does not reach into React or
-construct another document model.
+is the shared application service. The command-port registry resolves narrow
+`DocumentLightTableCommandPorts` from the addressed canonical session; command
+availability must not depend on a hidden editor mount. The service does not
+reach into React or construct another document model.
 
 The command service decides whether a validated execution is recordable, while
 [`SemanticActionWorkflowController`](../packages/lighttable-app/src/lighttable/application/actions/semanticActionWorkflowController.ts)
@@ -801,7 +823,7 @@ before changing representation or blend math.
 | panel behavior | feature model/controller, then projected panel |
 | reusable control/style | `src/ui`, tokens and UI Style Guide |
 | tool discovery/shortcut | tool registry and input router |
-| pointer gesture semantics | document-scoped tool controller |
+| pointer gesture semantics | application tool state + active-session-bound tool controller |
 | editable state or transform | canonical document/scene operation + history |
 | external automation | semantic contract, validation, command ports, adapter |
 | render order or clipping | compositor graph/`LayerCompositor` |

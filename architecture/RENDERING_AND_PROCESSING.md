@@ -122,6 +122,10 @@ caches:
 - `RenderTargetPair` owns compositor ping-pong targets.
 - `LayerStyleRenderer`, `VectorLayerRenderer` and effect executors own their
   optional resources and caches.
+- `RenderIslandPlanner` is a pure derived semantic projection;
+  `RetainedRenderIslandRegistry` owns stable runtime island IDs;
+  `VectorLayerRenderer` owns island textures, retained JS projections and the
+  Vello/native backend resources on the shared device. None are document data.
 - `SubmittedResourceRetainer` keeps transient buffers/textures alive until a
   submitted command buffer no longer references them.
 - document image/core resource owners allocate only when the current feature
@@ -251,17 +255,44 @@ mapping; halation uses extract/blur/composite; Lens Blur consumes analysis and
 depth resources; masks and blends consume multiple inputs. The contract must
 describe these differences rather than force every effect into one shader.
 
-## Vector and overlay path
+## Hybrid vector and overlay path
 
-Vector document content is realized through `vector-core`,
-`vector-rendering` and `vector-webgpu`, then enters the same compositor as a
-revisioned premultiplied texture contract. Editing geometry remains vector
-data; it is rasterized only for display/composite or an explicit rasterize
-command.
+Canonical vector/group layers are projected through `vector-core` and the
+PaintScene adapters into semantic render islands. `RenderIslandPlanner` splits
+only at observable compositing boundaries and
+`RetainedRenderIslandRegistry` preserves resource identity independently from
+immutable canonical object identity. A render island never merges document
+layers or changes selection/history/save IDs.
 
-Selections, paths, handles and brush/warp outlines should share the GPU vector
-overlay primitives. They are presentation data and must be clipped by the
-viewport, not by authoring input bounds. See [Vector system](VECTOR_SYSTEM.md).
+Eligible islands compile to retained cross-layer PaintScene fragments and use
+`vector-vello`; unsupported islands use the established native
+`vector-rendering`/`vector-webgpu` path. Admission is per island, not per
+document. Both backends render on one Vello-owned shared `GPUDevice` and return
+revisioned premultiplied textures to the same `LayerCompositor`. A failed
+partial island frame is discarded before native fallback; unsupported
+semantics are never silently omitted.
+
+Normal edits reproject only changed fragments. Pan/zoom changes viewport
+presentation and must not compile PaintScene, retessellate document geometry or
+rerender island content. Visibility only changes participation. Hidden islands
+stay warm; the bounded surface policy may make a warm texture cold while
+retaining its JS projection and Rust scene. Canonical deletion evicts both.
+Native-source cache eviction is detected and rehydrated from the derived scene.
+
+Selections, paths, handles, transform gizmos and brush/warp outlines remain
+native retained GPU overlays. They are presentation data and must be clipped by
+the viewport, not by authoring input bounds. Editing geometry remains canonical
+vector data; rasterization occurs only for display/composite or an explicit
+rasterize command. See [Vector system](VECTOR_SYSTEM.md).
+
+### SVG first-pixel preview
+
+For a conservatively preflighted local SVG, a warm renderer may display a raw
+browser/GPU preview while secure usvg normalization and editable canonical
+construction continue. This preview is reconstructable renderer state only. It
+cannot enter `ImageDocument`, history, save/export, commands or React UI state,
+and it must be replaced by the final retained canonical island. Inputs with
+active/external/uncertain resource semantics skip this preview.
 
 ## Color, alpha and precision
 
