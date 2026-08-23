@@ -23,6 +23,7 @@ import type { SystemFontByteProvider } from '../lighttable/text/fonts/DocumentFo
 import type { LightTableRecoveryRecord } from '../platform/LightTableRecoveryStore';
 import type { DocumentCreationSettings } from '../lighttable/editor/document/documentTypes';
 import { DocumentStartupTimeline } from '../lighttable/application/telemetry/documentStartupTimeline';
+import { prepareSharedWebGpuDevice } from '../lighttable/gpu/sharedWebGpuDevice';
 
 export type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
 
@@ -70,6 +71,11 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
   ) => {
     const startupTimeline = suppliedTimeline ?? new DocumentStartupTimeline();
     startupTimeline.mark('bytes-available', { byteLength: file.size });
+    // A document open is an explicit user/host request. Start only the shared
+    // GPU runtime here; no canvas or per-document resource is prewarmed. The
+    // renderer created below will join this same in-flight request while source
+    // probing and decoding continue in parallel.
+    void prepareSharedWebGpuDevice().catch(() => undefined);
     const opened = controller.open({
       source: {
         id: standaloneSourceIdentity(file, decodeMode),

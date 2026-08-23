@@ -189,6 +189,17 @@ const getBrowserManager = () => {
 export const requestSharedWebGpuDevice = (): Promise<GPUDevice> =>
   getBrowserManager().request();
 
+/**
+ * Starts acquisition of the one process-wide rendering device without creating
+ * a canvas, document renderer or render surface. Hosts can call this as soon as
+ * a user starts opening a document so device startup overlaps file I/O and
+ * source decoding. A later renderer request coalesces onto the same promise.
+ */
+export const prepareSharedWebGpuDevice = (): Promise<void> =>
+  // Enter through a microtask so a host can safely fire-and-forget this helper
+  // even when WebGPU is unavailable and getBrowserManager() rejects eagerly.
+  Promise.resolve().then(() => requestSharedWebGpuDevice()).then(() => undefined);
+
 export const subscribeSharedWebGpuDeviceLost = (
   listener: SharedWebGpuDeviceLostListener
 ): (() => void) => getBrowserManager().subscribeLost(listener);

@@ -16,3 +16,6 @@ export type { LightTableAutomationDriver } from './lighttable/application/comman
 export {
   configureVectorRendererDetailedProfiling
 } from './lighttable/gpu/vectorRendererBackendDiagnostics';
+export {
+  prepareSharedWebGpuDevice as prepareLightTableRenderingRuntime
+} from './lighttable/gpu/sharedWebGpuDevice';

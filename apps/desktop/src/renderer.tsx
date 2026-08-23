@@ -7,6 +7,7 @@ import {
   createLocalLightTableFunnelTelemetry,
   configureVectorRendererDetailedProfiling,
   LightTableStandaloneApp,
+  prepareLightTableRenderingRuntime,
   type LightTableAutomationDriver,
   type LightTableHost
 } from '@lighttable/app/standalone';
@@ -219,6 +220,9 @@ const desktopHost: LightTableHost = {
     }
   }),
   async openFile() {
+    // The native picker usually gives device initialization enough time to
+    // finish before the selected bytes arrive in the renderer process.
+    void prepareLightTableRenderingRuntime().catch(() => undefined);
     const payload = await window.lightTableDesktop.openFile();
     return desktopFile(payload);
   },
@@ -232,6 +236,10 @@ const desktopHost: LightTableHost = {
       try {
         do {
           requestedAgain = false;
+          // For Explorer/OS opens, overlap the process-wide GPU/Vello runtime
+          // with main-process file reading and IPC. This owns no document or
+          // canvas state and concurrent requests are coalesced.
+          void prepareLightTableRenderingRuntime().catch(() => undefined);
           const files = (await window.lightTableDesktop.takeLaunchFiles())
             .map((payload) => desktopFile(payload))
             .filter((file): file is File => Boolean(file));
@@ -257,6 +265,7 @@ const desktopHost: LightTableHost = {
     return window.lightTableDesktop.loadRecentFileThumbnail(id);
   },
   async openRecentFile(id) {
+    void prepareLightTableRenderingRuntime().catch(() => undefined);
     const payload = await window.lightTableDesktop.openRecentFile(id);
     return desktopFile(payload);
   },
