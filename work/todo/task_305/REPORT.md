@@ -500,3 +500,35 @@ The packaged layered SVG regression remains at five surfaces with unchanged
 pixel evidence and no backend failure.
 
 Evidence: `tmp/task-305-hybrid-regression/report.json`.
+
+## Phase 7: retained-cache coherence and packaged stress
+
+The retained Rust cache is intentionally bounded to 64 sources. The JS backend
+previously retained revision indexes indefinitely and could therefore believe
+an automatically evicted Rust source still existed. A later warm delta could
+then omit the required composition and unchanged fragments. The WASM bridge now
+exposes exact native-source presence. A cache miss invalidates only the stale JS
+revision index and rehydrates the Rust scene from the canonical PaintScene; it
+does not modify document data.
+
+A dedicated regression covers initial upload, unchanged reuse, simulated native
+eviction and complete rehydration. Generated WASM bindings are rebuilt from the
+pinned Rust source.
+
+The packaged production backend also passed a four-iteration stress run on both
+the layered SVG fixture and the 26,492-path `VORTEXT.SVG`, exercising layers,
+zoom, pan and panels. Both files reported:
+
+- zero failures, page errors, renderer crashes and console errors;
+- zero listener growth and no suspicious heap, DOM or GPU growth;
+- no background render calls or submitted frames while idle;
+- first useful frame of 2,973 ms for the layered fixture and 4,116 ms for
+  `VORTEXT.SVG` in this independent stress process.
+
+The large SVG remains too slow to open for a production creative application.
+This run is a stability/lifecycle gate, not a latency success claim. Current
+profiling attributes only part of that wall time to vector projection and Vello;
+the remaining startup/import scheduling path still needs measurement before a
+larger transport or importer rewrite is justified.
+
+Evidence: `tmp/task-305-vector-stress/report.json`.

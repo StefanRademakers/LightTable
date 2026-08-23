@@ -53,6 +53,16 @@ export class VelloInteropDevice {
         wasm.vellointeropdevice_dispose(this.__wbg_ptr);
     }
     /**
+     * @param {string} source_id
+     * @returns {boolean}
+     */
+    has_paint_scene_source(source_id) {
+        const ptr0 = passStringToWasm0(source_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.vellointeropdevice_has_paint_scene_source(this.__wbg_ptr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * @returns {string}
      */
     incremental_profile_json() {

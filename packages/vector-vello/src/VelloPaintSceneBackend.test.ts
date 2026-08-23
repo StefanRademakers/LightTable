@@ -137,6 +137,37 @@ describe('VelloPaintSceneBackend', () => {
     });
   });
 
+  it('rehydrates a retained scene after the bounded Rust cache evicts it', () => {
+    let nativeSourceExists = false;
+    const render = vi.fn(() => false);
+    const runtime = { bridge: {
+      has_paint_scene_source: vi.fn(() => nativeSourceExists),
+      render_incremental_paint_scene_texture: render,
+      scene_cache_entries: vi.fn(() => 1)
+    } } as unknown as VelloRuntime;
+    const backend = new VelloPaintSceneBackend({} as GPUDevice, runtime);
+    const surface = {
+      texture: {} as GPUTexture, width: 32, height: 32, estimatedBytes: 4096, dispose: vi.fn()
+    };
+    const retained: PaintScene = {
+      ...scene,
+      fragments: [{ stableId: 'a', revisionKey: '1', paths: [], commands: [] }],
+      composition: [{ kind: 'fragment', stableId: 'a' }]
+    };
+
+    backend.render(surface, retained);
+    nativeSourceExists = true;
+    expect(backend.render(surface, retained).uploadedFragments).toBe(0);
+    nativeSourceExists = false;
+    expect(backend.render(surface, retained).uploadedFragments).toBe(1);
+
+    const calls = render.mock.calls as unknown as string[][];
+    expect(JSON.parse(calls[2][4])).toEqual({
+      sourceRevision: '7', composition: retained.composition,
+      upserts: retained.fragments, removals: [], clipUpserts: [], clipRemovals: []
+    });
+  });
+
   it('uploads clip resources independently from unchanged child fragments', () => {
     const render = vi.fn(() => false);
     const runtime = { bridge: {

@@ -20,10 +20,15 @@ Acceptance checklist
 [x] Preserve normal-build behavior; GPU timestamp instrumentation is diagnostic.
 [x] Implement the pure render-island planner and diagnostic projection.
 [x] Add deterministic retained runtime-ID reconciliation for island split/merge.
-[~] Integrate island-owned retained surfaces and cross-layer Rust scenes.
-    Active diagnostic path is 17 -> 6 with incremental retained members; the
-    five-surface/pixel-oracle gate remains open for nested clipped opacity.
-[ ] Implement bounded active/warm/cold/evicted resource policy.
+[x] Integrate island-owned retained surfaces and cross-layer Rust scenes.
+    The representative layered fixture is 17 -> 5 resources. Unsupported
+    compositing remains on the established per-layer fallback; broader exact
+    pixel parity is deliberately still a renderer release gate.
+[x] Implement bounded active/warm/cold/evicted resource policy, including
+    coherent rehydration after the bounded Rust retained-scene cache evicts a
+    source that still has a canonical JS projection.
+[x] Stress packaged layered and 26k-path SVG workloads across repeated layer,
+    zoom, pan and panel actions without crashes or suspicious resource growth.
 [ ] Obtain exclusive GPU timestamps through a supported native/capture path.
 
 Evidence and conclusions are in REPORT.md.

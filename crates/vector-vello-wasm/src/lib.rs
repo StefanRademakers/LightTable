@@ -688,6 +688,10 @@ struct IncrementalSceneCache {
 }
 
 impl IncrementalSceneCache {
+    fn contains(&self, source_id: &str) -> bool {
+        self.entries.contains_key(source_id)
+    }
+
     fn insert(&mut self, source_id: String, scene: IncrementalScene) {
         if !self.entries.contains_key(&source_id) {
             while self.entries.len() >= MAX_INCREMENTAL_SOURCES {
@@ -1083,6 +1087,10 @@ impl VelloInteropDevice {
 
     pub fn scene_cache_entries(&self) -> usize {
         self.scenes.borrow().entries.len() + self.incremental_scenes.borrow().entries.len()
+    }
+
+    pub fn has_paint_scene_source(&self, source_id: &str) -> bool {
+        self.incremental_scenes.borrow().contains(source_id)
     }
 
     pub fn release_paint_scene_source(&self, source_id: &str) {

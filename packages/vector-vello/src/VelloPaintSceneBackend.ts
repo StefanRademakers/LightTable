@@ -98,7 +98,14 @@ export class VelloPaintSceneBackend {
     }
     assertPaintSceneIsValid(scene);
     const cacheStartedAt = performance.now();
-    const previous = this.syncedScenes.get(sourceKey);
+    // Rust owns the bounded retained-scene cache and can evict a source while
+    // this backend still has its revision index. Never send a delta against a
+    // native scene that no longer exists: rehydrate it from the canonical
+    // PaintScene instead.
+    const nativeSourceExists = typeof this.runtime.bridge.has_paint_scene_source !== 'function'
+      || this.runtime.bridge.has_paint_scene_source(sourceKey);
+    if (!nativeSourceExists) this.syncedScenes.delete(sourceKey);
+    const previous = nativeSourceExists ? this.syncedScenes.get(sourceKey) : undefined;
     const fragmentRevisions = new Map(scene.fragments.map(fragment => [
       fragment.stableId, fragment.revisionKey
     ]));
