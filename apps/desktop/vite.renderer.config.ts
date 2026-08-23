@@ -11,8 +11,13 @@ const isolationHeaders = {
 
 const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS === '1';
 const vectorDetailedProfiling = process.env.LIGHTTABLE_VECTOR_PROFILE === '1';
+const debugBuild = process.env.LIGHTTABLE_BUILD_PROFILE === 'debug';
 
 export default defineConfig({
+  build: {
+    sourcemap: debugBuild,
+    minify: debugBuild ? false : undefined
+  },
   define: {
     'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false'),
     'import.meta.env.VITE_LIGHTTABLE_VECTOR_PROFILE': JSON.stringify(vectorDetailedProfiling ? 'true' : 'false')

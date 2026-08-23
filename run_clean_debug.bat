@@ -2,7 +2,7 @@
 setlocal
 
 cd /d "%~dp0"
-title LightTable Desktop Clean Dev - No Diagnostics
+title LightTable Desktop Clean Debug
 
 echo [LightTable] Removing generated desktop and Vite caches...
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\clean-dev.ps1"
@@ -15,16 +15,16 @@ if errorlevel 1 (
 )
 
 echo.
-echo [LightTable] Starting clean development without LightTable debug instrumentation...
-echo [LightTable] Note: this remains a Vite/React development runtime with live reload.
+echo [LightTable] Starting clean debug development...
+echo [LightTable] UI devtools, detailed vector profiling, Vite HMR and React development checks are enabled.
 echo.
 
-call npm run dev:desktop
+call npm run dev:desktop:debug
 set "LIGHTTABLE_EXIT_CODE=%ERRORLEVEL%"
 
 if not "%LIGHTTABLE_EXIT_CODE%"=="0" (
   echo.
-  echo [LightTable] Desktop development stopped with exit code %LIGHTTABLE_EXIT_CODE%.
+  echo [LightTable] Desktop debug development stopped with exit code %LIGHTTABLE_EXIT_CODE%.
   echo [LightTable] Press any key to close this window.
   pause >nul
 )

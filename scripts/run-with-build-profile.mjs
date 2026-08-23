@@ -1,0 +1,27 @@
+import { spawnSync } from 'node:child_process';
+import process from 'node:process';
+
+const [profile, command, ...args] = process.argv.slice(2);
+if (!['release', 'debug'].includes(profile) || !command) {
+  throw new Error('Usage: run-with-build-profile.mjs <release|debug> <command> [...args]');
+}
+
+const env = { ...process.env };
+delete env.LIGHTTABLE_UI_DEVTOOLS;
+delete env.LIGHTTABLE_VECTOR_PROFILE;
+delete env.LIGHTTABLE_BUILD_PROFILE;
+
+env.LIGHTTABLE_BUILD_PROFILE = profile;
+if (profile === 'debug') {
+  env.LIGHTTABLE_UI_DEVTOOLS = '1';
+  env.LIGHTTABLE_VECTOR_PROFILE = '1';
+}
+
+const result = spawnSync(command, args, {
+  cwd: process.cwd(),
+  env,
+  stdio: 'inherit',
+  shell: process.platform === 'win32'
+});
+if (result.error) throw result.error;
+process.exitCode = result.status ?? 1;

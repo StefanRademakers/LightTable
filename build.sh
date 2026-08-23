@@ -3,6 +3,20 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+build_kind="release"
+build_out="out-verify"
+case "${1:-}" in
+  "") ;;
+  debug)
+    build_kind="debug"
+    build_out="out-debug"
+    ;;
+  *)
+    echo "Usage: ./build.sh [debug]" >&2
+    exit 2
+    ;;
+esac
+
 fail() {
   echo "[LightTable] $*" >&2
   exit 1
@@ -95,6 +109,14 @@ fi
 echo "[LightTable] Running boundary checks, typechecking, tests and hybrid-renderer builds..."
 LIGHTTABLE_PACKAGE_OUT=out-verify npm run verify
 
+if [ "$build_kind" = "debug" ]; then
+  echo "[LightTable] Creating an unminified debug package with source maps and diagnostics..."
+  LIGHTTABLE_PACKAGE_OUT="$build_out" npm run package:desktop:debug
+  node scripts/verify-ui-devtools-boundary.mjs --desktop --present
+else
+  node scripts/verify-ui-devtools-boundary.mjs --desktop --absent
+fi
+
 if [ "$(uname -s)" = "Darwin" ]; then
   command -v codesign >/dev/null 2>&1 || fail "codesign was not found."
   command -v ditto >/dev/null 2>&1 || fail "ditto was not found."
@@ -106,9 +128,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
     *) fail "Unsupported macOS architecture: $desktop_arch" ;;
   esac
 
-  app_path="apps/desktop/out-verify/LightTable-darwin-${desktop_arch}/LightTable.app"
+  app_path="apps/desktop/${build_out}/LightTable-darwin-${desktop_arch}/LightTable.app"
   release_version="$(node -p "require('./apps/desktop/package.json').version")"
-  maker_zip_dir="apps/desktop/out-verify/make/zip/darwin/${desktop_arch}"
+  maker_zip_dir="apps/desktop/${build_out}/make/zip/darwin/${desktop_arch}"
   mac_zip="$maker_zip_dir/LightTable-darwin-${desktop_arch}-${release_version}.zip"
 
   if [ -n "${LIGHTTABLE_MAC_SIGN_IDENTITY:-}" ]; then
@@ -128,7 +150,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
   validate_macos_app "$app_path" "$signing_kind" "$signing_team"
 
   echo "[LightTable] Creating macOS ZIP from the verified desktop package..."
-  LIGHTTABLE_PACKAGE_OUT=out-verify npm run make --workspace @lighttable/desktop -- --skip-package
+  LIGHTTABLE_PACKAGE_OUT="$build_out" npm run make --workspace @lighttable/desktop -- --skip-package
   [ -f "$mac_zip" ] || fail "macOS maker completed without producing: $mac_zip"
 
   extract_dir="$(mktemp -d "${TMPDIR:-/tmp}/lighttable-verify.XXXXXX")"
@@ -159,9 +181,10 @@ fi
 
 echo
 echo "[LightTable] Build completed successfully."
+echo "[LightTable] Profile: $build_kind"
 echo "[LightTable] Web: apps/web/dist"
 if [ "$(uname -s)" = "Darwin" ]; then
-  echo "[LightTable] Desktop verification package: apps/desktop/out-verify/LightTable-darwin-${desktop_arch}"
+  echo "[LightTable] Desktop verification package: apps/desktop/${build_out}/LightTable-darwin-${desktop_arch}"
   echo "[LightTable] Signing: $signing_summary"
   echo "[LightTable] macOS test release: $mac_zip"
 fi

@@ -11,8 +11,8 @@ if ! ./scripts/clean-dev.sh; then
 fi
 
 echo
-echo "[LightTable] Starting clean development without LightTable debug instrumentation..."
-echo "[LightTable] Note: this remains a Vite/React development runtime with live reload."
+echo "[LightTable] Starting clean debug development..."
+echo "[LightTable] UI devtools, detailed vector profiling, Vite HMR and React development checks are enabled."
 echo
 
-npm run dev:desktop
+npm run dev:desktop:debug

@@ -2,6 +2,13 @@
 setlocal
 pushd "%~dp0"
 
+set "LIGHTTABLE_BUILD_KIND=release"
+set "LIGHTTABLE_BUILD_OUT=out-verify"
+if /I "%~1"=="debug" (
+  set "LIGHTTABLE_BUILD_KIND=debug"
+  set "LIGHTTABLE_BUILD_OUT=out-debug"
+)
+
 where node >nul 2>nul
 if errorlevel 1 (
   echo [LightTable] Node.js was not found in PATH.
@@ -27,20 +34,33 @@ set "LIGHTTABLE_PACKAGE_OUT=out-verify"
 call npm run verify
 if errorlevel 1 goto :failed
 
+if /I "%LIGHTTABLE_BUILD_KIND%"=="debug" (
+  echo [LightTable] Creating an unminified debug package with source maps and diagnostics...
+  set "LIGHTTABLE_PACKAGE_OUT=out-debug"
+  call npm run package:desktop:debug
+  if errorlevel 1 goto :failed
+  call node scripts\verify-ui-devtools-boundary.mjs --desktop --present
+  if errorlevel 1 goto :failed
+) else (
+  call node scripts\verify-ui-devtools-boundary.mjs --desktop --absent
+  if errorlevel 1 goto :failed
+)
+
 echo [LightTable] Creating Windows installer from the verified desktop package...
 call npm run make --workspace @lighttable/desktop -- --skip-package
 if errorlevel 1 goto :failed
 
-if not exist "apps\desktop\out-verify\make\squirrel.windows\x64\*Setup.exe" (
+if not exist "apps\desktop\%LIGHTTABLE_BUILD_OUT%\make\squirrel.windows\x64\*Setup.exe" (
   echo [LightTable] Installer build completed without producing Setup.exe.
   goto :failed
 )
 
 echo.
 echo [LightTable] Build completed successfully.
+echo [LightTable] Profile: %LIGHTTABLE_BUILD_KIND%
 echo [LightTable] Web: apps\web\dist
-echo [LightTable] Desktop verification package: apps\desktop\out-verify\LightTable-win32-x64
-for %%I in ("apps\desktop\out-verify\make\squirrel.windows\x64\*Setup.exe") do (
+echo [LightTable] Desktop package: apps\desktop\%LIGHTTABLE_BUILD_OUT%\LightTable-win32-x64
+for %%I in ("apps\desktop\%LIGHTTABLE_BUILD_OUT%\make\squirrel.windows\x64\*Setup.exe") do (
   echo [LightTable] Windows installer: %%~fI
   start "" explorer.exe /select,"%%~fI"
 )
