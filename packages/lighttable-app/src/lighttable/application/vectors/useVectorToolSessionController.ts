@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { ImageDocument } from '../../editor/document/documentTypes';
+import type { ImageDocument, LayerId, VectorLayer } from '../../editor/document/documentTypes';
+import type { AffineMatrix } from '@lighttable/vector-core';
 import type {
   EditorSession,
   ToolId,
@@ -26,6 +27,13 @@ export interface VectorToolSessionHookOptions {
   readonly applyDocumentSnapshot: (document: ImageDocument) => void;
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
+  readonly setLayerTransformPreview?: (layer: VectorLayer, matrix: AffineMatrix | null) => boolean;
+  readonly commitLayerTransformPreview?: (
+    before: ImageDocument,
+    layerId: LayerId,
+    matrix: AffineMatrix,
+    documentOperation: AffineMatrix
+  ) => boolean;
   readonly rasterizeShape: (transaction: VectorElementCreationTransaction) => boolean;
   readonly requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
   readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
@@ -52,6 +60,8 @@ export const useVectorToolSessionController = ({
   applyDocumentSnapshot,
   pushDocumentHistory,
   publishSelection,
+  setLayerTransformPreview,
+  commitLayerTransformPreview,
   rasterizeShape,
   requestGradientColorEditor,
   onLiveShapeCommitted,
@@ -70,6 +80,8 @@ export const useVectorToolSessionController = ({
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
+    setLayerTransformPreview,
+    commitLayerTransformPreview,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -88,6 +100,8 @@ export const useVectorToolSessionController = ({
     applyDocumentSnapshot,
     pushDocumentHistory,
     publishSelection,
+    setLayerTransformPreview,
+    commitLayerTransformPreview,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -109,7 +123,13 @@ export const useVectorToolSessionController = ({
       setSelection: (next) => {
         portsRef.current.selection = next;
         portsRef.current.publishSelection(next);
-      }
+      },
+      setLayerTransformPreview: (layer, matrix) =>
+        portsRef.current.setLayerTransformPreview?.(layer, matrix) ?? false,
+      commitLayerTransformPreview: (before, layerId, matrix, documentOperation) =>
+        portsRef.current.commitLayerTransformPreview?.(
+          before, layerId, matrix, documentOperation
+        ) ?? false
     }, {
       penStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.style),

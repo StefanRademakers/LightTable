@@ -4,6 +4,7 @@ import {
   multiplyMatrices,
   transformPoint,
   transformVectorElement,
+  transformVectorElementDocumentPaint,
   translationMatrix,
   translateVectorElement,
   type AffineMatrix,
@@ -14,7 +15,8 @@ import {
   hitTestVectorSelectionFrameHandle,
   hitTestVectorSelectionFrameRotation
 } from '@lighttable/vector-rendering';
-import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
+import type { ImageDocument, LayerId, VectorLayer } from '../../editor/document/documentTypes';
+import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   cloneVectorEditorSelection,
   createVectorEditorSelection,
@@ -41,6 +43,13 @@ export interface VectorElementSelectionDependencies {
   getDocument(): ImageDocument | null;
   getSelection(): VectorEditorSelection;
   setSelection(selection: VectorEditorSelection): void;
+  setLayerTransformPreview?(layer: VectorLayer, matrix: AffineMatrix | null): boolean;
+  commitLayerTransformPreview?(
+    before: ImageDocument,
+    layerId: LayerId,
+    matrix: AffineMatrix,
+    documentOperation: AffineMatrix
+  ): boolean;
 }
 
 export interface VectorElementSelectionPointerOptions {
@@ -63,6 +72,13 @@ interface ActiveElementDrag {
   readonly scale: VectorElementScaleGesture | null;
   readonly rotation: VectorElementRotationGesture | null;
   readonly preserveAspect: boolean;
+  readonly layerPreview: {
+    readonly before: ImageDocument;
+    readonly layer: VectorLayer;
+    readonly openingTransform: AffineMatrix;
+    matrix: AffineMatrix;
+    documentOperation: AffineMatrix;
+  } | null;
   moved: boolean;
 }
 
@@ -214,6 +230,26 @@ export class VectorElementSelectionToolController {
       : drag.rotation
         ? vectorElementRotationOperation(drag.rotation, documentPoint, drag.preserveAspect)
         : translationMatrix(documentDelta.x, documentDelta.y);
+    if (drag.layerPreview) {
+      const target = drag.targets[0]!;
+      const layerToParentInverse = invertMatrix(drag.layerPreview.openingTransform);
+      if (!layerToParentInverse) return false;
+      const documentToParent = invertMatrix(multiplyMatrices(
+        target.layerToDocument,
+        layerToParentInverse
+      ));
+      if (!documentToParent) return false;
+      const matrix = multiplyMatrices(
+        documentToParent,
+        multiplyMatrices(documentOperation, target.layerToDocument)
+      );
+      if (!this.dependencies.setLayerTransformPreview?.(drag.layerPreview.layer, matrix)) {
+        return false;
+      }
+      drag.layerPreview.matrix = matrix;
+      drag.layerPreview.documentOperation = documentOperation;
+      return true;
+    }
     return this.documents.previewElementMutations((target) => {
       const mapping = drag.targets.find(
         (candidate) => candidate.layerId === target.layerId
@@ -221,16 +257,19 @@ export class VectorElementSelectionToolController {
       );
       if (!mapping) return target.openingElement;
       if (!drag.scale && !drag.rotation) {
-        return translateVectorElement(
+        return transformVectorElementDocumentPaint(translateVectorElement(
           target.openingElement,
           localDelta(mapping.documentToLayer, documentDelta)
-        );
+        ), documentOperation);
       }
       const layerOperation = multiplyMatrices(
         mapping.documentToLayer,
         multiplyMatrices(documentOperation, mapping.layerToDocument)
       );
-      return transformVectorElement(target.openingElement, layerOperation);
+      return transformVectorElementDocumentPaint(
+        transformVectorElement(target.openingElement, layerOperation),
+        documentOperation
+      );
     });
   }
 
@@ -249,6 +288,16 @@ export class VectorElementSelectionToolController {
     if (!drag) return false;
     this.pointerMove(documentPoint);
     this.drag = null;
+    if (drag.layerPreview) {
+      this.dependencies.setLayerTransformPreview?.(drag.layerPreview.layer, null);
+      if (!drag.moved) return false;
+      return this.dependencies.commitLayerTransformPreview?.(
+        drag.layerPreview.before,
+        drag.layerPreview.layer.id,
+        drag.layerPreview.matrix,
+        drag.layerPreview.documentOperation
+      ) ?? false;
+    }
     if (!drag.moved) {
       this.documents.cancelElementMutation();
       return false;
@@ -258,6 +307,9 @@ export class VectorElementSelectionToolController {
 
   cancel() {
     const active = this.drag !== null || this.gradientDrag !== null;
+    if (this.drag?.layerPreview) {
+      this.dependencies.setLayerTransformPreview?.(this.drag.layerPreview.layer, null);
+    }
     this.drag = null;
     this.gradientDrag = null;
     return this.documents.cancelElementMutation() || active;
@@ -293,9 +345,29 @@ export class VectorElementSelectionToolController {
         ? [{ ...selected, documentToLayer, layerToDocument: entry.layerToDocument }]
         : [];
     });
-    if (targets.length !== elements.length || !this.documents.beginElementMutations(elements)) {
+    if (targets.length !== elements.length) {
       return true;
     }
+    const selectedLayer = elements.length === 1
+      ? findDocumentLayer(document, elements[0]!.layerId)
+      : null;
+    const layerPreview = !options.scale
+      && !options.rotation
+      && selectedLayer?.type === 'vector'
+      && selectedLayer.elements.length === 1
+      && selectedLayer.elements[0]?.id === elements[0]?.elementId
+      && this.dependencies.setLayerTransformPreview
+      && this.dependencies.commitLayerTransformPreview
+      && this.dependencies.setLayerTransformPreview(selectedLayer, selectedLayer.transform)
+      ? {
+          before: document,
+          layer: selectedLayer,
+          openingTransform: { ...selectedLayer.transform },
+          matrix: { ...selectedLayer.transform },
+          documentOperation: translationMatrix(0, 0)
+        }
+      : null;
+    if (!layerPreview && !this.documents.beginElementMutations(elements)) return true;
     this.drag = {
       documentId: document.id,
       startDocument: { ...documentPoint },
@@ -303,6 +375,7 @@ export class VectorElementSelectionToolController {
       scale: options.scale,
       rotation: options.rotation,
       preserveAspect: options.preserveAspect,
+      layerPreview,
       moved: false
     };
     return true;

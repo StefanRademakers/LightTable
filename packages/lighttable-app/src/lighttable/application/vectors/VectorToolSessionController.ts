@@ -8,7 +8,13 @@ import {
   type Vec2,
   type VectorStyle
 } from '@lighttable/vector-core';
-import { layerIsLocked, type ImageDocument, type LayerId } from '../../editor/document/documentTypes';
+import {
+  layerIsLocked,
+  type ImageDocument,
+  type LayerId,
+  type VectorLayer
+} from '../../editor/document/documentTypes';
+import type { AffineMatrix } from '@lighttable/vector-core';
 import { findDocumentLayer } from '../../editor/document/layerTree';
 import {
   createVectorEditorSelection,
@@ -54,6 +60,13 @@ export type VectorToolMode = 'element-selection' | 'direct-selection' | 'pen' | 
 export interface VectorToolSessionDependencies extends VectorDocumentControllerDependencies {
   getSelection(): VectorEditorSelection;
   setSelection(selection: VectorEditorSelection): void;
+  setLayerTransformPreview?(layer: VectorLayer, matrix: AffineMatrix | null): boolean;
+  commitLayerTransformPreview?(
+    before: ImageDocument,
+    layerId: LayerId,
+    matrix: AffineMatrix,
+    documentOperation: AffineMatrix
+  ): boolean;
 }
 
 export interface VectorToolSessionOptions {

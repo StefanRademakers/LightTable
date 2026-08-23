@@ -330,6 +330,7 @@ import { buildLayerSnapTargets } from './application/tools/snapping/layerSnapGeo
 import type { SnapMatch } from './application/tools/snapping/snapEngine';
 import { addDocumentGuide, clearDocumentGuides, replaceDocumentGuides } from './editor/document/guideCommands';
 import { useVectorToolSessionController } from './application/vectors/useVectorToolSessionController';
+import { transformVectorElementDocumentPaint } from '@lighttable/vector-core';
 import { isVectorEditorTool } from './editor/tools/vectorToolCatalog';
 import type { VectorElementCreationTransaction } from './application/vectors/VectorDocumentController';
 import {
@@ -382,7 +383,8 @@ import {
   setLayerMaskLinked,
   mergeLayers as mergeDocumentLayers,
   setRasterLayerAdjustmentStack,
-  setLayerTransform
+  setLayerTransform,
+  replaceVectorLayerElements
 } from './editor/document/documentCommands';
 import { invertMatrix, transformPoint } from './editor/geometry/affine';
 import {
@@ -3943,6 +3945,22 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pushDocumentHistory,
     publishSelection: (vectorSelection) => {
       setEditorSession((current) => ({ ...current, vectorSelection }));
+    },
+    setLayerTransformPreview: (layer, matrix) => matrix
+      ? engineRef.current?.updateSemanticLayerTransform(layer, matrix) ?? false
+      : engineRef.current?.cancelSemanticLayerTransform(layer) ?? false,
+    commitLayerTransformPreview: (before, layerId, matrix, documentOperation) => {
+      const source = findDocumentLayer(before, layerId);
+      if (source?.type !== 'vector') return false;
+      let after = setLayerTransform(before, layerId, matrix);
+      const painted = source.elements.map((element) =>
+        transformVectorElementDocumentPaint(element, documentOperation));
+      if (painted.some((element, index) => element !== source.elements[index])) {
+        after = replaceVectorLayerElements(after, layerId, painted);
+      }
+      applyDocumentSnapshot(after);
+      pushDocumentHistory(before, after);
+      return true;
     },
     requestGradientColorEditor: (endpoint) => {
       setGradientEditorRequest((current) => ({

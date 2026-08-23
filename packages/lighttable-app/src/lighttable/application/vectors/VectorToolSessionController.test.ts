@@ -31,7 +31,9 @@ const layerPaths = (layer: ReturnType<typeof findDocumentLayer>): VectorPath[] =
 const setup = (
   rasterizeShape?: (transaction: VectorElementCreationTransaction) => boolean,
   onLiveShapeCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onLiveShapeCommitted'],
-  onPathMutationCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onPathMutationCommitted']
+  onPathMutationCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onPathMutationCommitted'],
+  preview?: Pick<ConstructorParameters<typeof VectorToolSessionController>[0],
+    'setLayerTransformPreview' | 'commitLayerTransformPreview'>
 ) => {
   let document = createImageDocument('Vector tools', 200, 100, 'asset');
   let selection: VectorEditorSelection = createVectorEditorSelection();
@@ -41,7 +43,8 @@ const setup = (
     applyDocumentSnapshot: (next) => { document = next; },
     pushDocumentHistory: (before, after) => history.push({ before, after }),
     getSelection: () => selection,
-    setSelection: (next) => { selection = next; }
+    setSelection: (next) => { selection = next; },
+    ...preview
   }, { ids: ids(), rasterizeShape, onLiveShapeCommitted, onPathMutationCommitted });
   return {
     controller,
@@ -322,6 +325,37 @@ describe('VectorToolSessionController', () => {
       transform: { a: 1, b: 0, c: 0, d: 1, tx: 30, ty: 25 },
       transformRevision: 2
     });
+  });
+
+  it('keeps a single-object vector drag out of canonical document publication', () => {
+    const setLayerTransformPreview = vi.fn(() => true);
+    const commitLayerTransformPreview = vi.fn(() => true);
+    const state = setup(undefined, undefined, undefined, {
+      setLayerTransformPreview,
+      commitLayerTransformPreview
+    });
+    const shape = createVectorLiveShape('shape', {
+      kind: 'ellipse', width: 40, height: 40
+    });
+    shape.transform.tx = 20;
+    shape.transform.ty = 20;
+    const layer = createVectorLayer([shape]);
+    state.document.layers = [layer];
+    state.controller.activate('element-selection');
+    const openingDocument = state.document;
+
+    expect(state.controller.pointerDown(44, { x: 40, y: 40 }, { hitRadius: 2 })).toBe(true);
+    expect(state.controller.pointerMove(44, { x: 80, y: 70 })).toBe(true);
+    expect(state.controller.pointerMove(44, { x: 100, y: 80 })).toBe(true);
+    expect(state.document).toBe(openingDocument);
+    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(
+      layer,
+      expect.objectContaining({ tx: 60, ty: 40 })
+    );
+
+    expect(state.controller.pointerUp(44, { x: 100, y: 80 })).toBe(true);
+    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(layer, null);
+    expect(commitLayerTransformPreview).toHaveBeenCalledOnce();
   });
 
   it('drags a selected gradient endpoint as one non-React document transaction', () => {
