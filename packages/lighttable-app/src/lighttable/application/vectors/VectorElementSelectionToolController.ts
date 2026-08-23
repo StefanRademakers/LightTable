@@ -43,7 +43,11 @@ export interface VectorElementSelectionDependencies {
   getDocument(): ImageDocument | null;
   getSelection(): VectorEditorSelection;
   setSelection(selection: VectorEditorSelection): void;
-  setLayerTransformPreview?(layer: VectorLayer, matrix: AffineMatrix | null): boolean;
+  setLayerTransformPreview?(
+    layer: VectorLayer,
+    matrix: AffineMatrix | null,
+    documentOperation?: AffineMatrix | null
+  ): boolean;
   commitLayerTransformPreview?(
     before: ImageDocument,
     layerId: LayerId,
@@ -243,7 +247,9 @@ export class VectorElementSelectionToolController {
         documentToParent,
         multiplyMatrices(documentOperation, target.layerToDocument)
       );
-      if (!this.dependencies.setLayerTransformPreview?.(drag.layerPreview.layer, matrix)) {
+      if (!this.dependencies.setLayerTransformPreview?.(
+        drag.layerPreview.layer, matrix, documentOperation
+      )) {
         return false;
       }
       drag.layerPreview.matrix = matrix;
@@ -289,7 +295,7 @@ export class VectorElementSelectionToolController {
     this.pointerMove(documentPoint);
     this.drag = null;
     if (drag.layerPreview) {
-      this.dependencies.setLayerTransformPreview?.(drag.layerPreview.layer, null);
+      this.dependencies.setLayerTransformPreview?.(drag.layerPreview.layer, null, null);
       if (!drag.moved) return false;
       return this.dependencies.commitLayerTransformPreview?.(
         drag.layerPreview.before,
@@ -308,7 +314,7 @@ export class VectorElementSelectionToolController {
   cancel() {
     const active = this.drag !== null || this.gradientDrag !== null;
     if (this.drag?.layerPreview) {
-      this.dependencies.setLayerTransformPreview?.(this.drag.layerPreview.layer, null);
+      this.dependencies.setLayerTransformPreview?.(this.drag.layerPreview.layer, null, null);
     }
     this.drag = null;
     this.gradientDrag = null;
@@ -358,7 +364,9 @@ export class VectorElementSelectionToolController {
       && selectedLayer.elements[0]?.id === elements[0]?.elementId
       && this.dependencies.setLayerTransformPreview
       && this.dependencies.commitLayerTransformPreview
-      && this.dependencies.setLayerTransformPreview(selectedLayer, selectedLayer.transform)
+      && this.dependencies.setLayerTransformPreview(
+        selectedLayer, selectedLayer.transform, translationMatrix(0, 0)
+      )
       ? {
           before: document,
           layer: selectedLayer,

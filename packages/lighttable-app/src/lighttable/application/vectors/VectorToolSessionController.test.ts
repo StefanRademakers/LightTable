@@ -350,11 +350,12 @@ describe('VectorToolSessionController', () => {
     expect(state.document).toBe(openingDocument);
     expect(setLayerTransformPreview).toHaveBeenLastCalledWith(
       layer,
+      expect.objectContaining({ tx: 60, ty: 40 }),
       expect.objectContaining({ tx: 60, ty: 40 })
     );
 
     expect(state.controller.pointerUp(44, { x: 100, y: 80 })).toBe(true);
-    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(layer, null);
+    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(layer, null, null);
     expect(commitLayerTransformPreview).toHaveBeenCalledOnce();
   });
 

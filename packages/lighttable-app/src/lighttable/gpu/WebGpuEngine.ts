@@ -135,7 +135,10 @@ import {
   type VectorEditingOverlayTarget
 } from '@lighttable/vector-webgpu';
 import type { VectorEditingOverlay, VectorSelectionFrame } from '@lighttable/vector-rendering';
-import { VectorDocumentEditingSceneCache } from '../application/vectors/vectorEditingOverlay';
+import {
+  VectorDocumentEditingSceneCache,
+  transformVectorDocumentEditingSceneOverlay
+} from '../application/vectors/vectorEditingOverlay';
 import { vectorLayerLocalPaintBounds } from '../application/vectors/vectorSceneQueries';
 import {
   cloneVectorEditorSelection,
@@ -339,6 +342,7 @@ export class WebGpuEngine {
   private warpInteractionActive = false;
   private lastReportedGpuBytes = -1;
   private vectorSelection = createVectorEditorSelection();
+  private vectorSelectionPreviewTransform: AffineMatrix | null = null;
   private readonly vectorEditingSceneCache = new VectorDocumentEditingSceneCache();
   private selectionOverlayOperations: SelectionOperation[] = [];
   private selectionOverlayDraft: SelectionShape | null = null;
@@ -615,7 +619,10 @@ export class WebGpuEngine {
     this.colorLookupAssets.bind(document.id);
     const previousDocument = this.imageDocument;
     const firstDocument = !previousDocument || previousDocument.id !== document.id;
-    if (firstDocument) this.textEditingOverlay = null;
+    if (firstDocument) {
+      this.textEditingOverlay = null;
+      this.vectorSelectionPreviewTransform = null;
+    }
     this.imageDocument = document;
     this.adjustmentLayerRenderer.setDocumentColorContext(
       document.colorSettings.blendProfile,
@@ -2056,6 +2063,14 @@ export class WebGpuEngine {
   setVectorEditingSelection(selection: VectorEditorSelection) {
     if (vectorEditorSelectionsEqual(this.vectorSelection, selection)) return;
     this.vectorSelection = cloneVectorEditorSelection(selection);
+    this.vectorSelectionPreviewTransform = null;
+    this.renderDirty.invalidate('viewport');
+    this.requestRender();
+  }
+
+  setVectorSelectionPreviewTransform(matrix: AffineMatrix | null) {
+    if (!matrix && !this.vectorSelectionPreviewTransform) return;
+    this.vectorSelectionPreviewTransform = matrix ? { ...matrix } : null;
     this.renderDirty.invalidate('viewport');
     this.requestRender();
   }
@@ -3428,10 +3443,16 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
   ) {
     const viewportRenderState = this.viewportPresentation.state;
     if (!this.imageDocument || !viewportRenderState) return;
-    const overlayScene = this.vectorEditingSceneCache.resolve(
+    const canonicalOverlayScene = this.vectorEditingSceneCache.resolve(
       this.imageDocument,
       this.vectorSelection
     );
+    const overlayScene = this.vectorSelectionPreviewTransform
+      ? transformVectorDocumentEditingSceneOverlay(
+          canonicalOverlayScene,
+          this.vectorSelectionPreviewTransform
+        )
+      : canonicalOverlayScene;
     const directShape = this.selectionOverlayVisible
       ? directSelectionShape(this.selectionOverlayOperations)
       : null;

@@ -18,7 +18,13 @@ export type RenderIslandBoundaryReason =
   | 'layer-opacity'
   | 'non-normal-blend'
   | 'raster-interleave'
-  | 'text-interleave';
+  | 'text-interleave'
+  | 'interaction-preview';
+
+export interface RenderIslandPlanningOptions {
+  /** Vector layers rendered through a transient compositor-owned preview. */
+  readonly transientVectorBarriers?: ReadonlySet<LayerId>;
+}
 
 export interface RenderIslandComplexity {
   readonly canonicalLayerCount: number;
@@ -138,12 +144,14 @@ const collectPureVectorSubtree = (
   nodes: readonly LayerNode[],
   inheritedTransform: AffineMatrix,
   scopePath: readonly LayerId[],
-  inheritedVisible: boolean
+  inheritedVisible: boolean,
+  transientVectorBarriers: ReadonlySet<LayerId>
 ): CollectedVectorSubtree | null => {
   const members: VectorToken[] = [];
   const composition: RenderIslandCompositionNode[] = [];
   for (const node of nodes) {
     if (node.type === 'vector') {
+      if (transientVectorBarriers.has(node.id)) return null;
       // Nested layer isolation still needs its own boundary with today's
       // PaintScene contract; do not hide it inside a group-wide island.
       if (vectorBoundaryReasons(node).length > 0) return null;
@@ -167,7 +175,8 @@ const collectPureVectorSubtree = (
       node.children,
       multiplyMatrices(inheritedTransform, node.transform),
       childScope,
-      inheritedVisible && node.visible && node.opacity > 0
+      inheritedVisible && node.visible && node.opacity > 0,
+      transientVectorBarriers
     );
     if (!children) return null;
     members.push(...children.members);
@@ -186,10 +195,15 @@ const tokenize = (
   scopePath: readonly LayerId[],
   inheritedTransform: AffineMatrix,
   inheritedVisible: boolean,
-  output: IslandToken[]
+  output: IslandToken[],
+  transientVectorBarriers: ReadonlySet<LayerId>
 ) => {
   for (const node of nodes) {
     if (node.type === 'vector') {
+      if (transientVectorBarriers.has(node.id)) {
+        output.push({ kind: 'barrier', reason: 'interaction-preview' });
+        continue;
+      }
       const reasons = vectorBoundaryReasons(node);
       if (reasons.length === 0) {
         output.push({
@@ -217,7 +231,8 @@ const tokenize = (
       const childTransform = multiplyMatrices(inheritedTransform, node.transform);
       const childVisible = inheritedVisible && node.visible && node.opacity > 0;
       const vectorChildren = collectPureVectorSubtree(
-        node.children, childTransform, childScope, childVisible
+        node.children, childTransform, childScope, childVisible,
+        transientVectorBarriers
       );
       const reasons = [
         ...groupBoundaryReasons(node),
@@ -230,7 +245,10 @@ const tokenize = (
           : [])
       ];
       if (reasons.length === 0) {
-        tokenize(node.children, childScope, childTransform, childVisible, output);
+        tokenize(
+          node.children, childScope, childTransform, childVisible, output,
+          transientVectorBarriers
+        );
         continue;
       }
       output.push({ kind: 'barrier', reason: reasons[0] });
@@ -251,7 +269,10 @@ const tokenize = (
           forcedVelloEligible: !node.mask?.enabled
         });
       } else {
-        tokenize(node.children, childScope, childTransform, childVisible, output);
+        tokenize(
+          node.children, childScope, childTransform, childVisible, output,
+          transientVectorBarriers
+        );
       }
       output.push({ kind: 'barrier', reason: reasons[0] });
       continue;
@@ -311,9 +332,15 @@ const entry = (
  * Plans only semantic vector render islands. Visibility is deliberately absent:
  * hiding a layer changes participation, not retained island ownership.
  */
-export const planRenderIslands = (nodes: readonly LayerNode[]): RenderIslandPlan => {
+export const planRenderIslands = (
+  nodes: readonly LayerNode[],
+  options: RenderIslandPlanningOptions = {}
+): RenderIslandPlan => {
   const tokens: IslandToken[] = [];
-  tokenize(nodes, [], identityAffineMatrix(), true, tokens);
+  tokenize(
+    nodes, [], identityAffineMatrix(), true, tokens,
+    options.transientVectorBarriers ?? new Set()
+  );
   const islands: RenderIslandPlanEntry[] = [];
   let run: VectorToken[] = [];
   const flush = (boundaryReasons: readonly RenderIslandBoundaryReason[] = []) => {

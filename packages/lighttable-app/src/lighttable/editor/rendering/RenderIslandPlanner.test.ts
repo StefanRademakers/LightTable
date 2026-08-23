@@ -64,6 +64,23 @@ describe('RenderIslandPlanner', () => {
     expect(hidden.islands[0].members[1].participates).toBe(false);
   });
 
+  it('splits a direct run around a transient interaction without projecting the moving layer', () => {
+    const lower = vector('lower');
+    const moving = vector('moving');
+    const upper = vector('upper');
+
+    const plan = planRenderIslands([lower, moving, upper], {
+      transientVectorBarriers: new Set([moving.id])
+    });
+
+    expect(plan.islands.map(({ canonicalLayerIds }) => canonicalLayerIds)).toEqual([
+      [lower.id],
+      [upper.id]
+    ]);
+    expect(plan.islands.every(({ boundaryReasons }) =>
+      boundaryReasons.includes('interaction-preview'))).toBe(true);
+  });
+
   it('splits at raster, adjustment and text interleaves', () => {
     const rasterDocument = createImageDocument('raster', 32, 32, 'source');
     const raster = rasterDocument.layers[0];

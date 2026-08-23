@@ -220,7 +220,22 @@ export class LayerCompositor {
     layerStyles.setBlendProfile?.(this.blendProfile, this.blendQuantization);
     this.options.syncDocument(document);
     const planningStartedAt = this.compositeProfilingEnabled ? performance.now() : 0;
-    const plannedIslands = planRenderIslands(document.layers);
+    const canonicalIslandPlan = planRenderIslands(document.layers);
+    const transientVectorBarriers = new Set<LayerId>();
+    // A moving member of a direct vector run becomes a transient dynamic
+    // layer. Split only that run around it; unchanged neighbours remain in
+    // retained Vello islands instead of falling back to N per-layer surfaces.
+    for (const island of canonicalIslandPlan.islands) {
+      if (island.role !== 'direct-vector-run') continue;
+      for (const { layer } of island.members) {
+        if (geometryPreviews.resolve(layer.id, layer.geometryRevision)) {
+          transientVectorBarriers.add(layer.id);
+        }
+      }
+    }
+    const plannedIslands = transientVectorBarriers.size > 0
+      ? planRenderIslands(document.layers, { transientVectorBarriers })
+      : canonicalIslandPlan;
     const retainedIslandPlan = this.retainedIslands.reconcile(plannedIslands);
     if (this.compositeProfilingEnabled) {
       this.islandPlan = plannedIslands;

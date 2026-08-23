@@ -16,6 +16,7 @@ import { createVectorEditorSelection } from '../../editor/session/editorSession'
 import {
   buildVectorDocumentEditingOverlays,
   buildVectorDocumentEditingSceneOverlay,
+  transformVectorDocumentEditingSceneOverlay,
   VectorDocumentEditingSceneCache
 } from './vectorEditingOverlay';
 
@@ -236,6 +237,33 @@ describe('vector document editing overlays', () => {
     expect(scene.selectionFrame?.handles).toHaveLength(8);
     expect(scene.selectionFrame?.resourceKey).toContain(`${layer.id}/first,${layer.id}/second`);
     expect(scene.gradientHandles).toEqual([]);
+  });
+
+  it('moves the GPU selection frame with a transient whole-object preview', () => {
+    const document = createImageDocument('document', 100, 100, 'asset');
+    const shape = createVectorLiveShape('shape', {
+      kind: 'rectangle', width: 10, height: 20,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    shape.transform = translationMatrix(10, 15);
+    const layer = createVectorLayer([shape]);
+    document.layers = [layer];
+    const selection = createVectorEditorSelection();
+    selection.elements = [{ layerId: layer.id, elementId: shape.id }];
+
+    const canonical = buildVectorDocumentEditingSceneOverlay(document, selection);
+    const preview = transformVectorDocumentEditingSceneOverlay(
+      canonical,
+      translationMatrix(30, 40)
+    );
+
+    expect(preview.selectionFrame).toMatchObject({
+      bounds: { x: 40, y: 55, width: 10, height: 20 },
+      pivot: { x: 45, y: 65 }
+    });
+    expect(preview.selectionFrame?.handles[0]?.point).not.toEqual(
+      canonical.selectionFrame?.handles[0]?.point
+    );
   });
 
   it('projects shared object-space gradient endpoints into the GPU editing overlay', () => {

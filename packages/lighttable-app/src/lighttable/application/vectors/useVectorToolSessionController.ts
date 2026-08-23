@@ -27,7 +27,11 @@ export interface VectorToolSessionHookOptions {
   readonly applyDocumentSnapshot: (document: ImageDocument) => void;
   readonly pushDocumentHistory: (before: ImageDocument, after: ImageDocument) => void;
   readonly publishSelection: (selection: VectorEditorSelection) => void;
-  readonly setLayerTransformPreview?: (layer: VectorLayer, matrix: AffineMatrix | null) => boolean;
+  readonly setLayerTransformPreview?: (
+    layer: VectorLayer,
+    matrix: AffineMatrix | null,
+    documentOperation?: AffineMatrix | null
+  ) => boolean;
   readonly commitLayerTransformPreview?: (
     before: ImageDocument,
     layerId: LayerId,
@@ -124,8 +128,10 @@ export const useVectorToolSessionController = ({
         portsRef.current.selection = next;
         portsRef.current.publishSelection(next);
       },
-      setLayerTransformPreview: (layer, matrix) =>
-        portsRef.current.setLayerTransformPreview?.(layer, matrix) ?? false,
+      setLayerTransformPreview: (layer, matrix, documentOperation) =>
+        portsRef.current.setLayerTransformPreview?.(
+          layer, matrix, documentOperation
+        ) ?? false,
       commitLayerTransformPreview: (before, layerId, matrix, documentOperation) =>
         portsRef.current.commitLayerTransformPreview?.(
           before, layerId, matrix, documentOperation

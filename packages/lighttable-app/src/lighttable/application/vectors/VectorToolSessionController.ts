@@ -60,7 +60,11 @@ export type VectorToolMode = 'element-selection' | 'direct-selection' | 'pen' | 
 export interface VectorToolSessionDependencies extends VectorDocumentControllerDependencies {
   getSelection(): VectorEditorSelection;
   setSelection(selection: VectorEditorSelection): void;
-  setLayerTransformPreview?(layer: VectorLayer, matrix: AffineMatrix | null): boolean;
+  setLayerTransformPreview?(
+    layer: VectorLayer,
+    matrix: AffineMatrix | null,
+    documentOperation?: AffineMatrix | null
+  ): boolean;
   commitLayerTransformPreview?(
     before: ImageDocument,
     layerId: LayerId,

@@ -3946,9 +3946,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     publishSelection: (vectorSelection) => {
       setEditorSession((current) => ({ ...current, vectorSelection }));
     },
-    setLayerTransformPreview: (layer, matrix) => matrix
-      ? engineRef.current?.updateSemanticLayerTransform(layer, matrix) ?? false
-      : engineRef.current?.cancelSemanticLayerTransform(layer) ?? false,
+    setLayerTransformPreview: (layer, matrix, documentOperation) => {
+      const engine = engineRef.current;
+      if (!engine) return false;
+      engine.setVectorSelectionPreviewTransform(documentOperation ?? null);
+      return matrix
+        ? engine.updateSemanticLayerTransform(layer, matrix)
+        : engine.cancelSemanticLayerTransform(layer);
+    },
     commitLayerTransformPreview: (before, layerId, matrix, documentOperation) => {
       const source = findDocumentLayer(before, layerId);
       if (source?.type !== 'vector') return false;

@@ -10,6 +10,7 @@ import {
   vectorElementsDocumentBounds,
   vectorElementsTopmostFirst
 } from './vectorSceneQueries';
+import { transformPoint, type AffineMatrix, type Vec2 } from '@lighttable/vector-core';
 import { resolveVectorGradientGeometry } from './vectorGradientGeometry';
 
 export interface VectorDocumentEditingOverlay extends VectorEditingOverlay {
@@ -29,6 +30,58 @@ const EMPTY_VECTOR_DOCUMENT_EDITING_SCENE: VectorDocumentEditingSceneOverlay = {
   unpaintedElementOutlines: [],
   selectionFrame: null,
   gradientHandles: []
+};
+
+const transformedBounds = (
+  bounds: { x: number; y: number; width: number; height: number },
+  matrix: AffineMatrix
+) => {
+  const points: Vec2[] = [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+    { x: bounds.x, y: bounds.y + bounds.height }
+  ].map(point => transformPoint(matrix, point));
+  const left = Math.min(...points.map(({ x }) => x));
+  const top = Math.min(...points.map(({ y }) => y));
+  const right = Math.max(...points.map(({ x }) => x));
+  const bottom = Math.max(...points.map(({ y }) => y));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+};
+
+/** Projects renderer-owned whole-object movement into the GPU editing overlay. */
+export const transformVectorDocumentEditingSceneOverlay = (
+  scene: VectorDocumentEditingSceneOverlay,
+  matrix: AffineMatrix
+): VectorDocumentEditingSceneOverlay => {
+  const point = (value: Vec2) => transformPoint(matrix, value);
+  const overlay = <T extends VectorEditingOverlay>(value: T): T => ({
+    ...value,
+    resourceKey: `${value.resourceKey}:preview:${matrix.a}:${matrix.b}:${matrix.c}:${matrix.d}:${matrix.tx}:${matrix.ty}`,
+    cubics: value.cubics.map(cubic => ({
+      ...cubic,
+      p0: point(cubic.p0), p1: point(cubic.p1),
+      p2: point(cubic.p2), p3: point(cubic.p3)
+    })),
+    anchors: value.anchors.map(anchor => ({ ...anchor, point: point(anchor.point) })),
+    handles: value.handles.map(handle => ({
+      ...handle, anchor: point(handle.anchor), point: point(handle.point)
+    }))
+  } as T);
+  const frame = scene.selectionFrame;
+  return {
+    paths: scene.paths.map(overlay),
+    unpaintedElementOutlines: scene.unpaintedElementOutlines.map(overlay),
+    gradientHandles: scene.gradientHandles.map(overlay),
+    selectionFrame: frame ? {
+      ...frame,
+      resourceKey: `${frame.resourceKey}:preview:${matrix.a}:${matrix.b}:${matrix.c}:${matrix.d}:${matrix.tx}:${matrix.ty}`,
+      bounds: transformedBounds(frame.bounds, matrix),
+      pivot: point(frame.pivot),
+      edges: frame.edges.map(edge => ({ start: point(edge.start), end: point(edge.end) })),
+      handles: frame.handles.map(handle => ({ ...handle, point: point(handle.point) }))
+    } : null
+  };
 };
 
 const vectorSelectionIsEmpty = (selection: VectorEditorSelection) => (
