@@ -89,7 +89,7 @@ interface ViewportInteractionOptions {
   setEditorSession: Dispatch<SetStateAction<EditorSession>>;
   temporaryTools: TemporaryToolController;
   temporaryZoomOut: boolean;
-  onTransformPick: (point: { x: number; y: number }) => void;
+  onTransformPick: (point: { x: number; y: number }, extend: boolean) => void;
   preciseBrushCursor: boolean;
   eyedropperActive: boolean;
   sampleSourceActive: boolean;
@@ -685,7 +685,7 @@ export const useViewportInteractionController = ({
         return;
       }
       if (intent === 'transform-pick' && point) {
-        onTransformPick(point);
+        onTransformPick(point, event.shiftKey);
         event.preventDefault();
         return;
       }

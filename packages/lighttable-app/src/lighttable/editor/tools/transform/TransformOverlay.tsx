@@ -33,7 +33,7 @@ interface TransformOverlayProps {
   onDuplicateChange: (duplicate: boolean) => void;
   frameMode?: TransformFrameMode;
   frameOverride?: TransformSessionFrame | null;
-  onPickLayer?: (point: TransformPoint) => void;
+  onPickLayer?: (point: TransformPoint, extend: boolean) => void;
   snapTargets?: readonly SnapFeature[];
   snapEnabled?: boolean;
   onSnapMatches?: (matches: readonly SnapMatch[]) => void;
@@ -303,7 +303,7 @@ export const TransformOverlay: React.FC<TransformOverlayProps> = ({
     if (!drag.changed && drag.handle === 'body' && onPickLayer) {
       const point = toDocument(event);
       const movedPixels = Math.hypot(point.x - drag.start.x, point.y - drag.start.y) * scale;
-      if (movedPixels <= 3) onPickLayer(point);
+      if (movedPixels <= 3) onPickLayer(point, event.shiftKey);
     }
     dragRef.current = null;
     onSnapMatches?.([]);

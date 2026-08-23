@@ -316,6 +316,7 @@ import {
 import { useSelectionSessionController } from './application/tools/selection/useSelectionSessionController';
 import { useTransformSessionController, type FixedTransformOperation } from './application/tools/transform/useTransformSessionController';
 import { pickCurrentTransformLayer } from './application/tools/transform/transformLayerPicker';
+import { resolveTransformCanvasLayerSelection } from './application/tools/transform/transformCanvasLayerSelection';
 import { buildTransformEditingFrame } from './editor/tools/transform/transformEditingFrame';
 import { transformSessionFrame } from './editor/tools/transform/transformSessionFrame';
 import { buildSmartGuideEditingFrame } from './editor/tools/transform/smartGuideEditingFrame';
@@ -4491,7 +4492,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   commitParagraphCanvasTextRef.current = () => commitParagraphTextCreation(true);
   cancelParagraphTextRef.current = cancelParagraphTextCreation;
 
-  const pickTransformAtPoint = (point: { x: number; y: number }) => {
+  const pickTransformAtPoint = (point: { x: number; y: number }, extend = false) => {
     if (historySnapshot.busy || !editorSession.transformAutoSelectLayer || !imageDocument) return;
     const renderer = engineRef.current;
     if (!renderer) return;
@@ -4504,14 +4505,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       getCurrentDocument: () => imageDocumentRef.current
     }).then((pick) => {
       if (!pick) return;
-      if (!imageDocumentRef.current) return;
-      // Canvas auto-select is a single-target operation. Retire any active
-      // single/group preview first, then collapse panel selection and request a
-      // fresh gizmo even when the hit is already the active layer.
+      const currentDocument = imageDocumentRef.current;
+      if (!currentDocument) return;
+      // Selection changes are transform-session boundaries: preserve the
+      // current edit, then launch a cage for the newly resolved selection.
       if (transformActiveRef.current()) commitTransformRef.current();
-      selectedLayerIdsRef.current = [pick.layerId];
-      setSelectedLayerIds([pick.layerId]);
-      selectLayerRef.current(pick.layerId);
+      const next = resolveTransformCanvasLayerSelection(
+        selectedLayerIdsRef.current,
+        currentDocument.activeLayerId,
+        pick.layerId,
+        extend
+      );
+      selectedLayerIdsRef.current = [...next.selectedLayerIds];
+      setSelectedLayerIds([...next.selectedLayerIds]);
+      selectLayerRef.current(next.activeLayerId);
       setTransformActivationRevision((current) => current + 1);
     }).catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : 'The layer could not be selected.');
@@ -4898,6 +4905,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return true;
   }, [executeRegisteredCommand, layerDocumentCommands]);
   const handleLayerSelectionChange = useCallback((layerIds: LayerId[]) => {
+    // A layer-panel selection made after an asynchronous canvas hit supersedes
+    // that hit and must never be overwritten when its GPU readback resolves.
+    transformPickRevisionRef.current += 1;
     selectedLayerIdsRef.current = layerIds;
     setSelectedLayerIds(layerIds);
   }, []);

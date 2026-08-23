@@ -51,7 +51,7 @@ export interface DocumentViewportSurfaceProps {
   onTransformProjectiveChange: (quad: TransformQuad) => void;
   onTransformCommitGesture: () => void;
   onTransformDuplicateChange: (duplicate: boolean) => void;
-  onTransformPick: (point: { x: number; y: number }) => void;
+  onTransformPick: (point: { x: number; y: number }, extend: boolean) => void;
   transformSnapTargets?: readonly SnapFeature[];
   transformSnapEnabled?: boolean;
   transformFrameMode?: TransformFrameMode;
