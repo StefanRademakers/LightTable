@@ -666,7 +666,7 @@ describe('LightTable WGSL modules', () => {
 
   it('keeps affine layer export settings compatible with its 64-byte CPU uniform', () => {
     expect(LAYER_EXPORT_WGSL).toContain('transformed: f32');
-    expect(LAYER_EXPORT_WGSL).toContain('padding1: f32');
+    expect(LAYER_EXPORT_WGSL).toContain('sourceIsStraightSrgb: f32');
     expect(LAYER_EXPORT_WGSL).toContain('padding2: f32');
     expect(LAYER_EXPORT_WGSL).toContain('inverseRow0: vec4f');
     expect(LAYER_EXPORT_WGSL).toContain('inverseRow1: vec4f');

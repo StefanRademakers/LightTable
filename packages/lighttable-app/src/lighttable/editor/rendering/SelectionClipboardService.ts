@@ -205,7 +205,8 @@ export class SelectionClipboardService {
       plan.outputWidth,
       plan.outputHeight,
       { a: scaleX, b: 0, c: 0, d: scaleY,
-        tx: -plan.region.x * scaleX, ty: -plan.region.y * scaleY }
+        tx: -plan.region.x * scaleX, ty: -plan.region.y * scaleY },
+      true
     );
   }
 

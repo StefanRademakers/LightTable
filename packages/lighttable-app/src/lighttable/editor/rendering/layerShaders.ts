@@ -2,7 +2,7 @@ export const LAYER_EXPORT_WGSL = /* wgsl */ `
 struct ExportSettings {
   maskChannel: f32,
   transformed: f32,
-  padding1: f32,
+  sourceIsStraightSrgb: f32,
   padding2: f32,
   inverseRow0: vec4f,
   inverseRow1: vec4f,
@@ -36,6 +36,13 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   if (settings.maskChannel > 0.5) {
     let value = clamp(sampled.r, 0.0, 1.0);
     return vec4f(value, value, value, 1.0);
+  }
+  // Final display textures have already been converted to straight-alpha
+  // sRGB. Copy Merged must preserve those encoded RGB values verbatim; doing
+  // the canonical layer conversion again visibly lifts and desaturates color,
+  // and dividing straight RGB by selection coverage creates bright fringes.
+  if (settings.sourceIsStraightSrgb > 0.5) {
+    return clamp(sampled, vec4f(0.0), vec4f(1.0));
   }
   let straight = sampled.rgb / max(sampled.a, 1e-6);
   let encoded = vec3f(

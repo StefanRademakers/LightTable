@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { COLOR_CHANNEL_COPY_WGSL, LAYER_STYLE_EFFECT_WGSL } from './layerShaders';
+import {
+  COLOR_CHANNEL_COPY_WGSL,
+  LAYER_EXPORT_WGSL,
+  LAYER_STYLE_EFFECT_WGSL
+} from './layerShaders';
+
+describe('layer export color contract', () => {
+  it('keeps Copy Merged straight-sRGB pixels out of the canonical layer conversion', () => {
+    expect(LAYER_EXPORT_WGSL).toContain('sourceIsStraightSrgb: f32');
+    expect(LAYER_EXPORT_WGSL).toContain('if (settings.sourceIsStraightSrgb > 0.5)');
+    expect(LAYER_EXPORT_WGSL).toContain('return clamp(sampled, vec4f(0.0), vec4f(1.0));');
+  });
+
+  it('still converts canonical premultiplied linear layers to straight sRGB', () => {
+    expect(LAYER_EXPORT_WGSL).toContain('let straight = sampled.rgb / max(sampled.a, 1e-6);');
+    expect(LAYER_EXPORT_WGSL).toContain('linearToSrgbChannel(straight.r)');
+  });
+});
 
 describe('layer style effect shader contract', () => {
   it('casts Photoshop-compatible drop shadows away from the stored light angle', () => {

@@ -202,7 +202,8 @@ export class LayerTextureCodec {
     maskChannel: boolean,
     outputWidth: number,
     outputHeight: number,
-    sourceToOutput?: AffineMatrix
+    sourceToOutput?: AffineMatrix,
+    sourceIsStraightSrgb = false
   ) {
     const layout = layerPngReadbackLayout(outputWidth, outputHeight);
     const outputTexture = this.device.createTexture({
@@ -225,7 +226,7 @@ export class LayerTextureCodec {
       new Float32Array([
         maskChannel ? 1 : 0,
         inverse ? 1 : 0,
-        0,
+        sourceIsStraightSrgb ? 1 : 0,
         0,
         inverse?.a ?? 1,
         inverse?.c ?? 0,
