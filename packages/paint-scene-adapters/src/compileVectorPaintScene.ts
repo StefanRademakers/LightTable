@@ -394,6 +394,32 @@ export interface CompiledVectorPaintSceneIslandMember {
   readonly result: PaintSceneCompileResult;
 }
 
+export const composeVectorPaintSceneParts = (
+  sourceId: string,
+  sourceRevision: string,
+  parts: readonly PaintSceneCompileResult[],
+  compiledClip: PaintSceneCompileResult | null = null
+): PaintSceneCompileResult => {
+  const composition = parts.flatMap(result => result.scene.composition);
+  return createPaintSceneCompileResult({
+    schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
+    sourceId,
+    sourceRevision,
+    fragments: parts.flatMap(result => result.scene.fragments),
+    clips: [
+      ...parts.flatMap(result => result.scene.clips),
+      ...(compiledClip?.scene.clips ?? [])
+    ],
+    composition: compiledClip?.scene.clips[0] ? [{
+      kind: 'clip', stableId: compiledClip.scene.clips[0].stableId,
+      children: composition
+    }] : composition
+  }, [
+    ...parts.flatMap(result => result.issues),
+    ...(compiledClip?.issues ?? [])
+  ]);
+};
+
 export const compileVectorPaintSceneIslandMember = (
   sourceId: string,
   member: VectorPaintSceneIslandMember,

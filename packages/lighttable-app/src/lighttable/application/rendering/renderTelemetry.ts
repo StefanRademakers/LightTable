@@ -27,6 +27,7 @@ export interface VectorBackendTelemetrySnapshot {
   readonly velloUnsupportedLayerEncodes: number;
   readonly velloFullCompilations?: number;
   readonly velloProjectedIslandMembers?: number;
+  readonly velloProjectedIslandFragments?: number;
   readonly velloUnchangedSceneReuses?: number;
   readonly velloSurfaceRecreations?: number;
   readonly velloReleasedSources?: number;
@@ -217,6 +218,7 @@ export const formatRenderTelemetry = (snapshot: RenderTelemetrySnapshot) => {
         + `; unsupported fallbacks ${snapshot.vectorBackend.velloUnsupportedLayerEncodes}`
         + `; full compilations ${snapshot.vectorBackend.velloFullCompilations ?? 'n/a'}`
         + `; projected island members ${snapshot.vectorBackend.velloProjectedIslandMembers ?? 'n/a'}`
+        + `; projected island fragments ${snapshot.vectorBackend.velloProjectedIslandFragments ?? 'n/a'}`
         + `; unchanged reuses ${snapshot.vectorBackend.velloUnchangedSceneReuses ?? 'n/a'}`
         + `; surface recreations ${snapshot.vectorBackend.velloSurfaceRecreations ?? 'n/a'}`
         + `; released sources ${snapshot.vectorBackend.velloReleasedSources ?? 'n/a'}`

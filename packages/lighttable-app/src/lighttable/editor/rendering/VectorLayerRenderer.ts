@@ -5,8 +5,8 @@ import {
   type VectorPath
 } from '@lighttable/vector-core';
 import {
-  compileVectorPaintSceneIslandMember,
   composeVectorPaintSceneIsland,
+  composeVectorPaintSceneParts,
   compileVectorPaintScene,
   compileVectorPaintSceneIsland,
   type CompiledVectorPaintSceneIslandMember
@@ -92,6 +92,12 @@ export interface RetainedIslandProjection {
   readonly members: ReadonlyMap<string, {
     readonly sourceRevision: string;
     readonly compiled: CompiledVectorPaintSceneIslandMember;
+    readonly elements: ReadonlyMap<string, {
+      readonly revision: string;
+      readonly compiled: ReturnType<typeof compileVectorPaintScene>;
+    }>;
+    readonly clipRevision: string;
+    readonly compiledClip: ReturnType<typeof compileVectorPaintScene> | null;
   }>;
   readonly islandClipRevision: string;
   readonly compiledIslandClip: ReturnType<typeof compileVectorPaintScene> | null;
@@ -290,6 +296,19 @@ export const vectorIslandPaintSceneRevision = (island: RetainedRenderIsland) => 
   ])
 ]);
 
+const vectorElementPaintSceneRevision = (
+  layerId: string,
+  element: VectorElement,
+  layerToDocument: AffineMatrix
+) => fnv1a64([
+  layerId,
+  element.id,
+  String(element.geometryRevision),
+  String(element.transformRevision),
+  String(element.styleRevision),
+  matrixFingerprint(layerToDocument)
+]);
+
 export const compileVelloVectorIslandScene = (
   island: RetainedRenderIsland,
   profile?: (phase: VectorDetailedProfilePhase, durationMs: number) => void,
@@ -361,8 +380,15 @@ export const compileRetainedVelloVectorIslandScene = (
   const members = new Map<string, {
     sourceRevision: string;
     compiled: CompiledVectorPaintSceneIslandMember;
+    elements: ReadonlyMap<string, {
+      revision: string;
+      compiled: ReturnType<typeof compileVectorPaintScene>;
+    }>;
+    clipRevision: string;
+    compiledClip: ReturnType<typeof compileVectorPaintScene> | null;
   }>();
   let compiledMemberCount = 0;
+  let compiledFragmentCount = 0;
   const compiled = island.members.map(({ layer, layerToDocument, participates }) => {
     const memberRevision = vectorLayerPaintSceneRevision(layer, layerToDocument);
     const member = {
@@ -382,14 +408,60 @@ export const compileRetainedVelloVectorIslandScene = (
       } : {})
     };
     const cached = previous?.members.get(layer.id);
-    const result = cached?.sourceRevision === memberRevision
-      ? { member, result: cached.compiled.result }
-      : compileVectorPaintSceneIslandMember(island.resourceId, member, {
-          ...(adapterProfile ? { profile: adapterProfile } : {}),
-          ...(profile ? { now: () => performance.now() } : {})
-        });
-    if (cached?.sourceRevision !== memberRevision) compiledMemberCount += 1;
-    members.set(layer.id, { sourceRevision: memberRevision, compiled: result });
+    const elements = new Map<string, {
+      revision: string;
+      compiled: ReturnType<typeof compileVectorPaintScene>;
+    }>();
+    let result: CompiledVectorPaintSceneIslandMember;
+    let compiledClip: ReturnType<typeof compileVectorPaintScene> | null = null;
+    const clipRevision = member.clip?.revisionKey ?? '';
+    if (cached?.sourceRevision === memberRevision) {
+      result = { member, result: cached.compiled.result };
+      cached.elements.forEach((value, key) => elements.set(key, value));
+      compiledClip = cached.compiledClip;
+    } else {
+      compiledMemberCount += 1;
+      const parts = layer.elements.map(element => {
+        const revision = vectorElementPaintSceneRevision(layer.id, element, layerToDocument);
+        const cachedElement = cached?.elements.get(element.id);
+        const projected = cachedElement?.revision === revision
+          ? cachedElement.compiled
+          : compileVectorPaintScene([element], {
+              sourceId: `${island.resourceId}:${layer.id}:${element.id}`,
+              sourceRevision: revision,
+              parentTransform: layerToDocument,
+              stableIdNamespace: layer.id,
+              ...(adapterProfile ? { profile: adapterProfile } : {}),
+              ...(profile ? { now: () => performance.now() } : {})
+            });
+        if (cachedElement?.revision !== revision) compiledFragmentCount += 1;
+        elements.set(element.id, { revision, compiled: projected });
+        return projected;
+      });
+      compiledClip = member.clip
+        ? cached?.clipRevision === clipRevision
+          ? cached.compiledClip
+          : compileVectorPaintScene([], {
+              sourceId: `${island.resourceId}:${layer.id}:clip`,
+              sourceRevision: clipRevision,
+              parentTransform: layerToDocument,
+              stableIdNamespace: layer.id,
+              clip: member.clip,
+              ...(adapterProfile ? { profile: adapterProfile } : {}),
+              ...(profile ? { now: () => performance.now() } : {})
+            })
+        : null;
+      result = {
+        member,
+        result: composeVectorPaintSceneParts(
+          `${island.resourceId}:${layer.id}`, memberRevision, parts, compiledClip
+        )
+      };
+    }
+    members.set(layer.id, {
+      sourceRevision: memberRevision, compiled: result, elements,
+      clipRevision, compiledClip
+    });
     return result;
   });
   const islandClipRevision = island.islandVectorClip?.revisionKey ?? '';
@@ -418,6 +490,7 @@ export const compileRetainedVelloVectorIslandScene = (
     ...result,
     sceneKey: `${island.resourceId}:${sourceRevision}`,
     compiledMemberCount,
+    compiledFragmentCount,
     projection: { members, islandClipRevision, compiledIslandClip } satisfies RetainedIslandProjection
   };
 };
@@ -492,6 +565,7 @@ export class VectorLayerRenderer {
   private velloUnsupportedLayerEncodes = 0;
   private velloFullCompilations = 0;
   private velloProjectedIslandMembers = 0;
+  private velloProjectedIslandFragments = 0;
   private velloUnchangedSceneReuses = 0;
   private velloSurfaceRecreations = 0;
   private velloReleasedSources = 0;
@@ -674,6 +748,7 @@ export class VectorLayerRenderer {
       return null;
     }
     this.velloProjectedIslandMembers += compiled.compiledMemberCount;
+    this.velloProjectedIslandFragments += compiled.compiledFragmentCount;
     try {
       const backend = this.vello ??= new VelloPaintSceneBackend(this.device);
       let entry = this.velloSurfaces.get(island.resourceId);
@@ -791,6 +866,7 @@ export class VectorLayerRenderer {
       velloUnsupportedLayerEncodes: this.velloUnsupportedLayerEncodes,
       velloFullCompilations: this.velloFullCompilations,
       velloProjectedIslandMembers: this.velloProjectedIslandMembers,
+      velloProjectedIslandFragments: this.velloProjectedIslandFragments,
       velloUnchangedSceneReuses: this.velloUnchangedSceneReuses,
       velloSurfaceRecreations: this.velloSurfaceRecreations,
       velloReleasedSources: this.velloReleasedSources,
@@ -815,6 +891,7 @@ export class VectorLayerRenderer {
     this.velloUnsupportedLayerEncodes = 0;
     this.velloFullCompilations = 0;
     this.velloProjectedIslandMembers = 0;
+    this.velloProjectedIslandFragments = 0;
     this.velloUnchangedSceneReuses = 0;
     this.velloSurfaceRecreations = 0;
     this.velloReleasedSources = 0;

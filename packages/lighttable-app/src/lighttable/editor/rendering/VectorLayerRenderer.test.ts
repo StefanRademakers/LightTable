@@ -77,6 +77,7 @@ describe('Vello paint-scene projection', () => {
     let island = registry.reconcile(planRenderIslands([first, second])).islands[0];
     const initial = compileRetainedVelloVectorIslandScene(island, null);
     expect(initial.compiledMemberCount).toBe(2);
+    expect(initial.compiledFragmentCount).toBe(2);
 
     second.elements[0].transform = translationMatrix(2, 0);
     second.elements[0].transformRevision += 1;
@@ -84,6 +85,7 @@ describe('Vello paint-scene projection', () => {
     const edited = compileRetainedVelloVectorIslandScene(island, initial.projection);
 
     expect(edited.compiledMemberCount).toBe(1);
+    expect(edited.compiledFragmentCount).toBe(1);
     expect(edited.projection.members.get(first.id)?.compiled.result).toBe(
       initial.projection.members.get(first.id)?.compiled.result
     );

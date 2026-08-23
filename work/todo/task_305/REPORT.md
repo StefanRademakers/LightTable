@@ -314,7 +314,8 @@ Measured production-package evidence:
 - active island route: 5 artwork islands plus 1 still-external scoped vector
   mask / 6 Rust scene entries / 113.10 MiB;
 - warm element mutation: 1 island compilation, **1 projected member**, 1 Rust
-  fragment upload; unchanged island members are reused;
+  fragment upload; the cache is element-granular, so the changed member also
+  projects exactly **1 fragment** while every unchanged element is reused;
 - eight hide/show cycles: exact restored screenshots, zero GPU-memory delta,
   zero surface recreation/release, and no fragment uploads;
 - mutation restore reproduces the island preview exactly (RMSE 0).
@@ -334,4 +335,5 @@ Evidence:
 - `tmp/task-305-m1-oracle/report.json`
 - `tmp/task-305-m1-islands/report.json`
 - `tmp/task-305-m2-retained/report.json`
+- `tmp/task-305-m2-fragment/report.json`
 - `tmp/task-305-m2-compositor-fixed/report.json`
