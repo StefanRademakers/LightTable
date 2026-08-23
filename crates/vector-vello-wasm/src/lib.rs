@@ -72,6 +72,10 @@ enum PaintSceneCompositionNode {
         #[serde(rename = "stableId")]
         stable_id: String,
     },
+    OpacityGroup {
+        opacity: f32,
+        children: Vec<PaintSceneCompositionNode>,
+    },
     Clip {
         #[serde(rename = "stableId")]
         stable_id: String,
@@ -455,9 +459,11 @@ fn append_composition(
     nodes: &[PaintSceneCompositionNode],
     fragments: &HashMap<String, IncrementalFragment>,
     clips: &HashMap<String, EncodedClip>,
+    width: u32,
+    height: u32,
 ) -> Result<(), String> {
-    use vello::kurbo::Affine;
-    use vello::peniko::Fill;
+    use vello::kurbo::{Affine, Rect};
+    use vello::peniko::{Fill, Mix};
 
     for node in nodes {
         match node {
@@ -479,7 +485,18 @@ fn append_composition(
                     FillRule::Evenodd => Fill::EvenOdd,
                 };
                 target.push_clip_layer(fill, Affine::new(clip.transform), &clip.path);
-                append_composition(target, children, fragments, clips)?;
+                append_composition(target, children, fragments, clips, width, height)?;
+                target.pop_layer();
+            }
+            PaintSceneCompositionNode::OpacityGroup { opacity, children } => {
+                target.push_layer(
+                    Fill::NonZero,
+                    Mix::Normal,
+                    *opacity,
+                    Affine::IDENTITY,
+                    &Rect::new(0.0, 0.0, f64::from(width), f64::from(height)),
+                );
+                append_composition(target, children, fragments, clips, width, height)?;
                 target.pop_layer();
             }
         }
@@ -525,6 +542,17 @@ fn validate_composition(
                 }
                 validate_composition(children, fragments, clips, referenced_fragments, depth + 1)?;
             }
+            PaintSceneCompositionNode::OpacityGroup { opacity, children } => {
+                if !opacity.is_finite() || !(0.0..=1.0).contains(opacity) {
+                    return Err(format!(
+                        "composition opacity group has invalid opacity {opacity}"
+                    ));
+                }
+                if children.is_empty() {
+                    return Err("composition opacity group has no children".into());
+                }
+                validate_composition(children, fragments, clips, referenced_fragments, depth + 1)?;
+            }
         }
     }
     Ok(())
@@ -542,7 +570,7 @@ fn validate_complete_composition(
     Ok(())
 }
 
-fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
+fn encode_paint_scene(value: PaintScene, width: u32, height: u32) -> Result<vello::Scene, String> {
     let mut fragments = HashMap::new();
     for fragment in value.fragments {
         let stable_id = fragment.stable_id.clone();
@@ -564,7 +592,14 @@ fn encode_paint_scene(value: PaintScene) -> Result<vello::Scene, String> {
     }
     validate_complete_composition(&value.composition, &fragments, &clips)?;
     let mut scene = vello::Scene::new();
-    append_composition(&mut scene, &value.composition, &fragments, &clips)?;
+    append_composition(
+        &mut scene,
+        &value.composition,
+        &fragments,
+        &clips,
+        width,
+        height,
+    )?;
     Ok(scene)
 }
 
@@ -604,7 +639,7 @@ mod paint_scene_tests {
                 stable_id: "clipped".into(),
             }],
         };
-        assert!(encode_paint_scene(value).is_ok());
+        assert!(encode_paint_scene(value, 100, 100).is_ok());
     }
 
     #[test]
@@ -620,7 +655,7 @@ mod paint_scene_tests {
                 stable_id: "invalid".into(),
             }],
         };
-        match encode_paint_scene(value) {
+        match encode_paint_scene(value, 100, 100) {
             Err(message) => assert_eq!(message, "paint scene pops an empty clip stack"),
             Ok(_) => panic!("unbalanced clip stack was accepted"),
         }
@@ -786,7 +821,9 @@ impl VelloInteropDevice {
             .map_err(|error| JsValue::from_str(&format!("Vello paint-scene render: {error}")))?;
         #[cfg(feature = "gpu-profiler")]
         {
-            let elapsed = renderer.profile_result.take()
+            let elapsed = renderer
+                .profile_result
+                .take()
                 .map(|results| results.iter().map(gpu_query_elapsed_ms).sum());
             Ok(elapsed)
         }
@@ -897,7 +934,7 @@ impl VelloInteropDevice {
         if !cache_hit {
             let paint_scene: PaintScene = serde_json::from_str(scene_json)
                 .map_err(|error| JsValue::from_str(&format!("paint scene JSON: {error}")))?;
-            let scene = encode_paint_scene(paint_scene)
+            let scene = encode_paint_scene(paint_scene, width, height)
                 .map_err(|error| JsValue::from_str(&format!("paint scene: {error}")))?;
             self.scenes.borrow_mut().insert(scene_key.to_owned(), scene);
         }
@@ -997,8 +1034,15 @@ impl VelloInteropDevice {
             let mut compiled = vello::Scene::new();
             validate_complete_composition(&composition, &fragments, &clips)
                 .map_err(|error| JsValue::from_str(&format!("paint scene composition: {error}")))?;
-            append_composition(&mut compiled, &composition, &fragments, &clips)
-                .map_err(|error| JsValue::from_str(&format!("paint scene composition: {error}")))?;
+            append_composition(
+                &mut compiled,
+                &composition,
+                &fragments,
+                &clips,
+                width,
+                height,
+            )
+            .map_err(|error| JsValue::from_str(&format!("paint scene composition: {error}")))?;
             cache.insert(
                 source_id.to_owned(),
                 IncrementalScene {
@@ -1011,16 +1055,14 @@ impl VelloInteropDevice {
             );
             scene_preparation_ms = now_ms() - preparation_started_at;
         }
-        let scene_synchronization_ms = now_ms() - synchronization_started_at
-            - scene_preparation_ms;
+        let scene_synchronization_ms = now_ms() - synchronization_started_at - scene_preparation_ms;
         let entry = cache
             .entries
             .get(source_id)
             .ok_or_else(|| JsValue::from_str("incremental Vello scene cache entry disappeared"))?;
         let render_started_at = now_ms();
-        let actual_gpu_render_ms = self.render_scene_to_texture(
-            texture, width, height, &entry.compiled
-        )?;
+        let actual_gpu_render_ms =
+            self.render_scene_to_texture(texture, width, height, &entry.compiled)?;
         let vello_render_submit_cpu_ms = now_ms() - render_started_at;
         *self.last_incremental_profile.borrow_mut() = IncrementalProfile {
             total_ms: now_ms() - total_started_at,

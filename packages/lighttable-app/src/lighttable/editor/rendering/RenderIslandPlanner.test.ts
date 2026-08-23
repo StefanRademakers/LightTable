@@ -133,4 +133,32 @@ describe('RenderIslandPlanner', () => {
     expect(observable.projectedSurfaceCount).toBe(3);
     expect(observable.islands[1].boundaryReasons).toContain('non-normal-blend');
   });
+
+  it('retains nested normal-opacity vectors inside an outer vector clip island', () => {
+    const plain = vector('plain');
+    const faded = createGroupLayer('faded');
+    faded.opacity = 0.62;
+    const fadedChild = vector('faded-child');
+    faded.children = [fadedChild];
+    const clipped = createGroupLayer('clipped');
+    clipped.vectorClip = {
+      id: 'outer-clip', name: 'Outer clip', enabled: true, inverted: false,
+      elements: [], revision: 3
+    };
+    clipped.children = [plain, faded];
+
+    const plan = planRenderIslands([clipped]);
+
+    expect(plan.projectedSurfaceCount).toBe(1);
+    expect(plan.islands[0].canonicalLayerIds).toEqual([plain.id, fadedChild.id]);
+    expect(plan.islands[0].islandVectorClip?.stableId).toBe('outer-clip');
+    expect(plan.islands[0].composition).toEqual([
+      { kind: 'member', layerId: plain.id },
+      {
+        kind: 'opacity-group', stableId: faded.id, opacity: 0.62,
+        children: [{ kind: 'member', layerId: fadedChild.id }]
+      }
+    ]);
+    expect(plan.islands[0].backendEligibility.vello).toBe(true);
+  });
 });

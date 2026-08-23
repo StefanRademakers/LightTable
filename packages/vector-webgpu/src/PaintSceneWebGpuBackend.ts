@@ -219,8 +219,8 @@ export class PaintSceneWebGpuBackend {
     requestedTolerance = 0.25
   ): PaintSceneWebGpuEncodeMetrics {
     assertPaintSceneIsValid(scene);
-    if (scene.composition.some(node => node.kind === 'clip')) {
-      throw new Error('The current WebGPU paint-scene backend does not support hierarchical clips.');
+    if (scene.composition.some(node => node.kind !== 'fragment')) {
+      throw new Error('The current WebGPU paint-scene backend does not support hierarchical composition.');
     }
     if (scene.fragments.some(fragment => fragment.commands.some(command =>
       command.kind === 'push-clip' || command.kind === 'pop-clip'))) {

@@ -4,6 +4,7 @@ import {
   type PaintSceneCapabilityIssue,
   type PaintSceneColor,
   type PaintSceneCommand,
+  type PaintSceneCompositionNode,
   type PaintScene,
   type PaintSceneCompileResult,
   type PaintSceneGradientPaint,
@@ -387,7 +388,16 @@ export interface CompileVectorPaintSceneIslandOptions {
     readonly parentTransform: AffineMatrix;
     readonly stableIdNamespace: string;
   };
+  readonly composition?: readonly VectorPaintSceneIslandCompositionNode[];
 }
+
+export type VectorPaintSceneIslandCompositionNode =
+  | { readonly kind: 'member'; readonly layerId: string }
+  | {
+    readonly kind: 'opacity-group';
+    readonly opacity: number;
+    readonly children: readonly VectorPaintSceneIslandCompositionNode[];
+  };
 
 export interface CompiledVectorPaintSceneIslandMember {
   readonly member: VectorPaintSceneIslandMember;
@@ -441,11 +451,31 @@ export const composeVectorPaintSceneIsland = (
   sourceId: string,
   sourceRevision: string,
   compiled: readonly CompiledVectorPaintSceneIslandMember[],
-  compiledIslandClip: PaintSceneCompileResult | null = null
+  compiledIslandClip: PaintSceneCompileResult | null = null,
+  islandComposition?: readonly VectorPaintSceneIslandCompositionNode[]
 ): PaintSceneCompileResult => {
-  const flatComposition = compiled.flatMap(({ member, result }) => (
-    member.participates === false ? [] : result.scene.composition
-  ));
+  const byLayerId = new Map(compiled.map(value => [value.member.layerId, value]));
+  const projectComposition = (
+    nodes: readonly VectorPaintSceneIslandCompositionNode[]
+  ): PaintSceneCompositionNode[] => nodes.flatMap(node => {
+    if (node.kind === 'member') {
+      const value = byLayerId.get(node.layerId);
+      return !value || value.member.participates === false
+        ? []
+        : value.result.scene.composition;
+    }
+    const children = projectComposition(node.children);
+    return children.length === 0 ? [] : [{
+      kind: 'opacity-group' as const,
+      opacity: node.opacity,
+      children
+    }];
+  });
+  const flatComposition = islandComposition
+    ? projectComposition(islandComposition)
+    : compiled.flatMap(({ member, result }) => (
+      member.participates === false ? [] : result.scene.composition
+    ));
   const scene: PaintScene = {
     schemaVersion: PAINT_SCENE_SCHEMA_VERSION,
     sourceId,
@@ -490,6 +520,6 @@ export const compileVectorPaintSceneIsland = (
     ...(options.now ? { now: options.now } : {})
   }) : null;
   return composeVectorPaintSceneIsland(
-    sourceId, sourceRevision, compiled, compiledIslandClip
+    sourceId, sourceRevision, compiled, compiledIslandClip, options.composition
   );
 };

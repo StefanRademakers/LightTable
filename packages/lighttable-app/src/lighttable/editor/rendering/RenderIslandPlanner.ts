@@ -32,6 +32,15 @@ export interface RenderIslandBackendEligibility {
   readonly vello: boolean;
 }
 
+export type RenderIslandCompositionNode =
+  | { readonly kind: 'member'; readonly layerId: LayerId }
+  | {
+    readonly kind: 'opacity-group';
+    readonly stableId: LayerId;
+    readonly opacity: number;
+    readonly children: readonly RenderIslandCompositionNode[];
+  };
+
 /**
  * A render island is a projection over canonical layers, never a document edit.
  * `candidateKey` describes membership; the future runtime reconciler owns the
@@ -47,6 +56,8 @@ export interface RenderIslandPlanEntry {
     readonly layerToDocument: AffineMatrix;
     readonly participates: boolean;
   }[];
+  /** Backend-neutral ordering/isolation over the independently editable members. */
+  readonly composition: readonly RenderIslandCompositionNode[];
   readonly scopePath: readonly LayerId[];
   readonly isolationOwnerId: LayerId | null;
   readonly islandVectorClip: {
@@ -78,6 +89,7 @@ interface VectorToken {
 interface ForcedIslandToken {
   readonly kind: 'forced-island';
   readonly members: readonly VectorToken[];
+  readonly composition: readonly RenderIslandCompositionNode[];
   readonly scopePath: readonly LayerId[];
   readonly isolationOwnerId: LayerId;
   readonly reasons: readonly RenderIslandBoundaryReason[];
@@ -117,37 +129,56 @@ const groupBoundaryReasons = (
   return reasons;
 };
 
-const collectPureVectorMembers = (
+interface CollectedVectorSubtree {
+  readonly members: VectorToken[];
+  readonly composition: RenderIslandCompositionNode[];
+}
+
+const collectPureVectorSubtree = (
   nodes: readonly LayerNode[],
   inheritedTransform: AffineMatrix,
   scopePath: readonly LayerId[],
   inheritedVisible: boolean
-): VectorToken[] | null => {
-  const result: VectorToken[] = [];
+): CollectedVectorSubtree | null => {
+  const members: VectorToken[] = [];
+  const composition: RenderIslandCompositionNode[] = [];
   for (const node of nodes) {
     if (node.type === 'vector') {
       // Nested layer isolation still needs its own boundary with today's
       // PaintScene contract; do not hide it inside a group-wide island.
       if (vectorBoundaryReasons(node).length > 0) return null;
-      result.push({
+      members.push({
         kind: 'vector', layer: node, scopePath,
         layerToDocument: multiplyMatrices(inheritedTransform, node.transform),
         participates: inheritedVisible && node.visible && node.opacity > 0
       });
+      composition.push({ kind: 'member', layerId: node.id });
       continue;
     }
-    if (node.type !== 'group' || groupBoundaryReasons(node).length > 0) return null;
+    if (node.type !== 'group') return null;
+    // Normal source-over opacity is representable as a retained PaintScene
+    // subtree. Every other group feature remains a semantic island boundary.
+    const unsupportedReasons = groupBoundaryReasons(node).filter(
+      reason => reason !== 'group-isolation'
+    );
+    if (unsupportedReasons.length > 0) return null;
     const childScope = [...scopePath, node.id];
-    const children = collectPureVectorMembers(
+    const children = collectPureVectorSubtree(
       node.children,
       multiplyMatrices(inheritedTransform, node.transform),
       childScope,
       inheritedVisible && node.visible && node.opacity > 0
     );
     if (!children) return null;
-    result.push(...children);
+    members.push(...children.members);
+    composition.push(...(node.opacity < 0.99999 && children.composition.length > 0 ? [{
+      kind: 'opacity-group' as const,
+      stableId: node.id,
+      opacity: node.opacity,
+      children: children.composition
+    }] : children.composition));
   }
-  return result;
+  return { members, composition };
 };
 
 const tokenize = (
@@ -173,7 +204,7 @@ const tokenize = (
             kind: 'vector', layer: node, scopePath,
             layerToDocument: multiplyMatrices(inheritedTransform, node.transform),
             participates: inheritedVisible && node.visible && node.opacity > 0
-          }], scopePath,
+          }], composition: [{ kind: 'member', layerId: node.id }], scopePath,
           isolationOwnerId: node.id, reasons, islandVectorClip: null,
           forcedVelloEligible: true
         });
@@ -185,7 +216,7 @@ const tokenize = (
       const childScope = [...scopePath, node.id];
       const childTransform = multiplyMatrices(inheritedTransform, node.transform);
       const childVisible = inheritedVisible && node.visible && node.opacity > 0;
-      const vectorChildren = collectPureVectorMembers(
+      const vectorChildren = collectPureVectorSubtree(
         node.children, childTransform, childScope, childVisible
       );
       const reasons = [
@@ -203,9 +234,10 @@ const tokenize = (
         continue;
       }
       output.push({ kind: 'barrier', reason: reasons[0] });
-      if (vectorChildren?.length) {
+      if (vectorChildren?.members.length) {
         output.push({
-          kind: 'forced-island', members: vectorChildren, scopePath: childScope,
+          kind: 'forced-island', members: vectorChildren.members,
+          composition: vectorChildren.composition, scopePath: childScope,
           isolationOwnerId: node.id, reasons,
           islandVectorClip: node.vectorClip?.enabled ? {
             stableId: node.vectorClip.id,
@@ -242,7 +274,10 @@ const entry = (
   isolationOwnerId: LayerId | null,
   reasons: readonly RenderIslandBoundaryReason[],
   islandVectorClip: RenderIslandPlanEntry['islandVectorClip'] = null,
-  forcedVelloEligible = true
+  forcedVelloEligible = true,
+  composition: readonly RenderIslandCompositionNode[] = members.map(
+    ({ layer }) => ({ kind: 'member' as const, layerId: layer.id })
+  )
 ): RenderIslandPlanEntry => {
   const layers = members.map(({ layer }) => layer);
   const canonicalLayerIds = layers.map(({ id }) => id);
@@ -254,6 +289,7 @@ const entry = (
     members: members.map(({ layer, layerToDocument, participates }) => ({
       layer, layerToDocument, participates
     })),
+    composition,
     scopePath,
     isolationOwnerId,
     islandVectorClip,
@@ -303,7 +339,7 @@ export const planRenderIslands = (nodes: readonly LayerNode[]): RenderIslandPlan
       islands.push(entry(
         token.members, 'isolated-vector-group', token.scopePath,
         token.isolationOwnerId, token.reasons, token.islandVectorClip,
-        token.forcedVelloEligible
+        token.forcedVelloEligible, token.composition
       ));
       pendingReasons = [...token.reasons];
       continue;

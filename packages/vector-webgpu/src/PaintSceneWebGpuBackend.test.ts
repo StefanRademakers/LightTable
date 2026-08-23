@@ -72,6 +72,6 @@ describe('paintScenePathToVectorPath', () => {
       composition: [{
         kind: 'clip', stableId: 'mask', children: [{ kind: 'fragment', stableId: 'child' }]
       }]
-    }, {} as never)).toThrow('does not support hierarchical clips');
+    }, {} as never)).toThrow('does not support hierarchical composition');
   });
 });

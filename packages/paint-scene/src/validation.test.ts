@@ -64,4 +64,18 @@ describe('paint-scene validation', () => {
       composition: []
     })).not.toThrow();
   });
+
+  it('validates nested isolated opacity composition', () => {
+    expect(() => assertPaintSceneIsValid({
+      ...scene([]),
+      composition: [{
+        kind: 'opacity-group', opacity: 0.5,
+        children: [{ kind: 'fragment', stableId: 'fragment' }]
+      }]
+    })).not.toThrow();
+    expect(() => assertPaintSceneIsValid({
+      ...scene([]),
+      composition: [{ kind: 'opacity-group', opacity: 2, children: [] }]
+    })).toThrow('invalid opacity');
+  });
 });

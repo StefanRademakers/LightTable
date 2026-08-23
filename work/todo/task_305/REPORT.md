@@ -337,3 +337,36 @@ Evidence:
 - `tmp/task-305-m2-retained/report.json`
 - `tmp/task-305-m2-fragment/report.json`
 - `tmp/task-305-m2-compositor-fixed/report.json`
+
+## Phase 3: nested opacity closes the external-mask resource gap
+
+PaintScene schema 5 now represents nested normal source-over opacity groups.
+The Vello backend encodes these as isolated scene layers; the specialized
+native PaintScene backend rejects hierarchical composition explicitly rather
+than flattening it incorrectly. Canonical vector layers remain independent.
+Only their retained render projection gains an opacity composition tree.
+
+The planner conservatively folds a subtree only when it contains vector
+members, normal source-over groups, group opacity, and a supported vector clip.
+Blend modes, raster masks, effects, clipping chains, inverted clips and raster,
+text, or adjustment interleaves remain semantic boundaries/fallbacks.
+
+Production-package evidence on `svg_vector_render_test.svg`:
+
+- 5 Vello surfaces and 5 retained Rust scene entries (the external scoped-mask
+  surface is gone);
+- approximately 107 MiB reported GPU texture memory;
+- 24-step pan settled in 425 ms, with Vello queue-completion wall time averaging
+  3.87 ms per submitted frame and no surface recreation;
+- 24-step zoom produced no frame over 33.3 ms;
+- versus the per-layer oracle: RMSE 1.0292, MAE 0.0417, max channel delta 64;
+- versus the former six-resource island route, the nested-opacity change is
+  restricted to 1,822 pixels in a 57 x 57 region, with maximum delta 6 and mean
+  maximum-channel delta 1.84. The Chrome-reference RMSE is effectively
+  unchanged (24.00569 to 24.00572).
+
+This closes the measured 6-to-5 resource milestone but does **not** make the
+island renderer a universal pixel oracle. The per-layer path remains selectable
+until the broader compositing parity matrix and fallback gates are complete.
+
+Evidence: `tmp/task-305-opacity-island/report.json`.

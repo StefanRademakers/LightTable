@@ -113,6 +113,7 @@ interface VelloIslandDependency {
   }[];
   readonly islandClipElements: readonly VectorElement[] | null;
   readonly islandClipRevision: string;
+  readonly composition: string;
 }
 
 interface VelloLayerDependency {
@@ -156,7 +157,8 @@ const velloIslandDependency = (island: RetainedRenderIsland): VelloIslandDepende
     participates
   })),
   islandClipElements: island.islandVectorClip?.elements ?? null,
-  islandClipRevision: island.islandVectorClip?.revisionKey ?? ''
+  islandClipRevision: island.islandVectorClip?.revisionKey ?? '',
+  composition: JSON.stringify(island.composition)
 });
 
 const sameVelloIslandDependency = (
@@ -166,6 +168,7 @@ const sameVelloIslandDependency = (
   && left.members.length === right.members.length
   && left.islandClipElements === right.islandClipElements
   && left.islandClipRevision === right.islandClipRevision
+  && left.composition === right.composition
   && left.members.every((member, index) => {
     const candidate = right.members[index];
     return candidate !== undefined
@@ -289,6 +292,7 @@ export const vectorIslandPaintSceneRevision = (island: RetainedRenderIsland) => 
   island.role,
   island.isolationOwnerId ?? '',
   island.islandVectorClip?.revisionKey ?? '',
+  JSON.stringify(island.composition),
   ...island.members.flatMap(({ layer, layerToDocument, participates }) => [
     layer.id,
     vectorLayerPaintSceneRevision(layer, layerToDocument),
@@ -344,6 +348,7 @@ export const compileVelloVectorIslandScene = (
           stableIdNamespace: island.isolationOwnerId ?? island.resourceId
         }
       } : {}),
+      composition: island.composition,
       ...(profile ? {
         now: () => performance.now(),
         profile: (phase, durationMs) => profile(
@@ -483,7 +488,8 @@ export const compileRetainedVelloVectorIslandScene = (
         })
     : null;
   const result = composeVectorPaintSceneIsland(
-    island.resourceId, sourceRevision, compiled, compiledIslandClip
+    island.resourceId, sourceRevision, compiled, compiledIslandClip,
+    island.composition
   );
   profile?.('paint-scene-compilation', performance.now() - compilationStartedAt);
   return {

@@ -3,7 +3,7 @@
  * experiments. This is derived data: source formats and LightTable documents
  * remain the serialization authority.
  */
-export const PAINT_SCENE_SCHEMA_VERSION = 4 as const;
+export const PAINT_SCENE_SCHEMA_VERSION = 5 as const;
 
 export type PaintSceneMatrix = readonly [number, number, number, number, number, number];
 /** Unpremultiplied linear-sRGB RGBA, matching LightTable's compositor space. */
@@ -118,6 +118,12 @@ export interface PaintSceneClip {
  */
 export type PaintSceneCompositionNode =
   | { readonly kind: 'fragment'; readonly stableId: string }
+  | {
+    /** Isolated source-over group; opacity is applied after its children combine. */
+    readonly kind: 'opacity-group';
+    readonly opacity: number;
+    readonly children: readonly PaintSceneCompositionNode[];
+  }
   | {
     readonly kind: 'clip';
     readonly stableId: string;

@@ -65,6 +65,16 @@ export const assertPaintSceneIsValid = (scene: PaintScene): void => {
         referencedFragments.add(node.stableId);
         continue;
       }
+      if (node.kind === 'opacity-group') {
+        if (!Number.isFinite(node.opacity) || node.opacity < 0 || node.opacity > 1) {
+          throw new Error(`Paint-scene opacity group has invalid opacity ${node.opacity}.`);
+        }
+        if (node.children.length === 0) {
+          throw new Error('Paint-scene opacity group has no children.');
+        }
+        visit(node.children, depth + 1);
+        continue;
+      }
       if (!clipIds.has(node.stableId)) {
         throw new Error(`Paint-scene composition references missing clip ${node.stableId}.`);
       }

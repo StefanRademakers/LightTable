@@ -173,6 +173,35 @@ describe('VelloPaintSceneBackend', () => {
     expect(JSON.parse(calls[1][4])).toMatchObject({ upserts: [], clipUpserts: changed.clips });
   });
 
+  it('mutates isolated opacity composition without re-uploading fragments', () => {
+    const render = vi.fn(() => false);
+    const runtime = { bridge: {
+      render_incremental_paint_scene_texture: render,
+      scene_cache_entries: vi.fn(() => 1)
+    } } as unknown as VelloRuntime;
+    const backend = new VelloPaintSceneBackend({} as GPUDevice, runtime);
+    const surface = {
+      texture: {} as GPUTexture, width: 32, height: 32, estimatedBytes: 4096, dispose: vi.fn()
+    };
+    const fragment = { stableId: 'child', revisionKey: '1', paths: [], commands: [] };
+    backend.render(surface, {
+      ...scene, fragments: [fragment],
+      composition: [{ kind: 'fragment', stableId: 'child' }]
+    });
+    const composition: PaintScene['composition'] = [{
+      kind: 'opacity-group', opacity: 0.5,
+      children: [{ kind: 'fragment', stableId: 'child' }]
+    }];
+    expect(backend.render(surface, {
+      ...scene, sourceRevision: '8', fragments: [fragment], composition
+    })).toMatchObject({ uploadedFragments: 0, uploadedClips: 0 });
+    const calls = render.mock.calls as unknown as string[][];
+    expect(JSON.parse(calls[1][4])).toEqual({
+      sourceRevision: '8', composition, upserts: [], removals: [],
+      clipUpserts: [], clipRemovals: []
+    });
+  });
+
   it('releases native fragment state with its source lifecycle', () => {
     const release = vi.fn();
     const runtime = { bridge: {

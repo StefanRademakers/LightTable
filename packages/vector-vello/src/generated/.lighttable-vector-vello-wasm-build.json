@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "sourceHash": "64331bed522da4d9badffc44ba7ba1e122927e98b75506ccbeb420dc84fb55a7",
+  "sourceHash": "8e41d8c135ebf63f910ecb5ade683cc1dfb2fdd543823bd51f623f9751d16d99",
   "velloRepository": "https://github.com/linebender/vello.git",
   "velloCommit": "3fabef9315914fc2fa32eed12afac8922785396b",
   "wasmBindgenVersion": "0.2.126",
   "rustTarget": "wasm32-unknown-unknown",
   "buildFeatures": [],
   "outputs": {
-    "vector_vello_wasm.js": "ea2fade3f859c0a3639e5cd56905f1557257982a2579c5cf141b3ed75503b000",
+    "vector_vello_wasm.js": "75a9cc4ccf8073b3baaf8afe8f3fbabce443bdca21f4ccc59c7cf139ff9c8be4",
     "vector_vello_wasm.d.ts": "7435ed8e1e94f9ab803f895dfaf1759929153cb9bf8d23be40cdb5410deba923",
-    "vector_vello_wasm_bg.wasm": "59a957ce9d14d49c462a0645692b20169b1fc67ba50c232806d5b202ccb36e32",
+    "vector_vello_wasm_bg.wasm": "d1c425234f0655d4d7332d0bf2af4d6548a6a41011d947f08ec1aeffd808758c",
     "vector_vello_wasm_bg.wasm.d.ts": "287ba7ebaeeced941b4bae6cd7ec22235d37c1302acca2fadcd40648a7439414"
   }
 }
