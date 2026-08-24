@@ -1,9 +1,11 @@
 import { _electron as electron } from 'playwright-core';
 import { access, mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const executablePath = path.join(root, 'apps', 'desktop', 'out', 'LightTable-win32-x64', 'LightTable.exe');
+const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
+const executablePath = launch.executablePath;
 const sourceFile = path.resolve(process.argv[2] || 'D:\\TextTest.psd');
 const runId = new Date().toISOString().replaceAll(/[:.]/g, '-');
 const output = path.join(root, 'tmp', 'release-smoke', runId);
@@ -18,6 +20,7 @@ let application;
 try {
   application = await electron.launch({
     executablePath,
+    args: launch.args,
     env: {
       ...environment,
       LIGHTTABLE_AUTOMATION_USER_DATA: userData,
@@ -28,11 +31,11 @@ try {
   });
   const window = await application.firstWindow({ timeout: 30_000 });
   window.on('pageerror', (error) => report.pageErrors.push(error.stack ?? error.message));
-  await window.getByRole('button', { name: 'About LightTable' }).click();
-  await window.getByRole('dialog', { name: 'About LightTable' }).waitFor({ state: 'visible' });
-  await window.getByText('0.1.0-alpha.1').waitFor({ state: 'visible' });
-  await window.getByRole('button', { name: 'Close', exact: true }).click();
-  await window.getByRole('button', { name: 'Open file' }).click();
+  const open = await waitForDesktopLauncher({
+    app: application, page: window, outputDirectory: output,
+    sourceFile, pageErrors: report.pageErrors, label: 'release'
+  });
+  await open.click();
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 45_000 });
   const isolation = await window.evaluate(() => ({
@@ -53,7 +56,7 @@ try {
     .waitFor({ state: 'visible', timeout: 15_000 });
   await window.screenshot({ path: path.join(output, 'about-update.png') });
   await window.getByRole('button', { name: 'Close', exact: true }).click();
-  await window.keyboard.press('Control+S');
+  await window.keyboard.press('Control+Shift+S');
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (await stat(savedFile).then(() => true).catch(() => false)) break;
     await window.waitForTimeout(100);
