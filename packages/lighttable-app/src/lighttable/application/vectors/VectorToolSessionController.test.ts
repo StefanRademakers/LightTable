@@ -359,6 +359,43 @@ describe('VectorToolSessionController', () => {
     expect(commitLayerTransformPreview).toHaveBeenCalledOnce();
   });
 
+  it('keeps a complete multi-object layer drag on the retained layer preview', () => {
+    const setLayerTransformPreview = vi.fn(() => true);
+    const commitLayerTransformPreview = vi.fn(() => true);
+    const state = setup(undefined, undefined, undefined, {
+      setLayerTransformPreview,
+      commitLayerTransformPreview
+    });
+    const first = createVectorLiveShape('first', {
+      kind: 'rectangle', width: 20, height: 20,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    first.transform.tx = 20;
+    first.transform.ty = 20;
+    const second = createVectorLiveShape('second', {
+      kind: 'ellipse', width: 20, height: 20
+    });
+    second.transform.tx = 80;
+    second.transform.ty = 20;
+    const layer = createVectorLayer([first, second]);
+    state.document = { ...state.document, layers: [layer], activeLayerId: layer.id };
+    state.controller.activate('element-selection');
+    expect(state.selection.elements).toHaveLength(2);
+    const openingDocument = state.document;
+
+    expect(state.controller.pointerDown(45, { x: 30, y: 30 }, { hitRadius: 2 })).toBe(true);
+    expect(state.controller.pointerMove(45, { x: 50, y: 45 })).toBe(true);
+
+    expect(state.document).toBe(openingDocument);
+    expect(setLayerTransformPreview).toHaveBeenLastCalledWith(
+      layer,
+      expect.objectContaining({ tx: 20, ty: 15 }),
+      expect.objectContaining({ tx: 20, ty: 15 })
+    );
+    expect(state.controller.pointerUp(45, { x: 50, y: 45 })).toBe(true);
+    expect(commitLayerTransformPreview).toHaveBeenCalledOnce();
+  });
+
   it('drags a selected gradient endpoint as one non-React document transaction', () => {
     const state = setup();
     const shape = createVectorLiveShape('gradient-shape', {

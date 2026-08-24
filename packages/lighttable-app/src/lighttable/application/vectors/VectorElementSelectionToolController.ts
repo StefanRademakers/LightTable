@@ -354,14 +354,21 @@ export class VectorElementSelectionToolController {
     if (targets.length !== elements.length) {
       return true;
     }
-    const selectedLayer = elements.length === 1
+    const selectedLayer = elements.length > 0
+      && elements.every(({ layerId }) => layerId === elements[0]!.layerId)
       ? findDocumentLayer(document, elements[0]!.layerId)
       : null;
-    const layerPreview = !options.scale
-      && !options.rotation
+    const selectedElementIds = new Set(elements.map(({ elementId }) => elementId));
+    const selectsCompleteLayer = selectedLayer?.type === 'vector'
+      && selectedLayer.elements.length === selectedElementIds.size
+      && selectedLayer.elements.every(({ id }) => selectedElementIds.has(id));
+    // Moving/scaling/rotating every element in one vector layer is exactly a
+    // layer transform. Keep that complete operation on the retained semantic
+    // preview plane, regardless of how many logical SVG objects the layer
+    // contains. Pointer-up remains the sole canonical/history publication and
+    // setLayerTransform carries document-space paints and linked masks with it.
+    const layerPreview = selectsCompleteLayer
       && selectedLayer?.type === 'vector'
-      && selectedLayer.elements.length === 1
-      && selectedLayer.elements[0]?.id === elements[0]?.elementId
       && this.dependencies.setLayerTransformPreview
       && this.dependencies.commitLayerTransformPreview
       && this.dependencies.setLayerTransformPreview(
