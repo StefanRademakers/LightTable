@@ -13,8 +13,11 @@ const argument = (name, fallback = null) => {
   return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
 };
 const sourceFile = path.resolve(argument('file') ?? '');
+const expectation = argument('expect', 'automatic');
 const output = path.resolve(argument('output', path.join(root, 'tmp', 'device-loss-audit')));
 assert.ok(sourceFile, 'Usage: audit-desktop-device-loss.mjs --file <path> [--output <path>]');
+assert.ok(['automatic', 'checkpoint-required'].includes(expectation),
+  '--expect must be automatic or checkpoint-required.');
 await Promise.all([access(sourceFile), mkdir(output, { recursive: true })]);
 
 const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
@@ -63,36 +66,49 @@ try {
     return renderer?.status === 'failed' ? { error: renderer.error } : false;
   }, documentId, { timeout: 10_000 });
   const failedState = await failedHandle.jsonValue();
-  const recovered = await driver.waitForRenderedDocument(documentId, 120_000);
-  const afterLayers = await driver.waitForLayers(documentId);
-  const afterPreview = await preview(
-    driver, documentId, recovered.document.canonicalRevision
-  );
-
   report.documentId = documentId;
   report.before = before.document;
   report.failed = { status: 'failed', error: failedState?.error ?? null };
-  report.recovered = recovered.document;
-  report.telemetry = recovered.telemetry;
   report.beforePreviewSha256 = hash(beforePreview);
-  report.afterPreviewSha256 = hash(afterPreview);
-  report.layersStable = JSON.stringify(beforeLayers) === JSON.stringify(afterLayers);
-  report.revisionStable = before.document.canonicalRevision
-    === recovered.document.canonicalRevision;
-  report.previewStable = report.beforePreviewSha256 === report.afterPreviewSha256;
-  await Promise.all([
-    writeFile(path.join(output, 'before.png'), beforePreview),
-    writeFile(path.join(output, 'after.png'), afterPreview)
-  ]);
-
   assert.match(report.failed?.error ?? '', /^WebGPU device lost:/u);
-  assert.equal(report.layersStable, true, 'Canonical layers changed during GPU recovery.');
-  assert.equal(report.revisionStable, true, 'Canonical document revision changed during GPU recovery.');
-  assert.equal(report.previewStable, true, 'Recovered pixels differ from the pre-loss preview.');
-  assert.equal(report.telemetry?.vectorBackend?.selected, 'hybrid');
-  assert.equal(report.telemetry?.vectorBackend?.active, 'vello',
-    `Vello did not remain active after recovery: ${report.telemetry?.vectorBackend?.velloFailure ?? 'unknown failure'}`);
-  assert.equal(report.telemetry?.vectorBackend?.velloFailure, null);
+  if (expectation === 'checkpoint-required') {
+    await page.waitForTimeout(500);
+    const held = await driver.queryDocument(documentId);
+    const heldLayers = await driver.waitForLayers(documentId);
+    report.held = held;
+    report.layersStable = JSON.stringify(beforeLayers) === JSON.stringify(heldLayers);
+    report.revisionStable = before.document.canonicalRevision === held.canonicalRevision;
+    await writeFile(path.join(output, 'before.png'), beforePreview);
+    assert.equal(held.renderer.status, 'failed',
+      'A raster document was presented as recovered without rehydrating its pixels.');
+    assert.equal(report.layersStable, true, 'Canonical layers changed while recovery was held.');
+    assert.equal(report.revisionStable, true,
+      'Canonical document revision changed while raster recovery was held.');
+  } else {
+    const recovered = await driver.waitForRenderedDocument(documentId, 120_000);
+    const afterLayers = await driver.waitForLayers(documentId);
+    const afterPreview = await preview(
+      driver, documentId, recovered.document.canonicalRevision
+    );
+    report.recovered = recovered.document;
+    report.telemetry = recovered.telemetry;
+    report.afterPreviewSha256 = hash(afterPreview);
+    report.layersStable = JSON.stringify(beforeLayers) === JSON.stringify(afterLayers);
+    report.revisionStable = before.document.canonicalRevision
+      === recovered.document.canonicalRevision;
+    report.previewStable = report.beforePreviewSha256 === report.afterPreviewSha256;
+    await Promise.all([
+      writeFile(path.join(output, 'before.png'), beforePreview),
+      writeFile(path.join(output, 'after.png'), afterPreview)
+    ]);
+    assert.equal(report.layersStable, true, 'Canonical layers changed during GPU recovery.');
+    assert.equal(report.revisionStable, true, 'Canonical document revision changed during GPU recovery.');
+    assert.equal(report.previewStable, true, 'Recovered pixels differ from the pre-loss preview.');
+    assert.equal(report.telemetry?.vectorBackend?.selected, 'hybrid');
+    assert.equal(report.telemetry?.vectorBackend?.active, 'vello',
+      `Vello did not remain active after recovery: ${report.telemetry?.vectorBackend?.velloFailure ?? 'unknown failure'}`);
+    assert.equal(report.telemetry?.vectorBackend?.velloFailure, null);
+  }
   assert.equal(report.pageErrors.length, 0, 'Page errors were observed during device recovery.');
   assert.equal(report.consoleErrors.length, 0, 'Console errors were observed during device recovery.');
 } catch (error) {
