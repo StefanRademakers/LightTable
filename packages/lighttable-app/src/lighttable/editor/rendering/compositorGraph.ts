@@ -39,6 +39,11 @@ export interface ActiveProcessingCheckpoint {
   readonly remainder: readonly LayerNode[];
 }
 
+export interface TransientGeometryCheckpoint {
+  readonly base: readonly LayerNode[];
+  readonly remainder: readonly LayerNode[];
+}
+
 /**
  * Finds the only processing suffix that may safely reuse a root base
  * composite. Clipped adjustments are deliberately excluded because their
@@ -72,6 +77,32 @@ export const splitActiveProcessingCheckpoint = (
   const remainder = nodes.slice(index);
   // A clipping chain may depend on an isolated sibling below the checkpoint.
   // Until that alpha checkpoint is explicit, use canonical full evaluation.
+  if (remainder.some(({ clipping }) => clipping)) return null;
+  return { base: nodes.slice(0, index), remainder };
+};
+
+const nodeContainsTransientGeometry = (
+  node: LayerNode,
+  hasPreview: (node: LayerNode) => boolean
+): boolean => hasPreview(node) || (
+  node.type === 'group'
+  && node.children.some((child) => nodeContainsTransientGeometry(child, hasPreview))
+);
+
+/**
+ * Places a reusable root checkpoint below the lowest transient geometry edit.
+ * A nested preview keeps its whole root group in the dynamic suffix, preserving
+ * isolation and pass-through semantics. Clipping is excluded until the cache
+ * also retains the isolated clipping-base alpha rather than only the flattened
+ * composite.
+ */
+export const splitTransientGeometryCheckpoint = (
+  nodes: readonly LayerNode[],
+  hasPreview: (node: LayerNode) => boolean
+): TransientGeometryCheckpoint | null => {
+  const index = nodes.findIndex((node) => nodeContainsTransientGeometry(node, hasPreview));
+  if (index <= 0) return null;
+  const remainder = nodes.slice(index);
   if (remainder.some(({ clipping }) => clipping)) return null;
   return { base: nodes.slice(0, index), remainder };
 };

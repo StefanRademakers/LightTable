@@ -15,6 +15,7 @@ import {
   containsVisibleAdjustmentLayer,
   groupNeedsCompositingEnvelope,
   splitActiveProcessingCheckpoint,
+  splitTransientGeometryCheckpoint,
   splitTopmostProcessingSuffix
 } from './compositorGraph';
 import { createAdjustmentLayer } from '../document/documentTypes';
@@ -220,6 +221,34 @@ describe('compositorGraph', () => {
     });
     expect(splitActiveProcessingCheckpoint(
       [lower, grade, { ...above, clipping: true }], grade.id
+    )).toBeNull();
+  });
+
+  it('caches the settled root prefix below transient geometry', () => {
+    const lower = raster('lower');
+    const middle = raster('middle');
+    const moving = raster('moving');
+
+    expect(splitTransientGeometryCheckpoint(
+      [lower, middle, moving],
+      ({ id }) => id === moving.id
+    )).toEqual({ base: [lower, middle], remainder: [moving] });
+
+    const group = createGroupLayer('moving group');
+    const child = raster('moving child');
+    group.children = [child];
+    expect(splitTransientGeometryCheckpoint(
+      [lower, group, moving],
+      ({ id }) => id === child.id
+    )).toEqual({ base: [lower], remainder: [group, moving] });
+  });
+
+  it('keeps clipping-dependent geometry on full compositing', () => {
+    const lower = raster('lower');
+    const moving = { ...raster('moving'), clipping: true };
+    expect(splitTransientGeometryCheckpoint(
+      [lower, moving],
+      ({ id }) => id === moving.id
     )).toBeNull();
   });
 

@@ -29,6 +29,7 @@ import {
   analyzeDocumentComposite,
   buildCompositorPlan,
   splitActiveProcessingCheckpoint,
+  splitTransientGeometryCheckpoint,
   splitTopmostProcessingSuffix,
   type CompositorPlan,
   type CompositorPlanEntry
@@ -1082,19 +1083,30 @@ export class LayerCompositor {
       return [parentTarget, parentBackground];
     };
 
-    const suffix = this.topmostSuffixCacheEnabled
+    const geometryCheckpoint = this.topmostSuffixCacheEnabled
+      && excludedLayerIds.size === 0
+      ? splitTransientGeometryCheckpoint(
+          document.layers,
+          (node) => Boolean(geometryPreviews.resolve(node.id, node.geometryRevision))
+        )
+      : null;
+    const suffix = !geometryCheckpoint
+      && this.topmostSuffixCacheEnabled
       && encodeAdjustment
       && excludedLayerIds.size === 0
       ? splitTopmostProcessingSuffix(document.layers)
       : null;
-    const activeCheckpoint = !suffix
+    const activeCheckpoint = !geometryCheckpoint
+      && !suffix
       && this.topmostSuffixCacheEnabled
       && encodeAdjustment
       && excludedLayerIds.size === 0
       ? splitActiveProcessingCheckpoint(document.layers, document.activeLayerId)
       : null;
-    const checkpoint = suffix
-      ? { base: suffix.base, remainder: suffix.processing, label: 'topmost processing suffix' }
+    const checkpoint = geometryCheckpoint
+      ? { ...geometryCheckpoint, label: 'transient geometry suffix' }
+      : suffix
+        ? { base: suffix.base, remainder: suffix.processing, label: 'topmost processing suffix' }
       : activeCheckpoint
         ? { ...activeCheckpoint, label: 'active processing layer' }
         : null;

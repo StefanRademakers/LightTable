@@ -392,6 +392,63 @@ describe('LayerCompositor', () => {
     expect(compositor.topmostSuffixCacheTelemetry()).toMatchObject({ misses: 2, hits: 1 });
   });
 
+  it('reuses the settled lower composite while a top raster layer moves', () => {
+    const document = createImageDocument('Move preview', 64, 32, 'lower-source');
+    const lower = document.layers[0]!;
+    const upperDocument = createImageDocument('Upper', 64, 32, 'upper-source');
+    const upper = upperDocument.layers[0]!;
+    document.layers = [lower, upper];
+    document.activeLayerId = upper.id;
+    const preview = translationMatrix(12, 8);
+    const compositeA = texture();
+    const compositeB = texture();
+    const lowerTexture = texture();
+    const upperTexture = texture();
+    const cachedBaseTexture = texture();
+    const raster = vi.fn((layerId: string) => ({
+      texture: layerId === lower.id ? lowerTexture : upperTexture,
+      width: 64,
+      height: 32,
+      maskTexture: null
+    }));
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer: vi.fn() },
+        createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: {
+        resolve: vi.fn((layerId: string) => layerId === upper.id ? preview : null)
+      } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: vi.fn(), retainLayerIds: vi.fn() } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(() => cachedBaseTexture),
+      clearTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+    const encoder = { copyTextureToTexture: vi.fn() } as unknown as GPUCommandEncoder;
+
+    compositor.encode(encoder, document);
+    compositor.encode(encoder, document);
+
+    expect(raster).toHaveBeenCalledTimes(3);
+    expect(raster.mock.calls.map(([layerId]) => layerId)).toEqual([
+      lower.id, upper.id, upper.id
+    ]);
+    expect(compositor.topmostSuffixCacheTelemetry()).toMatchObject({ misses: 1, hits: 1 });
+  });
+
   it('propagates parent transforms to native vector layers', () => {
     const document = createImageDocument('Vector group', 64, 32, 'source');
     const vector = createVectorLayer([], 'Shape');
