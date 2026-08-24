@@ -130,7 +130,6 @@
                   "type": "object", "required": ["kind", "settings"],
                   "properties": {
                     "kind": { "const": "gaussian-blur" },
-                    "placement": { "const": "adjustment-layer" },
                     "settings": { "$ref": "#/$defs/gaussianBlurSettings" }
                   }
                 },
@@ -156,16 +155,6 @@
                   }
                 }
               ]
-            }
-          },
-          {
-            "if": {
-              "type": "object", "required": ["kind"],
-              "properties": { "kind": { "const": "gaussian-blur" } }
-            },
-            "then": {
-              "type": "object", "required": ["placement"],
-              "properties": { "placement": { "const": "adjustment-layer" } }
             }
           }
         ]

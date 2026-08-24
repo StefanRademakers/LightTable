@@ -116,7 +116,13 @@ describe('LayerProcessingRenderer', () => {
       encodeLinearSpatial: vi.fn(),
       encodeDisplayPost: vi.fn()
     };
-    const filters = { encode: vi.fn(() => filtered) };
+    const filters = {
+      encode: vi.fn((
+        _encoder: GPUCommandEncoder,
+        _source: GPUTexture,
+        _layer: RasterLayer
+      ) => filtered)
+    };
     const renderer = new LayerProcessingRenderer(grade, effects, filters);
 
     expect(renderer.encode(encoder, source, layer)).toBe(filtered);
@@ -182,6 +188,40 @@ describe('LayerProcessingRenderer', () => {
     expect(grade.encode).toHaveBeenCalledTimes(1);
     expect(grade.encode.mock.calls[0]?.[2]).toMatchObject({
       name: 'Exposure', adjustmentStack: attachmentStack
+    });
+  });
+
+  it('routes an attached Gaussian Blur through the shared filter executor', () => {
+    const source = texture('source');
+    const filtered = texture('filtered');
+    const stack = createGaussianBlurStack(6, (kind) => `${kind}-attached-gaussian`);
+    const layer = {
+      ...layerWithStack(),
+      adjustmentStack: null,
+      attachedAdjustments: [{
+        id: 'blur', adjustmentKind: 'gaussian-blur' as const, name: 'Gaussian Blur',
+        enabled: true, revision: 0, adjustmentStack: stack
+      }]
+    };
+    const filters = {
+      encode: vi.fn((
+        _encoder: GPUCommandEncoder,
+        _source: GPUTexture,
+        _layer: RasterLayer
+      ) => filtered)
+    };
+    const renderer = new LayerProcessingRenderer(
+      { encode: vi.fn() },
+      { encodeSourceGeometry: vi.fn(), encodeLinearSpatial: vi.fn(), encodeDisplayPost: vi.fn() },
+      filters
+    );
+
+    expect(renderer.encode(encoder, source, layer)).toBe(filtered);
+    expect(filters.encode).toHaveBeenCalledOnce();
+    expect(filters.encode.mock.calls[0]?.[2]).toMatchObject({
+      id: expect.stringContaining('::attached-adjustment::blur'),
+      name: 'Gaussian Blur',
+      adjustmentStack: stack
     });
   });
 });

@@ -141,6 +141,7 @@
     { "kind": "threshold", "placement": "attached", "layerId": "layer-photo", "settings": { "thresholdLevel": 160 } },
     { "kind": "posterize", "placement": "adjustment-layer", "aboveLayerId": "layer-photo", "settings": { "posterizeLevels": 6 } },
     { "kind": "gaussian-blur", "placement": "adjustment-layer", "aboveLayerId": "layer-photo", "settings": { "radius": 12.5 } },
+    { "kind": "gaussian-blur", "placement": "attached", "layerId": "layer-photo", "settings": { "radius": 4 } },
     { "kind": "gradient-map", "placement": "adjustment-layer", "settings": {
       "colorStops": [
         { "position": 0, "midpoint": 0.5, "color": { "r": 0.04, "g": 0.02, "b": 0.16 } },

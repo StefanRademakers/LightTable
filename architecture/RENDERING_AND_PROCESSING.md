@@ -193,18 +193,18 @@ color grading, curves, detail, vignette, lens distortion, chromatic
 aberration, lens blur, halation, grain, warp and Gaussian Blur. Definitions live in
 `processing/moduleDefinitions.ts`.
 
-The current Gaussian Blur product slice is a standalone full-frame processing
-layer with an editable radius in the context-sensitive Properties panel. It
-uses the same canonical history, save, mask, rasterize, merge and export route
-as other adjustment layers. This is a valid full-frame effect, but it is not
-yet the complete Smart Filter model.
+The current Gaussian Blur product slice supports both a standalone full-frame
+processing layer and a linked filter owned by one raster layer. Both expose an
+editable radius in the context-sensitive Properties panel and use canonical
+history, save, rasterize, merge and export routes. The standalone layer owns a
+mask; the linked node owns independent parameters and bypass and moves with its
+content layer.
 
-An attached Smart Filter stack requires a separate canonical owner on its
-content layer, including its own stack mask in addition to the content layer's
-mask. It must not be represented by the legacy `attachedAdjustments` array,
-which has no stack-mask authority. The later model should reuse the same
-registered filter executor and compositor contracts while adding ordered
-filter instances, stack-mask ownership and Smart Object/source semantics.
+A complete Smart Filter stack still requires a separate shared stack mask in
+addition to the content layer's mask. The current ordered `attachedAdjustments`
+representation has no stack-mask authority. The later model should reuse the
+same registered filter executor and compositor contracts while adding explicit
+stack-mask ownership and Smart Object/source semantics.
 
 **Current:** effect-category nodes have independent executors and resources;
 `DocumentEffectRuntime` evaluates them in validated serialized order inside

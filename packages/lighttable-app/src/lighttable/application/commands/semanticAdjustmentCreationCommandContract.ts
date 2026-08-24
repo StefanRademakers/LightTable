@@ -116,9 +116,6 @@ export const parseSemanticAdjustmentCreationCommand = (
   if (settings === null) {
     return { message: 'Initial settings do not match the requested adjustment kind.' };
   }
-  if (value.kind === 'gaussian-blur' && value.placement !== 'adjustment-layer') {
-    return { message: 'Gaussian Blur currently requires adjustment-layer placement.' };
-  }
   if (value.placement === 'attached') {
     if (typeof value.layerId !== 'string') {
       return { message: 'Attached placement requires a layerId.' };
@@ -141,10 +138,6 @@ export const resolveContextualAdjustmentCreation = (
   kind: AdjustmentLayerKind
 ): SemanticAdjustmentCreationCommand => {
   const active = findDocumentLayer(document, document.activeLayerId);
-  if (kind === 'gaussian-blur') {
-    return { kind, placement: 'adjustment-layer',
-      ...(active ? { aboveLayerId: active.id } : {}) };
-  }
   if (active?.type === 'raster' && !layerIsLocked(active, 'pixels')) {
     return localKindSet.has(kind)
       ? { kind: kind as LocalProcessingKind, placement: 'local', layerId: active.id }

@@ -667,9 +667,25 @@ describe('useLayerDocumentCommands', () => {
     expect(state.dependencies.publishDocumentAdjustments).not.toHaveBeenCalled();
     expect(state.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
     expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
-    expect(state.commands.createAttachedAdjustment(
-      state.document().layers[0]!.id, 'gaussian-blur', { radius: 8 }
-    )).toBeNull();
+    const rasterId = state.document().layers[0]!.id;
+    const adjustmentId = state.commands.createAttachedAdjustment(
+      rasterId, 'gaussian-blur', { radius: 8 }
+    );
+    expect(adjustmentId).toEqual(expect.any(String));
+    const raster = state.document().layers.find(({ id }) => id === rasterId);
+    expect(raster?.type === 'raster' ? raster.attachedAdjustments : null).toEqual([
+      expect.objectContaining({
+        id: adjustmentId,
+        adjustmentKind: 'gaussian-blur',
+        name: 'Gaussian Blur',
+        enabled: true,
+        adjustmentStack: expect.objectContaining({
+          modules: [expect.objectContaining({
+            type: 'lt.gaussian-blur', settings: { radius: 8 }
+          })]
+        })
+      })
+    ]);
   });
 
   it.each([

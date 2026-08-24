@@ -1689,6 +1689,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const endDocumentTransaction = documentMutationController.end;
   const gaussianBlurFilterController = useGaussianBlurFilterController({
     document: imageDocument,
+    target: propertiesTarget,
     getDocument: () => imageDocumentRef.current,
     applyDocument: applyDocumentSnapshot,
     recordHistory: pushDocumentHistory
@@ -5224,17 +5225,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   applyAdjustmentRef.current = (kind) => {
     const document = imageDocumentRef.current;
     if (!document) return;
-    if (kind === 'gaussian-blur') {
-      const command = {
-        kind,
-        placement: 'adjustment-layer',
-        aboveLayerId: document.activeLayerId ?? undefined
-      } as const;
-      if (!executeRegisteredCommand('adjustment.create', command)) {
-        executeAdjustmentCreationRef.current(command);
-      }
-      return;
-    }
     const command = resolveContextualAdjustmentCreation(document, kind);
     if (command.placement === 'local') {
       const layer = findDocumentLayer(document, command.layerId);

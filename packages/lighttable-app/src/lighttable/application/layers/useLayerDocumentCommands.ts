@@ -560,14 +560,12 @@ export const createLayerDocumentCommands = (
     }
     if (kind === 'grain') source.effects.grain.enabled = true;
     applyInitialSettings(source, settings);
-    // Gaussian Blur is introduced first as a full-frame filter layer. An
-    // attached Smart Filter needs a dedicated stack owner and stack mask; it
-    // must not be smuggled into the legacy attached-adjustment container.
-    if (kind === 'gaussian-blur') return null;
-    const adjustmentStack = selectAdjustmentLayerModules(adjustmentStackForScope(
-      createAdjustmentStackFromBasicAdjustments(source),
-      'layer'
-    ), kind);
+    const adjustmentStack = kind === 'gaussian-blur'
+      ? createGaussianBlurStack(settings && 'radius' in settings ? settings.radius : undefined)
+      : selectAdjustmentLayerModules(adjustmentStackForScope(
+          createAdjustmentStackFromBasicAdjustments(source),
+          'layer'
+        ), kind);
     const adjustmentId = `attached-${crypto.randomUUID()}`;
     const next = addRasterLayerAttachedAdjustment(current, layerId, {
       id: adjustmentId,
