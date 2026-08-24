@@ -130,6 +130,41 @@ sessions cannot discover a newly registered server dynamically.
 
 ## Next safe continuation
 
+### Design-pass priorities (24 August 2026)
+
+Keep this list outcome-driven; do not create a task per tool or duplicate it in
+another MCP-only scene model.
+
+1. **Finish the real artist acceptance loop.** Complete native save plus flat
+   export, inspect Actions/events, independently verify pixels and editable
+   structure, and exercise stale/missing/reconnect/cleanup behavior. Separately
+   close Task 282's one remaining `Always allow` restart check.
+2. **Make text measurable and predictable.** Add bounded `font.list`/search and
+   `text.measure` queries with actual font/substitution status, logical/ink
+   bounds and overflow. Fix the observed text stroke/shadow realization before
+   teaching agents to rely on those styles.
+3. **Add semantic design layout.** Implement explicit layer reparent/insertion,
+   absolute reorder, align/distribute and multi-layer transform/bounds queries.
+   These must resolve through the canonical scene graph and transform owners,
+   not through UI coordinates.
+4. **Reduce construction roundtrips.** Build on `command.batch`, result bindings
+   and the 32 MiB SVG route for lower-call bulk vector/text creation. Measure a
+   guided reconstruction rerun against the 76-call cold baseline before adding
+   another coarse dedicated tool.
+5. **Improve visual evaluation.** Expose bounded region statistics/scopes,
+   alpha occupancy and clipping/contrast diagnostics alongside revision-bound
+   previews and palettes. Layer/text/vector queries now return shared
+   document-space `document` and conservative `visual` bounds; null visual
+   bounds deliberately mean the client must not assume safe rejection.
+6. **Close editable SVG/design gaps by value.** Patterns, embedded images,
+   imported editable text, richer masks and compound clip/boolean behavior are
+   the largest remaining reference-reconstruction gaps. Preserve the same
+   canonical vector packages used by UI, Actions, export and MCP.
+7. **Finish reviewed remote admission.** Keep every withheld capability and
+   permission reason machine-readable, and prove representative denial,
+   cancellation, reconnect and oversized-input cases. Generation/network/cost
+   authority remains separate and never becomes an implicit design fallback.
+
 First complete Task 282's packaged close/restart persistence check. Then finish
 Task 264 as one real Codex flow: construct or reuse an editable test document,
 save/export through MCP, observe Actions/events, independently verify pixels and
