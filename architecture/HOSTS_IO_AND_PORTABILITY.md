@@ -18,6 +18,11 @@ All entry points—file menu, startup argument, recent file, drop target, media
 browser and host API—feed one application-owned open/hydrate flow. Detect by
 header/content where possible; extensions and picker masks are hints.
 
+File > Open may return multiple host files. The application sends every selected
+file independently through that same open/hydrate flow and creates one document
+tab per file. Place/import remains a single-target operation because it mutates
+the active document rather than opening peer documents.
+
 Fast common formats take the cheapest correct path. Precision or structured
 formats lazily load the required worker/codec:
 

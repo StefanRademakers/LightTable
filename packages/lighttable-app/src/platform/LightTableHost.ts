@@ -299,6 +299,8 @@ export interface LightTableHost {
   };
   listSystemFonts?(): Promise<readonly DocumentFontAsset[]>;
   openFile?(): Promise<File | null>;
+  /** Open one or more user-selected files as independent documents. */
+  openFiles?(): Promise<readonly File[]>;
   /** Delivers cold/warm OS Open With requests through the normal document path. */
   subscribeOpenFiles?(listener: (files: readonly File[]) => void): () => void;
   listRecentFiles?(): Promise<readonly LightTableRecentFile[]>;

@@ -1697,6 +1697,34 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     return payload;
   });
 
+  ipcMain.handle('lighttable:open-files', async (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    const automationFile = process.env.LIGHTTABLE_AUTOMATION_OPEN_FILE;
+    if (automationFile) return [await readDesktopFilePayload(path.resolve(automationFile))];
+    const options: Electron.OpenDialogOptions = {
+      title: 'Open in LightTable',
+      properties: ['openFile', 'multiSelections'],
+      filters: createDesktopOpenDialogFilters().map((filter) => ({
+        name: filter.name,
+        extensions: [...filter.extensions]
+      }))
+    };
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled || result.filePaths.length === 0) return [];
+
+    const payloads = [];
+    for (const selectedPath of result.filePaths) {
+      // Keep peak decoder/file-read pressure bounded when many large files are
+      // selected; each payload still follows the normal independent open path.
+      payloads.push(await readDesktopFilePayload(selectedPath));
+      await rememberRecentFile(selectedPath);
+    }
+    await rememberActiveProjectFileAsLastUsed(result.filePaths[result.filePaths.length - 1]!);
+    return payloads;
+  });
+
   ipcMain.handle('lighttable:take-launch-files', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     const payloads = [];

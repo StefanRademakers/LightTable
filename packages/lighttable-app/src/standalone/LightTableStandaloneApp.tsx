@@ -61,6 +61,7 @@ import {
   type DocumentRendererSnapshot
 } from '../lighttable/application/rendering/documentRendererLifecycle';
 import { DocumentStartupTimeline } from '../lighttable/application/telemetry/documentStartupTimeline';
+import { openHostDocuments } from './openHostDocuments';
 
 const NewProjectDialog = lazy(async () => ({
   default: (await import('./NewProjectDialog')).NewProjectDialog
@@ -645,16 +646,16 @@ export function LightTableStandaloneApp({
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'
   ) => {
-    if (!host.openFile) return;
-    const startupTimeline = new DocumentStartupTimeline();
+    if (!host.openFiles && !host.openFile) return;
     setOpening(true);
     try {
-      const file = await host.openFile();
-      if (file) {
+      const files = await openHostDocuments(host);
+      for (const file of files) {
+        const startupTimeline = new DocumentStartupTimeline();
         startupTimeline.mark('bytes-available', { byteLength: file.size });
         openDocument(file, decodeMode, undefined, startupTimeline);
-        await refreshRecentFiles();
       }
+      if (files.length) await refreshRecentFiles();
     } finally {
       setOpening(false);
     }
@@ -1052,7 +1053,7 @@ export function LightTableStandaloneApp({
           onScreenModeChange={changeScreenMode}
           onActivate={activateDocument}
           onClose={closeDocument}
-          onRequestOpen={host.openFile ? requestHostDocument : undefined}
+          onRequestOpen={host.openFiles || host.openFile ? requestHostDocument : undefined}
           onRequestPlace={requestPlaceArtifact}
           recentFiles={recentFiles}
           onOpenRecent={openRecentDocument}

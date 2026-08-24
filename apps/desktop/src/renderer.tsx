@@ -240,6 +240,12 @@ const desktopHost: LightTableHost = {
     const payload = await window.lightTableDesktop.openFile();
     return desktopFile(payload);
   },
+  async openFiles() {
+    void prepareLightTableRenderingRuntime().catch(() => undefined);
+    return (await window.lightTableDesktop.openFiles())
+      .map((payload) => desktopFile(payload))
+      .filter((file): file is File => Boolean(file));
+  },
   subscribeOpenFiles(listener) {
     let disposed = false;
     let draining = false;

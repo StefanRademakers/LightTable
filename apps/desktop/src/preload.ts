@@ -12,6 +12,7 @@ const initialLaunchFiles = ipcRenderer.invoke('lighttable:take-launch-files');
 const bridge: LightTableDesktopBridge = {
   automationEnabled: process.argv.includes('--lighttable-automation'),
   openFile: () => ipcRenderer.invoke('lighttable:open-file'),
+  openFiles: () => ipcRenderer.invoke('lighttable:open-files'),
   takeInitialLaunchFiles: () => initialLaunchFiles,
   takeLaunchFiles: () => ipcRenderer.invoke('lighttable:take-launch-files'),
   onLaunchFilesAvailable: (listener) => {
