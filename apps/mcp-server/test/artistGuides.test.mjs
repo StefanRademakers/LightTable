@@ -10,11 +10,12 @@ const jsonExamples = (guide) => [...guide.text.matchAll(/```json\n([\s\S]*?)\n``
   .map((match) => JSON.parse(match[1]));
 
 test('artist guides remain bounded, unique and versionable MCP resources', () => {
-  assert.equal(LIGHTTABLE_ARTIST_GUIDES.length, 3);
+  assert.equal(LIGHTTABLE_ARTIST_GUIDES.length, 4);
   assert.equal(new Set(LIGHTTABLE_ARTIST_GUIDES.map(({ id }) => id)).size, LIGHTTABLE_ARTIST_GUIDES.length);
   assert.equal(new Set(LIGHTTABLE_ARTIST_GUIDES.map(({ uri }) => uri)).size, LIGHTTABLE_ARTIST_GUIDES.length);
   for (const guide of LIGHTTABLE_ARTIST_GUIDES) {
     assert.match(guide.uri, /^lighttable:\/\/guides\/[a-z-]+$/u);
+    assert.ok(Number.isInteger(guide.version) && guide.version > 0);
     assert.ok(guide.text.length > 100 && guide.text.length < 12_000);
   }
 });

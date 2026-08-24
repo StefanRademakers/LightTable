@@ -465,22 +465,6 @@ const EMPTY_ACTION_LIBRARY: SemanticActionLibrarySnapshot = {
   selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID, actions: [], selectedId: null, error: null
 };
 const emptyActionLibrary = () => EMPTY_ACTION_LIBRARY;
-const encodeAgentPreview = async (source: File | Blob, name: string,
-  encoding: LightTablePreviewEncoding): Promise<File> => {
-  if (encoding.format === 'png') {
-    return source instanceof File ? source : new File([source], `${name}.png`, { type: 'image/png' });
-  }
-  const bitmap = await createImageBitmap(source);
-  try {
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('WebP preview encoding is unavailable.');
-    context.drawImage(bitmap, 0, 0);
-    const blob = await canvas.convertToBlob({ type: 'image/webp', quality: encoding.quality ?? 0.85 });
-    if (blob.type !== 'image/webp') throw new Error('The browser did not produce a WebP preview.');
-    return new File([blob], `${name}.webp`, { type: 'image/webp' });
-  } finally { bitmap.close(); }
-};
 const downloadEditorFile = (file: File): void => {
   const url = URL.createObjectURL(file);
   const anchor = document.createElement('a');
@@ -5600,19 +5584,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       exportPngArtifact: () => exportPngArtifactRef.current(),
       exportBitmapArtifact: (format) => exportBitmapArtifactRef.current(format),
       exportPreviewArtifact: async (maxEdge, encoding, region) => {
-        const source = await exportPreviewArtifactRef.current(maxEdge, region);
-        return encodeAgentPreview(
-          source, region ? 'document-region-preview' : 'document-preview', encoding
-        );
+        return exportPreviewArtifactRef.current(maxEdge, encoding, region);
       },
       getDocumentPalette: (colorCount) => loadDocumentPalette(colorCount),
       getLayerPalette: (layerId, colorCount) => loadLayerPalette(layerId, colorCount),
       exportLayerPreviewArtifact: async (layerId, channel, maxEdge, encoding) => {
         const preview = await engineRef.current?.exportLayerThumbnail(
-          layerId, channel === 'mask', maxEdge, maxEdge
+          layerId, channel === 'mask', maxEdge, maxEdge, encoding
         );
         if (!preview) throw new Error(`Layer ${layerId} has no renderable ${channel} content.`);
-        return { file: await encodeAgentPreview(preview.blob, `layer-${channel}`, encoding),
+        const mediaType = encoding.format === 'webp' ? 'image/webp' : 'image/png';
+        return { file: new File([preview.blob], `layer-${channel}.${encoding.format}`, { type: mediaType }),
           width: preview.width, height: preview.height, sourceToOutput: preview.sourceToOutput };
       },
       exportPsdArtifact: () => exportPsdArtifactRef.current(),
@@ -6275,10 +6257,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     return exportEditorPngArtifact(binding.renderer, binding.document, fileNameBase, binding);
   };
   exportBitmapArtifactRef.current = (format) => exportBitmapArtifact(format);
-  exportPreviewArtifactRef.current = (maxEdge, region) => {
+  exportPreviewArtifactRef.current = (maxEdge, encoding, region) => {
     const binding = captureCurrentRendererBinding();
     return exportEditorPreviewArtifact(
-      binding.renderer, binding.document, fileNameBase, maxEdge, region, binding
+      binding.renderer, binding.document, fileNameBase, maxEdge, encoding, region, binding
     );
   };
   exportPsdArtifactRef.current = () => {

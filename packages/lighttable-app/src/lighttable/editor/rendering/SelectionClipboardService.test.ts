@@ -107,7 +107,8 @@ describe('SelectionClipboardService copy orchestration', () => {
     expect(textureCodec.encodeUnchecked).toHaveBeenCalledWith(
       texture, false, 16, 8,
       { a: 0.5, b: 0, c: 0, d: 0.5, tx: -8, ty: -4 },
-      true
+      true,
+      { format: 'png' }
     );
   });
 });

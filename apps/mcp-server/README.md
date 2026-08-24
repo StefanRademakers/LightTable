@@ -13,6 +13,10 @@ own glyph runs, vector geometry, effects, undo state or pixels.
 Atomic layered design steps use `lighttable_batch`; reconnect-safe progress is
 available through `lighttable_task_events`, and `lighttable_cancel_task` stops
 active work. Successful batches appear as one named undo entry in LightTable.
+Design clients can read the versioned `lighttable://guides/design-pass`
+resource once per workflow. Document, region and isolated-layer previews
+default to directly encoded 512-pixel WebP; request PNG only when a lossless
+alpha or pixel-level check is required.
 
 ## Local demo
 

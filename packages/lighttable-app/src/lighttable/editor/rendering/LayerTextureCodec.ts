@@ -5,7 +5,11 @@ import {
   PSD_RAW_RGBA16_MEDIA_TYPE,
   PSD_RAW_RGBA8_MEDIA_TYPE
 } from '../../image-io/psdProtocol';
-import { encodeRgba8Png, stripTextureRowPadding } from '../../gpu/gpuReadback';
+import {
+  encodeRgba8Image,
+  stripTextureRowPadding,
+  type Rgba8ImageEncoding
+} from '../../gpu/gpuReadback';
 import { invertMatrix } from '../geometry/affine';
 import type { AffineMatrix } from '../geometry/affine';
 
@@ -181,7 +185,8 @@ export class LayerTextureCodec {
     maskChannel: boolean,
     outputWidth: number,
     outputHeight: number,
-    sourceToOutput?: AffineMatrix
+    sourceToOutput?: AffineMatrix,
+    encoding: Rgba8ImageEncoding = { format: 'png' }
   ) {
     return this.withValidationScope(
       maskChannel
@@ -192,7 +197,9 @@ export class LayerTextureCodec {
         maskChannel,
         outputWidth,
         outputHeight,
-        sourceToOutput
+        sourceToOutput,
+        false,
+        encoding
       )
     );
   }
@@ -203,7 +210,8 @@ export class LayerTextureCodec {
     outputWidth: number,
     outputHeight: number,
     sourceToOutput?: AffineMatrix,
-    sourceIsStraightSrgb = false
+    sourceIsStraightSrgb = false,
+    encoding: Rgba8ImageEncoding = { format: 'png' }
   ) {
     const layout = layerPngReadbackLayout(outputWidth, outputHeight);
     const outputTexture = this.device.createTexture({
@@ -285,7 +293,7 @@ export class LayerTextureCodec {
         layout.bytesPerRow
       );
       readBuffer.unmap();
-      return encodeRgba8Png(pixels, layout.width, layout.height);
+      return encodeRgba8Image(pixels, layout.width, layout.height, encoding);
     } finally {
       if (readBuffer.mapState === 'mapped') readBuffer.unmap();
       readBuffer.destroy();

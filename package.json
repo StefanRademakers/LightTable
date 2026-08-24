@@ -98,6 +98,7 @@
     "smoke:desktop:agent-tunnel": "node scripts/smoke-desktop-agent-tunnel.mjs",
     "smoke:desktop:genai-assets": "node scripts/smoke-desktop-genai-project-assets.mjs",
     "smoke:desktop:mcp-design": "node scripts/smoke-desktop-mcp-design.mjs",
+    "benchmark:mcp-preview": "node scripts/benchmark-mcp-preview-encoding.mjs",
     "smoke:desktop:route-equivalence": "node scripts/smoke-desktop-route-equivalence.mjs",
     "smoke:desktop:document-capabilities": "node scripts/smoke-desktop-document-capability-equivalence.mjs",
     "smoke:desktop:pixel-clipboard": "node scripts/smoke-desktop-pixel-clipboard-equivalence.mjs",

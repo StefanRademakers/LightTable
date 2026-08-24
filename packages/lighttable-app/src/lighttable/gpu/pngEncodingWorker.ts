@@ -3,6 +3,8 @@ interface PngEncodingRequest {
   readonly width: number;
   readonly height: number;
   readonly pixels: ArrayBuffer;
+  readonly format: 'png' | 'webp';
+  readonly quality?: number;
 }
 
 interface PngEncodingResponse {
@@ -20,7 +22,12 @@ scope.onmessage = async ({ data }: MessageEvent<PngEncodingRequest>) => {
     if (!context) throw new Error('PNG worker canvas could not be created.');
     const pixels = new Uint8ClampedArray(data.pixels);
     context.putImageData(new ImageData(pixels, data.width, data.height), 0, 0);
-    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    const type = data.format === 'webp' ? 'image/webp' : 'image/png';
+    const blob = await canvas.convertToBlob({
+      type,
+      ...(data.format === 'webp' ? { quality: data.quality ?? 0.78 } : {})
+    });
+    if (blob.type !== type) throw new Error(`Image worker did not produce ${type}.`);
     scope.postMessage({ id: data.id, blob } satisfies PngEncodingResponse);
   } catch (error) {
     scope.postMessage({

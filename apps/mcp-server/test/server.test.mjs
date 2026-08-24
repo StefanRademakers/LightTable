@@ -79,17 +79,29 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_cancel_task'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_import_image_url'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_commands'));
+  const documentPreviewTool = tools.tools.find(({ name }) => name === 'lighttable_preview');
+  assert.equal(documentPreviewTool.inputSchema.properties.maxEdge.default, 512);
+  assert.equal(documentPreviewTool.inputSchema.properties.format.default, 'webp');
+  for (const name of ['lighttable_layer_preview', 'lighttable_region_preview']) {
+    const previewTool = tools.tools.find((tool) => tool.name === name);
+    assert.equal(previewTool.inputSchema.properties.maxEdge.default, 512);
+    assert.equal(previewTool.inputSchema.properties.format.default, 'webp');
+  }
   const svgTool = tools.tools.find(({ name }) => name === 'lighttable_import_svg');
   assert.equal(svgTool.inputSchema.properties.svg.maxLength, 32 * 1024 * 1024);
   const resources = await reader.listResources();
   assert.deepEqual(resources.resources.map(({ uri }) => uri).sort(), [
     'lighttable://guides/artist-onboarding',
+    'lighttable://guides/design-pass',
     'lighttable://guides/efficient-batching',
     'lighttable://guides/native-vector-paths'
   ]);
   const onboarding = await reader.readResource({ uri: 'lighttable://guides/artist-onboarding' });
   assert.match(onboarding.contents[0].text, /prefer lighttable_batch/u);
   assert.match(onboarding.contents[0].text, /Begin with lighttable_context once/u);
+  const designPass = await reader.readResource({ uri: 'lighttable://guides/design-pass' });
+  assert.match(designPass.contents[0].text, /Critique before correcting/u);
+  assert.match(designPass.contents[0].text, /512px WebP at quality 0.78/u);
   const contextSnapshot = await reader.callTool({ name: 'lighttable_context', arguments: {} });
   assert.equal(contextSnapshot.isError, undefined);
   assert.equal(contextSnapshot.structuredContent.workspace.activeDocumentId, 'document-demo');
@@ -166,6 +178,15 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.deepEqual(textCatalog.structuredContent.commands[0].contract.input.required,
     ['mode', 'text', 'origin']);
   assert.equal(textCatalog.structuredContent.commands[0].contract.input.allOf.length, 3);
+  const rasterizeCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'layer.rasterize'
+  } });
+  assert.equal(rasterizeCatalog.structuredContent.commands[0].externalMcp, 'execute');
+  assert.equal(rasterizeCatalog.structuredContent.commands[0].agentAccess, true);
+  assert.deepEqual(rasterizeCatalog.structuredContent.commands[0].contract.input.required,
+    ['layerId']);
+  assert.deepEqual(rasterizeCatalog.structuredContent.commands[0].contract.result.required,
+    ['sourceLayerId', 'outputLayerId', 'outputType']);
   const batchCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'command.batch'
   } });
@@ -189,7 +210,8 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.deepEqual(capabilities.structuredContent.guides.map(({ uri }) => uri), [
     'lighttable://guides/artist-onboarding',
     'lighttable://guides/efficient-batching',
-    'lighttable://guides/native-vector-paths'
+    'lighttable://guides/native-vector-paths',
+    'lighttable://guides/design-pass'
   ]);
   const layers = await reader.callTool({ name: 'lighttable_layers', arguments: {
     documentId: 'document-demo', expectedDocumentRevision: 1, limit: 1

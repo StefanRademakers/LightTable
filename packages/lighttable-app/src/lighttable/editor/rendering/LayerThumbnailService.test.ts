@@ -40,7 +40,7 @@ describe('LayerThumbnailService', () => {
     expect(result?.sourceToOutput).toEqual({
       a: 80 / 2100, b: 0, c: 0, d: 34 / 900, tx: 0, ty: 0
     });
-    expect(encode).toHaveBeenCalledWith(texture, false, 80, 34);
+    expect(encode).toHaveBeenCalledWith(texture, false, 80, 34, undefined, { format: 'png' });
   });
 
   it('fits portrait masks independently and preserves the mask encode path', async () => {
@@ -50,7 +50,7 @@ describe('LayerThumbnailService', () => {
     const result = await service.export(layerId, true, 80, 80);
 
     expect(result).toMatchObject({ width: 45, height: 80 });
-    expect(encode).toHaveBeenCalledWith(mask, true, 45, 80);
+    expect(encode).toHaveBeenCalledWith(mask, true, 45, 80, undefined, { format: 'png' });
   });
 
   it('does not upscale small sources or encode unavailable channels', async () => {

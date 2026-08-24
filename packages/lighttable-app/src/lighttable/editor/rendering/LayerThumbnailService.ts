@@ -1,5 +1,6 @@
 import type { LayerId } from '../document/documentTypes';
 import { transformedBounds, type AffineMatrix } from '../geometry/affine';
+import type { Rgba8ImageEncoding } from '../../gpu/gpuReadback';
 
 export interface LayerThumbnailBlob {
   blob: Blob;
@@ -25,7 +26,8 @@ export interface LayerThumbnailServiceOptions {
     maskChannel: boolean,
     width: number,
     height: number,
-    sourceToOutput?: AffineMatrix
+    sourceToOutput?: AffineMatrix,
+    encoding?: Rgba8ImageEncoding
   ) => Promise<Blob>;
 }
 
@@ -44,7 +46,8 @@ export class LayerThumbnailService {
     layerId: LayerId,
     maskChannel = false,
     maximumWidth = 80,
-    maximumHeight = 80
+    maximumHeight = 80,
+    encoding: Rgba8ImageEncoding = { format: 'png' }
   ): Promise<LayerThumbnailBlob | null> {
     const { width: documentWidth, height: documentHeight } = this.options.dimensions();
     const source: LayerThumbnailSource | null = maskChannel
@@ -94,9 +97,10 @@ export class LayerThumbnailService {
           maskChannel,
           width,
           height,
-          sourceToOutput
+          sourceToOutput,
+          encoding
         )
-      : await this.options.encode(source.texture, maskChannel, width, height);
+      : await this.options.encode(source.texture, maskChannel, width, height, undefined, encoding);
     return { blob, width, height, sourceToOutput };
   }
 }

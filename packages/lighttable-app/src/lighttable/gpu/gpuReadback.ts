@@ -1,13 +1,18 @@
 export const GPU_COPY_BYTES_PER_ROW_ALIGNMENT = 256;
 
-interface PendingPngEncoding {
+export interface Rgba8ImageEncoding {
+  readonly format: 'png' | 'webp';
+  readonly quality?: number;
+}
+
+interface PendingImageEncoding {
   readonly resolve: (blob: Blob) => void;
   readonly reject: (error: Error) => void;
 }
 
 let pngWorker: Worker | null = null;
 let pngWorkerSequence = 0;
-const pendingPngEncodings = new Map<number, PendingPngEncoding>();
+const pendingPngEncodings = new Map<number, PendingImageEncoding>();
 
 const getPngWorker = (): Worker | null => {
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return null;
@@ -206,25 +211,28 @@ export const readRgba8TexturePixel = async (
  * replace it with a native/precision-preserving codec without touching the
  * renderer or document model.
  */
-export const encodeRgba8Png = async (
+export const encodeRgba8Image = async (
   pixels: Uint8ClampedArray,
   width: number,
-  height: number
+  height: number,
+  encoding: Rgba8ImageEncoding
 ) => {
+  const mediaType = encoding.format === 'webp' ? 'image/webp' : 'image/png';
   const worker = getPngWorker();
   if (worker) {
     const id = ++pngWorkerSequence;
     const result = new Promise<Blob>((resolve, reject) => {
       pendingPngEncodings.set(id, { resolve, reject });
     });
-    worker.postMessage({ id, width, height, pixels: pixels.buffer }, [pixels.buffer]);
+    worker.postMessage({ id, width, height, pixels: pixels.buffer,
+      format: encoding.format, quality: encoding.quality }, [pixels.buffer]);
     return result;
   }
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext('2d');
-  if (!context) throw new Error('PNG encoder canvas could not be created.');
+  if (!context) throw new Error('Image encoder canvas could not be created.');
   // ImageData's DOM type intentionally rejects SharedArrayBuffer-backed views.
   // Copy into an owned ArrayBuffer so web and Electron follow the same path.
   const imagePixels = new Uint8ClampedArray(pixels.length);
@@ -232,8 +240,17 @@ export const encodeRgba8Png = async (
   context.putImageData(new ImageData(imagePixels, width, height), 0, 0);
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
-      (result) => result ? resolve(result) : reject(new Error('PNG encoding failed.')),
-      'image/png'
+      (result) => result?.type === mediaType
+        ? resolve(result)
+        : reject(new Error(`${mediaType} encoding failed.`)),
+      mediaType,
+      encoding.format === 'webp' ? encoding.quality ?? 0.78 : undefined
     );
   });
 };
+
+export const encodeRgba8Png = (
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number
+) => encodeRgba8Image(pixels, width, height, { format: 'png' });

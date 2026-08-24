@@ -1,6 +1,6 @@
 # LightTable MCP v1 integration
 
-Status: **implemented semantic integration**, updated 2026-08-14.
+Status: **implemented semantic integration**, updated 2026-08-24.
 
 ## Decision
 
@@ -107,8 +107,12 @@ Read operations:
   scheduling remain explicitly outside this measurement.
 
 Whole-document, region and layer previews require an exact canonical document
-revision. `maxEdge` controls output size from 64-1024 pixels; PNG is lossless,
-while WebP accepts an explicit `quality` from 0.1-1. Previews are cached by
+revision. `maxEdge` controls output size from 64-1024 pixels. The economical
+default is a directly encoded 512-pixel WebP at quality 0.78; PNG remains the
+explicit lossless option for alpha and pixel-level checks. The GPU preview is
+read back once at its requested size and encoded directly to the requested
+media type; WebP no longer passes through an intermediate PNG decode/encode.
+Previews are cached by
 revision, target/channel, size, format and quality. Supplying the
 last `knownArtifactId` returns metadata only when the preview is unchanged, so
 event-driven clients do not repeatedly transfer the same Base64 image.
@@ -117,6 +121,8 @@ Write operations:
 
 - create documents through the dedicated creation tool;
 - create/place/rename/show/hide raster layers and set fill opacity;
+- explicitly rasterize one supported layer through the shared reversible
+  `layer.rasterize` command when destructive finalization is intended;
 - query, create and edit point/paragraph text and layout/style runs;
 - query, create, update and remove editable vector elements, shapes, fills,
   strokes and gradients;
@@ -160,6 +166,23 @@ final duration. `lighttable_performance`
 is the final diagnostic read when a flow feels slow; it separates MCP handler
 time from bridge/command time but cannot attribute time spent starting or
 reasoning inside Codex.
+
+The versioned `lighttable://guides/design-pass` resource adds the design-specific
+layer above that transport workflow. It asks an agent to form a concise brief,
+plan hierarchy/composition/type/palette/layer structure, build in atomic
+large-to-small phases, review with structure first and economical previews
+second, rank a bounded correction set and finish with fresh structural and
+visual evidence. Server initialization instructions point design tasks to this
+guide without copying the full guide into every tool description.
+
+Measured evidence on the Windows development workstation (24 August 2026): a
+12-sample deterministic Chromium codec benchmark reduced median 512-pixel WebP
+encoding from 31.00 ms for the former PNG transcode to 23.73 ms direct, with
+the same 112,936-byte fixture output. A second run measured 38.67 ms versus
+28.45 ms. A warm packaged LightTable design document then returned its real
+revision-bound 512-pixel WebP through renderer, desktop tunnel, MCP and Base64
+in 30.80 ms (8,108 bytes). These are local pipeline measurements; remote model
+reasoning, network scheduling and vision inference are deliberately excluded.
 
 ### Exposure-list ownership
 

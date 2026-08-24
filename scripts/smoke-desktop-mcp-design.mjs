@@ -9,6 +9,7 @@ import path from 'node:path';
 import process from 'node:process';
 import selfsigned from 'selfsigned';
 import { createLightTableMcpApp } from '../apps/mcp-server/src/server.mjs';
+import { createRequestGuard } from '../apps/mcp-server/src/operations.mjs';
 import { DeviceTunnelLightTableClient } from '../apps/mcp-server/src/deviceTunnelClient.mjs';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { compareRenderEvidence } from './render-comparison-evidence.mjs';
@@ -36,6 +37,8 @@ const userData = path.join(output, 'author-user-data');
 const reopenUserData = path.join(output, 'reopen-user-data');
 const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
 const subjectOnly = process.argv.includes('--subject-only');
+const skipSubject = process.argv.includes('--skip-subject');
+if (subjectOnly && skipSubject) throw new Error('--subject-only and --skip-subject are mutually exclusive.');
 const DESIGN_RENDER_POLICY = {
   maximumRmse: 12,
   maximumMeanAbsoluteError: 8,
@@ -56,7 +59,8 @@ const certificate = await selfsigned.generate([{ name: 'commonName', value: 'loc
 let dynamicClient;
 const service = await createLightTableMcpApp({ publicUrl, pairingCode: 'MCP-OAUTH-106',
   devicePairingCode: 'PAIR-106', serverId: 'mcp-design-harness', allowInsecure: false,
-  allowedHosts: ['localhost'], client: (broker) => (dynamicClient = new DynamicDeviceClient(broker)) });
+  allowedHosts: ['localhost'], requestGuard: createRequestGuard({ maxRequests: 1_000 }),
+  client: (broker) => (dynamicClient = new DynamicDeviceClient(broker)) });
 const tlsServer = createServer({ key: certificate.private, cert: certificate.cert }, service.app);
 tlsServer.on('upgrade', (request, socket, head) => {
   if (!service.deviceTunnel.handleUpgrade(request, socket, head)) socket.destroy();
@@ -102,6 +106,7 @@ try {
   await accessRequest.getByRole('button', { name: 'Allow once' }).click();
   await waitFor(() => dynamicClient.ready(), 'MCP client approval');
 
+  if (!skipSubject) {
   const approvedWorkspace = await mcp.callTool({ name: 'lighttable_workspace', arguments: {} });
   const sourceDocumentId = approvedWorkspace.structuredContent?.documents?.[0]?.id;
   if (!sourceDocumentId) throw new Error('MCP Select Subject found no source document.');
@@ -154,6 +159,7 @@ try {
       task: subjectTask, evidence
     })}`);
   });
+  }
 
   designVerification: {
   if (subjectOnly) {
@@ -176,16 +182,29 @@ try {
   if (documentQuery.isError || typeof documentState?.canonicalRevision !== 'number') {
     throw new Error(`The MCP design has no revision-bound document state: ${JSON.stringify(documentQuery)}`);
   }
+  const previewStartedAt = performance.now();
   const preview = await mcp.callTool({ name: 'lighttable_preview', arguments: {
     documentId: result.documentId,
     expectedDocumentRevision: documentState.canonicalRevision,
-    maxEdge: 1024
+    maxEdge: 512,
+    format: 'webp',
+    quality: 0.78
   } });
   const previewImage = preview.content?.find(({ type }) => type === 'image');
   if (!previewImage?.data) {
-    throw new Error(`The GPU preview did not return PNG image data: ${JSON.stringify(preview)}`);
+    throw new Error(`The GPU preview did not return WebP image data: ${JSON.stringify(preview)}`);
   }
-  const revisionPreviewPath = path.join(output, 'lighttable-revision-preview.png');
+  const previewMetrics = {
+    elapsedMs: performance.now() - previewStartedAt,
+    bytes: Buffer.byteLength(previewImage.data, 'base64'),
+    mediaType: previewImage.mimeType ?? null,
+    maxEdge: 512,
+    quality: 0.78
+  };
+  await writeFile(path.join(output, 'preview-metrics.json'),
+    `${JSON.stringify(previewMetrics, null, 2)}\n`, 'utf8');
+  process.stdout.write(`MCP design review preview: ${JSON.stringify(previewMetrics)}\n`);
+  const revisionPreviewPath = path.join(output, 'lighttable-revision-preview.webp');
   await writeFile(revisionPreviewPath, Buffer.from(previewImage.data, 'base64'));
   const previewId = result.preview?.id; const nativeId = result.native?.id; const psdId = result.psd?.id;
   if (!previewId || !nativeId || !psdId) {

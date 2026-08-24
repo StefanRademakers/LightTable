@@ -8,30 +8,30 @@ describe('editor preview artifacts', () => {
     const document = createImageDocument('Preview', 1600, 900, 'source');
     const renderer = {
       synchronizeDocumentForExport: vi.fn(),
-      exportThumbnailPng: vi.fn(async () => new Blob(['thumbnail'], { type: 'image/png' })),
+      exportThumbnailImage: vi.fn(async () => new Blob(['thumbnail'], { type: 'image/webp' })),
       exportPng: vi.fn()
     };
     const file = await exportEditorPreviewArtifact(
-      renderer as never, document, 'portrait.psd', 512
+      renderer as never, document, 'portrait.psd', 512, { format: 'webp', quality: 0.78 }
     );
     expect(renderer.synchronizeDocumentForExport).toHaveBeenCalledWith(document);
-    expect(renderer.exportThumbnailPng).toHaveBeenCalledWith(512);
+    expect(renderer.exportThumbnailImage).toHaveBeenCalledWith(512, { format: 'webp', quality: 0.78 });
     expect(renderer.exportPng).not.toHaveBeenCalled();
-    expect(file).toMatchObject({ name: 'portrait-preview-512.png', type: 'image/png' });
+    expect(file).toMatchObject({ name: 'portrait-preview-512.webp', type: 'image/webp' });
   });
 
   it('synchronizes before using the shared Copy Merged region readback', async () => {
     const document = createImageDocument('Preview', 1600, 900, 'source');
     const renderer = { synchronizeDocumentForExport: vi.fn(),
-      exportRegionThumbnailPng: vi.fn(async () => new Blob(['region'], { type: 'image/png' })),
-      exportThumbnailPng: vi.fn() };
+      exportRegionThumbnailImage: vi.fn(async () => new Blob(['region'], { type: 'image/png' })),
+      exportThumbnailImage: vi.fn() };
     const region = { x: 100, y: 80, width: 400, height: 200 };
     const file = await exportEditorPreviewArtifact(
-      renderer as never, document, 'portrait.psd', 256, region
+      renderer as never, document, 'portrait.psd', 256, { format: 'png' }, region
     );
     expect(renderer.synchronizeDocumentForExport).toHaveBeenCalledWith(document);
-    expect(renderer.exportRegionThumbnailPng).toHaveBeenCalledWith(region, 256);
-    expect(renderer.exportThumbnailPng).not.toHaveBeenCalled();
+    expect(renderer.exportRegionThumbnailImage).toHaveBeenCalledWith(region, 256, { format: 'png' });
+    expect(renderer.exportThumbnailImage).not.toHaveBeenCalled();
     expect(file.name).toBe('portrait-region-preview-256.png');
   });
 
@@ -40,7 +40,7 @@ describe('editor preview artifacts', () => {
     let resolveReadback!: (blob: Blob) => void;
     const renderer = {
       synchronizeDocumentForExport: vi.fn(),
-      exportThumbnailPng: vi.fn(() => new Promise<Blob>((resolve) => { resolveReadback = resolve; }))
+      exportThumbnailImage: vi.fn(() => new Promise<Blob>((resolve) => { resolveReadback = resolve; }))
     };
     let current = true;
     const binding = {
@@ -53,7 +53,7 @@ describe('editor preview artifacts', () => {
       }
     } as RendererBindingToken<never>;
     const result = exportEditorPreviewArtifact(
-      renderer as never, document, 'portrait.psd', 512, undefined, binding
+      renderer as never, document, 'portrait.psd', 512, { format: 'png' }, undefined, binding
     );
     current = false;
     resolveReadback(new Blob(['stale'], { type: 'image/png' }));

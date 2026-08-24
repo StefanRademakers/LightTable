@@ -559,7 +559,8 @@ try {
   const mcpPreview = await mcp.callTool({ name: 'lighttable_preview', arguments: {
     documentId: mcpDocumentId,
     expectedDocumentRevision: mcpDocument.canonicalRevision,
-    maxEdge: 640
+    maxEdge: 640,
+    format: 'png'
   } });
   const mcpImage = mcpPreview.content?.find(({ type }) => type === 'image');
   if (!mcpImage?.data) throw new Error('MCP preview returned no image.');

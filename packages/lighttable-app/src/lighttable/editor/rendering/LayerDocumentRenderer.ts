@@ -33,6 +33,7 @@ import {
 } from './RasterDocumentOperations';
 import type { ReversiblePixelEdit } from '../history/ReversiblePixelEdit';
 import type { LayerThumbnailBlob } from './LayerThumbnailService';
+import type { Rgba8ImageEncoding } from '../../gpu/gpuReadback';
 import {
   createLayerDocumentRendererRuntime,
   type LayerDocumentRendererRuntime,
@@ -374,7 +375,8 @@ export class LayerDocumentRenderer {
     layerId: LayerId,
     maskChannel = false,
     maximumWidth = 80,
-    maximumHeight = 80
+    maximumHeight = 80,
+    encoding: Rgba8ImageEncoding = { format: 'png' }
   ): Promise<LayerThumbnailBlob | null> {
     if (!maskChannel && this.runtime.textLayerCoordinator.hasTextLayer(layerId)) {
       await this.runtime.textLayerCoordinator.waitForSettledSource(layerId);
@@ -383,7 +385,8 @@ export class LayerDocumentRenderer {
       layerId,
       maskChannel,
       maximumWidth,
-      maximumHeight
+      maximumHeight,
+      encoding
     );
   }
 
@@ -896,8 +899,9 @@ export class LayerDocumentRenderer {
     return this.runtime.selectionClipboard.exportDisplaySelection(displayTexture, bounds);
   }
 
-  async exportDisplayRegion(displayTexture: GPUTexture, bounds: Rect, maxEdge: number) {
-    return this.runtime.selectionClipboard.exportDisplayRegion(displayTexture, bounds, maxEdge);
+  async exportDisplayRegion(displayTexture: GPUTexture, bounds: Rect, maxEdge: number,
+    encoding: Rgba8ImageEncoding = { format: 'png' }) {
+    return this.runtime.selectionClipboard.exportDisplayRegion(displayTexture, bounds, maxEdge, encoding);
   }
 
   async exportSelectionMask() {

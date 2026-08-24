@@ -51,7 +51,7 @@ export const parsePreviewEncoding = (value: Record<string, unknown>): LightTable
   if (format === 'png') return quality === undefined ? { format } : null;
   if (quality !== undefined && (typeof quality !== 'number' || !Number.isFinite(quality)
     || quality < 0.1 || quality > 1)) return null;
-  return { format, quality: (quality as number | undefined) ?? 0.85 };
+  return { format, quality: (quality as number | undefined) ?? 0.78 };
 };
 
 const parseRegion = (value: unknown): DocumentPixelRegion | null | undefined => {

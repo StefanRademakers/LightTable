@@ -200,7 +200,8 @@ try {
   mcpDocument = mcpResult(await mcp.callTool({ name: 'lighttable_document',
     arguments: { documentId: mcpDocumentId } }), 'MCP preview revision');
   const mcpPreview = await mcp.callTool({ name: 'lighttable_preview', arguments: {
-    documentId: mcpDocumentId, expectedDocumentRevision: mcpDocument.canonicalRevision, maxEdge: 640
+    documentId: mcpDocumentId, expectedDocumentRevision: mcpDocument.canonicalRevision,
+    maxEdge: 640, format: 'png'
   } });
   const mcpImage = mcpPreview.content?.find(({ type }) => type === 'image');
   if (!mcpImage?.data) throw new Error('MCP geometry preview returned no image.');

@@ -111,10 +111,12 @@ import { DISPLAY_RESOLVE_WGSL, DOCUMENT_THUMBNAIL_WGSL, FULLSCREEN_VERTEX_WGSL }
 import type { DocumentPixelRegion } from '../editor/geometry/documentRegionPreview';
 import { DocumentCoreGpuResources } from './documentCoreGpuResources';
 import {
+  encodeRgba8Image,
   encodeRgba8Png,
   readRgba16FloatTexture,
   readRgba8Texture,
-  readRgba8TexturePixel
+  readRgba8TexturePixel,
+  type Rgba8ImageEncoding
 } from './gpuReadback';
 import { DocumentImageGpuResources } from './documentImageGpuResources';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
@@ -1575,7 +1577,8 @@ export class WebGpuEngine {
     layerId: LayerId,
     maskChannel = false,
     maximumWidth = 80,
-    maximumHeight = 80
+    maximumHeight = 80,
+    encoding: Rgba8ImageEncoding = { format: 'png' }
   ) {
     if (!this.documentRenderer) {
       throw new Error('The LightTable layer renderer is unavailable.');
@@ -1584,7 +1587,8 @@ export class WebGpuEngine {
       layerId,
       maskChannel,
       maximumWidth,
-      maximumHeight
+      maximumHeight,
+      encoding
     );
   }
 
@@ -3348,7 +3352,8 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
    * one filtered GPU pass and a tiny readback; it never recomposites layers or
    * wakes scopes/effects.
    */
-  async exportThumbnailPng(maxEdge = 256) {
+  async exportThumbnailImage(maxEdge = 256,
+    encoding: Rgba8ImageEncoding = { format: 'png' }) {
     if (!this.metadata || !this.imageResources.finalTexture || !this.coreResources) {
       throw new Error('No processed image is available for thumbnail export.');
     }
@@ -3394,14 +3399,19 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
       const pixels = await readRgba8Texture(
         this.device, texture, width, height, 'LightTable document thumbnail readback'
       );
-      return encodeRgba8Png(pixels, width, height);
+      return encodeRgba8Image(pixels, width, height, encoding);
     } finally {
       texture.destroy();
     }
   }
 
+  exportThumbnailPng(maxEdge = 256) {
+    return this.exportThumbnailImage(maxEdge, { format: 'png' });
+  }
+
   /** Uses the same final-composite crop/readback owner as Copy Merged, without selection state. */
-  async exportRegionThumbnailPng(region: DocumentPixelRegion, maxEdge = 256) {
+  async exportRegionThumbnailImage(region: DocumentPixelRegion, maxEdge = 256,
+    encoding: Rgba8ImageEncoding = { format: 'png' }) {
     if (!this.metadata || !this.imageResources.finalTexture || !this.documentRenderer) {
       throw new Error('No processed image is available for region preview export.');
     }
@@ -3409,8 +3419,12 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     this.renderScheduler.flush();
     await this.device.queue.onSubmittedWorkDone();
     return this.documentRenderer.exportDisplayRegion(
-      this.imageResources.finalTexture, region, maxEdge
+      this.imageResources.finalTexture, region, maxEdge, encoding
     );
+  }
+
+  exportRegionThumbnailPng(region: DocumentPixelRegion, maxEdge = 256) {
+    return this.exportRegionThumbnailImage(region, maxEdge, { format: 'png' });
   }
 
   waitForTextSourcesForExport() { return this.documentRenderer?.waitForTextSourcesForExport() ?? Promise.resolve(true); }

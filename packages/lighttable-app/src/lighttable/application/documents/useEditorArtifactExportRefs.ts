@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import type { LightTableBitmapExportFormat } from '../commands/lightTableCommandContract';
 import type { DocumentPixelRegion } from '../../editor/geometry/documentRegionPreview';
 import type { ExportedPsdDocument } from './PsdExportClient';
+import type { LightTablePreviewEncoding } from '../commands/lightTableCommandContract';
 
 /** Stable late-bound export ports shared by command registration and file UI. */
 export const useEditorArtifactExportRefs = () => ({
@@ -14,7 +15,8 @@ export const useEditorArtifactExportRefs = () => ({
   exportBitmapArtifactRef: useRef<(format: LightTableBitmapExportFormat) => Promise<File>>(async () => {
     throw new Error('The bitmap export controller is not ready.');
   }),
-  exportPreviewArtifactRef: useRef<(maxEdge: number, region?: DocumentPixelRegion) => Promise<File>>(async () => {
+  exportPreviewArtifactRef: useRef<(maxEdge: number, encoding: LightTablePreviewEncoding,
+    region?: DocumentPixelRegion) => Promise<File>>(async () => {
     throw new Error('The preview export controller is not ready.');
   }),
   exportPsdArtifactRef: useRef<() => Promise<ExportedPsdDocument>>(async () => {

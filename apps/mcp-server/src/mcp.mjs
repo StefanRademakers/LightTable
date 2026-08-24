@@ -21,7 +21,7 @@ const response = (value) => ({
   content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
   structuredContent: value
 });
-const MCP_INSTRUCTIONS = 'Start each LightTable task with one lighttable_context call. Retain its stable IDs, canonical revision and live capability list for the session; do not repeat unchanged discovery reads. Query schemas only for commands you will use, batch logical edit phases, wait for batch completion before dependent writes, preview after a phase, and use lighttable_performance when diagnosing latency.';
+const MCP_INSTRUCTIONS = 'Start each LightTable task with one lighttable_context call. For design or reconstruction work, read lighttable://guides/design-pass once. Retain stable IDs, canonical revision and capabilities; do not repeat unchanged discovery. Query only planned command schemas, batch each logical phase, then review with a 512px WebP or a targeted region. Use lighttable_performance when diagnosing latency.';
 const failure = (error) => ({ isError: true, content: [{ type: 'text',
   text: error instanceof Error ? error.message : String(error) }] });
 const editable = (context) => context?.http?.authInfo?.scopes?.includes('lighttable:edit') === true;
@@ -650,8 +650,8 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
     description: 'Returns a bounded lossless PNG or quality-controlled WebP from LightTable’s GPU preview path for exactly the requested canonical document revision. Pass knownArtifactId to receive metadata only when unchanged.',
     inputSchema: z.object({ documentId: z.string().min(1),
       expectedDocumentRevision: z.number().int().nonnegative(),
-      maxEdge: z.number().int().min(64).max(1024).default(1024),
-      format: z.enum(['png', 'webp']).default('png'),
+      maxEdge: z.number().int().min(64).max(1024).default(512),
+      format: z.enum(['png', 'webp']).default('webp'),
       quality: z.number().min(0.1).max(1).optional(),
       knownArtifactId: z.string().min(1).max(256).optional() }),
     annotations: { readOnlyHint: true }
@@ -682,8 +682,8 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1),
       channel: z.enum(['pixels', 'mask']).default('pixels'),
       expectedDocumentRevision: z.number().int().nonnegative(),
-      maxEdge: z.number().int().min(64).max(1024).default(1024),
-      format: z.enum(['png', 'webp']).default('png'),
+      maxEdge: z.number().int().min(64).max(1024).default(512),
+      format: z.enum(['png', 'webp']).default('webp'),
       quality: z.number().min(0.1).max(1).optional(),
       knownArtifactId: z.string().min(1).max(256).optional() }),
     annotations: { readOnlyHint: true }
@@ -718,8 +718,8 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
       region: z.object({ x: z.number().nonnegative(), y: z.number().nonnegative(),
         width: z.number().positive(), height: z.number().positive() }),
       expectedDocumentRevision: z.number().int().nonnegative(),
-      maxEdge: z.number().int().min(64).max(1024).default(1024),
-      format: z.enum(['png', 'webp']).default('png'),
+      maxEdge: z.number().int().min(64).max(1024).default(512),
+      format: z.enum(['png', 'webp']).default('webp'),
       quality: z.number().min(0.1).max(1).optional(),
       knownArtifactId: z.string().min(1).max(256).optional() }),
     annotations: { readOnlyHint: true }

@@ -31,6 +31,25 @@ it does not override code, tests or canonical architecture.
 - Versioned MCP artist resources teach capability discovery, batch-first
   construction and existing native Bezier paths. They are guidance, not a
   second execution engine.
+- The versioned `design-pass` resource now teaches brief-first hierarchy,
+  composition, typography, palette and editable layer planning; phased atomic
+  construction; bounded critique; and structure-first visual review. MCP
+  initialization points design work to it without inflating every tool schema.
+- Whole, region and isolated-layer previews now default to directly encoded
+  512-pixel WebP at quality 0.78. The renderer no longer creates PNG merely to
+  decode and re-encode it as WebP. A deterministic local Chromium benchmark
+  on 24 August measured 23.73 ms median for direct 512 WebP versus 31.00 ms for
+  the former transcode (23.5% lower encode latency), with identical 112,936-byte
+  output for that fixture. A repeat measured 28.45 versus 38.67 ms (26.4%
+  lower). A warm packaged document returned its real revision-bound preview
+  through renderer, desktop tunnel, MCP and Base64 in 30.80 ms at 8,108 bytes.
+  The complete remote model roundtrip remains a separate measurement. The
+  surrounding full design smoke subsequently reached the external Photoshop
+  COM parity step and failed there with `CO_E_SERVER_EXEC_FAILURE`; do not
+  report that unrelated optional parity stage as green.
+- `layer.rasterize` is already discoverable and executable through the shared
+  external MCP command profile. It targets a stable layer ID and returns the
+  replacement raster ID; no MCP-only rasterizer exists.
 - A fresh Codex client completed OAuth and explicit read-to-edit approval,
   inspected `happy_birthday.png`, created a separate 1200x1200 document and
   built twelve editable raster/vector/text layers through MCP only. It checked

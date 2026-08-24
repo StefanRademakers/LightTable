@@ -3,6 +3,7 @@ import type { DocumentRendererPort } from '../../infrastructure/rendering/webGpu
 import type { DocumentPixelRegion } from '../../editor/geometry/documentRegionPreview';
 import { exportPsdDocument, type ExportedPsdDocument } from './PsdExportClient';
 import type { RendererBindingToken } from '../rendering/rendererBindingToken';
+import type { LightTablePreviewEncoding } from '../commands/lightTableCommandContract';
 
 const exportFileName = (sourceName: string, suffix: string): string =>
   `${sourceName.replace(/\.[^.]+$/, '') || 'image'}-${suffix}`;
@@ -29,19 +30,21 @@ export const exportEditorPreviewArtifact = async (
   document: ImageDocument | null,
   sourceName: string,
   maxEdge: number,
+  encoding: LightTablePreviewEncoding = { format: 'png' },
   region?: DocumentPixelRegion,
   binding?: RendererBindingToken<DocumentRendererPort>
 ): Promise<File> => {
   if (!renderer || !document) throw new Error('The document renderer is not ready.');
   renderer.synchronizeDocumentForExport(document);
   const pixels = await (region
-    ? renderer.exportRegionThumbnailPng(region, maxEdge)
-    : renderer.exportThumbnailPng(maxEdge));
+    ? renderer.exportRegionThumbnailImage(region, maxEdge, encoding)
+    : renderer.exportThumbnailImage(maxEdge, encoding));
   binding?.assertCurrent('Preview export');
+  const extension = encoding.format;
   return new File(
     [pixels],
-    exportFileName(sourceName, `${region ? 'region-' : ''}preview-${maxEdge}.png`),
-    { type: 'image/png' }
+    exportFileName(sourceName, `${region ? 'region-' : ''}preview-${maxEdge}.${extension}`),
+    { type: encoding.format === 'webp' ? 'image/webp' : 'image/png' }
   );
 };
 

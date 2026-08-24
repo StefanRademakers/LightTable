@@ -1,7 +1,12 @@
 import type { ImageDocument, LayerId, Rect } from '../document/documentTypes';
 import { findRasterLayer } from '../document/layerTree';
 import { decodeNativeImage } from '../../image-io/NativeImageDecoder';
-import { encodeRgba8Png, readR8Texture, selectionMaskToRgba8 } from '../../gpu/gpuReadback';
+import {
+  encodeRgba8Png,
+  readR8Texture,
+  selectionMaskToRgba8,
+  type Rgba8ImageEncoding
+} from '../../gpu/gpuReadback';
 import { planDocumentRegionPreview } from '../geometry/documentRegionPreview';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { LayerTextureCodec } from './LayerTextureCodec';
@@ -193,7 +198,8 @@ export class SelectionClipboardService {
     }
   }
 
-  async exportDisplayRegion(displayTexture: GPUTexture, bounds: Rect, maxEdge: number) {
+  async exportDisplayRegion(displayTexture: GPUTexture, bounds: Rect, maxEdge: number,
+    encoding: Rgba8ImageEncoding = { format: 'png' }) {
     const { width, height } = this.options.dimensions();
     const plan = planDocumentRegionPreview(width, height, bounds, maxEdge);
     if (!plan) throw new Error('The display region must be finite, non-empty and inside the document.');
@@ -206,7 +212,8 @@ export class SelectionClipboardService {
       plan.outputHeight,
       { a: scaleX, b: 0, c: 0, d: scaleY,
         tx: -plan.region.x * scaleX, ty: -plan.region.y * scaleY },
-      true
+      true,
+      encoding
     );
   }
 
