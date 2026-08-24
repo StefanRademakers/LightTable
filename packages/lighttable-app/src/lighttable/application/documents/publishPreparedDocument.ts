@@ -10,6 +10,8 @@ import type {
 } from '../../editor/persistence/layeredDocumentFormat';
 
 export interface PreparedDocumentPublicationPorts {
+  /** Batches external application-store notifications for this sync commit. */
+  commitPublication?(publish: () => void): void;
   mergeStartupTimings(
     timings: PreparedDocumentSource['loaded']['timings']
   ): void;
@@ -60,24 +62,28 @@ export const publishPreparedDocument = (
     timings
   } = loaded;
 
-  ports.mergeStartupTimings(timings);
-  ports.publishDocument(document);
-  ports.publishMetadata(metadata);
-  ports.publishPsdImport(psdImport
-    ? { ...psdImport, warnings: [...psdWarnings] }
-    : psdImport);
-  ports.publishPsdCompatibility([...psdCompatibility]);
-  ports.publishPsdDifference(null);
-  ports.publishSource(source.name, imageBlob, source.identity);
-  ports.publishBinaryAssets?.(loaded.fontAssets, loaded.preservedSourceAssets);
-  ports.resetDocumentInteraction();
-  ports.publishAdjustments(hydration.adjustments);
+  const publish = () => {
+    ports.mergeStartupTimings(timings);
+    ports.publishDocument(document);
+    ports.publishMetadata(metadata);
+    ports.publishPsdImport(psdImport
+      ? { ...psdImport, warnings: [...psdWarnings] }
+      : psdImport);
+    ports.publishPsdCompatibility([...psdCompatibility]);
+    ports.publishPsdDifference(null);
+    ports.publishSource(source.name, imageBlob, source.identity);
+    ports.publishBinaryAssets?.(loaded.fontAssets, loaded.preservedSourceAssets);
+    ports.resetDocumentInteraction();
+    ports.publishAdjustments(hydration.adjustments);
 
-  if (!psdImport) return;
-  ports.publishPsdDifference(hydration.psdDifferenceMetrics);
-  ports.publishStatus(hydration.status);
-  if (hydration.differenceError) {
-    ports.reportDifferenceFailure(hydration.differenceError);
-  }
-  if (psdWarnings.length) ports.reportPsdWarnings(psdWarnings);
+    if (!psdImport) return;
+    ports.publishPsdDifference(hydration.psdDifferenceMetrics);
+    ports.publishStatus(hydration.status);
+    if (hydration.differenceError) {
+      ports.reportDifferenceFailure(hydration.differenceError);
+    }
+    if (psdWarnings.length) ports.reportPsdWarnings(psdWarnings);
+  };
+  if (ports.commitPublication) ports.commitPublication(publish);
+  else publish();
 };

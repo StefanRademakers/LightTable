@@ -60,6 +60,7 @@ const prepared = (): PreparedDocumentSource => {
 describe('publishPreparedDocument', () => {
   it('publishes canonical state and matching source state in one sync call', () => {
     const target = ports();
+    target.commitPublication = vi.fn((publish) => publish());
     const source = prepared();
 
     publishPreparedDocument(source, {
@@ -78,5 +79,6 @@ describe('publishPreparedDocument', () => {
       source.hydration.adjustments
     );
     expect(target.publishStatus).not.toHaveBeenCalled();
+    expect(target.commitPublication).toHaveBeenCalledOnce();
   });
 });

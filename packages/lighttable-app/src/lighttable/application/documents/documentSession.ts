@@ -169,6 +169,8 @@ export class DocumentSession {
   private readonly disposers = new Set<() => void>();
   private readonly unsubscribeHistory: () => void;
   private readonly unsubscribeTasks: () => void;
+  private publicationDepth = 0;
+  private publicationPending = false;
 
   constructor(options: CreateDocumentSessionOptions) {
     this.id = options.id;
@@ -249,6 +251,26 @@ export class DocumentSession {
     this.assertUsable();
     this.disposers.add(disposer);
     return () => this.disposers.delete(disposer);
+  }
+
+  /**
+   * Publishes a synchronous multi-field application commit as one external
+   * store notification. State is still updated immediately inside the
+   * operation, while subscribers cannot observe impossible half-publications
+   * such as a new document paired with the previous source metadata.
+   */
+  runPublication<Result>(operation: () => Result): Result {
+    this.assertUsable();
+    this.publicationDepth += 1;
+    try {
+      return operation();
+    } finally {
+      this.publicationDepth -= 1;
+      if (this.publicationDepth === 0 && this.publicationPending) {
+        this.publicationPending = false;
+        this.emit();
+      }
+    }
   }
 
   setReady(): void {
@@ -391,6 +413,10 @@ export class DocumentSession {
   }
 
   private emit(): void {
+    if (this.publicationDepth > 0) {
+      this.publicationPending = true;
+      return;
+    }
     for (const listener of [...this.listeners]) listener();
   }
 

@@ -2995,6 +2995,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, [applyRedoEditor, executeRegisteredCommand]);
 
   const getDocumentPublicationPorts = useCallback(() => ({
+    commitPublication: (publish: () => void) => {
+      if (documentSession) documentSession.runPublication(publish);
+      else publish();
+    },
     mergeStartupTimings: (timings: LightTableStartupTimings) => {
       startupTelemetryRef.current.merge(timings);
       // PSD/PDF source-stage timings arrive after the embedded preview's first
