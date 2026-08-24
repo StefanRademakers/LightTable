@@ -25,6 +25,7 @@ import { createActionsPanelCallbacks } from './composition/workspace/createActio
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
 import { DocumentRendererLifecycle } from './application/rendering/documentRendererLifecycle';
 import { captureRendererBinding } from './application/rendering/rendererBindingToken';
+import { resolveDocumentGpuRecoveryPolicy } from './application/rendering/documentGpuRecoveryPolicy';
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
@@ -756,21 +757,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const recoveredFailureGenerationRef = useRef<number | null>(null);
   const consecutiveDeviceLossRecoveriesRef = useRef(0);
   const replaceRendererOnNextOpenRef = useRef(false);
-  useEffect(() => {
-    if (rendererSnapshot.status === 'ready') {
-      consecutiveDeviceLossRecoveriesRef.current = 0;
-      return undefined;
-    }
-    if (rendererSnapshot.status !== 'failed'
-      || !/^WebGPU device lost:/u.test(rendererSnapshot.error ?? '')
-      || recoveredFailureGenerationRef.current === rendererSnapshot.generation
-      || consecutiveDeviceLossRecoveriesRef.current >= 2) return undefined;
-    recoveredFailureGenerationRef.current = rendererSnapshot.generation;
-    consecutiveDeviceLossRecoveriesRef.current += 1;
-    replaceRendererOnNextOpenRef.current = true;
-    const timer = window.setTimeout(() => setRendererRecoverySequence(value => value + 1), 50);
-    return () => window.clearTimeout(timer);
-  }, [rendererSnapshot.error, rendererSnapshot.generation, rendererSnapshot.status]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const commandRequestSequenceRef = useRef(0);
   const hueDistributionCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1051,6 +1037,37 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [lensBlurViewportMode, setLensBlurViewportModeState] = useState<LensBlurViewportMode>('result');
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
+  useEffect(() => {
+    if (rendererSnapshot.status === 'ready') {
+      consecutiveDeviceLossRecoveriesRef.current = 0;
+      return undefined;
+    }
+    if (rendererSnapshot.status !== 'failed'
+      || !/^WebGPU device lost:/u.test(rendererSnapshot.error ?? '')
+      || recoveredFailureGenerationRef.current === rendererSnapshot.generation
+      || consecutiveDeviceLossRecoveriesRef.current >= 2) return undefined;
+    recoveredFailureGenerationRef.current = rendererSnapshot.generation;
+    if (imageDocument) {
+      const recovery = resolveDocumentGpuRecoveryPolicy(imageDocument);
+      if (recovery.mode === 'checkpoint-required') {
+        setError(
+          `${rendererSnapshot.error} Automatic renderer recovery was stopped to protect `
+          + `${recovery.reasons.join(', ')}. Restore the document from its recovery checkpoint `
+          + 'or reopen the saved source; LightTable will not present missing pixels as recovered.'
+        );
+        return undefined;
+      }
+    }
+    consecutiveDeviceLossRecoveriesRef.current += 1;
+    replaceRendererOnNextOpenRef.current = true;
+    const timer = window.setTimeout(() => setRendererRecoverySequence(value => value + 1), 50);
+    return () => window.clearTimeout(timer);
+  }, [
+    imageDocument,
+    rendererSnapshot.error,
+    rendererSnapshot.generation,
+    rendererSnapshot.status
+  ]);
   const loadDocumentPalette = useDocumentPalette(engineRef, imageDocumentRef), loadLayerPalette = useLayerPalette(engineRef, imageDocumentRef);
   const attachColorMixerHueCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
     colorMixerHueCanvasRef.current = canvas;
