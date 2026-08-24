@@ -1,0 +1,66 @@
+# Task 308 - Architecture responsibility and regression audit
+
+Status: structural audit complete; owner review and Phase 0 execution pending.
+
+## Goal
+
+Read and reconstruct the actual LightTable implementation before proposing a
+responsibility refactor. The outcome must be an evidence-based migration plan
+that reduces cross-system regressions without introducing a second document
+authority, a second renderer model, or a big-bang rewrite.
+
+This task changes no production code during the audit phase.
+
+## Deliverables
+
+- `AUDIT.md`: detailed, source-backed system inventory and responsibility map.
+- `PLAN.md`: short human-readable explanation of the accepted change direction.
+- Exact source references for every material architectural conclusion.
+- A dependency and runtime-flow map covering startup, document lifecycle,
+  editing, rendering, interaction previews, analysis, persistence and recovery.
+- A staged migration order with parity gates, rollback boundaries and manual
+  acceptance flows.
+
+## Completion contract
+
+This task is not complete because files were counted or diagrams were written.
+It is complete only when:
+
+1. every production package and application boundary has been inventoried;
+2. every critical editor runtime flow has been traced through real code;
+3. canonical, derived, UI, preview and GPU state authorities are identified;
+4. duplicated semantic decisions and implicit invalidation contracts have been
+   located with source evidence;
+5. the proposed boundaries have been checked against existing architecture
+   contracts and current tests;
+6. the migration can proceed in small vertical slices with old behavior kept as
+   an oracle or rollback path where appropriate;
+7. the owner receives the completed audit checkpoint before implementation
+   begins.
+
+The audit deliverables now satisfy this contract at source/architecture level.
+They explicitly do not claim that the packaged acceptance journeys, parity
+corpora or soak/device-loss gates have run; those are Phase 0 and later
+execution work in `AUDIT.md` Section 14.
+
+## Constraints
+
+- Do not refactor production code during the audit.
+- Do not treat file size alone as evidence of a wrong boundary.
+- Do not propose one runtime/editor/canvas per document.
+- Do not move canonical document state into React or renderer resources.
+- Do not make renderer-derived state a persistence authority.
+- Do not weaken existing visible behavior to simplify implementation.
+- Distinguish proven behavior, inferred behavior and unverified behavior.
+- Prefer one semantic owner with multiple projections over synchronized copies.
+
+## Current owner concerns to preserve
+
+- Document data changes only through an explicit user, agent or command action.
+- Workspace and panel layout are editor UI state, not document content.
+- Tool state is editor state and remains coherent across workspace switches.
+- The canvas is a view of canonical data, not a second document.
+- Pointer-hot interaction and overlays must not depend on React rerender cadence.
+- Inactive documents do not own complete hidden editor/GPU runtimes.
+- Existing bitmap, vector, text, grade, effect, selection, clipboard, scopes,
+  save/reopen and recovery behavior must remain intact during migration.
