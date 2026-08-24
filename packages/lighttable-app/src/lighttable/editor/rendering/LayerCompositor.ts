@@ -35,6 +35,7 @@ import {
   type CompositorPlanEntry
 } from './compositorGraph';
 import type { GeometryPreviewStore } from './GeometryPreviewStore';
+import type { VectorContentPreviewStore } from './VectorContentPreviewStore';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { LayerStyleRenderer } from './LayerStyleRenderer';
 import type { PixelEditSessionStore } from './PixelEditSessionStore';
@@ -67,6 +68,7 @@ interface LayerCompositorOptions {
   transformSessions: TransformSessionStore;
   pixelEditSessions: PixelEditSessionStore;
   geometryPreviews: GeometryPreviewStore;
+  vectorContentPreviews?: VectorContentPreviewStore;
   layerStyles: LayerStyleRenderer;
   vectors: VectorLayerRenderer;
   texts?: TextLayerRenderer;
@@ -219,6 +221,7 @@ export class LayerCompositor {
       transformSessions,
       pixelEditSessions,
       geometryPreviews,
+      vectorContentPreviews,
       layerStyles,
       vectors
     } = this.options;
@@ -236,7 +239,10 @@ export class LayerCompositor {
     for (const island of canonicalIslandPlan.islands) {
       if (island.role !== 'direct-vector-run') continue;
       for (const { layer } of island.members) {
-        if (geometryPreviews.resolve(layer.id, layer.geometryRevision)) {
+        if (
+          geometryPreviews.resolve(layer.id, layer.geometryRevision)
+          || vectorContentPreviews?.resolve(layer)
+        ) {
           transientVectorBarriers.add(layer.id);
         }
       }
@@ -262,6 +268,7 @@ export class LayerCompositor {
         vectors.canRenderIsland(island)
         && island.members.every(
         ({ layer }) => !geometryPreviews.resolve(layer.id, layer.geometryRevision)
+          && !vectorContentPreviews?.resolve(layer)
         )
       ))
       : [];
@@ -531,6 +538,7 @@ export class LayerCompositor {
       }
 
       if (node.type === 'vector') {
+        const presentationNode = vectorContentPreviews?.resolve(node) ?? node;
         if (islandRenderingActive) {
           const island = retainedIslandByLayerId.get(node.id);
           if (island) {
@@ -578,7 +586,7 @@ export class LayerCompositor {
             // user/document-space gradients then remain attached. Clipping is
             // still evaluated afterwards, in document space, by the compositor.
             return renderVectorLayer(
-              node,
+              presentationNode,
               background,
               target,
               clippingTexture,
@@ -588,7 +596,7 @@ export class LayerCompositor {
           }
         }
         return renderVectorLayer(
-          geometryPreview ? { ...node, transform: geometryPreview } : node,
+          geometryPreview ? { ...presentationNode, transform: geometryPreview } : presentationNode,
           background,
           target,
           clippingTexture,

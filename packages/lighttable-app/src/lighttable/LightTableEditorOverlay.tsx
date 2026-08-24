@@ -385,6 +385,7 @@ import {
   mergeLayers as mergeDocumentLayers,
   setRasterLayerAdjustmentStack,
   setLayerTransform,
+  replaceVectorElement,
 } from './editor/document/documentCommands';
 import { invertMatrix, transformPoint } from './editor/geometry/affine';
 import {
@@ -3978,6 +3979,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const source = findDocumentLayer(before, layerId);
       if (source?.type !== 'vector') return false;
       const after = setLayerTransform(before, layerId, matrix);
+      applyDocumentSnapshot(after);
+      pushDocumentHistory(before, after);
+      return true;
+    },
+    setElementTransformPreview: (layers, documentOperation) => {
+      const engine = engineRef.current;
+      if (!engine) return false;
+      engine.setVectorSelectionPreviewTransform(documentOperation);
+      return layers.length > 0
+        ? engine.setVectorContentPreviews(layers)
+        : engine.clearVectorContentPreviews();
+    },
+    commitElementTransformPreview: (before, elements) => {
+      const after = elements.reduce(
+        (document, { layerId, element }) => replaceVectorElement(document, layerId, element),
+        before
+      );
+      if (after === before) return false;
       applyDocumentSnapshot(after);
       pushDocumentHistory(before, after);
       return true;

@@ -43,4 +43,22 @@ describe('WebGpuEngine geometry preview batches', () => {
     ]);
     expect(markDocumentPreviewDirty).toHaveBeenCalledOnce();
   });
+
+  it('invalidates the document compositor for renderer-only vector content', () => {
+    const setVectorContentPreviews = vi.fn(() => true);
+    const clearVectorContentPreviews = vi.fn(() => true);
+    const markDocumentPreviewDirty = vi.fn();
+    const engine = {
+      documentRenderer: { setVectorContentPreviews, clearVectorContentPreviews },
+      markDocumentPreviewDirty
+    };
+    const vector = layer('vector');
+    if (vector.type !== 'vector') throw new Error('Expected vector fixture.');
+
+    expect(WebGpuEngine.prototype.setVectorContentPreviews.call(engine, [vector])).toBe(true);
+    expect(WebGpuEngine.prototype.clearVectorContentPreviews.call(engine)).toBe(true);
+    expect(setVectorContentPreviews).toHaveBeenCalledWith([vector]);
+    expect(clearVectorContentPreviews).toHaveBeenCalledOnce();
+    expect(markDocumentPreviewDirty).toHaveBeenCalledTimes(2);
+  });
 });

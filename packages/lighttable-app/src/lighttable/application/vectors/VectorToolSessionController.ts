@@ -71,6 +71,14 @@ export interface VectorToolSessionDependencies extends VectorDocumentControllerD
     matrix: AffineMatrix,
     documentOperation: AffineMatrix
   ): boolean;
+  setElementTransformPreview?(
+    layers: readonly VectorLayer[],
+    documentOperation: AffineMatrix | null
+  ): boolean;
+  commitElementTransformPreview?(
+    before: ImageDocument,
+    elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[]
+  ): boolean;
 }
 
 export interface VectorToolSessionOptions {

@@ -6,6 +6,7 @@ import { TransformSessionStore } from './TransformSessionStore';
 import { PixelEditSessionStore } from './PixelEditSessionStore';
 import { PatternAssetStore } from './PatternAssetStore';
 import { GeometryPreviewStore } from './GeometryPreviewStore';
+import { VectorContentPreviewStore } from './VectorContentPreviewStore';
 import { documentPipelinesFor } from './DocumentPipelineBundle';
 import { LayerDocumentAssetService } from './LayerDocumentAssetService';
 import { LayerTextureCodec } from './LayerTextureCodec';
@@ -69,6 +70,7 @@ export interface LayerDocumentRendererRuntime {
   importedLayerInitializer: ImportedLayerInitializer;
   resources: DocumentResourceState;
   geometryPreviews: GeometryPreviewStore;
+  vectorContentPreviews: VectorContentPreviewStore;
   imageResources: DocumentImageResourceLifecycle;
   textureMemory: DocumentTextureMemoryEstimator;
   layerRuntimeCoordinator: LayerRuntimeCoordinator;
@@ -208,6 +210,7 @@ export const createLayerDocumentRendererRuntime = (
   const transformSessions = new TransformSessionStore();
   const pixelEditSessions = new PixelEditSessionStore();
   const geometryPreviews = new GeometryPreviewStore();
+  const vectorContentPreviews = new VectorContentPreviewStore();
   const selectionTextures = new SelectionTextureStore({
     createSelectionTexture: (label) => textures.createSelection(label),
     createClipboardTexture: (label) => textures.createColor(label),
@@ -226,6 +229,7 @@ export const createLayerDocumentRendererRuntime = (
     transformSessions,
     pixelEditSessions,
     geometryPreviews,
+    vectorContentPreviews,
     layerStyles: layerStyleRenderer,
     vectors: vectorLayerRenderer,
     texts: textLayerRenderer,
@@ -477,6 +481,7 @@ export const createLayerDocumentRendererRuntime = (
       () => compositeTargets.destroy(),
       () => selectionTextures.destroy(),
       () => geometryPreviews.clear(),
+      () => vectorContentPreviews.clear(),
       () => transformRasterizer.cancel(),
       () => pixelEditSessions.destroy()
     ]
@@ -541,6 +546,7 @@ export const createLayerDocumentRendererRuntime = (
     importedLayerInitializer,
     resources,
     geometryPreviews,
+    vectorContentPreviews,
     imageResources,
     textureMemory,
     layerRuntimeCoordinator,
@@ -558,6 +564,7 @@ export const createLayerDocumentRendererRuntime = (
       renderResources.invalidateAllStyles();
       renderResources.releaseStyleTargets();
       geometryPreviews.clear();
+      vectorContentPreviews.clear();
     }
   };
 };

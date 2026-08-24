@@ -8,7 +8,8 @@ import {
   translationMatrix,
   translateVectorElement,
   type AffineMatrix,
-  type Vec2
+  type Vec2,
+  type VectorElement
 } from '@lighttable/vector-core';
 import {
   buildVectorSelectionFrame,
@@ -54,6 +55,14 @@ export interface VectorElementSelectionDependencies {
     matrix: AffineMatrix,
     documentOperation: AffineMatrix
   ): boolean;
+  setElementTransformPreview?(
+    layers: readonly VectorLayer[],
+    documentOperation: AffineMatrix | null
+  ): boolean;
+  commitElementTransformPreview?(
+    before: ImageDocument,
+    elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[]
+  ): boolean;
 }
 
 export interface VectorElementSelectionPointerOptions {
@@ -67,6 +76,7 @@ interface SelectedElementTransform {
   readonly elementId: string;
   readonly documentToLayer: NonNullable<ReturnType<typeof invertMatrix>>;
   readonly layerToDocument: AffineMatrix;
+  readonly openingElement: VectorElement;
 }
 
 interface ActiveElementDrag {
@@ -82,6 +92,12 @@ interface ActiveElementDrag {
     readonly openingTransform: AffineMatrix;
     matrix: AffineMatrix;
     documentOperation: AffineMatrix;
+  } | null;
+  readonly elementPreview: {
+    readonly before: ImageDocument;
+    readonly sourceLayers: readonly VectorLayer[];
+    elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[];
+    revision: number;
   } | null;
   moved: boolean;
 }
@@ -256,6 +272,55 @@ export class VectorElementSelectionToolController {
       drag.layerPreview.documentOperation = documentOperation;
       return true;
     }
+    const transformTarget = (mapping: SelectedElementTransform) => {
+      if (!drag.scale && !drag.rotation) {
+        return transformVectorElementDocumentPaint(translateVectorElement(
+          mapping.openingElement,
+          localDelta(mapping.documentToLayer, documentDelta)
+        ), documentOperation);
+      }
+      const layerOperation = multiplyMatrices(
+        mapping.documentToLayer,
+        multiplyMatrices(documentOperation, mapping.layerToDocument)
+      );
+      return transformVectorElementDocumentPaint(
+        transformVectorElement(mapping.openingElement, layerOperation),
+        documentOperation
+      );
+    };
+    if (drag.elementPreview) {
+      drag.elementPreview.revision += 1;
+      const elements = drag.targets.map((mapping) => ({
+        layerId: mapping.layerId,
+        element: transformTarget(mapping)
+      }));
+      const byAddress = new Map(elements.map(({ layerId, element }) => [
+        `${layerId}\0${element.id}`,
+        element
+      ]));
+      const previewLayers = drag.elementPreview.sourceLayers.map((layer) => ({
+        ...layer,
+        elements: layer.elements.map((element) => {
+          const transformed = byAddress.get(`${layer.id}\0${element.id}`);
+          if (!transformed) return element;
+          const preview = cloneVectorElement(transformed);
+          preview.transformRevision = Math.max(
+            preview.transformRevision,
+            element.transformRevision + drag.elementPreview!.revision
+          );
+          preview.styleRevision = Math.max(
+            preview.styleRevision,
+            element.styleRevision + drag.elementPreview!.revision
+          );
+          return preview;
+        })
+      }));
+      if (!this.dependencies.setElementTransformPreview?.(previewLayers, documentOperation)) {
+        return false;
+      }
+      drag.elementPreview.elements = elements;
+      return true;
+    }
     return this.documents.previewElementMutations((target) => {
       const mapping = drag.targets.find(
         (candidate) => candidate.layerId === target.layerId
@@ -304,6 +369,14 @@ export class VectorElementSelectionToolController {
         drag.layerPreview.documentOperation
       ) ?? false;
     }
+    if (drag.elementPreview) {
+      this.dependencies.setElementTransformPreview?.([], null);
+      if (!drag.moved) return false;
+      return this.dependencies.commitElementTransformPreview?.(
+        drag.elementPreview.before,
+        drag.elementPreview.elements
+      ) ?? false;
+    }
     if (!drag.moved) {
       this.documents.cancelElementMutation();
       return false;
@@ -315,6 +388,9 @@ export class VectorElementSelectionToolController {
     const active = this.drag !== null || this.gradientDrag !== null;
     if (this.drag?.layerPreview) {
       this.dependencies.setLayerTransformPreview?.(this.drag.layerPreview.layer, null, null);
+    }
+    if (this.drag?.elementPreview) {
+      this.dependencies.setElementTransformPreview?.([], null);
     }
     this.drag = null;
     this.gradientDrag = null;
@@ -348,7 +424,12 @@ export class VectorElementSelectionToolController {
       );
       const documentToLayer = entry ? invertMatrix(entry.layerToDocument) : null;
       return entry && documentToLayer
-        ? [{ ...selected, documentToLayer, layerToDocument: entry.layerToDocument }]
+        ? [{
+            ...selected,
+            documentToLayer,
+            layerToDocument: entry.layerToDocument,
+            openingElement: cloneVectorElement(entry.element)
+          }]
         : [];
     });
     if (targets.length !== elements.length) {
@@ -382,7 +463,26 @@ export class VectorElementSelectionToolController {
           documentOperation: translationMatrix(0, 0)
         }
       : null;
-    if (!layerPreview && !this.documents.beginElementMutations(elements)) return true;
+    const sourceLayers = [...new Map(targets.map((target) => {
+      const layer = findDocumentLayer(document, target.layerId);
+      return [target.layerId, layer?.type === 'vector' ? layer : null] as const;
+    })).values()].filter((layer): layer is VectorLayer => layer !== null);
+    const elementPreview = !layerPreview
+      && sourceLayers.length > 0
+      && this.dependencies.setElementTransformPreview
+      && this.dependencies.commitElementTransformPreview
+      && this.dependencies.setElementTransformPreview(sourceLayers, translationMatrix(0, 0))
+      ? {
+          before: document,
+          sourceLayers,
+          elements: targets.map(({ layerId, openingElement }) => ({
+            layerId,
+            element: cloneVectorElement(openingElement)
+          })),
+          revision: 0
+        }
+      : null;
+    if (!layerPreview && !elementPreview && !this.documents.beginElementMutations(elements)) return true;
     this.drag = {
       documentId: document.id,
       startDocument: { ...documentPoint },
@@ -391,6 +491,7 @@ export class VectorElementSelectionToolController {
       rotation: options.rotation,
       preserveAspect: options.preserveAspect,
       layerPreview,
+      elementPreview,
       moved: false
     };
     return true;

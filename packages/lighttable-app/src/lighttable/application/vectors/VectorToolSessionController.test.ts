@@ -1,12 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { VectorIdSource, VectorPath } from '@lighttable/vector-core';
+import type { AffineMatrix, VectorElement, VectorIdSource, VectorPath } from '@lighttable/vector-core';
 import {
   createAnchor,
   createSubpath,
   createVectorLiveShape,
   createVectorPath
 } from '@lighttable/vector-core';
-import { createImageDocument, createVectorLayer } from '../../editor/document/documentTypes';
+import {
+  createImageDocument,
+  createVectorLayer,
+  type ImageDocument,
+  type LayerId,
+  type VectorLayer
+} from '../../editor/document/documentTypes';
 import { setActiveLayer } from '../../editor/document/documentCommands';
 import { createDefaultGradientPaint } from '@lighttable/paint-core';
 import { findDocumentLayer } from '../../editor/document/layerTree';
@@ -33,7 +39,8 @@ const setup = (
   onLiveShapeCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onLiveShapeCommitted'],
   onPathMutationCommitted?: NonNullable<ConstructorParameters<typeof VectorToolSessionController>[1]>['onPathMutationCommitted'],
   preview?: Pick<ConstructorParameters<typeof VectorToolSessionController>[0],
-    'setLayerTransformPreview' | 'commitLayerTransformPreview'>
+    'setLayerTransformPreview' | 'commitLayerTransformPreview'
+    | 'setElementTransformPreview' | 'commitElementTransformPreview'>
 ) => {
   let document = createImageDocument('Vector tools', 200, 100, 'asset');
   let selection: VectorEditorSelection = createVectorEditorSelection();
@@ -394,6 +401,62 @@ describe('VectorToolSessionController', () => {
     );
     expect(state.controller.pointerUp(45, { x: 50, y: 45 })).toBe(true);
     expect(commitLayerTransformPreview).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a partial element drag out of canonical document publication', () => {
+    const setElementTransformPreview = vi.fn((
+      _layers: readonly VectorLayer[], _operation: AffineMatrix | null
+    ) => true);
+    const commitElementTransformPreview = vi.fn((
+      _before: ImageDocument,
+      _elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[]
+    ) => true);
+    const state = setup(undefined, undefined, undefined, {
+      setElementTransformPreview,
+      commitElementTransformPreview
+    });
+    const first = createVectorLiveShape('first', {
+      kind: 'rectangle', width: 20, height: 20,
+      cornerRadii: [0, 0, 0, 0], linkedCorners: true
+    });
+    first.transform.tx = 20;
+    first.transform.ty = 20;
+    const second = createVectorLiveShape('second', {
+      kind: 'ellipse', width: 20, height: 20
+    });
+    second.transform.tx = 80;
+    second.transform.ty = 20;
+    const layer = createVectorLayer([first, second]);
+    state.document = { ...state.document, layers: [layer], activeLayerId: layer.id };
+    state.controller.activate('element-selection');
+    const openingDocument = state.document;
+
+    // Remove the second object from the initial whole-layer selection; only
+    // the remaining fragment may move in the renderer preview.
+    expect(state.controller.pointerDown(45, { x: 90, y: 30 }, {
+      hitRadius: 2,
+      additive: true
+    })).toBe(true);
+    expect(state.controller.pointerUp(45, { x: 90, y: 30 })).toBe(false);
+    expect(state.controller.pointerDown(46, { x: 30, y: 30 }, { hitRadius: 2 })).toBe(true);
+    expect(state.controller.pointerMove(46, { x: 55, y: 40 })).toBe(true);
+    expect(state.controller.pointerMove(46, { x: 65, y: 45 })).toBe(true);
+
+    expect(state.document).toBe(openingDocument);
+    expect(state.history).toHaveLength(0);
+    const previewLayer = setElementTransformPreview.mock.calls.at(-1)?.[0][0];
+    if (!previewLayer) throw new Error('Expected a renderer-only vector preview.');
+    expect(previewLayer.elements[0].transform).toMatchObject({ tx: 55, ty: 35 });
+    expect(previewLayer.elements[1].transform).toMatchObject({ tx: 80, ty: 20 });
+    expect(previewLayer.elements[1].transformRevision).toBe(0);
+
+    expect(state.controller.pointerUp(46, { x: 65, y: 45 })).toBe(true);
+    expect(setElementTransformPreview).toHaveBeenLastCalledWith([], null);
+    expect(commitElementTransformPreview).toHaveBeenCalledOnce();
+    expect(commitElementTransformPreview.mock.calls[0]?.[1][0]).toMatchObject({
+      layerId: layer.id,
+      element: { id: first.id, transform: { tx: 55, ty: 35 } }
+    });
   });
 
   it('drags a selected gradient endpoint as one non-React document transaction', () => {

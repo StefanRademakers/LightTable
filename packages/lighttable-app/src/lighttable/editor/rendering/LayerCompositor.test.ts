@@ -500,6 +500,53 @@ describe('LayerCompositor', () => {
     expect(drawFullscreen).toHaveBeenCalledOnce();
   });
 
+  it('renders pointer-hot vector content without replacing the canonical layer', () => {
+    const document = createImageDocument('Vector preview', 64, 32, 'source');
+    const vector = createVectorLayer([], 'Shape');
+    const preview = { ...vector, name: 'Transient shape preview' };
+    document.layers = [vector];
+    document.activeLayerId = vector.id;
+    const compositeA = texture();
+    const compositeB = texture();
+    const vectorTexture = texture();
+    const encodeVector = vi.fn(() => vectorTexture);
+    const compositor = new LayerCompositor({
+      device: {
+        queue: { writeBuffer: vi.fn() },
+        createBuffer: vi.fn(() => ({})),
+        createBindGroup: vi.fn(() => ({}))
+      } as unknown as GPUDevice,
+      sampler: {} as GPUSampler,
+      compositePipeline: { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline,
+      adjustmentMixPipeline: {} as GPURenderPipeline,
+      layerResources: { raster: vi.fn(() => null) } as never,
+      targets: { ensure: vi.fn(() => [compositeA, compositeB]) } as never,
+      submittedResources: { retainBuffer: vi.fn(), retainTexture: vi.fn() } as never,
+      transformSessions: { current: null } as never,
+      pixelEditSessions: { current: null } as never,
+      geometryPreviews: { resolve: vi.fn(() => null) } as never,
+      vectorContentPreviews: { resolve: vi.fn(() => preview) } as never,
+      layerStyles: { releaseTargets: vi.fn(), releaseCache: vi.fn() } as never,
+      vectors: { encode: encodeVector, retainLayerIds: vi.fn() } as never,
+      dimensions: () => ({ width: 64, height: 32 }),
+      syncDocument: vi.fn(),
+      maskTextureFor: vi.fn(() => null),
+      createTexture: vi.fn(texture),
+      clearTexture: vi.fn(),
+      drawFullscreen: vi.fn()
+    });
+
+    compositor.encode({} as GPUCommandEncoder, document);
+
+    expect(document.layers[0]).toBe(vector);
+    expect(encodeVector).toHaveBeenCalledWith(
+      expect.anything(),
+      preview,
+      expect.anything(),
+      { width: 64, height: 32 }
+    );
+  });
+
   it('routes supported islands to Vello while preserving per-layer fallback', () => {
     const document = createImageDocument('Hybrid vectors', 64, 32, 'source');
     const raster = document.layers[0];

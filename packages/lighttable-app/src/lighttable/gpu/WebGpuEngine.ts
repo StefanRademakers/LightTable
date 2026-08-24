@@ -20,7 +20,8 @@ import {
   type LayerNode,
   type Rect,
   type RasterLayer,
-  type TextLayer
+  type TextLayer,
+  type VectorLayer
 } from '../editor/document/documentTypes';
 import { findDocumentLayer, findRasterLayer, walkLayerTree } from '../editor/document/layerTree';
 import { layerStyleStackIsActive } from '../editor/styles/layerStyleDefaults';
@@ -992,6 +993,22 @@ export class WebGpuEngine {
     const renderer = this.documentRenderer;
     if (!renderer) return false;
     const changed = renderer.setGeometryPreview(layer, null);
+    if (changed) this.markDocumentPreviewDirty();
+    return changed;
+  }
+
+  setVectorContentPreviews(layers: readonly VectorLayer[]) {
+    const renderer = this.documentRenderer;
+    if (!renderer) return false;
+    const changed = renderer.setVectorContentPreviews(layers);
+    if (changed) this.markDocumentPreviewDirty();
+    return changed;
+  }
+
+  clearVectorContentPreviews() {
+    const renderer = this.documentRenderer;
+    if (!renderer) return false;
+    const changed = renderer.clearVectorContentPreviews();
     if (changed) this.markDocumentPreviewDirty();
     return changed;
   }

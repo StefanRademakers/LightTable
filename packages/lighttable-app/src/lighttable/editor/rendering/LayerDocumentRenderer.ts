@@ -4,7 +4,8 @@ import {
   type LayerId,
   type LayerNode,
   type Rect,
-  type RasterLayer
+  type RasterLayer,
+  type VectorLayer
 } from '../document/documentTypes';
 import type { BrushDab, BrushEngine, BrushTipDefinition } from '../tools/brush/strokeBuilder';
 import type { PaintChannel } from '../session/editorSession';
@@ -283,6 +284,14 @@ export class LayerDocumentRenderer {
 
   setGeometryPreview(layer: Pick<LayerNode, 'id' | 'geometryRevision'>, matrix: AffineMatrix | null) {
     return this.runtime.geometryPreviews.set(layer.id, layer.geometryRevision, matrix);
+  }
+
+  setVectorContentPreviews(layers: readonly VectorLayer[]) {
+    return this.runtime.vectorContentPreviews.replace(layers);
+  }
+
+  clearVectorContentPreviews() {
+    return this.runtime.vectorContentPreviews.clear();
   }
 
   clearGeometryPreviews() {

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ImageDocument, LayerId, VectorLayer } from '../../editor/document/documentTypes';
 import type { AffineMatrix } from '@lighttable/vector-core';
+import type { VectorElement } from '@lighttable/vector-core';
 import type {
   EditorSession,
   ToolId,
@@ -38,6 +39,14 @@ export interface VectorToolSessionHookOptions {
     matrix: AffineMatrix,
     documentOperation: AffineMatrix
   ) => boolean;
+  readonly setElementTransformPreview?: (
+    layers: readonly VectorLayer[],
+    documentOperation: AffineMatrix | null
+  ) => boolean;
+  readonly commitElementTransformPreview?: (
+    before: ImageDocument,
+    elements: readonly { readonly layerId: LayerId; readonly element: VectorElement }[]
+  ) => boolean;
   readonly rasterizeShape: (transaction: VectorElementCreationTransaction) => boolean;
   readonly requestGradientColorEditor?: (endpoint: 'start' | 'end') => void;
   readonly onLiveShapeCommitted?: VectorToolSessionOptions['onLiveShapeCommitted'];
@@ -66,6 +75,8 @@ export const useVectorToolSessionController = ({
   publishSelection,
   setLayerTransformPreview,
   commitLayerTransformPreview,
+  setElementTransformPreview,
+  commitElementTransformPreview,
   rasterizeShape,
   requestGradientColorEditor,
   onLiveShapeCommitted,
@@ -86,6 +97,8 @@ export const useVectorToolSessionController = ({
     publishSelection,
     setLayerTransformPreview,
     commitLayerTransformPreview,
+    setElementTransformPreview,
+    commitElementTransformPreview,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -106,6 +119,8 @@ export const useVectorToolSessionController = ({
     publishSelection,
     setLayerTransformPreview,
     commitLayerTransformPreview,
+    setElementTransformPreview,
+    commitElementTransformPreview,
     rasterizeShape,
     requestGradientColorEditor,
     onLiveShapeCommitted,
@@ -135,7 +150,11 @@ export const useVectorToolSessionController = ({
       commitLayerTransformPreview: (before, layerId, matrix, documentOperation) =>
         portsRef.current.commitLayerTransformPreview?.(
           before, layerId, matrix, documentOperation
-        ) ?? false
+        ) ?? false,
+      setElementTransformPreview: (layers, documentOperation) =>
+        portsRef.current.setElementTransformPreview?.(layers, documentOperation) ?? false,
+      commitElementTransformPreview: (before, elements) =>
+        portsRef.current.commitElementTransformPreview?.(before, elements) ?? false
     }, {
       penStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
       liveShapeStyle: () => vectorStyleFromToolSettings(portsRef.current.style),
