@@ -11,6 +11,7 @@ const isolationHeaders = {
 
 const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS === '1';
 const vectorDetailedProfiling = process.env.LIGHTTABLE_VECTOR_PROFILE === '1';
+const renderTelemetryEnabled = process.env.LIGHTTABLE_RENDER_TELEMETRY === '1';
 const debugBuild = process.env.LIGHTTABLE_BUILD_PROFILE === 'debug';
 
 export default defineConfig({
@@ -20,7 +21,8 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false'),
-    'import.meta.env.VITE_LIGHTTABLE_VECTOR_PROFILE': JSON.stringify(vectorDetailedProfiling ? 'true' : 'false')
+    'import.meta.env.VITE_LIGHTTABLE_VECTOR_PROFILE': JSON.stringify(vectorDetailedProfiling ? 'true' : 'false'),
+    'import.meta.env.VITE_LIGHTTABLE_RENDER_TELEMETRY': JSON.stringify(renderTelemetryEnabled ? 'true' : 'false')
   },
   // Keep the Electron renderer on the same first-party source/HMR graph as
   // the web host. CSS edits in @lighttable/app then update without restarting

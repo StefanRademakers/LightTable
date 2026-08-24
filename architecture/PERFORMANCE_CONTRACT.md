@@ -63,6 +63,18 @@ layer list render.
 - Preserve high precision internally, but do not allocate maximum precision or
   every optional buffer pre-emptively.
 
+## Build profiles and measurement
+
+The user-facing `release` profile is minified and contains no render telemetry
+collector in its hot path. `instrumented` is the minified qualification profile:
+it preserves production scheduling and optimization while compiling in render
+telemetry for external automation. `debug` additionally enables source maps,
+UI development tools and detailed vector profiling. Qualification scripts use
+`package:desktop:verify` (instrumented); `run_release`, `build.bat` and
+`build.sh` produce the clean release profile. Bundle-boundary verification must
+fail when the collector is present in a clean package or absent from an
+instrumented/debug package.
+
 ## Responsiveness targets
 
 These are engineering goals, not claims that every device meets them today:

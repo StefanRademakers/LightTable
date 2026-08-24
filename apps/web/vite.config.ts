@@ -10,9 +10,11 @@ const isolationHeaders = {
 };
 
 const uiDevtoolsEnabled = process.env.LIGHTTABLE_UI_DEVTOOLS === '1';
+const renderTelemetryEnabled = process.env.LIGHTTABLE_RENDER_TELEMETRY === '1';
 export default defineConfig({
   define: {
-    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false')
+    'import.meta.env.VITE_LIGHTTABLE_UI_DEVTOOLS': JSON.stringify(uiDevtoolsEnabled ? 'true' : 'false'),
+    'import.meta.env.VITE_LIGHTTABLE_RENDER_TELEMETRY': JSON.stringify(renderTelemetryEnabled ? 'true' : 'false')
   },
   plugins: [react()],
   // Resolve the workspace package as first-party source. Besides preserving

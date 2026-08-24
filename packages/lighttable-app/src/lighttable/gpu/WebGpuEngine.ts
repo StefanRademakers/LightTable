@@ -81,7 +81,11 @@ import {
   RenderDirtyState,
   resolveAdjustmentInvalidationStage
 } from '../application/rendering/renderDirtyState';
-import { RenderTelemetry } from '../application/rendering/renderTelemetry';
+import {
+  emptyRenderTelemetrySnapshot,
+  RENDER_TELEMETRY_ENABLED,
+  RenderTelemetry
+} from '../application/rendering/renderTelemetry';
 import {
   recordTextInteractionTrace,
   type TextInteractionTraceIdentity
@@ -221,7 +225,7 @@ export class WebGpuEngine {
   private readonly renderScheduler: RenderInvalidationScheduler;
   private readonly selectionAntsAnimator: SelectionAntsAnimator;
   private readonly renderDirty = new RenderDirtyState();
-  private readonly renderTelemetry = new RenderTelemetry();
+  private readonly renderTelemetry = RENDER_TELEMETRY_ENABLED ? new RenderTelemetry() : null;
   private pendingTextInteractionTrace: TextInteractionTraceIdentity | null = null;
   private readonly imageResources = new DocumentImageGpuResources();
   private readonly adjustmentState = new DocumentAdjustmentState();
@@ -2530,7 +2534,7 @@ export class WebGpuEngine {
 
     const textInteractionTrace = this.pendingTextInteractionTrace;
     if (textInteractionTrace) recordTextInteractionTrace(textInteractionTrace, 'render-start');
-    this.renderTelemetry.recordRenderCall();
+    if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.recordRenderCall();
 
     // Observer completion (notably histogram readback) may request a retry in
     // case the image changed while a read was pending. If no renderer stage or
@@ -2538,7 +2542,7 @@ export class WebGpuEngine {
     // empty GPU command buffer. This boundary also prevents presentation-only
     // React updates from accidentally waking the heavy frame graph.
     if (!this.renderDirty.hasPendingFrameWork && !this.scopeRuntime.hasPendingWork()) {
-      this.renderTelemetry.recordNoWorkSkip();
+      if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.recordNoWorkSkip();
       return;
     }
 
@@ -2549,7 +2553,7 @@ export class WebGpuEngine {
     const encoder = this.device.createCommandEncoder({ label: 'LightTable render' });
     let renderedCorrection = false;
     if (this.renderDirty.correctionRequired) {
-      this.renderTelemetry.recordCorrectionFrame();
+      if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.recordCorrectionFrame();
       // Missing cached handles invalidate their complete downstream chain.
       // This prevents a freshly rebuilt source from being paired with a stale
       // spatial or display result after image-resource lifecycle changes.
@@ -2561,16 +2565,24 @@ export class WebGpuEngine {
         this.renderDirty.invalidateCorrectionFrom('display-post');
       }
       if (this.renderDirty.documentCompositeRequired || !this.documentCompositeTexture) {
-        this.documentCompositeTexture = this.renderTelemetry.measure(
-          'document-composite',
-          () => this.documentRenderer!.encodeComposite(
+        this.documentCompositeTexture = RENDER_TELEMETRY_ENABLED
+          ? this.renderTelemetry!.measure(
+            'document-composite',
+            () => this.documentRenderer!.encodeComposite(
+              encoder,
+              this.imageDocument!,
+              (layerEncoder, source, layer) =>
+                this.encodeLayerProcessing(layerEncoder, source, layer),
+              true
+            )
+          )
+          : this.documentRenderer!.encodeComposite(
             encoder,
             this.imageDocument!,
             (layerEncoder, source, layer) =>
               this.encodeLayerProcessing(layerEncoder, source, layer),
             true
-          )
-        );
+          );
         this.renderDirty.markDocumentCompositeRendered();
       }
       const documentTexture = this.documentCompositeTexture;
@@ -2688,28 +2700,36 @@ export class WebGpuEngine {
             gradedTexture = this.imageResources.correctedTexture;
           }
         }
-        this.sourceGeometryTexture = this.renderTelemetry.measure(
-          'source-geometry',
-          () => this.effectRuntime!.encodeSourceGeometry(encoder, gradedTexture)
-        );
+        this.sourceGeometryTexture = RENDER_TELEMETRY_ENABLED
+          ? this.renderTelemetry!.measure(
+            'source-geometry',
+            () => this.effectRuntime!.encodeSourceGeometry(encoder, gradedTexture)
+          )
+          : this.effectRuntime!.encodeSourceGeometry(encoder, gradedTexture);
       }
       const sourceGeometryTexture = this.sourceGeometryTexture;
       if (
         this.renderDirty.correctionStageRequired('linear-spatial')
         || !this.linearSpatialTexture
       ) {
-        this.linearSpatialTexture = this.renderTelemetry.measure(
-          'linear-spatial',
-          () => this.effectRuntime!.encodeLinearSpatial(
+        this.linearSpatialTexture = RENDER_TELEMETRY_ENABLED
+          ? this.renderTelemetry!.measure(
+            'linear-spatial',
+            () => this.effectRuntime!.encodeLinearSpatial(
+              encoder,
+              sourceGeometryTexture,
+              { visualizeDepth: false }
+            )
+          )
+          : this.effectRuntime!.encodeLinearSpatial(
             encoder,
             sourceGeometryTexture,
             { visualizeDepth: false }
-          )
-        );
+          );
       }
       const linearEffectTexture = this.linearSpatialTexture;
       if (this.renderDirty.correctionStageRequired('output')) {
-        this.renderTelemetry.measure('output', () => {
+        if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.measure('output', () => {
           const outputBindGroup = this.device.createBindGroup({
             layout: this.outputPipeline!.getBindGroupLayout(0),
             entries: [
@@ -2723,23 +2743,43 @@ export class WebGpuEngine {
             outputBindGroup,
             this.imageResources.displayTexture!.createView()
           );
-        });
+        }); else {
+          const outputBindGroup = this.device.createBindGroup({
+            layout: this.outputPipeline!.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: linearEffectTexture.createView() },
+              { binding: 1, resource: { buffer: this.coreResources!.outputSettingsBuffer } }
+            ]
+          });
+          this.drawFullscreenPass(
+            encoder,
+            this.outputPipeline!,
+            outputBindGroup,
+            this.imageResources.displayTexture!.createView()
+          );
+        }
       }
       if (
         this.renderDirty.correctionStageRequired('display-post')
         || !this.displayPostTexture
       ) {
-        this.displayPostTexture = this.renderTelemetry.measure(
-          'display-post',
-          () => this.effectRuntime!.encodeDisplayPost(
+        this.displayPostTexture = RENDER_TELEMETRY_ENABLED
+          ? this.renderTelemetry!.measure(
+            'display-post',
+            () => this.effectRuntime!.encodeDisplayPost(
+              encoder,
+              this.imageResources.displayTexture!,
+              false
+            )
+          )
+          : this.effectRuntime!.encodeDisplayPost(
             encoder,
             this.imageResources.displayTexture!,
             false
-          )
-        );
+          );
       }
       const displayEffectTexture = this.displayPostTexture;
-      this.renderTelemetry.measure('display-resolve', () => {
+      if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.measure('display-resolve', () => {
         const displayResolveBindGroup = this.device.createBindGroup({
           layout: this.displayResolvePipeline!.getBindGroupLayout(0),
           entries: [{ binding: 0, resource: displayEffectTexture.createView() }]
@@ -2750,7 +2790,18 @@ export class WebGpuEngine {
           displayResolveBindGroup,
           this.imageResources.finalTexture!.createView()
         );
-      });
+      }); else {
+        const displayResolveBindGroup = this.device.createBindGroup({
+          layout: this.displayResolvePipeline!.getBindGroupLayout(0),
+          entries: [{ binding: 0, resource: displayEffectTexture.createView() }]
+        });
+        this.drawFullscreenPass(
+          encoder,
+          this.displayResolvePipeline!,
+          displayResolveBindGroup,
+          this.imageResources.finalTexture!.createView()
+        );
+      }
       this.renderDirty.markCorrectionRendered();
       renderedCorrection = true;
     }
@@ -2901,10 +2952,12 @@ export class WebGpuEngine {
     }) ?? null;
     if (histogramReadBuffer) this.renderDirty.markHistogramScheduled();
     const scopePasses = this.scopeRuntime.encode(encoder);
-    this.renderTelemetry.recordScopePasses(
-      scopePasses.analysisPasses,
-      scopePasses.displayPasses
-    );
+    if (RENDER_TELEMETRY_ENABLED) {
+      this.renderTelemetry!.recordScopePasses(
+        scopePasses.analysisPasses,
+        scopePasses.displayPasses
+      );
+    }
     this.device.queue.submit([encoder.finish()]);
     if (this.startupPresentationArmed) {
       this.startupTimeline?.mark('first-gpu-queue-submission', { backend: 'lighttable' });
@@ -2932,7 +2985,7 @@ export class WebGpuEngine {
     }
     void this.vectorEditingOverlayBackend?.notifySubmitted();
     void this.textEditingOverlayBackend?.notifySubmitted();
-    this.renderTelemetry.recordSubmittedFrame();
+    if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.recordSubmittedFrame();
     void this.device.popErrorScope().then((validationError) => {
       if (!this.destroyed && validationError) {
         this.callbacks.onDeviceLost?.(
@@ -2974,7 +3027,9 @@ export class WebGpuEngine {
 
   renderTelemetrySnapshot() {
     return {
-      ...this.renderTelemetry.snapshot(),
+      ...(RENDER_TELEMETRY_ENABLED
+        ? this.renderTelemetry!.snapshot()
+        : emptyRenderTelemetrySnapshot()),
       gpuTextureBytes: this.estimatedGpuTextureBytes(),
       processingSuffixCache: this.documentRenderer?.processingCacheTelemetry() ?? null,
       vectorBackend: this.documentRenderer?.vectorBackendTelemetry() ?? null,
@@ -2990,7 +3045,7 @@ export class WebGpuEngine {
   }
 
   resetRenderTelemetry() {
-    this.renderTelemetry.reset();
+    if (RENDER_TELEMETRY_ENABLED) this.renderTelemetry!.reset();
     this.documentRenderer?.resetVectorBackendTelemetry();
   }
 

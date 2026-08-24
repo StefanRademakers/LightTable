@@ -3,7 +3,7 @@ setlocal
 pushd "%~dp0"
 
 set "LIGHTTABLE_BUILD_KIND=release"
-set "LIGHTTABLE_BUILD_OUT=out-verify"
+set "LIGHTTABLE_BUILD_OUT=out-release"
 if /I "%~1"=="debug" (
   set "LIGHTTABLE_BUILD_KIND=debug"
   set "LIGHTTABLE_BUILD_OUT=out-debug"
@@ -42,6 +42,10 @@ if /I "%LIGHTTABLE_BUILD_KIND%"=="debug" (
   call node scripts\verify-ui-devtools-boundary.mjs --desktop --present
   if errorlevel 1 goto :failed
 ) else (
+  echo [LightTable] Creating a clean optimized package without runtime diagnostics...
+  set "LIGHTTABLE_PACKAGE_OUT=out-release"
+  call npm run package:desktop
+  if errorlevel 1 goto :failed
   call node scripts\verify-ui-devtools-boundary.mjs --desktop --absent
   if errorlevel 1 goto :failed
 )

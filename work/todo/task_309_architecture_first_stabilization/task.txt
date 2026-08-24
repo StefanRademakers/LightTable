@@ -1,0 +1,71 @@
+# Task 309 - Architecture-first product stabilization
+
+Status: active autonomous implementation pass; owner manual validation follows the completed technical pass.
+
+## Goal
+
+Make the existing LightTable product materially more predictable, responsive
+and regression-resistant without a rewrite, a second document authority or a
+permanent diagnostic tax in optimized release builds.
+
+Task 308 in `work/done` is the source-backed audit and migration rationale.
+This task implements the highest-value vertical slices from that audit.
+
+## Product scope
+
+- Preserve document pixels, layers, history and dirty state across tabs,
+  workspaces, tools, renderer rebinds and asynchronous completion.
+- Keep application UI/tool/layout state separate from canonical document data.
+- Keep pointer-hot canvas feedback outside React and avoid full document work
+  when only a retained preview/overlay changed.
+- Preserve equivalent semantics through UI, Actions and MCP/Agent commands.
+- Harden processing/adjustment, scopes, raster evaluation and file-open paths
+  where the audit found broad ownership or coverage gaps.
+- Keep the hybrid native/Vello renderer and shared GPU-device architecture.
+
+## Release instrumentation rule
+
+The optimized release is the product oracle and must remain clean. Detailed
+diagnostics belong in development or a separately compiled instrumented-release
+profile. Release verification should prefer external observation. Any internal
+measurement needed for attribution must be compile-time removable, tree-shaken
+from the clean release, and covered by a bundle audit.
+
+## Execution order
+
+1. Establish representative packaged journeys and external/zero-cost release
+   measurement boundaries using the existing quality infrastructure.
+2. Introduce explicit document-change and renderer-binding identities where
+   stale or split publication is currently possible.
+3. Stabilize and accelerate pointer-hot interaction as vertical slices across
+   raster/vector/group/multiselect behavior, not just one Transform example.
+4. Prove processing, attached adjustments, scopes and destructive raster
+   evaluation through actually presented pixels and document/history state.
+5. Reduce cold/warm file-open critical-path serialization without eager hidden
+   canvases or unconditional prewarm.
+6. Run proportional unit, packaged, Action/MCP parity, persistence, device-loss
+   and lifetime checks; update architecture when a durable boundary changes.
+
+## Commit contract
+
+- One proven product route or architecture boundary per descriptive commit.
+- Do not combine mechanical movement with behavioral change.
+- Preserve the prior route as oracle/rollback until parity is demonstrated.
+- Do not alter expected tests merely to match a new implementation.
+- Do not claim manual feel, visual acceptance or commercial readiness from
+  automation.
+
+## Completion contract
+
+- Each implemented slice passes its focused tests and the wider checks for the
+  boundary it changes.
+- Representative UI, Action and MCP routes remain admitted and semantically
+  equivalent where the capability is exposed.
+- The clean release contains no detailed diagnostic modules or hot-path
+  telemetry introduced by this task.
+- No known document-loss, stale-publication or pointer-preview regression is
+  left hidden behind passing local tests.
+- Architecture/onboarding accurately describes the resulting owners.
+- The task remains in `work/todo` until the automated technical pass is
+  complete. It then moves to `work/done`; owner manual testing may create
+  focused new todos for any remaining defects.

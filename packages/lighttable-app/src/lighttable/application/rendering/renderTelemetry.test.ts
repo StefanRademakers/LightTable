@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { formatRenderTelemetry, RenderTelemetry } from './renderTelemetry';
+import {
+  emptyRenderTelemetrySnapshot,
+  formatRenderTelemetry,
+  RenderTelemetry
+} from './renderTelemetry';
 
 describe('RenderTelemetry', () => {
   it('counts stage work and preserves the operation result', () => {
@@ -66,5 +70,10 @@ describe('RenderTelemetry', () => {
     expect(report).toContain('Vector backend: selected hybrid; active mixed');
     expect(report).toContain('Vello scene renders 2');
     expect(report).toContain('unsupported fallbacks 3');
+  });
+
+  it('reports clean-release telemetry as disabled instead of implying zero work', () => {
+    const report = formatRenderTelemetry(emptyRenderTelemetrySnapshot());
+    expect(report).toContain('Render telemetry collection: disabled');
   });
 });

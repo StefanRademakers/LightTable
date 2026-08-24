@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 build_kind="release"
-build_out="out-verify"
+build_out="out-release"
 case "${1:-}" in
   "") ;;
   debug)
@@ -114,6 +114,8 @@ if [ "$build_kind" = "debug" ]; then
   LIGHTTABLE_PACKAGE_OUT="$build_out" npm run package:desktop:debug
   node scripts/verify-ui-devtools-boundary.mjs --desktop --present
 else
+  echo "[LightTable] Creating a clean optimized package without runtime diagnostics..."
+  LIGHTTABLE_PACKAGE_OUT="$build_out" npm run package:desktop
   node scripts/verify-ui-devtools-boundary.mjs --desktop --absent
 fi
 

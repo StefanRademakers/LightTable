@@ -72,6 +72,8 @@ export interface VectorBackendTelemetrySnapshot {
 }
 
 export interface RenderTelemetrySnapshot {
+  /** False in clean production builds, whose hot render path has no collector calls. */
+  readonly collectionEnabled?: boolean;
   readonly renderCalls: number;
   readonly submittedFrames: number;
   readonly noWorkSkips: number;
@@ -106,6 +108,20 @@ const emptyStages = () => Object.fromEntries(
   STAGES.map((stage) => [stage, emptyStage()])
 ) as Record<RenderTelemetryStage, RenderStageTelemetrySnapshot>;
 
+export const RENDER_TELEMETRY_ENABLED =
+  import.meta.env.VITE_LIGHTTABLE_RENDER_TELEMETRY === 'true';
+
+export const emptyRenderTelemetrySnapshot = (): RenderTelemetrySnapshot => ({
+  collectionEnabled: false,
+  renderCalls: 0,
+  submittedFrames: 0,
+  noWorkSkips: 0,
+  correctionFrames: 0,
+  scopeAnalysisPasses: 0,
+  scopeDisplayPasses: 0,
+  stages: emptyStages()
+});
+
 /**
  * Low-overhead CPU-side instrumentation for the correction frame graph.
  *
@@ -115,6 +131,7 @@ const emptyStages = () => Object.fromEntries(
  * without a polling UI waking the editor on every frame.
  */
 export class RenderTelemetry {
+  readonly collectorKind = '__LIGHTTABLE_RENDER_TELEMETRY_COLLECTOR__';
   private renderCalls = 0;
   private submittedFrames = 0;
   private noWorkSkips = 0;
@@ -162,6 +179,7 @@ export class RenderTelemetry {
 
   snapshot(): RenderTelemetrySnapshot {
     return {
+      collectionEnabled: true,
       renderCalls: this.renderCalls,
       submittedFrames: this.submittedFrames,
       noWorkSkips: this.noWorkSkips,
@@ -200,6 +218,7 @@ export const formatRenderTelemetry = (snapshot: RenderTelemetrySnapshot) => {
       + `; max ${formatMs(current.maximumEncodeMs)}`;
   });
   return [
+    `Render telemetry collection: ${snapshot.collectionEnabled === false ? 'disabled' : 'enabled'}`,
     `Render calls: ${snapshot.renderCalls}`,
     `Submitted frames: ${snapshot.submittedFrames}`,
     `No-work skips: ${snapshot.noWorkSkips}`,
