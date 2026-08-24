@@ -1204,7 +1204,20 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <LayerCompatibilityBadge finding={capabilityFinding}
                   onOpen={() => onOpenFontReport?.(layer.id)} />
               ) : null}
-              {hasStyles ? <span className="lighttable-layer__fx-mark" aria-label="Layer effects">fx</span> : null}
+              {document.activeLayerId === layer.id && canRasterizeActiveLayer ? (
+                <ButtonBase
+                  type="button"
+                  className="lighttable-layer__rasterize"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onRasterizeLayer();
+                  }}
+                  title="Rasterize layer"
+                  aria-label={`Rasterize ${layer.name}`}
+                ><img src={lightTableIcon('rasterize.png')} alt="" aria-hidden="true" /></ButtonBase>
+              ) : null}
               {documentFx ? (
                 <img
                   className="lighttable-layer__document-fx-lock"
@@ -1348,11 +1361,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       title={layer.styleStack.enabled ? 'Hide all layer effects' : 'Show all layer effects'}
                       aria-label={layer.styleStack.enabled ? 'Hide all layer effects' : 'Show all layer effects'}
                     ><img src={lightTableIcon(layer.styleStack.enabled ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
-                    <ButtonBase type="button" onClick={() => {
+                    <ButtonBase className="lighttable-layer-effect__label" type="button" onClick={() => {
                       onSelect(layer.id);
                       onChannelChange('pixels');
                       onEditStyles(layer.id);
-                    }}>Effects</ButtonBase>
+                    }}><span className="lighttable-layer__fx-mark" aria-hidden="true">fx</span><span>Effects</span></ButtonBase>
                   </div>
                   {[...visibleStyleEffects].reverse().map((effect) => (
                     <div className={`lighttable-layer-effect${
@@ -1406,15 +1419,18 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         })}
       </div>
       <footer className="lighttable-layers__footer">
-        {canRasterizeActiveLayer ? (
-          <ButtonBase
-            type="button"
-            className="lighttable-layers__rasterize-button"
-            onClick={onRasterizeLayer}
-            title="Rasterize layer"
-            aria-label="Rasterize layer"
-          ><img src={lightTableIcon('rasterize.png')} alt="" aria-hidden="true" /></ButtonBase>
-        ) : null}
+        <ButtonBase
+          type="button"
+          className="lighttable-layers__fx-button"
+          onClick={() => {
+            if (activeLayer && layerSupportsLayerStyles(activeLayer)) onEditStyles(activeLayer.id);
+          }}
+          disabled={activeIsDocumentFx || !canEditActiveLayerStyles}
+          title={activeIsDocumentFx
+            ? 'Layer styles are not available for document-final effects'
+            : canEditActiveLayerStyles ? 'Open layer effects' : 'Select a layer that supports effects'}
+          aria-label="Add layer style"
+        >fx</ButtonBase>
         <ButtonBase
           type="button"
           className={groupDropActive ? 'lighttable-layers__group--drop-active' : undefined}

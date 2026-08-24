@@ -3159,8 +3159,12 @@
   object-fit: contain;
 }
 
-.lighttable-layers__footer .lighttable-layers__rasterize-button {
+.lighttable-layers__footer .lighttable-layers__fx-button {
   margin-right: auto;
+  font-family: Georgia, serif;
+  font-size: var(--lt-type-large);
+  font-style: italic;
+  font-weight: var(--lt-weight-bold);
 }
 
 .lighttable-layers__create-menu {
@@ -3721,6 +3725,31 @@
   font-size: var(--lt-type-small);
   font-style: italic;
   font-weight: var(--lt-weight-bold);
+}
+
+.lighttable-layer__rasterize {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lighttable-layer__rasterize img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+
+.lighttable-layer-effect__label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .lighttable-layer__status {
