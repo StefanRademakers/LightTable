@@ -46,6 +46,11 @@ const isTextEditingTarget = (target: EventTarget | null) => (
   || (target instanceof HTMLElement && target.isContentEditable)
 );
 
+const isFloatingControlTarget = (target: EventTarget | null) => (
+  target instanceof HTMLElement
+  && Boolean(target.closest('[data-editor-floating-control]'))
+);
+
 /**
  * Binds the active document's keymap to the shared window input resource.
  *
@@ -79,7 +84,11 @@ export const useEditorKeyboardController = ({
       const context = getContext();
       const command = resolveEditorKeyboardCommand(event, {
         ...context,
-        editable: isTextEditingTarget(event.target)
+        // Popovers and color/gradient controls own Enter, Escape and arrows.
+        // Treat them like an editing scope so application shortcuts explicitly
+        // admitted while editing may still work, while canvas operations cannot
+        // leak through a portal into the active tool transaction.
+        editable: isTextEditingTarget(event.target) || isFloatingControlTarget(event.target)
       }, keymap);
       if (!command) return false;
       if (context.editingBlocked) return true;

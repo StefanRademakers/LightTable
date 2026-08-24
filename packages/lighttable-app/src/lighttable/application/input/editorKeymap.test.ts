@@ -160,6 +160,19 @@ describe('editor keymap', () => {
     )).toBe('commit-active-operation');
   });
 
+  it('does not commit a canvas operation while a floating editor control owns input', () => {
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Enter', code: 'Enter' }),
+      context({ transforming: true, editable: true })
+    )).toBeNull();
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Escape', code: 'Escape' }),
+      context({ transforming: true, editable: true })
+    )).toBeNull();
+  });
+
   it('uses physical bracket codes for brush size on keyboard layouts that alter key', () => {
     expect(resolveEditorKeymapCommand(
       DEFAULT_EDITOR_KEYMAP,
