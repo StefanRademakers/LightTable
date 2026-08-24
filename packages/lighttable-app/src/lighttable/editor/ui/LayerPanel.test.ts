@@ -38,14 +38,20 @@ describe('LayerPanel creation flyout', () => {
       'grade', 'lens-fx', 'brightness-contrast', 'levels', 'curves', 'exposure',
       'color-vibrance', 'hue-saturation', 'color-balance', 'black-white',
       'photo-filter', 'channel-mixer', 'color-lookup', 'invert', 'posterize',
-      'threshold', 'gradient-map', 'selective-color', 'clarity-dehaze'
+      'threshold', 'gradient-map', 'selective-color', 'clarity-dehaze',
+      'gaussian-blur'
     ]);
     expect(LAYER_CREATION_OPTIONS.filter(({ sectionStart }) => sectionStart).map(({ id }) => id))
-      .toEqual(['brightness-contrast', 'color-vibrance', 'invert', 'clarity-dehaze']);
+      .toEqual([
+        'brightness-contrast', 'color-vibrance', 'invert', 'clarity-dehaze',
+        'gaussian-blur'
+      ]);
     expect(LAYER_CREATION_OPTIONS.find(({ id }) => id === 'curves'))
       .toMatchObject({ iconName: 'adjustment_curves.svg' });
     expect(LAYER_CREATION_OPTIONS.some(({ id }) => id === 'lens-fx')).toBe(true);
     expect(LAYER_CREATION_OPTIONS.some(({ id }) => id === 'grain')).toBe(false);
+    expect(LAYER_CREATION_OPTIONS.find(({ id }) => id === 'gaussian-blur'))
+      .toMatchObject({ menuLabel: 'Gaussian Blur', sectionStart: true });
   });
 
   it('projects a layer-local Grade as an expandable child instead of a status badge', () => {

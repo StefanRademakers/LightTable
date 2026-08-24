@@ -172,7 +172,17 @@ export const LAYER_CREATION_OPTIONS = [
       menuLabel: definition.menuLabel,
       iconName: definition.iconName,
       sectionStart: groupIndex > 0 && definitionIndex === 0
-    })))
+    }))),
+  (() => {
+    const definition = adjustmentLayerDefinition('gaussian-blur');
+    return {
+      id: definition.id,
+      label: 'New Gaussian Blur filter layer',
+      menuLabel: definition.menuLabel,
+      iconName: definition.iconName,
+      sectionStart: true
+    };
+  })()
 ] as const;
 
 const visualLayerRows = (
