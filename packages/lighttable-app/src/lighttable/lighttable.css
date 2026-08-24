@@ -3159,12 +3159,8 @@
   object-fit: contain;
 }
 
-.lighttable-layers__footer .lighttable-layers__fx-button {
+.lighttable-layers__footer .lighttable-layers__rasterize-button {
   margin-right: auto;
-  font-family: Georgia, serif;
-  font-size: var(--lt-type-large);
-  font-style: italic;
-  font-weight: var(--lt-weight-bold);
 }
 
 .lighttable-layers__create-menu {

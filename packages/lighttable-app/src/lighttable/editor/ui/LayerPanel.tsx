@@ -1406,18 +1406,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         })}
       </div>
       <footer className="lighttable-layers__footer">
-        <ButtonBase
-          type="button"
-          className="lighttable-layers__fx-button"
-          onClick={() => {
-            if (activeLayer && layerSupportsLayerStyles(activeLayer)) onEditStyles(activeLayer.id);
-          }}
-          disabled={activeIsDocumentFx || !canEditActiveLayerStyles}
-          title={activeIsDocumentFx
-            ? 'Layer styles are not available for document-final effects'
-            : canEditActiveLayerStyles ? 'Open layer effects' : 'Select a layer that supports effects'}
-          aria-label="Add layer style"
-        >fx</ButtonBase>
+        {canRasterizeActiveLayer ? (
+          <ButtonBase
+            type="button"
+            className="lighttable-layers__rasterize-button"
+            onClick={onRasterizeLayer}
+            title="Rasterize layer"
+            aria-label="Rasterize layer"
+          ><img src={lightTableIcon('rasterize.png')} alt="" aria-hidden="true" /></ButtonBase>
+        ) : null}
         <ButtonBase
           type="button"
           className={groupDropActive ? 'lighttable-layers__group--drop-active' : undefined}

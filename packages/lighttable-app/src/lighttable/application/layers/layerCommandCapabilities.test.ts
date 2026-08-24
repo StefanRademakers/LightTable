@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import {
+  addLayerMask,
   createRasterLayer,
+  createAdjustmentLayer,
   createTextLayer,
   deleteLayers,
-  groupLayers
+  groupLayers,
+  setRasterLayerAdjustmentStack
 } from '../../editor/document/documentCommands';
+import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adjustmentStack';
+import { createDefaultAdjustments } from '../../types';
+import { addLayerStyle } from '../../editor/styles/layerStyleCommands';
 import {
   createImageDocument,
   createVectorLayer,
@@ -29,8 +35,8 @@ describe('queryLayerCommandCapabilities', () => {
     expect(capabilities.canMergeDown).toBe(false);
     expect(capabilities.canFlattenImage).toBe(true);
     expect(capabilities.canToggleActiveClipping).toBe(false);
-    expect(capabilities.canRasterizeActiveLayer).toBe(true);
-    expect(capabilities.hasRasterizableLayer).toBe(true);
+    expect(capabilities.canRasterizeActiveLayer).toBe(false);
+    expect(capabilities.hasRasterizableLayer).toBe(false);
     expect(capabilities.hasMergeCandidate).toBe(false);
   });
 
@@ -57,6 +63,34 @@ describe('queryLayerCommandCapabilities', () => {
     expect(capabilities.canDuplicateActiveLayer).toBe(true);
     expect(capabilities.canRasterizeActiveLayer).toBe(true);
     expect(capabilities.hasRasterizableLayer).toBe(true);
+  });
+
+  it('offers rasterization only when a raster layer has live semantics to bake', () => {
+    const plain = createDocument();
+    expect(queryLayerCommandCapabilities(plain).canRasterizeActiveLayer).toBe(false);
+
+    const graded = setRasterLayerAdjustmentStack(
+      plain,
+      plain.activeLayerId!,
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments())
+    );
+    expect(queryLayerCommandCapabilities(graded).canRasterizeActiveLayer).toBe(true);
+
+    const masked = addLayerMask(plain, plain.activeLayerId!);
+    expect(queryLayerCommandCapabilities(masked).canRasterizeActiveLayer).toBe(true);
+
+    const styled = addLayerStyle(plain, plain.activeLayerId!, 'drop-shadow');
+    expect(queryLayerCommandCapabilities(styled).canRasterizeActiveLayer).toBe(true);
+  });
+
+  it('does not offer standalone adjustment rasterization without an explicit pixel input', () => {
+    const document = createAdjustmentLayer(
+      createDocument(),
+      createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
+      'Adjustment'
+    );
+
+    expect(queryLayerCommandCapabilities(document).canRasterizeActiveLayer).toBe(false);
   });
 
   it('rejects grouping layers from different parents and recognizes groups', () => {

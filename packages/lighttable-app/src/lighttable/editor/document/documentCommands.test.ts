@@ -43,6 +43,7 @@ import {
   setLayerMaskLinked,
   setLayerMaskTransform,
   setLayerOpacity,
+  setRasterLayerAdjustmentStack,
   setLayerTransform,
   setLayerVisibility,
   setLayersLock,
@@ -628,10 +629,17 @@ describe('LightTable document commands', () => {
     }
   });
 
-  it('projects every canonical layer type to a fresh raster while preserving stack relationships', () => {
-    type Kind = 'raster' | 'shape' | 'gradient' | 'adjustment' | 'text' | 'group';
+  it('projects every intrinsic-content layer type to a fresh raster while preserving stack relationships', () => {
+    type Kind = 'raster' | 'shape' | 'gradient' | 'text' | 'group';
     const append = (source: ImageDocument, kind: Kind): ImageDocument => {
-      if (kind === 'raster') return createRasterLayer(source, 'Raster');
+      if (kind === 'raster') {
+        const withRaster = createRasterLayer(source, 'Raster');
+        return setRasterLayerAdjustmentStack(
+          withRaster,
+          withRaster.activeLayerId!,
+          createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments())
+        );
+      }
       if (kind === 'shape') return createVectorLayer(source, [
         createVectorLiveShape('rasterize-shape', {
           kind: 'rectangle', width: 12, height: 9,
@@ -639,18 +647,13 @@ describe('LightTable document commands', () => {
         }, 'Shape')
       ], 'Shape');
       if (kind === 'gradient') return createGradientFillLayer(source, undefined, 'Gradient');
-      if (kind === 'adjustment') return createAdjustmentLayer(
-        source,
-        createAdjustmentStackFromBasicAdjustments(createDefaultAdjustments()),
-        'Adjustment'
-      );
       if (kind === 'text') return createTextLayer(source, createDefaultTextLayerData(), 'Text');
       const withChild = createRasterLayer(source, 'Group child');
       return groupLayers(withChild, [withChild.activeLayerId!], 'Group');
     };
 
     for (const kind of [
-      'raster', 'shape', 'gradient', 'adjustment', 'text', 'group'
+      'raster', 'shape', 'gradient', 'text', 'group'
     ] as const) {
       let document = append(createImageDocument(kind, 64, 48, 'background'), kind);
       const sourceId = document.activeLayerId!;
@@ -669,6 +672,14 @@ describe('LightTable document commands', () => {
       expect(replacement?.id, kind).not.toBe(sourceId);
       expect(replacement?.styleStack.effects, kind).toEqual([]);
     }
+  });
+
+  it('does not replace or add history-worthy work for an already-rasterized layer', () => {
+    const document = createImageDocument('Already raster', 64, 48, 'background');
+    const layerId = document.activeLayerId!;
+
+    expect(rasterizeLayer(document, layerId)).toBe(document);
+    expect(rasterizeLayer(rasterizeLayer(document, layerId), layerId)).toBe(document);
   });
 
   it('merges and flattens every ordered layer pair inside the same group', () => {

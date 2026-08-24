@@ -19,6 +19,7 @@ import {
   getFlattenImagePlan,
   getMergeLayersPlan
 } from '../../editor/document/documentCommands';
+import { layerCanBeRasterized } from '../../editor/document/layerRasterization';
 
 export interface LayerCommandCapabilities {
   readonly activeLayer: LayerNode | null;
@@ -96,10 +97,8 @@ export const queryLayerCommandCapabilities = (
       && Boolean(getFlattenGroupPlan(document, activeLayer.id)),
     canFlattenImage: Boolean(getFlattenImagePlan(document)),
     canDuplicateActiveLayer: Boolean(activeLayer),
-    canRasterizeActiveLayer: Boolean(
-      activeLayer && !activeLayer.locks.all && !activeLayer.locks.pixels
-    ),
-    hasRasterizableLayer: entries.some(({ node }) => !node.locks.all && !node.locks.pixels),
+    canRasterizeActiveLayer: Boolean(activeLayer && layerCanBeRasterized(activeLayer)),
+    hasRasterizableLayer: entries.some(({ node }) => layerCanBeRasterized(node)),
     hasMergeCandidate,
     hasFlattenableGroup,
     canDeleteSelection: canDeleteLayers(document, selectedLayerIds),

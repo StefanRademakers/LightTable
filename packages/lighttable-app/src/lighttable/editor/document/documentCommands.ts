@@ -57,6 +57,7 @@ import {
   updateLayerNode,
   walkLayerTree
 } from './layerTree';
+import { layerCanBeRasterized } from './layerRasterization';
 import type { BlendMode } from './blendModes';
 import type { AffineMatrix } from '../rendering/renderContract';
 import { identityAffineMatrix, isFiniteAffineMatrix } from '../rendering/renderContract';
@@ -1433,7 +1434,7 @@ export const rasterizeLayer = (
   layerId: LayerId
 ): ImageDocument => {
   const source = findLayerNode(document.layers, layerId)?.node ?? null;
-  if (!source || layerIsLocked(source, 'pixels')) return document;
+  if (!source || !layerCanBeRasterized(source)) return document;
   const id = createLayerId();
   const now = Date.now();
   const replacement: RasterLayer = {
