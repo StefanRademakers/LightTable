@@ -2,27 +2,30 @@ import { _electron as electron } from 'playwright-core';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 
 const workspace = path.resolve(import.meta.dirname, '..');
 const argument = (name, fallback) => {
   const index = process.argv.indexOf(`--${name}`);
   return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
 };
-const fixture = path.resolve(argument('file', 'D:\\shapes.psd'));
+const fixture = path.resolve(argument('file', path.join(workspace, 'architecture', 'ui', '1.png')));
 const iterations = Math.max(3, Number.parseInt(argument('iterations', '10'), 10) || 10);
-const executable = path.resolve(argument('executable',
-  path.join(workspace, 'node_modules', 'electron', 'dist', 'electron.exe')));
+const explicitExecutable = argument('executable', process.env.LIGHTTABLE_TEST_EXECUTABLE ?? null);
+const launch = explicitExecutable
+  ? { executablePath: path.resolve(explicitExecutable), args: [], mode: 'production-packaged' }
+  : await resolveDesktopTestLaunch(workspace, { requirePackaged: true });
 const output = path.resolve(argument('output',
   path.join(workspace, 'tmp', 'quality-audit', 'tool-switching')));
 const reportPath = path.join(output, 'report.json');
 const userData = path.join(output, `user-data-${process.pid}`);
-await Promise.all([access(fixture), access(executable), mkdir(userData, { recursive: true })]);
+await Promise.all([access(fixture), access(launch.executablePath), mkdir(userData, { recursive: true })]);
 
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 const app = await electron.launch({
-  executablePath: executable,
-  args: [path.join(workspace, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspace,
   env: {
     ...environment,
@@ -41,7 +44,15 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const openFileButton = await waitForDesktopLauncher({
+    app,
+    page,
+    outputDirectory: output,
+    sourceFile: fixture,
+    pageErrors,
+    label: 'tool-switching'
+  });
+  await openFileButton.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const activeToolStyle = async () => page
