@@ -16,6 +16,12 @@ milestone changes those boundaries; feature task details belong in
 - Generation-pinned source publication, export and renderer callbacks reject
   late work after a document/renderer rebind. Prepared source/document/history
   publication is one externally observable session snapshot.
+- Document-lifetime canonical command ports are independent from the one active
+  presentation port. Admitted model-only UI/Actions/MCP commands can address an
+  inactive session without switching tabs; renderer-dependent work remains an
+  explicit capability instead of creating hidden editors.
+- Multi-file desktop Open serializes initial hydration through the one renderer,
+  so every selected file reaches a complete source/document/history snapshot.
 - Canonical raster, group, adjustment and vector layers with masks, clipping,
   styles and scene transforms.
 - Pure compositor planning before GPU encoding.
@@ -61,11 +67,16 @@ milestone changes those boundaries; feature task details belong in
   harness.
 - MCP construction/query support for editable text, vectors, gradients and
   Layer Styles, including revision-bound layer pages, active-layer content
-  summaries, whole-document/layer/mask/region GPU previews, unchanged-image
-  transfer suppression, on-demand final-document and isolated-layer palettes,
-  bounded typed inspection for every current adjustment presentation, artist
-  workflow guides, complete layered-design transactions and native/bitmap
-  export artifacts.
+  summaries, shared conservative layer bounds, whole-document/layer/mask/region
+  GPU previews, unchanged-image transfer suppression, on-demand final-document
+  and isolated-layer palettes, bounded typed inspection for every current
+  adjustment presentation, artist workflow guides, complete layered-design
+  transactions and native/bitmap export artifacts. The design guide favors one
+  context read, compact layer reuse, atomic phases and 512-pixel WebP review.
+- Configured Posterize, Threshold and Gradient Map nodes can be created in one
+  history publication for standalone or attached placement. Ready, clean,
+  unchanged single-raster documents can serve bounded source previews and full
+  pixel copy while inactive without owning a hidden renderer.
 - A real fresh Codex client has completed the first MCP-only cold-discovery
   artist construction: a separate 1200x1200 document with twelve editable
   raster/vector/text layers and a checked revision-bound preview. This is not
@@ -99,6 +110,10 @@ milestone changes those boundaries; feature task details belong in
 - Some renderer and tool paths still need to consume the resolved
   scene-transform graph consistently, especially advanced nested masks,
   boolean clip geometry and selection/tool bounds.
+- Edited, processed and layered inactive documents still require the active
+  presentation renderer for pixel previews. A future on-demand canonical
+  preview path must preserve the one-editor boundary and must not substitute
+  original source pixels for current document state.
 - Processing is semantically node-based, but not every grade/spatial operation
   has a completely independent generic executor.
 - Smart Objects, Smart Filters, advanced text recovery/editing and full PSD
@@ -134,7 +149,8 @@ milestone changes those boundaries; feature task details belong in
   fresh-client save/export, independent pixel/layer verification and explicit
   invalid/stale/reconnect/cleanup proof. Online multi-user deployment still
   needs production authorization, tenant isolation, operations and security
-  review.
+  review. Mutation coverage also remains narrower than inspection coverage for
+  several non-basic adjustment families.
 
 ## Next architecture milestones
 

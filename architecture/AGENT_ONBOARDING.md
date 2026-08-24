@@ -60,17 +60,26 @@ the reported resume checkpoint:
    for the long-running product outcome;
 4. Tasks 214, 220, 221 and 264 for the remaining program work.
 
-Current reset fact, updated 2026-08-23: a fresh Codex client has already inspected a
-reference and built a separate twelve-layer editable text/vector composition
-through MCP only. Whole-document and isolated-layer palettes, bounded previews,
-artist workflow guides, batch construction and native bitmap artifacts exist.
-The ordinary local connection flow now starts inside **Preferences > Agent
-Access** and no longer requires terminal command copy/paste. The full Task 264
-save/export, independent verification, error/reconnect and cleanup acceptance
-is still open; do not turn the successful first construction into a claim that
-all artist capabilities or the complete A-Z benchmark are finished. Automatic
-startup of the direct embedded bridge now retries bounded loopback ports
-instead of treating one occupied port as a permanent Agent Access failure.
+Current reset fact, updated 2026-08-25: a fresh Codex client has inspected a
+reference and built a separate editable raster/vector/text composition through
+MCP only. The design guide now requires one context read, explicit inspection
+of every user-named source document, compact semantic layer planning, reuse of
+one vector `layerId` for related shapes, batched construction and economical
+512-pixel WebP review. Document/layer bounds, bounded previews and palettes,
+native/bitmap artifacts and complete layered-design transactions exist.
+`adjustment.create` can atomically create configured Posterize, Threshold and
+Gradient Map nodes in standalone or attached placement; other adjustment
+families still have narrower mutation coverage.
+
+The ordinary local connection flow starts inside **Preferences > Agent Access**
+and no longer requires terminal command copy/paste. A ready, clean, unchanged
+single-raster document may be inspected while inactive through its bounded
+source artifact. Edited, layered or processed inactive documents still require
+the active presentation renderer for pixel previews; never solve that by
+mounting a hidden editor per tab or returning stale source pixels. The full
+Task 264 save/export, independent verification, error/reconnect and cleanup
+acceptance remains open. Do not turn a successful design pass into a claim that
+all artist capabilities or the complete A-Z benchmark are finished.
 
 ### Current renderer/editor recovery capsule
 
@@ -116,6 +125,16 @@ reports:
   document tabs or Dockview presets must not mutate pixels/layers. Workspace
   layout and the active tool are application/editor state; canonical content
   changes only through an explicit user, command, Action or MCP operation.
+- One active presentation port overlays document-lifetime canonical command
+  ports in `LightTableCommandPortRegistry`. Model-only commands may address an
+  inactive session without changing the active tab; GPU readback, selection,
+  raster duplication and other presentation-dependent work must advertise that
+  dependency and fail closed when the target has no renderer. Never route a
+  semantic command through React just because its document is visible.
+- File > Open may select several files, but their initial publication is
+  serialized through the one application renderer. Every tab must finish with
+  its own source/document/history snapshot; a background tab may not remain a
+  title-only `opening` shell merely because another tab became active.
 - Recent stability fixes preserve raster pixels across renderer rebinding,
   overlap bitmap decode with GPU startup, preserve Copy Merged color through
   the OS clipboard, invalidate attached adjustments, keep transform gizmos
@@ -146,8 +165,8 @@ reports:
   recovery publication after Save and restored an explicit recovery-discard
   workflow. Treat these as regression boundaries, not incidental fixes.
 
-Archived Task 303 is a dated backend bake-off; archived Task 305 and current
-code supersede its former "current backend by default" decision. Read their
+Archived Task 303 is a dated backend bake-off; completed Task 309 and current
+code supersede its former "current backend by default" decision. Read its
 historical measurements for evidence, not as today's launch configuration. Read
 [Vector system](VECTOR_SYSTEM.md),
 [Vector engine and SVG import](features/VECTOR_ENGINE_AND_SVG_IMPORT.md),

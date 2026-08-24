@@ -42,7 +42,7 @@ Web / Electron / StoryBuilder host capabilities
                     |
 Application shell, multi-document sessions and one editor/workspace runtime
                     |
-Active document binding, commands, tasks, tools and viewport
+Document command authority + active presentation binding, tools and viewport
                     |
 Canonical document tree and scene transforms
                     |
@@ -89,6 +89,23 @@ workspace layout state live in `EditorApplicationSession` and Dockview, while
 gesture previews remain controller/runtime state. None of these projections may
 silently become document data.
 
+### Command and presentation authority
+
+Every open `DocumentSession` owns narrow document-lifetime command ports for
+operations whose canonical result can be produced without a canvas. The single
+mounted editor contributes presentation ports for the active session.
+`LightTableCommandPortRegistry` overlays the active presentation owner on the
+canonical owner and resolves by explicit document ID; React visibility is not
+command authority.
+
+This lets UI, Actions and MCP use the same semantic service for inactive text,
+vector and admitted layer mutations without changing tabs. GPU readbacks,
+selection edits, raster duplication and gestures remain presentation-dependent
+and must fail closed when no renderer is bound. A ready, clean, unchanged
+single-raster session has one bounded source-artifact preview/copy exception.
+It must never stand in for edited or layered document pixels. Do not add hidden
+per-document editors or render loops to broaden this exception.
+
 ### Document model
 
 Owns serializable semantic state: layer tree, transforms, masks, clipping,
@@ -123,6 +140,14 @@ same compositor on one shared `GPUDevice`.
 Presents application state and dispatches commands. Panels and tools should
 own their bindings/controllers. The root mounts systems; it does not implement
 their behavior.
+
+### Multi-file hydration
+
+Hosts may return several files from one Open request. Because presentation is
+single-owned, the application serializes initial hydration and publishes each
+session's source, canonical document and history snapshot atomically. Creating
+all tabs first and letting only the final active renderer hydrate would leave
+valid-looking but unusable background sessions and is forbidden.
 
 ## Current architectural hotspots
 

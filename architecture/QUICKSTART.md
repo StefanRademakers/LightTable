@@ -72,7 +72,12 @@ If conversation context disappeared, retain these facts before touching code:
     `DocumentSession`. Open documents retain data/history/source state, not a
     hidden React/Dockview/WebGPU editor tree per tab. Workspace layout and tool
     state are application/editor state and do not travel with document pixels.
-15. Warm SVG startup may show a conservative renderer-only preview before the
+15. Semantic command authority is document-lifetime. The active presentation
+    port may add GPU-dependent operations, but model-only UI, Actions and MCP
+    commands may address an inactive session without activating it. A bounded
+    clean-source preview is an explicit exception, not permission to return
+    stale pixels or mount hidden renderers.
+16. Warm SVG startup may show a conservative renderer-only preview before the
     editable canonical Vello island is ready. It may improve first pixels but
     may never become document/history/save authority.
 
@@ -270,6 +275,23 @@ projection and binds that same runtime to the selected canonical session.
 Inactive documents retain their canonical tree, history, source and session
 metadata; they do not retain duplicate React workspace shells or active GPU
 render loops. A tab or workspace switch must never publish document mutations.
+
+The command boundary follows the same ownership split. Every open session has
+a document-lifetime canonical command controller. The single mounted editor
+registers a presentation controller only for the active document;
+`LightTableCommandPortRegistry` overlays that controller on the canonical one.
+Canonical mutations such as text/vector edits, layer structure and admitted
+atomic batches therefore do not depend on tab visibility. Commands requiring
+GPU pixels, live selections or gestures remain explicit presentation
+capabilities and fail closed while inactive. The narrow exception is a ready,
+clean, unchanged full-canvas raster source: previews, its source-layer preview
+and full pixel copy may use the bounded source artifact without mounting a
+renderer. Edited, processed or layered documents never use that shortcut.
+
+Opening several host files is also serialized through the one presentation
+renderer. Each source, canonical document and history snapshot publishes as
+one session state before hydration proceeds to the next file. Background tabs
+must not remain partially opened because only the final tab is active.
 
 ### Project mode is persistence, but currently also a GenAI gate
 
@@ -553,9 +575,15 @@ editing the wrong state.
 
 [`LightTableCommandService`](../packages/lighttable-app/src/lighttable/application/commands/lightTableCommandService.ts)
 is the shared application service. The command-port registry resolves narrow
-`DocumentLightTableCommandPorts` from the addressed canonical session; command
-availability must not depend on a hidden editor mount. The service does not
-reach into React or construct another document model.
+`DocumentLightTableCommandPorts` from the addressed canonical session and
+overlays the mounted active-document presentation port where one exists.
+Command availability must not depend on a hidden editor mount. Model-only
+commands can mutate an inactive canonical session without activating its tab;
+GPU readback, selection, raster duplication and gesture operations stay
+explicitly presentation-dependent. A clean unchanged flat-raster source has a
+bounded read-only preview/copy path, while edited or layered inactive content
+fails closed. The service does not reach into React or construct another
+document model.
 
 The command service decides whether a validated execution is recordable, while
 [`SemanticActionWorkflowController`](../packages/lighttable-app/src/lighttable/application/actions/semanticActionWorkflowController.ts)
