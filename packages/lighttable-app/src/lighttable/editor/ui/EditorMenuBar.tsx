@@ -32,6 +32,7 @@ const MENU_ITEMS: ReadonlyArray<{
   { id: 'layer', label: 'Layer' },
   { id: 'type', label: 'Type' },
   { id: 'select', label: 'Select' },
+  { id: 'filter', label: 'Filter' },
   { id: 'ai', label: 'AI' },
   { id: 'view', label: 'View' },
   { id: 'help', label: 'Help' }

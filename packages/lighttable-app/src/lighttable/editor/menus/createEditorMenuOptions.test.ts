@@ -71,6 +71,27 @@ const findMenuOption = (
 };
 
 describe('createEditorMenuOptions', () => {
+  it('exposes the planned filter catalog as disabled leaf commands', () => {
+    const filter = createEditorMenuOptions('filter', state(), labels, commands());
+    expect(filter.map(({ label }) => label)).toEqual([
+      'Blur', 'Distort', 'Noise', 'Sharpen', 'Other'
+    ]);
+    expect(filter.map(({ label, children }) => ({
+      label,
+      children: children?.map((child) => child.label)
+    }))).toEqual([
+      { label: 'Blur', children: ['Gaussian Blur', 'Motion Blur', 'Surface Blur'] },
+      { label: 'Distort', children: ['Displace'] },
+      { label: 'Noise', children: ['Median', 'Reduce Noise'] },
+      { label: 'Sharpen', children: ['Smart Sharpen', 'Unsharp Mask'] },
+      { label: 'Other', children: ['High Pass', 'Maximum', 'Minimum', 'Offset'] }
+    ]);
+    const leaves = filter.flatMap(({ children }) => children ?? []);
+    expect(leaves).toHaveLength(12);
+    expect(leaves.every(({ disabled, onClick }) => disabled && !onClick)).toBe(true);
+    expect(filter.every(({ disabled }) => !disabled)).toBe(true);
+  });
+
   it('keeps fixed target transforms distinct from canvas geometry', () => {
     const menuCommands = commands();
     const edit = createEditorMenuOptions('edit', state(), labels, menuCommands);

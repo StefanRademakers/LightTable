@@ -9,7 +9,7 @@ import {
 import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
 import type { FixedTransformOperation } from '../../application/tools/transform/useTransformSessionController';
 
-export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'layer' | 'type' | 'ai' | 'view' | 'help';
+export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'filter' | 'layer' | 'type' | 'ai' | 'view' | 'help';
 
 export interface EditorMenuLayerState {
   type: 'raster' | 'group' | 'adjustment' | 'vector' | 'text';
@@ -470,6 +470,51 @@ export const createEditorMenuOptions = (
         disabled: !layer || layer.type !== 'raster' || layer.locked || state.saving
       }
     ];
+  }
+
+  if (menu === 'filter') {
+    const unavailable = (value: string, label: string): ContextMenuOption<string> => ({
+      value,
+      label,
+      disabled: true,
+      disabledReason: 'This filter is planned but not available yet.'
+    });
+    return [{
+      value: 'filter-blur',
+      label: 'Blur',
+      children: [
+        unavailable('filter-gaussian-blur', 'Gaussian Blur'),
+        unavailable('filter-motion-blur', 'Motion Blur'),
+        unavailable('filter-surface-edge-aware-blur', 'Surface Blur')
+      ]
+    }, {
+      value: 'filter-distort',
+      label: 'Distort',
+      children: [unavailable('filter-displace', 'Displace')]
+    }, {
+      value: 'filter-noise',
+      label: 'Noise',
+      children: [
+        unavailable('filter-median', 'Median'),
+        unavailable('filter-reduce-noise-denoise', 'Reduce Noise')
+      ]
+    }, {
+      value: 'filter-sharpen',
+      label: 'Sharpen',
+      children: [
+        unavailable('filter-smart-sharpen', 'Smart Sharpen'),
+        unavailable('filter-unsharp-mask', 'Unsharp Mask')
+      ]
+    }, {
+      value: 'filter-other',
+      label: 'Other',
+      children: [
+        unavailable('filter-high-pass', 'High Pass'),
+        unavailable('filter-maximum', 'Maximum'),
+        unavailable('filter-minimum', 'Minimum'),
+        unavailable('filter-offset', 'Offset')
+      ]
+    }];
   }
 
   if (menu === 'image') {
