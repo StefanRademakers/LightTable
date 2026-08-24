@@ -483,7 +483,12 @@ export const createEditorMenuOptions = (
       value: 'filter-blur',
       label: 'Blur',
       children: [
-        unavailable('filter-gaussian-blur', 'Gaussian Blur'),
+        {
+          value: 'filter-gaussian-blur',
+          label: 'Gaussian Blur...',
+          onClick: () => commands.applyAdjustment('gaussian-blur'),
+          disabled: !state.hasDocument || state.saving
+        },
         unavailable('filter-motion-blur', 'Motion Blur'),
         unavailable('filter-surface-edge-aware-blur', 'Surface Blur')
       ]

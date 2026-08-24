@@ -52,6 +52,7 @@ import {
   type AdjustmentInitialSettings,
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
+import { createGaussianBlurStack } from '../../processing/gaussianBlurFilter';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -436,7 +437,9 @@ export const createLayerDocumentCommands = (
 
   const applyInitialSettings = (source: BasicAdjustments, settings?: AdjustmentInitialSettings) => {
     if (!settings) return;
-    if ('posterizeLevels' in settings) {
+    if ('radius' in settings) {
+      return;
+    } else if ('posterizeLevels' in settings) {
       source.photoshopAdjustment.posterizeLevels = settings.posterizeLevels;
     } else if ('thresholdLevel' in settings) {
       source.photoshopAdjustment.thresholdLevel = settings.thresholdLevel;
@@ -461,11 +464,28 @@ export const createLayerDocumentCommands = (
     settings?: AdjustmentInitialSettings) => {
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
+    if (!current) return false;
+    if (kind === 'gaussian-blur') {
+      const definition = adjustmentLayerDefinition(kind);
+      const stack = createGaussianBlurStack(
+        settings && 'radius' in settings ? settings.radius : undefined
+      );
+      const next = createAdjustmentLayer(
+        current,
+        stack,
+        definition.name,
+        aboveLayerId ?? current.activeLayerId ?? undefined,
+        kind
+      );
+      dependencies.applyDocumentSnapshot(next);
+      dependencies.pushDocumentHistory(current, next);
+      dependencies.setActiveChannel('pixels');
+      return true;
+    }
     const previousDocumentGrade = dependencies.getDocumentAdjustments?.();
     const currentPanelGrade = dependencies.getPanelAdjustments?.();
     if (
-      !current
-      || !previousDocumentGrade
+      !previousDocumentGrade
       || !currentPanelGrade
       || !dependencies.publishDocumentAdjustments
       || !dependencies.publishPanelAdjustments
@@ -540,6 +560,10 @@ export const createLayerDocumentCommands = (
     }
     if (kind === 'grain') source.effects.grain.enabled = true;
     applyInitialSettings(source, settings);
+    // Gaussian Blur is introduced first as a full-frame filter layer. An
+    // attached Smart Filter needs a dedicated stack owner and stack mask; it
+    // must not be smuggled into the legacy attached-adjustment container.
+    if (kind === 'gaussian-blur') return null;
     const adjustmentStack = selectAdjustmentLayerModules(adjustmentStackForScope(
       createAdjustmentStackFromBasicAdjustments(source),
       'layer'

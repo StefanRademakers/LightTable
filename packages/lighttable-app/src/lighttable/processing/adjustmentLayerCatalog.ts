@@ -8,6 +8,7 @@ import type { PhotoshopAdjustmentKind } from '../photoshopAdjustments';
 
 export type AdjustmentLayerKind =
   | 'grade'
+  | 'gaussian-blur'
   | 'lens-fx'
   | 'color-vibrance'
   | 'curves'
@@ -20,6 +21,7 @@ export type AdjustmentLayerKind =
 export type AdjustmentPropertiesView = AdjustmentLayerKind;
 
 export type AdjustmentInitialSettings =
+  | { readonly radius: number }
   | { readonly posterizeLevels: number }
   | { readonly thresholdLevel: number }
   | {
@@ -42,7 +44,7 @@ export interface AdjustmentLayerDefinition {
   readonly iconName: string;
   readonly family: 'lighttable' | 'photoshop';
   readonly moduleTypes?: readonly string[];
-  readonly owner?: 'grade' | 'lens-fx';
+  readonly owner?: 'grade' | 'filter' | 'lens-fx';
   readonly photoshopKind?: PhotoshopAdjustmentKind;
   /** Retained editor identity that is no longer offered by the current UI. */
   readonly creationVisible?: boolean;
@@ -53,6 +55,15 @@ export interface AdjustmentLayerDefinition {
  * adjustments join this catalog only once their controls affect rendering.
  */
 export const ADJUSTMENT_LAYER_DEFINITIONS: readonly AdjustmentLayerDefinition[] = [
+  {
+    id: 'gaussian-blur',
+    name: 'Gaussian Blur',
+    menuLabel: 'Gaussian Blur',
+    iconName: 'layer_adjustment.png',
+    family: 'lighttable',
+    owner: 'filter',
+    creationVisible: false
+  },
   {
     id: 'grade',
     name: 'Grade',

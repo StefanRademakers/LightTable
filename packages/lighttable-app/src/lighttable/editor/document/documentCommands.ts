@@ -46,6 +46,7 @@ import {
   type AdjustmentStack
 } from '../../processing/adjustmentStack';
 import { parseAttachedAdjustmentOwnerId } from '../../processing/attachedAdjustment';
+import { setGaussianBlurRadius } from '../../processing/gaussianBlurFilter';
 import {
   findLayerNode,
   findRasterLayer,
@@ -794,6 +795,39 @@ export const setRasterLayerAdjustmentStackEnabled = (
     owner,
     enabled
   );
+  if (adjustmentStack === layer.adjustmentStack) return layer;
+  return {
+    ...layer,
+    adjustmentStack,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+/** Updates the canonical Gaussian module without projecting through Grade. */
+export const setGaussianBlurLayerRadius = (
+  document: ImageDocument,
+  layerId: LayerId,
+  radius: number
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'adjustment' || layer.adjustmentKind !== 'gaussian-blur') return layer;
+  const adjustmentStack = setGaussianBlurRadius(layer.adjustmentStack, radius);
+  if (adjustmentStack === layer.adjustmentStack) return layer;
+  return {
+    ...layer,
+    adjustmentStack,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+export const setGaussianBlurLayerEnabled = (
+  document: ImageDocument,
+  layerId: LayerId,
+  enabled: boolean
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'adjustment' || layer.adjustmentKind !== 'gaussian-blur') return layer;
+  const adjustmentStack = setAdjustmentStackOwnerEnabled(layer.adjustmentStack, 'filter', enabled);
   if (adjustmentStack === layer.adjustmentStack) return layer;
   return {
     ...layer,

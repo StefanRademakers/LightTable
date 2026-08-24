@@ -8,7 +8,10 @@ import {
 import type { LocalProcessingKind } from '../../processing/adjustmentStack';
 
 const visibleKinds = adjustmentLayerMenuDefinitionGroups().flat().map(({ id }) => id);
-const visibleKindSet = new Set<string>(visibleKinds);
+// Filters can share the semantic processing-layer command without appearing in
+// the Adjustment Layer menu. Keep this explicit until the command vocabulary is
+// generalized from `adjustment.create` to a processing-layer command.
+const creatableKindSet = new Set<string>([...visibleKinds, 'gaussian-blur']);
 const localKindSet = new Set<string>(['grade', 'curves', 'lens-fx']);
 
 export type SemanticAdjustmentCreationCommand =
@@ -77,16 +80,21 @@ const parseInitialSettings = (kind: string, value: unknown) => {
     return { thresholdLevel: Number(value.thresholdLevel) };
   }
   if (kind === 'gradient-map') return parseGradientMapSettings(value);
+  if (kind === 'gaussian-blur' && Object.keys(value).length === 1
+    && typeof value.radius === 'number' && Number.isFinite(value.radius)
+    && value.radius >= 0 && value.radius <= 100) {
+    return { radius: value.radius };
+  }
   return null;
 };
 
 export const parseSemanticAdjustmentCreationCommand = (
   value: unknown
 ): SemanticAdjustmentCreationCommand | { readonly message: string } => {
-  if (!isRecord(value) || typeof value.kind !== 'string' || !visibleKindSet.has(value.kind)
+  if (!isRecord(value) || typeof value.kind !== 'string' || !creatableKindSet.has(value.kind)
     || (value.placement !== 'local' && value.placement !== 'attached'
       && value.placement !== 'adjustment-layer')) {
-    return { message: 'Adjustment creation requires a visible kind and supported placement.' };
+    return { message: 'Adjustment creation requires a creatable kind and supported placement.' };
   }
   const allowedKeys = value.placement === 'adjustment-layer'
     ? new Set(['kind', 'placement', 'aboveLayerId', 'settings'])
@@ -107,6 +115,9 @@ export const parseSemanticAdjustmentCreationCommand = (
   const settings = parseInitialSettings(value.kind, value.settings);
   if (settings === null) {
     return { message: 'Initial settings do not match the requested adjustment kind.' };
+  }
+  if (value.kind === 'gaussian-blur' && value.placement !== 'adjustment-layer') {
+    return { message: 'Gaussian Blur currently requires adjustment-layer placement.' };
   }
   if (value.placement === 'attached') {
     if (typeof value.layerId !== 'string') {
@@ -130,6 +141,10 @@ export const resolveContextualAdjustmentCreation = (
   kind: AdjustmentLayerKind
 ): SemanticAdjustmentCreationCommand => {
   const active = findDocumentLayer(document, document.activeLayerId);
+  if (kind === 'gaussian-blur') {
+    return { kind, placement: 'adjustment-layer',
+      ...(active ? { aboveLayerId: active.id } : {}) };
+  }
   if (active?.type === 'raster' && !layerIsLocked(active, 'pixels')) {
     return localKindSet.has(kind)
       ? { kind: kind as LocalProcessingKind, placement: 'local', layerId: active.id }

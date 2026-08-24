@@ -122,6 +122,7 @@ import { DocumentImageGpuResources } from './documentImageGpuResources';
 import { AdjustmentLayerGpuResources } from './adjustmentLayerGpuResources';
 import { AdjustmentLayerRenderer } from './adjustmentLayerRenderer';
 import { LayerProcessingRenderer } from './layerProcessingRenderer';
+import { GaussianBlurFilterRenderer } from './GaussianBlurFilterRenderer';
 import { ReferenceDifferenceMeasurer } from './referenceDifferenceMeasurer';
 import { estimateDocumentGpuBytes } from './documentGpuMemoryEstimate';
 import { DocumentSourceGpuLoader } from './documentSourceGpuLoader';
@@ -211,6 +212,7 @@ export class WebGpuEngine {
   private documentRenderer: LayerDocumentRenderer | null = null;
   private readonly adjustmentLayerResources: AdjustmentLayerGpuResources;
   private readonly adjustmentLayerRenderer: AdjustmentLayerRenderer;
+  private readonly gaussianBlurFilterRenderer: GaussianBlurFilterRenderer;
   private waveletDetailRuntime: WaveletDetailRuntime | null = null;
   private readonly colorLookupAssets: ColorLookupAssetStore;
   private translationAlignmentService: FeatureAlignmentService | null = null;
@@ -264,6 +266,7 @@ export class WebGpuEngine {
       device,
       this.adjustmentLayerResources
     );
+    this.gaussianBlurFilterRenderer = new GaussianBlurFilterRenderer(device);
     this.renderScheduler = new RenderInvalidationScheduler(() => this.renderNow());
     this.selectionAntsAnimator = new SelectionAntsAnimator({
       invalidateViewport: () => this.renderDirty.invalidate('viewport'),
@@ -551,7 +554,8 @@ export class WebGpuEngine {
     );
     this.layerProcessingRenderer = new LayerProcessingRenderer(
       this.adjustmentLayerRenderer,
-      this.layerEffectRenderer
+      this.layerEffectRenderer,
+      this.gaussianBlurFilterRenderer
     );
     this.displayResolvePipeline = pipelines.displayResolve;
     this.displayToLinearPipeline = pipelines.displayToLinear;
@@ -1780,6 +1784,12 @@ export class WebGpuEngine {
     this.effectRuntime.resize(width, height);
     this.waveletDetailRuntime.configure(width, height);
     this.layerEffectRenderer?.resize(width, height);
+    this.gaussianBlurFilterRenderer.configure(
+      width,
+      height,
+      coreResources.sampler,
+      getCorePipelineBundle(this.device, this.canvasFormat).gaussianFilter
+    );
     this.imageResources.finalTexture = this.device.createTexture({
       label: 'LightTable display-encoded result',
       size: [width, height],
@@ -2551,6 +2561,7 @@ export class WebGpuEngine {
       effectBytes: (this.effectRuntime?.estimatedTextureBytes() ?? 0)
         + (this.layerEffectRenderer?.estimatedTextureBytes() ?? 0)
         + (this.waveletDetailRuntime?.estimatedTextureBytes() ?? 0)
+        + this.gaussianBlurFilterRenderer.estimatedTextureBytes()
     }) + (this.vectorEditingOverlayBackend?.cacheMetrics().bytes ?? 0)
       + (this.imageResources.pointColorInputTexture
         ? this.metadata.width * this.metadata.height * 8
@@ -3557,6 +3568,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     this.layerEffectRenderer?.destroy();
     this.layerEffectRenderer = null;
     this.layerProcessingRenderer = null;
+    this.gaussianBlurFilterRenderer.destroy();
     this.documentRenderer?.destroy();
     this.documentRenderer = null;
     this.vectorEditingOverlayBackend?.dispose();
@@ -3813,6 +3825,7 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
     this.zoomOverlayDraft = null;
     this.documentRenderer?.destroyImageResources();
     this.adjustmentLayerRenderer.reset();
+    this.gaussianBlurFilterRenderer.reset();
     this.adjustmentLayerResources.reset();
     this.colorLookupAssets.clear();
     this.imageDocument = null;

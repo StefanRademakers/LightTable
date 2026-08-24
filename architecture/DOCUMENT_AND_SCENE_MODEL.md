@@ -20,6 +20,15 @@ Smart Objects and complete Smart Filter semantics are a target, not yet a
 first-class `LayerNode` variant. PSD metadata and preserved source assets do not
 by themselves mean the Smart Object model is complete.
 
+The first Gaussian Blur implementation is intentionally narrower: it is a
+full-frame adjustment-layer-shaped filter over the accumulated lower
+composite. The filter parameters live in its serializable processing module;
+the layer's existing mask controls that effect. This does not redefine a
+content layer's own mask and does not imply attached Smart Filter support.
+When attached filters are introduced, their ordered stack and stack mask must
+be separate canonical data owned by the content layer, not an overloaded
+`AttachedAdjustment` or Layer Style.
+
 Document assets are immutable source payloads referenced by canonical IDs.
 The registry currently covers patterns, embedded fonts, preserved interchange
 sources and 3D Color Lookup tables. A Color Lookup asset records its cube size,

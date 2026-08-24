@@ -9,7 +9,7 @@
         "grade", "lens-fx", "color-vibrance", "brightness-contrast", "levels",
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
-        "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain"
+        "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -25,6 +25,13 @@
       "required": ["thresholdLevel"],
       "properties": {
         "thresholdLevel": { "type": "integer", "minimum": 1, "maximum": 255, "default": 128 }
+      }
+    },
+    "gaussianBlurSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["radius"],
+      "properties": {
+        "radius": { "type": "number", "minimum": 0, "maximum": 100, "default": 8 }
       }
     },
     "gradientMapColorStop": {
@@ -89,6 +96,7 @@
             "oneOf": [
               { "$ref": "#/$defs/posterizeSettings" },
               { "$ref": "#/$defs/thresholdSettings" },
+              { "$ref": "#/$defs/gaussianBlurSettings" },
               { "$ref": "#/$defs/gradientMapSettings" }
             ]
           }
@@ -121,6 +129,14 @@
                 {
                   "type": "object", "required": ["kind", "settings"],
                   "properties": {
+                    "kind": { "const": "gaussian-blur" },
+                    "placement": { "const": "adjustment-layer" },
+                    "settings": { "$ref": "#/$defs/gaussianBlurSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
                     "kind": { "const": "posterize" },
                     "settings": { "$ref": "#/$defs/posterizeSettings" }
                   }
@@ -140,6 +156,16 @@
                   }
                 }
               ]
+            }
+          },
+          {
+            "if": {
+              "type": "object", "required": ["kind"],
+              "properties": { "kind": { "const": "gaussian-blur" } }
+            },
+            "then": {
+              "type": "object", "required": ["placement"],
+              "properties": { "placement": { "const": "adjustment-layer" } }
             }
           }
         ]

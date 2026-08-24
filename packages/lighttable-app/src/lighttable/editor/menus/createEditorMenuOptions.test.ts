@@ -71,8 +71,9 @@ const findMenuOption = (
 };
 
 describe('createEditorMenuOptions', () => {
-  it('exposes the planned filter catalog as disabled leaf commands', () => {
-    const filter = createEditorMenuOptions('filter', state(), labels, commands());
+  it('offers Gaussian Blur while retaining the planned filter catalog', () => {
+    const menuCommands = commands();
+    const filter = createEditorMenuOptions('filter', state(), labels, menuCommands);
     expect(filter.map(({ label }) => label)).toEqual([
       'Blur', 'Distort', 'Noise', 'Sharpen', 'Other'
     ]);
@@ -80,7 +81,7 @@ describe('createEditorMenuOptions', () => {
       label,
       children: children?.map((child) => child.label)
     }))).toEqual([
-      { label: 'Blur', children: ['Gaussian Blur', 'Motion Blur', 'Surface Blur'] },
+      { label: 'Blur', children: ['Gaussian Blur...', 'Motion Blur', 'Surface Blur'] },
       { label: 'Distort', children: ['Displace'] },
       { label: 'Noise', children: ['Median', 'Reduce Noise'] },
       { label: 'Sharpen', children: ['Smart Sharpen', 'Unsharp Mask'] },
@@ -88,7 +89,12 @@ describe('createEditorMenuOptions', () => {
     ]);
     const leaves = filter.flatMap(({ children }) => children ?? []);
     expect(leaves).toHaveLength(12);
-    expect(leaves.every(({ disabled, onClick }) => disabled && !onClick)).toBe(true);
+    const gaussian = findMenuOption(filter, 'filter-gaussian-blur');
+    expect(gaussian).toMatchObject({ label: 'Gaussian Blur...', disabled: false });
+    gaussian?.onClick?.();
+    expect(menuCommands.applyAdjustment).toHaveBeenCalledWith('gaussian-blur');
+    expect(leaves.filter(({ value }) => value !== 'filter-gaussian-blur')
+      .every(({ disabled, onClick }) => disabled && !onClick)).toBe(true);
     expect(filter.every(({ disabled }) => !disabled)).toBe(true);
   });
 

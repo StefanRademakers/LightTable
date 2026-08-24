@@ -446,6 +446,39 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/** Full-resolution authored filter; unlike the correction blur its radius is dynamic. */
+export const FILTER_GAUSSIAN_BLUR_WGSL = /* wgsl */ `
+struct GaussianFilterUniforms {
+  direction: vec2f,
+  radius: f32,
+  sigma: f32,
+}
+
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var sourceSampler: sampler;
+@group(0) @binding(2) var<uniform> gaussianParams: GaussianFilterUniforms;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let dimensions = vec2f(textureDimensions(sourceTexture));
+  let texel = gaussianParams.direction / dimensions;
+  let support = min(100, i32(ceil(gaussianParams.radius)));
+  let sigma = max(gaussianParams.sigma, 0.5);
+  let denominator = 2.0 * sigma * sigma;
+  var sum = textureSampleLevel(sourceTexture, sourceSampler, input.uv, 0.0);
+  var total = 1.0;
+  for (var tap = 1; tap <= 100; tap += 1) {
+    if (tap > support) { break; }
+    let offset = f32(tap);
+    let weight = exp(-(offset * offset) / denominator);
+    sum += textureSampleLevel(sourceTexture, sourceSampler, input.uv + texel * offset, 0.0) * weight;
+    sum += textureSampleLevel(sourceTexture, sourceSampler, input.uv - texel * offset, 0.0) * weight;
+    total += 2.0 * weight;
+  }
+  return sum / total;
+}
+`;
+
 export const CREATIVE_GRADE_WGSL = /* wgsl */ `
 ${ADJUSTMENTS_WGSL}
 ${POINT_COLOR_SELECTION_WGSL}

@@ -91,6 +91,7 @@ import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useBackgroundRemovalController, type BackgroundRemovalMaskMode } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
+import { useGaussianBlurFilterController } from './application/filters/useGaussianBlurFilterController';
 import { LayerNameRenameGestureController } from './application/layers/layerSelectionModel';
 import {
   adjustmentStackHasLocalProcessing,
@@ -1686,6 +1687,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pushDocumentHistory = documentMutationController.record;
   const beginDocumentTransaction = documentMutationController.begin;
   const endDocumentTransaction = documentMutationController.end;
+  const gaussianBlurFilterController = useGaussianBlurFilterController({
+    document: imageDocument,
+    getDocument: () => imageDocumentRef.current,
+    applyDocument: applyDocumentSnapshot,
+    recordHistory: pushDocumentHistory
+  });
 
   const activeFaceWarpLayer = imageDocument
     ? findRasterLayer(imageDocument, imageDocument.activeLayerId)
@@ -5217,6 +5224,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   applyAdjustmentRef.current = (kind) => {
     const document = imageDocumentRef.current;
     if (!document) return;
+    if (kind === 'gaussian-blur') {
+      const command = {
+        kind,
+        placement: 'adjustment-layer',
+        aboveLayerId: document.activeLayerId ?? undefined
+      } as const;
+      if (!executeRegisteredCommand('adjustment.create', command)) {
+        executeAdjustmentCreationRef.current(command);
+      }
+      return;
+    }
     const command = resolveContextualAdjustmentCreation(document, kind);
     if (command.placement === 'local') {
       const layer = findDocumentLayer(document, command.layerId);
@@ -7994,6 +8012,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 controller: layerStyleEditor
               },
               text: textPropertiesPanel,
+              gaussianBlur: gaussianBlurFilterController.model
+                ? {
+                    model: gaussianBlurFilterController.model,
+                    commands: gaussianBlurFilterController.commands
+                  }
+                : null,
               agent: { events: agentEvents,
                 onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } },
               actions: {

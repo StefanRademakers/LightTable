@@ -33,6 +33,14 @@ export interface LayerEffectStageEncoder {
   ): GPUTexture;
 }
 
+export interface LayerFilterEncoder {
+  encode(
+    encoder: GPUCommandEncoder,
+    source: GPUTexture,
+    layer: AdjustmentLayer | RasterLayer
+  ): GPUTexture;
+}
+
 /**
  * Authoritative per-layer processing order.
  *
@@ -43,7 +51,8 @@ export interface LayerEffectStageEncoder {
 export class LayerProcessingRenderer {
   constructor(
     private readonly gradeEncoder: LayerGradeEncoder,
-    private readonly effectEncoder: LayerEffectStageEncoder
+    private readonly effectEncoder: LayerEffectStageEncoder,
+    private readonly filterEncoder?: LayerFilterEncoder
   ) {}
 
   encode(
@@ -75,6 +84,7 @@ export class LayerProcessingRenderer {
 
     const hasGeometry = adjustmentStackOwnerIsEnabled(stack, 'geometry');
     const hasGrade = adjustmentStackOwnerIsEnabled(stack, 'grade');
+    const hasFilter = adjustmentStackOwnerIsEnabled(stack, 'filter');
     const hasEffects = adjustmentStackOwnerIsEnabled(stack, 'lens-fx');
     const geometry = hasGeometry || hasEffects
       ? this.effectEncoder.encodeSourceGeometry(encoder, source, layer)
@@ -82,9 +92,12 @@ export class LayerProcessingRenderer {
     const graded = hasGrade
       ? this.gradeEncoder.encode(encoder, geometry, layer)
       : geometry;
-    const spatial = hasEffects
-      ? this.effectEncoder.encodeLinearSpatial(encoder, graded, layer)
+    const filtered = hasFilter
+      ? this.filterEncoder?.encode(encoder, graded, layer) ?? graded
       : graded;
+    const spatial = hasEffects
+      ? this.effectEncoder.encodeLinearSpatial(encoder, filtered, layer)
+      : filtered;
     return hasEffects
       ? this.effectEncoder.encodeDisplayPost(encoder, spatial, layer)
       : spatial;

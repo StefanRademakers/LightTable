@@ -41,6 +41,7 @@
     { "id": "extras", "classification": "presentation", "reason": "Toggles canvas overlays." },
     { "id": "feather-selection", "classification": "command", "command": "selection.modify" },
     { "id": "fit", "classification": "command", "command": "view.setZoom" },
+    { "id": "filter-gaussian-blur", "classification": "command", "command": "adjustment.create" },
     { "id": "flatten-group", "classification": "command", "command": "layer.flattenGroup" },
     { "id": "flatten-image", "classification": "command", "command": "document.flattenImage" },
     { "id": "flip-canvas-horizontal", "classification": "command", "command": "document.applyGeometry" },

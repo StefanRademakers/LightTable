@@ -35,6 +35,11 @@ describe('semantic adjustment creation contract', () => {
     });
     expect(parseSemanticAdjustmentCreationCommand({ kind: 'curves', placement: 'adjustment-layer', aboveLayerId: 'title' }))
       .toEqual({ kind: 'curves', placement: 'adjustment-layer', aboveLayerId: 'title' });
+    expect(parseSemanticAdjustmentCreationCommand({
+      kind: 'gaussian-blur', placement: 'adjustment-layer', settings: { radius: 12.5 }
+    })).toEqual({
+      kind: 'gaussian-blur', placement: 'adjustment-layer', settings: { radius: 12.5 }
+    });
   });
 
   it.each([
@@ -45,6 +50,8 @@ describe('semantic adjustment creation contract', () => {
     { kind: 'posterize', placement: 'attached', layerId: 'photo', settings: { posterizeLevels: 1 } },
     { kind: 'threshold', placement: 'attached', layerId: 'photo', settings: { posterizeLevels: 4 } },
     { kind: 'curves', placement: 'adjustment-layer', settings: { thresholdLevel: 128 } },
+    { kind: 'gaussian-blur', placement: 'attached', layerId: 'photo', settings: { radius: 8 } },
+    { kind: 'gaussian-blur', placement: 'adjustment-layer', settings: { radius: 101 } },
     { kind: 'gradient-map', placement: 'adjustment-layer', settings: {
       colorStops: [{ position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0 } }],
       opacityStops: [{ position: 0, midpoint: 0.5, opacity: 1 }]
@@ -69,6 +76,8 @@ describe('semantic adjustment creation contract', () => {
       .toEqual({ kind: 'curves', placement: 'local', layerId: rasterId });
     expect(resolveContextualAdjustmentCreation(rasterDocument, 'threshold'))
       .toEqual({ kind: 'threshold', placement: 'attached', layerId: rasterId });
+    expect(resolveContextualAdjustmentCreation(rasterDocument, 'gaussian-blur'))
+      .toEqual({ kind: 'gaussian-blur', placement: 'adjustment-layer', aboveLayerId: rasterId });
     const locked = setLayerLock(rasterDocument, rasterId, 'pixels', true);
     expect(resolveContextualAdjustmentCreation(locked, 'threshold'))
       .toEqual({ kind: 'threshold', placement: 'adjustment-layer', aboveLayerId: rasterId });

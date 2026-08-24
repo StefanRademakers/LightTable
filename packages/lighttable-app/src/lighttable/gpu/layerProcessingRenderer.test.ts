@@ -8,6 +8,7 @@ import { createAdjustmentStackFromBasicAdjustments } from '../processing/adjustm
 import { createDefaultAdjustments } from '../types';
 import { LayerProcessingRenderer } from './layerProcessingRenderer';
 import { selectAdjustmentLayerModules } from '../processing/adjustmentLayerCatalog';
+import { createGaussianBlurStack } from '../processing/gaussianBlurFilter';
 
 const texture = (name: string) => ({ name }) as unknown as GPUTexture;
 const encoder = {} as GPUCommandEncoder;
@@ -99,6 +100,29 @@ describe('LayerProcessingRenderer', () => {
     expect(effects.encodeSourceGeometry).toHaveBeenCalledWith(encoder, source, layer);
     expect(effects.encodeLinearSpatial).toHaveBeenCalledWith(encoder, geometry, layer);
     expect(effects.encodeDisplayPost).toHaveBeenCalledWith(encoder, spatial, layer);
+  });
+
+  it('routes Gaussian Blur through the filter stage between grade and display effects', () => {
+    const source = texture('source');
+    const filtered = texture('filtered');
+    const layer = createAdjustmentLayer(
+      createGaussianBlurStack(12, (kind) => `${kind}-gaussian`),
+      'Gaussian Blur',
+      'gaussian-blur'
+    );
+    const grade = { encode: vi.fn() };
+    const effects = {
+      encodeSourceGeometry: vi.fn(),
+      encodeLinearSpatial: vi.fn(),
+      encodeDisplayPost: vi.fn()
+    };
+    const filters = { encode: vi.fn(() => filtered) };
+    const renderer = new LayerProcessingRenderer(grade, effects, filters);
+
+    expect(renderer.encode(encoder, source, layer)).toBe(filtered);
+    expect(filters.encode).toHaveBeenCalledWith(encoder, source, layer);
+    expect(grade.encode).not.toHaveBeenCalled();
+    expect(effects.encodeSourceGeometry).not.toHaveBeenCalled();
   });
 
   it('exactly bypasses disabled processing owners', () => {

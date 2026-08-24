@@ -32,6 +32,7 @@ export type ProcessingModuleCategory =
   | 'tone'
   | 'color'
   | 'spatial'
+  | 'filter'
   | 'lens'
   | 'output';
 
@@ -89,6 +90,19 @@ const CREATIVE_GRADE_SCOPES = [
 ] as const satisfies readonly ProcessingScope[];
 
 export const CURRENT_PROCESSING_MODULES = [
+  {
+    type: 'lt.gaussian-blur',
+    label: 'Gaussian Blur',
+    category: 'filter',
+    settingsPaths: [],
+    allowedScopes: ['adjustment-layer', 'smart-filter'],
+    inputDomain: 'linear-rgb',
+    outputDomain: 'linear-rgb',
+    alphaBehavior: 'modify',
+    coordinateSpace: 'document',
+    psdCandidates: ['smart-filter:gaussian-blur'],
+    notes: 'Separable full-frame blur over premultiplied linear RGBA. A Smart Filter adapter must retain its own stack mask.'
+  },
   {
     type: 'lt.face-warp',
     label: 'Face Warp',

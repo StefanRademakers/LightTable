@@ -24,6 +24,8 @@ type GenAiPanelComponent = typeof import('../../../genai/ui/GenAiPanel')['GenAiP
 type LensFxPanelComponent = typeof import('../../editor/panels/LensFxPanel')['LensFxPanel'];
 type TextPropertiesPanelComponent =
   typeof import('../../editor/panels/TextPropertiesPanel')['TextPropertiesPanel'];
+type GaussianBlurPropertiesPanelComponent =
+  typeof import('../../editor/panels/GaussianBlurPropertiesPanel')['GaussianBlurPropertiesPanel'];
 
 // Dockview renders accessory panels only while they are visible. Match that
 // runtime boundary at the module level: opening the editor must not evaluate
@@ -68,6 +70,10 @@ const LayerStylesPanel = React.lazy(async () => ({
 const TextPropertiesPanel = React.lazy(async () => ({
   default: (await import('../../editor/panels/TextPropertiesPanel')).TextPropertiesPanel
 }));
+const GaussianBlurPropertiesPanel = React.lazy(async () => ({
+  default: (await import('../../editor/panels/GaussianBlurPropertiesPanel'))
+    .GaussianBlurPropertiesPanel
+}));
 
 const deferPanel = (content: React.ReactNode) => (
   <React.Suspense fallback={<aside className="lighttable-panel" aria-label="Loading panel" />}>
@@ -89,6 +95,7 @@ export interface EditorWorkspacePanelBindings {
     controller: LayerStyleEditorController;
   };
   text: React.ComponentProps<TextPropertiesPanelComponent> | null;
+  gaussianBlur: React.ComponentProps<GaussianBlurPropertiesPanelComponent> | null;
   agent: React.ComponentProps<AgentActivityPanelComponent>;
   actions: React.ComponentProps<ActionsPanelComponent>;
   genAi: React.ComponentProps<GenAiPanelComponent>;
@@ -112,6 +119,7 @@ export const createEditorWorkspacePanels = ({
   grade,
   effects,
   text,
+  gaussianBlur,
   agent,
   actions,
   genAi,
@@ -137,6 +145,9 @@ export const createEditorWorkspacePanels = ({
             <AdjustmentPropertiesPanel title="Clarity and Dehaze" {...grade} />
           ),
           grain: deferPanel(<GrainPropertiesPanel {...lensFx} />),
+          'gaussian-blur': gaussianBlur
+            ? deferPanel(<GaussianBlurPropertiesPanel {...gaussianBlur} />)
+            : <aside className="lighttable-panel" aria-label="Gaussian Blur properties" />,
           'lens-fx': deferPanel(<LensFxPanel key={lensFxKey} {...lensFx} />),
           effects: deferPanel(<LayerStylesPanel {...effects} />),
           text: text

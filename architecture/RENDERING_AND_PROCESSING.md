@@ -83,6 +83,13 @@ evaluates its processing stack, then applies its own mask, clipping, opacity
 and blend semantics. A group evaluates children into an isolated or pass-
 through envelope according to its semantics before joining its parent.
 
+Gaussian Blur is the first authored Filter using this full-frame layer
+contract. Its canonical `lt.gaussian-blur` module is routed through a distinct
+filter stage after Grade and before Lens Fx display-post work. The separable
+GPU executor operates on premultiplied linear RGBA; `LayerCompositor` still
+owns the filter layer's mask, clipping, opacity and blend. This is deliberately
+not implemented as a Layer Style or folded into the compound Grade shader.
+
 No mask is exactly equivalent to constant coverage `1.0`. It is not a
 different compositor path. A disabled local processing node is an exact
 bypass. Rasterize, merge and flatten evaluate every visible semantic owned by
@@ -183,8 +190,21 @@ current compound Grade node is not yet an arbitrary user-reorderable graph.
 
 Current concepts include white balance, light, global color, color mixer,
 color grading, curves, detail, vignette, lens distortion, chromatic
-aberration, lens blur, halation, grain and warp. Definitions live in
+aberration, lens blur, halation, grain, warp and Gaussian Blur. Definitions live in
 `processing/moduleDefinitions.ts`.
+
+The current Gaussian Blur product slice is a standalone full-frame processing
+layer with an editable radius in the context-sensitive Properties panel. It
+uses the same canonical history, save, mask, rasterize, merge and export route
+as other adjustment layers. This is a valid full-frame effect, but it is not
+yet the complete Smart Filter model.
+
+An attached Smart Filter stack requires a separate canonical owner on its
+content layer, including its own stack mask in addition to the content layer's
+mask. It must not be represented by the legacy `attachedAdjustments` array,
+which has no stack-mask authority. The later model should reuse the same
+registered filter executor and compositor contracts while adding ordered
+filter instances, stack-mask ownership and Smart Object/source semantics.
 
 **Current:** effect-category nodes have independent executors and resources;
 `DocumentEffectRuntime` evaluates them in validated serialized order inside

@@ -643,6 +643,35 @@ describe('useLayerDocumentCommands', () => {
     expect(layer.mask).not.toBeNull();
   });
 
+  it('creates Gaussian Blur as a masked full-frame filter layer', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+
+    expect(state.commands.createAdjustmentLayerOfKind(
+      'gaussian-blur', undefined, { radius: 14.5 }
+    )).toBe(true);
+
+    const layer = state.document().layers.at(-1);
+    if (layer?.type !== 'adjustment') throw new Error('Expected a Gaussian Blur layer.');
+    expect(layer).toMatchObject({
+      name: 'Gaussian Blur',
+      adjustmentKind: 'gaussian-blur',
+      mask: expect.any(Object)
+    });
+    expect(layer.adjustmentStack.modules).toEqual([
+      expect.objectContaining({
+        type: 'lt.gaussian-blur',
+        enabled: true,
+        settings: { radius: 14.5 }
+      })
+    ]);
+    expect(state.dependencies.publishDocumentAdjustments).not.toHaveBeenCalled();
+    expect(state.dependencies.publishPanelAdjustments).not.toHaveBeenCalled();
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledOnce();
+    expect(state.commands.createAttachedAdjustment(
+      state.document().layers[0]!.id, 'gaussian-blur', { radius: 8 }
+    )).toBeNull();
+  });
+
   it.each([
     ['exposure', 'Exposure', 'lt.photoshop-adjustment'],
     ['vibrance', 'Vibrance', 'lt.photoshop-adjustment'],

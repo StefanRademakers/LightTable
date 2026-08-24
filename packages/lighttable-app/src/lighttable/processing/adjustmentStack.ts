@@ -25,7 +25,7 @@ export interface AdjustmentStack {
   modules: AdjustmentModuleInstance[];
 }
 
-export type AdjustmentStackOwner = 'geometry' | 'grade' | 'lens-fx';
+export type AdjustmentStackOwner = 'geometry' | 'grade' | 'filter' | 'lens-fx';
 export type LocalProcessingKind = 'grade' | 'curves' | 'lens-fx';
 export type GradeModuleGroup =
   | 'light'
@@ -57,7 +57,9 @@ const ownerIncludesCategory = (
   ? category === 'tone' || category === 'color' || category === 'spatial'
   : owner === 'geometry'
     ? category === 'geometry'
-    : category === 'lens' || category === 'output';
+    : owner === 'filter'
+      ? category === 'filter'
+      : category === 'lens' || category === 'output';
 
 export const adjustmentModuleBelongsToOwner = (
   type: string,
