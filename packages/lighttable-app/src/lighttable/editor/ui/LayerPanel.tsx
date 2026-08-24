@@ -352,6 +352,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     canFlattenImage,
     canGroupSelection,
     canDuplicateActiveLayer,
+    canRasterizeActiveLayer,
     canMergeDown,
     canMergeSelected,
     canToggleActiveClipping,
@@ -655,7 +656,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
     {
       value: 'rasterize-layer',
       label: 'Rasterize Layer',
-      disabled: !activeLayer || activeLayer.locks.all || activeLayer.locks.pixels,
+      disabled: !canRasterizeActiveLayer,
       onClick: onRasterizeLayer
     },
     {

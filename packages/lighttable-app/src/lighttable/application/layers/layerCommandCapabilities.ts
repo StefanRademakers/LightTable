@@ -35,6 +35,10 @@ export interface LayerCommandCapabilities {
   readonly canFlattenActiveGroup: boolean;
   readonly canFlattenImage: boolean;
   readonly canDuplicateActiveLayer: boolean;
+  readonly canRasterizeActiveLayer: boolean;
+  readonly hasRasterizableLayer: boolean;
+  readonly hasMergeCandidate: boolean;
+  readonly hasFlattenableGroup: boolean;
   readonly canDeleteSelection: boolean;
   readonly canEditActivePixels: boolean;
   readonly canEditActiveLayerStyles: boolean;
@@ -66,6 +70,14 @@ export const queryLayerCommandCapabilities = (
   const activeIndex = activeLayer
     ? activeSiblings.findIndex((layer) => layer.id === activeLayer.id)
     : -1;
+  const siblingsByParent = new Map<LayerId | null, number>();
+  for (const entry of entries) {
+    siblingsByParent.set(entry.parentId, (siblingsByParent.get(entry.parentId) ?? 0) + 1);
+  }
+  const hasMergeCandidate = [...siblingsByParent.values()].some((count) => count > 1);
+  const hasFlattenableGroup = entries.some(({ node }) => (
+    node.type === 'group' && Boolean(getFlattenGroupPlan(document, node.id))
+  ));
 
   return {
     activeLayer,
@@ -83,7 +95,13 @@ export const queryLayerCommandCapabilities = (
     canFlattenActiveGroup: activeLayer?.type === 'group'
       && Boolean(getFlattenGroupPlan(document, activeLayer.id)),
     canFlattenImage: Boolean(getFlattenImagePlan(document)),
-    canDuplicateActiveLayer: activeLayer?.type === 'raster' || activeLayer?.type === 'text',
+    canDuplicateActiveLayer: Boolean(activeLayer),
+    canRasterizeActiveLayer: Boolean(
+      activeLayer && !activeLayer.locks.all && !activeLayer.locks.pixels
+    ),
+    hasRasterizableLayer: entries.some(({ node }) => !node.locks.all && !node.locks.pixels),
+    hasMergeCandidate,
+    hasFlattenableGroup,
     canDeleteSelection: canDeleteLayers(document, selectedLayerIds),
     canEditActivePixels: Boolean(activeLayer && layerSupportsPixelEditing(activeLayer)),
     canEditActiveLayerStyles: Boolean(activeLayer && layerSupportsLayerStyles(activeLayer)),

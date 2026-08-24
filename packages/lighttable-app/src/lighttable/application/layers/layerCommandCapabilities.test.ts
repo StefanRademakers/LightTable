@@ -8,6 +8,7 @@ import {
 } from '../../editor/document/documentCommands';
 import {
   createImageDocument,
+  createVectorLayer,
   type ImageDocument
 } from '../../editor/document/documentTypes';
 import { walkLayerTree } from '../../editor/document/layerTree';
@@ -28,6 +29,9 @@ describe('queryLayerCommandCapabilities', () => {
     expect(capabilities.canMergeDown).toBe(false);
     expect(capabilities.canFlattenImage).toBe(true);
     expect(capabilities.canToggleActiveClipping).toBe(false);
+    expect(capabilities.canRasterizeActiveLayer).toBe(true);
+    expect(capabilities.hasRasterizableLayer).toBe(true);
+    expect(capabilities.hasMergeCandidate).toBe(false);
   });
 
   it('shares merge, clipping and flatten decisions across presentations', () => {
@@ -40,6 +44,19 @@ describe('queryLayerCommandCapabilities', () => {
     expect(capabilities.canMergeDown).toBe(true);
     expect(capabilities.canFlattenImage).toBe(true);
     expect(capabilities.canToggleActiveClipping).toBe(true);
+    expect(capabilities.hasMergeCandidate).toBe(true);
+  });
+
+  it('admits semantic vector duplication and rasterization through the shared query', () => {
+    const document = createDocument();
+    const vector = createVectorLayer([], 'Vector');
+    document.layers = [vector];
+    document.activeLayerId = vector.id;
+
+    const capabilities = queryLayerCommandCapabilities(document);
+    expect(capabilities.canDuplicateActiveLayer).toBe(true);
+    expect(capabilities.canRasterizeActiveLayer).toBe(true);
+    expect(capabilities.hasRasterizableLayer).toBe(true);
   });
 
   it('rejects grouping layers from different parents and recognizes groups', () => {
@@ -61,6 +78,7 @@ describe('queryLayerCommandCapabilities', () => {
 
     expect(capabilities.canGroupSelection).toBe(false);
     expect(capabilities.canUngroupSelection).toBe(true);
+    expect(capabilities.hasFlattenableGroup).toBe(true);
   });
 
   it('exposes compositing commands for text while rejecting pixel editing', () => {

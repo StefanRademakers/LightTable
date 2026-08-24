@@ -42,9 +42,8 @@ export const projectCommandCapabilities = (
     availability('grade.paste', supports('pasteGrade', ports.pasteGrade),
       'Paste Grade is unavailable in this host.'),
     availability('view.setZoom', true, ''), availability('layer.createRaster', true, ''),
-    availability('layer.duplicate', walkLayerTree(snapshot.document.layers)
-      .some(({ node }) => node.type === 'raster' || node.type === 'text'),
-    'There is no duplicable raster or text layer.'),
+    availability('layer.duplicate', layerCapabilities.layerCount > 0,
+      'There is no layer to duplicate.'),
     availability('layer.copyToNewLayer', walkLayerTree(snapshot.document.layers)
       .some(({ node }) => node.type === 'raster'), 'There is no raster layer to copy.'),
     availability('layer.delete', layerCapabilities.layerCount > 1, 'The document must retain at least one layer.'),
@@ -74,12 +73,17 @@ export const projectCommandCapabilities = (
     availability('raster.fill', supports('executeFillCommand', ports.executeFillCommand), 'Fill commands are unavailable in this host.'),
     availability('raster.applyGradient', supports('executeRasterGradientCommand', ports.executeRasterGradientCommand), 'Raster-gradient commands are unavailable in this host.'),
     availability('raster.invert', supports('executeRasterInvert', ports.executeRasterInvert), 'Raster invert is unavailable in this host.'),
-    availability('layer.rasterize', supports('executeLayerRasterize', ports.executeLayerRasterize), 'Layer rasterization is unavailable in this host.'),
+    availability('layer.rasterize', supports('executeLayerRasterize', ports.executeLayerRasterize)
+      && layerCapabilities.hasRasterizableLayer,
+    'Layer rasterization is unavailable or every layer is pixel-locked.'),
     availability('text.convertToShape', supports('executeTextToShape', ports.executeTextToShape), 'Text-to-shape conversion is unavailable in this host.'),
     availability('text.rasterize', supports('executeTextRasterize', ports.executeTextRasterize), 'Text rasterization is unavailable in this host.'),
-    availability('layer.merge', supports('executeLayerMerge', ports.executeLayerMerge) && layerCapabilities.layerCount > 1,
-      'Layer merge is unavailable or fewer than two layers exist.'),
-    availability('layer.flattenGroup', supports('executeFlattenGroup', ports.executeFlattenGroup), 'Group flatten is unavailable in this host.'),
+    availability('layer.merge', supports('executeLayerMerge', ports.executeLayerMerge)
+      && layerCapabilities.hasMergeCandidate,
+    'Layer merge is unavailable or no two sibling layers can be merged.'),
+    availability('layer.flattenGroup', supports('executeFlattenGroup', ports.executeFlattenGroup)
+      && layerCapabilities.hasFlattenableGroup,
+    'Group flatten is unavailable or no non-empty group exists.'),
     availability('document.flattenImage', supports('executeFlattenImage', ports.executeFlattenImage) && layerCapabilities.layerCount > 0,
       'Image flatten is unavailable or the image has no layers.'),
     availability('faceWarp.applyOperation', supports('executeFaceWarpCommand', ports.executeFaceWarpCommand), 'Face Warp commands are unavailable in this host.'),
