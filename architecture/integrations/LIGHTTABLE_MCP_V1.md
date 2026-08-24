@@ -157,6 +157,14 @@ some tools. Those must be added to the shared
 application command service first;
 DOM selectors or a parallel MCP-only scene format remain forbidden.
 
+`adjustment.create` accepts validated initial settings for Posterize, Threshold
+and Gradient Map. Those settings are applied during node construction, so one
+MCP command produces one editable node and one history publication. Gradient
+Map uses the canonical document color/opacity-stop representation plus reverse,
+dither and interpolation; it does not expose renderer-private gradient state.
+Other adjustment families still use their canonical defaults until their own
+closed mutation contracts are promoted.
+
 The artist-onboarding resource now directs clients to call
 `lighttable_context` once, retain stable IDs/revisions and capability decisions
 for the session, query only the command schemas required by the planned work,

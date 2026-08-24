@@ -1,7 +1,7 @@
 export const LIGHTTABLE_ARTIST_GUIDES = Object.freeze([
   {
     id: 'artist-onboarding',
-    version: 2,
+    version: 3,
     uri: 'lighttable://guides/artist-onboarding',
     title: 'LightTable artist onboarding',
     description: 'Plan, build, inspect and correct editable LightTable artwork with bounded MCP traffic.',
@@ -154,7 +154,7 @@ Query vector.create through lighttable_commands before use; the shared contract 
     description: 'A compact senior-design workflow for coherent, editable artwork with few observation rounds.',
     text: `# LightTable design pass
 
-Version 2
+Version 3
 
 Use this workflow for original design, reconstruction and substantial redesign. The goal is a coherent editable result, not merely a technically valid pile of layers.
 
@@ -189,6 +189,8 @@ Prefer a small repeated spacing vocabulary inferred from the brief or existing w
 ## Build from large to small
 
 Construct in logical phases: foundation, major composition, typography, supporting elements, then polish. Use one atomic lighttable_batch per phase when no visual decision is needed between its operations. Keep text as text, reusable geometry as vectors and photos as raster content. Preserve gradients, effects and adjustments as editable properties where supported.
+
+When creating Posterize, Threshold or Gradient Map processing, pass its initial settings directly to adjustment.create. This produces the intended editable adjustment in one command and one history publication instead of creating a default node and correcting it in a second round. Gradient Map settings carry bounded color stops, opacity stops, reverse, dither and interpolation. Query the command schema before use; do not invent renderer-private properties.
 
 Treat layers as user-facing design objects, not one-command containers. Give separate layers to independently selectable concepts such as the background, each photo, each text role and each major illustration. Put repeated dots, stripes, confetti or related shape fragments in one named vector layer by reusing layerId. Prefer one SVG import for a dense generated vector motif. Create separate layers only when independent selection, ordering, blending, masking or effects require them. Avoid default names such as dozens of "Circle" layers, premature detail, accidental near-duplicate colors, gratuitous effects, arbitrary radii and too many type styles. Do not rasterize merely to conceal an unsupported capability.
 

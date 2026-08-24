@@ -781,7 +781,11 @@ test('adjustment creation schemas preserve exact placement semantics', () => {
     { kind: 'curves', placement: 'attached', layerId: 'photo', aboveLayerId: 'anchor' },
     { kind: 'curves', placement: 'adjustment-layer', layerId: 'photo' },
     { kind: 'vibrance', placement: 'adjustment-layer' },
-    { kind: 'grade', placement: 'local', layerId: 'photo', panelState: {} }
+    { kind: 'grade', placement: 'local', layerId: 'photo', panelState: {} },
+    { kind: 'posterize', placement: 'adjustment-layer', settings: { posterizeLevels: 1 } },
+    { kind: 'threshold', placement: 'attached', layerId: 'photo',
+      settings: { posterizeLevels: 4 } },
+    { kind: 'curves', placement: 'adjustment-layer', settings: { thresholdLevel: 128 } }
   ]) assert.equal(validateJsonSchemaValue(create.input, invalid).valid, false, JSON.stringify(invalid));
   assert.equal(validateJsonSchemaValue(create.result, {
     kind: 'grade', placement: 'local', layerId: 'photo'

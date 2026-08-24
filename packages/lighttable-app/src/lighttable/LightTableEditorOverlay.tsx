@@ -5196,13 +5196,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       return { kind: command.kind, placement: command.placement, layerId: command.layerId };
     }
     if (command.placement === 'attached') {
-      const adjustmentId = layerPanelController.createAttachedAdjustment(command.layerId, command.kind);
+      const adjustmentId = layerPanelController.createAttachedAdjustment(
+        command.layerId, command.kind, command.settings
+      );
       if (!adjustmentId) return null;
       showProperties({ kind: 'attached-processing', layerId: command.layerId, adjustmentId });
       return { kind: command.kind, placement: command.placement,
         layerId: command.layerId, adjustmentId };
     }
-    if (!layerPanelController.createAdjustmentLayerOfKind(command.kind, command.aboveLayerId)) {
+    if (!layerPanelController.createAdjustmentLayerOfKind(
+      command.kind, command.aboveLayerId, command.settings
+    )) {
       return null;
     }
     const layerId = imageDocumentRef.current?.activeLayerId;

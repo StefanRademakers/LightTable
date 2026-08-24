@@ -50,7 +50,10 @@ import {
 import { materializeBasicAdjustments } from '../../processing/adjustmentStack';
 import type { LocalProcessingKind } from '../../processing/adjustmentStack';
 import type { GradeModuleGroup } from '../../processing/adjustmentStack';
-import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
+import type {
+  AdjustmentInitialSettings,
+  AdjustmentLayerKind
+} from '../../processing/adjustmentLayerCatalog';
 
 export interface LayerPanelControllerDependencies {
   getDocument(): ImageDocument | null;
@@ -66,8 +69,10 @@ export interface LayerPanelControllerDependencies {
   createAdjustmentLayer(): boolean;
   createCurvesAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
-  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId): boolean;
-  createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId,
+    settings?: AdjustmentInitialSettings): boolean;
+  createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
+    settings?: AdjustmentInitialSettings): string | null;
   addActiveLayerMask(): boolean;
   duplicateActiveLayer(): boolean;
   rasterizeActiveTextLayer(): boolean;
@@ -117,8 +122,10 @@ export interface LayerPanelController {
   createLocalProcessing(layerId: LayerId, kind: LocalProcessingKind): void;
   createGradientFillLayer(): void;
   createLensFxLayer(): boolean;
-  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId): boolean;
-  createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId,
+    settings?: AdjustmentInitialSettings): boolean;
+  createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
+    settings?: AdjustmentInitialSettings): string | null;
   createGroup(): void;
   groupSelection(layerIds: LayerId[]): void;
   ungroupSelection(layerIds: LayerId[]): void;
@@ -269,10 +276,10 @@ export const createLayerPanelController = (
     createGradientFillLayer: () =>
       usePixelChannel((current) => createGradientFillLayer(current)),
     createLensFxLayer: () => resolveDependencies().createLensFxLayer(),
-    createAdjustmentLayerOfKind: (kind, aboveLayerId) =>
-      resolveDependencies().createAdjustmentLayerOfKind(kind, aboveLayerId),
-    createAttachedAdjustment: (layerId, kind) =>
-      resolveDependencies().createAttachedAdjustment(layerId, kind),
+    createAdjustmentLayerOfKind: (kind, aboveLayerId, settings) =>
+      resolveDependencies().createAdjustmentLayerOfKind(kind, aboveLayerId, settings),
+    createAttachedAdjustment: (layerId, kind, settings) =>
+      resolveDependencies().createAttachedAdjustment(layerId, kind, settings),
     createGroup: () =>
       usePixelChannel((current) => createGroupLayer(current)),
     groupSelection: (layerIds) =>

@@ -12,7 +12,67 @@
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain"
       ]
     },
-    "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] }
+    "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
+    "posterizeSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["posterizeLevels"],
+      "properties": {
+        "posterizeLevels": { "type": "integer", "minimum": 2, "maximum": 255, "default": 4 }
+      }
+    },
+    "thresholdSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["thresholdLevel"],
+      "properties": {
+        "thresholdLevel": { "type": "integer", "minimum": 1, "maximum": 255, "default": 128 }
+      }
+    },
+    "gradientMapColorStop": {
+      "type": "object", "additionalProperties": false,
+      "required": ["position", "midpoint", "color"],
+      "properties": {
+        "position": { "type": "number", "minimum": 0, "maximum": 1 },
+        "midpoint": { "type": "number", "minimum": 0, "maximum": 1 },
+        "color": {
+          "type": "object", "additionalProperties": false,
+          "required": ["r", "g", "b"],
+          "properties": {
+            "r": { "type": "number", "minimum": 0, "maximum": 1 },
+            "g": { "type": "number", "minimum": 0, "maximum": 1 },
+            "b": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    },
+    "gradientMapOpacityStop": {
+      "type": "object", "additionalProperties": false,
+      "required": ["position", "midpoint", "opacity"],
+      "properties": {
+        "position": { "type": "number", "minimum": 0, "maximum": 1 },
+        "midpoint": { "type": "number", "minimum": 0, "maximum": 1 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "gradientMapSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["colorStops", "opacityStops"],
+      "properties": {
+        "colorStops": {
+          "type": "array", "minItems": 2, "maxItems": 8,
+          "items": { "$ref": "#/$defs/gradientMapColorStop" }
+        },
+        "opacityStops": {
+          "type": "array", "minItems": 2, "maxItems": 8,
+          "items": { "$ref": "#/$defs/gradientMapOpacityStop" }
+        },
+        "reverse": { "type": "boolean", "default": false },
+        "dither": { "type": "boolean", "default": false },
+        "interpolation": {
+          "type": "string", "enum": ["classic", "perceptual", "linear", "smooth"],
+          "default": "classic"
+        }
+      }
+    }
   },
   "commands": {
     "adjustment.create": {
@@ -24,7 +84,14 @@
           "kind": { "$ref": "#/$defs/visibleKind" },
           "placement": { "type": "string", "enum": ["local", "attached", "adjustment-layer"] },
           "layerId": { "$ref": "#/$defs/layerId" },
-          "aboveLayerId": { "$ref": "#/$defs/layerId" }
+          "aboveLayerId": { "$ref": "#/$defs/layerId" },
+          "settings": {
+            "oneOf": [
+              { "$ref": "#/$defs/posterizeSettings" },
+              { "$ref": "#/$defs/thresholdSettings" },
+              { "$ref": "#/$defs/gradientMapSettings" }
+            ]
+          }
         },
         "oneOf": [
           {
@@ -44,6 +111,36 @@
             "type": "object", "required": ["kind", "placement"],
             "properties": { "placement": { "const": "adjustment-layer" } },
             "not": { "type": "object", "required": ["layerId"] }
+          }
+        ],
+        "allOf": [
+          {
+            "if": { "type": "object", "required": ["settings"] },
+            "then": {
+              "oneOf": [
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "posterize" },
+                    "settings": { "$ref": "#/$defs/posterizeSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "threshold" },
+                    "settings": { "$ref": "#/$defs/thresholdSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "gradient-map" },
+                    "settings": { "$ref": "#/$defs/gradientMapSettings" }
+                  }
+                }
+              ]
+            }
           }
         ]
       },

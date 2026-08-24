@@ -138,7 +138,20 @@
   ],
   "adjustment.create": [
     { "kind": "grade", "placement": "local", "layerId": "layer-photo" },
-    { "kind": "threshold", "placement": "attached", "layerId": "layer-photo" },
+    { "kind": "threshold", "placement": "attached", "layerId": "layer-photo", "settings": { "thresholdLevel": 160 } },
+    { "kind": "posterize", "placement": "adjustment-layer", "aboveLayerId": "layer-photo", "settings": { "posterizeLevels": 6 } },
+    { "kind": "gradient-map", "placement": "adjustment-layer", "settings": {
+      "colorStops": [
+        { "position": 0, "midpoint": 0.5, "color": { "r": 0.04, "g": 0.02, "b": 0.16 } },
+        { "position": 1, "midpoint": 0.5, "color": { "r": 1, "g": 0.72, "b": 0.12 } }
+      ],
+      "opacityStops": [
+        { "position": 0, "midpoint": 0.5, "opacity": 1 },
+        { "position": 1, "midpoint": 0.5, "opacity": 1 }
+      ],
+      "dither": true,
+      "interpolation": "perceptual"
+    } },
     { "kind": "curves", "placement": "adjustment-layer", "aboveLayerId": "layer-photo" }
   ],
   "raster.invert": [

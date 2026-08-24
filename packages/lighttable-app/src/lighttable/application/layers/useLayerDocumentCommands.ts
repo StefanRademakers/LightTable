@@ -49,6 +49,7 @@ import type { LightTableImageClipboard } from '../../../platform/LightTableImage
 import {
   adjustmentLayerDefinition,
   selectAdjustmentLayerModules,
+  type AdjustmentInitialSettings,
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
 
@@ -148,8 +149,10 @@ export interface LayerDocumentCommands {
   createAdjustmentLayer(): boolean;
   createCurvesAdjustmentLayer(): boolean;
   createLensFxLayer(): boolean;
-  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId): boolean;
-  createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind): string | null;
+  createAdjustmentLayerOfKind(kind: AdjustmentLayerKind, aboveLayerId?: LayerId,
+    settings?: AdjustmentInitialSettings): boolean;
+  createAttachedAdjustment(layerId: LayerId, kind: AdjustmentLayerKind,
+    settings?: AdjustmentInitialSettings): string | null;
   mergeSelectedLayers(selectedLayerIds: LayerId[]): boolean;
   mergeLayersWhenReady(selectedLayerIds: LayerId[]): Promise<boolean>;
   mergeActiveLayerDown(): boolean;
@@ -431,7 +434,31 @@ export const createLayerDocumentCommands = (
     }
   };
 
-  const createProcessingLayer = (kind: AdjustmentLayerKind, aboveLayerId?: LayerId) => {
+  const applyInitialSettings = (source: BasicAdjustments, settings?: AdjustmentInitialSettings) => {
+    if (!settings) return;
+    if ('posterizeLevels' in settings) {
+      source.photoshopAdjustment.posterizeLevels = settings.posterizeLevels;
+    } else if ('thresholdLevel' in settings) {
+      source.photoshopAdjustment.thresholdLevel = settings.thresholdLevel;
+    } else if (source.gradientMap) {
+      source.gradientMap = {
+        ...source.gradientMap,
+        enabled: true,
+        colorStops: settings.colorStops.map((stop) => ({
+          ...stop, color: { ...stop.color }
+        })),
+        opacityStops: settings.opacityStops.map((stop) => ({ ...stop })),
+        ...(settings.reverse === undefined ? {} : { reverse: settings.reverse }),
+        ...(settings.dither === undefined ? {} : { dither: settings.dither }),
+        ...(settings.interpolation === undefined ? {} : {
+          interpolation: settings.interpolation
+        })
+      };
+    }
+  };
+
+  const createProcessingLayer = (kind: AdjustmentLayerKind, aboveLayerId?: LayerId,
+    settings?: AdjustmentInitialSettings) => {
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
     const previousDocumentGrade = dependencies.getDocumentAdjustments?.();
@@ -457,6 +484,7 @@ export const createLayerDocumentCommands = (
       source.gradientMap.photoshopCompatible = true;
     }
     if (kind === 'grain') source.effects.grain.enabled = true;
+    applyInitialSettings(source, settings);
     const stack = selectAdjustmentLayerModules(adjustmentStackForScope(
       createAdjustmentStackFromBasicAdjustments(source),
       'adjustment-layer'
@@ -495,7 +523,8 @@ export const createLayerDocumentCommands = (
   const createCurvesAdjustmentLayer = () => createProcessingLayer('curves');
   const createLensFxLayer = () => createProcessingLayer('lens-fx');
 
-  const createAttachedAdjustment = (layerId: LayerId, kind: AdjustmentLayerKind) => {
+  const createAttachedAdjustment = (layerId: LayerId, kind: AdjustmentLayerKind,
+    settings?: AdjustmentInitialSettings) => {
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
     const layer = current ? findRasterLayer(current, layerId) : null;
@@ -510,6 +539,7 @@ export const createLayerDocumentCommands = (
       source.gradientMap.photoshopCompatible = true;
     }
     if (kind === 'grain') source.effects.grain.enabled = true;
+    applyInitialSettings(source, settings);
     const adjustmentStack = selectAdjustmentLayerModules(adjustmentStackForScope(
       createAdjustmentStackFromBasicAdjustments(source),
       'layer'

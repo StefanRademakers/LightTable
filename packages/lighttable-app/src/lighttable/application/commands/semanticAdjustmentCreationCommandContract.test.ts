@@ -12,6 +12,27 @@ describe('semantic adjustment creation contract', () => {
       .toEqual({ kind: 'grade', placement: 'local', layerId: 'photo' });
     expect(parseSemanticAdjustmentCreationCommand({ kind: 'threshold', placement: 'attached', layerId: 'photo' }))
       .toEqual({ kind: 'threshold', placement: 'attached', layerId: 'photo' });
+    expect(parseSemanticAdjustmentCreationCommand({
+      kind: 'posterize', placement: 'adjustment-layer', settings: { posterizeLevels: 6 }
+    })).toEqual({
+      kind: 'posterize', placement: 'adjustment-layer', settings: { posterizeLevels: 6 }
+    });
+    expect(parseSemanticAdjustmentCreationCommand({
+      kind: 'gradient-map', placement: 'adjustment-layer', settings: {
+        colorStops: [
+          { position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0.2 } },
+          { position: 1, midpoint: 0.5, color: { r: 1, g: 0.8, b: 0.1 } }
+        ],
+        opacityStops: [
+          { position: 0, midpoint: 0.5, opacity: 1 },
+          { position: 1, midpoint: 0.5, opacity: 1 }
+        ],
+        dither: true
+      }
+    })).toMatchObject({
+      kind: 'gradient-map', placement: 'adjustment-layer',
+      settings: { dither: true }
+    });
     expect(parseSemanticAdjustmentCreationCommand({ kind: 'curves', placement: 'adjustment-layer', aboveLayerId: 'title' }))
       .toEqual({ kind: 'curves', placement: 'adjustment-layer', aboveLayerId: 'title' });
   });
@@ -20,7 +41,23 @@ describe('semantic adjustment creation contract', () => {
     { kind: 'threshold', placement: 'local', layerId: 'photo' },
     { kind: 'hidden-kind', placement: 'attached', layerId: 'photo' },
     { kind: 'curves', placement: 'attached' },
-    { kind: 'curves', placement: 'adjustment-layer', layerId: 'wrong-field' }
+    { kind: 'curves', placement: 'adjustment-layer', layerId: 'wrong-field' },
+    { kind: 'posterize', placement: 'attached', layerId: 'photo', settings: { posterizeLevels: 1 } },
+    { kind: 'threshold', placement: 'attached', layerId: 'photo', settings: { posterizeLevels: 4 } },
+    { kind: 'curves', placement: 'adjustment-layer', settings: { thresholdLevel: 128 } },
+    { kind: 'gradient-map', placement: 'adjustment-layer', settings: {
+      colorStops: [{ position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0 } }],
+      opacityStops: [{ position: 0, midpoint: 0.5, opacity: 1 }]
+    } },
+    { kind: 'gradient-map', placement: 'adjustment-layer', settings: {
+      colorStops: Array.from({ length: 9 }, (_, index) => ({
+        position: index / 8, midpoint: 0.5, color: { r: 0, g: 0, b: 0 }
+      })),
+      opacityStops: [
+        { position: 0, midpoint: 0.5, opacity: 1 },
+        { position: 1, midpoint: 0.5, opacity: 1 }
+      ]
+    } }
   ])('rejects invalid or ambiguous targets %#', (parameters) => {
     expect(parseSemanticAdjustmentCreationCommand(parameters)).toHaveProperty('message');
   });

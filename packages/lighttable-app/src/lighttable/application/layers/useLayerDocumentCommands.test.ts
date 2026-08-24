@@ -17,7 +17,11 @@ import {
   createFeatherSelectionOperation,
   createFullCanvasSelection
 } from '../../editor/selection/selectionTypes';
-import { cloneAdjustments, createDefaultAdjustments } from '../../types';
+import {
+  cloneAdjustments,
+  createDefaultAdjustments,
+  type GradientMapAdjustments
+} from '../../types';
 import {
   createLayerDocumentCommands,
   type LayerCommandHistoryEntry,
@@ -691,6 +695,59 @@ describe('useLayerDocumentCommands', () => {
     expect(state.document().layers.map(({ name }) => name))
       .toEqual(['Background', 'Bottom', 'Curves', 'Top']);
     expect(state.document().activeLayerId).toBe(state.document().layers[2]!.id);
+  });
+
+  it('creates Posterize and Threshold directly with their requested initial settings', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const rasterId = state.document().layers[0]!.id;
+    expect(state.commands.createAdjustmentLayerOfKind(
+      'posterize', undefined, { posterizeLevels: 6 }
+    )).toBe(true);
+    const posterize = state.document().layers.at(-1);
+    if (posterize?.type !== 'adjustment') throw new Error('Expected Posterize layer.');
+    expect(posterize.adjustmentStack.modules[0]?.settings.photoshopAdjustment)
+      .toMatchObject({ kind: 'posterize', posterizeLevels: 6 });
+
+    const thresholdId = state.commands.createAttachedAdjustment(
+      rasterId, 'threshold', { thresholdLevel: 160 }
+    );
+    expect(thresholdId).toMatch(/^attached-/);
+    const raster = state.document().layers.find(({ id }) => id === rasterId);
+    if (raster?.type !== 'raster') throw new Error('Expected raster layer.');
+    expect(raster.attachedAdjustments?.[0]?.adjustmentStack.modules[0]
+      ?.settings.photoshopAdjustment).toMatchObject({
+      kind: 'threshold', thresholdLevel: 160
+    });
+  });
+
+  it('creates a Gradient Map with its authored gradient in the same history step', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    expect(state.commands.createAdjustmentLayerOfKind('gradient-map', undefined, {
+      colorStops: [
+        { position: 0, midpoint: 0.5, color: { r: 0.04, g: 0.02, b: 0.16 } },
+        { position: 1, midpoint: 0.5, color: { r: 1, g: 0.72, b: 0.12 } }
+      ],
+      opacityStops: [
+        { position: 0, midpoint: 0.5, opacity: 1 },
+        { position: 1, midpoint: 0.5, opacity: 0.8 }
+      ],
+      dither: true,
+      interpolation: 'perceptual'
+    })).toBe(true);
+    const layer = state.document().layers.at(-1);
+    if (layer?.type !== 'adjustment') throw new Error('Expected Gradient Map layer.');
+    const gradientMap = layer.adjustmentStack.modules[0]?.settings.gradientMap as
+      | GradientMapAdjustments
+      | undefined;
+    expect(gradientMap).toMatchObject({
+      enabled: true,
+      dither: true,
+      interpolation: 'perceptual'
+    });
+    expect(gradientMap?.colorStops).toHaveLength(2);
+    expect(gradientMap?.colorStops[0]?.color).toEqual({ r: 0.04, g: 0.02, b: 0.16 });
+    expect(gradientMap?.opacityStops.map(({ opacity }) => opacity)).toEqual([1, 0.8]);
+    expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
   });
 
   it('attaches independent adjustment nodes without replacing the raster local grade', () => {

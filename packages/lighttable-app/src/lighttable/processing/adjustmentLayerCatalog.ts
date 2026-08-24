@@ -19,6 +19,22 @@ export type AdjustmentLayerKind =
 
 export type AdjustmentPropertiesView = AdjustmentLayerKind;
 
+export type AdjustmentInitialSettings =
+  | { readonly posterizeLevels: number }
+  | { readonly thresholdLevel: number }
+  | {
+      readonly colorStops: readonly {
+        readonly position: number; readonly midpoint: number;
+        readonly color: { readonly r: number; readonly g: number; readonly b: number }
+      }[];
+      readonly opacityStops: readonly {
+        readonly position: number; readonly midpoint: number; readonly opacity: number
+      }[];
+      readonly reverse?: boolean;
+      readonly dither?: boolean;
+      readonly interpolation?: 'classic' | 'perceptual' | 'linear' | 'smooth';
+    };
+
 export interface AdjustmentLayerDefinition {
   readonly id: AdjustmentLayerKind;
   readonly name: string;

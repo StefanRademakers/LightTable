@@ -192,6 +192,11 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     ['layerId']);
   assert.deepEqual(rasterizeCatalog.structuredContent.commands[0].contract.result.required,
     ['sourceLayerId', 'outputLayerId', 'outputType']);
+  const adjustmentCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
+    command: 'adjustment.create'
+  } });
+  assert.equal(adjustmentCatalog.structuredContent.commands[0].contract.status, 'complete');
+  assert.ok(adjustmentCatalog.structuredContent.commands[0].contract.input.properties.settings);
   const batchCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'command.batch'
   } });
@@ -378,6 +383,28 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
     documentId: 'document-demo', command: 'document.assignProfile',
     commandParameters: { profile: 'srgb' }
+  });
+  const gradientMapParameters = {
+    kind: 'gradient-map', placement: 'adjustment-layer',
+    settings: {
+      colorStops: [
+        { position: 0, midpoint: 0.5, color: { r: 0.04, g: 0.02, b: 0.16 } },
+        { position: 1, midpoint: 0.5, color: { r: 1, g: 0.72, b: 0.12 } }
+      ],
+      opacityStops: [
+        { position: 0, midpoint: 0.5, opacity: 1 },
+        { position: 1, midpoint: 0.5, opacity: 0.8 }
+      ],
+      dither: true, interpolation: 'perceptual'
+    }
+  };
+  const gradientMap = await editor.callTool({ name: 'lighttable_execute', arguments: {
+    documentId: 'document-demo', command: 'adjustment.create', parameters: gradientMapParameters
+  } });
+  assert.equal(gradientMap.isError, undefined);
+  assert.deepEqual(withoutCommandRequestId(commandCalls.at(-1)), {
+    documentId: 'document-demo', command: 'adjustment.create',
+    commandParameters: gradientMapParameters
   });
   const svgParameters = {
     svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><rect width="20" height="10" fill="#369"/></svg>',
