@@ -1441,10 +1441,10 @@ export class LightTableCommandService {
         if (command.kind === 'duplicate' || command.kind === 'copy-to-new-layer') {
           const layer = findDocumentLayer(snapshot.document!, command.layerId)!;
           if (command.kind === 'copy-to-new-layer' ? layer.type !== 'raster'
-            : layer.type !== 'raster' && layer.type !== 'text') {
+            : layer.type !== 'raster' && layer.type !== 'text' && layer.type !== 'vector') {
             return { code: 'command-unavailable', message: command.kind === 'copy-to-new-layer'
               ? 'Layer via Copy requires a raster source layer.'
-              : 'Only raster and text layers can currently be duplicated.' };
+              : 'Only raster, text and vector layers can currently be duplicated.' };
           }
         }
         if (command.kind === 'delete'

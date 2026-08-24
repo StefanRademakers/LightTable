@@ -778,6 +778,40 @@ describe('LightTableCommandService action recording', () => {
     state.service.dispose(); state.workspace.dispose();
   });
 
+  it('duplicates an editable vector shape through the shared command route', async () => {
+    const state = setup();
+    const vector = createVectorLayer([
+      createVectorLiveShape('shape-source', {
+        kind: 'rectangle', width: 24, height: 18,
+        cornerRadii: [0, 0, 0, 0], linkedCorners: true
+      }, 'Shape')
+    ], 'Shape');
+    state.session.setDocument({
+      ...state.session.getSnapshot().document!,
+      layers: [vector],
+      activeLayerId: vector.id
+    });
+    vi.mocked(state.ports.executeLayerCommand).mockImplementation((_documentId, command) => {
+      if (command.kind !== 'duplicate') return null;
+      const before = state.session.getSnapshot().document!;
+      const after = duplicateLayer(before, command.layerId);
+      state.session.setDocument(after);
+      return { sourceLayerId: command.layerId, layerId: after.activeLayerId };
+    });
+
+    const result = await state.service.execute(request(
+      'layer.duplicate', state.session.id, { layerId: vector.id }
+    ));
+
+    expect(result).toMatchObject({ status: 'completed' });
+    expect(state.session.getSnapshot().document?.layers).toHaveLength(2);
+    expect(state.session.getSnapshot().document?.layers[1]).toMatchObject({
+      type: 'vector', name: 'Shape copy'
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('records and replays Layer via Copy with an explicit raster source', async () => {
     const state = setup();
     vi.mocked(state.ports.executeLayerCommand).mockImplementation((_documentId, command) => {
