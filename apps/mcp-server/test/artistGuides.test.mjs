@@ -47,4 +47,5 @@ test('design guidance requires compact layers and explicit multi-document inspec
   assert.match(design.text, /dozens of "Circle" layers/u);
   assert.match(design.text, /initial settings directly to adjustment\.create/u);
   assert.match(design.text, /Gradient Map settings carry bounded color stops/u);
+  assert.match(design.text, /do not ask the user to click its tab/u);
 });

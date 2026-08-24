@@ -192,6 +192,15 @@ revision-bound 512-pixel WebP through renderer, desktop tunnel, MCP and Base64
 in 30.80 ms (8,108 bytes). These are local pipeline measurements; remote model
 reasoning, network scheduling and vision inference are deliberately excluded.
 
+Inactive documents are not required to own a hidden canvas or persistent GPU
+renderer. A ready, clean, single-raster document can serve its document preview,
+source-layer preview and full pixel-copy through a bounded source-artifact path
+without changing the active tab. Edited, selected, processed or layered content
+fails closed until it is rendered canonically; the service never substitutes an
+old source image for current document pixels. Multi-file Open serializes initial
+publication through the one application renderer so no background tab remains
+stuck in `opening` merely because React mounted only the final selection.
+
 ### Exposure-list ownership
 
 [`packages/command-contract/catalog.json`](../../packages/command-contract/catalog.json)

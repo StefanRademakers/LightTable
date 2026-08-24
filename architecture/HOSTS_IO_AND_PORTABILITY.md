@@ -20,8 +20,11 @@ header/content where possible; extensions and picker masks are hints.
 
 File > Open may return multiple host files. The application sends every selected
 file independently through that same open/hydrate flow and creates one document
-tab per file. Place/import remains a single-target operation because it mutates
-the active document rather than opening peer documents.
+tab per file. Because the application owns one presentation renderer, those
+initial publications are serialized; opening several files must not leave all
+but the final active tab unhydrated. Place/import remains a single-target
+operation because it mutates the active document rather than opening peer
+documents.
 
 Fast common formats take the cheapest correct path. Precision or structured
 formats lazily load the required worker/codec:

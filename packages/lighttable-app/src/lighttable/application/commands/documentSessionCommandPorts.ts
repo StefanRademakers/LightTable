@@ -27,6 +27,12 @@ import { executeSemanticLayerStyleCommand } from '../styles/semanticLayerStyleCo
 import { executeSemanticWarpStrokeCommand } from './semanticWarpCommandExecutor';
 import { executeSemanticFaceWarpCommand } from '../effects/faceWarp/semanticFaceWarpCommandExecutor';
 import { executeAtomicCommandBatch } from './atomicCommandBatchExecutor';
+import {
+  canReadInactiveFlatRaster,
+  copyInactiveFlatRasterPixels,
+  exportInactiveFlatRasterLayerPreview,
+  exportInactiveFlatRasterPreview
+} from './inactiveFlatRasterArtifacts';
 
 const requiresPresentation = (operation: string): never => {
   throw new Error(`${operation} requires the active document presentation renderer.`);
@@ -89,13 +95,17 @@ export const createDocumentSessionCommandPorts = (
   const change = mutation.change;
 
   return {
-    supportsPort: (port) => CANONICAL_PORTS.has(port),
-    supportsCommand: (command) => CANONICAL_COMMANDS.has(command),
+    supportsPort: (port) => CANONICAL_PORTS.has(port)
+      || (canReadInactiveFlatRaster(session)
+        && ['copyPixels', 'exportPreviewArtifact', 'exportLayerPreviewArtifact'].includes(port)),
+    supportsCommand: (command) => CANONICAL_COMMANDS.has(command)
+      || (command === 'selection.copyPixels' && canReadInactiveFlatRaster(session)),
     setZoom: (viewport) => session.updateViewport(() => viewport),
     createRasterLayer: () => {
       change((document) => createRasterLayer(document));
       session.updateEditor((current) => ({ ...current, activeChannel: 'pixels' }));
     },
+    copyPixels: () => copyInactiveFlatRasterPixels(session),
     placeArtifact: () => requiresPresentation('Placing raster artwork'),
     renameLayer: (layerId, name) => { change((document) => renameLayer(document, layerId, name)); },
     setLayerVisibility: (layerIds, visible) => {
@@ -192,8 +202,10 @@ export const createDocumentSessionCommandPorts = (
     exportNativeArtifact: () => requiresPresentation('Native export'),
     exportPngArtifact: () => requiresPresentation('PNG export'),
     exportBitmapArtifact: () => requiresPresentation('Bitmap export'),
-    exportPreviewArtifact: () => requiresPresentation('Document preview'),
-    exportLayerPreviewArtifact: () => requiresPresentation('Layer preview'),
+    exportPreviewArtifact: (maxEdge, encoding, region) =>
+      exportInactiveFlatRasterPreview(session, maxEdge, encoding, region),
+    exportLayerPreviewArtifact: (layerId, channel, maxEdge, encoding) =>
+      exportInactiveFlatRasterLayerPreview(session, layerId, channel, maxEdge, encoding),
     exportPsdArtifact: () => requiresPresentation('PSD export'),
     exportSvgArtifact: () => {
       const document = session.getSnapshot().document;

@@ -7,8 +7,26 @@ import { createDocumentSessionCommandPorts } from './documentSessionCommandPorts
 import { LightTableCommandPortRegistry } from './lightTableCommandPortRegistry';
 import { LightTableCommandService } from './lightTableCommandService';
 import type { DocumentLightTableCommandPorts } from './lightTableCommandContract';
+import { canReadInactiveFlatRaster } from './inactiveFlatRasterArtifacts';
 
 describe('document-lifetime command ownership', () => {
+  it('admits a clean flat raster source for inactive visual reads only', () => {
+    const workspace = new WorkspaceSession({ createId: () => 'document-flat' as never });
+    const opened = workspace.open({
+      source: { id: 'source-flat', name: 'Flat.jpg', mediaType: 'image/jpeg' }
+    });
+    if (!opened.ok) throw new Error('The flat document fixture did not open.');
+    opened.value.setDocument(createImageDocument('Flat', 80, 60, 'source-flat'));
+    opened.value.updateLoadedSource((current) => ({
+      ...current, blob: new Blob(['jpeg'], { type: 'image/jpeg' }), identity: 'source-flat'
+    }));
+    opened.value.setReady();
+    expect(canReadInactiveFlatRaster(opened.value)).toBe(true);
+    opened.value.markChanged();
+    expect(canReadInactiveFlatRaster(opened.value)).toBe(false);
+    workspace.dispose();
+  });
+
   it('mutates an inactive document without activating or mounting its editor', async () => {
     let sequence = 0;
     const workspace = new WorkspaceSession({

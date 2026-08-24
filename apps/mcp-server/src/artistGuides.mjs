@@ -1,7 +1,7 @@
 export const LIGHTTABLE_ARTIST_GUIDES = Object.freeze([
   {
     id: 'artist-onboarding',
-    version: 3,
+    version: 4,
     uri: 'lighttable://guides/artist-onboarding',
     title: 'LightTable artist onboarding',
     description: 'Plan, build, inspect and correct editable LightTable artwork with bounded MCP traffic.',
@@ -154,7 +154,7 @@ Query vector.create through lighttable_commands before use; the shared contract 
     description: 'A compact senior-design workflow for coherent, editable artwork with few observation rounds.',
     text: `# LightTable design pass
 
-Version 3
+Version 4
 
 Use this workflow for original design, reconstruction and substantial redesign. The goal is a coherent editable result, not merely a technically valid pile of layers.
 
@@ -172,7 +172,7 @@ Infer only low-risk omissions. Preserve exact user copy and supplied identity or
 
 ## Inspect once and plan
 
-Call lighttable_context once and retain its IDs, revision, capabilities and guide versions. Its workspace result inventories every open document. When the brief names supplied images or another open document, resolve each requested asset by stable documentId and inspect it explicitly with lighttable_context or a targeted read; never silently substitute the active document. Use selection.copyPixels and selection.pastePixels when a requested open raster document must become content in the target design.
+Call lighttable_context once and retain its IDs, revision, capabilities and guide versions. Its workspace result inventories every open document. When the brief names supplied images or another open document, resolve each requested asset by stable documentId and inspect it explicitly with lighttable_context or a targeted read; never silently substitute the active document. A clean flat raster source can be previewed and copied while inactive, so do not ask the user to click its tab merely to make it readable. Use selection.copyPixels and selection.pastePixels when a requested open raster document must become content in the target design.
 
 Inspect an existing document with bounded structure, text/vector detail, bounds and palette queries. Use a 512px WebP only when pixels add information that structure cannot provide.
 

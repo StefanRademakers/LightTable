@@ -61,7 +61,7 @@ import {
   type DocumentRendererSnapshot
 } from '../lighttable/application/rendering/documentRendererLifecycle';
 import { DocumentStartupTimeline } from '../lighttable/application/telemetry/documentStartupTimeline';
-import { openHostDocuments } from './openHostDocuments';
+import { openHostDocuments, waitForDocumentOpeningToSettle } from './openHostDocuments';
 
 const NewProjectDialog = lazy(async () => ({
   default: (await import('./NewProjectDialog')).NewProjectDialog
@@ -653,7 +653,8 @@ export function LightTableStandaloneApp({
       for (const file of files) {
         const startupTimeline = new DocumentStartupTimeline();
         startupTimeline.mark('bytes-available', { byteLength: file.size });
-        openDocument(file, decodeMode, undefined, startupTimeline);
+        const opened = openDocument(file, decodeMode, undefined, startupTimeline);
+        if (opened.ok) await waitForDocumentOpeningToSettle(opened.value);
       }
       if (files.length) await refreshRecentFiles();
     } finally {
