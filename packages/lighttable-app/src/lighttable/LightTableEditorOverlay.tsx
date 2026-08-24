@@ -1686,7 +1686,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const clearEditorHistory = documentHistoryController.clear;
   const pushHistoryEntry = documentHistoryController.record;
 
-  const applyDocumentSnapshot = documentProjectionController.applyDocumentSnapshot;
+  const applyDocumentSnapshot = useCallback((document: ImageDocument) => {
+    // A canonical document command supersedes any pointer-rate adjustment
+    // preview. Hidden contextual panels can receive a later blur event; that
+    // event must not commit an interaction that belonged to the old layer.
+    resetAdjustmentTransactionRef.current();
+    documentProjectionController.applyDocumentSnapshot(document);
+  }, [documentProjectionController]);
 
   const documentMutationController = useDocumentMutationController({
     getDocument: () => imageDocumentRef.current,
@@ -2623,6 +2629,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     previewSnapshot: previewAdjustmentSnapshot,
     commitSnapshot: applyAdjustmentSnapshot,
+    discardPreview: documentProjectionController.discardAdjustmentPreview,
     pushHistoryEntry,
     onCommitted: ({ before, after, targetLayerId, domain }) => {
       if (domain !== 'grade' || (targetLayerId && parseAttachedAdjustmentOwnerId(targetLayerId))) {

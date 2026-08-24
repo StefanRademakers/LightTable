@@ -31,6 +31,7 @@ export interface AdjustmentTransactionDependencies {
     targetLayerId: LayerId | null,
     domain: AdjustmentPresentationDomain
   ): void;
+  discardPreview(): void;
   pushHistoryEntry(entry: AdjustmentHistoryEntry): void;
   onCommitted?(commit: {
     readonly before: BasicAdjustments;
@@ -108,6 +109,7 @@ export const createAdjustmentTransactionController = (
 
   const reset = () => {
     transaction = null;
+    resolveDependencies().discardPreview();
     setInteractiveQuality(false);
   };
 
@@ -136,6 +138,8 @@ export const createAdjustmentTransactionController = (
         targetLayerId: completed.targetLayerId,
         domain: completed.domain
       });
+    } else {
+      dependencies.discardPreview();
     }
   };
 
@@ -144,11 +148,19 @@ export const createAdjustmentTransactionController = (
       return transaction !== null;
     },
     begin: () => {
-      if (transaction) return;
       const dependencies = resolveDependencies();
+      const documentId = dependencies.getDocumentId();
+      const targetLayerId = dependencies.getActiveTargetLayerId();
+      if (transaction) {
+        if (transaction.documentId === documentId
+          && transaction.targetLayerId === targetLayerId) return;
+        // Pointer capture can be lost when a contextual panel is replaced.
+        // A later interaction must never inherit that transaction's owner.
+        reset();
+      }
       transaction = {
-        documentId: dependencies.getDocumentId(),
-        targetLayerId: dependencies.getActiveTargetLayerId(),
+        documentId,
+        targetLayerId,
         before: cloneAdjustments(dependencies.getAdjustments()),
         domain: 'grade'
       };
@@ -159,6 +171,11 @@ export const createAdjustmentTransactionController = (
     change: (mutate, domain = 'grade') => {
       const dependencies = resolveDependencies();
       if (transaction && dependencies.getDocumentId() !== transaction.documentId) {
+        reset();
+        return false;
+      }
+      if (transaction
+        && dependencies.getActiveTargetLayerId() !== transaction.targetLayerId) {
         reset();
         return false;
       }

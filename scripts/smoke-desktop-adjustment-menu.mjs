@@ -221,6 +221,15 @@ try {
     .click();
   await page.getByRole('complementary', { name: 'Grade Layer properties' })
     .waitFor({ state: 'visible' });
+  const queryActiveDocument = () => page.evaluate(() => {
+    const driver = window.__lightTableAutomation;
+    const documentId = driver?.queryWorkspace()?.activeDocumentId;
+    return documentId ? {
+      document: driver?.queryDocument(documentId),
+      layers: driver?.queryLayers(documentId)
+    } : null;
+  });
+  const gradeDocumentBeforeDrag = await queryActiveDocument();
   const colorGradingToggle = page.getByRole('button', { name: 'Color Grading', exact: true });
   await colorGradingToggle.scrollIntoViewIfNeeded();
   if (await colorGradingToggle.getAttribute('aria-expanded') !== 'true') {
@@ -228,19 +237,51 @@ try {
   }
   const gradingWheel = page.getByRole('slider', { name: 'Midtones color tint', exact: true });
   await gradingWheel.scrollIntoViewIfNeeded();
+  const floatingLayers = layersPanel.locator('xpath=ancestor::*[contains(@class,"dv-resize-container")]').first();
+  const floatingLayersDisplay = await floatingLayers.evaluate((element) => element.style.display);
+  await floatingLayers.evaluate((element) => { element.style.display = 'none'; });
   const wheelBounds = await gradingWheel.boundingBox();
   if (!wheelBounds) throw new Error('The Color Grading wheel has no bounds.');
+  const wheelReceivesPointer = await gradingWheel.evaluate((wheel, bounds) => {
+    const hit = document.elementFromPoint(
+      bounds.x + bounds.width * 0.7,
+      bounds.y + bounds.height * 0.5
+    );
+    return Boolean(hit && (hit === wheel || wheel.contains(hit)));
+  }, wheelBounds);
+  if (!wheelReceivesPointer) {
+    throw new Error('The Color Grading wheel remains covered after isolating its panel.');
+  }
   const gradingHandle = gradingWheel.locator('.lighttable-grading-wheel__handle');
   await page.mouse.move(
     wheelBounds.x + wheelBounds.width * 0.7,
     wheelBounds.y + wheelBounds.height * 0.5
   );
   await page.mouse.down();
+  const gradeDocumentAfterPointerDown = await queryActiveDocument();
   await page.mouse.move(
     wheelBounds.x + wheelBounds.width * 0.65,
     wheelBounds.y + wheelBounds.height * 0.25,
     { steps: 8 }
   );
+  const gradingDomAfterMove = await page.evaluate(() => ({
+    wheelCount: document.querySelectorAll('[role="slider"][aria-label="Midtones color tint"]').length,
+    handleCount: document.querySelectorAll('.lighttable-grading-wheel__handle').length,
+    propertiesLabel: document.querySelector('.lighttable-grade-panel')?.getAttribute('aria-label') ?? null,
+    colorGradingExpanded: document.querySelector(
+      'button[aria-label="Color Grading"]'
+    )?.getAttribute('aria-expanded') ?? null
+  }));
+  const gradeDocumentAfterMove = await queryActiveDocument();
+  await page.screenshot({ path: path.join(output, 'color-grading-drag.png') });
+  if (gradingDomAfterMove.wheelCount === 0 || gradingDomAfterMove.handleCount === 0) {
+    throw new Error(`Color Grading controls disappeared during drag: ${JSON.stringify({
+      gradingDomAfterMove,
+      gradeDocumentBeforeDrag,
+      gradeDocumentAfterPointerDown,
+      gradeDocumentAfterMove
+    })}.`);
+  }
   const liveWheelPosition = await gradingHandle.evaluate((element) => ({
     left: element.style.left,
     top: element.style.top
@@ -249,6 +290,7 @@ try {
     throw new Error('The Color Grading wheel handle remained at its committed position during drag.');
   }
   await page.mouse.up();
+  await floatingLayers.evaluate((element, display) => { element.style.display = display; }, floatingLayersDisplay);
   const activeSelectionStyles = await page.evaluate(() => {
     const tool = document.querySelector('.lighttable-toolbox__button--active');
     const layer = document.querySelector('.lighttable-layer--active');
@@ -284,6 +326,7 @@ try {
     curvesLiveDrag: liveCurvePoint,
     gradientMapLiveDrag: liveStopLabel,
     colorGradingLiveDrag: liveWheelPosition,
+    gradingDomAfterMove,
     activeSelectionStyles,
     pageErrors,
     consoleErrors

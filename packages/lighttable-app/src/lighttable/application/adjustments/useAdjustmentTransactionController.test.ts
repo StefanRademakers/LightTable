@@ -16,7 +16,7 @@ const secondDocument = createImageDocument('Second', 32, 24, 'second');
 const setup = () => {
   let documentId = firstDocument.id;
   let adjustments = createDefaultAdjustments();
-  const targetLayerId = firstDocument.activeLayerId;
+  let targetLayerId = firstDocument.activeLayerId;
   const history: AdjustmentHistoryEntry[] = [];
   const renderer = {
     setScopeInteractionActive: vi.fn(),
@@ -37,6 +37,7 @@ const setup = () => {
     adjustments = next;
   });
   const onCommitted = vi.fn();
+  const discardPreview = vi.fn();
   const dependencies: AdjustmentTransactionDependencies = {
     getDocumentId: () => documentId,
     getAdjustments: () => adjustments,
@@ -44,6 +45,7 @@ const setup = () => {
     getRenderer: () => renderer,
     previewSnapshot,
     commitSnapshot,
+    discardPreview,
     pushHistoryEntry: (entry) => history.push(entry),
     onCommitted
   };
@@ -54,9 +56,11 @@ const setup = () => {
     previewSnapshot,
     commitSnapshot,
     onCommitted,
+    discardPreview,
     history,
     get adjustments() { return adjustments; },
-    switchDocument: () => { documentId = secondDocument.id; }
+    switchDocument: () => { documentId = secondDocument.id; },
+    switchTarget: () => { targetLayerId = secondDocument.activeLayerId; }
   };
 };
 
@@ -122,6 +126,7 @@ describe('adjustment transaction controller', () => {
     expect(state.commitSnapshot).not.toHaveBeenCalled();
     expect(state.history).toHaveLength(0);
     expect(state.onCommitted).not.toHaveBeenCalled();
+    expect(state.discardPreview).toHaveBeenCalledOnce();
   });
 
   it('rejects a pending interaction after a document switch', () => {
@@ -133,5 +138,33 @@ describe('adjustment transaction controller', () => {
     expect(state.previewSnapshot).not.toHaveBeenCalled();
     expect(state.commitSnapshot).not.toHaveBeenCalled();
     expect(state.history).toHaveLength(0);
+  });
+
+  it('does not let a lost pointer transaction capture a later layer interaction', () => {
+    const state = setup();
+    state.controller.begin();
+    state.controller.change((current) => ({ ...current, exposureEV: 1 }));
+    state.switchTarget();
+
+    state.controller.begin();
+    state.controller.change((current) => ({ ...current, exposureEV: 2 }));
+    state.controller.end();
+
+    expect(state.previewSnapshot).toHaveBeenCalledTimes(2);
+    expect(state.previewSnapshot.mock.calls[0]?.[1]).toBe(firstDocument.activeLayerId);
+    expect(state.previewSnapshot.mock.calls[1]?.[1]).toBe(secondDocument.activeLayerId);
+    expect(state.commitSnapshot).toHaveBeenCalledTimes(1);
+    expect(state.commitSnapshot.mock.calls[0]?.[1]).toBe(secondDocument.activeLayerId);
+    expect(state.history).toHaveLength(1);
+  });
+
+  it('rejects a stale target change when no new interaction was begun', () => {
+    const state = setup();
+    state.controller.begin();
+    state.switchTarget();
+
+    expect(state.controller.change((current) => ({ ...current, exposureEV: 2 }))).toBe(false);
+    expect(state.previewSnapshot).not.toHaveBeenCalled();
+    expect(state.commitSnapshot).not.toHaveBeenCalled();
   });
 });
