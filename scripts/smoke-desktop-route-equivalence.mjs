@@ -342,6 +342,39 @@ try {
     .getByRole('checkbox', { name: 'Bold', exact: true }).click();
   await window.getByRole('tab', { name: 'Actions', exact: true }).click();
   await waitForRecorded('text.format');
+  workflowPhase = 'ui-layer-rasterize';
+  const rasterizeSource = (await driver.queryLayers(uiDocumentId))
+    .find(({ type }) => type === 'vector')?.id;
+  assert.ok(rasterizeSource, 'The UI rasterize route has no vector source layer.');
+  await window.locator(`.lighttable-layer[data-layer-id="${rasterizeSource}"]`).click();
+  await window.waitForFunction(({ documentId, layerId }) =>
+    window.__lightTableAutomation?.queryDocument(documentId)?.activeLayerId === layerId,
+  { documentId: uiDocumentId, layerId: rasterizeSource });
+  await window.locator(`.lighttable-layer[data-layer-id="${rasterizeSource}"]`)
+    .click({ button: 'right' });
+  await window.getByRole('menuitem', { name: 'Rasterize Layer', exact: true }).click();
+  await waitForRecorded('layer.rasterize');
+  await window.waitForFunction(({ documentId }) => {
+    const automation = window.__lightTableAutomation;
+    const activeLayerId = automation?.queryDocument(documentId)?.activeLayerId;
+    const activeLayer = automation?.queryLayers(documentId)
+      ?.find((layer) => layer.id === activeLayerId);
+    return activeLayer?.type === 'raster';
+  }, { documentId: uiDocumentId }, { timeout: 60_000 }).catch(async () => {
+    throw new Error(`UI layer rasterization did not produce an active raster layer: ${JSON.stringify({
+      sourceLayerId: rasterizeSource,
+      document: await driver.queryDocument(uiDocumentId),
+      layers: await driver.queryLayers(uiDocumentId),
+      recording: await driver.queryActionRecording()
+    })}`);
+  });
+  const rasterizeStep = (await driver.queryActionRecording()).steps
+    .find((candidate) => candidate.command === 'layer.rasterize');
+  assert.ok(rasterizeStep?.outcome === 'completed' || rasterizeStep?.outcome === 'accepted',
+    `UI layer rasterization did not complete: ${JSON.stringify(rasterizeStep)}`);
+  assert.ok(rasterizeStep.parameters?.layerId?.$lighttableResult,
+    'Recorded layer rasterization did not bind to the generated vector layer.');
+  assert.equal(rasterizeStep.result?.outputType, 'raster');
   workflowPhase = 'ui-export';
   await window.getByRole('menuitem', { name: 'File' }).click();
   await window.getByRole('menuitem', { name: 'Export PNG', exact: true }).click();
@@ -352,13 +385,18 @@ try {
     return step?.outcome === 'accepted' && step.result?.artifact?.mediaType === 'image/png'
       && step.result.artifact.byteLength > 0;
   }, undefined, { timeout: 60_000 });
-  await recorder.getByRole('button', { name: 'Stop' }).click();
+  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
+    await window.getByRole('menuitem', { name: 'View' }).click();
+    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+  }
+  await window.getByRole('complementary', { name: 'Actions' })
+    .locator('.lighttable-action-recorder').getByRole('button', { name: 'Stop' }).click();
 
   const recording = await driver.queryActionRecording();
   const commands = recording.steps.filter(({ replayable }) => replayable).map(({ command }) => command);
   for (const command of [
     'vector.create', 'layer.setTransform', 'layer.rename', 'text.create', 'text.replaceRange',
-    'text.format', 'file.exportPng'
+    'text.format', 'layer.rasterize', 'file.exportPng'
   ]) {
     assert.ok(commands.includes(command), `UI recording omitted ${command}: ${commands.join(', ')}`);
   }
@@ -556,9 +594,9 @@ try {
   const mcpFailureBeforeRaw = await collectMcpState(mcp, mcpDocumentId);
   const mcpFailureBefore = normalizeRouteState(mcpFailureBeforeRaw);
   const failureRevision = mcpFailureBeforeRaw.document.canonicalRevision;
-  const failureLayerId = mcpFailureBeforeRaw.layers.find(({ type }) => type === 'vector')?.id;
+  const failureLayerId = mcpFailureBeforeRaw.layers[0]?.id;
   const failureText = mcpFailureBeforeRaw.texts[0];
-  if (!failureLayerId || !failureText) throw new Error('Failure proof requires vector and text targets.');
+  if (!failureLayerId || !failureText) throw new Error('Failure proof requires layer and text targets.');
   const staleFailure = mcpResult(await mcp.callTool({ name: 'lighttable_execute', arguments: {
     documentId: mcpDocumentId,
     command: 'layer.rename',
@@ -589,8 +627,10 @@ try {
     await window.getByRole('menuitem', { name: 'View' }).click();
     await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   }
-  await recorder.getByRole('button', { name: 'Clear' }).click();
-  await recorder.getByRole('button', { name: 'Record' }).click();
+  let failureRecorder = window.getByRole('complementary', { name: 'Actions' })
+    .locator('.lighttable-action-recorder');
+  await failureRecorder.getByRole('button', { name: 'Clear' }).click();
+  await failureRecorder.getByRole('button', { name: 'Record' }).click();
   await window.getByRole('button', { name: 'Type tool (T)', exact: true }).first().click();
   const failureViewport = window.locator('.lighttable-viewport:visible').last();
   const failureBounds = await failureViewport.boundingBox();
@@ -604,7 +644,13 @@ try {
   await failureInput.pressSequentially('!');
   await failureInput.press('Escape');
   await waitForRecorded('text.replaceRange');
-  await recorder.getByRole('button', { name: 'Stop' }).click();
+  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
+    await window.getByRole('menuitem', { name: 'View' }).click();
+    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+  }
+  failureRecorder = window.getByRole('complementary', { name: 'Actions' })
+    .locator('.lighttable-action-recorder');
+  await failureRecorder.getByRole('button', { name: 'Stop' }).click();
   const targetFailureRecording = await driver.queryActionRecording();
   assert.equal(targetFailureRecording.steps.length, 1,
     `Target failure recording should contain one edit: ${JSON.stringify(targetFailureRecording.steps)}`);
@@ -614,10 +660,16 @@ try {
     'The target failure needs a fixed existing layer ID, not a generated binding.');
   const missingTargetDocumentId = await createDocumentThroughMcp(mcp, driver, 'Actions missing target');
   const actionsFailureBefore = normalizeRouteState(await collectDriverState(driver, missingTargetDocumentId));
-  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
-  await recorder.getByRole('status').filter({ hasText: 'Playback: failed at step 1' })
+  if (!await window.getByRole('complementary', { name: 'Actions' }).count()) {
+    await window.getByRole('menuitem', { name: 'View' }).click();
+    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
+  }
+  failureRecorder = window.getByRole('complementary', { name: 'Actions' })
+    .locator('.lighttable-action-recorder');
+  await failureRecorder.getByRole('button', { name: 'Play', exact: true }).click();
+  await failureRecorder.getByRole('status').filter({ hasText: 'Playback: failed at step 1' })
     .waitFor({ timeout: 30_000 });
-  const actionsFailureMessage = (await recorder.locator('.lighttable-action-recorder__steps li').first()
+  const actionsFailureMessage = (await failureRecorder.locator('.lighttable-action-recorder__steps li').first()
     .locator('.lighttable-action-recorder__warning').textContent())?.trim() ?? '';
   assert.match(actionsFailureMessage, /target text layer does not exist/i);
   assert.deepEqual(normalizeRouteState(await collectDriverState(driver, missingTargetDocumentId)),
