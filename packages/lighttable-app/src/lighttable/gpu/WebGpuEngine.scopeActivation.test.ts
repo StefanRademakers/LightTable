@@ -27,4 +27,32 @@ describe('WebGpuEngine scope presentation ownership', () => {
     expect((engine as unknown as { requestRender: ReturnType<typeof vi.fn> })
       .requestRender).toHaveBeenCalledOnce();
   });
+
+  it('refreshes canvas visibility when scope options expand a hidden section', () => {
+    const scopeRuntime = {
+      setOptions: vi.fn(() => true),
+      resize: vi.fn(() => true)
+    };
+    const engine = {
+      histogramRuntime: { setVisible: vi.fn(() => false) },
+      scopeRuntime,
+      renderDirty: { invalidate: vi.fn() },
+      requestRender: vi.fn()
+    } as unknown as WebGpuEngine;
+
+    WebGpuEngine.prototype.setScopeOptions.call(engine, false, {
+      hueDistributionVisible: true,
+      paradeVisible: true,
+      vectorscopeVisible: true,
+      quality: 'high',
+      traceBrightness: 100,
+      vectorscopeRange: 'all',
+      vectorscopeZoom2x: false
+    });
+
+    expect(scopeRuntime.setOptions).toHaveBeenCalledOnce();
+    expect(scopeRuntime.resize).toHaveBeenCalledOnce();
+    expect((engine as unknown as { requestRender: ReturnType<typeof vi.fn> })
+      .requestRender).toHaveBeenCalledOnce();
+  });
 });

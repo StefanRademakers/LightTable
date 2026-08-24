@@ -2356,7 +2356,14 @@ export class WebGpuEngine {
     const histogramBecameVisible = this.histogramRuntime?.setVisible(histogramVisible) ?? false;
     if (histogramBecameVisible) this.renderDirty.invalidate('histogram');
     const scopesChanged = this.scopeRuntime.setOptions(options);
-    if (histogramBecameVisible || scopesChanged) this.requestRender();
+    // Section expansion changes a canvas from `hidden` to laid out without
+    // necessarily resizing the scopes panel itself. ResizeObserver is not
+    // required to fire for that transition, so refresh the presentation
+    // visibility synchronously from the post-commit effect that publishes
+    // these options. Otherwise the runtime can retain "no visible scopes"
+    // and never schedule the analysis/display work that would wake it.
+    const scopePresentationChanged = scopesChanged && this.scopeRuntime.resize();
+    if (histogramBecameVisible || scopesChanged || scopePresentationChanged) this.requestRender();
   }
 
   setScopeInteractionActive(active: boolean) {
