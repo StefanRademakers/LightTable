@@ -26,6 +26,12 @@ macOS, `build.sh` runs the same verification/package boundary and passes that
 already verified package to Forge's ZIP maker with `--skip-package`; it then
 extracts the final ZIP and revalidates every application signature.
 
+Qualification may set `LIGHTTABLE_PACKAGE_OUT` to isolate a package from a
+running or previously tested build. Packaged automation must resolve that build
+through `LIGHTTABLE_TEST_EXECUTABLE`; it must not silently fall back to
+`apps/desktop/out`. This keeps clean-release and instrumented evidence distinct
+and avoids Windows file-lock collisions without deleting a live package.
+
 ## Supported outputs
 
 LightTable has one source tree and three independently built distributions:

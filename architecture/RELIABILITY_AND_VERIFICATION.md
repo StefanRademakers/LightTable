@@ -74,6 +74,14 @@ graph, detect a missing bounded Rust scene and rehydrate it from canonical-
 derived PaintScene. A renderer-only SVG preview may disappear during recovery;
 it must never be substituted for canonical content.
 
+Automatic GPU recovery is conditional on reconstructability. Canonical vector
+and other reconstructable documents may rebuild a fresh renderer and must
+return pixel-identically. A raster document whose authoritative pixels, masks,
+patterns or LUT resources exist only on the lost device enters an explicit
+checkpoint-required failure state; LightTable must not present an empty
+replacement as recovery. `audit-desktop-device-loss.mjs` exercises both
+policies against a packaged application.
+
 ## Test ladder
 
 Support diagnostics follow the local-only, bounded and centrally redacted
@@ -88,6 +96,13 @@ uses existing snapshots and cannot invoke a renderer recomposition or readback.
 6. Web build and browser smoke tests.
 7. Electron dev and packaged smoke tests.
 8. Cross-device interaction profiling, especially integrated Mac GPUs.
+
+The architecture-stability packaged set includes document pixel retention,
+active-layer and layer-selection stability, screen/workspace modes, tool
+switching, scope wake-up, adjustment presentation, source save, OS-open,
+device-loss policy and exact UI/Actions/MCP route equivalence. These routes are
+focused regression gates, not a substitute for owner interaction testing or a
+multi-hour supported-hardware soak.
 
 The desktop/full profiles also run the bounded supported-hardware soak. Its
 `overnight` profile covers at least twelve requested hours; shorter profiles

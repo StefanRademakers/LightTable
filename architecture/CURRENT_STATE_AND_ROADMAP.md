@@ -13,6 +13,9 @@ milestone changes those boundaries; feature task details belong in
   recurring background rendering.
 - Document-scoped history, source, viewport and revisions plus application-wide
   workspace layout and tool state; tab/preset switches do not mutate documents.
+- Generation-pinned source publication, export and renderer callbacks reject
+  late work after a document/renderer rebind. Prepared source/document/history
+  publication is one externally observable session snapshot.
 - Canonical raster, group, adjustment and vector layers with masks, clipping,
   styles and scene transforms.
 - Pure compositor planning before GPU encoding.
@@ -79,6 +82,13 @@ milestone changes those boundaries; feature task details belong in
 - One contextual Properties shell tracks explicit layer, mask, local processing
   and Layer Style targets, and routes Grade, Lens Fx, Text and Effects to
   independently owned editors.
+- Universal layer rasterization is available through one semantic command and
+  shared capability projection for Layer-panel UI, Actions and MCP. Packaged
+  route evidence covers generated-ID binding, replay, undo/redo and exact pixel
+  equivalence.
+- Hidden scope sections remain idle and explicitly wake on visibility/workspace
+  activation; packaged evidence covers Hue Distribution, RGB Parade and
+  Vectorscope without document revision, history or pixel mutation.
 
 ## Partial or incomplete
 

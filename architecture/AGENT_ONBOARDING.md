@@ -78,7 +78,7 @@ When the recovered work concerns rendering, SVG, document startup, canvas
 tools or workspace state, use this reset state before reading historical task
 reports:
 
-- **Current, 2026-08-23:** LightTable has one shipping **hybrid vector
+- **Current, 2026-08-24:** LightTable has one shipping **hybrid vector
   renderer**. There are no normal `:vello` development/package switches and no
   per-document backend mode. `run_clean.bat`, `run_dev.bat`, `run_release.bat`,
   `build.bat`, `npm run dev:desktop` and `npm run package:desktop` all build the
@@ -122,6 +122,24 @@ reports:
   alive after gestures/picks, use tight multi-layer bounds, restore
   selection-aware pixel Invert and support topmost alpha-aware Shift-click
   canvas layer selection.
+- Source preparation and export now carry the document/session/renderer
+  generation they were started against. A late decode, preview, export or
+  recovery callback is rejected after a renderer rebind instead of publishing
+  into the newly active document. Prepared source, document and history state
+  publish as one session snapshot rather than three observable partial states.
+- Pointer-hot group transforms and partial vector drags keep their transient
+  transform in retained renderer state until pointer-up. React and canonical
+  state receive one final semantic commit. Settled composites are reused while
+  moving layers, and floating controls cannot leak keyboard commands into the
+  canvas command router.
+- `layer.rasterize` is the universal semantic finalization command for every
+  admitted unlocked layer type. Layer-panel UI, Actions and MCP use the same
+  command/capability decision and the packaged route-equivalence gate compares
+  canonical state, history and pixels after replay.
+- Scope canvases explicitly wake and resize when a previously hidden section
+  or workspace becomes visible. The packaged scopes gate verifies real signal
+  in Hue Distribution, RGB Parade and Vectorscope, then confirms that scope UI
+  changes leave canonical revision, history and document pixels unchanged.
 - The same stabilization pass made command availability independent from a
   hidden editor mount, preserved application services through React Strict Mode
   reconnects, made workspace preset switching deterministic, rejected stale
