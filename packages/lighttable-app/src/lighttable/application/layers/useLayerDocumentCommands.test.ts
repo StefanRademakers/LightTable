@@ -750,6 +750,31 @@ describe('useLayerDocumentCommands', () => {
     expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledTimes(1);
   });
 
+  it('applies an authored Gradient Map when attached directly to a raster layer', () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const rasterId = state.document().layers[0]!.id;
+    expect(state.commands.createAttachedAdjustment(rasterId, 'gradient-map', {
+      colorStops: [
+        { position: 0, midpoint: 0.4, color: { r: 0.1, g: 0.2, b: 0.3 } },
+        { position: 1, midpoint: 0.6, color: { r: 0.9, g: 0.8, b: 0.7 } }
+      ],
+      opacityStops: [
+        { position: 0, midpoint: 0.5, opacity: 0.75 },
+        { position: 1, midpoint: 0.5, opacity: 1 }
+      ],
+      reverse: true,
+      interpolation: 'smooth'
+    })).toMatch(/^attached-/);
+    const raster = state.document().layers[0];
+    if (raster?.type !== 'raster') throw new Error('Expected raster layer.');
+    const gradientMap = raster.attachedAdjustments?.[0]?.adjustmentStack.modules[0]
+      ?.settings.gradientMap as GradientMapAdjustments | undefined;
+    expect(gradientMap).toMatchObject({ enabled: true, reverse: true, interpolation: 'smooth' });
+    expect(gradientMap?.colorStops[0]?.color).toEqual({ r: 0.1, g: 0.2, b: 0.3 });
+    expect(gradientMap?.opacityStops[0]?.opacity).toBe(0.75);
+    expect(state.dependencies.pushDocumentHistory).toHaveBeenCalledTimes(1);
+  });
+
   it('attaches independent adjustment nodes without replacing the raster local grade', () => {
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const raster = state.document().layers[0]!;

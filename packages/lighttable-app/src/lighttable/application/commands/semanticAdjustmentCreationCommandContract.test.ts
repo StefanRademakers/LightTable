@@ -18,7 +18,7 @@ describe('semantic adjustment creation contract', () => {
       kind: 'posterize', placement: 'adjustment-layer', settings: { posterizeLevels: 6 }
     });
     expect(parseSemanticAdjustmentCreationCommand({
-      kind: 'gradient-map', placement: 'adjustment-layer', settings: {
+      kind: 'gradient-map', placement: 'attached', layerId: 'photo', settings: {
         colorStops: [
           { position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0.2 } },
           { position: 1, midpoint: 0.5, color: { r: 1, g: 0.8, b: 0.1 } }
@@ -30,7 +30,7 @@ describe('semantic adjustment creation contract', () => {
         dither: true
       }
     })).toMatchObject({
-      kind: 'gradient-map', placement: 'adjustment-layer',
+      kind: 'gradient-map', placement: 'attached', layerId: 'photo',
       settings: { dither: true }
     });
     expect(parseSemanticAdjustmentCreationCommand({ kind: 'curves', placement: 'adjustment-layer', aboveLayerId: 'title' }))
