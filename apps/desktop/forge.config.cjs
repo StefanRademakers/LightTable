@@ -5,6 +5,7 @@ const { MakerDeb } = require('@electron-forge/maker-deb');
 const { VitePlugin } = require('@electron-forge/plugin-vite');
 const fs = require('node:fs');
 const path = require('node:path');
+const { resolveMacSigningPolicy } = require('./macSigningPolicy.cjs');
 
 const localAiProviderPath = path.resolve(__dirname, '../local-ai-provider');
 const localAiRuntimePath = path.resolve(__dirname, '../../.referenceCode/local-ai-runtime');
@@ -24,15 +25,7 @@ const macNotarize = process.env.LIGHTTABLE_MAC_NOTARIZE === 'true'
     })()
   : undefined;
 
-const macSign = process.env.LIGHTTABLE_MAC_SIGN_IDENTITY
-  ? { identity: process.env.LIGHTTABLE_MAC_SIGN_IDENTITY }
-  : process.platform === 'darwin'
-    // Apple Silicon requires every executable to carry a valid code
-    // signature. An ad-hoc signature has no publisher identity and cannot be
-    // notarized, but it produces a runnable private-testing build without an
-    // Apple Developer Program membership.
-    ? { identity: '-', identityValidation: false }
-    : undefined;
+const macSign = resolveMacSigningPolicy(process.platform, process.env);
 
 if (macNotarize && !process.env.LIGHTTABLE_MAC_SIGN_IDENTITY) {
   throw new Error('macOS notarization requires a Developer ID Application signing identity.');

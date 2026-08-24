@@ -80,7 +80,13 @@ configured. Do not describe an unsigned package as a production installer.
 ## macOS signing and notarization
 
 Manual workflow runs without Apple secrets produce an ad-hoc signed build for
-private testing. A tagged build fails closed unless all of these GitHub Actions
+private testing. Ad-hoc packages deliberately disable Hardened Runtime: without
+an Apple Team ID, enabling it makes dyld library validation reject Electron
+Framework on current macOS releases. `run_release.sh` and `build.sh` verify that
+all nested code is ad-hoc, has no Team ID and has no `runtime` flag before the
+app is launched or archived. Developer ID packages take the inverse policy:
+Hardened Runtime is mandatory and every nested target must share the app's Team
+ID. A tagged build fails closed unless all of these GitHub Actions
 repository secrets are present:
 
 - `MAC_CERTIFICATE_P12_BASE64`: Base64-encoded Developer ID Application `.p12`;

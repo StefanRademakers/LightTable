@@ -3,6 +3,14 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+fail() {
+  echo "[LightTable] $*" >&2
+  exit 1
+}
+
+# shellcheck source=scripts/macos-signing-validation.sh
+source "scripts/macos-signing-validation.sh"
+
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "[LightTable] run_release.sh currently targets macOS." >&2
   exit 1
@@ -41,6 +49,17 @@ LIGHTTABLE_PACKAGE_OUT=out-local-release npm run package:desktop
 if [ ! -d "$app_path" ]; then
   echo "[LightTable] Packaged application was not found: $app_path" >&2
   exit 1
+fi
+
+command -v codesign >/dev/null 2>&1 || fail "codesign was not found."
+if [ -n "${LIGHTTABLE_MAC_SIGN_IDENTITY:-}" ]; then
+  app_details="$(signature_details "$app_path")" || fail "Could not inspect the packaged app signature."
+  signing_team="$(signature_field "$app_details" "TeamIdentifier")"
+  [ -n "$signing_team" ] && [ "$signing_team" != "not set" ] \
+    || fail "Developer ID build has no TeamIdentifier."
+  validate_macos_app "$app_path" "developer-id" "$signing_team"
+else
+  validate_macos_app "$app_path" "adhoc" ""
 fi
 
 echo "[LightTable] Starting the optimized production build..."

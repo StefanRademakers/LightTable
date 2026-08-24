@@ -36,15 +36,20 @@ clipboard, system-font reads and update checks are explicit preload capabilities
 
 ## Signing and notarization
 
-Local packages are intentionally unsigned and About says so. No certificate,
+Local packages have no publisher identity and About reports them as unsigned.
+On macOS they nevertheless carry the ad-hoc signatures required by Apple
+Silicon. Those private-test signatures explicitly disable Hardened Runtime, so
+identity-less Electron Framework code is not rejected by same-team library
+validation. Developer ID packages explicitly enable Hardened Runtime and every
+nested framework/helper must carry the same Apple Team ID. No certificate,
 private key, Apple credential, token or update-provider credential belongs in
-Git. Forge activates macOS signing only with `LIGHTTABLE_MAC_SIGN_IDENTITY` and
-notarization only when the CI secret set is complete. The cross-platform build
-workflow and Windows Squirrel installer now exist; Windows Authenticode and the
-production installer handoff remain unavailable until a certificate-backed CI
-provider is selected. CI must verify the resulting OS signature before it sets
-`LIGHTTABLE_RELEASE_SIGNED=true`; this flag is product metadata, not itself a
-cryptographic proof. See [Build and distribution](BUILD_AND_DISTRIBUTION.md).
+Git. Notarization activates only when the CI secret set is complete. The
+cross-platform build workflow and Windows Squirrel installer now exist;
+Windows Authenticode and the production installer handoff remain unavailable
+until a certificate-backed CI provider is selected. CI must verify the
+resulting OS signature before it sets `LIGHTTABLE_RELEASE_SIGNED=true`; this
+flag is product metadata, not itself a cryptographic proof. See
+[Build and distribution](BUILD_AND_DISTRIBUTION.md).
 
 Production signing is therefore an explicit external gate, not a silent local
 fallback. The repository can fully test signature verification without owning

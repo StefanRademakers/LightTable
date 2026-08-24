@@ -22,72 +22,12 @@ fail() {
   exit 1
 }
 
+# shellcheck source=scripts/macos-signing-validation.sh
+source "scripts/macos-signing-validation.sh"
+
 require_value() {
   local name="$1"
   [ -n "${!name:-}" ] || fail "macOS notarization requires $name."
-}
-
-signature_details() {
-  codesign --display --verbose=4 "$1" 2>&1
-}
-
-signature_field() {
-  local details="$1"
-  local field="$2"
-  printf '%s\n' "$details" | sed -n "s/^${field}=//p" | head -n 1
-}
-
-validate_signature_target() {
-  local target="$1"
-  local expected_kind="$2"
-  local expected_team="$3"
-  local details signature team
-
-  details="$(signature_details "$target")" || fail "Could not inspect the signature for: $target"
-  signature="$(signature_field "$details" "Signature")"
-  team="$(signature_field "$details" "TeamIdentifier")"
-
-  [ -n "$team" ] || fail "No TeamIdentifier was reported for: $target"
-
-  if [ "$expected_kind" = "adhoc" ]; then
-    [ "$signature" = "adhoc" ] || fail "Mixed macOS signing: expected an ad-hoc signature for $target, found '$signature'."
-    [ "$team" = "not set" ] || fail "Mixed macOS signing: expected TeamIdentifier=not set for $target, found '$team'."
-  else
-    [ "$signature" != "adhoc" ] \
-      || fail "Mixed macOS signing: expected a Developer ID signature for $target, found ad-hoc."
-    [ "$team" = "$expected_team" ] || fail "Mixed macOS signing: expected TeamIdentifier=$expected_team for $target, found '$team'."
-  fi
-}
-
-validate_macos_app() {
-  local app_path="$1"
-  local expected_kind="$2"
-  local expected_team="${3:-}"
-  local frameworks_path="$app_path/Contents/Frameworks"
-  local electron_framework="$frameworks_path/Electron Framework.framework/Versions/A/Electron Framework"
-  local target
-
-  [ -d "$app_path" ] || fail "Expected packaged macOS app was not found: $app_path"
-  [ -f "$electron_framework" ] || fail "Electron Framework executable was not found: $electron_framework"
-
-  echo "[LightTable] Validating macOS code signing: $app_path"
-  codesign --verify --deep --strict --verbose=2 "$app_path" \
-    || fail "macOS code-signing verification failed for: $app_path"
-
-  # Validate the main bundle and the framework binary explicitly. The latter
-  # is the dyld-loaded image that exposed mixed Team IDs in private test ZIPs.
-  validate_signature_target "$app_path" "$expected_kind" "$expected_team"
-  validate_signature_target "$electron_framework" "$expected_kind" "$expected_team"
-
-  # A deep validity check alone permits consistently valid but differently
-  # identified nested code. Check every helper/framework/dylib as well so a
-  # mixed Team ID can never reach the release ZIP.
-  while IFS= read -r -d '' target; do
-    validate_signature_target "$target" "$expected_kind" "$expected_team"
-  done < <(find "$frameworks_path" \
-    \( -type d \( -name '*.app' -o -name '*.framework' -o -name '*.xpc' \) \
-       -o -type f -name '*.dylib' \) \
-    -print0)
 }
 
 command -v node >/dev/null 2>&1 || fail "Node.js was not found in PATH."
