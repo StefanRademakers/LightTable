@@ -21,7 +21,7 @@ const response = (value) => ({
   content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
   structuredContent: value
 });
-const MCP_INSTRUCTIONS = 'Start each LightTable task with one lighttable_context call. For design or reconstruction work, read lighttable://guides/design-pass once. Retain stable IDs, canonical revision and capabilities; do not repeat unchanged discovery. Query only planned command schemas, batch each logical phase, then review with a 512px WebP or a targeted region. Use lighttable_performance when diagnosing latency.';
+const MCP_INSTRUCTIONS = 'Start each LightTable task with one lighttable_context call. For design or reconstruction work, read lighttable://guides/design-pass once. Retain every open document ID, canonical revision and capability; explicitly inspect any source document named by the user instead of assuming the active document. Plan a compact layer stack, reuse vector layerId for related shapes, query only planned command schemas, batch each logical phase, then review with a 512px WebP or a targeted region. Use lighttable_performance when diagnosing latency.';
 const failure = (error) => ({ isError: true, content: [{ type: 'text',
   text: error instanceof Error ? error.message : String(error) }] });
 const editable = (context) => context?.http?.authInfo?.scopes?.includes('lighttable:edit') === true;
@@ -160,7 +160,7 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
   }, withResult(() => client.invoke('workspace.query')));
   server.registerTool('lighttable_context', {
     title: 'Inspect current LightTable context',
-    description: 'Preferred first read: returns the workspace, one active or explicit document, its active or explicit layer summary, and live editor capabilities in one bounded tool call. Reuse the returned capabilities, stable IDs and revisions instead of re-querying unchanged state.',
+    description: 'Preferred first read: returns all open document IDs in the workspace plus one active or explicitly requested document, its active or explicit layer summary, and live editor capabilities. Pass documentId to inspect any non-active open document. Reuse returned capabilities, IDs and revisions instead of re-querying unchanged state.',
     inputSchema: z.object({
       documentId: z.string().min(1).optional(),
       layerId: z.string().min(1).optional()
@@ -534,8 +534,9 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
   { edit: true }));
   server.registerTool('lighttable_create_shape', {
     title: 'Create an editable vector shape',
-    description: 'Creates a canonical rectangle, ellipse, star or line with optional solid fill and stroke.',
+    description: 'Creates a canonical rectangle, ellipse, star or line with optional solid fill and stroke. Omit layerId only when starting a new logical vector layer; pass an existing layerId for related or repeated shapes so the layer panel stays compact.',
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1).optional(),
+      layerName: z.string().min(1).max(255).optional(),
       shape: z.enum(['rectangle', 'ellipse', 'star', 'line']), name: z.string().min(1).max(255).optional(),
       x: z.number().finite(), y: z.number().finite(), width: z.number().nonnegative().max(10_000_000),
       height: z.number().nonnegative().max(10_000_000), points: z.number().int().min(3).max(2048).default(5),
@@ -544,7 +545,7 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
       strokeEnabled: z.boolean().default(false), stroke: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#000000'),
       strokeWidth: z.number().nonnegative().max(100_000).default(1),
       expectedDocumentRevision: z.number().int().nonnegative().optional() })
-  }, withResult(({ documentId, layerId, shape, name, x, y, width, height, points, innerRatio,
+  }, withResult(({ documentId, layerId, layerName, shape, name, x, y, width, height, points, innerRatio,
     fillEnabled, fill, strokeEnabled, stroke, strokeWidth, expectedDocumentRevision }) => {
     const primitive = shape === 'star'
       ? { kind: 'star', cx: x, cy: y, points, outerRadius: width,
@@ -553,7 +554,8 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
         : { kind: shape, x, y, width, height };
     return client.invoke('command.execute', { documentId, command: 'vector.create',
       commandRequestId: crypto.randomUUID(), ...(expectedDocumentRevision === undefined ? {} : { expectedDocumentRevision }),
-      commandParameters: { ...(layerId ? { layerId } : {}), ...(name ? { name } : {}), primitive,
+      commandParameters: { ...(layerId ? { layerId } : {}), ...(!layerId && layerName ? { layerName } : {}),
+        ...(name ? { name } : {}), primitive,
         style: { fill: fillEnabled ? { type: 'solid', color: hexLinearRgba(fill) } : null,
           stroke: strokeEnabled ? { paint: { type: 'solid', color: hexLinearRgba(stroke) }, width: strokeWidth,
             alignment: 'center', cap: 'butt', join: 'miter', miterLimit: 4, dash: [], dashOffset: 0 } : null } } });

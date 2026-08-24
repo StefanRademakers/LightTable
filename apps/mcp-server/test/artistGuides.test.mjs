@@ -37,3 +37,12 @@ test('artist guide command examples conform to the shared command contract', () 
     }
   }
 });
+
+test('design guidance requires compact layers and explicit multi-document inspection', () => {
+  const onboarding = LIGHTTABLE_ARTIST_GUIDES.find(({ id }) => id === 'artist-onboarding');
+  const design = LIGHTTABLE_ARTIST_GUIDES.find(({ id }) => id === 'design-pass');
+  assert.match(onboarding.text, /Reuse one vector layer/u);
+  assert.match(design.text, /reusing layerId/u);
+  assert.match(design.text, /each requested asset by stable documentId/u);
+  assert.match(design.text, /dozens of "Circle" layers/u);
+});

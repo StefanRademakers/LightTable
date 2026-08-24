@@ -1,7 +1,7 @@
 export const LIGHTTABLE_ARTIST_GUIDES = Object.freeze([
   {
     id: 'artist-onboarding',
-    version: 1,
+    version: 2,
     uri: 'lighttable://guides/artist-onboarding',
     title: 'LightTable artist onboarding',
     description: 'Plan, build, inspect and correct editable LightTable artwork with bounded MCP traffic.',
@@ -12,8 +12,9 @@ Use LightTable as a native layered editor, not as a bitmap-generation endpoint.
 1. Begin with lighttable_context once. It returns the workspace, active document, active layer summary and live editor capabilities in one bounded call.
 2. Keep the returned stable IDs, canonical revision and capability decisions in working memory for the session. Do not repeat unchanged workspace, document, layer or command-schema queries.
 3. Use the returned capability list as your menu, then request lighttable_commands only for command schemas that the planned work will actually execute.
-4. Plan the layer stack before editing. Preserve text as text and vector artwork as native vectors.
+4. Plan a compact, human-readable layer stack before editing. Preserve text as text and vector artwork as native vectors.
    When a generated illustration already exists as SVG data, send it once through lighttable_import_svg; supported geometry becomes editable native paths and primitives in one atomic document change.
+   Reuse one vector layer for repeated motifs or shapes that belong together. Pass the first vector.create result layerId to later vector.create operations; do not create one layer per dot, line or decorative fragment.
 5. When two or more known edits belong to one logical phase, prefer lighttable_batch over repeated lighttable_execute calls.
 6. Use resultOf references inside a batch when a later operation needs an ID created by an earlier operation.
 7. Build in logical phases such as background, decoration, hero shape, typography and correction.
@@ -32,7 +33,7 @@ Recommended follow-up guides:
   },
   {
     id: 'efficient-batching',
-    version: 1,
+    version: 2,
     uri: 'lighttable://guides/efficient-batching',
     title: 'Efficient atomic batching',
     description: 'Combine planned semantic edits into bounded atomic publications with result references.',
@@ -70,12 +71,43 @@ Example: create and rename editable point text in one call:
 }
 \`\`\`
 
+Example: keep a repeated dot motif in one editable vector layer. The first operation creates the layer; later operations append elements through a result reference:
+
+\`\`\`json
+{
+  "name": "Create dot motif",
+  "timeoutMs": 5000,
+  "operations": [
+    {
+      "operationId": "dot-1",
+      "command": "vector.create",
+      "parameters": {
+        "layerName": "Dot motif",
+        "name": "Dot 1",
+        "primitive": { "kind": "ellipse", "x": 100, "y": 100, "width": 12, "height": 12 },
+        "style": { "fill": { "type": "solid", "color": [1, 0.1, 0.4, 1] } }
+      }
+    },
+    {
+      "operationId": "dot-2",
+      "command": "vector.create",
+      "parameters": {
+        "layerId": { "resultOf": "dot-1", "field": "layerId" },
+        "name": "Dot 2",
+        "primitive": { "kind": "ellipse", "x": 124, "y": 100, "width": 12, "height": 12 },
+        "style": { "fill": { "type": "solid", "color": [1, 0.1, 0.4, 1] } }
+      }
+    }
+  ]
+}
+\`\`\`
+
 Query command.batch through lighttable_commands for the complete current operation schema. Carry expectedDocumentRevision at the lighttable_batch tool boundary.
 `
   },
   {
     id: 'native-vector-paths',
-    version: 1,
+    version: 2,
     uri: 'lighttable://guides/native-vector-paths',
     title: 'Native Bezier vector paths',
     description: 'Create editable organic vector shapes using native subpaths, anchors and handles.',
@@ -116,13 +148,13 @@ Query vector.create through lighttable_commands before use; the shared contract 
   },
   {
     id: 'design-pass',
-    version: 1,
+    version: 2,
     uri: 'lighttable://guides/design-pass',
     title: 'LightTable design pass',
     description: 'A compact senior-design workflow for coherent, editable artwork with few observation rounds.',
     text: `# LightTable design pass
 
-Version 1
+Version 2
 
 Use this workflow for original design, reconstruction and substantial redesign. The goal is a coherent editable result, not merely a technically valid pile of layers.
 
@@ -140,7 +172,9 @@ Infer only low-risk omissions. Preserve exact user copy and supplied identity or
 
 ## Inspect once and plan
 
-Call lighttable_context once and retain its IDs, revision, capabilities and guide versions. Inspect an existing document with bounded structure, text/vector detail, bounds and palette queries. Use a 512px WebP only when pixels add information that structure cannot provide.
+Call lighttable_context once and retain its IDs, revision, capabilities and guide versions. Its workspace result inventories every open document. When the brief names supplied images or another open document, resolve each requested asset by stable documentId and inspect it explicitly with lighttable_context or a targeted read; never silently substitute the active document. Use selection.copyPixels and selection.pastePixels when a requested open raster document must become content in the target design.
+
+Inspect an existing document with bounded structure, text/vector detail, bounds and palette queries. Use a 512px WebP only when pixels add information that structure cannot provide.
 
 Plan these five things before construction:
 
@@ -148,7 +182,7 @@ Plan these five things before construction:
 2. composition, margins, grid and major spatial relationships;
 3. typography roles and a deliberately small type scale;
 4. palette, contrast and the role of each accent color;
-5. editable layer/group structure and meaningful names.
+5. editable layer/group structure, a sensible layer budget and meaningful names.
 
 Prefer a small repeated spacing vocabulary inferred from the brief or existing work. Consistency matters more than forcing a universal numeric grid.
 
@@ -156,7 +190,7 @@ Prefer a small repeated spacing vocabulary inferred from the brief or existing w
 
 Construct in logical phases: foundation, major composition, typography, supporting elements, then polish. Use one atomic lighttable_batch per phase when no visual decision is needed between its operations. Keep text as text, reusable geometry as vectors and photos as raster content. Preserve gradients, effects and adjustments as editable properties where supported.
 
-Avoid premature detail, accidental near-duplicate colors, gratuitous effects, arbitrary radii, too many type styles and dozens of fragments that should be one logical group. Do not rasterize merely to conceal an unsupported capability.
+Treat layers as user-facing design objects, not one-command containers. Give separate layers to independently selectable concepts such as the background, each photo, each text role and each major illustration. Put repeated dots, stripes, confetti or related shape fragments in one named vector layer by reusing layerId. Prefer one SVG import for a dense generated vector motif. Create separate layers only when independent selection, ordering, blending, masking or effects require them. Avoid default names such as dozens of "Circle" layers, premature detail, accidental near-duplicate colors, gratuitous effects, arbitrary radii and too many type styles. Do not rasterize merely to conceal an unsupported capability.
 
 Use layer.rasterize only when the user requests destructive finalization or when a declared output contract explicitly requires pixels. Discover its current schema first, target one stable layerId, and retain the returned outputLayerId for later operations. A layer that is already a plain raster with no live processing normally gains nothing from being rasterized again.
 

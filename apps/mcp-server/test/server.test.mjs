@@ -89,6 +89,10 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   }
   const svgTool = tools.tools.find(({ name }) => name === 'lighttable_import_svg');
   assert.equal(svgTool.inputSchema.properties.svg.maxLength, 32 * 1024 * 1024);
+  const shapeTool = tools.tools.find(({ name }) => name === 'lighttable_create_shape');
+  assert.ok(shapeTool.inputSchema.properties.layerId);
+  assert.ok(shapeTool.inputSchema.properties.layerName);
+  assert.match(shapeTool.description, /layer panel stays compact/u);
   const resources = await reader.listResources();
   assert.deepEqual(resources.resources.map(({ uri }) => uri).sort(), [
     'lighttable://guides/artist-onboarding',
@@ -102,6 +106,7 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   const designPass = await reader.readResource({ uri: 'lighttable://guides/design-pass' });
   assert.match(designPass.contents[0].text, /Critique before correcting/u);
   assert.match(designPass.contents[0].text, /512px WebP at quality 0.78/u);
+  assert.match(designPass.contents[0].text, /reusing layerId/u);
   const contextSnapshot = await reader.callTool({ name: 'lighttable_context', arguments: {} });
   assert.equal(contextSnapshot.isError, undefined);
   assert.equal(contextSnapshot.structuredContent.workspace.activeDocumentId, 'document-demo');
@@ -471,10 +476,12 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
     commandParameters: { svg: dedicatedSvg, placement: 'document', layerName: 'Generated mark' }
   });
   const shape = await editor.callTool({ name: 'lighttable_create_shape', arguments: {
-    documentId: 'document-demo', shape: 'rectangle', x: 20, y: 30, width: 200, height: 120,
+    documentId: 'document-demo', layerName: 'Framing shapes', shape: 'rectangle',
+    x: 20, y: 30, width: 200, height: 120,
     fillEnabled: false, strokeEnabled: true, stroke: '#ff0000', strokeWidth: 12
   } });
   assert.equal(shape.isError, undefined);
+  assert.equal(commandCalls.at(-1).commandParameters.layerName, 'Framing shapes');
   const vector = await reader.callTool({ name: 'lighttable_vector', arguments: {
     documentId: 'document-demo', layerId: 'layer-vector'
   } });
