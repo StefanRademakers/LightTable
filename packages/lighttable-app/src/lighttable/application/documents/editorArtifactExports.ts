@@ -2,6 +2,7 @@ import type { ImageDocument } from '../../editor/document/documentTypes';
 import type { DocumentRendererPort } from '../../infrastructure/rendering/webGpuDocumentRenderer';
 import type { DocumentPixelRegion } from '../../editor/geometry/documentRegionPreview';
 import { exportPsdDocument, type ExportedPsdDocument } from './PsdExportClient';
+import type { RendererBindingToken } from '../rendering/rendererBindingToken';
 
 const exportFileName = (sourceName: string, suffix: string): string =>
   `${sourceName.replace(/\.[^.]+$/, '') || 'image'}-${suffix}`;
@@ -9,12 +10,15 @@ const exportFileName = (sourceName: string, suffix: string): string =>
 export const exportEditorPngArtifact = async (
   renderer: DocumentRendererPort | null,
   document: ImageDocument | null,
-  sourceName: string
+  sourceName: string,
+  binding?: RendererBindingToken<DocumentRendererPort>
 ): Promise<File> => {
   if (!renderer || !document) throw new Error('The document renderer is not ready.');
   renderer.synchronizeDocumentForExport(document);
+  const pixels = await renderer.exportPng();
+  binding?.assertCurrent('PNG export');
   return new File(
-    [await renderer.exportPng()],
+    [pixels],
     exportFileName(sourceName, 'lighttable.png'),
     { type: 'image/png' }
   );
@@ -25,14 +29,17 @@ export const exportEditorPreviewArtifact = async (
   document: ImageDocument | null,
   sourceName: string,
   maxEdge: number,
-  region?: DocumentPixelRegion
+  region?: DocumentPixelRegion,
+  binding?: RendererBindingToken<DocumentRendererPort>
 ): Promise<File> => {
   if (!renderer || !document) throw new Error('The document renderer is not ready.');
   renderer.synchronizeDocumentForExport(document);
+  const pixels = await (region
+    ? renderer.exportRegionThumbnailPng(region, maxEdge)
+    : renderer.exportThumbnailPng(maxEdge));
+  binding?.assertCurrent('Preview export');
   return new File(
-    [await (region
-      ? renderer.exportRegionThumbnailPng(region, maxEdge)
-      : renderer.exportThumbnailPng(maxEdge))],
+    [pixels],
     exportFileName(sourceName, `${region ? 'region-' : ''}preview-${maxEdge}.png`),
     { type: 'image/png' }
   );
@@ -41,7 +48,8 @@ export const exportEditorPreviewArtifact = async (
 export const exportEditorPsdArtifact = async (
   renderer: DocumentRendererPort | null,
   document: ImageDocument | null,
-  sourceName: string
+  sourceName: string,
+  binding?: RendererBindingToken<DocumentRendererPort>
 ): Promise<ExportedPsdDocument> => {
   if (!renderer || !document) throw new Error('The document renderer is not ready.');
   // Automation may request an export in the same event turn as a committed
@@ -52,14 +60,17 @@ export const exportEditorPsdArtifact = async (
   if (!await renderer.waitForTextSourcesForExport()) {
     throw new Error('Text sources changed or could not be prepared for PSD export.');
   }
+  binding?.assertCurrent('PSD export');
   // Final-output text preparation and interactive-quality settlement mutate
   // renderer caches. Keep PSD layer readback behind the authoritative
   // composite so both observe one stable generation rather than racing.
   const composite = await renderer.exportPng();
+  binding?.assertCurrent('PSD export');
   if (!await renderer.waitForTextSourcesForExport()) {
     throw new Error('Exact text sources could not be retained for PSD layer export.');
   }
   const assets = await renderer.exportPsdLayerAssets(document);
+  binding?.assertCurrent('PSD export');
   return exportPsdDocument(
     document,
     composite,

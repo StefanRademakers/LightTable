@@ -24,6 +24,7 @@ import type { EditorApplicationSession } from './application/workspace/editorApp
 import { createActionsPanelCallbacks } from './composition/workspace/createActionsPanelCallbacks';
 import { DocumentTaskRegistry } from './application/tasks/documentTaskRegistry';
 import { DocumentRendererLifecycle } from './application/rendering/documentRendererLifecycle';
+import { captureRendererBinding } from './application/rendering/rendererBindingToken';
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
@@ -6154,6 +6155,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     hasMetadata: Boolean(metadata),
     getDocument: () => imageDocumentRef.current,
     getRenderer: () => engineRef.current,
+    getRendererGeneration: () => rendererLifecycle.getSnapshot().generation,
     getFlatAdjustments: () => adjustmentsRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
     getEffectiveLayeredAdjustments: () => documentAdjustmentsRef.current,
@@ -6203,12 +6205,26 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getCanonicalRevision: () => documentSession?.getSnapshot().documentRevision ?? commandHistory.getSnapshot().currentStateId,
     setStatus: setGradeStatus });
   exportNativeArtifactRef.current = async () => (await exportOutput({ forceLayered: true })).file;
-  exportPngArtifactRef.current = () => exportEditorPngArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
+  const captureCurrentRendererBinding = () => captureRendererBinding({
+    getDocument: () => imageDocumentRef.current,
+    getRenderer: () => engineRef.current,
+    getRendererGeneration: () => rendererLifecycle.getSnapshot().generation
+  });
+  exportPngArtifactRef.current = () => {
+    const binding = captureCurrentRendererBinding();
+    return exportEditorPngArtifact(binding.renderer, binding.document, fileNameBase, binding);
+  };
   exportBitmapArtifactRef.current = (format) => exportBitmapArtifact(format);
-  exportPreviewArtifactRef.current = (maxEdge, region) => exportEditorPreviewArtifact(
-    engineRef.current, imageDocumentRef.current, fileNameBase, maxEdge, region
-  );
-  exportPsdArtifactRef.current = () => exportEditorPsdArtifact(engineRef.current, imageDocumentRef.current, fileNameBase);
+  exportPreviewArtifactRef.current = (maxEdge, region) => {
+    const binding = captureCurrentRendererBinding();
+    return exportEditorPreviewArtifact(
+      binding.renderer, binding.document, fileNameBase, maxEdge, region, binding
+    );
+  };
+  exportPsdArtifactRef.current = () => {
+    const binding = captureCurrentRendererBinding();
+    return exportEditorPsdArtifact(binding.renderer, binding.document, fileNameBase, binding);
+  };
 
   const exportPngThroughCommand = useCallback(async () => {
     const execution = executeRegisteredCommand('file.exportPng', {});

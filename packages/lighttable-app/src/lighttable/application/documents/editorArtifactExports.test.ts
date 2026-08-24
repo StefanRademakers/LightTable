@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument } from '../../editor/document/documentTypes';
 import { exportEditorPreviewArtifact } from './editorArtifactExports';
+import type { RendererBindingToken } from '../rendering/rendererBindingToken';
 
 describe('editor preview artifacts', () => {
   it('synchronizes the canonical snapshot and uses bounded GPU thumbnail readback', async () => {
@@ -32,5 +33,32 @@ describe('editor preview artifacts', () => {
     expect(renderer.exportRegionThumbnailPng).toHaveBeenCalledWith(region, 256);
     expect(renderer.exportThumbnailPng).not.toHaveBeenCalled();
     expect(file.name).toBe('portrait-region-preview-256.png');
+  });
+
+  it('rejects a preview readback completed after renderer rebinding', async () => {
+    const document = createImageDocument('Preview', 1600, 900, 'source');
+    let resolveReadback!: (blob: Blob) => void;
+    const renderer = {
+      synchronizeDocumentForExport: vi.fn(),
+      exportThumbnailPng: vi.fn(() => new Promise<Blob>((resolve) => { resolveReadback = resolve; }))
+    };
+    let current = true;
+    const binding = {
+      document,
+      renderer,
+      rendererGeneration: 1,
+      isCurrent: () => current,
+      assertCurrent: (operation: string) => {
+        if (!current) throw new Error(`${operation} was canceled because the document renderer changed.`);
+      }
+    } as RendererBindingToken<never>;
+    const result = exportEditorPreviewArtifact(
+      renderer as never, document, 'portrait.psd', 512, undefined, binding
+    );
+    current = false;
+    resolveReadback(new Blob(['stale'], { type: 'image/png' }));
+    await expect(result).rejects.toThrow(
+      'Preview export was canceled because the document renderer changed.'
+    );
   });
 });

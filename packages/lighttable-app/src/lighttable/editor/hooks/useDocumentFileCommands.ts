@@ -36,6 +36,7 @@ import { planSourceFormatSave } from '../../application/documents/planSourceForm
 import { WasmVipsEncoder } from '../../image-io/WasmVipsEncoder';
 import { nativeBitmapFormat, type NativeBitmapFormatId } from '../../image-io/nativeBitmapFormats';
 import { exportSvgDocument } from '../../application/vectors/svgDocumentCodec';
+import { captureRendererBinding } from '../../application/rendering/rendererBindingToken';
 
 export interface DocumentFileCommandsOptions {
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
@@ -48,6 +49,7 @@ export interface DocumentFileCommandsOptions {
   readonly hasMetadata: boolean;
   readonly getDocument: () => ImageDocument | null;
   readonly getRenderer: () => DocumentExportRenderer | null;
+  readonly getRendererGeneration?: () => number;
   readonly getFlatAdjustments: () => BasicAdjustments;
   readonly getDocumentAdjustments: () => BasicAdjustments;
   readonly getEffectiveLayeredAdjustments: (
@@ -144,13 +146,16 @@ export const useDocumentFileCommands = (
 
   const exportOutput = useCallback(async (runtime: ExportLightTableRuntimeOptions = {}) => {
     const current = optionsRef.current;
-    const renderer = current.getRenderer();
-    if (!renderer) throw new Error('LightTable is not ready yet.');
-    const imageDocument = current.getDocument();
+    const binding = captureRendererBinding({
+      getDocument: current.getDocument,
+      getRenderer: current.getRenderer,
+      getRendererGeneration: current.getRendererGeneration ?? (() => 0)
+    });
+    const { renderer, document: imageDocument } = binding;
     if (!imageDocument || !current.effectiveSourceFileKey) {
       throw new Error('The LightTable document is not ready yet.');
     }
-    return exportLightTableDocument({
+    const output = await exportLightTableDocument({
       document: imageDocument,
       renderer,
       recipeSourceKey: current.effectiveSourceFileKey,
@@ -163,6 +168,8 @@ export const useDocumentFileCommands = (
       preservedSourceAssets: current.getPreservedSourceAssets(),
       fontAssets: await current.getFontAssets()
     }, runtime);
+    binding.assertCurrent('Document export');
+    return output;
   }, []);
 
   const save = useCallback(async () => {
@@ -189,12 +196,17 @@ export const useDocumentFileCommands = (
         return;
       }
     }
+    const historyRevision = current.commandHistory.getSnapshot().currentStateId;
+    const documentRevision = current.getDocumentRevision?.() ?? historyRevision;
+    const binding = captureRendererBinding({
+      getDocument: current.getDocument,
+      getRenderer: current.getRenderer,
+      getRendererGeneration: current.getRendererGeneration ?? (() => 0)
+    });
     savingRef.current = true;
     setSaving(true);
     current.setError(null);
     current.setStatus?.('Saving…');
-    const historyRevision = current.commandHistory.getSnapshot().currentStateId;
-    const documentRevision = current.getDocumentRevision?.() ?? historyRevision;
     const transactionId = typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `save-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -208,12 +220,11 @@ export const useDocumentFileCommands = (
           revision: documentRevision,
           signal: task.signal,
           isCurrent: () => task.isCurrent()
+            && binding.isCurrent()
             && current.commandHistory.getSnapshot().currentStateId === historyRevision
             && (current.getDocumentRevision?.() ?? historyRevision) === documentRevision,
           prepare: async (): Promise<PreparedDocumentSave> => {
-            const document = current.getDocument();
-            const renderer = current.getRenderer();
-            if (!document || !renderer) throw new Error('LightTable is not ready yet.');
+            const { document, renderer } = binding;
             const sourcePath = current.sourceFile
               ? (current.sourceFile as File & { readonly lightTableSourcePath?: string })
                 .lightTableSourcePath
@@ -235,8 +246,10 @@ export const useDocumentFileCommands = (
               const pixels = plan.bitDepth === 16
                 ? await renderer.exportRgba16!()
                 : await renderer.exportRgba8();
+              binding.assertCurrent('Save');
               nativeBitmapEncoderRef.current ??= new WasmVipsEncoder();
               const blob = await nativeBitmapEncoderRef.current.encode(pixels, plan.format, task.signal);
+              binding.assertCurrent('Save');
               return {
                 file: new File([blob], plan.sourceName, { type: plan.mediaType }),
                 recipe: null,
@@ -244,6 +257,7 @@ export const useDocumentFileCommands = (
               };
             }
             const output = await exportOutput();
+            binding.assertCurrent('Save');
             return {
               file: output.file,
               recipe: output.recipe
@@ -299,9 +313,13 @@ export const useDocumentFileCommands = (
     signal?: AbortSignal
   ): Promise<File> => {
     const current = optionsRef.current;
-    const renderer = current.getRenderer();
-    const document = current.getDocument();
-    if (!renderer || !document || !current.hasMetadata) {
+    const binding = captureRendererBinding({
+      getDocument: current.getDocument,
+      getRenderer: current.getRenderer,
+      getRendererGeneration: current.getRendererGeneration ?? (() => 0)
+    });
+    const { renderer, document } = binding;
+    if (!current.hasMetadata) {
       throw new Error('LightTable is not ready yet.');
     }
     const definition = nativeBitmapFormat(format);
@@ -311,8 +329,10 @@ export const useDocumentFileCommands = (
       throw new Error('Native bitmap readback is unavailable in this renderer.');
     }
     const pixels = bitDepth === 16 ? await renderer.exportRgba16!() : await renderer.exportRgba8();
+    binding.assertCurrent('Bitmap export');
     nativeBitmapEncoderRef.current ??= new WasmVipsEncoder();
     const blob = await nativeBitmapEncoderRef.current.encode(pixels, format, signal);
+    binding.assertCurrent('Bitmap export');
     const base = current.fileNameBase.replace(/\.[^.]+$/, '') || 'image';
     const extension = format === 'jpeg' ? 'jpg' : format === 'tiff' ? 'tif' : format;
     return new File([blob], `${base}-lighttable.${extension}`, { type: definition.mediaType });
@@ -351,16 +371,22 @@ export const useDocumentFileCommands = (
       'export',
       'Export Photoshop document',
       async (task) => {
-        const renderer = current.getRenderer();
-        const imageDocument = current.getDocument();
-        if (!renderer || !imageDocument || !current.hasMetadata) {
+        const binding = captureRendererBinding({
+          getDocument: current.getDocument,
+          getRenderer: current.getRenderer,
+          getRendererGeneration: current.getRendererGeneration ?? (() => 0)
+        });
+        const { renderer, document: imageDocument } = binding;
+        if (!current.hasMetadata) {
           throw new Error('LightTable is not ready yet.');
         }
         const composite = await renderer.exportPng();
+        binding.assertCurrent('PSD export');
         const exportedAssets = intent === 'editable'
           ? await (renderer.exportPsdLayerAssets?.(imageDocument)
             ?? renderer.exportLayerAssets(imageDocument))
           : [];
+        binding.assertCurrent('PSD export');
         task.throwIfCanceled();
         const layerAssets = exportedAssets.filter(
           (asset): asset is LayerAssetBlobs => 'layerId' in asset
@@ -376,6 +402,7 @@ export const useDocumentFileCommands = (
           current.fileNameBase,
           intent
         );
+        binding.assertCurrent('PSD export');
         task.throwIfCanceled();
         if (current.onExportFile) await current.onExportFile(exported.file);
         else downloadOutput(exported.file);
