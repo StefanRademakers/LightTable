@@ -1,5 +1,6 @@
 import type { LayerId, LayerNode } from '../../editor/document/documentTypes';
 import { layerStyleStackIsActive } from '../../editor/styles/layerStyleDefaults';
+import type { LayerGeometryBounds } from '../geometry/layerGeometryQuery';
 
 export interface VectorContentQuerySummary {
   readonly elementCount: number;
@@ -80,6 +81,19 @@ export interface LayerQuerySummary {
   };
   readonly hasActiveEffects: boolean;
   readonly transform: LayerNode['transform'];
+  /**
+   * Revision-bound document geometry shared with snapping and hit-test broad
+   * phase. `visual` is conservative; positive hits still require exact
+   * vector/texture-alpha/mask evaluation.
+   */
+  readonly bounds: {
+    readonly coordinateSpace: 'document';
+    readonly document: { readonly x: number; readonly y: number;
+      readonly width: number; readonly height: number } | null;
+    readonly visual: { readonly x: number; readonly y: number;
+      readonly width: number; readonly height: number } | null;
+    readonly source: LayerGeometryBounds['source'];
+  };
   readonly rasterSurface: {
     readonly width: number;
     readonly height: number;
@@ -99,7 +113,10 @@ export function projectLayerQuery(
   node: LayerNode,
   parentId: LayerId | null,
   depth: number,
-  options: { readonly includeVectorElements?: boolean } = {}
+  options: {
+    readonly includeVectorElements?: boolean;
+    readonly geometry?: LayerGeometryBounds | null;
+  } = {}
 ): LayerQuerySummary {
   const preservedVector = node.type !== 'vector'
     && Boolean(node.photoshop?.preserved.vectorMask);
@@ -128,6 +145,14 @@ export function projectLayerQuery(
     },
     hasActiveEffects: layerStyleStackIsActive(node.styleStack),
     transform: { ...node.transform },
+    bounds: {
+      coordinateSpace: 'document',
+      document: options.geometry?.documentBounds
+        ? { ...options.geometry.documentBounds } : null,
+      visual: options.geometry?.visualBounds
+        ? { ...options.geometry.visualBounds } : null,
+      source: options.geometry?.source ?? 'unavailable'
+    },
     rasterSurface: node.type === 'raster' ? {
       width: node.width,
       height: node.height,

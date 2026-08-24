@@ -12,8 +12,8 @@ export interface SvgCodecLimits {
 }
 
 export const DEFAULT_SVG_CODEC_LIMITS: SvgCodecLimits = Object.freeze({
-  maxInputBytes: 16_777_216,
-  maxOutputBytes: 16_777_216,
+  maxInputBytes: 33_554_432,
+  maxOutputBytes: 33_554_432,
   maxElements: 32_768,
   maxDepth: 32,
   maxAttributesPerElement: 128,

@@ -219,7 +219,7 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
   }, withResult((input) => client.invoke('layer.palette', input)));
   server.registerTool('lighttable_layers', {
     title: 'List editable LightTable layers',
-    description: 'Returns one compact revision-bound page of the editable layer tree. Follow nextCursor; use targeted content queries for text, vector, effects, Grade or Warp details.',
+    description: 'Returns one compact revision-bound page of the editable layer tree, including shared conservative document/visual bounds for geometry planning. Bounds reject impossible hits but do not replace exact alpha, path, mask or clipping tests. Follow nextCursor; use targeted content queries for text, vector, effects, Grade or Warp details.',
     inputSchema: z.object({ documentId: z.string().min(1),
       expectedDocumentRevision: z.number().int().nonnegative().optional(),
       cursor: z.string().max(1024).optional(), limit: z.number().int().min(1).max(256).default(128) }),
@@ -227,7 +227,7 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
   }, withResult((input) => client.invoke('layer.list', input)));
   server.registerTool('lighttable_layer', {
     title: 'Inspect a LightTable layer',
-    description: 'Returns a compact type-dispatched content summary for an explicit stable layer ID, or the current active layer when layerId is omitted. The result identifies targeted detail queries and previews without embedding unbounded pixels, geometry or adjustment settings.',
+    description: 'Returns a compact type-dispatched content summary and shared conservative document/visual bounds for an explicit stable layer ID, or the current active layer when layerId is omitted. The result identifies targeted detail queries and previews without embedding unbounded pixels, geometry or adjustment settings.',
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1).optional(),
       expectedDocumentRevision: z.number().int().nonnegative().optional() }),
     annotations: { readOnlyHint: true }
@@ -239,13 +239,13 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
   }, withResult((input) => client.invoke('layer.effects', input)));
   server.registerTool('lighttable_text', {
     title: 'Inspect editable text',
-    description: 'Returns bounded editable content, layout, run summaries and font availability without font bytes.',
+    description: 'Returns bounded editable content, authored layout, shared document/visual bounds, run summaries and font availability without font bytes. Null visual bounds means exact runtime layout is still required before safely rejecting a hit.',
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('text.query', input)));
   server.registerTool('lighttable_vector', {
     title: 'Inspect editable vector content',
-    description: 'Returns bounded canonical live-shape/path geometry, transforms, fills, gradients and strokes.',
+    description: 'Returns bounded canonical live-shape/path geometry, shared conservative document/visual bounds, transforms, fills, gradients and strokes.',
     inputSchema: z.object({ documentId: z.string().min(1), layerId: z.string().min(1) }),
     annotations: { readOnlyHint: true }
   }, withResult((input) => client.invoke('vector.query', input)));
@@ -523,7 +523,7 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
     title: 'Import SVG as editable vector paths',
     description: 'Parses one bounded SVG string and atomically adds supported paths and primitives as native editable LightTable vector elements. It never rasterizes the SVG or emits point-by-point MCP mutations.',
     inputSchema: z.object({ documentId: z.string().min(1),
-      svg: z.string().min(1).max(16_777_216),
+      svg: z.string().min(1).max(33_554_432),
       layerName: z.string().min(1).max(255).optional(),
       expectedDocumentRevision: z.number().int().nonnegative().optional() })
   }, withResult(({ documentId, svg, layerName, expectedDocumentRevision }) =>

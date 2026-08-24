@@ -155,12 +155,23 @@ export interface LayerEffectsQueryResult {
   }[];
 }
 
+export interface DocumentBoundsQuery {
+  readonly coordinateSpace: 'document';
+  readonly document: { readonly x: number; readonly y: number;
+    readonly width: number; readonly height: number } | null;
+  /** Null means exact layout/runtime geometry is required before safe rejection. */
+  readonly visual: { readonly x: number; readonly y: number;
+    readonly width: number; readonly height: number } | null;
+  readonly source: string;
+}
+
 export interface EditableTextQueryResult {
   readonly layerId: LayerId;
   readonly sourceKind: 'flow' | 'positioned';
   readonly editable: boolean;
   readonly revision: number;
   readonly transform: { readonly a: number; readonly b: number; readonly c: number; readonly d: number; readonly tx: number; readonly ty: number };
+  readonly bounds: DocumentBoundsQuery;
   readonly content: { readonly text: string; readonly totalLength: number; readonly truncated: boolean };
   readonly layout: unknown;
   readonly styleRuns: readonly {
@@ -178,6 +189,7 @@ export interface EditableTextQueryResult {
 export interface EditableVectorQueryResult {
   readonly layerId: LayerId;
   readonly revision: number;
+  readonly bounds: DocumentBoundsQuery;
   readonly totalElements: number;
   readonly truncated: boolean;
   readonly elements: readonly VectorElement[];

@@ -7,7 +7,11 @@ const anchorCount = (element: VectorElement) => element.type === 'path'
 
 /** Bounded full-fidelity projection: at most 128 elements and 8192 path anchors. */
 export const projectEditableVectorQuery = (
-  layer: VectorLayer, layerId: LayerId
+  layer: VectorLayer,
+  layerId: LayerId,
+  bounds: EditableVectorQueryResult['bounds'] = {
+    coordinateSpace: 'document', document: null, visual: null, source: 'unavailable'
+  }
 ): EditableVectorQueryResult => {
   const elements: VectorElement[] = []; let remainingAnchors = 8192;
   for (const element of layer.elements.slice(0, 128)) {
@@ -15,6 +19,7 @@ export const projectEditableVectorQuery = (
     if (required > remainingAnchors) break;
     elements.push(structuredClone(element)); remainingAnchors -= required;
   }
-  return { layerId, revision: layer.revision, totalElements: layer.elements.length,
+  return { layerId, revision: layer.revision, bounds,
+    totalElements: layer.elements.length,
     truncated: elements.length < layer.elements.length, elements };
 };

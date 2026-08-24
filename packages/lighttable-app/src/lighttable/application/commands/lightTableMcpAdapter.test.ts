@@ -214,6 +214,7 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
     const driver = createDriver();
     vi.mocked(driver.queryText).mockReturnValue({ layerId: 'text-1' as never, sourceKind: 'flow',
       editable: true, revision: 1, transform: { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 },
+      bounds: { coordinateSpace: 'document', document: null, visual: null, source: 'unavailable' },
       content: { text: 'Hello', totalLength: 5, truncated: false }, layout: { mode: 'point' },
       styleRuns: [], paragraphRuns: [], runsTruncated: false });
     const adapter = new AuthenticatedLightTableMcpAdapter({
@@ -234,6 +235,7 @@ describe('AuthenticatedLightTableMcpAdapter', () => {
   it('exposes bounded vector queries and semantic vector/style edits', async () => {
     const driver = createDriver();
     vi.mocked(driver.queryVector).mockReturnValue({ layerId: 'vector-1' as never, revision: 2,
+      bounds: { coordinateSpace: 'document', document: null, visual: null, source: 'unavailable' },
       totalElements: 1, truncated: false, elements: [] });
     const adapter = new AuthenticatedLightTableMcpAdapter({
       driver, enabled: true, token, expiresAt: 2_000, now: () => 1_000

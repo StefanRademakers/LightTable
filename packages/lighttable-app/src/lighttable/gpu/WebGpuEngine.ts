@@ -1246,11 +1246,12 @@ export class WebGpuEngine {
   pickTopLayerAtPoint(
     layerIds: readonly LayerId[],
     point: SelectionPoint,
-    knownOpaqueLayerIds?: ReadonlySet<LayerId>
+    knownOpaqueLayerIds?: ReadonlySet<LayerId>,
+    sceneTransforms?: import('../editor/document/sceneTransformGraph').SceneTransformIndex
   ) {
     if (!this.imageDocument || !this.documentRenderer) return Promise.resolve(null);
     return this.documentRenderer.pickTopLayerAtPoint(
-      this.imageDocument, layerIds, point, knownOpaqueLayerIds
+      this.imageDocument, layerIds, point, knownOpaqueLayerIds, sceneTransforms
     );
   }
 

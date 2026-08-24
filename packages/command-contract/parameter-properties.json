@@ -41,7 +41,7 @@
   "vector.create": { "layerId?": "string", "layerName?": "string", "layerRole?": "artwork | gradient-fill (new layer only)", "layerOpacity?": "number 0..1 (new layer only)", "layerBlendMode?": "blend-mode (new layer only)", "name?": "string", "primitive?": "vector-primitive", "subpaths?": "vector-subpath[]", "fillRule?": "nonzero | evenodd", "style?": "vector-style", "transform?": "affine-matrix" },
   "vector.update": { "layerId": "string", "elementId": "string", "name?": "string", "transform?": "affine-matrix", "style?": "vector-style", "geometry?": "live-shape", "subpaths?": "vector-subpath[]", "fillRule?": "nonzero | evenodd" },
   "vector.remove": { "layerId": "string", "elementId": "string" },
-  "vector.importSvg": { "svg": "string <= 1048576 characters", "placement": "document", "layerName?": "string" },
+  "vector.importSvg": { "svg": "string <= 33554432 characters", "placement": "document", "layerName?": "string" },
   "warp.applyStroke": { "layerId": "string", "mode": "warp-brush-mode", "settings": "warp-brush-settings", "samples": "layer-source warp samples (1..4096, <=240 KiB)", "startedAtMs": "number", "durationMs": "number 0..3600000" },
   "raster.fill": { "layerId": "string", "channel": "pixels | mask", "color": "#rrggbb", "preserveTransparency?": "boolean", "opacity?": "number 0..1" },
   "raster.applyGradient": { "layerId": "string", "channel": "pixels | mask", "paint": "bounded gradient-paint (2..64 stops/type, <=64 KiB)", "opacity": "number 0..1", "blendMode": "blend-mode" },

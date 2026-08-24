@@ -106,6 +106,14 @@ non-transparent pixels, vector geometry or the effective selection threshold.
 Feathering needs padding beyond the hard selection bounds; clipping the blur
 envelope produces the visibly cut feather defect.
 
+`application/geometry/layerGeometryQuery.ts` is the shared cheap document-space
+projection for snapping, transform picking and bounded external inspection. It
+retains one index per immutable document snapshot. Its conservative visual
+bounds are rejection-only broad-phase geometry: being outside proves a miss,
+while being inside still requires exact vector, texture-alpha, mask and
+clipping evaluation. This one-way rule prevents performance caches from
+silently becoming editing semantics.
+
 Masks live in the owning layer's local space and follow its transform. A
 selection lives in document space while being authored and is clipped to the
 canvas only when committed to pixel/mask data. All selection tools may begin
@@ -124,4 +132,5 @@ from leaking into ordinary paint.
 - `editor/rendering/compositorGraph.ts`
 - `editor/rendering/RenderIslandPlanner.ts`
 - `editor/rendering/RetainedRenderIslandRegistry.ts`
+- `application/geometry/layerGeometryQuery.ts`
 - `application/workspace/editorApplicationSession.ts`

@@ -3,7 +3,7 @@
  * a Vite-optimized workspace dependency prevents a hot dev session from
  * combining a new error message with stale prebundled limit values.
  */
-export const SVG_IMPORT_MAX_BYTES = 16_777_216;
+export const SVG_IMPORT_MAX_BYTES = 33_554_432;
 export const SVG_IMPORT_MAX_PATH_DATA_BYTES = 8_388_608;
 export const SVG_IMPORT_MAX_ELEMENTS = 32_768;
 export const SVG_IMPORT_MAX_SUBPATHS = 4_096;

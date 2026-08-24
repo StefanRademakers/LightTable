@@ -94,7 +94,10 @@ Read operations:
 - request an exact document-pixel region through the same final-composite crop
   and encode owner as Copy Merged, without changing selection or viewport;
 - inspect the current active layer, or one explicit layer ID, through a compact
-  type-dispatched content summary before requesting heavier details;
+  type-dispatched content summary before requesting heavier details. Layer
+  list/detail projections include revision-bound conservative document and
+  visual bounds from the same geometry query used by snapping and hit-test
+  broad phase; exact alpha/path/mask tests remain authoritative for hits;
 - query reconnect-safe publication pages or wait up to 10 seconds for the next
   document, revision, active-layer, selection, history, task or renderer
   publication. A cursor gap remains explicit and requires canonical re-query.
@@ -117,7 +120,8 @@ Write operations:
 - query, create and edit point/paragraph text and layout/style runs;
 - query, create, update and remove editable vector elements, shapes, fills,
   strokes and gradients;
-- import one bounded generated SVG string through `lighttable_import_svg`; the
+- import one generated SVG string up to the shared 32 MiB byte limit through
+  `lighttable_import_svg`; the
   shared `vector.importSvg` owner creates native editable paths/primitives in
   one atomic change rather than rasterizing or emitting point-level calls;
 - query, add, update, remove, move and enable/bypass Layer Style effects;

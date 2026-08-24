@@ -8,12 +8,15 @@ import { findDocumentLayer } from '../../../editor/document/layerTree';
 import type { SelectionPoint } from '../../../editor/selection/selectionTypes';
 import { vectorLayerHitsAtDocumentPoint } from '../../vectors/vectorSceneQueries';
 import { layerStyleStackIsActive } from '../../../editor/styles/layerStyleDefaults';
+import { buildLayerGeometryIndex, pointInBounds } from '../../geometry/layerGeometryQuery';
+import type { SceneTransformIndex } from '../../../editor/document/sceneTransformGraph';
 
 export interface TransformLayerAlphaPicker {
   pickTopLayerAtPoint(
     layerIds: readonly LayerId[],
     point: SelectionPoint,
-    knownOpaqueLayerIds?: ReadonlySet<LayerId>
+    knownOpaqueLayerIds?: ReadonlySet<LayerId>,
+    sceneTransforms?: SceneTransformIndex
   ): Promise<LayerId | null>;
 }
 
@@ -54,10 +57,19 @@ export const pickTransformLayer = async (
   point: SelectionPoint,
   picker: TransformLayerAlphaPicker
 ): Promise<TransformLayerPick | null> => {
+  const geometry = buildLayerGeometryIndex(document);
+  const candidates = drawableLayersTopmostFirst(document.layers).filter((layerId) => {
+    const bounds = geometry.byLayerId.get(layerId)?.visualBounds;
+    // Unknown geometry stays eligible. Point/path text can be awaiting its
+    // retained layout, and a broad phase must never create false negatives.
+    return !bounds || pointInBounds(point, bounds);
+  });
+  const candidateIds = new Set(candidates);
   const layerId = await picker.pickTopLayerAtPoint(
-    drawableLayersTopmostFirst(document.layers),
+    candidates,
     point,
-    vectorLayerHitsAtDocumentPoint(document, point)
+    vectorLayerHitsAtDocumentPoint(document, point, 0.5, candidateIds, geometry.transforms),
+    geometry.transforms
   );
   const layer = layerId ? findDocumentLayer(document, layerId) : null;
   return layer ? { layerId: layer.id } : null;

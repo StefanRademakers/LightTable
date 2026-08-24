@@ -5,6 +5,7 @@ import {
   validateJsonSchemaValue
 } from '@lighttable/command-contract';
 import { SVG_IMPORT_MAX_BYTES } from '../vectors/svgImportLimits';
+import { buildLayerGeometryIndex, layerGeometryBounds } from '../geometry/layerGeometryQuery';
 import type { WorkspaceSession } from '../workspace/workspaceSession';
 import { layerIsLocked, type LayerId, type LayerNode } from '../../editor/document/documentTypes';
 import type { LayerStyleId, LayerStyleInstance, LayerStyleKind } from '../../editor/styles/layerStyleTypes';
@@ -671,8 +672,11 @@ export class LightTableCommandService {
   queryLayers(documentId: DocumentSessionId): readonly LayerQuerySummary[] | null {
     const canonical = this.document(documentId)?.document;
     if (!canonical) return null;
+    const geometry = buildLayerGeometryIndex(canonical);
     return walkLayerTree(canonical.layers).map(({ node, parentId, path }) =>
-      projectLayerQuery(node, parentId, path.length - 1));
+      projectLayerQuery(node, parentId, path.length - 1, {
+        geometry: geometry.byLayerId.get(node.id) ?? null
+      }));
   }
 
   queryLayerPage(value: unknown): LayerListQueryResult {
@@ -734,6 +738,7 @@ export class LightTableCommandService {
     if (!document || layer?.type !== 'text') return null;
     const source = layer.text.source;
     const text = source.kind === 'flow' ? source.text : source.extractedText ?? '';
+    const geometry = layerGeometryBounds(document, layerId);
     const availableAssets = new Set(document.assets.fonts.map(({ assetId }) => assetId));
     const styleRuns = source.kind === 'flow' ? source.styleRuns.slice(0, 128).map((run) => {
       const assetId = run.requestedFont.replacement?.replacementAsset.assetId
@@ -748,7 +753,12 @@ export class LightTableCommandService {
         syntheticItalic: run.syntheticItalic, underline: Boolean(run.underline) };
     }) : [];
     return { layerId, sourceKind: source.kind, editable: source.kind === 'flow', revision: layer.revision,
-      transform: { ...layer.transform }, content: { text: text.slice(0, 4096), totalLength: text.length,
+      transform: { ...layer.transform }, bounds: {
+        coordinateSpace: 'document',
+        document: geometry?.documentBounds ? { ...geometry.documentBounds } : null,
+        visual: geometry?.visualBounds ? { ...geometry.visualBounds } : null,
+        source: geometry?.source ?? 'unavailable'
+      }, content: { text: text.slice(0, 4096), totalLength: text.length,
         truncated: text.length > 4096 }, layout: source.kind === 'flow' ? structuredClone(source.layout) : null,
       styleRuns, paragraphRuns: source.kind === 'flow'
         ? structuredClone(source.paragraphRuns.slice(0, 128)) : [],
@@ -758,8 +768,14 @@ export class LightTableCommandService {
 
   queryVector(documentId: DocumentSessionId, layerId: LayerId): EditableVectorQueryResult | null {
     const document = this.document(documentId)?.document; const layer = document ? findDocumentLayer(document, layerId) : null;
-    if (layer?.type !== 'vector') return null;
-    return projectEditableVectorQuery(layer, layerId);
+    if (!document || layer?.type !== 'vector') return null;
+    const geometry = layerGeometryBounds(document, layerId);
+    return projectEditableVectorQuery(layer, layerId, {
+      coordinateSpace: 'document',
+      document: geometry?.documentBounds ? { ...geometry.documentBounds } : null,
+      visual: geometry?.visualBounds ? { ...geometry.visualBounds } : null,
+      source: geometry?.source ?? 'unavailable'
+    });
   }
 
   queryWarp(documentId: DocumentSessionId, layerId: LayerId): WarpQueryResult | null {
@@ -1091,7 +1107,7 @@ export class LightTableCommandService {
       const svg = file.type === 'image/svg+xml';
       if ((!svg && !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) || file.size < 1
         || file.size > (svg ? SVG_IMPORT_MAX_BYTES : 512 * 1024 * 1024)) {
-        return this.reject(value.requestId, 'invalid-parameters', 'Place supports SVG up to 16 MiB and PNG, JPEG or WebP up to 512 MiB.', snapshot);
+        return this.reject(value.requestId, 'invalid-parameters', 'Place supports SVG up to 32 MiB and PNG, JPEG or WebP up to 512 MiB.', snapshot);
       }
       const finiteOptional = (entry: unknown) => entry === undefined
         || (typeof entry === 'number' && Number.isFinite(entry) && Math.abs(entry) <= 10_000_000);

@@ -233,7 +233,7 @@
       "input": {
         "type": "object", "additionalProperties": false, "required": ["svg", "placement"],
         "properties": {
-          "svg": { "type": "string", "minLength": 1, "maxLength": 1048576 },
+          "svg": { "type": "string", "minLength": 1, "maxLength": 33554432 },
           "placement": { "type": "string", "const": "document" },
           "layerName": { "$ref": "#/$defs/id" }
         }

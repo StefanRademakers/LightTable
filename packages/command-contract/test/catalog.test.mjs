@@ -569,6 +569,8 @@ test('raster paint schemas describe final bounded GPU operations, not pointer st
 });
 
 test('vector schemas resolve shared definitions and reject UI-only or contradictory state', () => {
+  assert.equal(LIGHTTABLE_COMMAND_SCHEMAS['vector.importSvg']
+    .input.properties.svg.maxLength, 32 * 1024 * 1024);
   const create = LIGHTTABLE_COMMAND_SCHEMAS['vector.create'];
   const update = LIGHTTABLE_COMMAND_SCHEMAS['vector.update'];
   const remove = LIGHTTABLE_COMMAND_SCHEMAS['vector.remove'];

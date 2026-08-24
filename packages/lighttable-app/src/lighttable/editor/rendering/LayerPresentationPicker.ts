@@ -6,6 +6,7 @@ import {
 } from '../document/documentTypes';
 import { findDocumentLayer, siblingLayers } from '../document/layerTree';
 import { buildSceneTransformIndex } from '../document/sceneTransformGraph';
+import type { SceneTransformIndex } from '../document/sceneTransformGraph';
 import type { SelectionPoint } from '../selection/selectionTypes';
 import {
   identityAffineMatrix,
@@ -40,9 +41,10 @@ export class LayerPresentationPicker {
     document: ImageDocument,
     layerIds: readonly LayerId[],
     point: SelectionPoint,
-    knownOpaqueLayerIds: ReadonlySet<LayerId> = new Set()
+    knownOpaqueLayerIds: ReadonlySet<LayerId> = new Set(),
+    sceneTransforms?: SceneTransformIndex
   ): Promise<LayerId | null> {
-    const transforms = buildSceneTransformIndex(document);
+    const transforms = sceneTransforms ?? buildSceneTransformIndex(document);
     const stride = 256;
     type CandidateSample = {
       readonly layerId: LayerId;
@@ -115,6 +117,7 @@ export class LayerPresentationPicker {
 
       const inverse = texture && dimensions ? invertMatrix(sourceToDocument) : null;
       const local = inverse ? transformPoint(inverse, point) : null;
+      let sourceSampleScheduled = false;
       if (texture && dimensions && local) {
         const sourceX = Math.floor(local.x);
         const sourceY = Math.floor(local.y);
@@ -124,6 +127,7 @@ export class LayerPresentationPicker {
             texture, x: sourceX, y: sourceY,
             alphaByteOffset: 6, role: 'source', candidate
           });
+          sourceSampleScheduled = true;
         }
       }
       if (!texture && layer.type === 'text') {
@@ -135,6 +139,11 @@ export class LayerPresentationPicker {
           && textPoint.x >= ink.x && textPoint.y >= ink.y
           && textPoint.x <= ink.x + ink.width && textPoint.y <= ink.y + ink.height);
       }
+
+      // A rejected source cannot become a hit through a mask. Avoid mask
+      // transforms and GPU copies entirely for that candidate; masks only
+      // reduce coverage and never create pixels outside source coverage.
+      if (!sourceSampleScheduled && !candidate.cpuOpaque) continue;
 
       const maskedNodes: LayerNode[] = [layer];
       let parentId = resolved.parentId;

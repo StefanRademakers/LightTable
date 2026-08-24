@@ -27,7 +27,27 @@ describe('pickTransformLayer', () => {
       pickTopLayerAtPoint
     })).resolves.toEqual({ layerId: bottom.id });
     expect(pickTopLayerAtPoint).toHaveBeenCalledWith(
-      [top.id, bottom.id], { x: 4, y: 5 }, new Set()
+      [top.id, bottom.id], { x: 4, y: 5 }, new Set(), expect.any(Map)
+    );
+  });
+
+  it('rejects impossible document bounds before scheduling exact GPU alpha tests', async () => {
+    const bottom = createImageDocument('bottom', 32, 32, 'bottom').layers[0]!;
+    const distant = {
+      ...createImageDocument('distant', 32, 32, 'distant').layers[0]!,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 100, ty: 100 }
+    };
+    const document = {
+      ...createImageDocument('test', 200, 200, 'test'),
+      layers: [bottom, distant]
+    };
+    const pickTopLayerAtPoint = vi.fn(async (ids: readonly LayerId[]) => ids[0] ?? null);
+
+    await expect(pickTransformLayer(document, { x: 4, y: 5 }, {
+      pickTopLayerAtPoint
+    })).resolves.toEqual({ layerId: bottom.id });
+    expect(pickTopLayerAtPoint).toHaveBeenCalledWith(
+      [bottom.id], { x: 4, y: 5 }, new Set(), expect.any(Map)
     );
   });
 
@@ -47,7 +67,7 @@ describe('pickTransformLayer', () => {
       pickTopLayerAtPoint
     })).resolves.toEqual({ layerId: bottom.id });
     expect(pickTopLayerAtPoint).toHaveBeenCalledWith(
-      [bottom.id], { x: 4, y: 5 }, new Set()
+      [bottom.id], { x: 4, y: 5 }, new Set(), expect.any(Map)
     );
   });
 
@@ -68,13 +88,13 @@ describe('pickTransformLayer', () => {
       pickTopLayerAtPoint
     })).resolves.toEqual({ layerId: childBottom.id });
     expect(pickTopLayerAtPoint).toHaveBeenLastCalledWith(
-      [top.id, childTop.id, childBottom.id, bottom.id], { x: 4, y: 5 }, new Set()
+      [top.id, childTop.id, childBottom.id, bottom.id], { x: 4, y: 5 }, new Set(), expect.any(Map)
     );
 
     group.locks.position = true;
     await pickTransformLayer(document, { x: 4, y: 5 }, { pickTopLayerAtPoint });
     expect(pickTopLayerAtPoint).toHaveBeenLastCalledWith(
-      [top.id, bottom.id], { x: 4, y: 5 }, new Set()
+      [top.id, bottom.id], { x: 4, y: 5 }, new Set(), expect.any(Map)
     );
   });
 
@@ -101,7 +121,7 @@ describe('pickTransformLayer', () => {
       pickTopLayerAtPoint
     })).resolves.toEqual({ layerId: bottom.id });
     expect(pickTopLayerAtPoint).toHaveBeenCalledWith(
-      [bottom.id], { x: 4, y: 5 }, new Set()
+      [bottom.id], { x: 4, y: 5 }, new Set(), expect.any(Map)
     );
   });
 
@@ -128,7 +148,7 @@ describe('pickTransformLayer', () => {
       pickTopLayerAtPoint
     })).resolves.toEqual({ layerId: vector.id });
     expect(pickTopLayerAtPoint).toHaveBeenCalledWith(
-      [vector.id, raster.id], { x: 5, y: 5 }, new Set([vector.id])
+      [vector.id, raster.id], { x: 5, y: 5 }, new Set([vector.id]), expect.any(Map)
     );
   });
 });
@@ -157,10 +177,10 @@ describe('pickCurrentTransformLayer', () => {
     })).resolves.toEqual({ layerId: top.id });
 
     expect(pickTopLayerAtPoint).toHaveBeenNthCalledWith(
-      1, [bottom.id], { x: 4, y: 5 }, new Set()
+      1, [bottom.id], { x: 4, y: 5 }, new Set(), expect.any(Map)
     );
     expect(pickTopLayerAtPoint).toHaveBeenNthCalledWith(
-      2, [top.id, bottom.id], { x: 4, y: 5 }, new Set()
+      2, [top.id, bottom.id], { x: 4, y: 5 }, new Set(), expect.any(Map)
     );
   });
 

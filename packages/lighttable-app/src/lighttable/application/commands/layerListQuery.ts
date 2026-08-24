@@ -1,5 +1,6 @@
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
 import { projectLayerQuery, type LayerQuerySummary } from './layerQueryProjection';
+import { buildLayerGeometryIndex } from '../geometry/layerGeometryQuery';
 
 const DEFAULT_LIMIT = 128;
 const MAX_LIMIT = 256;
@@ -107,13 +108,17 @@ export const projectLayerListPage = (
       message: 'The layer cursor offset exceeds the current layer tree.' };
   }
   const nextOffset = cursor.offset + selected.length;
+  const geometry = buildLayerGeometryIndex(document);
   return {
     status: 'completed', documentId, canonicalRevision, total,
     offset: cursor.offset, limit, truncated: nextOffset < total,
     nextCursor: nextOffset < total
       ? cursorFor(documentId, canonicalRevision, nextOffset) : null,
     layers: selected.map(({ node, parentId, depth }) => projectLayerQuery(
-      node, parentId, depth, { includeVectorElements: false }
+      node, parentId, depth, {
+        includeVectorElements: false,
+        geometry: geometry.byLayerId.get(node.id) ?? null
+      }
     ))
   };
 };

@@ -252,6 +252,45 @@ describe('vector scene queries', () => {
     });
   });
 
+  it('keeps miter joins inside conservative hit-test bounds', () => {
+    const path = square('miter', 10);
+    path.style = {
+      fill: null,
+      opacity: 1,
+      stroke: {
+        paint: { type: 'solid', color: [1, 0, 0, 1] },
+        width: 10, cap: 'butt', join: 'miter', miterLimit: 4,
+        dash: [], dashOffset: 0
+      }
+    };
+    expect(vectorLayerLocalPaintBounds(createVectorLayer([path]))).toMatchObject({
+      x: -20, y: -20, width: 50, height: 50
+    });
+  });
+
+  it('keeps sheared strokes inside rejection bounds on both document axes', () => {
+    const line = createVectorPath('sheared-line', 'Sheared line', [createSubpath('line-subpath', [
+      createAnchor('start', { x: 0, y: 0 }),
+      createAnchor('end', { x: 50, y: 0 })
+    ])]);
+    line.style = {
+      fill: null,
+      opacity: 1,
+      stroke: {
+        paint: { type: 'solid', color: [1, 0, 0, 1] },
+        width: 10, cap: 'butt', join: 'miter', miterLimit: 4,
+        dash: [], dashOffset: 0
+      }
+    };
+    line.transform = { a: 1, b: 0, c: 1, d: 1, tx: 0, ty: 0 };
+
+    const bounds = vectorLayerLocalPaintBounds(createVectorLayer([line]));
+    expect(bounds?.x).toBeCloseTo(-Math.sqrt(50), 8);
+    expect(bounds?.y).toBeCloseTo(-5, 8);
+    expect(bounds?.width).toBeCloseTo(50 + Math.sqrt(200), 8);
+    expect(bounds?.height).toBeCloseTo(10, 8);
+  });
+
   it('unions selected path and live-shape bounds without realizing document elements', () => {
     const document = createImageDocument('selection bounds', 200, 200, 'asset');
     const path = square('path', 10);

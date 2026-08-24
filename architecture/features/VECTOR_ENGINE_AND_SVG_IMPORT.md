@@ -211,9 +211,9 @@ supported siblings continue; they must not crash the whole import.
 
 Default hard limits are split by boundary:
 
-- normalizer: 16 MiB input, 32 MiB normalized output, 250,000 elements and 64
+- normalizer: 32 MiB input/output, 250,000 elements and 256
   levels of nesting;
-- editable codec/export: 16 MiB input/output, 32,768 elements, 32 levels of
+- editable codec/export: 32 MiB input/output, 32,768 elements, 32 levels of
   nesting and 128 attributes per element;
 - editable geometry: 8 MiB path data, 4,096 subpaths and 262,144 anchors.
 

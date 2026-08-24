@@ -79,6 +79,8 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_cancel_task'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_import_image_url'));
   assert.ok(tools.tools.some(({ name }) => name === 'lighttable_commands'));
+  const svgTool = tools.tools.find(({ name }) => name === 'lighttable_import_svg');
+  assert.equal(svgTool.inputSchema.properties.svg.maxLength, 32 * 1024 * 1024);
   const resources = await reader.listResources();
   assert.deepEqual(resources.resources.map(({ uri }) => uri).sort(), [
     'lighttable://guides/artist-onboarding',
@@ -131,6 +133,8 @@ test('Streamable HTTP exposes typed tools and enforces edit scope', async (conte
   assert.equal(svgImportCatalog.structuredContent.commands[0].contract.status, 'complete');
   assert.deepEqual(svgImportCatalog.structuredContent.commands[0].contract.input.required,
     ['svg', 'placement']);
+  assert.equal(svgImportCatalog.structuredContent.commands[0]
+    .contract.input.properties.svg.maxLength, 32 * 1024 * 1024);
   const svgExportCatalog = await reader.callTool({ name: 'lighttable_commands', arguments: {
     command: 'file.exportSvg'
   } });

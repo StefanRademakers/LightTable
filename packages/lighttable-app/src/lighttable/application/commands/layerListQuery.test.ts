@@ -48,6 +48,12 @@ describe('projectLayerListPage', () => {
     if (page.status !== 'completed') throw new Error('Expected page.');
     const item = page.layers.find(({ id }) => id === vector.id);
     expect(item?.vectorContent).toEqual({ elementCount: 1, truncated: true, elements: [] });
+    expect(item?.bounds).toEqual({
+      coordinateSpace: 'document',
+      document: { x: 0, y: 0, width: 20, height: 10 },
+      visual: { x: 0, y: 0, width: 20, height: 10 },
+      source: 'vector-paint'
+    });
   });
 
   it('keeps memory and call-stack bounded for wide and deeply nested layer trees', () => {

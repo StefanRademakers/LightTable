@@ -1,6 +1,7 @@
 import type { ImageDocument, LayerId, LayerNode } from '../../editor/document/documentTypes';
 import { projectLayerQuery, type LayerQuerySummary } from './layerQueryProjection';
 import type { AdjustmentStack } from '../../processing/adjustmentStack';
+import { buildLayerGeometryIndex } from '../geometry/layerGeometryQuery';
 
 interface ModuleSummary {
   readonly id: string; readonly type: string; readonly enabled: boolean; readonly revision: number;
@@ -143,8 +144,12 @@ export const projectLayerDetailQuery = (documentId: string, document: ImageDocum
   const entry = findEntry(document.layers, layerId);
   if (!entry) return { status: 'rejected', code: 'layer-not-found',
     message: 'The requested layer does not exist.' };
+  const geometry = buildLayerGeometryIndex(document).byLayerId.get(entry.node.id) ?? null;
   return { status: 'completed', documentId, canonicalRevision,
     resolvedFrom: explicit ? 'explicit-layer' : 'active-layer',
-    layer: projectLayerQuery(entry.node, entry.parentId, entry.depth, { includeVectorElements: false }),
+    layer: projectLayerQuery(entry.node, entry.parentId, entry.depth, {
+      includeVectorElements: false,
+      geometry
+    }),
     content: summarizeContent(entry.node), availableQueries: availableQueries(entry.node) };
 };

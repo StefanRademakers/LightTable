@@ -1,11 +1,6 @@
-import { vectorLayerLocalPaintBounds } from '../../vectors/vectorSceneQueries';
 import type { ImageDocument, LayerId, LayerNode, Rect } from '../../../editor/document/documentTypes';
 import { walkLayerTree } from '../../../editor/document/layerTree';
-import {
-  buildSceneTransformIndex,
-  type SceneTransformIndex
-} from '../../../editor/document/sceneTransformGraph';
-import { identityAffineMatrix, multiplyMatrices, transformedBounds } from '../../../editor/geometry/affine';
+import { buildLayerGeometryIndex } from '../../geometry/layerGeometryQuery';
 import { snapFeaturesForCanvas, snapFeaturesForRect, snapLineFeature, type SnapFeature, type SnapRect } from './snapEngine';
 
 const positiveRect = (rect: Rect | null | undefined): rect is Rect => Boolean(
@@ -13,58 +8,20 @@ const positiveRect = (rect: Rect | null | undefined): rect is Rect => Boolean(
   && rect.width > 0 && rect.height > 0
 );
 
-const textLocalBounds = (layer: Extract<LayerNode, { type: 'text' }>): Rect | null => {
-  const source = layer.text.source;
-  if (source.kind === 'flow' && source.layout.mode === 'paragraph') return source.layout.frame;
-  return null;
-};
-
 /**
  * Cheap retained geometry for pointer-time snapping.
  *
- * Raster sources use their retained tight source rectangle, vectors use exact
+ * Raster sources use their retained source rectangle, vectors use exact
  * semantic paint bounds, and text prefers an authored frame/current preview.
  * No GPU texture scan or readback is performed here.
  */
-const layerDocumentSnapBoundsFromIndex = (
-  transforms: SceneTransformIndex,
-  layer: LayerNode
-): Rect | null => {
-  const resolved = transforms.get(layer.id);
-  if (!resolved || layer.type === 'group' || layer.type === 'adjustment') return null;
-
-  if (layer.type === 'raster') {
-    return transformedBounds(resolved.localToDocument, {
-      x: 0, y: 0, width: layer.width, height: layer.height
-    });
-  }
-  if (layer.type === 'vector') {
-    const local = vectorLayerLocalPaintBounds(layer);
-    return positiveRect(local) ? transformedBounds(resolved.localToDocument, local) : null;
-  }
-  if (layer.derivedPreview) {
-    const parent = resolved.parentId
-      ? transforms.get(resolved.parentId)?.localToDocument ?? identityAffineMatrix()
-      : identityAffineMatrix();
-    return transformedBounds(multiplyMatrices(parent, layer.derivedPreview.transform), {
-      x: 0,
-      y: 0,
-      width: layer.derivedPreview.width,
-      height: layer.derivedPreview.height
-    });
-  }
-  const local = textLocalBounds(layer);
-  if (positiveRect(local)) return transformedBounds(resolved.localToDocument, local);
-  // Imported point/positioned text may not have a realized layout yet. PSD
-  // bounds are already document-space authoring metadata and are preferable
-  // to making the layer unsnappable while its layout cache warms.
-  return positiveRect(layer.photoshop?.bounds) ? { ...layer.photoshop.bounds } : null;
-};
-
 export const layerDocumentSnapBounds = (
   document: Pick<ImageDocument, 'layers'>,
   layer: LayerNode
-): Rect | null => layerDocumentSnapBoundsFromIndex(buildSceneTransformIndex(document), layer);
+): Rect | null => {
+  const geometry = buildLayerGeometryIndex(document).byLayerId.get(layer.id);
+  return geometry?.visualBounds ?? geometry?.documentBounds ?? null;
+};
 
 export interface LayerSnapTargetOptions {
   excludedLayerIds?: ReadonlySet<LayerId>;
@@ -89,7 +46,7 @@ export const buildLayerSnapTargets = (
   // Resolve the scene graph once for the complete target build. The old path
   // rebuilt this O(n) index once per layer, turning every pointer-time snap
   // refresh into O(n²) work on imported SVGs with many logical objects.
-  const transforms = buildSceneTransformIndex(document);
+  const geometry = buildLayerGeometryIndex(document);
   const effectiveVisibility = new Map<LayerId, boolean>();
   for (const { node, parentId } of entries) {
     effectiveVisibility.set(
@@ -128,7 +85,8 @@ export const buildLayerSnapTargets = (
   if (options.includeLayers !== false) {
     for (const { node } of entries) {
       if (excluded.has(node.id) || !node.visible || !parentVisible(node.id)) continue;
-      const bounds = layerDocumentSnapBoundsFromIndex(transforms, node);
+      const entry = geometry.byLayerId.get(node.id);
+      const bounds = entry?.visualBounds ?? entry?.documentBounds ?? null;
       if (!positiveRect(bounds)) continue;
       targets.push(...snapFeaturesForRect(bounds, 'layer', node.id));
     }

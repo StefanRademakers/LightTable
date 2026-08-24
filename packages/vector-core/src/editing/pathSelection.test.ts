@@ -24,6 +24,14 @@ describe('path selection and transforms', () => {
       .toEqual({ kind: 'handle-out', subpathId: 'shape', anchorId: 'a' });
   });
 
+  it('keeps control handles outside painted curve bounds selectable', () => {
+    const path = square();
+    path.subpaths[0].anchors[0].handleOut = { x: -40, y: -30 };
+    expect(hitTestVectorPath(path, {
+      documentPoint: { x: -40, y: -30 }, radius: 0.5, includeHandles: true
+    })).toEqual({ kind: 'handle-out', subpathId: 'shape', anchorId: 'a' });
+  });
+
   it('composes whole-path transforms without baking anchors', () => {
     const source = square();
     const transformed = rotateVectorPath(

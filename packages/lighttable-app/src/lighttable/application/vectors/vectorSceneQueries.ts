@@ -6,6 +6,7 @@ import {
   pathBounds,
   realizeLiveShape,
   transformPoint,
+  transformedBounds,
   unionRects,
   type PathHitTestOptions,
   type PathSelectionTarget,
@@ -22,9 +23,72 @@ import type {
 } from '../../editor/document/documentTypes';
 import {
   buildSceneTransformIndex,
-  requireSceneTransform
+  requireSceneTransform,
+  type SceneTransformIndex
 } from '../../editor/document/sceneTransformGraph';
 import { multiplyMatrices } from '../../editor/geometry/affine';
+
+interface CachedElementGeometry {
+  readonly geometryRevision: number;
+  readonly transformRevision: number;
+  readonly styleRevision: number;
+  readonly path: VectorPath;
+  readonly localPaintBounds: VectorRect | null;
+}
+
+const elementGeometryCache = new WeakMap<VectorElement, CachedElementGeometry>();
+
+/**
+ * Retains cheap rejection geometry beside immutable canonical elements.
+ * Bounds may reject impossible hits, but never accept a hit: exact curve,
+ * fill-rule and stroke tests remain authoritative for positive results.
+ */
+const cachedElementGeometry = (element: VectorElement): CachedElementGeometry => {
+  const cached = elementGeometryCache.get(element);
+  if (cached
+    && cached.geometryRevision === element.geometryRevision
+    && cached.transformRevision === element.transformRevision
+    && cached.styleRevision === element.styleRevision) return cached;
+  const path = element.type === 'path' ? cloneVectorPath(element) : realizeLiveShape(element);
+  const geometry = pathBounds(bakePathTransform(path));
+  const stroke = path.style.stroke;
+  const hasJoin = path.subpaths.some((subpath) => (
+    subpath.closed ? subpath.anchors.length >= 2 : subpath.anchors.length >= 3
+  ));
+  const capExpansion = stroke?.cap === 'square' ? Math.SQRT2 : 1;
+  const joinExpansion = stroke?.join === 'miter' && hasJoin ? stroke.miterLimit : 1;
+  const alignmentExpansion = stroke?.alignment === 'outside' ? 1 : 0.5;
+  const baseStrokeRadius = stroke ? stroke.width * alignmentExpansion
+    * Math.max(capExpansion, joinExpansion) : 0;
+  // A transformed circle's conservative axis extents are the Euclidean
+  // lengths of the affine matrix rows. Column lengths underestimate shear
+  // and could make this rejection-only broad phase discard a real stroke.
+  const strokeRadiusX = baseStrokeRadius * Math.hypot(path.transform.a, path.transform.c);
+  const strokeRadiusY = baseStrokeRadius * Math.hypot(path.transform.b, path.transform.d);
+  const localPaintBounds = geometry ? {
+    x: geometry.x - strokeRadiusX,
+    y: geometry.y - strokeRadiusY,
+    width: geometry.width + strokeRadiusX * 2,
+    height: geometry.height + strokeRadiusY * 2
+  } : null;
+  const result = {
+    geometryRevision: element.geometryRevision,
+    transformRevision: element.transformRevision,
+    styleRevision: element.styleRevision,
+    path,
+    localPaintBounds
+  };
+  elementGeometryCache.set(element, result);
+  return result;
+};
+
+const pointInRect = (point: Vec2, bounds: VectorRect | null, padding = 0) => Boolean(
+  bounds
+  && point.x >= bounds.x - padding
+  && point.y >= bounds.y - padding
+  && point.x <= bounds.x + bounds.width + padding
+  && point.y <= bounds.y + bounds.height + padding
+);
 
 export interface ResolvedVectorPath {
   layerId: LayerId;
@@ -157,25 +221,53 @@ export const hitTestVectorElementDocument = (
 export const vectorLayerHitsAtDocumentPoint = (
   document: Pick<ImageDocument, 'layers'>,
   documentPoint: Vec2,
-  radius = 0.5
+  radius = 0.5,
+  candidateLayerIds?: ReadonlySet<LayerId>,
+  sceneTransforms?: SceneTransformIndex
 ): ReadonlySet<LayerId> => new Set(
-  vectorElementsTopmostFirst(document)
-    .filter(({ documentPath }) => {
-      const { fill, stroke, opacity } = documentPath.style;
-      if (opacity <= 0 || (!fill && !stroke)) return false;
-      const strokeScale = Math.max(
-        Math.hypot(documentPath.transform.a, documentPath.transform.b),
-        Math.hypot(documentPath.transform.c, documentPath.transform.d)
-      );
-      const target = hitTestVectorPath(documentPath, {
+  (() => {
+    const transforms = sceneTransforms ?? buildSceneTransformIndex(document);
+    return visibleVectorLayersTopmostFirst(document.layers).flatMap((layer) => {
+      if (candidateLayerIds && !candidateLayerIds.has(layer.id)) return [];
+      const layerToDocument = requireSceneTransform(transforms, layer.id).localToDocument;
+      const layerBounds = vectorLayerLocalPaintBounds(layer);
+      if (!pointInRect(
         documentPoint,
-        radius: Math.max(radius, (stroke?.width ?? 0) * strokeScale / 2),
-        includeHandles: false,
-        includeFill: Boolean(fill)
+        layerBounds ? transformedBounds(layerToDocument, layerBounds) : null,
+        radius
+      )) return [];
+
+      return [...layer.elements].reverse().flatMap((element) => {
+        const cached = cachedElementGeometry(element);
+        if (!pointInRect(
+          documentPoint,
+          cached.localPaintBounds
+            ? transformedBounds(layerToDocument, cached.localPaintBounds)
+            : null,
+          radius
+        )) return [];
+        const documentPath = {
+          ...cached.path,
+          transform: multiplyMatrices(layerToDocument, cached.path.transform)
+        };
+        const { fill, stroke, opacity } = documentPath.style;
+        if (opacity <= 0 || (!fill && !stroke)) return [];
+        const strokeScale = Math.max(
+          Math.hypot(documentPath.transform.a, documentPath.transform.b),
+          Math.hypot(documentPath.transform.c, documentPath.transform.d)
+        );
+        const target = hitTestVectorPath(documentPath, {
+          documentPoint,
+          radius: Math.max(radius, (stroke?.width ?? 0) * strokeScale / 2),
+          includeHandles: false,
+          includeFill: Boolean(fill)
+        });
+        return target && target.kind !== 'handle-in' && target.kind !== 'handle-out'
+          ? [layer.id]
+          : [];
       });
-      return Boolean(target && target.kind !== 'handle-in' && target.kind !== 'handle-out');
-    })
-    .map(({ layerId }) => layerId)
+    });
+  })()
 );
 
 export const hitTestVectorDocument = (
@@ -280,23 +372,11 @@ export const vectorElementsDocumentBounds = (
   );
 };
 
-/** Exact painted bounds in vector-layer-local space, including transformed strokes. */
+/** Conservative painted bounds in vector-layer-local space, including transformed strokes. */
 export const vectorLayerLocalPaintBounds = (layer: VectorLayer): VectorRect | null =>
   layer.elements.reduce<VectorRect | null>((bounds, element) => {
-    const path = element.type === 'path' ? cloneVectorPath(element) : realizeLiveShape(element);
-    const { fill, stroke, opacity } = path.style;
-    if (opacity <= 0 || (!fill && !stroke)) return bounds;
-    const geometry = pathBounds(bakePathTransform(path));
-    if (!geometry) return bounds;
-    const strokeRadius = stroke ? stroke.width * 0.5 * Math.max(
-      Math.hypot(path.transform.a, path.transform.b),
-      Math.hypot(path.transform.c, path.transform.d)
-    ) : 0;
-    const painted = {
-      x: geometry.x - strokeRadius,
-      y: geometry.y - strokeRadius,
-      width: geometry.width + strokeRadius * 2,
-      height: geometry.height + strokeRadius * 2
-    };
-    return unionRects(bounds, painted);
+    const { path, localPaintBounds } = cachedElementGeometry(element);
+    const { fill, opacity } = path.style;
+    if (opacity <= 0 || (!fill && !path.style.stroke)) return bounds;
+    return unionRects(bounds, localPaintBounds);
   }, null);

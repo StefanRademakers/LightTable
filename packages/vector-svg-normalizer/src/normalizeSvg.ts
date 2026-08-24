@@ -27,7 +27,7 @@ export interface NormalizedSvgResult {
 }
 
 export const DEFAULT_SVG_NORMALIZATION_LIMITS: SvgNormalizationLimits = Object.freeze({
-  maxInputBytes: 16 * 1024 * 1024,
+  maxInputBytes: 32 * 1024 * 1024,
   maxOutputBytes: 32 * 1024 * 1024,
   maxElements: 250_000,
   maxDepth: 256
@@ -67,4 +67,3 @@ export const normalizeSvg = async (
 
 export const svgNormalizerVersion = async (): Promise<string> =>
   (await requestRuntime()).normalizer_version();
-

@@ -215,7 +215,7 @@ export const loadDocumentSource = async (
   if (sourceProbe.codec === 'svg-native') {
     const sourceDecodeStartedAt = dependencies.now();
     if (request.blob.size > SVG_IMPORT_MAX_BYTES) {
-      throw new Error(`SVG input is ${request.blob.size} bytes and exceeds the 16 MiB import limit.`);
+      throw new Error(`SVG input is ${request.blob.size} bytes and exceeds the 32 MiB import limit.`);
     }
     const svgSource = await request.blob.text();
     const isolatedPreview = svgAllowsIsolatedRawPreview(svgSource)

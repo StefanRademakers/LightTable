@@ -934,6 +934,7 @@ describe('LightTableCommandService queries', () => {
     });
     expect(state.service.queryVector(state.session.id, vector.id)).toMatchObject({
       layerId: vector.id, totalElements: 1, truncated: false,
+      bounds: { coordinateSpace: 'document', source: 'vector-paint' },
       elements: [expect.objectContaining({ id: 'badge', type: 'live-shape' })]
     });
     state.service.dispose();
@@ -983,6 +984,7 @@ describe('LightTableCommandService queries', () => {
     const layerId = state.session.getSnapshot().document!.activeLayerId!;
     const projected = state.service.queryText(state.session.id, layerId)!;
     expect(projected).toMatchObject({ editable: true, sourceKind: 'flow',
+      bounds: { coordinateSpace: 'document', source: 'unavailable' },
       content: { totalLength: 5_000, truncated: true } });
     expect(projected.content.text).toHaveLength(4_096);
     expect(JSON.stringify(projected)).not.toContain('byteLength');

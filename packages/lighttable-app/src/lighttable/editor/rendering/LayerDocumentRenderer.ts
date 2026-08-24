@@ -21,7 +21,7 @@ import type { SelectionCoverageBounds } from '../selection/selectionCoverage';
 import type { DocumentAssetBlob } from '../persistence/layeredDocumentFormat';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
 import { findDocumentLayer } from '../document/layerTree';
-import { buildSceneTransformIndex } from '../document/sceneTransformGraph';
+import { buildSceneTransformIndex, type SceneTransformIndex } from '../document/sceneTransformGraph';
 import { invertMatrix, multiplyMatrices } from '../tools/transform/affine';
 import type { TextLayerEditingLayout } from '../../text/rendering/TextLayerRenderCoordinator';
 import {
@@ -323,10 +323,11 @@ export class LayerDocumentRenderer {
     document: ImageDocument,
     layerIds: readonly LayerId[],
     point: SelectionPoint,
-    knownOpaqueLayerIds: ReadonlySet<LayerId> = new Set()
+    knownOpaqueLayerIds: ReadonlySet<LayerId> = new Set(),
+    sceneTransforms?: SceneTransformIndex
   ) {
     return this.runtime.layerPresentationPicker.pickTopLayerAtPoint(
-      document, layerIds, point, knownOpaqueLayerIds
+      document, layerIds, point, knownOpaqueLayerIds, sceneTransforms
     );
   }
   setDevelopmentTextFixtureEnabled(enabled: boolean) {
