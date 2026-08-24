@@ -125,10 +125,11 @@ export const useEditorDocumentLifecycleController = ({
   const sourceLoadController = useMemo(
     () => createDocumentSourceLoadController({
       getRenderer: () => rendererRef.current,
+      getRendererGeneration: () => rendererLifecycle.getSnapshot().generation,
       getGroupVisibility,
       getPublicationPorts
     }),
-    [getGroupVisibility, getPublicationPorts, rendererRef]
+    [getGroupVisibility, getPublicationPorts, rendererLifecycle, rendererRef]
   );
 
   const loadSource = useCallback(

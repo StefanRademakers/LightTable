@@ -248,6 +248,43 @@ describe('loadDocumentSource', () => {
     expect(renderer.setDocument).not.toHaveBeenCalled();
   });
 
+  it('keeps a canceled SVG preview ephemeral and never binds its canonical document', async () => {
+    const renderer = createRenderer();
+    let isCanceled = false;
+    const result = await loadDocumentSource({
+      renderer,
+      blob: new Blob([
+        '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180">'
+        + '<rect id="card" width="80" height="40"/></svg>'
+      ], { type: 'image/svg+xml' }),
+      name: 'canceled.svg',
+      cacheKey: 'svg:canceled',
+      decodeMode: 'fast',
+      initialAdjustments: createDefaultAdjustments(),
+      isCanceled: () => isCanceled,
+      dependencies: {
+        probe: async () => ({
+          format: 'svg', codec: 'svg-native', decodeMode: 'fast', bitDepth: null
+        }),
+        normalizeSvgSource: async (source) => {
+          isCanceled = true;
+          return source;
+        },
+        now: () => 0
+      }
+    });
+
+    expect(result).toBeNull();
+    expect(renderer.setDocument).toHaveBeenCalledOnce();
+    expect(renderer.setDocument).toHaveBeenCalledWith(expect.objectContaining({
+      layers: [expect.objectContaining({
+        type: 'raster',
+        pixelSource: { kind: 'imported-image', assetId: 'svg:canceled:svg-preview' }
+      })]
+    }));
+    expect(renderer.initializeDocumentSurface).not.toHaveBeenCalled();
+  });
+
   it('opens a PDF page preview and preserves the original source bytes', async () => {
     const renderer = createRenderer();
     const source = new Blob([new TextEncoder().encode('%PDF-1.4\nsource')], {

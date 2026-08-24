@@ -20,6 +20,7 @@ describe('createDocumentSourceLoadController', () => {
     const getPublicationPorts = vi.fn();
     const port = {
       getRenderer: () => null,
+      getRendererGeneration: () => 0,
       getGroupVisibility: createDefaultGroupVisibility,
       getPublicationPorts
     } satisfies DocumentSourceLoadControllerPort;
@@ -36,6 +37,7 @@ describe('createDocumentSourceLoadController', () => {
       getRenderer: () => ({}) as ReturnType<
         DocumentSourceLoadControllerPort['getRenderer']
       >,
+      getRendererGeneration: () => 1,
       getGroupVisibility: createDefaultGroupVisibility,
       getPublicationPorts
     } satisfies DocumentSourceLoadControllerPort;
@@ -47,5 +49,46 @@ describe('createDocumentSourceLoadController', () => {
       })
     ).resolves.toBe(false);
     expect(getPublicationPorts).not.toHaveBeenCalled();
+  });
+
+  it('invalidates source publication when the shared renderer generation changes', async () => {
+    const renderer = {} as NonNullable<ReturnType<DocumentSourceLoadControllerPort['getRenderer']>>;
+    let generation = 4;
+    const prepareAndPublish = vi.fn(async (request) => {
+      expect(request.isCanceled?.()).toBe(false);
+      generation = 5;
+      expect(request.isCanceled?.()).toBe(true);
+      return false;
+    });
+    const port = {
+      getRenderer: () => renderer,
+      getRendererGeneration: () => generation,
+      getGroupVisibility: createDefaultGroupVisibility,
+      getPublicationPorts: () => ({}) as never
+    } satisfies DocumentSourceLoadControllerPort;
+
+    await expect(createDocumentSourceLoadController(port, prepareAndPublish)
+      .load(createRequest())).resolves.toBe(false);
+    expect(prepareAndPublish).toHaveBeenCalledOnce();
+  });
+
+  it('invalidates source publication when the renderer instance is replaced', async () => {
+    const first = {} as NonNullable<ReturnType<DocumentSourceLoadControllerPort['getRenderer']>>;
+    const second = {} as NonNullable<ReturnType<DocumentSourceLoadControllerPort['getRenderer']>>;
+    let renderer = first;
+    const prepareAndPublish = vi.fn(async (request) => {
+      renderer = second;
+      expect(request.isCanceled?.()).toBe(true);
+      return false;
+    });
+    const port = {
+      getRenderer: () => renderer,
+      getRendererGeneration: () => 1,
+      getGroupVisibility: createDefaultGroupVisibility,
+      getPublicationPorts: () => ({}) as never
+    } satisfies DocumentSourceLoadControllerPort;
+
+    await expect(createDocumentSourceLoadController(port, prepareAndPublish)
+      .load(createRequest())).resolves.toBe(false);
   });
 });

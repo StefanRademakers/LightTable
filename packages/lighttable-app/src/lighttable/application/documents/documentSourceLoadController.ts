@@ -34,6 +34,7 @@ export interface DocumentSourceLoadRequest {
 
 export interface DocumentSourceLoadControllerPort {
   getRenderer(): DocumentSourceLoadRenderer | null;
+  getRendererGeneration(): number;
   getGroupVisibility(): GroupVisibility;
   getPublicationPorts(): PreparedDocumentPublicationPorts;
 }
@@ -51,15 +52,21 @@ export interface DocumentSourceLoadController {
  * of exposing a partially opened document.
  */
 export const createDocumentSourceLoadController = (
-  port: DocumentSourceLoadControllerPort
+  port: DocumentSourceLoadControllerPort,
+  prepareAndPublish: typeof prepareAndPublishDocumentSource = prepareAndPublishDocumentSource
 ): DocumentSourceLoadController => ({
   async load(request) {
     const renderer = port.getRenderer();
     if (!renderer || request.signal?.aborted || request.isCanceled?.()) {
       return false;
     }
+    const rendererGeneration = port.getRendererGeneration();
+    const requestCanceled = request.isCanceled;
+    const isCanceled = () => requestCanceled?.() === true
+      || port.getRenderer() !== renderer
+      || port.getRendererGeneration() !== rendererGeneration;
 
-    return prepareAndPublishDocumentSource({
+    return prepareAndPublish({
       renderer,
       blob: request.blob,
       name: request.name,
@@ -71,7 +78,7 @@ export const createDocumentSourceLoadController = (
       startupTimeline: request.startupTimeline,
       groupVisibility: port.getGroupVisibility(),
       signal: request.signal,
-      isCanceled: request.isCanceled,
+      isCanceled,
       publication: port.getPublicationPorts()
     });
   }
