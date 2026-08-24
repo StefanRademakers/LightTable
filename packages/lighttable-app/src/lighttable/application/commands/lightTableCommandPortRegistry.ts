@@ -186,6 +186,12 @@ export class LightTableCommandPortRegistry implements LightTableCommandPorts {
     if (!execute) throw new Error('Raster invert is unavailable in the target document.');
     return execute(command);
   }
+  executeLayerRasterize(documentId: DocumentSessionId,
+    command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeLayerRasterize']>>[0]) {
+    const execute = this.resolve(documentId).executeLayerRasterize;
+    if (!execute) throw new Error('Layer rasterization is unavailable in the target document.');
+    return execute(command);
+  }
   executeTextToShape(documentId: DocumentSessionId,
     command: Parameters<NonNullable<DocumentLightTableCommandPorts['executeTextToShape']>>[0]) {
     const execute = this.resolve(documentId).executeTextToShape;

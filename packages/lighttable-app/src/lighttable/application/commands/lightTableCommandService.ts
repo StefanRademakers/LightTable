@@ -46,6 +46,7 @@ import { dispatchSemanticAdjustmentCreation, dispatchSemanticFixedTransform,
   dispatchSemanticRasterInvert } from './semanticContextualEditDispatcher';
 import { projectCommandCapabilities } from './commandCapabilityProjection';
 import { dispatchSemanticTextFinalization } from './semanticTextFinalizationDispatcher';
+import { dispatchSemanticLayerRasterize } from './semanticLayerRasterizeDispatcher';
 import { dispatchSemanticMergeFlatten } from './semanticMergeFlattenDispatcher';
 import { dispatchSemanticRasterGradient } from './semanticRasterGradientCommandHandler';
 import { parseSemanticLayerStyleCommand, type SemanticLayerStyleCommand } from './semanticLayerStyleCommandContract';
@@ -1360,6 +1361,17 @@ export class LightTableCommandService {
           this.ports.executeRasterInvert
             ? (command) => this.ports.executeRasterInvert!(request.documentId, command) : undefined,
           () => this.document(request.documentId)?.document?.revision);
+        return result.ok ? { value: result.value } : result;
+      }
+      case 'layer.rasterize': {
+        const result = await dispatchSemanticLayerRasterize(
+          parameters,
+          snapshot.document!,
+          this.ports.executeLayerRasterize
+            ? (command) => this.ports.executeLayerRasterize!(request.documentId, command)
+            : undefined,
+          () => this.document(request.documentId)?.document?.revision
+        );
         return result.ok ? { value: result.value } : result;
       }
       case 'text.convertToShape':

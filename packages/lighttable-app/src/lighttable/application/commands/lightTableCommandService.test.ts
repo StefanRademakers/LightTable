@@ -76,6 +76,7 @@ const setup = (overrides: Partial<LightTableCommandPorts> = {},
     executeFixedTransform: vi.fn(),
     executeAdjustmentCreation: vi.fn(),
     executeRasterInvert: vi.fn(),
+    executeLayerRasterize: vi.fn(),
     executeTextToShape: vi.fn(),
     executeTextRasterize: vi.fn(),
     executeLayerMerge: vi.fn(),
@@ -1538,6 +1539,40 @@ describe('LightTableCommandService registry', () => {
     expect(await state.service.execute(request(commandId, state.session.id, {
       layerId, unexpected: true
     }))).toMatchObject({ status: 'rejected', code: 'invalid-parameters' });
+    state.service.dispose(); state.workspace.dispose();
+  });
+
+  it('validates, records and replays universal layer rasterization', async () => {
+    const state = setup();
+    const layerId = state.session.getSnapshot().document!.activeLayerId!;
+    vi.mocked(state.ports.executeLayerRasterize!).mockImplementation((_documentId, command) => {
+      const current = state.session.getSnapshot().document!;
+      state.session.setDocument({ ...current, revision: current.revision + 1 });
+      return { sourceLayerId: command.layerId, outputLayerId: 'rasterized-layer',
+        outputType: 'raster' as const };
+    });
+
+    state.service.startActionRecording('Rasterize layer');
+    const result = await state.service.execute(request('layer.rasterize', state.session.id,
+      { layerId }));
+    state.service.stopActionRecording();
+
+    expect(result).toMatchObject({ status: 'completed', value: {
+      sourceLayerId: layerId, outputLayerId: 'rasterized-layer', outputType: 'raster'
+    } });
+    expect(state.service.actionRecordingSnapshot().steps).toMatchObject([{
+      command: 'layer.rasterize', replayable: true, parameters: { layerId }
+    }]);
+    await state.service.playActionRecording();
+    expect(state.ports.executeLayerRasterize).toHaveBeenCalledTimes(2);
+    expect(await state.service.execute(request('layer.rasterize', state.session.id,
+      { layerId: 'missing' }))).toMatchObject({
+        status: 'rejected', code: 'command-unavailable'
+      });
+    expect(await state.service.execute(request('layer.rasterize', state.session.id,
+      { layerId, unexpected: true }))).toMatchObject({
+        status: 'rejected', code: 'invalid-parameters'
+      });
     state.service.dispose(); state.workspace.dispose();
   });
 

@@ -144,6 +144,9 @@
   "raster.invert": [
     { "layerId": "layer-photo", "channel": "pixels" }
   ],
+  "layer.rasterize": [
+    { "layerId": "layer-vector-artwork" }
+  ],
   "text.convertToShape": [
     { "layerId": "layer-heading" }
   ],

@@ -74,6 +74,7 @@ export const projectCommandCapabilities = (
     availability('raster.fill', supports('executeFillCommand', ports.executeFillCommand), 'Fill commands are unavailable in this host.'),
     availability('raster.applyGradient', supports('executeRasterGradientCommand', ports.executeRasterGradientCommand), 'Raster-gradient commands are unavailable in this host.'),
     availability('raster.invert', supports('executeRasterInvert', ports.executeRasterInvert), 'Raster invert is unavailable in this host.'),
+    availability('layer.rasterize', supports('executeLayerRasterize', ports.executeLayerRasterize), 'Layer rasterization is unavailable in this host.'),
     availability('text.convertToShape', supports('executeTextToShape', ports.executeTextToShape), 'Text-to-shape conversion is unavailable in this host.'),
     availability('text.rasterize', supports('executeTextRasterize', ports.executeTextRasterize), 'Text rasterization is unavailable in this host.'),
     availability('layer.merge', supports('executeLayerMerge', ports.executeLayerMerge) && layerCapabilities.layerCount > 1,

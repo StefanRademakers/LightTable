@@ -92,6 +92,7 @@ test('versioned schemas describe and validate every completed command vertical',
     'document.duplicate',
     'document.create',
     'raster.invert',
+    'layer.rasterize',
     'text.convertToShape',
     'text.rasterize',
     'tool.commitGesture',
@@ -500,7 +501,7 @@ test('destructive merge and flatten schemas require explicit bounded targets and
   assert.equal(validateJsonSchemaValue(image.result, { outputLayerId: 'flattened' }).valid, true);
 });
 
-test('raster and text finalization schemas retain stable layer identity', () => {
+test('raster and text finalization schemas expose their exact layer identity semantics', () => {
   const invert = LIGHTTABLE_COMMAND_SCHEMAS['raster.invert'];
   assert.equal(validateJsonSchemaValue(invert.input, {
     layerId: 'photo', channel: 'pixels'
@@ -510,6 +511,17 @@ test('raster and text finalization schemas retain stable layer identity', () => 
   }).valid, true);
   assert.equal(validateJsonSchemaValue(invert.input, {
     layerId: 'photo', channel: 'all'
+  }).valid, false);
+
+  const layerRasterize = LIGHTTABLE_COMMAND_SCHEMAS['layer.rasterize'];
+  assert.equal(validateJsonSchemaValue(layerRasterize.input, {
+    layerId: 'vector-artwork'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(layerRasterize.result, {
+    sourceLayerId: 'vector-artwork', outputLayerId: 'raster-artwork', outputType: 'raster'
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(layerRasterize.result, {
+    layerId: 'vector-artwork', outputType: 'raster'
   }).valid, false);
 
   const shape = LIGHTTABLE_COMMAND_SCHEMAS['text.convertToShape'];

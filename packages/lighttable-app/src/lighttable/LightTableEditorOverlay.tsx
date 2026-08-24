@@ -5476,6 +5476,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       executeRasterInvert: (command) => layerDocumentCommands.invertLayerColors(
         command.layerId, command.channel
       ) ? command : null,
+      executeLayerRasterize: async (command) => {
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        if (!await layerDocumentCommands.rasterizeLayerWhenReady(command.layerId)) return null;
+        const outputLayerId = imageDocumentRef.current?.activeLayerId;
+        return outputLayerId
+          ? { sourceLayerId: command.layerId, outputLayerId, outputType: 'raster' as const }
+          : null;
+      },
       executeTextToShape: async (command) => (
         await textToShapeController.convert(command.layerId)
           ? { layerId: command.layerId, outputType: 'vector' as const }
@@ -5614,6 +5622,12 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const layerId = imageDocumentRef.current?.activeLayerId;
       if (!layerId || !executeRegisteredCommand('layer.duplicate', { layerId })) {
         layerPanelController.duplicateActive();
+      }
+    },
+    rasterizeActive: () => {
+      const layerId = imageDocumentRef.current?.activeLayerId;
+      if (!layerId || !executeRegisteredCommand('layer.rasterize', { layerId })) {
+        layerPanelController.rasterizeActive();
       }
     },
     deleteSelection: (layerIds: LayerId[]) => {

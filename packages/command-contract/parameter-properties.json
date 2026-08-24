@@ -16,6 +16,7 @@
   "transform.applyFixed": { "operation": "rotate-180 | rotate-clockwise-90 | rotate-counter-clockwise-90 | flip-horizontal | flip-vertical" },
   "adjustment.create": { "kind": "visible adjustment-layer-kind", "placement": "local | attached | adjustment-layer", "layerId?": "string", "aboveLayerId?": "string" },
   "raster.invert": { "layerId": "string", "channel": "pixels | mask" },
+  "layer.rasterize": { "layerId": "string" },
   "text.convertToShape": { "layerId": "string" },
   "text.rasterize": { "layerId": "string" },
   "layer.merge": { "layerIds": "unique string[] (2..256 contiguous siblings)" },

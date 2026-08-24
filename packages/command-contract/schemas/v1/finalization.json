@@ -22,6 +22,26 @@
         }
       }
     },
+    "layer.rasterize": {
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["layerId"],
+        "properties": {
+          "layerId": { "type": "string", "title": "Layer ID", "minLength": 1, "maxLength": 512, "x-lighttable-control": "layer-id" }
+        }
+      },
+      "result": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceLayerId", "outputLayerId", "outputType"],
+        "properties": {
+          "sourceLayerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "outputLayerId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "outputType": { "type": "string", "const": "raster" }
+        }
+      }
+    },
     "text.convertToShape": {
       "input": {
         "type": "object",
