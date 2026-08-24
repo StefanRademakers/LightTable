@@ -24,6 +24,7 @@ import {
   type AffineMatrix
 } from '../geometry/affine';
 import { setLayerTransform } from './documentCommands';
+import { nextAutomaticTextLayerName } from './textLayerName';
 
 const canonicalValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(canonicalValue);
@@ -135,17 +136,28 @@ const updateTextLayer = (
   document: ImageDocument,
   layerId: LayerId,
   change: (layer: TextLayer) => TextLayerData,
-  lock: 'pixels' | 'position' = 'pixels'
+  lock: 'pixels' | 'position' = 'pixels',
+  syncNameWithFlowContent = false
 ): ImageDocument => {
   const current = findDocumentLayer(document, layerId);
   if (current?.type !== 'text' || layerIsLocked(current, lock)) return document;
   const text = cloneTextLayerData(change(current));
   if (sameValue(current.text, text)) return document;
   const now = Date.now();
+  const name = syncNameWithFlowContent
+    && current.text.source.kind === 'flow'
+    && text.source.kind === 'flow'
+    && current.text.source.text !== text.source.text
+    ? nextAutomaticTextLayerName(
+        current.name,
+        current.text.source.text,
+        text.source.text
+      )
+    : current.name;
   return {
     ...document,
     layers: updateLayerNode(document.layers, layerId, (layer) => layer.type === 'text'
-      ? { ...layer, text, revision: layer.revision + 1, modifiedAt: now }
+      ? { ...layer, name, text, revision: layer.revision + 1, modifiedAt: now }
       : layer),
     revision: document.revision + 1,
     modifiedAt: now
@@ -280,7 +292,7 @@ export const setFlowTextContent = (
     ...(inlineLayoutChanged || paragraphsChanged ? ['layout' as const] : []),
     ...(paintChanged ? ['paint' as const] : [])
   ]);
-});
+}, 'pixels', true);
 
 export const setFlowTextRuns = (
   document: ImageDocument,

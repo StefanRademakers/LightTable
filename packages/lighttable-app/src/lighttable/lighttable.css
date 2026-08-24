@@ -3639,12 +3639,6 @@
   object-fit: contain;
   opacity: 0.75;
 }
-.lighttable-layer__text-icon {
-  color: var(--lt-text-primary);
-  font-size: var(--lt-type-large);
-  font-weight: 600;
-  line-height: 1;
-}
 .lighttable-layer__text-status {
   min-width: 0;
   overflow: hidden;

@@ -89,22 +89,18 @@ describe('collectLayerThumbnailChannels', () => {
     )).not.toBe(initialKey);
   });
 
-  it('tracks canonical text source revisions as a pixel thumbnail channel', () => {
+  it('uses the semantic text icon instead of scheduling a GPU pixel thumbnail', () => {
     const document = createTextLayer(
       createImageDocument('Text thumbnail', 64, 32, 'source'),
       createDefaultTextLayerData(),
       'Headline'
     );
     const layer = document.layers.at(-1)!;
-    expect(collectLayerThumbnailChannels(document)).toContainEqual({
-      identity: `${layer.id}:pixels`,
-      layerId: layer.id,
-      mask: false,
-      revisionKey: 'text:0:0:0:0:0:0:geometry:0:transform:1:0:0:1:0:0'
-    });
+    expect(collectLayerThumbnailChannels(document)
+      .filter(({ layerId }) => layerId === layer.id)).toEqual([]);
   });
 
-  it('invalidates text thumbnails when the common layer transform changes', () => {
+  it('does not invalidate accessory thumbnails when only text geometry changes', () => {
     const document = createTextLayer(
       createImageDocument('Text thumbnail', 64, 32, 'source'),
       createDefaultTextLayerData(),
@@ -120,7 +116,7 @@ describe('collectLayerThumbnailChannels', () => {
 
     expect(layerThumbnailChannelsKey(
       collectLayerThumbnailChannels(transformed)
-    )).not.toBe(initialKey);
+    )).toBe(initialKey);
   });
 
   it('projects progressive cache batches without changing source aspect metadata', () => {

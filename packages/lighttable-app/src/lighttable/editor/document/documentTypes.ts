@@ -16,6 +16,7 @@ import {
   type TextLayer as TextLayerContract,
   type TextLayerData
 } from '@lighttable/text-core';
+import { textLayerNameFromData } from './textLayerName';
 
 export type DocumentId = string & { readonly __brand: 'DocumentId' };
 export type LayerId = string & { readonly __brand: 'LayerId' };
@@ -515,7 +516,7 @@ export const createVectorLayer = (
 /** Constructs the canonical native text node used by imports and authoring tools. */
 export const createTextLayerNode = (
   text: TextLayerData,
-  name = 'Text'
+  name = textLayerNameFromData(text)
 ): TextLayer => ({
   ...createCommonLayer('text', name),
   type: 'text',

@@ -208,7 +208,7 @@ const layerTypeIcon = (layer: LayerNode) => {
     );
   }
   if (layer.type === 'vector') return lightTableIcon('image.png');
-  if (layer.type === 'text') return null;
+  if (layer.type === 'text') return lightTableIcon('tool_text.png');
   return layer.pixelSource.kind === 'imported-image'
     ? lightTableIcon('image.png')
     : null;
@@ -1011,7 +1011,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         : layer.type === 'vector' ? 'Vector layer' : 'Adjustment layer'
                 }
               >
-                {previews?.pixels ? (
+                {layer.type === 'text' && icon ? (
+                  <img className="lighttable-layer__type-icon" src={icon} alt="" />
+                ) : previews?.pixels ? (
                   <img
                     className="lighttable-layer__thumbnail-preview"
                     src={previews.pixels.url}
@@ -1021,8 +1023,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   />
                 ) : icon ? (
                   <img className="lighttable-layer__type-icon" src={icon} alt="" />
-                ) : layer.type === 'text' ? (
-                  <span className="lighttable-layer__text-icon" aria-hidden="true">T</span>
                 ) : null}
               </ButtonBase>
             </span>
@@ -1163,12 +1163,12 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             <span className="lighttable-layer__status">
               {layer.type === 'text' ? (
                 <>
-                  <span
-                    className="lighttable-layer__text-status"
-                    title={layer.text.source.kind === 'positioned'
-                      ? 'Positioned text preserves imported glyph placement; convert it before flow editing'
-                      : 'Editable flow text rendered by WebGPU'}
-                  >{layer.text.source.kind === 'positioned' ? 'Positioned' : 'Flow'}</span>
+                  {layer.text.source.kind === 'positioned' ? (
+                    <span
+                      className="lighttable-layer__text-status"
+                      title="Positioned text preserves imported glyph placement; convert it before flow editing"
+                    >Positioned</span>
+                  ) : null}
                   {editingTextLayerId === layer.id ? (
                     <span className="lighttable-layer__text-status lighttable-layer__text-status--editing">
                       Editing

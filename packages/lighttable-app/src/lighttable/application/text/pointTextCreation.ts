@@ -18,6 +18,7 @@ import {
   documentPointToLocal
 } from '../../editor/document/sceneTransformGraph';
 import { translationMatrix } from '../../editor/geometry/affine';
+import { textLayerNameFromContent } from '../../editor/document/textLayerName';
 
 export interface PointTextCreationRequest {
   readonly documentId: ImageDocument['id'];
@@ -397,7 +398,7 @@ export const createPointTextDocument = (
     font,
     foregroundColor
   );
-  const inserted = createTextLayer(document, text, request.text.slice(0, 40) || 'Text');
+  const inserted = createTextLayer(document, text, textLayerNameFromContent(request.text));
   const withLayer = inserted.activeLayerId
     ? setLayerTransform(
         inserted,
@@ -449,7 +450,7 @@ export const createParagraphTextDocument = (
   const inserted = createTextLayer(
     document,
     text,
-    request.text.slice(0, 40) || 'Text',
+    textLayerNameFromContent(request.text),
     request.aboveLayerId
   );
   const positioned = inserted.activeLayerId
@@ -501,7 +502,7 @@ export const createPathTextDocument = (
   return attachFontAsset(createTextLayer(
     document,
     text,
-    request.text.slice(0, 40) || 'Path Text',
+    textLayerNameFromContent(request.text, 'Path Text'),
     target.pathLayerId
   ), font);
 };

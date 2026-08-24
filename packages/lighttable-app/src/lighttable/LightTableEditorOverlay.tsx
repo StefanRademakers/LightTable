@@ -1422,7 +1422,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const layerThumbnails = useLayerThumbnailController({
     document: imageDocument,
     rendererReadyDocumentId: thumbnailDocumentReadyId,
-    textPresentationRevision: textRenderPresentation.publicationRevision,
     getRenderer: () => engineRef.current
   });
   const availableFontAssets = useMemo(

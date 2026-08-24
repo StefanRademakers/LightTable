@@ -29,7 +29,6 @@ const THUMBNAIL_PUBLICATION_BATCH_SIZE = 8;
 interface LayerThumbnailControllerOptions {
   document: ImageDocument | null;
   rendererReadyDocumentId: string | null;
-  textPresentationRevision?: number;
   getRenderer: () => LayerThumbnailRendererPort | null;
 }
 
@@ -43,16 +42,6 @@ export const collectLayerThumbnailChannels = (
       layerId: node.id,
       mask: false,
       revisionKey: `pixels:${node.pixelRevision}`
-    });
-  }
-  if (node.type === 'text') {
-    const revisions = node.text.revisions;
-    const transform = node.transform;
-    channels.push({
-      identity: `${node.id}:pixels`,
-      layerId: node.id,
-      mask: false,
-      revisionKey: `text:${revisions.content}:${revisions.font}:${revisions.layout}:${revisions.paint}:${revisions.path}:${revisions.geometry}:geometry:${node.geometryRevision}:transform:${transform.a}:${transform.b}:${transform.c}:${transform.d}:${transform.tx}:${transform.ty}`
     });
   }
   if (node.mask) {
@@ -106,7 +95,6 @@ export const projectLayerThumbnails = (
 export const useLayerThumbnailController = ({
   document,
   rendererReadyDocumentId,
-  textPresentationRevision = 0,
   getRenderer
 }: LayerThumbnailControllerOptions): ReadonlyMap<LayerId, LayerThumbnailSet> => {
   const cacheRef = useRef<Map<string, LayerThumbnailCacheEntry>>(new Map());
@@ -119,11 +107,7 @@ export const useLayerThumbnailController = ({
     () => document ? collectLayerThumbnailChannels(document) : [],
     [document]
   );
-  const desired = useMemo(() => desiredChannels.map((channel) =>
-    channel.revisionKey.startsWith('text:')
-      ? { ...channel, revisionKey: `${channel.revisionKey}:presentation:${textPresentationRevision}` }
-      : channel
-  ), [desiredChannels, textPresentationRevision]);
+  const desired = desiredChannels;
   const desiredKey = layerThumbnailChannelsKey(desired);
   const documentId = document?.id ?? null;
 
@@ -194,7 +178,7 @@ export const useLayerThumbnailController = ({
     // `desiredKey` deliberately represents the pixel-bearing subset of the
     // immutable document. `desired` is the matching snapshot from this render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desiredKey, documentId, rendererReadyDocumentId, textPresentationRevision]);
+  }, [desiredKey, documentId, rendererReadyDocumentId]);
 
   useEffect(() => () => {
     cacheRef.current.forEach(({ url }) => URL.revokeObjectURL(url));

@@ -58,6 +58,7 @@ import {
   walkLayerTree
 } from './layerTree';
 import { layerCanBeRasterized } from './layerRasterization';
+import { textLayerNameFromData } from './textLayerName';
 import type { BlendMode } from './blendModes';
 import type { AffineMatrix } from '../rendering/renderContract';
 import { identityAffineMatrix, isFiniteAffineMatrix } from '../rendering/renderContract';
@@ -484,7 +485,7 @@ export const replaceTextLayerWithVectorPaths = (
 export const createTextLayer = (
   document: ImageDocument,
   text: TextLayerData,
-  name = 'Text',
+  name = textLayerNameFromData(text),
   aboveLayerId: LayerId | null | undefined = document.activeLayerId ?? undefined
 ): ImageDocument => {
   const layer = createTextLayerNode(text, name);

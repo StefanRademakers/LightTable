@@ -4,7 +4,7 @@ import {
   createPositionedTextFixture
 } from '@lighttable/text-core';
 import { describe, expect, it } from 'vitest';
-import { createTextLayer, setLayerLock } from './documentCommands';
+import { createTextLayer, renameLayer, setLayerLock } from './documentCommands';
 import { createImageDocument } from './documentTypes';
 import { findDocumentLayer } from './layerTree';
 import {
@@ -18,6 +18,7 @@ import {
   setTextLayerTransform
 } from './textLayerCommands';
 import { multiplyMatrices, rotationMatrix, translationMatrix } from '../geometry/affine';
+import { textLayerNameFromContent } from './textLayerName';
 
 const flowDocument = () => createTextLayer(
   createImageDocument('Text commands', 320, 200, 'background'),
@@ -46,6 +47,7 @@ describe('canonical text layer commands', () => {
     const text = activeText(changed);
 
     expect(text.id).toBe(id);
+    expect(text.name).toBe('Headline');
     expect(text.text.source).toEqual(nextSource);
     expect(text.text.revisions).toEqual({
       content: 1,
@@ -62,6 +64,28 @@ describe('canonical text layer commands', () => {
       nextSource.styleRuns,
       nextSource.paragraphRuns
     )).toBe(changed);
+  });
+
+  it('tracks the text in an automatic layer name but preserves a deliberate rename', () => {
+    const initial = createDefaultFlowTextSource('Text');
+    const document = createTextLayer(
+      createImageDocument('Auto name', 320, 200, 'background'),
+      { ...createDefaultTextLayerData(), source: initial },
+      textLayerNameFromContent(initial.text)
+    );
+    const id = document.activeLayerId!;
+    const next = createDefaultFlowTextSource('  Dit is   tekst\nmet meer woorden  ');
+    const changed = setFlowTextContent(
+      document, id, next.text, next.styleRuns, next.paragraphRuns
+    );
+    expect(activeText(changed).name).toBe('Dit is tekst met meer woorden');
+
+    const custom = renameLayer(changed, id, 'Mijn titel');
+    const finalSource = createDefaultFlowTextSource('Andere inhoud');
+    const edited = setFlowTextContent(
+      custom, id, finalSource.text, finalSource.styleRuns, finalSource.paragraphRuns
+    );
+    expect(activeText(edited).name).toBe('Mijn titel');
   });
 
   it('isolates a subrange paint edit from font and layout revisions', () => {
