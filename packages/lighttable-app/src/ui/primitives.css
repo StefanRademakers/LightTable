@@ -721,6 +721,46 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   position: relative;
 }
 
+.context-menu__item-wrap--has-trailing-action > .context-menu__item {
+  padding-right: 36px;
+}
+
+.context-menu__trailing-action {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  width: 28px;
+  height: calc(var(--lt-menu-item-height) - 2px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--lt-radius-md);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.context-menu__trailing-action:hover:not(:disabled),
+.context-menu__trailing-action:focus-visible {
+  outline: none;
+  border-color: var(--lt-accent);
+  background: var(--lt-surface-control-hover);
+}
+
+.context-menu__trailing-action:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.context-menu__trailing-action > img,
+.context-menu__trailing-action > svg {
+  width: var(--lt-menu-icon-size);
+  height: var(--lt-menu-icon-size);
+  object-fit: contain;
+}
+
 .context-menu__item-wrap--submenu-open > .context-menu--submenu,
 .context-menu__item-wrap--has-children:focus-within > .context-menu--submenu {
   display: block;

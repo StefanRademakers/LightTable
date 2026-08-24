@@ -75,6 +75,8 @@ export interface EditorMenuControllerOptions {
     duplicate(): void;
     applyCurves(): void;
     applyAdjustment?(kind: AdjustmentLayerKind): void;
+    createAdjustmentLayer?(kind: AdjustmentLayerKind): void;
+    attachAdjustment?(kind: AdjustmentLayerKind): void;
     assignSrgbProfile?(): void;
   };
   readonly layers: {
@@ -210,6 +212,14 @@ export const createEditorMenuController = ({
       applyAdjustment: image.applyAdjustment ?? ((kind) => {
         if (kind === 'curves') image.applyCurves();
         else layers.panel.createAdjustmentLayerOfKind(kind);
+      }),
+      createAdjustmentLayer: image.createAdjustmentLayer ?? ((kind) => {
+        layers.panel.createAdjustmentLayerOfKind(kind, activeLayer?.id);
+      }),
+      attachAdjustment: image.attachAdjustment ?? ((kind) => {
+        if (activeLayer?.type === 'raster' && !activeLayer.locks.pixels && !activeLayer.locks.all) {
+          layers.panel.createAttachedAdjustment(activeLayer.id, kind);
+        }
       }),
       openImageSize: image.openSize,
       openCanvasSize: image.openCanvasSize,

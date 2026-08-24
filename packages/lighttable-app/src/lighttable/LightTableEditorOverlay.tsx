@@ -6628,6 +6628,29 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       applyCurves: () => applyCurvesRef.current(),
       applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
+      createAdjustmentLayer: (kind) => {
+        const document = imageDocumentRef.current;
+        if (!document) return;
+        const active = findDocumentLayer(document, document.activeLayerId);
+        const command = {
+          kind,
+          placement: 'adjustment-layer' as const,
+          ...(active ? { aboveLayerId: active.id } : {})
+        };
+        if (!executeRegisteredCommand('adjustment.create', command)) {
+          executeAdjustmentCreationRef.current(command);
+        }
+      },
+      attachAdjustment: (kind) => {
+        const document = imageDocumentRef.current;
+        if (!document) return;
+        const active = findDocumentLayer(document, document.activeLayerId);
+        if (active?.type !== 'raster' || layerIsLocked(active, 'pixels')) return;
+        const command = { kind, placement: 'attached' as const, layerId: active.id };
+        if (!executeRegisteredCommand('adjustment.create', command)) {
+          executeAdjustmentCreationRef.current(command);
+        }
+      },
       assignSrgbProfile: () => {
         if (!executeRegisteredCommand('document.assignProfile', { profile: 'srgb' })) {
           documentMutationController.change((document) => document.colorSettings.profileState === 'assigned'

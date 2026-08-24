@@ -13,6 +13,13 @@ export interface ContextMenuOption<T extends string> {
   status?: 'connected' | 'disconnected';
   selected?: boolean;
   separatorBefore?: boolean;
+  trailingAction?: {
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+    disabledReason?: string;
+    icon: ReactNode;
+  };
   children?: Array<ContextMenuOption<T>>;
 }
 
@@ -241,6 +248,7 @@ export function ContextMenu<T extends string>({
             className={[
               'context-menu__item-wrap',
               hasChildren ? 'context-menu__item-wrap--has-children' : '',
+              option.trailingAction ? 'context-menu__item-wrap--has-trailing-action' : '',
               submenuOpen ? 'context-menu__item-wrap--submenu-open' : ''
             ].filter(Boolean).join(' ')}
             onMouseEnter={() => {
@@ -301,6 +309,29 @@ export function ContextMenu<T extends string>({
               ) : null}
               {hasChildren ? <span className="context-menu__submenu-indicator" aria-hidden="true">›</span> : null}
             </button>
+            {option.trailingAction ? (
+              <button
+                type="button"
+                className="context-menu__trailing-action"
+                role="menuitem"
+                aria-label={option.trailingAction.label}
+                disabled={option.trailingAction.disabled}
+                title={option.trailingAction.disabled
+                  ? option.trailingAction.disabledReason ?? 'Unavailable in the current context.'
+                  : option.trailingAction.label}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (option.trailingAction?.disabled) return;
+                  onClose();
+                  option.trailingAction?.onClick();
+                }}
+              >{option.trailingAction.icon}</button>
+            ) : null}
             {hasChildren ? renderOptions(option.children ?? [], true, itemPath) : null}
           </div>
         );

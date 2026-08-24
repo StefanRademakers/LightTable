@@ -92,10 +92,26 @@ describe('createEditorMenuOptions', () => {
     const gaussian = findMenuOption(filter, 'filter-gaussian-blur');
     expect(gaussian).toMatchObject({ label: 'Gaussian Blur...', disabled: false });
     gaussian?.onClick?.();
-    expect(menuCommands.applyAdjustment).toHaveBeenCalledWith('gaussian-blur');
+    expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith('gaussian-blur');
+    expect(gaussian?.trailingAction).toMatchObject({
+      label: 'Attach Gaussian Blur to selected layer',
+      disabled: false
+    });
+    gaussian?.trailingAction?.onClick();
+    expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('gaussian-blur');
     expect(leaves.filter(({ value }) => value !== 'filter-gaussian-blur')
       .every(({ disabled, onClick }) => disabled && !onClick)).toBe(true);
     expect(filter.every(({ disabled }) => !disabled)).toBe(true);
+  });
+
+  it('only enables the Gaussian Blur link action for an unlocked raster layer', () => {
+    const noLayer = createEditorMenuOptions('filter', state({ layer: null }), labels, commands());
+    expect(findMenuOption(noLayer, 'filter-gaussian-blur')?.trailingAction?.disabled).toBe(true);
+
+    const locked = createEditorMenuOptions('filter', state({
+      layer: { ...state().layer!, locked: true }
+    }), labels, commands());
+    expect(findMenuOption(locked, 'filter-gaussian-blur')?.trailingAction?.disabled).toBe(true);
   });
 
   it('keeps fixed target transforms distinct from canvas geometry', () => {

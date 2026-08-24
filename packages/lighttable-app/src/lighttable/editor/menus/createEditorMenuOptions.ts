@@ -1,4 +1,6 @@
+import { createElement } from 'react';
 import type { ContextMenuOption } from '../../../ui/ContextMenu';
+import { lightTableIcon } from '../../../assets/icons';
 import type { BlendMode } from '../document/blendModes';
 import type { LightTableProjectSummary, LightTableRecentFile, LightTableRecentProject } from '../../../platform/LightTableHost';
 import { createDefaultSnapSettings, type SnapSettings } from '../../application/tools/snapping/snapSettings';
@@ -106,6 +108,8 @@ export interface EditorMenuCommands {
   invertLayerColors: () => void;
   applyCurves: () => void;
   applyAdjustment: (kind: AdjustmentLayerKind) => void;
+  createAdjustmentLayer: (kind: AdjustmentLayerKind) => void;
+  attachAdjustment: (kind: AdjustmentLayerKind) => void;
   openImageSize: () => void;
   openCanvasSize: () => void;
   openArbitraryRotation: () => void;
@@ -486,8 +490,19 @@ export const createEditorMenuOptions = (
         {
           value: 'filter-gaussian-blur',
           label: 'Gaussian Blur...',
-          onClick: () => commands.applyAdjustment('gaussian-blur'),
-          disabled: !state.hasDocument || state.saving
+          onClick: () => commands.createAdjustmentLayer('gaussian-blur'),
+          disabled: !state.hasDocument || state.saving,
+          trailingAction: {
+            label: 'Attach Gaussian Blur to selected layer',
+            onClick: () => commands.attachAdjustment('gaussian-blur'),
+            disabled: layer?.type !== 'raster' || layer.locked || state.saving,
+            disabledReason: 'Select an unlocked raster layer to attach Gaussian Blur.',
+            icon: createElement('img', {
+              src: lightTableIcon('link_vertical.png'),
+              alt: '',
+              'aria-hidden': true
+            })
+          }
         },
         unavailable('filter-motion-blur', 'Motion Blur'),
         unavailable('filter-surface-edge-aware-blur', 'Surface Blur')
