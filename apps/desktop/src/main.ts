@@ -14,7 +14,7 @@ import { createServer, type Server } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { DesktopSavePayload } from './desktopBridge';
+import type { DesktopFilePayload, DesktopSavePayload } from './desktopBridge';
 import { SourceReplacementAuthority } from './sourceReplacementAuthority';
 import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
 import {
@@ -155,7 +155,7 @@ if (automationUserData) app.setPath('userData', path.resolve(automationUserData)
 if (process.platform === 'win32') app.setAppUserModelId('com.squirrel.LightTable.LightTable');
 const squirrelStartupHandled = handleSquirrelStartup(process.argv, process.execPath);
 if (squirrelStartupHandled) app.quit();
-const launchFileQueue = new DesktopLaunchFileQueue();
+const launchFileQueue = new DesktopLaunchFileQueue<DesktopFilePayload>();
 launchFileQueue.enqueue(bitmapLaunchFilesFromArgv(process.argv));
 const hasSingleInstanceLock = !squirrelStartupHandled && app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
@@ -442,6 +442,16 @@ const readDesktopFilePayload = async (filePath: string) => {
     sourcePath
   };
 };
+
+const MAX_EARLY_LAUNCH_BITMAP_BYTES = 512 * 1024 * 1024;
+launchFileQueue.configureLoader(async (filePath) => {
+  const sourceStats = await stat(filePath);
+  if (!sourceStats.isFile() || sourceStats.size < 1
+    || sourceStats.size > MAX_EARLY_LAUNCH_BITMAP_BYTES) {
+    throw new Error('The launch bitmap exceeds the bounded desktop-open limit.');
+  }
+  return readDesktopFilePayload(filePath);
+});
 
 const ISOLATION_HEADERS = {
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -1690,13 +1700,13 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('lighttable:take-launch-files', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     const payloads = [];
-    for (const filePath of launchFileQueue.takeAll()) {
+    for (const request of launchFileQueue.takeAllPrepared()) {
       try {
-        const payload = await readDesktopFilePayload(filePath);
-        await rememberRecentFile(filePath);
+        const payload = await request.payload;
+        await rememberRecentFile(request.filePath);
         payloads.push(payload);
       } catch (reason) {
-        console.warn(`[LightTable desktop] Could not open launch file ${path.basename(filePath)}.`, reason);
+        console.warn(`[LightTable desktop] Could not open launch file ${path.basename(request.filePath)}.`, reason);
       }
     }
     return payloads;

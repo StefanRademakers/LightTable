@@ -5,9 +5,14 @@ import type {
   LightTableDesktopBridge
 } from './desktopBridge';
 
+// Start the initial OS-open handoff as soon as the trusted preload executes;
+// renderer bundle evaluation and React mounting must not gate prepared bytes.
+const initialLaunchFiles = ipcRenderer.invoke('lighttable:take-launch-files');
+
 const bridge: LightTableDesktopBridge = {
   automationEnabled: process.argv.includes('--lighttable-automation'),
   openFile: () => ipcRenderer.invoke('lighttable:open-file'),
+  takeInitialLaunchFiles: () => initialLaunchFiles,
   takeLaunchFiles: () => ipcRenderer.invoke('lighttable:take-launch-files'),
   onLaunchFilesAvailable: (listener) => {
     const handler = () => listener();

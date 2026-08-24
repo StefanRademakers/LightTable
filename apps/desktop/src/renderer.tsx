@@ -60,6 +60,20 @@ const desktopFile = (payload: DesktopFilePayload | null) => {
   return file;
 };
 
+// Claim the initial OS-open handoff during renderer module bootstrap. Main has
+// already started bounded file I/O, so this overlaps bridge delivery and the
+// shared GPU runtime with React/application mounting without prewarming an
+// ordinary empty launch.
+const bootstrapLaunchFiles = window.lightTableDesktop.takeInitialLaunchFiles()
+  .then((payloads) => {
+    const files = payloads.map((payload) => desktopFile(payload))
+      .filter((file): file is File => Boolean(file));
+    if (files.length) void prepareLightTableRenderingRuntime().catch(() => undefined);
+    return files;
+  })
+  .catch(() => [] as File[]);
+let bootstrapLaunchFilesClaimed = false;
+
 const desktopHost: LightTableHost = {
   kind: 'electron',
   actionLibrary: {
@@ -230,6 +244,8 @@ const desktopHost: LightTableHost = {
     let disposed = false;
     let draining = false;
     let requestedAgain = false;
+    let bootstrapping = !bootstrapLaunchFilesClaimed;
+    bootstrapLaunchFilesClaimed = true;
     const drain = async (): Promise<void> => {
       if (draining) { requestedAgain = true; return; }
       draining = true;
@@ -250,8 +266,20 @@ const desktopHost: LightTableHost = {
         if (!disposed && requestedAgain) void drain();
       }
     };
-    const remove = window.lightTableDesktop.onLaunchFilesAvailable(() => { void drain(); });
-    void drain();
+    const remove = window.lightTableDesktop.onLaunchFilesAvailable(() => {
+      if (bootstrapping) requestedAgain = true;
+      else void drain();
+    });
+    if (bootstrapping) {
+      void bootstrapLaunchFiles.then((files) => {
+        if (!disposed && files.length) listener(files);
+      }).finally(() => {
+        bootstrapping = false;
+        if (!disposed) void drain();
+      });
+    } else {
+      void drain();
+    }
     return () => { disposed = true; remove(); };
   },
   async listRecentFiles() {
