@@ -51,6 +51,10 @@ export interface TransformEditorRendererPort extends TransformRendererPort {
   setDocument(document: ImageDocument): void;
   applyPixelHistory(edit: ReversiblePixelEdit, direction: 'undo' | 'redo'): boolean;
   measureLayerMaskContent(layer: LayerNode): Promise<SelectionCoverageBounds | null>;
+  updateLayerGeometryPreviews?(
+    previews: readonly { readonly layer: LayerNode; readonly matrix: AffineMatrix }[]
+  ): boolean;
+  clearLayerGeometryPreviews?(layers: readonly LayerNode[]): boolean;
 }
 
 export interface TransformHistoryEntry {
@@ -236,19 +240,23 @@ export const useTransformSessionController = (
     if (group) {
       groupRef.current = null;
       const current = dependenciesRef.current;
-      const after = current.getDocument();
+      const renderer = current.getRenderer();
+      const sourceLayers = group.layerIds.flatMap((layerId) => {
+        const layer = findDocumentLayer(group.before, layerId);
+        return layer ? [layer] : [];
+      });
+      renderer?.clearLayerGeometryPreviews?.(sourceLayers);
+      const activeDocument = current.getDocument();
       const unchanged = matrixApproximatelyEqual(group.matrix, identityMatrix());
       setState(null);
-      if (!after || after.id !== group.before.id) return;
-      if (!commit) {
-        current.applyDocumentSnapshot(group.before);
-        return;
-      }
-      if (unchanged) {
-        current.applyDocumentSnapshot(group.before);
-        return;
-      }
-      if (after !== group.before) current.pushDocumentHistory(group.before, after);
+      if (!activeDocument || activeDocument.id !== group.before.id || !commit || unchanged) return;
+      const after = transformLayerGroupInDocumentSpace(
+        group.before,
+        group.layerIds,
+        group.matrix
+      );
+      current.applyDocumentSnapshot(after);
+      current.pushDocumentHistory(group.before, after);
       return;
     }
     const controller = controllerRef.current;
@@ -280,8 +288,12 @@ export const useTransformSessionController = (
     }
     maskRef.current = null;
     const group = groupRef.current;
-    if (group && dependenciesRef.current.getDocument()?.id === group.before.id) {
-      dependenciesRef.current.applyDocumentSnapshot(group.before);
+    if (group) {
+      const sourceLayers = group.layerIds.flatMap((layerId) => {
+        const layer = findDocumentLayer(group.before, layerId);
+        return layer ? [layer] : [];
+      });
+      dependenciesRef.current.getRenderer()?.clearLayerGeometryPreviews?.(sourceLayers);
     }
     groupRef.current = null;
     const controller = controllerRef.current;
@@ -492,11 +504,22 @@ export const useTransformSessionController = (
     const group = groupRef.current;
     if (group) {
       group.matrix = { ...matrix };
-      dependenciesRef.current.applyDocumentSnapshot(
-        transformLayerGroupInDocumentSpace(group.before, group.layerIds, matrix)
+      const previewDocument = transformLayerGroupInDocumentSpace(
+        group.before,
+        group.layerIds,
+        matrix
       );
+      const previews = group.layerIds.flatMap((layerId) => {
+        const sourceLayer = findDocumentLayer(group.before, layerId);
+        const previewLayer = findDocumentLayer(previewDocument, layerId);
+        return sourceLayer && previewLayer
+          ? [{ layer: sourceLayer, matrix: previewLayer.transform }]
+          : [];
+      });
+      if (!dependenciesRef.current.getRenderer()?.updateLayerGeometryPreviews?.(previews)) {
+        return null;
+      }
       const next = state ? { ...state, matrix: { ...matrix } } : null;
-      if (next) setState(next);
       return next;
     }
     // Single-layer pointer previews are renderer-owned transient state. React
@@ -697,8 +720,12 @@ export const useTransformSessionController = (
     controller?.invalidatePendingLaunch();
     if (controller?.state) controller.finish(null, [], false);
     const group = groupRef.current;
-    if (group && dependenciesRef.current.getDocument()?.id === group.before.id) {
-      dependenciesRef.current.applyDocumentSnapshot(group.before);
+    if (group) {
+      const sourceLayers = group.layerIds.flatMap((layerId) => {
+        const layer = findDocumentLayer(group.before, layerId);
+        return layer ? [layer] : [];
+      });
+      dependenciesRef.current.getRenderer()?.clearLayerGeometryPreviews?.(sourceLayers);
     }
     groupRef.current = null;
     const mask = maskRef.current;

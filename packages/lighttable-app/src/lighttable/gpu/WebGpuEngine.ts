@@ -996,6 +996,30 @@ export class WebGpuEngine {
     return changed;
   }
 
+  updateLayerGeometryPreviews(
+    previews: readonly { readonly layer: LayerNode; readonly matrix: AffineMatrix }[]
+  ) {
+    const renderer = this.documentRenderer;
+    if (!renderer || previews.length === 0) return false;
+    let changed = false;
+    for (const preview of previews) {
+      changed = renderer.setGeometryPreview(preview.layer, preview.matrix) || changed;
+    }
+    if (changed) this.markDocumentPreviewDirty();
+    return changed;
+  }
+
+  clearLayerGeometryPreviews(layers: readonly LayerNode[]) {
+    const renderer = this.documentRenderer;
+    if (!renderer || layers.length === 0) return false;
+    let changed = false;
+    for (const layer of layers) {
+      changed = renderer.setGeometryPreview(layer, null) || changed;
+    }
+    if (changed) this.markDocumentPreviewDirty();
+    return changed;
+  }
+
   setSemanticLayerInteraction(layer: LayerNode, active: boolean) {
     return layer.type === 'text'
       ? this.documentRenderer?.setTextLayerInteraction(layer.id, active) ?? false
