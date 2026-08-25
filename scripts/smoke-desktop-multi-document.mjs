@@ -1,6 +1,6 @@
 import { _electron as electron } from 'playwright-core';
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import sharp from 'sharp';
@@ -10,6 +10,7 @@ import { packagedDesktopExecutable } from './desktop-test-startup.mjs';
 const root = path.resolve(import.meta.dirname, '..');
 const outputDirectory = path.join(root, 'tmp', 'multi-document-smoke');
 const userData = path.join(outputDirectory, `user-data-${process.pid}`);
+const recentUserData = path.join(outputDirectory, `recent-user-data-${process.pid}`);
 const imageFile = path.join(outputDirectory, 'image.png');
 const videoFile = path.join(outputDirectory, 'video.mp4');
 const droppedVideoFile = path.join(outputDirectory, 'dropped.webm');
@@ -20,6 +21,7 @@ const executablePath = path.resolve(
 const ffmpeg = process.env.LIGHTTABLE_FFMPEG ?? 'ffmpeg';
 
 await mkdir(userData, { recursive: true });
+await mkdir(recentUserData, { recursive: true });
 await sharp({
   create: { width: 96, height: 64, channels: 4, background: '#3264c8ff' }
 }).png().toFile(imageFile);
@@ -33,6 +35,39 @@ execFileSync(ffmpeg, [
   '-f', 'lavfi', '-i', 'color=c=0x42b883:s=240x160:d=1',
   '-c:v', 'libvpx-vp9', '-b:v', '120k', droppedVideoFile
 ]);
+
+await writeFile(path.join(recentUserData, 'recent-files.json'), JSON.stringify([{
+  id: 'cold-start-video', path: videoFile, openedAt: Date.now()
+}], null, 2));
+
+const recentEnvironment = {
+  ...process.env,
+  LIGHTTABLE_AUTOMATION_USER_DATA: recentUserData
+};
+delete recentEnvironment.ELECTRON_RUN_AS_NODE;
+const recentApp = await electron.launch({
+  executablePath,
+  cwd: root,
+  env: recentEnvironment,
+  timeout: 30_000
+});
+try {
+  const recentPage = await recentApp.firstWindow({ timeout: 30_000 });
+  const recentFailures = [];
+  recentPage.on('pageerror', (error) => recentFailures.push(error.stack ?? error.message));
+  recentPage.on('crash', () => recentFailures.push('Renderer process crashed.'));
+  await recentPage.getByRole('button', { name: 'Recent Files', exact: true }).click();
+  await recentPage.getByRole('button', { name: 'video.mp4', exact: true }).click();
+  await recentPage.locator('video.lighttable-video-document__media')
+    .waitFor({ state: 'visible', timeout: 30_000 });
+  await recentPage.waitForTimeout(500);
+  if (await recentPage.getByText('This document runtime stopped unexpectedly.').count() > 0
+    || recentFailures.some((failure) => failure.includes('font registry'))) {
+    throw new Error(`Cold recent-video startup failed: ${recentFailures.join('\n')}`);
+  }
+} finally {
+  await recentApp.close().catch(() => undefined);
+}
 
 const environment = {
   ...process.env,

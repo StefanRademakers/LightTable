@@ -1335,13 +1335,23 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     textEditingControllerRef.current?.finish();
   }, [paragraphTextController, pointTextController]);
 
-  useEffect(() => () => {
-    // This fallback belongs to the persistent editor overlay, not to a tool
-    // controller or active document. Document switches replace those
-    // controllers and must never dispose a registry selected by the next
-    // document render (notably image -> video and video -> video switches).
-    standaloneFontRegistryRef.current?.dispose();
-    standaloneFontRegistryRef.current = null;
+  const standaloneFontRegistryDisposalGenerationRef = useRef(0);
+  useEffect(() => {
+    standaloneFontRegistryDisposalGenerationRef.current += 1;
+    return () => {
+      // React StrictMode performs a synthetic setup/cleanup/setup cycle. A
+      // synchronous dispose here leaves that same mounted render holding a
+      // dead registry, which is especially visible when a video is the first
+      // document and the image editor surface never opens. Delay actual
+      // destruction until a microtask and cancel it when the overlay acquires
+      // the resource again during StrictMode replay.
+      const generation = ++standaloneFontRegistryDisposalGenerationRef.current;
+      queueMicrotask(() => {
+        if (standaloneFontRegistryDisposalGenerationRef.current !== generation) return;
+        standaloneFontRegistryRef.current?.dispose();
+        standaloneFontRegistryRef.current = null;
+      });
+    };
   }, []);
 
   useEffect(() => {
