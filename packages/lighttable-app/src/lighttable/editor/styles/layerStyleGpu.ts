@@ -87,7 +87,8 @@ export const smoothBevelMultiscalePlan = (
   radius: number,
   width: number,
   height: number,
-  targetRadius = 16
+  targetRadius = 16,
+  maximumScale = 16
 ) => {
   const requested = Math.max(0, radius);
   let scale = 1;
@@ -96,7 +97,7 @@ export const smoothBevelMultiscalePlan = (
   // layers never disappear merely because the authored radius is large.
   while (
     requested / scale > targetRadius
-    && scale < 16
+    && scale < maximumScale
     && Math.ceil(width / (scale * 2)) >= 8
     && Math.ceil(height / (scale * 2)) >= 8
   ) scale *= 2;

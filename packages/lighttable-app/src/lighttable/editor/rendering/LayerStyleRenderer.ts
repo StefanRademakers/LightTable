@@ -101,7 +101,8 @@ const bevelGeometryCacheKey = (
   effect: Extract<StyleEffect, { kind: 'bevel-emboss' }>,
   inverse: AffineMatrix,
   sourceSize: { width: number; height: number },
-  bounds: Rect
+  bounds: Rect,
+  quality: 'interactive' | 'final'
 ) => {
   if (layer.type === 'group') return null;
   const sourceRevision = layer.type === 'raster'
@@ -124,6 +125,7 @@ const bevelGeometryCacheKey = (
     sourceRevision,
     mask,
     effect.technique,
+    effect.technique === 'smooth' ? quality : 'quality-independent',
     effect.technique === 'smooth' ? effect.size : 'retained-sdf',
     effect.technique === 'smooth' ? effect.soften : 'retained-sdf',
     layer.styleStack.scale,
@@ -412,7 +414,9 @@ export class LayerStyleRenderer {
           }, { width, height })
         : tightBounds;
       const geometryKey = effect.kind === 'bevel-emboss'
-        ? bevelGeometryCacheKey(layer, effect, inverse, sourceSize, geometryBounds)
+        ? bevelGeometryCacheKey(
+            layer, effect, inverse, sourceSize, geometryBounds, quality
+          )
         : null;
       const retainedGeometry = effect.kind === 'bevel-emboss' && geometryKey
         ? this.textures.cachedBevelGeometry(layer.id, effect.id, geometryKey)
@@ -423,7 +427,9 @@ export class LayerStyleRenderer {
           ? smoothBevelMultiscalePlan(
               effect.size * layer.styleStack.scale,
               tightBounds.width,
-              tightBounds.height
+              tightBounds.height,
+              quality === 'interactive' ? 8 : 16,
+              quality === 'interactive' ? 32 : 16
             )
           : null;
         const blurWidth = smoothPlan?.workingWidth ?? blurPlan.workingWidth;
@@ -520,7 +526,9 @@ export class LayerStyleRenderer {
           ? smoothBevelMultiscalePlan(
               effect.size * layer.styleStack.scale,
               tightBounds.width,
-              tightBounds.height
+              tightBounds.height,
+              quality === 'interactive' ? 8 : 16,
+              quality === 'interactive' ? 32 : 16
             ).scale
           : 1;
         values.set([

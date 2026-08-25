@@ -55,6 +55,12 @@ describe('Layer Style GPU settings', () => {
       workingRadius: 10
     });
     expect(smoothBevelMultiscalePlan(133, 20, 20).scale).toBe(2);
+    expect(smoothBevelMultiscalePlan(133, 800, 400, 8, 32)).toEqual({
+      scale: 32,
+      workingWidth: 25,
+      workingHeight: 13,
+      workingRadius: 4.15625
+    });
   });
 
   it('keeps the base pass separate from effects and preserves Fill', () => {
