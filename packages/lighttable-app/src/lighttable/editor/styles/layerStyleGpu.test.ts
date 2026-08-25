@@ -193,15 +193,17 @@ describe('Layer Style GPU settings', () => {
     expect(layerStyleGaussianBlurPlan(effect, stack, 400, 200, 'final')).toBeNull();
   });
 
-  it('uses the settled Gaussian path for wide satin without changing small satin cost', () => {
+  it('uses the retained dense Gaussian field for satin at every visible radius', () => {
     const effect = createDefaultLayerStyle('satin');
     if (effect.kind !== 'satin') throw new Error('Expected Satin.');
     const stack = createDefaultLayerStyleStack();
     effect.size = 8;
-    expect(layerStyleGaussianBlurPlan(effect, stack, 500, 500, 'final')).toBeNull();
+    expect(layerStyleGaussianBlurPlan(effect, stack, 500, 500, 'final')).toEqual({
+      scale: 1, workingWidth: 500, workingHeight: 500, workingRadius: 8
+    });
     effect.size = 60;
     expect(layerStyleGaussianBlurPlan(effect, stack, 500, 500, 'final')).toMatchObject({
-      workingRadius: 7.5
+      workingRadius: 15
     });
   });
 
