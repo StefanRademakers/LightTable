@@ -13,10 +13,10 @@
       "decision": "Extract cohesive tool and panel owners when behavior changes; line reduction alone is not completion."
     },
     "packages/lighttable-app/src/lighttable/gpu/WebGpuEngine.ts": {
-      "baselineLines": 3322,
+      "baselineLines": 3876,
       "classification": "mixed-authority",
-      "responsibilities": ["GPU device and queue", "pipeline and texture resources", "document compositing", "viewport presentation"],
-      "lifecycleOwners": ["device lifetime", "document renderer lifetime", "frame submission and loss recovery"],
+      "responsibilities": ["GPU device and queue", "pipeline and texture resources", "document compositing", "viewport presentation", "GPU readback and effect execution"],
+      "lifecycleOwners": ["shared device lifetime", "document renderer lifetime", "frame submission and loss recovery", "explicit texture and readback leases"],
       "productRisk": "high",
       "decision": "Continue extracting explicit resource and pass owners while preserving one render authority."
     },
@@ -29,15 +29,15 @@
       "decision": "Split only by independently compiled shader program or independently owned processing domain."
     },
     "apps/desktop/src/main.ts": {
-      "baselineLines": 2166,
+      "baselineLines": 2494,
       "classification": "mixed-authority",
-      "responsibilities": ["Electron lifecycle", "native file and project IO", "Agent Access", "local and hosted AI processes"],
-      "lifecycleOwners": ["application process", "BrowserWindow", "child processes and network bridges"],
+      "responsibilities": ["Electron lifecycle", "native file and project IO", "bounded local-media streaming", "Agent Access", "local and hosted AI processes"],
+      "lifecycleOwners": ["application process", "BrowserWindow", "file and media capability registries", "child processes and network bridges"],
       "productRisk": "high",
       "decision": "Move process and service lifecycles behind narrow main-process owners; keep IPC policy centralized."
     },
     "packages/lighttable-app/src/lighttable/editor/rendering/layerShaders.ts": {
-      "baselineLines": 2146,
+      "baselineLines": 2600,
       "classification": "cohesive-heavy",
       "responsibilities": ["layer composition WGSL", "blend and mask semantics", "layer effect shader helpers"],
       "lifecycleOwners": ["compile-time shader source", "layer pipeline creation"],
@@ -53,7 +53,7 @@
       "decision": "Separate tree interaction, menu and thumbnail lifecycles behind panel-owned hooks/controllers."
     },
     "packages/lighttable-app/src/lighttable/editor/document/documentCommands.ts": {
-      "baselineLines": 1582,
+      "baselineLines": 1840,
       "classification": "cohesive-heavy",
       "responsibilities": ["canonical document mutations", "layer tree invariants", "reversible command construction"],
       "lifecycleOwners": ["single synchronous document mutation"],
@@ -101,7 +101,7 @@
       "decision": "Move tool-family option groups to their owning feature without creating a generic options manager."
     },
     "packages/lighttable-app/src/lighttable/application/commands/lightTableCommandService.ts": {
-      "baselineLines": 1607,
+      "baselineLines": 1988,
       "classification": "cohesive-heavy",
       "responsibilities": ["semantic command orchestration and publication", "document and workspace query routing", "gesture, task and artifact lifecycle", "Actions recording decisions and workflow integration"],
       "lifecycleOwners": ["workspace service", "mounted document ports", "bounded gesture, task and artifact registries", "delegated SemanticActionWorkflowController"],
@@ -109,15 +109,15 @@
       "decision": "Preserve central protocol, revision and recording-decision authority; Actions storage/selection/playback now lives in SemanticActionWorkflowController. Continue extracting cohesive family validation/execution handlers as categories are added, and keep realtime preview loops outside this service."
     },
     "packages/lighttable-app/src/lighttable/editor/workspace/LightTableDockWorkspace.tsx": {
-      "baselineLines": 1055,
+      "baselineLines": 1494,
       "classification": "mixed-authority",
-      "responsibilities": ["dock layout", "panel registration", "workspace chrome", "layout persistence"],
-      "lifecycleOwners": ["workspace mount", "dock model", "persisted layout"],
+      "responsibilities": ["dock layout", "panel registration and visibility", "typed workspace projection", "workspace chrome", "layout persistence"],
+      "lifecycleOwners": ["single workspace mount", "dock model", "temporary document-kind projection", "persisted user layout"],
       "productRisk": "medium",
-      "decision": "Keep dock authority centralized while moving panel content and behavior to feature owners."
+      "decision": "Keep one dock authority and stable document host; document-kind changes may alter panel visibility but must never rebuild the document surface or canonical session. Move panel content to feature owners."
     },
     "packages/lighttable-app/src/lighttable/application/layers/useLayerDocumentCommands.ts": {
-      "baselineLines": 1037,
+      "baselineLines": 1349,
       "classification": "mixed-authority",
       "responsibilities": ["layer action bindings", "document command adaptation", "selection-sensitive operations"],
       "lifecycleOwners": ["mounted document", "active layer selection"],
@@ -133,12 +133,36 @@
       "decision": "Keep Camera Raw-style workflow cohesion; split sections only with shared preview semantics intact."
     },
     "packages/lighttable-app/src/standalone/LightTableStandaloneApp.tsx": {
-      "baselineLines": 1009,
+      "baselineLines": 1204,
       "classification": "mixed-authority",
-      "responsibilities": ["host capability composition", "workspace lifecycle", "open/save/recovery", "application dialogs"],
-      "lifecycleOwners": ["application mount", "workspace session", "host subscriptions"],
+      "responsibilities": ["host capability composition", "typed document workspace lifecycle", "open/save/recovery and recent previews", "application dialogs"],
+      "lifecycleOwners": ["application mount", "one typed workspace session", "host subscriptions", "bounded object-URL preview registries"],
       "productRisk": "high",
       "decision": "Continue moving workflows to application services while retaining this as a thin composition root."
+    },
+    "packages/lighttable-app/src/lighttable/editor/menus/createEditorMenuOptions.ts": {
+      "baselineLines": 1008,
+      "classification": "cohesive-heavy",
+      "responsibilities": ["pure menu-tree projection", "command availability and checked state", "document-kind capability gating"],
+      "lifecycleOwners": ["single menu projection from immutable editor state"],
+      "productRisk": "medium",
+      "decision": "Keep this as a pure declarative projection; command execution, persistence and async work remain behind injected callbacks. Split only stable menu families when navigation becomes difficult."
+    },
+    "packages/lighttable-app/src/lighttable/editor/rendering/LayerCompositor.ts": {
+      "baselineLines": 1214,
+      "classification": "cohesive-heavy",
+      "responsibilities": ["ordered layer composition", "render-island and suffix-cache projection", "mask, processing and layer-style pass orchestration"],
+      "lifecycleOwners": ["single document compositor", "explicit revision-keyed caches", "one encoded frame"],
+      "productRisk": "high",
+      "decision": "Retain one composition authority. Backend renderers own their resources; this class owns ordering and cache invalidation and must expose explicit destruction and telemetry."
+    },
+    "packages/lighttable-app/src/lighttable/editor/rendering/VectorLayerRenderer.ts": {
+      "baselineLines": 1325,
+      "classification": "mixed-authority",
+      "responsibilities": ["native and Vello vector backend routing", "retained island projection and mutation", "geometry and surface caches", "vector mask encoding and telemetry"],
+      "lifecycleOwners": ["single document vector renderer", "retained island resources", "bounded geometry and Vello surface caches"],
+      "productRisk": "high",
+      "decision": "Preserve one vector facade while backend-specific caches and surfaces remain explicit owners with bounded memory and destroy paths. Do not move document semantics or React state into this renderer."
     },
     "packages/lighttable-app/src/lighttable/editor/ui/LayerStyleEditor.tsx": {
       "baselineLines": 869,

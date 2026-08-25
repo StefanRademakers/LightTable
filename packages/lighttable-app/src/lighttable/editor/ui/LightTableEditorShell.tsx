@@ -236,7 +236,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
     aria-hidden={!active}
   >
     <div
-      className={`modal lighttable${screenMode === 'canvas-only' ? ' lighttable--canvas-only' : ''}`}
+      className={`lighttable${screenMode === 'canvas-only' ? ' lighttable--canvas-only' : ''}`}
       onClick={(event) => event.stopPropagation()}
     >
       {screenMode !== 'canvas-only' ? <div className="modal__header concept-art-editor__header lighttable__header">

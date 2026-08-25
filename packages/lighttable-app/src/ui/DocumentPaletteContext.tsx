@@ -1,7 +1,20 @@
 import React from 'react';
-import type { PaletteColor } from '../lighttable/application/color/documentPalette';
 
-export type DocumentPaletteLoader = (colorCount: number) => Promise<readonly PaletteColor[]>;
+/**
+ * UI-facing palette projection. The editor owns how these values are sampled
+ * and clustered; reusable color controls only depend on this immutable view.
+ */
+export interface DocumentPaletteColor {
+  readonly rgb: readonly [number, number, number];
+  readonly hex: string;
+  readonly coverage: number;
+  readonly pixelCount: number;
+  readonly oklab: readonly [number, number, number];
+}
+
+export type DocumentPaletteLoader = (
+  colorCount: number
+) => Promise<readonly DocumentPaletteColor[]>;
 
 const DocumentPaletteContext = React.createContext<DocumentPaletteLoader | null>(null);
 

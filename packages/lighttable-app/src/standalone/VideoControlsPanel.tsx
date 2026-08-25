@@ -97,21 +97,23 @@ export const VideoControlsPanel = ({ session, commands }: VideoControlsPanelProp
             disabled={!ready}
             onClick={() => commands.setMuted(!presentation.muted)}
           />
-          <AdjustmentSlider
-            label="Volume"
-            ariaLabel="Video volume"
-            layout="bare"
-            value={presentation.volume}
-            min={0}
-            max={1}
-            step={0.01}
-            resetValue={1}
-            showResetMarker={false}
-            disabled={!ready}
-            interactionMode="native"
-            onChange={commands.setVolume}
-            onReset={() => commands.setVolume(1)}
-          />
+          <div className="lighttable-video-controls__volume-slider">
+            <AdjustmentSlider
+              label="Volume"
+              ariaLabel="Video volume"
+              layout="bare"
+              value={presentation.volume}
+              min={0}
+              max={1}
+              step={0.01}
+              resetValue={1}
+              showResetMarker={false}
+              disabled={!ready}
+              interactionMode="native"
+              onChange={commands.setVolume}
+              onReset={() => commands.setVolume(1)}
+            />
+          </div>
         </div>
       </div>
       <div className="lighttable-video-controls__scrubber">

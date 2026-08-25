@@ -4,9 +4,9 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 83,
+      "productionUsageCount": 90,
       "internalUsageCount": 5,
-      "contextCount": 26,
+      "contextCount": 27,
       "overrideCount": 0,
       "locations": [
         {
@@ -115,8 +115,13 @@
           "kind": "product"
         },
         {
+          "path": "standalone/AgentAccessRequestDialog.tsx",
+          "count": 4,
+          "kind": "product"
+        },
+        {
           "path": "standalone/AgentAccessSettingsDialog.tsx",
-          "count": 11,
+          "count": 14,
           "kind": "product"
         },
         {
@@ -160,9 +165,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 142,
+      "productionUsageCount": 153,
       "internalUsageCount": 0,
-      "contextCount": 38,
+      "contextCount": 42,
       "overrideCount": 0,
       "locations": [
         {
@@ -196,8 +201,18 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/actions/ActionBindingEditor.tsx",
+          "count": 6,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 13,
+          "count": 14,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionStepRationaleEditor.tsx",
+          "count": 1,
           "kind": "product"
         },
         {
@@ -212,6 +227,11 @@
         },
         {
           "path": "lighttable/editor/panels/CurvesPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/GaussianBlurPropertiesPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -242,6 +262,11 @@
         },
         {
           "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -282,7 +307,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 21,
+          "count": 22,
           "kind": "product"
         },
         {
@@ -361,9 +386,9 @@
     {
       "id": "square-icon-button",
       "metadataDeclared": true,
-      "productionUsageCount": 6,
+      "productionUsageCount": 7,
       "internalUsageCount": 1,
-      "contextCount": 2,
+      "contextCount": 3,
       "overrideCount": 0,
       "locations": [
         {
@@ -373,6 +398,11 @@
         },
         {
           "path": "lighttable/editor/ui/LightTableEditorShell.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/VideoControlsPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -450,9 +480,9 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 32,
+      "productionUsageCount": 35,
       "internalUsageCount": 1,
-      "contextCount": 16,
+      "contextCount": 17,
       "overrideCount": 1,
       "locations": [
         {
@@ -468,6 +498,11 @@
         {
           "path": "lighttable/application/tools/warp/WarpToolOptions.tsx",
           "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionBindingEditor.tsx",
+          "count": 3,
           "kind": "product"
         },
         {
@@ -610,9 +645,9 @@
     {
       "id": "panel-select",
       "metadataDeclared": true,
-      "productionUsageCount": 8,
+      "productionUsageCount": 10,
       "internalUsageCount": 0,
-      "contextCount": 3,
+      "contextCount": 4,
       "overrideCount": 0,
       "locations": [
         {
@@ -623,6 +658,11 @@
         {
           "path": "lighttable/editor/panels/LevelsPropertiesPanel.tsx",
           "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
+          "count": 2,
           "kind": "product"
         },
         {
@@ -772,13 +812,18 @@
     {
       "id": "switch-control",
       "metadataDeclared": true,
-      "productionUsageCount": 19,
+      "productionUsageCount": 22,
       "internalUsageCount": 0,
-      "contextCount": 9,
+      "contextCount": 12,
       "overrideCount": 0,
       "locations": [
         {
           "path": "genai/ui/GenAiPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/GaussianBlurPropertiesPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -790,6 +835,11 @@
         {
           "path": "lighttable/editor/panels/GradientMapPropertiesPanel.tsx",
           "count": 2,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
+          "count": 1,
           "kind": "product"
         },
         {
@@ -818,6 +868,11 @@
           "kind": "product"
         },
         {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "standalone/PreferencesDialog.tsx",
           "count": 7,
           "kind": "product"
@@ -828,9 +883,9 @@
     {
       "id": "adjustment-slider",
       "metadataDeclared": true,
-      "productionUsageCount": 39,
+      "productionUsageCount": 43,
       "internalUsageCount": 5,
-      "contextCount": 11,
+      "contextCount": 14,
       "overrideCount": 0,
       "locations": [
         {
@@ -849,6 +904,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/GaussianBlurPropertiesPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/GradePanel.tsx",
           "count": 9,
           "kind": "product"
@@ -861,6 +921,11 @@
         {
           "path": "lighttable/editor/panels/LensFxPanel.tsx",
           "count": 7,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/P0FilterPropertiesPanel.tsx",
+          "count": 1,
           "kind": "product"
         },
         {
@@ -886,6 +951,11 @@
         {
           "path": "lighttable/editor/ui/ToolOptionsBar.tsx",
           "count": 6,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/VideoControlsPanel.tsx",
+          "count": 2,
           "kind": "product"
         },
         {
@@ -1118,9 +1188,9 @@
     {
       "id": "confirm-dialog",
       "metadataDeclared": true,
-      "productionUsageCount": 3,
+      "productionUsageCount": 4,
       "internalUsageCount": 0,
-      "contextCount": 3,
+      "contextCount": 4,
       "overrideCount": 0,
       "locations": [
         {
@@ -1135,6 +1205,11 @@
         },
         {
           "path": "lighttable/editor/ui/FillDialog.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "standalone/AgentAccessSettingsDialog.tsx",
           "count": 1,
           "kind": "product"
         }
@@ -1224,17 +1299,17 @@
   "deepestSelectors": [
     {
       "path": "lighttable/lighttable.css",
-      "selector": ".lighttable-dock-workspace\n  .dv-groupview\n  > .dv-tabs-and-actions-container\n  .dv-tabs-container\n  > .dv-tab.dv-active-tab",
+      "selector": ".lighttable-dock-workspace\r\n  .dv-groupview\r\n  > .dv-tabs-and-actions-container\r\n  .dv-tabs-container\r\n  > .dv-tab.dv-active-tab",
       "depth": 5
     },
     {
       "path": "lighttable/lighttable.css",
-      "selector": ".lighttable-dock-workspace\n  .dv-groupview\n  > .dv-tabs-and-actions-container\n  .dv-tabs-container\n  > .dv-tab.dv-inactive-tab",
+      "selector": ".lighttable-dock-workspace\r\n  .dv-groupview\r\n  > .dv-tabs-and-actions-container\r\n  .dv-tabs-container\r\n  > .dv-tab.dv-inactive-tab",
       "depth": 5
     },
     {
       "path": "lighttable/lighttable.css",
-      "selector": ".lighttable-dock-workspace\n  .dv-groupview:has(.lighttable-document-host)\n  :is(\n    .dv-drop-target-selection.dv-drop-target-center",
+      "selector": ".lighttable-dock-workspace\r\n  .dv-groupview:has(.lighttable-document-host)\r\n  :is(\r\n    .dv-drop-target-selection.dv-drop-target-center",
       "depth": 4
     },
     {

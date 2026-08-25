@@ -5,8 +5,10 @@ import { FormInput } from './FormInput';
 import { OpacitySlider } from './OpacitySlider';
 import { SquareIconButton } from './SquareIconButton';
 import { sampleScreenColor } from './colorSampling';
-import { useDocumentPaletteLoader } from './DocumentPaletteContext';
-import type { PaletteColor } from '../lighttable/application/color/documentPalette';
+import {
+  useDocumentPaletteLoader,
+  type DocumentPaletteColor
+} from './DocumentPaletteContext';
 
 export interface ColorPickerColor { readonly r: number; readonly g: number; readonly b: number; readonly a: number }
 interface HsvColor { readonly h: number; readonly s: number; readonly v: number }
@@ -91,7 +93,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   const [rgb, setRgb] = React.useState([byte(value.r), byte(value.g), byte(value.b)].map(String));
   const [sampling, setSampling] = React.useState(false);
   const loadDocumentPalette = useDocumentPaletteLoader();
-  const [imagePalette, setImagePalette] = React.useState<readonly PaletteColor[] | null>(null);
+  const [imagePalette, setImagePalette] = React.useState<readonly DocumentPaletteColor[] | null>(null);
   const [paletteError, setPaletteError] = React.useState<string | null>(null);
   React.useEffect(() => {
     if (!loadDocumentPalette) return;
