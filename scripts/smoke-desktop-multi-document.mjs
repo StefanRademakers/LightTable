@@ -60,6 +60,7 @@ try {
   await video.waitFor({ state: 'visible', timeout: 30_000 });
   const layout = await page.evaluate(() => {
     const rail = document.querySelector('[aria-label="Video tools"]');
+    const toolOptions = document.querySelector('.lighttable-tool-options');
     const host = document.querySelector('.lighttable-document-host');
     const media = document.querySelector('video.lighttable-video-document__media');
     const rect = (element) => {
@@ -75,12 +76,16 @@ try {
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
       rail: rect(rail),
+      toolOptions: rect(toolOptions),
       host: rect(host),
       media: rect(media)
     };
   });
   if (!layout.rail || layout.rail.width < 24 || layout.rail.width > 96) {
     throw new Error(`Video toolbox rail has invalid geometry: ${JSON.stringify(layout.rail)}`);
+  }
+  if (!layout.toolOptions || layout.toolOptions.height < 20 || layout.toolOptions.height > 80) {
+    throw new Error(`Video tool options bar has invalid geometry: ${JSON.stringify(layout.toolOptions)}`);
   }
   if (!layout.host || layout.host.width < layout.viewportWidth * 0.5
     || layout.host.height < layout.viewportHeight * 0.4) {
@@ -102,7 +107,7 @@ try {
   if (initial?.documents?.map(({ kind }) => kind).join(',') !== 'image,video') {
     throw new Error(`Unexpected typed workspace: ${JSON.stringify(initial?.documents)}`);
   }
-  if (await page.locator('.lighttable-tool-options, [aria-label="Video tools"] .lighttable-toolbox__button').count() !== 0) {
+  if (await page.locator('.lighttable-tool-options button, [aria-label="Video tools"] .lighttable-toolbox__button').count() !== 0) {
     throw new Error('Image tool commands remained mounted for the active video document.');
   }
   for (const label of ['Image', 'Layer', 'Type', 'Select', 'Filter']) {

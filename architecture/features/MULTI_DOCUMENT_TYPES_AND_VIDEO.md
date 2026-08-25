@@ -55,7 +55,9 @@ The panel graph remains stable across document kinds:
 - **Toolbar:** the existing toolbar rail remains mounted so workspace geometry
   never collapses or shifts. Its contents are kind-specific. Video currently
   has no image-editing buttons; playback lives in the video surface. Image tool
-  state remains unchanged while a video tab is active.
+  state remains unchanged while a video tab is active. The horizontal tool
+  options bar likewise remains mounted at its normal height and is empty when
+  the active document has no applicable tool controls.
 - **Status:** media lifecycle and time are shown without image revision data.
 
 Menus, shortcuts, Actions and MCP use the same workspace command scopes.

@@ -1119,3 +1119,18 @@ export const ToolOptionsBar: React.FC<ToolOptionsProps> = (props) => (
     <ToolOptionsContent {...props} />
   </section>
 );
+
+/**
+ * Keeps the application workspace geometry stable when the active document
+ * has no applicable tool options. The bar is structural; only its controls
+ * are document/tool specific.
+ */
+export const EmptyToolOptionsBar: React.FC<{
+  readonly documentKind: 'image' | 'video' | 'model-3d';
+}> = ({ documentKind }) => (
+  <section
+    className="lighttable-tool-options"
+    aria-hidden="true"
+    data-document-kind={documentKind}
+  />
+);

@@ -2,7 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { createEditorSession, type ToolId } from '../session/editorSession';
-import { ToolOptionsContent, type ToolOptionsProps } from './ToolOptionsBar';
+import { EmptyToolOptionsBar, ToolOptionsContent, type ToolOptionsProps } from './ToolOptionsBar';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
 
 const renderOptions = (
@@ -109,6 +109,15 @@ const renderOptions = (
   };
   return renderToStaticMarkup(<ToolOptionsContent {...props} />);
 };
+
+describe('tool options workspace geometry', () => {
+  it('keeps an empty structural bar for document kinds without tool controls', () => {
+    const markup = renderToStaticMarkup(<EmptyToolOptionsBar documentKind="video" />);
+    expect(markup).toContain('class="lighttable-tool-options"');
+    expect(markup).toContain('data-document-kind="video"');
+    expect(markup).toContain('aria-hidden="true"');
+  });
+});
 
 describe('Free Transform tool options', () => {
   it('keeps the Move-tool property bar focused on auto layer selection', () => {

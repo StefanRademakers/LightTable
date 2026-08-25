@@ -6,7 +6,7 @@ import type { EditorMenuId } from '../menus/createEditorMenuOptions';
 import type { EditorSession, ToolId } from '../session/editorSession';
 import { EditorMenuBar } from './EditorMenuBar';
 import { EditorToolbar } from './EditorToolbar';
-import { ToolOptionsBar } from './ToolOptionsBar';
+import { EmptyToolOptionsBar, ToolOptionsBar } from './ToolOptionsBar';
 import type { EditorScreenMode } from '../workspace/editorScreenMode';
 import type { TextPropertyPresentation } from '../../application/text/textPropertyPresentation';
 import type { TextPaint } from '@lighttable/text-core';
@@ -331,7 +331,9 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         onTransformAutoSelectLayerChange={onTransformAutoSelectLayerChange}
         onZoomPreset={onZoomPreset}
         onZoomFit={onZoomFit}
-      /> : null}
+      /> : screenMode !== 'canvas-only' ? (
+        <EmptyToolOptionsBar documentKind={workspaceDocumentKind} />
+      ) : null}
 
       {recoveryNotice && screenMode !== 'canvas-only' ? (
         <div className="lighttable__recovery-notice" role="status">
