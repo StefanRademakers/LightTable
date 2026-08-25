@@ -8,6 +8,7 @@ const roots = [
   'packages/genai-higgsfield/src',
   'packages/text-core/src',
   'packages/pdf-core/src',
+  'packages/video-core/src',
   'packages/vector-core/src',
   'packages/vector-rendering/src',
   'packages/vector-webgpu/src',
@@ -173,6 +174,29 @@ function verifyPdfCoreBoundary(relativePath, source) {
   }
 }
 
+function verifyVideoCoreBoundary(relativePath, source) {
+  const normalizedPath = relativePath.replaceAll('\\', '/');
+  if (!normalizedPath.startsWith('packages/video-core/src/')) return;
+  const forbiddenVideoDependencies = [
+    'react', 'react-dom', 'electron', 'window.', 'navigator.',
+    'HTMLVideoElement', 'GPUDevice', 'GPUTexture',
+    'node:fs', 'node:http', 'node:https', '@lighttable/app', '@lighttable/desktop'
+  ];
+  for (const token of forbiddenVideoDependencies) {
+    if (source.includes(token)) {
+      failures.push(`${relativePath}: video-core must not depend on ${token}`);
+    }
+  }
+  const importPattern = /from\s+['"]([^'"]+)['"]/g;
+  for (const match of source.matchAll(importPattern)) {
+    const moduleSpecifier = match[1];
+    const isTestDependency = normalizedPath.endsWith('.test.ts') && moduleSpecifier === 'vitest';
+    if (!moduleSpecifier.startsWith('.') && !isTestDependency) {
+      failures.push(`${relativePath}: video-core production imports must stay package-relative (${moduleSpecifier})`);
+    }
+  }
+}
+
 function verifyVectorRenderingBoundary(relativePath, source) {
   const normalizedPath = relativePath.replaceAll('\\', '/');
   if (!normalizedPath.startsWith('packages/vector-rendering/src/')) return;
@@ -217,6 +241,7 @@ async function scan(relativeDirectory) {
     verifyGenAiHiggsfieldBoundary(relativePath, source);
     verifyTextCoreBoundary(relativePath, source);
     verifyPdfCoreBoundary(relativePath, source);
+    verifyVideoCoreBoundary(relativePath, source);
     verifyVectorCoreBoundary(relativePath, source);
     verifyVectorRenderingBoundary(relativePath, source);
     verifyVectorWebGpuBoundary(relativePath, source);

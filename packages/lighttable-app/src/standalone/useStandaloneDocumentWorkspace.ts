@@ -84,7 +84,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
         byteLength: file.size
       },
       title: file.name,
-      payload: { file, decodeMode, startupTimeline, ...(creationSettings ? { creationSettings } : {}) }
+      payload: { kind: 'image', file, decodeMode, startupTimeline, ...(creationSettings ? { creationSettings } : {}) }
     });
     if (opened.ok) opened.value.setStartupTimeline(startupTimeline);
     return opened;
@@ -107,6 +107,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
       },
       title: `${originalName} (Recovered)`,
       payload: {
+        kind: 'image',
         file,
         decodeMode: 'automatic',
         startupTimeline,
@@ -131,7 +132,7 @@ export const useStandaloneDocumentWorkspace = (systemFontProvider?: SystemFontBy
         byteLength: file.size
       },
       title,
-      payload: { file, decodeMode: 'automatic', startupTimeline }
+      payload: { kind: 'image', file, decodeMode: 'automatic', startupTimeline }
     });
     if (opened.ok) {
       opened.value.setStartupTimeline(startupTimeline);

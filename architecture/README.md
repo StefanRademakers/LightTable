@@ -66,6 +66,7 @@ the task genuinely spans every system.
 - [Document image palette](features/DOCUMENT_IMAGE_PALETTE.md)
 - [Resources, workspaces and recent documents](features/RESOURCES_WORKSPACES_AND_RECENTS.md)
 - [Project-mode feature gating](features/PROJECT_MODE_FEATURE_GATING.md)
+- [Multi-document types and video](features/MULTI_DOCUMENT_TYPES_AND_VIDEO.md)
 - [First-run onboarding](features/FIRST_RUN_ONBOARDING.md)
 - [Product UX inspiration and capability gaps](PRODUCT_UX_INSPIRATION_AND_GAPS.md)
 - [Input, tools and history](INPUT_TOOLS_AND_HISTORY.md)

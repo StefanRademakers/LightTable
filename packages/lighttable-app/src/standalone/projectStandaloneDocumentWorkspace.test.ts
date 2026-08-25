@@ -27,6 +27,7 @@ const runtime = (
   sourceFile: File,
   decodeMode: StandaloneDocumentRuntime['decodeMode']
 ): StandaloneDocumentRuntime => ({
+  kind: 'image',
   file: sourceFile,
   decodeMode,
   startupTimeline: new DocumentStartupTimeline(() => 0)

@@ -88,6 +88,14 @@ When the recovered work concerns rendering, SVG, document startup, canvas
 tools or workspace state, use this reset state before reading historical task
 reports:
 
+- **Typed document foundation, 2026-08-25:** the workspace surface contract
+  distinguishes image, video and the reserved future `model-3d` kind.
+  `@lighttable/video-core` owns read-only video lifecycle, playback/view state
+  and extracted-frame artifacts. The visible video workspace is not wired yet.
+  Do not represent video as an empty `ImageDocument`, fake pixel layer or a
+  second Dockview shell; read
+  [Multi-document types and video](features/MULTI_DOCUMENT_TYPES_AND_VIDEO.md).
+
 - **Current, 2026-08-25:** LightTable has one shipping **hybrid vector
   renderer**. There are no normal `:vello` development/package switches and no
   per-document backend mode. `run_clean.bat`, `run_dev.bat`, `run_release.bat`,

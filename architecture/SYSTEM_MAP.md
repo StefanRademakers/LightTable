@@ -23,6 +23,7 @@ packages/text-core       Serializable text model and layout contracts
 packages/text-layout-wasm Rust/Wasm shaping and paragraph runtime
 packages/text-rendering  Backend-neutral text realization and caches
 packages/text-webgpu     WebGPU glyph/vector text backends
+packages/video-core      Host-neutral video documents, playback state and frame artifacts
 packages/vector-core     Serializable vector model, geometry and editing
 packages/vector-rendering Backend-neutral realization and revision caches
 packages/vector-svg      Bounded editable SVG import/export codec over vector-core
@@ -77,11 +78,14 @@ clipboard and optional media browsing. Hosts do not contain editor logic.
 
 ### Workspace
 
-`WorkspaceSession` owns ordered open documents and exactly one active document.
-`DocumentWorkspaceController` pairs each host-neutral session with an opaque
-source payload. One application editor/canvas/Dockview runtime binds to the
-active session; inactive sessions retain canonical data/history/source state,
-not duplicate mounted editor trees or recurring render work.
+The application workspace owns ordered typed documents and exactly one active
+document. The current image `WorkspaceSession` and `DocumentWorkspaceController`
+pair image sessions with opaque source payloads; `@lighttable/video-core` owns
+the separate read-only video session contract. One application
+editor/canvas/Dockview runtime binds to the active typed adapter; inactive
+sessions retain canonical or presentation state, not duplicate mounted editor
+trees or recurring render work. Video and future model documents must not be
+represented by synthetic image sessions.
 
 ### Document session
 

@@ -7,6 +7,7 @@ import type { DocumentStartupTimeline } from '../lighttable/application/telemetr
 export type StandaloneDecodeMode = DocumentOpenMode;
 
 export interface StandaloneDocumentRuntime {
+  readonly kind: 'image';
   readonly file: File;
   readonly decodeMode: StandaloneDecodeMode;
   readonly creationSettings?: DocumentCreationSettings;
