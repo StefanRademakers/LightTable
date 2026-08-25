@@ -10,7 +10,7 @@
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
-        "high-pass", "smart-sharpen", "unsharp-mask", "motion-blur", "reduce-noise", "maximum", "minimum", "offset"
+        "high-pass", "smart-sharpen", "unsharp-mask", "motion-blur", "reduce-noise", "maximum", "minimum", "offset", "displace"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -87,6 +87,23 @@
         "horizontal": { "type": "integer", "minimum": -100000, "maximum": 100000, "default": 0 },
         "vertical": { "type": "integer", "minimum": -100000, "maximum": 100000, "default": 0 },
         "edgeMode": { "type": "string", "enum": ["transparent", "clamp", "wrap"], "default": "wrap" }
+      }
+    },
+    "displaceSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["horizontalScale", "verticalScale", "mapAssetId", "edgeMode", "interpolation"],
+      "properties": {
+        "horizontalScale": { "type": "number", "minimum": -999, "maximum": 999, "default": 10 },
+        "verticalScale": { "type": "number", "minimum": -999, "maximum": 999, "default": 10 },
+        "mapAssetId": {
+          "description": "Canonical raster layer ID in the same document; null produces an exact bypass.",
+          "oneOf": [
+            { "$ref": "#/$defs/layerId" },
+            { "type": "null" }
+          ]
+        },
+        "edgeMode": { "type": "string", "enum": ["transparent", "clamp", "wrap"], "default": "clamp" },
+        "interpolation": { "type": "string", "enum": ["bilinear", "bicubic"], "default": "bicubic" }
       }
     },
     "morphologySettings": {
@@ -167,6 +184,7 @@
               { "$ref": "#/$defs/reduceNoiseSettings" },
               { "$ref": "#/$defs/morphologySettings" },
               { "$ref": "#/$defs/offsetSettings" },
+              { "$ref": "#/$defs/displaceSettings" },
               { "$ref": "#/$defs/gradientMapSettings" }
             ]
           }
@@ -243,6 +261,13 @@
                   "properties": {
                     "kind": { "const": "offset" },
                     "settings": { "$ref": "#/$defs/offsetSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "displace" },
+                    "settings": { "$ref": "#/$defs/displaceSettings" }
                   }
                 },
                 {

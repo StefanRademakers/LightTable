@@ -266,7 +266,12 @@ export class WebGpuEngine {
       device,
       this.adjustmentLayerResources
     );
-    this.p0FilterRenderer = new P0FilterRenderer(device);
+    this.p0FilterRenderer = new P0FilterRenderer(device, (id) => {
+      const document = this.imageDocument;
+      return document
+        ? this.documentLayerResources.get(document.id)?.rasterRuntimes.get(id as LayerId)?.texture ?? null
+        : null;
+    });
     this.renderScheduler = new RenderInvalidationScheduler(() => this.renderNow());
     this.selectionAntsAnimator = new SelectionAntsAnimator({
       invalidateViewport: () => this.renderDirty.invalidate('viewport'),

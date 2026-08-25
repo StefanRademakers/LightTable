@@ -99,6 +99,17 @@ describe('semantic adjustment creation contract', () => {
       kind: 'minimum', placement: 'attached', layerId: 'photo',
       settings: { radius: 8, shape: 'square' }
     });
+    expect(parseSemanticAdjustmentCreationCommand({
+      kind: 'displace', placement: 'attached', layerId: 'photo', settings: {
+        horizontalScale: 24, verticalScale: -12, mapAssetId: 'height-map',
+        edgeMode: 'clamp', interpolation: 'bicubic'
+      }
+    })).toEqual({
+      kind: 'displace', placement: 'attached', layerId: 'photo', settings: {
+        horizontalScale: 24, verticalScale: -12, mapAssetId: 'height-map',
+        edgeMode: 'clamp', interpolation: 'bicubic'
+      }
+    });
   });
 
   it.each([
@@ -126,6 +137,10 @@ describe('semantic adjustment creation contract', () => {
     { kind: 'maximum', placement: 'adjustment-layer', settings: { radius: 0, shape: 'round' } },
     { kind: 'maximum', placement: 'adjustment-layer', settings: { radius: 2, shape: 'diamond' } },
     { kind: 'minimum', placement: 'adjustment-layer', settings: { radius: 501, shape: 'square' } },
+    { kind: 'displace', placement: 'adjustment-layer', settings: {
+      horizontalScale: 10, verticalScale: 10, mapAssetId: 'map',
+      edgeMode: 'mirror', interpolation: 'bicubic'
+    } },
     { kind: 'gradient-map', placement: 'adjustment-layer', settings: {
       colorStops: [{ position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0 } }],
       opacityStops: [{ position: 0, midpoint: 0.5, opacity: 1 }]

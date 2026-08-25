@@ -63,9 +63,13 @@ export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = (
                 value={String(settings[control.key])} options={control.options}
                 onChange={(value) => commands.updateSetting(control.key, value)} />
             ) : (
-              <div key={control.key} className="lighttable-style-field">
-                <span>{control.label}</span><span>Choose a raster source</span>
-              </div>
+              <PanelSelectField key={control.key} label={control.label}
+                value={String(settings[control.key] ?? '')}
+                options={[
+                  { value: '', label: 'None (bypass)' },
+                  ...model.rasterSources
+                ]}
+                onChange={(value) => commands.updateSetting(control.key, value || null)} />
             ))}
           </div>
         </section>

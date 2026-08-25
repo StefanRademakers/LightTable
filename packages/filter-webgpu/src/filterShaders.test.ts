@@ -6,6 +6,7 @@ import {
   WAVELET_DENOISE_HORIZONTAL_WGSL,
   WAVELET_DENOISE_VERTICAL_WGSL
 } from './WaveletDenoiseCore';
+import { DISPLACE_WGSL } from './DisplaceCore';
 
 describe('filter shaders', () => {
   it('keeps BlurCore bindings stable and avoids WGSL reserved identifiers', () => {
@@ -34,5 +35,12 @@ describe('filter shaders', () => {
     expect(WAVELET_DENOISE_HORIZONTAL_WGSL).toContain('scale.step');
     expect(WAVELET_DENOISE_VERTICAL_WGSL).toContain('retainedDetail');
     expect(WAVELET_DENOISE_VERTICAL_WGSL).toContain('source.a');
+  });
+
+  it('keeps Displace map sampling bounded, explicit and HDR-capable', () => {
+    expect(DISPLACE_WGSL).toContain('positiveMod');
+    expect(DISPLACE_WGSL).toContain('bicubicSource');
+    expect(DISPLACE_WGSL).toContain('mapSample.rgb / max(mapSample.a');
+    expect(DISPLACE_WGSL).not.toContain('clamp(result, vec4f(0.0), vec4f(1.0))');
   });
 });

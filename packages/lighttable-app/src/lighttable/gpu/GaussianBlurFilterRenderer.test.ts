@@ -9,7 +9,7 @@ beforeAll(() => {
   vi.stubGlobal('GPUBufferUsage', { UNIFORM: 4, COPY_DST: 8 });
 });
 
-const fixture = () => {
+const fixture = (resolveRasterTexture: (id: string) => GPUTexture | null = () => null) => {
   const textures: Array<{ createView: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }> = [];
   const buffers: Array<{ destroy: ReturnType<typeof vi.fn> }> = [];
   const writeBuffer = vi.fn();
@@ -33,7 +33,7 @@ const fixture = () => {
     setPipeline: vi.fn(), setBindGroup: vi.fn(), draw: vi.fn(), end: vi.fn()
   };
   const encoder = { beginRenderPass: vi.fn(() => pass) } as unknown as GPUCommandEncoder;
-  const renderer = new GaussianBlurFilterRenderer(device);
+  const renderer = new GaussianBlurFilterRenderer(device, resolveRasterTexture);
   renderer.configure(20, 10, {} as GPUSampler);
   return { renderer, device, encoder, textures, buffers, pass, writeBuffer };
 };
@@ -246,6 +246,40 @@ describe('GaussianBlurFilterRenderer', () => {
         strength: 0, preserveDetails: 60, reduceColorNoise: 0, sharpenDetails: 0
       }, (part) => `denoise-neutral-${part}`),
       'Reduce Noise', 'reduce-noise'
+    );
+    const source = {} as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).toBe(source);
+    expect(test.textures).toHaveLength(0);
+  });
+
+  it('routes Displace through one map-driven pass without copying its raster map', () => {
+    const map = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    const test = fixture((id) => id === 'map-layer' ? map : null);
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('displace', {
+        horizontalScale: 12, verticalScale: -8, mapAssetId: 'map-layer',
+        edgeMode: 'wrap', interpolation: 'bicubic'
+      }, (part) => `displace-${part}`),
+      'Displace', 'displace'
+    );
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
+    expect(test.textures).toHaveLength(1);
+    expect(test.encoder.beginRenderPass).toHaveBeenCalledOnce();
+    expect(map.createView).toHaveBeenCalledOnce();
+    const payload = test.writeBuffer.mock.calls[0]?.[2] as ArrayBuffer;
+    expect(Array.from(new Float32Array(payload).slice(0, 2))).toEqual([12, -8]);
+    expect(Array.from(new Uint32Array(payload).slice(2, 4))).toEqual([2, 1]);
+  });
+
+  it('bypasses Displace exactly when its canonical raster map is unavailable', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('displace', {
+        horizontalScale: 12, verticalScale: 8, mapAssetId: 'missing-layer',
+        edgeMode: 'clamp', interpolation: 'bilinear'
+      }, (part) => `missing-displace-${part}`),
+      'Displace', 'displace'
     );
     const source = {} as GPUTexture;
     expect(test.renderer.encode(test.encoder, source, layer)).toBe(source);

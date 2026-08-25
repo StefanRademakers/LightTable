@@ -1,5 +1,6 @@
 import {
   BlurCore,
+  DisplaceCore,
   MorphologyCore,
   MotionBlurCore,
   OffsetCore,
@@ -24,21 +25,27 @@ export class P0FilterRenderer {
   private readonly motionBlurCore: MotionBlurCore;
   private readonly morphologyCore: MorphologyCore;
   private readonly waveletDenoiseCore: WaveletDenoiseCore;
+  private readonly displaceCore: DisplaceCore;
+  private sampler: GPUSampler | null = null;
 
-  constructor(device: GPUDevice) {
+  constructor(device: GPUDevice,
+    private readonly resolveRasterTexture: (id: string) => GPUTexture | null = () => null) {
     this.blurCore = new BlurCore(device);
     this.offsetCore = new OffsetCore(device);
     this.motionBlurCore = new MotionBlurCore(device);
     this.morphologyCore = new MorphologyCore(device);
     this.waveletDenoiseCore = new WaveletDenoiseCore(device);
+    this.displaceCore = new DisplaceCore(device);
   }
 
   configure(width: number, height: number, sampler: GPUSampler): void {
+    this.sampler = sampler;
     this.blurCore.configure(width, height, sampler);
     this.offsetCore.configure(width, height);
     this.motionBlurCore.configure(width, height, sampler);
     this.morphologyCore.configure(width, height);
     this.waveletDenoiseCore.configure(width, height, sampler);
+    this.displaceCore.configure(width, height);
   }
 
   encode(
@@ -89,6 +96,17 @@ export class P0FilterRenderer {
         key: `${layer.id}::${module.id}`, revision: module.revision, settings
       }) : source;
     }
+    if (definition.kind === 'displace') {
+      const settings = p0FilterSettings(layer.adjustmentStack, 'displace');
+      const map = settings?.mapAssetId ? this.resolveRasterTexture(settings.mapAssetId) : null;
+      return settings && map && this.sampler ? this.displaceCore.encode(
+        encoder, source, map, this.sampler, {
+          key: `${layer.id}::${module.id}`,
+          revision: module.revision,
+          settings
+        }
+      ) : source;
+    }
     if (!BLUR_CORE_MODES.has(definition.kind as BlurCoreMode)) return source;
     const mode = definition.kind as BlurCoreMode;
     const settings = p0FilterSettings(layer.adjustmentStack, mode);
@@ -105,7 +123,8 @@ export class P0FilterRenderer {
     return this.blurCore.estimatedTextureBytes() + this.offsetCore.estimatedTextureBytes()
       + this.motionBlurCore.estimatedTextureBytes()
       + this.morphologyCore.estimatedTextureBytes()
-      + this.waveletDenoiseCore.estimatedTextureBytes();
+      + this.waveletDenoiseCore.estimatedTextureBytes()
+      + this.displaceCore.estimatedTextureBytes();
   }
 
   reset(): void {
@@ -114,6 +133,7 @@ export class P0FilterRenderer {
     this.motionBlurCore.destroy();
     this.morphologyCore.destroy();
     this.waveletDenoiseCore.destroy();
+    this.displaceCore.destroy();
   }
 
   destroy(): void {
@@ -122,5 +142,6 @@ export class P0FilterRenderer {
     this.motionBlurCore.destroy();
     this.morphologyCore.destroy();
     this.waveletDenoiseCore.destroy();
+    this.displaceCore.destroy();
   }
 }

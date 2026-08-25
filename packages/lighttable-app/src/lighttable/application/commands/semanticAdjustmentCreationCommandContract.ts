@@ -18,7 +18,7 @@ const visibleKinds = adjustmentLayerMenuDefinitionGroups().flat().map(({ id }) =
 // generalized from `adjustment.create` to a processing-layer command.
 const creatableKindSet = new Set<string>([
   ...visibleKinds, 'gaussian-blur', 'motion-blur', 'high-pass', 'smart-sharpen', 'unsharp-mask',
-  'reduce-noise', 'maximum', 'minimum', 'offset'
+  'reduce-noise', 'maximum', 'minimum', 'offset', 'displace'
 ]);
 const localKindSet = new Set<string>(['grade', 'curves', 'lens-fx']);
 

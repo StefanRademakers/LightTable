@@ -7,7 +7,7 @@ import {
   type P0FilterSettings
 } from '@lighttable/filter-core';
 import type { ImageDocument, LayerId } from '../../editor/document/documentTypes';
-import { findDocumentLayer } from '../../editor/document/layerTree';
+import { findDocumentLayer, walkRasterLayers } from '../../editor/document/layerTree';
 import {
   setP0FilterLayerEnabled,
   setP0FilterLayerSettings,
@@ -22,6 +22,7 @@ export interface P0FilterPresentation {
   readonly label: string;
   readonly settings: P0FilterSettings;
   readonly enabled: boolean;
+  readonly rasterSources: readonly { readonly value: string; readonly label: string }[];
 }
 
 export interface P0FilterCommands {
@@ -151,7 +152,11 @@ export const useP0FilterController = ({
     kind: resolved.target.kind,
     label: p0FilterDefinition(resolved.target.kind).label,
     settings: resolved.settings,
-    enabled: resolved.enabled
+    enabled: resolved.enabled,
+    rasterSources: document ? walkRasterLayers(document.layers).map(({ layer, ancestors }) => ({
+      value: layer.id,
+      label: [...ancestors.map(({ name }) => name), layer.name].join(' / ')
+    })) : []
   } : null;
 
   return { model, commands: {
