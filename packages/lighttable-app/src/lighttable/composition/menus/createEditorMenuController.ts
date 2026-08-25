@@ -18,6 +18,7 @@ import type { SnapSettings } from '../../application/tools/snapping/snapSettings
 import type { AdjustmentLayerKind } from '../../processing/adjustmentLayerCatalog';
 import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
 import type { FixedTransformOperation } from '../../application/tools/transform/useTransformSessionController';
+import type { LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 
 export interface EditorMenuControllerOptions {
   readonly projection: EditorMenuProjectionInput;
@@ -87,6 +88,7 @@ export interface EditorMenuControllerOptions {
     layerViaCopy(): void;
     rename(): void;
     invertColors(): void;
+    addEffect(kind: LayerStyleKind): void;
     mergeDown(): void;
   };
   readonly autoAlign: {
@@ -221,6 +223,7 @@ export const createEditorMenuController = ({
           layers.panel.createAttachedAdjustment(activeLayer.id, kind);
         }
       }),
+      addLayerEffect: layers.addEffect,
       openImageSize: image.openSize,
       openCanvasSize: image.openCanvasSize,
       openArbitraryRotation: image.openArbitraryRotation,

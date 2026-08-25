@@ -78,6 +78,7 @@ describe('createEditorMenuController', () => {
         layerViaCopy: vi.fn(),
         rename: vi.fn(),
         invertColors: vi.fn(),
+        addEffect: vi.fn(),
         mergeDown: vi.fn()
       },
       autoAlign: {
@@ -160,7 +161,8 @@ describe('createEditorMenuController', () => {
       layers: {
         panel: {} as LayerPanelController,
         duplicate: vi.fn(), rasterizeText: vi.fn(), convertTextToShape,
-        layerViaCopy: vi.fn(), rename: vi.fn(), invertColors: vi.fn(), mergeDown: vi.fn()
+        layerViaCopy: vi.fn(), rename: vi.fn(), invertColors: vi.fn(),
+        addEffect: vi.fn(), mergeDown: vi.fn()
       },
       autoAlign: { begin: vi.fn(), apply: vi.fn(), cancel: vi.fn() },
       dialogs: {} as EditorDialogController,

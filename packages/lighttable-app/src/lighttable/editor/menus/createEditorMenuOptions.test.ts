@@ -498,6 +498,8 @@ describe('createEditorMenuOptions', () => {
       'layer-new',
       'duplicate-layer',
       'layer-delete',
+      'add-adjustment',
+      'add-effect',
       'rename-layer',
       'blend-mode',
       'invert-layer-colors',
@@ -521,6 +523,32 @@ describe('createEditorMenuOptions', () => {
       .toEqual(['add-mask', 'edit-layer-mask', 'toggle-mask', 'remove-mask']);
     expect(options.find(({ value }) => value === 'arrange')?.children?.map(({ value }) => value))
       .toEqual(['move-up', 'move-down']);
+  });
+
+  it('creates global or attached adjustments and adds Layer Styles from the Layer menu', () => {
+    const menuCommands = commands();
+    const options = createEditorMenuOptions('layer', state(), labels, menuCommands);
+    const adjustments = options.find(({ value }) => value === 'add-adjustment');
+    const curves = findMenuOption(adjustments?.children ?? [], 'layer-add-adjustment-curves');
+    curves?.onClick?.();
+    curves?.trailingAction?.onClick();
+    expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith('curves');
+    expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('curves');
+    expect(curves?.trailingAction?.disabled).toBe(false);
+
+    const effects = options.find(({ value }) => value === 'add-effect');
+    expect(effects?.children?.map(({ label }) => label)).toEqual([
+      'Drop Shadow', 'Inner Shadow', 'Outer Glow', 'Inner Glow',
+      'Bevel & Emboss', 'Stroke', 'Satin', 'Color Overlay',
+      'Gradient Overlay', 'Pattern Overlay'
+    ]);
+    findMenuOption(effects?.children ?? [], 'layer-add-effect-drop-shadow')?.onClick?.();
+    expect(menuCommands.addLayerEffect).toHaveBeenCalledWith('drop-shadow');
+
+    const adjustmentLayerOptions = createEditorMenuOptions(
+      'layer', state({ layer: { ...state().layer!, type: 'adjustment' } }), labels, commands()
+    );
+    expect(adjustmentLayerOptions.find(({ value }) => value === 'add-effect')?.disabled).toBe(true);
   });
 
   it('offers apply/cancel commands only while auto-align has a preview', () => {

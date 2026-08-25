@@ -11,6 +11,8 @@ import {
 import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
 import type { FixedTransformOperation } from '../../application/tools/transform/useTransformSessionController';
 import { P0_FILTER_DEFINITIONS, type P0FilterKind } from '@lighttable/filter-core';
+import { layerStyleKindLabels } from '../styles/layerStyleDefaults';
+import type { LayerStyleKind } from '../styles/layerStyleTypes';
 
 export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'filter' | 'layer' | 'type' | 'ai' | 'view' | 'help';
 
@@ -111,6 +113,7 @@ export interface EditorMenuCommands {
   applyAdjustment: (kind: AdjustmentLayerKind) => void;
   createAdjustmentLayer: (kind: AdjustmentLayerKind) => void;
   attachAdjustment: (kind: AdjustmentLayerKind) => void;
+  addLayerEffect: (kind: LayerStyleKind) => void;
   openImageSize: () => void;
   openCanvasSize: () => void;
   openArbitraryRotation: () => void;
@@ -614,6 +617,32 @@ export const createEditorMenuOptions = (
   }
 
   if (menu === 'layer') {
+    const adjustmentOptions = adjustmentLayerMenuDefinitionGroups()
+      .flatMap((group, groupIndex) => group.map((definition, definitionIndex) => ({
+        value: `layer-add-adjustment-${definition.id}`,
+        label: definition.name,
+        separatorBefore: groupIndex > 0 && definitionIndex === 0,
+        onClick: () => commands.createAdjustmentLayer(definition.id),
+        disabled: !state.hasDocument || state.saving,
+        trailingAction: {
+          value: `layer-attach-adjustment-${definition.id}`,
+          label: `Attach ${definition.name} to selected layer`,
+          onClick: () => commands.attachAdjustment(definition.id),
+          disabled: layer?.type !== 'raster' || layer.locked || state.saving,
+          disabledReason: `Select an unlocked raster layer to attach ${definition.name}.`,
+          icon: createElement('img', {
+            src: lightTableIcon('link_vertical.png'), alt: '', 'aria-hidden': true
+          })
+        }
+      })));
+    const effectKinds = [
+      'drop-shadow', 'inner-shadow', 'outer-glow', 'inner-glow',
+      'bevel-emboss', 'stroke', 'satin', 'color-overlay',
+      'gradient-overlay', 'pattern-overlay'
+    ] as const satisfies readonly LayerStyleKind[];
+    const canAddLayerEffect = Boolean(
+      layer && layer.type !== 'adjustment' && !layer.locked && !state.saving
+    );
     return [
       {
         value: 'layer-new',
@@ -646,6 +675,26 @@ export const createEditorMenuOptions = (
           onClick: commands.deleteLayer,
           disabled: !layer?.canDelete
         }]
+      },
+      {
+        value: 'add-adjustment',
+        label: 'Add Adjustment',
+        separatorBefore: true,
+        disabled: !state.hasDocument || state.saving,
+        children: adjustmentOptions
+      },
+      {
+        value: 'add-effect',
+        label: 'Add Effect',
+        separatorBefore: true,
+        disabled: !canAddLayerEffect,
+        disabledReason: 'Select an unlocked raster, vector, text, or group layer.',
+        children: effectKinds.map((kind) => ({
+          value: `layer-add-effect-${kind}`,
+          label: layerStyleKindLabels[kind],
+          onClick: () => commands.addLayerEffect(kind),
+          disabled: !canAddLayerEffect
+        }))
       },
       {
         value: 'rename-layer',

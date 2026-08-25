@@ -94,7 +94,7 @@ import {
 } from './application/tools/smartSelection/smartSelectionBackendFactory';
 import { useLayerStyleEditorController } from './application/styles/useLayerStyleEditorController';
 import { observedLayerStyleCommands } from './application/styles/semanticLayerStyleObservation';
-import type { LayerStyleId } from './editor/styles/layerStyleTypes';
+import type { LayerStyleId, LayerStyleKind } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useBackgroundRemovalController, type BackgroundRemovalMaskMode } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
@@ -5135,6 +5135,35 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       workspaceRef.current?.showPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties);
     });
   }, [layerStyleEditor.open]);
+  const addLayerEffectFromMenu = useCallback((effectKind: LayerStyleKind) => {
+    const document = imageDocumentRef.current;
+    const layer = document ? findDocumentLayer(document, document.activeLayerId) : null;
+    if (!document || !layer || layer.type === 'adjustment' || layer.locks.all) return;
+
+    const execution = executeRegisteredCommand('layer.effect.add', {
+      layerId: layer.id,
+      effectKind
+    });
+    if (!execution) {
+      const result = executeSemanticLayerStyleCommand(
+        { kind: 'add', layerId: layer.id, effectKind },
+        {
+          getDocument: () => imageDocumentRef.current,
+          applyDocument: applyDocumentSnapshot,
+          recordHistory: pushDocumentHistory
+        }
+      );
+      if (result) openLayerStyleEditor(result.layerId, result.effectId);
+      return;
+    }
+    void execution.then((response) => {
+      if (response.status !== 'completed') return;
+      const result = response.value as { layerId?: string; effectId?: string };
+      if (result.layerId && result.effectId) {
+        openLayerStyleEditor(result.layerId as LayerId, result.effectId as LayerStyleId);
+      }
+    });
+  }, [applyDocumentSnapshot, executeRegisteredCommand, openLayerStyleEditor, pushDocumentHistory]);
   const layerPanelController = useLayerPanelController({
     getDocument: () => imageDocumentRef.current,
     getDocumentAdjustments: () => documentAdjustmentsRef.current,
@@ -6683,6 +6712,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       layerViaCopy,
       rename: focusActiveLayerName,
       invertColors: invertActiveLayerColors,
+      addEffect: addLayerEffectFromMenu,
       mergeDown: mergeSelectionOrActiveDown
     },
     autoAlign: {
