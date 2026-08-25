@@ -193,7 +193,7 @@ const bevelGeometryCacheKey = (
  */
 const gaussianFieldCacheKey = (
   layer: StyledNode,
-  effect: Extract<StyleEffect, { kind: 'drop-shadow' | 'outer-glow' }>,
+  effect: Extract<StyleEffect, { kind: 'drop-shadow' | 'inner-shadow' | 'outer-glow' }>,
   inverse: AffineMatrix,
   sourceSize: { width: number; height: number },
   plan: NonNullable<ReturnType<typeof layerStyleGaussianBlurPlan>>,
@@ -456,6 +456,7 @@ export class LayerStyleRenderer {
       );
       if (!values) return;
       const usesDenseField = effect.kind === 'drop-shadow'
+        || effect.kind === 'inner-shadow'
         || (effect.kind === 'outer-glow' && effect.jitter <= 0);
       const blurPlan = (styleBlurPipeline || (usesDenseField && denseBlurPipeline))
         ? layerStyleGaussianBlurPlan(

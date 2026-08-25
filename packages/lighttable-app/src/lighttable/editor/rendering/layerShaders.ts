@@ -524,7 +524,8 @@ fn blurredAlpha(uv: vec2f, centerOffset: vec2f, radius: f32) -> f32 {
     let documentUv = documentPixel / settings.canvas.xy;
     let fieldUv = (documentPixel - fieldBounds.xy) / max(fieldBounds.zw, vec2f(1.0));
     let kind = i32(settings.header.x + 0.5);
-    let usesRetainedShadowField = (kind == 2 || kind == 4 || kind == 11) && fieldBounds.z > 0.0;
+    let usesRetainedShadowField = (kind == 2 || kind == 3 || kind == 4 || kind == 11)
+      && fieldBounds.z > 0.0;
     let sampleUv = select(documentUv, fieldUv, usesRetainedShadowField);
     let inside = all(sampleUv >= vec2f(0.0)) && all(sampleUv <= vec2f(1.0));
     let sampled = textureSampleLevel(
