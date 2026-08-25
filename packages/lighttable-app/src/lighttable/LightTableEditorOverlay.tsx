@@ -516,6 +516,14 @@ const rgba8ToHex = (color: readonly number[]) => `#${color.slice(0, 3)
   .map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0'))
   .join('')}`;
 
+export interface WorkspaceViewControls {
+  readonly zoomPercent: number;
+  readonly onZoomPreset: (percent: number) => void;
+  readonly onZoomFit: () => void;
+  readonly onZoomActual: () => void;
+  readonly onZoomStep: (direction: -1 | 1) => void;
+}
+
 export interface LightTableEditorOverlayProps {
   open: boolean;
   active?: boolean;
@@ -527,6 +535,7 @@ export interface LightTableEditorOverlayProps {
   /** Typed non-image surfaces reuse the one application workspace shell. */
   documentSurfaceOverride?: React.ReactNode;
   workspaceDocumentKind?: 'image' | 'video' | 'model-3d';
+  workspaceViewControls?: WorkspaceViewControls;
   /** Status-bar projection supplied by a non-image document runtime. */
   workspaceStatusMeta?: string;
   workspaceStatusTitle?: string;
@@ -621,6 +630,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   sourceBlob: initialSourceBlob = null,
   documentSurfaceOverride,
   workspaceDocumentKind = 'image',
+  workspaceViewControls,
   workspaceStatusMeta,
   workspaceStatusTitle,
   sourceDecodeMode = 'automatic',
@@ -3717,10 +3727,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       },
       closeActiveDocument: onClose,
       changeZoom: (direction) => {
-        setExactZoom(steppedZoomPercent(activeScale * 100, direction));
+        if (workspaceViewControls) workspaceViewControls.onZoomStep(direction);
+        else setExactZoom(steppedZoomPercent(activeScale * 100, direction));
       },
-      fitZoom,
-      actualZoom,
+      fitZoom: workspaceViewControls?.onZoomFit ?? fitZoom,
+      actualZoom: workspaceViewControls?.onZoomActual ?? actualZoom,
       cancelActiveOperation: () => {
         if (pendingFaceWarpDetectionForActiveLayer) {
           cancelPendingFaceWarpDetection();
@@ -6756,8 +6767,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     viewport: {
       setZoomMode,
       setView,
-      fit: fitZoom,
-      actualSize: actualZoom,
+      fit: workspaceViewControls?.onZoomFit ?? fitZoom,
+      actualSize: workspaceViewControls?.onZoomActual ?? actualZoom,
       setShowDifference,
       snap: editorSession.snap,
       setSnap: (action) => setEditorSession((current) => ({
@@ -7476,7 +7487,20 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
     />
   );
-  const documentSurface = documentSurfaceOverride ?? imageDocumentSurface;
+  const documentSurface = documentSurfaceOverride ? (
+    <div
+      className="lighttable-document-surface-override"
+      onContextMenu={(event) => {
+        if (workspaceDocumentKind !== 'video'
+          || (visibleTool !== 'view' && visibleTool !== 'zoom')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setToolOptionsMenu({ x: event.clientX, y: event.clientY });
+      }}
+    >
+      {documentSurfaceOverride}
+    </div>
+  ) : imageDocumentSurface;
   return (
     <DocumentPaletteProvider loadPalette={loadDocumentPalette}>
     <LightTableEditorShell
@@ -7520,7 +7544,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       smartSelection={editorSession.smartSelection}
       smartSelectionBackendIdentity={import.meta.env.DEV ? smartSelectionBackendIdentity : null}
       smartSelectionPreparation={smartSelectionPreparation}
-      zoomPercent={activeScale * 100}
+      zoomPercent={workspaceViewControls?.zoomPercent ?? activeScale * 100}
       gradientEditorRequest={gradientEditorRequest}
       onBrushChange={updateBrush}
       onSampledBrushChange={(change) => setEditorSession((current) => ({
@@ -7613,9 +7637,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       onSmartSelectionSelectSubject={() => {
         void smartSelectionController.selectSubject(editorSessionRef.current.selectionCombineMode);
       }}
-      onZoomPreset={setExactZoom}
-      onZoomFit={fitZoom}
-      onZoomActual={actualZoom}
+      onZoomPreset={workspaceViewControls?.onZoomPreset ?? setExactZoom}
+      onZoomFit={workspaceViewControls?.onZoomFit ?? fitZoom}
+      onZoomActual={workspaceViewControls?.onZoomActual ?? actualZoom}
       onToolChange={activatePersistentTool}
       onForegroundColorChange={(color) => updateBrush({ color })}
       onBackgroundColorChange={(backgroundColor) => updateBrush({ backgroundColor })}
@@ -7738,7 +7762,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               ? smartSelectionBackendIdentity
               : null,
             smartSelectionPreparation,
-            zoomPercent: activeScale * 100,
+            zoomPercent: workspaceViewControls?.zoomPercent ?? activeScale * 100,
             onBrushChange: updateBrush,
             onSampledBrushChange: (change) => setEditorSession((current) => ({
               ...current,
@@ -7837,8 +7861,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 editorSessionRef.current.selectionCombineMode
               );
             },
-            onZoomPreset: setExactZoom,
-            onZoomFit: fitZoom,
+            onZoomPreset: workspaceViewControls?.onZoomPreset ?? setExactZoom,
+            onZoomFit: workspaceViewControls?.onZoomFit ?? fitZoom,
             onToolChange: activatePersistentTool,
             onClose: () => setToolOptionsMenu(null)
           } : null}

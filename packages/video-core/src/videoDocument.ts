@@ -36,6 +36,7 @@ export interface VideoPresentationState {
   readonly muted: boolean;
   readonly volume: number;
   readonly playbackRate: number;
+  readonly zoomMode: 'fit' | '100' | 'custom';
   readonly zoom: number;
   readonly panX: number;
   readonly panY: number;
@@ -59,6 +60,7 @@ export const DEFAULT_VIDEO_PRESENTATION: VideoPresentationState = {
   muted: false,
   volume: 1,
   playbackRate: 1,
+  zoomMode: 'fit',
   zoom: 1,
   panX: 0,
   panY: 0
@@ -94,6 +96,9 @@ export const normalizeVideoPresentation = (
   muted: presentation.muted,
   volume: clamp(Number.isFinite(presentation.volume) ? presentation.volume : 1, 0, 1),
   playbackRate: clamp(Number.isFinite(presentation.playbackRate) ? presentation.playbackRate : 1, 0.1, 16),
+  zoomMode: presentation.zoomMode === '100' || presentation.zoomMode === 'custom'
+    ? presentation.zoomMode
+    : 'fit',
   zoom: clamp(Number.isFinite(presentation.zoom) ? presentation.zoom : 1, 0.01, 256),
   panX: Number.isFinite(presentation.panX) ? presentation.panX : 0,
   panY: Number.isFinite(presentation.panY) ? presentation.panY : 0

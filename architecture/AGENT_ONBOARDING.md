@@ -98,6 +98,10 @@ reports:
   video as an empty `ImageDocument`, fake pixel layer, hidden image runtime or
   a second Dockview shell; read
   [Multi-document types and video](features/MULTI_DOCUMENT_TYPES_AND_VIDEO.md).
+  Pan and Zoom are shared application tools for image and video: their existing
+  IDs, H/Z shortcuts, option bar, preset/context UI and pure viewport math are
+  reused. A typed surface supplies only the presentation adapter and storage;
+  never fork a video-specific toolbar or properties system for shared behavior.
 
 - **Current, 2026-08-25:** LightTable has one shipping **hybrid vector
   renderer**. There are no normal `:vello` development/package switches and no

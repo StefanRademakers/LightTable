@@ -286,7 +286,11 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
     // The toolbox rail is part of the persistent workspace geometry. Keep it
     // mounted for every document kind so Dockview always occupies the second
     // grid column; only its document-specific commands change. Video and 3D
-    // intentionally expose no image-editing tools yet.
+    // expose only the shared document-view tools for video. Future 3D can
+    // opt into the same projection when its viewport adapter exists.
+    const tools = documentKind === 'video'
+      ? toolbarToolDefinitions(false).filter(({ id }) => id === 'view' || id === 'zoom')
+      : [];
     return (
       <nav
         ref={toolbarRef}
@@ -295,7 +299,17 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         data-editor-floating-surface
         data-document-kind={documentKind}
       >
-        <div className="lighttable-toolbox__content" />
+        <div className="lighttable-toolbox__content">
+          {tools.map((tool) => (
+            <ToolButton
+              key={tool.id}
+              tool={tool}
+              active={activeTool === tool.id}
+              onClick={() => onToolChange(tool.id)}
+              onDoubleClick={tool.id === 'zoom' ? onZoomActual : undefined}
+            />
+          ))}
+        </div>
       </nav>
     );
   }

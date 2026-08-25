@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   LightTableEditorOverlay,
   type EditorScreenMode
@@ -29,7 +29,7 @@ import type { DocumentTaskRegistry } from '../lighttable/application/tasks/docum
 import type { DocumentRendererLifecycle } from '../lighttable/application/rendering/documentRendererLifecycle';
 import type { GenAiGenerationJob } from '@lighttable/genai-core';
 import { isImageEditGeneration } from '../genai/application/generationDelivery';
-import { VideoDocumentSurface } from './VideoDocumentSurface';
+import { VideoDocumentSurface, type VideoViewportHandle } from './VideoDocumentSurface';
 
 export interface WorkspaceDocumentTab {
   readonly id: DocumentSessionId;
@@ -125,6 +125,15 @@ export function StandaloneDocumentRuntimeView({
 }: StandaloneDocumentRuntimeViewProps) {
   const { id, active, runtime: { file } } = document;
   const video = document.kind === 'video' ? document.session.getSnapshot() : null;
+  const videoViewportRef = useRef<VideoViewportHandle>(null);
+  const [videoZoomPercent, setVideoZoomPercent] = useState(100);
+  const videoViewControls = document.kind === 'video' ? {
+    zoomPercent: videoZoomPercent,
+    onZoomPreset: (percent: number) => videoViewportRef.current?.setZoomPercent(percent),
+    onZoomFit: () => videoViewportRef.current?.fit(),
+    onZoomActual: () => videoViewportRef.current?.actual(),
+    onZoomStep: (direction: -1 | 1) => videoViewportRef.current?.step(direction)
+  } : undefined;
 
   const importGeneratedResult = useCallback(async (job: GenAiGenerationJob, forceOpen = false) => {
     const result = job.results[0];
@@ -192,9 +201,18 @@ export function StandaloneDocumentRuntimeView({
         documentCreationSettings={document.kind === 'image' ? document.runtime.creationSettings : undefined}
         startupTimeline={document.kind === 'image' ? document.runtime.startupTimeline : undefined}
         documentSurfaceOverride={document.kind === 'video'
-          ? <VideoDocumentSurface file={file} session={document.session} active={active} />
+          ? <VideoDocumentSurface
+              ref={videoViewportRef}
+              file={file}
+              session={document.session}
+              active={active}
+              applicationEditorSession={applicationEditorSession}
+              zoomWithScrollWheel={preferences.tools.zoomWithScrollWheel}
+              onZoomPercentChange={setVideoZoomPercent}
+            />
           : undefined}
         workspaceDocumentKind={document.kind}
+        workspaceViewControls={videoViewControls}
         workspaceStatusMeta={document.kind === 'video' ? videoStatusMeta : undefined}
         workspaceStatusTitle={document.kind === 'video'
           ? `${file.name} · read-only video document`

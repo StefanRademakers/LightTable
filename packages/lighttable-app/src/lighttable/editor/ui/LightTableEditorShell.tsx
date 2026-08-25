@@ -255,7 +255,10 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         />
       </div> : null}
 
-      {screenMode !== 'canvas-only' && workspaceDocumentKind === 'image' ? <ToolOptionsBar
+      {screenMode !== 'canvas-only' && (
+        workspaceDocumentKind === 'image'
+        || (workspaceDocumentKind === 'video' && (activeTool === 'view' || activeTool === 'zoom'))
+      ) ? <ToolOptionsBar
         activeTool={activeTool}
         brush={brush}
         sampledBrush={sampledBrush}

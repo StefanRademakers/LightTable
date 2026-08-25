@@ -907,6 +907,7 @@ describe('LightTableCommandService queries', () => {
           id: videoId, kind: 'video', title: 'Clip.mp4', lifecycle: 'ready', dirty: false,
           source: { name: 'Clip.mp4', mediaType: 'video/mp4', byteLength: 1024 },
           canvas: { width: 1920, height: 1080 },
+          viewport: { zoomMode: 'custom', scale: 1.5, panX: 20, panY: -10 },
           media: { durationSeconds: 12, currentTimeSeconds: 3, paused: true,
             muted: false, volume: 1, playbackRate: 1 }
         }
@@ -919,6 +920,7 @@ describe('LightTableCommandService queries', () => {
     });
     expect(state.service.queryDocument(videoId)).toMatchObject({
       kind: 'video', canvas: { width: 1920, height: 1080 }, layerCount: 0,
+      viewport: { zoomMode: 'custom', scale: 1.5, panX: 20, panY: -10 },
       media: { durationSeconds: 12, currentTimeSeconds: 3 }
     });
     const workspaceRevision = state.service.queryWorkspace().revision;
@@ -928,6 +930,15 @@ describe('LightTableCommandService queries', () => {
     });
     expect(state.service.queryDocument(videoId)).toMatchObject({
       media: { currentTimeSeconds: 8.5, paused: false, volume: 0.75, playbackRate: 1.25 }
+    });
+    state.service.updateTypedVideoPresentation(videoId, {
+      viewport: { zoomMode: '100', scale: 1, panX: 4, panY: 8 },
+      media: { durationSeconds: 12, currentTimeSeconds: 9, paused: true,
+        muted: true, volume: 0.5, playbackRate: 1 }
+    });
+    expect(state.service.queryDocument(videoId)).toMatchObject({
+      viewport: { zoomMode: '100', scale: 1, panX: 4, panY: 8 },
+      media: { currentTimeSeconds: 9, paused: true, muted: true }
     });
     expect(state.service.queryWorkspace().revision).toBe(workspaceRevision);
     expect(state.service.queryCapabilities(videoId)).toEqual([]);

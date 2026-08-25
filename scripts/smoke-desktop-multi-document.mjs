@@ -107,13 +107,57 @@ try {
   if (initial?.documents?.map(({ kind }) => kind).join(',') !== 'image,video') {
     throw new Error(`Unexpected typed workspace: ${JSON.stringify(initial?.documents)}`);
   }
-  if (await page.locator('.lighttable-tool-options button, [aria-label="Video tools"] .lighttable-toolbox__button').count() !== 0) {
-    throw new Error('Image tool commands remained mounted for the active video document.');
+  const videoToolButtons = page.locator('[aria-label="Video tools"] .lighttable-toolbox__button');
+  if (await videoToolButtons.count() !== 2
+    || await page.getByRole('button', { name: 'Move canvas (H)', exact: true }).count() !== 1
+    || await page.getByRole('button', { name: 'Zoom (Z)', exact: true }).count() !== 1) {
+    throw new Error('Video did not project exactly the shared Pan and Zoom tools.');
+  }
+  if (await page.locator('[aria-label="Video tools"] [aria-label^="Brush"], .lighttable-toolbox__colors').count() !== 0) {
+    throw new Error('Image-only toolbar controls remained mounted for the active video document.');
   }
   for (const label of ['Image', 'Layer', 'Type', 'Select', 'Filter']) {
     if (await page.getByRole('menuitem', { name: label, exact: true }).isEnabled()) {
       throw new Error(`${label} menu remained enabled for the active video document.`);
     }
+  }
+  await page.getByRole('button', { name: 'Zoom (Z)', exact: true }).click();
+  await page.getByRole('button', { name: '150%', exact: true }).click();
+  await page.waitForFunction(() => {
+    const media = document.querySelector('video.lighttable-video-document__media');
+    return media instanceof HTMLVideoElement
+      && Math.abs(media.getBoundingClientRect().width - 480) < 2;
+  });
+  await page.locator('.lighttable-video-document').click({ button: 'right', position: { x: 140, y: 100 } });
+  const toolSettings = page.getByRole('dialog', { name: 'Tool settings' });
+  await toolSettings.waitFor({ state: 'visible' });
+  if (await toolSettings.getByRole('button', { name: 'Fit screen', exact: true }).count() !== 1) {
+    throw new Error('Video right-click did not reuse the shared Zoom properties.');
+  }
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Move canvas (H)', exact: true }).click();
+  const videoSurface = page.locator('.lighttable-video-document');
+  const surfaceBounds = await videoSurface.boundingBox();
+  if (!surfaceBounds) throw new Error('Video surface has no interaction bounds.');
+  const transformBeforePan = await video.evaluate((element) => element.style.transform);
+  await page.mouse.move(surfaceBounds.x + surfaceBounds.width / 2, surfaceBounds.y + surfaceBounds.height / 3);
+  await page.mouse.down();
+  await page.mouse.move(
+    surfaceBounds.x + surfaceBounds.width / 2 + 60,
+    surfaceBounds.y + surfaceBounds.height / 3 + 35,
+    { steps: 3 }
+  );
+  await page.mouse.up();
+  const transformAfterPan = await video.evaluate((element) => element.style.transform);
+  if (transformAfterPan === transformBeforePan) {
+    throw new Error('Shared Pan tool did not update the video presentation.');
+  }
+  const videoDocument = await driver.queryDocument(initial.activeDocumentId);
+  if (videoDocument?.viewport?.zoomMode !== 'custom'
+    || Math.abs(videoDocument.viewport.scale - 1.5) > 0.01
+    || videoDocument.viewport.panX === 0
+    || videoDocument.viewport.panY === 0) {
+    throw new Error(`Video viewport was not projected through the command boundary: ${JSON.stringify(videoDocument?.viewport)}`);
   }
   await page.getByRole('button', { name: 'image.png', exact: true }).click();
   await page.locator('canvas').first().waitFor({ state: 'visible', timeout: 30_000 });
@@ -123,6 +167,12 @@ try {
   }
   await page.getByRole('button', { name: 'video.mp4', exact: true }).click();
   await video.waitFor({ state: 'visible', timeout: 30_000 });
+  await page.waitForFunction(() => {
+    const media = document.querySelector('video.lighttable-video-document__media');
+    return media instanceof HTMLVideoElement
+      && Math.abs(media.getBoundingClientRect().width - 480) < 2
+      && media.style.transform !== 'translate(0px, 0px)';
+  });
   const returned = await driver.queryWorkspace();
   if (returned?.documents.find(({ id }) => id === returned.activeDocumentId)?.kind !== 'video') {
     throw new Error('Switching back did not retain the video document.');

@@ -53,11 +53,12 @@ The panel graph remains stable across document kinds:
 - **Assets, AI History, GenAI, Agent and Actions:** application/project panels
   remain usable and retain their mounted state.
 - **Toolbar:** the existing toolbar rail remains mounted so workspace geometry
-  never collapses or shifts. Its contents are kind-specific. Video currently
-  has no image-editing buttons; playback lives in the video surface. Image tool
+  never collapses or shifts. Its contents are kind-specific. Video projects the
+  existing Pan and Zoom tools; it does not define video copies of their icons,
+  shortcuts or option controls. Playback lives in the video surface. Image tool
   state remains unchanged while a video tab is active. The horizontal tool
-  options bar likewise remains mounted at its normal height and is empty when
-  the active document has no applicable tool controls.
+  options bar likewise remains mounted at its normal height: Pan uses the shared
+  identity bar and Zoom uses the shared presets/Fit screen controls.
 - **Status:** media lifecycle and time are shown without image revision data.
 
 Menus, shortcuts, Actions and MCP use the same workspace command scopes.
@@ -110,11 +111,14 @@ reported once with accepted/skipped counts rather than failing the whole drop.
 Implemented: typed workspace surfaces and `@lighttable/video-core`; one
 shared-shell document adapter; secure seekable desktop media sources; unified
 File Open, OS launch and file-drop routing; a read-only video viewer; contextual
-panels, toolbar geometry, top-level menus, application shortcuts and MCP
-document-kind reporting/gating.
+panels, stable toolbar geometry, shared Pan/Zoom tools and viewport math,
+top-level menus, application shortcuts and MCP document-kind plus video
+presentation reporting/gating. Video pan/zoom is stored in its presentation
+session, survives tab switches and does not create document revisions.
 
 Still future work: frame extraction to clipboard/new image documents, optional
-current-frame scopes, video-specific toolbar tools and richer media operations.
+current-frame scopes, editing/transport toolbar tools and richer media
+operations.
 
 Each milestone must preserve image document pixels, history, active tool and
 workspace layout in mixed image/video tab switching tests.

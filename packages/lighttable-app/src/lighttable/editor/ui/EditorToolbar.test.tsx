@@ -19,7 +19,7 @@ const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 
 );
 
 describe('EditorToolbar', () => {
-  it('retains the workspace rail without exposing image tools for video documents', () => {
+  it('retains the workspace rail and exposes only shared view tools for video documents', () => {
     const markup = renderToStaticMarkup(
       <EditorToolbar
         documentKind="video"
@@ -37,6 +37,8 @@ describe('EditorToolbar', () => {
     expect(markup).toContain('class="lighttable-toolbox"');
     expect(markup).toContain('aria-label="Video tools"');
     expect(markup).toContain('data-document-kind="video"');
+    expect(markup).toContain('aria-label="Move canvas (H)"');
+    expect(markup).toContain('aria-label="Zoom (Z)"');
     expect(markup).not.toContain('aria-label="Brush');
     expect(markup).not.toContain('Foreground and background colors');
   });

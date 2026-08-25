@@ -131,6 +131,9 @@ const toolBindings: readonly EditorKeyBinding[] = TOOL_DEFINITIONS
       primary: false,
       alt: false
     },
+    ...(tool.id === 'view' || tool.id === 'zoom'
+      ? { documentKinds: ['image', 'video'] as const }
+      : {}),
     resolve: (context) =>
       tool.id === 'transform' && context.activeTool === 'transform'
         ? 'commit-transform'
@@ -376,16 +379,20 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     // editor: these keys must change the active canvas view while the app UI
     // itself remains at the host's 100% zoom.
     command('viewport.zoom-in', { key: '+', primary: true, alt: false }, 'zoom-in', {
-      allowWhileEditing: true
+      allowWhileEditing: true,
+      documentKinds: ['image', 'video']
     }),
     command('viewport.zoom-out', { key: '-', primary: true, alt: false }, 'zoom-out', {
-      allowWhileEditing: true
+      allowWhileEditing: true,
+      documentKinds: ['image', 'video']
     }),
     command('viewport.zoom-fit', { key: '0', primary: true, alt: false }, 'zoom-fit', {
-      allowWhileEditing: true
+      allowWhileEditing: true,
+      documentKinds: ['image', 'video']
     }),
     command('viewport.zoom-actual', { key: '1', primary: true, alt: false }, 'zoom-actual', {
-      allowWhileEditing: true
+      allowWhileEditing: true,
+      documentKinds: ['image', 'video']
     }),
     ...toolGroupBindings,
     ...toolBindings,

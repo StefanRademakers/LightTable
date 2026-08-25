@@ -110,6 +110,7 @@ export interface TypedWorkspaceCommandDocument {
   readonly dirty: boolean;
   readonly source: { readonly name: string; readonly mediaType: string; readonly byteLength?: number };
   readonly canvas?: { readonly width: number; readonly height: number } | null;
+  readonly viewport?: DocumentQueryResult['viewport'];
   readonly media?: {
     readonly durationSeconds: number;
     readonly currentTimeSeconds: number;
@@ -169,7 +170,7 @@ const projectNonImageDocumentQuery = (
   color: null,
   activeLayerId: null,
   layerCount: 0,
-  viewport: { zoomMode: 'fit', scale: 1, panX: 0, panY: 0 },
+  viewport: document.viewport ?? { zoomMode: 'fit', scale: 1, panX: 0, panY: 0 },
   history: {
     canUndo: false,
     canRedo: false,
@@ -353,6 +354,30 @@ export class LightTableCommandService {
       documents: {
         ...projection.documents,
         [documentId]: { ...document, media: structuredClone(media) }
+      }
+    };
+  }
+
+  /** Publishes a video viewport and playback snapshot without changing document/workspace revisions. */
+  updateTypedVideoPresentation(
+    documentId: DocumentSessionId,
+    presentation: {
+      readonly viewport: DocumentQueryResult['viewport'];
+      readonly media: NonNullable<TypedWorkspaceCommandDocument['media']>;
+    }
+  ): void {
+    const projection = this.typedWorkspaceProjection;
+    const document = projection?.documents[documentId];
+    if (!projection || !document || document.kind !== 'video') return;
+    this.typedWorkspaceProjection = {
+      ...projection,
+      documents: {
+        ...projection.documents,
+        [documentId]: {
+          ...document,
+          viewport: structuredClone(presentation.viewport),
+          media: structuredClone(presentation.media)
+        }
       }
     };
   }

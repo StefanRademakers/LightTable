@@ -334,6 +334,12 @@ export function LightTableStandaloneApp({
             byteLength: state.source.byteLength
           },
           canvas: state.metadata ? { width: state.metadata.width, height: state.metadata.height } : null,
+          viewport: {
+            zoomMode: state.presentation.zoomMode,
+            scale: state.presentation.zoom,
+            panX: state.presentation.panX,
+            panY: state.presentation.panY
+          },
           ...(state.metadata ? { media: {
             durationSeconds: state.metadata.durationSeconds,
             currentTimeSeconds: state.presentation.currentTimeSeconds,
@@ -352,13 +358,21 @@ export function LightTableStandaloneApp({
       const publish = () => {
         const state = document.session.getSnapshot();
         if (!state.metadata) return;
-        commandService.updateTypedDocumentMedia(document.id, {
-          durationSeconds: state.metadata.durationSeconds,
-          currentTimeSeconds: state.presentation.currentTimeSeconds,
-          paused: state.presentation.paused,
-          muted: state.presentation.muted,
-          volume: state.presentation.volume,
-          playbackRate: state.presentation.playbackRate
+        commandService.updateTypedVideoPresentation(document.id, {
+          viewport: {
+            zoomMode: state.presentation.zoomMode,
+            scale: state.presentation.zoom,
+            panX: state.presentation.panX,
+            panY: state.presentation.panY
+          },
+          media: {
+            durationSeconds: state.metadata.durationSeconds,
+            currentTimeSeconds: state.presentation.currentTimeSeconds,
+            paused: state.presentation.paused,
+            muted: state.presentation.muted,
+            volume: state.presentation.volume,
+            playbackRate: state.presentation.playbackRate
+          }
         });
       };
       publish();

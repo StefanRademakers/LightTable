@@ -61,6 +61,21 @@ describe('editor keymap', () => {
       input({ key: 'v', code: 'KeyV' }),
       videoContext
     )).toBeNull();
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'h', code: 'KeyH' }),
+      videoContext
+    )).toEqual({ type: 'activate-tool', tool: 'view' });
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'z', code: 'KeyZ' }),
+      videoContext
+    )).toEqual({ type: 'activate-tool', tool: 'zoom' });
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: '0', code: 'Digit0', ctrlKey: true }),
+      videoContext
+    )).toBe('zoom-fit');
   });
 
   it.each([
