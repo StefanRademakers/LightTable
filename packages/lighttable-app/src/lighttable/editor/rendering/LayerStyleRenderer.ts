@@ -187,6 +187,38 @@ const bevelGeometryCacheKey = (
 };
 
 /**
+ * A shadow field is geometry, not presentation. Angle, distance, spread,
+ * contour, noise, color, opacity and blend mode are applied by the cheap
+ * final style pass and intentionally do not invalidate this key.
+ */
+const shadowFieldCacheKey = (
+  layer: StyledNode,
+  effect: Extract<StyleEffect, { kind: 'drop-shadow' }>,
+  inverse: AffineMatrix,
+  sourceSize: { width: number; height: number },
+  plan: NonNullable<ReturnType<typeof layerStyleGaussianBlurPlan>>,
+  bounds: Rect
+) => {
+  if (layer.type === 'group') return null;
+  const sourceRevision = layer.type === 'raster'
+    ? `raster:${layer.pixelRevision}:${layer.geometryRevision}`
+    : semanticLayerDependencyKey(layer);
+  if (!sourceRevision) return null;
+  const mask = layer.mask?.enabled ? [
+    layer.mask.id, layer.mask.pixelRevision, layer.mask.density, layer.mask.feather,
+    layer.mask.transform.a, layer.mask.transform.b, layer.mask.transform.c,
+    layer.mask.transform.d, layer.mask.transform.tx, layer.mask.transform.ty
+  ].join(':') : 'mask-off';
+  return [
+    sourceRevision, mask, effect.size, layer.styleStack.scale,
+    plan.scale, plan.workingWidth, plan.workingHeight, plan.workingRadius,
+    bounds.x, bounds.y, bounds.width, bounds.height,
+    sourceSize.width, sourceSize.height,
+    inverse.a, inverse.b, inverse.c, inverse.d, inverse.tx, inverse.ty
+  ].join(':');
+};
+
+/**
  * Owns Layer Style GPU pipelines, work textures, cache and quality state.
  * The document compositor sees this as one optional styled-foreground encoder
  * instead of depending on each individual style pass.
@@ -272,6 +304,7 @@ export class LayerStyleRenderer {
   ) {
     const styleEffectPipeline = this.pipelineProvider.pipeline;
     const styleBlurPipeline = this.pipelineProvider.blurPipeline;
+    const denseBlurPipeline = this.pipelineProvider.denseBlurPipeline;
     const bevelBlurPipeline = this.pipelineProvider.bevelBlurPipeline;
     const bevelSeedPipeline = this.pipelineProvider.bevelSeedPipeline;
     const bevelFloodPipeline = this.pipelineProvider.bevelFloodPipeline;
@@ -422,10 +455,22 @@ export class LayerStyleRenderer {
         this.blendQuantization
       );
       if (!values) return;
-      const blurPlan = styleBlurPipeline
-        ? layerStyleGaussianBlurPlan(effect, layer.styleStack, width, height, quality)
+      const blurPlan = (styleBlurPipeline || (effect.kind === 'drop-shadow' && denseBlurPipeline))
+        ? layerStyleGaussianBlurPlan(
+            effect,
+            layer.styleStack,
+            effect.kind === 'drop-shadow' ? tightBounds.width : width,
+            effect.kind === 'drop-shadow' ? tightBounds.height : height,
+            quality
+          )
         : null;
       let blurredShape = styleTextures.shape;
+      const shadowFieldKey = effect.kind === 'drop-shadow' && blurPlan
+        ? shadowFieldCacheKey(layer, effect, inverse, sourceSize, blurPlan, tightBounds)
+        : null;
+      const retainedShadowField = effect.kind === 'drop-shadow' && shadowFieldKey
+        ? this.textures.cachedEffectField(layer.id, effect.id, shadowFieldKey)
+        : null;
       const chiselDistanceCapacity = effect.kind === 'bevel-emboss'
         && effect.technique !== 'smooth'
         ? bevelDistanceCapacity(
@@ -567,41 +612,58 @@ export class LayerStyleRenderer {
               )
             : blurredShape;
         } else {
-          const blurTextures = this.textures.ensureBlurTextures(
-            blurPlan.workingWidth,
-            blurPlan.workingHeight
-          );
-          const gaussian = { cycles: 1, radiusPerCycle: blurPlan.workingRadius };
-          for (let cycle = 0; cycle < gaussian.cycles; cycle += 1) {
-            const firstCycle = cycle === 0;
-            encodeBlurPass(
-              firstCycle ? styleTextures.shape : blurTextures.vertical,
-              blurTextures.horizontal,
-              [1, 0],
-              { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
-              firstCycle
-                ? { width, height }
-                : { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
-              { x: 0, y: 0 },
-              gaussian.radiusPerCycle,
-              firstCycle ? blurPlan.scale : 1,
-              `LightTable Layer Style ${effect.name} horizontal blur ${cycle + 1}: ${layer.name}`,
-              styleBlurPipeline!
+          if (retainedShadowField) {
+            blurredShape = retainedShadowField.texture;
+            values[23] = -1;
+          } else {
+            const blurTextures = this.textures.ensureBlurTextures(
+              blurPlan.workingWidth,
+              blurPlan.workingHeight
             );
-            encodeBlurPass(
-              blurTextures.horizontal,
-              blurTextures.vertical,
-              [0, 1],
-              { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
-              { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
-              { x: 0, y: 0 },
-              gaussian.radiusPerCycle,
-              1,
-              `LightTable Layer Style ${effect.name} vertical blur ${cycle + 1}: ${layer.name}`,
-              styleBlurPipeline!
-            );
+            const gaussian = { cycles: 1, radiusPerCycle: blurPlan.workingRadius };
+            for (let cycle = 0; cycle < gaussian.cycles; cycle += 1) {
+              const firstCycle = cycle === 0;
+              encodeBlurPass(
+                firstCycle ? styleTextures.shape : blurTextures.vertical,
+                blurTextures.horizontal,
+                [1, 0],
+                { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
+                firstCycle
+                  ? { width, height }
+                  : { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
+                firstCycle && effect.kind === 'drop-shadow'
+                  ? { x: tightBounds.x, y: tightBounds.y }
+                  : { x: 0, y: 0 },
+                gaussian.radiusPerCycle,
+                firstCycle ? blurPlan.scale : 1,
+                `LightTable Layer Style ${effect.name} horizontal blur ${cycle + 1}: ${layer.name}`,
+                effect.kind === 'drop-shadow' ? denseBlurPipeline! : styleBlurPipeline!
+              );
+              encodeBlurPass(
+                blurTextures.horizontal,
+                blurTextures.vertical,
+                [0, 1],
+                { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
+                { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
+                { x: 0, y: 0 },
+                gaussian.radiusPerCycle,
+                1,
+                `LightTable Layer Style ${effect.name} vertical blur ${cycle + 1}: ${layer.name}`,
+                effect.kind === 'drop-shadow' ? denseBlurPipeline! : styleBlurPipeline!
+              );
+            }
+            blurredShape = blurTextures.vertical;
+            if (shadowFieldKey) {
+              blurredShape = this.textures.writeEffectField(
+                encoder,
+                layer.id,
+                effect.id,
+                shadowFieldKey,
+                blurredShape,
+                { x: 0, y: 0, width: blurPlan.workingWidth, height: blurPlan.workingHeight }
+              ).texture;
+            }
           }
-          blurredShape = blurTextures.vertical;
         }
         values[23] = -1;
       }
@@ -623,6 +685,14 @@ export class LayerStyleRenderer {
         values[100] = smoothLod?.primary.scale ?? 1;
         values[101] = smoothLod?.secondary?.scale ?? values[100]!;
         values[102] = smoothLod?.blend ?? 0;
+      }
+      if (effect.kind === 'drop-shadow' && blurPlan) {
+        values.set([
+          tightBounds.x,
+          tightBounds.y,
+          blurPlan.workingWidth * blurPlan.scale,
+          blurPlan.workingHeight * blurPlan.scale
+        ], 96);
       }
       if (
         effect.kind === 'bevel-emboss'

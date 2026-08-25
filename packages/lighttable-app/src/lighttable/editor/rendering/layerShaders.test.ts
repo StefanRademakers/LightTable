@@ -5,6 +5,7 @@ import {
   LAYER_STYLE_BEVEL_BLUR_WGSL,
   LAYER_STYLE_BEVEL_FLOOD_WGSL,
   LAYER_STYLE_BEVEL_SEED_WGSL,
+  LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL,
   LAYER_STYLE_EFFECT_WGSL,
   LAYER_STYLE_GAUSSIAN_BLUR_WGSL
 } from './layerShaders';
@@ -29,6 +30,9 @@ describe('layer style effect shader contract', () => {
     );
     expect(LAYER_STYLE_EFFECT_WGSL).toContain(
       'let absent = 1.0 - blurredAlpha(input.uv, offset, radius)'
+    );
+    expect(LAYER_STYLE_EFFECT_WGSL).toContain(
+      'let fieldUv = (documentPixel - fieldBounds.xy) / max(fieldBounds.zw, vec2f(1.0));'
     );
   });
 
@@ -80,6 +84,16 @@ describe('layer style effect shader contract', () => {
       'return alphaLoad(vec2i(floor(sourcePixel)));'
     );
     expect(LAYER_STYLE_GAUSSIAN_BLUR_WGSL).toContain('gaussianKernel');
+  });
+
+  it('uses the document Gaussian sigma contract for the dense shadow field', () => {
+    expect(LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL).toContain(
+      'let sigma = max(radius / 3.0, 0.5);'
+    );
+    expect(LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL).toContain(
+      'for (var tap = 1; tap <= 100; tap += 1)'
+    );
+    expect(LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL).not.toContain('gaussianKernel');
   });
 
   it('bounds jump flooding to the authored bevel support', () => {

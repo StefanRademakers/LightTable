@@ -3,6 +3,7 @@ import {
   LAYER_STYLE_BEVEL_BLUR_WGSL,
   LAYER_STYLE_BEVEL_FLOOD_WGSL,
   LAYER_STYLE_BEVEL_SEED_WGSL,
+  LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL,
   LAYER_STYLE_EFFECT_WGSL,
   LAYER_STYLE_GAUSSIAN_BLUR_WGSL
 } from './layerShaders';
@@ -11,6 +12,7 @@ interface LayerStylePipelineEntry {
   modules: readonly GPUShaderModule[];
   effect: Promise<GPURenderPipeline>;
   blur: Promise<GPURenderPipeline>;
+  denseBlur: Promise<GPURenderPipeline>;
   bevelBlur: Promise<GPURenderPipeline>;
   bevelSeed: Promise<GPURenderPipeline>;
   bevelFlood: Promise<GPURenderPipeline>;
@@ -26,6 +28,7 @@ const cache = new WeakMap<GPUDevice, LayerStylePipelineEntry>();
 export class LayerStylePipelineProvider {
   private pipelineValue: GPURenderPipeline | null = null;
   private blurPipelineValue: GPURenderPipeline | null = null;
+  private denseBlurPipelineValue: GPURenderPipeline | null = null;
   private bevelBlurPipelineValue: GPURenderPipeline | null = null;
   private bevelSeedPipelineValue: GPURenderPipeline | null = null;
   private bevelFloodPipelineValue: GPURenderPipeline | null = null;
@@ -43,6 +46,8 @@ export class LayerStylePipelineProvider {
   get blurPipeline() {
     return this.blurPipelineValue;
   }
+
+  get denseBlurPipeline() { return this.denseBlurPipelineValue; }
 
   get bevelBlurPipeline() { return this.bevelBlurPipelineValue; }
 
@@ -66,6 +71,10 @@ export class LayerStylePipelineProvider {
         label: 'LightTable Bevel dense Gaussian blur shader',
         code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_BEVEL_BLUR_WGSL}`
       });
+      const denseBlurModule = this.device.createShaderModule({
+        label: 'LightTable Layer Style dense Gaussian blur shader',
+        code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL}`
+      });
       const bevelSeedModule = this.device.createShaderModule({
         label: 'LightTable Bevel seed shader',
         code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_BEVEL_SEED_WGSL}`
@@ -75,7 +84,7 @@ export class LayerStylePipelineProvider {
         code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_BEVEL_FLOOD_WGSL}`
       });
       entry = {
-        modules: [effectModule, blurModule, bevelBlurModule, bevelSeedModule, bevelFloodModule],
+        modules: [effectModule, blurModule, denseBlurModule, bevelBlurModule, bevelSeedModule, bevelFloodModule],
         effect: this.device.createRenderPipelineAsync({
           label: 'LightTable Layer Style effect',
           layout: 'auto',
@@ -93,6 +102,17 @@ export class LayerStylePipelineProvider {
           vertex: { module: this.fullscreenModule, entryPoint: 'fullscreenVertex' },
           fragment: {
             module: blurModule,
+            entryPoint: 'main',
+            targets: [{ format: 'rgba16float' }]
+          },
+          primitive: { topology: 'triangle-list' }
+        }),
+        denseBlur: this.device.createRenderPipelineAsync({
+          label: 'LightTable Layer Style dense Gaussian blur',
+          layout: 'auto',
+          vertex: { module: this.fullscreenModule, entryPoint: 'fullscreenVertex' },
+          fragment: {
+            module: denseBlurModule,
             entryPoint: 'main',
             targets: [{ format: 'rgba16float' }]
           },
@@ -139,12 +159,14 @@ export class LayerStylePipelineProvider {
       [
         this.pipelineValue,
         this.blurPipelineValue,
+        this.denseBlurPipelineValue,
         this.bevelBlurPipelineValue,
         this.bevelSeedPipelineValue,
         this.bevelFloodPipelineValue
       ] = await Promise.all([
         entry.effect,
         entry.blur,
+        entry.denseBlur,
         entry.bevelBlur,
         entry.bevelSeed,
         entry.bevelFlood
@@ -154,6 +176,7 @@ export class LayerStylePipelineProvider {
       cache.delete(this.device);
       this.moduleValues = [];
       this.blurPipelineValue = null;
+      this.denseBlurPipelineValue = null;
       this.bevelBlurPipelineValue = null;
       this.bevelSeedPipelineValue = null;
       this.bevelFloodPipelineValue = null;

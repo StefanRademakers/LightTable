@@ -133,6 +133,26 @@ describe('LayerStyleTextureStore', () => {
     expect(first.texture.destroy).toHaveBeenCalledOnce();
   });
 
+  it('retains a reusable shadow field independently from presentation controls', () => {
+    const storeOptions = options();
+    const store = new LayerStyleTextureStore(storeOptions);
+    const encoder = { copyTextureToTexture: vi.fn() } as unknown as GPUCommandEncoder;
+    const source = texture();
+    const bounds = { x: 0, y: 0, width: 25, height: 15 };
+
+    const field = store.writeEffectField(
+      encoder, layerId, 'shadow', 'matte:size-20', source, bounds
+    );
+    expect(store.cachedEffectField(layerId, 'shadow', 'matte:size-20')).toBe(field);
+    expect(store.cachedEffectField(layerId, 'shadow', 'color-only-change')).toBeNull();
+    expect(storeOptions.createTextureSized).toHaveBeenCalledWith(
+      'LightTable retained Layer Style field: shadow', 25, 15
+    );
+
+    store.invalidate(layerId);
+    expect(field.texture.destroy).toHaveBeenCalledOnce();
+  });
+
   it('keeps high-precision Bevel ping-pong targets ROI-sized', () => {
     const storeOptions = options();
     const store = new LayerStyleTextureStore(storeOptions);

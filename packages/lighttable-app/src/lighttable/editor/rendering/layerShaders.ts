@@ -519,7 +519,12 @@ fn alphaAt(uv: vec2f, pixelOffset: vec2f) -> f32 {
 fn blurredAlpha(uv: vec2f, centerOffset: vec2f, radius: f32) -> f32 {
   if (radius <= 0.01) { return alphaAt(uv, centerOffset); }
   if (settings.canvas.w < 0.0) {
-    let sampleUv = uv + centerOffset / settings.canvas.xy;
+    let documentPixel = uv * settings.canvas.xy + centerOffset;
+    let fieldBounds = settings.gradientMidpoints[2];
+    let documentUv = documentPixel / settings.canvas.xy;
+    let fieldUv = (documentPixel - fieldBounds.xy) / max(fieldBounds.zw, vec2f(1.0));
+    let usesRetainedShadowField = i32(settings.header.x + 0.5) == 2 && fieldBounds.z > 0.0;
+    let sampleUv = select(documentUv, fieldUv, usesRetainedShadowField);
     let inside = all(sampleUv >= vec2f(0.0)) && all(sampleUv <= vec2f(1.0));
     let sampled = textureSampleLevel(
       blurredShapeTexture,
@@ -1349,6 +1354,72 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     result += (alphaSample(center + sampleOffset) + alphaSample(center - sampleOffset)) * kernel.y;
   }
   return vec4f(clamp(result, 0.0, 1.0));
+}
+`;
+
+/**
+ * Dense separable alpha Gaussian used by production shadow fields. This uses
+ * the same radius/3 sigma contract as Filter BlurCore, while retaining the
+ * Layer Style renderer's adaptive working resolution. Unlike the legacy
+ * 17-position approximation, every working pixel inside the support is
+ * sampled, so large soft shadows do not acquire bands or rectangular steps.
+ */
+export const LAYER_STYLE_DENSE_GAUSSIAN_BLUR_WGSL = /* wgsl */ `
+struct LayerStyleBlurSettings {
+  outputSize: vec2f,
+  sourceSize: vec2f,
+  sourceOrigin: vec2f,
+  direction: vec2f,
+  radius: f32,
+  outputToSourceScale: f32,
+  padding: vec2f,
+}
+
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> settings: LayerStyleBlurSettings;
+
+fn alphaLoad(point: vec2i) -> f32 {
+  let size = vec2i(textureDimensions(sourceTexture));
+  let inside = all(point >= vec2i(0)) && all(point < size);
+  return select(0.0, textureLoad(sourceTexture, clamp(point, vec2i(0), size - vec2i(1)), 0).a, inside);
+}
+
+fn alphaSample(sourcePixel: vec2f) -> f32 {
+  let scale = max(1, i32(round(settings.outputToSourceScale)));
+  if (scale == 1) { return alphaLoad(vec2i(floor(sourcePixel))); }
+  let base = vec2i(floor(sourcePixel - vec2f(f32(scale) * 0.5)));
+  var total = 0.0;
+  for (var y = 0; y < 8; y += 1) {
+    if (y >= scale) { break; }
+    for (var x = 0; x < 8; x += 1) {
+      if (x >= scale) { break; }
+      total += alphaLoad(base + vec2i(x, y));
+    }
+  }
+  return total / f32(scale * scale);
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let radius = max(settings.radius, 0.0);
+  let support = min(100, i32(ceil(radius)));
+  let sigma = max(radius / 3.0, 0.5);
+  let denominator = 2.0 * sigma * sigma;
+  let outputPixel = floor(input.uv * settings.outputSize);
+  let center = settings.sourceOrigin
+    + (outputPixel + vec2f(0.5)) * settings.outputToSourceScale;
+  var result = alphaSample(center);
+  var total = 1.0;
+  for (var tap = 1; tap <= 100; tap += 1) {
+    if (tap > support) { break; }
+    let offset = f32(tap);
+    let weight = exp(-(offset * offset) / denominator);
+    let sampleOffset = settings.direction * offset * settings.outputToSourceScale;
+    result += (alphaSample(center + sampleOffset) + alphaSample(center - sampleOffset)) * weight;
+    total += 2.0 * weight;
+  }
+  let coverage = clamp(result / total, 0.0, 1.0);
+  return vec4f(coverage);
 }
 `;
 

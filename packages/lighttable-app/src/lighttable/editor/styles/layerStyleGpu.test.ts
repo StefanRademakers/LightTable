@@ -110,24 +110,37 @@ describe('Layer Style GPU settings', () => {
     expect(layerStyleUniform(effect, stack, 100, 100, true, 'final')?.[23]).toBe(128);
   });
 
-  it('uses downsampled two-pass blur only for settled wide shadows', () => {
+  it('uses the dense Gaussian path at full resolution for small shadows and bounded resolution when wide', () => {
     const effect = createDefaultLayerStyle('drop-shadow');
     if (effect.kind !== 'drop-shadow') throw new Error('Expected Drop Shadow.');
     const stack = createDefaultLayerStyleStack();
     effect.size = 8;
-    expect(layerStyleGaussianBlurPlan(effect, stack, 1000, 500, 'final')).toBeNull();
+    expect(layerStyleGaussianBlurPlan(effect, stack, 1000, 500, 'final')).toEqual({
+      scale: 1,
+      workingWidth: 1000,
+      workingHeight: 500,
+      workingRadius: 8
+    });
     effect.size = 29;
     expect(layerStyleGaussianBlurPlan(effect, stack, 1000, 500, 'interactive')).toEqual({
-      scale: 5,
-      workingWidth: 200,
-      workingHeight: 100,
-      workingRadius: 5.8
+      scale: 3,
+      workingWidth: 334,
+      workingHeight: 167,
+      workingRadius: 29 / 3
     });
     expect(layerStyleGaussianBlurPlan(effect, stack, 1000, 500, 'final')).toEqual({
-      scale: 4,
-      workingWidth: 250,
-      workingHeight: 125,
-      workingRadius: 7.25
+      scale: 2,
+      workingWidth: 500,
+      workingHeight: 250,
+      workingRadius: 14.5
+    });
+    effect.size = 100;
+    effect.spread = 0.5;
+    expect(layerStyleGaussianBlurPlan(effect, stack, 1000, 500, 'final')).toEqual({
+      scale: 2,
+      workingWidth: 500,
+      workingHeight: 250,
+      workingRadius: 50
     });
   });
 
