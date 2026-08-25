@@ -26,8 +26,9 @@ describe('LayerStylePipelineProvider', () => {
     const second = new LayerStylePipelineProvider(device, fullscreen);
 
     expect(await first.initialize()).toBe(pipeline);
+    expect(device.createRenderPipelineAsync).toHaveBeenCalledTimes(6);
     expect(await second.initialize()).toBe(pipeline);
-    expect(device.createRenderPipelineAsync).toHaveBeenCalledTimes(2);
+    expect(device.createRenderPipelineAsync).toHaveBeenCalledTimes(6);
   });
 
   it('reports only labeled shader compilation errors', async () => {
