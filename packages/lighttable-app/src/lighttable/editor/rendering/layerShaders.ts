@@ -1026,8 +1026,10 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     let jitteredRadius = radius * (1.0 + (noiseAt(pixel + vec2f(31.0, 17.0)) - 0.5) * settings.params1.z);
     let blurred = blurredAlpha(input.uv, vec2f(0.0), jitteredRadius);
     let sourceCenter = settings.params1.x;
-    let ranged = pow(clamp(blurred, 0.0, 1.0), mix(2.0, 0.5, settings.params1.y));
-    let coverage = select(1.0 - ranged, ranged, sourceCenter > 0.5);
+    let sourceCoverage = select(1.0 - blurred, blurred, sourceCenter > 0.5);
+    // Range targets the chosen glow source. Inverting after applying the curve
+    // makes a high Edge range suppress the glow instead of extending it.
+    let coverage = pow(clamp(sourceCoverage, 0.0, 1.0), mix(2.0, 0.5, settings.params1.y));
     let alpha = shapedCoverage(coverage, choke, noise, pixel, false) * shape.a * opacity;
     return styleOverCurrent(current, settings.color0.rgb, alpha, mode);
   }
@@ -1035,8 +1037,8 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     let jitteredRadius = radius * (1.0 + (noiseAt(pixel + vec2f(31.0, 17.0)) - 0.5) * settings.params1.z);
     let blurred = blurredAlpha(input.uv, vec2f(0.0), jitteredRadius);
     let sourceCenter = settings.params1.x;
-    let ranged = pow(clamp(blurred, 0.0, 1.0), mix(2.0, 0.5, settings.params1.y));
-    let coverage = select(1.0 - ranged, ranged, sourceCenter > 0.5);
+    let sourceCoverage = select(1.0 - blurred, blurred, sourceCenter > 0.5);
+    let coverage = pow(clamp(sourceCoverage, 0.0, 1.0), mix(2.0, 0.5, settings.params1.y));
     let shaped = shapedCoverage(coverage, choke, noise, pixel, false) * shape.a;
     let colorCount = u32(settings.color1.x + 0.5);
     let opacityCount = u32(settings.color1.y + 0.5);
