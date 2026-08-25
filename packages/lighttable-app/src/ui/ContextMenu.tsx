@@ -281,6 +281,19 @@ export function ContextMenu<T extends string>({
               aria-haspopup={hasChildren ? 'menu' : undefined}
               aria-expanded={hasChildren ? submenuOpen : undefined}
               title={option.disabled ? option.disabledReason ?? 'Unavailable in the current context.' : undefined}
+              onFocus={() => {
+                // Submenu visibility has one owner: openSubmenuPath. CSS
+                // focus-within used to keep a previously focused submenu open
+                // after pointer navigation selected a sibling, rendering two
+                // overlapping flyouts. Updating the same state on keyboard
+                // focus preserves keyboard access without that second owner.
+                if (hasChildren) {
+                  openSubmenu(itemPath);
+                } else {
+                  clearCloseSubmenuTimeout();
+                  setOpenSubmenuPath(parentPath);
+                }
+              }}
               onPointerDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();

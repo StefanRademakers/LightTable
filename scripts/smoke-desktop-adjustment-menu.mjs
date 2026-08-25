@@ -45,6 +45,35 @@ try {
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'attached', timeout: 60_000 });
 
+  // Top-level flyouts have one visibility owner. A focused category must not
+  // keep its old submenu open when pointer navigation selects a sibling.
+  await page.getByRole('menuitem', { name: 'Filter', exact: true }).click();
+  const filterMenu = page.getByRole('menu', { name: 'Context menu' });
+  const expectedFilterFlyouts = {
+    Blur: 'Gaussian Blur...',
+    Distort: 'Displace...',
+    Noise: 'Median...',
+    Sharpen: 'Smart Sharpen...',
+    Other: 'High Pass...'
+  };
+  for (const [category, expectedItem] of Object.entries(expectedFilterFlyouts)) {
+    await filterMenu.getByRole('menuitem', { name: category, exact: true }).hover();
+    const visibleFlyouts = page.locator('.context-menu--submenu:visible');
+    const visibleFlyoutCount = await visibleFlyouts.count();
+    if (visibleFlyoutCount !== 1) {
+      const flyoutItems = await visibleFlyouts.evaluateAll((menus) => menus.map((menu) => ({
+        parent: menu.parentElement?.querySelector(':scope > .context-menu__item')?.textContent?.trim(),
+        parentClass: menu.parentElement?.className,
+        items: [...menu.querySelectorAll(':scope > .context-menu__item-wrap > .context-menu__item .context-menu__item-label')]
+          .map((label) => label.textContent?.trim())
+      })));
+      throw new Error(`${category} left ${visibleFlyoutCount} Filter flyouts visible: ${JSON.stringify(flyoutItems)}.`);
+    }
+    await visibleFlyouts.getByRole('menuitem', { name: expectedItem, exact: true })
+      .waitFor({ state: 'visible' });
+  }
+  await page.keyboard.press('Escape');
+
   const layersPanel = page.locator('.lighttable-layers');
   if (await page.locator('.lighttable-global-processing-row').count()) {
     throw new Error('Legacy Global Grade or Global Lens FX pseudo rows are still visible.');
@@ -328,6 +357,7 @@ try {
     colorGradingLiveDrag: liveWheelPosition,
     gradingDomAfterMove,
     activeSelectionStyles,
+    filterFlyouts: Object.keys(expectedFilterFlyouts),
     pageErrors,
     consoleErrors
   }, null, 2)}\n`);

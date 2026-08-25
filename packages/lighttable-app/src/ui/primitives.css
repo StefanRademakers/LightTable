@@ -725,6 +725,15 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   padding-right: 36px;
 }
 
+/* React's openSubmenuPath is the sole flyout owner. Keep this explicit closed
+   rule more specific than legacy/focus selectors so a focused sibling can
+   never leave a second submenu surface intercepting pointer navigation. */
+.context-menu__item-wrap--has-children:not(.context-menu__item-wrap--submenu-open)
+  > .context-menu--submenu {
+  display: none;
+  pointer-events: none;
+}
+
 .context-menu__trailing-action {
   position: absolute;
   top: 1px;
@@ -761,8 +770,7 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   object-fit: contain;
 }
 
-.context-menu__item-wrap--submenu-open > .context-menu--submenu,
-.context-menu__item-wrap--has-children:focus-within > .context-menu--submenu {
+.context-menu__item-wrap--submenu-open > .context-menu--submenu {
   display: block;
   pointer-events: auto;
 }
