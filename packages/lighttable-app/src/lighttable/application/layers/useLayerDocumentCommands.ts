@@ -1090,6 +1090,14 @@ export const createLayerDocumentCommands = (
       }
       try {
         renderer.beginLayerPixelEdit(targetId, 'mask');
+        // Clipboard paste replaces mask pixels through a full texture upload.
+        // Capture the current mask before that upload so finishPixelEdit can
+        // publish one real undo step. Without captured tiles the GPU changed,
+        // but no canonical pixel revision was committed; accessory previews
+        // then stayed stale until the document runtime was rebound.
+        if (renderer.captureAllPixelEdit(targetId, 'mask') < 1) {
+          throw new Error('Mask paste could not capture its recoverable undo state.');
+        }
         if (!await renderer.pasteClipboardImage(targetId, file, {
           x: placement.x, y: placement.y
         }, 'mask')) {

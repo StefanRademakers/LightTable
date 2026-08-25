@@ -370,6 +370,7 @@ describe('useLayerDocumentCommands', () => {
     expect(result).toMatchObject({ layerId, width: 10, height: 6 });
     expect(state.document().layers).toHaveLength(1);
     expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(layerId, 'mask');
+    expect(state.renderer.captureAllPixelEdit).toHaveBeenCalledWith(layerId, 'mask');
     expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
       layerId, expect.any(File), { x: 5, y: 7 }, 'mask'
     );
