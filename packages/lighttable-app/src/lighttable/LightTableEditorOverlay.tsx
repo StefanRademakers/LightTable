@@ -1400,6 +1400,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     observersEnabled: editorResizeObserversEnabled,
     hasMetadata: Boolean(metadata),
     viewportRef,
+    canvasRef,
     scopesColumnRef,
     colorMixerScopeRef: colorMixerScopeContainerRef,
     getRenderer: () => engineRef.current,

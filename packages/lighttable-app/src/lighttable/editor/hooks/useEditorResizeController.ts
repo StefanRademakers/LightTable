@@ -8,13 +8,20 @@ import {
 } from 'react';
 import type { Rect } from '../document/documentTypes';
 
+interface ResizeViewportTransition {
+  durationMs?: number;
+  fromOffsetX?: number;
+  fromOffsetY?: number;
+}
+
 export interface ResizeRendererPort {
   resizeScopes(): void;
   resizeViewport(
     width: number,
     height: number,
     pixelRatio: number,
-    imageRect: Rect
+    imageRect: Rect,
+    transition?: ResizeViewportTransition
   ): void;
 }
 
@@ -25,6 +32,7 @@ interface EditorResizeControllerOptions {
   observersEnabled: boolean;
   hasMetadata: boolean;
   viewportRef: RefObject<HTMLDivElement | null>;
+  canvasRef: RefObject<HTMLCanvasElement | null>;
   scopesColumnRef: RefObject<HTMLElement | null>;
   colorMixerScopeRef: RefObject<HTMLElement | null>;
   getRenderer: () => ResizeRendererPort | null;
@@ -61,6 +69,7 @@ export const useEditorResizeController = ({
   observersEnabled,
   hasMetadata,
   viewportRef,
+  canvasRef,
   scopesColumnRef,
   colorMixerScopeRef,
   getRenderer,
@@ -72,6 +81,9 @@ export const useEditorResizeController = ({
 }: EditorResizeControllerOptions): EditorResizeController => {
   const dockResizeActiveRef = useRef(false);
   const dockResizeFinishFrameRef = useRef<number | null>(null);
+  const canvasUnlockFrameRef = useRef<number | null>(null);
+  const resizeStartBoundsRef = useRef<Pick<DOMRect, 'left' | 'top' | 'width' | 'height'> | null>(null);
+  const pendingTransitionRef = useRef<ResizeViewportTransition | null>(null);
   const getRendererRef = useRef(getRenderer);
   getRendererRef.current = getRenderer;
 
@@ -182,45 +194,96 @@ export const useEditorResizeController = ({
       window.cancelAnimationFrame(dockResizeFinishFrameRef.current);
       dockResizeFinishFrameRef.current = null;
     }
-    if (resizeActive) return;
+    if (resizeActive) {
+      if (canvasUnlockFrameRef.current !== null) {
+        window.cancelAnimationFrame(canvasUnlockFrameRef.current);
+        canvasUnlockFrameRef.current = null;
+      }
+      const viewport = viewportRef.current;
+      const canvas = canvasRef.current;
+      if (viewport && canvas) {
+        const bounds = viewport.getBoundingClientRect();
+        resizeStartBoundsRef.current = bounds;
+        // The backing store intentionally stays unchanged while Dockview moves
+        // a sash. Freeze its CSS size as well, otherwise the browser stretches
+        // that retained frame to every transient panel dimension.
+        canvas.style.width = `${bounds.width}px`;
+        canvas.style.height = `${bounds.height}px`;
+        viewport.dataset.dockResizeActive = 'true';
+      }
+      return;
+    }
 
     dockResizeFinishFrameRef.current = window.requestAnimationFrame(() => {
       dockResizeFinishFrameRef.current = null;
       const viewport = viewportRef.current;
       if (viewport) {
-        const { width, height } = measureRoundedElementSize(
-          viewport.getBoundingClientRect()
-        );
+        const nextBounds = viewport.getBoundingClientRect();
+        const { width, height } = measureRoundedElementSize(nextBounds);
+        const startBounds = resizeStartBoundsRef.current;
+        const changed = viewportSize.width !== width || viewportSize.height !== height;
+        pendingTransitionRef.current = changed && startBounds ? {
+          durationMs: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 220,
+          fromOffsetX: startBounds.left - nextBounds.left,
+          fromOffsetY: startBounds.top - nextBounds.top
+        } : null;
         setViewportSize((current) => (
           current.width === width && current.height === height
             ? current
             : { width, height }
         ));
+        if (!changed) releaseFrozenCanvasPresentation(viewport, canvasRef.current);
       }
       getRendererRef.current()?.resizeScopes();
     });
-  }, [setViewportSize, viewportRef]);
+  }, [canvasRef, setViewportSize, viewportRef, viewportSize.height, viewportSize.width]);
 
   useEffect(() => () => {
     if (dockResizeFinishFrameRef.current !== null) {
       window.cancelAnimationFrame(dockResizeFinishFrameRef.current);
     }
-  }, []);
+    if (canvasUnlockFrameRef.current !== null) {
+      window.cancelAnimationFrame(canvasUnlockFrameRef.current);
+    }
+    releaseFrozenCanvasPresentation(viewportRef.current, canvasRef.current);
+  }, [canvasRef, viewportRef]);
 
   useEffect(() => {
     if (!hasMetadata) return;
+    const transition = pendingTransitionRef.current ?? undefined;
+    pendingTransitionRef.current = null;
     getRendererRef.current()?.resizeViewport(
       viewportSize.width,
       viewportSize.height,
       Math.max(1, window.devicePixelRatio || 1),
-      imageRect
+      imageRect,
+      transition
     );
+    if (canvasUnlockFrameRef.current !== null) {
+      window.cancelAnimationFrame(canvasUnlockFrameRef.current);
+    }
+    canvasUnlockFrameRef.current = window.requestAnimationFrame(() => {
+      canvasUnlockFrameRef.current = null;
+      releaseFrozenCanvasPresentation(viewportRef.current, canvasRef.current);
+      resizeStartBoundsRef.current = null;
+    });
   }, [
+    canvasRef,
     hasMetadata,
     imageRect,
+    viewportRef,
     viewportSize.height,
     viewportSize.width
   ]);
 
   return { dockResizeActiveRef, handleDockResizeInteractionChange };
+};
+
+const releaseFrozenCanvasPresentation = (
+  viewport: HTMLDivElement | null,
+  canvas: HTMLCanvasElement | null
+) => {
+  canvas?.style.removeProperty('width');
+  canvas?.style.removeProperty('height');
+  if (viewport) delete viewport.dataset.dockResizeActive;
 };
