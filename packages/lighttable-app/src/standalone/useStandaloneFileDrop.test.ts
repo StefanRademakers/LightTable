@@ -22,4 +22,12 @@ describe('standalone file drop', () => {
 
     expect(filterSupportedDroppedFiles([file])).toEqual([file]);
   });
+
+  it('accepts MP4 and WebM as typed video documents without admitting unrelated files', () => {
+    const mp4 = new File(['video'], 'clip.mp4', { type: 'video/mp4' });
+    const webm = new File(['video'], 'clip.WEBM', { type: 'application/octet-stream' });
+    const text = new File(['text'], 'clip.txt', { type: 'text/plain' });
+
+    expect(filterSupportedDroppedFiles([mp4, webm, text])).toEqual([mp4, webm]);
+  });
 });

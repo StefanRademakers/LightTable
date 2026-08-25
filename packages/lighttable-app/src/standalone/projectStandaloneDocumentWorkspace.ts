@@ -11,15 +11,31 @@ import type {
 import type {
   StandaloneDocumentRuntime
 } from './standaloneDocumentRuntime';
+import type { VideoDocumentSession } from '@lighttable/video-core';
 
-export interface StandaloneWorkspaceDocument {
+export interface StandaloneImageWorkspaceDocument {
   readonly id: DocumentSessionId;
+  readonly kind: 'image';
   readonly title: string;
   readonly dirty: boolean;
   readonly active: boolean;
   readonly runtime: StandaloneDocumentRuntime;
   readonly session: DocumentSession;
 }
+
+export interface StandaloneVideoWorkspaceDocument {
+  readonly id: DocumentSessionId;
+  readonly kind: 'video';
+  readonly title: string;
+  readonly dirty: false;
+  readonly active: boolean;
+  readonly runtime: { readonly kind: 'video'; readonly file: File };
+  readonly session: VideoDocumentSession;
+}
+
+export type StandaloneWorkspaceDocument =
+  | StandaloneImageWorkspaceDocument
+  | StandaloneVideoWorkspaceDocument;
 
 /**
  * Joins the immutable application snapshot with host-owned source handles.
@@ -39,6 +55,7 @@ export const projectStandaloneDocumentWorkspace = (
     if (!document || !runtime || !session) return [];
     return [{
       id,
+      kind: 'image',
       title: document.title,
       dirty: document.dirty,
       active: snapshot.activeDocumentId === id,

@@ -10,6 +10,8 @@ describe('desktop file formats', () => {
     expect(filters[0]?.extensions).toContain('pdf');
     expect(filters).toContainEqual({ name: 'PDF documents', extensions: ['pdf'] });
     expect(filters).toContainEqual({ name: 'SVG documents', extensions: ['svg'] });
+    expect(filters[0]?.extensions).toEqual(expect.arrayContaining(['mp4', 'webm']));
+    expect(filters).toContainEqual({ name: 'Video files', extensions: ['mp4', 'webm'] });
   });
 
   it('preserves the PDF media type across the desktop bridge', () => {

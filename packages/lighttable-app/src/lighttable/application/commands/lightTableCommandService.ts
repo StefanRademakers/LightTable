@@ -102,6 +102,30 @@ export * from './lightTableCommandContract';
 
 export { LightTableCommandPortRegistry } from './lightTableCommandPortRegistry';
 
+export interface TypedWorkspaceCommandDocument {
+  readonly id: DocumentSessionId;
+  readonly kind: 'image' | 'video' | 'model-3d';
+  readonly title: string;
+  readonly lifecycle: 'opening' | 'ready' | 'failed' | 'closing' | 'disposed';
+  readonly dirty: boolean;
+  readonly source: { readonly name: string; readonly mediaType: string; readonly byteLength?: number };
+  readonly canvas?: { readonly width: number; readonly height: number } | null;
+  readonly media?: {
+    readonly durationSeconds: number;
+    readonly currentTimeSeconds: number;
+    readonly paused: boolean;
+    readonly muted: boolean;
+    readonly volume: number;
+    readonly playbackRate: number;
+  };
+}
+
+export interface TypedWorkspaceCommandProjection {
+  readonly activeDocumentId: DocumentSessionId | null;
+  readonly documentOrder: readonly DocumentSessionId[];
+  readonly documents: Readonly<Record<string, TypedWorkspaceCommandDocument>>;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
 );
@@ -124,6 +148,48 @@ const traceObservedCommand = (command: LightTableCommandId, accepted: boolean, r
   trace?.push({ command, accepted, reason });
   return accepted;
 };
+
+const mapTypedLifecycle = (
+  lifecycle: TypedWorkspaceCommandDocument['lifecycle']
+): DocumentSessionSnapshot['lifecycle'] => lifecycle;
+
+const projectNonImageDocumentQuery = (
+  revision: number,
+  document: TypedWorkspaceCommandDocument
+): DocumentQueryResult => ({
+  revision,
+  kind: document.kind,
+  id: document.id,
+  title: document.title,
+  lifecycle: mapTypedLifecycle(document.lifecycle),
+  dirty: document.dirty,
+  canonicalRevision: 0,
+  savedRevision: 0,
+  canvas: document.canvas ?? null,
+  color: null,
+  activeLayerId: null,
+  layerCount: 0,
+  viewport: { zoomMode: 'fit', scale: 1, panX: 0, panY: 0 },
+  history: {
+    canUndo: false,
+    canRedo: false,
+    busy: false,
+    undoDepth: 0,
+    redoDepth: 0,
+    undoLabel: null,
+    redoLabel: null,
+    estimatedBytes: 0,
+    currentStateId: 0
+  },
+  tasks: { activeCount: 0 },
+  renderer: {
+    status: document.lifecycle === 'failed' ? 'failed' : 'idle',
+    active: false,
+    estimatedGpuBytes: 0,
+    error: null
+  },
+  ...(document.media ? { media: document.media } : {})
+});
 
 /**
  * Transport-neutral read/query and bounded command registry.
@@ -150,6 +216,8 @@ export class LightTableCommandService {
   private readonly taskEvents = new AutomationTaskEventStore();
   private readonly publicationEvents = new AutomationPublicationEventStore();
   private readonly actions: SemanticActionWorkflowController;
+  private typedWorkspaceProjection: TypedWorkspaceCommandProjection | null = null;
+  private typedWorkspaceProjectionSignature = '';
   private readonly documentPreviews = new DocumentPreviewArtifactController({
     snapshot: (documentId) => {
       const snapshot = this.document(documentId);
@@ -244,6 +312,49 @@ export class LightTableCommandService {
     this.documentPreviews.invalidateArtifact(artifactId);
     this.layerPreviews.invalidateArtifact(artifactId);
     return this.artifacts.release(artifactId);
+  }
+
+  /**
+   * Publishes the application-level typed workspace without making the image
+   * command service own video/model runtimes. Image commands still resolve
+   * through canonical DocumentSession ports; other kinds remain inspectable
+   * and reject image edits explicitly.
+   */
+  setTypedWorkspaceProjection(projection: TypedWorkspaceCommandProjection): void {
+    this.typedWorkspaceProjection = structuredClone(projection);
+    const signature = JSON.stringify({
+      activeDocumentId: projection.activeDocumentId,
+      documentOrder: projection.documentOrder,
+      documents: Object.values(projection.documents).map((document) => ({
+        id: document.id,
+        kind: document.kind,
+        title: document.title,
+        lifecycle: document.lifecycle,
+        dirty: document.dirty,
+        source: document.source,
+        canvas: document.canvas ?? null
+      }))
+    });
+    if (signature === this.typedWorkspaceProjectionSignature) return;
+    this.typedWorkspaceProjectionSignature = signature;
+    this.workspaceRevision += 1;
+  }
+
+  /** Updates high-frequency playback telemetry without publishing a canonical workspace revision. */
+  updateTypedDocumentMedia(
+    documentId: DocumentSessionId,
+    media: NonNullable<TypedWorkspaceCommandDocument['media']>
+  ): void {
+    const projection = this.typedWorkspaceProjection;
+    const document = projection?.documents[documentId];
+    if (!projection || !document || document.kind !== 'video') return;
+    this.typedWorkspaceProjection = {
+      ...projection,
+      documents: {
+        ...projection.documents,
+        [documentId]: { ...document, media: structuredClone(media) }
+      }
+    };
   }
 
   requestDocumentPreview(request: unknown): Promise<DocumentPreviewResult> {
@@ -609,6 +720,28 @@ export class LightTableCommandService {
 
   queryWorkspace(): WorkspaceQueryResult {
     const snapshot = this.workspace.getSnapshot();
+    const typed = this.typedWorkspaceProjection;
+    if (typed) return {
+      revision: this.workspaceRevision,
+      activeDocumentId: typed.activeDocumentId,
+      documents: typed.documentOrder.flatMap((id) => {
+        const document = typed.documents[id];
+        if (!document) return [];
+        const image = snapshot.documents[id];
+        return [{
+          id,
+          kind: document.kind,
+          title: image?.title ?? document.title,
+          lifecycle: image?.lifecycle ?? mapTypedLifecycle(document.lifecycle),
+          dirty: image?.dirty ?? document.dirty,
+          source: image ? {
+            name: image.source.name,
+            mediaType: image.source.mediaType,
+            ...(image.source.byteLength === undefined ? {} : { byteLength: image.source.byteLength })
+          } : document.source
+        }];
+      })
+    };
     return {
       revision: this.workspaceRevision,
       activeDocumentId: snapshot.activeDocumentId,
@@ -616,6 +749,7 @@ export class LightTableCommandService {
         const document = snapshot.documents[id];
         return document ? [{
           id,
+          kind: 'image',
           title: document.title,
           lifecycle: document.lifecycle,
           dirty: document.dirty,
@@ -633,10 +767,15 @@ export class LightTableCommandService {
 
   queryDocument(documentId: DocumentSessionId): DocumentQueryResult | null {
     const document = this.document(documentId);
-    if (!document) return null;
+    if (!document) {
+      const typed = this.typedWorkspaceProjection?.documents[documentId];
+      if (!typed || typed.kind === 'image') return null;
+      return projectNonImageDocumentQuery(this.workspaceRevision, typed);
+    }
     const canonical = document.document;
     return {
       revision: this.workspaceRevision,
+      kind: 'image',
       id: document.id,
       title: document.title,
       lifecycle: document.lifecycle,
@@ -818,6 +957,8 @@ export class LightTableCommandService {
 
   queryCapabilities(documentId: DocumentSessionId): readonly CommandCapabilitySummary[] | null {
     const snapshot = this.document(documentId);
+    const typed = this.typedWorkspaceProjection?.documents[documentId];
+    if (!snapshot && typed && typed.kind !== 'image') return [];
     return snapshot ? projectCommandCapabilities(snapshot, this.ports, Boolean(this.workspacePorts)) : null;
   }
 
@@ -941,6 +1082,11 @@ export class LightTableCommandService {
     const documentRequest = value as DocumentParsedCommandRequest;
     const snapshot = this.document(documentRequest.documentId);
     if (!snapshot) {
+      const typed = this.typedWorkspaceProjection?.documents[documentRequest.documentId];
+      if (typed && typed.kind !== 'image') {
+        return this.reject(value.requestId, 'command-unavailable',
+          `${value.command} is unavailable for ${typed.kind} documents.`);
+      }
       return this.reject(value.requestId, 'document-not-found', 'The target document is not open.');
     }
     if (snapshot.lifecycle !== 'ready' || !snapshot.document) {

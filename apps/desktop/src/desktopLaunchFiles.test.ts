@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
-import { bitmapLaunchFilesFromArgv, DesktopLaunchFileQueue } from './desktopLaunchFiles';
+import { desktopLaunchFilesFromArgv, DesktopLaunchFileQueue } from './desktopLaunchFiles';
 
-describe('desktop bitmap launch files', () => {
-  it('keeps supported absolute bitmap arguments in launch order', () => {
+describe('desktop document launch files', () => {
+  it('keeps supported absolute document arguments in launch order', () => {
     const root = path.resolve('fixtures');
-    expect(bitmapLaunchFilesFromArgv([
+    expect(desktopLaunchFilesFromArgv([
       'LightTable.exe', '--squirrel-firstrun',
       path.join(root, 'a.PNG'), path.join(root, 'b.jpg'), path.join(root, 'c.webp'),
-      path.join(root, 'd.TIFF'), path.join(root, 'ignored.psd'), 'relative.png'
+      path.join(root, 'd.TIFF'), path.join(root, 'movie.MP4'), path.join(root, 'clip.webm'),
+      path.join(root, 'ignored.txt'), 'relative.png'
     ])).toEqual([
       path.join(root, 'a.PNG'), path.join(root, 'b.jpg'), path.join(root, 'c.webp'),
-      path.join(root, 'd.TIFF')
+      path.join(root, 'd.TIFF'), path.join(root, 'movie.MP4'), path.join(root, 'clip.webm')
     ]);
   });
 

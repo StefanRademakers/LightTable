@@ -62,7 +62,9 @@ describe('projectStandaloneDocumentWorkspace', () => {
     ]);
     expect(projected[0]?.runtime.file).toBe(firstFile);
     expect(projected[0]?.session).toBe(first.value);
-    expect(projected[1]?.runtime.decodeMode).toBe('preserve-precision');
+    expect(projected[1]?.kind).toBe('image');
+    if (projected[1]?.kind !== 'image') throw new Error('Expected image workspace document.');
+    expect(projected[1].runtime.decodeMode).toBe('preserve-precision');
   });
 
   it('does not expose a closed document or its host payload', () => {

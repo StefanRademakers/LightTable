@@ -74,6 +74,11 @@ export class DocumentWorkspaceController<TSource> {
     return this.workspace.activate(id);
   }
 
+  deactivate(): void {
+    this.assertUsable();
+    this.workspace.deactivate();
+  }
+
   close(
     id: DocumentSessionId,
     options: CloseDocumentOptions = {}

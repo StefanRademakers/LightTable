@@ -83,6 +83,7 @@ const deferPanel = (content: React.ReactNode) => (
 );
 
 export interface EditorWorkspacePanelBindings {
+  documentKind?: 'image' | 'video' | 'model-3d';
   scopes: React.ComponentProps<ScopesPanelComponent>;
   layers: React.ReactNode;
   channels: React.ReactNode;
@@ -110,6 +111,7 @@ export interface EditorWorkspacePanelBindings {
  * it does not need to know how those ports are mounted into React panels.
  */
 export const createEditorWorkspacePanels = ({
+  documentKind = 'image',
   scopes,
   layers,
   channels,
@@ -127,11 +129,17 @@ export const createEditorWorkspacePanels = ({
   aiHistory
 }: EditorWorkspacePanelBindings): LightTableWorkspacePanelRegistration[] =>
   createDefaultLightTableWorkspacePanels({
-    scopes: deferPanel(<ScopesPanel {...scopes} />),
-    layers,
-    channels,
+    scopes: documentKind === 'image'
+      ? deferPanel(<ScopesPanel {...scopes} />)
+      : <DocumentKindPanel title="Scopes" kind={documentKind} detail="Frame scopes are unavailable in this read-only viewer." />,
+    layers: documentKind === 'image'
+      ? layers
+      : <DocumentKindPanel title="Layers" kind={documentKind} detail="This document has no image layer stack." />,
+    channels: documentKind === 'image'
+      ? channels
+      : <DocumentKindPanel title="Channels" kind={documentKind} detail="Decoded media channels are not editable layers." />,
     debug: deferPanel(<DebugPanel {...debug} />),
-    properties: (
+    properties: documentKind === 'image' ? (
       <PropertiesPanel
         view={propertiesView}
         editors={{
@@ -163,9 +171,24 @@ export const createEditorWorkspacePanels = ({
               : null]))
         }}
       />
-    ),
+    ) : <DocumentKindPanel title="Properties" kind={documentKind} detail="Playback is read-only. Use the controls on the document surface." />,
     agent: deferPanel(<AgentActivityPanel {...agent} />),
     actions: deferPanel(<ActionsPanel {...actions} />),
     genAi: deferPanel(<GenAiPanel {...genAi} />),
     aiHistory: <ProjectAssetBrowser {...aiHistory} />
   });
+
+const DocumentKindPanel = ({
+  title,
+  kind,
+  detail
+}: {
+  readonly title: string;
+  readonly kind: 'video' | 'model-3d';
+  readonly detail: string;
+}) => (
+  <aside className="lighttable-panel lighttable-document-kind-panel" aria-label={title}>
+    <strong>{kind === 'video' ? 'Video document' : '3D document'}</strong>
+    <p>{detail}</p>
+  </aside>
+);

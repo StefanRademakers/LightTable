@@ -13,6 +13,7 @@ import { useEditorWindowInput } from '../../editor/hooks/useEditorWindowInput';
 import type { ToolId } from '../../editor/session/editorSession';
 
 export interface EditorKeyboardControllerContext {
+  readonly documentKind?: 'image' | 'video' | 'model-3d';
   readonly saving: boolean;
   readonly activeTool: ToolId;
   readonly hasActiveLayer: boolean;

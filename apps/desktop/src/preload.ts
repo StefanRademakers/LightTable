@@ -15,6 +15,7 @@ const bridge: LightTableDesktopBridge = {
   openFiles: () => ipcRenderer.invoke('lighttable:open-files'),
   takeInitialLaunchFiles: () => initialLaunchFiles,
   takeLaunchFiles: () => ipcRenderer.invoke('lighttable:take-launch-files'),
+  releaseMediaSource: (id) => ipcRenderer.invoke('lighttable:release-media-source', id),
   onLaunchFilesAvailable: (listener) => {
     const handler = () => listener();
     ipcRenderer.on('lighttable:launch-files-available', handler);

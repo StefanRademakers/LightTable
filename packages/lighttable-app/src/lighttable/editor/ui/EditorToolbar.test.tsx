@@ -19,6 +19,28 @@ const renderToolbar = (activeTool: 'brush' | 'select-free' | 'shape-triangle' | 
 );
 
 describe('EditorToolbar', () => {
+  it('retains the workspace rail without exposing image tools for video documents', () => {
+    const markup = renderToStaticMarkup(
+      <EditorToolbar
+        documentKind="video"
+        activeTool="brush"
+        foregroundColor="#000000"
+        backgroundColor="#ffffff"
+        onToolChange={vi.fn()}
+        onZoomActual={vi.fn()}
+        onForegroundColorChange={vi.fn()}
+        onBackgroundColorChange={vi.fn()}
+        onSwapColors={vi.fn()}
+        onResetColors={vi.fn()}
+      />
+    );
+    expect(markup).toContain('class="lighttable-toolbox"');
+    expect(markup).toContain('aria-label="Video tools"');
+    expect(markup).toContain('data-document-kind="video"');
+    expect(markup).not.toContain('aria-label="Brush');
+    expect(markup).not.toContain('Foreground and background colors');
+  });
+
   it('can present a normal family flyout item with its label and shortcut', () => {
     const markup = renderToStaticMarkup(
       <ToolButton

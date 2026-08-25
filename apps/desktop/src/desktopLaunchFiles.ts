@@ -1,18 +1,21 @@
 import path from 'node:path';
-import { nativeBitmapFormatForFile } from '@lighttable/app/bitmap-formats';
+import { desktopMediaTypeForFileName } from './desktopFileFormats';
 
 const canonical = (value: string) => {
   const resolved = path.resolve(value);
   return process.platform === 'win32' ? resolved.toLocaleLowerCase('en-US') : resolved;
 };
 
-/** Extracts only supported absolute bitmap paths from OS process arguments. */
-export const bitmapLaunchFilesFromArgv = (argv: readonly string[]): string[] => {
+const isSupportedDesktopLaunchFile = (filePath: string): boolean =>
+  desktopMediaTypeForFileName(filePath) !== '';
+
+/** Extracts supported absolute document paths from OS process arguments. */
+export const desktopLaunchFilesFromArgv = (argv: readonly string[]): string[] => {
   const seen = new Set<string>();
   const files: string[] = [];
   for (const argument of argv) {
     if (typeof argument !== 'string' || !path.isAbsolute(argument)) continue;
-    if (!nativeBitmapFormatForFile(argument)) continue;
+    if (!isSupportedDesktopLaunchFile(argument)) continue;
     const key = canonical(argument);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -64,7 +67,7 @@ export class DesktopLaunchFileQueue<T = never> {
 
   enqueue(filePaths: readonly string[]): number {
     for (const filePath of filePaths) {
-      if (!path.isAbsolute(filePath) || !nativeBitmapFormatForFile(filePath)) continue;
+      if (!path.isAbsolute(filePath) || !isSupportedDesktopLaunchFile(filePath)) continue;
       const key = canonical(filePath);
       if (this.pending.has(key) || this.pending.size >= this.capacity) continue;
       const entry: PendingDesktopLaunchFile<T> = {

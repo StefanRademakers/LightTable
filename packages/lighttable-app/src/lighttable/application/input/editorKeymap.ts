@@ -17,6 +17,7 @@ export interface EditorKeyboardInput {
 }
 
 export interface EditorKeyboardContext {
+  readonly documentKind?: 'image' | 'video' | 'model-3d';
   readonly editable: boolean;
   readonly saving: boolean;
   readonly activeTool: ToolId;
@@ -94,6 +95,8 @@ export interface EditorKeyBinding {
   readonly id: string;
   readonly chord: EditorKeyChord;
   readonly allowWhileEditing?: boolean;
+  /** Omitted bindings belong to the image editor. */
+  readonly documentKinds?: readonly ('image' | 'video' | 'model-3d')[];
   readonly when?: (context: EditorKeyboardContext) => boolean;
   readonly resolve: (
     context: EditorKeyboardContext
@@ -110,7 +113,7 @@ const command = (
   id: string,
   chord: EditorKeyChord,
   result: EditorKeyboardCommand,
-  options: Pick<EditorKeyBinding, 'allowWhileEditing' | 'when'> = {}
+  options: Pick<EditorKeyBinding, 'allowWhileEditing' | 'documentKinds' | 'when'> = {}
 ): EditorKeyBinding => ({
   id,
   chord,
@@ -191,6 +194,7 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
   bindings: [
     command('file.open', { key: 'o', primary: true, alt: false, shift: false }, 'open-file', {
       allowWhileEditing: true,
+      documentKinds: ['image', 'video', 'model-3d'],
       when: (context) => !context.saving
     }),
     command('file.save', { key: 's', primary: true, alt: false, shift: false }, 'save-file', {
@@ -319,7 +323,8 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command(
       'workspace.toggle-screen-mode',
       { key: 'f', primary: false, alt: false, shift: false },
-      'toggle-screen-mode'
+      'toggle-screen-mode',
+      { documentKinds: ['image', 'video', 'model-3d'] }
     ),
     command('brush.size-decrease', { key: '[', primary: false, alt: false, shift: false }, 'brush-size-decrease', {
       when: (context) => usesBrushSize(context.activeTool)
@@ -340,24 +345,32 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command(
       'workspace.previous-document',
       { key: 'tab', primary: true, alt: false, shift: true },
-      'activate-previous-document'
+      'activate-previous-document',
+      { documentKinds: ['image', 'video', 'model-3d'] }
     ),
     command(
       'workspace.next-document',
       { key: 'tab', primary: true, alt: false, shift: false },
-      'activate-next-document'
+      'activate-next-document',
+      { documentKinds: ['image', 'video', 'model-3d'] }
     ),
     command(
       'workspace.close-document-w',
       { key: 'w', primary: true, alt: false, shift: false },
       'close-active-document',
-      { when: (context) => !context.saving }
+      {
+        documentKinds: ['image', 'video', 'model-3d'],
+        when: (context) => !context.saving
+      }
     ),
     command(
       'workspace.close-document-f4',
       { key: 'f4', primary: true, alt: false, shift: false },
       'close-active-document',
-      { when: (context) => !context.saving }
+      {
+        documentKinds: ['image', 'video', 'model-3d'],
+        when: (context) => !context.saving
+      }
     ),
     // Own the browser's native page-zoom chords. LightTable is a document
     // editor: these keys must change the active canvas view while the app UI
@@ -428,8 +441,10 @@ export const resolveEditorKeymapCommand = (
   input: EditorKeyboardInput,
   context: EditorKeyboardContext
 ): EditorKeyboardCommand | null => {
+  const documentKind = context.documentKind ?? 'image';
   const binding = keymap.bindings.find((candidate) =>
     editorKeyChordMatches(candidate.chord, input)
+    && (candidate.documentKinds ?? ['image']).includes(documentKind)
     && (!context.editable || candidate.allowWhileEditing)
     && (!candidate.when || candidate.when(context))
   );

@@ -91,9 +91,12 @@ reports:
 - **Typed document foundation, 2026-08-25:** the workspace surface contract
   distinguishes image, video and the reserved future `model-3d` kind.
   `@lighttable/video-core` owns read-only video lifecycle, playback/view state
-  and extracted-frame artifacts. The visible video workspace is not wired yet.
-  Do not represent video as an empty `ImageDocument`, fake pixel layer or a
-  second Dockview shell; read
+  and extracted-frame artifacts. MP4/WebM now open in the same persistent
+  workspace shell through a seekable desktop capability URL (or a browser Blob
+  URL). The toolbar rail and panel graph stay mounted; only their contents and
+  command capabilities change with the active document kind. Do not represent
+  video as an empty `ImageDocument`, fake pixel layer, hidden image runtime or
+  a second Dockview shell; read
   [Multi-document types and video](features/MULTI_DOCUMENT_TYPES_AND_VIDEO.md).
 
 - **Current, 2026-08-25:** LightTable has one shipping **hybrid vector

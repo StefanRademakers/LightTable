@@ -39,8 +39,13 @@ import type { NativeBitmapFormatId } from '@lighttable/app/bitmap-formats';
 export interface DesktopFilePayload {
   name: string;
   type: string;
-  bytes: Uint8Array;
+  bytes?: Uint8Array;
   sourcePath?: string;
+  mediaSource?: {
+    readonly id: string;
+    readonly url: string;
+    readonly byteLength: number;
+  };
 }
 
 export interface DesktopSavePayload {
@@ -150,6 +155,7 @@ export interface LightTableDesktopBridge {
   openFiles(): Promise<readonly DesktopFilePayload[]>;
   takeInitialLaunchFiles(): Promise<readonly DesktopFilePayload[]>;
   takeLaunchFiles(): Promise<readonly DesktopFilePayload[]>;
+  releaseMediaSource(id: string): Promise<void>;
   onLaunchFilesAvailable(listener: () => void): () => void;
   listRecentFiles(): Promise<readonly DesktopRecentFile[]>;
   loadRecentFileThumbnail(id: string): Promise<string | null>;

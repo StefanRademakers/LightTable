@@ -19,3 +19,4 @@ export {
 export {
   prepareSharedWebGpuDevice as prepareLightTableRenderingRuntime
 } from './lighttable/gpu/sharedWebGpuDevice';
+export { registerExternalMediaSource } from './standalone/externalMediaSource';

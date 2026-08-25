@@ -167,7 +167,7 @@ const AssetGallery = ({ assets, pendingJobs = [], previews, onRequestPreview, on
       return <article key={asset.id} className="genai-history__card" draggable style={{
         transform: `translate(${item.x}px, ${item.y}px)`, width: item.width, height: item.height + FOOTER
       }} onDragStart={(event) => writeProjectAssetDrag(event.dataTransfer, asset.id, asset.label)}
-        onDoubleClick={() => { if (!asset.mediaType.startsWith('video/')) onOpen?.(asset); }}
+        onDoubleClick={() => onOpen?.(asset)}
         onContextMenu={(event) => onContextMenu(event, asset)}>
         <div className="genai-history__preview" style={{ height: item.height }}>
           {preview ? <img className="genai-history__thumbnail" src={preview} alt="" draggable={false} onLoad={(event) => {

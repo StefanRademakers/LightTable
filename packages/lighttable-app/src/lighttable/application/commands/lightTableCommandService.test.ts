@@ -891,6 +891,54 @@ describe('LightTableCommandService queries', () => {
     state.workspace.dispose();
   });
 
+  it('exposes typed video documents while rejecting image-only commands explicitly', async () => {
+    const state = setup();
+    const videoId = 'video-document-1' as never;
+    state.service.setTypedWorkspaceProjection({
+      activeDocumentId: videoId,
+      documentOrder: [state.session.id, videoId],
+      documents: {
+        [state.session.id]: {
+          id: state.session.id, kind: 'image', title: 'Fixture.psd', lifecycle: 'ready', dirty: false,
+          source: { name: 'Fixture.psd', mediaType: 'image/vnd.adobe.photoshop' },
+          canvas: { width: 80, height: 60 }
+        },
+        [videoId]: {
+          id: videoId, kind: 'video', title: 'Clip.mp4', lifecycle: 'ready', dirty: false,
+          source: { name: 'Clip.mp4', mediaType: 'video/mp4', byteLength: 1024 },
+          canvas: { width: 1920, height: 1080 },
+          media: { durationSeconds: 12, currentTimeSeconds: 3, paused: true,
+            muted: false, volume: 1, playbackRate: 1 }
+        }
+      }
+    });
+
+    expect(state.service.queryWorkspace()).toMatchObject({
+      activeDocumentId: videoId,
+      documents: [{ kind: 'image' }, { id: videoId, kind: 'video', lifecycle: 'ready' }]
+    });
+    expect(state.service.queryDocument(videoId)).toMatchObject({
+      kind: 'video', canvas: { width: 1920, height: 1080 }, layerCount: 0,
+      media: { durationSeconds: 12, currentTimeSeconds: 3 }
+    });
+    const workspaceRevision = state.service.queryWorkspace().revision;
+    state.service.updateTypedDocumentMedia(videoId, {
+      durationSeconds: 12, currentTimeSeconds: 8.5, paused: false,
+      muted: false, volume: 0.75, playbackRate: 1.25
+    });
+    expect(state.service.queryDocument(videoId)).toMatchObject({
+      media: { currentTimeSeconds: 8.5, paused: false, volume: 0.75, playbackRate: 1.25 }
+    });
+    expect(state.service.queryWorkspace().revision).toBe(workspaceRevision);
+    expect(state.service.queryCapabilities(videoId)).toEqual([]);
+    await expect(state.service.execute(request('history.undo', videoId))).resolves.toMatchObject({
+      status: 'rejected', code: 'command-unavailable',
+      message: 'history.undo is unavailable for video documents.'
+    });
+    state.service.dispose();
+    state.workspace.dispose();
+  });
+
   it('uses the same canonical capability projection for unavailable commands', () => {
     const state = setup();
     expect(state.service.queryCapabilities(state.session.id)).toContainEqual({

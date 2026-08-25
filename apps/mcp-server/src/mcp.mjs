@@ -155,7 +155,7 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
     title: guide.title, description: guide.description, mimeType: 'text/markdown'
   }, async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: guide.text }] }));
   server.registerTool('lighttable_workspace', {
-    title: 'Inspect LightTable workspace', description: 'Lists open documents and the active stable document ID. Read-only.',
+    title: 'Inspect LightTable workspace', description: 'Lists typed image, video and future media documents plus the active stable document ID. Read-only.',
     inputSchema: z.object({}), annotations: { readOnlyHint: true }
   }, withResult(() => client.invoke('workspace.query')));
   server.registerTool('lighttable_context', {
@@ -175,6 +175,10 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
     const document = await client.invoke('document.query', { documentId });
     if (!Number.isInteger(document?.canonicalRevision)) {
       return { workspace, document, layer: null, capabilities: null, guides: LIGHTTABLE_ARTIST_GUIDE_SUMMARIES };
+    }
+    if (document.kind && document.kind !== 'image') {
+      const capabilities = await client.invoke('command.capabilities', { documentId });
+      return { workspace, document, layer: null, capabilities, guides: LIGHTTABLE_ARTIST_GUIDE_SUMMARIES };
     }
     const layer = await client.invoke('layer.query', {
       documentId,
@@ -198,7 +202,7 @@ export const createLightTableMcpServer = (clientInput, { fetchImpl = fetch } = {
     return report;
   }));
   server.registerTool('lighttable_document', {
-    title: 'Inspect LightTable document', description: 'Returns canvas dimensions, revision, viewport, active layer, history and renderer status for one stable document ID.',
+    title: 'Inspect LightTable document', description: 'Returns typed document identity and bounded state. Image documents include canvas, layer, history and renderer data; video documents include dimensions and live playback telemetry.',
     inputSchema: z.object({ documentId: z.string().min(1) }), annotations: { readOnlyHint: true }
   }, withResult(({ documentId }) => client.invoke('document.query', { documentId })));
   server.registerTool('lighttable_palette', {

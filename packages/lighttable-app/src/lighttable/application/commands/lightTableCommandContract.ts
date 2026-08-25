@@ -92,6 +92,7 @@ export type LightTableCommandResult =
   | { readonly requestId: string; readonly status: 'rejected'; readonly code: LightTableCommandErrorCode; readonly message: string; readonly revisions: LightTableRevisionSet };
 
 export interface WorkspaceDocumentSummary {
+  readonly kind?: 'image' | 'video' | 'model-3d';
   readonly id: DocumentSessionId;
   readonly title: string;
   readonly lifecycle: DocumentSessionSnapshot['lifecycle'];
@@ -106,6 +107,7 @@ export interface WorkspaceQueryResult {
 }
 
 export interface DocumentQueryResult {
+  readonly kind?: 'image' | 'video' | 'model-3d';
   readonly revision: number;
   readonly id: DocumentSessionId;
   readonly title: string;
@@ -136,6 +138,14 @@ export interface DocumentQueryResult {
     readonly active: boolean;
     readonly estimatedGpuBytes: number;
     readonly error: string | null;
+  };
+  readonly media?: {
+    readonly durationSeconds: number;
+    readonly currentTimeSeconds: number;
+    readonly paused: boolean;
+    readonly muted: boolean;
+    readonly volume: number;
+    readonly playbackRate: number;
   };
 }
 

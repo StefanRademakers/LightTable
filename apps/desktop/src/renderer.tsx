@@ -8,6 +8,7 @@ import {
   configureVectorRendererDetailedProfiling,
   LightTableStandaloneApp,
   prepareLightTableRenderingRuntime,
+  registerExternalMediaSource,
   type LightTableAutomationDriver,
   type LightTableHost
 } from '@lighttable/app/standalone';
@@ -48,9 +49,23 @@ window.addEventListener('beforeunload', removeHorizontalWheelBridge, { once: tru
 
 const desktopFile = (payload: DesktopFilePayload | null) => {
   if (!payload) return null;
-  const file = new File([Uint8Array.from(payload.bytes).buffer], payload.name, {
+  const bytes = payload.bytes ? Uint8Array.from(payload.bytes).buffer : new ArrayBuffer(0);
+  const file = new File([bytes], payload.name, {
     type: payload.type
   });
+  if (payload.mediaSource) {
+    const { id, url, byteLength } = payload.mediaSource;
+    let released = false;
+    registerExternalMediaSource(file, {
+      url,
+      byteLength,
+      release: () => {
+        if (released) return;
+        released = true;
+        void window.lightTableDesktop.releaseMediaSource(id);
+      }
+    });
+  }
   if (payload.sourcePath) {
     Object.defineProperty(file, 'lightTableSourcePath', {
       value: payload.sourcePath,

@@ -39,6 +39,30 @@ describe('editor keymap', () => {
     expect([...findEditorKeymapConflicts(DEFAULT_EDITOR_KEYMAP)]).toEqual([]);
   });
 
+  it('keeps application navigation available for video without exposing image commands', () => {
+    const videoContext = context({ documentKind: 'video' });
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'o', code: 'KeyO', ctrlKey: true }),
+      videoContext
+    )).toBe('open-file');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'Tab', code: 'Tab', ctrlKey: true }),
+      videoContext
+    )).toBe('activate-next-document');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'i', code: 'KeyI', ctrlKey: true, altKey: true }),
+      videoContext
+    )).toBeNull();
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: 'v', code: 'KeyV' }),
+      videoContext
+    )).toBeNull();
+  });
+
   it.each([
     { ctrlKey: true },
     { metaKey: true }

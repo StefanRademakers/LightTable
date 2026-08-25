@@ -31,6 +31,7 @@ import {
   imagePickerAccept,
   isSupportedImageFile
 } from '../lighttable/image-io/supportedImageFormats';
+import { isSupportedVideoDocument } from '@lighttable/video-core';
 import { createBlankPngFile } from './createBlankPngFile';
 import { NewDocumentDialog } from './NewDocumentDialog';
 import { LauncherJustifiedGallery } from './LauncherJustifiedGallery';
@@ -179,6 +180,7 @@ export function LightTableStandaloneApp({
     snapshot,
     documents,
     openDocument,
+    openWorkspaceDocument,
     openRecoveredDocument,
     openDuplicatedDocument,
     closeDocument: closeWorkspaceDocument,
@@ -252,9 +254,9 @@ export function LightTableStandaloneApp({
   const commandService = useMemo(
     () => new LightTableCommandService(controller.workspace, commandPorts, {
       openArtifact: (file) => {
-        const opened = openDocument(file);
+        const opened = openWorkspaceDocument(file);
         if (!opened.ok) throw new Error(`The artifact could not be opened: ${opened.error.code}.`);
-        return opened.value.id;
+        return opened.value.id as DocumentSessionId;
       },
       createDocument: async (options) => {
         const file = await createBlankPngFile({
@@ -296,8 +298,74 @@ export function LightTableStandaloneApp({
         return opened.value.id;
       }
     }, undefined, host.actionLibrary),
-    [commandPorts, controller, openDocument, openDuplicatedDocument]
+    [commandPorts, controller, openDocument, openDuplicatedDocument, openWorkspaceDocument]
   );
+  useEffect(() => {
+    commandService.setTypedWorkspaceProjection({
+      activeDocumentId: snapshot.activeDocumentId,
+      documentOrder: snapshot.documentOrder,
+      documents: Object.fromEntries(documents.map((document) => {
+        if (document.kind === 'image') {
+          const state = document.session.getSnapshot();
+          return [document.id, {
+          id: document.id,
+          kind: 'image' as const,
+          title: document.title,
+          lifecycle: state.lifecycle,
+          dirty: state.dirty,
+          source: {
+            name: state.source.name,
+            mediaType: state.source.mediaType,
+            ...(state.source.byteLength === undefined ? {} : { byteLength: state.source.byteLength })
+          },
+          canvas: state.document ? { width: state.document.width, height: state.document.height } : null
+          }];
+        }
+        const state = document.session.getSnapshot();
+        return [document.id, {
+          id: document.id,
+          kind: 'video' as const,
+          title: document.title,
+          lifecycle: state.lifecycle,
+          dirty: false,
+          source: {
+            name: state.source.name,
+            mediaType: state.source.mediaType,
+            byteLength: state.source.byteLength
+          },
+          canvas: state.metadata ? { width: state.metadata.width, height: state.metadata.height } : null,
+          ...(state.metadata ? { media: {
+            durationSeconds: state.metadata.durationSeconds,
+            currentTimeSeconds: state.presentation.currentTimeSeconds,
+            paused: state.presentation.paused,
+            muted: state.presentation.muted,
+            volume: state.presentation.volume,
+            playbackRate: state.presentation.playbackRate
+          } } : {})
+        }];
+      }))
+    });
+  }, [commandService, documents, snapshot]);
+  useEffect(() => {
+    const releases = documents.flatMap((document) => {
+      if (document.kind !== 'video') return [];
+      const publish = () => {
+        const state = document.session.getSnapshot();
+        if (!state.metadata) return;
+        commandService.updateTypedDocumentMedia(document.id, {
+          durationSeconds: state.metadata.durationSeconds,
+          currentTimeSeconds: state.presentation.currentTimeSeconds,
+          paused: state.presentation.paused,
+          muted: state.presentation.muted,
+          volume: state.presentation.volume,
+          playbackRate: state.presentation.playbackRate
+        });
+      };
+      publish();
+      return [document.session.subscribe(publish)];
+    });
+    return () => releases.forEach((release) => release());
+  }, [commandService, documents]);
   const [opening, setOpening] = useState(false);
   const [creating, setCreating] = useState(false);
   const [launcherPage, setLauncherPage] = useState<LauncherPage>('new-document');
@@ -338,8 +406,8 @@ export function LightTableStandaloneApp({
     Object.values(documentSourcePreviewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
   }, []);
   useEffect(() => host.subscribeOpenFiles?.((files) => {
-    for (const file of files) openDocument(file, 'automatic');
-  }), [host, openDocument]);
+    for (const file of files) openWorkspaceDocument(file, 'automatic');
+  }), [host, openWorkspaceDocument]);
   useEffect(() => {
     setDocumentSourcePreviewUrls((current) => {
       const openIds = new Set(documents.map(({ id }) => id));
@@ -469,14 +537,17 @@ export function LightTableStandaloneApp({
   }, [host, refreshRecentFiles]);
   const projectHomeActive = Boolean(activeProject && snapshot.documentOrder.length === 0);
   const fileDrop = useStandaloneFileDrop(
-    openDocument,
+    openWorkspaceDocument,
     rememberDroppedFiles,
     !projectHomeActive
   );
 
   const importProjectFiles = useCallback(async (files: readonly File[]) => {
     if (!activeProject || !host.genAi || projectImporting) return;
-    const supported = files.filter((file) => isSupportedImageFile(file, file.name, 'automatic'));
+    const supported = files.filter((file) =>
+      isSupportedImageFile(file, file.name, 'automatic')
+      || isSupportedVideoDocument({ name: file.name, mediaType: file.type })
+    );
     if (!supported.length) {
       setProjectError('Unsupported media. No project files were changed.');
       return;
@@ -507,21 +578,17 @@ export function LightTableStandaloneApp({
 
   const openProjectAsset = useCallback(async (asset: GenAiAssetReference) => {
     if (!activeProject || !host.genAi) return;
-    if (asset.mediaType.startsWith('video/')) {
-      setProjectError('Video output is saved in AI History. Use Reveal in the context menu to open its file location.');
-      return;
-    }
     setOpening(true);
     try {
       const payload = await host.genAi.loadProjectAsset(activeProject.id, asset.id);
       if (!payload) throw new Error(`${asset.label} is no longer available.`);
-      openDocument(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
+      openWorkspaceDocument(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
     } catch (reason) {
       setProjectError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setOpening(false);
     }
-  }, [activeProject, host.genAi, openDocument]);
+  }, [activeProject, host.genAi, openWorkspaceDocument]);
 
   const refreshRecentProjects = useCallback(async () => {
     try {
@@ -576,7 +643,7 @@ export function LightTableStandaloneApp({
         const file = project.lastUsedDocument
           ? await host.projects?.openLastUsedDocument(project) ?? null
           : null;
-        if (file) openDocument(file);
+        if (file) openWorkspaceDocument(file);
         await refreshRecentProjects();
       }
     } catch (reason) {
@@ -584,7 +651,7 @@ export function LightTableStandaloneApp({
     } finally {
       setOpening(false);
     }
-  }, [host.projects, openDocument, refreshRecentProjects]);
+  }, [host.projects, openWorkspaceDocument, refreshRecentProjects]);
 
   const openRecentProject = useCallback(async (recentId: string) => {
     setProjectError(null);
@@ -596,7 +663,7 @@ export function LightTableStandaloneApp({
         const file = project.lastUsedDocument
           ? await host.projects?.openLastUsedDocument(project) ?? null
           : null;
-        if (file) openDocument(file);
+        if (file) openWorkspaceDocument(file);
       }
       await refreshRecentProjects();
     } catch (reason) {
@@ -604,7 +671,7 @@ export function LightTableStandaloneApp({
     } finally {
       setOpening(false);
     }
-  }, [host.projects, openDocument, refreshRecentProjects]);
+  }, [host.projects, openWorkspaceDocument, refreshRecentProjects]);
 
   const clearRecentProjects = useCallback(async () => {
     await host.projects?.clearRecent();
@@ -627,7 +694,7 @@ export function LightTableStandaloneApp({
         if (project?.lastUsedDocument && !cancelled && snapshot.documentOrder.length === 0) {
           const file = await host.projects?.openLastUsedDocument(project) ?? null;
           if (cancelled) return;
-          if (file) openDocument(file);
+          if (file) openWorkspaceDocument(file);
           else setProjectError(
             `${project.lastUsedDocument.name} is unavailable. The project opened in Project Home.`
           );
@@ -641,7 +708,7 @@ export function LightTableStandaloneApp({
       if (!cancelled) await refreshRecentProjects();
     })();
     return () => { cancelled = true; };
-  }, [host.projects, openDocument, refreshRecentProjects, snapshot.documentOrder.length]);
+  }, [host.projects, openWorkspaceDocument, refreshRecentProjects, snapshot.documentOrder.length]);
 
   const requestHostDocument = useCallback(async (
     decodeMode: StandaloneDecodeMode = 'automatic'
@@ -653,14 +720,17 @@ export function LightTableStandaloneApp({
       for (const file of files) {
         const startupTimeline = new DocumentStartupTimeline();
         startupTimeline.mark('bytes-available', { byteLength: file.size });
-        const opened = openDocument(file, decodeMode, undefined, startupTimeline);
-        if (opened.ok) await waitForDocumentOpeningToSettle(opened.value);
+        const opened = openWorkspaceDocument(file, decodeMode);
+        if (opened.ok && 'setStartupTimeline' in opened.value) {
+          opened.value.setStartupTimeline(startupTimeline);
+          await waitForDocumentOpeningToSettle(opened.value);
+        }
       }
       if (files.length) await refreshRecentFiles();
     } finally {
       setOpening(false);
     }
-  }, [host, openDocument, refreshRecentFiles]);
+  }, [host, openWorkspaceDocument, refreshRecentFiles]);
 
   const openRecentDocument = useCallback(async (id: string) => {
     if (!host.openRecentFile) return;
@@ -670,13 +740,13 @@ export function LightTableStandaloneApp({
       const file = await host.openRecentFile(id);
       if (file) {
         startupTimeline.mark('bytes-available', { byteLength: file.size });
-        openDocument(file, 'automatic', undefined, startupTimeline);
+        openWorkspaceDocument(file, 'automatic');
       }
       await refreshRecentFiles();
     } finally {
       setOpening(false);
     }
-  }, [host, openDocument, refreshRecentFiles]);
+  }, [host, openWorkspaceDocument, refreshRecentFiles]);
 
   const clearRecentFiles = useCallback(async () => {
     await host.clearRecentFiles?.();
@@ -852,7 +922,8 @@ export function LightTableStandaloneApp({
   const workspaceSurface = resolveWorkspaceSurface({
     projectId: activeProject?.id ?? null,
     activeDocumentId: snapshot.activeDocumentId,
-    lifecycle: activeLifecycle
+    lifecycle: activeLifecycle,
+    documentKind: activeWorkspaceDocument?.kind
   });
 
   const agentAccessRequest = <AgentAccessRequestDialog service={host.agentAccess} />;
@@ -906,11 +977,11 @@ export function LightTableStandaloneApp({
         <div className="lighttable-launcher__window-titlebar" aria-hidden="true">
           <span className="lighttable__window-icon" />
         </div>
-        <input ref={launcherFileInputRef} type="file" accept={imagePickerAccept('automatic')} hidden
+        <input ref={launcherFileInputRef} type="file" accept={`${imagePickerAccept('automatic')},video/mp4,video/webm,.mp4,.webm`} hidden
           onChange={(event) => {
             const file = event.currentTarget.files?.[0] ?? null;
             event.currentTarget.value = '';
-            if (file) openDocument(file);
+            if (file) openWorkspaceDocument(file);
           }} />
         <div className="lighttable-launcher__workspace">
           <nav className="lighttable-preferences__navigation lighttable-launcher__navigation" aria-label="Start">
@@ -1078,7 +1149,7 @@ export function LightTableStandaloneApp({
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenStyleGuide={onOpenStyleGuide}
           preferences={preferences}
-          onOpen={openDocument}
+          onOpen={openWorkspaceDocument}
           onRecoveryResolved={(recoveryId) => void resolveRecovery(recoveryId)}
           onDocumentThumbnailChange={publishDocumentThumbnail}
           />

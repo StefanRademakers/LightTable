@@ -29,6 +29,7 @@ import type { DocumentTaskRegistry } from '../lighttable/application/tasks/docum
 import type { DocumentRendererLifecycle } from '../lighttable/application/rendering/documentRendererLifecycle';
 import type { GenAiGenerationJob } from '@lighttable/genai-core';
 import { isImageEditGeneration } from '../genai/application/generationDelivery';
+import { VideoDocumentSurface } from './VideoDocumentSurface';
 
 export interface WorkspaceDocumentTab {
   readonly id: DocumentSessionId;
@@ -122,22 +123,23 @@ export function StandaloneDocumentRuntimeView({
   onRecoveryResolved,
   onDocumentThumbnailChange
 }: StandaloneDocumentRuntimeViewProps) {
-  const {
-    id,
-    active,
-    runtime: { file, decodeMode, creationSettings, startupTimeline },
-    session
-  } = document;
+  const { id, active, runtime: { file } } = document;
+  const video = document.kind === 'video' ? document.session.getSnapshot() : null;
 
   const importGeneratedResult = useCallback(async (job: GenAiGenerationJob, forceOpen = false) => {
     const result = job.results[0];
     if (!result || !activeProject || !host.genAi) return;
-    if (result.mediaType.startsWith('video/')) return;
     const payload = await host.genAi.loadProjectAsset(activeProject.id, result.assetId);
     if (!payload) return;
     const file = new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType });
-    const imageEdit = isImageEditGeneration(job);
+    const imageEdit = document.kind === 'image'
+      && !result.mediaType.startsWith('video/')
+      && isImageEditGeneration(job);
     if (forceOpen || !imageEdit) {
+      onOpen(file);
+      return;
+    }
+    if (document.kind !== 'image') {
       onOpen(file);
       return;
     }
@@ -149,7 +151,7 @@ export function StandaloneDocumentRuntimeView({
       documentId: id,
       parameters: { artifactId: artifact.id }
     });
-  }, [activeProject, commandService, host.genAi, id, onOpen]);
+  }, [activeProject, commandService, document.kind, host.genAi, id, onOpen]);
   const handleGeneratedResult = useCallback((job: GenAiGenerationJob) => {
     void importGeneratedResult(job);
   }, [importGeneratedResult]);
@@ -158,11 +160,15 @@ export function StandaloneDocumentRuntimeView({
   }, [importGeneratedResult]);
   const handleOpenGenAiAsset = useCallback(async (asset: import('@lighttable/genai-core').GenAiAssetReference) => {
     if (!activeProject || !host.genAi) return;
-    if (asset.mediaType.startsWith('video/')) return;
     const payload = await host.genAi.loadProjectAsset(activeProject.id, asset.id);
     if (!payload) return;
     onOpen(new File([Uint8Array.from(payload.bytes).buffer], payload.name, { type: payload.mediaType }));
   }, [activeProject, host.genAi, onOpen]);
+
+  const recovery = document.kind === 'image' ? document.runtime.recovery : undefined;
+  const videoStatusMeta = video?.metadata
+    ? `${video.metadata.width} × ${video.metadata.height} · ${formatVideoTime(video.metadata.durationSeconds)} video`
+    : video?.lifecycle === 'failed' ? 'Video unavailable' : 'Loading video metadata…';
 
   return (
     <DocumentRuntimeErrorBoundary
@@ -170,7 +176,10 @@ export function StandaloneDocumentRuntimeView({
       active={active}
       title={file.name}
       onClose={() => onClose(id)}
-      onError={(message) => session.setFailed(message)}
+      onError={(message) => {
+        if (document.kind === 'image') document.session.setFailed(message);
+        else document.session.publishFailure(message);
+      }}
     >
       <LightTableEditorOverlay
         open
@@ -178,24 +187,32 @@ export function StandaloneDocumentRuntimeView({
         screenMode={screenMode}
         onScreenModeChange={onScreenModeChange}
         projectId=""
-        sourceBlob={file}
-        sourceDecodeMode={decodeMode}
-        documentCreationSettings={creationSettings}
-        startupTimeline={startupTimeline}
+        sourceBlob={document.kind === 'image' ? file : null}
+        sourceDecodeMode={document.kind === 'image' ? document.runtime.decodeMode : undefined}
+        documentCreationSettings={document.kind === 'image' ? document.runtime.creationSettings : undefined}
+        startupTimeline={document.kind === 'image' ? document.runtime.startupTimeline : undefined}
+        documentSurfaceOverride={document.kind === 'video'
+          ? <VideoDocumentSurface file={file} session={document.session} active={active} />
+          : undefined}
+        workspaceDocumentKind={document.kind}
+        workspaceStatusMeta={document.kind === 'video' ? videoStatusMeta : undefined}
+        workspaceStatusTitle={document.kind === 'video'
+          ? `${file.name} · read-only video document`
+          : undefined}
         fileNameBase={titleWithoutExtension(file.name)}
         subjectLabel={file.name}
         workspaceDocumentId={id}
         workspaceDocuments={workspaceDocuments}
-        history={session.history}
+        history={document.kind === 'image' ? document.session.history : undefined}
         tasks={applicationEditorTasks}
         rendererLifecycle={applicationRendererLifecycle}
-        documentSession={session}
+        documentSession={document.kind === 'image' ? document.session : undefined}
         applicationEditorSession={applicationEditorSession}
         commandService={commandService}
         commandPorts={commandPorts}
         imageClipboard={host.clipboard}
-        recoveryStore={host.recovery}
-        recoveryPreferences={preferences.autosave}
+        recoveryStore={document.kind === 'image' ? host.recovery : undefined}
+        recoveryPreferences={document.kind === 'image' ? preferences.autosave : undefined}
         toolPreferences={preferences.tools}
         genAiPreferences={preferences.genAi}
         releaseService={host.release}
@@ -204,11 +221,11 @@ export function StandaloneDocumentRuntimeView({
         onGenAiOpenResult={handleOpenGeneratedResult}
         onGenAiOpenAsset={handleOpenGenAiAsset}
         hostKind={host.kind}
-        recoveryNotice={document.runtime.recovery
-          ? `${document.runtime.recovery.crashLoop ? 'Safe mode: ' : ''}Recovered copy of ${document.runtime.recovery.originalName}. Save creates a new file.`
+        recoveryNotice={recovery
+          ? `${recovery.crashLoop ? 'Safe mode: ' : ''}Recovered copy of ${recovery.originalName}. Save creates a new file.`
           : null}
-        onRecoveryResolved={document.runtime.recovery
-          ? () => onRecoveryResolved(document.runtime.recovery!.recoveryId)
+        onRecoveryResolved={recovery
+          ? () => onRecoveryResolved(recovery.recoveryId)
           : undefined}
         onActivateWorkspaceDocument={(documentId) => {
           onActivate(documentId as DocumentSessionId);
@@ -236,27 +253,40 @@ export function StandaloneDocumentRuntimeView({
         onOpenStyleGuide={onOpenStyleGuide}
         onOpenWorkspaceDocument={onOpen}
         onDocumentReady={() => {
-          if (session.getSnapshot().lifecycle !== 'ready') session.setReady();
-          if (document.runtime.recovery && !session.getSnapshot().dirty) session.markChanged();
+          if (document.kind !== 'image') return;
+          if (document.session.getSnapshot().lifecycle !== 'ready') document.session.setReady();
+          if (recovery && !document.session.getSnapshot().dirty) document.session.markChanged();
         }}
-        onDocumentThumbnailChange={(thumbnail) => onDocumentThumbnailChange(id, thumbnail)}
+        onDocumentThumbnailChange={document.kind === 'image'
+          ? (thumbnail) => onDocumentThumbnailChange(id, thumbnail)
+          : undefined}
         onDirtyChange={(dirty) => {
+          if (document.kind !== 'image') return;
           if (dirty) {
-            session.markChanged();
-          } else if (!document.runtime.recovery) {
-            session.markSaved();
+            document.session.markChanged();
+          } else if (!recovery) {
+            document.session.markSaved();
           }
         }}
         onClose={() => onClose(id)}
-        onSave={(output, recipe, transaction, replaceSource) => host.save({
-          file: output,
-          recipe,
-          replaceSource,
-          projectManifestPath: activeProject?.manifestPath,
-          transaction
-        })}
+        onSave={document.kind === 'image'
+          ? (output, recipe, transaction, replaceSource) => host.save({
+              file: output,
+              recipe,
+              replaceSource,
+              projectManifestPath: activeProject?.manifestPath,
+              transaction
+            })
+          : () => Promise.reject(new Error('Video documents are read-only.'))}
         onExportFile={(file) => host.save({ file, recipe: null })}
       />
     </DocumentRuntimeErrorBoundary>
   );
 }
+
+const formatVideoTime = (seconds: number): string => {
+  const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+  const minutes = Math.floor(safe / 60);
+  const remainder = Math.floor(safe % 60).toString().padStart(2, '0');
+  return `${minutes}:${remainder}`;
+};

@@ -52,6 +52,13 @@ module.exports = {
           LSHandlerRank: 'Alternate',
           CFBundleTypeExtensions: ['jpg', 'jpeg', 'jpe', 'jfif', 'png', 'webp', 'tif', 'tiff'],
           LSItemContentTypes: ['public.jpeg', 'public.png', 'org.webmproject.webp', 'public.tiff']
+        },
+        {
+          CFBundleTypeName: 'LightTable video',
+          CFBundleTypeRole: 'Viewer',
+          LSHandlerRank: 'Alternate',
+          CFBundleTypeExtensions: ['mp4', 'webm'],
+          LSItemContentTypes: ['public.mpeg-4', 'org.webmproject.webm']
         }
       ]
     },

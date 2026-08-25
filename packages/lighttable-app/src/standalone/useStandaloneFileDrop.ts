@@ -3,6 +3,7 @@ import {
   imagePickerFormatNames,
   isSupportedImageFile
 } from '../lighttable/image-io/supportedImageFormats';
+import { isSupportedVideoDocument } from '@lighttable/video-core';
 import type { StandaloneDecodeMode } from './standaloneDocumentRuntime';
 
 const hasFiles = (transfer: DataTransfer | null) =>
@@ -13,6 +14,7 @@ export const filterSupportedDroppedFiles = (
   decodeMode: StandaloneDecodeMode = 'automatic'
 ) => files.filter((file) =>
   isSupportedImageFile(file, file.name, decodeMode)
+  || isSupportedVideoDocument({ name: file.name, mediaType: file.type })
 );
 
 export interface StandaloneFileDropState {
@@ -76,7 +78,7 @@ export const useStandaloneFileDrop = (
       const supported = filterSupportedDroppedFiles(dropped);
       if (supported.length === 0) {
         setError(
-          `Unsupported file. Drop ${imagePickerFormatNames('automatic')}.`
+          `Unsupported file. Drop ${imagePickerFormatNames('automatic')}, MP4, or WebM.`
         );
         return;
       }

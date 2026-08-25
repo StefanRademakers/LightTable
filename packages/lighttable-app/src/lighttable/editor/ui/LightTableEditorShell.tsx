@@ -17,6 +17,7 @@ import type {
 } from '../../application/tools/smartSelection/SmartSelectionBackend';
 
 export interface LightTableEditorShellProps {
+  workspaceDocumentKind?: 'image' | 'video' | 'model-3d';
   screenMode: EditorScreenMode;
   active: boolean;
   saving: boolean;
@@ -116,6 +117,13 @@ export interface LightTableEditorShellProps {
   overlays?: React.ReactNode;
 }
 
+const IMAGE_ONLY_MENUS = new Set<EditorMenuId>(['image', 'layer', 'type', 'select', 'filter']);
+
+export const editorMenuEnabledForDocumentKind = (
+  documentKind: 'image' | 'video' | 'model-3d',
+  menuId: EditorMenuId
+): boolean => documentKind === 'image' || !IMAGE_ONLY_MENUS.has(menuId);
+
 /**
  * Platform-neutral editor chrome.
  *
@@ -124,6 +132,7 @@ export interface LightTableEditorShellProps {
  * or host services, keeping web and Electron on the same UI boundary.
  */
 export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
+  workspaceDocumentKind = 'image',
   screenMode,
   active,
   saving,
@@ -233,6 +242,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
       {screenMode !== 'canvas-only' ? <div className="modal__header concept-art-editor__header lighttable__header">
         <div className="lighttable__header-left">
           <EditorMenuBar optionsFor={menuOptionsFor} projectName={projectName}
+            enabledFor={(menuId) => editorMenuEnabledForDocumentKind(workspaceDocumentKind, menuId)}
             onRevealProject={onRevealProject} />
         </div>
         <SquareIconButton
@@ -245,7 +255,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
         />
       </div> : null}
 
-      {screenMode !== 'canvas-only' ? <ToolOptionsBar
+      {screenMode !== 'canvas-only' && workspaceDocumentKind === 'image' ? <ToolOptionsBar
         activeTool={activeTool}
         brush={brush}
         sampledBrush={sampledBrush}
@@ -346,6 +356,7 @@ export const LightTableEditorShell: React.FC<LightTableEditorShellProps> = ({
 
       <div className="lighttable__body">
         {screenMode !== 'canvas-only' ? <EditorToolbar
+          documentKind={workspaceDocumentKind}
           activeTool={activeTool}
           foregroundColor={brush.color}
           backgroundColor={brush.backgroundColor}

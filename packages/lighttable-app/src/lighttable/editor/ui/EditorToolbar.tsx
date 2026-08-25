@@ -18,6 +18,7 @@ import {
 } from '../tools/toolRegistry';
 
 interface EditorToolbarProps {
+  documentKind?: 'image' | 'video' | 'model-3d';
   activeTool: ToolId;
   foregroundColor: string;
   backgroundColor: string;
@@ -248,6 +249,7 @@ export const toolFamilyFor = (tool: ToolDefinition) => {
 };
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
+  documentKind = 'image',
   activeTool,
   foregroundColor,
   backgroundColor,
@@ -279,6 +281,24 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
       window.removeEventListener('keydown', closeOnEscape);
     };
   }, [expanded]);
+
+  if (documentKind !== 'image') {
+    // The toolbox rail is part of the persistent workspace geometry. Keep it
+    // mounted for every document kind so Dockview always occupies the second
+    // grid column; only its document-specific commands change. Video and 3D
+    // intentionally expose no image-editing tools yet.
+    return (
+      <nav
+        ref={toolbarRef}
+        className="lighttable-toolbox"
+        aria-label={documentKind === 'video' ? 'Video tools' : '3D tools'}
+        data-editor-floating-surface
+        data-document-kind={documentKind}
+      >
+        <div className="lighttable-toolbox__content" />
+      </nav>
+    );
+  }
 
   return (
     <nav ref={toolbarRef} className="lighttable-toolbox" aria-label="Image tools"

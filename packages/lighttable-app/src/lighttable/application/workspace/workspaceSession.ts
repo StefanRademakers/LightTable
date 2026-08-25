@@ -148,6 +148,17 @@ export class WorkspaceSession {
     return success(undefined);
   }
 
+  /**
+   * Releases presentation authority while retaining every image session.
+   * A typed application workspace uses this when a non-image document becomes
+   * active; it must not keep an image renderer logically active underneath.
+   */
+  deactivate(): void {
+    if (this.activeDocumentId === null) return;
+    this.activeDocumentId = null;
+    this.rebuildSnapshot();
+  }
+
   close(
     id: DocumentSessionId,
     options: CloseDocumentOptions = {}

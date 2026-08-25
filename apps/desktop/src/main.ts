@@ -5,7 +5,9 @@ import {
   dialog,
   ipcMain,
   Menu,
+  net,
   nativeImage,
+  protocol,
   safeStorage,
   session,
   shell
@@ -14,6 +16,7 @@ import { createServer, type Server } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { DesktopFilePayload, DesktopSavePayload } from './desktopBridge';
 import { SourceReplacementAuthority } from './sourceReplacementAuthority';
 import { atomicWriteFile, AtomicWriteError } from './atomicFileWriter';
@@ -116,10 +119,22 @@ import {
 import { OPENART_PROVIDER_ID } from '@lighttable/genai-openart';
 import { HIGGSFIELD_PROVIDER_ID } from '@lighttable/genai-higgsfield';
 import { LOCAL_AI_PROVIDER_ID } from '@lighttable/genai-local';
-import { bitmapLaunchFilesFromArgv, DesktopLaunchFileQueue } from './desktopLaunchFiles';
+import { desktopLaunchFilesFromArgv, DesktopLaunchFileQueue } from './desktopLaunchFiles';
 import { handleSquirrelStartup } from './squirrelStartup';
 import { assertNativeBitmapContainer } from './nativeBitmapContainer';
 import { LocalMcpTestServerController } from './localMcpTestServer';
+import { DesktopMediaSourceRegistry } from './desktopMediaSourceRegistry';
+
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'lighttable-media',
+  privileges: {
+    standard: true,
+    secure: true,
+    supportFetchAPI: true,
+    corsEnabled: true,
+    stream: true
+  }
+}]);
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -156,12 +171,12 @@ if (process.platform === 'win32') app.setAppUserModelId('com.squirrel.LightTable
 const squirrelStartupHandled = handleSquirrelStartup(process.argv, process.execPath);
 if (squirrelStartupHandled) app.quit();
 const launchFileQueue = new DesktopLaunchFileQueue<DesktopFilePayload>();
-launchFileQueue.enqueue(bitmapLaunchFilesFromArgv(process.argv));
+launchFileQueue.enqueue(desktopLaunchFilesFromArgv(process.argv));
 const hasSingleInstanceLock = !squirrelStartupHandled && app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 else {
   app.on('second-instance', (_event, argv) => {
-    const count = launchFileQueue.enqueue(bitmapLaunchFilesFromArgv(argv));
+    const count = launchFileQueue.enqueue(desktopLaunchFilesFromArgv(argv));
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -427,6 +442,7 @@ const rememberRecentProject = (project: DesktopProjectSummary): Promise<void> =>
   })));
 
 const sourceReplacementAuthority = new SourceReplacementAuthority();
+const desktopMediaSources = new DesktopMediaSourceRegistry();
 
 const readDesktopFilePayload = async (filePath: string) => {
   const sourcePath = path.resolve(filePath);
@@ -435,9 +451,18 @@ const readDesktopFilePayload = async (filePath: string) => {
     size: sourceStats.size,
     modifiedAtMs: sourceStats.mtimeMs
   });
+  const type = desktopMediaTypeForFileName(sourcePath);
+  if (type.startsWith('video/')) {
+    return {
+      name: path.basename(sourcePath),
+      type,
+      sourcePath,
+      mediaSource: desktopMediaSources.authorize(sourcePath, type, sourceStats.size)
+    };
+  }
   return {
     name: path.basename(sourcePath),
-    type: desktopMediaTypeForFileName(sourcePath),
+    type,
     bytes: new Uint8Array(await readFile(sourcePath)),
     sourcePath
   };
@@ -446,9 +471,10 @@ const readDesktopFilePayload = async (filePath: string) => {
 const MAX_EARLY_LAUNCH_BITMAP_BYTES = 512 * 1024 * 1024;
 launchFileQueue.configureLoader(async (filePath) => {
   const sourceStats = await stat(filePath);
+  const mediaType = desktopMediaTypeForFileName(filePath);
   if (!sourceStats.isFile() || sourceStats.size < 1
-    || sourceStats.size > MAX_EARLY_LAUNCH_BITMAP_BYTES) {
-    throw new Error('The launch bitmap exceeds the bounded desktop-open limit.');
+    || (!mediaType.startsWith('video/') && sourceStats.size > MAX_EARLY_LAUNCH_BITMAP_BYTES)) {
+    throw new Error('The launch document exceeds the bounded desktop-open limit.');
   }
   return readDesktopFilePayload(filePath);
 });
@@ -702,6 +728,30 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   rendererOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL
     ? MAIN_WINDOW_VITE_DEV_SERVER_URL.replace(/\/+$/, '')
     : await startPackagedRendererServer();
+
+  await protocol.handle('lighttable-media', async (request) => {
+    const source = desktopMediaSources.resolve(request.url);
+    if (!source) return new Response('Unknown or expired media source.', { status: 404 });
+    try {
+      const response = await net.fetch(pathToFileURL(source.path).toString(), {
+        method: request.method,
+        headers: request.headers
+      });
+      const headers = new Headers(response.headers);
+      headers.set('Content-Type', source.mediaType);
+      // The trusted renderer is served from an isolated loopback origin. This
+      // explicit resource policy permits only the already-authorized stream to
+      // cross that origin boundary; file paths remain private in main.
+      headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+      });
+    } catch {
+      return new Response('Media source is unavailable.', { status: 404 });
+    }
+  });
 
   // Force the isolation contract at the Electron session boundary as well.
   // This protects development against Vite middleware/plugin regressions and
@@ -1697,6 +1747,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     return payload;
   });
 
+  ipcMain.handle('lighttable:release-media-source', (event, id: unknown) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (typeof id !== 'string' || id.length > 128) {
+      throw new Error('Invalid LightTable media source release.');
+    }
+    desktopMediaSources.release(id);
+  });
+
   ipcMain.handle('lighttable:open-files', async (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     const automationFile = process.env.LIGHTTABLE_AUTOMATION_OPEN_FILE;
@@ -2414,6 +2472,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
 }).catch(reportDesktopStartupFailure);
 
 app.on('before-quit', () => {
+  desktopMediaSources.clear();
   deactivateProjectAssetCatalog();
   genAiProviderRegistry?.dispose();
   genAiProviderRegistry = null;

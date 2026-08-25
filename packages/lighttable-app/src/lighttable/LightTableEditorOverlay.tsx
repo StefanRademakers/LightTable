@@ -524,6 +524,12 @@ export interface LightTableEditorOverlayProps {
   projectId: string;
   sourceFileKey?: string | null;
   sourceBlob?: Blob | null;
+  /** Typed non-image surfaces reuse the one application workspace shell. */
+  documentSurfaceOverride?: React.ReactNode;
+  workspaceDocumentKind?: 'image' | 'video' | 'model-3d';
+  /** Status-bar projection supplied by a non-image document runtime. */
+  workspaceStatusMeta?: string;
+  workspaceStatusTitle?: string;
   sourceDecodeMode?: DocumentOpenMode;
   documentCreationSettings?: DocumentCreationSettings;
   startupTimeline?: DocumentStartupTimeline;
@@ -613,6 +619,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   projectId,
   sourceFileKey = null,
   sourceBlob: initialSourceBlob = null,
+  documentSurfaceOverride,
+  workspaceDocumentKind = 'image',
+  workspaceStatusMeta,
+  workspaceStatusTitle,
   sourceDecodeMode = 'automatic',
   documentCreationSettings,
   startupTimeline,
@@ -1027,6 +1037,18 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [imageDocument, setImageDocument, imageDocumentRef] =
     useDocumentImageState(documentSession);
   useEffect(() => {
+    if (workspaceDocumentKind === 'image') return;
+    // The application shell is retained across document kinds, but image
+    // presentation must not leak into a video/model binding. Canonical image
+    // data remains owned by its DocumentSession and is rebound when its tab
+    // becomes active again.
+    imageDocumentRef.current = null;
+    setImageDocument(null);
+    setMetadata(null);
+    setSourceBlob(null);
+    setSourceIdentity('');
+  }, [setImageDocument, workspaceDocumentKind]);
+  useEffect(() => {
     if (rendererSnapshot.status === 'ready') {
       consecutiveDeviceLossRecoveriesRef.current = 0;
       return undefined;
@@ -1301,9 +1323,16 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     pointTextController.cancel();
     paragraphTextController.cancel();
     textEditingControllerRef.current?.finish();
+  }, [paragraphTextController, pointTextController]);
+
+  useEffect(() => () => {
+    // This fallback belongs to the persistent editor overlay, not to a tool
+    // controller or active document. Document switches replace those
+    // controllers and must never dispose a registry selected by the next
+    // document render (notably image -> video and video -> video switches).
     standaloneFontRegistryRef.current?.dispose();
     standaloneFontRegistryRef.current = null;
-  }, [paragraphTextController, pointTextController]);
+  }, []);
 
   useEffect(() => {
     temporaryToolRef.current.end();
@@ -3308,7 +3337,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   }, []);
 
   const documentLifecycleController = useEditorDocumentLifecycleController({
-    enabled: open,
+    enabled: open && workspaceDocumentKind === 'image',
     generation: documentOpenGeneration,
     tasks: taskRegistry,
     rendererLifecycle,
@@ -3544,6 +3573,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEditorKeyboardController({
     enabled: open && active,
     getContext: () => ({
+      documentKind: workspaceDocumentKind,
       saving,
       activeTool: editorSession.activeTool,
       preferredTools: preferredToolByShortcutRef.current,
@@ -5309,7 +5339,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
   };
   useEffect(() => {
-    if (!commandPorts) return;
+    if (!commandPorts || workspaceDocumentKind !== 'image') return;
     return commandPorts.register(workspaceDocumentId as DocumentSessionId, {
       resizeImage: (request) => commitImageSize(request, false),
       applyDocumentGeometry: (request) => commitDocumentGeometry(request, false),
@@ -5669,7 +5699,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       forceDeviceLossForAutomation: () => engineRef.current?.forceDeviceLossForAutomation() ?? false
     });
   }, [applyActualZoom, applyExactZoom, applyFitZoom, applyRedoEditor, applyUndoEditor,
-    commandPorts, layerDocumentCommands, layerPanelController, workspaceDocumentId]);
+    commandPorts, layerDocumentCommands, layerPanelController, workspaceDocumentId,
+    workspaceDocumentKind]);
   const commandLayerPanelController = useMemo(() => ({
     ...layerPanelController,
     createRasterLayer: () => { if (!executeRegisteredCommand('layer.createRaster', {})) layerPanelController.createRasterLayer(); },
@@ -7367,7 +7398,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       showProperties({ kind: 'layer', layerId: activeTextPropertyLayer.id });
     }
   }, [activeTextPropertyLayer?.id, activeTextPropertyLayer?.type, showProperties]);
-  const documentSurface = (
+  const imageDocumentSurface = (
     <EditorDocumentSurface
       viewport={{
         viewportRef,
@@ -7445,9 +7476,11 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
     />
   );
+  const documentSurface = documentSurfaceOverride ?? imageDocumentSurface;
   return (
     <DocumentPaletteProvider loadPalette={loadDocumentPalette}>
     <LightTableEditorShell
+      workspaceDocumentKind={workspaceDocumentKind}
       screenMode={screenMode}
       active={active}
       saving={saving}
@@ -7596,7 +7629,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       })}
       fileInputRef={fileInputRef}
       advancedFileInputRef={advancedFileInputRef}
-      fastFileAccept={imagePickerAccept('fast')}
+      fastFileAccept={`${imagePickerAccept('fast')},video/mp4,video/webm,.mp4,.webm`}
       precisionFileAccept={imagePickerAccept('preserve-precision')}
       onFastFileChange={handleLocalFile}
       onPrecisionFileChange={handleAdvancedLocalFile}
@@ -7825,8 +7858,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             status={{
               status: error ?? gradeStatus ?? fontDiagnosticStatus,
               error: Boolean(error),
-              meta: statusBar.meta,
-              metaTitle: statusBar.title,
+              meta: workspaceStatusMeta ?? statusBar.meta,
+              metaTitle: workspaceStatusTitle ?? statusBar.title,
               reportAvailable: statusBar.reportAvailable || fontDiagnostics.length > 0,
               onOpenReport: editorDialogs.openPsdReport
             }}
@@ -7852,6 +7885,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onResizeInteractionChange={handleDockResizeInteractionChange}
             onDocumentSurfaceReady={handleDocumentSurfaceReady}
             panels={createEditorWorkspacePanels({
+              documentKind: workspaceDocumentKind,
               scopes: {
                 containerRef: scopesColumnRef,
                 visibility: scopeVisibility,

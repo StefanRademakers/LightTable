@@ -1,6 +1,6 @@
 # Multi-document types and video
 
-Status: **foundation implemented; video workspace presentation not yet wired**,
+Status: **typed image/video workspace and read-only video presentation implemented**,
 updated 2026-08-25.
 
 ## Decision
@@ -52,8 +52,10 @@ The panel graph remains stable across document kinds:
   metadata; transport belongs with the viewer controls.
 - **Assets, AI History, GenAI, Agent and Actions:** application/project panels
   remain usable and retain their mounted state.
-- **Toolbar:** a kind-specific projection. Video initially admits pan, zoom and
-  playback; image tool state remains unchanged while a video tab is active.
+- **Toolbar:** the existing toolbar rail remains mounted so workspace geometry
+  never collapses or shifts. Its contents are kind-specific. Video currently
+  has no image-editing buttons; playback lives in the video surface. Image tool
+  state remains unchanged while a video tab is active.
 - **Status:** media lifecycle and time are shown without image revision data.
 
 Menus, shortcuts, Actions and MCP use the same workspace command scopes.
@@ -79,10 +81,10 @@ render snapshot, depth pass or material texture extraction.
 
 ## Host media boundary
 
-Project video playback must not copy an entire large file through main-process
-IPC into a renderer `Blob`. The desktop host will issue a bounded, revocable,
-project-scoped media resource that supports seeking/range reads without
-revealing arbitrary filesystem paths. Web hosts may use a host-owned Blob URL.
+Project video playback does not copy an entire large file through main-process
+IPC into a renderer `Blob`. The desktop host issues a bounded, revocable,
+capability-token media URL that supports seeking/range reads without revealing
+arbitrary filesystem paths. Web hosts use a host-owned Blob URL.
 The existing bounded byte transfer remains valid for image import and frame
 artifacts, not long-lived video playback.
 
@@ -101,15 +103,16 @@ Content/header probing remains authoritative where practical; MIME type,
 extension and picker filters are admission hints. Unsupported files are
 reported once with accepted/skipped counts rather than failing the whole drop.
 
-## Delivery order
+## Delivery status
 
-1. typed workspace surfaces and `@lighttable/video-core` contracts;
-2. one shared-shell document adapter boundary;
-3. secure seekable host media source, unified open/drop routing and read-only
-   video surface;
-4. contextual panels, toolbar, menus, shortcuts, Actions and MCP;
-5. frame extraction to clipboard/new image document;
-6. optional current-frame scopes and richer media operations.
+Implemented: typed workspace surfaces and `@lighttable/video-core`; one
+shared-shell document adapter; secure seekable desktop media sources; unified
+File Open, OS launch and file-drop routing; a read-only video viewer; contextual
+panels, toolbar geometry, top-level menus, application shortcuts and MCP
+document-kind reporting/gating.
+
+Still future work: frame extraction to clipboard/new image documents, optional
+current-frame scopes, video-specific toolbar tools and richer media operations.
 
 Each milestone must preserve image document pixels, history, active tool and
 workspace layout in mixed image/video tab switching tests.
