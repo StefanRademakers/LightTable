@@ -408,6 +408,7 @@ import {
   type CompositeColorChannel,
   type SelectionShape
 } from './editor/selection/selectionTypes';
+import { selectionEditingOverlayIsVisible } from './editor/selection/selectionEditingOverlay';
 import {
   DEFAULT_SCOPE_SETTINGS,
   DEFAULT_SCOPE_VISIBILITY,
@@ -3419,7 +3420,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     vectorEditingOverlayVisible: isVectorEditorTool(editorSession.activeTool),
     selection: editorSession.selection,
     selectionDraft,
-    selectionOverlayVisible: editorSession.activeTool !== 'view',
+    selectionOverlayVisible: selectionEditingOverlayIsVisible(
+      editorSession.snap.extrasVisible
+    ),
     scopeVisibility,
     histogramConsumerVisible: propertiesView === 'grade'
       || propertiesView === 'levels'

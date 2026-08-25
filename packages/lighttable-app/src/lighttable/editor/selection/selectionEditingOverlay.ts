@@ -3,6 +3,14 @@ import type { SelectionOperation, SelectionShape } from './selectionTypes';
 
 const KAPPA = 0.5522847498307936;
 
+/**
+ * Selection edges are editor extras, not tool-owned state. Switching pointer
+ * tools, including permanent or temporary Pan, must not hide a selection.
+ */
+export const selectionEditingOverlayIsVisible = (
+  extrasVisible: boolean | undefined
+): boolean => extrasVisible !== false;
+
 const line = (
   start: { x: number; y: number },
   end: { x: number; y: number },

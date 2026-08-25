@@ -3,10 +3,16 @@ import {
   buildBrushCursorEditingOverlay,
   buildSampledBrushSourceEditingOverlay,
   buildSelectionEditingOverlay,
-  directSelectionShape
+  directSelectionShape,
+  selectionEditingOverlayIsVisible
 } from './selectionEditingOverlay';
 
 describe('selection editing overlays', () => {
+  it('uses View Extras rather than the active pointer tool as its visibility owner', () => {
+    expect(selectionEditingOverlayIsVisible(undefined)).toBe(true);
+    expect(selectionEditingOverlayIsVisible(true)).toBe(true);
+    expect(selectionEditingOverlayIsVisible(false)).toBe(false);
+  });
   it('keeps pasteboard coordinates intact while drafting', () => {
     const overlay = buildSelectionEditingOverlay({
       kind: 'rectangle',

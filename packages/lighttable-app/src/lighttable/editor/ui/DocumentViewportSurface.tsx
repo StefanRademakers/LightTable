@@ -177,7 +177,7 @@ export const DocumentViewportSurface: React.FC<DocumentViewportSurfaceProps> = (
           />
         ) : null}
       {inputBridge}
-      {extrasVisible && activeTool !== 'view' && (selection.length || selectionDraft) ? (
+      {extrasVisible && (selection.length || selectionDraft) ? (
         <SelectionOverlay
           operations={selection}
           draft={selectionDraft}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolId } from '../../editor/session/editorSession';
+import { TOOL_DEFINITIONS } from '../../editor/tools/toolRegistry';
 import {
   resolveEditorKeyboardCommand,
   type EditorKeyboardContext,
@@ -28,6 +29,15 @@ const context = (patch: Partial<EditorKeyboardContext> = {}): EditorKeyboardCont
 });
 
 describe('resolveEditorKeyboardCommand', () => {
+  it.each(TOOL_DEFINITIONS.map(({ id }) => [id] as const))(
+    'keeps Select All available while the %s tool owns pointer interaction',
+    (activeTool) => {
+      expect(resolveEditorKeyboardCommand(
+        input({ ctrlKey: true, key: 'a', code: 'KeyA' }),
+        context({ activeTool })
+      )).toBe('select-all');
+    }
+  );
   it.each([
     [{ ctrlKey: true, key: 'z' }, 'undo'],
     [{ metaKey: true, shiftKey: true, key: 'z' }, 'redo'],
