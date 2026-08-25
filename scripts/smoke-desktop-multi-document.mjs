@@ -151,6 +151,16 @@ try {
   if (await page.locator('[aria-label="Video tools"] [aria-label^="Brush"], .lighttable-toolbox__colors').count() !== 0) {
     throw new Error('Image-only toolbar controls remained mounted for the active video document.');
   }
+  const videoWorkspaceSwitch = page.getByLabel('Switch to Video workspace');
+  try {
+    await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Video workspace"]')?.getAttribute('aria-checked') === 'true', undefined, { timeout: 3_000 });
+  } catch {
+    const workspaceState = await page.locator('[aria-label="Workspaces"] [aria-checked]').evaluateAll((items) => items.map((item) => ({
+      label: item.getAttribute('aria-label'),
+      checked: item.getAttribute('aria-checked')
+    })));
+    throw new Error(`Video workspace was not selected automatically: ${JSON.stringify(workspaceState)}`);
+  }
   for (const label of ['Image', 'Layer', 'Type', 'Select', 'Filter']) {
     if (await page.getByRole('menuitem', { name: label, exact: true }).isEnabled()) {
       throw new Error(`${label} menu remained enabled for the active video document.`);
@@ -222,7 +232,11 @@ try {
   }
   await page.getByRole('button', { name: 'Zoom (Z)', exact: true }).click();
   const transformBeforeTemporaryPan = await video.evaluate((element) => element.style.transform);
-  const pausedBeforeTemporaryPan = await video.evaluate((element) => element.paused);
+  const pausedBeforeTemporaryPan = await video.evaluate((element) => {
+    element.pause();
+    element.currentTime = 0;
+    return element.paused;
+  });
   await page.keyboard.down('Space');
   await page.waitForFunction(() => document.querySelector('.lighttable-video-document')?.getAttribute('data-active-tool') === 'view');
   await page.mouse.move(surfaceBounds.x + surfaceBounds.width / 2, surfaceBounds.y + surfaceBounds.height / 2);
@@ -256,6 +270,8 @@ try {
   if (imageWorkspace?.documents.find(({ id }) => id === imageWorkspace.activeDocumentId)?.kind !== 'image') {
     throw new Error('Switching to the image tab did not activate the image document.');
   }
+  await page.getByLabel('Switch to Grading workspace').click();
+  await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Grading workspace"]')?.getAttribute('aria-checked') === 'true');
   await page.getByRole('button', { name: 'video.mp4', exact: true }).click();
   await video.waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForFunction(() => {
@@ -268,6 +284,16 @@ try {
   if (returned?.documents.find(({ id }) => id === returned.activeDocumentId)?.kind !== 'video') {
     throw new Error('Switching back did not retain the video document.');
   }
+  await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Video workspace"]')?.getAttribute('aria-checked') === 'true');
+  if (await videoWorkspaceSwitch.getAttribute('aria-checked') !== 'true') {
+    throw new Error('Activating a video did not select the Video workspace.');
+  }
+  await page.getByRole('button', { name: 'image.png', exact: true }).click();
+  await page.locator('canvas').first().waitFor({ state: 'visible', timeout: 30_000 });
+  await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Grading workspace"]')?.getAttribute('aria-checked') === 'true');
+  await page.getByRole('button', { name: 'video.mp4', exact: true }).click();
+  await video.waitFor({ state: 'visible', timeout: 30_000 });
+  await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Video workspace"]')?.getAttribute('aria-checked') === 'true');
   const droppedBytes = await readFile(droppedVideoFile);
   await page.evaluate(({ bytes, name }) => {
     const data = Uint8Array.from(atob(bytes), (character) => character.charCodeAt(0));

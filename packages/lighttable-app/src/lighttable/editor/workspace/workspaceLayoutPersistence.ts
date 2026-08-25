@@ -12,6 +12,7 @@ export type LightTableWorkspacePreset =
   | 'photo-edit'
   | 'grading'
   | 'ai-generation'
+  | 'video'
   | 'custom';
 
 export interface PersistedLightTableWorkspace {
@@ -45,6 +46,7 @@ const parseCurrent = (raw: string): PersistedLightTableWorkspace | null => {
       && parsed.preset !== 'photo-edit'
       && parsed.preset !== 'grading'
       && parsed.preset !== 'ai-generation'
+      && parsed.preset !== 'video'
       && parsed.preset !== 'custom')
     || !isRecord(parsed.layout)) return null;
   return {

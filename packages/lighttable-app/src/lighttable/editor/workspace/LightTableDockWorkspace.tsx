@@ -130,6 +130,7 @@ interface LightTableDockWorkspaceProps {
   canvasOnly?: boolean;
   /** Only the visible document may publish the shared application workspace. */
   persistenceEnabled?: boolean;
+  documentKind?: 'image' | 'video' | 'model-3d';
   documents: LightTableWorkspaceDocument[];
   activeDocumentId: string;
   panels: LightTableWorkspacePanelRegistration[];
@@ -357,7 +358,9 @@ const activateWorkspacePresetPanels = (
           LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
           LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi
         ]
-      : [LIGHTTABLE_WORKSPACE_PANEL_IDS.layers, LIGHTTABLE_WORKSPACE_PANEL_IDS.properties];
+      : preset === 'video'
+        ? [LIGHTTABLE_WORKSPACE_PANEL_IDS.properties]
+        : [LIGHTTABLE_WORKSPACE_PANEL_IDS.layers, LIGHTTABLE_WORKSPACE_PANEL_IDS.properties];
   activePanelIds.forEach((panelId) => api.getPanel(panelId)?.api.setActive());
 };
 
@@ -509,6 +512,7 @@ export const LightTableDockWorkspace = forwardRef<
 >(({
   canvasOnly = false,
   persistenceEnabled = true,
+  documentKind = 'image',
   documents,
   activeDocumentId,
   panels,
@@ -524,8 +528,16 @@ export const LightTableDockWorkspace = forwardRef<
   const dropListenerRef = useRef<{ dispose: () => void } | null>(null);
   const dropOverlayListenerRef = useRef<{ dispose: () => void } | null>(null);
   const saveTimerRef = useRef<number | null>(null);
+  const presetFinalizeTimerRef = useRef<number | null>(null);
   const workspacePresetRef = useRef<LightTableWorkspacePreset>('default');
+  const preVideoWorkspaceRef = useRef<{
+    readonly preset: LightTableWorkspacePreset;
+    readonly layout: SerializedDockview;
+  } | null>(null);
+  const automaticVideoWorkspaceRef = useRef(false);
+  const automaticWorkspaceDocumentRef = useRef<string | null>(null);
   const resettingLayoutRef = useRef(false);
+  const userLayoutMutationRef = useRef(false);
   const canvasOnlyMaximizedRef = useRef(false);
   const lastLayoutChangeAtRef = useRef(0);
   const dockColumnGroupIdsRef = useRef<Record<DockColumnSide, string[]>>({
@@ -562,6 +574,22 @@ export const LightTableDockWorkspace = forwardRef<
   const [ready, setReady] = useState(false);
   const [dockColumns, setDockColumns] = useState<DockColumnStates>(EMPTY_DOCK_COLUMN_STATES);
   const [workspacePreset, setWorkspacePreset] = useState<LightTableWorkspacePreset>('default');
+
+  const schedulePresetTransactionFinalization = useCallback((api = apiRef.current) => {
+    if (presetFinalizeTimerRef.current !== null) {
+      window.clearTimeout(presetFinalizeTimerRef.current);
+    }
+    presetFinalizeTimerRef.current = window.setTimeout(() => {
+      presetFinalizeTimerRef.current = null;
+      const currentApi = apiRef.current;
+      if (!currentApi || (api && currentApi !== api)) return;
+      setWorkspacePreset(workspacePresetRef.current);
+      if (persistenceEnabledRef.current) {
+        persistWorkspaceLayout(localStorage, currentApi.toJSON(), workspacePresetRef.current);
+      }
+      resettingLayoutRef.current = false;
+    }, 180);
+  }, []);
 
   const refreshDockColumns = useCallback((api = apiRef.current) => {
     if (!api) return;
@@ -679,6 +707,10 @@ export const LightTableDockWorkspace = forwardRef<
 
   const onReady = useCallback((event: DockviewReadyEvent) => {
     apiRef.current = event.api;
+    resettingLayoutRef.current = true;
+    if (presetFinalizeTimerRef.current !== null) {
+      window.clearTimeout(presetFinalizeTimerRef.current);
+    }
     const saved = readWorkspaceLayout(localStorage);
     workspacePresetRef.current = saved?.preset ?? 'default';
     setWorkspacePreset(workspacePresetRef.current);
@@ -693,7 +725,12 @@ export const LightTableDockWorkspace = forwardRef<
     layoutListenerRef.current?.dispose();
     layoutListenerRef.current = event.api.onDidLayoutChange(() => {
       scheduleDockColumnRefresh(event.api);
-      if (resettingLayoutRef.current || !persistenceEnabledRef.current) return;
+      if (resettingLayoutRef.current) return;
+      if (!persistenceEnabledRef.current) return;
+      // Dockview also emits for host/document geometry changes. Only an
+      // explicit panel manipulation turns a named workspace into Custom.
+      if (!userLayoutMutationRef.current) return;
+      userLayoutMutationRef.current = false;
       workspacePresetRef.current = 'custom';
       setWorkspacePreset('custom');
       saveLayout();
@@ -713,6 +750,7 @@ export const LightTableDockWorkspace = forwardRef<
       const transfer = dropEvent.getData();
       if (!transfer || transfer.viewId !== event.api.id) return;
       if (transfer.panelId === DOCUMENT_HOST_PANEL_ID) return;
+      userLayoutMutationRef.current = true;
       if (!allowsWorkspaceDockTarget(
         workspaceElementRef.current,
         dropEvent.kind,
@@ -823,7 +861,13 @@ export const LightTableDockWorkspace = forwardRef<
     });
     scheduleDockColumnRefresh(event.api);
     setReady(true);
-  }, [accessoryWidthConstraintsEnabled, saveLayout, scheduleDockColumnRefresh]);
+    schedulePresetTransactionFinalization(event.api);
+  }, [
+    accessoryWidthConstraintsEnabled,
+    saveLayout,
+    scheduleDockColumnRefresh,
+    schedulePresetTransactionFinalization
+  ]);
 
   const resetLayout = useCallback(() => {
     const api = apiRef.current;
@@ -833,6 +877,7 @@ export const LightTableDockWorkspace = forwardRef<
       saveTimerRef.current = null;
     }
     resettingLayoutRef.current = true;
+    userLayoutMutationRef.current = false;
     workspacePresetRef.current = 'default';
     setWorkspacePreset('default');
     dockColumnGroupIdsRef.current = { left: [], right: [] };
@@ -857,7 +902,12 @@ export const LightTableDockWorkspace = forwardRef<
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
+    if (presetFinalizeTimerRef.current !== null) {
+      window.clearTimeout(presetFinalizeTimerRef.current);
+      presetFinalizeTimerRef.current = null;
+    }
     resettingLayoutRef.current = true;
+    userLayoutMutationRef.current = false;
     workspacePresetRef.current = preset;
     setWorkspacePreset(preset);
     dockColumnGroupIdsRef.current = { left: [], right: [] };
@@ -874,13 +924,79 @@ export const LightTableDockWorkspace = forwardRef<
       );
       activateWorkspacePresetPanels(api, preset);
       scheduleDockColumnRefresh(api);
-      persistWorkspaceLayout(localStorage, api.toJSON(), preset);
     } finally {
-      window.queueMicrotask(() => { resettingLayoutRef.current = false; });
+      // Dockview emits final layout events after the synchronous rebuild.
+      // Keep the preset transaction authoritative while they settle so an
+      // event cannot immediately relabel a deliberate preset as "custom".
+      schedulePresetTransactionFinalization(api);
     }
-  }, [accessoryWidthConstraintsEnabled, scheduleDockColumnRefresh]);
+  }, [
+    accessoryWidthConstraintsEnabled,
+    scheduleDockColumnRefresh,
+    schedulePresetTransactionFinalization
+  ]);
+
+  useEffect(() => {
+    if (!ready || !persistenceEnabled) return;
+    if (automaticWorkspaceDocumentRef.current === activeDocumentId) return;
+    automaticWorkspaceDocumentRef.current = activeDocumentId;
+    const api = apiRef.current;
+    if (!api) return;
+
+    if (documentKind === 'video') {
+      if (workspacePresetRef.current === 'video') {
+        automaticVideoWorkspaceRef.current = false;
+        return;
+      }
+      preVideoWorkspaceRef.current = {
+        preset: workspacePresetRef.current,
+        layout: api.toJSON()
+      };
+      automaticVideoWorkspaceRef.current = true;
+      applyPreset('video');
+      return;
+    }
+
+    if (!automaticVideoWorkspaceRef.current || workspacePresetRef.current !== 'video') {
+      automaticVideoWorkspaceRef.current = false;
+      return;
+    }
+    automaticVideoWorkspaceRef.current = false;
+    const previous = preVideoWorkspaceRef.current;
+    preVideoWorkspaceRef.current = null;
+    if (presetFinalizeTimerRef.current !== null) {
+      window.clearTimeout(presetFinalizeTimerRef.current);
+      presetFinalizeTimerRef.current = null;
+    }
+    resettingLayoutRef.current = true;
+    if (!previous || !restoreLayout(
+      api,
+      panelsRef.current,
+      accessoryWidthConstraintsEnabled,
+      previous.layout
+    )) {
+      applyPreset('photo-edit');
+      return;
+    }
+    workspacePresetRef.current = previous.preset;
+    setWorkspacePreset(previous.preset);
+    synchronizeWorkspacePanelTitles(api, panelsRef.current);
+    applyWorkspacePanelRenderers(api, panelsRef.current);
+    scheduleDockColumnRefresh(api);
+    schedulePresetTransactionFinalization(api);
+  }, [
+    accessoryWidthConstraintsEnabled,
+    activeDocumentId,
+    applyPreset,
+    documentKind,
+    persistenceEnabled,
+    ready,
+    scheduleDockColumnRefresh,
+    schedulePresetTransactionFinalization
+  ]);
 
   const toggleDockColumn = useCallback((side: DockColumnSide) => {
+    userLayoutMutationRef.current = true;
     applyDockColumnVisibility({ [side]: !dockColumns[side].visible });
   }, [applyDockColumnVisibility, dockColumns]);
 
@@ -888,6 +1004,7 @@ export const LightTableDockWorkspace = forwardRef<
     const api = apiRef.current;
     const panel = api?.getPanel(panelId);
     if (!api || !panel) return;
+    userLayoutMutationRef.current = true;
     const groupId = panel.group.id;
     if (dockColumnGroupIdsRef.current.left.includes(groupId)) {
       applyDockColumnVisibility({ left: true });
@@ -905,6 +1022,10 @@ export const LightTableDockWorkspace = forwardRef<
 
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    if (presetFinalizeTimerRef.current !== null) {
+      window.clearTimeout(presetFinalizeTimerRef.current);
+      presetFinalizeTimerRef.current = null;
+    }
     if (dockColumnSyncFrameRef.current !== null) {
       window.cancelAnimationFrame(dockColumnSyncFrameRef.current);
       dockColumnSyncFrameRef.current = null;
@@ -1013,6 +1134,7 @@ export const LightTableDockWorkspace = forwardRef<
       const resizeHandle = target.closest('.dv-sash, [class*="dv-resize-handle-"]');
       if (!resizeHandle || !workspaceElement.contains(resizeHandle)) return;
       if (resizing) return;
+      userLayoutMutationRef.current = true;
       resizing = true;
       onResizeInteractionChange?.(true);
 

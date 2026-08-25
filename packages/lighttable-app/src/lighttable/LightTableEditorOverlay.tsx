@@ -6818,6 +6818,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       applyPhotoEditWorkspace: () => workspaceRef.current?.applyPreset('photo-edit'),
       applyGradingWorkspace: () => workspaceRef.current?.applyPreset('grading'),
       applyAiGenerationWorkspace: () => workspaceRef.current?.applyPreset('ai-generation'),
+      applyVideoWorkspace: () => workspaceRef.current?.applyPreset('video'),
       startGuidedSample: onStartGuidedSample,
       openSettings: onOpenSettings
     }
@@ -7903,6 +7904,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             ref={workspaceRef}
             canvasOnly={screenMode === 'canvas-only'}
             persistenceEnabled={active}
+            documentKind={workspaceDocumentKind}
             status={{
               status: error ?? gradeStatus ?? fontDiagnosticStatus,
               error: Boolean(error),

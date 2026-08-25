@@ -3,7 +3,7 @@ import {
   type LightTableWorkspacePanelRegistration
 } from './workspacePanelRegistry';
 
-export type SelectableLightTableWorkspacePreset = 'photo-edit' | 'grading' | 'ai-generation';
+export type SelectableLightTableWorkspacePreset = 'photo-edit' | 'grading' | 'ai-generation' | 'video';
 
 const positioned = (
   panel: LightTableWorkspacePanelRegistration,
@@ -34,6 +34,20 @@ export const panelsForWorkspacePreset = (
         return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes, 'within', true);
       case LIGHTTABLE_WORKSPACE_PANEL_IDS.agent:
         return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.scopes, 'within', true);
+      default:
+        return panel;
+    }
+  }
+
+  if (preset === 'video') {
+    switch (panel.id) {
+      case LIGHTTABLE_WORKSPACE_PANEL_IDS.properties:
+        return positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.layers, 'within', false);
+      case LIGHTTABLE_WORKSPACE_PANEL_IDS.layers:
+        return {
+          ...positioned(panel, LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost, 'right', true),
+          defaultFloating: undefined
+        };
       default:
         return panel;
     }

@@ -71,4 +71,25 @@ describe('workspace presets', () => {
       }
     });
   });
+
+  it('builds a focused video workspace without a floating image layer stack', () => {
+    const preset = panelsForWorkspacePreset(panels(), 'video');
+    const find = (id: string) => preset.find((panel) => panel.id === id);
+
+    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties)).toMatchObject({
+      initiallyInactive: false,
+      defaultPosition: {
+        referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
+        direction: 'within'
+      }
+    });
+    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.layers)).toMatchObject({
+      initiallyInactive: true,
+      defaultPosition: {
+        referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
+        direction: 'right'
+      }
+    });
+    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.layers)?.defaultFloating).toBeUndefined();
+  });
 });

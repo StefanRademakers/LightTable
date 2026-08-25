@@ -29,7 +29,8 @@ const WORKSPACE_SWITCHES: readonly {
 }[] = [
   { preset: 'ai-generation', label: 'Gen AI', icon: 'genai.png' },
   { preset: 'grading', label: 'Grading', icon: 'add_adjustment_layer.png' },
-  { preset: 'photo-edit', label: 'Photo edit', icon: 'photo.png' }
+  { preset: 'photo-edit', label: 'Photo edit', icon: 'photo.png' },
+  { preset: 'video', label: 'Video', icon: 'media_video.png' }
 ];
 
 const selectedWorkspacePreset = (

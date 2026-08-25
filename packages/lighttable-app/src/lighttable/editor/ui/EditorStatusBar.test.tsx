@@ -20,8 +20,10 @@ describe('EditorStatusBar', () => {
     expect(markup).toContain('aria-label="Switch to Grading workspace"');
     expect(markup).toContain('aria-checked="true"');
     expect(markup).toContain('aria-label="Switch to Photo edit workspace"');
+    expect(markup).toContain('aria-label="Switch to Video workspace"');
     expect(markup).toContain('genai.png');
     expect(markup).toContain('add_adjustment_layer.png');
     expect(markup).toContain('photo.png');
+    expect(markup).toContain('media_video.png');
   });
 });

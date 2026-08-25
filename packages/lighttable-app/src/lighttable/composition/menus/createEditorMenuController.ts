@@ -121,6 +121,7 @@ export interface EditorMenuControllerOptions {
     applyPhotoEditWorkspace(): void;
     applyGradingWorkspace(): void;
     applyAiGenerationWorkspace(): void;
+    applyVideoWorkspace(): void;
     startGuidedSample?(): void;
     openSettings?(): void;
   };
@@ -319,6 +320,7 @@ export const createEditorMenuController = ({
       applyPhotoEditWorkspace: workspace.applyPhotoEditWorkspace,
       applyGradingWorkspace: workspace.applyGradingWorkspace,
       applyAiGenerationWorkspace: workspace.applyAiGenerationWorkspace,
+      applyVideoWorkspace: workspace.applyVideoWorkspace,
       startGuidedSample: workspace.startGuidedSample,
       openSettings: workspace.openSettings,
       openCommandHelp: dialogs.openCommandHelp,

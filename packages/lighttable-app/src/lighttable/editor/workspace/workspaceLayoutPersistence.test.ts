@@ -39,6 +39,12 @@ describe('workspace layout persistence', () => {
     expect(readWorkspaceLayout(storage)?.preset).toBe('grading');
   });
 
+  it('roundtrips the video preset', () => {
+    const storage = memoryStorage();
+    persistWorkspaceLayout(storage, layout(), 'video');
+    expect(readWorkspaceLayout(storage)?.preset).toBe('video');
+  });
+
   it('drops runtime and document data from serialized panel params', () => {
     const clean = sanitizeWorkspaceLayout(layout({
       contentKey: 'layers',

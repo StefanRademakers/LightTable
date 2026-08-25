@@ -300,15 +300,17 @@ describe('createEditorMenuOptions', () => {
     expect(menuCommands.showGenAiPanel).toHaveBeenCalledOnce();
   });
 
-  it('offers all three primary workspaces from the View menu', () => {
+  it('offers all four primary workspaces from the View menu', () => {
     const menuCommands = commands();
     const workspace = createEditorMenuOptions('view', state(), labels, menuCommands)
       .find(({ value }) => value === 'workspace');
 
-    expect(workspace?.children?.slice(0, 3).map(({ label }) => label))
-      .toEqual(['Photo Edit', 'Grading', 'AI Generation']);
+    expect(workspace?.children?.slice(0, 4).map(({ label }) => label))
+      .toEqual(['Photo Edit', 'Grading', 'AI Generation', 'Video']);
     workspace?.children?.[1]?.onClick?.();
     expect(menuCommands.applyGradingWorkspace).toHaveBeenCalledOnce();
+    workspace?.children?.[3]?.onClick?.();
+    expect(menuCommands.applyVideoWorkspace).toHaveBeenCalledOnce();
   });
 
   it('keeps the compact file workflow declarative', () => {
