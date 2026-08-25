@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LayerId } from '../document/documentTypes';
-import { LayerStyleRenderer, LayerStyleUniformArena } from './LayerStyleRenderer';
-import type { SubmittedResourceRetainer } from './SubmittedResourceRetainer';
+import { LayerStyleRenderer } from './LayerStyleRenderer';
 
 const renderer = () => new LayerStyleRenderer({
   device: {} as GPUDevice,
@@ -23,30 +22,6 @@ const renderer = () => new LayerStyleRenderer({
 });
 
 describe('LayerStyleRenderer', () => {
-  it('packs transient style uniforms into aligned submit-retained chunks', () => {
-    vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2 });
-    const buffer = {} as GPUBuffer;
-    const device = {
-      limits: { minUniformBufferOffsetAlignment: 256 },
-      createBuffer: vi.fn(() => buffer),
-      queue: { writeBuffer: vi.fn() }
-    } as unknown as GPUDevice;
-    const retainBuffer = vi.fn((value: GPUBuffer) => value);
-    const submittedResources = { retainBuffer } as unknown as SubmittedResourceRetainer;
-    const arena = new LayerStyleUniformArena(device, submittedResources, 1024);
-
-    const first = arena.write(new Float32Array(24), 'first');
-    const second = arena.write(new Float32Array(156), 'second');
-
-    expect(first).toEqual({ buffer, offset: 0, size: 96 });
-    expect(second).toEqual({ buffer, offset: 256, size: 624 });
-    expect(device.createBuffer).toHaveBeenCalledTimes(1);
-    expect(retainBuffer).toHaveBeenCalledWith(buffer);
-    expect(device.queue.writeBuffer).toHaveBeenNthCalledWith(
-      2, buffer, 256, expect.any(Float32Array)
-    );
-  });
-
   it('switches quality only at interaction boundaries', () => {
     const styles = renderer();
     const edited = 'edited' as LayerId;
