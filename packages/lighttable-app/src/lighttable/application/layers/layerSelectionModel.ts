@@ -62,19 +62,40 @@ export const resolveLayerSelectionGesture = (
 };
 
 export class LayerNameRenameGestureController {
-  private gesture: { layerId: LayerId; startedAt: number; eligible: boolean } | null = null;
+  private static readonly doubleClickWindowMs = 500;
+  private gesture: {
+    layerId: LayerId;
+    firstStartedAt: number;
+    lastStartedAt: number;
+    pointerDownCount: number;
+    eligible: boolean;
+  } | null = null;
 
   begin(layerId: LayerId, activeLayerId: LayerId | null, startedAt: number): void {
     if (!this.gesture || this.gesture.layerId !== layerId
-      || startedAt - this.gesture.startedAt > 500) {
-      this.gesture = { layerId, startedAt, eligible: activeLayerId === layerId };
+      || startedAt - this.gesture.lastStartedAt > LayerNameRenameGestureController.doubleClickWindowMs) {
+      this.gesture = {
+        layerId,
+        firstStartedAt: startedAt,
+        lastStartedAt: startedAt,
+        pointerDownCount: 1,
+        eligible: activeLayerId === layerId
+      };
       return;
     }
-    this.gesture = { ...this.gesture, startedAt };
+    this.gesture = {
+      ...this.gesture,
+      lastStartedAt: startedAt,
+      pointerDownCount: this.gesture.pointerDownCount + 1
+    };
   }
 
-  consume(layerId: LayerId): boolean {
-    const eligible = this.gesture?.layerId === layerId && this.gesture.eligible;
+  consume(layerId: LayerId, completedAt: number): boolean {
+    const eligible = this.gesture?.layerId === layerId
+      && this.gesture.eligible
+      && this.gesture.pointerDownCount >= 2
+      && completedAt - this.gesture.firstStartedAt
+        <= LayerNameRenameGestureController.doubleClickWindowMs;
     this.gesture = null;
     return eligible;
   }

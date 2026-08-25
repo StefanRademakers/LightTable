@@ -39,16 +39,34 @@ describe('LayerNameRenameGestureController', () => {
     const controller = new LayerNameRenameGestureController();
     controller.begin(id('bottom'), id('top'), 100);
     controller.begin(id('bottom'), id('bottom'), 180);
-    expect(controller.consume(id('bottom'))).toBe(false);
+    expect(controller.consume(id('bottom'), 185)).toBe(false);
 
     controller.begin(id('bottom'), id('bottom'), 1_000);
     controller.begin(id('bottom'), id('bottom'), 1_080);
-    expect(controller.consume(id('bottom'))).toBe(true);
+    expect(controller.consume(id('bottom'), 1_085)).toBe(true);
 
     controller.begin(id('top'), id('bottom'), 2_000);
     controller.cancel();
     controller.begin(id('top'), id('top'), 2_100);
     controller.begin(id('top'), id('top'), 2_180);
-    expect(controller.consume(id('top'))).toBe(true);
+    expect(controller.consume(id('top'), 2_185)).toBe(true);
+  });
+
+  it('requires two pointer downs inside the bounded double-click interval', () => {
+    const controller = new LayerNameRenameGestureController();
+    controller.begin(id('top'), id('top'), 100);
+    expect(controller.consume(id('top'), 110)).toBe(false);
+
+    controller.begin(id('top'), id('top'), 1_000);
+    controller.begin(id('top'), id('top'), 1_700);
+    expect(controller.consume(id('top'), 1_710)).toBe(false);
+
+    controller.begin(id('top'), id('top'), 2_000);
+    controller.begin(id('top'), id('top'), 2_300);
+    expect(controller.consume(id('top'), 2_501)).toBe(false);
+
+    controller.begin(id('top'), id('top'), 3_000);
+    controller.begin(id('top'), id('top'), 3_300);
+    expect(controller.consume(id('top'), 3_310)).toBe(true);
   });
 });

@@ -874,7 +874,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     layerNameRenameGestureControllerRef.current.begin(layerId, activeLayerId, performance.now());
   }, []);
   const consumeLayerNameRenameGesture = useCallback((layerId: LayerId) =>
-    layerNameRenameGestureControllerRef.current.consume(layerId), []);
+    layerNameRenameGestureControllerRef.current.consume(layerId, performance.now()), []);
   const cancelLayerNameRenameGesture = useCallback(() =>
     layerNameRenameGestureControllerRef.current.cancel(), []);
   const invertActiveLayerColorsRef = useRef<() => void>(() => undefined);

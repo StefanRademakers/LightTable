@@ -116,6 +116,17 @@ try {
   await window.locator('.lighttable-layer--dragging').waitFor({ timeout: 2_000 });
   await window.mouse.up();
 
+  // Two ordinary clicks outside a normal double-click interval must never be
+  // accumulated into a rename gesture.
+  await activeName.click();
+  await window.waitForTimeout(700);
+  await activeName.click();
+  await window.waitForTimeout(100);
+  if (await activeName.getAttribute('readonly') === null) {
+    throw new Error('Separated layer-name clicks incorrectly accumulated into rename mode.');
+  }
+  await window.waitForTimeout(700);
+
   await activeName.dblclick();
   if (await activeName.getAttribute('readonly') !== null) {
     const trace = await window.evaluate(() => window.__layerSelectionTrace);
