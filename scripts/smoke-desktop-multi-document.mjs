@@ -220,6 +220,29 @@ try {
   if (transformAfterPan === transformBeforePan) {
     throw new Error('Shared Pan tool did not update the video presentation.');
   }
+  await page.getByRole('button', { name: 'Zoom (Z)', exact: true }).click();
+  const transformBeforeTemporaryPan = await video.evaluate((element) => element.style.transform);
+  const pausedBeforeTemporaryPan = await video.evaluate((element) => element.paused);
+  await page.keyboard.down('Space');
+  await page.waitForFunction(() => document.querySelector('.lighttable-video-document')?.getAttribute('data-active-tool') === 'view');
+  await page.mouse.move(surfaceBounds.x + surfaceBounds.width / 2, surfaceBounds.y + surfaceBounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    surfaceBounds.x + surfaceBounds.width / 2 - 45,
+    surfaceBounds.y + surfaceBounds.height / 2 + 25,
+    { steps: 3 }
+  );
+  await page.mouse.up();
+  await page.keyboard.up('Space');
+  await page.waitForFunction(() => document.querySelector('.lighttable-video-document')?.getAttribute('data-active-tool') === 'zoom');
+  const transformAfterTemporaryPan = await video.evaluate((element) => element.style.transform);
+  const pausedAfterTemporaryPan = await video.evaluate((element) => element.paused);
+  if (transformAfterTemporaryPan === transformBeforeTemporaryPan) {
+    throw new Error('Holding Space did not temporarily route the shared Pan tool to video.');
+  }
+  if (pausedAfterTemporaryPan !== pausedBeforeTemporaryPan) {
+    throw new Error('Temporary Pan unexpectedly changed video playback state.');
+  }
   const videoDocument = await driver.queryDocument(initial.activeDocumentId);
   if (videoDocument?.viewport?.zoomMode !== 'custom'
     || Math.abs(videoDocument.viewport.scale - 1.5) > 0.01

@@ -367,6 +367,21 @@ describe('editor keymap', () => {
       input({ key: ' ', code: 'Space' }),
       context()
     )).toBe('temporary-pan-start');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: ' ', code: 'Space' }),
+      context({ documentKind: 'video' })
+    )).toBe('temporary-pan-start');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: ' ', code: 'Space', ctrlKey: true }),
+      context({ documentKind: 'video' })
+    )).toBe('temporary-zoom-in-start');
+    expect(resolveEditorKeymapCommand(
+      DEFAULT_EDITOR_KEYMAP,
+      input({ key: ' ', code: 'Space', altKey: true }),
+      context({ documentKind: 'video' })
+    )).toBe('temporary-zoom-out-start');
   });
 
   it('preserves modifier-specific tool bindings', () => {

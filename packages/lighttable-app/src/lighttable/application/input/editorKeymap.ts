@@ -252,17 +252,20 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
     command(
       'tool.temporary-zoom-in',
       { key: 'space', primary: true, alt: false, shift: false },
-      'temporary-zoom-in-start'
+      'temporary-zoom-in-start',
+      { documentKinds: ['image', 'video'] }
     ),
     command(
       'tool.temporary-zoom-out',
       { key: 'space', primary: false, alt: true, shift: false },
-      'temporary-zoom-out-start'
+      'temporary-zoom-out-start',
+      { documentKinds: ['image', 'video'] }
     ),
     command(
       'tool.temporary-pan',
       { key: 'space', primary: false, alt: false, shift: false },
-      'temporary-pan-start'
+      'temporary-pan-start',
+      { documentKinds: ['image', 'video'] }
     ),
     command('tool.temporary-erase', { key: '`', primary: false, alt: false, shift: false }, 'temporary-erase-start', {
       when: (context) => context.activeTool === 'brush'

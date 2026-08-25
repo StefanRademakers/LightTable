@@ -5,11 +5,10 @@ import React, {
   useImperativeHandle,
   useMemo,
   useRef,
-  useState,
-  useSyncExternalStore
+  useState
 } from 'react';
 import type { VideoDocumentSession, VideoPresentationState } from '@lighttable/video-core';
-import type { EditorApplicationSession } from '../lighttable/application/workspace/editorApplicationSession';
+import type { ToolId } from '../lighttable/editor/session/editorSession';
 import { resolveViewportImageRect } from '../lighttable/application/rendering/viewportRenderState';
 import {
   clientToLocalPoint,
@@ -29,7 +28,9 @@ interface VideoDocumentSurfaceProps {
   readonly file: File;
   readonly session: VideoDocumentSession;
   readonly active: boolean;
-  readonly applicationEditorSession: EditorApplicationSession;
+  /** Effective workspace tool, including temporary keyboard overrides. */
+  readonly activeTool: ToolId;
+  readonly zoomOutActive?: boolean;
   readonly zoomWithScrollWheel: boolean;
   readonly onZoomPercentChange?: (percent: number) => void;
 }
@@ -57,7 +58,8 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
   file,
   session,
   active,
-  applicationEditorSession,
+  activeTool,
+  zoomOutActive = false,
   zoomWithScrollWheel,
   onZoomPercentChange
 }, forwardedRef) => {
@@ -84,12 +86,6 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
     zoomOut: boolean;
   } | null>(null);
   const [zoomDraft, setZoomDraft] = useState<{ start: Point; current: Point } | null>(null);
-  const activeTool = useSyncExternalStore(
-    applicationEditorSession.subscribe,
-    () => applicationEditorSession.getSnapshot().activeTool,
-    () => applicationEditorSession.getSnapshot().activeTool
-  );
-
   viewRef.current = view;
   metadataRef.current = metadata;
   viewportRef.current = viewportSize;
@@ -219,12 +215,6 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
       )) return;
       const video = videoRef.current;
       if (!video || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.code === 'Space') {
-        event.preventDefault();
-        if (video.paused) void video.play();
-        else video.pause();
-        return;
-      }
       if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
         event.preventDefault();
         const direction = event.code === 'ArrowRight' ? 1 : -1;
@@ -314,8 +304,9 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
             metadata
           ) : null;
           if (!documentPoint) return;
-          zoomDragRef.current = { pointerId: event.pointerId, start: point, current: point, zoomOut: event.altKey };
-          if (!event.altKey) setZoomDraft({ start: point, current: point });
+          const zoomOut = zoomOutActive || event.altKey;
+          zoomDragRef.current = { pointerId: event.pointerId, start: point, current: point, zoomOut };
+          if (!zoomOut) setZoomDraft({ start: point, current: point });
         }
         event.currentTarget.setPointerCapture(event.pointerId);
         event.preventDefault();

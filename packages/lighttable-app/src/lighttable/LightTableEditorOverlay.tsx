@@ -524,6 +524,12 @@ export interface WorkspaceViewControls {
   readonly onZoomStep: (direction: -1 | 1) => void;
 }
 
+export interface WorkspaceDocumentSurfacePresentation {
+  /** Effective tool, including a temporary Space/Ctrl+Space/Alt+Space override. */
+  readonly activeTool: ToolId;
+  readonly zoomOutActive: boolean;
+}
+
 export interface LightTableEditorOverlayProps {
   open: boolean;
   active?: boolean;
@@ -533,7 +539,9 @@ export interface LightTableEditorOverlayProps {
   sourceFileKey?: string | null;
   sourceBlob?: Blob | null;
   /** Typed non-image surfaces reuse the one application workspace shell. */
-  documentSurfaceOverride?: React.ReactNode;
+  documentSurfaceOverride?: React.ReactNode | ((
+    presentation: WorkspaceDocumentSurfacePresentation
+  ) => React.ReactNode);
   workspaceDocumentKind?: 'image' | 'video' | 'model-3d';
   workspaceViewControls?: WorkspaceViewControls;
   /** Status-bar projection supplied by a non-image document runtime. */
@@ -7497,7 +7505,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       }}
     />
   );
-  const documentSurface = documentSurfaceOverride ? (
+  const overriddenDocumentSurface = typeof documentSurfaceOverride === 'function'
+    ? documentSurfaceOverride({
+        activeTool: visibleTool,
+        zoomOutActive: temporaryZoomOutActive
+      })
+    : documentSurfaceOverride;
+  const documentSurface = overriddenDocumentSurface ? (
     <div
       className="lighttable-document-surface-override"
       onContextMenu={(event) => {
@@ -7508,7 +7522,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         setToolOptionsMenu({ x: event.clientX, y: event.clientY });
       }}
     >
-      {documentSurfaceOverride}
+      {overriddenDocumentSurface}
     </div>
   ) : imageDocumentSurface;
   return (

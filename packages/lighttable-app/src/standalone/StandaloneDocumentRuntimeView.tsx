@@ -201,12 +201,13 @@ export function StandaloneDocumentRuntimeView({
         documentCreationSettings={document.kind === 'image' ? document.runtime.creationSettings : undefined}
         startupTimeline={document.kind === 'image' ? document.runtime.startupTimeline : undefined}
         documentSurfaceOverride={document.kind === 'video'
-          ? <VideoDocumentSurface
+          ? ({ activeTool, zoomOutActive }) => <VideoDocumentSurface
               ref={videoViewportRef}
               file={file}
               session={document.session}
               active={active}
-              applicationEditorSession={applicationEditorSession}
+              activeTool={activeTool}
+              zoomOutActive={zoomOutActive}
               zoomWithScrollWheel={preferences.tools.zoomWithScrollWheel}
               onZoomPercentChange={setVideoZoomPercent}
             />
