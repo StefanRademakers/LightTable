@@ -40,6 +40,11 @@ export interface VideoViewportHandle {
   readonly fit: () => void;
   readonly actual: () => void;
   readonly step: (direction: -1 | 1) => void;
+  readonly togglePlayback: () => void;
+  readonly seek: (seconds: number) => void;
+  readonly stepFrame: (direction: -1 | 1) => void;
+  readonly setMuted: (muted: boolean) => void;
+  readonly setVolume: (volume: number) => void;
 }
 
 type VideoViewState = Pick<VideoPresentationState, 'zoomMode' | 'zoom' | 'panX' | 'panY'>;
@@ -197,8 +202,53 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
     setZoomAtCenter(steppedZoomPercent(currentScale() * 100, direction));
   }, [currentScale, setZoomAtCenter]);
 
-  useImperativeHandle(forwardedRef, () => ({ setZoomPercent: setZoomAtCenter, fit, actual, step }), [
-    actual, fit, setZoomAtCenter, step
+  const seek = useCallback((seconds: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    video.currentTime = Math.max(0, Math.min(duration, seconds));
+    session.updatePresentation({ currentTimeSeconds: video.currentTime });
+  }, [session]);
+
+  const togglePlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) void video.play();
+    else video.pause();
+  }, []);
+
+  const stepFrame = useCallback((direction: -1 | 1) => {
+    const frameRate = session.getSnapshot().metadata?.frameRate;
+    seek((videoRef.current?.currentTime ?? 0) + direction / (frameRate && frameRate > 0 ? frameRate : 30));
+  }, [seek, session]);
+
+  const setMuted = useCallback((muted: boolean) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = muted;
+    session.updatePresentation({ muted });
+  }, [session]);
+
+  const setVolume = useCallback((volume: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.volume = Math.max(0, Math.min(1, volume));
+    if (video.volume > 0 && video.muted) video.muted = false;
+    session.updatePresentation({ volume: video.volume, muted: video.muted });
+  }, [session]);
+
+  useImperativeHandle(forwardedRef, () => ({
+    setZoomPercent: setZoomAtCenter,
+    fit,
+    actual,
+    step,
+    togglePlayback,
+    seek,
+    stepFrame,
+    setMuted,
+    setVolume
+  }), [
+    actual, fit, seek, setMuted, setVolume, setZoomAtCenter, step, stepFrame, togglePlayback
   ]);
 
   useEffect(() => {
@@ -380,8 +430,10 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
           ref={videoRef}
           className="lighttable-video-document__media"
           src={sourceUrl}
-          controls
           preload="metadata"
+          controls={false}
+          disablePictureInPicture
+          controlsList="nodownload noplaybackrate noremoteplayback"
           style={mediaRect ? {
             width: `${mediaRect.width}px`,
             height: `${mediaRect.height}px`,

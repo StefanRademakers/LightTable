@@ -84,6 +84,7 @@ const deferPanel = (content: React.ReactNode) => (
 
 export interface EditorWorkspacePanelBindings {
   documentKind?: 'image' | 'video' | 'model-3d';
+  videoControls?: React.ReactNode;
   scopes: React.ComponentProps<ScopesPanelComponent>;
   layers: React.ReactNode;
   channels: React.ReactNode;
@@ -112,6 +113,7 @@ export interface EditorWorkspacePanelBindings {
  */
 export const createEditorWorkspacePanels = ({
   documentKind = 'image',
+  videoControls,
   scopes,
   layers,
   channels,
@@ -175,7 +177,14 @@ export const createEditorWorkspacePanels = ({
     agent: deferPanel(<AgentActivityPanel {...agent} />),
     actions: deferPanel(<ActionsPanel {...actions} />),
     genAi: deferPanel(<GenAiPanel {...genAi} />),
-    aiHistory: <ProjectAssetBrowser {...aiHistory} />
+    aiHistory: <ProjectAssetBrowser {...aiHistory} />,
+    videoControls: videoControls ?? (
+      <DocumentKindPanel
+        title="Video Controls"
+        kind="video"
+        detail="Open a video document to use playback controls."
+      />
+    )
   });
 
 const DocumentKindPanel = ({

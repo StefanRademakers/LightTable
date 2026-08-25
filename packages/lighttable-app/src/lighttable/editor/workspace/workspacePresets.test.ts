@@ -20,7 +20,10 @@ const panels = () => createDefaultLightTableWorkspacePanels({
 describe('workspace presets', () => {
   it('keeps the canonical Photo Edit inspector order', () => {
     expect(panelsForWorkspacePreset(panels(), 'photo-edit').slice(3).map(({ title }) => title))
-      .toEqual(['Properties', 'Assets', 'GenAI', 'Agent', 'Actions', 'Debug']);
+      .toEqual(['Properties', 'Assets', 'GenAI', 'Agent']);
+    expect(panelsForWorkspacePreset(panels(), 'photo-edit').some(
+      ({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
+    )).toBe(false);
   });
 
   it('places GenAI and Agent left and activates Assets on the right', () => {
@@ -72,24 +75,20 @@ describe('workspace presets', () => {
     });
   });
 
-  it('builds a focused video workspace without a floating image layer stack', () => {
+  it('builds a focused video workspace with transport and no image-only panels', () => {
     const preset = panelsForWorkspacePreset(panels(), 'video');
     const find = (id: string) => preset.find((panel) => panel.id === id);
 
-    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties)).toMatchObject({
+    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls)).toMatchObject({
       initiallyInactive: false,
       defaultPosition: {
-        referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.layers,
-        direction: 'within'
-      }
-    });
-    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.layers)).toMatchObject({
-      initiallyInactive: true,
-      defaultPosition: {
         referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
-        direction: 'right'
+        direction: 'below'
       }
     });
-    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.layers)?.defaultFloating).toBeUndefined();
+    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi)).toBeUndefined();
+    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory)).toBeUndefined();
+    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.layers)).toBeUndefined();
+    expect(find(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties)).toBeUndefined();
   });
 });

@@ -15,7 +15,8 @@ describe('workspacePanelRegistry', () => {
       agent: 'agent',
       actions: 'actions',
       genAi: 'genAi',
-      aiHistory: 'aiHistory'
+      aiHistory: 'aiHistory',
+      videoControls: 'videoControls'
     };
 
     const panels = createDefaultLightTableWorkspacePanels(content);
@@ -29,7 +30,8 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.actions,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.debug
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.debug,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls
     ]);
     expect(panels.map((panel) => panel.content)).toEqual([
       content.layers,
@@ -40,7 +42,8 @@ describe('workspacePanelRegistry', () => {
       content.genAi,
       content.agent,
       content.actions,
-      content.debug
+      content.debug,
+      content.videoControls
     ]);
     expect(panels.map((panel) => panel.contentKey)).toEqual([
       'layers',
@@ -51,7 +54,8 @@ describe('workspacePanelRegistry', () => {
       'genAi',
       'agent',
       'actions',
-      'debug'
+      'debug',
+      'videoControls'
     ]);
     expect(panels.find(({ id }) => id === LIGHTTABLE_WORKSPACE_PANEL_IDS.properties)?.title)
       .toBe('Properties');

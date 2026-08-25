@@ -155,6 +155,8 @@ export interface EditorMenuCommands {
   applyGradingWorkspace: () => void;
   applyAiGenerationWorkspace: () => void;
   applyVideoWorkspace: () => void;
+  workspacePanels?: readonly { readonly id: string; readonly title: string; readonly visible: boolean }[];
+  toggleWorkspacePanel?: (panelId: string) => void;
   openAbout?: () => void;
   openThirdPartyLicenses?: () => void;
   openCommandHelp?: () => void;
@@ -974,26 +976,28 @@ export const createEditorMenuOptions = (
         }
       ]
     },
-    {
+    ...(Array.isArray(commands.workspacePanels) ? commands.workspacePanels.map((panel, index) => ({
+      value: `workspace-panel-${panel.id}`,
+      label: checkedLabel(`${panel.title} panel`, panel.visible),
+      separatorBefore: index === 0,
+      onClick: () => commands.toggleWorkspacePanel?.(panel.id)
+    })) : [{
       value: 'show-genai-panel',
       label: 'GenAI panel',
       onClick: commands.showGenAiPanel
-    },
-    {
+    }, {
       value: 'show-ai-history-panel',
       label: 'Assets panel',
       onClick: commands.showAiHistoryPanel ?? commands.showGenAiPanel
-    },
-    {
+    }, {
       value: 'show-actions-panel',
       label: 'Actions panel',
       onClick: commands.showActionsPanel
-    },
-    {
+    }, {
       value: 'show-debug-panel',
       label: 'Debug panel',
       onClick: commands.showDebugPanel
-    },
+    }]),
     ...(commands.openStyleGuide ? [{
       value: 'ui-style-guide',
       label: 'UI Style Guide...',

@@ -122,6 +122,8 @@ export interface EditorMenuControllerOptions {
     applyGradingWorkspace(): void;
     applyAiGenerationWorkspace(): void;
     applyVideoWorkspace(): void;
+    workspacePanels?: readonly { readonly id: string; readonly title: string; readonly visible: boolean }[];
+    toggleWorkspacePanel?(panelId: string): void;
     startGuidedSample?(): void;
     openSettings?(): void;
   };
@@ -321,6 +323,8 @@ export const createEditorMenuController = ({
       applyGradingWorkspace: workspace.applyGradingWorkspace,
       applyAiGenerationWorkspace: workspace.applyAiGenerationWorkspace,
       applyVideoWorkspace: workspace.applyVideoWorkspace,
+      workspacePanels: workspace.workspacePanels,
+      toggleWorkspacePanel: workspace.toggleWorkspacePanel,
       startGuidedSample: workspace.startGuidedSample,
       openSettings: workspace.openSettings,
       openCommandHelp: dialogs.openCommandHelp,

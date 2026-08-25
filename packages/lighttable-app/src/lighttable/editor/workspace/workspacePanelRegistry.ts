@@ -10,7 +10,8 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   agent: 'lighttable.agent-activity',
   actions: 'lighttable.actions',
   genAi: 'lighttable.genai',
-  aiHistory: 'lighttable.ai-history'
+  aiHistory: 'lighttable.ai-history',
+  videoControls: 'lighttable.video-controls'
 } as const;
 
 export type LightTableWorkspacePanelId =
@@ -29,6 +30,8 @@ export interface LightTableWorkspacePanelRegistration {
   initialWidth?: number;
   initialHeight?: number;
   minimumHeight?: number;
+  /** Hide the Dockview tab strip while this is the sole panel in a docked group. */
+  hideHeaderWhenAlone?: boolean;
   defaultFloating?: {
     width: number;
     height: number;
@@ -49,6 +52,7 @@ export interface DefaultLightTableWorkspacePanelContent {
   actions: ReactNode;
   genAi: ReactNode;
   aiHistory: ReactNode;
+  videoControls?: ReactNode;
 }
 
 /**
@@ -172,5 +176,19 @@ export const createDefaultLightTableWorkspacePanels = (
       direction: 'within'
     },
     initiallyInactive: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls,
+    contentKey: 'videoControls',
+    title: 'Video Controls',
+    content: content.videoControls,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
+      direction: 'below'
+    },
+    initialHeight: 68,
+    minimumHeight: 68,
+    hideHeaderWhenAlone: true,
+    initiallyInactive: false
   }
 ];

@@ -300,6 +300,23 @@ describe('createEditorMenuOptions', () => {
     expect(menuCommands.showGenAiPanel).toHaveBeenCalledOnce();
   });
 
+  it('toggles registered workspace panels and marks the visible ones', () => {
+    const menuCommands = commands();
+    menuCommands.workspacePanels = [
+      { id: 'layers', title: 'Layers', visible: true },
+      { id: 'debug', title: 'Debug', visible: false }
+    ];
+    menuCommands.toggleWorkspacePanel = vi.fn();
+    const options = createEditorMenuOptions('view', state(), labels, menuCommands);
+    const layers = options.find(({ value }) => value === 'workspace-panel-layers');
+    const debug = options.find(({ value }) => value === 'workspace-panel-debug');
+
+    expect(layers?.label).toBe('Layers panel ✓');
+    expect(debug?.label).toBe('Debug panel');
+    debug?.onClick?.();
+    expect(menuCommands.toggleWorkspacePanel).toHaveBeenCalledWith('debug');
+  });
+
   it('offers all four primary workspaces from the View menu', () => {
     const menuCommands = commands();
     const workspace = createEditorMenuOptions('view', state(), labels, menuCommands)

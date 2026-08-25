@@ -30,7 +30,11 @@ describe('workspace layout persistence', () => {
   it('roundtrips a versioned layout and selected preset', () => {
     const storage = memoryStorage();
     persistWorkspaceLayout(storage, layout(), 'custom');
-    expect(readWorkspaceLayout(storage)).toMatchObject({ version: 4, preset: 'custom' });
+    expect(readWorkspaceLayout(storage)).toMatchObject({
+      version: 5,
+      preset: 'custom',
+      basePreset: 'photo-edit'
+    });
   });
 
   it('roundtrips the grading preset', () => {
@@ -43,6 +47,12 @@ describe('workspace layout persistence', () => {
     const storage = memoryStorage();
     persistWorkspaceLayout(storage, layout(), 'video');
     expect(readWorkspaceLayout(storage)?.preset).toBe('video');
+  });
+
+  it('retains the named workspace that a custom layout resets to', () => {
+    const storage = memoryStorage();
+    persistWorkspaceLayout(storage, layout(), 'custom', 'video');
+    expect(readWorkspaceLayout(storage)?.basePreset).toBe('video');
   });
 
   it('drops runtime and document data from serialized panel params', () => {

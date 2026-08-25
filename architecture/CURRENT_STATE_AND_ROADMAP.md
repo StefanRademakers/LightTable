@@ -11,6 +11,10 @@ milestone changes those boundaries; feature task details belong in
 - Multi-document workspace with one active document, one persistent
   editor/canvas/Dockview runtime and inactive canonical sessions without
   recurring background rendering.
+- Typed image/video documents share that shell without synthetic image layers;
+  Video has secure seekable playback, shared Pan/Zoom and a registered controls
+  panel. Kind switches preserve the document host, canonical data and prior
+  workspace geometry rather than restoring Dockview layouts.
 - Document-scoped history, source, viewport and revisions plus application-wide
   workspace layout and tool state; tab/preset switches do not mutate documents.
 - Generation-pinned source publication, export and renderer callbacks reject

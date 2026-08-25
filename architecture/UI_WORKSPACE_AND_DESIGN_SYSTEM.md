@@ -40,11 +40,13 @@ and workspace presets. If the active document cannot support a tool, the
 overlay and controls project that capability explicitly; they do not silently
 change document content or resurrect a document-private tool state.
 
-Only one Dockview shell, canvas and `LightTableEditorOverlay` are mounted.
-Inactive `DocumentSession`s retain canonical data and history, not hidden
-workspace trees or active render loops. Rebinding must commit/cancel any live
-gesture through its controller, reject stale async results and render the newly
-active session without copying pixels between documents.
+Only one Dockview shell and `LightTableEditorOverlay` are mounted. The document
+host owns stable typed surface slots: the image canvas may remain mounted as an
+inactive renderer binding beneath a video surface, but it performs no hidden
+document work. Inactive sessions retain canonical/presentation state, not
+hidden workspace trees or active render loops. Rebinding must commit/cancel any
+live gesture through its controller, reject stale async results and render the
+newly active session without copying pixels between documents.
 
 Panels have stable IDs and can be docked, tabbed, resized and floated. Dockview
 owns the panel/group layout mechanics and serialized layout graph;
@@ -85,11 +87,17 @@ positions. This is workspace preference only: switching documents must not
 replace it, and opening a saved image document must not deserialize Dockview
 nodes into the scene model.
 
-The status bar exposes direct, keyboard-focusable switches for the three
-primary workspace presets. `Photo edit` uses the canonical fresh layout;
+Workspace presets also own default panel visibility. The View menu toggles
+registered panels for the current workspace and Reset restores those defaults.
+A document-kind transition may hide/show existing accessory groups, but may not
+deserialize a saved layout or remove/recreate the document-host group.
+
+The status bar exposes direct, keyboard-focusable switches for the primary
+workspace presets. `Photo edit` uses the canonical fresh layout;
 `Gen AI` docks GenAI/Agent left and activates Assets right; `Grading` activates
 Scopes in a left column while retaining contextual Properties on the right and Layers as a
-floating group. Applying a preset persists its Dockview graph. A manual dock
+floating group; `Video` keeps the shared document host and shows the registered
+bottom Video Controls panel. Applying a preset persists its Dockview graph. A manual dock
 change marks that graph `custom` and clears the active preset indication.
 Switching presets rearranges/activates panels only. It must preserve the active
 document, canonical layers/pixels, current tool and valid floating-panel

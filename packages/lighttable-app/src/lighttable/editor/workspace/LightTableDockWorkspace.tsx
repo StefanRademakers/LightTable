@@ -29,6 +29,7 @@ import {
   clearWorkspaceLayout,
   persistWorkspaceLayout,
   readWorkspaceLayout,
+  type LightTableWorkspaceBasePreset,
   type LightTableWorkspacePreset
 } from './workspaceLayoutPersistence';
 import {
@@ -139,6 +140,13 @@ interface LightTableDockWorkspaceProps {
   onResizeInteractionChange?: (active: boolean) => void;
   onActiveDocumentChange?: (documentId: string) => void;
   onDocumentSurfaceReady?: () => void;
+  onPanelVisibilityChange?: (panels: readonly WorkspacePanelVisibility[]) => void;
+}
+
+export interface WorkspacePanelVisibility {
+  readonly id: string;
+  readonly title: string;
+  readonly visible: boolean;
 }
 
 type DockColumnSide = 'left' | 'right';
@@ -159,6 +167,7 @@ export interface LightTableDockWorkspaceHandle {
   resetLayout: () => void;
   applyPreset: (preset: SelectableLightTableWorkspacePreset) => void;
   showPanel: (panelId: string) => void;
+  togglePanel: (panelId: string) => void;
 }
 
 type WorkspaceContent = Record<WorkspaceContentKey, React.ReactNode>;
@@ -185,9 +194,11 @@ const applyWorkspacePanelConstraints = (
     minimumWidth
   });
   panels.forEach((panel) => {
+    const spansWorkspaceWidth = panel.defaultPosition.direction === 'above'
+      || panel.defaultPosition.direction === 'below';
     api.getPanel(panel.id)?.api.setConstraints({
-      minimumWidth,
-      maximumWidth: widthConstraintsEnabled
+      minimumWidth: spansWorkspaceWidth ? 0 : minimumWidth,
+      maximumWidth: widthConstraintsEnabled && !spansWorkspaceWidth
         ? ACCESSORY_PANEL_MAXIMUM_WIDTH
         : Number.MAX_SAFE_INTEGER,
       ...(panel.minimumHeight === undefined ? {} : { minimumHeight: panel.minimumHeight })
@@ -219,12 +230,43 @@ const applyWorkspacePanelRenderers = (
   });
 };
 
+const synchronizeWorkspacePanelHeaders = (
+  api: DockviewApi,
+  panels: LightTableWorkspacePanelRegistration[]
+) => {
+  const registrations = new Map(panels.map((panel) => [panel.id, panel]));
+  api.groups.forEach((group) => {
+    const containsDocumentHost = group.panels.some((panel) => panel.id === DOCUMENT_HOST_PANEL_ID);
+    const solePanel = group.panels.length === 1 ? group.panels[0] : undefined;
+    const hideAccessoryHeader = Boolean(
+      solePanel
+      && registrations.get(solePanel.id)?.hideHeaderWhenAlone
+      && group.api.location.type === 'grid'
+    );
+    const shouldHide = containsDocumentHost || hideAccessoryHeader;
+    if (group.header.hidden === shouldHide) return;
+    const headerlessRegistration = group.panels
+      .map((panel) => registrations.get(panel.id))
+      .find((panel) => panel?.hideHeaderWhenAlone);
+    const currentHeight = group.api.boundingBox?.height;
+    group.header.hidden = shouldHide;
+    if (!headerlessRegistration || currentHeight === undefined) return;
+    group.api.setSize({
+      height: shouldHide
+        ? Math.max(headerlessRegistration.initialHeight ?? 0, currentHeight - PANEL_TAB_BAR_HEIGHT)
+        : currentHeight + PANEL_TAB_BAR_HEIGHT
+    });
+  });
+};
+
 const addRegisteredPanel = (
   api: DockviewApi,
   panel: LightTableWorkspacePanelRegistration
 ) => {
   const referencePanel = api.getPanel(panel.defaultPosition.referencePanelId);
   if (!referencePanel) return null;
+  const spansWorkspaceWidth = panel.defaultPosition.direction === 'above'
+    || panel.defaultPosition.direction === 'below';
   return api.addPanel<{ contentKey: WorkspaceContentKey }>({
     id: panel.id,
     component: 'workspacePanel',
@@ -239,8 +281,8 @@ const addRegisteredPanel = (
     inactive: panel.initiallyInactive,
     initialWidth: panel.initialWidth,
     initialHeight: panel.initialHeight,
-    minimumWidth: ACCESSORY_PANEL_MINIMUM_WIDTH,
-    maximumWidth: ACCESSORY_PANEL_MAXIMUM_WIDTH,
+    minimumWidth: spansWorkspaceWidth ? 0 : ACCESSORY_PANEL_MINIMUM_WIDTH,
+    maximumWidth: spansWorkspaceWidth ? Number.MAX_SAFE_INTEGER : ACCESSORY_PANEL_MAXIMUM_WIDTH,
     minimumHeight: panel.minimumHeight
   });
 };
@@ -281,6 +323,7 @@ const createDefaultLayout = (
       height
     });
   });
+  synchronizeWorkspacePanelHeaders(api, panels);
   applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
 };
 
@@ -316,7 +359,7 @@ const rebuildAccessoryLayout = (
     });
   }
 
-  for (const panel of panels) {
+  for (const panel of basePanels) {
     const existing = api.getPanel(panel.id);
     if (!existing) continue;
     if (preservedPanelIds.has(panel.id)) continue;
@@ -343,6 +386,7 @@ const rebuildAccessoryLayout = (
   if (!documentHost) throw new Error('Workspace layout lost the document host.');
   documentHost.group.header.hidden = true;
   documentHost.group.locked = false;
+  synchronizeWorkspacePanelHeaders(api, panels);
   applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
 };
 
@@ -359,7 +403,7 @@ const activateWorkspacePresetPanels = (
           LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi
         ]
       : preset === 'video'
-        ? [LIGHTTABLE_WORKSPACE_PANEL_IDS.properties]
+        ? [LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls]
         : [LIGHTTABLE_WORKSPACE_PANEL_IDS.layers, LIGHTTABLE_WORKSPACE_PANEL_IDS.properties];
   activePanelIds.forEach((panelId) => api.getPanel(panelId)?.api.setActive());
 };
@@ -413,6 +457,7 @@ const restoreLayout = (
     // Reassert the product policy so hidden heavy inspectors do not remain
     // mounted merely because the user upgraded from an older workspace.
     applyWorkspacePanelRenderers(api, panels);
+    synchronizeWorkspacePanelHeaders(api, panels);
     applyWorkspacePanelConstraints(api, panels, widthConstraintsEnabled);
     return true;
   } catch {
@@ -520,7 +565,8 @@ export const LightTableDockWorkspace = forwardRef<
   accessoryWidthConstraintsEnabled,
   onResizeInteractionChange,
   onActiveDocumentChange,
-  onDocumentSurfaceReady
+  onDocumentSurfaceReady,
+  onPanelVisibilityChange
 }, ref) => {
   const apiRef = useRef<DockviewApi | null>(null);
   const workspaceElementRef = useRef<HTMLDivElement | null>(null);
@@ -530,9 +576,13 @@ export const LightTableDockWorkspace = forwardRef<
   const saveTimerRef = useRef<number | null>(null);
   const presetFinalizeTimerRef = useRef<number | null>(null);
   const workspacePresetRef = useRef<LightTableWorkspacePreset>('default');
+  const workspaceBasePresetRef = useRef<LightTableWorkspaceBasePreset>('photo-edit');
   const preVideoWorkspaceRef = useRef<{
     readonly preset: LightTableWorkspacePreset;
-    readonly layout: SerializedDockview;
+    readonly basePreset: LightTableWorkspaceBasePreset;
+    readonly groupVisibility: ReadonlyMap<string, boolean>;
+    readonly panelIds: ReadonlySet<string>;
+    readonly videoControlsPresent: boolean;
   } | null>(null);
   const automaticVideoWorkspaceRef = useRef(false);
   const automaticWorkspaceDocumentRef = useRef<string | null>(null);
@@ -551,6 +601,8 @@ export const LightTableDockWorkspace = forwardRef<
   const dockColumnSyncFrameRef = useRef<number | null>(null);
   const panelsRef = useRef(panels);
   panelsRef.current = panels;
+  const onPanelVisibilityChangeRef = useRef(onPanelVisibilityChange);
+  onPanelVisibilityChangeRef.current = onPanelVisibilityChange;
   const persistenceEnabledRef = useRef(persistenceEnabled);
   persistenceEnabledRef.current = persistenceEnabled;
   const panelLayoutSignature = panels
@@ -575,6 +627,15 @@ export const LightTableDockWorkspace = forwardRef<
   const [dockColumns, setDockColumns] = useState<DockColumnStates>(EMPTY_DOCK_COLUMN_STATES);
   const [workspacePreset, setWorkspacePreset] = useState<LightTableWorkspacePreset>('default');
 
+  const publishPanelVisibility = useCallback((api = apiRef.current) => {
+    if (!api) return;
+    onPanelVisibilityChangeRef.current?.(panelsRef.current.map((panel) => ({
+      id: panel.id,
+      title: panel.title,
+      visible: Boolean(api.getPanel(panel.id)?.group.api.isVisible)
+    })));
+  }, []);
+
   const schedulePresetTransactionFinalization = useCallback((api = apiRef.current) => {
     if (presetFinalizeTimerRef.current !== null) {
       window.clearTimeout(presetFinalizeTimerRef.current);
@@ -585,11 +646,17 @@ export const LightTableDockWorkspace = forwardRef<
       if (!currentApi || (api && currentApi !== api)) return;
       setWorkspacePreset(workspacePresetRef.current);
       if (persistenceEnabledRef.current) {
-        persistWorkspaceLayout(localStorage, currentApi.toJSON(), workspacePresetRef.current);
+        persistWorkspaceLayout(
+          localStorage,
+          currentApi.toJSON(),
+          workspacePresetRef.current,
+          workspaceBasePresetRef.current
+        );
       }
+      publishPanelVisibility(currentApi);
       resettingLayoutRef.current = false;
     }, 180);
-  }, []);
+  }, [publishPanelVisibility]);
 
   const refreshDockColumns = useCallback((api = apiRef.current) => {
     if (!api) return;
@@ -696,7 +763,12 @@ export const LightTableDockWorkspace = forwardRef<
       const api = apiRef.current;
       if (!api || !persistenceEnabledRef.current) return;
       try {
-        persistWorkspaceLayout(localStorage, api.toJSON(), workspacePresetRef.current);
+        persistWorkspaceLayout(
+          localStorage,
+          api.toJSON(),
+          workspacePresetRef.current,
+          workspaceBasePresetRef.current
+        );
       } catch {
         // A workspace remains usable when browser storage is unavailable.
       }
@@ -713,17 +785,34 @@ export const LightTableDockWorkspace = forwardRef<
     }
     const saved = readWorkspaceLayout(localStorage);
     workspacePresetRef.current = saved?.preset ?? 'default';
+    workspaceBasePresetRef.current = saved?.basePreset ?? 'photo-edit';
     setWorkspacePreset(workspacePresetRef.current);
+    const initialPanels = saved
+      ? saved.preset === 'custom'
+        ? panelsRef.current.filter((panel) => Boolean(saved.layout.panels[panel.id]))
+        : panelsForWorkspacePreset(
+            panelsRef.current,
+            saved.preset === 'default' ? saved.basePreset : saved.preset
+          )
+      : panelsForWorkspacePreset(panelsRef.current, 'photo-edit');
     if (!restoreLayout(
       event.api,
-      panelsRef.current,
+      initialPanels,
       accessoryWidthConstraintsEnabled,
       saved?.layout
     )) {
-      createDefaultLayout(event.api, panelsRef.current, accessoryWidthConstraintsEnabled);
+      workspacePresetRef.current = 'photo-edit';
+      workspaceBasePresetRef.current = 'photo-edit';
+      setWorkspacePreset('photo-edit');
+      createDefaultLayout(
+        event.api,
+        panelsForWorkspacePreset(panelsRef.current, 'photo-edit'),
+        accessoryWidthConstraintsEnabled
+      );
     }
     layoutListenerRef.current?.dispose();
     layoutListenerRef.current = event.api.onDidLayoutChange(() => {
+      synchronizeWorkspacePanelHeaders(event.api, panelsRef.current);
       scheduleDockColumnRefresh(event.api);
       if (resettingLayoutRef.current) return;
       if (!persistenceEnabledRef.current) return;
@@ -733,6 +822,7 @@ export const LightTableDockWorkspace = forwardRef<
       userLayoutMutationRef.current = false;
       workspacePresetRef.current = 'custom';
       setWorkspacePreset('custom');
+      publishPanelVisibility(event.api);
       saveLayout();
     });
     dropListenerRef.current?.dispose();
@@ -860,11 +950,13 @@ export const LightTableDockWorkspace = forwardRef<
       });
     });
     scheduleDockColumnRefresh(event.api);
+    publishPanelVisibility(event.api);
     setReady(true);
     schedulePresetTransactionFinalization(event.api);
   }, [
     accessoryWidthConstraintsEnabled,
     saveLayout,
+    publishPanelVisibility,
     scheduleDockColumnRefresh,
     schedulePresetTransactionFinalization
   ]);
@@ -878,22 +970,54 @@ export const LightTableDockWorkspace = forwardRef<
     }
     resettingLayoutRef.current = true;
     userLayoutMutationRef.current = false;
-    workspacePresetRef.current = 'default';
-    setWorkspacePreset('default');
+    const automaticVideoWorkspace = automaticVideoWorkspaceRef.current
+      ? preVideoWorkspaceRef.current
+      : null;
+    if (automaticVideoWorkspace) {
+      workspacePresetRef.current = 'video';
+      workspaceBasePresetRef.current = 'video';
+      setWorkspacePreset('video');
+      panelsRef.current.forEach((registration) => {
+        if (registration.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls) return;
+        const panel = api.getPanel(registration.id);
+        if (!panel) return;
+        if (automaticVideoWorkspace.panelIds.has(panel.id)) panel.group.api.setVisible(false);
+        else api.removePanel(panel);
+      });
+      let videoControls = api.getPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls);
+      if (!videoControls) {
+        const registration = panelsRef.current.find(
+          (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls
+        );
+        if (registration) videoControls = addRegisteredPanel(api, registration) ?? undefined;
+      }
+      videoControls?.group.api.setVisible(true);
+      videoControls?.api.setActive();
+      synchronizeWorkspacePanelHeaders(api, panelsRef.current);
+      scheduleDockColumnRefresh(api);
+      publishPanelVisibility(api);
+      window.queueMicrotask(() => { resettingLayoutRef.current = false; });
+      return;
+    }
+    const preset = workspaceBasePresetRef.current;
+    workspacePresetRef.current = preset;
+    setWorkspacePreset(preset);
     dockColumnGroupIdsRef.current = { left: [], right: [] };
     setDockColumns(EMPTY_DOCK_COLUMN_STATES);
     clearWorkspaceLayout(localStorage);
     rebuildAccessoryLayout(
       api,
-      panelsRef.current,
+      panelsForWorkspacePreset(panelsRef.current, preset),
       panelsRef.current,
       accessoryWidthConstraintsEnabled,
       false
     );
     scheduleDockColumnRefresh(api);
+    activateWorkspacePresetPanels(api, preset);
+    publishPanelVisibility(api);
     saveLayout();
     window.queueMicrotask(() => { resettingLayoutRef.current = false; });
-  }, [accessoryWidthConstraintsEnabled, saveLayout, scheduleDockColumnRefresh]);
+  }, [accessoryWidthConstraintsEnabled, publishPanelVisibility, saveLayout, scheduleDockColumnRefresh]);
 
   const applyPreset = useCallback((preset: SelectableLightTableWorkspacePreset) => {
     const api = apiRef.current;
@@ -909,6 +1033,7 @@ export const LightTableDockWorkspace = forwardRef<
     resettingLayoutRef.current = true;
     userLayoutMutationRef.current = false;
     workspacePresetRef.current = preset;
+    workspaceBasePresetRef.current = preset;
     setWorkspacePreset(preset);
     dockColumnGroupIdsRef.current = { left: [], right: [] };
     setDockColumns(EMPTY_DOCK_COLUMN_STATES);
@@ -923,6 +1048,7 @@ export const LightTableDockWorkspace = forwardRef<
         true
       );
       activateWorkspacePresetPanels(api, preset);
+      publishPanelVisibility(api);
       scheduleDockColumnRefresh(api);
     } finally {
       // Dockview emits final layout events after the synchronous rebuild.
@@ -932,6 +1058,7 @@ export const LightTableDockWorkspace = forwardRef<
     }
   }, [
     accessoryWidthConstraintsEnabled,
+    publishPanelVisibility,
     scheduleDockColumnRefresh,
     schedulePresetTransactionFinalization
   ]);
@@ -945,19 +1072,46 @@ export const LightTableDockWorkspace = forwardRef<
 
     if (documentKind === 'video') {
       if (workspacePresetRef.current === 'video') {
-        automaticVideoWorkspaceRef.current = false;
         return;
       }
       preVideoWorkspaceRef.current = {
         preset: workspacePresetRef.current,
-        layout: api.toJSON()
+        basePreset: workspaceBasePresetRef.current,
+        groupVisibility: new Map(api.groups.map((group) => [group.id, group.api.isVisible])),
+        panelIds: new Set(api.panels.map((panel) => panel.id)),
+        videoControlsPresent: Boolean(api.getPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls))
       };
       automaticVideoWorkspaceRef.current = true;
-      applyPreset('video');
+      resettingLayoutRef.current = true;
+      workspacePresetRef.current = 'video';
+      workspaceBasePresetRef.current = 'video';
+      setWorkspacePreset('video');
+      let videoControls = api.getPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls);
+      if (!videoControls) {
+        const registration = panelsRef.current.find(
+          (panel) => panel.id === LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls
+        );
+        if (registration) videoControls = addRegisteredPanel(api, registration) ?? undefined;
+      }
+      const videoGroupId = videoControls?.group.id;
+      api.groups.forEach((group) => {
+        const containsDocumentHost = group.panels.some((panel) => panel.id === DOCUMENT_HOST_PANEL_ID);
+        group.api.setVisible(containsDocumentHost || group.id === videoGroupId);
+      });
+      videoControls?.api.setActive();
+      synchronizeWorkspacePanelHeaders(api, panelsRef.current);
+      publishPanelVisibility(api);
+      scheduleDockColumnRefresh(api);
+      presetFinalizeTimerRef.current = window.setTimeout(() => {
+        presetFinalizeTimerRef.current = null;
+        if (apiRef.current !== api) return;
+        publishPanelVisibility(api);
+        resettingLayoutRef.current = false;
+      }, 180);
       return;
     }
 
-    if (!automaticVideoWorkspaceRef.current || workspacePresetRef.current !== 'video') {
+    if (!automaticVideoWorkspaceRef.current) {
       automaticVideoWorkspaceRef.current = false;
       return;
     }
@@ -969,19 +1123,23 @@ export const LightTableDockWorkspace = forwardRef<
       presetFinalizeTimerRef.current = null;
     }
     resettingLayoutRef.current = true;
-    if (!previous || !restoreLayout(
-      api,
-      panelsRef.current,
-      accessoryWidthConstraintsEnabled,
-      previous.layout
-    )) {
+    if (!previous) {
       applyPreset('photo-edit');
       return;
     }
+    const videoControls = api.getPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls);
+    if (videoControls && !previous.videoControlsPresent) api.removePanel(videoControls);
+    api.groups.forEach((group) => {
+      const previousVisibility = previous.groupVisibility.get(group.id);
+      if (previousVisibility !== undefined) group.api.setVisible(previousVisibility);
+    });
     workspacePresetRef.current = previous.preset;
+    workspaceBasePresetRef.current = previous.basePreset;
     setWorkspacePreset(previous.preset);
     synchronizeWorkspacePanelTitles(api, panelsRef.current);
     applyWorkspacePanelRenderers(api, panelsRef.current);
+    synchronizeWorkspacePanelHeaders(api, panelsRef.current);
+    publishPanelVisibility(api);
     scheduleDockColumnRefresh(api);
     schedulePresetTransactionFinalization(api);
   }, [
@@ -990,6 +1148,7 @@ export const LightTableDockWorkspace = forwardRef<
     applyPreset,
     documentKind,
     persistenceEnabled,
+    publishPanelVisibility,
     ready,
     scheduleDockColumnRefresh,
     schedulePresetTransactionFinalization
@@ -1002,9 +1161,40 @@ export const LightTableDockWorkspace = forwardRef<
 
   const showPanel = useCallback((panelId: string) => {
     const api = apiRef.current;
-    const panel = api?.getPanel(panelId);
-    if (!api || !panel) return;
-    userLayoutMutationRef.current = true;
+    if (!api) return;
+    let panel = api.getPanel(panelId);
+    if (panel && !panel.group.api.isVisible) panel.group.api.setVisible(true);
+    if (!panel) {
+      const registration = panelsRef.current.find((candidate) => candidate.id === panelId);
+      if (!registration) return;
+      const preferredReference = api.getPanel(registration.defaultPosition.referencePanelId);
+      const propertiesReference = api.getPanel(LIGHTTABLE_WORKSPACE_PANEL_IDS.properties);
+      const fallbackReference = propertiesReference ?? api.getPanel(DOCUMENT_HOST_PANEL_ID);
+      if (!preferredReference && !fallbackReference) return;
+      const resolvedRegistration = preferredReference ? registration : {
+        ...registration,
+        defaultPosition: {
+          referencePanelId: fallbackReference!.id,
+          direction: propertiesReference ? 'within' as const : 'right' as const
+        },
+        defaultFloating: undefined
+      };
+      panel = addRegisteredPanel(api, resolvedRegistration) ?? undefined;
+      if (!panel) return;
+      if (preferredReference && registration.defaultFloating) {
+        const floating = registration.defaultFloating;
+        const width = Math.min(floating.width, Math.max(250, api.width - 24));
+        const height = Math.min(floating.height, Math.max(240, api.height - 24));
+        api.addFloatingGroup(panel, {
+          x: Math.max(12, Math.min(Math.round(api.width * floating.xRatio), api.width - width - 12)),
+          y: Math.max(12, Math.min(Math.round(api.height * floating.yRatio), api.height - height - 12)),
+          width,
+          height
+        });
+      }
+    }
+    resettingLayoutRef.current = true;
+    userLayoutMutationRef.current = false;
     const groupId = panel.group.id;
     if (dockColumnGroupIdsRef.current.left.includes(groupId)) {
       applyDockColumnVisibility({ left: true });
@@ -1012,12 +1202,45 @@ export const LightTableDockWorkspace = forwardRef<
       applyDockColumnVisibility({ right: true });
     }
     panel.api.setActive();
-  }, [applyDockColumnVisibility]);
+    workspacePresetRef.current = 'custom';
+    setWorkspacePreset('custom');
+    scheduleDockColumnRefresh(api);
+    window.queueMicrotask(() => {
+      publishPanelVisibility(api);
+      saveLayout();
+      resettingLayoutRef.current = false;
+    });
+  }, [applyDockColumnVisibility, publishPanelVisibility, saveLayout, scheduleDockColumnRefresh]);
+
+  const togglePanel = useCallback((panelId: string) => {
+    const api = apiRef.current;
+    if (!api) return;
+    const existing = api.getPanel(panelId);
+    if (existing && !existing.group.api.isVisible) {
+      showPanel(panelId);
+      return;
+    }
+    if (!existing) {
+      showPanel(panelId);
+      return;
+    }
+    resettingLayoutRef.current = true;
+    userLayoutMutationRef.current = false;
+    api.removePanel(existing);
+    workspacePresetRef.current = 'custom';
+    setWorkspacePreset('custom');
+    scheduleDockColumnRefresh(api);
+    window.queueMicrotask(() => {
+      publishPanelVisibility(api);
+      saveLayout();
+      resettingLayoutRef.current = false;
+    });
+  }, [publishPanelVisibility, saveLayout, scheduleDockColumnRefresh, showPanel]);
 
   useImperativeHandle(
     ref,
-    () => ({ resetLayout, applyPreset, showPanel }),
-    [applyPreset, resetLayout, showPanel]
+    () => ({ resetLayout, applyPreset, showPanel, togglePanel }),
+    [applyPreset, resetLayout, showPanel, togglePanel]
   );
 
   useEffect(() => () => {
@@ -1046,6 +1269,7 @@ export const LightTableDockWorkspace = forwardRef<
     applyWorkspacePanelConstraints(api, panelsRef.current, accessoryWidthConstraintsEnabled);
     synchronizeWorkspacePanelTitles(api, panelsRef.current);
     applyWorkspacePanelRenderers(api, panelsRef.current);
+    synchronizeWorkspacePanelHeaders(api, panelsRef.current);
     const documentHost = api.getPanel(DOCUMENT_HOST_PANEL_ID);
     if (documentHost) {
       documentHost.group.header.hidden = true;
@@ -1256,7 +1480,9 @@ export const LightTableDockWorkspace = forwardRef<
           rightDockVisible={dockColumns.right.visible}
           onToggleLeftDock={() => toggleDockColumn('left')}
           onToggleRightDock={() => toggleDockColumn('right')}
-          workspacePreset={workspacePreset === 'default' ? 'photo-edit' : workspacePreset}
+          workspacePreset={workspacePreset === 'default' || workspacePreset === 'custom'
+            ? workspaceBasePresetRef.current
+            : workspacePreset}
           onWorkspacePresetChange={applyPreset}
         />
       </div>

@@ -19,6 +19,7 @@ const executablePath = path.resolve(
     ?? packagedDesktopExecutable(root)
 );
 const ffmpeg = process.env.LIGHTTABLE_FFMPEG ?? 'ffmpeg';
+const MAX_WARM_DOCUMENT_SWITCH_MS = 100;
 
 await mkdir(userData, { recursive: true });
 await mkdir(recentUserData, { recursive: true });
@@ -91,6 +92,78 @@ try {
     if (message.type() === 'error') failures.push(`[console:error] ${message.text()}`);
   });
   const driver = await attachLightTableAutomation(page, 'multi-document-smoke');
+  const assertImagePixelsVisible = async (label) => {
+    const canvas = page.locator('canvas.lighttable-viewport__canvas').first();
+    await canvas.waitFor({ state: 'visible', timeout: 30_000 });
+    const startedAt = performance.now();
+    let lastSample = null;
+    while (performance.now() - startedAt < 30_000) {
+      const screenshot = await canvas.screenshot();
+      const { data, info } = await sharp(screenshot).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const center = (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) * info.channels;
+      const [red, green, blue, alpha] = data.subarray(center, center + 4);
+      lastSample = { red, green, blue, alpha };
+      if (alpha >= 200 && blue >= red + 30 && blue >= green + 20) {
+        return performance.now() - startedAt;
+      }
+      await page.waitForTimeout(50);
+    }
+    const screenshot = await canvas.screenshot();
+    const failurePath = path.join(outputDirectory, `${label.replaceAll(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`);
+    await writeFile(failurePath, screenshot);
+    throw new Error(`${label} did not present the blue image pixels: ${JSON.stringify(lastSample)}`);
+  };
+  const activateDocumentTab = async (title) => {
+    const tab = page.getByRole('button', { name: title, exact: true });
+    await tab.waitFor({ state: 'attached', timeout: 30_000 });
+    // Activate through the tab's normal click handler without requiring a
+    // pointer hit. Floating user panels may legitimately overlap the tab strip;
+    // that must not make this document-lifecycle smoke nondeterministic.
+    await tab.evaluate((element) => element.click());
+  };
+  const activateImageDocumentTab = async () => {
+    const tab = page.getByRole('button', { name: 'image.png', exact: true });
+    await tab.waitFor({ state: 'attached', timeout: 30_000 });
+    return tab.evaluate((element) => new Promise((resolve, reject) => {
+      const startedAt = performance.now();
+      element.click();
+      const inspectFrame = () => {
+        const imageSurface = document.querySelector('.lighttable-document-surface-stack__image');
+        const elapsed = performance.now() - startedAt;
+        if (imageSurface instanceof HTMLElement
+          && !imageSurface.classList.contains('lighttable-document-surface-stack__image--inactive')
+          && imageSurface.getBoundingClientRect().width > 0) {
+          // Include one complete presentation frame after React exposed the
+          // already-retained image surface.
+          requestAnimationFrame(() => resolve(performance.now() - startedAt));
+          return;
+        }
+        if (elapsed >= 5_000) {
+          reject(new Error('Image surface was not presented within 5 seconds.'));
+          return;
+        }
+        requestAnimationFrame(inspectFrame);
+      };
+      requestAnimationFrame(inspectFrame);
+    }));
+  };
+  const canonicalDocumentSnapshot = async (documentId) => {
+    const document = await driver.queryDocument(documentId);
+    const layers = await driver.queryLayers(documentId);
+    return {
+      canonicalRevision: document?.canonicalRevision ?? null,
+      savedRevision: document?.savedRevision ?? null,
+      dirty: document?.dirty ?? null,
+      canvas: document?.canvas ?? null,
+      color: document?.color ?? null,
+      activeLayerId: document?.activeLayerId ?? null,
+      layerCount: document?.layerCount ?? null,
+      history: document?.history ?? null,
+      layers: layers?.map(({ id, parentId, kind, name, visible, opacity, blendMode }) => ({
+        id, parentId, kind, name, visible, opacity, blendMode
+      })) ?? null
+    };
+  };
   const video = page.locator('video.lighttable-video-document__media');
   await video.waitFor({ state: 'visible', timeout: 30_000 });
   const layout = await page.evaluate(() => {
@@ -137,6 +210,71 @@ try {
     const media = document.querySelector('video.lighttable-video-document__media');
     return media instanceof HTMLVideoElement && media.readyState >= HTMLMediaElement.HAVE_METADATA;
   }, undefined, { timeout: 30_000 });
+
+  // Warm the image once before measuring document switching. The command-line
+  // fixture opens with the final video active, so its first image activation is
+  // a cold document open rather than a video-to-existing-image switch.
+  const coldImageActivationMs = await activateImageDocumentTab();
+  const coldImageOpenMs = await assertImagePixelsVisible('Cold image open');
+  const warmedImageWorkspace = await driver.queryWorkspace();
+  const imageDocumentId = warmedImageWorkspace.activeDocumentId;
+  if (!imageDocumentId) throw new Error('Cold image activation did not expose an active document.');
+  const imageCanonicalBeforeSwitch = await canonicalDocumentSnapshot(imageDocumentId);
+  await activateDocumentTab('video.mp4');
+  await video.waitFor({ state: 'visible', timeout: 30_000 });
+  await page.waitForFunction(() => {
+    const media = document.querySelector('video.lighttable-video-document__media');
+    return media instanceof HTMLVideoElement && media.readyState >= HTMLMediaElement.HAVE_METADATA;
+  }, undefined, { timeout: 30_000 });
+
+  const videoControls = page.getByRole('region', { name: 'Video controls', exact: true });
+  await videoControls.waitFor({ state: 'visible', timeout: 5_000 });
+  const playButton = videoControls.getByRole('button', { name: 'Play', exact: true });
+  await playButton.click();
+  await page.waitForFunction(() => {
+    const media = document.querySelector('video.lighttable-video-document__media');
+    return media instanceof HTMLVideoElement && !media.paused;
+  });
+  await videoControls.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.waitForFunction(() => {
+    const media = document.querySelector('video.lighttable-video-document__media');
+    return media instanceof HTMLVideoElement && media.paused;
+  });
+  await videoControls.getByRole('slider', { name: 'Video time', exact: true }).fill('0.5');
+  await page.waitForFunction(() => {
+    const media = document.querySelector('video.lighttable-video-document__media');
+    return media instanceof HTMLVideoElement && Math.abs(media.currentTime - 0.5) < 0.1;
+  });
+
+  const openViewMenu = async () => {
+    await page.getByRole('menuitem', { name: 'View', exact: true }).click();
+  };
+  await openViewMenu();
+  const debugPanelItem = page.getByRole('menuitem', { name: 'Debug panel', exact: true });
+  const videoPanelItem = page.getByRole('menuitem', { name: 'Video Controls panel ✓', exact: true });
+  if (await debugPanelItem.count() !== 1 || await videoPanelItem.count() !== 1) {
+    throw new Error('View menu did not project current per-workspace panel visibility.');
+  }
+  await debugPanelItem.click();
+  const debugRegion = page.getByRole('region', { name: 'Debug', exact: true });
+  await debugRegion.waitFor({ state: 'visible', timeout: 5_000 });
+  await openViewMenu();
+  await page.getByRole('menuitem', { name: 'Debug panel ✓', exact: true }).click();
+  await debugRegion.waitFor({ state: 'detached', timeout: 5_000 });
+  await openViewMenu();
+  await page.getByRole('menuitem', { name: 'Video Controls panel ✓', exact: true }).click();
+  await videoControls.waitFor({ state: 'detached', timeout: 5_000 });
+  await openViewMenu();
+  await page.getByRole('menuitem', { name: 'Video Controls panel', exact: true }).click();
+  await videoControls.waitFor({ state: 'visible', timeout: 5_000 });
+  await openViewMenu();
+  await page.getByRole('menuitem', { name: 'Debug panel', exact: true }).click();
+  await debugRegion.waitFor({ state: 'visible', timeout: 5_000 });
+  await openViewMenu();
+  await page.getByRole('menuitem', { name: 'Workspace', exact: true }).hover();
+  await page.getByRole('menuitem', { name: 'Reset workspace layout', exact: true }).click();
+  await debugRegion.waitFor({ state: 'detached', timeout: 5_000 });
+  await videoControls.waitFor({ state: 'visible', timeout: 5_000 });
 
   const initial = await driver.queryWorkspace();
   if (initial?.documents?.map(({ kind }) => kind).join(',') !== 'image,video') {
@@ -264,15 +402,15 @@ try {
     || videoDocument.viewport.panY === 0) {
     throw new Error(`Video viewport was not projected through the command boundary: ${JSON.stringify(videoDocument?.viewport)}`);
   }
-  await page.getByRole('button', { name: 'image.png', exact: true }).click();
-  await page.locator('canvas').first().waitFor({ state: 'visible', timeout: 30_000 });
+  const firstImageSwitchMs = await activateImageDocumentTab();
+  const firstImagePixelEvidenceMs = await assertImagePixelsVisible('First video-to-image switch');
   const imageWorkspace = await driver.queryWorkspace();
   if (imageWorkspace?.documents.find(({ id }) => id === imageWorkspace.activeDocumentId)?.kind !== 'image') {
     throw new Error('Switching to the image tab did not activate the image document.');
   }
   await page.getByLabel('Switch to Grading workspace').click();
   await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Grading workspace"]')?.getAttribute('aria-checked') === 'true');
-  await page.getByRole('button', { name: 'video.mp4', exact: true }).click();
+  await activateDocumentTab('video.mp4');
   await video.waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForFunction(() => {
     const media = document.querySelector('video.lighttable-video-document__media');
@@ -288,10 +426,24 @@ try {
   if (await videoWorkspaceSwitch.getAttribute('aria-checked') !== 'true') {
     throw new Error('Activating a video did not select the Video workspace.');
   }
-  await page.getByRole('button', { name: 'image.png', exact: true }).click();
-  await page.locator('canvas').first().waitFor({ state: 'visible', timeout: 30_000 });
+  const repeatedImageSwitchMs = await activateImageDocumentTab();
+  const repeatedImagePixelEvidenceMs = await assertImagePixelsVisible('Repeated video-to-image switch');
+  if (firstImageSwitchMs > MAX_WARM_DOCUMENT_SWITCH_MS
+    || repeatedImageSwitchMs > MAX_WARM_DOCUMENT_SWITCH_MS) {
+    throw new Error(`Warm document switch exceeded ${MAX_WARM_DOCUMENT_SWITCH_MS} ms: ${JSON.stringify({
+      firstImageSwitchMs,
+      repeatedImageSwitchMs
+    })}`);
+  }
+  const imageCanonicalAfterSwitch = await canonicalDocumentSnapshot(imageDocumentId);
+  if (JSON.stringify(imageCanonicalAfterSwitch) !== JSON.stringify(imageCanonicalBeforeSwitch)) {
+    throw new Error(`Inactive image document data changed during workspace/document switches: ${JSON.stringify({
+      before: imageCanonicalBeforeSwitch,
+      after: imageCanonicalAfterSwitch
+    })}`);
+  }
   await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Grading workspace"]')?.getAttribute('aria-checked') === 'true');
-  await page.getByRole('button', { name: 'video.mp4', exact: true }).click();
+  await activateDocumentTab('video.mp4');
   await video.waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Video workspace"]')?.getAttribute('aria-checked') === 'true');
   const droppedBytes = await readFile(droppedVideoFile);
@@ -319,7 +471,17 @@ try {
   console.log(JSON.stringify({
     passed: true,
     documents: dropped.documents.map(({ title, kind }) => ({ title, kind })),
-    activeDocumentId: dropped.activeDocumentId
+    activeDocumentId: dropped.activeDocumentId,
+    coldImageActivationMs: Math.round(coldImageActivationMs),
+    coldImageOpenMs: Math.round(coldImageOpenMs),
+    imagePresentationMs: {
+      first: Math.round(firstImageSwitchMs),
+      repeated: Math.round(repeatedImageSwitchMs)
+    },
+    pixelEvidenceOverheadMs: {
+      first: Math.round(firstImagePixelEvidenceMs),
+      repeated: Math.round(repeatedImagePixelEvidenceMs)
+    }
   }, null, 2));
 } finally {
   await app.close().catch(() => {});

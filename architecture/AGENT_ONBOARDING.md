@@ -88,7 +88,7 @@ When the recovered work concerns rendering, SVG, document startup, canvas
 tools or workspace state, use this reset state before reading historical task
 reports:
 
-- **Typed document foundation, 2026-08-25:** the workspace surface contract
+- **Typed document foundation, 2026-08-26:** the workspace surface contract
   distinguishes image, video and the reserved future `model-3d` kind.
   `@lighttable/video-core` owns read-only video lifecycle, playback/view state
   and extracted-frame artifacts. MP4/WebM now open in the same persistent
@@ -102,6 +102,11 @@ reports:
   IDs, H/Z shortcuts, option bar, preset/context UI and pure viewport math are
   reused. A typed surface supplies only the presentation adapter and storage;
   never fork a video-specific toolbar or properties system for shared behavior.
+  The Video workspace projects the registered bottom Video Controls panel.
+  Automatic kind changes may hide/show accessory groups only; never use
+  Dockview deserialization or document-host remounting to switch workspaces.
+  The stable image canvas binding may remain hidden beneath video, but its
+  lifecycle and render work must be disabled and its canonical state untouched.
 
 - **Current, 2026-08-25:** LightTable has one shipping **hybrid vector
   renderer**. There are no normal `:vello` development/package switches and no

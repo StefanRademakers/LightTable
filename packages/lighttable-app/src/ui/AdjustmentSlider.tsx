@@ -46,6 +46,8 @@ export interface AdjustmentSliderProps {
   density?: 'default' | 'spaced' | 'compact';
   showResetMarker?: boolean;
   disabled?: boolean;
+  /** Use browser-native pointer input for cheap, continuously seekable targets. */
+  interactionMode?: 'managed' | 'native';
   /** Maximum publication cadence for expensive consumers; the thumb remains pointer-rate. */
   publishIntervalMs?: number;
   resetModifierActive?: boolean;
@@ -91,6 +93,7 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
   density = 'default',
   showResetMarker = true,
   disabled = false,
+  interactionMode = 'managed',
   publishIntervalMs = INTERACTION_PUBLISH_INTERVAL_MS,
   resetModifierActive = false,
   onChange,
@@ -236,6 +239,11 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
               || !event.isPrimary
               || activePointerRef.current !== null
             ) return;
+            if (interactionMode === 'native') {
+              activePointerRef.current = event.pointerId;
+              onInteractionStartRef.current?.();
+              return;
+            }
             // Pointer editing is explicit so native range dragging, React's
             // controlled value and pointer capture have only one writer.
             event.preventDefault();
@@ -246,17 +254,29 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
             updateFromPointer(event.currentTarget, event.clientX);
           }}
           onPointerMove={(event) => {
-            if (activePointerRef.current === event.pointerId) {
+            if (interactionMode === 'managed' && activePointerRef.current === event.pointerId) {
               updateFromPointer(event.currentTarget, event.clientX);
             }
           }}
           onPointerUp={(event) => {
             if (activePointerRef.current !== event.pointerId) return;
+            if (interactionMode === 'native') {
+              activePointerRef.current = null;
+              onInteractionEndRef.current?.();
+              return;
+            }
             updateFromPointer(event.currentTarget, event.clientX);
             finishPointerInteraction(event.pointerId);
           }}
-          onPointerCancel={(event) => finishPointerInteraction(event.pointerId)}
-          onLostPointerCapture={(event) => finishPointerInteraction(event.pointerId)}
+          onPointerCancel={(event) => {
+            if (interactionMode === 'native' && activePointerRef.current === event.pointerId) {
+              activePointerRef.current = null;
+              onInteractionEndRef.current?.();
+            } else finishPointerInteraction(event.pointerId);
+          }}
+          onLostPointerCapture={(event) => {
+            if (interactionMode === 'managed') finishPointerInteraction(event.pointerId);
+          }}
           onKeyDown={(event) => {
             if (RANGE_EDIT_KEYS.has(event.key) && !keyboardInteractionRef.current) {
               keyboardInteractionRef.current = true;
@@ -285,10 +305,15 @@ export const AdjustmentSlider: React.FC<AdjustmentSliderProps> = ({
           onInput={(event) => {
             // Pointer values come from updateFromPointer. Native input remains
             // available for keyboard and assistive-technology edits.
-            if (activePointerRef.current !== null) return;
             const next = Number(event.currentTarget.value);
             latestValueRef.current = next;
             setDisplayValue(next);
+            if (interactionMode === 'native') {
+              publishedValueRef.current = next;
+              onChangeRef.current(next);
+              return;
+            }
+            if (activePointerRef.current !== null) return;
             if (keyboardInteractionRef.current) {
               scheduleValuePublish();
             } else {

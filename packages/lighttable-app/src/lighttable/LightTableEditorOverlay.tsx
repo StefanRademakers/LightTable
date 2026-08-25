@@ -252,7 +252,11 @@ import {
 } from './text/fonts/bundledTextFont';
 import { DEFAULT_TEXT_SUBSTITUTION_FAMILIES, documentNeedsFlowFontFallback } from './text/fonts/flowFontSelection';
 import { bindRendererTextFontRuntime } from './composition/documents/bindRendererTextFontRuntime';
-import { LightTableDockWorkspace, type LightTableDockWorkspaceHandle } from './editor/workspace/LightTableDockWorkspace';
+import {
+  LightTableDockWorkspace,
+  type LightTableDockWorkspaceHandle,
+  type WorkspacePanelVisibility
+} from './editor/workspace/LightTableDockWorkspace';
 import { nextEditorScreenMode, type EditorScreenMode } from './editor/workspace/editorScreenMode';
 import { LIGHTTABLE_WORKSPACE_PANEL_IDS } from './editor/workspace/workspacePanelRegistry';
 import { useGenAiSetupController } from '../genai/application/useGenAiSetupController';
@@ -544,6 +548,7 @@ export interface LightTableEditorOverlayProps {
   ) => React.ReactNode);
   workspaceDocumentKind?: 'image' | 'video' | 'model-3d';
   workspaceViewControls?: WorkspaceViewControls;
+  workspaceVideoControlsPanel?: React.ReactNode;
   /** Status-bar projection supplied by a non-image document runtime. */
   workspaceStatusMeta?: string;
   workspaceStatusTitle?: string;
@@ -639,6 +644,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   documentSurfaceOverride,
   workspaceDocumentKind = 'image',
   workspaceViewControls,
+  workspaceVideoControlsPanel,
   workspaceStatusMeta,
   workspaceStatusTitle,
   sourceDecodeMode = 'automatic',
@@ -922,6 +928,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const scopeVisibilityRef = useRef<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
   const startupTelemetryRef = useRef(new DocumentStartupTelemetry());
   const workspaceRef = useRef<LightTableDockWorkspaceHandle | null>(null);
+  const [workspacePanels, setWorkspacePanels] = useState<readonly WorkspacePanelVisibility[]>([]);
   const [localScreenMode, setLocalScreenMode] = useState<EditorScreenMode>('normal');
   const screenMode = controlledScreenMode ?? localScreenMode;
   const toggleScreenMode = useCallback(() => {
@@ -6819,6 +6826,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       applyGradingWorkspace: () => workspaceRef.current?.applyPreset('grading'),
       applyAiGenerationWorkspace: () => workspaceRef.current?.applyPreset('ai-generation'),
       applyVideoWorkspace: () => workspaceRef.current?.applyPreset('video'),
+      workspacePanels,
+      toggleWorkspacePanel: (panelId) => workspaceRef.current?.togglePanel(panelId),
       startGuidedSample: onStartGuidedSample,
       openSettings: onOpenSettings
     }
@@ -7512,20 +7521,30 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         zoomOutActive: temporaryZoomOutActive
       })
     : documentSurfaceOverride;
-  const documentSurface = overriddenDocumentSurface ? (
-    <div
-      className="lighttable-document-surface-override"
-      onContextMenu={(event) => {
-        if (workspaceDocumentKind !== 'video'
-          || (visibleTool !== 'view' && visibleTool !== 'zoom')) return;
-        event.preventDefault();
-        event.stopPropagation();
-        setToolOptionsMenu({ x: event.clientX, y: event.clientY });
-      }}
-    >
-      {overriddenDocumentSurface}
+  const documentSurface = (
+    <div className="lighttable-document-surface-stack">
+      <div
+        className={`lighttable-document-surface-stack__image${overriddenDocumentSurface ? ' lighttable-document-surface-stack__image--inactive' : ''}`}
+        aria-hidden={Boolean(overriddenDocumentSurface)}
+      >
+        {imageDocumentSurface}
+      </div>
+      {overriddenDocumentSurface ? (
+        <div
+          className="lighttable-document-surface-override"
+          onContextMenu={(event) => {
+            if (workspaceDocumentKind !== 'video'
+              || (visibleTool !== 'view' && visibleTool !== 'zoom')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setToolOptionsMenu({ x: event.clientX, y: event.clientY });
+          }}
+        >
+          {overriddenDocumentSurface}
+        </div>
+      ) : null}
     </div>
-  ) : imageDocumentSurface;
+  );
   return (
     <DocumentPaletteProvider loadPalette={loadDocumentPalette}>
     <LightTableEditorShell
@@ -7934,8 +7953,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             accessoryWidthConstraintsEnabled={accessoryWidthConstraintsEnabled}
             onResizeInteractionChange={handleDockResizeInteractionChange}
             onDocumentSurfaceReady={handleDocumentSurfaceReady}
+            onPanelVisibilityChange={setWorkspacePanels}
             panels={createEditorWorkspacePanels({
               documentKind: workspaceDocumentKind,
+              videoControls: workspaceVideoControlsPanel,
               scopes: {
                 containerRef: scopesColumnRef,
                 visibility: scopeVisibility,

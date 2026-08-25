@@ -1,7 +1,7 @@
 # Multi-document types and video
 
 Status: **typed image/video workspace and read-only video presentation implemented**,
-updated 2026-08-25.
+updated 2026-08-26.
 
 ## Decision
 
@@ -29,6 +29,11 @@ Exactly one shared workspace shell remains mounted. Switching kinds changes
 the active surface and projected capabilities; it must not replace the user's
 Dockview graph or manufacture a second workspace.
 
+The image canvas element remains a stable renderer binding while a video is
+active, but is hidden and lifecycle-disabled. It is not a hidden image editor
+or render loop. This lets an already-presented image return without rebuilding
+its renderer and keeps canonical image state untouched.
+
 ## State ownership
 
 Video source identity and decoded metadata belong to the video document.
@@ -49,17 +54,26 @@ The panel graph remains stable across document kinds:
 - **Scopes:** initially unavailable for video. A future current-frame scope
   source is time-keyed and throttled independently from image dirty state.
 - **Properties:** read-only video identity, dimensions, duration and playback
-  metadata; transport belongs with the viewer controls.
+  metadata.
+- **Video Controls:** shared transport, timecode, volume and scrub controls in
+  the registered bottom workspace panel; native media controls stay hidden.
 - **Assets, AI History, GenAI, Agent and Actions:** application/project panels
   remain usable and retain their mounted state.
 - **Toolbar:** the existing toolbar rail remains mounted so workspace geometry
   never collapses or shifts. Its contents are kind-specific. Video projects the
   existing Pan and Zoom tools; it does not define video copies of their icons,
-  shortcuts or option controls. Playback lives in the video surface. Image tool
-  state remains unchanged while a video tab is active. The horizontal tool
+  shortcuts or option controls. Image tool state remains unchanged while a
+  video tab is active. The horizontal tool
   options bar likewise remains mounted at its normal height: Pan uses the shared
   identity bar and Zoom uses the shared presets/Fit screen controls.
 - **Status:** media lifecycle and time are shown without image revision data.
+
+Each workspace preset owns an explicit visible-panel projection. View-menu
+toggles may customize it and Reset restores that preset's defaults. Automatic
+image/video switching changes accessory-group visibility only: it must not call
+Dockview layout deserialization, rebuild the document host or remount a
+document surface. Returning from Video restores the prior workspace and its
+floating/docked panel geometry.
 
 Menus, shortcuts, Actions and MCP use the same workspace command scopes.
 Image-only commands remain visible where discoverability requires it but are
@@ -111,7 +125,8 @@ reported once with accepted/skipped counts rather than failing the whole drop.
 Implemented: typed workspace surfaces and `@lighttable/video-core`; one
 shared-shell document adapter; secure seekable desktop media sources; unified
 File Open, OS launch and file-drop routing; a read-only video viewer; contextual
-panels, stable toolbar geometry, shared Pan/Zoom tools and viewport math,
+panels, stable toolbar geometry, shared Pan/Zoom tools and viewport math, the
+registered Video Controls panel and per-workspace panel visibility,
 top-level menus, application shortcuts and MCP document-kind plus video
 presentation reporting/gating. Video pan/zoom is stored in its presentation
 session, survives tab switches and does not create document revisions.

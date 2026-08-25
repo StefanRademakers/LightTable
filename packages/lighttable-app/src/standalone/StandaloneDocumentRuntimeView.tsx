@@ -30,6 +30,7 @@ import type { DocumentRendererLifecycle } from '../lighttable/application/render
 import type { GenAiGenerationJob } from '@lighttable/genai-core';
 import { isImageEditGeneration } from '../genai/application/generationDelivery';
 import { VideoDocumentSurface, type VideoViewportHandle } from './VideoDocumentSurface';
+import { VideoControlsPanel } from './VideoControlsPanel';
 
 export interface WorkspaceDocumentTab {
   readonly id: DocumentSessionId;
@@ -214,6 +215,18 @@ export function StandaloneDocumentRuntimeView({
           : undefined}
         workspaceDocumentKind={document.kind}
         workspaceViewControls={videoViewControls}
+        workspaceVideoControlsPanel={document.kind === 'video' ? (
+          <VideoControlsPanel
+            session={document.session}
+            commands={{
+              togglePlayback: () => videoViewportRef.current?.togglePlayback(),
+              seek: (seconds) => videoViewportRef.current?.seek(seconds),
+              stepFrame: (direction) => videoViewportRef.current?.stepFrame(direction),
+              setMuted: (muted) => videoViewportRef.current?.setMuted(muted),
+              setVolume: (volume) => videoViewportRef.current?.setVolume(volume)
+            }}
+          />
+        ) : undefined}
         workspaceStatusMeta={document.kind === 'video' ? videoStatusMeta : undefined}
         workspaceStatusTitle={document.kind === 'video'
           ? `${file.name} · read-only video document`
