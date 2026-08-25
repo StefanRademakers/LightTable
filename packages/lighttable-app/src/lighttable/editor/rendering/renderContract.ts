@@ -8,6 +8,12 @@ export {
 } from '../geometry/affine';
 import { identityAffineMatrix } from '../geometry/affine';
 
+/** Public image-encoding choice for renderer exports and bounded previews. */
+export interface Rgba8ImageEncoding {
+  readonly format: 'png' | 'webp';
+  readonly quality?: number;
+}
+
 export interface RasterRenderContract<TTexture = GPUTexture> {
   layerId: LayerId;
   texture: TTexture;

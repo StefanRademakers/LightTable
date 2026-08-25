@@ -1,9 +1,7 @@
-export const GPU_COPY_BYTES_PER_ROW_ALIGNMENT = 256;
+import type { Rgba8ImageEncoding } from '../editor/rendering/renderContract';
+export type { Rgba8ImageEncoding } from '../editor/rendering/renderContract';
 
-export interface Rgba8ImageEncoding {
-  readonly format: 'png' | 'webp';
-  readonly quality?: number;
-}
+export const GPU_COPY_BYTES_PER_ROW_ALIGNMENT = 256;
 
 interface PendingImageEncoding {
   readonly resolve: (blob: Blob) => void;

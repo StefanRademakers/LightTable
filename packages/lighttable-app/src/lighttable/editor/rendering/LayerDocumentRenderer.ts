@@ -26,14 +26,14 @@ import { invertMatrix, multiplyMatrices } from '../tools/transform/affine';
 import type { TextLayerEditingLayout } from '../../text/rendering/TextLayerRenderCoordinator';
 import {
   identityAffineMatrix,
-  type RasterRenderContract
+  type RasterRenderContract,
+  type Rgba8ImageEncoding
 } from './renderContract';
 import {
   type EncodeAdjustment
 } from './RasterDocumentOperations';
 import type { ReversiblePixelEdit } from '../history/ReversiblePixelEdit';
 import type { LayerThumbnailBlob } from './LayerThumbnailService';
-import type { Rgba8ImageEncoding } from '../../gpu/gpuReadback';
 import {
   createLayerDocumentRendererRuntime,
   type LayerDocumentRendererRuntime,
