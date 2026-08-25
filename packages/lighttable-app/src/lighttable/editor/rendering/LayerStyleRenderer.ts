@@ -103,7 +103,11 @@ export class LayerStyleRenderer {
     );
     this.textures = new LayerStyleTextureStore({
       createTexture: options.createTexture,
-      createTextureSized: options.createTextureSized
+      createTextureSized: options.createTextureSized,
+      // A texture can still be referenced by the command encoder that caused
+      // its LRU eviction. Destruction therefore belongs to the submit fence,
+      // not to the cache policy itself.
+      retireTexture: (texture) => options.submittedResources.retainTexture(texture)
     });
   }
 

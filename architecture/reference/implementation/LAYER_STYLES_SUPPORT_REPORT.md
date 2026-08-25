@@ -1,6 +1,7 @@
 # LightTable Layer Styles support report
 
-Status: semantic implementation with automated Adobe reference corpus, 4 August 2026.
+Status: semantic implementation with automated Adobe reference corpus and
+packaged GPU lifecycle evidence, 25 August 2026.
 
 ## Current contract
 
@@ -18,6 +19,15 @@ Disabled stacks, disabled effects and zero-opacity effects submit no style
 passes. With no active styles the cache and all style work textures are
 released. Interactive and final quality share geometry and compositing
 semantics; only the evenly distributed blur sample count changes.
+
+Large shadows/glows use a dedicated separable alpha blur at a bounded
+downsample scale. Its working targets are a three-pair LRU rather than an
+unbounded history of slider-selected scales. Evicted, invalidated and resized
+textures are retired through the document submit fence, because an older
+target can still be referenced by the command encoder that evicted it. This is
+deliberately separate from the P0 RGBA filter pool: Layer Styles require
+transparent-outside alpha sampling and can use several reduced dimensions in
+one compositor submission.
 
 ## Effect audit
 
@@ -67,6 +77,15 @@ for both Drop Shadows (LightTable/Photoshop ratios 0.97 and 1.30), Color Overlay
 previously 5.43). Unresolved Pattern Overlay remains an intentional no-op until
 the referenced pattern asset is available. These are fidelity baselines, not a
 claim of pixel-identical Adobe rendering.
+
+The 25 August instrumented packaged run exercised 121 Drop Shadow size inputs
+in 1.19 seconds. It published 19 GPU frames (15.98 Hz), produced no long tasks,
+page errors or console errors, and recorded the complete gesture as one
+replayable command. Six packaged hide/show cycles returned to the same viewport
+hash and the same 49,937,152-byte visible GPU estimate on every cycle; hiding
+released the style allocation back to 34,120,192 bytes. The lifecycle harness
+now resolves the same packaged/debug launch boundary as the other desktop
+audits instead of silently using the development Electron entry point.
 
 ## Remaining bounded limits
 

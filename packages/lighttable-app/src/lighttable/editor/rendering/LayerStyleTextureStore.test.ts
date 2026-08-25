@@ -61,6 +61,28 @@ describe('LayerStyleTextureStore', () => {
     expect(first.vertical.destroy).toHaveBeenCalledOnce();
   });
 
+  it('bounds historic blur scales and retires evictions through the owner policy', () => {
+    const retired: GPUTexture[] = [];
+    const storeOptions = {
+      ...options(),
+      maxBlurTexturePairs: 2,
+      retireTexture: (target: GPUTexture) => retired.push(target)
+    };
+    const store = new LayerStyleTextureStore(storeOptions);
+    const first = store.ensureBlurTextures(960, 540);
+    const second = store.ensureBlurTextures(640, 360);
+
+    // Touching the first pair makes the second pair the LRU entry.
+    expect(store.ensureBlurTextures(960, 540)).toBe(first);
+    store.ensureBlurTextures(480, 270);
+
+    expect(retired).toEqual([second.horizontal, second.vertical]);
+    expect(first.horizontal.destroy).not.toHaveBeenCalled();
+    expect(store.estimatedTextureBytes(1920, 1080)).toBe(
+      (960 * 540 + 480 * 270) * 8 * 2
+    );
+  });
+
   it('reallocates a tight cache only when its dimensions change', () => {
     const storeOptions = options();
     const store = new LayerStyleTextureStore(storeOptions);

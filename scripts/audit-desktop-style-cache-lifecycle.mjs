@@ -3,6 +3,10 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { _electron as electron } from 'playwright-core';
+import {
+  resolveDesktopTestLaunch,
+  waitForDesktopLauncher
+} from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..');
@@ -17,16 +21,26 @@ const outputDirectory = path.join(workspaceRoot, 'tmp', 'style-cache-lifecycle-a
 const reportPath = path.join(outputDirectory, `${runLabel}.json`);
 const hiddenScreenshotPath = path.join(outputDirectory, `${runLabel}-hidden.png`);
 const visibleScreenshotPath = path.join(outputDirectory, `${runLabel}-visible.png`);
-const executablePath = path.join(workspaceRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
 const userDataPath = path.join(outputDirectory, `user-data-${process.pid}-${runLabel}`);
-await Promise.all([access(sourceFile), access(executablePath), mkdir(userDataPath, { recursive: true })]);
+const launch = await resolveDesktopTestLaunch(workspaceRoot);
+await Promise.all([access(sourceFile), mkdir(userDataPath, { recursive: true })]);
 
 const launchEnvironment = { ...process.env };
 delete launchEnvironment.ELECTRON_RUN_AS_NODE;
-const report = { sourceFile, sourceLayerId, runLabel, cycles: [], pageErrors: [], consoleErrors: [] };
+const report = {
+  schema: 2,
+  generatedAt: new Date().toISOString(),
+  launchMode: launch.mode,
+  sourceFile,
+  sourceLayerId,
+  runLabel,
+  cycles: [],
+  pageErrors: [],
+  consoleErrors: []
+};
 const app = await electron.launch({
-  executablePath,
-  args: [path.join(workspaceRoot, 'apps', 'desktop')],
+  executablePath: launch.executablePath,
+  args: launch.args,
   cwd: workspaceRoot,
   env: {
     ...launchEnvironment,
@@ -43,7 +57,15 @@ try {
   page.on('console', (message) => {
     if (message.type() === 'error') report.consoleErrors.push(message.text());
   });
-  await page.getByRole('button', { name: 'Open file' }).click();
+  const openFileButton = await waitForDesktopLauncher({
+    app,
+    page,
+    outputDirectory,
+    sourceFile,
+    pageErrors: report.pageErrors,
+    label: 'style-cache-lifecycle'
+  });
+  await openFileButton.click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
   const driver = await attachLightTableAutomation(page, 'style-cache-lifecycle');

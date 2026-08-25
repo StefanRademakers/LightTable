@@ -20,7 +20,11 @@ export interface CachedStyleTexture {
 export interface LayerStyleTextureStoreOptions {
   createTexture: (label: string) => GPUTexture;
   createTextureSized: (label: string, width: number, height: number) => GPUTexture;
+  retireTexture?: (texture: GPUTexture) => void;
+  maxBlurTexturePairs?: number;
 }
+
+const DEFAULT_MAX_BLUR_TEXTURE_PAIRS = 3;
 
 /**
  * Owns reusable Layer Style work targets and persistent per-layer results.
@@ -34,6 +38,10 @@ export class LayerStyleTextureStore {
 
   constructor(private readonly options: LayerStyleTextureStoreOptions) {}
 
+  private retire(texture: GPUTexture) {
+    (this.options.retireTexture ?? ((target) => target.destroy()))(texture);
+  }
+
   ensureWorkTextures() {
     this.workTextures ??= {
       shape: this.options.createTexture('LightTable Layer Style shape'),
@@ -46,7 +54,13 @@ export class LayerStyleTextureStore {
   ensureBlurTextures(width: number, height: number) {
     const key = `${width}x${height}`;
     let textures = this.blurTextures.get(key);
-    if (!textures) {
+    if (textures) {
+      // Map insertion order doubles as a tiny LRU list. Radius gestures tend
+      // to cross several downsample scales; keeping every historic scale
+      // would make a single slider gesture permanently grow GPU memory.
+      this.blurTextures.delete(key);
+      this.blurTextures.set(key, textures);
+    } else {
       textures = {
         horizontal: this.options.createTextureSized(
           'LightTable Layer Style blur horizontal', width, height
@@ -56,6 +70,20 @@ export class LayerStyleTextureStore {
         )
       };
       this.blurTextures.set(key, textures);
+      const maximum = Math.max(
+        1,
+        Math.floor(this.options.maxBlurTexturePairs ?? DEFAULT_MAX_BLUR_TEXTURE_PAIRS)
+      );
+      while (this.blurTextures.size > maximum) {
+        const oldestKey = this.blurTextures.keys().next().value as string | undefined;
+        if (!oldestKey) break;
+        const oldest = this.blurTextures.get(oldestKey);
+        this.blurTextures.delete(oldestKey);
+        if (oldest) {
+          this.retire(oldest.horizontal);
+          this.retire(oldest.vertical);
+        }
+      }
     }
     return textures;
   }
@@ -85,7 +113,7 @@ export class LayerStyleTextureStore {
       || destination.bounds.width !== bounds.width
       || destination.bounds.height !== bounds.height
     ) {
-      destination?.texture.destroy();
+      if (destination) this.retire(destination.texture);
       destination = {
         key,
         texture: this.options.createTextureSized(
@@ -110,23 +138,25 @@ export class LayerStyleTextureStore {
   invalidate(layerId: LayerId) {
     const cached = this.cache.get(layerId);
     if (!cached) return;
-    cached.texture.destroy();
+    this.retire(cached.texture);
     this.cache.delete(layerId);
   }
 
   releaseCache() {
-    this.cache.forEach(({ texture }) => texture.destroy());
+    this.cache.forEach(({ texture }) => this.retire(texture));
     this.cache.clear();
   }
 
   releaseWorkTextures() {
-    this.workTextures?.shape.destroy();
-    this.workTextures?.first.destroy();
-    this.workTextures?.second.destroy();
+    if (this.workTextures) {
+      this.retire(this.workTextures.shape);
+      this.retire(this.workTextures.first);
+      this.retire(this.workTextures.second);
+    }
     this.workTextures = null;
     this.blurTextures.forEach(({ horizontal, vertical }) => {
-      horizontal.destroy();
-      vertical.destroy();
+      this.retire(horizontal);
+      this.retire(vertical);
     });
     this.blurTextures.clear();
   }
