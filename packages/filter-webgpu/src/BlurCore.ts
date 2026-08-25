@@ -91,10 +91,12 @@ export class BlurCore {
   private width = 0;
   private height = 0;
   private readonly pool: FilterTargetPool;
+  private readonly ownsPool: boolean;
   private readonly runtimes = new Map<string, BlurRuntime>();
 
-  constructor(private readonly device: GPUDevice) {
-    this.pool = new FilterTargetPool(device);
+  constructor(private readonly device: GPUDevice, pool?: FilterTargetPool) {
+    this.pool = pool ?? new FilterTargetPool(device);
+    this.ownsPool = pool === undefined;
   }
 
   configure(width: number, height: number, sampler: GPUSampler): void {
@@ -163,11 +165,11 @@ export class BlurCore {
   }
 
   estimatedTextureBytes(): number {
-    return this.pool.estimatedTextureBytes();
+    return this.ownsPool ? this.pool.estimatedTextureBytes() : 0;
   }
 
   destroy(): void {
-    this.pool.destroy();
+    if (this.ownsPool) this.pool.destroy();
     for (const runtime of this.runtimes.values()) {
       runtime.horizontal.destroy();
       runtime.vertical.destroy();

@@ -1,6 +1,7 @@
 import {
   BlurCore,
   DisplaceCore,
+  FilterTargetPool,
   MorphologyCore,
   MotionBlurCore,
   MedianCore,
@@ -22,6 +23,7 @@ const BLUR_CORE_MODES = new Set<BlurCoreMode>([
  * standalone filter layer or an attached raster-processing node.
  */
 export class P0FilterRenderer {
+  private readonly targetPool: FilterTargetPool;
   private readonly blurCore: BlurCore;
   private readonly offsetCore: OffsetCore;
   private readonly motionBlurCore: MotionBlurCore;
@@ -34,14 +36,15 @@ export class P0FilterRenderer {
 
   constructor(device: GPUDevice,
     private readonly resolveRasterTexture: (id: string) => GPUTexture | null = () => null) {
-    this.blurCore = new BlurCore(device);
-    this.offsetCore = new OffsetCore(device);
-    this.motionBlurCore = new MotionBlurCore(device);
-    this.morphologyCore = new MorphologyCore(device);
-    this.waveletDenoiseCore = new WaveletDenoiseCore(device);
-    this.displaceCore = new DisplaceCore(device);
-    this.surfaceBlurCore = new SurfaceBlurCore(device);
-    this.medianCore = new MedianCore(device);
+    this.targetPool = new FilterTargetPool(device, 3);
+    this.blurCore = new BlurCore(device, this.targetPool);
+    this.offsetCore = new OffsetCore(device, this.targetPool);
+    this.motionBlurCore = new MotionBlurCore(device, this.targetPool);
+    this.morphologyCore = new MorphologyCore(device, this.targetPool);
+    this.waveletDenoiseCore = new WaveletDenoiseCore(device, this.targetPool);
+    this.displaceCore = new DisplaceCore(device, this.targetPool);
+    this.surfaceBlurCore = new SurfaceBlurCore(device, this.targetPool);
+    this.medianCore = new MedianCore(device, this.targetPool);
   }
 
   configure(width: number, height: number, sampler: GPUSampler): void {
@@ -140,7 +143,8 @@ export class P0FilterRenderer {
   }
 
   estimatedTextureBytes(): number {
-    return this.blurCore.estimatedTextureBytes() + this.offsetCore.estimatedTextureBytes()
+    return this.targetPool.estimatedTextureBytes()
+      + this.blurCore.estimatedTextureBytes() + this.offsetCore.estimatedTextureBytes()
       + this.motionBlurCore.estimatedTextureBytes()
       + this.morphologyCore.estimatedTextureBytes()
       + this.waveletDenoiseCore.estimatedTextureBytes()
@@ -158,6 +162,7 @@ export class P0FilterRenderer {
     this.displaceCore.destroy();
     this.surfaceBlurCore.destroy();
     this.medianCore.destroy();
+    this.targetPool.destroy();
   }
 
   destroy(): void {
@@ -169,5 +174,6 @@ export class P0FilterRenderer {
     this.displaceCore.destroy();
     this.surfaceBlurCore.destroy();
     this.medianCore.destroy();
+    this.targetPool.destroy();
   }
 }

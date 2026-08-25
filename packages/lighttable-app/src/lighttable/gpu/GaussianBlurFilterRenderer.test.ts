@@ -48,8 +48,8 @@ describe('GaussianBlurFilterRenderer', () => {
 
     expect(test.renderer.estimatedTextureBytes()).toBe(0);
     expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
-    expect(test.textures).toHaveLength(3);
-    expect(test.renderer.estimatedTextureBytes()).toBe(20 * 10 * 8 * 3);
+    expect(test.textures).toHaveLength(2);
+    expect(test.renderer.estimatedTextureBytes()).toBe(20 * 10 * 8 * 2);
     expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(2);
     expect(test.pass.draw).toHaveBeenCalledTimes(2);
     expect(test.device.queue.writeBuffer).toHaveBeenCalledTimes(2);
@@ -152,7 +152,7 @@ describe('GaussianBlurFilterRenderer', () => {
     );
     const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
     expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
-    expect(test.textures).toHaveLength(2);
+    expect(test.textures).toHaveLength(1);
     expect(test.encoder.beginRenderPass).toHaveBeenCalledOnce();
     const payload = test.writeBuffer.mock.calls[0]?.[2] as ArrayBuffer;
     const view = new DataView(payload);
@@ -326,5 +326,30 @@ describe('GaussianBlurFilterRenderer', () => {
       { createView: vi.fn(() => ({})) } as unknown as GPUTexture, broadLayer);
     expect(broad.encoder.beginRenderPass).toHaveBeenCalledTimes(8);
     expect(broad.textures).toHaveLength(2);
+  });
+
+  it('shares at most three alias-safe targets across different filter cores', () => {
+    const test = fixture();
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    const gaussian = createAdjustmentLayer(
+      createP0FilterStack('gaussian-blur', { radius: 8 }, (part) => `shared-gaussian-${part}`),
+      'Gaussian Blur', 'gaussian-blur'
+    );
+    const surface = createAdjustmentLayer(
+      createP0FilterStack('surface-blur', { radius: 12, threshold: 20 },
+        (part) => `shared-surface-${part}`),
+      'Surface Blur', 'surface-blur'
+    );
+    const denoise = createAdjustmentLayer(
+      createP0FilterStack('reduce-noise', {
+        strength: 6, preserveDetails: 50, reduceColorNoise: 40, sharpenDetails: 10
+      }, (part) => `shared-denoise-${part}`),
+      'Reduce Noise', 'reduce-noise'
+    );
+    const first = test.renderer.encode(test.encoder, source, gaussian);
+    const second = test.renderer.encode(test.encoder, first, surface);
+    test.renderer.encode(test.encoder, second, denoise);
+    expect(test.textures).toHaveLength(3);
+    expect(test.renderer.estimatedTextureBytes()).toBe(20 * 10 * 8 * 3);
   });
 });

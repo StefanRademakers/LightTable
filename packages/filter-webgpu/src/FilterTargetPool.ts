@@ -3,8 +3,8 @@
  *
  * A filter may never render into a texture sampled by the same pass. Three
  * targets are sufficient for a two-pass operation even when its input already
- * belongs to this pool. Allocation is document-size keyed and never occurs on
- * slider updates.
+ * belongs to this pool. Targets are allocated lazily up to that ceiling,
+ * document-size keyed, and never allocated on slider updates after warm-up.
  */
 export class FilterTargetPool {
   private targets: GPUTexture[] = [];
@@ -27,24 +27,25 @@ export class FilterTargetPool {
     this.height = height;
   }
 
-  private ensureTargets(): void {
-    if (this.targets.length === this.targetCount) return;
+  private createTarget(): GPUTexture {
     if (this.width < 1 || this.height < 1) {
       throw new Error('Filter target pool is not configured.');
     }
-    this.targets = Array.from({ length: this.targetCount }, (_, index) => this.device.createTexture({
-      label: `LightTable filter target ${index + 1}`,
+    const target = this.device.createTexture({
+      label: `LightTable filter target ${this.targets.length + 1}`,
       size: [this.width, this.height],
       format: 'rgba16float',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
-    }));
+    });
+    this.targets.push(target);
+    return target;
   }
 
   acquire(excluded: readonly GPUTexture[]): GPUTexture {
-    this.ensureTargets();
     const target = this.targets.find((candidate) => !excluded.includes(candidate));
-    if (!target) throw new Error('Filter target pool has no alias-safe render target.');
-    return target;
+    if (target) return target;
+    if (this.targets.length < this.targetCount) return this.createTarget();
+    throw new Error('Filter target pool has no alias-safe render target.');
   }
 
   estimatedTextureBytes(): number {

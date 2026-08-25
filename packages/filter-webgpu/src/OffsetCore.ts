@@ -45,8 +45,12 @@ const pipelineFor = (device: GPUDevice) => {
 
 export class OffsetCore {
   private readonly pool: FilterTargetPool;
+  private readonly ownsPool: boolean;
   private readonly runtimes = new Map<string, Runtime>();
-  constructor(private readonly device: GPUDevice) { this.pool = new FilterTargetPool(device, 1); }
+  constructor(private readonly device: GPUDevice, pool?: FilterTargetPool) {
+    this.pool = pool ?? new FilterTargetPool(device, 1);
+    this.ownsPool = pool === undefined;
+  }
   configure(width: number, height: number) { this.pool.configure(width, height); }
 
   encode(encoder: GPUCommandEncoder, source: GPUTexture, request: {
@@ -83,9 +87,9 @@ export class OffsetCore {
     return target;
   }
 
-  estimatedTextureBytes() { return this.pool.estimatedTextureBytes(); }
+  estimatedTextureBytes() { return this.ownsPool ? this.pool.estimatedTextureBytes() : 0; }
   destroy() {
-    this.pool.destroy();
+    if (this.ownsPool) this.pool.destroy();
     for (const runtime of this.runtimes.values()) runtime.uniforms.destroy();
     this.runtimes.clear();
   }

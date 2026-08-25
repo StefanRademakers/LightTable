@@ -99,10 +99,12 @@ const payload = ({ sampleRadius, step }: MedianPassPlan) => {
 
 export class MedianCore {
   private readonly pool: FilterTargetPool;
+  private readonly ownsPool: boolean;
   private readonly runtimes = new Map<string, Runtime>();
 
-  constructor(private readonly device: GPUDevice) {
-    this.pool = new FilterTargetPool(device, 2);
+  constructor(private readonly device: GPUDevice, pool?: FilterTargetPool) {
+    this.pool = pool ?? new FilterTargetPool(device, 2);
+    this.ownsPool = pool === undefined;
   }
 
   configure(width: number, height: number) { this.pool.configure(width, height); }
@@ -161,10 +163,10 @@ export class MedianCore {
     pass.end();
   }
 
-  estimatedTextureBytes() { return this.pool.estimatedTextureBytes(); }
+  estimatedTextureBytes() { return this.ownsPool ? this.pool.estimatedTextureBytes() : 0; }
 
   destroy() {
-    this.pool.destroy();
+    if (this.ownsPool) this.pool.destroy();
     for (const runtime of this.runtimes.values()) {
       for (const uniform of runtime.uniforms) uniform.destroy();
     }

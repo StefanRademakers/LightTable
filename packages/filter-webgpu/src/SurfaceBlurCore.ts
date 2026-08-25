@@ -95,11 +95,13 @@ const uniformPayload = (directionX: number, directionY: number,
  */
 export class SurfaceBlurCore {
   private readonly pool: FilterTargetPool;
+  private readonly ownsPool: boolean;
   private readonly runtimes = new Map<string, Runtime>();
   private sampler: GPUSampler | null = null;
 
-  constructor(private readonly device: GPUDevice) {
-    this.pool = new FilterTargetPool(device, 2);
+  constructor(private readonly device: GPUDevice, pool?: FilterTargetPool) {
+    this.pool = pool ?? new FilterTargetPool(device, 2);
+    this.ownsPool = pool === undefined;
   }
 
   configure(width: number, height: number, sampler: GPUSampler) {
@@ -160,10 +162,10 @@ export class SurfaceBlurCore {
     pass.end();
   }
 
-  estimatedTextureBytes() { return this.pool.estimatedTextureBytes(); }
+  estimatedTextureBytes() { return this.ownsPool ? this.pool.estimatedTextureBytes() : 0; }
 
   destroy() {
-    this.pool.destroy();
+    if (this.ownsPool) this.pool.destroy();
     for (const runtime of this.runtimes.values()) {
       runtime.horizontal.destroy();
       runtime.vertical.destroy();

@@ -87,13 +87,15 @@ const pipelineFor = (device: GPUDevice) => {
  */
 export class MotionBlurCore {
   private readonly pool: FilterTargetPool;
+  private readonly ownsPool: boolean;
   private readonly runtimes = new Map<string, Runtime>();
   private sampler: GPUSampler | null = null;
   private width = 0;
   private height = 0;
 
-  constructor(private readonly device: GPUDevice) {
-    this.pool = new FilterTargetPool(device, 1);
+  constructor(private readonly device: GPUDevice, pool?: FilterTargetPool) {
+    this.pool = pool ?? new FilterTargetPool(device, 1);
+    this.ownsPool = pool === undefined;
   }
 
   configure(width: number, height: number, sampler: GPUSampler): void {
@@ -172,10 +174,10 @@ export class MotionBlurCore {
     return target;
   }
 
-  estimatedTextureBytes(): number { return this.pool.estimatedTextureBytes(); }
+  estimatedTextureBytes(): number { return this.ownsPool ? this.pool.estimatedTextureBytes() : 0; }
 
   destroy(): void {
-    this.pool.destroy();
+    if (this.ownsPool) this.pool.destroy();
     for (const runtime of this.runtimes.values()) runtime.uniforms.destroy();
     this.runtimes.clear();
     this.sampler = null;

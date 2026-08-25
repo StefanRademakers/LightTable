@@ -110,12 +110,14 @@ const pipelinesFor = (device: GPUDevice): Pipelines => {
 
 export class WaveletDenoiseCore {
   private readonly pool: FilterTargetPool;
+  private readonly ownsPool: boolean;
   private scales: GPUBuffer[] = [];
   private readonly runtimes = new Map<string, Runtime>();
   private sampler: GPUSampler | null = null;
 
-  constructor(private readonly device: GPUDevice) {
-    this.pool = new FilterTargetPool(device, 3);
+  constructor(private readonly device: GPUDevice, pool?: FilterTargetPool) {
+    this.pool = pool ?? new FilterTargetPool(device, 3);
+    this.ownsPool = pool === undefined;
   }
 
   private ensureScales(): void {
@@ -205,10 +207,10 @@ export class WaveletDenoiseCore {
     return current;
   }
 
-  estimatedTextureBytes(): number { return this.pool.estimatedTextureBytes(); }
+  estimatedTextureBytes(): number { return this.ownsPool ? this.pool.estimatedTextureBytes() : 0; }
 
   destroy(): void {
-    this.pool.destroy();
+    if (this.ownsPool) this.pool.destroy();
     for (const runtime of this.runtimes.values()) runtime.settings.destroy();
     this.runtimes.clear();
     for (const scale of this.scales) scale.destroy();

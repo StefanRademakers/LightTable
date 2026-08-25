@@ -13,9 +13,10 @@ describe('FilterTargetPool', () => {
     pool.configure(100, 50);
     expect(device.createTexture).not.toHaveBeenCalled();
     const first = pool.acquire([]);
-    expect(device.createTexture).toHaveBeenCalledTimes(3);
+    expect(device.createTexture).toHaveBeenCalledOnce();
     const second = pool.acquire([first]);
     const third = pool.acquire([first, second]);
+    expect(device.createTexture).toHaveBeenCalledTimes(3);
     expect(new Set([first, second, third]).size).toBe(3);
     pool.configure(100, 50);
     expect(device.createTexture).toHaveBeenCalledTimes(3);
