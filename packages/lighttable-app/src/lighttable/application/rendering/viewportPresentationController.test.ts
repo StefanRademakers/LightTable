@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  ViewportPresentationController,
-  interpolateViewportRect
-} from './viewportPresentationController';
+import { ViewportPresentationController } from './viewportPresentationController';
 
 const createHarness = () => {
   const canvas = { width: 0, height: 0 } as HTMLCanvasElement;
@@ -17,16 +14,6 @@ const createHarness = () => {
 };
 
 describe('ViewportPresentationController', () => {
-  it('interpolates only presentation geometry and clamps animation progress', () => {
-    const from = { x: 10, y: 20, width: 400, height: 300 };
-    const to = { x: 50, y: 60, width: 800, height: 600 };
-    expect(interpolateViewportRect(from, to, 0.5)).toEqual({
-      x: 30, y: 40, width: 600, height: 450
-    });
-    expect(interpolateViewportRect(from, to, -1)).toEqual(from);
-    expect(interpolateViewportRect(from, to, 2)).toEqual(to);
-  });
-
   it('publishes changed viewport measurements exactly once', () => {
     const harness = createHarness();
     const rect = { x: 10, y: 20, width: 800, height: 450 };

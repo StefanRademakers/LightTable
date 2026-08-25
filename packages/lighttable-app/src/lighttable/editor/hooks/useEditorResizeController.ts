@@ -8,20 +8,13 @@ import {
 } from 'react';
 import type { Rect } from '../document/documentTypes';
 
-interface ResizeViewportTransition {
-  durationMs?: number;
-  fromOffsetX?: number;
-  fromOffsetY?: number;
-}
-
 export interface ResizeRendererPort {
   resizeScopes(): void;
   resizeViewport(
     width: number,
     height: number,
     pixelRatio: number,
-    imageRect: Rect,
-    transition?: ResizeViewportTransition
+    imageRect: Rect
   ): void;
 }
 
@@ -82,8 +75,6 @@ export const useEditorResizeController = ({
   const dockResizeActiveRef = useRef(false);
   const dockResizeFinishFrameRef = useRef<number | null>(null);
   const canvasUnlockFrameRef = useRef<number | null>(null);
-  const resizeStartBoundsRef = useRef<Pick<DOMRect, 'left' | 'top' | 'width' | 'height'> | null>(null);
-  const pendingTransitionRef = useRef<ResizeViewportTransition | null>(null);
   const getRendererRef = useRef(getRenderer);
   getRendererRef.current = getRenderer;
 
@@ -203,7 +194,6 @@ export const useEditorResizeController = ({
       const canvas = canvasRef.current;
       if (viewport && canvas) {
         const bounds = viewport.getBoundingClientRect();
-        resizeStartBoundsRef.current = bounds;
         // The backing store intentionally stays unchanged while Dockview moves
         // a sash. Freeze its CSS size as well, otherwise the browser stretches
         // that retained frame to every transient panel dimension.
@@ -220,13 +210,7 @@ export const useEditorResizeController = ({
       if (viewport) {
         const nextBounds = viewport.getBoundingClientRect();
         const { width, height } = measureRoundedElementSize(nextBounds);
-        const startBounds = resizeStartBoundsRef.current;
         const changed = viewportSize.width !== width || viewportSize.height !== height;
-        pendingTransitionRef.current = changed && startBounds ? {
-          durationMs: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 220,
-          fromOffsetX: startBounds.left - nextBounds.left,
-          fromOffsetY: startBounds.top - nextBounds.top
-        } : null;
         setViewportSize((current) => (
           current.width === width && current.height === height
             ? current
@@ -250,14 +234,11 @@ export const useEditorResizeController = ({
 
   useEffect(() => {
     if (!hasMetadata) return;
-    const transition = pendingTransitionRef.current ?? undefined;
-    pendingTransitionRef.current = null;
     getRendererRef.current()?.resizeViewport(
       viewportSize.width,
       viewportSize.height,
       Math.max(1, window.devicePixelRatio || 1),
-      imageRect,
-      transition
+      imageRect
     );
     if (canvasUnlockFrameRef.current !== null) {
       window.cancelAnimationFrame(canvasUnlockFrameRef.current);
@@ -265,7 +246,6 @@ export const useEditorResizeController = ({
     canvasUnlockFrameRef.current = window.requestAnimationFrame(() => {
       canvasUnlockFrameRef.current = null;
       releaseFrozenCanvasPresentation(viewportRef.current, canvasRef.current);
-      resizeStartBoundsRef.current = null;
     });
   }, [
     canvasRef,

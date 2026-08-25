@@ -91,10 +91,7 @@ import {
   recordTextInteractionTrace,
   type TextInteractionTraceIdentity
 } from '../application/text/textInteractionPerformanceTrace';
-import {
-  ViewportPresentationController,
-  type ViewportResizeTransition
-} from '../application/rendering/viewportPresentationController';
+import { ViewportPresentationController } from '../application/rendering/viewportPresentationController';
 import type { ViewportRenderRect } from '../application/rendering/viewportRenderState';
 import { alignedTargetTransform } from '../editor/autoAlign/alignmentMath';
 import { calculateOutputTransformSettings } from '../outputTransform';
@@ -2469,20 +2466,13 @@ export class WebGpuEngine {
     this.requestRender();
   }
 
-  resizeViewport(
-    cssWidth: number,
-    cssHeight: number,
-    dpr: number,
-    rect: ViewportRenderRect,
-    transition?: ViewportResizeTransition
-  ) {
+  resizeViewport(cssWidth: number, cssHeight: number, dpr: number, rect: ViewportRenderRect) {
     this.viewportPresentation.resize(
       this.metadata?.width ?? null,
       cssWidth,
       cssHeight,
       dpr,
-      rect,
-      transition
+      rect
     );
   }
 
