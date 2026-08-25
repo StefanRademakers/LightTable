@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { BLUR_CORE_WGSL, FILTER_FULLSCREEN_VERTEX_WGSL } from './filterShaders';
 import { OFFSET_WGSL } from './OffsetCore';
 import { MOTION_BLUR_WGSL } from './MotionBlurCore';
+import {
+  WAVELET_DENOISE_HORIZONTAL_WGSL,
+  WAVELET_DENOISE_VERTICAL_WGSL
+} from './WaveletDenoiseCore';
 
 describe('filter shaders', () => {
   it('keeps BlurCore bindings stable and avoids WGSL reserved identifiers', () => {
@@ -24,5 +28,11 @@ describe('filter shaders', () => {
     expect(MOTION_BLUR_WGSL).toContain('index < 257u');
     expect(MOTION_BLUR_WGSL).toContain('textureSampleLevel');
     expect(MOTION_BLUR_WGSL).not.toContain('clamp(accumulated');
+  });
+
+  it('keeps wavelet denoise multiscale, edge-protected and alpha-preserving', () => {
+    expect(WAVELET_DENOISE_HORIZONTAL_WGSL).toContain('scale.step');
+    expect(WAVELET_DENOISE_VERTICAL_WGSL).toContain('retainedDetail');
+    expect(WAVELET_DENOISE_VERTICAL_WGSL).toContain('source.a');
   });
 });

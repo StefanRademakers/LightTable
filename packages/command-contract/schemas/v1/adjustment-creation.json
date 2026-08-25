@@ -10,7 +10,7 @@
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
-        "high-pass", "smart-sharpen", "unsharp-mask", "motion-blur", "maximum", "minimum", "offset"
+        "high-pass", "smart-sharpen", "unsharp-mask", "motion-blur", "reduce-noise", "maximum", "minimum", "offset"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -68,6 +68,16 @@
         "reduceNoise": { "type": "number", "minimum": 0, "maximum": 100, "default": 10 },
         "remove": { "type": "string", "enum": ["gaussian", "lens", "motion"], "default": "gaussian" },
         "angle": { "type": "number", "minimum": -180, "maximum": 180, "default": 0 }
+      }
+    },
+    "reduceNoiseSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["strength", "preserveDetails", "reduceColorNoise", "sharpenDetails"],
+      "properties": {
+        "strength": { "type": "integer", "minimum": 0, "maximum": 10, "default": 6 },
+        "preserveDetails": { "type": "number", "minimum": 0, "maximum": 100, "default": 60 },
+        "reduceColorNoise": { "type": "number", "minimum": 0, "maximum": 100, "default": 45 },
+        "sharpenDetails": { "type": "number", "minimum": 0, "maximum": 100, "default": 25 }
       }
     },
     "offsetSettings": {
@@ -154,6 +164,7 @@
               { "$ref": "#/$defs/highPassSettings" },
               { "$ref": "#/$defs/unsharpMaskSettings" },
               { "$ref": "#/$defs/smartSharpenSettings" },
+              { "$ref": "#/$defs/reduceNoiseSettings" },
               { "$ref": "#/$defs/morphologySettings" },
               { "$ref": "#/$defs/offsetSettings" },
               { "$ref": "#/$defs/gradientMapSettings" }
@@ -218,6 +229,13 @@
                   "properties": {
                     "kind": { "const": "smart-sharpen" },
                     "settings": { "$ref": "#/$defs/smartSharpenSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "reduce-noise" },
+                    "settings": { "$ref": "#/$defs/reduceNoiseSettings" }
                   }
                 },
                 {

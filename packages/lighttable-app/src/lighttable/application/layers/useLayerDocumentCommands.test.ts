@@ -695,6 +695,9 @@ describe('useLayerDocumentCommands', () => {
     ['smart-sharpen', 'Smart Sharpen', {
       amount: 150, radius: 2, reduceNoise: 25, remove: 'lens', angle: 0
     }],
+    ['reduce-noise', 'Reduce Noise', {
+      strength: 6, preserveDetails: 60, reduceColorNoise: 45, sharpenDetails: 25
+    }],
     ['maximum', 'Maximum', { radius: 12, shape: 'round' }],
     ['minimum', 'Minimum', { radius: 6, shape: 'square' }],
     ['offset', 'Offset', { horizontal: 18, vertical: -9, edgeMode: 'wrap' }]

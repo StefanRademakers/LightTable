@@ -72,6 +72,13 @@ describe('semantic adjustment creation contract', () => {
       settings: { amount: 160, radius: 2.5, reduceNoise: 35, remove: 'lens', angle: 0 }
     });
     expect(parseSemanticAdjustmentCreationCommand({
+      kind: 'reduce-noise', placement: 'attached', layerId: 'photo',
+      settings: { strength: 7, preserveDetails: 55, reduceColorNoise: 60, sharpenDetails: 15 }
+    })).toEqual({
+      kind: 'reduce-noise', placement: 'attached', layerId: 'photo',
+      settings: { strength: 7, preserveDetails: 55, reduceColorNoise: 60, sharpenDetails: 15 }
+    });
+    expect(parseSemanticAdjustmentCreationCommand({
       kind: 'offset', placement: 'attached', layerId: 'photo',
       settings: { horizontal: 120, vertical: -35, edgeMode: 'wrap' }
     })).toEqual({
@@ -110,6 +117,8 @@ describe('semantic adjustment creation contract', () => {
       settings: { amount: 501, radius: 1, threshold: 0 } },
     { kind: 'smart-sharpen', placement: 'adjustment-layer',
       settings: { amount: 100, radius: 1, reduceNoise: 10, remove: 'box', angle: 0 } },
+    { kind: 'reduce-noise', placement: 'adjustment-layer',
+      settings: { strength: 11, preserveDetails: 50, reduceColorNoise: 50, sharpenDetails: 0 } },
     { kind: 'offset', placement: 'adjustment-layer',
       settings: { horizontal: 1.5, vertical: 0, edgeMode: 'wrap' } },
     { kind: 'offset', placement: 'adjustment-layer',

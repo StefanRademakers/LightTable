@@ -4,3 +4,4 @@ export * from './filterShaders';
 export * from './OffsetCore';
 export * from './MotionBlurCore';
 export * from './MorphologyCore';
+export * from './WaveletDenoiseCore';

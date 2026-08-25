@@ -83,7 +83,7 @@ describe('createEditorMenuOptions', () => {
     }))).toEqual([
       { label: 'Blur', children: ['Gaussian Blur...', 'Motion Blur...', 'Surface Blur'] },
       { label: 'Distort', children: ['Displace'] },
-      { label: 'Noise', children: ['Median', 'Reduce Noise'] },
+      { label: 'Noise', children: ['Median', 'Reduce Noise...'] },
       { label: 'Sharpen', children: ['Smart Sharpen...', 'Unsharp Mask...'] },
       { label: 'Other', children: ['High Pass...', 'Maximum...', 'Minimum...', 'Offset...'] }
     ]);
@@ -116,6 +116,11 @@ describe('createEditorMenuOptions', () => {
     expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith('smart-sharpen');
     smart?.trailingAction?.onClick();
     expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('smart-sharpen');
+    const reduceNoise = findMenuOption(filter, 'filter-reduce-noise');
+    reduceNoise?.onClick?.();
+    expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith('reduce-noise');
+    reduceNoise?.trailingAction?.onClick();
+    expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('reduce-noise');
     const offset = findMenuOption(filter, 'filter-offset');
     offset?.onClick?.();
     expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith('offset');
@@ -134,7 +139,7 @@ describe('createEditorMenuOptions', () => {
     const enabled = new Set([
       'filter-gaussian-blur', 'filter-motion-blur', 'filter-high-pass',
       'filter-smart-sharpen', 'filter-unsharp-mask', 'filter-maximum',
-      'filter-minimum', 'filter-offset'
+      'filter-reduce-noise', 'filter-minimum', 'filter-offset'
     ]);
     expect(leaves.filter(({ value }) => !enabled.has(value))
       .every(({ disabled, onClick }) => disabled && !onClick)).toBe(true);

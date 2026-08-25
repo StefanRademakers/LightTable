@@ -220,4 +220,35 @@ describe('GaussianBlurFilterRenderer', () => {
     expect(new Float32Array(payload)[1]).toBeCloseTo(0.4, 5);
     expect(new Float32Array(payload)[4]).toBeCloseTo(1.2);
   });
+
+  it('routes Reduce Noise through four retained wavelet scales', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('reduce-noise', {
+        strength: 7, preserveDetails: 55, reduceColorNoise: 60, sharpenDetails: 15
+      }, (part) => `denoise-${part}`),
+      'Reduce Noise', 'reduce-noise'
+    );
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
+    expect(test.textures).toHaveLength(3);
+    expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(8);
+    const settings = test.writeBuffer.mock.calls[0]?.[2] as Float32Array;
+    expect(Array.from(settings)).toEqual([
+      expect.closeTo(0.7), expect.closeTo(0.55), expect.closeTo(0.6), expect.closeTo(0.15)
+    ]);
+  });
+
+  it('bypasses a neutral Reduce Noise node without allocating textures', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('reduce-noise', {
+        strength: 0, preserveDetails: 60, reduceColorNoise: 0, sharpenDetails: 0
+      }, (part) => `denoise-neutral-${part}`),
+      'Reduce Noise', 'reduce-noise'
+    );
+    const source = {} as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).toBe(source);
+    expect(test.textures).toHaveLength(0);
+  });
 });
