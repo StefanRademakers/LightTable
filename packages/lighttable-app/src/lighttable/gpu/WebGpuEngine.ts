@@ -1787,8 +1787,7 @@ export class WebGpuEngine {
     this.gaussianBlurFilterRenderer.configure(
       width,
       height,
-      coreResources.sampler,
-      getCorePipelineBundle(this.device, this.canvasFormat).gaussianFilter
+      coreResources.sampler
     );
     this.imageResources.finalTexture = this.device.createTexture({
       label: 'LightTable display-encoded result',

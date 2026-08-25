@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BLUR_CORE_WGSL } from '@lighttable/filter-webgpu';
 // The package's ESM entry is not exposed through package exports, so tests import it directly.
 // @ts-expect-error The public declaration belongs to the package root and describes this same class.
 import { WgslReflect } from 'wgsl_reflect/wgsl_reflect.module.js';
@@ -10,7 +11,6 @@ import {
   CREATIVE_GRADE_WGSL,
   DOCUMENT_THUMBNAIL_WGSL,
   FULLSCREEN_VERTEX_WGSL,
-  FILTER_GAUSSIAN_BLUR_WGSL,
   GAUSSIAN_BLUR_WGSL,
   GLOBAL_GRADE_MIX_WGSL,
   HISTOGRAM_WGSL,
@@ -98,13 +98,13 @@ import {
 } from '../editor/autoAlign/alignmentShaders';
 
 const renderShaders = [
+  ['P0 BlurCore', BLUR_CORE_WGSL],
   ['lens distortion', LENS_DISTORTION_WGSL],
   ['chromatic aberration', CHROMATIC_ABERRATION_WGSL],
   ['post-crop vignette', VIGNETTE_WGSL],
   ['basic correction', BASIC_CORRECTION_WGSL],
   ['downsample', DOWNSAMPLE_WGSL],
   ['gaussian blur', GAUSSIAN_BLUR_WGSL],
-  ['Gaussian Blur filter', FILTER_GAUSSIAN_BLUR_WGSL],
   ['creative grade', CREATIVE_GRADE_WGSL],
   ['wavelet Detail horizontal', WAVELET_DETAIL_HORIZONTAL_WGSL],
   ['wavelet Detail vertical', WAVELET_DETAIL_VERTICAL_WGSL],
@@ -139,11 +139,6 @@ describe('LightTable WGSL modules', () => {
     expect(WAVELET_DETAIL_VERTICAL_WGSL).toContain('filteredChromaDetail');
     expect(CREATIVE_GRADE_WGSL).toContain('Noise reduction is performed by the conditional multi-pass a-trous node');
     expect(CREATIVE_GRADE_WGSL).not.toContain('applyLegacyDetailNode');
-  });
-
-  it('does not use reserved WGSL filter identifiers in the authored Gaussian pass', () => {
-    expect(FILTER_GAUSSIAN_BLUR_WGSL).not.toMatch(/\bfilter\s*[:;]/);
-    expect(FILTER_GAUSSIAN_BLUR_WGSL).toContain('gaussianParams');
   });
 
   it('mixes Global Grade once after its complete pipeline', () => {

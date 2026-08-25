@@ -23,15 +23,16 @@ const fixture = () => {
       buffers.push(buffer);
       return buffer;
     }),
+    createShaderModule: vi.fn(() => ({})),
+    createRenderPipeline: vi.fn(() => ({ getBindGroupLayout: vi.fn(() => ({})) })),
     createBindGroup: vi.fn(() => ({}))
   } as unknown as GPUDevice;
   const pass = {
     setPipeline: vi.fn(), setBindGroup: vi.fn(), draw: vi.fn(), end: vi.fn()
   };
   const encoder = { beginRenderPass: vi.fn(() => pass) } as unknown as GPUCommandEncoder;
-  const pipeline = { getBindGroupLayout: vi.fn(() => ({})) } as unknown as GPURenderPipeline;
   const renderer = new GaussianBlurFilterRenderer(device);
-  renderer.configure(20, 10, {} as GPUSampler, pipeline);
+  renderer.configure(20, 10, {} as GPUSampler);
   return { renderer, device, encoder, textures, buffers, pass };
 };
 
@@ -45,8 +46,8 @@ describe('GaussianBlurFilterRenderer', () => {
 
     expect(test.renderer.estimatedTextureBytes()).toBe(0);
     expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
-    expect(test.textures).toHaveLength(2);
-    expect(test.renderer.estimatedTextureBytes()).toBe(20 * 10 * 8 * 2);
+    expect(test.textures).toHaveLength(3);
+    expect(test.renderer.estimatedTextureBytes()).toBe(20 * 10 * 8 * 3);
     expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(2);
     expect(test.pass.draw).toHaveBeenCalledTimes(2);
     expect(test.device.queue.writeBuffer).toHaveBeenCalledTimes(2);

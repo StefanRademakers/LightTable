@@ -3,7 +3,6 @@ import {
   CREATIVE_GRADE_WGSL,
   DISPLAY_RESOLVE_WGSL,
   DISPLAY_TO_LINEAR_WGSL,
-  FILTER_GAUSSIAN_BLUR_WGSL,
   DEPTH_VIEWPORT_BLIT_WGSL,
   DOWNSAMPLE_WGSL,
   FULLSCREEN_VERTEX_WGSL,
@@ -25,7 +24,6 @@ export interface CorePipelineBundle {
   basic: GPURenderPipeline;
   downsample: GPURenderPipeline;
   blur: GPURenderPipeline;
-  gaussianFilter: GPURenderPipeline;
   creative: GPURenderPipeline;
   pointColorInput: GPURenderPipeline;
   globalGradeMix: GPURenderPipeline;
@@ -110,11 +108,6 @@ export const getCorePipelineBundle = (
     blur: createRenderPipeline(
       'LightTable correction blur',
       GAUSSIAN_BLUR_WGSL,
-      'rgba16float'
-    ),
-    gaussianFilter: createRenderPipeline(
-      'LightTable Gaussian Blur filter',
-      FILTER_GAUSSIAN_BLUR_WGSL,
       'rgba16float'
     ),
     creative: createRenderPipeline(
