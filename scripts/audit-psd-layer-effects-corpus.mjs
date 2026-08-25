@@ -105,7 +105,7 @@ for (const [index, entry] of cases.entries()) {
           BrowserWindow.getAllWindows()[0]?.setBounds({ x: 20, y: 20, width: 1500, height: 1100 });
         });
         page = await app.firstWindow({ timeout: 30_000 });
-        const openFileButton = page.getByRole('button', { name: 'Open file' });
+        const openFileButton = page.getByRole('button', { name: 'Open', exact: true });
         // A 40-case cold-launch corpus can briefly contend with Windows process
         // teardown and shader-cache I/O. Retry only this pre-document readiness
         // boundary; all import, render and parity failures remain hard failures.
@@ -120,7 +120,7 @@ for (const [index, entry] of cases.entries()) {
     if (!page) throw new Error('Electron did not expose a renderer page.');
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(error.stack ?? error.message));
-    const openFileButton = page.getByRole('button', { name: 'Open file' });
+    const openFileButton = page.getByRole('button', { name: 'Open', exact: true });
     await openFileButton.click();
     await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
       .waitFor({ state: 'visible', timeout: 60_000 });
