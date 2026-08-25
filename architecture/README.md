@@ -62,6 +62,7 @@ the task genuinely spans every system.
 - [Vector shape and gradient authoring](features/VECTOR_SHAPE_AND_GRADIENT_AUTHORING.md)
 - [Vector engine and SVG import capability](features/VECTOR_ENGINE_AND_SVG_IMPORT.md)
 - [Selection, mask and paint workflow](features/SELECTION_MASK_AND_PAINT_WORKFLOW.md)
+- [P0 GPU filters](features/P0_GPU_FILTERS.md)
 - [Document image palette](features/DOCUMENT_IMAGE_PALETTE.md)
 - [Resources, workspaces and recent documents](features/RESOURCES_WORKSPACES_AND_RECENTS.md)
 - [Project-mode feature gating](features/PROJECT_MODE_FEATURE_GATING.md)

@@ -27,6 +27,10 @@ milestone changes those boundaries; feature task details belong in
 - Pure compositor planning before GPU encoding.
 - Semantic dirty domains and animation-frame invalidation scheduling.
 - Ordered processing instances and registered GPU effect executors.
+- Twelve full-frame P0 filters share one canonical UI/Actions/MCP/save/
+  rasterize route and reusable linear-RGBA16F WebGPU cores. One lazy
+  document-owned scratch pool is shared across the family and packaged runtime
+  evidence rejects stale pixels, shader errors and post-warm memory growth.
 - Lazy optional effects/codecs and explicit GPU resource lifecycle.
 - Reusable vector stack across `vector-core`, `vector-rendering`,
   `vector-svg-normalizer`, `vector-svg`, `paint-scene`,
@@ -118,6 +122,9 @@ milestone changes those boundaries; feature task details belong in
   has a completely independent generic executor.
 - Smart Objects, Smart Filters, advanced text recovery/editing and full PSD
   style/adjustment parity remain incomplete.
+- P0 filter product wiring is complete, but production calibration still needs
+  reference-image alpha/HDR/edge oracles, large-document latency/soak and the
+  supported NVIDIA/AMD/Intel/Apple packaged hardware matrix.
 - Local Grade and Lens Fx ownership must remain visible and consistent across
   UI, save, merge, clipboard and PSD import.
 - Warp has a working persistent displacement direction, but smoothing,

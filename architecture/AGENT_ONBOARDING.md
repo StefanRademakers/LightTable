@@ -67,9 +67,10 @@ of every user-named source document, compact semantic layer planning, reuse of
 one vector `layerId` for related shapes, batched construction and economical
 512-pixel WebP review. Document/layer bounds, bounded previews and palettes,
 native/bitmap artifacts and complete layered-design transactions exist.
-`adjustment.create` can atomically create configured Posterize, Threshold and
-Gradient Map nodes in standalone or attached placement; other adjustment
-families still have narrower mutation coverage.
+`adjustment.create` can atomically create configured Posterize, Threshold,
+Gradient Map and all twelve P0 full-frame filter nodes in standalone or
+attached placement; other adjustment families still have narrower mutation
+coverage.
 
 The ordinary local connection flow starts inside **Preferences > Agent Access**
 and no longer requires terminal command copy/paste. A ready, clean, unchanged
@@ -155,6 +156,13 @@ reports:
   admitted unlocked layer type. Layer-panel UI, Actions and MCP use the same
   command/capability decision and the packaged route-equivalence gate compares
   canonical state, history and pixels after replay.
+- The P0 full-frame filter family is one vertical slice across UI, Actions,
+  MCP, save/load, rasterize and the GPU compositor. `@lighttable/filter-core`
+  owns bounded settings; reusable `@lighttable/filter-webgpu` cores share one
+  lazy three-target document pool. The packaged P0 smoke requires changed
+  pixels, exact baseline restoration, no renderer errors and stable warm GPU
+  memory. Photoshop Smart Filter masks and production visual/vendor calibration
+  remain separate open gates; read [P0 GPU filters](features/P0_GPU_FILTERS.md).
 - Scope canvases explicitly wake and resize when a previously hidden section
   or workspace becomes visible. The packaged scopes gate verifies real signal
   in Hue Distribution, RGB Parade and Vectorscope, then confirms that scope UI

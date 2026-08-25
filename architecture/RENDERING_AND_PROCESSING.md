@@ -83,12 +83,14 @@ evaluates its processing stack, then applies its own mask, clipping, opacity
 and blend semantics. A group evaluates children into an isolated or pass-
 through envelope according to its semantics before joining its parent.
 
-Gaussian Blur is the first authored Filter using this full-frame layer
-contract. Its canonical `lt.gaussian-blur` module is routed through a distinct
-filter stage after Grade and before Lens Fx display-post work. The separable
-GPU executor operates on premultiplied linear RGBA; `LayerCompositor` still
-owns the filter layer's mask, clipping, opacity and blend. This is deliberately
-not implemented as a Layer Style or folded into the compound Grade shader.
+The twelve authored P0 Filters use this full-frame layer contract. Their
+canonical modules are routed through a distinct filter stage after Grade and
+before Lens Fx display-post work. Reusable GPU cores operate on premultiplied
+linear RGBA16F and share one lazy, alias-safe pool of at most three
+document-sized targets. `LayerCompositor` still owns the filter layer's mask,
+clipping, opacity and blend. Filters are deliberately not implemented as Layer
+Styles or folded into the compound Grade shader. See
+[P0 GPU filters](features/P0_GPU_FILTERS.md).
 
 No mask is exactly equivalent to constant coverage `1.0`. It is not a
 different compositor path. A disabled local processing node is an exact
@@ -190,14 +192,16 @@ current compound Grade node is not yet an arbitrary user-reorderable graph.
 
 Current concepts include white balance, light, global color, color mixer,
 color grading, curves, detail, vignette, lens distortion, chromatic
-aberration, lens blur, halation, grain, warp and Gaussian Blur. Definitions live in
+aberration, lens blur, halation, grain, warp and the P0 full-frame filter
+family. Generic filter definitions and controls live in
+`@lighttable/filter-core`; older processing definitions remain in
 `processing/moduleDefinitions.ts`.
 
-The current Gaussian Blur product slice supports both a standalone full-frame
-processing layer and a linked filter owned by one raster layer. Both expose an
-editable radius in the context-sensitive Properties panel and use canonical
-history, save, rasterize, merge and export routes. The standalone layer owns a
-mask; the linked node owns independent parameters and bypass and moves with its
+All twelve P0 filters support both a standalone full-frame processing layer and
+a linked filter owned by one raster layer. Both expose their bounded settings
+in the context-sensitive Properties panel and use canonical history, save,
+rasterize, merge, command and export routes. The standalone layer owns a mask;
+the linked node owns independent parameters and bypass and moves with its
 content layer.
 
 A complete Smart Filter stack still requires a separate shared stack mask in

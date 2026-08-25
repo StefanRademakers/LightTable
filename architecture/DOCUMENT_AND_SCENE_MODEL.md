@@ -20,15 +20,16 @@ Smart Objects and complete Smart Filter semantics are a target, not yet a
 first-class `LayerNode` variant. PSD metadata and preserved source assets do not
 by themselves mean the Smart Object model is complete.
 
-Gaussian Blur currently has two canonical placements. A standalone,
+The P0 full-frame filters have two canonical placements. A standalone,
 adjustment-layer-shaped filter processes the accumulated lower composite and
-uses that layer's mask. A linked Gaussian Blur is an ordered
-`AttachedAdjustment` owned by one raster layer; its parameters and bypass are
-independently editable and it travels with that layer. The linked form is a
-useful non-destructive layer filter, but is not yet the complete Photoshop
-Smart Filter model: it has no separate shared filter-stack mask or Smart Object
+uses that layer's mask. A linked filter is an ordered `AttachedAdjustment`
+owned by one raster layer; its parameters and bypass are independently
+editable and it travels with that layer. The linked form is a useful
+non-destructive layer filter, but is not yet the complete Photoshop Smart
+Filter model: it has no separate shared filter-stack mask or Smart Object
 source. Those later semantics require additional canonical content-layer data
-instead of overloading the raster layer mask or Layer Styles.
+instead of overloading the raster layer mask or Layer Styles. See
+[P0 GPU filters](features/P0_GPU_FILTERS.md).
 
 Document assets are immutable source payloads referenced by canonical IDs.
 The registry currently covers patterns, embedded fonts, preserved interchange

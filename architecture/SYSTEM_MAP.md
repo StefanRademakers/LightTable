@@ -13,6 +13,8 @@ packages/genai-core      Provider-neutral GenAI models, workflows, jobs and pres
 packages/genai-higgsfield Higgsfield adapter, normalization and provider fixtures
 packages/genai-local     Host-neutral local-provider protocol and contracts
 packages/genai-openart   OpenArt adapter, schema normalization and provider fixtures
+packages/filter-core     Serializable full-frame filter definitions, controls and settings
+packages/filter-webgpu   Reusable linear-RGBA16F GPU filter cores and scratch-target ownership
 packages/paint-core      Host-neutral paint gesture and dab contracts
 packages/paint-scene     Validated renderer-neutral retained scene/fragment contract
 packages/paint-scene-adapters Canonical vector/PDF projections with explicit capability loss
