@@ -373,6 +373,8 @@ describe('useLayerDocumentCommands', () => {
     expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
       layerId, expect.any(File), { x: 5, y: 7 }, 'mask'
     );
+    const committedLayer = state.document().layers[0];
+    expect(committedLayer?.mask?.pixelRevision).toBe(1);
     expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledOnce();
     expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('mask');
   });

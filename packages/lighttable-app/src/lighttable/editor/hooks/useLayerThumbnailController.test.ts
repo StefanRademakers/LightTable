@@ -140,4 +140,42 @@ describe('collectLayerThumbnailChannels', () => {
       height: 20
     });
   });
+
+  it('never projects a stale mask preview for a newer mask pixel revision', () => {
+    const rasterDocument = createRasterLayer(
+      createImageDocument('Mask thumbnail revision', 64, 32, 'source'),
+      'Paint'
+    );
+    const maskedDocument = addLayerMask(
+      rasterDocument,
+      rasterDocument.activeLayerId!
+    );
+    const initialChannels = collectLayerThumbnailChannels(maskedDocument);
+    const maskChannel = initialChannels.find(({ mask }) => mask)!;
+    const staleCache = new Map([[maskChannel.identity, {
+      revisionKey: maskChannel.revisionKey,
+      url: 'blob:opaque-mask',
+      width: 40,
+      height: 20
+    }]]);
+    const changedDocument = {
+      ...maskedDocument,
+      layers: maskedDocument.layers.map((layer) => layer.mask
+        ? {
+            ...layer,
+            mask: {
+              ...layer.mask,
+              pixelRevision: layer.mask.pixelRevision + 1
+            }
+          }
+        : layer)
+    };
+
+    const projected = projectLayerThumbnails(
+      collectLayerThumbnailChannels(changedDocument),
+      staleCache
+    );
+
+    expect(projected.get(maskChannel.layerId)?.mask).toBeUndefined();
+  });
 });

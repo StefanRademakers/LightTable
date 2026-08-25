@@ -72,9 +72,12 @@ export const projectLayerThumbnails = (
   cache: ReadonlyMap<string, LayerThumbnailCacheEntry>
 ): ReadonlyMap<LayerId, LayerThumbnailSet> => {
   const projected = new Map<LayerId, LayerThumbnailSet>();
-  desired.forEach(({ identity, layerId, mask }) => {
+  desired.forEach(({ identity, layerId, mask, revisionKey }) => {
     const entry = cache.get(identity);
-    if (!entry) return;
+    // A thumbnail is a projection of one exact pixel-bearing revision. Never
+    // let an accessory cache entry from the previous revision represent the
+    // current layer or mask while its replacement GPU readback is in flight.
+    if (!entry || entry.revisionKey !== revisionKey) return;
     const current = projected.get(layerId) ?? {};
     projected.set(
       layerId,
