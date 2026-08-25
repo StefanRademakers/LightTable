@@ -53,10 +53,16 @@ export function ContextMenu<T extends string>({
   const closeSubmenuTimeoutRef = useRef<number | null>(null);
   const submenuRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const restoreFocusRef = useRef<HTMLElement | null>(null);
-  const [position, setPosition] = useState({ left: x, top: y });
+  const [position, setPosition] = useState<{ left: number; top: number; anchorKey: string | null }>({
+    left: x,
+    top: y,
+    anchorKey: null
+  });
   const [submenuDirection, setSubmenuDirection] = useState<'left' | 'right'>('right');
   const [openSubmenuPath, setOpenSubmenuPath] = useState<string[]>([]);
   const [submenuOffsets, setSubmenuOffsets] = useState<Record<string, number>>({});
+  const anchorKey = `${x}:${y}:${placement}:${width ?? 'auto'}:${options.length}`;
+  const positionIsReady = position.anchorKey === anchorKey;
 
   const clearCloseSubmenuTimeout = () => {
     if (closeSubmenuTimeoutRef.current === null) return;
@@ -104,6 +110,16 @@ export function ContextMenu<T extends string>({
 
   useEffect(() => () => clearCloseSubmenuTimeout(), []);
 
+  // A closed menu must discard its previous measurement. Reopening at the
+  // same anchor may have different content or viewport dimensions; retaining
+  // the old position would expose one stale frame before layout correction.
+  useLayoutEffect(() => {
+    if (open) return;
+    setPosition((current) => current.anchorKey === null
+      ? current
+      : { ...current, anchorKey: null });
+  }, [open]);
+
   useLayoutEffect(() => {
     if (!open) return;
 
@@ -136,10 +152,7 @@ export function ContextMenu<T extends string>({
     if (!open) return;
 
     const menu = menuRef.current;
-    if (!menu) {
-      setPosition({ left: x, top: y });
-      return;
-    }
+    if (!menu) return;
 
     const margin = 12;
     const rect = menu.getBoundingClientRect();
@@ -154,9 +167,12 @@ export function ContextMenu<T extends string>({
         : y + rect.height + margin > viewportHeight ? y - rect.height : y;
     const top = Math.max(margin, Math.min(preferredTop, viewportHeight - rect.height - margin));
 
-    setPosition({ left, top });
+    setPosition((current) => current.left === left && current.top === top
+      && current.anchorKey === anchorKey
+      ? current
+      : { left, top, anchorKey });
     setSubmenuDirection(left + rect.width + 232 > viewportWidth - margin ? 'left' : 'right');
-  }, [open, options.length, placement, x, y]);
+  }, [anchorKey, open, placement, x, y]);
 
   if (!open || !options.length) return null;
 
@@ -195,7 +211,13 @@ export function ContextMenu<T extends string>({
       aria-label={isSubmenu ? 'Submenu' : 'Context menu'}
       style={isSubmenu
         ? { top: `${-8 + submenuOffset}px` }
-        : { left: position.left, top: position.top, ...(width ? { width, minWidth: width } : {}) }}
+        : {
+            left: position.left,
+            top: position.top,
+            visibility: positionIsReady ? 'visible' : 'hidden',
+            pointerEvents: positionIsReady ? undefined : 'none',
+            ...(width ? { width, minWidth: width } : {})
+          }}
       onMouseEnter={() => {
         if (!isSubmenu) return;
         clearCloseSubmenuTimeout();
