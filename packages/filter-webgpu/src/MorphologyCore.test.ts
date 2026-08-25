@@ -19,6 +19,14 @@ describe('MorphologyCore planning', () => {
     const large = morphologyPassPlan({ radius: 500, shape: 'round' });
     expect(new Set(large.map(({ direction }) => direction.join(','))).size).toBe(4);
     expect(large.length).toBeLessThanOrEqual(32);
+    const extent = (plan: typeof large, axis: 0 | 1) => plan.reduce((sum, pass) => (
+      sum + Math.abs(pass.direction[axis]) * pass.step
+    ), 0);
+    expect(extent(large, 0)).toBe(500);
+    expect(extent(large, 1)).toBe(500);
+    const uneven = morphologyPassPlan({ radius: 5, shape: 'round' });
+    expect(extent(uneven, 0)).toBe(5);
+    expect(extent(uneven, 1)).toBe(5);
   });
 
   it('plans exact separable square support', () => {

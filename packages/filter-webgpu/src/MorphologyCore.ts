@@ -75,18 +75,23 @@ export const morphologyPassPlan = (settings: MorphologySettings): readonly Morph
   if (settings.shape === 'round' && radius <= DIRECT_ROUND_RADIUS) {
     return [{ direction: [0, 0], step: radius, directRound: true }];
   }
-  const directions = settings.shape === 'square'
-    ? [[1, 0], [0, 1]] as const
-    : [[1, 0], [1, 1], [0, 1], [-1, 1]] as const;
-  // Four equal line segments form an octagon. This scale keeps its horizontal
-  // and vertical extent equal to the authored disk radius.
-  const lineRadius = settings.shape === 'square'
-    ? radius
-    : Math.max(1, Math.round(radius / (1 + Math.SQRT2)));
-  const steps = morphologyStepSchedule(lineRadius);
-  return directions.flatMap((direction) => steps.map((step) => ({
-    direction, step, directRound: false
-  })));
+  const directions: readonly (readonly [readonly [number, number], number])[] =
+    settings.shape === 'square'
+      ? [[[1, 0], radius], [[0, 1], radius]]
+      : (() => {
+          // Integer diagonal steps contribute one pixel to both axes. Choose
+          // a + 2b = radius so the octagon has the exact authored x/y extent.
+          const diagonalRadius = Math.floor(radius / 3);
+          const axialRadius = radius - 2 * diagonalRadius;
+          return [
+            [[1, 0], axialRadius], [[1, 1], diagonalRadius],
+            [[0, 1], axialRadius], [[-1, 1], diagonalRadius]
+          ] as const;
+        })();
+  return directions.flatMap(([direction, lineRadius]) =>
+    morphologyStepSchedule(lineRadius).map((step) => ({
+      direction, step, directRound: false
+    })));
 };
 
 interface Runtime {
