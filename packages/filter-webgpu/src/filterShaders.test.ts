@@ -7,6 +7,7 @@ import {
   WAVELET_DENOISE_VERTICAL_WGSL
 } from './WaveletDenoiseCore';
 import { DISPLACE_WGSL } from './DisplaceCore';
+import { SURFACE_BLUR_WGSL } from './SurfaceBlurCore';
 
 describe('filter shaders', () => {
   it('keeps BlurCore bindings stable and avoids WGSL reserved identifiers', () => {
@@ -42,5 +43,12 @@ describe('filter shaders', () => {
     expect(DISPLACE_WGSL).toContain('bicubicSource');
     expect(DISPLACE_WGSL).toContain('mapSample.rgb / max(mapSample.a');
     expect(DISPLACE_WGSL).not.toContain('clamp(result, vec4f(0.0), vec4f(1.0))');
+  });
+
+  it('keeps Surface Blur bounded and guided by the immutable source', () => {
+    expect(SURFACE_BLUR_WGSL).toContain('index <= 16i');
+    expect(SURFACE_BLUR_WGSL).toContain('guideTexture');
+    expect(SURFACE_BLUR_WGSL).toContain('rangeWeight');
+    expect(SURFACE_BLUR_WGSL).not.toContain('clamp(accumulated');
   });
 });

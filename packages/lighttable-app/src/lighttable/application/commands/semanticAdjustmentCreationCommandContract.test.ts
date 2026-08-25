@@ -53,6 +53,13 @@ describe('semantic adjustment creation contract', () => {
       settings: { angle: -35, distance: 120 }
     });
     expect(parseSemanticAdjustmentCreationCommand({
+      kind: 'surface-blur', placement: 'attached', layerId: 'photo',
+      settings: { radius: 18, threshold: 24 }
+    })).toEqual({
+      kind: 'surface-blur', placement: 'attached', layerId: 'photo',
+      settings: { radius: 18, threshold: 24 }
+    });
+    expect(parseSemanticAdjustmentCreationCommand({
       kind: 'high-pass', placement: 'attached', layerId: 'photo', settings: { radius: 16 }
     })).toEqual({
       kind: 'high-pass', placement: 'attached', layerId: 'photo', settings: { radius: 16 }
@@ -123,6 +130,7 @@ describe('semantic adjustment creation contract', () => {
     { kind: 'gaussian-blur', placement: 'adjustment-layer', settings: { radius: 101 } },
     { kind: 'motion-blur', placement: 'adjustment-layer', settings: { angle: 181, distance: 10 } },
     { kind: 'motion-blur', placement: 'adjustment-layer', settings: { angle: 0, distance: 513 } },
+    { kind: 'surface-blur', placement: 'adjustment-layer', settings: { radius: 101, threshold: 15 } },
     { kind: 'high-pass', placement: 'adjustment-layer', settings: { radius: 0 } },
     { kind: 'unsharp-mask', placement: 'adjustment-layer',
       settings: { amount: 501, radius: 1, threshold: 0 } },

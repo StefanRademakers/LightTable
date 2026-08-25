@@ -285,4 +285,23 @@ describe('GaussianBlurFilterRenderer', () => {
     expect(test.renderer.encode(test.encoder, source, layer)).toBe(source);
     expect(test.textures).toHaveLength(0);
   });
+
+  it('routes Surface Blur through two bounded passes sharing the original guide', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('surface-blur', { radius: 40, threshold: 25 },
+        (part) => `surface-${part}`),
+      'Surface Blur', 'surface-blur'
+    );
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
+    expect(test.textures).toHaveLength(2);
+    expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(2);
+    expect(source.createView).toHaveBeenCalledTimes(3);
+    const horizontal = test.writeBuffer.mock.calls[0]?.[2] as ArrayBuffer;
+    expect(Array.from(new Float32Array(horizontal).slice(0, 4))).toEqual([
+      1, 0, 40, expect.closeTo(25 / 255)
+    ]);
+    expect(new Uint32Array(horizontal)[4]).toBe(16);
+  });
 });

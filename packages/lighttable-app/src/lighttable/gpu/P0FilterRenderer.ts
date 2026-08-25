@@ -4,6 +4,7 @@ import {
   MorphologyCore,
   MotionBlurCore,
   OffsetCore,
+  SurfaceBlurCore,
   WaveletDenoiseCore,
   type BlurCoreMode
 } from '@lighttable/filter-webgpu';
@@ -26,6 +27,7 @@ export class P0FilterRenderer {
   private readonly morphologyCore: MorphologyCore;
   private readonly waveletDenoiseCore: WaveletDenoiseCore;
   private readonly displaceCore: DisplaceCore;
+  private readonly surfaceBlurCore: SurfaceBlurCore;
   private sampler: GPUSampler | null = null;
 
   constructor(device: GPUDevice,
@@ -36,6 +38,7 @@ export class P0FilterRenderer {
     this.morphologyCore = new MorphologyCore(device);
     this.waveletDenoiseCore = new WaveletDenoiseCore(device);
     this.displaceCore = new DisplaceCore(device);
+    this.surfaceBlurCore = new SurfaceBlurCore(device);
   }
 
   configure(width: number, height: number, sampler: GPUSampler): void {
@@ -46,6 +49,7 @@ export class P0FilterRenderer {
     this.morphologyCore.configure(width, height);
     this.waveletDenoiseCore.configure(width, height, sampler);
     this.displaceCore.configure(width, height);
+    this.surfaceBlurCore.configure(width, height, sampler);
   }
 
   encode(
@@ -107,6 +111,12 @@ export class P0FilterRenderer {
         }
       ) : source;
     }
+    if (definition.kind === 'surface-blur') {
+      const settings = p0FilterSettings(layer.adjustmentStack, 'surface-blur');
+      return settings ? this.surfaceBlurCore.encode(encoder, source, {
+        key: `${layer.id}::${module.id}`, revision: module.revision, settings
+      }) : source;
+    }
     if (!BLUR_CORE_MODES.has(definition.kind as BlurCoreMode)) return source;
     const mode = definition.kind as BlurCoreMode;
     const settings = p0FilterSettings(layer.adjustmentStack, mode);
@@ -124,7 +134,8 @@ export class P0FilterRenderer {
       + this.motionBlurCore.estimatedTextureBytes()
       + this.morphologyCore.estimatedTextureBytes()
       + this.waveletDenoiseCore.estimatedTextureBytes()
-      + this.displaceCore.estimatedTextureBytes();
+      + this.displaceCore.estimatedTextureBytes()
+      + this.surfaceBlurCore.estimatedTextureBytes();
   }
 
   reset(): void {
@@ -134,6 +145,7 @@ export class P0FilterRenderer {
     this.morphologyCore.destroy();
     this.waveletDenoiseCore.destroy();
     this.displaceCore.destroy();
+    this.surfaceBlurCore.destroy();
   }
 
   destroy(): void {
@@ -143,5 +155,6 @@ export class P0FilterRenderer {
     this.morphologyCore.destroy();
     this.waveletDenoiseCore.destroy();
     this.displaceCore.destroy();
+    this.surfaceBlurCore.destroy();
   }
 }
