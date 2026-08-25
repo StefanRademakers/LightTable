@@ -1248,14 +1248,17 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
 }
 
 .lighttable-launcher-gallery {
-  position: relative;
   width: 100%;
   min-width: 0;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  align-content: start;
+  gap: 8px;
 }
 
 .lighttable-launcher-gallery__item {
-  position: absolute;
-  inset: 0 auto auto 0;
+  min-width: 0;
   box-shadow: 0 3px 9px rgb(0 0 0 / 28%);
 }
 
@@ -1306,6 +1309,7 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
 
 .lighttable-launcher-gallery__preview {
   min-width: 0;
+  aspect-ratio: 4 / 3;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -1317,7 +1321,7 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .lighttable-launcher-gallery__footer {
