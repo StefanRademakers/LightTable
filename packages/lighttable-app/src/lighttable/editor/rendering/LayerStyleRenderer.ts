@@ -13,7 +13,6 @@ import {
   baseLayerStyleUniform,
   bevelDistanceCapacity,
   bevelJumpFloodSteps,
-  LAYER_STYLE_SETTINGS_BYTES,
   layerStyleGaussianBlurPlan,
   layerStyleUniform,
   smoothBevelGaussianPlan,
@@ -47,6 +46,51 @@ interface LayerStyleRendererOptions {
     target: GPUTextureView,
     clearValue: GPUColor
   ) => void;
+}
+
+const DEFAULT_UNIFORM_ARENA_BYTES = 16 * 1024;
+
+/**
+ * Packs the short-lived uniforms for one style evaluation into a small number
+ * of submit-retained buffers. Slider previews used to create a separate GPU
+ * buffer for the shape, base style, every effect and every blur pass, adding
+ * CPU/driver resource churn without changing any rendered pixel.
+ */
+export class LayerStyleUniformArena {
+  private readonly alignment: number;
+  private chunks: Array<{ buffer: GPUBuffer; offset: number; size: number }> = [];
+
+  constructor(
+    private readonly device: GPUDevice,
+    private readonly submittedResources: SubmittedResourceRetainer,
+    private readonly chunkBytes = DEFAULT_UNIFORM_ARENA_BYTES
+  ) {
+    this.alignment = Math.max(4, device.limits.minUniformBufferOffsetAlignment || 256);
+  }
+
+  write(values: Float32Array<ArrayBuffer>, label: string): GPUBufferBinding {
+    const byteLength = values.byteLength;
+    let chunk = this.chunks.at(-1);
+    let offset = chunk ? this.align(chunk.offset) : 0;
+    if (!chunk || offset + byteLength > chunk.size) {
+      const size = this.align(Math.max(this.chunkBytes, byteLength));
+      const buffer = this.submittedResources.retainBuffer(this.device.createBuffer({
+        label,
+        size,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      }));
+      chunk = { buffer, offset: 0, size };
+      this.chunks.push(chunk);
+      offset = 0;
+    }
+    this.device.queue.writeBuffer(chunk.buffer, offset, values);
+    chunk.offset = offset + byteLength;
+    return { buffer: chunk.buffer, offset, size: byteLength };
+  }
+
+  private align(value: number) {
+    return Math.ceil(value / this.alignment) * this.alignment;
+  }
 }
 
 const patternReference = (effect: StyleEffect) =>
@@ -244,15 +288,11 @@ export class LayerStyleRenderer {
     const { width, height } = this.options.dimensions();
     const gradientGeometry = sourceDocumentBounds(inverse, sourceSize);
     const styleTextures = this.textures.ensureWorkTextures();
+    const uniforms = new LayerStyleUniformArena(device, submittedResources);
 
     const maskInverse = invertMatrix(layer.mask?.transform ?? identityAffineMatrix())
       ?? identityAffineMatrix();
-    const shapeSettings = device.createBuffer({
-      label: `LightTable Layer Style shape: ${layer.name}`,
-      size: 96,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-    device.queue.writeBuffer(shapeSettings, 0, new Float32Array([
+    const shapeSettings = uniforms.write(new Float32Array([
       layer.mask?.enabled && maskTexture ? 1 : 0,
       layer.mask?.density ?? 1,
       layer.mask?.feather ?? 0,
@@ -263,14 +303,13 @@ export class LayerStyleRenderer {
       width, height,
       maskInverse.a, maskInverse.c, maskInverse.tx, 0,
       maskInverse.b, maskInverse.d, maskInverse.ty, 0
-    ]));
-    submittedResources.retainBuffer(shapeSettings);
+    ]), `LightTable Layer Style uniforms: ${layer.name}`);
     const shapeBindGroup = device.createBindGroup({
       layout: shapePipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: foregroundTexture.createView() },
         { binding: 1, resource: sampler },
-        { binding: 2, resource: { buffer: shapeSettings } },
+        { binding: 2, resource: shapeSettings },
         { binding: 3, resource: (maskTexture ?? foregroundTexture).createView() }
       ]
     });
@@ -292,20 +331,14 @@ export class LayerStyleRenderer {
       bevelFieldTexture: GPUTexture = styleTextures.shape,
       bevelHeightTexture: GPUTexture = styleTextures.shape
     ) => {
-      const settingsBuffer = device.createBuffer({
-        label,
-        size: LAYER_STYLE_SETTINGS_BYTES,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-      });
-      device.queue.writeBuffer(settingsBuffer, 0, new Float32Array(values));
-      submittedResources.retainBuffer(settingsBuffer);
+      const settingsBuffer = uniforms.write(new Float32Array(values), label);
       const bindGroup = device.createBindGroup({
         layout: styleEffectPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: current.createView() },
           { binding: 1, resource: styleTextures.shape.createView() },
           { binding: 2, resource: sampler },
-          { binding: 3, resource: { buffer: settingsBuffer } },
+          { binding: 3, resource: settingsBuffer },
           { binding: 4, resource: (patternTexture ?? styleTextures.shape).createView() },
           { binding: 5, resource: blurredShapeTexture.createView() },
           { binding: 6, resource: bevelFieldTexture.createView() },
@@ -334,19 +367,13 @@ export class LayerStyleRenderer {
       pipeline: GPURenderPipeline = styleBlurPipeline!
     ) => {
       if (!pipeline) return;
-      const settingsBuffer = device.createBuffer({
-        label: `${label} settings`,
-        size: 48,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-      });
-      device.queue.writeBuffer(settingsBuffer, 0, new Float32Array([
+      const settingsBuffer = uniforms.write(new Float32Array([
         outputSize.width, outputSize.height,
         sourceSize.width, sourceSize.height,
         sourceOrigin.x, sourceOrigin.y,
         direction[0], direction[1],
         radius, outputToSourceScale, 0, 0
-      ]));
-      submittedResources.retainBuffer(settingsBuffer);
+      ]), `${label} settings`);
       const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
         entries: [
@@ -354,7 +381,7 @@ export class LayerStyleRenderer {
           ...(pipeline === styleBlurPipeline
             ? [{ binding: 1, resource: sampler }]
             : []),
-          { binding: 2, resource: { buffer: settingsBuffer } }
+          { binding: 2, resource: settingsBuffer }
         ]
       });
       drawFullscreen(
@@ -544,23 +571,17 @@ export class LayerStyleRenderer {
           geometryBounds.width,
           geometryBounds.height
         );
-        const seedSettings = device.createBuffer({
-          label: `LightTable Bevel seed settings: ${layer.name}`,
-          size: 32,
-          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-        device.queue.writeBuffer(seedSettings, 0, new Float32Array([
+        const seedSettings = uniforms.write(new Float32Array([
           width, height,
           geometryBounds.x, geometryBounds.y,
           geometryBounds.width, geometryBounds.height,
           maximumDistance, 0
-        ]));
-        submittedResources.retainBuffer(seedSettings);
+        ]), `LightTable Bevel seed settings: ${layer.name}`);
         const seedBindGroup = device.createBindGroup({
           layout: bevelSeedPipeline.getBindGroupLayout(0),
           entries: [
             { binding: 0, resource: styleTextures.shape.createView() },
-            { binding: 1, resource: { buffer: seedSettings } }
+            { binding: 1, resource: seedSettings }
           ]
         });
         drawFullscreen(
