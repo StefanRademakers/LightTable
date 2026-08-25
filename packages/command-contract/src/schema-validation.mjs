@@ -121,6 +121,9 @@ const validateNode = (schema, value, path, issues, root) => {
     if (schema.maximum !== undefined && value > schema.maximum) {
       issues.push(issue(path, 'maximum', `must be at most ${schema.maximum}`));
     }
+  } else if (schema.type === 'null' && value !== null) {
+    issues.push(issue(path, 'type', 'must be null'));
+    return;
   } else if (schema.type === 'boolean' && typeof value !== 'boolean') {
     issues.push(issue(path, 'type', 'must be a boolean'));
     return;

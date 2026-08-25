@@ -787,6 +787,19 @@ test('adjustment creation schemas preserve exact placement semantics', () => {
       settings: { posterizeLevels: 4 } },
     { kind: 'curves', placement: 'adjustment-layer', settings: { thresholdLevel: 128 } }
   ]) assert.equal(validateJsonSchemaValue(create.input, invalid).valid, false, JSON.stringify(invalid));
+  const displace = {
+    kind: 'displace', placement: 'attached', layerId: 'photo', settings: {
+      horizontalScale: 18, verticalScale: -12, mapAssetId: 'displacement-map',
+      edgeMode: 'clamp', interpolation: 'bicubic'
+    }
+  };
+  assert.equal(validateJsonSchemaValue(create.input, displace).valid, true);
+  assert.equal(validateJsonSchemaValue(create.input, {
+    ...displace, settings: { ...displace.settings, mapAssetId: null }
+  }).valid, true);
+  assert.equal(validateJsonSchemaValue(create.input, {
+    ...displace, settings: { ...displace.settings, mapAssetId: { layerId: 'displacement-map' } }
+  }).valid, false);
   assert.equal(validateJsonSchemaValue(create.result, {
     kind: 'grade', placement: 'local', layerId: 'photo'
   }).valid, true);
