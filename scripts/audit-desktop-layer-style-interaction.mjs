@@ -198,6 +198,9 @@ try {
   if (report.gesture.inputEvents < inputEvents || report.gesture.finalValue === range.initialValue) {
     throw new Error('The Layer Style audit did not exercise a real changing slider gesture.');
   }
+  if (report.render.submittedFrames < 1 || report.render.renderCalls < 1) {
+    throw new Error('The Layer Style audit requires an instrumented package with positive render samples.');
+  }
   if (report.render.publishHz > 38) {
     throw new Error(`FX rendering exceeded the 30 Hz interaction budget: ${report.render.publishHz.toFixed(1)} Hz.`);
   }
