@@ -35,7 +35,7 @@ describe('layer style effect shader contract', () => {
       'let fieldUv = (documentPixel - fieldBounds.xy) / max(fieldBounds.zw, vec2f(1.0));'
     );
     expect(LAYER_STYLE_EFFECT_WGSL).toContain(
-      '(kind == 2 || kind == 3 || kind == 4 || kind == 11)'
+      'kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 11 || kind == 12'
     );
   });
 
