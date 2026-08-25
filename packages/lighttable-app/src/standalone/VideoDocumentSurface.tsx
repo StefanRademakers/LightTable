@@ -394,7 +394,7 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
           style={mediaRect ? {
             width: `${mediaRect.width}px`,
             height: `${mediaRect.height}px`,
-            transform: `translate(${view.panX}px, ${view.panY}px)`
+            transform: `translate(-50%, -50%) translate(${view.panX}px, ${view.panY}px)`
           } : undefined}
           onLoadedMetadata={(event) => {
             const video = event.currentTarget;

@@ -1094,6 +1094,9 @@
 .lighttable-video-document[data-active-tool='zoom'] { cursor: zoom-in; }
 
 .lighttable-video-document__media {
+  position: absolute;
+  left: 50%;
+  top: 50%;
   display: block;
   max-width: none;
   max-height: none;

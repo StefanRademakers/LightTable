@@ -128,17 +128,50 @@ try {
     return media instanceof HTMLVideoElement
       && Math.abs(media.getBoundingClientRect().width - 480) < 2;
   });
+  const videoSurface = page.locator('.lighttable-video-document');
+  const surfaceBounds = await videoSurface.boundingBox();
+  const regionSourceBounds = await video.boundingBox();
+  if (!surfaceBounds || !regionSourceBounds) throw new Error('Video region zoom has no interaction bounds.');
+  const regionStart = {
+    x: regionSourceBounds.x + regionSourceBounds.width * 0.1,
+    y: regionSourceBounds.y + regionSourceBounds.height * 0.1
+  };
+  const regionEnd = {
+    x: regionSourceBounds.x + regionSourceBounds.width * 0.5,
+    y: regionSourceBounds.y + regionSourceBounds.height * 0.5
+  };
+  const selectedDocumentCenter = {
+    x: ((regionStart.x + regionEnd.x) / 2 - regionSourceBounds.x) / 1.5,
+    y: ((regionStart.y + regionEnd.y) / 2 - regionSourceBounds.y) / 1.5
+  };
+  await page.mouse.move(regionStart.x, regionStart.y);
+  await page.mouse.down();
+  await page.mouse.move(regionEnd.x, regionEnd.y, { steps: 4 });
+  await page.mouse.up();
+  const regionTargetBounds = await video.boundingBox();
+  if (!regionTargetBounds) throw new Error('Video disappeared after region zoom.');
+  const regionTargetScale = regionTargetBounds.width / 320;
+  const projectedRegionCenter = {
+    x: regionTargetBounds.x + selectedDocumentCenter.x * regionTargetScale,
+    y: regionTargetBounds.y + selectedDocumentCenter.y * regionTargetScale
+  };
+  if (Math.abs(projectedRegionCenter.x - (surfaceBounds.x + surfaceBounds.width / 2)) > 3
+    || Math.abs(projectedRegionCenter.y - (surfaceBounds.y + surfaceBounds.height / 2)) > 3) {
+    throw new Error(`Video region zoom targeted the wrong coordinate space: ${JSON.stringify({
+      projectedRegionCenter, surfaceBounds, regionSourceBounds, regionTargetBounds
+    })}`);
+  }
   await page.locator('.lighttable-video-document').click({ button: 'right', position: { x: 140, y: 100 } });
   const toolSettings = page.getByRole('dialog', { name: 'Tool settings' });
   await toolSettings.waitFor({ state: 'visible' });
   if (await toolSettings.getByRole('button', { name: 'Fit screen', exact: true }).count() !== 1) {
     throw new Error('Video right-click did not reuse the shared Zoom properties.');
   }
+  await toolSettings.getByRole('button', { name: 'Fit screen', exact: true }).click();
   await page.keyboard.press('Escape');
+  await page.locator('.lighttable-tool-options')
+    .getByRole('button', { name: '150%', exact: true }).click();
   await page.getByRole('button', { name: 'Move canvas (H)', exact: true }).click();
-  const videoSurface = page.locator('.lighttable-video-document');
-  const surfaceBounds = await videoSurface.boundingBox();
-  if (!surfaceBounds) throw new Error('Video surface has no interaction bounds.');
   const transformBeforePan = await video.evaluate((element) => element.style.transform);
   await page.mouse.move(surfaceBounds.x + surfaceBounds.width / 2, surfaceBounds.y + surfaceBounds.height / 3);
   await page.mouse.down();
