@@ -10,7 +10,7 @@
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
-        "high-pass", "unsharp-mask"
+        "high-pass", "unsharp-mask", "offset"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -49,6 +49,15 @@
         "amount": { "type": "number", "minimum": 0, "maximum": 500, "default": 100 },
         "radius": { "type": "number", "minimum": 0.1, "maximum": 100, "default": 1 },
         "threshold": { "type": "number", "minimum": 0, "maximum": 255, "default": 0 }
+      }
+    },
+    "offsetSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["horizontal", "vertical", "edgeMode"],
+      "properties": {
+        "horizontal": { "type": "integer", "minimum": -100000, "maximum": 100000, "default": 0 },
+        "vertical": { "type": "integer", "minimum": -100000, "maximum": 100000, "default": 0 },
+        "edgeMode": { "type": "string", "enum": ["transparent", "clamp", "wrap"], "default": "wrap" }
       }
     },
     "gradientMapColorStop": {
@@ -116,6 +125,7 @@
               { "$ref": "#/$defs/gaussianBlurSettings" },
               { "$ref": "#/$defs/highPassSettings" },
               { "$ref": "#/$defs/unsharpMaskSettings" },
+              { "$ref": "#/$defs/offsetSettings" },
               { "$ref": "#/$defs/gradientMapSettings" }
             ]
           }
@@ -164,6 +174,13 @@
                   "properties": {
                     "kind": { "const": "unsharp-mask" },
                     "settings": { "$ref": "#/$defs/unsharpMaskSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "offset" },
+                    "settings": { "$ref": "#/$defs/offsetSettings" }
                   }
                 },
                 {

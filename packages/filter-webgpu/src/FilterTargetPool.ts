@@ -11,7 +11,14 @@ export class FilterTargetPool {
   private width = 0;
   private height = 0;
 
-  constructor(private readonly device: GPUDevice) {}
+  constructor(
+    private readonly device: GPUDevice,
+    private readonly targetCount = 3
+  ) {
+    if (!Number.isInteger(targetCount) || targetCount < 1) {
+      throw new RangeError('Filter target count must be a positive integer.');
+    }
+  }
 
   configure(width: number, height: number): void {
     if (this.width === width && this.height === height) return;
@@ -21,11 +28,11 @@ export class FilterTargetPool {
   }
 
   private ensureTargets(): void {
-    if (this.targets.length === 3) return;
+    if (this.targets.length === this.targetCount) return;
     if (this.width < 1 || this.height < 1) {
       throw new Error('Filter target pool is not configured.');
     }
-    this.targets = Array.from({ length: 3 }, (_, index) => this.device.createTexture({
+    this.targets = Array.from({ length: this.targetCount }, (_, index) => this.device.createTexture({
       label: `LightTable filter target ${index + 1}`,
       size: [this.width, this.height],
       format: 'rgba16float',

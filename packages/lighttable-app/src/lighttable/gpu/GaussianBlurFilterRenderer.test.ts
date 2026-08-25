@@ -84,4 +84,33 @@ describe('GaussianBlurFilterRenderer', () => {
     expect(new Uint32Array(vertical)[4]).toBe(outputMode);
     expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(2);
   });
+
+  it('routes Offset through one exact integer-sampling pass and one retained target', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('offset', { horizontal: 12, vertical: -4, edgeMode: 'wrap' },
+        (part) => `offset-${part}`),
+      'Offset', 'offset'
+    );
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
+    expect(test.textures).toHaveLength(1);
+    expect(test.encoder.beginRenderPass).toHaveBeenCalledOnce();
+    const bytes = test.writeBuffer.mock.calls[0]?.[2] as ArrayBuffer;
+    expect(Array.from(new Int32Array(bytes).slice(0, 2))).toEqual([12, -4]);
+    expect(new Uint32Array(bytes)[2]).toBe(2);
+  });
+
+  it('bypasses a zero Offset without allocating GPU resources', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('offset', { horizontal: 0, vertical: 0, edgeMode: 'wrap' },
+        (part) => `offset-${part}`),
+      'Offset', 'offset'
+    );
+    const source = {} as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).toBe(source);
+    expect(test.textures).toHaveLength(0);
+    expect(test.encoder.beginRenderPass).not.toHaveBeenCalled();
+  });
 });

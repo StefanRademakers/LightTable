@@ -85,7 +85,7 @@ describe('createEditorMenuOptions', () => {
       { label: 'Distort', children: ['Displace'] },
       { label: 'Noise', children: ['Median', 'Reduce Noise'] },
       { label: 'Sharpen', children: ['Smart Sharpen', 'Unsharp Mask...'] },
-      { label: 'Other', children: ['High Pass...', 'Maximum', 'Minimum', 'Offset'] }
+      { label: 'Other', children: ['High Pass...', 'Maximum', 'Minimum', 'Offset...'] }
     ]);
     const leaves = filter.flatMap(({ children }) => children ?? []);
     expect(leaves).toHaveLength(12);
@@ -106,7 +106,14 @@ describe('createEditorMenuOptions', () => {
     const unsharp = findMenuOption(filter, 'filter-unsharp-mask');
     unsharp?.trailingAction?.onClick();
     expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('unsharp-mask');
-    const enabled = new Set(['filter-gaussian-blur', 'filter-high-pass', 'filter-unsharp-mask']);
+    const offset = findMenuOption(filter, 'filter-offset');
+    offset?.onClick?.();
+    expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith('offset');
+    offset?.trailingAction?.onClick();
+    expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('offset');
+    const enabled = new Set([
+      'filter-gaussian-blur', 'filter-high-pass', 'filter-unsharp-mask', 'filter-offset'
+    ]);
     expect(leaves.filter(({ value }) => !enabled.has(value))
       .every(({ disabled, onClick }) => disabled && !onClick)).toBe(true);
     expect(filter.every(({ disabled }) => !disabled)).toBe(true);

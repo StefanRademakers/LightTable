@@ -1,4 +1,4 @@
-import { BlurCore, type BlurCoreMode } from '@lighttable/filter-webgpu';
+import { BlurCore, OffsetCore, type BlurCoreMode } from '@lighttable/filter-webgpu';
 import { p0FilterDefinitionForModule, type P0FilterSettingsMap } from '@lighttable/filter-core';
 import type { AdjustmentLayer, RasterLayer } from '../editor/document/documentTypes';
 import { p0FilterModule, p0FilterSettings } from '../processing/p0Filter';
@@ -13,13 +13,16 @@ const BLUR_CORE_MODES = new Set<BlurCoreMode>([
  */
 export class P0FilterRenderer {
   private readonly blurCore: BlurCore;
+  private readonly offsetCore: OffsetCore;
 
   constructor(device: GPUDevice) {
     this.blurCore = new BlurCore(device);
+    this.offsetCore = new OffsetCore(device);
   }
 
   configure(width: number, height: number, sampler: GPUSampler): void {
     this.blurCore.configure(width, height, sampler);
+    this.offsetCore.configure(width, height);
   }
 
   encode(
@@ -29,9 +32,16 @@ export class P0FilterRenderer {
   ): GPUTexture {
     const module = p0FilterModule(layer.adjustmentStack);
     const definition = p0FilterDefinitionForModule(module?.type ?? '');
-    if (!module?.enabled || !definition || !BLUR_CORE_MODES.has(definition.kind as BlurCoreMode)) {
+    if (!module?.enabled || !definition) {
       return source;
     }
+    if (definition.kind === 'offset') {
+      const settings = p0FilterSettings(layer.adjustmentStack, 'offset');
+      return settings ? this.offsetCore.encode(encoder, source, {
+        key: `${layer.id}::${module.id}`, revision: module.revision, settings
+      }) : source;
+    }
+    if (!BLUR_CORE_MODES.has(definition.kind as BlurCoreMode)) return source;
     const mode = definition.kind as BlurCoreMode;
     const settings = p0FilterSettings(layer.adjustmentStack, mode);
     if (!settings) return source;
@@ -44,14 +54,16 @@ export class P0FilterRenderer {
   }
 
   estimatedTextureBytes(): number {
-    return this.blurCore.estimatedTextureBytes();
+    return this.blurCore.estimatedTextureBytes() + this.offsetCore.estimatedTextureBytes();
   }
 
   reset(): void {
     this.blurCore.destroy();
+    this.offsetCore.destroy();
   }
 
   destroy(): void {
     this.blurCore.destroy();
+    this.offsetCore.destroy();
   }
 }
