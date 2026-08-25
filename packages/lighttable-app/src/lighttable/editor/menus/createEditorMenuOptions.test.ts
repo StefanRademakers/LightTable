@@ -81,7 +81,7 @@ describe('createEditorMenuOptions', () => {
       label,
       children: children?.map((child) => child.label)
     }))).toEqual([
-      { label: 'Blur', children: ['Gaussian Blur...', 'Motion Blur', 'Surface Blur'] },
+      { label: 'Blur', children: ['Gaussian Blur...', 'Motion Blur...', 'Surface Blur'] },
       { label: 'Distort', children: ['Displace'] },
       { label: 'Noise', children: ['Median', 'Reduce Noise'] },
       { label: 'Sharpen', children: ['Smart Sharpen', 'Unsharp Mask...'] },
@@ -99,6 +99,11 @@ describe('createEditorMenuOptions', () => {
     });
     gaussian?.trailingAction?.onClick();
     expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('gaussian-blur');
+    const motion = findMenuOption(filter, 'filter-motion-blur');
+    motion?.onClick?.();
+    expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith('motion-blur');
+    motion?.trailingAction?.onClick();
+    expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('motion-blur');
     const highPass = findMenuOption(filter, 'filter-high-pass');
     highPass?.onClick?.();
     expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith('high-pass');
@@ -112,7 +117,8 @@ describe('createEditorMenuOptions', () => {
     offset?.trailingAction?.onClick();
     expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('offset');
     const enabled = new Set([
-      'filter-gaussian-blur', 'filter-high-pass', 'filter-unsharp-mask', 'filter-offset'
+      'filter-gaussian-blur', 'filter-motion-blur', 'filter-high-pass',
+      'filter-unsharp-mask', 'filter-offset'
     ]);
     expect(leaves.filter(({ value }) => !enabled.has(value))
       .every(({ disabled, onClick }) => disabled && !onClick)).toBe(true);

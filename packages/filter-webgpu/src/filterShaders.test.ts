@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BLUR_CORE_WGSL, FILTER_FULLSCREEN_VERTEX_WGSL } from './filterShaders';
 import { OFFSET_WGSL } from './OffsetCore';
+import { MOTION_BLUR_WGSL } from './MotionBlurCore';
 
 describe('filter shaders', () => {
   it('keeps BlurCore bindings stable and avoids WGSL reserved identifiers', () => {
@@ -17,5 +18,11 @@ describe('filter shaders', () => {
   it('keeps Offset edge handling explicit and free of external sampling state', () => {
     expect(OFFSET_WGSL).toContain('positiveMod');
     expect(OFFSET_WGSL).toContain('return vec4f(0.0)');
+  });
+
+  it('bounds Motion Blur work while retaining premultiplied HDR samples', () => {
+    expect(MOTION_BLUR_WGSL).toContain('index < 257u');
+    expect(MOTION_BLUR_WGSL).toContain('textureSampleLevel');
+    expect(MOTION_BLUR_WGSL).not.toContain('clamp(accumulated');
   });
 });

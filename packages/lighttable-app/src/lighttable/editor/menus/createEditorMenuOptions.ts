@@ -479,7 +479,7 @@ export const createEditorMenuOptions = (
 
   if (menu === 'filter') {
     const implemented = new Set<P0FilterKind>([
-      'gaussian-blur', 'high-pass', 'unsharp-mask', 'offset'
+      'gaussian-blur', 'motion-blur', 'high-pass', 'unsharp-mask', 'offset'
     ]);
     const groups = [
       ['blur', 'Blur'], ['distort', 'Distort'], ['noise', 'Noise'],

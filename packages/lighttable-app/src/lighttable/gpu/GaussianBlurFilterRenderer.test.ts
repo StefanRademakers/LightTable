@@ -113,4 +113,33 @@ describe('GaussianBlurFilterRenderer', () => {
     expect(test.textures).toHaveLength(0);
     expect(test.encoder.beginRenderPass).not.toHaveBeenCalled();
   });
+
+  it('routes Motion Blur through one bounded line-integration pass', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('motion-blur', { angle: 90, distance: 20 },
+        (part) => `motion-${part}`),
+      'Motion Blur', 'motion-blur'
+    );
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
+    expect(test.textures).toHaveLength(1);
+    expect(test.encoder.beginRenderPass).toHaveBeenCalledOnce();
+    const values = test.writeBuffer.mock.calls[0]?.[2] as ArrayBuffer;
+    expect(new Float32Array(values)[0]).toBeCloseTo(0, 5);
+    expect(new Float32Array(values)[1]).toBeCloseTo(2, 5);
+    expect(new Uint32Array(values)[2]).toBe(21);
+  });
+
+  it('bypasses zero-distance Motion Blur without allocating GPU resources', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('motion-blur', { angle: 0, distance: 0 },
+        (part) => `motion-${part}`),
+      'Motion Blur', 'motion-blur'
+    );
+    const source = {} as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).toBe(source);
+    expect(test.textures).toHaveLength(0);
+  });
 });

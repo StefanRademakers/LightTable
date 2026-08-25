@@ -10,7 +10,7 @@
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
-        "high-pass", "unsharp-mask", "offset"
+        "high-pass", "unsharp-mask", "motion-blur", "offset"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -33,6 +33,14 @@
       "required": ["radius"],
       "properties": {
         "radius": { "type": "number", "minimum": 0, "maximum": 100, "default": 8 }
+      }
+    },
+    "motionBlurSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["angle", "distance"],
+      "properties": {
+        "angle": { "type": "number", "minimum": -180, "maximum": 180, "default": 0 },
+        "distance": { "type": "number", "minimum": 0, "maximum": 512, "default": 10 }
       }
     },
     "highPassSettings": {
@@ -123,6 +131,7 @@
               { "$ref": "#/$defs/posterizeSettings" },
               { "$ref": "#/$defs/thresholdSettings" },
               { "$ref": "#/$defs/gaussianBlurSettings" },
+              { "$ref": "#/$defs/motionBlurSettings" },
               { "$ref": "#/$defs/highPassSettings" },
               { "$ref": "#/$defs/unsharpMaskSettings" },
               { "$ref": "#/$defs/offsetSettings" },
@@ -160,6 +169,13 @@
                   "properties": {
                     "kind": { "const": "gaussian-blur" },
                     "settings": { "$ref": "#/$defs/gaussianBlurSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "motion-blur" },
+                    "settings": { "$ref": "#/$defs/motionBlurSettings" }
                   }
                 },
                 {
