@@ -4,7 +4,7 @@ import type { AdjustmentLayer, RasterLayer } from '../editor/document/documentTy
 import { p0FilterModule, p0FilterSettings } from '../processing/p0Filter';
 
 const BLUR_CORE_MODES = new Set<BlurCoreMode>([
-  'gaussian-blur', 'high-pass'
+  'gaussian-blur', 'high-pass', 'unsharp-mask'
 ]);
 
 /**

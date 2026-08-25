@@ -13,7 +13,7 @@ const visibleKinds = adjustmentLayerMenuDefinitionGroups().flat().map(({ id }) =
 // the Adjustment Layer menu. Keep this explicit until the command vocabulary is
 // generalized from `adjustment.create` to a processing-layer command.
 const creatableKindSet = new Set<string>([
-  ...visibleKinds, 'gaussian-blur', 'high-pass'
+  ...visibleKinds, 'gaussian-blur', 'high-pass', 'unsharp-mask'
 ]);
 const localKindSet = new Set<string>(['grade', 'curves', 'lens-fx']);
 

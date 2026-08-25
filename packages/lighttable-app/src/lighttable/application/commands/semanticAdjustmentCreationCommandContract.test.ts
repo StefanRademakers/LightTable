@@ -50,6 +50,13 @@ describe('semantic adjustment creation contract', () => {
     })).toEqual({
       kind: 'high-pass', placement: 'attached', layerId: 'photo', settings: { radius: 16 }
     });
+    expect(parseSemanticAdjustmentCreationCommand({
+      kind: 'unsharp-mask', placement: 'adjustment-layer',
+      settings: { amount: 125, radius: 1.5, threshold: 3 }
+    })).toEqual({
+      kind: 'unsharp-mask', placement: 'adjustment-layer',
+      settings: { amount: 125, radius: 1.5, threshold: 3 }
+    });
   });
 
   it.each([
@@ -62,6 +69,8 @@ describe('semantic adjustment creation contract', () => {
     { kind: 'curves', placement: 'adjustment-layer', settings: { thresholdLevel: 128 } },
     { kind: 'gaussian-blur', placement: 'adjustment-layer', settings: { radius: 101 } },
     { kind: 'high-pass', placement: 'adjustment-layer', settings: { radius: 0 } },
+    { kind: 'unsharp-mask', placement: 'adjustment-layer',
+      settings: { amount: 501, radius: 1, threshold: 0 } },
     { kind: 'gradient-map', placement: 'adjustment-layer', settings: {
       colorStops: [{ position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0 } }],
       opacityStops: [{ position: 0, midpoint: 0.5, opacity: 1 }]

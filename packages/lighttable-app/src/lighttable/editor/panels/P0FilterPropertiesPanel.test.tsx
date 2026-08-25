@@ -15,5 +15,13 @@ describe('P0FilterPropertiesPanel', () => {
       commands={commands} />);
     expect(highPass).toContain('High Pass properties');
     expect(highPass).toContain('Radius');
+
+    const unsharp = renderToStaticMarkup(<P0FilterPropertiesPanel
+      model={{ kind: 'unsharp-mask', label: 'Unsharp Mask',
+        settings: { amount: 100, radius: 1, threshold: 0 }, enabled: true }}
+      commands={commands} />);
+    expect(unsharp).toContain('Amount');
+    expect(unsharp).toContain('Radius');
+    expect(unsharp).toContain('Threshold');
   });
 });

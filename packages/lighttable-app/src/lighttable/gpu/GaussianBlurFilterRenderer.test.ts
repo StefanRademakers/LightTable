@@ -72,7 +72,8 @@ describe('GaussianBlurFilterRenderer', () => {
   });
 
   it.each([
-    ['high-pass', { radius: 12 }, 1]
+    ['high-pass', { radius: 12 }, 1],
+    ['unsharp-mask', { amount: 125, radius: 2, threshold: 3 }, 2]
   ] as const)('routes %s through the shared BlurCore output mode', (kind, settings, outputMode) => {
     const test = fixture();
     const layer = createAdjustmentLayer(

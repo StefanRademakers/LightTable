@@ -689,7 +689,8 @@ describe('useLayerDocumentCommands', () => {
   });
 
   it.each([
-    ['high-pass', 'High Pass', { radius: 18 }]
+    ['high-pass', 'High Pass', { radius: 18 }],
+    ['unsharp-mask', 'Unsharp Mask', { amount: 140, radius: 2, threshold: 4 }]
   ] as const)('creates global and attached %s filters from one canonical model', (
     kind, name, settings
   ) => {

@@ -10,7 +10,7 @@
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
-        "high-pass"
+        "high-pass", "unsharp-mask"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -40,6 +40,15 @@
       "required": ["radius"],
       "properties": {
         "radius": { "type": "number", "minimum": 0.1, "maximum": 100, "default": 10 }
+      }
+    },
+    "unsharpMaskSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["amount", "radius", "threshold"],
+      "properties": {
+        "amount": { "type": "number", "minimum": 0, "maximum": 500, "default": 100 },
+        "radius": { "type": "number", "minimum": 0.1, "maximum": 100, "default": 1 },
+        "threshold": { "type": "number", "minimum": 0, "maximum": 255, "default": 0 }
       }
     },
     "gradientMapColorStop": {
@@ -106,6 +115,7 @@
               { "$ref": "#/$defs/thresholdSettings" },
               { "$ref": "#/$defs/gaussianBlurSettings" },
               { "$ref": "#/$defs/highPassSettings" },
+              { "$ref": "#/$defs/unsharpMaskSettings" },
               { "$ref": "#/$defs/gradientMapSettings" }
             ]
           }
@@ -147,6 +157,13 @@
                   "properties": {
                     "kind": { "const": "high-pass" },
                     "settings": { "$ref": "#/$defs/highPassSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "unsharp-mask" },
+                    "settings": { "$ref": "#/$defs/unsharpMaskSettings" }
                   }
                 },
                 {
