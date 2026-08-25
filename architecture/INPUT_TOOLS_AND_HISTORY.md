@@ -80,6 +80,12 @@ readbacks are coalesced to the newest value once per display frame before they
 reach the editor React root. Document reset cancels any pending publication, so
 fast typing and IME composition cannot accumulate stale histogram updates.
 
+The retained GPU brush/erase/warp cursor uses its outer ring for diameter. When
+the active tool has a hardness value below 100%, a concentric inner ring shows
+the effective hard core and contracts toward a small readable minimum at zero
+hardness. Cursor geometry is presentation-only: it cannot publish brush
+settings, pixels or history and must update without waking document composition.
+
 Fill commands use Alt+Backspace for foreground and Ctrl/Cmd+Backspace for
 background. Adding Shift preserves existing pixel transparency for that one
 command without mutating the layer's transparency lock. Shift+F5 opens the

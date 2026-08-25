@@ -399,6 +399,12 @@ create a standalone layer or, where supported, attach the same authored node to
 the selected raster layer. Attached processing is not represented with the
 Layer Effects `fx` mark.
 
+The top-level Layer menu exposes **Add Adjustment** and **Add Effect** using
+these same catalog/controller owners. The Layers-footer adjustment flyout and
+the menu-bar entries are projections of one capability model, not separate
+implementations. Full-frame Filters/adjustments, attached processing and Layer
+Styles retain distinct canonical owners even when they reuse GPU primitives.
+
 ## Tools, input and history
 
 [`toolRegistry.ts`](../packages/lighttable-app/src/lighttable/editor/tools/toolRegistry.ts)

@@ -31,6 +31,10 @@ milestone changes those boundaries; feature task details belong in
   rasterize route and reusable linear-RGBA16F WebGPU cores. One lazy
   document-owned scratch pool is shared across the family and packaged runtime
   evidence rejects stale pixels, shader errors and post-warm memory growth.
+- Layer Styles retain ROI-sized Bevel geometry and compatible dense Gaussian
+  alpha fields for shadows, glows and Satin independently from final style
+  presentation. This improves warm edits while preserving the semantic boundary
+  between alpha-derived styles and full-frame P0 filters.
 - Lazy optional effects/codecs and explicit GPU resource lifecycle.
 - Reusable vector stack across `vector-core`, `vector-rendering`,
   `vector-svg-normalizer`, `vector-svg`, `paint-scene`,
@@ -97,6 +101,10 @@ milestone changes those boundaries; feature task details belong in
 - One contextual Properties shell tracks explicit layer, mask, local processing
   and Layer Style targets, and routes Grade, Lens Fx, Text and Effects to
   independently owned editors.
+- Layer-menu Add Adjustment/Add Effect entries, the Layers-footer flyout and
+  contextual Properties route through shared creation/style owners. Long menus
+  and recent-file previews reserve/measure final geometry before becoming
+  visible, avoiding first-frame layout jumps.
 - Universal layer rasterization is available through one semantic command and
   shared capability projection for Layer-panel UI, Actions and MCP. Packaged
   route evidence covers generated-ID binding, replay, undo/redo and exact pixel
@@ -111,6 +119,10 @@ milestone changes those boundaries; feature task details belong in
   facades. Viewport measurement, sampling-quality settling and timer cleanup now
   have a typed application owner; continue extracting similarly cohesive
   controllers and GPU resource owners.
+- Dock-resize currently freezes continuous editor observers and the canvas CSS
+  size during sash movement, then performs one immediate final viewport resize.
+  A visually correct shared canvas/overlay settlement animation remains
+  unimplemented and must not be approximated with a canvas-only offset tween.
 - Some renderer and tool paths still need to consume the resolved
   scene-transform graph consistently, especially advanced nested masks,
   boolean clip geometry and selection/tool bounds.

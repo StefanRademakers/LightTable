@@ -57,6 +57,15 @@ Text and Layer Effects remain independently owned editors, and exactly one is
 mounted for the current Layers-tree target. Floating panels must remain recoverable on
 window/display changes.
 
+Dockview sash movement owns transient panel geometry. While a sash is held,
+editor `ResizeObserver` work for the viewport/scopes is paused and the existing
+canvas CSS presentation is kept at its starting size, so the browser cannot
+stretch the retained GPU frame or start a layout/renderer feedback loop.
+Pointer-up publishes one measured viewport size and resumes the ordinary
+presentation path. The current implementation deliberately has no post-release
+settlement animation; adding one requires a shared screen-space state for the
+canvas and every overlay rather than a canvas-only offset tween.
+
 The built-in fresh-workspace profile currently creates:
 
 - a floating `Layers` group within the document host at roughly 260 x 370;
@@ -106,6 +115,14 @@ change is an explicit component variant, such as `AdjustmentSlider`'s
 provide available space but do not repair or fork component internals. Run
 `npm run audit:ui-boundary` to enforce the source boundary and reject every
 feature stylesheet that reaches into a UI-owned component root.
+
+Portal menus are not allowed to paint at a provisional coordinate. Shared
+context menus stay hidden until their clamped viewport position is measured;
+anchored tall menus use intrinsic `scrollHeight`, not their temporary
+`max-height`, so scrollbar fitting cannot trigger a visible second placement.
+Recent-file cards likewise reserve their final tile geometry before previews
+arrive. Async images may fill stable slots but may not cause the launcher grid
+or surrounding navigation to jump.
 
 ### Canonical Layers tree
 

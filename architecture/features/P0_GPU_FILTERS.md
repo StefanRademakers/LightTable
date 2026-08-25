@@ -109,8 +109,10 @@ work, but preserve Layer Style ordering, Fill-versus-Opacity behavior, style
 bounds, contours, spread/choke and PSD mappings. Do not implement a shadow or
 glow by inserting a P0 filter node into the document stack.
 
-The first audited reuse step is complete: Layer Style blur targets now use a
-bounded three-pair LRU with submit-fenced retirement. The alpha blur shader and
-its reduced working dimensions remain style-owned because their edge and
-coverage semantics differ from full-frame RGBA Gaussian Blur. Further shader
-unification requires visual alpha/contour parity evidence first.
+The audited reuse pass now keeps Layer Style blur targets in a bounded
+three-pair LRU with submit-fenced retirement. Smooth Bevel retains ROI-sized
+height/distance fields with bounded multiscale transitions; compatible shadow,
+glow and Satin paths retain dense Gaussian alpha fields. The alpha-field shader,
+working bounds, contours and coverage rules remain style-owned because they
+differ from full-frame RGBA Gaussian Blur. Further shader unification still
+requires visual alpha/contour parity evidence first.

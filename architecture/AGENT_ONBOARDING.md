@@ -88,7 +88,7 @@ When the recovered work concerns rendering, SVG, document startup, canvas
 tools or workspace state, use this reset state before reading historical task
 reports:
 
-- **Current, 2026-08-24:** LightTable has one shipping **hybrid vector
+- **Current, 2026-08-25:** LightTable has one shipping **hybrid vector
   renderer**. There are no normal `:vello` development/package switches and no
   per-document backend mode. `run_clean.bat`, `run_dev.bat`, `run_release.bat`,
   `build.bat`, `npm run dev:desktop` and `npm run package:desktop` all build the
@@ -163,6 +163,23 @@ reports:
   pixels, exact baseline restoration, no renderer errors and stable warm GPU
   memory. Photoshop Smart Filter masks and production visual/vendor calibration
   remain separate open gates; read [P0 GPU filters](features/P0_GPU_FILTERS.md).
+- Layer Styles remain a separate alpha-derived compositor stage rather than
+  P0 filter nodes. Smooth Bevel now retains ROI-sized height/distance fields
+  and crossfades bounded multiscale levels; shadows, glows and Satin reuse
+  retained dense Gaussian alpha fields where their semantics permit it. This
+  is a visual/performance improvement, not a Photoshop-parity claim. Geometry
+  caches, final style presentation and PSD mapping remain independently owned.
+- Layer > Add Adjustment and Layer > Add Effect are discoverability routes into
+  the same canonical creation/style controllers used by the Layers footer and
+  contextual Properties. They must not become alternate document mutation
+  paths. The GPU brush cursor now projects hardness as a concentric inner ring;
+  it is presentation feedback only.
+- Tall context/creation menus measure their intrinsic content before becoming
+  visible, and recent-file tiles reserve stable geometry while previews load.
+  During a Dockview sash gesture the editor freezes continuous viewport/scopes
+  observers and the canvas CSS presentation to avoid stretching or resize
+  feedback; pointer-up performs one normal final viewport resize. There is no
+  post-release settlement animation in the current contract.
 - Scope canvases explicitly wake and resize when a previously hidden section
   or workspace becomes visible. The packaged scopes gate verifies real signal
   in Hue Distribution, RGB Parade and Vectorscope, then confirms that scope UI

@@ -210,6 +210,26 @@ representation has no stack-mask authority. The later model should reuse the
 same registered filter executor and compositor contracts while adding explicit
 stack-mask ownership and Smart Object/source semantics.
 
+Layer Styles are alpha-derived effects around one layer and are not P0
+full-frame filter instances. Their renderer now retains expensive intermediate
+geometry independently from the final styled presentation:
+
+- Smooth Bevel builds ROI-sized high-precision height/distance fields, uses a
+  bounded multiscale plan for large authored sizes and crossfades adjacent
+  levels instead of switching resolution abruptly. Lighting-only changes can
+  reuse compatible retained geometry.
+- Drop/Inner Shadow, Outer/Inner Glow and Satin use retained dense Gaussian
+  alpha fields for compatible non-jittered paths. Contour, spread/choke,
+  source/edge and blend semantics remain style-owned rather than being replaced
+  by a full-frame RGBA blur node.
+- Transient style targets remain bounded and submit-safe; a cache key includes
+  the matte and geometric settings that actually affect its field. Document or
+  effect deletion releases retained fields through the style texture owner.
+
+These are current implementation improvements, not evidence of complete
+Photoshop visual parity. The PSD corpus and visual reference gates remain the
+authority for claiming equivalence.
+
 **Current:** effect-category nodes have independent executors and resources;
 `DocumentEffectRuntime` evaluates them in validated serialized order inside
 constrained coordinate/data stages.
