@@ -1,3 +1,5 @@
+import { P0_FILTER_DEFINITIONS } from '@lighttable/filter-core';
+
 /**
  * Serializable processing metadata for the current LightTable controls.
  *
@@ -90,19 +92,19 @@ const CREATIVE_GRADE_SCOPES = [
 ] as const satisfies readonly ProcessingScope[];
 
 export const CURRENT_PROCESSING_MODULES = [
-  {
-    type: 'lt.gaussian-blur',
-    label: 'Gaussian Blur',
+  ...P0_FILTER_DEFINITIONS.map((filter): ProcessingModuleDefinition => ({
+    type: filter.moduleType,
+    label: filter.label,
     category: 'filter',
     settingsPaths: [],
     allowedScopes: ['adjustment-layer', 'smart-filter'],
     inputDomain: 'linear-rgb',
     outputDomain: 'linear-rgb',
-    alphaBehavior: 'modify',
-    coordinateSpace: 'document',
-    psdCandidates: ['smart-filter:gaussian-blur'],
-    notes: 'Separable full-frame blur over premultiplied linear RGBA. A Smart Filter adapter must retain its own stack mask.'
-  },
+    alphaBehavior: filter.alphaBehavior,
+    coordinateSpace: filter.coordinateSpace,
+    ...('psdCandidate' in filter ? { psdCandidates: [filter.psdCandidate] } : {}),
+    notes: 'Canonical P0 filter node. GPU execution is selected by the filter evaluator; attached nodes retain independent identity and settings.'
+  })),
   {
     type: 'lt.face-warp',
     label: 'Face Warp',

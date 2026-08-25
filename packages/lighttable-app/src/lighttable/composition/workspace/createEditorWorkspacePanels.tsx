@@ -13,6 +13,7 @@ import {
   createDefaultLightTableWorkspacePanels,
   type LightTableWorkspacePanelRegistration
 } from '../../editor/workspace/workspacePanelRegistry';
+import { P0_FILTER_DEFINITIONS } from '@lighttable/filter-core';
 
 type ScopesPanelComponent = typeof import('../../ScopesPanel')['ScopesPanel'];
 type DebugPanelComponent = typeof import('../../editor/ui/DebugPanel')['DebugPanel'];
@@ -24,8 +25,8 @@ type GenAiPanelComponent = typeof import('../../../genai/ui/GenAiPanel')['GenAiP
 type LensFxPanelComponent = typeof import('../../editor/panels/LensFxPanel')['LensFxPanel'];
 type TextPropertiesPanelComponent =
   typeof import('../../editor/panels/TextPropertiesPanel')['TextPropertiesPanel'];
-type GaussianBlurPropertiesPanelComponent =
-  typeof import('../../editor/panels/GaussianBlurPropertiesPanel')['GaussianBlurPropertiesPanel'];
+type P0FilterPropertiesPanelComponent =
+  typeof import('../../editor/panels/P0FilterPropertiesPanel')['P0FilterPropertiesPanel'];
 
 // Dockview renders accessory panels only while they are visible. Match that
 // runtime boundary at the module level: opening the editor must not evaluate
@@ -70,9 +71,9 @@ const LayerStylesPanel = React.lazy(async () => ({
 const TextPropertiesPanel = React.lazy(async () => ({
   default: (await import('../../editor/panels/TextPropertiesPanel')).TextPropertiesPanel
 }));
-const GaussianBlurPropertiesPanel = React.lazy(async () => ({
-  default: (await import('../../editor/panels/GaussianBlurPropertiesPanel'))
-    .GaussianBlurPropertiesPanel
+const P0FilterPropertiesPanel = React.lazy(async () => ({
+  default: (await import('../../editor/panels/P0FilterPropertiesPanel'))
+    .P0FilterPropertiesPanel
 }));
 
 const deferPanel = (content: React.ReactNode) => (
@@ -95,7 +96,7 @@ export interface EditorWorkspacePanelBindings {
     controller: LayerStyleEditorController;
   };
   text: React.ComponentProps<TextPropertiesPanelComponent> | null;
-  gaussianBlur: React.ComponentProps<GaussianBlurPropertiesPanelComponent> | null;
+  p0Filter: React.ComponentProps<P0FilterPropertiesPanelComponent> | null;
   agent: React.ComponentProps<AgentActivityPanelComponent>;
   actions: React.ComponentProps<ActionsPanelComponent>;
   genAi: React.ComponentProps<GenAiPanelComponent>;
@@ -119,7 +120,7 @@ export const createEditorWorkspacePanels = ({
   grade,
   effects,
   text,
-  gaussianBlur,
+  p0Filter,
   agent,
   actions,
   genAi,
@@ -145,9 +146,9 @@ export const createEditorWorkspacePanels = ({
             <AdjustmentPropertiesPanel title="Clarity and Dehaze" {...grade} />
           ),
           grain: deferPanel(<GrainPropertiesPanel {...lensFx} />),
-          'gaussian-blur': gaussianBlur
-            ? deferPanel(<GaussianBlurPropertiesPanel {...gaussianBlur} />)
-            : <aside className="lighttable-panel" aria-label="Gaussian Blur properties" />,
+          ...Object.fromEntries(P0_FILTER_DEFINITIONS.map(({ kind, label }) => [kind, p0Filter
+            ? deferPanel(<P0FilterPropertiesPanel {...p0Filter} />)
+            : <aside className="lighttable-panel" aria-label={`${label} properties`} />])),
           'lens-fx': deferPanel(<LensFxPanel key={lensFxKey} {...lensFx} />),
           effects: deferPanel(<LayerStylesPanel {...effects} />),
           text: text

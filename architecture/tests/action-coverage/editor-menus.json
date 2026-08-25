@@ -41,7 +41,6 @@
     { "id": "extras", "classification": "presentation", "reason": "Toggles canvas overlays." },
     { "id": "feather-selection", "classification": "command", "command": "selection.modify" },
     { "id": "fit", "classification": "command", "command": "view.setZoom" },
-    { "id": "filter-gaussian-blur", "classification": "command", "command": "adjustment.create" },
     { "id": "flatten-group", "classification": "command", "command": "layer.flattenGroup" },
     { "id": "flatten-image", "classification": "command", "command": "document.flattenImage" },
     { "id": "flip-canvas-horizontal", "classification": "command", "command": "document.applyGeometry" },
@@ -113,6 +112,8 @@
     { "id": "workspace-photo-edit", "classification": "presentation", "reason": "Applies a local workspace layout preset." }
   ],
   "dynamicActions": [
+    { "expression": "`filter-${definition.kind}`", "classification": "command", "command": "adjustment.create" },
+    { "expression": "`filter-attach-${definition.kind}`", "classification": "command", "command": "adjustment.create" },
     { "expression": "`open-recent-${file.id}`", "classification": "host", "reason": "Opens a host-maintained local recent-file entry." },
     { "expression": "`open-recent-project-${project.recentId}`", "classification": "host", "reason": "Opens a host-maintained recent-project entry." },
     { "expression": "`image-adjustments-${definition.id}`", "classification": "command", "command": "adjustment.create" },

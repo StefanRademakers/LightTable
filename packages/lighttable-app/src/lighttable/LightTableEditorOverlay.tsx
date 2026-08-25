@@ -91,7 +91,7 @@ import type { LayerStyleId } from './editor/styles/layerStyleTypes';
 import { useLayerDocumentCommands } from './application/layers/useLayerDocumentCommands';
 import { useBackgroundRemovalController, type BackgroundRemovalMaskMode } from './application/backgroundRemoval/useBackgroundRemovalController';
 import { useLayerPanelController } from './application/layers/useLayerPanelController';
-import { useGaussianBlurFilterController } from './application/filters/useGaussianBlurFilterController';
+import { useP0FilterController } from './application/filters/useP0FilterController';
 import { LayerNameRenameGestureController } from './application/layers/layerSelectionModel';
 import {
   adjustmentStackHasLocalProcessing,
@@ -1687,7 +1687,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const pushDocumentHistory = documentMutationController.record;
   const beginDocumentTransaction = documentMutationController.begin;
   const endDocumentTransaction = documentMutationController.end;
-  const gaussianBlurFilterController = useGaussianBlurFilterController({
+  const p0FilterController = useP0FilterController({
     document: imageDocument,
     target: propertiesTarget,
     getDocument: () => imageDocumentRef.current,
@@ -8025,10 +8025,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
                 controller: layerStyleEditor
               },
               text: textPropertiesPanel,
-              gaussianBlur: gaussianBlurFilterController.model
+              p0Filter: p0FilterController.model
                 ? {
-                    model: gaussianBlurFilterController.model,
-                    commands: gaussianBlurFilterController.commands
+                    model: p0FilterController.model,
+                    commands: p0FilterController.commands
                   }
                 : null,
               agent: { events: agentEvents,

@@ -6,12 +6,15 @@ import {
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
 import type { LocalProcessingKind } from '../../processing/adjustmentStack';
+import { isP0FilterKind, normalizeP0FilterSettings } from '@lighttable/filter-core';
 
 const visibleKinds = adjustmentLayerMenuDefinitionGroups().flat().map(({ id }) => id);
 // Filters can share the semantic processing-layer command without appearing in
 // the Adjustment Layer menu. Keep this explicit until the command vocabulary is
 // generalized from `adjustment.create` to a processing-layer command.
-const creatableKindSet = new Set<string>([...visibleKinds, 'gaussian-blur']);
+const creatableKindSet = new Set<string>([
+  ...visibleKinds, 'gaussian-blur', 'high-pass'
+]);
 const localKindSet = new Set<string>(['grade', 'curves', 'lens-fx']);
 
 export type SemanticAdjustmentCreationCommand =
@@ -80,10 +83,14 @@ const parseInitialSettings = (kind: string, value: unknown) => {
     return { thresholdLevel: Number(value.thresholdLevel) };
   }
   if (kind === 'gradient-map') return parseGradientMapSettings(value);
-  if (kind === 'gaussian-blur' && Object.keys(value).length === 1
-    && typeof value.radius === 'number' && Number.isFinite(value.radius)
-    && value.radius >= 0 && value.radius <= 100) {
-    return { radius: value.radius };
+  if (isP0FilterKind(kind)) {
+    const accepted = kind === 'unsharp-mask'
+      ? ['amount', 'radius', 'threshold'] : ['radius'];
+    if (!exactKeys(value, accepted) || Object.keys(value).length !== accepted.length
+      || accepted.some((key) => typeof value[key] !== 'number'
+        || !Number.isFinite(value[key]))) return null;
+    const normalized = normalizeP0FilterSettings(kind, value) as unknown as Record<string, unknown>;
+    return accepted.every((key) => normalized[key] === value[key]) ? normalized : null;
   }
   return null;
 };

@@ -7,6 +7,7 @@ import { createAdjustmentStackFromBasicAdjustments } from '../../processing/adju
 import { ADJUSTMENT_LAYER_DEFINITIONS, selectAdjustmentLayerModules } from '../../processing/adjustmentLayerCatalog';
 import { createPointColorSample } from '../../pointColor';
 import { projectAdjustmentQuery } from './adjustmentQuery';
+import { createP0FilterStack } from '../../processing/p0Filter';
 
 const ids = () => {
   let next = 0;
@@ -127,4 +128,18 @@ describe('projectAdjustmentQuery', () => {
       expect(result).toMatchObject({ status: 'completed', adjustmentKind: definition.id,
         stack: { totalModules: selected.modules.length, truncated: false } });
     });
+
+  it('exposes filter settings and defaults for one-pass MCP inspection', () => {
+    const document = createAdjustmentLayer(createImageDocument('High Pass', 16, 16, 'asset'),
+      createP0FilterStack('high-pass', { radius: 15 }, ids()),
+      'High Pass', undefined, 'high-pass');
+    const result = projectAdjustmentQuery('document-1', document, createDefaultAdjustments(), 1,
+      { kind: 'layer', layerId: document.activeLayerId! });
+    expect(result).toMatchObject({ status: 'completed', adjustmentKind: 'high-pass', stack: {
+      totalModules: 1,
+      modules: [expect.objectContaining({ type: 'lt.high-pass', parameters: [
+        expect.objectContaining({ path: 'radius', value: 15, defaultValue: 10 })
+      ] })]
+    } });
+  });
 });

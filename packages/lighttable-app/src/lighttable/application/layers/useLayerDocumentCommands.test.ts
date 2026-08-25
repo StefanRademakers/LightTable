@@ -689,6 +689,28 @@ describe('useLayerDocumentCommands', () => {
   });
 
   it.each([
+    ['high-pass', 'High Pass', { radius: 18 }]
+  ] as const)('creates global and attached %s filters from one canonical model', (
+    kind, name, settings
+  ) => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    expect(state.commands.createAdjustmentLayerOfKind(kind, undefined, settings)).toBe(true);
+    const filter = state.document().layers.at(-1);
+    if (filter?.type !== 'adjustment') throw new Error(`Expected ${name}.`);
+    expect(filter).toMatchObject({ name, adjustmentKind: kind, mask: expect.any(Object) });
+    expect(filter.adjustmentStack.modules[0]).toMatchObject({
+      type: `lt.${kind}`, settings
+    });
+
+    const rasterId = state.document().layers[0]!.id;
+    const adjustmentId = state.commands.createAttachedAdjustment(rasterId, kind, settings);
+    const raster = state.document().layers.find(({ id }) => id === rasterId);
+    expect(raster?.type === 'raster' ? raster.attachedAdjustments : []).toContainEqual(
+      expect.objectContaining({ id: adjustmentId, adjustmentKind: kind, name })
+    );
+  });
+
+  it.each([
     ['exposure', 'Exposure', 'lt.photoshop-adjustment'],
     ['vibrance', 'Vibrance', 'lt.photoshop-adjustment'],
     ['gradient-map', 'Gradient Map', 'lt.gradient-map']

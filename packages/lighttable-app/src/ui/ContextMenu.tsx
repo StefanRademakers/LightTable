@@ -14,6 +14,8 @@ export interface ContextMenuOption<T extends string> {
   selected?: boolean;
   separatorBefore?: boolean;
   trailingAction?: {
+    /** Stable semantic identity for automation and command-coverage audits. */
+    value: T;
     label: string;
     onClick: () => void;
     disabled?: boolean;

@@ -47,6 +47,8 @@ import {
 } from '../../processing/adjustmentStack';
 import { parseAttachedAdjustmentOwnerId } from '../../processing/attachedAdjustment';
 import { setGaussianBlurRadius } from '../../processing/gaussianBlurFilter';
+import { setP0FilterSettings } from '../../processing/p0Filter';
+import type { P0FilterKind, P0FilterSettingsMap } from '@lighttable/filter-core';
 import {
   findLayerNode,
   findRasterLayer,
@@ -827,6 +829,41 @@ export const setGaussianBlurLayerEnabled = (
   enabled: boolean
 ) => updateLayer(document, layerId, (layer) => {
   if (layer.type !== 'adjustment' || layer.adjustmentKind !== 'gaussian-blur') return layer;
+  const adjustmentStack = setAdjustmentStackOwnerEnabled(layer.adjustmentStack, 'filter', enabled);
+  if (adjustmentStack === layer.adjustmentStack) return layer;
+  return {
+    ...layer,
+    adjustmentStack,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+/** Updates one canonical P0 filter layer without projecting through Grade. */
+export const setP0FilterLayerSettings = <K extends P0FilterKind>(
+  document: ImageDocument,
+  layerId: LayerId,
+  kind: K,
+  patch: Partial<P0FilterSettingsMap[K]>
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'adjustment' || layer.adjustmentKind !== kind) return layer;
+  const adjustmentStack = setP0FilterSettings(layer.adjustmentStack, kind, patch);
+  if (adjustmentStack === layer.adjustmentStack) return layer;
+  return {
+    ...layer,
+    adjustmentStack,
+    revision: layer.revision + 1,
+    modifiedAt: Date.now()
+  };
+});
+
+export const setP0FilterLayerEnabled = (
+  document: ImageDocument,
+  layerId: LayerId,
+  kind: P0FilterKind,
+  enabled: boolean
+) => updateLayer(document, layerId, (layer) => {
+  if (layer.type !== 'adjustment' || layer.adjustmentKind !== kind) return layer;
   const adjustmentStack = setAdjustmentStackOwnerEnabled(layer.adjustmentStack, 'filter', enabled);
   if (adjustmentStack === layer.adjustmentStack) return layer;
   return {

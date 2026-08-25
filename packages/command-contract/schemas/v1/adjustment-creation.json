@@ -9,7 +9,8 @@
         "grade", "lens-fx", "color-vibrance", "brightness-contrast", "levels",
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
-        "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur"
+        "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
+        "high-pass"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -32,6 +33,13 @@
       "required": ["radius"],
       "properties": {
         "radius": { "type": "number", "minimum": 0, "maximum": 100, "default": 8 }
+      }
+    },
+    "highPassSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["radius"],
+      "properties": {
+        "radius": { "type": "number", "minimum": 0.1, "maximum": 100, "default": 10 }
       }
     },
     "gradientMapColorStop": {
@@ -97,6 +105,7 @@
               { "$ref": "#/$defs/posterizeSettings" },
               { "$ref": "#/$defs/thresholdSettings" },
               { "$ref": "#/$defs/gaussianBlurSettings" },
+              { "$ref": "#/$defs/highPassSettings" },
               { "$ref": "#/$defs/gradientMapSettings" }
             ]
           }
@@ -131,6 +140,13 @@
                   "properties": {
                     "kind": { "const": "gaussian-blur" },
                     "settings": { "$ref": "#/$defs/gaussianBlurSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "high-pass" },
+                    "settings": { "$ref": "#/$defs/highPassSettings" }
                   }
                 },
                 {

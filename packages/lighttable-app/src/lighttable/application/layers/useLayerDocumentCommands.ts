@@ -52,7 +52,7 @@ import {
   type AdjustmentInitialSettings,
   type AdjustmentLayerKind
 } from '../../processing/adjustmentLayerCatalog';
-import { createGaussianBlurStack } from '../../processing/gaussianBlurFilter';
+import { isP0FilterKind, createP0FilterStack } from '../../processing/p0Filter';
 
 export type FlattenRequest =
   | { kind: 'group'; groupId: LayerId }
@@ -443,7 +443,7 @@ export const createLayerDocumentCommands = (
       source.photoshopAdjustment.posterizeLevels = settings.posterizeLevels;
     } else if ('thresholdLevel' in settings) {
       source.photoshopAdjustment.thresholdLevel = settings.thresholdLevel;
-    } else if (source.gradientMap) {
+    } else if ('colorStops' in settings && source.gradientMap) {
       source.gradientMap = {
         ...source.gradientMap,
         enabled: true,
@@ -465,11 +465,9 @@ export const createLayerDocumentCommands = (
     const dependencies = dependenciesRef.current;
     const current = dependencies.getDocument();
     if (!current) return false;
-    if (kind === 'gaussian-blur') {
+    if (isP0FilterKind(kind)) {
       const definition = adjustmentLayerDefinition(kind);
-      const stack = createGaussianBlurStack(
-        settings && 'radius' in settings ? settings.radius : undefined
-      );
+      const stack = createP0FilterStack(kind, settings ?? {});
       const next = createAdjustmentLayer(
         current,
         stack,
@@ -560,8 +558,8 @@ export const createLayerDocumentCommands = (
     }
     if (kind === 'grain') source.effects.grain.enabled = true;
     applyInitialSettings(source, settings);
-    const adjustmentStack = kind === 'gaussian-blur'
-      ? createGaussianBlurStack(settings && 'radius' in settings ? settings.radius : undefined)
+    const adjustmentStack = isP0FilterKind(kind)
+      ? createP0FilterStack(kind, settings ?? {})
       : selectAdjustmentLayerModules(adjustmentStackForScope(
           createAdjustmentStackFromBasicAdjustments(source),
           'layer'

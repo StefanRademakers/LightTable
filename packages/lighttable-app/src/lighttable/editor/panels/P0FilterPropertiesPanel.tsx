@@ -1,0 +1,75 @@
+import React from 'react';
+import { p0FilterDefinition } from '@lighttable/filter-core';
+import { AdjustmentSlider } from '../../../ui/AdjustmentSlider';
+import { ButtonBase } from '../../../ui/ButtonBase';
+import { PanelSelectField } from '../../../ui/PanelControls';
+import { SwitchControl } from '../../../ui/SwitchControl';
+import { lightTableIcon } from '../../../assets/icons';
+import type {
+  P0FilterCommands,
+  P0FilterPresentation
+} from '../../application/filters/useP0FilterController';
+
+export interface P0FilterPropertiesPanelProps {
+  readonly model: P0FilterPresentation;
+  readonly commands: P0FilterCommands;
+}
+
+const formatted = (value: number, unit?: 'px' | '%' | 'deg') => unit === 'px'
+  ? `${value.toFixed(1)} px`
+  : unit === '%'
+    ? `${Math.round(value)}%`
+    : unit === 'deg'
+      ? `${value.toFixed(1)}°`
+      : `${Number.isInteger(value) ? value : value.toFixed(1)}`;
+
+/** Registry-driven Properties surface shared by global and attached filters. */
+export const P0FilterPropertiesPanel: React.FC<P0FilterPropertiesPanelProps> = ({
+  model,
+  commands
+}) => {
+  const definition = p0FilterDefinition(model.kind);
+  const settings = model.settings as unknown as Record<string, unknown>;
+  const defaults = definition.defaults as unknown as Record<string, unknown>;
+  return (
+    <aside className="lighttable-panel lighttable-grade-panel"
+      aria-label={`${model.label} properties`}>
+      <section className="lighttable-group lighttable-master-group">
+        <div className="lighttable-group__header">
+          <div className="lighttable-master-group__label"><strong>{model.label}</strong></div>
+          <div className="lighttable-group__actions">
+            <ButtonBase type="button" className="lighttable-group__reset"
+              onClick={commands.reset} aria-label={`Reset ${model.label}`} title={`Reset ${model.label}`}>
+              <img src={lightTableIcon('settings_reset.png')} alt="" aria-hidden="true" />
+            </ButtonBase>
+            <SwitchControl checked={model.enabled} onCheckedChange={commands.toggleEnabled}
+              label={model.enabled ? `Disable ${model.label}` : `Enable ${model.label}`} />
+          </div>
+        </div>
+      </section>
+      <div className="lighttable-panel__controls">
+        <section className={`lighttable-group${model.enabled ? '' : ' lighttable-group--disabled'}`}>
+          <div className="lighttable-group__controls">
+            {definition.controls.map((control) => control.type === 'number' ? (
+              <AdjustmentSlider key={control.key} label={control.label}
+                value={Number(settings[control.key])} min={control.min} max={control.max}
+                step={control.step} format={(value) => formatted(value, control.unit)}
+                resetValue={Number(defaults[control.key])} disabled={!model.enabled}
+                onChange={(value) => commands.updateSetting(control.key, value)}
+                onReset={commands.reset} onInteractionStart={commands.beginAdjustment}
+                onInteractionEnd={commands.endAdjustment} />
+            ) : control.type === 'select' ? (
+              <PanelSelectField key={control.key} label={control.label}
+                value={String(settings[control.key])} options={control.options}
+                onChange={(value) => commands.updateSetting(control.key, value)} />
+            ) : (
+              <div key={control.key} className="lighttable-style-field">
+                <span>{control.label}</span><span>Choose a raster source</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </aside>
+  );
+};

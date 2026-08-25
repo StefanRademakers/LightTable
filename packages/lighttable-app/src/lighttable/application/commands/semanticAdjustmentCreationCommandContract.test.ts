@@ -45,6 +45,11 @@ describe('semantic adjustment creation contract', () => {
     })).toEqual({
       kind: 'gaussian-blur', placement: 'attached', layerId: 'photo', settings: { radius: 4 }
     });
+    expect(parseSemanticAdjustmentCreationCommand({
+      kind: 'high-pass', placement: 'attached', layerId: 'photo', settings: { radius: 16 }
+    })).toEqual({
+      kind: 'high-pass', placement: 'attached', layerId: 'photo', settings: { radius: 16 }
+    });
   });
 
   it.each([
@@ -56,6 +61,7 @@ describe('semantic adjustment creation contract', () => {
     { kind: 'threshold', placement: 'attached', layerId: 'photo', settings: { posterizeLevels: 4 } },
     { kind: 'curves', placement: 'adjustment-layer', settings: { thresholdLevel: 128 } },
     { kind: 'gaussian-blur', placement: 'adjustment-layer', settings: { radius: 101 } },
+    { kind: 'high-pass', placement: 'adjustment-layer', settings: { radius: 0 } },
     { kind: 'gradient-map', placement: 'adjustment-layer', settings: {
       colorStops: [{ position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0 } }],
       opacityStops: [{ position: 0, midpoint: 0.5, opacity: 1 }]

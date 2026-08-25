@@ -11,6 +11,10 @@ import type { CurrentAdjustmentSettingsPath } from '../../processing/moduleDefin
 import { createDefaultAdjustments, type BasicAdjustments } from '../../types';
 import type { PhotoshopAdjustmentKind } from '../../photoshopAdjustments';
 import { MAX_POINT_COLOR_SAMPLES } from '../../pointColor';
+import {
+  defaultP0FilterSettings,
+  p0FilterDefinitionForModule
+} from '@lighttable/filter-core';
 
 export type AdjustmentQueryTarget =
   | { readonly kind: 'document'; readonly owner: 'grade' | 'lens-fx' }
@@ -21,7 +25,7 @@ export type AdjustmentJsonValue = null | boolean | number | string
   | readonly AdjustmentJsonValue[] | { readonly [key: string]: AdjustmentJsonValue };
 
 export interface AdjustmentParameterProjection {
-  readonly path: CurrentAdjustmentSettingsPath;
+  readonly path: string;
   readonly value: AdjustmentJsonValue;
   readonly defaultValue: AdjustmentJsonValue;
   readonly state: 'default' | 'non-default';
@@ -232,10 +236,25 @@ const projectStack = (stack: AdjustmentStack) => {
   const defaults = createDefaultAdjustments();
   const supported = stack.modules.filter((module) => (
     (currentProcessingModuleRegistry.definition(module.type)?.settingsPaths.length ?? 0) > 0
+    || Boolean(p0FilterDefinitionForModule(module.type))
   ));
   const modules = supported.slice(0, MAX_MODULES).map((module): AdjustmentModuleProjection => {
     const definition = currentProcessingModuleRegistry.definition(module.type)!;
-    const parameters = definition.settingsPaths.map((path) => projectParameter(module, path, defaults));
+    const filter = p0FilterDefinitionForModule(module.type);
+    const parameters: AdjustmentParameterProjection[] = filter
+      ? Object.entries(defaultP0FilterSettings(filter.kind)).map(([path, defaultValue]) => {
+          const projected = boundedValue(module.settings[path], defaultValue);
+          const projectedDefault = boundedValue(defaultValue, defaultValue);
+          return {
+            path,
+            value: projected.value,
+            defaultValue: projectedDefault.value,
+            state: JSON.stringify(projected.value) === JSON.stringify(projectedDefault.value)
+              ? 'default' : 'non-default',
+            truncated: projected.truncated
+          };
+        })
+      : definition.settingsPaths.map((path) => projectParameter(module, path, defaults));
     return { id: module.id, type: module.type, label: definition.label,
       category: definition.category, enabled: module.enabled, revision: module.revision,
       valueState: parameters.some(({ state }) => state === 'non-default') ? 'non-default' : 'default',

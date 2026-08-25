@@ -5,10 +5,15 @@ import {
   type AdjustmentStack
 } from './adjustmentStack';
 import type { PhotoshopAdjustmentKind } from '../photoshopAdjustments';
+import {
+  P0_FILTER_DEFINITIONS,
+  type P0FilterKind,
+  type P0FilterSettingsMap
+} from '@lighttable/filter-core';
 
 export type AdjustmentLayerKind =
   | 'grade'
-  | 'gaussian-blur'
+  | P0FilterKind
   | 'lens-fx'
   | 'color-vibrance'
   | 'curves'
@@ -20,8 +25,12 @@ export type AdjustmentLayerKind =
 
 export type AdjustmentPropertiesView = AdjustmentLayerKind;
 
+type P0FilterInitialSettings = {
+  [K in P0FilterKind]: Partial<P0FilterSettingsMap[K]>
+}[P0FilterKind];
+
 export type AdjustmentInitialSettings =
-  | { readonly radius: number }
+  | P0FilterInitialSettings
   | { readonly posterizeLevels: number }
   | { readonly thresholdLevel: number }
   | {
@@ -55,15 +64,15 @@ export interface AdjustmentLayerDefinition {
  * adjustments join this catalog only once their controls affect rendering.
  */
 export const ADJUSTMENT_LAYER_DEFINITIONS: readonly AdjustmentLayerDefinition[] = [
-  {
-    id: 'gaussian-blur',
-    name: 'Gaussian Blur',
-    menuLabel: 'Gaussian Blur',
+  ...P0_FILTER_DEFINITIONS.map((filter): AdjustmentLayerDefinition => ({
+    id: filter.kind,
+    name: filter.label,
+    menuLabel: filter.label,
     iconName: 'layer_adjustment.png',
     family: 'lighttable',
     owner: 'filter',
     creationVisible: false
-  },
+  })),
   {
     id: 'grade',
     name: 'Grade',

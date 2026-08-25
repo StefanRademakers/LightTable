@@ -62,11 +62,12 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   let source = textureSampleLevel(originalTexture, sourceSampler, input.uv, 0.0);
   let detail = source.rgb - blurred.rgb;
   if (params.outputMode == 1u) {
-    return vec4f(clamp(detail + vec3f(0.5 * source.a), vec3f(0.0), vec3f(source.a)), source.a);
+    // Linear HDR RGB is allowed above alpha. Only negative radiance is clipped.
+    return vec4f(max(detail + vec3f(0.5 * source.a), vec3f(0.0)), source.a);
   }
 
   let perceptualDifference = abs(luminance(unpremultiply(source)) - luminance(unpremultiply(blurred)));
   let gain = select(0.0, params.amount, perceptualDifference * 255.0 >= params.threshold);
-  return vec4f(clamp(source.rgb + detail * gain, vec3f(0.0), vec3f(source.a)), source.a);
+  return vec4f(max(source.rgb + detail * gain, vec3f(0.0)), source.a);
 }
 `;

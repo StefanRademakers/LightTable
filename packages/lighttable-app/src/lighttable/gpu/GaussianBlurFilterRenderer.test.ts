@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createAdjustmentLayer } from '../editor/document/documentTypes';
 import { createGaussianBlurStack } from '../processing/gaussianBlurFilter';
+import { createP0FilterStack } from '../processing/p0Filter';
 import { GaussianBlurFilterRenderer } from './GaussianBlurFilterRenderer';
 
 beforeAll(() => {
@@ -11,8 +12,9 @@ beforeAll(() => {
 const fixture = () => {
   const textures: Array<{ createView: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }> = [];
   const buffers: Array<{ destroy: ReturnType<typeof vi.fn> }> = [];
+  const writeBuffer = vi.fn();
   const device = {
-    queue: { writeBuffer: vi.fn() },
+    queue: { writeBuffer },
     createTexture: vi.fn(() => {
       const texture = { createView: vi.fn(() => ({})), destroy: vi.fn() };
       textures.push(texture);
@@ -33,7 +35,7 @@ const fixture = () => {
   const encoder = { beginRenderPass: vi.fn(() => pass) } as unknown as GPUCommandEncoder;
   const renderer = new GaussianBlurFilterRenderer(device);
   renderer.configure(20, 10, {} as GPUSampler);
-  return { renderer, device, encoder, textures, buffers, pass };
+  return { renderer, device, encoder, textures, buffers, pass, writeBuffer };
 };
 
 describe('GaussianBlurFilterRenderer', () => {
@@ -67,5 +69,18 @@ describe('GaussianBlurFilterRenderer', () => {
     expect(test.renderer.encode(test.encoder, source, layer)).toBe(source);
     expect(test.textures).toHaveLength(0);
     expect(test.encoder.beginRenderPass).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['high-pass', { radius: 12 }, 1]
+  ] as const)('routes %s through the shared BlurCore output mode', (kind, settings, outputMode) => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack(kind, settings, (part) => `${kind}-${part}`), kind, kind
+    );
+    test.renderer.encode(test.encoder, { createView: vi.fn(() => ({})) } as unknown as GPUTexture, layer);
+    const vertical = test.writeBuffer.mock.calls[1]?.[2] as ArrayBuffer;
+    expect(new Uint32Array(vertical)[4]).toBe(outputMode);
+    expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(2);
   });
 });

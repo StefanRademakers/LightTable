@@ -51,6 +51,8 @@ import {
   findWarpModuleInstance,
   readWarpNodeSettings
 } from '../../effects/warp/warpTypes';
+import { P0_FILTER_DEFINITIONS } from '@lighttable/filter-core';
+import { createP0FilterStack, p0FilterSettings } from '../../processing/p0Filter';
 
 const pngBytes = (base64: string) => Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
 const PREVIEW_PNG = pngBytes('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVR4nGMQ0bD5D8IMMAYALyQF3SWgr78AAAAASUVORK5CYII=');
@@ -1000,6 +1002,29 @@ describe('LightTable layered PNG format', () => {
     expect(grades[1]?.type === 'adjustment'
       ? grades[1].adjustmentStack.modules.find((module) => module.type === 'lt.white-balance')?.settings.temperature
       : null).toBe(61);
+  });
+
+  it('round-trips every P0 filter kind and its editable settings', async () => {
+    const source = createImageDocument('P0 filters', 2, 2, 'source');
+    const document = P0_FILTER_DEFINITIONS.reduce((current, definition) =>
+      createAdjustmentLayer(current, createP0FilterStack(definition.kind, definition.defaults),
+        definition.label, current.activeLayerId ?? undefined, definition.kind), source);
+    const file = buildLayeredDocumentFile(
+      new Blob([PREVIEW_PNG], { type: 'image/png' }), document, defaultStack(), [{
+        layerId: source.layers[0]!.id,
+        pixels: new Blob([BACKGROUND_PNG], { type: 'image/png' }),
+        mask: null
+      }], 'p0-filters.lighttable.png'
+    );
+    const parsed = await parseLayeredDocumentFile(file);
+    expect(parsed).not.toBeNull();
+    for (const definition of P0_FILTER_DEFINITIONS) {
+      const layer = parsed!.document.layers.find((candidate) =>
+        candidate.type === 'adjustment' && candidate.adjustmentKind === definition.kind);
+      expect(layer?.type).toBe('adjustment');
+      if (layer?.type !== 'adjustment') continue;
+      expect(p0FilterSettings(layer.adjustmentStack, definition.kind)).toEqual(definition.defaults);
+    }
   });
 
   it('round-trips a Lens Fx layer at its exact nested stack position', async () => {

@@ -10,6 +10,7 @@ import {
 } from '../../processing/adjustmentLayerCatalog';
 import type { DocumentGeometryRequest } from '../../application/documentGeometry/documentGeometryModel';
 import type { FixedTransformOperation } from '../../application/tools/transform/useTransformSessionController';
+import { P0_FILTER_DEFINITIONS, type P0FilterKind } from '@lighttable/filter-core';
 
 export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'filter' | 'layer' | 'type' | 'ai' | 'view' | 'help';
 
@@ -477,64 +478,40 @@ export const createEditorMenuOptions = (
   }
 
   if (menu === 'filter') {
-    const unavailable = (value: string, label: string): ContextMenuOption<string> => ({
-      value,
+    const implemented = new Set<P0FilterKind>(['gaussian-blur', 'high-pass']);
+    const groups = [
+      ['blur', 'Blur'], ['distort', 'Distort'], ['noise', 'Noise'],
+      ['sharpen', 'Sharpen'], ['other', 'Other']
+    ] as const;
+    const option = (definition: (typeof P0_FILTER_DEFINITIONS)[number]): ContextMenuOption<string> => {
+      if (!implemented.has(definition.kind)) return {
+        value: `filter-${definition.kind}`,
+        label: definition.label,
+        disabled: true,
+        disabledReason: 'This filter is planned but not available yet.'
+      };
+      return {
+        value: `filter-${definition.kind}`,
+        label: definition.menuLabel,
+        onClick: () => commands.createAdjustmentLayer(definition.kind),
+        disabled: !state.hasDocument || state.saving,
+        trailingAction: {
+          value: `filter-attach-${definition.kind}`,
+          label: `Attach ${definition.label} to selected layer`,
+          onClick: () => commands.attachAdjustment(definition.kind),
+          disabled: layer?.type !== 'raster' || layer.locked || state.saving,
+          disabledReason: `Select an unlocked raster layer to attach ${definition.label}.`,
+          icon: createElement('img', {
+            src: lightTableIcon('link_vertical.png'), alt: '', 'aria-hidden': true
+          })
+        }
+      };
+    };
+    return groups.map(([group, label]) => ({
+      value: `filter-${group}`,
       label,
-      disabled: true,
-      disabledReason: 'This filter is planned but not available yet.'
-    });
-    return [{
-      value: 'filter-blur',
-      label: 'Blur',
-      children: [
-        {
-          value: 'filter-gaussian-blur',
-          label: 'Gaussian Blur...',
-          onClick: () => commands.createAdjustmentLayer('gaussian-blur'),
-          disabled: !state.hasDocument || state.saving,
-          trailingAction: {
-            label: 'Attach Gaussian Blur to selected layer',
-            onClick: () => commands.attachAdjustment('gaussian-blur'),
-            disabled: layer?.type !== 'raster' || layer.locked || state.saving,
-            disabledReason: 'Select an unlocked raster layer to attach Gaussian Blur.',
-            icon: createElement('img', {
-              src: lightTableIcon('link_vertical.png'),
-              alt: '',
-              'aria-hidden': true
-            })
-          }
-        },
-        unavailable('filter-motion-blur', 'Motion Blur'),
-        unavailable('filter-surface-edge-aware-blur', 'Surface Blur')
-      ]
-    }, {
-      value: 'filter-distort',
-      label: 'Distort',
-      children: [unavailable('filter-displace', 'Displace')]
-    }, {
-      value: 'filter-noise',
-      label: 'Noise',
-      children: [
-        unavailable('filter-median', 'Median'),
-        unavailable('filter-reduce-noise-denoise', 'Reduce Noise')
-      ]
-    }, {
-      value: 'filter-sharpen',
-      label: 'Sharpen',
-      children: [
-        unavailable('filter-smart-sharpen', 'Smart Sharpen'),
-        unavailable('filter-unsharp-mask', 'Unsharp Mask')
-      ]
-    }, {
-      value: 'filter-other',
-      label: 'Other',
-      children: [
-        unavailable('filter-high-pass', 'High Pass'),
-        unavailable('filter-maximum', 'Maximum'),
-        unavailable('filter-minimum', 'Minimum'),
-        unavailable('filter-offset', 'Offset')
-      ]
-    }];
+      children: P0_FILTER_DEFINITIONS.filter(({ menuGroup }) => menuGroup === group).map(option)
+    }));
   }
 
   if (menu === 'image') {
