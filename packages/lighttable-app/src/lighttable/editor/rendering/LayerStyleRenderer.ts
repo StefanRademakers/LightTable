@@ -191,9 +191,9 @@ const bevelGeometryCacheKey = (
  * contour, noise, color, opacity and blend mode are applied by the cheap
  * final style pass and intentionally do not invalidate this key.
  */
-const shadowFieldCacheKey = (
+const gaussianFieldCacheKey = (
   layer: StyledNode,
-  effect: Extract<StyleEffect, { kind: 'drop-shadow' }>,
+  effect: Extract<StyleEffect, { kind: 'drop-shadow' | 'outer-glow' }>,
   inverse: AffineMatrix,
   sourceSize: { width: number; height: number },
   plan: NonNullable<ReturnType<typeof layerStyleGaussianBlurPlan>>,
@@ -455,20 +455,22 @@ export class LayerStyleRenderer {
         this.blendQuantization
       );
       if (!values) return;
-      const blurPlan = (styleBlurPipeline || (effect.kind === 'drop-shadow' && denseBlurPipeline))
+      const usesDenseField = effect.kind === 'drop-shadow'
+        || (effect.kind === 'outer-glow' && effect.jitter <= 0);
+      const blurPlan = (styleBlurPipeline || (usesDenseField && denseBlurPipeline))
         ? layerStyleGaussianBlurPlan(
             effect,
             layer.styleStack,
-            effect.kind === 'drop-shadow' ? tightBounds.width : width,
-            effect.kind === 'drop-shadow' ? tightBounds.height : height,
+            usesDenseField ? tightBounds.width : width,
+            usesDenseField ? tightBounds.height : height,
             quality
           )
         : null;
       let blurredShape = styleTextures.shape;
-      const shadowFieldKey = effect.kind === 'drop-shadow' && blurPlan
-        ? shadowFieldCacheKey(layer, effect, inverse, sourceSize, blurPlan, tightBounds)
+      const shadowFieldKey = usesDenseField && blurPlan
+        ? gaussianFieldCacheKey(layer, effect, inverse, sourceSize, blurPlan, tightBounds)
         : null;
-      const retainedShadowField = effect.kind === 'drop-shadow' && shadowFieldKey
+      const retainedShadowField = usesDenseField && shadowFieldKey
         ? this.textures.cachedEffectField(layer.id, effect.id, shadowFieldKey)
         : null;
       const chiselDistanceCapacity = effect.kind === 'bevel-emboss'
@@ -631,13 +633,13 @@ export class LayerStyleRenderer {
                 firstCycle
                   ? { width, height }
                   : { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
-                firstCycle && effect.kind === 'drop-shadow'
+                firstCycle && usesDenseField
                   ? { x: tightBounds.x, y: tightBounds.y }
                   : { x: 0, y: 0 },
                 gaussian.radiusPerCycle,
                 firstCycle ? blurPlan.scale : 1,
                 `LightTable Layer Style ${effect.name} horizontal blur ${cycle + 1}: ${layer.name}`,
-                effect.kind === 'drop-shadow' ? denseBlurPipeline! : styleBlurPipeline!
+                usesDenseField ? denseBlurPipeline! : styleBlurPipeline!
               );
               encodeBlurPass(
                 blurTextures.horizontal,
@@ -649,7 +651,7 @@ export class LayerStyleRenderer {
                 gaussian.radiusPerCycle,
                 1,
                 `LightTable Layer Style ${effect.name} vertical blur ${cycle + 1}: ${layer.name}`,
-                effect.kind === 'drop-shadow' ? denseBlurPipeline! : styleBlurPipeline!
+                usesDenseField ? denseBlurPipeline! : styleBlurPipeline!
               );
             }
             blurredShape = blurTextures.vertical;
@@ -686,7 +688,7 @@ export class LayerStyleRenderer {
         values[101] = smoothLod?.secondary?.scale ?? values[100]!;
         values[102] = smoothLod?.blend ?? 0;
       }
-      if (effect.kind === 'drop-shadow' && blurPlan) {
+      if (usesDenseField && blurPlan) {
         values.set([
           tightBounds.x,
           tightBounds.y,

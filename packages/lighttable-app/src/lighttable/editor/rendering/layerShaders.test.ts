@@ -34,6 +34,9 @@ describe('layer style effect shader contract', () => {
     expect(LAYER_STYLE_EFFECT_WGSL).toContain(
       'let fieldUv = (documentPixel - fieldBounds.xy) / max(fieldBounds.zw, vec2f(1.0));'
     );
+    expect(LAYER_STYLE_EFFECT_WGSL).toContain(
+      '(kind == 2 || kind == 4 || kind == 11) && fieldBounds.z > 0.0'
+    );
   });
 
   it('splits the authored center-stroke width across both sides of the edge', () => {

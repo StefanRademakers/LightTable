@@ -181,9 +181,10 @@ export const layerStyleGaussianBlurPlan = (
   // Drop Shadow is the first Layer Style on the production dense Gaussian
   // path. Small radii stay full-resolution; wider radii retain the bounded
   // adaptive working space used to keep interaction cost predictable.
-  if (effect.kind === 'drop-shadow') {
+  if (effect.kind === 'drop-shadow' || effect.kind === 'outer-glow') {
     const pixelsPerWorkingRadius = quality === 'interactive' ? 12 : 16;
-    const spreadScaleLimit = effect.spread >= 0.35 ? 2 : 8;
+    const hardening = effect.kind === 'drop-shadow' ? effect.spread : effect.choke;
+    const spreadScaleLimit = hardening >= 0.35 ? 2 : 8;
     const scale = Math.max(1, Math.min(
       spreadScaleLimit,
       Math.ceil(radius / pixelsPerWorkingRadius)

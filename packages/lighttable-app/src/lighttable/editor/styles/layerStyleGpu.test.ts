@@ -144,6 +144,23 @@ describe('Layer Style GPU settings', () => {
     });
   });
 
+  it('uses the retained dense field for non-jittered outer glows', () => {
+    const effect = createDefaultLayerStyle('outer-glow');
+    if (effect.kind !== 'outer-glow') throw new Error('Expected Outer Glow.');
+    const stack = createDefaultLayerStyleStack();
+    effect.size = 8;
+    expect(layerStyleGaussianBlurPlan(effect, stack, 400, 200, 'final')).toEqual({
+      scale: 1, workingWidth: 400, workingHeight: 200, workingRadius: 8
+    });
+    effect.size = 60;
+    effect.choke = 0.5;
+    expect(layerStyleGaussianBlurPlan(effect, stack, 400, 200, 'final')).toEqual({
+      scale: 2, workingWidth: 200, workingHeight: 100, workingRadius: 30
+    });
+    effect.jitter = 0.1;
+    expect(layerStyleGaussianBlurPlan(effect, stack, 400, 200, 'final')).toBeNull();
+  });
+
   it('uses the settled Gaussian path for wide satin without changing small satin cost', () => {
     const effect = createDefaultLayerStyle('satin');
     if (effect.kind !== 'satin') throw new Error('Expected Satin.');
