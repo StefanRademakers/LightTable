@@ -185,4 +185,39 @@ describe('GaussianBlurFilterRenderer', () => {
     expect(new DataView(payload).getUint32(12, true)).toBe(1);
     expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(4);
   });
+
+  it.each([
+    ['gaussian', 3], ['lens', 4]
+  ] as const)('routes Smart Sharpen %s through adaptive BlurCore mode %i', (remove, outputMode) => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('smart-sharpen', {
+        amount: 150, radius: 2, reduceNoise: 30, remove, angle: 0
+      }, (part) => `smart-${part}`),
+      'Smart Sharpen', 'smart-sharpen'
+    );
+    test.renderer.encode(test.encoder,
+      { createView: vi.fn(() => ({})) } as unknown as GPUTexture, layer);
+    const vertical = test.writeBuffer.mock.calls[1]?.[2] as ArrayBuffer;
+    expect(new Uint32Array(vertical)[4]).toBe(outputMode);
+    expect(new Float32Array(vertical)[5]).toBeCloseTo(1.5);
+    expect(new Float32Array(vertical)[6]).toBeCloseTo(30);
+  });
+
+  it('uses the authored angle for Smart Sharpen motion removal', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('smart-sharpen', {
+        amount: 120, radius: 4, reduceNoise: 20, remove: 'motion', angle: 90
+      }, (part) => `smart-motion-${part}`),
+      'Smart Sharpen', 'smart-sharpen'
+    );
+    test.renderer.encode(test.encoder,
+      { createView: vi.fn(() => ({})) } as unknown as GPUTexture, layer);
+    const payload = test.writeBuffer.mock.calls[0]?.[2] as ArrayBuffer;
+    expect(new Uint32Array(payload)[3]).toBe(1);
+    expect(new Float32Array(payload)[0]).toBeCloseTo(0, 5);
+    expect(new Float32Array(payload)[1]).toBeCloseTo(0.4, 5);
+    expect(new Float32Array(payload)[4]).toBeCloseTo(1.2);
+  });
 });

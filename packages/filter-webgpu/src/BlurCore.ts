@@ -2,12 +2,13 @@ import type { P0FilterSettingsMap } from '@lighttable/filter-core';
 import { FilterTargetPool } from './FilterTargetPool';
 import { BLUR_CORE_WGSL, FILTER_FULLSCREEN_VERTEX_WGSL } from './filterShaders';
 
-export type BlurCoreMode = 'gaussian-blur' | 'high-pass' | 'unsharp-mask';
+export type BlurCoreMode = 'gaussian-blur' | 'high-pass' | 'unsharp-mask' | 'smart-sharpen';
 
 export interface BlurCoreRequestMap {
   'gaussian-blur': P0FilterSettingsMap['gaussian-blur'];
   'high-pass': P0FilterSettingsMap['high-pass'];
   'unsharp-mask': P0FilterSettingsMap['unsharp-mask'];
+  'smart-sharpen': P0FilterSettingsMap['smart-sharpen'];
 }
 
 interface BlurRuntime {
@@ -65,6 +66,15 @@ const parameters = (mode: BlurCoreMode, settings: BlurCoreRequestMap[BlurCoreMod
       mode: 2,
       amount: unsharp.amount / 100,
       threshold: unsharp.threshold
+    };
+  }
+  if (mode === 'smart-sharpen') {
+    const smart = settings as BlurCoreRequestMap['smart-sharpen'];
+    return {
+      radius: smart.radius,
+      mode: smart.remove === 'lens' ? 4 : 3,
+      amount: smart.amount / 100,
+      threshold: smart.reduceNoise
     };
   }
   return {

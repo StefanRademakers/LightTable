@@ -10,7 +10,7 @@ import type { AdjustmentLayer, RasterLayer } from '../editor/document/documentTy
 import { p0FilterModule, p0FilterSettings } from '../processing/p0Filter';
 
 const BLUR_CORE_MODES = new Set<BlurCoreMode>([
-  'gaussian-blur', 'high-pass', 'unsharp-mask'
+  'gaussian-blur', 'high-pass', 'unsharp-mask', 'smart-sharpen'
 ]);
 
 /**
@@ -56,8 +56,19 @@ export class P0FilterRenderer {
     if (definition.kind === 'motion-blur') {
       const settings = p0FilterSettings(layer.adjustmentStack, 'motion-blur');
       return settings ? this.motionBlurCore.encode(encoder, source, {
-        key: `${layer.id}::${module.id}`, revision: module.revision, settings
+        key: `${layer.id}::${module.id}`, revision: module.revision,
+        mode: 'motion-blur', settings
       }) : source;
+    }
+    if (definition.kind === 'smart-sharpen') {
+      const settings = p0FilterSettings(layer.adjustmentStack, 'smart-sharpen');
+      if (!settings) return source;
+      if (settings.remove === 'motion') {
+        return this.motionBlurCore.encode(encoder, source, {
+          key: `${layer.id}::${module.id}`, revision: module.revision,
+          mode: 'smart-sharpen', settings
+        });
+      }
     }
     if (definition.kind === 'maximum' || definition.kind === 'minimum') {
       const settings = p0FilterSettings(layer.adjustmentStack, definition.kind);

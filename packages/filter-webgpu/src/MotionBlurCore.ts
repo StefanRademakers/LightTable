@@ -6,12 +6,23 @@ export const MOTION_BLUR_WGSL = /* wgsl */ `
 struct MotionBlurUniforms {
   directionUv: vec2f,
   sampleCount: u32,
-  padding: u32,
+  outputMode: u32,
+  amount: f32,
+  reduceNoise: f32,
+  padding: vec2f,
 }
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
 @group(0) @binding(1) var sourceSampler: sampler;
 @group(0) @binding(2) var<uniform> params: MotionBlurUniforms;
+
+fn motionLuminance(rgb: vec3f) -> f32 {
+  return dot(rgb, vec3f(0.2126, 0.7152, 0.0722));
+}
+
+fn motionUnpremultiply(value: vec4f) -> vec3f {
+  return select(vec3f(0.0), value.rgb / value.a, value.a > 0.000001);
+}
 
 @fragment
 fn motionBlurMain(input: VertexOutput) -> @location(0) vec4f {
@@ -24,7 +35,26 @@ fn motionBlurMain(input: VertexOutput) -> @location(0) vec4f {
       sourceTexture, sourceSampler, input.uv + params.directionUv * position, 0.0
     );
   }
-  return accumulated / f32(params.sampleCount);
+  let blurred = accumulated / f32(params.sampleCount);
+  if (params.outputMode == 0u) { return blurred; }
+  let source = textureSampleLevel(sourceTexture, sourceSampler, input.uv, 0.0);
+  let texel = 1.0 / vec2f(textureDimensions(sourceTexture));
+  let centerLuma = motionLuminance(motionUnpremultiply(source));
+  let neighborMean = (
+    motionLuminance(motionUnpremultiply(textureSampleLevel(
+      sourceTexture, sourceSampler, input.uv - vec2f(texel.x, 0.0), 0.0)))
+    + motionLuminance(motionUnpremultiply(textureSampleLevel(
+      sourceTexture, sourceSampler, input.uv + vec2f(texel.x, 0.0), 0.0)))
+    + motionLuminance(motionUnpremultiply(textureSampleLevel(
+      sourceTexture, sourceSampler, input.uv - vec2f(0.0, texel.y), 0.0)))
+    + motionLuminance(motionUnpremultiply(textureSampleLevel(
+      sourceTexture, sourceSampler, input.uv + vec2f(0.0, texel.y), 0.0)))
+  ) * 0.25;
+  let detail = source.rgb - blurred.rgb;
+  let detailLuma = abs(centerLuma - motionLuminance(motionUnpremultiply(blurred)));
+  let noise = abs(centerLuma - neighborMean);
+  let confidence = detailLuma / (detailLuma + noise * params.reduceNoise * 4.0 + 0.000001);
+  return vec4f(max(source.rgb + detail * params.amount * confidence, vec3f(0.0)), source.a);
 }
 `;
 
@@ -76,19 +106,28 @@ export class MotionBlurCore {
   encode(encoder: GPUCommandEncoder, source: GPUTexture, request: {
     readonly key: string;
     readonly revision: number;
+    readonly mode: 'motion-blur';
     readonly settings: P0FilterSettingsMap['motion-blur'];
+  } | {
+    readonly key: string;
+    readonly revision: number;
+    readonly mode: 'smart-sharpen';
+    readonly settings: P0FilterSettingsMap['smart-sharpen'];
   }): GPUTexture {
     if (!this.sampler || this.width < 1 || this.height < 1) {
       throw new Error('MotionBlurCore is not configured for the active document.');
     }
-    const { angle, distance } = request.settings;
+    const angle = request.settings.angle;
+    const distance = request.mode === 'motion-blur'
+      ? request.settings.distance
+      : request.settings.radius;
     if (distance <= 0) return source;
     let runtime = this.runtimes.get(request.key);
     if (!runtime) {
       runtime = {
         uniforms: this.device.createBuffer({
           label: `LightTable Motion Blur uniforms: ${request.key}`,
-          size: 16,
+          size: 32,
           usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         }),
         revision: -1
@@ -97,12 +136,15 @@ export class MotionBlurCore {
     }
     if (runtime.revision !== request.revision) {
       const radians = angle * Math.PI / 180;
-      const values = new ArrayBuffer(16);
+      const values = new ArrayBuffer(32);
       const floats = new Float32Array(values);
       const integers = new Uint32Array(values);
       floats[0] = Math.cos(radians) * distance / this.width;
       floats[1] = Math.sin(radians) * distance / this.height;
       integers[2] = Math.min(257, Math.max(2, Math.ceil(distance) + 1));
+      integers[3] = request.mode === 'smart-sharpen' ? 1 : 0;
+      floats[4] = request.mode === 'smart-sharpen' ? request.settings.amount / 100 : 0;
+      floats[5] = request.mode === 'smart-sharpen' ? request.settings.reduceNoise / 100 : 0;
       this.device.queue.writeBuffer(runtime.uniforms, 0, values);
       runtime.revision = request.revision;
     }

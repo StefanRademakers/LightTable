@@ -692,6 +692,9 @@ describe('useLayerDocumentCommands', () => {
     ['high-pass', 'High Pass', { radius: 18 }],
     ['unsharp-mask', 'Unsharp Mask', { amount: 140, radius: 2, threshold: 4 }],
     ['motion-blur', 'Motion Blur', { angle: 25, distance: 48 }],
+    ['smart-sharpen', 'Smart Sharpen', {
+      amount: 150, radius: 2, reduceNoise: 25, remove: 'lens', angle: 0
+    }],
     ['maximum', 'Maximum', { radius: 12, shape: 'round' }],
     ['minimum', 'Minimum', { radius: 6, shape: 'square' }],
     ['offset', 'Offset', { horizontal: 18, vertical: -9, edgeMode: 'wrap' }]

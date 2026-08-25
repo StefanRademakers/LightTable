@@ -68,6 +68,33 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 
   let perceptualDifference = abs(luminance(unpremultiply(source)) - luminance(unpremultiply(blurred)));
   let gain = select(0.0, params.amount, perceptualDifference * 255.0 >= params.threshold);
+  if (params.outputMode >= 3u) {
+    let sourceDimensions = vec2f(textureDimensions(originalTexture));
+    let sourceTexel = 1.0 / sourceDimensions;
+    let centerLuma = luminance(unpremultiply(source));
+    let leftLuma = luminance(unpremultiply(textureSampleLevel(
+      originalTexture, sourceSampler, input.uv - vec2f(sourceTexel.x, 0.0), 0.0)));
+    let rightLuma = luminance(unpremultiply(textureSampleLevel(
+      originalTexture, sourceSampler, input.uv + vec2f(sourceTexel.x, 0.0), 0.0)));
+    let upLuma = luminance(unpremultiply(textureSampleLevel(
+      originalTexture, sourceSampler, input.uv - vec2f(0.0, sourceTexel.y), 0.0)));
+    let downLuma = luminance(unpremultiply(textureSampleLevel(
+      originalTexture, sourceSampler, input.uv + vec2f(0.0, sourceTexel.y), 0.0)));
+    let localMinimum = min(min(leftLuma, rightLuma), min(upLuma, downLuma));
+    let localMaximum = max(max(leftLuma, rightLuma), max(upLuma, downLuma));
+    let localRange = max(localMaximum - localMinimum, 0.000001);
+    let neighborMean = (leftLuma + rightLuma + upLuma + downLuma) * 0.25;
+    let noiseEstimate = abs(centerLuma - neighborMean);
+    let detailLuma = abs(centerLuma - luminance(unpremultiply(blurred)));
+    let noiseWeight = params.threshold / 100.0;
+    let confidence = clamp(detailLuma / (detailLuma + noiseEstimate * noiseWeight * 4.0 + 0.000001), 0.0, 1.0);
+    let lensGain = select(1.0, 1.2, params.outputMode == 4u);
+    let requested = detail * params.amount * confidence * lensGain;
+    let requestedLuma = abs(luminance(requested));
+    let haloLimit = localRange * select(0.75, 0.55, params.outputMode == 4u);
+    let limiter = min(1.0, haloLimit / max(requestedLuma, 0.000001));
+    return vec4f(max(source.rgb + requested * limiter, vec3f(0.0)), source.a);
+  }
   return vec4f(max(source.rgb + detail * gain, vec3f(0.0)), source.a);
 }
 `;
