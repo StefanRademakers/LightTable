@@ -57,7 +57,7 @@
   "selection.selectSubject": { "kind": "subject", "sourceLayerId": "source layer ID", "mode": "replace | add | subtract | intersect", "sampleAllLayers": "boolean" },
   "selection.modify": { "kind": "modify", "operation": "all | clear | invert | feather", "radius?": "number 0..250 (feather only)" },
   "selection.copyPixels": { "source": "active-layer | merged" },
-  "selection.pastePixels": { "artifactId": "pixel clipboard artifact ID", "bounds": "document bounds", "name?": "safe layer name" },
+  "selection.pastePixels": { "artifactId": "pixel clipboard artifact ID", "bounds": "document bounds", "name?": "safe layer name", "target?": "optional pixels or active-mask target" },
   "grade.copy": {},
   "grade.paste": { "artifactId": "session Grade clipboard artifact ID" },
   "grade.setBasic": { "target": "document | layer target", "values": "partial basic-grade values with control ranges" },

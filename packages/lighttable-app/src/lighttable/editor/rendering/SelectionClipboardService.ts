@@ -24,6 +24,23 @@ export interface ClipboardCrop {
   height: number;
 }
 
+/** Converts straight sRGB clipboard pixels to grayscale mask values. */
+export const clipboardRgbaToMask = (pixels: Uint8ClampedArray) => {
+  for (let index = 0; index < pixels.length; index += 4) {
+    const alpha = pixels[index + 3] / 255;
+    const value = Math.max(0, Math.min(255, Math.round((
+      pixels[index] * 0.2126
+      + pixels[index + 1] * 0.7152
+      + pixels[index + 2] * 0.0722
+    ) * alpha)));
+    pixels[index] = value;
+    pixels[index + 1] = value;
+    pixels[index + 2] = value;
+    pixels[index + 3] = 255;
+  }
+  return pixels;
+};
+
 export const selectionClipboardCrop = (
   bounds: Rect,
   canvasWidth: number,
@@ -240,14 +257,18 @@ export class SelectionClipboardService {
   async pasteExternalImage(
     layerId: LayerId,
     blob: Blob,
-    requestedPosition: { x: number; y: number } | null
+    requestedPosition: { x: number; y: number } | null,
+    channel: 'pixels' | 'mask' = 'pixels'
   ) {
     const {
       layerResources,
       textureCodec,
       invalidateLayer
     } = this.options;
-    const destination = layerResources.raster(layerId);
+    const raster = layerResources.raster(layerId);
+    const destination = channel === 'mask'
+      ? layerResources.maskTexture(layerId)
+      : raster?.texture ?? null;
     if (!destination) return false;
     const { width, height } = this.options.dimensions();
     const decoded = await decodeNativeImage(blob);
@@ -263,8 +284,28 @@ export class SelectionClipboardService {
       canvas.height = height;
       const context = canvas.getContext('2d');
       if (!context) throw new Error('Clipboard image placement could not be created.');
-      context.clearRect(0, 0, width, height);
-      context.drawImage(decoded.bitmap, x, y);
+      if (channel === 'mask') {
+        const currentMask = await textureCodec.encodeUnchecked(destination, true, width, height);
+        const current = await decodeNativeImage(currentMask);
+        try {
+          context.drawImage(current.bitmap, 0, 0);
+        } finally {
+          current.close();
+        }
+        const sourceCanvas = document.createElement('canvas');
+        sourceCanvas.width = decoded.descriptor.width;
+        sourceCanvas.height = decoded.descriptor.height;
+        const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true });
+        if (!sourceContext) throw new Error('Clipboard mask conversion could not be created.');
+        sourceContext.drawImage(decoded.bitmap, 0, 0);
+        const maskPixels = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+        clipboardRgbaToMask(maskPixels.data);
+        sourceContext.putImageData(maskPixels, 0, 0);
+        context.drawImage(sourceCanvas, x, y);
+      } else {
+        context.clearRect(0, 0, width, height);
+        context.drawImage(decoded.bitmap, x, y);
+      }
       const normalized = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(
           (result) => result
@@ -276,8 +317,8 @@ export class SelectionClipboardService {
       const generation = this.options.generation();
       await textureCodec.decode(
         normalized,
-        destination.texture,
-        false,
+        destination,
+        channel === 'mask',
         width,
         height,
         () => generation === this.options.generation()

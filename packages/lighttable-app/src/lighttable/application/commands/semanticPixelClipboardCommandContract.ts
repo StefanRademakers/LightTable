@@ -15,6 +15,10 @@ export interface SemanticPastePixelsCommand {
   readonly artifactId: string;
   readonly bounds: PixelClipboardBounds;
   readonly name?: string;
+  readonly target?: {
+    readonly channel: 'pixels' | 'mask';
+    readonly layerId?: string;
+  };
 }
 
 const record = (value: unknown): value is Record<string, unknown> => (
@@ -34,10 +38,15 @@ export const parseSemanticCopyPixelsCommand = (
 export const parseSemanticPastePixelsCommand = (
   value: unknown
 ): SemanticPastePixelsCommand | { readonly message: string } => {
-  if (!record(value) || Object.keys(value).some((key) => !['artifactId', 'bounds', 'name'].includes(key))
+  if (!record(value) || Object.keys(value).some((key) => !['artifactId', 'bounds', 'name', 'target'].includes(key))
     || typeof value.artifactId !== 'string' || value.artifactId.length < 1
     || value.artifactId.length > 256 || !record(value.bounds)
-    || Object.keys(value.bounds).some((key) => !['x', 'y', 'width', 'height'].includes(key))) {
+    || Object.keys(value.bounds).some((key) => !['x', 'y', 'width', 'height'].includes(key))
+    || (value.target !== undefined && (!record(value.target)
+      || Object.keys(value.target).some((key) => !['channel', 'layerId'].includes(key))
+      || (value.target.channel !== 'pixels' && value.target.channel !== 'mask')
+      || (value.target.layerId !== undefined && (typeof value.target.layerId !== 'string'
+        || !value.target.layerId || value.target.layerId.length > 256))))) {
     return { message: 'Paste Pixels requires an artifactId and closed document bounds.' };
   }
   const { x, y, width, height } = value.bounds;
@@ -52,6 +61,10 @@ export const parseSemanticPastePixelsCommand = (
   return {
     artifactId: value.artifactId,
     bounds: { x: Number(x), y: Number(y), width: Number(width), height: Number(height) },
-    ...(typeof value.name === 'string' ? { name: value.name } : {})
+    ...(typeof value.name === 'string' ? { name: value.name } : {}),
+    ...(record(value.target) ? { target: {
+      channel: value.target.channel as 'pixels' | 'mask',
+      ...(typeof value.target.layerId === 'string' ? { layerId: value.target.layerId } : {})
+    } } : {})
   };
 };

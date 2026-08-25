@@ -419,7 +419,8 @@
     { "source": "merged" }
   ],
   "selection.pastePixels": [
-    { "artifactId": "artifact-copy-result", "bounds": { "x": 32, "y": 24, "width": 164, "height": 124 }, "name": "Pasted Selection" }
+    { "artifactId": "artifact-copy-result", "bounds": { "x": 32, "y": 24, "width": 164, "height": 124 }, "name": "Pasted Selection", "target": { "channel": "pixels" } },
+    { "artifactId": "artifact-copy-result", "bounds": { "x": 32, "y": 24, "width": 164, "height": 124 }, "target": { "channel": "mask", "layerId": "layer-portrait" } }
   ],
   "grade.copy": [{}],
   "grade.paste": [

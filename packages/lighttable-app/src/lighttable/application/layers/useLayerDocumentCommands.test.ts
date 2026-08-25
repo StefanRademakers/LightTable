@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultTextLayerData } from '@lighttable/text-core';
 import { createSubpath, createVectorPath } from '@lighttable/vector-core';
-import { createRasterLayer, createTextLayer, setLayerLocked } from '../../editor/document/documentCommands';
+import { addLayerMask, createRasterLayer, createTextLayer, setLayerLocked } from '../../editor/document/documentCommands';
 import {
   createAdjustmentLayer as createAdjustmentLayerNode,
   createGroupLayer as createGroupLayerNode,
@@ -340,12 +340,55 @@ describe('useLayerDocumentCommands', () => {
     );
   });
 
+  it('does not let the Paste in Place fast path override normal centered placement', async () => {
+    const state = setup(createImageDocument('Test', 32, 24, 'asset'));
+    const copied = await state.commands.copySelectedContent(createFullCanvasSelection(16, 12));
+
+    await state.commands.pastePixelArtifact(
+      copied!.file,
+      { x: 8, y: 6, width: 16, height: 12, target: { channel: 'pixels' } },
+      copied!.fastPasteToken
+    );
+
+    expect(state.renderer.pasteSelectionClipboard).not.toHaveBeenCalled();
+    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
+      state.document().activeLayerId, copied!.file, { x: 8, y: 6 }
+    );
+  });
+
+  it('pastes into the selected mask without creating a new layer and records GPU undo', async () => {
+    const initial = createImageDocument('Test', 32, 24, 'asset');
+    const layerId = initial.activeLayerId!;
+    const state = setup(addLayerMask(initial, layerId));
+
+    const result = await state.commands.pastePixelArtifact(
+      new File(['mask'], 'mask.png', { type: 'image/png' }),
+      { x: 5, y: 7, width: 10, height: 6,
+        target: { channel: 'mask', layerId } }
+    );
+
+    expect(result).toMatchObject({ layerId, width: 10, height: 6 });
+    expect(state.document().layers).toHaveLength(1);
+    expect(state.renderer.beginLayerPixelEdit).toHaveBeenCalledWith(layerId, 'mask');
+    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
+      layerId, expect.any(File), { x: 5, y: 7 }, 'mask'
+    );
+    expect(state.dependencies.pushHistoryEntry).toHaveBeenCalledOnce();
+    expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('mask');
+  });
+
   it('pastes an external clipboard image into a new layer', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({
+      width: 10, height: 6, close: vi.fn()
+    })));
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
 
     await expect(state.commands.pasteSelectedContent([])).resolves.toBe(true);
 
     expect(state.renderer.pasteClipboardImage).toHaveBeenCalledOnce();
+    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
+      state.document().activeLayerId, expect.any(Blob), { x: 11, y: 9 }
+    );
     expect(state.renderer.pasteSelectionClipboard).not.toHaveBeenCalled();
     expect(state.document().layers).toHaveLength(2);
     const snapshots = vi.mocked(state.dependencies.applyDocumentSnapshot).mock.calls;
@@ -353,9 +396,13 @@ describe('useLayerDocumentCommands', () => {
     const committedLayer = snapshots[1]?.[0].layers.at(-1);
     expect(preparedLayer?.type === 'raster' ? preparedLayer.pixelRevision : null).toBe(0);
     expect(committedLayer?.type === 'raster' ? committedLayer.pixelRevision : null).toBe(1);
+    vi.unstubAllGlobals();
   });
 
-  it('places an external clipboard image at the active selection origin', async () => {
+  it('centers an external clipboard image at the active selection without scaling it', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({
+      width: 10, height: 6, close: vi.fn()
+    })));
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
     const selection = createFullCanvasSelection(16, 12);
 
@@ -364,8 +411,9 @@ describe('useLayerDocumentCommands', () => {
     expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
       state.document().activeLayerId,
       expect.any(Blob),
-      { x: 0, y: 0 }
+      { x: 3, y: 3 }
     );
+    vi.unstubAllGlobals();
   });
 
   it('duplicates the active layer pixels and records one document command', () => {

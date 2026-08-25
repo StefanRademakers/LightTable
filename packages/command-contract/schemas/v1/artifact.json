@@ -179,6 +179,14 @@
           "name": {
             "type": "string", "title": "Layer name", "minLength": 1, "maxLength": 255,
             "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "target": {
+            "type": "object", "additionalProperties": false,
+            "required": ["channel"],
+            "properties": {
+              "channel": { "type": "string", "enum": ["pixels", "mask"] },
+              "layerId": { "$ref": "#/$defs/layerId" }
+            }
           }
         }
       },

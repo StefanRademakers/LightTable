@@ -1,9 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createImageDocument } from '../document/documentTypes';
 import {
+  clipboardRgbaToMask,
   SelectionClipboardService,
   selectionClipboardCrop
 } from './SelectionClipboardService';
+
+describe('clipboardRgbaToMask', () => {
+  it('uses luminance multiplied by alpha and writes an opaque grayscale mask', () => {
+    const pixels = new Uint8ClampedArray([
+      255, 255, 255, 128,
+      255, 0, 0, 255,
+      0, 0, 0, 0
+    ]);
+    expect([...clipboardRgbaToMask(pixels)]).toEqual([
+      128, 128, 128, 255,
+      54, 54, 54, 255,
+      0, 0, 0, 255
+    ]);
+  });
+});
 
 describe('selectionClipboardCrop', () => {
   it('rounds outward and clips a selection to the document', () => {

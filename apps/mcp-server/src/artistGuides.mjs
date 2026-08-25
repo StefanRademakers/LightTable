@@ -172,7 +172,7 @@ Infer only low-risk omissions. Preserve exact user copy and supplied identity or
 
 ## Inspect once and plan
 
-Call lighttable_context once and retain its IDs, revision, capabilities and guide versions. Its workspace result inventories every open document. When the brief names supplied images or another open document, resolve each requested asset by stable documentId and inspect it explicitly with lighttable_context or a targeted read; never silently substitute the active document. A clean flat raster source can be previewed and copied while inactive, so do not ask the user to click its tab merely to make it readable. Use selection.copyPixels and selection.pastePixels when a requested open raster document must become content in the target design.
+Call lighttable_context once and retain its IDs, revision, capabilities and guide versions. Its workspace result inventories every open document. When the brief names supplied images or another open document, resolve each requested asset by stable documentId and inspect it explicitly with lighttable_context or a targeted read; never silently substitute the active document. A clean flat raster source can be previewed and copied while inactive, so do not ask the user to click its tab merely to make it readable. Use selection.copyPixels and selection.pastePixels when a requested open raster document must become content in the target design. Paste bounds are final document coordinates at the artifact's natural size: target channel pixels creates a layer, while target channel mask writes into the named layer's existing mask.
 
 Inspect an existing document with bounded structure, text/vector detail, bounds and palette queries. Use a 512px WebP only when pixels add information that structure cannot provide.
 

@@ -911,9 +911,12 @@ export class LayerDocumentRenderer {
   async pasteClipboardImage(
     layerId: LayerId,
     blob: Blob,
-    requestedPosition: { x: number; y: number } | null
+    requestedPosition: { x: number; y: number } | null,
+    channel: PaintChannel = 'pixels'
   ) {
-    return this.runtime.selectionClipboard.pasteExternalImage(layerId, blob, requestedPosition);
+    return this.runtime.selectionClipboard.pasteExternalImage(
+      layerId, blob, requestedPosition, channel
+    );
   }
 
   async measureSelectedLayerContent(layer: RasterLayer): Promise<SelectionCoverageBounds | null> {

@@ -35,7 +35,11 @@ import type { DocumentAssetBlob } from '../../editor/persistence/layeredDocument
 import type { PaintChannel } from '../../editor/session/editorSession';
 import type { SelectionOperation } from '../../editor/selection/selectionTypes';
 import type { RasterSelectionMask } from '../../editor/selection/selectionTypes';
-import { selectionOperationsSupportBounds } from '../../editor/tools/transform/selectionTransform';
+import {
+  selectionOperationsBounds,
+  selectionOperationsSupportBounds
+} from '../../editor/tools/transform/selectionTransform';
+import { centerClipboardBounds } from '../clipboard/pastePlacement';
 import {
   adjustmentStackForScope,
   createAdjustmentStackFromBasicAdjustments
@@ -104,7 +108,8 @@ export interface LayerCommandRendererPort {
   pasteClipboardImage(
     layerId: LayerId,
     blob: Blob,
-    position: { x: number; y: number } | null
+    position: { x: number; y: number } | null,
+    channel?: PaintChannel
   ): Promise<boolean>;
   loadLayerAssets(assets: DocumentAssetBlob[]): Promise<void>;
   pasteSelectionClipboard(layerId: LayerId): boolean;
@@ -122,6 +127,7 @@ export interface LayerDocumentCommandDependencies {
   getRenderer(): LayerCommandRendererPort | null;
   getImageClipboard(): LightTableImageClipboard;
   getDocumentId(): string;
+  getActiveChannel?(): PaintChannel;
   applyDocumentSnapshot(document: ImageDocument): void;
   pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
   pushHistoryEntry(entry: LayerCommandHistoryEntry): void;
@@ -185,7 +191,10 @@ export interface PixelClipboardCapture {
   readonly fastPasteToken?: string;
 }
 
-export interface PixelClipboardPlacement extends Rect { readonly name?: string }
+export interface PixelClipboardPlacement extends Rect {
+  readonly name?: string;
+  readonly target?: { readonly channel: PaintChannel; readonly layerId?: LayerId };
+}
 export interface PixelClipboardPasteResult {
   readonly layerId: LayerId;
   readonly width: number;
@@ -1068,16 +1077,69 @@ export const createLayerDocumentCommands = (
     const before = dependencies.getDocument();
     const renderer = dependencies.getRenderer();
     if (!before || !renderer) return null;
+    if (placement.target?.channel === 'mask') {
+      const targetId = placement.target.layerId ?? before.activeLayerId;
+      const target = targetId ? findDocumentLayer(before, targetId) : null;
+      if (!targetId || !target?.mask) {
+        dependencies.setError('Select a layer mask before pasting into a mask.');
+        return null;
+      }
+      if (layerIsLocked(target, 'pixels')) {
+        dependencies.setError(`Unlock ${target.name} before pasting into its mask.`);
+        return null;
+      }
+      try {
+        renderer.beginLayerPixelEdit(targetId, 'mask');
+        if (!await renderer.pasteClipboardImage(targetId, file, {
+          x: placement.x, y: placement.y
+        }, 'mask')) {
+          throw new Error('The copied pixels could not be pasted into the active mask.');
+        }
+        const pixelEdit = renderer.finishPixelEdit();
+        if (!pixelEdit) throw new Error('Mask paste could not create a recoverable undo step.');
+        const after = markLayerMaskPixelsChanged(before, targetId, placement);
+        dependencies.applyDocumentSnapshot(after);
+        dependencies.pushHistoryEntry({
+          byteSize: pixelEdit.byteSize,
+          layerIds: [targetId],
+          undo: () => {
+            if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'undo')) {
+              throw new Error('Mask paste undo is no longer available.');
+            }
+            dependenciesRef.current.applyDocumentSnapshot(before);
+          },
+          redo: () => {
+            if (!dependenciesRef.current.getRenderer()?.applyPixelHistory(pixelEdit, 'redo')) {
+              throw new Error('Mask paste redo is no longer available.');
+            }
+            dependenciesRef.current.applyDocumentSnapshot(after);
+          },
+          dispose: pixelEdit.destroy
+        });
+        dependencies.setActiveChannel('mask');
+        dependencies.setSelectionClipboardAvailable(true);
+        dependencies.setStatus(`Pasted clipboard pixels into the mask of ${target.name}`);
+        dependencies.setError(null);
+        return { layerId: targetId, width: placement.width, height: placement.height };
+      } catch (reason) {
+        renderer.cancelPixelEdit();
+        dependencies.setError(reason instanceof Error ? reason.message : 'Mask paste failed.');
+        return null;
+      }
+    }
     const insertionTarget = before.activeLayerId ?? undefined;
     let after = createRasterLayer(before, placement.name?.trim() || 'Pasted Selection', insertionTarget);
     const pastedLayerId = after.activeLayerId;
     if (!pastedLayerId) return null;
-    const fastPaste = Boolean(requestedFastPasteToken)
+    // The retained full-document clipboard is an exact Paste in Place fast
+    // path. Normal Paste carries an explicit target and must use the cropped
+    // artifact so its newly resolved center is honored.
+    const fastPaste = placement.target === undefined && Boolean(requestedFastPasteToken)
       && requestedFastPasteToken === fastClipboardToken
       && renderer.hasSelectionClipboard();
-    const dirtyBounds = fastPaste ? {
+    const dirtyBounds = {
       x: placement.x, y: placement.y, width: placement.width, height: placement.height
-    } : fullDocumentBounds(before);
+    };
     dependencies.applyDocumentSnapshot(after);
     const pasted = fastPaste
       ? renderer.pasteSelectionClipboard(pastedLayerId)
@@ -1121,24 +1183,25 @@ export const createLayerDocumentCommands = (
       dependencies.setError('The system clipboard does not contain an image.');
       return false;
     }
-    const sameDocumentCopy = (
-      clipboardImage.placement?.sourceDocumentId === dependencies.getDocumentId()
-      && Boolean(fastClipboardToken)
-    );
-    const selectionPlacement = selection.length
-      ? clipboardBounds(before, selection)
-      : null;
-    const requestedPlacement = clipboardImage.placement ?? selectionPlacement;
-    const result = await pastePixelArtifact(new File(
+    const file = new File(
       [clipboardImage.blob], 'Clipboard image.png',
       { type: clipboardImage.blob.type || 'image/png' }
-    ), {
+    );
+    const bitmap = await createImageBitmap(file);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    const targetBounds = selection.length
+      ? selectionOperationsBounds([...selection], fullDocumentBounds(before))
+      : fullDocumentBounds(before);
+    const requestedPlacement = centerClipboardBounds(size, targetBounds);
+    const target = dependencies.getActiveChannel?.() === 'mask'
+      ? { channel: 'mask' as const, layerId: before.activeLayerId ?? undefined }
+      : { channel: 'pixels' as const };
+    const result = await pastePixelArtifact(file, {
       name: 'Pasted Selection',
-      x: requestedPlacement?.x ?? 0,
-      y: requestedPlacement?.y ?? 0,
-      width: requestedPlacement?.width ?? before.width,
-      height: requestedPlacement?.height ?? before.height
-    }, sameDocumentCopy ? fastClipboardToken ?? undefined : undefined);
+      ...requestedPlacement,
+      target
+    });
     return Boolean(result);
   };
 

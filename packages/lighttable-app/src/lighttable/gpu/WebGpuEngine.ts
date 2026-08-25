@@ -1507,12 +1507,14 @@ export class WebGpuEngine {
   async pasteClipboardImage(
     layerId: LayerId,
     blob: Blob,
-    position: { x: number; y: number } | null
+    position: { x: number; y: number } | null,
+    channel: PaintChannel = 'pixels'
   ) {
     const changed = await this.documentRenderer?.pasteClipboardImage(
       layerId,
       blob,
-      position
+      position,
+      channel
     ) ?? false;
     if (changed) this.markDocumentDirty();
     return changed;

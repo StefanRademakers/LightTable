@@ -30,5 +30,16 @@ describe('semantic pixel clipboard command contract', () => {
     expect(parseSemanticPastePixelsCommand({
       artifactId: 'artifact-1', bounds: { x: 0, y: 0, width: 0, height: 12 }
     })).toHaveProperty('message');
+    expect(parseSemanticPastePixelsCommand({
+      artifactId: 'artifact-1', bounds: { x: 3, y: 4, width: 20, height: 12 },
+      target: { channel: 'mask', layerId: 'layer-1' }
+    })).toEqual({
+      artifactId: 'artifact-1', bounds: { x: 3, y: 4, width: 20, height: 12 },
+      target: { channel: 'mask', layerId: 'layer-1' }
+    });
+    expect(parseSemanticPastePixelsCommand({
+      artifactId: 'artifact-1', bounds: { x: 0, y: 0, width: 20, height: 12 },
+      target: { channel: 'selection' }
+    })).toHaveProperty('message');
   });
 });

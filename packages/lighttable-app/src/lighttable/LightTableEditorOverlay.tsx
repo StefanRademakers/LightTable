@@ -27,6 +27,10 @@ import { DocumentRendererLifecycle } from './application/rendering/documentRende
 import { captureRendererBinding } from './application/rendering/rendererBindingToken';
 import { resolveDocumentGpuRecoveryPolicy } from './application/rendering/documentGpuRecoveryPolicy';
 import { resolveViewportImageRect } from './application/rendering/viewportRenderState';
+import {
+  centerClipboardBounds,
+  visibleDocumentBounds
+} from './application/clipboard/pastePlacement';
 import { useDocumentRuntimeServices } from './application/documents/useDocumentRuntimeServices';
 import { resetDocumentOpenPresentation } from './application/documents/resetDocumentOpenPresentation';
 import { useDocumentMutationController } from './application/documents/useDocumentMutationController';
@@ -65,7 +69,10 @@ import {
   zoomViewToScaleAtPoint
 } from './editor/tools/pointer/viewportCoordinates';
 import { steppedZoomPercent, zoomPercentToScale } from './editor/tools/zoom/zoomLevels';
-import { selectionOperationsSupportBounds } from './editor/tools/transform/selectionTransform';
+import {
+  selectionOperationsBounds,
+  selectionOperationsSupportBounds
+} from './editor/tools/transform/selectionTransform';
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
@@ -850,11 +857,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const copySelectedContentRef = useRef<() => void>(() => undefined);
   const copyMergedContentRef = useRef<() => void>(() => undefined);
   const pasteSelectedContentRef = useRef<() => void>(() => undefined);
-  const latestPixelClipboardRef = useRef<{
-    readonly artifactId: string;
-    readonly bounds: { readonly x: number; readonly y: number;
-      readonly width: number; readonly height: number };
-  } | null>(null);
   const latestGradeClipboardArtifactRef = useRef<string | null>(null);
   const layerViaCopyRef = useRef<() => void>(() => undefined);
   const mergeActiveLayerDownRef = useRef<() => void>(() => undefined);
@@ -4856,6 +4858,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     getRenderer: () => engineRef.current,
     getImageClipboard: () => imageClipboard,
     getDocumentId: () => workspaceDocumentId,
+    getActiveChannel: () => editorSessionRef.current.activeChannel,
     applyDocumentSnapshot,
     pushDocumentHistory,
     pushHistoryEntry,
@@ -4989,21 +4992,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         : layerDocumentCommands.copyMergedContent(editorSession.selection));
       return;
     }
-    const result = await execution;
-    const value = result.status === 'completed' && typeof result.value === 'object'
-      && result.value !== null ? result.value as Record<string, unknown> : null;
-    const artifact = value && typeof value.artifact === 'object' && value.artifact !== null
-      ? value.artifact as Record<string, unknown> : null;
-    const bounds = value && typeof value.bounds === 'object' && value.bounds !== null
-      ? value.bounds as Record<string, unknown> : null;
-    if (typeof artifact?.id === 'string' && bounds
-      && typeof bounds.x === 'number' && typeof bounds.y === 'number'
-      && typeof bounds.width === 'number' && typeof bounds.height === 'number') {
-      latestPixelClipboardRef.current = {
-        artifactId: artifact.id,
-        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
-      };
-    }
+    await execution;
   };
   const copySelectedContent = () => { void copyPixels('active-layer'); };
   copySelectedContentRef.current = copySelectedContent;
@@ -5017,52 +5006,66 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         await layerDocumentCommands.pasteSelectedContent(editorSession.selection);
         return;
       }
-      let copied = latestPixelClipboardRef.current;
-      if (copied && !commandService.queryArtifact(copied.artifactId)) {
-        latestPixelClipboardRef.current = null;
-        copied = null;
+      // Always inspect the host clipboard. A prior LightTable copy must never
+      // shadow a newer image copied from another application.
+      const clipboardImage = await imageClipboard.readImage();
+      if (!clipboardImage) {
+        setError('The system clipboard does not contain an image.');
+        return;
       }
-      if (!copied) {
-        const clipboardImage = await imageClipboard.readImage();
-        if (!clipboardImage) {
-          setError('The system clipboard does not contain an image.');
-          return;
-        }
-        if (clipboardImage.blob.type === 'image/svg+xml') {
-          await executeRegisteredCommand('vector.importSvg', {
-            svg: await clipboardImage.blob.text(), placement: 'document', layerName: 'Pasted SVG'
-          });
-          return;
-        }
-        const file = new File(
-          [clipboardImage.blob], 'Clipboard image.png',
-          { type: clipboardImage.blob.type || 'image/png' }
-        );
-        const artifact = commandService.registerPixelClipboardArtifact(file);
-        const document = imageDocumentRef.current;
-        const selectionBounds = document && editorSession.selection.length
-          ? selectionOperationsSupportBounds([...editorSession.selection], {
-              x: 0, y: 0, width: document.width, height: document.height
-            })
-          : null;
-        let naturalSize: { width: number; height: number } | null = null;
-        if (!clipboardImage.placement) {
-          const bitmap = await createImageBitmap(file);
-          naturalSize = { width: bitmap.width, height: bitmap.height };
-          bitmap.close();
-        }
-        const origin = clipboardImage.placement ?? selectionBounds;
-        copied = { artifactId: artifact.id, bounds: {
-          x: origin?.x ?? 0,
-          y: origin?.y ?? 0,
-          width: clipboardImage.placement?.width ?? naturalSize?.width ?? document?.width ?? 1,
-          height: clipboardImage.placement?.height ?? naturalSize?.height ?? document?.height ?? 1
-        } };
+      if (clipboardImage.blob.type === 'image/svg+xml'
+        && editorSessionRef.current.activeChannel !== 'mask') {
+        await executeRegisteredCommand('vector.importSvg', {
+          svg: await clipboardImage.blob.text(), placement: 'document', layerName: 'Pasted SVG'
+        });
+        return;
       }
+      let file = new File(
+        [clipboardImage.blob], 'Clipboard image.png',
+        { type: clipboardImage.blob.type || 'image/png' }
+      );
+      const bitmap = await createImageBitmap(file);
+      if (file.type === 'image/svg+xml') {
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('The SVG clipboard image could not be rasterized for the mask.');
+        context.drawImage(bitmap, 0, 0);
+        const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+          (value) => value ? resolve(value) : reject(new Error('The SVG clipboard image could not be encoded.')),
+          'image/png'
+        ));
+        file = new File([png], 'Clipboard image.png', { type: 'image/png' });
+      }
+      const artifact = commandService.registerPixelClipboardArtifact(file);
+      const copied = { artifactId: artifact.id, bounds: {
+        x: clipboardImage.placement?.x ?? 0,
+        y: clipboardImage.placement?.y ?? 0,
+        width: bitmap.width,
+        height: bitmap.height
+      } };
+      bitmap.close();
+      const currentDocument = imageDocumentRef.current;
+      if (!currentDocument) return;
+      const selection = editorSessionRef.current.selection;
+      const targetBounds = selection.length
+        ? selectionOperationsBounds([...selection], {
+            x: 0, y: 0, width: currentDocument.width, height: currentDocument.height
+          })
+        : visibleDocumentBounds(currentDocument, viewportSize, imageRect);
+      const bounds = centerClipboardBounds({
+        width: copied.bounds.width,
+        height: copied.bounds.height
+      }, targetBounds);
+      const target = editorSessionRef.current.activeChannel === 'mask'
+        ? { channel: 'mask' as const, layerId: currentDocument.activeLayerId ?? undefined }
+        : { channel: 'pixels' as const };
       await executeRegisteredCommand('selection.pastePixels', {
         artifactId: copied.artifactId,
         name: 'Pasted Selection',
-        bounds: copied.bounds
+        bounds,
+        target
       });
     })().catch((reason) => setError(
       reason instanceof Error ? reason.message : 'The clipboard image could not be pasted.'
@@ -5305,7 +5308,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         ? layerDocumentCommands.copySelectedContent(editorSessionRef.current.selection)
         : layerDocumentCommands.copyMergedContent(editorSessionRef.current.selection),
       pastePixels: (file, command, fastPasteToken) => layerDocumentCommands.pastePixelArtifact(
-        file, { ...command.bounds, name: command.name }, fastPasteToken
+        file, { ...command.bounds, name: command.name,
+          target: command.target ? { ...command.target,
+            layerId: command.target.layerId as LayerId | undefined } : undefined }, fastPasteToken
       ),
       copyGrade: captureCurrentGrade,
       pasteGrade: applyGradeCapture,

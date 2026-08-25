@@ -366,15 +366,20 @@ and merged selections. The existing renderer performs the GPU capture and the
 UI host still writes the system image clipboard, while the command result
 publishes only finite document bounds and opaque `pixel-clipboard` artifact
 metadata. `selection.pastePixels` consumes that handle through the existing
-raster-clipboard/document/history owner. A private generation token preserves
-the same-document active-layer GPU fast path and normal full-canvas raster
-semantics; stale or merged captures fall back to the bounded image artifact.
+history owner. Its explicit bounds preserve the artifact's natural pixel size;
+`target.channel: "pixels"` creates a raster layer while `"mask"` writes into
+the named layer's existing mask without creating a layer. Selection- or
+viewport-centered placement is a UI policy and should be resolved to final
+document bounds before an MCP command is submitted.
+A private generation token preserves the same-document active-layer GPU fast
+path for a future explicit Paste in Place operation; normal Paste deliberately
+uses the bounded artifact so its resolved center is honored.
 Actions binds Paste to the fresh artifact ID returned by the preceding Copy
 step, so replay does not persist session-local pixel data. External MCP can
 execute the same pair with edit permission; raw
-bytes, Base64, paths, masks and GPU state are rejected or never serialized.
+bytes, Base64, paths and GPU state are rejected or never serialized.
 Packaged UI/Actions/MCP proof covers both Copy variants and the active-layer
-fast Paste, confirms copy is
+artifact Paste, confirms copy is
 revision/history neutral and reports byte-exact equal pasted renders. This is a
 discrete I/O route and does not enter any paint, warp or pointer hot path.
 
