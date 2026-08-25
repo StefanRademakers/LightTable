@@ -30,6 +30,7 @@ const errors = { page: [], console: [] };
 const report = {
   schema: 2, generatedAt: new Date().toISOString(), launchMode: launch.mode,
   documentSize: { width: documentWidth, height: documentHeight },
+  gpuAdapter: null,
   baselineCanvasSha256: null, baselineEstimatedGpuBytes: null,
   warmPoolEstimatedGpuBytes: null, filters: [], errors
 };
@@ -74,6 +75,15 @@ try {
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
+  report.gpuAdapter = await page.evaluate(async () => {
+    const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) return null;
+    const info = adapter.info;
+    return {
+      vendor: info?.vendor ?? '', architecture: info?.architecture ?? '',
+      device: info?.device ?? '', description: info?.description ?? ''
+    };
+  });
   const driver = await attachLightTableAutomation(page, 'p0-filter-smoke');
   const workspace = await driver.queryWorkspace();
   const documentId = workspace?.activeDocumentId;
