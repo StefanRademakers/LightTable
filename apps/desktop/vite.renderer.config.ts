@@ -41,6 +41,12 @@ export default defineConfig({
       '@lighttable/genai-core': fileURLToPath(
         new URL('../../packages/genai-core/src/index.ts', import.meta.url)
       ),
+      '@lighttable/filter-core': fileURLToPath(
+        new URL('../../packages/filter-core/src/index.ts', import.meta.url)
+      ),
+      '@lighttable/filter-webgpu': fileURLToPath(
+        new URL('../../packages/filter-webgpu/src/index.ts', import.meta.url)
+      ),
       '@lighttable/text-core': fileURLToPath(
         new URL('../../packages/text-core/src/index.ts', import.meta.url)
       ),
@@ -86,6 +92,8 @@ export default defineConfig({
     exclude: [
       '@lighttable/app',
       '@lighttable/genai-core',
+      '@lighttable/filter-core',
+      '@lighttable/filter-webgpu',
       '@lighttable/text-core',
       '@lighttable/text-rendering',
       '@lighttable/text-webgpu',
