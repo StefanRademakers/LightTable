@@ -73,6 +73,21 @@ persistence, menu/Properties projection, command schemas, MCP admission and
 rasterization. The packaged smoke is a runtime integration gate, not a visual
 parity oracle.
 
+### 25 August 2026 development evidence
+
+On the selected NVIDIA Blackwell development adapter, the packaged 3840x2160
+gate rendered all twelve filters, restored the exact canvas after every delete
+and reported zero page/console/WebGPU errors. Command return plus two settled
+animation frames ranged from 30.9 to 120.0 ms (median 39.9 ms). The stronger
+canvas-readback evidence ranged from 143.6 to 263.1 ms (median 177.3 ms); that
+second number includes Playwright PNG capture overhead and is not exclusive GPU
+time. Owned GPU memory reached 735.7 MiB after the third shared scratch target
+became necessary and did not grow for the remaining six filter families.
+
+This is one high-end development-machine sample, not a minimum-hardware or
+cross-vendor performance claim. Raw reports remain under `tmp/` and are not
+committed or shipped.
+
 ## Partial and release gates
 
 Before this slice may be called production-calibrated, it still needs a small

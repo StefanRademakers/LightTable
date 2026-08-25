@@ -28,7 +28,7 @@ const environment = { ...process.env, LIGHTTABLE_AUTOMATION_USER_DATA: userData 
 delete environment.ELECTRON_RUN_AS_NODE;
 const errors = { page: [], console: [] };
 const report = {
-  schema: 2, generatedAt: new Date().toISOString(), launchMode: launch.mode,
+  schema: 3, generatedAt: new Date().toISOString(), launchMode: launch.mode,
   documentSize: { width: documentWidth, height: documentHeight },
   gpuAdapter: null,
   baselineCanvasSha256: null, baselineEstimatedGpuBytes: null,
@@ -137,8 +137,11 @@ try {
     const filterLayerId = created.value?.layerId;
     if (!filterLayerId) throw new Error(`${kind} did not return its adjustment-layer ID.`);
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    const renderReadyMs = performance.now() - startedAt;
+    const settledFrameMs = performance.now() - startedAt;
     const image = await canvas.screenshot({ path: path.join(output, `${kind}.png`) });
+    // Canvas capture is the completion fence: unlike command return or RAF,
+    // it cannot succeed before Chromium has a presented canvas to read back.
+    const canvasEvidenceMs = performance.now() - startedAt;
     const screenshotSha256 = createHash('sha256').update(image).digest('hex');
     if (screenshotSha256 === baselineHash) {
       throw new Error(`${kind} rendered the unchanged baseline canvas despite non-neutral settings.`);
@@ -146,7 +149,8 @@ try {
     const documentState = await driver.queryDocument(documentId);
     report.filters.push({
       kind,
-      renderReadyMs,
+      settledFrameMs,
+      canvasEvidenceMs,
       screenshotSha256,
       estimatedGpuBytes: documentState?.renderer?.estimatedGpuBytes ?? null
     });
