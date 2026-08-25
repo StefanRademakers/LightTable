@@ -45,10 +45,21 @@ describe('selection editing overlays', () => {
   });
 
   it('builds a document-space brush circle with the requested diameter', () => {
-    const overlay = buildBrushCursorEditingOverlay({ x: 50, y: 70 }, 24);
+    const overlay = buildBrushCursorEditingOverlay({ x: 50, y: 70 }, 24, 1);
     expect(overlay.cubics).toHaveLength(4);
     expect(overlay.cubics[0]?.p0).toEqual({ x: 62, y: 70 });
     expect(overlay.cubics[2]?.p0).toEqual({ x: 38, y: 70 });
+  });
+
+  it('shows hardness as a concentric brush-core ring', () => {
+    const medium = buildBrushCursorEditingOverlay({ x: 50, y: 70 }, 24, 0.5);
+    expect(medium.cubics).toHaveLength(8);
+    expect(medium.cubics[4]?.p0.x).toBeCloseTo(57.2);
+    expect(medium.cubics[4]?.p0.y).toBe(70);
+
+    const soft = buildBrushCursorEditingOverlay({ x: 50, y: 70 }, 24, 0);
+    expect(soft.cubics[4]?.p0.x).toBeCloseTo(52.4);
+    expect(soft.cubics[4]?.p0.y).toBe(70);
   });
 
   it('builds the sampled source marker in the shared GPU vector overlay', () => {

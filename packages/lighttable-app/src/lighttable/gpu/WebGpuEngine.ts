@@ -366,6 +366,7 @@ export class WebGpuEngine {
   private brushCursorOverlay: {
     center: { x: number; y: number };
     diameter: number;
+    hardness?: number;
     sourceCenter?: { x: number; y: number };
     sourceMarkerSize?: number;
   } | null = null;
@@ -2233,6 +2234,7 @@ export class WebGpuEngine {
   setBrushCursorOverlay(cursor: {
     center: { x: number; y: number };
     diameter: number;
+    hardness?: number;
     sourceCenter?: { x: number; y: number };
     sourceMarkerSize?: number;
   } | null) {
@@ -2243,6 +2245,7 @@ export class WebGpuEngine {
         && current.center.x === cursor.center.x
         && current.center.y === cursor.center.y
         && current.diameter === cursor.diameter
+        && current.hardness === cursor.hardness
         && current.sourceCenter?.x === cursor.sourceCenter?.x
         && current.sourceCenter?.y === cursor.sourceCenter?.y
         && current.sourceMarkerSize === cursor.sourceMarkerSize
@@ -2250,6 +2253,7 @@ export class WebGpuEngine {
     this.brushCursorOverlay = cursor ? {
       center: { ...cursor.center },
       diameter: cursor.diameter,
+      ...(cursor.hardness !== undefined ? { hardness: cursor.hardness } : {}),
       ...(cursor.sourceCenter ? { sourceCenter: { ...cursor.sourceCenter } } : {}),
       ...(cursor.sourceMarkerSize !== undefined
         ? { sourceMarkerSize: cursor.sourceMarkerSize }
@@ -3797,7 +3801,8 @@ fn paletteSample(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
         encoder,
         buildBrushCursorEditingOverlay(
           this.brushCursorOverlay.center,
-          this.brushCursorOverlay.diameter
+          this.brushCursorOverlay.diameter,
+          this.brushCursorOverlay.hardness
         ),
         target,
         brushCursorTheme

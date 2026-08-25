@@ -103,23 +103,52 @@ export const directSelectionShape = (
 
 export const buildBrushCursorEditingOverlay = (
   center: { x: number; y: number },
-  diameter: number
+  diameter: number,
+  hardness?: number
 ): VectorEditingOverlay => {
   const radius = Math.max(1e-3, diameter * 0.5);
-  const shape: SelectionShape = {
+  const outerShape: SelectionShape = {
     kind: 'ellipse',
     points: [
       { x: center.x - radius, y: center.y - radius },
       { x: center.x + radius, y: center.y + radius }
     ]
   };
-  const key = geometryKey(shape, true);
+  const normalizedHardness = hardness === undefined
+    ? null
+    : Math.max(0, Math.min(1, hardness));
+  // The inner ring visualizes the fully opaque brush core. A completely hard
+  // brush only needs the diameter ring; softer brushes retain a small visible
+  // core so zero hardness remains readable without implying a zero-size dab.
+  const innerScale = normalizedHardness === null ? null : 0.2 + normalizedHardness * 0.8;
+  const innerRadius = innerScale === null ? null : radius * innerScale;
+  const innerShape: SelectionShape | null = innerRadius !== null && normalizedHardness! < 1
+    ? {
+        kind: 'ellipse',
+        points: [
+          { x: center.x - innerRadius, y: center.y - innerRadius },
+          { x: center.x + innerRadius, y: center.y + innerRadius }
+        ]
+      }
+    : null;
+  const outerCubics = shapeCubics(outerShape, true).map((cubic) => ({
+    ...cubic,
+    subpathId: 'brush-cursor-outer'
+  }));
+  const innerCubics = innerShape ? shapeCubics(innerShape, true).map((cubic) => ({
+    ...cubic,
+    subpathId: 'brush-cursor-inner'
+  })) : [];
+  const key = [
+    geometryKey(outerShape, true),
+    innerShape ? geometryKey(innerShape, true) : 'hard'
+  ].join(':');
   return {
     pathId: 'brush-cursor',
     resourceKey: `brush-cursor:${key}`,
     geometryRevision: 0,
     transformRevision: 0,
-    cubics: shapeCubics(shape, true),
+    cubics: [...outerCubics, ...innerCubics],
     anchors: [],
     handles: []
   };

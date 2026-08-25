@@ -160,6 +160,7 @@ interface ViewportInteractionOptions {
   onBrushCursorChange: (cursor: {
     center: { x: number; y: number };
     diameter: number;
+    hardness?: number;
     sourceCenter?: { x: number; y: number };
     sourceMarkerSize?: number;
   } | null) => void;
@@ -315,18 +316,33 @@ export const useViewportInteractionController = ({
     const diameterPx = isWarpTool(effectiveTool)
       ? editorSession.warp.diameterPx
       : editorSession.brush.size;
+    const hardness = isWarpTool(effectiveTool)
+      ? editorSession.warp.hardness
+      : effectiveTool === 'face-warp'
+        ? undefined
+        : effectiveTool === 'healing-brush'
+          ? editorSession.sampledBrush.healingHardness
+          : editorSession.brush.hardness;
     const sourceCenter = document && isSampledBrushTool(effectiveTool)
       ? sampledBrushSource.sourceMarkerFor(document.id, center)
       : null;
     onBrushCursorChangeRef.current({
       center,
       diameter: diameterPx,
+      ...(hardness !== undefined ? { hardness } : {}),
       ...(sourceCenter ? {
         sourceCenter,
         sourceMarkerSize: 10 / Math.max(activeScale, 1e-6)
       } : {})
     });
-  }, [effectiveTool, editorSession.brush.size, editorSession.warp.diameterPx]);
+  }, [
+    effectiveTool,
+    editorSession.brush.hardness,
+    editorSession.brush.size,
+    editorSession.sampledBrush.healingHardness,
+    editorSession.warp.diameterPx,
+    editorSession.warp.hardness
+  ]);
 
   useEffect(() => () => {
     onBrushCursorChangeRef.current(null);
@@ -406,6 +422,13 @@ export const useViewportInteractionController = ({
     const diameterPx = isWarpTool(effectiveTool)
       ? editorSession.warp.diameterPx
       : editorSession.brush.size;
+    const hardness = isWarpTool(effectiveTool)
+      ? editorSession.warp.hardness
+      : effectiveTool === 'face-warp'
+        ? undefined
+        : effectiveTool === 'healing-brush'
+          ? editorSession.sampledBrush.healingHardness
+          : editorSession.brush.hardness;
     const center = {
       x: (point.x - imageRect.x) / Math.max(activeScale, 1e-6),
       y: (point.y - imageRect.y) / Math.max(activeScale, 1e-6)
@@ -417,6 +440,7 @@ export const useViewportInteractionController = ({
     onBrushCursorChangeRef.current({
       center,
       diameter: diameterPx,
+      ...(hardness !== undefined ? { hardness } : {}),
       ...(sourceCenter ? {
         sourceCenter,
         sourceMarkerSize: 10 / Math.max(activeScale, 1e-6)
