@@ -473,6 +473,7 @@ struct StyleSettings {
 @group(0) @binding(5) var blurredShapeTexture: texture_2d<f32>;
 @group(0) @binding(6) var bevelFieldTexture: texture_2d<f32>;
 @group(0) @binding(7) var bevelHeightTexture: texture_2d<f32>;
+@group(0) @binding(8) var bevelHeightTextureSecondary: texture_2d<f32>;
 
 ${LAYER_BLEND_FUNCTIONS_WGSL}
 
@@ -650,10 +651,14 @@ fn smoothHeightAt(uv: vec2f, texelOffset: vec2i) -> f32 {
 // Catmull-Rom reconstruction and its analytic document-space derivatives in
 // one 4x4 neighborhood. This replaces eight separately reconstructed Sobel
 // samples (128 loads) with sixteen loads for the complete Smooth normal.
-fn smoothHeightGradientAt(uv: vec2f) -> vec3f {
+fn smoothHeightGradientAtLod(uv: vec2f, secondary: bool) -> vec3f {
   let roi = settings.gradientMidpoints[2];
-  let size = vec2i(textureDimensions(bevelHeightTexture));
-  let scale = max(settings.gradientMidpoints[3].x, 1.0);
+  var size = vec2i(textureDimensions(bevelHeightTexture));
+  var scale = max(settings.gradientMidpoints[3].x, 1.0);
+  if (secondary) {
+    size = vec2i(textureDimensions(bevelHeightTextureSecondary));
+    scale = max(settings.gradientMidpoints[3].y, 1.0);
+  }
   let documentPixel = floor(uv * settings.canvas.xy) + vec2f(0.5);
   let position = (documentPixel - roi.xy) / scale - vec2f(0.5);
   let base = vec2i(floor(position));
@@ -692,17 +697,28 @@ fn smoothHeightGradientAt(uv: vec2f) -> vec3f {
     for (var x = 0; x < 4; x += 1) {
       let point = base + vec2i(x - 1, y - 1);
       let inside = all(point >= vec2i(0)) && all(point < size);
-      let value = select(
-        0.0,
-        textureLoad(bevelHeightTexture, clamp(point, vec2i(0), size - vec2i(1)), 0).a,
-        inside
-      );
+      var value = 0.0;
+      if (inside) {
+        let safePoint = clamp(point, vec2i(0), size - vec2i(1));
+        if (secondary) {
+          value = textureLoad(bevelHeightTextureSecondary, safePoint, 0).a;
+        } else {
+          value = textureLoad(bevelHeightTexture, safePoint, 0).a;
+        }
+      }
       height += value * wx[x] * wy[y];
       gradient.x += value * dx[x] * wy[y];
       gradient.y += value * wx[x] * dy[y];
     }
   }
   return vec3f(clamp(height, 0.0, 1.0), gradient / scale);
+}
+
+fn smoothHeightGradientAt(uv: vec2f) -> vec3f {
+  let primary = smoothHeightGradientAtLod(uv, false);
+  let blend = clamp(settings.gradientMidpoints[3].z, 0.0, 1.0);
+  if (blend <= 0.0) { return primary; }
+  return mix(primary, smoothHeightGradientAtLod(uv, true), blend);
 }
 
 fn bevelHeightAt(uv: vec2f, pixelOffset: vec2i, radius: f32, style: i32, technique: f32) -> f32 {

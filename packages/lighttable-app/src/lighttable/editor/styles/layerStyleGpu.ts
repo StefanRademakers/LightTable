@@ -108,6 +108,58 @@ export const smoothBevelMultiscalePlan = (
   };
 };
 
+export interface SmoothBevelLodPlan {
+  primary: ReturnType<typeof smoothBevelMultiscalePlan>;
+  secondary: ReturnType<typeof smoothBevelMultiscalePlan> | null;
+  blend: number;
+}
+
+/**
+ * Smooth Bevel uses retained height fields at power-of-two resolutions. A
+ * hard resolution switch changes both the matte phase and reconstructed
+ * normal in one authored Size step. Keep the denser field through a bounded
+ * overlap and blend it with the next level instead. Gaussian work remains
+ * bounded (16-24 working pixels), while a settled effect retains both fields
+ * and pays only one final lighting pass for subsequent lighting/color edits.
+ */
+export const smoothBevelLodPlan = (
+  radius: number,
+  width: number,
+  height: number,
+  transitionStart = 16,
+  transitionEnd = 24
+): SmoothBevelLodPlan => {
+  const requested = Math.max(0, radius);
+  const canDouble = (scale: number) => scale < 16
+    && Math.ceil(width / (scale * 2)) >= 8
+    && Math.ceil(height / (scale * 2)) >= 8;
+  let scale = 1;
+  while (requested / scale > transitionEnd && canDouble(scale)) scale *= 2;
+  const primary = {
+    scale,
+    workingWidth: Math.max(1, Math.ceil(width / scale)),
+    workingHeight: Math.max(1, Math.ceil(height / scale)),
+    workingRadius: requested / scale
+  };
+  if (primary.workingRadius <= transitionStart || !canDouble(scale)) {
+    return { primary, secondary: null, blend: 0 };
+  }
+  const secondaryScale = scale * 2;
+  const secondary = {
+    scale: secondaryScale,
+    workingWidth: Math.max(1, Math.ceil(width / secondaryScale)),
+    workingHeight: Math.max(1, Math.ceil(height / secondaryScale)),
+    workingRadius: requested / secondaryScale
+  };
+  const linear = Math.min(1, Math.max(0,
+    (primary.workingRadius - transitionStart) / (transitionEnd - transitionStart)
+  ));
+  const blend = linear * linear * (3 - 2 * linear);
+  return blend >= 1
+    ? { primary: secondary, secondary: null, blend: 0 }
+    : { primary, secondary, blend };
+};
+
 export const layerStyleGaussianBlurPlan = (
   effect: LayerStyleInstance,
   stack: LayerStyleStack,

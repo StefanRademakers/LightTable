@@ -125,6 +125,10 @@ describe('LayerStyleTextureStore', () => {
       { texture: source }, { texture: first.texture }, [40, 30]
     );
 
+    store.releaseBevelGeometry(layerId, 'bevel');
+    expect(first.texture.destroy).toHaveBeenCalledOnce();
+    expect(store.cachedBevelGeometry(layerId, 'bevel', 'matte:size-32')).toBeNull();
+
     store.invalidate(layerId);
     expect(first.texture.destroy).toHaveBeenCalledOnce();
   });
@@ -135,7 +139,13 @@ describe('LayerStyleTextureStore', () => {
     const first = store.ensureBevelHeightTextures(96, 48);
     expect(store.ensureBevelHeightTextures(96, 48)).toBe(first);
     expect(storeOptions.createFloatTextureSized).toHaveBeenCalledTimes(2);
-    expect(store.estimatedTextureBytes(1000, 1000)).toBe(96 * 48 * 16 * 2);
+    const second = store.ensureBevelHeightTextures(48, 24);
+    expect(second).not.toBe(first);
+    expect(storeOptions.createFloatTextureSized).toHaveBeenCalledTimes(4);
+    expect(first.horizontal.destroy).not.toHaveBeenCalled();
+    expect(store.estimatedTextureBytes(1000, 1000)).toBe(
+      (96 * 48 + 48 * 24) * 16 * 2
+    );
   });
 
   it('reallocates a tight cache only when its dimensions change', () => {

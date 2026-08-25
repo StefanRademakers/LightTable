@@ -16,7 +16,7 @@ import {
   layerStyleGaussianBlurPlan,
   layerStyleUniform,
   smoothBevelGaussianPlan,
-  smoothBevelMultiscalePlan
+  smoothBevelLodPlan
 } from '../styles/layerStyleGpu';
 import type { AffineMatrix } from '../tools/transform/transformTypes';
 import { identityAffineMatrix, invertMatrix } from '../tools/transform/affine';
@@ -329,7 +329,8 @@ export class LayerStyleRenderer {
       patternTexture: GPUTexture | null = null,
       blurredShapeTexture: GPUTexture = styleTextures.shape,
       bevelFieldTexture: GPUTexture = styleTextures.shape,
-      bevelHeightTexture: GPUTexture = styleTextures.shape
+      bevelHeightTexture: GPUTexture = styleTextures.shape,
+      bevelHeightTextureSecondary: GPUTexture = bevelHeightTexture
     ) => {
       const settingsBuffer = uniforms.write(new Float32Array(values), label);
       const bindGroup = device.createBindGroup({
@@ -342,7 +343,8 @@ export class LayerStyleRenderer {
           { binding: 4, resource: (patternTexture ?? styleTextures.shape).createView() },
           { binding: 5, resource: blurredShapeTexture.createView() },
           { binding: 6, resource: bevelFieldTexture.createView() },
-          { binding: 7, resource: bevelHeightTexture.createView() }
+          { binding: 7, resource: bevelHeightTexture.createView() },
+          { binding: 8, resource: bevelHeightTextureSecondary.createView() }
         ]
       });
       drawFullscreen(
@@ -438,99 +440,168 @@ export class LayerStyleRenderer {
             height: gradientGeometry.height + chiselDistanceCapacity * 2
           }, { width, height })
         : tightBounds;
+      const smoothLod = effect.kind === 'bevel-emboss' && effect.technique === 'smooth'
+        ? smoothBevelLodPlan(
+            effect.size * layer.styleStack.scale,
+            tightBounds.width,
+            tightBounds.height
+          )
+        : null;
       const geometryKey = effect.kind === 'bevel-emboss'
         ? bevelGeometryCacheKey(layer, effect, inverse, sourceSize, geometryBounds)
         : null;
-      const retainedGeometry = effect.kind === 'bevel-emboss' && geometryKey
-        ? this.textures.cachedBevelGeometry(layer.id, effect.id, geometryKey)
+      const primaryGeometryKey = geometryKey && smoothLod
+        ? `${geometryKey}:lod:${smoothLod.primary.scale}`
+        : geometryKey;
+      const secondaryGeometryKey = geometryKey && smoothLod?.secondary
+        ? `${geometryKey}:lod:${smoothLod.secondary.scale}`
         : null;
+      const retainedGeometry = effect.kind === 'bevel-emboss' && primaryGeometryKey
+        ? this.textures.cachedBevelGeometry(
+            layer.id,
+            smoothLod ? `${effect.id}:lod-primary` : effect.id,
+            primaryGeometryKey
+          )
+        : null;
+      const retainedSecondaryGeometry = secondaryGeometryKey
+        ? this.textures.cachedBevelGeometry(
+            layer.id,
+            `${effect.id}:lod-secondary`,
+            secondaryGeometryKey
+          )
+        : null;
+      if (smoothLod && !smoothLod.secondary) {
+        this.textures.releaseBevelGeometry(layer.id, `${effect.id}:lod-secondary`);
+      }
+      let secondaryBlurredShape = styleTextures.shape;
       if (blurPlan) {
         const smoothBevel = effect.kind === 'bevel-emboss' && effect.technique === 'smooth';
-        const smoothPlan = smoothBevel
-          ? smoothBevelMultiscalePlan(
-              effect.size * layer.styleStack.scale,
-              tightBounds.width,
-              tightBounds.height
-            )
-          : null;
-        const blurWidth = smoothPlan?.workingWidth ?? blurPlan.workingWidth;
-        const blurHeight = smoothPlan?.workingHeight ?? blurPlan.workingHeight;
-        const blurRadius = smoothPlan?.workingRadius ?? blurPlan.workingRadius;
-        if (smoothBevel && retainedGeometry) {
-          blurredShape = retainedGeometry.texture;
+        if (smoothBevel && smoothLod) {
+          const encodeSmoothHeight = (
+            plan: typeof smoothLod.primary,
+            retained: typeof retainedGeometry,
+            cacheId: string,
+            cacheKey: string | null
+          ) => {
+            if (retained) return retained.texture;
+            const blurTextures = this.textures.ensureBevelHeightTextures(
+              plan.workingWidth,
+              plan.workingHeight
+            );
+            const gaussian = smoothBevelGaussianPlan(plan.workingRadius);
+            for (let cycle = 0; cycle < gaussian.cycles; cycle += 1) {
+              const firstCycle = cycle === 0;
+              encodeBlurPass(
+                firstCycle ? styleTextures.shape : blurTextures.vertical,
+                blurTextures.horizontal,
+                [1, 0],
+                { width: plan.workingWidth, height: plan.workingHeight },
+                firstCycle
+                  ? { width, height }
+                  : { width: plan.workingWidth, height: plan.workingHeight },
+                firstCycle ? { x: tightBounds.x, y: tightBounds.y } : { x: 0, y: 0 },
+                gaussian.radiusPerCycle,
+                firstCycle ? plan.scale : 1,
+                `LightTable Layer Style ${effect.name} LOD ${plan.scale} horizontal blur ${cycle + 1}: ${layer.name}`,
+                bevelBlurPipeline!
+              );
+              encodeBlurPass(
+                blurTextures.horizontal,
+                blurTextures.vertical,
+                [0, 1],
+                { width: plan.workingWidth, height: plan.workingHeight },
+                { width: plan.workingWidth, height: plan.workingHeight },
+                { x: 0, y: 0 },
+                gaussian.radiusPerCycle,
+                1,
+                `LightTable Layer Style ${effect.name} LOD ${plan.scale} vertical blur ${cycle + 1}: ${layer.name}`,
+                bevelBlurPipeline!
+              );
+            }
+            if (effect.soften > 0) {
+              const soften = smoothBevelGaussianPlan(
+                effect.soften * layer.styleStack.scale / plan.scale
+              );
+              for (let cycle = 0; cycle < soften.cycles; cycle += 1) {
+                encodeBlurPass(
+                  blurTextures.vertical, blurTextures.horizontal, [1, 0],
+                  { width: plan.workingWidth, height: plan.workingHeight },
+                  { width: plan.workingWidth, height: plan.workingHeight }, { x: 0, y: 0 },
+                  soften.radiusPerCycle, 1,
+                  `LightTable Layer Style ${effect.name} LOD ${plan.scale} soften horizontal ${cycle + 1}: ${layer.name}`,
+                  bevelBlurPipeline!
+                );
+                encodeBlurPass(
+                  blurTextures.horizontal, blurTextures.vertical, [0, 1],
+                  { width: plan.workingWidth, height: plan.workingHeight },
+                  { width: plan.workingWidth, height: plan.workingHeight }, { x: 0, y: 0 },
+                  soften.radiusPerCycle, 1,
+                  `LightTable Layer Style ${effect.name} LOD ${plan.scale} soften vertical ${cycle + 1}: ${layer.name}`,
+                  bevelBlurPipeline!
+                );
+              }
+            }
+            if (!cacheKey) return blurTextures.vertical;
+            return this.textures.writeBevelGeometry(
+              encoder,
+              layer.id,
+              cacheId,
+              cacheKey,
+              blurTextures.vertical,
+              { x: 0, y: 0, width: plan.workingWidth, height: plan.workingHeight },
+              'float'
+            ).texture;
+          };
+          blurredShape = encodeSmoothHeight(
+            smoothLod.primary,
+            retainedGeometry,
+            `${effect.id}:lod-primary`,
+            primaryGeometryKey
+          );
+          secondaryBlurredShape = smoothLod.secondary
+            ? encodeSmoothHeight(
+                smoothLod.secondary,
+                retainedSecondaryGeometry,
+                `${effect.id}:lod-secondary`,
+                secondaryGeometryKey
+              )
+            : blurredShape;
         } else {
-          const blurTextures = smoothBevel
-            ? this.textures.ensureBevelHeightTextures(blurWidth, blurHeight)
-            : this.textures.ensureBlurTextures(blurWidth, blurHeight);
-          const gaussian = smoothBevel
-            ? smoothBevelGaussianPlan(blurRadius)
-            : { cycles: 1, radiusPerCycle: blurPlan.workingRadius };
+          const blurTextures = this.textures.ensureBlurTextures(
+            blurPlan.workingWidth,
+            blurPlan.workingHeight
+          );
+          const gaussian = { cycles: 1, radiusPerCycle: blurPlan.workingRadius };
           for (let cycle = 0; cycle < gaussian.cycles; cycle += 1) {
             const firstCycle = cycle === 0;
             encodeBlurPass(
               firstCycle ? styleTextures.shape : blurTextures.vertical,
               blurTextures.horizontal,
               [1, 0],
-              { width: blurWidth, height: blurHeight },
-              firstCycle ? { width, height } : { width: blurWidth, height: blurHeight },
-              firstCycle && smoothBevel
-                ? { x: tightBounds.x, y: tightBounds.y }
-                : { x: 0, y: 0 },
-              gaussian.radiusPerCycle,
+              { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
               firstCycle
-                ? smoothPlan?.scale ?? blurPlan.scale
-                : 1,
+                ? { width, height }
+                : { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
+              { x: 0, y: 0 },
+              gaussian.radiusPerCycle,
+              firstCycle ? blurPlan.scale : 1,
               `LightTable Layer Style ${effect.name} horizontal blur ${cycle + 1}: ${layer.name}`,
-              smoothBevel ? bevelBlurPipeline! : styleBlurPipeline!
+              styleBlurPipeline!
             );
             encodeBlurPass(
               blurTextures.horizontal,
               blurTextures.vertical,
               [0, 1],
-              { width: blurWidth, height: blurHeight },
-              { width: blurWidth, height: blurHeight },
+              { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
+              { width: blurPlan.workingWidth, height: blurPlan.workingHeight },
               { x: 0, y: 0 },
               gaussian.radiusPerCycle,
               1,
               `LightTable Layer Style ${effect.name} vertical blur ${cycle + 1}: ${layer.name}`,
-              smoothBevel ? bevelBlurPipeline! : styleBlurPipeline!
+              styleBlurPipeline!
             );
-          }
-          if (smoothBevel && effect.soften > 0) {
-            const soften = smoothBevelGaussianPlan(
-              effect.soften * layer.styleStack.scale / (smoothPlan?.scale ?? 1)
-            );
-            for (let cycle = 0; cycle < soften.cycles; cycle += 1) {
-              encodeBlurPass(
-                blurTextures.vertical, blurTextures.horizontal, [1, 0],
-                { width: blurWidth, height: blurHeight },
-                { width: blurWidth, height: blurHeight }, { x: 0, y: 0 },
-                soften.radiusPerCycle, 1,
-                `LightTable Layer Style ${effect.name} soften horizontal ${cycle + 1}: ${layer.name}`,
-                bevelBlurPipeline!
-              );
-              encodeBlurPass(
-                blurTextures.horizontal, blurTextures.vertical, [0, 1],
-                { width: blurWidth, height: blurHeight },
-                { width: blurWidth, height: blurHeight }, { x: 0, y: 0 },
-                soften.radiusPerCycle, 1,
-                `LightTable Layer Style ${effect.name} soften vertical ${cycle + 1}: ${layer.name}`,
-                bevelBlurPipeline!
-              );
-            }
           }
           blurredShape = blurTextures.vertical;
-          if (smoothBevel && geometryKey) {
-            this.textures.writeBevelGeometry(
-              encoder,
-              layer.id,
-              effect.id,
-              geometryKey,
-              blurredShape,
-              { x: 0, y: 0, width: blurWidth, height: blurHeight },
-              'float'
-            );
-          }
         }
         values[23] = -1;
       }
@@ -543,21 +614,15 @@ export class LayerStyleRenderer {
         bevelField = retainedGeometry.texture;
       }
       if (effect.kind === 'bevel-emboss') {
-        const smoothScale = effect.technique === 'smooth'
-          ? smoothBevelMultiscalePlan(
-              effect.size * layer.styleStack.scale,
-              tightBounds.width,
-              tightBounds.height
-            ).scale
-          : 1;
         values.set([
           geometryBounds.x,
           geometryBounds.y,
           geometryBounds.width,
           geometryBounds.height
         ], 96);
-        values[100] = smoothScale;
-        values[101] = 1;
+        values[100] = smoothLod?.primary.scale ?? 1;
+        values[101] = smoothLod?.secondary?.scale ?? values[100]!;
+        values[102] = smoothLod?.blend ?? 0;
       }
       if (
         effect.kind === 'bevel-emboss'
@@ -654,7 +719,8 @@ export class LayerStyleRenderer {
           ? styleTextures.shape
           : blurredShape,
         bevelField,
-        blurredShape
+        blurredShape,
+        secondaryBlurredShape
       );
       [current, target] = [target, current];
     });

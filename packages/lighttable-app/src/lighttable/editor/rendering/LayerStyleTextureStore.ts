@@ -54,7 +54,7 @@ const DEFAULT_MAX_BLUR_TEXTURE_PAIRS = 3;
 export class LayerStyleTextureStore {
   private workTextures: LayerStyleWorkTextures | null = null;
   private readonly blurTextures = new Map<string, LayerStyleBlurTextures>();
-  private bevelHeightTextures: LayerStyleBevelHeightTextures | null = null;
+  private readonly bevelHeightTextures = new Map<string, LayerStyleBevelHeightTextures>();
   private bevelFieldTextures: LayerStyleBevelFieldTextures | null = null;
   private readonly cache = new Map<LayerId, CachedStyleTexture>();
   private readonly bevelGeometryCache = new Map<string, CachedBevelGeometry>();
@@ -133,13 +133,14 @@ export class LayerStyleTextureStore {
   }
 
   ensureBevelHeightTextures(width: number, height: number) {
-    const current = this.bevelHeightTextures;
-    if (current?.width === width && current.height === height) return current;
+    const key = `${width}x${height}`;
+    let current = this.bevelHeightTextures.get(key);
     if (current) {
-      this.retire(current.horizontal);
-      this.retire(current.vertical);
+      this.bevelHeightTextures.delete(key);
+      this.bevelHeightTextures.set(key, current);
+      return current;
     }
-    this.bevelHeightTextures = {
+    current = {
       horizontal: this.options.createFloatTextureSized(
         'LightTable Bevel high-precision height A', width, height
       ),
@@ -149,7 +150,20 @@ export class LayerStyleTextureStore {
       width,
       height
     };
-    return this.bevelHeightTextures;
+    this.bevelHeightTextures.set(key, current);
+    // A crossfade needs two simultaneous levels. One spare avoids allocation
+    // churn while a Size gesture crosses into or out of the overlap band.
+    while (this.bevelHeightTextures.size > 3) {
+      const oldestKey = this.bevelHeightTextures.keys().next().value as string | undefined;
+      if (!oldestKey) break;
+      const oldest = this.bevelHeightTextures.get(oldestKey);
+      this.bevelHeightTextures.delete(oldestKey);
+      if (oldest) {
+        this.retire(oldest.horizontal);
+        this.retire(oldest.vertical);
+      }
+    }
+    return current;
   }
 
   cached(layerId: LayerId, key: string | null) {
@@ -166,6 +180,14 @@ export class LayerStyleTextureStore {
   cachedBevelGeometry(layerId: LayerId, effectId: string, key: string) {
     const cached = this.bevelGeometryCache.get(`${layerId}:${effectId}`);
     return cached?.key === key ? cached : null;
+  }
+
+  releaseBevelGeometry(layerId: LayerId, effectId: string) {
+    const cacheId = `${layerId}:${effectId}`;
+    const cached = this.bevelGeometryCache.get(cacheId);
+    if (!cached) return;
+    this.retire(cached.texture);
+    this.bevelGeometryCache.delete(cacheId);
   }
 
   writeBevelGeometry(
@@ -280,11 +302,11 @@ export class LayerStyleTextureStore {
       this.retire(vertical);
     });
     this.blurTextures.clear();
-    if (this.bevelHeightTextures) {
-      this.retire(this.bevelHeightTextures.horizontal);
-      this.retire(this.bevelHeightTextures.vertical);
-      this.bevelHeightTextures = null;
-    }
+    this.bevelHeightTextures.forEach(({ horizontal, vertical }) => {
+      this.retire(horizontal);
+      this.retire(vertical);
+    });
+    this.bevelHeightTextures.clear();
     if (this.bevelFieldTextures) {
       this.retire(this.bevelFieldTextures.first);
       this.retire(this.bevelFieldTextures.second);
@@ -305,9 +327,10 @@ export class LayerStyleTextureStore {
     const bevelBytes = this.bevelFieldTextures
       ? this.bevelFieldTextures.width * this.bevelFieldTextures.height * 8 * 2
       : 0;
-    const bevelHeightBytes = this.bevelHeightTextures
-      ? this.bevelHeightTextures.width * this.bevelHeightTextures.height * 16 * 2
-      : 0;
+    const bevelHeightBytes = [...this.bevelHeightTextures.values()].reduce(
+      (bytes, textures) => bytes + textures.width * textures.height * 16 * 2,
+      0
+    );
     const retainedBevelBytes = [...this.bevelGeometryCache.values()].reduce(
       (bytes, { bounds, precision }) => bytes
         + bounds.width * bounds.height * (precision === 'float' ? 16 : 8),

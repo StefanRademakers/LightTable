@@ -12,6 +12,7 @@ import {
   layerStyleGaussianBlurPlan,
   layerStyleUniform,
   smoothBevelGaussianPlan,
+  smoothBevelLodPlan,
   smoothBevelMultiscalePlan
 } from './layerStyleGpu';
 
@@ -55,6 +56,20 @@ describe('Layer Style GPU settings', () => {
       workingRadius: 10
     });
     expect(smoothBevelMultiscalePlan(133, 20, 20).scale).toBe(2);
+  });
+
+  it('crossfades retained Smooth Bevel levels instead of switching resolution', () => {
+    expect(smoothBevelLodPlan(128, 800, 400)).toMatchObject({
+      primary: { scale: 8, workingRadius: 16 }, secondary: null, blend: 0
+    });
+    const overlap = smoothBevelLodPlan(145, 800, 400);
+    expect(overlap.primary.scale).toBe(8);
+    expect(overlap.secondary?.scale).toBe(16);
+    expect(overlap.blend).toBeGreaterThan(0);
+    expect(overlap.blend).toBeLessThan(0.5);
+    expect(smoothBevelLodPlan(192, 800, 400)).toMatchObject({
+      primary: { scale: 16, workingRadius: 12 }, secondary: null, blend: 0
+    });
   });
 
   it('keeps the base pass separate from effects and preserves Fill', () => {
