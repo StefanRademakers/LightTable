@@ -7,3 +7,4 @@ export * from './MorphologyCore';
 export * from './WaveletDenoiseCore';
 export * from './DisplaceCore';
 export * from './SurfaceBlurCore';
+export * from './MedianCore';

@@ -8,6 +8,7 @@ import {
 } from './WaveletDenoiseCore';
 import { DISPLACE_WGSL } from './DisplaceCore';
 import { SURFACE_BLUR_WGSL } from './SurfaceBlurCore';
+import { MEDIAN_WGSL } from './MedianCore';
 
 describe('filter shaders', () => {
   it('keeps BlurCore bindings stable and avoids WGSL reserved identifiers', () => {
@@ -50,5 +51,11 @@ describe('filter shaders', () => {
     expect(SURFACE_BLUR_WGSL).toContain('guideTexture');
     expect(SURFACE_BLUR_WGSL).toContain('rangeWeight');
     expect(SURFACE_BLUR_WGSL).not.toContain('clamp(accumulated');
+  });
+
+  it('uses a fixed-size component-wise rank network for Median', () => {
+    expect(MEDIAN_WGSL).toContain('array<vec4f, 25>');
+    expect(MEDIAN_WGSL).toContain('min(previous, current)');
+    expect(MEDIAN_WGSL).toContain('max(previous, current)');
   });
 });

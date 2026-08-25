@@ -304,4 +304,27 @@ describe('GaussianBlurFilterRenderer', () => {
     ]);
     expect(new Uint32Array(horizontal)[4]).toBe(16);
   });
+
+  it('keeps Median exact for small windows and bounded at radius 100', () => {
+    const exact = fixture();
+    const exactLayer = createAdjustmentLayer(
+      createP0FilterStack('median', { radius: 2 }, (part) => `median-exact-${part}`),
+      'Median', 'median'
+    );
+    exact.renderer.encode(exact.encoder,
+      { createView: vi.fn(() => ({})) } as unknown as GPUTexture, exactLayer);
+    expect(exact.encoder.beginRenderPass).toHaveBeenCalledOnce();
+    expect(Array.from(new Int32Array(exact.writeBuffer.mock.calls[0]?.[2] as Int32Array).slice(0, 2)))
+      .toEqual([2, 1]);
+
+    const broad = fixture();
+    const broadLayer = createAdjustmentLayer(
+      createP0FilterStack('median', { radius: 100 }, (part) => `median-broad-${part}`),
+      'Median', 'median'
+    );
+    broad.renderer.encode(broad.encoder,
+      { createView: vi.fn(() => ({})) } as unknown as GPUTexture, broadLayer);
+    expect(broad.encoder.beginRenderPass).toHaveBeenCalledTimes(8);
+    expect(broad.textures).toHaveLength(2);
+  });
 });

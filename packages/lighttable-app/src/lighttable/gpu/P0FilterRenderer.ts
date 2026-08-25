@@ -3,6 +3,7 @@ import {
   DisplaceCore,
   MorphologyCore,
   MotionBlurCore,
+  MedianCore,
   OffsetCore,
   SurfaceBlurCore,
   WaveletDenoiseCore,
@@ -28,6 +29,7 @@ export class P0FilterRenderer {
   private readonly waveletDenoiseCore: WaveletDenoiseCore;
   private readonly displaceCore: DisplaceCore;
   private readonly surfaceBlurCore: SurfaceBlurCore;
+  private readonly medianCore: MedianCore;
   private sampler: GPUSampler | null = null;
 
   constructor(device: GPUDevice,
@@ -39,6 +41,7 @@ export class P0FilterRenderer {
     this.waveletDenoiseCore = new WaveletDenoiseCore(device);
     this.displaceCore = new DisplaceCore(device);
     this.surfaceBlurCore = new SurfaceBlurCore(device);
+    this.medianCore = new MedianCore(device);
   }
 
   configure(width: number, height: number, sampler: GPUSampler): void {
@@ -50,6 +53,7 @@ export class P0FilterRenderer {
     this.waveletDenoiseCore.configure(width, height, sampler);
     this.displaceCore.configure(width, height);
     this.surfaceBlurCore.configure(width, height, sampler);
+    this.medianCore.configure(width, height);
   }
 
   encode(
@@ -117,6 +121,12 @@ export class P0FilterRenderer {
         key: `${layer.id}::${module.id}`, revision: module.revision, settings
       }) : source;
     }
+    if (definition.kind === 'median') {
+      const settings = p0FilterSettings(layer.adjustmentStack, 'median');
+      return settings ? this.medianCore.encode(encoder, source, {
+        key: `${layer.id}::${module.id}`, revision: module.revision, settings
+      }) : source;
+    }
     if (!BLUR_CORE_MODES.has(definition.kind as BlurCoreMode)) return source;
     const mode = definition.kind as BlurCoreMode;
     const settings = p0FilterSettings(layer.adjustmentStack, mode);
@@ -135,7 +145,8 @@ export class P0FilterRenderer {
       + this.morphologyCore.estimatedTextureBytes()
       + this.waveletDenoiseCore.estimatedTextureBytes()
       + this.displaceCore.estimatedTextureBytes()
-      + this.surfaceBlurCore.estimatedTextureBytes();
+      + this.surfaceBlurCore.estimatedTextureBytes()
+      + this.medianCore.estimatedTextureBytes();
   }
 
   reset(): void {
@@ -146,6 +157,7 @@ export class P0FilterRenderer {
     this.waveletDenoiseCore.destroy();
     this.displaceCore.destroy();
     this.surfaceBlurCore.destroy();
+    this.medianCore.destroy();
   }
 
   destroy(): void {
@@ -156,5 +168,6 @@ export class P0FilterRenderer {
     this.waveletDenoiseCore.destroy();
     this.displaceCore.destroy();
     this.surfaceBlurCore.destroy();
+    this.medianCore.destroy();
   }
 }

@@ -10,7 +10,7 @@
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
-        "high-pass", "smart-sharpen", "unsharp-mask", "motion-blur", "surface-blur", "reduce-noise", "maximum", "minimum", "offset", "displace"
+        "high-pass", "smart-sharpen", "unsharp-mask", "motion-blur", "surface-blur", "median", "reduce-noise", "maximum", "minimum", "offset", "displace"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -49,6 +49,13 @@
       "properties": {
         "radius": { "type": "number", "minimum": 1, "maximum": 100, "default": 5 },
         "threshold": { "type": "number", "minimum": 2, "maximum": 255, "default": 15 }
+      }
+    },
+    "medianSettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["radius"],
+      "properties": {
+        "radius": { "type": "integer", "minimum": 1, "maximum": 100, "default": 1 }
       }
     },
     "highPassSettings": {
@@ -187,6 +194,7 @@
               { "$ref": "#/$defs/gaussianBlurSettings" },
               { "$ref": "#/$defs/motionBlurSettings" },
               { "$ref": "#/$defs/surfaceBlurSettings" },
+              { "$ref": "#/$defs/medianSettings" },
               { "$ref": "#/$defs/highPassSettings" },
               { "$ref": "#/$defs/unsharpMaskSettings" },
               { "$ref": "#/$defs/smartSharpenSettings" },
@@ -242,6 +250,13 @@
                   "properties": {
                     "kind": { "const": "surface-blur" },
                     "settings": { "$ref": "#/$defs/surfaceBlurSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "median" },
+                    "settings": { "$ref": "#/$defs/medianSettings" }
                   }
                 },
                 {
