@@ -471,6 +471,8 @@ struct StyleSettings {
 @group(0) @binding(3) var<uniform> settings: StyleSettings;
 @group(0) @binding(4) var patternTexture: texture_2d<f32>;
 @group(0) @binding(5) var blurredShapeTexture: texture_2d<f32>;
+@group(0) @binding(6) var bevelFieldTexture: texture_2d<f32>;
+@group(0) @binding(7) var bevelHeightTexture: texture_2d<f32>;
 
 ${LAYER_BLEND_FUNCTIONS_WGSL}
 
@@ -573,6 +575,159 @@ fn contourAt(position: f32) -> f32 {
     lower == upper
   );
   return mix(first.y, second.y, amount);
+}
+
+fn bevelFieldAt(uv: vec2f, pixelOffset: vec2i) -> vec4f {
+  let roi = settings.gradientMidpoints[2];
+  let documentPixel = vec2i(floor(uv * settings.canvas.xy)) + pixelOffset;
+  let localPixel = documentPixel - vec2i(floor(roi.xy));
+  let size = vec2i(textureDimensions(bevelFieldTexture));
+  let inside = all(localPixel >= vec2i(0)) && all(localPixel < size);
+  return select(
+    vec4f(0.0, 0.0, select(-1.0, 1.0, alphaAt(uv, vec2f(pixelOffset)) >= 0.5), 0.0),
+    textureLoad(bevelFieldTexture, clamp(localPixel, vec2i(0), size - vec2i(1)), 0),
+    inside
+  );
+}
+
+fn bevelDistanceAt(uv: vec2f, pixelOffset: vec2i) -> f32 {
+  let field = bevelFieldAt(uv, pixelOffset);
+  return select(field.z * 100000.0, field.z * length(field.xy), field.w > 0.5);
+}
+
+fn chiselHeight(distance: f32, radius: f32, style: i32, technique: f32) -> f32 {
+  let extent = max(radius, 0.5);
+  var height = clamp(distance / extent, 0.0, 1.0);
+  if (style == 0) { height = clamp(1.0 + distance / extent, 0.0, 1.0); }
+  if (style == 2 || style == 4) {
+    height = clamp(0.5 + distance / (2.0 * extent), 0.0, 1.0);
+  }
+  // Chisel Soft is still distance based, but rounds the otherwise linear
+  // chamfer. Smooth owns the separate blurred-matte height source.
+  return select(height, height * height * (3.0 - 2.0 * height), technique > 1.5);
+}
+
+fn smoothHeightAt(uv: vec2f, texelOffset: vec2i) -> f32 {
+  let roi = settings.gradientMidpoints[2];
+  let size = vec2i(textureDimensions(bevelHeightTexture));
+  let scale = max(settings.gradientMidpoints[3].x, 1.0);
+  let documentPixel = floor(uv * settings.canvas.xy) + vec2f(texelOffset) + vec2f(0.5);
+  let position = (documentPixel - roi.xy) / scale - vec2f(0.5);
+  let base = vec2i(floor(position));
+  let fraction = fract(position);
+  let tx2 = fraction.x * fraction.x;
+  let tx3 = tx2 * fraction.x;
+  let ty2 = fraction.y * fraction.y;
+  let ty3 = ty2 * fraction.y;
+  let wx = array<f32, 4>(
+    -0.5 * fraction.x + tx2 - 0.5 * tx3,
+    1.0 - 2.5 * tx2 + 1.5 * tx3,
+    0.5 * fraction.x + 2.0 * tx2 - 1.5 * tx3,
+    -0.5 * tx2 + 0.5 * tx3
+  );
+  let wy = array<f32, 4>(
+    -0.5 * fraction.y + ty2 - 0.5 * ty3,
+    1.0 - 2.5 * ty2 + 1.5 * ty3,
+    0.5 * fraction.y + 2.0 * ty2 - 1.5 * ty3,
+    -0.5 * ty2 + 0.5 * ty3
+  );
+  var sampled = 0.0;
+  for (var y = 0; y < 4; y += 1) {
+    for (var x = 0; x < 4; x += 1) {
+      let point = base + vec2i(x - 1, y - 1);
+      let inside = all(point >= vec2i(0)) && all(point < size);
+      let value = select(
+        0.0,
+        textureLoad(bevelHeightTexture, clamp(point, vec2i(0), size - vec2i(1)), 0).a,
+        inside
+      );
+      sampled += value * wx[x] * wy[y];
+    }
+  }
+  return clamp(sampled, 0.0, 1.0);
+}
+
+// Catmull-Rom reconstruction and its analytic document-space derivatives in
+// one 4x4 neighborhood. This replaces eight separately reconstructed Sobel
+// samples (128 loads) with sixteen loads for the complete Smooth normal.
+fn smoothHeightGradientAt(uv: vec2f) -> vec3f {
+  let roi = settings.gradientMidpoints[2];
+  let size = vec2i(textureDimensions(bevelHeightTexture));
+  let scale = max(settings.gradientMidpoints[3].x, 1.0);
+  let documentPixel = floor(uv * settings.canvas.xy) + vec2f(0.5);
+  let position = (documentPixel - roi.xy) / scale - vec2f(0.5);
+  let base = vec2i(floor(position));
+  let fraction = fract(position);
+  let tx2 = fraction.x * fraction.x;
+  let tx3 = tx2 * fraction.x;
+  let ty2 = fraction.y * fraction.y;
+  let ty3 = ty2 * fraction.y;
+  let wx = array<f32, 4>(
+    -0.5 * fraction.x + tx2 - 0.5 * tx3,
+    1.0 - 2.5 * tx2 + 1.5 * tx3,
+    0.5 * fraction.x + 2.0 * tx2 - 1.5 * tx3,
+    -0.5 * tx2 + 0.5 * tx3
+  );
+  let wy = array<f32, 4>(
+    -0.5 * fraction.y + ty2 - 0.5 * ty3,
+    1.0 - 2.5 * ty2 + 1.5 * ty3,
+    0.5 * fraction.y + 2.0 * ty2 - 1.5 * ty3,
+    -0.5 * ty2 + 0.5 * ty3
+  );
+  let dx = array<f32, 4>(
+    -0.5 + 2.0 * fraction.x - 1.5 * tx2,
+    -5.0 * fraction.x + 4.5 * tx2,
+    0.5 + 4.0 * fraction.x - 4.5 * tx2,
+    -fraction.x + 1.5 * tx2
+  );
+  let dy = array<f32, 4>(
+    -0.5 + 2.0 * fraction.y - 1.5 * ty2,
+    -5.0 * fraction.y + 4.5 * ty2,
+    0.5 + 4.0 * fraction.y - 4.5 * ty2,
+    -fraction.y + 1.5 * ty2
+  );
+  var height = 0.0;
+  var gradient = vec2f(0.0);
+  for (var y = 0; y < 4; y += 1) {
+    for (var x = 0; x < 4; x += 1) {
+      let point = base + vec2i(x - 1, y - 1);
+      let inside = all(point >= vec2i(0)) && all(point < size);
+      let value = select(
+        0.0,
+        textureLoad(bevelHeightTexture, clamp(point, vec2i(0), size - vec2i(1)), 0).a,
+        inside
+      );
+      height += value * wx[x] * wy[y];
+      gradient.x += value * dx[x] * wy[y];
+      gradient.y += value * wx[x] * dy[y];
+    }
+  }
+  return vec3f(clamp(height, 0.0, 1.0), gradient / scale);
+}
+
+fn bevelHeightAt(uv: vec2f, pixelOffset: vec2i, radius: f32, style: i32, technique: f32) -> f32 {
+  if (technique < 0.5) { return smoothHeightAt(uv, pixelOffset); }
+  return chiselHeight(bevelDistanceAt(uv, pixelOffset), radius, style, technique);
+}
+
+fn bevelCoverageAt(uv: vec2f, radius: f32, style: i32, technique: f32) -> f32 {
+  let center = alphaAt(uv, vec2f(0.0));
+  // Smooth derives both height and support from the blurred matte. Restricting
+  // it to the chisel distance field would make a missing/evicted field flatten
+  // an otherwise valid smooth bevel. The matte gradient itself limits the
+  // visible lighting band; this branch only enforces inner/outer semantics.
+  if (technique < 0.5) {
+    if (style == 0) { return 1.0 - center; }
+    if (style == 1 || style == 3) { return center; }
+    return 1.0;
+  }
+  let distance = bevelDistanceAt(uv, vec2i(0));
+  let extent = max(radius, 0.5);
+  let innerBand = (1.0 - smoothstep(extent - 0.75, extent + 0.75, max(distance, 0.0))) * center;
+  let outerBand = (1.0 - smoothstep(extent - 0.75, extent + 0.75, max(-distance, 0.0))) * (1.0 - center);
+  if (style == 0) { return outerBand; }
+  if (style == 1 || style == 3) { return innerBand; }
+  return max(innerBand, outerBand);
 }
 
 fn shapedCoverage(
@@ -950,25 +1105,30 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
   }
   if (kind == 9) {
     let soften = max(settings.params1.z, 0.0);
-    let stepSize = max(radius + soften, 1.0);
-    let normalStep = select(stepSize, 1.0, settings.canvas.w < 0.0);
     let technique = fillOpacity;
     let style = i32(settings.params1.w + 0.5);
-    let center = alphaAt(input.uv, vec2f(0.0));
-    let rawNormal = vec2f(
-      blurredAlpha(input.uv, vec2f(normalStep, 0.0), radius)
-        - blurredAlpha(input.uv, vec2f(-normalStep, 0.0), radius),
-      blurredAlpha(input.uv, vec2f(0.0, normalStep), radius)
-        - blurredAlpha(input.uv, vec2f(0.0, -normalStep), radius)
-    );
-    let chisel = select(
-      1.0,
-      select(2.0, 1.45, technique > 1.5),
-      technique > 0.5
-    );
-    let normal = sign(rawNormal) * pow(abs(rawNormal), vec2f(1.0 / chisel));
+    var normal = vec2f(0.0);
+    if (technique < 0.5) {
+      normal = smoothHeightGradientAt(input.uv).yz;
+    } else {
+      let tl = bevelHeightAt(input.uv, vec2i(-1, -1), radius, style, technique);
+      let tc = bevelHeightAt(input.uv, vec2i( 0, -1), radius, style, technique);
+      let tr = bevelHeightAt(input.uv, vec2i( 1, -1), radius, style, technique);
+      let ml = bevelHeightAt(input.uv, vec2i(-1,  0), radius, style, technique);
+      let mr = bevelHeightAt(input.uv, vec2i( 1,  0), radius, style, technique);
+      let bl = bevelHeightAt(input.uv, vec2i(-1,  1), radius, style, technique);
+      let bc = bevelHeightAt(input.uv, vec2i( 0,  1), radius, style, technique);
+      let br = bevelHeightAt(input.uv, vec2i( 1,  1), radius, style, technique);
+      normal = vec2f(
+        (-tl - 2.0 * ml - bl + tr + 2.0 * mr + br) / 8.0,
+        (-tl - 2.0 * tc - tr + bl + 2.0 * bc + br) / 8.0
+      );
+    }
     let depth = max(settings.params0.w, 0.01) * select(1.0, -1.0, settings.params1.x > 0.5);
-    let surfaceNormal = normalize(vec3f(-normal * depth * 8.0, 1.0));
+    // Height-field derivatives are measured per pixel. Scale the normalized
+    // unit-height slope into the authored Layer Style depth range; the legacy
+    // radius-sized derivative implicitly supplied a much larger baseline.
+    let surfaceNormal = normalize(vec3f(-normal * depth * 64.0, 1.0));
     let altitude = radians(clamp(settings.params0.y, 0.0, 90.0));
     let light = normalize(vec3f(
       cos(angle) * cos(altitude),
@@ -994,17 +1154,10 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
       textureHeight = select(textureHeight, -textureHeight, textureSettings.w > 0.5);
       lighting += textureHeight * textureSettings.z;
     }
-    let expanded = expandedAlpha(input.uv, max(radius, 0.5));
-    let contracted = contractedAlpha(input.uv, max(radius, 0.5));
-    var coverage = center;
-    if (style == 0) { coverage = max(0.0, expanded - center); }
-    if (style == 1) { coverage = max(0.0, center - contracted); }
-    if (style == 2) { coverage = max(0.0, expanded - contracted); }
+    var coverage = bevelCoverageAt(input.uv, max(radius + soften, 0.5), style, technique);
     if (style == 3) {
-      coverage = max(0.0, center - contracted);
       lighting = -lighting;
     }
-    if (style == 4) { coverage = strokeCoverageAt(input.uv, radius, 2.0); }
     let highlight = contourAt(max(lighting, 0.0)) * coverage * settings.color0.a;
     let shadow = contourAt(max(-lighting, 0.0)) * coverage * settings.color1.a;
     var result = styleOverCurrent(current, settings.color1.rgb, shadow * opacity, i32(settings.params1.y + 0.5));
@@ -1016,14 +1169,130 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+/**
+ * Initializes an anti-aliased distance field from effective layer alpha.
+ * Relative seed vectors keep rgba16float precision local even on 10K canvases.
+ */
+export const LAYER_STYLE_BEVEL_SEED_WGSL = /* wgsl */ `
+struct BevelSeedSettings {
+  canvasSize: vec2f,
+  roiOrigin: vec2f,
+  roiSize: vec2f,
+  maximumDistance: f32,
+  padding: f32,
+}
+
+@group(0) @binding(0) var shapeTexture: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> settings: BevelSeedSettings;
+
+fn alphaAtDocumentPixel(point: vec2i) -> f32 {
+  let size = vec2i(settings.canvasSize);
+  let inside = all(point >= vec2i(0)) && all(point < size);
+  return select(
+    0.0,
+    clamp(textureLoad(shapeTexture, clamp(point, vec2i(0), size - vec2i(1)), 0).a, 0.0, 1.0),
+    inside
+  );
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let localPixel = clamp(
+    vec2i(floor(input.uv * settings.roiSize)),
+    vec2i(0),
+    vec2i(settings.roiSize) - vec2i(1)
+  );
+  let point = vec2i(settings.roiOrigin) + localPixel;
+  var alpha = array<f32, 9>();
+  var low = 1.0;
+  var high = 0.0;
+  var index = 0u;
+  for (var y = -1; y <= 1; y += 1) {
+    for (var x = -1; x <= 1; x += 1) {
+      let value = alphaAtDocumentPixel(point + vec2i(x, y));
+      alpha[index] = value;
+      low = min(low, value);
+      high = max(high, value);
+      index += 1u;
+    }
+  }
+  let center = alpha[4];
+  let signValue = select(-1.0, 1.0, center >= 0.5);
+  if (!(low <= 0.5 && high >= 0.5) || high - low < 1e-5) {
+    return vec4f(0.0, 0.0, signValue, 0.0);
+  }
+
+  // Gustavson/Strand-style subpixel initialization: alpha supplies edge
+  // coverage and a Sobel gradient supplies the edge direction. A binary seed
+  // would discard the most valuable information in antialiased text/vectors.
+  let gradient = vec2f(
+    -alpha[0] - 2.0 * alpha[3] - alpha[6] + alpha[2] + 2.0 * alpha[5] + alpha[8],
+    -alpha[0] - 2.0 * alpha[1] - alpha[2] + alpha[6] + 2.0 * alpha[7] + alpha[8]
+  );
+  let magnitude = length(gradient);
+  let direction = select(vec2f(1.0, 0.0), gradient / magnitude, magnitude > 1e-5);
+  let coverageDistance = clamp((0.5 - center) / max(magnitude, 1.0), -0.75, 0.75);
+  return vec4f(direction * coverageDistance, signValue, 1.0);
+}
+`;
+
+/** Relative-vector jump flooding, bounded to the authored effect radius. */
+export const LAYER_STYLE_BEVEL_FLOOD_WGSL = /* wgsl */ `
+struct BevelFloodSettings {
+  roiSize: vec2f,
+  stepSize: f32,
+  maximumDistance: f32,
+  padding: vec4f,
+}
+
+@group(0) @binding(0) var sourceField: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> settings: BevelFloodSettings;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let size = vec2i(settings.roiSize);
+  let point = clamp(vec2i(floor(input.uv * settings.roiSize)), vec2i(0), size - vec2i(1));
+  let center = textureLoad(sourceField, point, 0);
+  var bestVector = center.xy;
+  var bestSquared = select(1e20, dot(bestVector, bestVector), center.w > 0.5);
+  let step = max(1, i32(settings.stepSize + 0.5));
+  for (var y = -1; y <= 1; y += 1) {
+    for (var x = -1; x <= 1; x += 1) {
+      let delta = vec2i(x, y) * step;
+      let candidatePoint = point + delta;
+      let inside = all(candidatePoint >= vec2i(0)) && all(candidatePoint < size);
+      if (inside) {
+        let candidateSeed = textureLoad(sourceField, candidatePoint, 0);
+        if (candidateSeed.w > 0.5) {
+          let candidate = vec2f(delta) + candidateSeed.xy;
+          let squared = dot(candidate, candidate);
+          if (squared < bestSquared && squared <= settings.maximumDistance * settings.maximumDistance) {
+            bestSquared = squared;
+            bestVector = candidate;
+          }
+        }
+      }
+    }
+  }
+  return vec4f(bestVector, center.z, select(0.0, 1.0, bestSquared < 1e19));
+}
+`;
+
+/**
+ * Bounded sampled blur used by shadows, glows and satin. Keep this pipeline
+ * independent from Bevel: those effects intentionally use a dense, exact
+ * height-field blur and must not silently change the look or cost of every
+ * other Layer Style.
+ */
 export const LAYER_STYLE_GAUSSIAN_BLUR_WGSL = /* wgsl */ `
 struct LayerStyleBlurSettings {
-  canvasSize: vec2f,
+  outputSize: vec2f,
+  sourceSize: vec2f,
+  sourceOrigin: vec2f,
   direction: vec2f,
   radius: f32,
-  padding0: f32,
-  padding1: f32,
-  padding2: f32,
+  outputToSourceScale: f32,
+  padding: vec2f,
 }
 
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
@@ -1042,28 +1311,93 @@ const gaussianKernel = array<vec2f, 17>(
   vec2f(1.00000000, 0.000832592)
 );
 
-fn alphaSample(uv: vec2f) -> f32 {
+fn alphaSample(sourcePixel: vec2f) -> f32 {
+  let uv = sourcePixel / settings.sourceSize;
   let inside = all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
-  let sampled = textureSampleLevel(
-    sourceTexture,
-    sourceSampler,
-    clamp(uv, vec2f(0.0), vec2f(1.0)),
-    0.0
-  ).a;
-  return select(0.0, sampled, inside);
+  return select(
+    0.0,
+    textureSampleLevel(sourceTexture, sourceSampler, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0).a,
+    inside
+  );
 }
 
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
-  let texel = settings.direction / settings.canvasSize;
   let radius = max(settings.radius, 0.0);
-  var result = alphaSample(input.uv) * gaussianKernel[0].y;
-  for (var index = 1u; index < 17u; index += 1u) {
-    let kernel = gaussianKernel[index];
-    let offset = texel * radius * kernel.x;
-    result += (alphaSample(input.uv + offset) + alphaSample(input.uv - offset)) * kernel.y;
+  let center = settings.sourceOrigin
+    + input.uv * settings.outputSize * settings.outputToSourceScale;
+  var result = alphaSample(center) * gaussianKernel[0].y;
+  for (var tap = 1u; tap < 17u; tap += 1u) {
+    let kernel = gaussianKernel[tap];
+    let sampleOffset = settings.direction * radius * kernel.x;
+    result += (alphaSample(center + sampleOffset) + alphaSample(center - sampleOffset)) * kernel.y;
   }
-  let coverage = clamp(result, 0.0, 1.0);
+  return vec4f(clamp(result, 0.0, 1.0));
+}
+`;
+
+/**
+ * Pixel-aligned dense Gaussian used only to construct the Bevel height field.
+ * Bevel ROI passes map one output pixel to exactly one source pixel, so a
+ * direct load is pixel-identical to the previous hand-written bilinear sample
+ * while requiring one quarter of the texture reads.
+ */
+export const LAYER_STYLE_BEVEL_BLUR_WGSL = /* wgsl */ `
+struct LayerStyleBlurSettings {
+  outputSize: vec2f,
+  sourceSize: vec2f,
+  sourceOrigin: vec2f,
+  direction: vec2f,
+  radius: f32,
+  outputToSourceScale: f32,
+  padding: vec2f,
+}
+
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> settings: LayerStyleBlurSettings;
+
+fn alphaLoad(point: vec2i) -> f32 {
+  let size = vec2i(textureDimensions(sourceTexture));
+  let inside = all(point >= vec2i(0)) && all(point < size);
+  return select(0.0, textureLoad(sourceTexture, clamp(point, vec2i(0), size - vec2i(1)), 0).a, inside);
+}
+
+fn alphaSample(sourcePixel: vec2f) -> f32 {
+  let scale = max(1, i32(round(settings.outputToSourceScale)));
+  if (scale == 1) { return alphaLoad(vec2i(floor(sourcePixel))); }
+  let base = vec2i(floor(sourcePixel - vec2f(f32(scale) * 0.5)));
+  var total = 0.0;
+  for (var y = 0; y < 16; y += 1) {
+    if (y >= scale) { break; }
+    for (var x = 0; x < 16; x += 1) {
+      if (x >= scale) { break; }
+      total += alphaLoad(base + vec2i(x, y));
+    }
+  }
+  return total / f32(scale * scale);
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) vec4f {
+  let radius = max(settings.radius, 0.0);
+  let support = min(100, i32(ceil(radius)));
+  let sigma = max(radius / 4.0, 0.5);
+  let denominator = 2.0 * sigma * sigma;
+  let outputPixel = floor(input.uv * settings.outputSize);
+  let center = settings.sourceOrigin
+    + (outputPixel + vec2f(0.5)) * settings.outputToSourceScale;
+  var result = alphaSample(center);
+  var total = 1.0;
+  for (var tap = 1; tap <= 100; tap += 1) {
+    if (tap > support) { break; }
+    let offset = f32(tap);
+    let taper = 1.0 - smoothstep(0.75, 1.0, offset / max(radius, 1.0));
+    let weight = exp(-(offset * offset) / denominator) * taper;
+    let sampleOffset = settings.direction * offset * settings.outputToSourceScale;
+    result += (alphaSample(center + sampleOffset) + alphaSample(center - sampleOffset)) * weight;
+    total += 2.0 * weight;
+  }
+  let coverage = clamp(result / total, 0.0, 1.0);
   return vec4f(coverage);
 }
 `;

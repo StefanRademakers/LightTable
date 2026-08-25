@@ -6,12 +6,57 @@ import {
 } from './layerStyleDefaults';
 import {
   baseLayerStyleUniform,
+  bevelDistanceCapacity,
+  bevelJumpFloodSteps,
   LAYER_STYLE_SETTINGS_FLOATS,
   layerStyleGaussianBlurPlan,
-  layerStyleUniform
+  layerStyleUniform,
+  smoothBevelGaussianPlan,
+  smoothBevelMultiscalePlan
 } from './layerStyleGpu';
 
 describe('Layer Style GPU settings', () => {
+  it('grows retained Chisel distance support only at capacity boundaries', () => {
+    expect(bevelDistanceCapacity(1)).toBe(1);
+    expect(bevelDistanceCapacity(33)).toBe(64);
+    expect(bevelDistanceCapacity(63.1)).toBe(64);
+    expect(bevelDistanceCapacity(64.1)).toBe(128);
+  });
+
+  it('bounds Bevel distance propagation while preserving local JFA corrections', () => {
+    expect(bevelJumpFloodSteps(1)).toEqual([1, 1, 1]);
+    expect(bevelJumpFloodSteps(5)).toEqual([1, 4, 2, 1, 1]);
+    expect(bevelJumpFloodSteps(250)).toEqual([1, 128, 64, 32, 16, 8, 4, 2, 1, 1]);
+  });
+
+  it('keeps every Smooth Bevel Gaussian cycle within contiguous 100px support', () => {
+    expect(smoothBevelGaussianPlan(80)).toEqual({ cycles: 1, radiusPerCycle: 80 });
+    expect(smoothBevelGaussianPlan(133)).toEqual({
+      cycles: 2,
+      radiusPerCycle: 133 / Math.sqrt(2)
+    });
+    expect(smoothBevelGaussianPlan(250)).toEqual({
+      cycles: 7,
+      radiusPerCycle: 250 / Math.sqrt(7)
+    });
+  });
+
+  it('reduces large Smooth Bevel kernels while protecting tiny height fields', () => {
+    expect(smoothBevelMultiscalePlan(133, 800, 400)).toEqual({
+      scale: 16,
+      workingWidth: 50,
+      workingHeight: 25,
+      workingRadius: 133 / 16
+    });
+    expect(smoothBevelMultiscalePlan(80, 252, 240)).toEqual({
+      scale: 8,
+      workingWidth: 32,
+      workingHeight: 30,
+      workingRadius: 10
+    });
+    expect(smoothBevelMultiscalePlan(133, 20, 20).scale).toBe(2);
+  });
+
   it('keeps the base pass separate from effects and preserves Fill', () => {
     const values = baseLayerStyleUniform(0.25, 1920, 1080);
     expect(values).toHaveLength(LAYER_STYLE_SETTINGS_FLOATS);
@@ -91,6 +136,8 @@ describe('Layer Style GPU settings', () => {
     expect(layerStyleGaussianBlurPlan(effect, stack, 500, 500, 'final')).toMatchObject({
       workingRadius: 20 / 3
     });
+    effect.technique = 'chisel-hard';
+    expect(layerStyleGaussianBlurPlan(effect, stack, 500, 500, 'final')).toBeNull();
   });
 
   it('uses global light and stack scaling for a shadow', () => {

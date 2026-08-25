@@ -1,5 +1,8 @@
 import { FULLSCREEN_VERTEX_WGSL } from '../../gpu/shaders';
 import {
+  LAYER_STYLE_BEVEL_BLUR_WGSL,
+  LAYER_STYLE_BEVEL_FLOOD_WGSL,
+  LAYER_STYLE_BEVEL_SEED_WGSL,
   LAYER_STYLE_EFFECT_WGSL,
   LAYER_STYLE_GAUSSIAN_BLUR_WGSL
 } from './layerShaders';
@@ -8,6 +11,9 @@ interface LayerStylePipelineEntry {
   modules: readonly GPUShaderModule[];
   effect: Promise<GPURenderPipeline>;
   blur: Promise<GPURenderPipeline>;
+  bevelBlur: Promise<GPURenderPipeline>;
+  bevelSeed: Promise<GPURenderPipeline>;
+  bevelFlood: Promise<GPURenderPipeline>;
 }
 
 const cache = new WeakMap<GPUDevice, LayerStylePipelineEntry>();
@@ -20,6 +26,9 @@ const cache = new WeakMap<GPUDevice, LayerStylePipelineEntry>();
 export class LayerStylePipelineProvider {
   private pipelineValue: GPURenderPipeline | null = null;
   private blurPipelineValue: GPURenderPipeline | null = null;
+  private bevelBlurPipelineValue: GPURenderPipeline | null = null;
+  private bevelSeedPipelineValue: GPURenderPipeline | null = null;
+  private bevelFloodPipelineValue: GPURenderPipeline | null = null;
   private moduleValues: readonly GPUShaderModule[] = [];
 
   constructor(
@@ -35,6 +44,12 @@ export class LayerStylePipelineProvider {
     return this.blurPipelineValue;
   }
 
+  get bevelBlurPipeline() { return this.bevelBlurPipelineValue; }
+
+  get bevelSeedPipeline() { return this.bevelSeedPipelineValue; }
+
+  get bevelFloodPipeline() { return this.bevelFloodPipelineValue; }
+
   async initialize() {
     if (this.pipelineValue) return this.pipelineValue;
     let entry = cache.get(this.device);
@@ -47,8 +62,20 @@ export class LayerStylePipelineProvider {
         label: 'LightTable Layer Style Gaussian blur shader',
         code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_GAUSSIAN_BLUR_WGSL}`
       });
+      const bevelBlurModule = this.device.createShaderModule({
+        label: 'LightTable Bevel dense Gaussian blur shader',
+        code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_BEVEL_BLUR_WGSL}`
+      });
+      const bevelSeedModule = this.device.createShaderModule({
+        label: 'LightTable Bevel seed shader',
+        code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_BEVEL_SEED_WGSL}`
+      });
+      const bevelFloodModule = this.device.createShaderModule({
+        label: 'LightTable Bevel distance flood shader',
+        code: `${FULLSCREEN_VERTEX_WGSL}\n${LAYER_STYLE_BEVEL_FLOOD_WGSL}`
+      });
       entry = {
-        modules: [effectModule, blurModule],
+        modules: [effectModule, blurModule, bevelBlurModule, bevelSeedModule, bevelFloodModule],
         effect: this.device.createRenderPipelineAsync({
           label: 'LightTable Layer Style effect',
           layout: 'auto',
@@ -70,21 +97,66 @@ export class LayerStylePipelineProvider {
             targets: [{ format: 'rgba16float' }]
           },
           primitive: { topology: 'triangle-list' }
+        }),
+        bevelBlur: this.device.createRenderPipelineAsync({
+          label: 'LightTable Bevel high-precision Gaussian blur',
+          layout: 'auto',
+          vertex: { module: this.fullscreenModule, entryPoint: 'fullscreenVertex' },
+          fragment: {
+            module: bevelBlurModule,
+            entryPoint: 'main',
+            targets: [{ format: 'rgba32float' }]
+          },
+          primitive: { topology: 'triangle-list' }
+        }),
+        bevelSeed: this.device.createRenderPipelineAsync({
+          label: 'LightTable Bevel anti-aliased seed',
+          layout: 'auto',
+          vertex: { module: this.fullscreenModule, entryPoint: 'fullscreenVertex' },
+          fragment: {
+            module: bevelSeedModule,
+            entryPoint: 'main',
+            targets: [{ format: 'rgba16float' }]
+          },
+          primitive: { topology: 'triangle-list' }
+        }),
+        bevelFlood: this.device.createRenderPipelineAsync({
+          label: 'LightTable Bevel bounded distance flood',
+          layout: 'auto',
+          vertex: { module: this.fullscreenModule, entryPoint: 'fullscreenVertex' },
+          fragment: {
+            module: bevelFloodModule,
+            entryPoint: 'main',
+            targets: [{ format: 'rgba16float' }]
+          },
+          primitive: { topology: 'triangle-list' }
         })
       };
       cache.set(this.device, entry);
     }
     this.moduleValues = entry.modules;
     try {
-      [this.pipelineValue, this.blurPipelineValue] = await Promise.all([
+      [
+        this.pipelineValue,
+        this.blurPipelineValue,
+        this.bevelBlurPipelineValue,
+        this.bevelSeedPipelineValue,
+        this.bevelFloodPipelineValue
+      ] = await Promise.all([
         entry.effect,
-        entry.blur
+        entry.blur,
+        entry.bevelBlur,
+        entry.bevelSeed,
+        entry.bevelFlood
       ]);
       return this.pipelineValue;
     } catch (reason) {
       cache.delete(this.device);
       this.moduleValues = [];
       this.blurPipelineValue = null;
+      this.bevelBlurPipelineValue = null;
+      this.bevelSeedPipelineValue = null;
+      this.bevelFloodPipelineValue = null;
       throw reason;
     }
   }

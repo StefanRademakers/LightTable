@@ -17,6 +17,7 @@ const renderer = () => new LayerStyleRenderer({
   dimensions: () => ({ width: 32, height: 16 }),
   createTexture: vi.fn(() => ({ destroy: vi.fn() }) as unknown as GPUTexture),
   createTextureSized: vi.fn(() => ({ destroy: vi.fn() }) as unknown as GPUTexture),
+  createFloatTextureSized: vi.fn(() => ({ destroy: vi.fn() }) as unknown as GPUTexture),
   drawFullscreen: vi.fn()
 });
 

@@ -6,7 +6,8 @@ const texture = () => ({ destroy: vi.fn() }) as unknown as GPUTexture;
 const layerId = 'layer' as LayerId;
 const options = (createTexture = vi.fn(texture)) => ({
   createTexture,
-  createTextureSized: vi.fn(texture)
+  createTextureSized: vi.fn(texture),
+  createFloatTextureSized: vi.fn(texture)
 });
 
 describe('LayerStyleTextureStore', () => {
@@ -81,6 +82,60 @@ describe('LayerStyleTextureStore', () => {
     expect(store.estimatedTextureBytes(1920, 1080)).toBe(
       (960 * 540 + 480 * 270) * 8 * 2
     );
+  });
+
+  it('reuses one ROI-sized bevel field pair and submit-fences replacement', () => {
+    const retired: GPUTexture[] = [];
+    const storeOptions = {
+      ...options(),
+      retireTexture: (target: GPUTexture) => retired.push(target)
+    };
+    const store = new LayerStyleTextureStore(storeOptions);
+    const first = store.ensureBevelFieldTextures(120, 80);
+
+    expect(store.ensureBevelFieldTextures(120, 80)).toBe(first);
+    expect(storeOptions.createTextureSized).toHaveBeenCalledTimes(2);
+
+    const replacement = store.ensureBevelFieldTextures(64, 32);
+    expect(replacement).not.toBe(first);
+    expect(retired).toEqual([first.first, first.second]);
+    expect(first.first.destroy).not.toHaveBeenCalled();
+    expect(store.estimatedTextureBytes(1920, 1080)).toBe(64 * 32 * 8 * 2);
+
+    store.releaseWorkTextures();
+    expect(retired).toEqual([first.first, first.second, replacement.first, replacement.second]);
+  });
+
+  it('retains Bevel geometry independently from the final styled presentation', () => {
+    const storeOptions = options();
+    const store = new LayerStyleTextureStore(storeOptions);
+    const encoder = { copyTextureToTexture: vi.fn() } as unknown as GPUCommandEncoder;
+    const source = texture();
+
+    const first = store.writeBevelGeometry(
+      encoder, layerId, 'bevel', 'matte:size-32', source,
+      { x: 0, y: 0, width: 40, height: 30 }, 'float'
+    );
+    expect(store.cachedBevelGeometry(layerId, 'bevel', 'matte:size-32')).toBe(first);
+    expect(store.cachedBevelGeometry(layerId, 'bevel', 'lighting-only-change')).toBeNull();
+    expect(storeOptions.createFloatTextureSized).toHaveBeenCalledWith(
+      'LightTable retained Bevel height: bevel', 40, 30
+    );
+    expect(encoder.copyTextureToTexture).toHaveBeenCalledWith(
+      { texture: source }, { texture: first.texture }, [40, 30]
+    );
+
+    store.invalidate(layerId);
+    expect(first.texture.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('keeps high-precision Bevel ping-pong targets ROI-sized', () => {
+    const storeOptions = options();
+    const store = new LayerStyleTextureStore(storeOptions);
+    const first = store.ensureBevelHeightTextures(96, 48);
+    expect(store.ensureBevelHeightTextures(96, 48)).toBe(first);
+    expect(storeOptions.createFloatTextureSized).toHaveBeenCalledTimes(2);
+    expect(store.estimatedTextureBytes(1000, 1000)).toBe(96 * 48 * 16 * 2);
   });
 
   it('reallocates a tight cache only when its dimensions change', () => {

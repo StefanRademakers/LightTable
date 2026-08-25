@@ -45,6 +45,69 @@ export interface LayerStyleGaussianBlurPlan {
   workingRadius: number;
 }
 
+/**
+ * 1+JFA followed by a final local correction. The leading unit pass prevents
+ * adjacent anti-aliased seeds from being eliminated before long jumps; the
+ * trailing unit pass repairs local Voronoi errors left by approximate JFA.
+ */
+export const bevelJumpFloodSteps = (maximumDistance: number) => {
+  const distance = Math.max(1, Math.ceil(maximumDistance));
+  let step = 1;
+  while (step * 2 <= distance) step *= 2;
+  const result = [1];
+  for (; step >= 1; step = Math.floor(step / 2)) result.push(step);
+  result.push(1);
+  return result;
+};
+
+/**
+ * Retained Chisel fields grow in power-of-two support buckets. Size gestures
+ * inside the existing capacity only remap the cached distance profile; they
+ * do not regenerate the distance transform.
+ */
+export const bevelDistanceCapacity = (requestedDistance: number) => {
+  const requested = Math.max(1, Math.ceil(requestedDistance));
+  let capacity = 1;
+  while (capacity < requested) capacity *= 2;
+  return capacity;
+};
+
+/**
+ * BlurCore has contiguous support through 100 pixels. Wider Smooth bevels
+ * use repeated ROI convolutions; Gaussian variances add, so every cycle stays
+ * dense instead of exposing a sparse set of authored-radius samples.
+ */
+export const smoothBevelGaussianPlan = (radius: number) => {
+  const requested = Math.max(0, radius);
+  const cycles = Math.max(1, Math.ceil((requested / 100) ** 2));
+  return { cycles, radiusPerCycle: requested / Math.sqrt(cycles) };
+};
+
+export const smoothBevelMultiscalePlan = (
+  radius: number,
+  width: number,
+  height: number,
+  targetRadius = 16
+) => {
+  const requested = Math.max(0, radius);
+  let scale = 1;
+  // Power-of-two box-prefiltered reduction keeps the coordinate mapping and
+  // cache sizes deterministic. Preserve at least an 8x8 height field so tiny
+  // layers never disappear merely because the authored radius is large.
+  while (
+    requested / scale > targetRadius
+    && scale < 16
+    && Math.ceil(width / (scale * 2)) >= 8
+    && Math.ceil(height / (scale * 2)) >= 8
+  ) scale *= 2;
+  return {
+    scale,
+    workingWidth: Math.max(1, Math.ceil(width / scale)),
+    workingHeight: Math.max(1, Math.ceil(height / scale)),
+    workingRadius: requested / scale
+  };
+};
+
 export const layerStyleGaussianBlurPlan = (
   effect: LayerStyleInstance,
   stack: LayerStyleStack,
@@ -57,6 +120,7 @@ export const layerStyleGaussianBlurPlan = (
   ].includes(effect.kind)) {
     return null;
   }
+  if (effect.kind === 'bevel-emboss' && effect.technique !== 'smooth') return null;
   if ((effect.kind === 'outer-glow' || effect.kind === 'inner-glow') && effect.jitter > 0) {
     return null;
   }
