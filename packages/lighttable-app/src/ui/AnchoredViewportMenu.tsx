@@ -48,22 +48,32 @@ export const AnchoredViewportMenu: React.FC<{
   children: React.ReactNode;
 }> = ({ anchor, className, ariaLabel, onClose, children }) => {
   const menuRef = React.useRef<HTMLDivElement>(null);
-  const [position, setPosition] = React.useState<AnchoredViewportMenuPosition>({
-    left: VIEWPORT_MARGIN,
-    top: VIEWPORT_TOP_INSET,
-    maxHeight: 320,
-    placement: 'above'
-  });
+  const [position, setPosition] = React.useState<AnchoredViewportMenuPosition | null>(null);
 
   React.useLayoutEffect(() => {
     const update = () => {
       const anchorElement = anchor.current;
       const menuElement = menuRef.current;
       if (!anchorElement || !menuElement) return;
-      setPosition(anchoredViewportMenuPosition(
+      const menuBounds = menuElement.getBoundingClientRect();
+      const nextPosition = anchoredViewportMenuPosition(
         anchorElement.getBoundingClientRect(),
-        menuElement.getBoundingClientRect(),
+        {
+          width: menuBounds.width,
+          // Measure the intrinsic menu content, not its current max-height. Measuring
+          // the clamped box creates a two-pass feedback loop in which a tall menu is
+          // first placed too low and visibly jumps upward after ResizeObserver fires.
+          height: menuElement.scrollHeight
+        },
         { width: window.innerWidth, height: window.innerHeight }
+      );
+      setPosition((current) => (
+        current?.left === nextPosition.left
+        && current.top === nextPosition.top
+        && current.maxHeight === nextPosition.maxHeight
+        && current.placement === nextPosition.placement
+          ? current
+          : nextPosition
       ));
     };
     update();
@@ -102,9 +112,17 @@ export const AnchoredViewportMenu: React.FC<{
       role="menu"
       data-suite-control="anchored-menu"
       aria-label={ariaLabel}
-      data-placement={position.placement}
+      data-placement={position?.placement}
+      data-positioned={position ? 'true' : 'false'}
       data-editor-floating-control
-      style={{ left: position.left, top: position.top, maxHeight: position.maxHeight }}
+      style={position
+        ? { left: position.left, top: position.top, maxHeight: position.maxHeight }
+        : {
+            left: VIEWPORT_MARGIN,
+            top: VIEWPORT_TOP_INSET,
+            visibility: 'hidden',
+            pointerEvents: 'none'
+          }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
