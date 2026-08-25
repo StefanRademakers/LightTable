@@ -142,4 +142,33 @@ describe('GaussianBlurFilterRenderer', () => {
     expect(test.renderer.encode(test.encoder, source, layer)).toBe(source);
     expect(test.textures).toHaveLength(0);
   });
+
+  it('routes small round Maximum through one exact disk pass', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('maximum', { radius: 3, shape: 'round' },
+        (part) => `maximum-${part}`),
+      'Maximum', 'maximum'
+    );
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    expect(test.renderer.encode(test.encoder, source, layer)).not.toBe(source);
+    expect(test.textures).toHaveLength(2);
+    expect(test.encoder.beginRenderPass).toHaveBeenCalledOnce();
+    const payload = test.writeBuffer.mock.calls[0]?.[2] as ArrayBuffer;
+    const view = new DataView(payload);
+    expect(view.getInt32(16, true)).toBe(3);
+    expect(view.getUint32(20, true)).toBe(1);
+  });
+
+  it('uses bounded separable passes for large square Maximum', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('maximum', { radius: 500, shape: 'square' },
+        (part) => `maximum-${part}`),
+      'Maximum', 'maximum'
+    );
+    test.renderer.encode(test.encoder,
+      { createView: vi.fn(() => ({})) } as unknown as GPUTexture, layer);
+    expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(14);
+  });
 });

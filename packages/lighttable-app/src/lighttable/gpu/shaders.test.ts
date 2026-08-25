@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BLUR_CORE_WGSL, MOTION_BLUR_WGSL, OFFSET_WGSL } from '@lighttable/filter-webgpu';
+import {
+  BLUR_CORE_WGSL, MORPHOLOGY_WGSL, MOTION_BLUR_WGSL, OFFSET_WGSL
+} from '@lighttable/filter-webgpu';
 // The package's ESM entry is not exposed through package exports, so tests import it directly.
 // @ts-expect-error The public declaration belongs to the package root and describes this same class.
 import { WgslReflect } from 'wgsl_reflect/wgsl_reflect.module.js';
@@ -101,6 +103,7 @@ const renderShaders = [
   ['P0 BlurCore', BLUR_CORE_WGSL],
     ['P0 Offset', OFFSET_WGSL],
     ['P0 Motion Blur', MOTION_BLUR_WGSL],
+    ['P0 Morphology', MORPHOLOGY_WGSL],
   ['lens distortion', LENS_DISTORTION_WGSL],
   ['chromatic aberration', CHROMATIC_ABERRATION_WGSL],
   ['post-crop vignette', VIGNETTE_WGSL],

@@ -10,7 +10,7 @@
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
-        "high-pass", "unsharp-mask", "motion-blur", "offset"
+        "high-pass", "unsharp-mask", "motion-blur", "maximum", "offset"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -66,6 +66,14 @@
         "horizontal": { "type": "integer", "minimum": -100000, "maximum": 100000, "default": 0 },
         "vertical": { "type": "integer", "minimum": -100000, "maximum": 100000, "default": 0 },
         "edgeMode": { "type": "string", "enum": ["transparent", "clamp", "wrap"], "default": "wrap" }
+      }
+    },
+    "morphologySettings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["radius", "shape"],
+      "properties": {
+        "radius": { "type": "integer", "minimum": 1, "maximum": 500, "default": 1 },
+        "shape": { "type": "string", "enum": ["round", "square"], "default": "round" }
       }
     },
     "gradientMapColorStop": {
@@ -134,6 +142,7 @@
               { "$ref": "#/$defs/motionBlurSettings" },
               { "$ref": "#/$defs/highPassSettings" },
               { "$ref": "#/$defs/unsharpMaskSettings" },
+              { "$ref": "#/$defs/morphologySettings" },
               { "$ref": "#/$defs/offsetSettings" },
               { "$ref": "#/$defs/gradientMapSettings" }
             ]
@@ -197,6 +206,13 @@
                   "properties": {
                     "kind": { "const": "offset" },
                     "settings": { "$ref": "#/$defs/offsetSettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "maximum" },
+                    "settings": { "$ref": "#/$defs/morphologySettings" }
                   }
                 },
                 {

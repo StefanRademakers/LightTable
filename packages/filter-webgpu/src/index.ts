@@ -3,3 +3,4 @@ export * from './FilterTargetPool';
 export * from './filterShaders';
 export * from './OffsetCore';
 export * from './MotionBlurCore';
+export * from './MorphologyCore';
