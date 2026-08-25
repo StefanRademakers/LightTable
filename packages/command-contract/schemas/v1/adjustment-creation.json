@@ -188,7 +188,7 @@
           "layerId": { "$ref": "#/$defs/layerId" },
           "aboveLayerId": { "$ref": "#/$defs/layerId" },
           "settings": {
-            "oneOf": [
+            "anyOf": [
               { "$ref": "#/$defs/posterizeSettings" },
               { "$ref": "#/$defs/thresholdSettings" },
               { "$ref": "#/$defs/gaussianBlurSettings" },

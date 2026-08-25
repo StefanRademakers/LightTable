@@ -71,7 +71,7 @@ const findMenuOption = (
 };
 
 describe('createEditorMenuOptions', () => {
-  it('offers Gaussian Blur while retaining the planned filter catalog', () => {
+  it('offers the complete P0 filter catalog', () => {
     const menuCommands = commands();
     const filter = createEditorMenuOptions('filter', state(), labels, menuCommands);
     expect(filter.map(({ label }) => label)).toEqual([
@@ -81,9 +81,9 @@ describe('createEditorMenuOptions', () => {
       label,
       children: children?.map((child) => child.label)
     }))).toEqual([
-      { label: 'Blur', children: ['Gaussian Blur...', 'Motion Blur...', 'Surface Blur'] },
-      { label: 'Distort', children: ['Displace'] },
-      { label: 'Noise', children: ['Median', 'Reduce Noise...'] },
+      { label: 'Blur', children: ['Gaussian Blur...', 'Motion Blur...', 'Surface Blur...'] },
+      { label: 'Distort', children: ['Displace...'] },
+      { label: 'Noise', children: ['Median...', 'Reduce Noise...'] },
       { label: 'Sharpen', children: ['Smart Sharpen...', 'Unsharp Mask...'] },
       { label: 'Other', children: ['High Pass...', 'Maximum...', 'Minimum...', 'Offset...'] }
     ]);
@@ -136,10 +136,19 @@ describe('createEditorMenuOptions', () => {
     expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith('minimum');
     minimum?.trailingAction?.onClick();
     expect(menuCommands.attachAdjustment).toHaveBeenCalledWith('minimum');
+    for (const kind of ['surface-blur', 'displace', 'median'] as const) {
+      const option = findMenuOption(filter, `filter-${kind}`);
+      expect(option?.disabled).toBe(false);
+      option?.onClick?.();
+      expect(menuCommands.createAdjustmentLayer).toHaveBeenCalledWith(kind);
+      option?.trailingAction?.onClick();
+      expect(menuCommands.attachAdjustment).toHaveBeenCalledWith(kind);
+    }
     const enabled = new Set([
       'filter-gaussian-blur', 'filter-motion-blur', 'filter-high-pass',
       'filter-smart-sharpen', 'filter-unsharp-mask', 'filter-maximum',
-      'filter-reduce-noise', 'filter-minimum', 'filter-offset'
+      'filter-reduce-noise', 'filter-minimum', 'filter-offset',
+      'filter-surface-blur', 'filter-displace', 'filter-median'
     ]);
     expect(leaves.filter(({ value }) => !enabled.has(value))
       .every(({ disabled, onClick }) => disabled && !onClick)).toBe(true);
