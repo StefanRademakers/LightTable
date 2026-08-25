@@ -14,6 +14,7 @@ const recentUserData = path.join(outputDirectory, `recent-user-data-${process.pi
 const imageFile = path.join(outputDirectory, 'image.png');
 const videoFile = path.join(outputDirectory, 'video.mp4');
 const droppedVideoFile = path.join(outputDirectory, 'dropped.webm');
+const reportFile = path.join(outputDirectory, 'report.json');
 const executablePath = path.resolve(
   process.env.LIGHTTABLE_TEST_EXECUTABLE
     ?? packagedDesktopExecutable(root)
@@ -92,6 +93,30 @@ try {
     if (message.type() === 'error') failures.push(`[console:error] ${message.text()}`);
   });
   const driver = await attachLightTableAutomation(page, 'multi-document-smoke');
+  const cdp = await page.context().newCDPSession(page);
+  const collectLifecycleMetrics = async (label) => {
+    await cdp.send('HeapProfiler.collectGarbage').catch(() => undefined);
+    await page.waitForTimeout(50);
+    const [heap, dom, projection] = await Promise.all([
+      cdp.send('Runtime.getHeapUsage'),
+      cdp.send('Memory.getDOMCounters'),
+      page.evaluate(() => ({
+        canvasCount: document.querySelectorAll('canvas').length,
+        videoCount: document.querySelectorAll('video').length,
+        blobMediaSourceCount: document.querySelectorAll('img[src^="blob:"], video[src^="blob:"]').length,
+        imageSurfaceCount: document.querySelectorAll('.lighttable-document-surface-stack__image').length,
+        videoSurfaceCount: document.querySelectorAll('.lighttable-video-document').length
+      }))
+    ]);
+    return {
+      label,
+      heapUsedBytes: heap.usedSize,
+      domDocuments: dom.documents,
+      domNodes: dom.nodes,
+      eventListeners: dom.jsEventListeners,
+      ...projection
+    };
+  };
   const assertImagePixelsVisible = async (label) => {
     const canvas = page.locator('canvas.lighttable-viewport__canvas').first();
     await canvas.waitFor({ state: 'visible', timeout: 30_000 });
@@ -442,6 +467,47 @@ try {
       after: imageCanonicalAfterSwitch
     })}`);
   }
+
+  // Typed document switches must only change presentation. Repeating the warm
+  // path catches leaked React trees, listeners and media/canvas surfaces while
+  // the canonical snapshot below protects document data from lifecycle drift.
+  const lifecycleSamples = [await collectLifecycleMetrics('warm-baseline')];
+  const lifecycleSwitchTimesMs = [];
+  for (let cycle = 1; cycle <= 20; cycle += 1) {
+    const startedAt = performance.now();
+    await activateDocumentTab('video.mp4');
+    await video.waitFor({ state: 'visible', timeout: 5_000 });
+    await activateImageDocumentTab();
+    lifecycleSwitchTimesMs.push(performance.now() - startedAt);
+    if (cycle % 5 === 0) {
+      lifecycleSamples.push(await collectLifecycleMetrics(`cycle-${cycle}`));
+    }
+  }
+  await assertImagePixelsVisible('Typed-switch soak final image');
+  const imageCanonicalAfterSoak = await canonicalDocumentSnapshot(imageDocumentId);
+  if (JSON.stringify(imageCanonicalAfterSoak) !== JSON.stringify(imageCanonicalBeforeSwitch)) {
+    throw new Error('Repeated typed document switches changed inactive canonical image data.');
+  }
+  const lifecycleBaseline = lifecycleSamples[0];
+  const lifecycleLast = lifecycleSamples.at(-1);
+  const stableProjectionKeys = [
+    'domDocuments', 'canvasCount', 'videoCount', 'blobMediaSourceCount',
+    'imageSurfaceCount', 'videoSurfaceCount'
+  ];
+  for (const key of stableProjectionKeys) {
+    if (lifecycleLast[key] !== lifecycleBaseline[key]) {
+      throw new Error(`Typed-switch lifecycle leaked ${key}: ${JSON.stringify(lifecycleSamples)}`);
+    }
+  }
+  const minimumSettledHeap = Math.min(...lifecycleSamples.slice(1).map(({ heapUsedBytes }) => heapUsedBytes));
+  const heapTailGrowthBytes = lifecycleLast.heapUsedBytes - minimumSettledHeap;
+  const nodeGrowth = lifecycleLast.domNodes - lifecycleBaseline.domNodes;
+  const listenerGrowth = lifecycleLast.eventListeners - lifecycleBaseline.eventListeners;
+  if (heapTailGrowthBytes > 32 * 1024 * 1024 || nodeGrowth > 64 || listenerGrowth > 64) {
+    throw new Error(`Typed-switch lifecycle growth exceeded its bounded budget: ${JSON.stringify({
+      heapTailGrowthBytes, nodeGrowth, listenerGrowth, lifecycleSamples
+    })}`);
+  }
   await page.waitForFunction(() => document.querySelector('[aria-label="Switch to Grading workspace"]')?.getAttribute('aria-checked') === 'true');
   await activateDocumentTab('video.mp4');
   await video.waitFor({ state: 'visible', timeout: 30_000 });
@@ -468,7 +534,7 @@ try {
     throw new Error('Document switching entered the runtime error boundary.');
   }
   if (failures.length > 0) throw new Error(failures.join(' | '));
-  console.log(JSON.stringify({
+  const report = {
     passed: true,
     documents: dropped.documents.map(({ title, kind }) => ({ title, kind })),
     activeDocumentId: dropped.activeDocumentId,
@@ -481,8 +547,21 @@ try {
     pixelEvidenceOverheadMs: {
       first: Math.round(firstImagePixelEvidenceMs),
       repeated: Math.round(repeatedImagePixelEvidenceMs)
+    },
+    typedSwitchSoak: {
+      cycles: lifecycleSwitchTimesMs.length,
+      medianRoundTripMs: Math.round(lifecycleSwitchTimesMs.toSorted((a, b) => a - b)[
+        Math.floor(lifecycleSwitchTimesMs.length / 2)
+      ]),
+      maximumRoundTripMs: Math.round(Math.max(...lifecycleSwitchTimesMs)),
+      heapTailGrowthBytes,
+      nodeGrowth,
+      listenerGrowth,
+      samples: lifecycleSamples
     }
-  }, null, 2));
+  };
+  await writeFile(reportFile, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  console.log(JSON.stringify({ ...report, reportFile }, null, 2));
 } finally {
   await app.close().catch(() => {});
 }
