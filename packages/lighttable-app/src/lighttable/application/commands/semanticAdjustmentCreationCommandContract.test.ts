@@ -78,6 +78,13 @@ describe('semantic adjustment creation contract', () => {
       kind: 'maximum', placement: 'adjustment-layer',
       settings: { radius: 40, shape: 'round' }
     });
+    expect(parseSemanticAdjustmentCreationCommand({
+      kind: 'minimum', placement: 'attached', layerId: 'photo',
+      settings: { radius: 8, shape: 'square' }
+    })).toEqual({
+      kind: 'minimum', placement: 'attached', layerId: 'photo',
+      settings: { radius: 8, shape: 'square' }
+    });
   });
 
   it.each([
@@ -100,6 +107,7 @@ describe('semantic adjustment creation contract', () => {
       settings: { horizontal: 0, vertical: 0, edgeMode: 'mirror' } },
     { kind: 'maximum', placement: 'adjustment-layer', settings: { radius: 0, shape: 'round' } },
     { kind: 'maximum', placement: 'adjustment-layer', settings: { radius: 2, shape: 'diamond' } },
+    { kind: 'minimum', placement: 'adjustment-layer', settings: { radius: 501, shape: 'square' } },
     { kind: 'gradient-map', placement: 'adjustment-layer', settings: {
       colorStops: [{ position: 0, midpoint: 0.5, color: { r: 0, g: 0, b: 0 } }],
       opacityStops: [{ position: 0, midpoint: 0.5, opacity: 1 }]

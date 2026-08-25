@@ -10,7 +10,7 @@
         "curves", "exposure", "hue-saturation", "color-balance", "black-white",
         "photo-filter", "channel-mixer", "color-lookup", "selective-color", "invert",
         "posterize", "threshold", "gradient-map", "clarity-dehaze", "grain", "gaussian-blur",
-        "high-pass", "unsharp-mask", "motion-blur", "maximum", "offset"
+        "high-pass", "unsharp-mask", "motion-blur", "maximum", "minimum", "offset"
       ]
     },
     "localKind": { "type": "string", "enum": ["grade", "curves", "lens-fx"] },
@@ -212,6 +212,13 @@
                   "type": "object", "required": ["kind", "settings"],
                   "properties": {
                     "kind": { "const": "maximum" },
+                    "settings": { "$ref": "#/$defs/morphologySettings" }
+                  }
+                },
+                {
+                  "type": "object", "required": ["kind", "settings"],
+                  "properties": {
+                    "kind": { "const": "minimum" },
                     "settings": { "$ref": "#/$defs/morphologySettings" }
                   }
                 },

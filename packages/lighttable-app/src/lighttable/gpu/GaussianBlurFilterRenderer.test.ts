@@ -171,4 +171,18 @@ describe('GaussianBlurFilterRenderer', () => {
       { createView: vi.fn(() => ({})) } as unknown as GPUTexture, layer);
     expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(14);
   });
+
+  it('routes Minimum through the shared erosion mode', () => {
+    const test = fixture();
+    const layer = createAdjustmentLayer(
+      createP0FilterStack('minimum', { radius: 2, shape: 'square' },
+        (part) => `minimum-${part}`),
+      'Minimum', 'minimum'
+    );
+    test.renderer.encode(test.encoder,
+      { createView: vi.fn(() => ({})) } as unknown as GPUTexture, layer);
+    const payload = test.writeBuffer.mock.calls[0]?.[2] as ArrayBuffer;
+    expect(new DataView(payload).getUint32(12, true)).toBe(1);
+    expect(test.encoder.beginRenderPass).toHaveBeenCalledTimes(4);
+  });
 });
