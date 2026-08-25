@@ -7,7 +7,19 @@ import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const output = path.join(root, 'tmp', 'p0-filter-smoke');
+const positiveDimension = (name, fallback) => {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isSafeInteger(value) || value < 1 || value > 32_768) {
+    throw new Error(`${name} must be an integer between 1 and 32768.`);
+  }
+  return value;
+};
+const documentWidth = positiveDimension('LIGHTTABLE_P0_FILTER_WIDTH', 1920);
+const documentHeight = positiveDimension('LIGHTTABLE_P0_FILTER_HEIGHT', 1080);
+if (documentWidth * documentHeight > 268_435_456) {
+  throw new Error('P0 filter smoke document exceeds the application pixel limit.');
+}
+const output = path.join(root, 'tmp', `p0-filter-smoke-${documentWidth}x${documentHeight}`);
 const userData = path.join(output, `user-data-${process.pid}`);
 await mkdir(userData, { recursive: true });
 
@@ -17,6 +29,7 @@ delete environment.ELECTRON_RUN_AS_NODE;
 const errors = { page: [], console: [] };
 const report = {
   schema: 2, generatedAt: new Date().toISOString(), launchMode: launch.mode,
+  documentSize: { width: documentWidth, height: documentHeight },
   baselineCanvasSha256: null, baselineEstimatedGpuBytes: null,
   warmPoolEstimatedGpuBytes: null, filters: [], errors
 };
@@ -55,6 +68,9 @@ try {
     pageErrors: errors.page, label: 'p0-filter'
   });
   await page.getByRole('button', { name: 'New document' }).click();
+  const newDocument = page.locator('form.lighttable-new-document-dialog');
+  await newDocument.getByLabel('Width', { exact: true }).fill(String(documentWidth));
+  await newDocument.getByLabel('Height', { exact: true }).fill(String(documentHeight));
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await page.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ state: 'visible', timeout: 60_000 });
