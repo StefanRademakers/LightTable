@@ -286,7 +286,11 @@ export const buildTextEditingOverlay = ({
       widthPx: 1,
       color: [0.24, 0.66, 1, 0.95]
   });
-  const activeLine = layout.lines.find((line) => focus >= line.start && focus <= line.end)
+  const activeLine = layout.lines
+    .filter((line) => focus >= line.start && focus <= line.end)
+    .sort((left, right) => vertical
+      ? Math.abs(left.bounds.x - caret.x) - Math.abs(right.bounds.x - caret.x)
+      : Math.abs(left.bounds.y - caret.y) - Math.abs(right.bounds.y - caret.y))[0]
     ?? layout.lines[0];
   if (showBaseline && activeLine) {
     lines.push({

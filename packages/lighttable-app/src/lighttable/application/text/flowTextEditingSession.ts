@@ -115,7 +115,10 @@ export class FlowTextEditingSessionController {
     return true;
   }
 
-  setSelection(selection: TextSelectionRange, options: { readonly transient?: boolean } = {}) {
+  setSelection(selection: TextSelectionRange, options: {
+    readonly transient?: boolean;
+    readonly caretAffinity?: 'upstream' | 'downstream';
+  } = {}) {
     const source = this.currentSource();
     if (!source) return false;
     this.commitOpenGroup();
@@ -124,7 +127,8 @@ export class FlowTextEditingSessionController {
     this.captureInsertionStyle(source, focus);
     this.publish({
       ...this.snapshot, selection: { anchor, focus }, compositionRange: null,
-      caretAffinity: 'downstream', preferredCaretX: null
+      caretAffinity: options.caretAffinity ?? this.snapshot.caretAffinity,
+      preferredCaretX: null
     }, !options.transient);
     return true;
   }

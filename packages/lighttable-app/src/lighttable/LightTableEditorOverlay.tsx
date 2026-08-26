@@ -4398,7 +4398,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         const initial = extend && continuing
           ? { anchor: previous.selection.anchor, focus: hit.offset }
           : clicked;
-        textEditingController.setSelection(initial, { transient: true });
+        textEditingController.setSelection(initial, {
+          transient: true,
+          caretAffinity: hit.affinity
+        });
         textSelectionGestureController.begin(
           pointerId,
           layer.id,
