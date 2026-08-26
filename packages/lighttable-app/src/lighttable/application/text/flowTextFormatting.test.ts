@@ -75,14 +75,15 @@ describe('flow text character formatting', () => {
     expect(projectFlowTextFormat(formatted, { anchor: 1, focus: 1 }).target).toBe('insertion');
   });
 
-  it('applies caret paragraph formatting to the visible flow', () => {
+  it('applies caret paragraph formatting only to the current paragraph', () => {
     const source = createDefaultFlowTextSource('first\nsecond');
     const formatted = formatFlowTextSource(
       source, { anchor: 2, focus: 2 }, {}, { alignment: 'center' }
     );
     expect(formatted.paragraphRuns.map(({ start, end, alignment }) => ({ start, end, alignment })))
       .toEqual([
-        { start: 0, end: 12, alignment: 'center' }
+        { start: 0, end: 6, alignment: 'center' },
+        { start: 6, end: 12, alignment: 'start' }
       ]);
     expect(formatted.insertionParagraph?.alignment).toBe('center');
   });
@@ -98,14 +99,15 @@ describe('flow text character formatting', () => {
     ).paragraph).toMatchObject({ kind: 'value', value: { alignment: 'end' } });
   });
 
-  it('keeps the currently supported whole-flow paragraph subset uniform', () => {
+  it('expands a selection to the complete paragraphs it touches', () => {
     const source = createDefaultFlowTextSource('one\ntwo\nthree');
     const formatted = formatFlowTextSource(
       source, { anchor: 2, focus: 6 }, {}, { spaceAfter: 8 }
     );
     expect(formatted.paragraphRuns.map(({ start, end, spaceAfter }) => ({ start, end, spaceAfter })))
       .toEqual([
-        { start: 0, end: 13, spaceAfter: 8 }
+        { start: 0, end: 8, spaceAfter: 8 },
+        { start: 8, end: 13, spaceAfter: 0 }
       ]);
   });
 

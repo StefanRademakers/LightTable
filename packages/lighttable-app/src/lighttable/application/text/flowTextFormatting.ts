@@ -73,6 +73,18 @@ const selectedRuns = <Run extends RangedRun>(
     : runs.filter((run) => run.start < end && run.end > start);
 };
 
+const selectedParagraphRange = (
+  text: string,
+  selection: TextSelectionRange
+): TextSelectionRange => {
+  const { start, end } = orderedTextSelection(selection);
+  const lastSelectedOffset = start === end ? start : end - 1;
+  const paragraphStart = text.lastIndexOf('\n', start - 1) + 1;
+  const nextBreak = text.indexOf('\n', Math.min(lastSelectedOffset, text.length));
+  const paragraphEnd = nextBreak < 0 ? text.length : nextBreak + 1;
+  return { anchor: paragraphStart, focus: paragraphEnd };
+};
+
 const mixed = <Value>(values: readonly Value[]): MixedValue<Value> => {
   if (!values.length) return { kind: 'unavailable' };
   const first = comparable(values[0]);
@@ -240,7 +252,11 @@ export const formatFlowTextSource = (
           ? withoutRange(caretRun(source.paragraphRuns, ordered.start)!) : undefined);
     return {
       ...source,
-      paragraphRuns: patchRuns(source.paragraphRuns, null, paragraphPatch),
+      paragraphRuns: patchRuns(
+        source.paragraphRuns,
+        selectedParagraphRange(source.text, selection!),
+        paragraphPatch
+      ),
       ...(styleSeed ? { insertionStyle: applyPatch(styleSeed, stylePatch) } : {}),
       ...(paragraphSeed ? { insertionParagraph: applyPatch(paragraphSeed, paragraphPatch) } : {})
     };
@@ -253,7 +269,11 @@ export const formatFlowTextSource = (
   return {
     ...source,
     styleRuns: patchRuns(source.styleRuns, selection, stylePatch),
-    paragraphRuns: patchRuns(source.paragraphRuns, null, paragraphPatch),
+    paragraphRuns: patchRuns(
+      source.paragraphRuns,
+      selection ? selectedParagraphRange(source.text, selection) : null,
+      paragraphPatch
+    ),
     ...(!selection && source.styleRuns.length === 0 && emptyStyleSeed
       ? { insertionStyle: applyPatch(emptyStyleSeed, stylePatch) } : {}),
     ...(!selection && source.paragraphRuns.length === 0 && emptyParagraphSeed
