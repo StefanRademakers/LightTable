@@ -314,6 +314,7 @@ const createDefaultLayout = (
   // group before a later registration can be added `within` that group.
   // Otherwise Dockview leaves the later tab behind in the original dock.
   panels.forEach((panel) => {
+    if (panel.initiallyAbsent) return;
     const dockPanel = addRegisteredPanel(api, panel);
     const floating = panel.defaultFloating;
     if (!floating || !dockPanel) return;
@@ -372,6 +373,7 @@ const rebuildAccessoryLayout = (
 
   for (const panel of panels) {
     if (api.getPanel(panel.id)) continue;
+    if (panel.initiallyAbsent) continue;
     const dockPanel = addRegisteredPanel(api, panel);
     const floating = panel.defaultFloating;
     if (!floating || !dockPanel) continue;
@@ -626,6 +628,7 @@ export const LightTableDockWorkspace = forwardRef<
       panel.defaultFloating?.xRatio,
       panel.defaultFloating?.yRatio,
       panel.initiallyInactive,
+      panel.initiallyAbsent,
       panel.requiredForSavedLayout
     ].join(':'))
     .join('|');

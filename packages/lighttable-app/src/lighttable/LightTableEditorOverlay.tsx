@@ -8016,6 +8016,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               },
               layers: layersPanel,
               channels: channelsPanel,
+              color: {
+                value: editorSession.brush.color,
+                onChange: (color) => updateBrush({ color })
+              },
               debug: {
                 messages: debugMessages,
                 onClear: clearDebugMessages,

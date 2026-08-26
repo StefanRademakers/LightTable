@@ -14,6 +14,7 @@ import {
   type LightTableWorkspacePanelRegistration
 } from '../../editor/workspace/workspacePanelRegistry';
 import { P0_FILTER_DEFINITIONS } from '@lighttable/filter-core';
+import { ColorPicker, colorPickerHex, colorPickerParseHex } from '../../../ui/ColorPicker';
 
 type ScopesPanelComponent = typeof import('../../ScopesPanel')['ScopesPanel'];
 type DebugPanelComponent = typeof import('../../editor/ui/DebugPanel')['DebugPanel'];
@@ -103,6 +104,10 @@ export interface EditorWorkspacePanelBindings {
   actions: React.ComponentProps<ActionsPanelComponent>;
   genAi: React.ComponentProps<GenAiPanelComponent>;
   aiHistory: React.ComponentProps<typeof ProjectAssetBrowser>;
+  color: {
+    readonly value: string;
+    readonly onChange: (value: string) => void;
+  };
 }
 
 /**
@@ -128,7 +133,8 @@ export const createEditorWorkspacePanels = ({
   agent,
   actions,
   genAi,
-  aiHistory
+  aiHistory,
+  color
 }: EditorWorkspacePanelBindings): LightTableWorkspacePanelRegistration[] =>
   createDefaultLightTableWorkspacePanels({
     scopes: documentKind === 'image'
@@ -178,6 +184,10 @@ export const createEditorWorkspacePanels = ({
     actions: deferPanel(<ActionsPanel {...actions} />),
     genAi: deferPanel(<GenAiPanel {...genAi} />),
     aiHistory: <ProjectAssetBrowser {...aiHistory} />,
+    color: <ColorPicker
+      value={colorPickerParseHex(color.value) ?? { r: 0, g: 0, b: 0, a: 1 }}
+      onChange={(value) => color.onChange(colorPickerHex(value).toLowerCase())}
+    />,
     videoControls: videoControls ?? (
       <DocumentKindPanel
         title="Video Controls"

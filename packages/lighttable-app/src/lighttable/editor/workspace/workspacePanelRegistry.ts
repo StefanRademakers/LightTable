@@ -11,6 +11,7 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   actions: 'lighttable.actions',
   genAi: 'lighttable.genai',
   aiHistory: 'lighttable.ai-history',
+  color: 'lighttable.color',
   videoControls: 'lighttable.video-controls'
 } as const;
 
@@ -32,6 +33,8 @@ export interface LightTableWorkspacePanelRegistration {
   minimumHeight?: number;
   /** Hide the Dockview tab strip while this is the sole panel in a docked group. */
   hideHeaderWhenAlone?: boolean;
+  /** Register the panel for menus and explicit opening without showing it in a fresh layout. */
+  initiallyAbsent?: boolean;
   defaultFloating?: {
     width: number;
     height: number;
@@ -52,6 +55,7 @@ export interface DefaultLightTableWorkspacePanelContent {
   actions: ReactNode;
   genAi: ReactNode;
   aiHistory: ReactNode;
+  color?: ReactNode;
   videoControls?: ReactNode;
 }
 
@@ -176,6 +180,23 @@ export const createDefaultLightTableWorkspacePanels = (
       direction: 'within'
     },
     initiallyInactive: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.color,
+    contentKey: 'color',
+    title: 'Color',
+    content: content.color ?? null,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost,
+      direction: 'within'
+    },
+    initiallyAbsent: true,
+    defaultFloating: {
+      width: 338,
+      height: 500,
+      xRatio: 0.08,
+      yRatio: 0.42
+    }
   },
   {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls,
