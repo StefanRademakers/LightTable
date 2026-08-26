@@ -13,7 +13,6 @@ export type SourceFormatSaveKind = NativeBitmapFormatId;
 export type SourceFormatSaveBlocker =
   | 'no-replaceable-source'
   | 'unsupported-source-format'
-  | 'unsupported-bit-depth'
   | 'document-structure'
   | 'document-metadata'
   | 'live-document-processing'
@@ -61,7 +60,6 @@ const rasterHasOnlyFlattenedSemantics = (
   && layer.fillOpacity === 1
   && layer.blendMode === 'normal'
   && !layer.clipping
-  && !Object.values(layer.locks).some(Boolean)
   && layer.styleStack.effects.length === 0
   && layer.adjustmentStack === null
   && (layer.attachedAdjustments?.length ?? 0) === 0
@@ -92,11 +90,6 @@ export const planSourceFormatSave = ({
   if (!source?.sourcePath) blockers.push('no-replaceable-source');
   const format = source ? sourceFormat(source) : null;
   if (!format) blockers.push('unsupported-source-format');
-  if (format && !nativeBitmapFormat(format).writableBitDepths.includes(
-    document.colorSettings.bitDepth as 8 | 16
-  )) {
-    blockers.push('unsupported-bit-depth');
-  }
 
   const layer = document.layers.length === 1 && document.layers[0]?.type === 'raster'
     ? document.layers[0]
@@ -120,12 +113,15 @@ export const planSourceFormatSave = ({
   if (blockers.length || !source?.sourcePath || !format) {
     return { kind: 'lighttable-document', blockers: [...new Set(blockers)] };
   }
+  const definition = nativeBitmapFormat(format);
+  const bitDepth = document.colorSettings.bitDepth === 16
+    && definition.writableBitDepths.includes(16) ? 16 : 8;
   return {
     kind: 'replace-source',
     format,
     sourcePath: source.sourcePath,
     sourceName: source.name,
-    mediaType: nativeBitmapFormat(format).mediaType,
-    bitDepth: document.colorSettings.bitDepth as 8 | 16
+    mediaType: definition.mediaType,
+    bitDepth
   };
 };

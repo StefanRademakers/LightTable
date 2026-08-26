@@ -138,7 +138,7 @@ describe('planSourceFormatSave', () => {
     }
   );
 
-  it('rejects source replacement without desktop authority or matching precision', () => {
+  it('rejects source replacement without desktop authority or a matching format', () => {
     expect(planSourceFormatSave({
       document: document(),
       source: { name: 'portrait.png', type: 'image/png' },
@@ -149,7 +149,7 @@ describe('planSourceFormatSave', () => {
     const highBitDepth = document();
     highBitDepth.colorSettings.bitDepth = 16;
     expect(plan(highBitDepth)).toMatchObject({
-      blockers: expect.arrayContaining(['unsupported-bit-depth'])
+      kind: 'replace-source', format: 'jpeg', bitDepth: 8
     });
 
     expect(planSourceFormatSave({
@@ -182,5 +182,11 @@ describe('planSourceFormatSave', () => {
     expect(plan(transformed)).toMatchObject({
       blockers: expect.arrayContaining(['live-layer-semantics', 'document-metadata'])
     });
+  });
+
+  it('does not treat pixel-editing locks as bitmap content', () => {
+    const locked = document();
+    locked.layers[0]!.locks.pixels = true;
+    expect(plan(locked)).toMatchObject({ kind: 'replace-source', format: 'jpeg' });
   });
 });
