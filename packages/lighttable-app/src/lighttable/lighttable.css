@@ -4743,7 +4743,6 @@
 }
 .lighttable-color-panel .lighttable-color-picker-prototype {
   width: 100%;
-  min-height: 100%;
   max-width: none;
   box-sizing: border-box;
   border: 0;
