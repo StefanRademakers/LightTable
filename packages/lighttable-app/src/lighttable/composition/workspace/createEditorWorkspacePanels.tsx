@@ -184,10 +184,12 @@ export const createEditorWorkspacePanels = ({
     actions: deferPanel(<ActionsPanel {...actions} />),
     genAi: deferPanel(<GenAiPanel {...genAi} />),
     aiHistory: <ProjectAssetBrowser {...aiHistory} />,
-    color: <ColorPicker
-      value={colorPickerParseHex(color.value) ?? { r: 0, g: 0, b: 0, a: 1 }}
-      onChange={(value) => color.onChange(colorPickerHex(value).toLowerCase())}
-    />,
+    color: <aside className="lighttable-color-panel" aria-label="Color">
+      <ColorPicker
+        value={colorPickerParseHex(color.value) ?? { r: 0, g: 0, b: 0, a: 1 }}
+        onChange={(value) => color.onChange(colorPickerHex(value).toLowerCase())}
+      />
+    </aside>,
     videoControls: videoControls ?? (
       <DocumentKindPanel
         title="Video Controls"

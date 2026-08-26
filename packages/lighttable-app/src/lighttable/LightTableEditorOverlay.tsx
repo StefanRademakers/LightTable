@@ -7587,7 +7587,10 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     </div>
   );
   return (
-    <DocumentPaletteProvider loadPalette={loadDocumentPalette}>
+    <DocumentPaletteProvider
+      loadPalette={loadDocumentPalette}
+      revisionKey={`${imageDocument?.id ?? workspaceDocumentId}:${imageDocument?.revision ?? 0}`}
+    >
     <LightTableEditorShell
       workspaceDocumentKind={workspaceDocumentKind}
       screenMode={screenMode}

@@ -7,6 +7,7 @@ import { SquareIconButton } from './SquareIconButton';
 import { sampleScreenColor } from './colorSampling';
 import {
   useDocumentPaletteLoader,
+  useDocumentPaletteRevision,
   type DocumentPaletteColor
 } from './DocumentPaletteContext';
 
@@ -93,20 +94,56 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   const [rgb, setRgb] = React.useState([byte(value.r), byte(value.g), byte(value.b)].map(String));
   const [sampling, setSampling] = React.useState(false);
   const loadDocumentPalette = useDocumentPaletteLoader();
+  const documentPaletteRevision = useDocumentPaletteRevision();
   const [imagePalette, setImagePalette] = React.useState<readonly DocumentPaletteColor[] | null>(null);
   const [paletteError, setPaletteError] = React.useState<string | null>(null);
+  const loadedPaletteRevision = React.useRef<string | number | null>(null);
   React.useEffect(() => {
     if (!loadDocumentPalette) return;
     let current = true;
-    setImagePalette(null);
-    setPaletteError(null);
-    void loadDocumentPalette(16).then((palette) => {
-      if (current) setImagePalette(palette);
-    }).catch((reason) => {
-      if (current) setPaletteError(reason instanceof Error ? reason.message : String(reason));
-    });
-    return () => { current = false; };
-  }, [loadDocumentPalette]);
+    let timer: number | null = null;
+    let idle: number | null = null;
+    const inputPending = () => Boolean((navigator as Navigator & {
+      scheduling?: { isInputPending?: () => boolean };
+    }).scheduling?.isInputPending?.());
+    const load = () => {
+      if (!current) return;
+      if (inputPending()) {
+        timer = window.setTimeout(scheduleIdle, 1000);
+        return;
+      }
+      setPaletteError(null);
+      void loadDocumentPalette(16).then((palette) => {
+        if (!current) return;
+        loadedPaletteRevision.current = documentPaletteRevision;
+        setImagePalette(palette);
+      }).catch((reason) => {
+        if (current) setPaletteError(reason instanceof Error ? reason.message : String(reason));
+      });
+    };
+    const scheduleIdle = () => {
+      if (!current) return;
+      if (typeof window.requestIdleCallback === 'function') {
+        idle = window.requestIdleCallback((deadline) => {
+          idle = null;
+          if (inputPending() || (!deadline.didTimeout && deadline.timeRemaining() < 8)) {
+            timer = window.setTimeout(scheduleIdle, 1000);
+            return;
+          }
+          load();
+        }, { timeout: 5000 });
+      } else {
+        timer = window.setTimeout(load, 500);
+      }
+    };
+    const initialLoad = loadedPaletteRevision.current === null;
+    timer = window.setTimeout(scheduleIdle, initialLoad ? 0 : 2500);
+    return () => {
+      current = false;
+      if (timer !== null) window.clearTimeout(timer);
+      if (idle !== null) window.cancelIdleCallback(idle);
+    };
+  }, [documentPaletteRevision, loadDocumentPalette]);
   React.useEffect(() => {
     setHsv((current) => colorPickerHsvFromValue(value, current));
     setHex(colorPickerHex(value));

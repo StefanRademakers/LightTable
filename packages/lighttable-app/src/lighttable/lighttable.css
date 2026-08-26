@@ -4734,6 +4734,19 @@
 .lighttable-tool-options__paint-types + .lighttable-color-picker-prototype,
 .lighttable-tool-options__paint-types + .lighttable-style-gradient { margin-top: 12px; }
 
+.lighttable-color-panel {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  overflow: auto;
+  box-sizing: border-box;
+}
+.lighttable-color-panel .lighttable-color-picker-prototype {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
 .lighttable-style-editor__empty {
   display: grid;
   min-height: 100%;

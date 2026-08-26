@@ -17,11 +17,18 @@ export type DocumentPaletteLoader = (
 ) => Promise<readonly DocumentPaletteColor[]>;
 
 const DocumentPaletteContext = React.createContext<DocumentPaletteLoader | null>(null);
+const DocumentPaletteRevisionContext = React.createContext<string | number>(0);
 
 export const DocumentPaletteProvider: React.FC<React.PropsWithChildren<{
   readonly loadPalette: DocumentPaletteLoader;
-}>> = ({ loadPalette, children }) => (
-  <DocumentPaletteContext.Provider value={loadPalette}>{children}</DocumentPaletteContext.Provider>
+  readonly revisionKey?: string | number;
+}>> = ({ loadPalette, revisionKey = 0, children }) => (
+  <DocumentPaletteContext.Provider value={loadPalette}>
+    <DocumentPaletteRevisionContext.Provider value={revisionKey}>
+      {children}
+    </DocumentPaletteRevisionContext.Provider>
+  </DocumentPaletteContext.Provider>
 );
 
 export const useDocumentPaletteLoader = () => React.useContext(DocumentPaletteContext);
+export const useDocumentPaletteRevision = () => React.useContext(DocumentPaletteRevisionContext);
