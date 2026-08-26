@@ -17,6 +17,7 @@ import { LayerPanel } from '../../editor/ui/LayerPanel';
 import type { TextFontDiagnostic } from '../../text/fonts/textLayerFontStatus';
 import type { PropertiesInspectorTarget } from '../../application/properties/propertiesInspectorTarget';
 import type { LocalProcessingKind } from '../../processing/adjustmentStack';
+import type { LayerStyleKind } from '../../editor/styles/layerStyleTypes';
 
 export interface LayersWorkspacePanelProps {
   document: ImageDocument | null;
@@ -56,6 +57,7 @@ export interface LayersWorkspacePanelProps {
   onCopyGlobalGrade: () => void;
   onPasteGlobalGrade: () => void;
   onInspectAttachedAdjustment: (layerId: LayerId, adjustmentId: string) => void;
+  onAddStyle: (kind: LayerStyleKind) => void;
 }
 
 /**
@@ -101,7 +103,8 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
   onResetGlobalLensFx,
   onCopyGlobalGrade,
   onPasteGlobalGrade,
-  onInspectAttachedAdjustment
+  onInspectAttachedAdjustment,
+  onAddStyle
 }) => {
   if (!document) {
     return (
@@ -160,6 +163,7 @@ export const LayersWorkspacePanel: React.FC<LayersWorkspacePanelProps> = ({
         onFlattenGroup={controller.flattenGroup}
         onFlattenImage={controller.flattenImage}
         onEditStyles={controller.editStyles}
+        onAddStyle={onAddStyle}
         onStyleStackEnabled={controller.setStyleStackEnabled}
         onLocalGradeEnabled={controller.setLocalGradeEnabled}
         onLocalCurvesEnabled={controller.setLocalCurvesEnabled}

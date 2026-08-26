@@ -6885,6 +6885,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       isolatedMaskLayerId={isolatedMaskLayerId}
       openMaskEditingOnDoubleClick={toolPreferences?.openMaskEditingOnDoubleClick ?? true}
       controller={commandLayerPanelController}
+      onAddStyle={addLayerEffectFromMenu}
       selectedLayerIds={selectedLayerIds}
       onLayerNamePointerDown={handleLayerNamePointerDown}
       consumeLayerNameRenameGesture={consumeLayerNameRenameGesture}

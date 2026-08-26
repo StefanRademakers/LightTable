@@ -18,7 +18,8 @@ import { layerTreeItemAccessibility, useLayerTreeKeyboardNavigation } from '../.
 import { primaryShortcutLabel } from '../../application/input/editorShortcutPresentation';
 import type { PaintChannel } from '../session/editorSession';
 import { BLEND_MODES, type BlendMode } from '../document/blendModes';
-import type { LayerStyleId } from '../styles/layerStyleTypes';
+import type { LayerStyleId, LayerStyleKind } from '../styles/layerStyleTypes';
+import { layerStyleKindLabels } from '../styles/layerStyleDefaults';
 import type {
   LayerThumbnailSet
 } from '../layers/layerThumbnailTypes';
@@ -97,6 +98,7 @@ interface LayerPanelProps {
   onFlattenGroup: (groupId: LayerId) => void;
   onFlattenImage: () => void;
   onEditStyles: (layerId: LayerId, effectId?: LayerStyleId) => void;
+  onAddStyle: (kind: LayerStyleKind) => void;
   onStyleStackEnabled: (layerId: LayerId, enabled: boolean) => void;
   onLocalGradeEnabled: (layerId: LayerId, enabled: boolean) => void;
   onLocalCurvesEnabled: (layerId: LayerId, enabled: boolean) => void;
@@ -185,6 +187,10 @@ export const LAYER_CREATION_OPTIONS = [
   })()
 ] as const;
 
+const LAYER_STYLE_OPTIONS = Object.entries(layerStyleKindLabels) as Array<
+  [LayerStyleKind, string]
+>;
+
 const visualLayerRows = (
   layers: readonly LayerNode[],
   collapsedGroups: ReadonlySet<LayerId>,
@@ -271,6 +277,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   onFlattenGroup,
   onFlattenImage,
   onEditStyles,
+  onAddStyle,
   onStyleStackEnabled,
   onLocalGradeEnabled,
   onLocalCurvesEnabled,
@@ -326,6 +333,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   const [createLayerMenuOpen, setCreateLayerMenuOpen] = React.useState(false);
   const createLayerMenuTriggerRef = React.useRef<HTMLButtonElement>(null);
   const closeCreateLayerMenu = React.useCallback(() => setCreateLayerMenuOpen(false), []);
+  const [styleMenuOpen, setStyleMenuOpen] = React.useState(false);
+  const styleMenuTriggerRef = React.useRef<HTMLButtonElement>(null);
+  const closeStyleMenu = React.useCallback(() => setStyleMenuOpen(false), []);
   const selectedLayerIds = React.useMemo(
     () => new Set(controlledSelectedLayerIds),
     [controlledSelectedLayerIds]
@@ -1430,17 +1440,44 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       </div>
       <footer className="lighttable-layers__footer">
         <ButtonBase
+          ref={styleMenuTriggerRef}
           type="button"
           className="lighttable-layers__fx-button"
           onClick={() => {
-            if (activeLayer && layerSupportsLayerStyles(activeLayer)) onEditStyles(activeLayer.id);
+            if (!activeLayer || !layerSupportsLayerStyles(activeLayer)) return;
+            onEditStyles(activeLayer.id);
+            setCreateLayerMenuOpen(false);
+            setStyleMenuOpen((open) => !open);
           }}
           disabled={activeIsDocumentFx || !canEditActiveLayerStyles}
           title={activeIsDocumentFx
             ? 'Layer styles are not available for document-final effects'
             : canEditActiveLayerStyles ? 'Open layer effects' : 'Select a layer that supports effects'}
           aria-label="Add layer style"
+          aria-haspopup="menu"
+          aria-expanded={styleMenuOpen}
         >fx</ButtonBase>
+        {styleMenuOpen ? (
+          <AnchoredViewportMenu
+            anchor={styleMenuTriggerRef}
+            className="lighttable-layers__create-flyout"
+            ariaLabel="Add layer effect"
+            onClose={closeStyleMenu}
+          >
+            {LAYER_STYLE_OPTIONS.map(([kind, label]) => (
+              <ButtonBase
+                key={kind}
+                className="lighttable-layers__create-layer"
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setStyleMenuOpen(false);
+                  onAddStyle(kind);
+                }}
+              ><span>{label}</span></ButtonBase>
+            ))}
+          </AnchoredViewportMenu>
+        ) : null}
         <ButtonBase
           type="button"
           className={groupDropActive ? 'lighttable-layers__group--drop-active' : undefined}
@@ -1509,7 +1546,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
             ref={createLayerMenuTriggerRef}
             type="button"
             className="lighttable-layers__create-menu-trigger"
-            onClick={() => setCreateLayerMenuOpen((open) => !open)}
+            onClick={() => {
+              setStyleMenuOpen(false);
+              setCreateLayerMenuOpen((open) => !open);
+            }}
             title="New fill or processing layer"
             aria-label="New fill or processing layer"
             aria-haspopup="menu"
