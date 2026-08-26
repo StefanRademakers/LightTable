@@ -623,6 +623,7 @@ export interface LightTableEditorOverlayProps {
     readonly editProviderId: string;
   };
   releaseService?: import('../platform/LightTableHost').LightTableReleaseService; hostKind?: import('../platform/LightTableHost').LightTableHost['kind'];
+  developerService?: import('../platform/LightTableHost').LightTableHost['developer'];
   genAiService?: import('../platform/LightTableHost').LightTableGenAiService;
   onGenAiGenerationSucceeded?: (job: GenAiGenerationJob) => void;
   onGenAiOpenResult?: (job: GenAiGenerationJob) => void;
@@ -695,7 +696,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   recoveryPreferences,
   toolPreferences,
   genAiPreferences,
-  releaseService, genAiService, onGenAiGenerationSucceeded, onGenAiOpenResult, onGenAiOpenAsset, hostKind = 'web',
+  releaseService, developerService, genAiService, onGenAiGenerationSucceeded, onGenAiOpenResult, onGenAiOpenAsset, hostKind = 'web',
   recoveryNotice = null,
   onRecoveryResolved
 }) => {
@@ -3140,6 +3141,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       setEditorSession((current) => ({ ...current, selection: [] }));
       setSelectionClipboardAvailable(false);
       editorDialogs.closeFeather();
+      editorDialogs.closeSelectionMorphology();
       setLensBlurViewportModeState('result');
       clearEditorHistory();
       resetHistogram();
@@ -3219,6 +3221,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
           setSelectionDraft(null);
           setSelectionClipboardAvailable(false);
           editorDialogs.closeFeather();
+          editorDialogs.closeSelectionMorphology();
           resetTransformRef.current();
         },
         resetLensBlur: () => {
@@ -3542,10 +3545,24 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       kind: 'modify', operation: 'invert'
     })) invertCurrentSelectionOwner();
   };
-  const featherCurrentSelection = (radius: number) => {
+  const featherCurrentSelection = (radius: number, applyAtCanvasBounds: boolean) => {
     if (!executeRegisteredCommand('selection.modify', {
-      kind: 'modify', operation: 'feather', radius
-    })) void selectionSessionController.feather(radius);
+      kind: 'modify', operation: 'feather', radius, applyAtCanvasBounds
+    })) void selectionSessionController.feather(radius, applyAtCanvasBounds);
+  };
+  const modifyCurrentSelection = (
+    operation: 'border' | 'smooth' | 'expand' | 'contract',
+    amount: number,
+    applyAtCanvasBounds: boolean
+  ) => {
+    const parameters = operation === 'border'
+      ? { kind: 'modify' as const, operation, width: amount }
+      : { kind: 'modify' as const, operation, radius: amount, applyAtCanvasBounds };
+    if (executeRegisteredCommand('selection.modify', parameters)) return;
+    if (operation === 'border') void selectionSessionController.border(amount);
+    else if (operation === 'smooth') {
+      void selectionSessionController.smooth(amount, applyAtCanvasBounds);
+    } else void selectionSessionController.morphology(operation, amount, applyAtCanvasBounds);
   };
   const presentViewportImmediately = useCallback((
     scale: number,
@@ -3623,6 +3640,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       saveFile: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void handleSave(); },
       quickExportPng: () => { finishTextEditingRef.current(); commitPointTextRef.current(); commitParagraphTextRef.current(); void quickExportPngRef.current(); },
       openImageSize: editorDialogs.openImageSize,
+      openCanvasSize: editorDialogs.openCanvasSize,
       applyAdjustment: (kind) => applyAdjustmentRef.current(kind),
       isTransformActive: () => transformActiveRef.current(),
       commitTransform: () => commitTransformRef.current(),
@@ -5519,10 +5537,32 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       executeSelectionCommand: async (command) => {
         if (command.kind === 'modify') {
           const applied = command.operation === 'feather'
-            ? await selectionSessionController.feather(command.radius!)
-            : await selectionSessionController.applyState(command.operation);
+            ? await selectionSessionController.feather(
+                command.radius!,
+                command.applyAtCanvasBounds === true
+              )
+            : command.operation === 'border'
+              ? await selectionSessionController.border(command.width!)
+              : command.operation === 'smooth'
+                ? await selectionSessionController.smooth(
+                    command.radius!,
+                    command.applyAtCanvasBounds === true
+                  )
+            : command.operation === 'expand' || command.operation === 'contract'
+              ? await selectionSessionController.morphology(
+                  command.operation,
+                  command.radius!,
+                  command.applyAtCanvasBounds === true
+                )
+              : await selectionSessionController.applyState(command.operation);
           return applied ? { operation: command.operation,
-            ...(command.operation === 'feather' ? { radius: command.radius } : {}) } : null;
+            ...(command.operation === 'feather' || command.operation === 'smooth'
+              || command.operation === 'expand' || command.operation === 'contract'
+              ? { radius: command.radius } : {}),
+            ...(command.operation === 'border' ? { width: command.width } : {}),
+            ...(command.operation === 'feather' || command.operation === 'smooth'
+              || command.operation === 'expand' || command.operation === 'contract'
+              ? { applyAtCanvasBounds: command.applyAtCanvasBounds === true } : {}) } : null;
         }
         if (command.kind === 'magic-wand') {
           const applied = await selectionSessionController.applyMagicWand(
@@ -6820,6 +6860,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
         }
       },
       openStyleGuide: onOpenStyleGuide,
+      reloadUi: developerService?.reloadUi,
+      toggleDeveloperTools: developerService?.toggleDeveloperTools,
       toggleScreenMode,
       resetLayout: () => workspaceRef.current?.resetLayout(),
       applyPhotoEditWorkspace: () => workspaceRef.current?.applyPreset('photo-edit'),
@@ -7748,6 +7790,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             onReplaceTextFont: missingFontReplacementActions.replace,
             onReplaceTextFonts: missingFontReplacementActions.replaceDocument,
             onFeather: featherCurrentSelection,
+            onSelectionModify: modifyCurrentSelection,
             foregroundColor: editorSession.brush.color,
             backgroundColor: editorSession.brush.backgroundColor,
             onFill: fillActiveTarget,

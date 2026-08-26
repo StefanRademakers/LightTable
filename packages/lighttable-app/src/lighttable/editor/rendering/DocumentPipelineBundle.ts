@@ -5,6 +5,7 @@ import {
   LAYER_EXPORT_WGSL,
   LAYER_STYLE_SHAPE_WGSL
 } from './layerShaders';
+import { LAYER_MASK_TEXTURE_FORMAT } from './DocumentTextureFactory';
 import {
   LAYER_ADOBE_RGB_SOURCE_DECODE_WGSL,
   LAYER_MASK_DECODE_WGSL,
@@ -50,7 +51,7 @@ export const documentPipelinesFor = (device: GPUDevice): DocumentPipelineBundle 
       LAYER_ADOBE_RGB_SOURCE_DECODE_WGSL,
       'rgba16float'
     ),
-    maskDecode: create('LightTable mask source decode', LAYER_MASK_DECODE_WGSL, 'r8unorm'),
+    maskDecode: create('LightTable mask source decode', LAYER_MASK_DECODE_WGSL, LAYER_MASK_TEXTURE_FORMAT),
     exportLayer: create('LightTable raster layer export', LAYER_EXPORT_WGSL, 'rgba8unorm'),
     composite: create('LightTable layer compositor', LAYER_COMPOSITE_WGSL, 'rgba16float'),
     adjustmentMix: create('LightTable adjustment layer mix', ADJUSTMENT_LAYER_MIX_WGSL, 'rgba16float'),

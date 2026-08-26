@@ -116,6 +116,8 @@ export interface EditorMenuControllerOptions {
     connectOpenArtProvider?(): void;
     disconnectOpenArtProvider?(): void;
     openStyleGuide?(): void;
+    reloadUi?(): void;
+    toggleDeveloperTools?(): void;
     toggleScreenMode(): void;
     resetLayout(): void;
     applyPhotoEditWorkspace(): void;
@@ -203,6 +205,10 @@ export const createEditorMenuController = ({
       selectAll: selection.selectAll,
       clearSelection: selection.clear,
       invertSelection: selection.invert,
+      borderSelection: dialogs.openBorder,
+      smoothSelection: dialogs.openSmooth,
+      expandSelection: dialogs.openExpand,
+      contractSelection: dialogs.openContract,
       featherSelection: dialogs.openFeather,
       removeObject: selection.removeObject,
       removeBackground: selection.removeBackground,
@@ -317,6 +323,8 @@ export const createEditorMenuController = ({
       connectOpenArtProvider: workspace.connectOpenArtProvider,
       disconnectOpenArtProvider: workspace.disconnectOpenArtProvider,
       openStyleGuide: workspace.openStyleGuide,
+      reloadUi: workspace.reloadUi,
+      toggleDeveloperTools: workspace.toggleDeveloperTools,
       toggleScreenMode: workspace.toggleScreenMode,
       resetWorkspaceLayout: workspace.resetLayout,
       applyPhotoEditWorkspace: workspace.applyPhotoEditWorkspace,

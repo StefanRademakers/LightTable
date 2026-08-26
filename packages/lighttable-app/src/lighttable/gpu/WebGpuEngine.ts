@@ -1449,7 +1449,23 @@ export class WebGpuEngine {
         } else if (operation.source?.kind === 'raster-mask') {
           if (!await this.applyRasterSelectionNow(operation)) return false;
         } else if (operation.mode === 'feather') {
-          if (!this.documentRenderer?.featherSelection(operation.amount ?? 0)) return false;
+          if (!this.documentRenderer?.featherSelection(
+            operation.amount ?? 0,
+            operation.applyAtCanvasBounds === true
+          )) return false;
+        } else if (operation.mode === 'border') {
+          if (!this.documentRenderer?.borderSelection(operation.amount ?? 0)) return false;
+        } else if (operation.mode === 'smooth') {
+          if (!this.documentRenderer?.smoothSelection(
+            operation.amount ?? 0,
+            operation.applyAtCanvasBounds === true
+          )) return false;
+        } else if (operation.mode === 'expand' || operation.mode === 'contract') {
+          if (!this.documentRenderer?.modifySelectionMorphology(
+            operation.mode,
+            operation.amount ?? 0,
+            operation.applyAtCanvasBounds === true
+          )) return false;
         } else if (operation.mode === 'transform') {
           if (!operation.transform || !this.documentRenderer?.transformSelection(operation.transform)) {
             return false;

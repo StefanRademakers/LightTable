@@ -54,7 +54,7 @@ export class PixelEditSessionStore {
     return this.activeSnapshot
       ? this.activeSnapshot.tiles.reduce(
           (bytes, tile) => bytes + tile.width * tile.height
-            * (this.activeSnapshot?.channel === 'mask' ? 1 : 8),
+            * (this.activeSnapshot?.channel === 'mask' ? 2 : 8),
           0
         )
       : 0;

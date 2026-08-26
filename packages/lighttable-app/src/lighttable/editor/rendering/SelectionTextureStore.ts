@@ -54,9 +54,9 @@ export class SelectionTextureStore {
   estimatedTextureBytes(width: number, height: number) {
     const pixels = Math.max(1, width) * Math.max(1, height);
     let bytes = 0;
-    if (this.mask) bytes += pixels;
-    if (this.result) bytes += pixels;
-    if (this.shape) bytes += pixels;
+    if (this.mask) bytes += pixels * 2;
+    if (this.result) bytes += pixels * 2;
+    if (this.shape) bytes += pixels * 2;
     if (this.clipboard) bytes += pixels * 8;
     return bytes;
   }

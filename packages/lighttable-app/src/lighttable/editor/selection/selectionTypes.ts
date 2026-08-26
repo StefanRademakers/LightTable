@@ -11,7 +11,8 @@ export type SelectionToolId =
   | 'select-magic-wand';
 export type GeometricSelectionToolId = Exclude<SelectionToolId, 'select-magic-wand' | 'select-object'>;
 export type SelectionCombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
-export type SelectionMode = SelectionCombineMode | 'invert' | 'feather' | 'transform';
+export type SelectionMode = SelectionCombineMode | 'invert' | 'feather' | 'border' | 'smooth'
+  | 'expand' | 'contract' | 'transform';
 export type CompositeColorChannel = 'red' | 'green' | 'blue';
 export type CompositeSelectionChannel = 'composite' | CompositeColorChannel;
 
@@ -86,6 +87,8 @@ export interface SelectionOperation {
       };
   /** Document-space feather radius for a feather command or one geometric source. */
   amount?: number;
+  /** Whether a mask modifier treats pixels outside the document as unselected. */
+  applyAtCanvasBounds?: boolean;
   /** Supersamples this geometric source before it is combined. */
   antiAlias?: boolean;
   /** Replayable affine edit for raster-backed and geometric selections alike. */
@@ -205,10 +208,47 @@ export const createInvertSelectionOperation = (
 export const createFeatherSelectionOperation = (
   width: number,
   height: number,
-  radius: number
+  radius: number,
+  applyAtCanvasBounds = false
 ): SelectionOperation => ({
   mode: 'feather',
   amount: Math.max(0, radius),
+  applyAtCanvasBounds,
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
+
+export const createBorderSelectionOperation = (
+  width: number,
+  height: number,
+  borderWidth: number
+): SelectionOperation => ({
+  mode: 'border',
+  amount: Math.max(1, Math.min(200, Math.round(borderWidth))),
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
+
+export const createSmoothSelectionOperation = (
+  width: number,
+  height: number,
+  radius: number,
+  applyAtCanvasBounds: boolean
+): SelectionOperation => ({
+  mode: 'smooth',
+  amount: Math.max(1, Math.min(100, Math.round(radius))),
+  applyAtCanvasBounds,
+  shape: createFullCanvasSelection(width, height)[0].shape
+});
+
+export const createMorphologySelectionOperation = (
+  width: number,
+  height: number,
+  mode: 'expand' | 'contract',
+  radius: number,
+  applyAtCanvasBounds: boolean
+): SelectionOperation => ({
+  mode,
+  amount: Math.max(1, Math.min(500, Math.round(radius))),
+  applyAtCanvasBounds,
   shape: createFullCanvasSelection(width, height)[0].shape
 });
 

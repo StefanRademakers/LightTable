@@ -7,6 +7,7 @@ export interface EditorKeyboardCommandPorts {
   saveFile(): void;
   quickExportPng(): void;
   openImageSize(): void;
+  openCanvasSize(): void;
   applyAdjustment(kind: AdjustmentLayerKind): void;
   isTransformActive(): boolean;
   commitTransform(): void;
@@ -95,6 +96,9 @@ export const executeEditorKeyboardCommand = (
       return;
     case 'open-image-size':
       ports.openImageSize();
+      return;
+    case 'open-canvas-size':
+      ports.openCanvasSize();
       return;
     case 'undo':
       if (!ports.undoPenAnchor()) ports.undo();

@@ -412,7 +412,11 @@
     { "kind": "modify", "operation": "all" },
     { "kind": "modify", "operation": "clear" },
     { "kind": "modify", "operation": "invert" },
-    { "kind": "modify", "operation": "feather", "radius": 12 }
+    { "kind": "modify", "operation": "border", "width": 12 },
+    { "kind": "modify", "operation": "smooth", "radius": 4, "applyAtCanvasBounds": false },
+    { "kind": "modify", "operation": "feather", "radius": 12, "applyAtCanvasBounds": false },
+    { "kind": "modify", "operation": "expand", "radius": 4, "applyAtCanvasBounds": false },
+    { "kind": "modify", "operation": "contract", "radius": 2, "applyAtCanvasBounds": false }
   ],
   "selection.copyPixels": [
     { "source": "active-layer" },

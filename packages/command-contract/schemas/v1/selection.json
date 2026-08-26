@@ -185,14 +185,46 @@
         "required": ["kind", "operation"],
         "properties": {
           "kind": { "type": "string", "title": "Selection kind", "const": "modify", "default": "modify" },
-          "operation": { "type": "string", "title": "Operation", "enum": ["all", "clear", "invert", "feather"], "default": "all" },
-          "radius": { "type": "number", "title": "Feather radius", "minimum": 0, "maximum": 250, "default": 0 }
+          "operation": { "type": "string", "title": "Operation", "enum": ["all", "clear", "invert", "border", "smooth", "feather", "expand", "contract"], "default": "all" },
+          "radius": { "type": "number", "title": "Radius", "minimum": 0, "maximum": 500, "default": 1 },
+          "width": { "type": "integer", "title": "Width", "minimum": 1, "maximum": 200, "default": 1 },
+          "applyAtCanvasBounds": { "type": "boolean", "title": "Apply effect at canvas bounds", "default": false }
         },
-        "allOf": [
+        "oneOf": [
           {
-            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "feather" } } },
-            "then": { "type": "object", "required": ["radius"] },
-            "else": { "type": "object", "not": { "type": "object", "required": ["radius"] } }
+            "type": "object",
+            "maxProperties": 4,
+            "required": ["radius"],
+            "properties": { "operation": { "const": "feather" }, "radius": { "minimum": 0, "maximum": 250 } },
+            "not": { "type": "object", "required": ["width"] }
+          },
+          {
+            "type": "object",
+            "maxProperties": 4,
+            "required": ["radius"],
+            "properties": { "operation": { "const": "smooth" }, "radius": { "type": "integer", "minimum": 1, "maximum": 100 } },
+            "not": { "type": "object", "required": ["width"] }
+          },
+          {
+            "type": "object",
+            "maxProperties": 4,
+            "required": ["radius"],
+            "properties": {
+              "operation": { "enum": ["expand", "contract"] },
+              "radius": { "type": "integer", "minimum": 1, "maximum": 500 }
+            },
+            "not": { "type": "object", "required": ["width"] }
+          },
+          {
+            "type": "object",
+            "maxProperties": 3,
+            "required": ["width"],
+            "properties": { "operation": { "const": "border" }, "width": { "type": "integer", "minimum": 1, "maximum": 200 } }
+          },
+          {
+            "type": "object",
+            "maxProperties": 2,
+            "properties": { "operation": { "enum": ["all", "clear", "invert"] } }
           }
         ]
       },
@@ -201,14 +233,46 @@
         "additionalProperties": false,
         "required": ["operation"],
         "properties": {
-          "operation": { "type": "string", "enum": ["all", "clear", "invert", "feather"] },
-          "radius": { "type": "number", "minimum": 0, "maximum": 250 }
+          "operation": { "type": "string", "enum": ["all", "clear", "invert", "border", "smooth", "feather", "expand", "contract"] },
+          "radius": { "type": "number", "minimum": 0, "maximum": 500 },
+          "width": { "type": "integer", "minimum": 1, "maximum": 200 },
+          "applyAtCanvasBounds": { "type": "boolean" }
         },
-        "allOf": [
+        "oneOf": [
           {
-            "if": { "type": "object", "required": ["operation"], "properties": { "operation": { "const": "feather" } } },
-            "then": { "type": "object", "required": ["radius"] },
-            "else": { "type": "object", "not": { "type": "object", "required": ["radius"] } }
+            "type": "object",
+            "maxProperties": 4,
+            "required": ["radius", "applyAtCanvasBounds"],
+            "properties": { "operation": { "const": "feather" }, "radius": { "minimum": 0, "maximum": 250 } },
+            "not": { "type": "object", "required": ["width"] }
+          },
+          {
+            "type": "object",
+            "maxProperties": 4,
+            "required": ["radius", "applyAtCanvasBounds"],
+            "properties": { "operation": { "const": "smooth" }, "radius": { "type": "integer", "minimum": 1, "maximum": 100 } },
+            "not": { "type": "object", "required": ["width"] }
+          },
+          {
+            "type": "object",
+            "maxProperties": 4,
+            "required": ["radius", "applyAtCanvasBounds"],
+            "properties": {
+              "operation": { "enum": ["expand", "contract"] },
+              "radius": { "type": "integer", "minimum": 1, "maximum": 500 }
+            },
+            "not": { "type": "object", "required": ["width"] }
+          },
+          {
+            "type": "object",
+            "maxProperties": 3,
+            "required": ["width"],
+            "properties": { "operation": { "const": "border" }, "width": { "type": "integer", "minimum": 1, "maximum": 200 } }
+          },
+          {
+            "type": "object",
+            "maxProperties": 2,
+            "properties": { "operation": { "enum": ["all", "clear", "invert"] } }
           }
         ]
       }

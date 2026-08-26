@@ -29,6 +29,9 @@ export default defineConfig({
   // Electron or recreating the active document.
   resolve: {
     alias: {
+      '@lighttable/command-contract': fileURLToPath(
+        new URL('../../packages/command-contract/src/index.mjs', import.meta.url)
+      ),
       '@lighttable/app/standalone': fileURLToPath(
         new URL('../../packages/lighttable-app/src/standalone.ts', import.meta.url)
       ),
@@ -90,6 +93,7 @@ export default defineConfig({
     // of these packages can leave an old GPU pipeline active after HMR even
     // though its caller already runs the new source.
     exclude: [
+      '@lighttable/command-contract',
       '@lighttable/app',
       '@lighttable/genai-core',
       '@lighttable/filter-core',

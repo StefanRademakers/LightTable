@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import type { ImageDocument, LayerId } from '../../../editor/document/documentTypes';
 import { findDocumentLayer } from '../../../editor/document/layerTree';
 import {
+  createBorderSelectionOperation,
   createFeatherSelectionOperation,
   createCompositeChannelSelectionOperation,
   createFullCanvasSelection,
@@ -9,6 +10,8 @@ import {
   createLayerMaskSelectionOperation,
   createLayerTransparencySelectionOperation,
   createMagicWandSelectionOperation,
+  createMorphologySelectionOperation,
+  createSmoothSelectionOperation,
   createRasterMaskSelectionOperation,
   createTranslateSelectionOperation,
   type CompositeSelectionChannel,
@@ -123,7 +126,14 @@ export interface SelectionSessionController {
   selectAll(): void;
   clear(): void;
   invert(): void;
-  feather(radius: number): Promise<boolean>;
+  feather(radius: number, applyAtCanvasBounds?: boolean): Promise<boolean>;
+  border(width: number): Promise<boolean>;
+  smooth(radius: number, applyAtCanvasBounds: boolean): Promise<boolean>;
+  morphology(
+    mode: 'expand' | 'contract',
+    radius: number,
+    applyAtCanvasBounds: boolean
+  ): Promise<boolean>;
   selectLayerMask(layerId: LayerId): void;
   selectLayerTransparency(layerId: LayerId): void;
   selectCompositeChannel(channel: CompositeSelectionChannel): void;
@@ -150,6 +160,7 @@ export const cloneSelectionOperations = (
 ): SelectionOperation[] => operations.map((operation) => ({
   mode: operation.mode,
   amount: operation.amount,
+  applyAtCanvasBounds: operation.applyAtCanvasBounds,
   antiAlias: operation.antiAlias,
   transform: operation.transform ? { ...operation.transform } : undefined,
   source: operation.source?.kind === 'magic-wand'
@@ -212,7 +223,9 @@ const selectionContainsPoint = (
       });
       return;
     }
-    if (operation.mode === 'feather') return;
+    if (operation.mode === 'feather' || operation.mode === 'border'
+      || operation.mode === 'smooth' || operation.mode === 'expand'
+      || operation.mode === 'contract') return;
     if (operation.mode === 'invert') {
       sample = (target) => !previous(target);
       return;
@@ -867,16 +880,68 @@ export const createSelectionSessionController = (
         'The selection could not be inverted.'
       );
     },
-    feather: (radius) => {
+    feather: (radius, applyAtCanvasBounds = false) => {
       const dependencies = resolveDependencies();
       const document = dependencies.getDocument();
       if (!document || !dependencies.getSelection().length) return Promise.resolve(false);
       return commitSnapshot(
         [
           ...cloneSelectionOperations(dependencies.getSelection()),
-          createFeatherSelectionOperation(document.width, document.height, radius)
+          createFeatherSelectionOperation(
+            document.width,
+            document.height,
+            radius,
+            applyAtCanvasBounds
+          )
         ],
         'The selection could not be feathered.'
+      );
+    },
+    border: (width) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      if (!document || !dependencies.getSelection().length) return Promise.resolve(false);
+      return commitSnapshot(
+        [
+          ...cloneSelectionOperations(dependencies.getSelection()),
+          createBorderSelectionOperation(document.width, document.height, width)
+        ],
+        'The selection border could not be created.'
+      );
+    },
+    smooth: (radius, applyAtCanvasBounds) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      if (!document || !dependencies.getSelection().length) return Promise.resolve(false);
+      return commitSnapshot(
+        [
+          ...cloneSelectionOperations(dependencies.getSelection()),
+          createSmoothSelectionOperation(
+            document.width,
+            document.height,
+            radius,
+            applyAtCanvasBounds
+          )
+        ],
+        'The selection could not be smoothed.'
+      );
+    },
+    morphology: (mode, radius, applyAtCanvasBounds) => {
+      const dependencies = resolveDependencies();
+      const document = dependencies.getDocument();
+      if (!document || !dependencies.getSelection().length) return Promise.resolve(false);
+      return commitSnapshot(
+        [
+          ...cloneSelectionOperations(dependencies.getSelection()),
+          createMorphologySelectionOperation(
+            document.width,
+            document.height,
+            mode,
+            radius,
+            applyAtCanvasBounds
+          )
+        ],
+        `The selection could not be ${mode === 'expand' ? 'expanded' : 'contracted'}.`
       );
     },
     selectLayerMask: (layerId) => {

@@ -3,6 +3,7 @@ import type { ImageDocument, LayerId } from '../document/documentTypes';
 import { walkLayerTree, walkRasterLayers } from '../document/layerTree';
 import type { LayerRuntimeStore, RasterLayerRuntime } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
+import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 
 const RESIZE_SETTINGS_FLOATS = 8;
 
@@ -120,7 +121,10 @@ const pipelineBundle = (device: GPUDevice): ResizePipelineBundle => {
     fragment: { module: shader, entryPoint: 'main', targets: [{ format }] },
     primitive: { topology: 'triangle-list' }
   });
-  const bundle = { color: create('rgba16float'), mask: create('r8unorm') };
+  const bundle = {
+    color: create('rgba16float'),
+    mask: create(LAYER_MASK_TEXTURE_FORMAT)
+  };
   pipelines.set(device, bundle);
   return bundle;
 };
@@ -193,7 +197,7 @@ export class ImageResizeGpuService {
       const maskTexture = before.maskTexture ? this.encodePasses(
         encoder, before.maskTexture, plan.sourceWidth, plan.sourceHeight,
         plan.targetWidth, plan.targetHeight, plan.resolvedMethod, noiseReduction,
-        bundle.mask, 'r8unorm', transients, buffers
+        bundle.mask, LAYER_MASK_TEXTURE_FORMAT, transients, buffers
       ) : null;
       const after: RasterLayerRuntime = {
         texture: color,
@@ -211,7 +215,7 @@ export class ImageResizeGpuService {
       const after = this.encodePasses(
         encoder, before, plan.sourceWidth, plan.sourceHeight,
         plan.targetWidth, plan.targetHeight, plan.resolvedMethod, noiseReduction,
-        bundle.mask, 'r8unorm', transients, buffers
+        bundle.mask, LAYER_MASK_TEXTURE_FORMAT, transients, buffers
       );
       pendingMaskExchanges.push({ layerId: node.id, before, after });
     }
@@ -221,11 +225,11 @@ export class ImageResizeGpuService {
       const before = { mask: selection.mask, result: selection.result, shape: selection.shape };
       const after = {
         mask: this.encodePasses(encoder, before.mask, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
-          plan.resolvedMethod, noiseReduction, bundle.mask, 'r8unorm', transients, buffers),
+          plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, transients, buffers),
         result: this.encodePasses(encoder, before.result, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
-          plan.resolvedMethod, noiseReduction, bundle.mask, 'r8unorm', transients, buffers),
+          plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, transients, buffers),
         shape: this.encodePasses(encoder, before.shape, plan.sourceWidth, plan.sourceHeight, plan.targetWidth, plan.targetHeight,
-          plan.resolvedMethod, noiseReduction, bundle.mask, 'r8unorm', transients, buffers)
+          plan.resolvedMethod, noiseReduction, bundle.mask, SELECTION_TEXTURE_FORMAT, transients, buffers)
       };
       selectionExchange = { before, after, current: 'after' };
     }

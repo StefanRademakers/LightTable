@@ -33,7 +33,10 @@ const shapeOutline = (shape: SelectionShape): TransformPoint[] => {
 export const transformSelectionOperations = (
   operations: SelectionOperation[],
   matrix: AffineMatrix
-): SelectionOperation[] => operations.map((operation) => operation.mode === 'feather'
+): SelectionOperation[] => operations.map((operation) => (
+  operation.mode === 'feather' || operation.mode === 'border' || operation.mode === 'smooth'
+    || operation.mode === 'expand' || operation.mode === 'contract'
+)
   ? {
       ...operation,
       shape: { ...operation.shape, points: operation.shape.points.map((point) => ({ ...point })) }
@@ -52,7 +55,9 @@ export const selectionOperationsBounds = (
 ): Rect => {
   let points: TransformPoint[] = [];
   operations.forEach((operation) => {
-    if (operation.mode === 'feather') return;
+    if (operation.mode === 'feather' || operation.mode === 'border'
+      || operation.mode === 'smooth' || operation.mode === 'expand'
+      || operation.mode === 'contract') return;
     if (operation.mode === 'transform' && operation.transform) {
       points = points.map((point) => transformPoint(operation.transform!, point));
       return;
@@ -86,18 +91,14 @@ export const selectionOperationsSupportBounds = (
   fallback: Rect
 ): Rect => {
   const core = selectionOperationsBounds(operations, fallback);
-  const globalFeatherSupport = operations.reduce((sum, operation) => (
-    operation.mode === 'feather'
-      ? sum + Math.max(0, operation.amount ?? 0)
-      : sum
-  ), 0);
-  const localFeatherSupport = operations.reduce((maximum, operation) => (
-    operation.mode !== 'feather' && operation.mode !== 'transform'
-      ? Math.max(maximum, Math.max(0, operation.amount ?? 0))
-      : maximum
-  ), 0);
-  const featherSupport = globalFeatherSupport + localFeatherSupport;
-  if (featherSupport <= 0) return core;
+  const support = operations.reduce((sum, operation) => {
+    const amount = Math.max(0, operation.amount ?? 0);
+    if (operation.mode === 'feather') return sum + amount * 2;
+    if (operation.mode === 'expand' || operation.mode === 'smooth') return sum + amount;
+    if (operation.mode === 'border') return sum + Math.ceil(amount / 2) + 2;
+    return sum;
+  }, 0);
+  if (support <= 0) return core;
   // The authored feather radius controls the Gaussian shape, not a crop
   // threshold. At exactly one radius the finite kernel still has measurable
   // coverage, which becomes an obvious rectangular edge once an OS clipboard
@@ -105,7 +106,7 @@ export const selectionOperationsSupportBounds = (
   // radii plus a texel for resampling so exported alpha has settled to zero.
   // This only expands pixel/export support; selection and transform gizmos
   // continue to use the tight geometry bounds above.
-  const padding = Math.ceil(featherSupport * 2) + 1;
+  const padding = Math.ceil(support) + 1;
   const left = Math.max(fallback.x, Math.floor(core.x) - padding);
   const top = Math.max(fallback.y, Math.floor(core.y) - padding);
   const right = Math.min(fallback.x + fallback.width, Math.ceil(core.x + core.width) + padding);

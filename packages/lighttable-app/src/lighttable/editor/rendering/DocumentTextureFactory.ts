@@ -2,6 +2,10 @@ const documentTextureUsage = () =>
   GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
   GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST;
 
+export const COVERAGE_TEXTURE_FORMAT: GPUTextureFormat = 'r16float';
+export const LAYER_MASK_TEXTURE_FORMAT = COVERAGE_TEXTURE_FORMAT;
+export const SELECTION_TEXTURE_FORMAT = COVERAGE_TEXTURE_FORMAT;
+
 interface DocumentTextureFactoryOptions {
   device: GPUDevice;
   dimensions: () => { width: number; height: number };
@@ -45,7 +49,7 @@ export class DocumentTextureFactory {
   }
 
   createMask(label: string) {
-    const texture = this.create(label, 'r8unorm');
+    const texture = this.create(label, LAYER_MASK_TEXTURE_FORMAT);
     const encoder = this.options.device.createCommandEncoder({
       label: `Initialize ${label}`
     });
@@ -61,13 +65,25 @@ export class DocumentTextureFactory {
     return this.options.device.createTexture({
       label,
       size: [width, height],
-      format: 'r8unorm',
+      format: LAYER_MASK_TEXTURE_FORMAT,
       usage: documentTextureUsage()
     });
   }
 
   createSelection(label: string) {
-    return this.create(label, 'r8unorm');
+    return this.create(label, SELECTION_TEXTURE_FORMAT);
+  }
+
+  createByteCoverageSized(label: string, width: number, height: number) {
+    if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+      throw new TypeError('Texture dimensions must be positive integers.');
+    }
+    return this.options.device.createTexture({
+      label,
+      size: [width, height],
+      format: 'r8unorm',
+      usage: documentTextureUsage()
+    });
   }
 
   initializeSelectionTargets(mask: GPUTexture, result: GPUTexture, shape: GPUTexture) {

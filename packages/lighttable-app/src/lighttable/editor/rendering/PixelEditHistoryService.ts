@@ -139,7 +139,7 @@ export class PixelEditHistoryService {
       return true;
     };
     const byteSize = before.tiles.reduce(
-      (bytes, tile) => bytes + tile.width * tile.height * (before.channel === 'mask' ? 1 : 8), 0
+      (bytes, tile) => bytes + tile.width * tile.height * (before.channel === 'mask' ? 2 : 8), 0
     );
     return {
       byteSize,

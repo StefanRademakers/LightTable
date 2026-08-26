@@ -78,7 +78,12 @@ export interface EditorDialogsProps {
     requestedFont: string,
     sourceIdentity: string
   ) => void;
-  readonly onFeather: (radius: number) => void;
+  readonly onFeather: (radius: number, applyAtCanvasBounds: boolean) => void;
+  readonly onSelectionModify: (
+    mode: 'border' | 'smooth' | 'expand' | 'contract',
+    amount: number,
+    applyAtCanvasBounds: boolean
+  ) => void;
   readonly foregroundColor: string;
   readonly backgroundColor: string;
   readonly onFill: (color: string, preserveTransparency: boolean) => void;
@@ -111,6 +116,7 @@ export const EditorDialogs = ({
   onCancelTextFontPreview,
   onReplaceTextFonts,
   onFeather,
+  onSelectionModify,
   foregroundColor,
   backgroundColor,
   onFill,
@@ -177,6 +183,9 @@ export const EditorDialogs = ({
       selectAllOnOpen
       compact
       backdropClassName="lighttable-dialog-backdrop"
+      checkboxLabel="Apply effect at canvas bounds"
+      checkboxChecked={controller.featherCanvasBounds}
+      onCheckboxChange={controller.setFeatherCanvasBounds}
       onCancel={controller.closeFeather}
       onConfirm={(value) => {
         const radius = Number(value);
@@ -185,7 +194,37 @@ export const EditorDialogs = ({
           return;
         }
         controller.closeFeather();
-        onFeather(radius);
+        onFeather(radius, controller.featherCanvasBounds);
+      }}
+    /> : null}
+    {controller.selectionMorphology ? <TextInputDialog
+      open
+      title={`${controller.selectionMorphology[0].toUpperCase()}${controller.selectionMorphology.slice(1)} selection`}
+      initialValue="1"
+      selectAllOnOpen
+      compact
+      backdropClassName="lighttable-dialog-backdrop"
+      checkboxLabel={controller.selectionMorphology === 'border'
+        ? undefined : 'Apply effect at canvas bounds'}
+      checkboxChecked={controller.selectionMorphologyCanvasBounds[controller.selectionMorphology]}
+      onCheckboxChange={(enabled) => controller.setSelectionMorphologyCanvasBounds(
+        controller.selectionMorphology!,
+        enabled
+      )}
+      onCancel={controller.closeSelectionMorphology}
+      onConfirm={(value) => {
+        const radius = Number(value);
+        const maximum = controller.selectionMorphology === 'border' ? 200
+          : controller.selectionMorphology === 'smooth' ? 100 : 500;
+        if (!Number.isInteger(radius) || radius < 1 || radius > maximum) {
+          onError(`Selection amount must be a whole number between 1 and ${maximum} pixels.`);
+          return;
+        }
+        const mode = controller.selectionMorphology;
+        if (!mode) return;
+        const applyAtCanvasBounds = controller.selectionMorphologyCanvasBounds[mode];
+        controller.closeSelectionMorphology();
+        onSelectionModify(mode, radius, applyAtCanvasBounds);
       }}
     /> : null}
     {controller.textToShapeRequest ? <ConfirmDialog

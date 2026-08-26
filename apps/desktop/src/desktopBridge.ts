@@ -151,6 +151,7 @@ export interface DesktopClipboardImagePayload {
 
 export interface LightTableDesktopBridge {
   readonly automationEnabled: boolean;
+  toggleDeveloperTools(): Promise<void>;
   openFile(): Promise<DesktopFilePayload | null>;
   openFiles(): Promise<readonly DesktopFilePayload[]>;
   takeInitialLaunchFiles(): Promise<readonly DesktopFilePayload[]>;

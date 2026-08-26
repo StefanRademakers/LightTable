@@ -14,7 +14,7 @@ import { P0_FILTER_DEFINITIONS, type P0FilterKind } from '@lighttable/filter-cor
 import { layerStyleKindLabels } from '../styles/layerStyleDefaults';
 import type { LayerStyleKind } from '../styles/layerStyleTypes';
 
-export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'filter' | 'layer' | 'type' | 'ai' | 'view' | 'help';
+export type EditorMenuId = 'file' | 'edit' | 'image' | 'select' | 'filter' | 'layer' | 'type' | 'ai' | 'view' | 'developer' | 'help';
 
 export interface EditorMenuLayerState {
   type: 'raster' | 'group' | 'adjustment' | 'vector' | 'text';
@@ -99,6 +99,10 @@ export interface EditorMenuCommands {
   selectAll: () => void;
   clearSelection: () => void;
   invertSelection: () => void;
+  borderSelection: () => void;
+  smoothSelection: () => void;
+  expandSelection: () => void;
+  contractSelection: () => void;
   featherSelection: () => void;
   removeObject: () => void;
   removeBackground: () => void;
@@ -150,6 +154,8 @@ export interface EditorMenuCommands {
   connectOpenArtProvider?: () => void;
   disconnectOpenArtProvider?: () => void;
   openStyleGuide?: () => void;
+  reloadUi?: () => void;
+  toggleDeveloperTools?: () => void;
   resetWorkspaceLayout: () => void;
   applyPhotoEditWorkspace: () => void;
   applyGradingWorkspace: () => void;
@@ -459,13 +465,39 @@ export const createEditorMenuOptions = (
         value: 'select-modify',
         label: 'Modify',
         separatorBefore: true,
-        children: [{
-          value: 'feather-selection',
-          label: 'Feather...',
-          shortcut: 'Shift+F6',
-          onClick: commands.featherSelection,
-          disabled: !state.hasSelection || state.saving
-        }]
+        children: [
+          {
+            value: 'border-selection',
+            label: 'Border...',
+            onClick: commands.borderSelection,
+            disabled: !state.hasSelection || state.saving
+          },
+          {
+            value: 'smooth-selection',
+            label: 'Smooth...',
+            onClick: commands.smoothSelection,
+            disabled: !state.hasSelection || state.saving
+          },
+          {
+            value: 'expand-selection',
+            label: 'Expand...',
+            onClick: commands.expandSelection,
+            disabled: !state.hasSelection || state.saving
+          },
+          {
+            value: 'contract-selection',
+            label: 'Contract...',
+            onClick: commands.contractSelection,
+            disabled: !state.hasSelection || state.saving
+          },
+          {
+            value: 'feather-selection',
+            label: 'Feather...',
+            shortcut: 'Shift+F6',
+            onClick: commands.featherSelection,
+            disabled: !state.hasSelection || state.saving
+          }
+        ]
       },
       {
         value: 'remove-object',
@@ -874,6 +906,19 @@ export const createEditorMenuOptions = (
         onClick: commands.openThirdPartyLicenses
       },
       { value: 'about', label: 'About LightTable...', onClick: commands.openAbout }
+    ];
+  }
+
+  if (menu === 'developer') {
+    return [
+      { value: 'reload-ui', label: 'Reload UI', onClick: commands.reloadUi,
+        disabled: !commands.reloadUi },
+      { value: 'toggle-developer-tools', label: 'Toggle Developer Tools',
+        onClick: commands.toggleDeveloperTools, disabled: !commands.toggleDeveloperTools },
+      { value: 'show-debug-panel', label: 'Open Debug panel', separatorBefore: true,
+        onClick: commands.showDebugPanel },
+      { value: 'ui-style-guide', label: 'Open UI Style Guide',
+        onClick: commands.openStyleGuide, disabled: !commands.openStyleGuide }
     ];
   }
 

@@ -31,7 +31,7 @@ describe('DocumentTextureFactory', () => {
     expect(createTexture).toHaveBeenNthCalledWith(2, expect.objectContaining({
       label: 'selection',
       size: [1, 72],
-      format: 'r8unorm',
+      format: 'r16float',
       usage: 15
     }));
   });
@@ -57,7 +57,7 @@ describe('DocumentTextureFactory', () => {
     expect(createTexture).toHaveBeenCalledWith(expect.objectContaining({
       label: 'mask',
       size: [32, 16],
-      format: 'r8unorm'
+      format: 'r16float'
     }));
     expect(beginRenderPass).toHaveBeenCalledWith({
       colorAttachments: [{

@@ -17,8 +17,11 @@ export interface SemanticSelectionApplyShapeCommand {
 
 export interface SemanticSelectionModifyCommand {
   readonly kind: 'modify';
-  readonly operation: 'all' | 'clear' | 'invert' | 'feather';
+  readonly operation: 'all' | 'clear' | 'invert' | 'border' | 'smooth' | 'feather'
+    | 'expand' | 'contract';
   readonly radius?: number;
+  readonly width?: number;
+  readonly applyAtCanvasBounds?: boolean;
 }
 
 export interface SemanticSelectionMagicWandCommand {
@@ -47,18 +50,42 @@ export const parseSemanticSelectionCommand = (
 ): SemanticSelectionCommand | { readonly message: string } => {
   if (record(value) && value.kind === 'modify') {
     if (value.operation !== 'all' && value.operation !== 'clear'
-      && value.operation !== 'invert' && value.operation !== 'feather') {
-      return { message: 'Selection modify requires operation all, clear, invert or feather.' };
+      && value.operation !== 'invert' && value.operation !== 'feather'
+      && value.operation !== 'border' && value.operation !== 'smooth'
+      && value.operation !== 'expand' && value.operation !== 'contract') {
+      return { message: 'Selection modify requires operation all, clear, invert, border, smooth, feather, expand or contract.' };
     }
     const feather = value.operation === 'feather';
+    const border = value.operation === 'border';
+    const smooth = value.operation === 'smooth';
+    const morphology = value.operation === 'expand' || value.operation === 'contract';
     if ((feather && (typeof value.radius !== 'number' || !Number.isFinite(value.radius)
-      || value.radius < 0 || value.radius > 250))
-      || (!feather && value.radius !== undefined)
-      || Object.keys(value).some((key) => key !== 'kind' && key !== 'operation' && key !== 'radius')) {
+      || value.radius < 0 || value.radius > 250
+      || value.width !== undefined
+      || (value.applyAtCanvasBounds !== undefined && typeof value.applyAtCanvasBounds !== 'boolean')))
+      || (border && (typeof value.width !== 'number' || !Number.isInteger(value.width)
+        || value.width < 1 || value.width > 200 || value.radius !== undefined
+        || value.applyAtCanvasBounds !== undefined))
+      || (smooth && (typeof value.radius !== 'number' || !Number.isInteger(value.radius)
+        || value.radius < 1 || value.radius > 100
+        || value.width !== undefined
+        || (value.applyAtCanvasBounds !== undefined && typeof value.applyAtCanvasBounds !== 'boolean')))
+      || (morphology && (typeof value.radius !== 'number' || !Number.isFinite(value.radius)
+        || !Number.isInteger(value.radius) || value.radius < 1 || value.radius > 500
+        || value.width !== undefined
+        || (value.applyAtCanvasBounds !== undefined && typeof value.applyAtCanvasBounds !== 'boolean')))
+      || (!feather && !border && !smooth && !morphology
+        && (value.radius !== undefined || value.width !== undefined
+          || value.applyAtCanvasBounds !== undefined))
+      || Object.keys(value).some((key) => key !== 'kind' && key !== 'operation'
+        && key !== 'radius' && key !== 'width' && key !== 'applyAtCanvasBounds')) {
       return { message: 'Selection modify contains unsupported properties.' };
     }
     return { kind: 'modify', operation: value.operation,
-      ...(feather ? { radius: value.radius as number } : {}) };
+      ...(feather || smooth || morphology ? { radius: value.radius as number } : {}),
+      ...(border ? { width: value.width as number } : {}),
+      ...(feather || smooth || morphology
+        ? { applyAtCanvasBounds: value.applyAtCanvasBounds === true } : {}) };
   }
   if (record(value) && value.kind === 'magic-wand') {
     const point = value.point;

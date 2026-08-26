@@ -33,6 +33,7 @@ export type EditorKeyboardCommand =
   | 'save-file'
   | 'quick-export-png'
   | 'open-image-size'
+  | 'open-canvas-size'
   | 'undo'
   | 'redo'
   | 'temporary-pan-start'
@@ -217,6 +218,10 @@ export const DEFAULT_EDITOR_KEYMAP: EditorKeymap = {
       allowWhileEditing: true,
       // Image Size is document-scoped, not layer-scoped. Requiring an active
       // layer made the shortcut silently fail while the same menu item worked.
+      when: (context) => !context.saving
+    }),
+    command('image.canvas-size', { key: 'c', primary: true, alt: true, shift: false }, 'open-canvas-size', {
+      allowWhileEditing: true,
       when: (context) => !context.saving
     }),
     command('image.adjustments.levels', { key: 'l', primary: true, alt: false, shift: false }, {

@@ -14,6 +14,11 @@ import {
   SELECTION_COPY_WGSL,
   SELECTION_DISPLAY_COPY_WGSL,
   SELECTION_FEATHER_WGSL,
+  SELECTION_BORDER_WGSL,
+  SELECTION_MORPHOLOGY_WGSL,
+  SELECTION_SMOOTH_THRESHOLD_WGSL,
+  SELECTION_SMOOTH_HORIZONTAL_WGSL,
+  SELECTION_SMOOTH_VERTICAL_WGSL,
   SELECTION_RESAMPLE_WGSL,
   SELECTION_SHAPE_WGSL
 } from './layerShaders';
@@ -28,6 +33,7 @@ import {
   MAGIC_WAND_RELAX_WGSL,
   MAGIC_WAND_SAMPLE_WGSL
 } from './magicWandShaders';
+import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 
 export interface BrushPipelineBundle {
   brush: GPURenderPipeline;
@@ -55,11 +61,16 @@ export interface ToolPipelineBundle extends BrushPipelineBundle {
   selectionCombine: GPURenderPipeline;
   selectionContentCoverage: GPURenderPipeline;
   selectionFeather: GPURenderPipeline;
+  selectionBorder: GPURenderPipeline;
+  selectionMorphology: GPURenderPipeline;
+  selectionSmoothThreshold: GPURenderPipeline;
+  selectionSmoothHorizontal: GPUComputePipeline;
+  selectionSmoothVertical: GPUComputePipeline;
   selectionResample: GPURenderPipeline;
   selectionCopy: GPURenderPipeline;
   selectionDisplayCopy: GPURenderPipeline;
-  selectionToMask: GPURenderPipeline;
-  maskToSelection: GPURenderPipeline;
+  coverageToByte: GPURenderPipeline;
+  coverageCopy: GPURenderPipeline;
   channelToSelection: GPURenderPipeline;
   transform: GPURenderPipeline;
   selectionTransform: GPURenderPipeline;
@@ -168,13 +179,13 @@ export const brushPipelinesFor = (device: GPUDevice): BrushPipelineBundle => {
       'LightTable round mask brush',
       { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-      'r8unorm'
+      LAYER_MASK_TEXTURE_FORMAT
     ),
     maskErase: brushPipeline(
       'LightTable round mask eraser',
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
       { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-      'r8unorm'
+      LAYER_MASK_TEXTURE_FORMAT
     ),
     clone: sampledBrushPipeline('LightTable Clone Stamp', 'cloneFragment', false),
     clonePreserveTransparency: sampledBrushPipeline(
@@ -241,26 +252,41 @@ export const toolPipelinesFor = (device: GPUDevice): ToolPipelineBundle => {
     fillColor: fullscreenPipeline('LightTable fill layer color', LAYER_FILL_COLOR_WGSL),
     fillGradient: fullscreenPipeline('LightTable fill layer gradient', LAYER_FILL_GRADIENT_WGSL),
     invertColors: fullscreenPipeline('LightTable invert layer colors', LAYER_INVERT_COLORS_WGSL),
-    maskFillColor: fullscreenPipeline('LightTable fill mask color', LAYER_FILL_COLOR_WGSL, 'r8unorm'),
-    maskFillGradient: fullscreenPipeline('LightTable fill mask gradient', LAYER_FILL_GRADIENT_WGSL, 'r8unorm'),
-    maskInvertColors: fullscreenPipeline('LightTable invert mask', LAYER_INVERT_COLORS_WGSL, 'r8unorm'),
-    selectionShape: fullscreenPipeline('LightTable selection shape rasterizer', SELECTION_SHAPE_WGSL, 'r8unorm'),
-    selectionCombine: fullscreenPipeline('LightTable selection boolean compositor', SELECTION_COMBINE_WGSL, 'r8unorm'),
+    maskFillColor: fullscreenPipeline('LightTable fill mask color', LAYER_FILL_COLOR_WGSL, LAYER_MASK_TEXTURE_FORMAT),
+    maskFillGradient: fullscreenPipeline('LightTable fill mask gradient', LAYER_FILL_GRADIENT_WGSL, LAYER_MASK_TEXTURE_FORMAT),
+    maskInvertColors: fullscreenPipeline('LightTable invert mask', LAYER_INVERT_COLORS_WGSL, LAYER_MASK_TEXTURE_FORMAT),
+    selectionShape: fullscreenPipeline('LightTable selection shape rasterizer', SELECTION_SHAPE_WGSL, SELECTION_TEXTURE_FORMAT),
+    selectionCombine: fullscreenPipeline('LightTable selection boolean compositor', SELECTION_COMBINE_WGSL, SELECTION_TEXTURE_FORMAT),
     selectionContentCoverage: fullscreenPipeline('LightTable selected content coverage', SELECTION_CONTENT_COVERAGE_WGSL, 'r8unorm'),
-    selectionFeather: fullscreenPipeline('LightTable selection feather', SELECTION_FEATHER_WGSL, 'r8unorm'),
-    selectionResample: fullscreenPipeline('LightTable selection feather upscale', SELECTION_RESAMPLE_WGSL, 'r8unorm'),
+    selectionFeather: fullscreenPipeline('LightTable selection feather', SELECTION_FEATHER_WGSL, SELECTION_TEXTURE_FORMAT),
+    selectionBorder: fullscreenPipeline('LightTable selection border', SELECTION_BORDER_WGSL, SELECTION_TEXTURE_FORMAT),
+    selectionMorphology: fullscreenPipeline('LightTable selection morphology', SELECTION_MORPHOLOGY_WGSL, SELECTION_TEXTURE_FORMAT),
+    selectionSmoothThreshold: fullscreenPipeline(
+      'LightTable selection smooth threshold',
+      SELECTION_SMOOTH_THRESHOLD_WGSL,
+      SELECTION_TEXTURE_FORMAT
+    ),
+    selectionSmoothHorizontal: computePipeline(
+      'LightTable selection smooth horizontal',
+      SELECTION_SMOOTH_HORIZONTAL_WGSL
+    ),
+    selectionSmoothVertical: computePipeline(
+      'LightTable selection smooth vertical',
+      SELECTION_SMOOTH_VERTICAL_WGSL
+    ),
+    selectionResample: fullscreenPipeline('LightTable selection feather upscale', SELECTION_RESAMPLE_WGSL, SELECTION_TEXTURE_FORMAT),
     selectionCopy: fullscreenPipeline('LightTable selected pixel copy', SELECTION_COPY_WGSL),
     selectionDisplayCopy: fullscreenPipeline('LightTable selected display copy', SELECTION_DISPLAY_COPY_WGSL, 'rgba8unorm'),
-    selectionToMask: fullscreenPipeline('LightTable selection to layer mask', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
-    maskToSelection: fullscreenPipeline('LightTable layer mask to selection', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
-    channelToSelection: fullscreenPipeline('LightTable source channel to selection', COLOR_CHANNEL_COPY_WGSL, 'r8unorm'),
+    coverageToByte: fullscreenPipeline('LightTable coverage readback conversion', RED_CHANNEL_COPY_WGSL, 'r8unorm'),
+    coverageCopy: fullscreenPipeline('LightTable editable coverage copy', RED_CHANNEL_COPY_WGSL, SELECTION_TEXTURE_FORMAT),
+    channelToSelection: fullscreenPipeline('LightTable source channel to selection', COLOR_CHANNEL_COPY_WGSL, SELECTION_TEXTURE_FORMAT),
     transform: fullscreenPipeline('LightTable layer transform preview', LAYER_TRANSFORM_WGSL),
-    selectionTransform: fullscreenPipeline('LightTable selection transform preview', SELECTION_TRANSFORM_WGSL, 'r8unorm'),
+    selectionTransform: fullscreenPipeline('LightTable selection transform preview', SELECTION_TRANSFORM_WGSL, SELECTION_TEXTURE_FORMAT),
     magicWandSample: computePipeline('LightTable Magic Wand reference sample', MAGIC_WAND_SAMPLE_WGSL),
     magicWandInitialize: computePipeline('LightTable Magic Wand candidates', MAGIC_WAND_INITIALIZE_WGSL),
     magicWandRelax: computePipeline('LightTable Magic Wand component relaxation', MAGIC_WAND_RELAX_WGSL),
     magicWandCompress: computePipeline('LightTable Magic Wand component compression', MAGIC_WAND_COMPRESS_WGSL),
-    magicWandFinal: fullscreenPipeline('LightTable Magic Wand mask', MAGIC_WAND_FINAL_WGSL, 'r8unorm')
+    magicWandFinal: fullscreenPipeline('LightTable Magic Wand mask', MAGIC_WAND_FINAL_WGSL, SELECTION_TEXTURE_FORMAT)
   };
   cache.set(device, bundle);
   return bundle;

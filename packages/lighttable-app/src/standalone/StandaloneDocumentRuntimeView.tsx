@@ -253,6 +253,7 @@ export function StandaloneDocumentRuntimeView({
         onGenAiOpenResult={handleOpenGeneratedResult}
         onGenAiOpenAsset={handleOpenGenAiAsset}
         hostKind={host.kind}
+        developerService={host.developer}
         recoveryNotice={recovery
           ? `${recovery.crashLoop ? 'Safe mode: ' : ''}Recovered copy of ${recovery.originalName}. Save creates a new file.`
           : null}

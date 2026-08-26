@@ -323,7 +323,7 @@ export const createLayerDocumentRendererRuntime = (
     rasterRuntime: (layerId) => layerResources.raster(layerId),
     maskTexture: (layerId) => layerResources.maskTexture(layerId),
     createCoverageTexture: (label, width, height) =>
-      textures.createMaskSized(label, width, height),
+      textures.createByteCoverageSized(label, width, height),
     drawFullscreen: (encoder, pipeline, bindGroup, target, clearValue) =>
       textures.drawFullscreen(encoder, pipeline, bindGroup, target, clearValue)
   });

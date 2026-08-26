@@ -35,6 +35,7 @@ const MENU_ITEMS: ReadonlyArray<{
   { id: 'filter', label: 'Filter' },
   { id: 'ai', label: 'AI' },
   { id: 'view', label: 'View' },
+  ...(import.meta.env.DEV ? [{ id: 'developer' as const, label: 'Developer' }] : []),
   { id: 'help', label: 'Help' }
 ];
 

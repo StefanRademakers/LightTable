@@ -15,6 +15,9 @@ interface TextInputDialogProps {
   selectAllOnOpen?: boolean;
   compact?: boolean;
   backdropClassName?: string;
+  checkboxLabel?: string;
+  checkboxChecked?: boolean;
+  onCheckboxChange?: (checked: boolean) => void;
   onCancel: () => void;
   onConfirm: (value: string) => void | Promise<void>;
 }
@@ -30,6 +33,9 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
   selectAllOnOpen = false,
   compact = false,
   backdropClassName,
+  checkboxLabel,
+  checkboxChecked = false,
+  onCheckboxChange,
   onCancel,
   onConfirm
 }) => {
@@ -85,6 +91,14 @@ export const TextInputDialog: React.FC<TextInputDialogProps> = ({
             }
           }}
         />
+        {checkboxLabel ? <label className="text-input-dialog__check">
+          <input
+            type="checkbox"
+            checked={checkboxChecked}
+            onChange={(event) => onCheckboxChange?.(event.currentTarget.checked)}
+          />
+          <span>{checkboxLabel}</span>
+        </label> : null}
         <div className="modal__footer">
           <ActionButton onClick={onCancel}>{cancelLabel}</ActionButton>
           <ActionButton

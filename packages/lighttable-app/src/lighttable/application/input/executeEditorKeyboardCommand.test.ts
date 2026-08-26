@@ -10,6 +10,7 @@ const ports = (): EditorKeyboardCommandPorts => ({
   saveFile: vi.fn(),
   quickExportPng: vi.fn(),
   openImageSize: vi.fn(),
+  openCanvasSize: vi.fn(),
   applyAdjustment: vi.fn(),
   isTransformActive: vi.fn(() => false),
   commitTransform: vi.fn(),

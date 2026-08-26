@@ -73,7 +73,7 @@ export const executeAtomicCommandBatch = async (
     if (sharedSchema) {
       const validation = validateJsonSchemaValue(sharedSchema, parameters);
       if (!validation.valid) throw new Error(
-        `${operation.operationId}: parameters do not match schema v1: ${formatSchemaValidationIssues(validation.issues)}.`
+        `${operation.operationId}: parameters do not match the command schema: ${formatSchemaValidationIssues(validation.issues)}.`
       );
     }
     let result: unknown = null;

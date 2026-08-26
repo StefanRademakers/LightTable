@@ -49,7 +49,7 @@ describe('SelectionTextureStore', () => {
     store.active = true;
     const resources = [store.mask, store.result, store.shape, store.clipboard];
 
-    expect(store.estimatedTextureBytes(10, 5)).toBe(10 * 5 * (3 + 8));
+    expect(store.estimatedTextureBytes(10, 5)).toBe(10 * 5 * (6 + 8));
     store.destroy();
     resources.forEach((resource) => expect(resource?.destroy).toHaveBeenCalledOnce());
     expect(store.active).toBe(false);

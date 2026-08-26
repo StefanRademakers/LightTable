@@ -55,7 +55,7 @@
   "selection.applyShape": { "mode": "replace | add | subtract | intersect", "shape": "selection-shape (2..4096 points)", "featherRadius?": "number 0..250", "antiAlias?": "boolean" },
   "selection.applyMagicWand": { "kind": "magic-wand", "layerId": "source layer ID", "point": "bounded document point", "mode": "replace | add | subtract | intersect", "options": "sampleSize 1|3|5|11|31|51|101, tolerance 0..255, antiAlias, contiguous, sampleAllLayers" },
   "selection.selectSubject": { "kind": "subject", "sourceLayerId": "source layer ID", "mode": "replace | add | subtract | intersect", "sampleAllLayers": "boolean" },
-  "selection.modify": { "kind": "modify", "operation": "all | clear | invert | feather", "radius?": "number 0..250 (feather only)" },
+  "selection.modify": { "kind": "modify", "operation": "all | clear | invert | border | smooth | feather | expand | contract", "radius?": "smooth integer 1..100; feather 0..250; expand/contract integer 1..500", "width?": "border integer 1..200", "applyAtCanvasBounds?": "boolean (smooth/feather/expand/contract only)" },
   "selection.copyPixels": { "source": "active-layer | merged" },
   "selection.pastePixels": { "artifactId": "pixel clipboard artifact ID", "bounds": "document bounds", "name?": "safe layer name", "target?": "optional pixels or active-mask target" },
   "grade.copy": {},

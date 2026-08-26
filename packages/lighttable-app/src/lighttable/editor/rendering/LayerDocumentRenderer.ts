@@ -862,8 +862,24 @@ export class LayerDocumentRenderer {
     );
   }
 
-  featherSelection(radius: number) {
-    return this.runtime.selectionRasterizer.feather(radius);
+  featherSelection(radius: number, applyAtCanvasBounds: boolean) {
+    return this.runtime.selectionRasterizer.feather(radius, applyAtCanvasBounds);
+  }
+
+  borderSelection(width: number) {
+    return this.runtime.selectionRasterizer.border(width);
+  }
+
+  smoothSelection(radius: number, applyAtCanvasBounds: boolean) {
+    return this.runtime.selectionRasterizer.smooth(radius, applyAtCanvasBounds);
+  }
+
+  modifySelectionMorphology(
+    mode: 'expand' | 'contract',
+    radius: number,
+    applyAtCanvasBounds: boolean
+  ) {
+    return this.runtime.selectionRasterizer.morphology(mode, radius, applyAtCanvasBounds);
   }
 
   transformSelection(matrix: { a: number; b: number; c: number; d: number; tx: number; ty: number }) {

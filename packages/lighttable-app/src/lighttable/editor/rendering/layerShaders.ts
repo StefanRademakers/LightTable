@@ -2248,7 +2248,7 @@ struct FeatherSettings {
   canvasSize: vec2f,
   direction: vec2f,
   radius: f32,
-  padding0: f32,
+  applyAtCanvasBounds: f32,
   padding1: f32,
   padding2: f32,
 }
@@ -2283,12 +2283,13 @@ fn maskSample(uv: vec2f) -> f32 {
     1.0,
     all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0))
   );
-  return textureSampleLevel(
+  let sample = textureSampleLevel(
     sourceTexture,
     sourceSampler,
     clamp(uv, vec2f(0.0), vec2f(1.0)),
     0.0
-  ).r * inside;
+  ).r;
+  return select(sample, sample * inside, settings.applyAtCanvasBounds > 0.5);
 }
 
 @fragment
@@ -2304,6 +2305,133 @@ fn main(input: VertexOutput) -> @location(0) f32 {
     ) * kernel.y;
   }
   return clamp(result, 0.0, 1.0);
+}
+`;
+
+export const SELECTION_MORPHOLOGY_WGSL = /* wgsl */ `
+struct MorphologySettings {
+  direction: vec2i,
+  offset: i32,
+  mode: i32,
+  applyAtCanvasBounds: i32,
+  padding0: i32,
+  padding1: i32,
+  padding2: i32,
+}
+
+@group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> settings: MorphologySettings;
+
+fn maskSample(pixel: vec2i, dimensions: vec2i) -> f32 {
+  let inside = all(pixel >= vec2i(0)) && all(pixel < dimensions);
+  if (!inside && settings.applyAtCanvasBounds != 0) { return 0.0; }
+  return textureLoad(sourceTexture, clamp(pixel, vec2i(0), dimensions - vec2i(1)), 0).r;
+}
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) f32 {
+  let dimensions = vec2i(textureDimensions(sourceTexture));
+  let pixel = clamp(vec2i(input.position.xy), vec2i(0), dimensions - vec2i(1));
+  let center = maskSample(pixel, dimensions);
+  let negative = maskSample(pixel - settings.direction * settings.offset, dimensions);
+  let positive = maskSample(pixel + settings.direction * settings.offset, dimensions);
+  return select(min(center, min(negative, positive)), max(center, max(negative, positive)), settings.mode == 0);
+}
+`;
+
+export const SELECTION_SMOOTH_THRESHOLD_WGSL = /* wgsl */ `
+@group(0) @binding(0) var smoothedMask: texture_2d<f32>;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) f32 {
+  let dimensions = vec2i(textureDimensions(smoothedMask));
+  let pixel = clamp(vec2i(input.position.xy), vec2i(0), dimensions - vec2i(1));
+  let coverage = textureLoad(smoothedMask, pixel, 0).r;
+  let edge = max(fwidth(coverage) * 0.75, 1.0 / 2048.0);
+  return smoothstep(0.5 - edge, 0.5 + edge, coverage);
+}
+`;
+
+export const SELECTION_SMOOTH_HORIZONTAL_WGSL = /* wgsl */ `
+struct SmoothSettings {
+  size: vec2i,
+  radius: i32,
+  applyAtCanvasBounds: i32,
+}
+
+@group(0) @binding(0) var sourceMask: texture_2d<f32>;
+@group(0) @binding(1) var horizontalAverage: texture_storage_2d<r32float, write>;
+@group(0) @binding(2) var<uniform> settings: SmoothSettings;
+
+fn selected(x: i32, y: i32) -> f32 {
+  let inside = x >= 0 && x < settings.size.x;
+  if (!inside && settings.applyAtCanvasBounds != 0) { return 0.0; }
+  let coverage = textureLoad(sourceMask, vec2i(clamp(x, 0, settings.size.x - 1), y), 0).r;
+  return select(0.0, 1.0, coverage >= 0.5);
+}
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  let y = i32(id.x);
+  if (y >= settings.size.y) { return; }
+  var sum = 0.0;
+  for (var offset = -settings.radius; offset <= settings.radius; offset += 1) {
+    sum += selected(offset, y);
+  }
+  let sampleCount = f32(settings.radius * 2 + 1);
+  for (var x = 0; x < settings.size.x; x += 1) {
+    textureStore(horizontalAverage, vec2i(x, y), vec4f(sum / sampleCount, 0.0, 0.0, 1.0));
+    sum += selected(x + settings.radius + 1, y) - selected(x - settings.radius, y);
+  }
+}
+`;
+
+export const SELECTION_SMOOTH_VERTICAL_WGSL = /* wgsl */ `
+struct SmoothSettings {
+  size: vec2i,
+  radius: i32,
+  applyAtCanvasBounds: i32,
+}
+
+@group(0) @binding(0) var horizontalAverage: texture_2d<f32>;
+@group(0) @binding(1) var smoothCoverage: texture_storage_2d<r32float, write>;
+@group(0) @binding(2) var<uniform> settings: SmoothSettings;
+
+fn averageAt(x: i32, y: i32) -> f32 {
+  let inside = y >= 0 && y < settings.size.y;
+  if (!inside && settings.applyAtCanvasBounds != 0) { return 0.0; }
+  return textureLoad(horizontalAverage, vec2i(x, clamp(y, 0, settings.size.y - 1)), 0).r;
+}
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  let x = i32(id.x);
+  if (x >= settings.size.x) { return; }
+  var sum = 0.0;
+  for (var offset = -settings.radius; offset <= settings.radius; offset += 1) {
+    sum += averageAt(x, offset);
+  }
+  let sampleCount = f32(settings.radius * 2 + 1);
+  for (var y = 0; y < settings.size.y; y += 1) {
+    textureStore(smoothCoverage, vec2i(x, y), vec4f(sum / sampleCount, 0.0, 0.0, 1.0));
+    sum += averageAt(x, y + settings.radius + 1) - averageAt(x, y - settings.radius);
+  }
+}
+`;
+
+export const SELECTION_BORDER_WGSL = /* wgsl */ `
+@group(0) @binding(0) var outerMask: texture_2d<f32>;
+@group(0) @binding(1) var innerMask: texture_2d<f32>;
+
+@fragment
+fn main(input: VertexOutput) -> @location(0) f32 {
+  let dimensions = vec2i(textureDimensions(outerMask));
+  let pixel = clamp(vec2i(input.position.xy), vec2i(0), dimensions - vec2i(1));
+  return clamp(
+    textureLoad(outerMask, pixel, 0).r - textureLoad(innerMask, pixel, 0).r,
+    0.0,
+    1.0
+  );
 }
 `;
 

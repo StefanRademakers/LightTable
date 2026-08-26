@@ -282,6 +282,10 @@ export interface LightTableLocalAiService {
 
 export interface LightTableHost {
   readonly kind: 'web' | 'electron' | 'storybuilder';
+  readonly developer?: {
+    reloadUi(): void;
+    toggleDeveloperTools(): void;
+  };
   readonly media?: LightTableMediaBrowser;
   readonly clipboard?: LightTableImageClipboard;
   readonly systemFontProvider?: SystemFontByteProvider;

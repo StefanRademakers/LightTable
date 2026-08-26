@@ -22,6 +22,9 @@ export default defineConfig({
   // instead of hiding it behind npm's node_modules junction.
   resolve: {
     alias: {
+      '@lighttable/command-contract': fileURLToPath(
+        new URL('../../packages/command-contract/src/index.mjs', import.meta.url)
+      ),
       '@lighttable/app/standalone': fileURLToPath(
         new URL('../../packages/lighttable-app/src/standalone.ts', import.meta.url)
       ),
@@ -78,6 +81,7 @@ export default defineConfig({
     // full editor reload. Models and weights remain lazy despite this bundle.
     include: ['@huggingface/transformers'],
     exclude: [
+      '@lighttable/command-contract',
       '@lighttable/app',
       '@lighttable/genai-core',
       '@lighttable/filter-core',

@@ -4,6 +4,7 @@ import { walkLayerTree } from '../document/layerTree';
 import { invertMatrix } from '../geometry/affine';
 import type { LayerRuntimeStore } from './LayerRuntimeStore';
 import type { SelectionTextureStore } from './SelectionTextureStore';
+import { LAYER_MASK_TEXTURE_FORMAT, SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 
 const SETTINGS_FLOATS = 16;
 
@@ -37,22 +38,29 @@ struct Settings {
 }
 `;
 
-interface GeometryPipelineBundle { readonly pipeline: GPURenderPipeline; readonly sampler: GPUSampler }
+interface GeometryPipelineBundle {
+  readonly maskPipeline: GPURenderPipeline;
+  readonly sampler: GPUSampler;
+}
 const bundles = new WeakMap<GPUDevice, GeometryPipelineBundle>();
 const bundleFor = (device: GPUDevice): GeometryPipelineBundle => {
   const cached = bundles.get(device); if (cached) return cached;
-  const pipeline = device.createRenderPipeline({
-    label: 'LightTable document geometry mask transfer', layout: 'auto',
-    vertex: { module: device.createShaderModule({ code: `
-      @vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
-        let x = f32(i32(index & 1u) * 4 - 1); let y = f32(i32(index >> 1u) * 4 - 1);
-        return vec4f(x, y, 0.0, 1.0);
-      }` }), entryPoint: 'main' },
-    fragment: { module: device.createShaderModule({ code: DOCUMENT_GEOMETRY_MASK_WGSL }),
-      entryPoint: 'main', targets: [{ format: 'r8unorm' }] },
+  const vertex = device.createShaderModule({ code: `
+    @vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
+      let x = f32(i32(index & 1u) * 4 - 1); let y = f32(i32(index >> 1u) * 4 - 1);
+      return vec4f(x, y, 0.0, 1.0);
+    }` });
+  const fragment = device.createShaderModule({ code: DOCUMENT_GEOMETRY_MASK_WGSL });
+  const create = (label: string, format: GPUTextureFormat) => device.createRenderPipeline({
+    label, layout: 'auto',
+    vertex: { module: vertex, entryPoint: 'main' },
+    fragment: { module: fragment, entryPoint: 'main', targets: [{ format }] },
     primitive: { topology: 'triangle-list' }
   });
-  const bundle = { pipeline, sampler: device.createSampler({ minFilter: 'linear', magFilter: 'linear' }) };
+  const bundle = {
+    maskPipeline: create('LightTable document geometry mask transfer', LAYER_MASK_TEXTURE_FORMAT),
+    sampler: device.createSampler({ minFilter: 'linear', magFilter: 'linear' })
+  };
   bundles.set(device, bundle); return bundle;
 };
 
@@ -87,18 +95,18 @@ export class DocumentGeometryGpuService {
       inverse.a, inverse.c, inverse.tx, 0, inverse.b, inverse.d, inverse.ty, 0,
       plan.sampling === 'filtered-affine' ? 1 : 0, 0, 0, 0
     ]));
-    const encode = (source: GPUTexture) => {
+    const encode = (source: GPUTexture, pipeline: GPURenderPipeline, format: GPUTextureFormat) => {
       const target = this.options.device.createTexture({ label: 'LightTable transformed mask',
-        size: [plan.targetWidth, plan.targetHeight], format: 'r8unorm',
+        size: [plan.targetWidth, plan.targetHeight], format,
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
           | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST });
-      const bindGroup = this.options.device.createBindGroup({ layout: bundle.pipeline.getBindGroupLayout(0), entries: [
+      const bindGroup = this.options.device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
         { binding: 0, resource: source.createView() }, { binding: 1, resource: bundle.sampler },
         { binding: 2, resource: { buffer: settings } }
       ] });
       const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(),
         clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear', storeOp: 'store' }] });
-      pass.setPipeline(bundle.pipeline); pass.setBindGroup(0, bindGroup); pass.draw(3); pass.end();
+      pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup); pass.draw(3); pass.end();
       return target;
     };
     const pending = [...walkLayerTree(document.layers)]
@@ -106,13 +114,18 @@ export class DocumentGeometryGpuService {
       .map(({ node }) => {
         const before = this.options.layers.maskTexture(node.id);
         if (!before) throw new Error(`Mask pixels are unavailable for ${node.name}.`);
-        return { layerId: node.id, before, after: encode(before) };
+        return { layerId: node.id, before,
+          after: encode(before, bundle.maskPipeline, LAYER_MASK_TEXTURE_FORMAT) };
       });
     let selectionExchange: SelectionExchange | null = null;
     const selection = this.options.selection;
     if (selection.active && selection.mask && selection.result && selection.shape) {
       const before = { mask: selection.mask, result: selection.result, shape: selection.shape };
-      selectionExchange = { before, after: { mask: encode(before.mask), result: encode(before.result), shape: encode(before.shape) }, current: 'after' };
+      selectionExchange = { before, after: {
+        mask: encode(before.mask, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT),
+        result: encode(before.result, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT),
+        shape: encode(before.shape, bundle.maskPipeline, SELECTION_TEXTURE_FORMAT)
+      }, current: 'after' };
     }
     this.options.device.queue.submit([encoder.finish()]);
     const exchanges: TextureExchange[] = pending.map(({ layerId, before, after }) => {

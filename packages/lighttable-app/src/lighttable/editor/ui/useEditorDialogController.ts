@@ -18,6 +18,15 @@ export interface MissingFontRecoveryRequest {
 
 export const useEditorDialogController = () => {
   const [featherOpen, setFeatherOpen] = useState(false);
+  const [featherCanvasBounds, setFeatherCanvasBounds] = useState(false);
+  const [selectionMorphology, setSelectionMorphology] =
+    useState<'border' | 'smooth' | 'expand' | 'contract' | null>(null);
+  const [selectionMorphologyCanvasBounds, setSelectionMorphologyCanvasBounds] = useState({
+    border: false,
+    smooth: false,
+    expand: false,
+    contract: false
+  });
   const [fillOpen, setFillOpen] = useState(false);
   const [imageSizeOpen, setImageSizeOpen] = useState(false);
   const [canvasSizeOpen, setCanvasSizeOpen] = useState(false);
@@ -36,6 +45,7 @@ export const useEditorDialogController = () => {
 
   const reset = useCallback(() => {
     setFeatherOpen(false);
+    setSelectionMorphology(null);
     setFillOpen(false);
     setImageSizeOpen(false);
     setCanvasSizeOpen(false);
@@ -54,6 +64,9 @@ export const useEditorDialogController = () => {
 
   return {
     featherOpen,
+    featherCanvasBounds,
+    selectionMorphology,
+    selectionMorphologyCanvasBounds,
     fillOpen,
     imageSizeOpen,
     canvasSizeOpen,
@@ -70,6 +83,16 @@ export const useEditorDialogController = () => {
     pdfExportPreflightRequest,
     openFeather: useCallback(() => setFeatherOpen(true), []),
     closeFeather: useCallback(() => setFeatherOpen(false), []),
+    setFeatherCanvasBounds,
+    openBorder: useCallback(() => setSelectionMorphology('border'), []),
+    openSmooth: useCallback(() => setSelectionMorphology('smooth'), []),
+    openExpand: useCallback(() => setSelectionMorphology('expand'), []),
+    openContract: useCallback(() => setSelectionMorphology('contract'), []),
+    closeSelectionMorphology: useCallback(() => setSelectionMorphology(null), []),
+    setSelectionMorphologyCanvasBounds: useCallback((
+      mode: 'border' | 'smooth' | 'expand' | 'contract',
+      enabled: boolean
+    ) => setSelectionMorphologyCanvasBounds((current) => ({ ...current, [mode]: enabled })), []),
     openFill: useCallback(() => setFillOpen(true), []),
     closeFill: useCallback(() => setFillOpen(false), []),
     openImageSize: useCallback(() => setImageSizeOpen(true), []),

@@ -2410,6 +2410,15 @@ struct MaskPresentationUniforms {
 @group(0) @binding(2) var<uniform> view: ViewUniforms;
 @group(0) @binding(3) var<uniform> maskPresentation: MaskPresentationUniforms;
 
+fn linearMaskToDisplay(value: f32) -> f32 {
+  let positive = max(value, 0.0);
+  return select(
+    1.055 * pow(positive, 1.0 / 2.4) - 0.055,
+    positive * 12.92,
+    positive <= 0.0031308
+  );
+}
+
 @fragment
 fn main(input: VertexOutput) -> @location(0) vec4f {
   let pixel = input.uv * vec2f(view.viewportWidth, view.viewportHeight);
@@ -2430,7 +2439,7 @@ fn main(input: VertexOutput) -> @location(0) vec4f {
     textureSampleLevel(maskTexture, imageSampler, maskUv, 0.0).r,
     maskInside
   );
-  return vec4f(vec3f(coverage), 1.0);
+  return vec4f(vec3f(linearMaskToDisplay(coverage)), 1.0);
 }
 `;
 

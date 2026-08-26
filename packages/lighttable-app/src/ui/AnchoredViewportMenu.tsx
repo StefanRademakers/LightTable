@@ -20,7 +20,7 @@ export const anchoredViewportMenuPosition = (
   const above = Math.max(0, anchor.top - ANCHOR_GAP - VIEWPORT_TOP_INSET);
   const below = Math.max(0, viewport.height - anchor.bottom - ANCHOR_GAP - VIEWPORT_MARGIN);
   const placement = above >= below ? 'above' : 'below';
-  const available = Math.max(120, placement === 'above' ? above : below);
+  const available = Math.max(120, viewport.height - VIEWPORT_TOP_INSET - VIEWPORT_MARGIN);
   const height = Math.min(menu.height, available);
   const left = Math.max(
     VIEWPORT_MARGIN,
@@ -30,10 +30,8 @@ export const anchoredViewportMenuPosition = (
     left,
     top: placement === 'above'
       ? Math.max(VIEWPORT_TOP_INSET, anchor.top - ANCHOR_GAP - height)
-      : Math.max(
-          VIEWPORT_TOP_INSET,
-          Math.min(anchor.bottom + ANCHOR_GAP, viewport.height - height - VIEWPORT_MARGIN)
-        ),
+      : Math.max(VIEWPORT_TOP_INSET,
+          Math.min(anchor.bottom + ANCHOR_GAP, viewport.height - height - VIEWPORT_MARGIN)),
     maxHeight: available,
     placement
   };

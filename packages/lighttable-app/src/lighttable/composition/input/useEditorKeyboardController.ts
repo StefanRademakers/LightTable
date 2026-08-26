@@ -76,14 +76,21 @@ export const useEditorKeyboardController = ({
   onCapsLockChange
 }: EditorKeyboardControllerOptions): void => {
   useEditorWindowInput(enabled, {
-    onKeyDown: (event) => {
+    onKeyDown: (event, physicalModifiers) => {
       if (event.target instanceof HTMLElement) {
         const nativeScope = event.target.closest<HTMLElement>('[data-editor-native-tab-navigation]');
         if (nativeScope && (nativeScope.dataset.editorNativeTabNavigation !== 'tab-only'
           || event.key === 'Tab')) return false;
       }
       const context = getContext();
-      const command = resolveEditorKeyboardCommand(event, {
+      const command = resolveEditorKeyboardCommand({
+        key: event.key,
+        code: event.code,
+        ctrlKey: event.ctrlKey || physicalModifiers.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey || physicalModifiers.altKey,
+        shiftKey: event.shiftKey
+      }, {
         ...context,
         // Popovers and color/gradient controls own Enter, Escape and arrows.
         // Treat them like an editing scope so application shortcuts explicitly

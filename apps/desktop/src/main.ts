@@ -1804,6 +1804,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     mainWindow?.setFullScreen(enabled);
   });
 
+  ipcMain.handle('lighttable:toggle-developer-tools', (event) => {
+    assertTrustedSender(senderUrlOrThrow(event.senderFrame));
+    if (app.isPackaged) throw new Error('Developer Tools are unavailable in packaged builds.');
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return;
+    if (window.webContents.isDevToolsOpened()) window.webContents.closeDevTools();
+    else window.webContents.openDevTools({ mode: 'detach', activate: true });
+  });
+
   ipcMain.handle('lighttable:close-application', (event) => {
     assertTrustedSender(senderUrlOrThrow(event.senderFrame));
     setImmediate(() => app.quit());

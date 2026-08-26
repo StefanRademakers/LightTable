@@ -14,7 +14,10 @@ export interface EditorWindowInputTarget {
 }
 
 export interface EditorWindowInputHandlers {
-  readonly onKeyDown: (event: KeyboardEvent) => boolean;
+  readonly onKeyDown: (
+    event: KeyboardEvent,
+    physicalModifiers: { readonly ctrlKey: boolean; readonly altKey: boolean }
+  ) => boolean;
   readonly onKeyUp: (event: KeyboardEvent) => boolean;
   readonly onShiftChange: (pressed: boolean) => void;
   readonly onAltChange: (pressed: boolean) => void;
@@ -43,7 +46,9 @@ export const bindEditorWindowInput = (
   getHandlers: () => EditorWindowInputHandlers
 ): (() => void) => {
   let shiftActive = false;
+  let ctrlActive = false;
   let altActive = false;
+  let shortcutAltActive = false;
   let capsLockState = false;
   const publishCapsLockTransition = (event: KeyboardEvent, handlers: EditorWindowInputHandlers) => {
     const next = capsLockActive(event);
@@ -58,22 +63,31 @@ export const bindEditorWindowInput = (
       shiftActive = true;
       handlers.onShiftChange(true);
     }
+    if (event.key === 'Control') ctrlActive = true;
     if (event.key === 'Alt' && !altActive) {
       altActive = true;
       handlers.onAltChange(true);
     }
+    if (event.key === 'Alt' && event.code !== 'AltRight') shortcutAltActive = true;
     publishCapsLockTransition(event, handlers);
-    if (handlers.onKeyDown(event)) consumeKeyboardEvent(event);
+    // US-International turns Ctrl+Alt+letter into an AltGr character and drops
+    // ctrlKey/altKey from that letter event. Preserve the physical left-Alt
+    // chord without treating the dedicated right-Alt key as an app shortcut.
+    if (handlers.onKeyDown(event, { ctrlKey: ctrlActive, altKey: shortcutAltActive })) {
+      consumeKeyboardEvent(event);
+    }
   };
   const handleKeyUp: EventListener = (rawEvent) => {
     const event = rawEvent as KeyboardEvent;
     const handlers = getHandlers();
+    if (event.key === 'Control') ctrlActive = false;
     if (event.key === 'Shift' && shiftActive) {
       shiftActive = false;
       handlers.onShiftChange(false);
     }
     if (event.key === 'Alt' && altActive) {
       altActive = false;
+      shortcutAltActive = false;
       handlers.onAltChange(false);
     }
     publishCapsLockTransition(event, handlers);
@@ -81,6 +95,8 @@ export const bindEditorWindowInput = (
   };
   const handleBlur: EventListener = () => {
     const handlers = getHandlers();
+    ctrlActive = false;
+    shortcutAltActive = false;
     if (shiftActive) {
       shiftActive = false;
       handlers.onShiftChange(false);

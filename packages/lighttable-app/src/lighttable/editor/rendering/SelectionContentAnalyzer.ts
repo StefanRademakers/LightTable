@@ -46,11 +46,15 @@ export class SelectionContentAnalyzer {
       size: bytesPerRow * height,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
+    const coverage = this.options.createCoverageTexture(
+      'LightTable selection bounds byte coverage', width, height
+    );
 
     try {
       const encoder = device.createCommandEncoder({ label: 'LightTable measure selection bounds' });
+      this.encodeByteCoverage(encoder, textures.mask, coverage);
       encoder.copyTextureToBuffer(
-        { texture: textures.mask },
+        { texture: coverage },
         { buffer: readBuffer, bytesPerRow, rowsPerImage: height },
         [width, height]
       );
@@ -66,11 +70,14 @@ export class SelectionContentAnalyzer {
     } finally {
       if (readBuffer.mapState === 'mapped') readBuffer.unmap();
       readBuffer.destroy();
+      coverage.destroy();
     }
   }
 
   async measureMask(layer: LayerNode): Promise<SelectionCoverageBounds | null> {
-    const { device, ensureTargets, maskTexture } = this.options;
+    const {
+      device, ensureTargets, maskTexture, createCoverageTexture, pipelines, drawFullscreen
+    } = this.options;
     ensureTargets();
     const source = maskTexture(layer.id);
     if (!source) return null;
@@ -82,13 +89,28 @@ export class SelectionContentAnalyzer {
       size: bytesPerRow * height,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
+    const coverage = createCoverageTexture(
+      'LightTable layer mask bounds coverage', width, height
+    );
 
     try {
       const encoder = device.createCommandEncoder({
         label: 'LightTable measure layer mask content'
       });
+      const pipeline = pipelines().coverageToByte;
+      const bindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: source.createView() }]
+      });
+      drawFullscreen(
+        encoder,
+        pipeline,
+        bindGroup,
+        coverage.createView(),
+        { r: 0, g: 0, b: 0, a: 0 }
+      );
       encoder.copyTextureToBuffer(
-        { texture: source },
+        { texture: coverage },
         { buffer: readBuffer, bytesPerRow, rowsPerImage: height },
         [width, height]
       );
@@ -104,7 +126,27 @@ export class SelectionContentAnalyzer {
     } finally {
       if (readBuffer.mapState === 'mapped') readBuffer.unmap();
       readBuffer.destroy();
+      coverage.destroy();
     }
+  }
+
+  private encodeByteCoverage(
+    encoder: GPUCommandEncoder,
+    source: GPUTexture,
+    target: GPUTexture
+  ) {
+    const pipeline = this.options.pipelines().coverageToByte;
+    const bindGroup = this.options.device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: source.createView() }]
+    });
+    this.options.drawFullscreen(
+      encoder,
+      pipeline,
+      bindGroup,
+      target.createView(),
+      { r: 0, g: 0, b: 0, a: 0 }
+    );
   }
 
   async measure(

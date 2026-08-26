@@ -1026,7 +1026,7 @@ export class LightTableCommandService {
       const validation = validateJsonSchemaValue(sharedSchema, value.parameters);
       if (!validation.valid) {
         return this.reject(value.requestId, 'invalid-parameters',
-          `Command parameters do not match schema v1: ${formatSchemaValidationIssues(validation.issues)}.`);
+          `Command parameters do not match the command schema: ${formatSchemaValidationIssues(validation.issues)}.`);
       }
     }
     if (value.expectedWorkspaceRevision !== undefined

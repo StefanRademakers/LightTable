@@ -9,6 +9,7 @@ import type {
 } from '../selection/selectionTypes';
 import type { SelectionTextureStore } from './SelectionTextureStore';
 import type { ToolPipelineBundle } from './ToolPipelineBundle';
+import { SELECTION_TEXTURE_FORMAT } from './DocumentTextureFactory';
 
 const selectionModeValue: Record<SelectionMode, number> = {
   replace: 0,
@@ -17,7 +18,11 @@ const selectionModeValue: Record<SelectionMode, number> = {
   intersect: 3,
   invert: 4,
   feather: 5,
-  transform: 6
+  transform: 6,
+  expand: 7,
+  contract: 8,
+  border: 9,
+  smooth: 10
 };
 
 export interface SelectionShapeBuffers {
@@ -225,7 +230,9 @@ export class SelectionRasterizer {
     const { width, height } = this.options.dimensions();
     if (width < 1 || height < 1) return false;
     const mode = effectiveSelectionMode(textures.active, requestedMode);
-    if (!mode || mode === 'invert' || mode === 'feather' || mode === 'transform') return false;
+    if (!mode || mode === 'invert' || mode === 'feather' || mode === 'border'
+      || mode === 'smooth' || mode === 'expand' || mode === 'contract'
+      || mode === 'transform') return false;
     const seedX = Math.max(0, Math.min(width - 1, Math.floor(point.x)));
     const seedY = Math.max(0, Math.min(height - 1, Math.floor(point.y)));
     const buffers = this.ensureMagicWandBuffers(width * height);
@@ -352,7 +359,7 @@ export class SelectionRasterizer {
     const target = device.createTexture({
       label: 'LightTable Magic Wand warmup target',
       size: [1, 1],
-      format: 'r8unorm',
+      format: SELECTION_TEXTURE_FORMAT,
       usage: GPUTextureUsage.RENDER_ATTACHMENT
     });
     const settings = device.createBuffer({
@@ -478,7 +485,7 @@ export class SelectionRasterizer {
     this.copyRedChannel(
       textures.mask,
       target,
-      this.options.pipelines().selectionToMask,
+      this.options.pipelines().coverageCopy,
       'LightTable bake selection into layer mask'
     );
     return true;
@@ -496,16 +503,18 @@ export class SelectionRasterizer {
     if (mask.width !== dimensions.width || mask.height !== dimensions.height
       || mask.data.byteLength !== mask.width * mask.height) return false;
 
-    const usage = GPUTextureUsage.TEXTURE_BINDING
-      | GPUTextureUsage.RENDER_ATTACHMENT
-      | GPUTextureUsage.COPY_DST;
-    const create = (label: string) => device.createTexture({
-      label,
+    const incoming = device.createTexture({
+      label: 'LightTable generated layer mask',
       size: [mask.width, mask.height],
       format: 'r8unorm',
-      usage
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
     });
-    const incoming = create('LightTable generated layer mask');
+    const createCoverage = (label: string) => device.createTexture({
+      label,
+      size: [mask.width, mask.height],
+      format: SELECTION_TEXTURE_FORMAT,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+    });
     device.queue.writeTexture(
       { texture: incoming }, mask.data,
       { bytesPerRow: mask.width, rowsPerImage: mask.height },
@@ -515,19 +524,19 @@ export class SelectionRasterizer {
       this.copyRedChannel(
         incoming,
         target,
-        this.options.pipelines().selectionToMask,
+        this.options.pipelines().coverageCopy,
         'LightTable replace generated layer mask'
       );
       void device.queue.onSubmittedWorkDone().then(() => incoming.destroy());
       return true;
     }
 
-    const current = create('LightTable current layer mask work texture');
-    const result = create('LightTable intersected layer mask work texture');
+    const current = createCoverage('LightTable current layer mask work texture');
+    const result = createCoverage('LightTable intersected layer mask work texture');
     this.copyRedChannel(
       target,
       current,
-      this.options.pipelines().maskToSelection,
+      this.options.pipelines().coverageCopy,
       'LightTable read current layer mask'
     );
     const settings = device.createBuffer({
@@ -555,7 +564,7 @@ export class SelectionRasterizer {
     this.copyRedChannel(
       result,
       target,
-      this.options.pipelines().selectionToMask,
+      this.options.pipelines().coverageCopy,
       'LightTable store intersected layer mask'
     );
     void device.queue.onSubmittedWorkDone().then(() => {
@@ -571,7 +580,7 @@ export class SelectionRasterizer {
     this.copyRedChannel(
       source,
       textures.mask,
-      this.options.pipelines().maskToSelection,
+      this.options.pipelines().coverageCopy,
       'LightTable load layer mask as selection'
     );
     textures.active = true;
@@ -639,10 +648,18 @@ export class SelectionRasterizer {
       || mask.width !== dimensions.width || mask.height !== dimensions.height
       || mask.data.byteLength !== mask.width * mask.height) return false;
     const mode = effectiveSelectionMode(textures.active, requestedMode);
-    if (!mode || mode === 'invert' || mode === 'feather' || mode === 'transform') return false;
+    if (!mode || mode === 'invert' || mode === 'feather' || mode === 'border'
+      || mode === 'smooth' || mode === 'expand' || mode === 'contract'
+      || mode === 'transform') return false;
 
+    const incoming = device.createTexture({
+      label: 'LightTable raster selection byte mask',
+      size: [mask.width, mask.height],
+      format: 'r8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    });
     device.queue.writeTexture(
-      { texture: textures.shape },
+      { texture: incoming },
       mask.data,
       { bytesPerRow: mask.width, rowsPerImage: mask.height },
       { width: mask.width, height: mask.height }
@@ -653,14 +670,31 @@ export class SelectionRasterizer {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
     const encoder = device.createCommandEncoder({ label: 'LightTable apply raster selection mask' });
+    const uploadPipeline = this.options.pipelines().coverageCopy;
+    const uploadBindings = device.createBindGroup({
+      label: 'LightTable raster selection upload bindings',
+      layout: uploadPipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: incoming.createView() }]
+    });
+    this.options.drawFullscreen(
+      encoder,
+      uploadPipeline,
+      uploadBindings,
+      textures.shape.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
     if (!this.combineShapeMask(encoder, mode, combineBuffer)) {
+      incoming.destroy();
       combineBuffer.destroy();
       return false;
     }
     device.queue.submit([encoder.finish()]);
     textures.swapMaskAndResult();
     textures.active = true;
-    void device.queue.onSubmittedWorkDone().then(() => combineBuffer.destroy());
+    void device.queue.onSubmittedWorkDone().then(() => {
+      incoming.destroy();
+      combineBuffer.destroy();
+    });
     return true;
   }
 
@@ -670,6 +704,7 @@ export class SelectionRasterizer {
     intermediate: GPUTexture,
     target: GPUTexture,
     radius: number,
+    applyAtCanvasBounds: boolean,
     submittedBuffers: GPUBuffer[],
     submittedTextures: GPUTexture[]
   ) {
@@ -682,19 +717,19 @@ export class SelectionRasterizer {
       device.createTexture({
         label: 'LightTable feather selection low-resolution source',
         size: { width: featherWidth, height: featherHeight },
-        format: 'r8unorm',
+        format: SELECTION_TEXTURE_FORMAT,
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
       }),
       device.createTexture({
         label: 'LightTable feather selection low-resolution horizontal',
         size: { width: featherWidth, height: featherHeight },
-        format: 'r8unorm',
+        format: SELECTION_TEXTURE_FORMAT,
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
       }),
       device.createTexture({
         label: 'LightTable feather selection low-resolution vertical',
         size: { width: featherWidth, height: featherHeight },
-        format: 'r8unorm',
+        format: SELECTION_TEXTURE_FORMAT,
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
       })
     ];
@@ -714,7 +749,8 @@ export class SelectionRasterizer {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
       });
       device.queue.writeBuffer(settingsBuffer, 0, new Float32Array([
-        sourceWidth, sourceHeight, direction[0], direction[1], passRadius, 0, 0, 0
+        sourceWidth, sourceHeight, direction[0], direction[1], passRadius,
+        applyAtCanvasBounds ? 1 : 0, 0, 0
       ]));
       const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
@@ -866,6 +902,7 @@ export class SelectionRasterizer {
         textures.result,
         textures.shape,
         clampedFeatherRadius,
+        false,
         submittedBuffers,
         submittedTextures
       );
@@ -944,7 +981,7 @@ export class SelectionRasterizer {
     return true;
   }
 
-  feather(radius: number) {
+  feather(radius: number, applyAtCanvasBounds: boolean) {
     const { textures, device } = this.options;
     if (!textures.active || !textures.mask || !textures.result) return false;
     const clampedRadius = Math.max(0, Math.min(250, radius));
@@ -960,6 +997,7 @@ export class SelectionRasterizer {
       textures.result,
       textures.mask,
       clampedRadius,
+      applyAtCanvasBounds,
       submittedBuffers,
       temporaryTextures
     );
@@ -969,6 +1007,255 @@ export class SelectionRasterizer {
       temporaryTextures.forEach((texture) => texture.destroy());
     });
     return true;
+  }
+
+  morphology(
+    mode: 'expand' | 'contract',
+    radius: number,
+    applyAtCanvasBounds: boolean
+  ) {
+    const { textures, device } = this.options;
+    if (!textures.active || !textures.mask || !textures.result || !textures.shape) return false;
+    const clampedRadius = Math.max(1, Math.min(500, Math.round(radius)));
+    const encoder = device.createCommandEncoder({ label: `LightTable ${mode} selection` });
+    const buffers: GPUBuffer[] = [];
+    this.encodeMorphology(
+      encoder,
+      textures.mask,
+      textures.result,
+      textures.shape,
+      mode,
+      clampedRadius,
+      applyAtCanvasBounds,
+      buffers
+    );
+    device.queue.submit([encoder.finish()]);
+    textures.swapMaskAndResult();
+    void device.queue.onSubmittedWorkDone().then(() => buffers.forEach((buffer) => buffer.destroy()));
+    return true;
+  }
+
+  smooth(radius: number, applyAtCanvasBounds: boolean) {
+    const { textures, device } = this.options;
+    if (!textures.active || !textures.mask || !textures.result || !textures.shape) return false;
+    const normalized = Math.max(1, Math.min(100, Math.round(radius)));
+    const { width, height } = this.options.dimensions();
+    const horizontal = device.createTexture({
+      label: 'LightTable selection smooth horizontal average',
+      size: { width, height },
+      format: 'r32float',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING
+    });
+    const coverage = device.createTexture({
+      label: 'LightTable selection smooth coverage',
+      size: { width, height },
+      format: 'r32float',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING
+    });
+    const settings = device.createBuffer({
+      label: 'LightTable smooth selection settings',
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+    device.queue.writeBuffer(settings, 0, new Int32Array([
+      width,
+      height,
+      normalized,
+      applyAtCanvasBounds ? 1 : 0
+    ]));
+    const encoder = device.createCommandEncoder({ label: 'LightTable smooth selection' });
+    const horizontalPipeline = this.options.pipelines().selectionSmoothHorizontal;
+    const horizontalPass = encoder.beginComputePass({ label: 'LightTable smooth selection horizontal' });
+    horizontalPass.setPipeline(horizontalPipeline);
+    horizontalPass.setBindGroup(0, device.createBindGroup({
+      label: 'LightTable smooth selection horizontal bindings',
+      layout: horizontalPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: textures.mask.createView() },
+        { binding: 1, resource: horizontal.createView() },
+        { binding: 2, resource: { buffer: settings } }
+      ]
+    }));
+    horizontalPass.dispatchWorkgroups(Math.ceil(height / 64));
+    horizontalPass.end();
+    const verticalPipeline = this.options.pipelines().selectionSmoothVertical;
+    const verticalPass = encoder.beginComputePass({ label: 'LightTable smooth selection vertical' });
+    verticalPass.setPipeline(verticalPipeline);
+    verticalPass.setBindGroup(0, device.createBindGroup({
+      label: 'LightTable smooth selection vertical bindings',
+      layout: verticalPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: horizontal.createView() },
+        { binding: 1, resource: coverage.createView() },
+        { binding: 2, resource: { buffer: settings } }
+      ]
+    }));
+    verticalPass.dispatchWorkgroups(Math.ceil(width / 64));
+    verticalPass.end();
+    const pipeline = this.options.pipelines().selectionSmoothThreshold;
+    const bindGroup = device.createBindGroup({
+      label: 'LightTable smooth selection threshold bindings',
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: coverage.createView() }]
+    });
+    this.options.drawFullscreen(
+      encoder,
+      pipeline,
+      bindGroup,
+      textures.result.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    device.queue.submit([encoder.finish()]);
+    textures.swapMaskAndResult();
+    void device.queue.onSubmittedWorkDone().then(() => {
+      settings.destroy();
+      horizontal.destroy();
+      coverage.destroy();
+    });
+    return true;
+  }
+
+  border(width: number) {
+    const { textures, device } = this.options;
+    if (!textures.active || !textures.mask || !textures.result || !textures.shape) return false;
+    const borderWidth = Math.max(1, Math.min(200, Math.round(width)));
+    const dimensions = this.options.dimensions();
+    const createTemporary = (label: string) => device.createTexture({
+      label,
+      size: dimensions,
+      format: SELECTION_TEXTURE_FORMAT,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+        | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST
+    });
+    const outer = createTemporary('LightTable selection border outer');
+    const inner = createTemporary('LightTable selection border inner');
+    const encoder = device.createCommandEncoder({ label: 'LightTable selection border' });
+    const buffers: GPUBuffer[] = [];
+    this.encodeMorphology(
+      encoder, textures.mask, outer, textures.shape, 'expand', Math.ceil(borderWidth / 2), true, buffers
+    );
+    this.encodeMorphology(
+      encoder, textures.mask, inner, textures.shape, 'contract', Math.floor(borderWidth / 2), true, buffers
+    );
+    const pipeline = this.options.pipelines().selectionBorder;
+    const bindGroup = device.createBindGroup({
+      label: 'LightTable selection border bindings',
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: outer.createView() },
+        { binding: 1, resource: inner.createView() }
+      ]
+    });
+    this.options.drawFullscreen(
+      encoder,
+      pipeline,
+      bindGroup,
+      textures.result.createView(),
+      { r: 0, g: 0, b: 0, a: 1 }
+    );
+    const featherTextures: GPUTexture[] = [];
+    this.encodeFeather(
+      encoder,
+      textures.result,
+      textures.shape,
+      textures.result,
+      0.75,
+      true,
+      buffers,
+      featherTextures
+    );
+    device.queue.submit([encoder.finish()]);
+    textures.swapMaskAndResult();
+    void device.queue.onSubmittedWorkDone().then(() => {
+      buffers.forEach((buffer) => buffer.destroy());
+      featherTextures.forEach((texture) => texture.destroy());
+      outer.destroy();
+      inner.destroy();
+    });
+    return true;
+  }
+
+  private encodeMorphology(
+    encoder: GPUCommandEncoder,
+    sourceTexture: GPUTexture,
+    targetTexture: GPUTexture,
+    scratchTexture: GPUTexture,
+    mode: 'expand' | 'contract',
+    radius: number,
+    applyAtCanvasBounds: boolean,
+    buffers: GPUBuffer[]
+  ) {
+    const { device } = this.options;
+    if (radius <= 0) {
+      const { width, height } = this.options.dimensions();
+      encoder.copyTextureToTexture(
+        { texture: sourceTexture },
+        { texture: targetTexture },
+        { width, height }
+      );
+      return;
+    }
+    const steps: number[] = [];
+    for (let reach = 0; reach < radius;) {
+      const step = Math.min(reach + 1, radius - reach);
+      steps.push(step);
+      reach += step;
+    }
+    const pipeline = this.options.pipelines().selectionMorphology;
+    const bindGroup = (
+      source: GPUTexture,
+      directionX: number,
+      directionY: number,
+      offset: number
+    ) => {
+      const settings = device.createBuffer({
+        label: 'LightTable selection morphology settings',
+        size: 32,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+      buffers.push(settings);
+      device.queue.writeBuffer(settings, 0, new Int32Array([
+        directionX,
+        directionY,
+        offset,
+        mode === 'expand' ? 0 : 1,
+        applyAtCanvasBounds ? 1 : 0,
+        0,
+        0,
+        0
+      ]));
+      return device.createBindGroup({
+        label: 'LightTable selection morphology bindings',
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: source.createView() },
+          { binding: 1, resource: { buffer: settings } }
+        ]
+      });
+    };
+    let source = sourceTexture;
+    let target = targetTexture;
+    for (const [directionX, directionY] of [[1, 0], [0, 1]] as const) {
+      for (const step of steps) {
+        this.options.drawFullscreen(
+          encoder,
+          pipeline,
+          bindGroup(source, directionX, directionY, step),
+          target.createView(),
+          { r: 0, g: 0, b: 0, a: 1 }
+        );
+        source = target;
+        target = target === targetTexture ? scratchTexture : targetTexture;
+      }
+    }
+    if (source !== targetTexture) {
+      const { width, height } = this.options.dimensions();
+      encoder.copyTextureToTexture(
+        { texture: source },
+        { texture: targetTexture },
+        { width, height }
+      );
+    }
   }
 
   clear() {
