@@ -1,711 +1,105 @@
 import { _electron as electron } from 'playwright-core';
-import { access, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
 import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
-import {
-  beginGestureRuntimeEvidence,
-  captureGesturePreviewEvidence,
-  finishGestureRuntimeEvidence
-} from './semantic-gesture-runtime-evidence.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const fixture = path.resolve(process.argv[2] ?? 'D:\\shapes.psd');
-const evidenceDirectory = path.join(root, 'tmp', 'actions-panel-smoke');
-const launch = await resolveDesktopTestLaunch(root);
-await Promise.all([access(fixture), mkdir(evidenceDirectory, { recursive: true })]);
-const userData = await mkdtemp(path.join(evidenceDirectory, 'profile-'));
-const screenshot = path.join(evidenceDirectory, 'actions-panel.png');
-const runtimeEvidencePath = path.join(evidenceDirectory, 'semantic-gesture-runtime.json');
+const fixture = path.resolve(process.argv[2]
+  ?? path.join(root, '..', 'LightTableTestFiles', 'RandomFiles', 'shapes.psd'));
+const output = path.join(root, 'tmp', 'actions-panel-smoke');
+await Promise.all([access(fixture), mkdir(output, { recursive: true })]);
+const userData = await mkdtemp(path.join(output, 'profile-'));
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
 
 let app;
 const pageErrors = [];
 try {
+  const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
   app = await electron.launch({
     executablePath: launch.executablePath,
     args: launch.args,
     cwd: root,
-    env: {
-      ...environment,
-      LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-      LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture
-    },
+    env: { ...environment, LIGHTTABLE_AUTOMATION_USER_DATA: userData,
+      LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture },
     timeout: 30_000
   });
   const window = await app.firstWindow({ timeout: 30_000 });
   window.on('pageerror', (error) => pageErrors.push(error.message));
-  const open = await waitForDesktopLauncher({
-    app, page: window, outputDirectory: evidenceDirectory,
-    sourceFile: fixture, pageErrors, label: 'actions-panel'
-  });
+  const open = await waitForDesktopLauncher({ app, page: window, outputDirectory: output,
+    sourceFile: fixture, pageErrors, label: 'actions-panel' });
   await open.click();
   await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
     .waitFor({ timeout: 60_000 });
-  const driver = await attachLightTableAutomation(window, 'actions-runtime');
+  const driver = await attachLightTableAutomation(window, 'actions-smoke');
   const documentId = (await driver.queryWorkspace())?.activeDocumentId;
-  if (!documentId) throw new Error('Actions smoke has no active document for runtime evidence.');
-  const gestureRuntimeEvidence = [];
+  if (!documentId) throw new Error('Actions smoke has no active document.');
 
   await window.getByRole('menuitem', { name: 'View' }).click();
   await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   const panel = window.getByRole('complementary', { name: 'Actions' });
-  await panel.getByRole('radio', { name: 'Actions' }).waitFor();
-  const recorder = panel.locator('.lighttable-action-recorder');
-  await recorder.getByRole('button', { name: 'Record' }).click();
-  await recorder.getByText('recording', { exact: true }).waitFor();
+  await panel.waitFor();
+  await panel.getByRole('button', { name: 'New Action', exact: true }).click();
+  const dialog = window.getByRole('dialog', { name: 'New Action' });
+  await dialog.getByRole('textbox').fill('Layer setup');
+  await dialog.getByRole('button', { name: 'OK' }).click();
+  await window.waitForFunction(() =>
+    window.__lightTableAutomation?.actionRecordingSnapshot?.().status === 'recording');
 
-  await window.keyboard.press('Control+t');
-  const transformOverlay = window.getByLabel('Transform controls');
-  await transformOverlay.waitFor({ state: 'visible', timeout: 30_000 });
-  const transformBody = transformOverlay.locator('.lighttable-transform__body');
-  const transformBounds = await transformBody.boundingBox();
-  if (!transformBounds) throw new Error('Actions smoke could not measure the transform body.');
-  const transformStart = await window.evaluate(({ x, y, width, height }) => {
-    for (const fy of [0.25, 0.5, 0.75]) {
-      for (const fx of [0.25, 0.5, 0.75]) {
-        const point = { x: x + width * fx, y: y + height * fy };
-        if (document.elementFromPoint(point.x, point.y)?.classList.contains('lighttable-transform__body')) {
-          return point;
-        }
-      }
-    }
-    return null;
-  }, transformBounds);
-  if (!transformStart) throw new Error('Actions smoke transform body is covered by panel chrome.');
-  await window.mouse.move(transformStart.x, transformStart.y);
-  await window.mouse.down();
-  await window.mouse.move(transformStart.x + 18, transformStart.y + 12, { steps: 8 });
-  await window.mouse.up();
-  await recorder.locator('li').filter({ hasText: 'layer.setTransform' }).waitFor();
-  await window.keyboard.press('Enter');
+  const created = await driver.execute(documentId, 'layer.createRaster');
+  const layerId = created.value?.layerId;
+  if (typeof layerId !== 'string') throw new Error('New Pixel Layer returned no layer ID.');
+  await driver.execute(documentId, 'layer.rename', { layerId, name: 'Action layer' });
+  await panel.getByRole('button', { name: 'Stop' }).click();
 
-  const viewport = window.locator('.lighttable-viewport');
-  const viewportBounds = await viewport.boundingBox();
-  if (!viewportBounds) throw new Error('Actions smoke could not measure the canvas viewport.');
-  await window.keyboard.press('m');
-  await window.locator('.lighttable-tool-options__identity')
-    .filter({ hasText: 'Rectangular selection' }).waitFor();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.3,
-    viewportBounds.y + viewportBounds.height * 0.3
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.55,
-    viewportBounds.y + viewportBounds.height * 0.55,
-    { steps: 12 }
-  );
-  await window.mouse.up();
-  await recorder.locator('li').filter({ hasText: 'selection.applyShape' }).waitFor();
-  await window.getByRole('menuitem', { name: 'Select' }).click();
-  await window.getByRole('menuitem', { name: 'Inverse' }).click();
-  await recorder.locator('li').filter({ hasText: 'selection.modify' }).waitFor();
-
-  const layerRows = window.getByRole('treeitem');
-  const before = await layerRows.count();
-  await window.getByRole('menuitem', { name: 'Layer' }).click();
-  await window.getByRole('menuitem', { name: 'New Raster Layer' }).click();
-  await window.waitForFunction(
-    (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
-    before + 1
-  );
-  await recorder.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
-  await window.keyboard.press('b');
-  const brushBaseline = await beginGestureRuntimeEvidence(driver, documentId, 'tool.commitGesture');
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.18,
-    viewportBounds.y + viewportBounds.height * 0.32
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.38,
-    viewportBounds.y + viewportBounds.height * 0.58,
-    { steps: 24 }
-  );
-  const brushPreview = await captureGesturePreviewEvidence(
-    driver, documentId, 'tool.commitGesture', brushBaseline
-  );
-  gestureRuntimeEvidence.push(await finishGestureRuntimeEvidence({
-    page: window,
-    driver,
-    documentId,
-    command: 'tool.commitGesture',
-    label: 'Brush 24-move stroke',
-    baseline: brushBaseline,
-    preview: brushPreview,
-    localInputUpdates: 25,
-    commit: () => window.mouse.up()
-  }));
-  const committedGestures = recorder.locator('li').filter({ hasText: 'tool.commitGesture' });
-  if (await committedGestures.count() !== 1) throw new Error('Expected one Brush Action before Dodge.');
-  await window.getByRole('button', { name: 'Show gradient and fill tools', exact: true }).click();
-  await window.getByRole('button', { name: 'Paint bucket (G)', exact: true }).click();
-  await window.mouse.click(
-    viewportBounds.x + viewportBounds.width * 0.24,
-    viewportBounds.y + viewportBounds.height * 0.44
-  );
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.locator('li').filter({ hasText: 'raster.fill' }).waitFor({ timeout: 15_000 });
-  await window.getByRole('button', { name: 'Show gradient and fill tools', exact: true }).click();
-  await window.getByRole('button', { name: 'Gradient (G)', exact: true }).click();
-  await window.getByRole('combobox', { name: 'Gradient application' }).selectOption('pixels');
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.19,
-    viewportBounds.y + viewportBounds.height * 0.58
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.39,
-    viewportBounds.y + viewportBounds.height * 0.66,
-    { steps: 18 }
-  );
-  if (await recorder.locator('li').filter({ hasText: 'raster.applyGradient' }).count() !== 0) {
-    throw new Error('Raster Gradient published before pointer-up.');
+  const createStep = panel.locator('[data-command="layer.createRaster"]');
+  const renameStep = panel.locator('[data-command="layer.rename"]');
+  await Promise.all([createStep.waitFor(), renameStep.waitFor()]);
+  if (await panel.getByText('Layer setup', { exact: true }).count() !== 1) {
+    throw new Error('The saved Action was not projected once in the tree.');
   }
-  await window.mouse.up();
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.locator('li').filter({ hasText: 'raster.applyGradient' }).waitFor({ timeout: 15_000 });
-  await window.keyboard.press('o');
-  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Dodge' }).waitFor();
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.25,
-    viewportBounds.y + viewportBounds.height * 0.61
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.34,
-    viewportBounds.y + viewportBounds.height * 0.64,
-    { steps: 24 }
-  );
-  if (await committedGestures.count() !== 1) throw new Error('Dodge published before pointer-up.');
-  await window.mouse.up();
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await window.waitForFunction(() => [...document.querySelectorAll('.lighttable-action-recorder li')]
-    .filter((entry) => entry.textContent?.includes('tool.commitGesture')).length === 2);
-  await window.getByRole('menuitem', { name: 'Layer' }).click();
-  await window.getByRole('menuitem', { name: 'Rename Layer' }).click();
-  const focusedLayerName = window.locator('input[aria-label="Layer name"]:focus');
-  await focusedLayerName.fill('Recorded Title');
-  await focusedLayerName.press('Enter');
-  await recorder.locator('li').filter({ hasText: 'layer.rename' }).waitFor();
-  await window.getByRole('tab', { name: 'Properties', exact: true }).click();
-  const exposure = window.getByRole('tabpanel', { name: 'Properties' })
-    .getByRole('slider', { name: 'Exposure', exact: true });
-  const exposureBounds = await exposure.boundingBox();
-  if (!exposureBounds) throw new Error('Actions smoke could not measure the Exposure slider.');
-  const exposureBaseline = await beginGestureRuntimeEvidence(driver, documentId, 'grade.setBasic');
-  const exposureStart = {
-    x: exposureBounds.x + exposureBounds.width * 0.5,
-    y: exposureBounds.y + exposureBounds.height * 0.5
-  };
-  const exposureEndX = exposureBounds.x + exposureBounds.width * 0.68;
-  await window.mouse.move(exposureStart.x, exposureStart.y);
-  await window.mouse.down();
-  for (let index = 1; index <= 18; index += 1) {
-    await window.mouse.move(
-      exposureStart.x + (exposureEndX - exposureStart.x) * (index / 18),
-      exposureStart.y
-    );
-    await window.waitForTimeout(8);
-  }
-  const exposurePreview = await captureGesturePreviewEvidence(
-    driver, documentId, 'grade.setBasic', exposureBaseline
-  );
-  gestureRuntimeEvidence.push(await finishGestureRuntimeEvidence({
-    page: window,
-    driver,
-    documentId,
-    command: 'grade.setBasic',
-    label: 'Exposure 18-move slider drag',
-    baseline: exposureBaseline,
-    preview: exposurePreview,
-    localInputUpdates: 20,
-    commit: () => window.mouse.up()
-  }));
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.locator('li').filter({ hasText: 'grade.setBasic' }).waitFor();
 
-  const typeTool = window.getByRole('button', { name: 'Type tool (T)', exact: true }).first();
-  await typeTool.click();
-  await typeTool.waitFor();
-  await window.mouse.click(
-    viewportBounds.x + viewportBounds.width * 0.62,
-    viewportBounds.y + viewportBounds.height * 0.28
-  );
-  const textInput = window.getByRole('textbox', { name: /^Edit / });
-  await textInput.waitFor({ state: 'attached', timeout: 30_000 }).catch(async () => {
-    throw new Error(`Type input did not open: ${JSON.stringify({
-      recording: await driver.queryActionRecording(),
-      workspace: await driver.queryWorkspace(),
-      status: await window.locator('.lighttable-statusbar').textContent().catch(() => null)
-    })}`);
+  const geometry = await window.evaluate(() => {
+    const action = document.querySelector('.lighttable-action-tree__row');
+    const layer = document.querySelector('.lighttable-layer');
+    const layerName = document.querySelector('.lighttable-layer__name');
+    if (!(action instanceof HTMLElement) || !(layer instanceof HTMLElement)
+      || !(layerName instanceof HTMLElement)) return null;
+    const a = getComputedStyle(action); const l = getComputedStyle(layer);
+    const name = getComputedStyle(layerName);
+    return { actionHeight: action.getBoundingClientRect().height,
+      layerHeight: layer.getBoundingClientRect().height,
+      actionFont: a.fontSize, layerFont: name.fontSize,
+      actionRadius: a.borderRadius, layerRadius: l.borderRadius };
   });
-  await textInput.press('Escape');
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.locator('li').filter({ hasText: 'text.create' }).waitFor({ timeout: 30_000 });
-  await window.getByRole('tab', { name: 'Properties', exact: true }).click();
-  const textProperties = window.getByRole('complementary', { name: 'Text properties' });
-  await textProperties.waitFor();
-  await textProperties.getByRole('checkbox', { name: 'Bold', exact: true }).click();
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.locator('li').filter({ hasText: 'text.format' }).waitFor();
+  if (!geometry || geometry.actionHeight > geometry.layerHeight
+    || geometry.actionFont !== geometry.layerFont || geometry.actionRadius !== geometry.layerRadius) {
+    throw new Error(`Actions rows drift from the Layers UI geometry: ${JSON.stringify(geometry)}`);
+  }
+  await window.screenshot({ path: path.join(output, 'actions-panel.png') });
 
-  await window.getByRole('menuitem', { name: 'Layer' }).click();
-  await window.getByRole('menuitem', { name: 'Layer Mask' }).hover();
-  await window.getByRole('menuitem', { name: 'Add Layer Mask' }).click();
-  await recorder.locator('li').filter({ hasText: 'layer.setMask' }).waitFor();
-  await window.getByRole('menuitem', { name: 'Layer' }).click();
-  await window.getByRole('menuitem', { name: 'Layer Mask' }).hover();
-  await window.getByRole('menuitem', { name: 'Disable Layer Mask' }).click();
-  if (await recorder.locator('li').filter({ hasText: 'layer.setMask' }).count() !== 2) {
-    throw new Error('Expected add and disable layer-mask Action steps.');
+  const layersBeforePlay = (await driver.queryLayers(documentId))?.length ?? 0;
+  await panel.getByRole('button', { name: 'Play', exact: true }).click();
+  await panel.getByRole('status').filter({ hasText: 'Playback: completed' })
+    .waitFor({ timeout: 30_000 });
+  const layersAfterPlay = (await driver.queryLayers(documentId))?.length ?? 0;
+  if (layersAfterPlay !== layersBeforePlay + 1) {
+    throw new Error(`Action playback created ${layersAfterPlay - layersBeforePlay} layers instead of one.`);
   }
 
-  await window.getByRole('button', { name: 'Rectangle (U)', exact: true }).first().click();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.18,
-    viewportBounds.y + viewportBounds.height * 0.62
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.36,
-    viewportBounds.y + viewportBounds.height * 0.78,
-    { steps: 16 }
-  );
-  await window.mouse.up();
-  await recorder.locator('li').filter({ hasText: 'vector.create' }).waitFor({ timeout: 15_000 })
-    .catch(async () => {
-      const diagnostic = await window.evaluate(() => {
-        const driver = window.__lightTableAutomation;
-        const workspace = driver?.queryWorkspace();
-        const documentId = workspace?.activeDocumentId;
-        return { document: documentId ? driver?.queryDocument(documentId) : null,
-          layers: documentId ? driver?.queryLayers(documentId) : null };
-      });
-      throw new Error(`Native Rectangle did not record vector.create: ${JSON.stringify({
-        diagnostic, recorder: await recorder.textContent()
-      })}`);
-    });
-
-  await window.keyboard.press('p');
-  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Pen' }).waitFor();
-  for (const [x, y] of [[0.18, 0.2], [0.34, 0.32], [0.22, 0.48]]) {
-    await window.mouse.click(
-      viewportBounds.x + viewportBounds.width * x,
-      viewportBounds.y + viewportBounds.height * y
-    );
-  }
-  await window.keyboard.press('Enter');
-  await window.waitForFunction(() => {
-    const recorder = document.querySelector('.lighttable-action-recorder');
-    return recorder && [...recorder.querySelectorAll('li')]
-      .filter((entry) => entry.textContent?.includes('vector.create')).length === 2;
-  }, undefined, { timeout: 15_000 });
-
-  await window.keyboard.press('Shift+a');
-  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Direct selection' }).waitFor();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.18,
-    viewportBounds.y + viewportBounds.height * 0.2
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.21,
-    viewportBounds.y + viewportBounds.height * 0.23,
-    { steps: 12 }
-  );
-  await window.mouse.up();
-  await recorder.locator('li').filter({ hasText: 'vector.update' }).waitFor({ timeout: 15_000 });
-
-  await window.keyboard.press('g');
-  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Gradient' }).waitFor();
-  const gradientApplication = window.getByRole('combobox', { name: 'Gradient application' });
-  await gradientApplication.selectOption('fill-layer');
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.14,
-    viewportBounds.y + viewportBounds.height * 0.2
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.37,
-    viewportBounds.y + viewportBounds.height * 0.42,
-    { steps: 14 }
-  );
-  await window.mouse.up();
-  await window.waitForFunction(() => {
-    const entries = [...document.querySelectorAll('.lighttable-action-recorder li')];
-    return entries.filter((entry) => entry.textContent?.includes('vector.create')).length >= 3;
-  }, undefined, { timeout: 15_000 }).catch(async () => {
-    throw new Error(`Gradient Fill did not record vector.create: ${await recorder.textContent()}`);
-  });
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.255,
-    viewportBounds.y + viewportBounds.height * 0.31
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.285,
-    viewportBounds.y + viewportBounds.height * 0.37,
-    { steps: 10 }
-  );
-  await window.mouse.up();
-  await window.waitForFunction(() => {
-    const entries = [...document.querySelectorAll('.lighttable-action-recorder li')];
-    return entries.filter((entry) => entry.textContent?.includes('vector.update')).length >= 2;
-  }, undefined, { timeout: 15_000 });
-
-  // Warp stays on the real pointer path while recording. Only each completed,
-  // layer-source recipe crosses the Actions boundary.
-  await window.getByRole('treeitem', { name: /Recorded Title/i }).click();
-  const warpTelemetryBefore = await window.evaluate(() => {
-    const driver = window.__lightTableAutomation;
-    const documentId = driver?.queryWorkspace()?.activeDocumentId;
-    if (documentId) driver?.resetRenderTelemetry?.(documentId);
-    return documentId ? driver?.queryDocument(documentId) : null;
-  });
-  await window.getByRole('button', { name: 'Warp', exact: true }).click();
-  await window.locator('.lighttable-tool-options__identity').filter({ hasText: 'Warp' }).waitFor();
-  const warpMode = window.locator('label.lighttable-tool-options__field')
-    .filter({ hasText: /^Mode/ }).locator('select');
-  await warpMode.selectOption('push');
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.2,
-    viewportBounds.y + viewportBounds.height * 0.42
-  );
-  await window.mouse.down();
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.34,
-    viewportBounds.y + viewportBounds.height * 0.48,
-    { steps: 16 }
-  );
-  await window.mouse.up();
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.locator('li').filter({ hasText: 'warp.applyStroke' }).waitFor({ timeout: 15_000 })
-    .catch(async () => {
-      const diagnostic = await window.evaluate(() => {
-        const driver = window.__lightTableAutomation;
-        const workspace = driver?.queryWorkspace();
-        const documentId = workspace?.activeDocumentId;
-        const documentState = documentId ? driver?.queryDocument(documentId) : null;
-        const layers = documentId ? driver?.queryLayers(documentId) : null;
-        const active = layers?.find(({ id }) => id === documentState?.activeLayerId);
-        return { documentState, active,
-          warp: documentId && active ? driver?.queryWarp?.(documentId, active.id) : null };
-      });
-      throw new Error(`Native Warp did not record warp.applyStroke: ${JSON.stringify({
-        diagnostic, recorder: await recorder.textContent()
-      })}`);
-    });
-  await warpMode.selectOption('twirl-cw');
-  await window.mouse.move(
-    viewportBounds.x + viewportBounds.width * 0.29,
-    viewportBounds.y + viewportBounds.height * 0.36
-  );
-  await window.mouse.down();
-  await window.waitForTimeout(180);
-  await window.mouse.up();
-  await window.waitForFunction(() => [...document.querySelectorAll('.lighttable-action-recorder li')]
-    .filter((entry) => entry.textContent?.includes('warp.applyStroke')).length === 2,
-  undefined, { timeout: 15_000 });
-  const warpRecordingEvidence = await window.evaluate(() => {
-    const driver = window.__lightTableAutomation;
-    const workspace = driver?.queryWorkspace();
-    const documentId = workspace?.activeDocumentId;
-    const layer = documentId ? driver?.queryLayers(documentId)?.find(({ name }) => name === 'Recorded Title') : null;
-    const warp = documentId && layer ? driver?.queryWarp?.(documentId, layer.id) : null;
-    const telemetry = documentId ? driver?.queryRenderTelemetry?.(documentId) : null;
-    return { warp, telemetry, document: documentId ? driver?.queryDocument(documentId) : null,
-      recipeBytes: warp ? new TextEncoder().encode(JSON.stringify(warp.strokes)).byteLength : null };
-  });
-  if (warpRecordingEvidence.warp?.totalStrokes !== 2
-    || warpRecordingEvidence.warp?.strokes?.[0]?.mode !== 'push'
-    || warpRecordingEvidence.warp?.strokes?.[1]?.mode !== 'twirl-cw'
-    || warpRecordingEvidence.document?.history.undoDepth !== warpTelemetryBefore?.history.undoDepth + 2) {
-    throw new Error(`Warp recording did not publish two semantic history commits: ${JSON.stringify(warpRecordingEvidence)}`);
-  }
-  await panel.getByRole('radio', { name: 'Commands' }).click();
-  await panel.getByText(/commands$/).waitFor();
-  for (let index = 0; index < 21; index += 1) {
-    await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-    await panel.getByRole('radio', { name: 'Commands' }).click();
-    const undo = panel.locator('details').filter({ hasText: 'history.undo' });
-    const undoButton = undo.getByRole('button', { name: 'Run' });
-    if (!await undoButton.isVisible()) await undo.locator('summary').click();
-    await undoButton.waitFor();
-    const beforeUndoDepth = await window.evaluate(() => {
-      const driver = window.__lightTableAutomation;
-      const documentId = driver?.queryWorkspace()?.activeDocumentId;
-      return documentId ? driver?.queryDocument(documentId)?.history.undoDepth : null;
-    });
-    await undoButton.click();
-    await window.waitForFunction((expected) => {
-      const driver = window.__lightTableAutomation;
-      const documentId = driver?.queryWorkspace()?.activeDocumentId;
-      return documentId && driver?.queryDocument(documentId)?.history.undoDepth === expected;
-    }, Number(beforeUndoDepth) - 1, { timeout: 15_000 });
-  }
-  await window.waitForFunction(
-    (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
-    before
-  );
-  await panel.getByRole('radio', { name: 'Actions' }).click();
-  const undoSteps = recorder.locator('li').filter({ hasText: 'history.undo' });
-  await undoSteps.first().waitFor();
-  if (await undoSteps.count() !== 21) throw new Error('Expected twenty-one recorded Undo diagnostics.');
-  const undoStep = undoSteps.first();
-  await undoStep.locator('summary').click();
-  await undoStep.getByText('Replayable').waitFor();
-  await undoStep.getByText('no', { exact: true }).waitFor();
-  const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
-  await renameStep.locator('summary').click();
-  await renameStep.getByText('$step7.layerId', { exact: false }).waitFor();
-  const gestureSteps = recorder.locator('li').filter({ hasText: 'tool.commitGesture' });
-  const brushStep = gestureSteps.first();
-  await brushStep.locator('summary').click();
-  await brushStep.getByText('$step4.layerId', { exact: false }).waitFor();
-  const gradeStep = recorder.locator('li').filter({ hasText: 'grade.setBasic' });
-  await gradeStep.locator('summary').click();
-  const gradeStepText = await gradeStep.textContent();
-  if (!gradeStepText?.includes('$step9.layerId')) {
-    throw new Error(`Recorded Grade target was not rebound to the latest layer result: ${gradeStepText}`);
-  }
-  const textFormatStep = recorder.locator('li').filter({ hasText: 'text.format' });
-  await textFormatStep.locator('summary').click();
-  const textFormatStepText = await textFormatStep.textContent();
-  if (!textFormatStepText?.includes('$step11.layerId')) {
-    throw new Error(`Recorded text format target was not bound to text.create: ${textFormatStepText}`);
-  }
-  const vectorCreateSteps = recorder.locator('li').filter({ hasText: 'vector.create' });
-  const penStep = vectorCreateSteps.nth(1);
-  await penStep.locator('summary').click();
-  const penStepText = await penStep.textContent();
-  if (!penStepText?.includes('$step15.layerId')) {
-    throw new Error(`Recorded Pen path was not bound to Rectangle layer result: ${penStepText}`);
-  }
-  const vectorUpdateSteps = recorder.locator('li').filter({ hasText: 'vector.update' });
-  const vectorUpdateStep = vectorUpdateSteps.first();
-  await vectorUpdateStep.locator('summary').click();
-  const vectorUpdateText = await vectorUpdateStep.textContent();
-  if (!vectorUpdateText?.includes('$step16.layerId')
-    || !vectorUpdateText.includes('$step16.elementId')) {
-    throw new Error(`Recorded Direct Selection edit was not bound to its Pen path: ${vectorUpdateText}`);
-  }
-  const gradientCreateStep = vectorCreateSteps.nth(2);
-  await gradientCreateStep.locator('summary').click();
-  const gradientCreateText = await gradientCreateStep.textContent();
-  if (!gradientCreateText?.includes('gradient-fill')) {
-    throw new Error(`Recorded Gradient Fill lost its layer role: ${gradientCreateText}`);
-  }
-  const gradientUpdateStep = vectorUpdateSteps.nth(1);
-  await gradientUpdateStep.locator('summary').click();
-  const gradientUpdateText = await gradientUpdateStep.textContent();
-  if (!gradientUpdateText?.includes('$step18.layerId')
-    || !gradientUpdateText.includes('$step18.elementId')) {
-    throw new Error(`Recorded Gradient edit was not bound to its fill layer: ${gradientUpdateText}`);
-  }
-  const warpSteps = recorder.locator('li').filter({ hasText: 'warp.applyStroke' });
-  if (await warpSteps.count() !== 2) throw new Error('Expected push and held Warp Action steps.');
-  await warpSteps.first().locator('summary').click();
-  const firstWarpText = await warpSteps.first().textContent();
-  await warpSteps.nth(1).locator('summary').click();
-  const secondWarpText = await warpSteps.nth(1).textContent();
-  if (!firstWarpText?.includes('$step10.target.layerId') || !secondWarpText?.includes('$step20.layerId')) {
-    throw new Error(`Warp bindings are not stable across replay: ${JSON.stringify({ firstWarpText, secondWarpText })}`);
-  }
-  const fillStep = recorder.locator('li').filter({ hasText: 'raster.fill' });
-  await fillStep.locator('summary').click();
-  const fillStepText = await fillStep.textContent();
-  if (!fillStepText?.includes('$step4.layerId') || !fillStepText.includes('"channel": "pixels"')) {
-    throw new Error(`Recorded Fill target/channel are not stable: ${fillStepText}`);
-  }
-  const rasterGradientStep = recorder.locator('li').filter({ hasText: 'raster.applyGradient' });
-  await rasterGradientStep.locator('summary').click();
-  const rasterGradientText = await rasterGradientStep.textContent();
-  if (!rasterGradientText?.includes('$step6.layerId')
-    || !rasterGradientText.includes('"coordinateSpace": "document"')) {
-    throw new Error(`Recorded raster Gradient lost target or final paint: ${rasterGradientText}`);
-  }
-  const dodgeStep = gestureSteps.nth(1);
-  await dodgeStep.locator('summary').click();
-  const dodgeText = await dodgeStep.textContent();
-  if (!dodgeText?.includes('$step7.layerId') || !dodgeText.includes('"operator": "tone"')
-    || !dodgeText.includes('"mode": "dodge"')) {
-    throw new Error(`Recorded Dodge stroke lost target or operator settings: ${dodgeText}`);
-  }
-  await recorder.getByRole('button', { name: 'Stop' }).click();
-  await recorder.getByText('stopped', { exact: true }).waitFor();
-  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
-    .waitFor({ timeout: 15_000 }).catch(async () => {
-      throw new Error(`Actions playback did not complete: ${await recorder.textContent()}`);
-    });
-  await window.waitForFunction(
-    (expected) => document.querySelectorAll('[role="treeitem"]').length === expected,
-    before + 4,
-    { timeout: 15_000 }
-  );
-  await window.waitForFunction(
-    (expected) => [...document.querySelectorAll('input[aria-label="Layer name"]')]
-      .some((input) => input.value === expected),
-    'Recorded Title',
-    { timeout: 15_000 }
-  );
-  await window.locator('.lighttable-layer__text-status', { hasText: 'Flow' })
-    .waitFor({ state: 'visible', timeout: 15_000 });
-  const playbackText = await window.evaluate(() => {
-    const driver = window.__lightTableAutomation;
-    const workspace = driver?.queryWorkspace();
-    const documentId = workspace?.activeDocumentId;
-    const textLayer = documentId
-      ? driver?.queryLayers(documentId)?.find(({ type }) => type === 'text')
-      : null;
-    return documentId && textLayer
-      ? driver?.queryText(documentId, textLayer.id)
-      : null;
-  });
-  if (playbackText?.sourceKind !== 'flow' || !playbackText.editable
-    || playbackText.styleRuns?.[0]?.syntheticBold !== true
-    || typeof playbackText.transform?.tx !== 'number'
-    || typeof playbackText.transform?.ty !== 'number') {
-    throw new Error(`Actions replay did not preserve editable faux-bold text: ${JSON.stringify(playbackText)}`);
-  }
-  const playbackMask = await window.evaluate(() => {
-    const driver = window.__lightTableAutomation;
-    const workspace = driver?.queryWorkspace();
-    const documentId = workspace?.activeDocumentId;
-    return documentId
-      ? driver?.queryLayers(documentId)?.find(({ type, hasMask }) => type === 'text' && hasMask)
-      : null;
-  });
-  if (!playbackMask?.hasMask || playbackMask.maskContent?.raster?.enabled !== false) {
-    throw new Error(`Actions replay did not preserve disabled layer mask: ${JSON.stringify(playbackMask)}`);
-  }
-  const playbackShape = await window.evaluate(() => {
-    const driver = window.__lightTableAutomation;
-    const workspace = driver?.queryWorkspace();
-    const documentId = workspace?.activeDocumentId;
-    const shapeLayer = documentId
-      ? driver?.queryLayers(documentId)?.find(({ type, name, vectorRole }) => (
-          type === 'vector' && name === 'Shape' && vectorRole === 'artwork'
-        ))
-      : null;
-    return documentId && shapeLayer ? {
-      layerName: shapeLayer.name,
-      vector: driver?.queryVector(documentId, shapeLayer.id)
-    } : null;
-  });
-  const rectangle = playbackShape?.vector?.elements?.find(({ type }) => type === 'live-shape');
-  const penPath = playbackShape?.vector?.elements?.find(({ type }) => type === 'path');
-  if (playbackShape?.layerName !== 'Shape'
-    || playbackShape.vector?.totalElements !== 2
-    || rectangle?.geometry?.kind !== 'rectangle'
-    || penPath?.subpaths?.[0]?.anchors?.length !== 3) {
-    throw new Error(`Actions replay did not preserve native Rectangle and Pen path: ${JSON.stringify(playbackShape)}`);
-  }
-  const playbackGradient = await window.evaluate(() => {
-    const driver = window.__lightTableAutomation;
-    const workspace = driver?.queryWorkspace();
-    const documentId = workspace?.activeDocumentId;
-    const gradientLayer = documentId
-      ? driver?.queryLayers(documentId)?.find(({ vectorRole }) => vectorRole === 'gradient-fill')
-      : null;
-    return documentId && gradientLayer ? {
-      layer: gradientLayer,
-      vector: driver?.queryVector(documentId, gradientLayer.id)
-    } : null;
-  });
-  const gradientShape = playbackGradient?.vector?.elements?.[0];
-  if (playbackGradient?.layer?.vectorRole !== 'gradient-fill'
-    || gradientShape?.type !== 'live-shape'
-    || gradientShape.style?.fill?.kind !== 'gradient') {
-    throw new Error(`Actions replay did not preserve editable Gradient Fill: ${JSON.stringify(playbackGradient)}`);
-  }
-  const playbackWarp = await window.evaluate(() => {
-    const driver = window.__lightTableAutomation;
-    const documentId = driver?.queryWorkspace()?.activeDocumentId;
-    const layer = documentId ? driver?.queryLayers(documentId)?.find(({ name }) => name === 'Recorded Title') : null;
-    return documentId && layer ? driver?.queryWarp?.(documentId, layer.id) : null;
-  });
-  if (playbackWarp?.totalStrokes !== 2 || playbackWarp.totalSamples < 3
-    || playbackWarp.strokes?.[0]?.mode !== 'push'
-    || playbackWarp.strokes?.[1]?.mode !== 'twirl-cw') {
-    throw new Error(`Actions replay did not preserve editable Warp recipes: ${JSON.stringify(playbackWarp)}`);
+  await window.getByRole('menuitem', { name: 'View' }).click();
+  await window.getByRole('menuitem', { name: 'History panel' }).click();
+  const history = window.getByRole('complementary', { name: 'History' });
+  await history.waitFor();
+  if (await history.getByText(/Document Change|Edit document/i).count()) {
+    throw new Error(`History still contains generic edit labels: ${await history.innerText()}`);
   }
 
-  // Prove the derived batch form itself, not only direct driver/MCP batches.
-  // The shared example creates Text and binds its stable result into Rename;
-  // recording and replay must still produce one batch history boundary.
-  await recorder.getByRole('button', { name: 'Clear' }).click();
-  await recorder.getByRole('button', { name: 'Record' }).click();
-  const batchBaseline = await driver.queryDocument(documentId);
-  await panel.getByRole('radio', { name: 'Commands' }).click();
-  const batchCommand = panel.locator('details').filter({ hasText: 'command.batch' });
-  const batchRun = batchCommand.getByRole('button', { name: 'Run' });
-  if (!await batchRun.isVisible()) await batchCommand.locator('summary').click();
-  await batchRun.click();
-  await window.waitForFunction(() => {
-    const runtime = window.__lightTableAutomation;
-    const active = runtime?.queryWorkspace()?.activeDocumentId;
-    return active && runtime?.queryLayers(active)?.some(({ name }) => name === 'Hero title');
-  }, undefined, { timeout: 15_000 });
-  const batchAfterRun = await driver.queryDocument(documentId);
-  if (batchAfterRun.history.undoDepth !== batchBaseline.history.undoDepth + 1) {
-    throw new Error(`Commands batch did not create one history boundary: ${JSON.stringify({
-      before: batchBaseline.history, after: batchAfterRun.history
-    })}`);
-  }
-  // Creating the title selects it and intentionally returns the inspector to
-  // Properties. Re-open the product Actions panel before switching its view.
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await panel.getByRole('radio', { name: 'Actions' }).click();
-  const recordedBatch = recorder.locator('li').filter({ hasText: 'command.batch' });
-  await recordedBatch.waitFor();
-  await recorder.getByRole('button', { name: 'Stop' }).click();
-  await driver.execute(documentId, 'history.undo', {});
-  if ((await driver.queryLayers(documentId))?.some(({ name }) => name === 'Hero title')) {
-    throw new Error('Undo did not remove the recorded atomic batch output.');
-  }
-  await recorder.getByRole('button', { name: 'Play', exact: true }).click();
-  await window.waitForFunction(() => {
-    const runtime = window.__lightTableAutomation;
-    const active = runtime?.queryWorkspace()?.activeDocumentId;
-    return active && runtime?.queryLayers(active)?.some(({ name }) => name === 'Hero title');
-  }, undefined, { timeout: 15_000 });
-  await window.getByRole('tab', { name: 'Actions', exact: true }).click();
-  await recorder.getByRole('status').filter({ hasText: 'Playback: completed' })
-    .waitFor({ timeout: 15_000 });
-  const replayedBatchLayer = (await driver.queryLayers(documentId))
-    ?.find(({ name }) => name === 'Hero title');
-  const batchAfterReplay = await driver.queryDocument(documentId);
-  if (!replayedBatchLayer
-    || batchAfterReplay.history.undoDepth !== batchBaseline.history.undoDepth + 1) {
-    throw new Error(`Recorded batch replay lost its output or history boundary: ${JSON.stringify({
-      replayedBatchLayer, before: batchBaseline.history, after: batchAfterReplay.history
-    })}`);
-  }
-  process.stdout.write(`Warp Actions evidence: ${JSON.stringify({
-    historyEntries: 2,
-    semanticOperations: 2,
-    samples: warpRecordingEvidence.warp.totalSamples,
-    recipeBytes: warpRecordingEvidence.recipeBytes,
-    submittedFrames: warpRecordingEvidence.telemetry?.submittedFrames ?? null
-  })}\n`);
-  process.stdout.write(`Semantic gesture runtime evidence: ${JSON.stringify(gestureRuntimeEvidence)}\n`);
-  await writeFile(runtimeEvidencePath, `${JSON.stringify({
-    source: 'packaged-desktop-actions-smoke',
-    interpretation: 'Durations are diagnostic observations, not a responsiveness score.',
-    gestures: gestureRuntimeEvidence
-  }, null, 2)}\n`);
-
-  await window.screenshot({ path: screenshot });
-  if (pageErrors.length) throw new Error(`Actions panel page errors: ${pageErrors.join(' | ')}`);
-  process.stdout.write(`Desktop Actions panel smoke passed: ${screenshot}\n`);
-  process.stdout.write(`Gesture runtime report: ${runtimeEvidencePath}\n`);
+  await window.screenshot({ path: path.join(output, 'actions-history-panels.png') });
+  if (pageErrors.length) throw new Error(`Actions page errors: ${pageErrors.join(' | ')}`);
+  console.log('Desktop Actions and History panel smoke passed.');
 } finally {
-  await app?.close().catch(() => undefined);
+  await app?.close();
 }

@@ -4,9 +4,9 @@
     {
       "id": "action-button",
       "metadataDeclared": true,
-      "productionUsageCount": 90,
+      "productionUsageCount": 89,
       "internalUsageCount": 5,
-      "contextCount": 27,
+      "contextCount": 26,
       "overrideCount": 0,
       "locations": [
         {
@@ -17,11 +17,6 @@
         {
           "path": "lighttable/application/tools/faceWarp/FaceWarpToolOptions.tsx",
           "count": 4,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/actions/ActionCatalogRow.tsx",
-          "count": 1,
           "kind": "product"
         },
         {
@@ -500,9 +495,9 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 33,
+      "productionUsageCount": 32,
       "internalUsageCount": 1,
-      "contextCount": 16,
+      "contextCount": 15,
       "overrideCount": 1,
       "locations": [
         {
@@ -523,11 +518,6 @@
         {
           "path": "lighttable/editor/panels/actions/ActionBindingEditor.tsx",
           "count": 3,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/actions/CommandCatalogView.tsx",
-          "count": 1,
           "kind": "product"
         },
         {
@@ -603,18 +593,13 @@
     {
       "id": "search-field",
       "metadataDeclared": true,
-      "productionUsageCount": 2,
+      "productionUsageCount": 1,
       "internalUsageCount": 0,
-      "contextCount": 2,
+      "contextCount": 1,
       "overrideCount": 0,
       "locations": [
         {
           "path": "genai/ui/ProjectAssetBrowser.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/actions/CommandCatalogView.tsx",
           "count": 1,
           "kind": "product"
         }
@@ -1156,9 +1141,9 @@
     {
       "id": "context-menu",
       "metadataDeclared": true,
-      "productionUsageCount": 7,
+      "productionUsageCount": 8,
       "internalUsageCount": 0,
-      "contextCount": 6,
+      "contextCount": 7,
       "overrideCount": 0,
       "locations": [
         {
@@ -1173,6 +1158,11 @@
         },
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/history/HistoryPanel.tsx",
           "count": 1,
           "kind": "product"
         },

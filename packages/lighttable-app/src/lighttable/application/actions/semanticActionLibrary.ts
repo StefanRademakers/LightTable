@@ -2,7 +2,6 @@ import { LIGHTTABLE_COMMAND_DEFINITIONS } from '@lighttable/command-contract';
 import type { ActionRecordingSnapshot, RecordedActionStep } from './semanticActionRecorder';
 import {
   checkActionCommandContracts,
-  type ActionCommandContractEnvironment,
   type RecordedCommandContract
 } from './actionCommandContracts';
 import {
@@ -10,8 +9,7 @@ import {
   type ActionVariableDefinition
 } from './actionResultBindings';
 
-export const LIGHTTABLE_ACTION_LIBRARY_STORAGE_KEY = 'lighttable.actions.v1';
-export const LIGHTTABLE_ACTION_LIBRARY_VERSION = 5;
+export const LIGHTTABLE_ACTION_LIBRARY_STORAGE_KEY = 'lighttable.actions';
 export const LIGHTTABLE_DEFAULT_ACTION_SET_ID = 'action-set-default';
 export const LIGHTTABLE_MAX_ACTION_SETS = 16;
 const MAX_ACTIONS = 32;
@@ -73,16 +71,21 @@ const defaultSet = (): SavedSemanticActionSet => ({
   updatedAt: 0
 });
 
-type StoredActionStep = Omit<RecordedActionStep, 'contract'> & { readonly contract?: RecordedCommandContract };
+type StoredActionStep = Omit<RecordedActionStep, 'contract'> & { readonly contract: RecordedCommandContract };
 
 const STEP_KEYS = new Set([
   'sequence', 'requestId', 'origin', 'command', 'contract', 'documentId', 'parameters',
   'outcome', 'result', 'startedAt', 'durationMs', 'replayable', 'note', 'rationale',
   'enabled', 'interactive'
 ]);
+const LIBRARY_KEYS = new Set(['format', 'selectedSetId', 'selectedId', 'sets', 'actions']);
+const ACTION_KEYS = new Set(['id', 'setId', 'name', 'createdAt', 'updatedAt', 'recording']);
+const RECORDING_KEYS = new Set([
+  'status', 'id', 'name', 'startedAt', 'stoppedAt', 'steps', 'variables', 'byteLength', 'limitReached'
+]);
+const SET_KEYS = new Set(['id', 'name', 'createdAt', 'updatedAt']);
 
-const parseStep = (value: unknown, sequence: number,
-  allowMissingRationale: boolean): StoredActionStep | null => {
+const parseStep = (value: unknown, sequence: number): StoredActionStep | null => {
   if (!record(value) || value.sequence !== sequence || !boundedString(value.requestId, 512)
     || Object.keys(value).some((key) => !STEP_KEYS.has(key))
     || !boundedString(value.command, 128) || !commands.has(value.command as never)
@@ -92,48 +95,44 @@ const parseStep = (value: unknown, sequence: number,
     || (value.outcome !== 'completed' && value.outcome !== 'accepted') || value.replayable !== true
     || !finite(value.startedAt) || !finite(value.durationMs) || value.durationMs < 0
     || (value.note !== null && (typeof value.note !== 'string' || value.note.length > 2_048))
-    || (value.rationale === undefined ? !allowMissingRationale
-      : value.rationale !== null && (typeof value.rationale !== 'string'
-        || value.rationale.trim() !== value.rationale || value.rationale.length > 280))
+    || (value.rationale !== null && (typeof value.rationale !== 'string'
+      || value.rationale.trim() !== value.rationale || value.rationale.length > 280))
     || (value.enabled !== undefined && typeof value.enabled !== 'boolean')
     || (value.interactive !== undefined && typeof value.interactive !== 'boolean')) return null;
   try {
     if (jsonBytes(value.parameters) > 256 * 1024 || jsonBytes(value.result) > 256 * 1024) return null;
   } catch { return null; }
-  return structuredClone({ ...value, rationale: value.rationale ?? null }) as unknown as StoredActionStep;
+  return structuredClone(value) as unknown as StoredActionStep;
 };
 
-type ParsedAction = { readonly action: SavedSemanticAction; readonly migrated: boolean }
+type ParsedAction = { readonly action: SavedSemanticAction }
   | { readonly error: string };
 
-const parseAction = (value: unknown, allowMissingLegacyContract: boolean,
-  allowMissingVariables: boolean,
-  allowMissingRationale: boolean,
-  legacySetId?: string,
-  contractEnvironment?: ActionCommandContractEnvironment): ParsedAction => {
+const parseAction = (value: unknown): ParsedAction => {
   if (!record(value) || !boundedString(value.id, 255) || !boundedString(value.name, 255)
+    || Object.keys(value).some((key) => !ACTION_KEYS.has(key))
     || !finite(value.createdAt) || !finite(value.updatedAt) || !record(value.recording)) {
     return { error: 'Action metadata is invalid.' };
   }
-  const setId = legacySetId ?? value.setId;
+  const setId = value.setId;
   if (!boundedString(setId, 255)) return { error: 'Action Set identity is invalid.' };
   const recording = value.recording;
   if (recording.status !== 'stopped' || recording.id !== value.id
+    || Object.keys(recording).some((key) => !RECORDING_KEYS.has(key))
     || recording.name !== value.name || !finite(recording.startedAt) || !finite(recording.stoppedAt)
     || !Array.isArray(recording.steps) || recording.steps.length < 1 || recording.steps.length > MAX_STEPS
     || !finite(recording.byteLength) || recording.byteLength < 0 || recording.limitReached !== false) {
     return { error: 'Action recording metadata is invalid.' };
   }
-  const variables = recording.variables === undefined && allowMissingVariables
-    ? [] : recording.variables;
+  const variables = recording.variables;
   if (!Array.isArray(variables)) return { error: 'Action variables are malformed.' };
   const variableError = validateActionVariables(variables as ActionVariableDefinition[]);
   if (variableError) return { error: variableError };
-  const missingRationale = recording.steps.some((step) => record(step) && step.rationale === undefined);
-  const steps = recording.steps.map((step, index) => parseStep(step, index + 1, allowMissingRationale));
+  const steps = recording.steps.map((step, index) => parseStep(step, index + 1));
   if (steps.some((step) => !step)) return { error: 'Action steps are malformed.' };
-  const contracts = checkActionCommandContracts(steps as StoredActionStep[], allowMissingLegacyContract,
-    variables as ActionVariableDefinition[], contractEnvironment);
+  const contracts = checkActionCommandContracts(
+    steps as StoredActionStep[], variables as ActionVariableDefinition[]
+  );
   if (!contracts.ok) return { error: contracts.message };
   const parsedRecording = recording as unknown as ActionRecordingSnapshot;
   const action: SavedSemanticAction = { id: value.id, setId, name: value.name,
@@ -141,13 +140,14 @@ const parseAction = (value: unknown, allowMissingLegacyContract: boolean,
     recording: { ...parsedRecording, variables: structuredClone(variables), steps: contracts.steps } };
   try {
     return jsonBytes(action) <= MAX_ACTION_BYTES
-      ? { action, migrated: contracts.migrated || recording.variables === undefined || missingRationale }
+      ? { action }
       : { error: 'Action exceeds the storage boundary.' };
   } catch { return { error: 'Action is not serializable.' }; }
 };
 
 const parseSet = (value: unknown): SavedSemanticActionSet | null => {
   if (!record(value) || !boundedString(value.id, 255) || !boundedString(value.name, 255)
+    || Object.keys(value).some((key) => !SET_KEYS.has(key))
     || !finite(value.createdAt) || !finite(value.updatedAt)) return null;
   return { id: value.id, name: value.name, createdAt: value.createdAt, updatedAt: value.updatedAt };
 };
@@ -156,8 +156,6 @@ const empty = (error: string | null = null): SemanticActionLibrarySnapshot => ({
   sets: [defaultSet()], selectedSetId: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
   actions: [], selectedId: null, error
 });
-type RestoredLibrary = { readonly snapshot: SemanticActionLibrarySnapshot; readonly migrated: boolean };
-
 const nextId = (prefix: string, existing: ReadonlySet<string>): string => {
   const base = `${prefix}-${Date.now()}`;
   if (!existing.has(base)) return base;
@@ -170,24 +168,19 @@ export class SemanticActionLibrary {
   private snapshotValue: SemanticActionLibrarySnapshot;
   private readonly listeners = new Set<() => void>();
   private readonly readyValue: Promise<void>;
+  private disposed = false;
 
-  constructor(private readonly storage?: SemanticActionLibraryStorage,
-    private readonly contractEnvironment?: ActionCommandContractEnvironment) {
+  constructor(private readonly storage?: SemanticActionLibraryStorage) {
     this.snapshotValue = empty();
     try {
       const loaded = storage?.read() ?? null;
       if (loaded instanceof Promise) {
-        this.readyValue = loaded.then(async (serialized) => {
-          const restored = this.restore(serialized);
-          this.publish(restored.snapshot);
-          if (restored.migrated) await this.rewriteMigrated(restored.snapshot);
+        this.readyValue = loaded.then((serialized) => {
+          this.publish(this.restore(serialized));
         }, () => { this.publish(empty('Saved Actions could not be read.')); });
       } else {
-        const restored = this.restore(loaded);
-        this.snapshotValue = restored.snapshot;
-        this.readyValue = restored.migrated
-          ? this.rewriteMigrated(restored.snapshot)
-          : Promise.resolve();
+        this.snapshotValue = this.restore(loaded);
+        this.readyValue = Promise.resolve();
       }
     } catch {
       this.snapshotValue = empty('Saved Actions could not be read.');
@@ -197,8 +190,14 @@ export class SemanticActionLibrary {
 
   snapshot = (): SemanticActionLibrarySnapshot => this.snapshotValue;
   subscribe = (listener: () => void): (() => void) => {
+    if (this.disposed) return () => undefined;
     this.listeners.add(listener); return () => this.listeners.delete(listener);
   };
+
+  dispose(): void {
+    this.disposed = true;
+    this.listeners.clear();
+  }
 
   ready = (): Promise<void> => this.readyValue;
 
@@ -278,8 +277,7 @@ export class SemanticActionLibrary {
       ? nextId('action', new Set(this.snapshotValue.actions.map((action) => action.id))) : requestedId;
     const parsed = parseAction({ id, setId: this.snapshotValue.selectedSetId,
       name: normalizedName, createdAt: previous?.createdAt ?? now, updatedAt: now,
-      recording: { ...recording, id, name: normalizedName, status: 'stopped', limitReached: false } },
-    false, false, false, undefined, this.contractEnvironment);
+      recording: { ...recording, id, name: normalizedName, status: 'stopped', limitReached: false } });
     if ('error' in parsed) return null;
     const action = parsed.action;
     const existingIndex = this.snapshotValue.actions.findIndex((candidate) => candidate.id === id);
@@ -375,51 +373,43 @@ export class SemanticActionLibrary {
       ? updated.filter((action) => action.setId === setId) : null;
   }
 
-  private restore(serialized: string | null): RestoredLibrary {
-    if (!serialized) return { snapshot: empty(), migrated: false };
+  private restore(serialized: string | null): SemanticActionLibrarySnapshot {
+    if (!serialized) return empty();
     if (new TextEncoder().encode(serialized).byteLength > MAX_LIBRARY_BYTES) {
-      return { snapshot: empty('Saved Actions exceed the storage boundary.'), migrated: false };
+      return empty('Saved Actions exceed the storage boundary.');
     }
     try {
       const value: unknown = JSON.parse(serialized);
       if (!record(value) || value.format !== 'lighttable-actions'
-        || (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4
-          && value.version !== LIGHTTABLE_ACTION_LIBRARY_VERSION)
+        || Object.keys(value).some((key) => !LIBRARY_KEYS.has(key))
         || !Array.isArray(value.actions) || value.actions.length > MAX_ACTIONS
         || (value.selectedId !== null && typeof value.selectedId !== 'string')) {
-        return { snapshot: empty('Saved Actions use an unsupported or invalid format.'), migrated: false };
+        return empty('Saved Actions use an unsupported or invalid format.');
       }
-      const legacy = value.version === 1 || value.version === 2;
-      const sets = legacy ? [defaultSet()] : this.restoreSets(value);
-      if (!sets) return { snapshot: empty('Saved Actions contain invalid Action Set data.'), migrated: false };
+      const sets = this.restoreSets(value);
+      if (!sets) return empty('Saved Actions contain invalid Action Set data.');
       const setIds = new Set(sets.map(({ id }) => id));
-      const parsed = value.actions.map((action) => parseAction(action, value.version === 1,
-        Number(value.version) <= 3,
-        Number(value.version) <= 4,
-        legacy ? LIGHTTABLE_DEFAULT_ACTION_SET_ID : undefined,
-        this.contractEnvironment));
+      const parsed = value.actions.map(parseAction);
       const invalid = parsed.find((action) => 'error' in action);
       if (invalid && 'error' in invalid) {
-        return { snapshot: empty(`Saved Actions contain incompatible workflow data: ${invalid.error}`),
-          migrated: false };
+        return empty(`Saved Actions contain incompatible workflow data: ${invalid.error}`);
       }
       const actions = orderedActions(parsed.map((entry) =>
         (entry as Exclude<ParsedAction, { error: string }>).action));
       if (new Set(actions.map(({ id }) => id)).size !== actions.length
         || actions.some((action) => !setIds.has(action.setId))) {
-        return { snapshot: empty('Saved Actions contain invalid Action Set relationships.'), migrated: false };
+        return empty('Saved Actions contain invalid Action Set relationships.');
       }
-      const selectedSetId = legacy ? LIGHTTABLE_DEFAULT_ACTION_SET_ID : value.selectedSetId;
+      const selectedSetId = value.selectedSetId;
       if (typeof selectedSetId !== 'string' || !setIds.has(selectedSetId)) {
-        return { snapshot: empty('Saved Actions contain an invalid selected Action Set.'), migrated: false };
+        return empty('Saved Actions contain an invalid selected Action Set.');
       }
       const selectedId = typeof value.selectedId === 'string'
         && actions.some(({ id, setId }) => id === value.selectedId && setId === selectedSetId)
         ? value.selectedId
         : actions.find((action) => action.setId === selectedSetId)?.id ?? null;
-      return { snapshot: { sets, selectedSetId, actions, selectedId, error: null },
-        migrated: legacy || parsed.some((entry) => !('error' in entry) && entry.migrated) };
-    } catch { return { snapshot: empty('Saved Actions could not be parsed.'), migrated: false }; }
+      return { sets, selectedSetId, actions, selectedId, error: null };
+    } catch { return empty('Saved Actions could not be parsed.'); }
   }
 
   private restoreSets(value: Record<string, unknown>): SavedSemanticActionSet[] | null {
@@ -431,20 +421,8 @@ export class SemanticActionLibrary {
     return new Set(valid.map(({ id }) => id)).size === valid.length ? valid : null;
   }
 
-  private async rewriteMigrated(snapshot: SemanticActionLibrarySnapshot): Promise<void> {
-    if (!this.storage) return;
-    const serialized = this.serialize(snapshot);
-    if (!serialized) {
-      this.publish({ ...snapshot, error: 'Migrated Actions exceed the storage boundary.' });
-      return;
-    }
-    try { await this.storage.write(serialized); } catch {
-      this.publish({ ...snapshot, error: 'Migrated Actions could not be rewritten.' });
-    }
-  }
-
   private serialize(snapshot: SemanticActionLibrarySnapshot): string | null {
-    const envelope = { format: 'lighttable-actions', version: LIGHTTABLE_ACTION_LIBRARY_VERSION,
+    const envelope = { format: 'lighttable-actions',
       selectedSetId: snapshot.selectedSetId, selectedId: snapshot.selectedId,
       sets: snapshot.sets, actions: snapshot.actions };
     try {
@@ -464,6 +442,7 @@ export class SemanticActionLibrary {
   }
 
   private publish(snapshot: SemanticActionLibrarySnapshot): void {
+    if (this.disposed) return;
     this.snapshotValue = snapshot;
     for (const listener of this.listeners) listener();
   }

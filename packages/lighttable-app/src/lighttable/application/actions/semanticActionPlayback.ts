@@ -104,15 +104,27 @@ export class SemanticActionPlaybackController {
   private stopRequested = false;
   private taskAbort: AbortController | null = null;
   private promptResolver: ((parameters: Readonly<Record<string, unknown>> | null) => void) | null = null;
+  private disposed = false;
 
   constructor(private readonly execute: ExecuteCommand,
     private readonly tasks?: ActionTaskPlaybackPort) {}
 
   snapshot = (): ActionPlaybackSnapshot => this.snapshotValue;
   subscribe = (listener: () => void): (() => void) => {
+    if (this.disposed) return () => undefined;
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
+
+  dispose(): void {
+    this.disposed = true;
+    this.stop();
+    this.taskAbort?.abort();
+    this.promptResolver?.(null);
+    this.taskAbort = null;
+    this.promptResolver = null;
+    this.listeners.clear();
+  }
 
   async play(recording: ActionRecordingSnapshot, targetDocumentId?: string,
     overrides: Readonly<Record<string, unknown>> = {}): Promise<ActionPlaybackSnapshot> {
@@ -242,7 +254,7 @@ export class SemanticActionPlaybackController {
     }
     const effectiveVariables = variables.map((variable) => nameIn(overrides, variable.name)
       ? { ...variable, defaultValue: overrides[variable.name] } : variable);
-    const contracts = checkActionCommandContracts(steps, false, effectiveVariables);
+    const contracts = checkActionCommandContracts(steps, effectiveVariables);
     if (!contracts.ok) {
       this.publish({ status: 'failed', currentSequence: contracts.sequence, taskProgress: null,
         results: [{ sequence: contracts.sequence,
@@ -382,6 +394,7 @@ export class SemanticActionPlaybackController {
   }
 
   private publish(snapshot: ActionPlaybackSnapshot): void {
+    if (this.disposed) return;
     this.snapshotValue = snapshot;
     for (const listener of this.listeners) listener();
   }

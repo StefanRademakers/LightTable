@@ -5,9 +5,13 @@
 }
 
 .lighttable-history-panel__states {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding: 6px;
 }
 
 .lighttable-history-panel__state {
@@ -17,17 +21,20 @@
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border: 0;
-  border-bottom: 1px solid var(--lt-border-subtle);
-  border-radius: 0;
-  background: transparent;
+  padding: 3px 7px;
+  border: 1px solid var(--lt-border-layer-row);
+  border-radius: 2px;
+  background: var(--lt-surface-layer-row);
   color: var(--lt-text-primary);
+  font-size: var(--lt-type-regular);
   text-align: left;
 }
 
-.lighttable-history-panel__state:hover:not(:disabled) { background: var(--lt-hover-overlay); }
-.lighttable-history-panel__state.is-current { background: var(--lt-accent-selected); color: var(--lt-text-on-accent); }
+.lighttable-history-panel__state:hover:not(:disabled) { background: var(--lt-surface-layer-row-hover); }
+.lighttable-history-panel__state.is-current {
+  border-color: var(--lt-border-layer-row-active);
+  background: var(--lt-surface-layer-row-selected);
+}
 .lighttable-history-panel__state.is-future { color: var(--lt-text-disabled); }
 .lighttable-history-panel__state-marker { text-align: center; }
 
@@ -37,6 +44,14 @@
   justify-content: flex-end;
   align-items: center;
   gap: 4px;
-  padding: 5px 8px;
+  padding: 4px 8px;
   border-top: 1px solid var(--lt-border);
+  background: var(--lt-surface-panel);
+}
+
+.lighttable-history-panel__footer img {
+  width: 15px;
+  height: 15px;
+  display: block;
+  object-fit: contain;
 }

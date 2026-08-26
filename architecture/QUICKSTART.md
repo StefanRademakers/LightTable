@@ -599,8 +599,8 @@ not own a second mutation route. Stopped Actions may define bounded typed
 variables with defaults and explicitly bind any compatible parameter to a
 variable or prior step result. Binding edits and playback overrides run the
 complete command-schema preflight before the first command executes. Literal
-recorded parameters are edited by the same generated schema controls as the
-Commands browser; applying a form preserves its stored bindings and publishes
+recorded parameters are edited by generated schema controls; applying a form
+preserves its stored bindings and publishes
 the whole validated step atomically. A stopped step can also carry one trimmed,
 280-character user-facing rationale describing visible intent. This belongs to
 the local Action workflow envelope, is included in its storage boundary and is
@@ -608,8 +608,9 @@ never routed through command parameters, document state, MCP, or a private
 model-reasoning channel.
 
 Normal Action playback remains stepwise, so each command keeps its ordinary
-history behavior and debugging boundary. `Play as one undo` is a separate,
-explicit route. A low-frequency preflight compiles only complete, synchronous,
+history behavior and debugging boundary. Eligible recordings automatically use
+the existing atomic route. A low-frequency preflight compiles only complete,
+synchronous,
 same-document steps already admitted by `command.batch`; it resolves typed
 variables, translates supported top-level prior-result bindings and rejects the
 whole request before execution when a step, binding, schema, document, count or
@@ -618,15 +619,10 @@ one document and one history entry, or nothing on failure/cancellation. Paint,
 warp, pointer samples, host I/O, document creation and other non-batch work stay
 stepwise and never enter this compiler.
 
-Saved Action command contracts evolve independently from the version-5 library
-envelope. A reviewed registry contains only consecutive, per-command schema
-migrations. Each migration transforms recorded parameters and completed
-results before current-schema validation and may explicitly rename result paths
-referenced by later steps. Future versions, missing links, duplicate/non-
-consecutive registrations, invalid output and final schema mismatches reject
-the complete Action before execution. Successful library-load migrations are
-rewritten atomically through the existing bounded storage owner; there is no
-generic best-effort upgrader.
+Saved Actions use one current bounded alpha envelope and the current command
+contract. Pre-1.0 builds do not carry compatibility versions or migration
+registries; obsolete, malformed or schema-incompatible Actions reject as a
+whole before execution.
 
 Atomic batches are capped at 64 operations, 256 KiB and 10 seconds. They build
 against a private document value, can reference earlier operation results, and

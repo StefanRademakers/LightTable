@@ -3,278 +3,86 @@ import { access, mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveDesktopTestLaunch, waitForDesktopLauncher } from './desktop-test-startup.mjs';
+import { attachLightTableAutomation } from './lighttable-automation-driver.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
+const fixture = path.resolve(process.argv[2]
+  ?? path.join(root, '..', 'LightTableTestFiles', 'RandomFiles', 'shapes.psd'));
 const output = path.join(root, 'tmp', 'saved-actions-smoke');
-await mkdir(output, { recursive: true });
-const fixture = process.argv[2] ? path.resolve(process.argv[2]) : null;
-if (fixture) await access(fixture);
+await Promise.all([access(fixture), mkdir(output, { recursive: true })]);
 const userData = await mkdtemp(path.join(output, 'profile-'));
-const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 const environment = { ...process.env };
 delete environment.ELECTRON_RUN_AS_NODE;
-const pageErrors = [];
-const consoleErrors = [];
+const launch = await resolveDesktopTestLaunch(root, { requirePackaged: true });
 
-const openApp = async (label) => {
+const start = async (label) => {
+  const pageErrors = [];
   const app = await electron.launch({ executablePath: launch.executablePath, args: launch.args,
     cwd: root, env: { ...environment, LIGHTTABLE_AUTOMATION_USER_DATA: userData,
-      ...(fixture ? { LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture } : {}) }, timeout: 30_000 });
+      LIGHTTABLE_AUTOMATION_OPEN_FILE: fixture }, timeout: 30_000 });
   const window = await app.firstWindow({ timeout: 30_000 });
-  window.on('pageerror', (error) => pageErrors.push(`${label}: ${error.message}`));
-  window.on('console', (message) => {
-    if (message.type() === 'error') consoleErrors.push(`${label}: ${message.text()}`);
-  });
-  const ready = window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i });
-  let openError;
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const open = await waitForDesktopLauncher({ app, page: window, outputDirectory: output,
-      sourceFile: fixture ?? 'generated saved Actions document', pageErrors, label });
-    if (fixture) {
-      await open.click();
-    } else {
-      await window.getByRole('button', { name: 'New Document', exact: true }).click();
-      const dialog = window.locator('.lighttable-new-document-dialog--embedded');
-      await dialog.getByLabel('Name').fill('Saved Actions smoke');
-      await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-    }
-    try {
-      await ready.waitFor({ state: 'visible', timeout: 20_000 });
-      openError = undefined;
-      break;
-    } catch (error) {
-      openError = error;
-      if (attempt < 3) await window.getByRole('button', { name: 'Close editor', exact: true }).click();
-    }
+  window.on('pageerror', (error) => pageErrors.push(error.message));
+  const open = await waitForDesktopLauncher({ app, page: window, outputDirectory: output,
+    sourceFile: fixture, pageErrors, label });
+  await open.click();
+  await window.locator('.lighttable-toolbar__meta').filter({ hasText: /ready/i })
+    .waitFor({ timeout: 60_000 });
+  const panel = window.getByRole('complementary', { name: 'Actions' });
+  if (!await panel.isVisible().catch(() => false)) {
+    await window.getByRole('menuitem', { name: 'View' }).click();
+    await window.getByRole('menuitem', { name: 'Actions panel' }).click();
   }
-  if (openError) {
-      const evidence = await window.evaluate(() => ({
-        title: document.title,
-        body: document.body?.innerText.slice(0, 2_000),
-        automation: Boolean(window.__lightTableAutomation),
-        workspace: window.__lightTableAutomation?.queryWorkspace() ?? null
-      })).catch(() => null);
-      await window.screenshot({ path: path.join(output, `${label}-not-ready.png`) }).catch(() => undefined);
-      throw new Error(`Desktop did not become ready: ${JSON.stringify({
-        cause: openError.message, pageErrors, consoleErrors, evidence
-      })}`);
-  }
-  await window.getByRole('menuitem', { name: 'View' }).click();
-  await window.getByRole('menuitem', { name: 'Actions panel' }).click();
-  return { app, window, panel: window.getByRole('complementary', { name: 'Actions' }) };
+  await panel.waitFor();
+  return { app, window, pageErrors,
+    panel,
+    driver: await attachLightTableAutomation(window, label) };
 };
 
-let first; let second;
+let running;
 try {
-  first = await openApp('saved-actions-record');
-  const recorder = first.panel.locator('.lighttable-action-recorder');
-  const setName = recorder.getByRole('textbox', { name: 'Action Set name' });
-  await setName.fill('Portrait workflows');
-  await recorder.getByRole('button', { name: 'New set' }).click();
-  await recorder.getByRole('combobox', { name: 'Action Set' })
-    .getByRole('option', { name: 'Portrait workflows' }).waitFor({ state: 'attached' });
-  await setName.fill('Portrait recipes');
-  await recorder.getByRole('button', { name: 'Rename', exact: true }).click();
-  await recorder.getByRole('combobox', { name: 'Action Set' })
-    .getByRole('option', { name: 'Portrait recipes' }).waitFor({ state: 'attached' });
-  await recorder.getByRole('button', { name: 'Record' }).click();
-  const before = await first.window.locator('.lighttable-layer[data-layer-id]').count();
-  await first.window.getByRole('menuitem', { name: 'Layer' }).click();
-  await first.window.getByRole('menuitem', { name: 'New Raster Layer' }).click();
-  await recorder.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
-  await first.window.getByRole('menuitem', { name: 'Layer' }).click();
-  await first.window.getByRole('menuitem', { name: 'Rename Layer' }).click();
-  const nameInput = first.window.locator('input[aria-label="Layer name"]:focus');
-  await nameInput.fill('Persistent Action Layer');
-  await nameInput.press('Enter');
-  await recorder.locator('li').filter({ hasText: 'layer.rename' }).waitFor();
-  await recorder.getByRole('button', { name: 'Stop' }).click();
-  const renameStep = recorder.locator('li').filter({ hasText: 'layer.rename' });
-  await renameStep.locator('summary').click();
-  await renameStep.getByRole('textbox', { name: 'User-facing rationale' })
-    .fill('Names the reusable layer for later design steps.');
-  await renameStep.getByRole('button', { name: 'Apply rationale' }).click();
-  await renameStep.getByRole('status').filter({ hasText: 'Rationale updated.' }).waitFor();
-  const stepEditor = renameStep.locator('.lighttable-action-step-editor');
-  await stepEditor.getByRole('textbox', { name: 'Name', exact: true }).fill('Schema edited layer');
-  await stepEditor.getByRole('button', { name: 'Apply parameters' }).click();
-  await stepEditor.getByRole('status').filter({ hasText: 'Parameters updated.' }).waitFor();
-  await renameStep.getByRole('combobox', { name: 'Step 2 parameter' }).selectOption({ label: 'name' });
-  await renameStep.getByRole('textbox', { name: 'Step 2 new variable name' }).fill('layerName');
-  await renameStep.getByRole('button', { name: 'Promote' }).click();
-  await recorder.getByRole('textbox', { name: 'layerName default' }).waitFor();
-  await recorder.getByRole('textbox', { name: 'Action name' }).fill('Persistent layer setup');
-  await recorder.getByRole('button', { name: 'Save', exact: true }).click();
-  await recorder.getByRole('combobox', { name: 'Saved Actions' })
-    .getByRole('option', { name: /Persistent layer setup \(2\)/ })
-    .waitFor({ state: 'attached' });
-  await setName.fill('Product workflows');
-  await recorder.getByRole('button', { name: 'New set' }).click();
-  await recorder.getByRole('textbox', { name: 'Action name' }).fill('Product layer setup');
-  await recorder.getByRole('button', { name: 'Save', exact: true }).click();
-  const setSelect = recorder.getByRole('combobox', { name: 'Action Set' });
-  const savedSelect = recorder.getByRole('combobox', { name: 'Saved Actions' });
-  await savedSelect.getByRole('option', { name: /Product layer setup \(2\)/ })
-    .waitFor({ state: 'attached' });
-  if (await savedSelect.getByRole('option', { name: /Persistent layer setup/ }).count() !== 0) {
-    throw new Error('The Product set exposed an Action from the Portrait set.');
-  }
-  await setSelect.selectOption({ label: 'Portrait recipes' });
-  await savedSelect.getByRole('option', { name: /Persistent layer setup \(2\)/ })
-    .waitFor({ state: 'attached' });
-  if (await savedSelect.getByRole('option', { name: /Product layer setup/ }).count() !== 0) {
-    throw new Error('The Portrait set exposed an Action from the Product set.');
-  }
-  await setSelect.selectOption({ label: 'Product workflows' });
-  if (await first.window.locator('.lighttable-layer[data-layer-id]').count() !== before + 1) {
-    throw new Error('Recording did not create exactly one layer.');
-  }
-  await first.window.keyboard.press('Control+z');
-  await first.window.keyboard.press('Control+z');
-  await first.window.waitForFunction((count) =>
-    document.querySelectorAll('.lighttable-layer[data-layer-id]').length === count, before);
-  const closed = first.app.waitForEvent('close');
-  await first.window.evaluate(() => window.lightTableDesktop.closeApplication());
-  await closed;
-  first = null;
-
-  second = await openApp('saved-actions-restart');
-  const restored = second.panel.locator('.lighttable-action-recorder');
-  const restoredSets = restored.getByRole('combobox', { name: 'Action Set' });
-  const saved = restored.getByRole('combobox', { name: 'Saved Actions' });
-  await saved.getByRole('option', { name: /Product layer setup \(2\)/ })
-    .waitFor({ state: 'attached', timeout: 10_000 }).catch(async () => {
-      const panelEvidence = await second.window.evaluate(() => ({
-        origin: location.origin,
-        panel: document.querySelector('.lighttable-action-recorder')?.textContent
-      }));
-      const stored = await readFile(path.join(userData, 'actions-v1.json'), 'utf8').catch(() => null);
-      throw new Error(`Saved Action did not survive restart: ${JSON.stringify({ panelEvidence, stored })}`);
+  running = await start('saved-actions-create');
+  const documentId = (await running.driver.queryWorkspace())?.activeDocumentId;
+  if (!documentId) throw new Error('Saved Actions smoke has no active document.');
+  await running.panel.getByRole('button', { name: 'New Action', exact: true }).click();
+  const dialog = running.window.getByRole('dialog', { name: 'New Action' });
+  await dialog.getByRole('textbox').fill('Persisted layer');
+  await dialog.getByRole('button', { name: 'OK' }).click();
+  await running.driver.execute(documentId, 'layer.createRaster');
+  await running.panel.getByRole('button', { name: 'Stop' }).click();
+  await running.panel.getByText('Persisted layer', { exact: true }).waitFor({ timeout: 10_000 })
+    .catch(async () => {
+      throw new Error(`Restored Actions were not projected: ${JSON.stringify({
+        panel: await running.panel.innerText(),
+        recording: await running.driver.queryActionRecording(),
+        body: (await running.window.locator('body').innerText()).slice(-1800)
+      })}`);
     });
-  if (await restoredSets.inputValue() === ''
-    || await restoredSets.locator('option:checked').textContent() !== 'Product workflows') {
-    throw new Error('The selected Action Set did not survive restart.');
+  if (running.pageErrors.length) throw new Error(running.pageErrors.join(' | '));
+  await running.app.close();
+  running = null;
+
+  const envelope = JSON.parse(await readFile(path.join(userData, 'actions.json'), 'utf8'));
+  if (envelope.version !== undefined || envelope.format !== 'lighttable-actions'
+    || envelope.actions?.[0]?.name !== 'Persisted layer') {
+    throw new Error(`Saved Action uses the wrong alpha envelope: ${JSON.stringify(envelope)}`);
   }
-  if (await saved.getByRole('option', { name: /Persistent layer setup/ }).count() !== 0) {
-    throw new Error('Restart exposed an Action from a non-selected set.');
-  }
-  const storedEnvelope = JSON.parse(await readFile(path.join(userData, 'actions-v1.json'), 'utf8'));
-  if (storedEnvelope?.version !== 5 || storedEnvelope.sets?.length !== 3
-    || storedEnvelope.actions?.length !== 2
-    || new Set(storedEnvelope.actions.map((action) => action.setId)).size !== 2
-    || storedEnvelope.actions.some((action) => action.recording?.variables?.[0]?.name !== 'layerName'
-      || action.recording?.variables?.[0]?.defaultValue !== 'Schema edited layer'
-      || action.recording?.steps?.[1]?.rationale !== 'Names the reusable layer for later design steps.'
-      || action.recording?.steps?.[1]?.parameters?.layerId?.$lighttableResult?.step !== 1)) {
-    throw new Error(`Action Set envelope is incomplete: ${JSON.stringify(storedEnvelope)}`);
-  }
-  await restoredSets.selectOption({ label: 'Portrait recipes' });
-  await saved.getByRole('option', { name: /Persistent layer setup \(2\)/ })
-    .waitFor({ state: 'attached' });
-  await restored.getByRole('button', { name: 'Load' }).click();
-  await restored.locator('li').filter({ hasText: 'layer.createRaster' }).waitFor();
-  const restoredRename = restored.locator('li').filter({ hasText: 'layer.rename' });
-  await restoredRename.waitFor();
-  await restoredRename.locator('summary').click();
-  await restoredRename.locator('.lighttable-action-recorder__rationale')
-    .filter({ hasText: 'Names the reusable layer for later design steps.' }).waitFor();
-  if (await restoredRename.getByRole('textbox', { name: 'User-facing rationale' }).inputValue()
-    !== 'Names the reusable layer for later design steps.') {
-    throw new Error('The persisted rationale did not restore into the stopped-step editor.');
-  }
-  const restoredVariable = restored.getByRole('textbox', { name: 'layerName default' });
-  await restoredVariable.fill('Replayed variable layer');
-  await restoredVariable.blur();
-  const replayBefore = await second.window.locator('.lighttable-layer[data-layer-id]').count();
-  await restored.getByRole('button', { name: 'Play', exact: true }).click();
-  await second.window.waitForFunction((count) =>
-    document.querySelectorAll('.lighttable-layer[data-layer-id]').length === count + 1,
-  replayBefore, { timeout: 30_000 });
-  await restored.getByRole('status').filter({ hasText: 'Playback: completed' }).waitFor();
-  await second.window.getByRole('treeitem', { name: /Replayed variable layer.*raster layer/i }).waitFor();
-  if (await restored.locator('li').count() !== 2) {
-    throw new Error('Playback recursively changed the saved two-step Action.');
-  }
-  const activeLayerState = () => second.window.evaluate(() => {
-    const automation = window.__lightTableAutomation;
-    const documentId = automation?.queryWorkspace()?.activeDocumentId;
-    const document = documentId ? automation?.queryDocument(documentId) : null;
-    const layer = documentId && document?.activeLayerId
-      ? automation?.queryLayers(documentId)?.find(({ id }) => id === document.activeLayerId) : null;
-    return documentId && document && layer ? {
-      documentId, layerId: layer.id, layerName: layer.name, undoDepth: document.history.undoDepth
-    } : null;
-  });
-  const beforeAtomicRecording = await activeLayerState();
-  if (!beforeAtomicRecording || beforeAtomicRecording.layerName !== 'Replayed variable layer') {
-    throw new Error(`Atomic playback has no stable active layer: ${JSON.stringify(beforeAtomicRecording)}`);
-  }
-  await restored.getByRole('button', { name: 'Clear' }).click();
-  await restored.getByRole('button', { name: 'Record' }).click();
-  for (const name of ['Atomic interim layer', 'Atomic final layer']) {
-    await second.window.getByRole('menuitem', { name: 'Layer' }).click();
-    await second.window.getByRole('menuitem', { name: 'Rename Layer' }).click();
-    const rename = second.window.locator('input[aria-label="Layer name"]:focus');
-    await rename.fill(name);
-    await rename.press('Enter');
-    await second.window.waitForFunction(({ layerId, name }) => {
-      const automation = window.__lightTableAutomation;
-      const documentId = automation?.queryWorkspace()?.activeDocumentId;
-      return documentId && automation?.queryLayers(documentId)?.find(({ id }) => id === layerId)?.name === name;
-    }, { layerId: beforeAtomicRecording.layerId, name });
-  }
-  await restored.getByRole('button', { name: 'Stop' }).click();
-  const afterStepwiseRecording = await activeLayerState();
-  if (!afterStepwiseRecording
-    || afterStepwiseRecording.undoDepth !== beforeAtomicRecording.undoDepth + 2) {
-    throw new Error(`Recorded rename steps did not remain stepwise: ${JSON.stringify({
-      beforeAtomicRecording, afterStepwiseRecording
-    })}`);
-  }
-  await second.window.keyboard.press('Control+z');
-  await second.window.keyboard.press('Control+z');
-  await second.window.waitForFunction(({ layerId, name, undoDepth }) => {
-    const automation = window.__lightTableAutomation;
-    const documentId = automation?.queryWorkspace()?.activeDocumentId;
-    const document = documentId ? automation?.queryDocument(documentId) : null;
-    return documentId && document?.history.undoDepth === undoDepth
-      && automation?.queryLayers(documentId)?.find(({ id }) => id === layerId)?.name === name;
-  }, { layerId: beforeAtomicRecording.layerId, name: beforeAtomicRecording.layerName,
-    undoDepth: beforeAtomicRecording.undoDepth });
-  const oneUndo = restored.getByRole('button', { name: 'Play as one undo' });
-  if (await oneUndo.isDisabled()) {
-    throw new Error(`Eligible rename Action was excluded from atomic playback: ${await oneUndo.getAttribute('title')}`);
-  }
-  await oneUndo.click();
-  await restored.getByRole('status').filter({ hasText: 'Playback: completed' }).waitFor({ timeout: 15_000 });
-  const afterAtomicPlayback = await activeLayerState();
-  if (!afterAtomicPlayback || afterAtomicPlayback.layerName !== 'Atomic final layer'
-    || afterAtomicPlayback.undoDepth !== beforeAtomicRecording.undoDepth + 1) {
-    throw new Error(`Atomic Action did not publish one history boundary: ${JSON.stringify({
-      beforeAtomicRecording, afterAtomicPlayback
-    })}`);
-  }
-  await second.window.keyboard.press('Control+z');
-  await second.window.waitForFunction(({ layerId, name, undoDepth }) => {
-    const automation = window.__lightTableAutomation;
-    const documentId = automation?.queryWorkspace()?.activeDocumentId;
-    const document = documentId ? automation?.queryDocument(documentId) : null;
-    return documentId && document?.history.undoDepth === undoDepth
-      && automation?.queryLayers(documentId)?.find(({ id }) => id === layerId)?.name === name;
-  }, { layerId: beforeAtomicRecording.layerId, name: beforeAtomicRecording.layerName,
-    undoDepth: beforeAtomicRecording.undoDepth });
-  await restoredSets.selectOption({ label: 'Product workflows' });
-  await restored.getByRole('button', { name: 'Delete set' }).click();
-  await restoredSets.getByRole('option', { name: 'Product workflows' })
-    .waitFor({ state: 'detached' });
-  const afterDelete = JSON.parse(await readFile(path.join(userData, 'actions-v1.json'), 'utf8'));
-  if (afterDelete.sets?.length !== 2 || afterDelete.actions?.length !== 1
-    || afterDelete.actions[0]?.name !== 'Persistent layer setup') {
-    throw new Error(`Deleting a set did not delete only its contained Actions: ${JSON.stringify(afterDelete)}`);
-  }
-  if (pageErrors.length) throw new Error(`Saved Actions page errors: ${pageErrors.join(' | ')}`);
-  console.log('Desktop saved Actions restart smoke passed.');
+
+  running = await start('saved-actions-restore');
+  await running.panel.getByText('Persisted layer', { exact: true }).waitFor({ timeout: 10_000 })
+    .catch(async () => {
+      throw new Error(`Restored Actions were not projected: ${JSON.stringify({
+        panel: await running.panel.innerText(),
+        recording: await running.driver.queryActionRecording(),
+        body: (await running.window.locator('body').innerText()).slice(-1800)
+      })}`);
+    });
+  await running.panel.getByText('Persisted layer', { exact: true }).click();
+  await running.panel.getByRole('button', { name: 'Delete selected' }).click();
+  await running.panel.getByText('Persisted layer', { exact: true }).waitFor({ state: 'detached' });
+  if (running.pageErrors.length) throw new Error(running.pageErrors.join(' | '));
+  const afterDelete = JSON.parse(await readFile(path.join(userData, 'actions.json'), 'utf8'));
+  if (afterDelete.actions.length !== 0) throw new Error('Deleted Action remained in durable storage.');
+  console.log('Desktop saved Actions smoke passed.');
 } finally {
-  await first?.app.close().catch(() => undefined);
-  await second?.app.close().catch(() => undefined);
+  await running?.app.close();
 }

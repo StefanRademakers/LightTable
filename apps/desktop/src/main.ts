@@ -205,7 +205,7 @@ const desktopIconPath = (kind: 'window' | 'dock' = 'window') => {
 const recentFilesPath = (): string => path.join(app.getPath('userData'), 'recent-files.json');
 const recentFileOperations = new RecentFileOperationQueue();
 const recentProjectsPath = (): string => path.join(app.getPath('userData'), 'recent-projects.json');
-const actionLibraryPath = (): string => path.join(app.getPath('userData'), 'actions-v1.json');
+const actionLibraryPath = (): string => path.join(app.getPath('userData'), 'actions.json');
 const recentProjectOperations = new RecentFileOperationQueue();
 const RECENT_THUMBNAIL_CACHE_LIMIT = 24;
 const recentThumbnailCache = new BoundedLruCache<string>(RECENT_THUMBNAIL_CACHE_LIMIT);

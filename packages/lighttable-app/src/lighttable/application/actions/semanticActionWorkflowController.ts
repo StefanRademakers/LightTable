@@ -37,7 +37,11 @@ export class SemanticActionWorkflowController {
     this.playback = new SemanticActionPlaybackController(ports.execute, ports.tasks);
   }
 
-  dispose(): void { this.playback.stop(); }
+  dispose(): void {
+    this.playback.dispose();
+    this.library.dispose();
+    this.recorder.dispose();
+  }
 
   recordingSnapshot = (): ActionRecordingSnapshot => this.recorder.snapshot();
   subscribeRecording = (listener: () => void): (() => void) => this.recorder.subscribe(listener);

@@ -91,7 +91,7 @@ export const compileAtomicAction = (
         parameters: transformParameters(step.parameters, step.sequence, variableValues, operationIds)
       }))
     };
-    const contracts = checkActionCommandContracts(steps, false, effectiveVariables);
+    const contracts = checkActionCommandContracts(steps, effectiveVariables);
     if (!contracts.ok) return { ok: false, error: contracts.message };
     const validation = validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['command.batch']!.input, batch);
     if (!validation.valid) {

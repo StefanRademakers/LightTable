@@ -116,12 +116,21 @@ export class SemanticActionRecorder {
   private readonly listeners = new Set<() => void>();
   private readonly completedTasks = new Map<string, unknown>();
   private insertAfterSequence: number | null = null;
+  private disposed = false;
 
   snapshot = (): ActionRecordingSnapshot => this.snapshotValue;
   subscribe = (listener: () => void): (() => void) => {
+    if (this.disposed) return () => undefined;
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
+
+  dispose(): void {
+    this.disposed = true;
+    this.completedTasks.clear();
+    this.listeners.clear();
+    this.insertAfterSequence = null;
+  }
 
   start(name = 'Untitled Action', insertAfterSequence?: number): ActionRecordingSnapshot {
     this.completedTasks.clear();
@@ -351,7 +360,7 @@ export class SemanticActionRecorder {
     if (this.snapshotValue.status !== 'stopped') {
       return { ok: false, error: 'Stop the Action before editing it.' };
     }
-    const contracts = checkActionCommandContracts(snapshot.steps, false, snapshot.variables);
+    const contracts = checkActionCommandContracts(snapshot.steps, snapshot.variables);
     if (!contracts.ok) return { ok: false, error: contracts.message };
     let byteLength: number;
     try {
@@ -453,6 +462,7 @@ export class SemanticActionRecorder {
   }
 
   private publish(snapshot: ActionRecordingSnapshot): void {
+    if (this.disposed) return;
     this.snapshotValue = snapshot;
     for (const listener of this.listeners) listener();
   }

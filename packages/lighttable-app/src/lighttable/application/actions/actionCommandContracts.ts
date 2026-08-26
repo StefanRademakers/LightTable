@@ -9,15 +9,10 @@ import {
   validateActionVariables,
   type ActionVariableDefinition
 } from './actionResultBindings';
-import {
-  ACTION_COMMAND_SCHEMA_MIGRATIONS,
-  migrateActionCommandSteps,
-  type ActionCommandSchemaMigration
-} from './actionCommandSchemaMigrations';
 
 export type RecordedCommandContract =
   | { readonly status: 'complete'; readonly schemaVersion: number }
-  | { readonly status: 'legacy-properties-only'; readonly schemaVersion: null };
+  | { readonly status: 'properties-only'; readonly schemaVersion: null };
 
 interface ContractStep {
   readonly sequence: number;
@@ -31,96 +26,56 @@ interface ContractStep {
 export const currentRecordedCommandContract = (command: string): RecordedCommandContract => (
   LIGHTTABLE_COMMAND_SCHEMAS[command as keyof typeof LIGHTTABLE_COMMAND_SCHEMAS]
     ? { status: 'complete', schemaVersion: LIGHTTABLE_COMMAND_SCHEMA_VERSION }
-    : { status: 'legacy-properties-only', schemaVersion: null }
+    : { status: 'properties-only', schemaVersion: null }
 );
 
 const validContract = (value: unknown): value is RecordedCommandContract => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
   && Object.keys(value).length === 2
-  && (('status' in value && value.status === 'legacy-properties-only'
+  && (('status' in value && value.status === 'properties-only'
       && 'schemaVersion' in value && value.schemaVersion === null)
     || ('status' in value && value.status === 'complete'
-      && 'schemaVersion' in value && Number.isSafeInteger(value.schemaVersion)
-      && Number(value.schemaVersion) > 0))
+      && 'schemaVersion' in value && value.schemaVersion === LIGHTTABLE_COMMAND_SCHEMA_VERSION))
 );
 
 export type ActionContractCheck<T extends ContractStep> =
-  | { readonly ok: true; readonly steps: readonly (T & { readonly contract: RecordedCommandContract })[];
-      readonly migrated: boolean }
+  | { readonly ok: true; readonly steps: readonly (T & { readonly contract: RecordedCommandContract })[] }
   | { readonly ok: false; readonly sequence: number; readonly message: string };
 
-export interface ActionCommandContractEnvironment {
-  readonly schemaVersion: number;
-  readonly migrations: readonly ActionCommandSchemaMigration[];
-}
-
-const currentEnvironment: ActionCommandContractEnvironment = {
-  schemaVersion: LIGHTTABLE_COMMAND_SCHEMA_VERSION,
-  migrations: ACTION_COMMAND_SCHEMA_MIGRATIONS
-};
-
+/** Validates saved steps only against the one command contract shipped by this alpha build. */
 export const checkActionCommandContracts = <T extends ContractStep>(
-  steps: readonly T[], allowMissingLegacyContract = false,
-  variables: readonly ActionVariableDefinition[] = [],
-  environment: ActionCommandContractEnvironment = currentEnvironment
+  steps: readonly T[],
+  variables: readonly ActionVariableDefinition[] = []
 ): ActionContractCheck<T> => {
   const variableError = validateActionVariables(variables);
   if (variableError) return { ok: false, sequence: 0, message: variableError };
   const variableValues = new Map(variables.map(({ name, defaultValue }) => [name, defaultValue]));
-  const migration = migrateActionCommandSteps(steps, environment.schemaVersion, environment.migrations);
-  if (!migration.ok) return migration;
   const results = new Map<number, unknown>();
-  const migratedSteps: (T & { readonly contract: RecordedCommandContract })[] = [];
-  let migrated = migration.migrated;
-  for (const step of migration.steps) {
-    const hasSchema = Boolean(LIGHTTABLE_COMMAND_SCHEMAS[step.command as keyof typeof LIGHTTABLE_COMMAND_SCHEMAS]);
-    const current: RecordedCommandContract = hasSchema
-      ? { status: 'complete', schemaVersion: environment.schemaVersion }
-      : { status: 'legacy-properties-only', schemaVersion: null };
-    const recorded = step.contract;
-    if (!recorded && !allowMissingLegacyContract) {
+  const checked: (T & { readonly contract: RecordedCommandContract })[] = [];
+  for (const step of steps) {
+    const current = currentRecordedCommandContract(step.command);
+    if (!step.contract || !validContract(step.contract)
+      || step.contract.status !== current.status
+      || step.contract.schemaVersion !== current.schemaVersion) {
       return { ok: false, sequence: step.sequence,
-        message: `Step ${step.sequence} (${step.command}) has no recorded command contract.` };
-    }
-    if (recorded && !validContract(recorded)) {
-      return { ok: false, sequence: step.sequence,
-        message: `Step ${step.sequence} (${step.command}) has an invalid command contract marker.` };
-    }
-    if (recorded?.status === 'complete' && current.status !== 'complete') {
-      return { ok: false, sequence: step.sequence,
-        message: `Step ${step.sequence} (${step.command}) requires schema v${recorded.schemaVersion}, but this runtime has no complete schema.` };
-    }
-    if (recorded?.status === 'complete' && current.status === 'complete'
-      && recorded.schemaVersion !== current.schemaVersion) {
-      return { ok: false, sequence: step.sequence,
-        message: `Step ${step.sequence} (${step.command}) uses schema v${recorded.schemaVersion}; this runtime supports v${current.schemaVersion}.` };
+        message: `Step ${step.sequence} (${step.command}) does not match the current command contract.` };
     }
     if (current.status === 'complete') {
       const resolved = resolveActionParameters(step.parameters, results, variableValues);
-      if ('error' in resolved) {
-        return { ok: false, sequence: step.sequence,
-          message: `Step ${step.sequence} (${step.command}) cannot resolve its recorded bindings: ${resolved.error}` };
-      }
+      if ('error' in resolved) return { ok: false, sequence: step.sequence,
+        message: `Step ${step.sequence} (${step.command}) cannot resolve its bindings: ${resolved.error}` };
       const schema = LIGHTTABLE_COMMAND_SCHEMAS[step.command as keyof typeof LIGHTTABLE_COMMAND_SCHEMAS]!;
       const input = validateJsonSchemaValue(schema.input, resolved.value);
-      if (!input.valid) {
-        return { ok: false, sequence: step.sequence,
-          message: `Step ${step.sequence} (${step.command}) is incompatible with schema v${current.schemaVersion}: ${formatSchemaValidationIssues(input.issues)}.` };
-      }
+      if (!input.valid) return { ok: false, sequence: step.sequence,
+        message: `Step ${step.sequence} (${step.command}) has invalid parameters: ${formatSchemaValidationIssues(input.issues)}.` };
       if (step.outcome === 'completed') {
         const result = validateJsonSchemaValue(schema.result, step.result);
-        if (!result.valid) {
-          return { ok: false, sequence: step.sequence,
-            message: `Step ${step.sequence} (${step.command}) has a result incompatible with schema v${current.schemaVersion}: ${formatSchemaValidationIssues(result.issues)}.` };
-        }
+        if (!result.valid) return { ok: false, sequence: step.sequence,
+          message: `Step ${step.sequence} (${step.command}) has an invalid result: ${formatSchemaValidationIssues(result.issues)}.` };
       }
     }
-    const contract = current.status === 'complete' ? current
-      : recorded?.status === 'legacy-properties-only' ? recorded : current;
-    if (!recorded || recorded.status !== contract.status
-      || recorded.schemaVersion !== contract.schemaVersion) migrated = true;
-    migratedSteps.push({ ...step, contract });
+    checked.push({ ...step, contract: current });
     results.set(step.sequence, step.result);
   }
-  return { ok: true, steps: migratedSteps, migrated };
+  return { ok: true, steps: checked };
 };

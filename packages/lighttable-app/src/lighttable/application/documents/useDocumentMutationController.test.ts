@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRasterLayer, createVectorLayer, deleteLayer,
+import { createAdjustmentLayer, createGradientFillLayer, createRasterLayer, createVectorLayer, deleteLayer,
   replaceVectorPath } from '../../editor/document/documentCommands';
 import { createVectorPath } from '@lighttable/vector-core';
 import {
@@ -83,6 +83,25 @@ describe('document mutation controller', () => {
     expect(state.history[0].byteSize).toBeGreaterThan(0);
     expect(state.history[1].byteSize).toBeGreaterThan(0);
     expect(state.history[1].layerIds).toEqual([]);
+  });
+
+  it('describes newly created semantic layer types', () => {
+    const scenarios = [
+      { mutate: createRasterLayer, label: 'New Pixel Layer' },
+      { mutate: createVectorLayer, label: 'New Shape Layer' },
+      { mutate: createGradientFillLayer, label: 'New Gradient Fill Layer' },
+      {
+        mutate: (document: ImageDocument) => createAdjustmentLayer(
+          document, { id: 'levels-stack', revision: 0, modules: [] }, 'Levels', undefined, 'levels'
+        ),
+        label: 'New Levels Layer'
+      }
+    ] as const;
+    scenarios.forEach(({ mutate, label }) => {
+      const state = setup();
+      state.controller.change(mutate);
+      expect(state.history[0].label).toBe(label);
+    });
   });
 
   it('coalesces repeated previews into one transaction', () => {

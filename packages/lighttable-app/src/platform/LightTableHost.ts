@@ -333,8 +333,8 @@ export interface LightTableHost {
 export const createBrowserHost = (): LightTableHost => ({
   kind: 'web',
   actionLibrary: typeof localStorage === 'undefined' ? undefined : {
-    read: async () => localStorage.getItem('lighttable.actions.v1'),
-    write: async (value) => { localStorage.setItem('lighttable.actions.v1', value); }
+    read: async () => localStorage.getItem('lighttable.actions'),
+    write: async (value) => { localStorage.setItem('lighttable.actions', value); }
   },
   funnel: typeof localStorage === 'undefined'
     ? undefined

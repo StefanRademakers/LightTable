@@ -210,15 +210,13 @@ TypeScript projections feed the application validator, transport-neutral
 adapter and MCP Zod enums; a check fails when generated projections are stale
 or an external command is absent from the downstream Agent Access profile.
 The same entries now carry product category, label, description, scope, effect
-class and local invocation metadata. The docked Actions panel consumes that
-projection plus live capability results, so local discovery and MCP exposure
-cannot acquire separate naming or categorization lists.
+class and local invocation metadata. Actions records this same semantic route;
+it does not maintain a second mutation or command-discovery table.
 
-Durable Actions use a separate bounded version-5 workflow envelope: at most 16
-named sets, 32 Actions and 32 typed variables per Action. Valid version-1/
-version-2 flat libraries migrate into a stable Default Set; valid version-3
-set libraries gain an empty variable list, and valid version-4 steps gain an
-explicit null rationale. Set names, selection, variables, explicit parameter/
+Durable Actions use one current alpha workflow envelope: at most 16 named sets,
+32 Actions and 32 typed variables per Action. There are no compatibility
+versions or migration registries before the product reaches 1.0. Set names,
+selection, variables, explicit parameter/
 result bindings and optional trimmed 280-character user-facing step rationales
 are local workflow metadata; they do not enter document state, command
 parameters or create parallel MCP mutation commands. Unknown/private step
@@ -227,19 +225,11 @@ resolves defaults or typed overrides and prior results before the same shared
 command-schema preflight used to guard each recorded semantic command. The
 local recorded-step editor also consumes these generated schemas; it does not
 maintain a command-specific form catalog, invent a mutation route or alter MCP
-command contracts.
-
-Recorded command contracts have a separate explicit migration registry. A
-saved older contract loads only when every per-command version step is present
-and consecutive. Parameters and completed results migrate before validation;
-reviewed result-path renames also update later Action bindings. Future versions,
-missing/duplicate chains, invalid migration output and final schema mismatches
-fail atomically before playback. Successful upgrades rewrite the same bounded
-version-5 library and do not change MCP discovery or command semantics.
+command contracts. An obsolete or malformed envelope fails atomically.
 
 Ordinary playback remains stepwise.
-The optional `Play as one undo` control compiles only stopped, completed,
-same-document steps whose commands are already in the generated atomic-batch
+Eligible Actions automatically play as one undo. The compiler accepts only
+stopped, completed, same-document steps whose commands are already in the generated atomic-batch
 contract. Variable values resolve before execution; top-level prior-result
 bindings become native batch references. Diagnostic/async steps, workspace or
 multi-document flows, nested result paths and non-batch commands fail before

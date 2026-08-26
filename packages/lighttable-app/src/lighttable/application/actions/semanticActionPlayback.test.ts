@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { SemanticActionPlaybackController } from './semanticActionPlayback';
 import { SemanticActionRecorder } from './semanticActionRecorder';
 import type { ActionRecordingSnapshot } from './semanticActionRecorder';
+import { currentRecordedCommandContract } from './actionCommandContracts';
 
-const legacyContract = { status: 'legacy-properties-only' as const, schemaVersion: null };
 const schemaContract = { status: 'complete' as const, schemaVersion: 1 };
 const acceptedBatchStep = () => ({
   ...recording().steps[0]!, command: 'command.batch' as const,
@@ -232,10 +232,11 @@ describe('SemanticActionPlaybackController', () => {
   it('awaits an accepted task and binds its artifact into the following step', async () => {
     const asyncRecording: ActionRecordingSnapshot = {
       ...recording(), steps: [{ ...recording().steps[0]!, command: 'file.exportNative',
-        contract: legacyContract,
+        contract: currentRecordedCommandContract('file.exportNative'),
         outcome: 'accepted', result: { taskId: 'old-task', artifact: { id: 'old-artifact' } },
       parameters: {} }, { ...recording().steps[1]!, command: 'file.openArtifact',
-        contract: legacyContract, documentId: null, result: { documentId: 'opened-document' }, parameters: {
+        contract: currentRecordedCommandContract('file.openArtifact'), documentId: null,
+        result: { documentId: 'opened-document' }, parameters: {
           artifactId: { $lighttableResult: { step: 1, path: 'artifact.id' } }
         } }]
     };
@@ -335,7 +336,7 @@ describe('SemanticActionPlaybackController', () => {
 
     expect(execute).not.toHaveBeenCalled();
     expect(controller.snapshot()).toMatchObject({ status: 'failed', currentSequence: 2,
-      results: [{ status: 'contract-incompatible', message: expect.stringMatching(/schema v2/i) }] });
+      results: [{ status: 'contract-incompatible', message: expect.stringMatching(/current command contract/i) }] });
   });
 
   it('replays typed variable defaults and explicit overrides through the same command route', async () => {
@@ -460,5 +461,23 @@ describe('SemanticActionPlaybackController', () => {
 
     expect(canceled).toHaveBeenCalledOnce();
     expect(controller.snapshot()).toMatchObject({ status: 'stopped', currentSequence: null });
+  });
+
+  it('releases listeners and aborts playback on disposal', async () => {
+    const execute = vi.fn(async (request) => ({ requestId: request.requestId,
+      status: 'accepted' as const, taskId: 'batch-task', revisions: { workspace: 1 } }));
+    const controller = new SemanticActionPlaybackController(execute, { wait: (
+      _documentId, _taskId, signal
+    ) => new Promise((resolve) => signal.addEventListener('abort', () => (
+      resolve({ status: 'canceled', message: 'Disposed.' })
+    ), { once: true })) });
+    const listener = vi.fn();
+    controller.subscribe(listener);
+    const playing = controller.playAtomic(atomicRecording(), 'fresh-document');
+    await vi.waitFor(() => expect(controller.snapshot().status).toBe('running'));
+    listener.mockClear();
+    controller.dispose();
+    await playing;
+    expect(listener).not.toHaveBeenCalled();
   });
 });

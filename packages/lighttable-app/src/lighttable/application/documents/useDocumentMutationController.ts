@@ -47,12 +47,15 @@ const inferDocumentMutationDescription = (
   const next = new Map(walkLayerTree(after.layers).map(({ node }) => [node.id, node]));
   const added = [...next.values()].find(({ id }) => !previous.has(id));
   const removed = [...previous.values()].find(({ id }) => !next.has(id));
-  if (added) return {
-    label: added.type === 'text' ? 'New Type Layer'
+  if (added) {
+    const label = added.type === 'text' ? 'New Type Layer'
       : added.type === 'group' ? 'New Layer Group'
-        : added.type === 'adjustment' ? 'New Adjustment Layer' : 'New Layer',
-    type: `layer.create.${added.type}`
-  };
+        : added.type === 'adjustment' ? `New ${added.name} Layer`
+          : added.type === 'vector' && added.role === 'gradient-fill' ? 'New Gradient Fill Layer'
+            : added.type === 'vector' ? 'New Shape Layer'
+              : 'New Pixel Layer';
+    return { label, type: `layer.create.${added.type}` };
+  }
   if (removed) return { label: 'Delete Layer', type: 'layer.delete' };
   const previousOrder = [...previous.keys()].join('\u0000');
   const nextOrder = [...next.keys()].join('\u0000');
@@ -77,7 +80,10 @@ const inferDocumentMutationDescription = (
     if (previousNode.type === 'text' && nextNode.type === 'text'
       && previousNode.text !== nextNode.text) return { label: 'Edit Type', type: 'text.edit' };
     if (previousNode.type === 'vector' && nextNode.type === 'vector'
-      && previousNode.elements !== nextNode.elements) return { label: 'Edit Shape', type: 'vector.edit' };
+      && previousNode.elements !== nextNode.elements) return {
+      label: nextNode.role === 'gradient-fill' ? 'Edit Gradient Fill' : 'Edit Shape',
+      type: nextNode.role === 'gradient-fill' ? 'gradient.edit' : 'vector.edit'
+    };
     if (previousNode.type === 'raster' && nextNode.type === 'raster'
       && (previousNode.adjustmentStack !== nextNode.adjustmentStack
         || previousNode.attachedAdjustments !== nextNode.attachedAdjustments)) {
@@ -90,6 +96,7 @@ const inferDocumentMutationDescription = (
   };
   if (before.activeLayerId !== after.activeLayerId) return { label: 'Select Layer', type: 'layer.select' };
   if (before.colorSettings !== after.colorSettings) return { label: 'Color Profile', type: 'document.color-profile' };
+  if (before.name !== after.name) return { label: 'Rename Document', type: 'document.rename' };
   return { label: 'Document Change', type: 'document.change' };
 };
 
