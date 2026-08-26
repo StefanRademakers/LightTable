@@ -42,6 +42,27 @@ export interface VideoPresentationState {
   readonly panY: number;
 }
 
+/**
+ * Ephemeral playback instrumentation. This deliberately lives beside, rather
+ * than inside, VideoPresentationState: sampling playback must never dirty a
+ * document or wake ordinary document/presentation subscribers.
+ */
+export interface VideoPlaybackTelemetry {
+  readonly status: 'idle' | 'warming' | 'measured';
+  readonly actualFramesPerSecond: number | null;
+  readonly targetFramesPerSecond: number | null;
+  readonly droppedFrames: number;
+  readonly belowTarget: boolean;
+}
+
+export const DEFAULT_VIDEO_PLAYBACK_TELEMETRY: VideoPlaybackTelemetry = {
+  status: 'idle',
+  actualFramesPerSecond: null,
+  targetFramesPerSecond: null,
+  droppedFrames: 0,
+  belowTarget: false
+};
+
 export interface VideoDocumentSnapshot {
   readonly id: VideoDocumentId;
   readonly kind: 'video';

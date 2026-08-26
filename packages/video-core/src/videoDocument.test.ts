@@ -49,6 +49,29 @@ describe('video document core', () => {
     expect(notifications).toBe(2);
   });
 
+  it('publishes playback telemetry without waking document subscribers', () => {
+    const session = new VideoDocumentSession({
+      id: 'video-telemetry' as never,
+      source: { id: 'asset-1', name: 'clip.mp4', mediaType: 'video/mp4', byteLength: 42 }
+    });
+    let documentNotifications = 0;
+    let telemetryNotifications = 0;
+    session.subscribe(() => { documentNotifications += 1; });
+    session.subscribePlaybackTelemetry(() => { telemetryNotifications += 1; });
+
+    session.publishPlaybackTelemetry({
+      status: 'measured',
+      actualFramesPerSecond: 29,
+      targetFramesPerSecond: 30,
+      droppedFrames: 1,
+      belowTarget: true
+    });
+
+    expect(session.getPlaybackTelemetrySnapshot().actualFramesPerSecond).toBe(29);
+    expect(documentNotifications).toBe(0);
+    expect(telemetryNotifications).toBe(1);
+  });
+
   it('pauses and releases observers when disposed', () => {
     const session = new VideoDocumentSession({
       id: 'video-1' as never,

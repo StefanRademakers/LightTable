@@ -1,4 +1,5 @@
 import {
+  DEFAULT_VIDEO_PLAYBACK_TELEMETRY,
   DEFAULT_VIDEO_PRESENTATION,
   normalizeVideoMetadata,
   normalizeVideoPresentation,
@@ -6,6 +7,7 @@ import {
   type VideoDocumentSnapshot,
   type VideoDocumentSource,
   type VideoMetadata,
+  type VideoPlaybackTelemetry,
   type VideoPresentationState
 } from './videoDocument';
 
@@ -24,7 +26,9 @@ export interface CreateVideoDocumentSessionOptions {
  */
 export class VideoDocumentSession {
   private readonly listeners = new Set<VideoDocumentListener>();
+  private readonly playbackTelemetryListeners = new Set<VideoDocumentListener>();
   private snapshot: VideoDocumentSnapshot;
+  private playbackTelemetry: VideoPlaybackTelemetry = DEFAULT_VIDEO_PLAYBACK_TELEMETRY;
 
   constructor(options: CreateVideoDocumentSessionOptions) {
     this.snapshot = {
@@ -52,6 +56,27 @@ export class VideoDocumentSession {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
+
+  getPlaybackTelemetrySnapshot = (): VideoPlaybackTelemetry => this.playbackTelemetry;
+
+  subscribePlaybackTelemetry = (listener: VideoDocumentListener): (() => void) => {
+    this.playbackTelemetryListeners.add(listener);
+    return () => this.playbackTelemetryListeners.delete(listener);
+  };
+
+  /** Renderer/runtime telemetry; intentionally does not publish document state. */
+  publishPlaybackTelemetry(telemetry: VideoPlaybackTelemetry): void {
+    if (this.snapshot.lifecycle === 'disposed') return;
+    if (
+      telemetry.status === this.playbackTelemetry.status
+      && telemetry.actualFramesPerSecond === this.playbackTelemetry.actualFramesPerSecond
+      && telemetry.targetFramesPerSecond === this.playbackTelemetry.targetFramesPerSecond
+      && telemetry.droppedFrames === this.playbackTelemetry.droppedFrames
+      && telemetry.belowTarget === this.playbackTelemetry.belowTarget
+    ) return;
+    this.playbackTelemetry = telemetry;
+    for (const listener of this.playbackTelemetryListeners) listener();
+  }
 
   publishReady(metadata: VideoMetadata): void {
     if (this.snapshot.lifecycle === 'disposed') return;
@@ -108,6 +133,8 @@ export class VideoDocumentSession {
     };
     for (const listener of this.listeners) listener();
     this.listeners.clear();
+    this.playbackTelemetry = DEFAULT_VIDEO_PLAYBACK_TELEMETRY;
+    this.playbackTelemetryListeners.clear();
   }
 
   private publish(snapshot: VideoDocumentSnapshot): void {

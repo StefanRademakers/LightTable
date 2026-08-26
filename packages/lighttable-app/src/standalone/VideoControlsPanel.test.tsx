@@ -11,6 +11,13 @@ describe('VideoControlsPanel', () => {
     });
     session.publishReady({ width: 1920, height: 1080, durationSeconds: 90, frameRate: 30 });
     session.updatePresentation({ currentTimeSeconds: 65.5, volume: 0.5 });
+    session.publishPlaybackTelemetry({
+      status: 'measured',
+      actualFramesPerSecond: 24,
+      targetFramesPerSecond: 30,
+      droppedFrames: 6,
+      belowTarget: true
+    });
     const markup = renderToStaticMarkup(
       <VideoControlsPanel
         session={session}
@@ -25,6 +32,8 @@ describe('VideoControlsPanel', () => {
     );
 
     expect(markup).toContain('01:05:15');
+    expect(markup).toContain('24.0 fps');
+    expect(markup).toContain('is-under-target');
     expect(markup).toContain('aria-label="Play"');
     expect(markup).toContain('aria-label="Previous frame"');
     expect(markup).toContain('aria-label="Next frame"');

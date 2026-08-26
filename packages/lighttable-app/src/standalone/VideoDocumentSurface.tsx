@@ -7,7 +7,12 @@ import React, {
   useRef,
   useState
 } from 'react';
-import type { VideoDocumentSession, VideoPresentationState } from '@lighttable/video-core';
+import {
+  measureVideoPlaybackTelemetry,
+  type VideoDocumentSession,
+  type VideoPlaybackQualitySample,
+  type VideoPresentationState
+} from '@lighttable/video-core';
 import type { ToolId } from '../lighttable/editor/session/editorSession';
 import { resolveViewportImageRect } from '../lighttable/application/rendering/viewportRenderState';
 import {
@@ -79,6 +84,8 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
   const viewportRef = useRef(viewportSize);
   const pendingViewRef = useRef<VideoViewState | null>(null);
   const frameRef = useRef<number | null>(null);
+  const playbackQualityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const playbackQualityBaselineRef = useRef<VideoPlaybackQualitySample | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     origin: Point;
@@ -170,6 +177,7 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
 
   useEffect(() => () => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    if (playbackQualityTimerRef.current !== null) clearInterval(playbackQualityTimerRef.current);
   }, []);
 
   const currentScale = useCallback(() => {
@@ -236,6 +244,57 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
     if (video.volume > 0 && video.muted) video.muted = false;
     session.updatePresentation({ volume: video.volume, muted: video.muted });
   }, [session]);
+
+  const readPlaybackQuality = useCallback((video: HTMLVideoElement): VideoPlaybackQualitySample => {
+    if (typeof video.getVideoPlaybackQuality !== 'function') {
+      return {
+        sampledAtMilliseconds: performance.now(),
+        totalFrames: 0,
+        droppedFrames: 0
+      };
+    }
+    const quality = video.getVideoPlaybackQuality();
+    return {
+      sampledAtMilliseconds: performance.now(),
+      totalFrames: quality.totalVideoFrames,
+      droppedFrames: quality.droppedVideoFrames
+    };
+  }, []);
+
+  const stopPlaybackQualityMeasurement = useCallback(() => {
+    if (playbackQualityTimerRef.current !== null) clearInterval(playbackQualityTimerRef.current);
+    playbackQualityTimerRef.current = null;
+    playbackQualityBaselineRef.current = null;
+    const previous = session.getPlaybackTelemetrySnapshot();
+    session.publishPlaybackTelemetry({ ...previous, status: 'idle', belowTarget: false });
+  }, [session]);
+
+  const startPlaybackQualityMeasurement = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (playbackQualityTimerRef.current !== null) clearInterval(playbackQualityTimerRef.current);
+    playbackQualityBaselineRef.current = readPlaybackQuality(video);
+    const previous = session.getPlaybackTelemetrySnapshot();
+    session.publishPlaybackTelemetry({ ...previous, status: 'warming', belowTarget: false });
+    playbackQualityTimerRef.current = setInterval(() => {
+      const currentVideo = videoRef.current;
+      const baseline = playbackQualityBaselineRef.current;
+      if (!currentVideo || currentVideo.paused || !baseline) return;
+      const current = readPlaybackQuality(currentVideo);
+      if (current.sampledAtMilliseconds - baseline.sampledAtMilliseconds < 900) return;
+      const sourceFrameRate = session.getSnapshot().metadata?.frameRate;
+      const retainedTarget = session.getPlaybackTelemetrySnapshot().targetFramesPerSecond;
+      const expectedFramesPerSecond = sourceFrameRate && sourceFrameRate > 0
+        ? sourceFrameRate * currentVideo.playbackRate
+        : current.totalFrames === baseline.totalFrames ? retainedTarget : null;
+      session.publishPlaybackTelemetry(measureVideoPlaybackTelemetry({
+        baseline,
+        current,
+        expectedFramesPerSecond
+      }));
+      playbackQualityBaselineRef.current = current;
+    }, 250);
+  }, [readPlaybackQuality, session]);
 
   useImperativeHandle(forwardedRef, () => ({
     setZoomPercent: setZoomAtCenter,
@@ -454,11 +513,24 @@ export const VideoDocumentSurface = forwardRef<VideoViewportHandle, VideoDocumen
             video.muted = presentation.muted;
             video.volume = presentation.volume;
             video.playbackRate = presentation.playbackRate;
+            session.publishPlaybackTelemetry({
+              status: 'idle',
+              actualFramesPerSecond: null,
+              targetFramesPerSecond: null,
+              droppedFrames: 0,
+              belowTarget: false
+            });
           }}
           onTimeUpdate={(event) => session.updatePresentation({ currentTimeSeconds: event.currentTarget.currentTime })}
           onSeeked={(event) => session.updatePresentation({ currentTimeSeconds: event.currentTarget.currentTime })}
-          onPlay={() => session.updatePresentation({ paused: false })}
-          onPause={() => session.updatePresentation({ paused: true })}
+          onPlay={() => {
+            session.updatePresentation({ paused: false });
+            startPlaybackQualityMeasurement();
+          }}
+          onPause={() => {
+            session.updatePresentation({ paused: true });
+            stopPlaybackQualityMeasurement();
+          }}
           onVolumeChange={(event) => session.updatePresentation({
             muted: event.currentTarget.muted,
             volume: event.currentTarget.volume

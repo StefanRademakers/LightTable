@@ -55,21 +55,45 @@ const TransportButton = ({
  */
 export const VideoControlsPanel = ({ session, commands }: VideoControlsPanelProps) => {
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
+  const playbackTelemetry = useSyncExternalStore(
+    session.subscribePlaybackTelemetry,
+    session.getPlaybackTelemetrySnapshot,
+    session.getPlaybackTelemetrySnapshot
+  );
   const { presentation, metadata, lifecycle } = snapshot;
   const duration = metadata?.durationSeconds ?? 0;
   const frameRate = metadata?.frameRate ?? 30;
   const ready = lifecycle === 'ready';
   const effectivelyMuted = presentation.muted || presentation.volume === 0;
+  const fpsText = playbackTelemetry.actualFramesPerSecond === null
+    ? '— fps'
+    : `${playbackTelemetry.actualFramesPerSecond.toFixed(1)} fps`;
+  const fpsDescription = playbackTelemetry.actualFramesPerSecond === null
+    ? 'Playback frame rate is not measured yet'
+    : `Actual playback frame rate: ${playbackTelemetry.actualFramesPerSecond.toFixed(1)} frames per second${
+      playbackTelemetry.targetFramesPerSecond === null
+        ? ''
+        : `; target ${playbackTelemetry.targetFramesPerSecond.toFixed(1)}`
+    }`;
 
   return (
     <section className="lighttable-video-controls" aria-label="Video controls">
       <div className="lighttable-video-controls__row">
-        <output
-          className="lighttable-video-controls__time"
-          aria-label="Current video time"
-        >
-          {formatTimecode(presentation.currentTimeSeconds, frameRate)}
-        </output>
+        <div className="lighttable-video-controls__readout">
+          <output
+            className="lighttable-video-controls__time"
+            aria-label="Current video time"
+          >
+            {formatTimecode(presentation.currentTimeSeconds, frameRate)}
+          </output>
+          <output
+            className={`lighttable-video-controls__fps${playbackTelemetry.belowTarget ? ' is-under-target' : ''}`}
+            aria-label={fpsDescription}
+            title={fpsDescription}
+          >
+            {fpsText}
+          </output>
+        </div>
         <div className="lighttable-video-controls__transport" role="group" aria-label="Playback">
           <TransportButton
             label="Previous frame"
