@@ -46,7 +46,6 @@ import { LayerPresentationPicker } from './LayerPresentationPicker';
 import type { DocumentLayerResourceRepository } from './DocumentLayerResourceRepository';
 import type { DocumentPatternResourceRepository } from './DocumentPatternResourceRepository';
 export type { TextFontRuntimePort } from '../../text/rendering/TextLayerRenderCoordinator';
-import { walkLayerTree } from '../document/layerTree';
 import type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 export type { TextRenderPresentationSnapshot } from '../../application/rendering/rendererTypes';
 
@@ -239,11 +238,6 @@ export const createLayerDocumentRendererRuntime = (
     dimensions: resources.dimensions,
     syncDocument: (document) => {
       layerRuntimeCoordinator.sync(document);
-      textLayerRenderer.sync(
-        walkLayerTree(document.layers)
-          .map(({ node }) => node)
-          .filter((node) => node.type === 'text')
-      );
     },
     maskTextureFor: (layerId) => layerResources.maskTexture(layerId),
     createTexture: (label) => textures.createColor(label),

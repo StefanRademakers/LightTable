@@ -7263,8 +7263,9 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const selection = editing.status === 'editing' && editing.layerId === layerId ? editing.selection : null;
     if (selection) textEditingController.finish();
     const execution = executeRegisteredCommand('text.format', { layerId,
-      ...(selection ? { start: selection.anchor, end: selection.focus } : {}), style,
-      paragraph });
+      ...(selection ? { start: selection.anchor, end: selection.focus } : {}),
+      ...(Object.keys(style).length ? { style } : {}),
+      ...(Object.keys(paragraph).length ? { paragraph } : {}) });
     void execution?.then(() => {
       if (selection) { textEditingController.begin(layerId, selection.focus); textEditingController.setSelection(selection); }
     });
