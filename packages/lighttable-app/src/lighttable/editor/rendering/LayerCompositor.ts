@@ -727,10 +727,7 @@ export class LayerCompositor {
       const ungradedForegroundTexture = transformUsesPreview && activeTransform
         ? activeTransform.previewTexture ?? runtime.texture
         : runtime.texture;
-      const foregroundTexture = rasterLayerHasEnabledProcessing(layer) && encodeAdjustment
-        ? encodeAdjustment(encoder, ungradedForegroundTexture, layer)
-        : ungradedForegroundTexture;
-      const renderContract = rasterRenderContract(layer, foregroundTexture);
+      const renderContract = rasterRenderContract(layer, ungradedForegroundTexture);
       // Transform previews are rendered into a document-sized texture. A tight
       // placed layer can have completely different source dimensions; feeding
       // those dimensions to the compositor remaps the correct projective image
@@ -751,6 +748,53 @@ export class LayerCompositor {
             geometryPreview ?? renderContract.transform
           );
       const inverse = invertMatrix(sourceToDocument);
+      const activePixelEdit = pixelEditSessions.current?.layerId === layer.id;
+
+      // A whole-layer affine transform changes only presentation geometry.
+      // Re-project the retained, fully processed Layer Style bitmap while the
+      // pointer moves instead of rebuilding grading, shape fields and blur
+      // passes every frame. The durable document render after commit still
+      // evaluates the semantic style at its final transform.
+      const retainedStyle = activeTransform && !transformUsesPreview && !activePixelEdit
+        ? layerStyles.cachedPresentation(layer.id)
+        : null;
+      if (retainedStyle) {
+        const authoredToDocument = multiplyMatrices(inheritedTransform, layer.transform);
+        const documentToAuthored = invertMatrix(authoredToDocument);
+        const previewDelta = documentToAuthored
+          ? multiplyMatrices(sourceToDocument, documentToAuthored)
+          : null;
+        const retainedToDocument = previewDelta
+          ? multiplyMatrices(previewDelta, {
+              a: 1, b: 0, c: 0, d: 1,
+              tx: retainedStyle.bounds.x,
+              ty: retainedStyle.bounds.y
+            })
+          : null;
+        const retainedInverse = retainedToDocument
+          ? invertMatrix(retainedToDocument)
+          : null;
+        if (retainedInverse) {
+          compositeTexture(background, retainedStyle.texture, target, {
+            label: `LightTable retained transform preview: ${layer.name}`,
+            opacity: layer.opacity,
+            blendMode: layer.blendMode,
+            clippingTexture,
+            sourceBounds: {
+              x: 0,
+              y: 0,
+              width: retainedStyle.bounds.width,
+              height: retainedStyle.bounds.height
+            },
+            sourceInverseTransform: retainedInverse
+          });
+          return [target, background];
+        }
+      }
+
+      const foregroundTexture = rasterLayerHasEnabledProcessing(layer) && encodeAdjustment
+        ? encodeAdjustment(encoder, ungradedForegroundTexture, layer)
+        : ungradedForegroundTexture;
       const maskToDocument = (() => {
         const authored = layer.mask?.transform ?? identityAffineMatrix();
         if (!layer.mask?.linked || !activeTransform || transformUsesPreview) return authored;
@@ -775,7 +819,6 @@ export class LayerCompositor {
         if (styleBounds.width <= 0 || styleBounds.height <= 0) {
           return [background, target];
         }
-        const activePixelEdit = pixelEditSessions.current?.layerId === layer.id;
         const styleQuality = layerStyles.cacheKeyQuality(layer.id);
         const styleCacheKey = activeTransform || activePixelEdit
           ? null
