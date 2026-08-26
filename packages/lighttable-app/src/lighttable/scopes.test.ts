@@ -38,11 +38,14 @@ describe('LightTable scope math', () => {
     expect(end.y).toBeLessThan(0.5);
   });
 
-  it('samples the whole image with an aspect-preserving quality budget', () => {
+  it('samples the whole image with an aspect-preserving longest-edge budget', () => {
     const low = resolveScopeSampleGrid(4096, 2048, 'low', false);
+    const medium = resolveScopeSampleGrid(3840, 2160, 'medium', false);
     const high = resolveScopeSampleGrid(4096, 2048, 'high', false);
     expect(low.width / low.height).toBeCloseTo(2, 2);
-    expect(low.width * low.height).toBeLessThanOrEqual(256 * 256 * 1.01);
+    expect(Math.max(low.width, low.height)).toBe(256);
+    expect(medium).toEqual({ width: 512, height: 288 });
+    expect(Math.max(high.width, high.height)).toBe(1024);
     expect(high.width * high.height).toBeGreaterThan(low.width * low.height);
   });
 

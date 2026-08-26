@@ -40,7 +40,12 @@ export const scopeQualityTarget = (quality: ScopeQuality, interactionActive: boo
   return interactionActive ? 256 : 1024;
 };
 
-/** Build an aspect-preserving, whole-image sampling grid near target^2 samples. */
+/**
+ * Build an aspect-preserving whole-image sampling grid whose longest edge is
+ * bounded by the selected quality. Scope analysis needs representative image
+ * coverage, not document-resolution pixels; keeping medium at 512 px longest
+ * edge also gives video a stable cost independent of 1080p/4K source size.
+ */
 export const resolveScopeSampleGrid = (
   width: number,
   height: number,
@@ -50,7 +55,7 @@ export const resolveScopeSampleGrid = (
   const safeWidth = Math.max(1, Math.floor(width));
   const safeHeight = Math.max(1, Math.floor(height));
   const target = scopeQualityTarget(quality, interactionActive);
-  const scale = Math.min(1, target / Math.sqrt(safeWidth * safeHeight));
+  const scale = Math.min(1, target / Math.max(safeWidth, safeHeight));
   return {
     width: Math.max(1, Math.round(safeWidth * scale)),
     height: Math.max(1, Math.round(safeHeight * scale))

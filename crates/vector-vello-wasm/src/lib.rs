@@ -854,20 +854,24 @@ impl VelloInteropDevice {
         let mut required_limits = wgpu::Limits::default();
         required_limits.max_texture_dimension_2d = adapter_limits.max_texture_dimension_2d;
         required_limits.max_buffer_size = adapter_limits.max_buffer_size;
+        // The browser-facing WebGPU name is `texture-formats-tier1`. wgpu
+        // exposes the same capability as TEXTURE_FORMAT_16BIT_NORM. LightTable
+        // needs it for lossless rgba16unorm TIFF ingest, so the shared Vello
+        // device must retain it when the selected adapter supports it. Before
+        // the shared-device integration the TypeScript device path requested
+        // this feature; omitting it here made 16-bit TIFF opening regress even
+        // on adapters that advertise the format.
+        let optional_features = wgpu::Features::TEXTURE_FORMAT_16BIT_NORM;
+        #[cfg(feature = "gpu-profiler")]
+        let optional_features = optional_features
+            | wgpu::Features::TIMESTAMP_QUERY
+            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
+            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
+        let required_features = adapter.features() & optional_features;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("LightTable shared Vello WebGPU device"),
-                required_features: {
-                    #[cfg(feature = "gpu-profiler")]
-                    {
-                        let timer_features = wgpu::Features::TIMESTAMP_QUERY
-                            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
-                            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
-                        adapter.features() & timer_features
-                    }
-                    #[cfg(not(feature = "gpu-profiler"))]
-                    wgpu::Features::empty()
-                },
+                required_features,
                 required_limits,
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
                 memory_hints: wgpu::MemoryHints::MemoryUsage,
