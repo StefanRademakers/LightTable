@@ -7981,15 +7981,13 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               title: sourceName
             }]).map((workspaceDocument) => ({
               ...workspaceDocument,
-              onClose: saving
-                ? undefined
-                : () => {
-                    if (onCloseWorkspaceDocument) {
-                      onCloseWorkspaceDocument(workspaceDocument.id);
-                    } else if (workspaceDocument.id === workspaceDocumentId) {
-                      onClose();
-                    }
-                  },
+              onClose: () => {
+                if (onCloseWorkspaceDocument) {
+                  onCloseWorkspaceDocument(workspaceDocument.id);
+                } else if (workspaceDocument.id === workspaceDocumentId) {
+                  onClose();
+                }
+              },
               content: workspaceDocument.id === workspaceDocumentId ? documentSurface : null
             }))}
             activeDocumentId={workspaceDocumentId}

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   DocumentSessionId
 } from '../lighttable/application/documents/documentSession';
+import { DocumentSession } from '../lighttable/application/documents/documentSession';
 import { requestWorkspaceDocumentClose } from './requestWorkspaceDocumentClose';
 
 const documentId = 'document-a' as DocumentSessionId;
@@ -60,5 +61,36 @@ describe('requestWorkspaceDocumentClose', () => {
 
     expect(close).toHaveBeenCalledWith(documentId, true);
     expect(remove).toHaveBeenCalledWith(documentId);
+  });
+
+  it('waits for an active successful save before closing', async () => {
+    const session = new DocumentSession({
+      id: documentId,
+      source: { id: 'source', name: 'Saving', mediaType: 'image/webp' }
+    });
+    session.setReady();
+    session.markChanged();
+    let finishSave: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { finishSave = resolve; });
+    const save = session.tasks.run('save', 'Save document', async () => {
+      await gate;
+      session.markSaved();
+    });
+    const close = vi.fn(() => ({ ok: true as const }));
+
+    const closing = requestWorkspaceDocumentClose({
+      documentId,
+      documents: [{ id: documentId, title: 'Saving', dirty: true }],
+      host: { confirmDiscardChanges: vi.fn() },
+      documentSession: session,
+      close
+    });
+    expect(close).not.toHaveBeenCalled();
+
+    finishSave();
+    await save;
+    await expect(closing).resolves.toBe(true);
+    expect(close).toHaveBeenCalledWith(documentId, false);
+    session.dispose();
   });
 });

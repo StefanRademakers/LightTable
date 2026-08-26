@@ -215,6 +215,7 @@ export function LightTableStandaloneApp({
     applicationRendererLifecycle.getSnapshot
   );
   const applicationServicesLeaseRef = useRef(0);
+  const pendingDocumentClosesRef = useRef(new Set<DocumentSessionId>());
   const documentProjectionKey = snapshot.documentOrder.join('\u0000');
   useEffect(() => {
     for (const documentId of snapshot.documentOrder) {
@@ -902,12 +903,16 @@ export function LightTableStandaloneApp({
 
   const closeDocument = useCallback((documentId: string) => {
     const id = documentId as DocumentSessionId;
+    if (pendingDocumentClosesRef.current.has(id)) return;
+    const document = documents.find((candidate) => candidate.id === id);
+    pendingDocumentClosesRef.current.add(id);
     void requestWorkspaceDocumentClose({
       documentId: id,
       documents,
       host,
+      documentSession: document?.kind === 'image' ? document.session : null,
       close: closeWorkspaceDocument
-    });
+    }).finally(() => pendingDocumentClosesRef.current.delete(id));
   }, [closeWorkspaceDocument, documents, host]);
 
   const exitApplication = useCallback(async () => {
