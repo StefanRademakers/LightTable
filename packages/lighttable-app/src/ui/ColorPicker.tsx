@@ -4,6 +4,7 @@ import { AdjustmentSlider } from './AdjustmentSlider';
 import { FormInput } from './FormInput';
 import { OpacitySlider } from './OpacitySlider';
 import { SquareIconButton } from './SquareIconButton';
+import { SegmentedControl } from './SegmentedControl';
 import { sampleScreenColor } from './colorSampling';
 import {
   useDocumentPaletteLoader,
@@ -83,6 +84,24 @@ export interface ColorPickerProps {
   readonly onOpacityChange?: (opacity: number) => void;
 }
 
+type PaletteView = 'document' | 'palette';
+const USER_PALETTE_STORAGE_KEY = 'lighttable.color-picker.palette';
+const RECENT_COLORS_STORAGE_KEY = 'lighttable.color-picker.recent';
+const storedColors = (key: string) => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const value = JSON.parse(window.localStorage.getItem(key) ?? '[]');
+    return Array.isArray(value)
+      ? value.filter((entry): entry is string => typeof entry === 'string' && /^#[0-9a-f]{6}$/i.test(entry))
+      : [];
+  } catch {
+    return [];
+  }
+};
+const storeColors = (key: string, colors: readonly string[]) => {
+  try { window.localStorage.setItem(key, JSON.stringify(colors)); } catch { /* storage is optional */ }
+};
+
 export const ColorPicker: React.FC<ColorPickerProps> = ({
   value,
   onChange,
@@ -93,6 +112,14 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   const [hex, setHex] = React.useState(colorPickerHex(value));
   const [rgb, setRgb] = React.useState([byte(value.r), byte(value.g), byte(value.b)].map(String));
   const [sampling, setSampling] = React.useState(false);
+  const [paletteView, setPaletteView] = React.useState<PaletteView>('document');
+  const [userPalette, setUserPalette] = React.useState<readonly string[]>(
+    () => storedColors(USER_PALETTE_STORAGE_KEY)
+  );
+  const [recentColors, setRecentColors] = React.useState<readonly string[]>(
+    () => storedColors(RECENT_COLORS_STORAGE_KEY)
+  );
+  const observedColor = React.useRef(colorPickerHex(value));
   const loadDocumentPalette = useDocumentPaletteLoader();
   const documentPaletteRevision = useDocumentPaletteRevision();
   const [imagePalette, setImagePalette] = React.useState<readonly DocumentPaletteColor[] | null>(null);
@@ -144,6 +171,31 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
       if (idle !== null) window.cancelIdleCallback(idle);
     };
   }, [documentPaletteRevision, loadDocumentPalette]);
+  React.useEffect(() => {
+    const selected = colorPickerHex(value);
+    if (selected === observedColor.current) return;
+    observedColor.current = selected;
+    const timer = window.setTimeout(() => {
+      setRecentColors((current) => {
+        const next = [selected, ...current.filter((color) => color !== selected)].slice(0, 8);
+        storeColors(RECENT_COLORS_STORAGE_KEY, next);
+        return next;
+      });
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+  const chooseStoredColor = (hex: string) => {
+    const selected = colorPickerParseHex(hex, value.a);
+    if (selected) onChange(selected);
+  };
+  const addCurrentToPalette = () => {
+    const selected = colorPickerHex(value);
+    setUserPalette((current) => {
+      const next = [selected, ...current.filter((color) => color !== selected)].slice(0, 31);
+      storeColors(USER_PALETTE_STORAGE_KEY, next);
+      return next;
+    });
+  };
   React.useEffect(() => {
     setHsv((current) => colorPickerHsvFromValue(value, current));
     setHex(colorPickerHex(value));
@@ -218,18 +270,43 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
     </div>
     {loadDocumentPalette ? <section className="lighttable-color-picker-prototype__palette"
       aria-label="Image palette">
-      <header><span className="lighttable-color-picker-prototype__palette-icon" aria-hidden="true" />
-        <span>Image Palette</span></header>
-      {paletteError ? <p role="status">Palette unavailable</p>
+      <SegmentedControl<PaletteView>
+        className="lighttable-color-picker-prototype__palette-tabs"
+        variant="low-attention"
+        ariaLabel="Color collection"
+        value={paletteView}
+        onChange={setPaletteView}
+        options={[
+          { value: 'document', label: 'Document Colors' },
+          { value: 'palette', label: 'Palette' }
+        ]}
+      />
+      {paletteView === 'document' ? (paletteError ? <p role="status">Palette unavailable</p>
         : imagePalette === null ? <p role="status">Analyzing image…</p>
           : imagePalette.length === 0 ? <p role="status">No visible colors</p>
             : <div className="lighttable-color-picker-prototype__palette-grid">
               {imagePalette.map((color) => <button type="button" key={color.hex}
-                style={{ backgroundColor: color.hex }} aria-label={`Use image color ${color.hex}`}
+                style={{ backgroundColor: color.hex }} aria-label={`Use document color ${color.hex}`}
                 title={`${color.hex} · ${Math.round(color.coverage * 100)}%`}
                 onClick={() => onChange({ r: color.rgb[0] / 255, g: color.rgb[1] / 255,
                   b: color.rgb[2] / 255, a: value.a })} />)}
-            </div>}
+            </div>) : <div className="lighttable-color-picker-prototype__palette-grid">
+        {userPalette.map((color) => <button type="button" key={color}
+          style={{ backgroundColor: color }} aria-label={`Use palette color ${color}`}
+          title={color} onClick={() => chooseStoredColor(color)} />)}
+        <SquareIconButton className="lighttable-color-picker-prototype__palette-add"
+          icon="+"
+          aria-label="Add current color to palette" title="Add current color to palette"
+          onClick={addCurrentToPalette} />
+      </div>}
+      {recentColors.length > 0 ? <div className="lighttable-color-picker-prototype__recent">
+        <header>Recent Colors</header>
+        <div className="lighttable-color-picker-prototype__palette-grid">
+          {recentColors.map((color) => <button type="button" key={color}
+            style={{ backgroundColor: color }} aria-label={`Use recent color ${color}`}
+            title={color} onClick={() => chooseStoredColor(color)} />)}
+        </div>
+      </div> : null}
     </section> : null}
   </div>;
 };

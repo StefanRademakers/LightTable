@@ -2754,6 +2754,10 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   color: var(--lt-text-primary);
   font-size: var(--lt-type-regular);
 }
+.lighttable-color-picker-prototype__palette-tabs {
+  width: 100%;
+  margin-bottom: 4px;
+}
 .lighttable-color-picker-prototype__palette-icon {
   width: 14px;
   height: 14px;
@@ -2786,6 +2790,15 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
 .lighttable-color-picker-prototype__palette-grid button:focus-visible {
   outline: 1px solid var(--lt-focus-ring);
   outline-offset: 1px;
+}
+.lighttable-color-picker-prototype__palette-grid .lighttable-color-picker-prototype__palette-add {
+  width: 100%;
+  height: auto;
+}
+.lighttable-color-picker-prototype__recent {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--lt-border);
 }
 @media (max-width: 620px) {
   .lighttable-preferences__layout { grid-template-columns: 125px minmax(0, 1fr); }
