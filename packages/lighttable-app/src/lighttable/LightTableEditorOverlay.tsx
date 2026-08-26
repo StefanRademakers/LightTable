@@ -76,6 +76,7 @@ import {
 import { useEditorResizeController } from './editor/hooks/useEditorResizeController';
 import { useLayerThumbnailController } from './editor/hooks/useLayerThumbnailController';
 import { useEditorDiagnosticsController } from './editor/hooks/useEditorDiagnosticsController';
+import { useEditorNotifications } from './editor/notifications/useEditorNotifications';
 import { createScopeRendererOptions, useRendererPresentationSync } from './editor/hooks/useRendererPresentationSync';
 import { planPersistentToolActivation } from './application/tools/persistentToolActivation';
 import { toolShortcutGroupFor } from './editor/tools/toolRegistry';
@@ -973,7 +974,14 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     setDocumentSurfaceRevision((current) => current + 1);
   }, []);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    notifications: editorNotifications,
+    status: gradeStatus,
+    error,
+    dismiss: dismissEditorNotification,
+    setStatus: setGradeStatus,
+    setError
+  } = useEditorNotifications(workspaceDocumentId);
   const svgImportInputRef = useRef<HTMLInputElement | null>(null);
   const agentEvents = useAgentActivity(commandService, workspaceDocumentId);
   const actionRecording = useSyncExternalStore(
@@ -1043,7 +1051,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   const [scopeSettings, setScopeSettings] = useState<ScopeSettings>({ ...DEFAULT_SCOPE_SETTINGS });
   const [scopeVisibility, setScopeVisibility] = useState<ScopeVisibility>({ ...DEFAULT_SCOPE_VISIBILITY });
   const [scopeError, setScopeError] = useState<string | null>(null);
-  const [gradeStatus, setGradeStatus] = useState<string | null>(null);
   const [psdImportInfo, setPsdImportInfo] = useState<PsdDecodeSuccess | null>(null);
   const [psdDifferenceMetrics, setPsdDifferenceMetrics] = useState<ReferenceDifferenceMetrics | null>(null);
   const [psdCompatibility, setPsdCompatibility] = useState<PsdImportCompatibilityEntry[]>([]);
@@ -3511,21 +3518,6 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
   useEffect(() => {
     engineRef.current?.setActive(active);
   }, [active]);
-
-  useEffect(() => {
-    if (!gradeStatus) return;
-    const timeout = window.setTimeout(() => setGradeStatus(null), 2400);
-    return () => window.clearTimeout(timeout);
-  }, [gradeStatus]);
-
-  useEffect(() => {
-    if (!error) return;
-    // Status-bar errors are transient interaction feedback. Diagnostics keeps
-    // the full record, so the workspace can recover visually without hiding
-    // information needed for debugging a real engine or document failure.
-    const timeout = window.setTimeout(() => setError(null), 4000);
-    return () => window.clearTimeout(timeout);
-  }, [error]);
 
   const selectAllContentOwner = selectionSessionController.selectAll;
   const clearCurrentSelectionOwner = selectionSessionController.clear;
@@ -7969,13 +7961,15 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
             persistenceEnabled={active}
             documentKind={workspaceDocumentKind}
             status={{
-              status: error ?? gradeStatus ?? fontDiagnosticStatus,
-              error: Boolean(error),
+              status: fontDiagnosticStatus,
+              error: false,
               meta: workspaceStatusMeta ?? statusBar.meta,
               metaTitle: workspaceStatusTitle ?? statusBar.title,
               reportAvailable: statusBar.reportAvailable || fontDiagnostics.length > 0,
               onOpenReport: editorDialogs.openPsdReport
             }}
+            notifications={editorNotifications}
+            onDismissNotification={dismissEditorNotification}
             documents={(workspaceDocuments ?? [{
               id: workspaceDocumentId,
               title: sourceName

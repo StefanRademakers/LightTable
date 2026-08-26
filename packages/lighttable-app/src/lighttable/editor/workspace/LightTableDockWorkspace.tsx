@@ -40,6 +40,8 @@ import {
   EditorStatusBar,
   type EditorStatusBarProps
 } from '../ui/EditorStatusBar';
+import { EditorToastViewport } from '../ui/EditorToastViewport';
+import type { EditorNotification } from '../notifications/useEditorNotifications';
 
 const DOCUMENT_HOST_PANEL_ID = LIGHTTABLE_WORKSPACE_PANEL_IDS.documentHost;
 // Increment only when the intended fresh-workspace composition changes. A
@@ -136,6 +138,8 @@ interface LightTableDockWorkspaceProps {
   activeDocumentId: string;
   panels: LightTableWorkspacePanelRegistration[];
   status: EditorStatusBarProps;
+  notifications?: readonly EditorNotification[];
+  onDismissNotification?: (id: string) => void;
   accessoryWidthConstraintsEnabled: boolean;
   onResizeInteractionChange?: (active: boolean) => void;
   onActiveDocumentChange?: (documentId: string) => void;
@@ -562,6 +566,8 @@ export const LightTableDockWorkspace = forwardRef<
   activeDocumentId,
   panels,
   status,
+  notifications = [],
+  onDismissNotification = () => undefined,
   accessoryWidthConstraintsEnabled,
   onResizeInteractionChange,
   onActiveDocumentChange,
@@ -1472,6 +1478,10 @@ export const LightTableDockWorkspace = forwardRef<
             floatingGroupDragHandle="tabbar"
           />
         </div>
+        <EditorToastViewport
+          notifications={notifications}
+          onDismiss={onDismissNotification}
+        />
         <EditorStatusBar
           {...status}
           leftDockAvailable={dockColumns.left.available}

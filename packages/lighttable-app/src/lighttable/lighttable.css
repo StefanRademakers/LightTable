@@ -817,6 +817,7 @@
 }
 
 .lighttable-dock-workspace-shell {
+  position: relative;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -824,6 +825,90 @@
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
+}
+
+.lighttable-toast-viewport {
+  position: absolute;
+  z-index: 40;
+  right: 18px;
+  bottom: calc(var(--lt-layout-statusbar-height) + 14px);
+  width: min(420px, calc(100% - 36px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.lighttable-toast {
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 11px;
+  overflow: hidden;
+  padding: 0 8px 0 0;
+  border: 1px solid var(--lt-border-strong);
+  border-radius: var(--lt-radius-md);
+  color: var(--lt-text-primary);
+  background: color-mix(in srgb, var(--lt-surface-floating) 94%, transparent);
+  box-shadow: var(--lt-shadow-floating);
+  pointer-events: auto;
+  animation: lighttable-toast-enter 140ms ease-out;
+}
+
+.lighttable-toast__indicator {
+  align-self: stretch;
+  background: var(--lt-accent);
+}
+
+.lighttable-toast--success .lighttable-toast__indicator { background: var(--lt-success); }
+.lighttable-toast--warning .lighttable-toast__indicator { background: var(--lt-warning); }
+.lighttable-toast--error .lighttable-toast__indicator { background: var(--lt-danger); }
+
+.lighttable-toast--progress .lighttable-toast__indicator {
+  background: linear-gradient(180deg, var(--lt-accent), var(--lt-accent-strong), var(--lt-accent));
+  background-size: 100% 200%;
+  animation: lighttable-toast-progress 1.1s linear infinite;
+}
+
+.lighttable-toast__message {
+  min-width: 0;
+  padding: 10px 0;
+  font-size: var(--lt-type-regular);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.lighttable-toast__close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lt-control-radius);
+  color: var(--lt-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.lighttable-toast__close:hover {
+  color: var(--lt-text-primary);
+  background: var(--lt-surface-control-hover);
+}
+
+@keyframes lighttable-toast-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes lighttable-toast-progress {
+  to { background-position-y: 200%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lighttable-toast,
+  .lighttable-toast--progress .lighttable-toast__indicator {
+    animation: none;
+  }
 }
 
 .lighttable-dock-workspace,

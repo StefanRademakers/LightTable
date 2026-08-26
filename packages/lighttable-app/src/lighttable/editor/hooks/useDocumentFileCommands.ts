@@ -282,16 +282,16 @@ export const useDocumentFileCommands = (
       }
     );
     if (result.status === 'failed') {
+      current.setStatus?.(null);
       current.setError(
         result.error.message || 'LightTable image could not be saved.'
       );
-      current.setStatus?.('Save failed');
     } else if (result.status === 'canceled') {
       current.setStatus?.('Save canceled');
     } else if (result.value.status === 'failed') {
       const phase = result.value.phase ?? 'unknown';
+      current.setStatus?.(null);
       current.setError(`Save failed during ${phase}: ${result.value.message ?? 'Unknown error'}`);
-      current.setStatus?.('Save failed');
     } else if (result.value.status === 'canceled') {
       current.setStatus?.('Save canceled');
     } else if (result.value.markedClean) {
