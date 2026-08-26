@@ -7153,7 +7153,7 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
       const start = Math.min(editing.selection.anchor, editing.selection.focus);
       const end = Math.max(editing.selection.anchor, editing.selection.focus);
       textPropertyGestureRef.current = {
-        kind: 'text', layerId, range: start === end ? null : { start, end },
+        kind: 'text', layerId, range: { start, end },
         style: {}, paragraph: {}, recordable: true
       };
       return true;
@@ -7258,17 +7258,19 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     const document = imageDocumentRef.current; const layerId = document?.activeLayerId;
     const style = semanticStylePatchFromCanonical(stylePatch);
     const paragraph = semanticParagraphPatchFromCanonical(paragraphPatch);
-    if (!commandService || !layerId || !style || !paragraph) return false;
+    if (!layerId || !style || !paragraph) return false;
     const editing = textEditingController.getSnapshot();
     const selection = editing.status === 'editing' && editing.layerId === layerId ? editing.selection : null;
-    if (selection) textEditingController.finish();
+    if (selection) {
+      if (!beginTextPropertyGesture()) return false;
+      applyTextPropertyPatch(stylePatch, paragraphPatch);
+      commitTextPropertyGesture();
+      return true;
+    }
+    if (!commandService) return false;
     const execution = executeRegisteredCommand('text.format', { layerId,
-      ...(selection ? { start: selection.anchor, end: selection.focus } : {}),
       ...(Object.keys(style).length ? { style } : {}),
       ...(Object.keys(paragraph).length ? { paragraph } : {}) });
-    void execution?.then(() => {
-      if (selection) { textEditingController.begin(layerId, selection.focus); textEditingController.setSelection(selection); }
-    });
     return Boolean(execution);
   };
   const applyDiscreteTextProperty = (patch: TextStylePatch) => {
