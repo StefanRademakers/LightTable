@@ -1,6 +1,7 @@
 import React from 'react';
 import { lightTableIcon } from '../assets/icons';
 import { AdjustmentSlider } from './AdjustmentSlider';
+import { ContextMenu } from './ContextMenu';
 import { FormInput } from './FormInput';
 import { OpacitySlider } from './OpacitySlider';
 import { SquareIconButton } from './SquareIconButton';
@@ -119,6 +120,11 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   const [recentColors, setRecentColors] = React.useState<readonly string[]>(
     () => storedColors(RECENT_COLORS_STORAGE_KEY)
   );
+  const [paletteMenu, setPaletteMenu] = React.useState<{
+    readonly color: string;
+    readonly x: number;
+    readonly y: number;
+  }>();
   const observedColor = React.useRef(colorPickerHex(value));
   const loadDocumentPalette = useDocumentPaletteLoader();
   const documentPaletteRevision = useDocumentPaletteRevision();
@@ -192,6 +198,13 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
     const selected = colorPickerHex(value);
     setUserPalette((current) => {
       const next = [selected, ...current.filter((color) => color !== selected)].slice(0, 31);
+      storeColors(USER_PALETTE_STORAGE_KEY, next);
+      return next;
+    });
+  };
+  const removePaletteColor = (color: string) => {
+    setUserPalette((current) => {
+      const next = current.filter((entry) => entry !== color);
       storeColors(USER_PALETTE_STORAGE_KEY, next);
       return next;
     });
@@ -292,7 +305,11 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
             </div>) : <div className="lighttable-color-picker-prototype__palette-grid">
         {userPalette.map((color) => <button type="button" key={color}
           style={{ backgroundColor: color }} aria-label={`Use palette color ${color}`}
-          title={color} onClick={() => chooseStoredColor(color)} />)}
+          title={color} onClick={() => chooseStoredColor(color)}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setPaletteMenu({ color, x: event.clientX, y: event.clientY });
+          }} />)}
         <SquareIconButton className="lighttable-color-picker-prototype__palette-add"
           icon="+"
           aria-label="Add current color to palette" title="Add current color to palette"
@@ -306,6 +323,10 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
             title={color} onClick={() => chooseStoredColor(color)} />)}
         </div>
       </div> : null}
+      <ContextMenu<'remove'> open={Boolean(paletteMenu)} x={paletteMenu?.x ?? 0} y={paletteMenu?.y ?? 0}
+        onClose={() => setPaletteMenu(undefined)} options={paletteMenu ? [{
+          value: 'remove', label: 'Remove', onClick: () => removePaletteColor(paletteMenu.color)
+        }] : []} />
     </section> : null}
   </div>;
 };
