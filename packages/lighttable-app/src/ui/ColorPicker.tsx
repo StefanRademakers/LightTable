@@ -272,7 +272,6 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
       aria-label="Image palette">
       <SegmentedControl<PaletteView>
         className="lighttable-color-picker-prototype__palette-tabs"
-        variant="low-attention"
         ariaLabel="Color collection"
         value={paletteView}
         onChange={setPaletteView}
