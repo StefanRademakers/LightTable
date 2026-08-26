@@ -210,6 +210,31 @@ const recentProjectOperations = new RecentFileOperationQueue();
 const RECENT_THUMBNAIL_CACHE_LIMIT = 24;
 const recentThumbnailCache = new BoundedLruCache<string>(RECENT_THUMBNAIL_CACHE_LIMIT);
 
+const fitRecentThumbnail = (image: Electron.NativeImage, maximum = 320) => {
+  const size = image.getSize();
+  if (size.width <= 0 || size.height <= 0) return image;
+  const scale = Math.min(1, maximum / size.width, maximum / size.height);
+  if (scale >= 1) return image;
+  return image.resize({
+    width: Math.max(1, Math.round(size.width * scale)),
+    height: Math.max(1, Math.round(size.height * scale)),
+    quality: 'good'
+  });
+};
+
+const loadRecentThumbnail = async (filePath: string) => {
+  // Quick Look can return the requested square dimensions on macOS even when
+  // the source is portrait or landscape. Prefer Electron's direct decoder so
+  // the source dimensions remain authoritative; retain the OS thumbnail path
+  // for PSD and other formats NativeImage cannot decode itself.
+  const decoded = nativeImage.createFromPath(filePath);
+  if (!decoded.isEmpty()) return fitRecentThumbnail(decoded);
+  return fitRecentThumbnail(await nativeImage.createThumbnailFromPath(filePath, {
+    width: 320,
+    height: 320
+  }));
+};
+
 const rememberProjectAssetAsLastUsed = async (manifestPath: string, requestedAssetId: string): Promise<void> => {
   const operation = projectLastUsedOperation.catch(() => undefined).then(async () => {
     const { index } = await readProjectAssetIndex(manifestPath);
@@ -1865,10 +1890,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const entry = (await loadRecentFiles()).find((candidate) => candidate.id === id);
     if (!entry) return null;
     try {
-      const thumbnail = await nativeImage.createThumbnailFromPath(entry.path, {
-        width: 320,
-        height: 320
-      });
+      const thumbnail = await loadRecentThumbnail(entry.path);
       if (thumbnail.isEmpty()) return null;
       const dataUrl = thumbnail.toDataURL();
       recentThumbnailCache.set(id, dataUrl);
