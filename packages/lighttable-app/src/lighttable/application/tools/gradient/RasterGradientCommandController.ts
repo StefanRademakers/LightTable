@@ -13,6 +13,8 @@ import {
 import type { SemanticRasterGradientCommand } from '../../commands/semanticRasterGradientCommandContract';
 
 interface GradientHistoryEntry {
+  label: string;
+  type: string;
   byteSize: number;
   layerIds: readonly LayerId[];
   undo(): void;
@@ -57,6 +59,8 @@ export class RasterGradientCommandController {
     }
     dependencies.applyDocumentSnapshot(result.document);
     dependencies.pushHistoryEntry({
+      label: result.channel === 'mask' ? 'Gradient on Layer Mask' : 'Gradient Tool',
+      type: result.channel === 'mask' ? 'raster.mask.gradient' : 'raster.gradient',
       byteSize: result.pixelEdit.byteSize,
       layerIds: [result.layerId],
       undo: () => {

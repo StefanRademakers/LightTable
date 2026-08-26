@@ -54,6 +54,6 @@ describe('PixelEditSessionStore', () => {
     const store = new PixelEditSessionStore();
     store.begin({ ...snapshot(), channel: 'mask' });
 
-    expect(store.estimatedTextureBytes(80)).toBe(20 * 10);
+    expect(store.estimatedTextureBytes(80)).toBe(20 * 10 * 2);
   });
 });

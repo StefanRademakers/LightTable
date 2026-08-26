@@ -42,6 +42,9 @@ export interface DocumentHistoryController {
   clear(): void;
   undo(): Promise<boolean>;
   redo(): Promise<boolean>;
+  navigateTo(position: number): Promise<boolean>;
+  deleteFrom(position: number): Promise<boolean>;
+  purge(): void;
   pruneResources(): void;
 }
 
@@ -83,12 +86,17 @@ export const createDocumentHistoryController = (
   };
 
   const runHistoryOperation = async (
-    operation: 'undo' | 'redo'
+    operation: 'undo' | 'redo' | 'navigate' | 'delete',
+    position?: number
   ): Promise<boolean> => {
     const dependencies = resolveDependencies();
     dependencies.finishOpenTransactions();
     try {
-      const changed = await dependencies.history[operation]();
+      const changed = operation === 'navigate'
+        ? await dependencies.history.goToPosition(position!)
+        : operation === 'delete'
+          ? await dependencies.history.deleteFromPosition(position!)
+          : await dependencies.history[operation]();
       pruneResources();
       return changed;
     } catch (reason) {
@@ -108,7 +116,7 @@ export const createDocumentHistoryController = (
       dependencies.history.record({
         id: `${dependencies.documentId}:editor:${commandSequence}`,
         type: entry.type ?? 'editor.mutation',
-        label: entry.label ?? 'Edit document',
+        label: entry.label ?? 'Document Change',
         documentId: dependencies.documentId,
         affectsDocument: entry.documentMutation !== false,
         byteSize: entry.byteSize,
@@ -127,6 +135,14 @@ export const createDocumentHistoryController = (
     },
     undo: () => runHistoryOperation('undo'),
     redo: () => runHistoryOperation('redo'),
+    navigateTo: (position) => runHistoryOperation('navigate', position),
+    deleteFrom: (position) => runHistoryOperation('delete', position),
+    purge: () => {
+      const dependencies = resolveDependencies();
+      dependencies.finishOpenTransactions();
+      dependencies.history.clear({ preserveDirtyState: true });
+      pruneResources();
+    },
     pruneResources
   };
 };

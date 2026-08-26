@@ -180,7 +180,7 @@ describe('executeAtomicCommandBatch', () => {
         layerId: state.layerId, opacity: 0.5, rendererObject: {}
       } }
     ]), state.dependencies, new AbortController().signal, () => undefined))
-      .rejects.toThrow(/invalid.*schema v1/u);
+      .rejects.toThrow(/invalid.*command schema/u);
     expect(state.publish).not.toHaveBeenCalled();
     expect(state.record).not.toHaveBeenCalled();
     expect(findDocumentLayer(state.document, state.layerId)?.name).not.toBe('Never published');
@@ -196,7 +196,7 @@ describe('executeAtomicCommandBatch', () => {
         layerId: state.layerId, style: {}
       } }
     ]), state.dependencies, new AbortController().signal, () => undefined))
-      .rejects.toThrow(/empty-format.*schema v1/u);
+      .rejects.toThrow(/empty-format.*command schema/u);
     expect(state.publish).not.toHaveBeenCalled();
     expect(state.record).not.toHaveBeenCalled();
     expect(findDocumentLayer(state.document, state.layerId)?.name).not.toBe('Never published');

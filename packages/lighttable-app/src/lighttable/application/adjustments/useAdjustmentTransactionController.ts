@@ -7,6 +7,8 @@ import {
 import type { AdjustmentPresentationDomain } from './adjustmentPresentationStore';
 
 export interface AdjustmentHistoryEntry {
+  readonly label: string;
+  readonly type: string;
   undo(): void;
   redo(): void;
 }
@@ -102,6 +104,8 @@ export const createAdjustmentTransactionController = (
     const previous = cloneAdjustments(before);
     const next = cloneAdjustments(after);
     resolveDependencies().pushHistoryEntry({
+      label: targetLayerId ? 'Edit Adjustment Layer' : 'Edit Adjustments',
+      type: targetLayerId ? 'adjustment.layer.edit' : 'adjustment.document.edit',
       undo: () => applyForDocument(documentId, previous, targetLayerId),
       redo: () => applyForDocument(documentId, next, targetLayerId)
     });

@@ -19,11 +19,9 @@ const emptyLibrary = { sets: [{ id: LIGHTTABLE_DEFAULT_ACTION_SET_ID, name: 'Def
 actions: [], selectedId: null, error: null } as const;
 
 describe('ActionsPanel', () => {
-  it('keeps recorded Actions primary and the command browser in a separate view', () => {
+  it('presents the saved Action Sets as the primary panel tree', () => {
     const markup = renderToStaticMarkup(<ActionsPanel
-      capabilities={[{ command: 'layer.createRaster', available: true, reason: null }]}
       definitions={[definition]}
-      onExecute={() => null}
       recording={{ status: 'idle', id: null, name: 'Untitled Action', startedAt: null,
         stoppedAt: null, steps: [], variables: [], byteLength: 0, limitReached: false }}
       playback={{ status: 'idle', currentSequence: null, results: [], taskProgress: null }}
@@ -39,26 +37,22 @@ describe('ActionsPanel', () => {
       onRenameActionSet={() => undefined}
       onSelectActionSet={() => undefined}
       onDeleteActionSet={() => undefined}
-      onSaveAction={() => undefined}
       onLoadAction={() => undefined}
       onDeleteAction={() => undefined}
     />);
 
-    expect(markup).toContain('Actions panel views');
-    expect(markup).toContain('Commands');
-    expect(markup).toContain('Untitled Action');
-    expect(markup).toContain('Record');
-    expect(markup).toContain('Action Set');
+    expect(markup).toContain('aria-label="Action Sets"');
+    expect(markup).toContain('aria-label="Record"');
     expect(markup).toContain('Default Set');
-    expect(markup).toContain('New set');
-    expect(markup).toContain('Rename');
-    expect(markup).toContain('Delete set');
+    expect(markup).toContain('aria-label="New Action Set"');
+    expect(markup).toContain('aria-label="New Action"');
+    expect(markup).not.toContain('Actions panel views');
     expect(markup).not.toContain('New raster layer');
   });
 
   it('offers dependency-aware single-step and play-from debugging controls', () => {
     const markup = renderToStaticMarkup(<ActionsPanel
-      capabilities={[]} definitions={[definition]} onExecute={() => null}
+      definitions={[definition]}
       recording={{ status: 'stopped', id: 'action-1', name: 'Layer setup', startedAt: 1,
         stoppedAt: 2, byteLength: 10, limitReached: false, variables: [], steps: [{
           sequence: 1, requestId: 'request-1', command: 'layer.createRaster', documentId: 'document-1',
@@ -71,20 +65,16 @@ describe('ActionsPanel', () => {
       onStartRecording={() => undefined} onStopRecording={() => undefined}
       onClearRecording={() => undefined} onPlay={() => undefined}
       onPlayStep={() => undefined} onPlayFromStep={() => undefined}
-      onStopPlayback={() => undefined} onSaveAction={() => undefined}
+      onStopPlayback={() => undefined}
       onCreateActionSet={() => undefined} onRenameActionSet={() => undefined}
       onSelectActionSet={() => undefined} onDeleteActionSet={() => undefined}
       onLoadAction={() => undefined} onDeleteAction={() => undefined}
     />);
 
-    expect(markup).toContain('Play step');
-    expect(markup).toContain('Play from here');
-    expect(markup).toContain('Play as one undo');
-    expect(markup).toContain('cannot publish through one atomic document transaction');
-    expect(markup).toContain('Edit parameters');
-    expect(markup).toContain('Apply parameters');
-    expect(markup).toContain('User-facing rationale');
-    expect(markup).toContain('Apply rationale');
+    expect(markup).toContain('New raster layer');
+    expect(markup).toContain('Enable New raster layer');
+    expect(markup).toContain('Toggle dialog for New raster layer');
+    expect(markup).toContain('aria-label="Play"');
   });
 
   it('discovers categorized commands without an arbitrary JSON executor', () => {
@@ -282,9 +272,7 @@ describe('ActionsPanel', () => {
 
   it('shows subscribed asynchronous task progress in the recorder status', () => {
     const markup = renderToStaticMarkup(<ActionsPanel
-      capabilities={[]}
       definitions={[definition]}
-      onExecute={() => null}
       recording={{ status: 'stopped', id: 'action-1', name: 'Export', startedAt: 1,
         stoppedAt: 2, steps: [], variables: [], byteLength: 0, limitReached: false }}
       playback={{ status: 'running', currentSequence: 1, results: [], taskProgress: 0.42 }}
@@ -295,9 +283,9 @@ describe('ActionsPanel', () => {
       onStopPlayback={() => undefined}
       onCreateActionSet={() => undefined} onRenameActionSet={() => undefined}
       onSelectActionSet={() => undefined} onDeleteActionSet={() => undefined}
-      onSaveAction={() => undefined} onLoadAction={() => undefined}
+      onLoadAction={() => undefined}
       onDeleteAction={() => undefined}
     />);
-    expect(markup).toContain('Playback: running at step 1 · 42%');
+    expect(markup).toContain('running · step 1 · 42%');
   });
 });

@@ -1,32 +1,36 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LIGHTTABLE_COMMAND_DEFINITIONS,
-  type LightTableCommandDefinition
+  LIGHTTABLE_COMMAND_SCHEMAS,
+  type LightTableCommandDefinition,
+  type LightTableCommandId
 } from '@lighttable/command-contract';
 import { ButtonBase } from '../../../../ui/ButtonBase';
-import { FormSelect } from '../../../../ui/FormSelect';
-import type { ActionRecordingSnapshot } from '../../../application/actions/semanticActionRecorder';
-import type { ActionRecordingEditResult } from '../../../application/actions/semanticActionRecorder';
+import { ContextMenu, type ContextMenuOption } from '../../../../ui/ContextMenu';
+import { PanelCheckboxField } from '../../../../ui/PanelControls';
+import { SquareIconButton } from '../../../../ui/SquareIconButton';
+import { TextInputDialog } from '../../../../ui/TextInputDialog';
+import type {
+  ActionRecordingEditResult,
+  ActionRecordingSnapshot
+} from '../../../application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from '../../../application/actions/semanticActionPlayback';
-import {
-  LIGHTTABLE_MAX_ACTION_SETS,
-  type SemanticActionLibrarySnapshot
-} from '../../../application/actions/semanticActionLibrary';
+import type { SemanticActionLibrarySnapshot } from '../../../application/actions/semanticActionLibrary';
 import { ActionBindingEditor, ActionVariableRow } from './ActionBindingEditor';
 import { ActionStepParameterEditor } from './ActionStepParameterEditor';
 import { ActionStepRationaleEditor } from './ActionStepRationaleEditor';
-import { atomicActionEligibility } from '../../../application/actions/atomicActionEligibility';
+import { CommandParameterEditor } from './CommandParameterEditor';
 
 export interface ActionRecorderViewProps {
   readonly recording: ActionRecordingSnapshot;
   readonly playback: ActionPlaybackSnapshot;
   readonly library: SemanticActionLibrarySnapshot;
   readonly definitions?: readonly LightTableCommandDefinition[];
-  readonly onStart: () => void;
+  readonly onStart: (name?: string, insertAfterSequence?: number) => void;
   readonly onStop: () => void;
   readonly onClear: () => void;
   readonly onPlay: () => void;
-  readonly onPlayAtomic: () => void;
   readonly onPlayStep: (sequence: number) => void;
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
@@ -34,9 +38,14 @@ export interface ActionRecorderViewProps {
   readonly onRenameSet: (id: string, name: string) => void;
   readonly onSelectSet: (id: string) => void;
   readonly onDeleteSet: (id: string) => void;
-  readonly onSave: (name: string) => void;
+  readonly onMoveSet: (id: string, direction: -1 | 1) => void;
   readonly onLoad: (id: string) => void;
   readonly onDelete: (id: string) => void;
+  readonly onRename: (id: string, name: string) => void;
+  readonly onDuplicate: (id: string) => void;
+  readonly onMove: (id: string, direction: -1 | 1) => void;
+  readonly onSetActionEnabled: (id: string, enabled: boolean) => void;
+  readonly onSetActionSetEnabled: (id: string, enabled: boolean) => void;
   readonly onCreateVariable: (sequence: number, path: string, name: string) => ActionRecordingEditResult;
   readonly onUpdateVariable: (name: string, value: unknown) => ActionRecordingEditResult;
   readonly onDeleteVariable: (name: string) => ActionRecordingEditResult;
@@ -47,208 +56,343 @@ export interface ActionRecorderViewProps {
   readonly onReplaceStepParameters: (sequence: number,
     parameters: Readonly<Record<string, unknown>>) => ActionRecordingEditResult;
   readonly onUpdateStepRationale: (sequence: number, rationale: string) => ActionRecordingEditResult;
+  readonly onSetStepEnabled: (sequence: number, enabled: boolean) => ActionRecordingEditResult;
+  readonly onSetStepInteractive: (sequence: number, interactive: boolean) => ActionRecordingEditResult;
+  readonly onDeleteStep: (sequence: number) => ActionRecordingEditResult;
+  readonly onDuplicateStep: (sequence: number) => ActionRecordingEditResult;
+  readonly onMoveStep: (sequence: number, direction: -1 | 1) => ActionRecordingEditResult;
+  readonly onContinueInteractivePlayback: (parameters: Readonly<Record<string, unknown>>) => void;
+  readonly onCancelInteractivePlayback: () => void;
 }
 
-const formatted = (value: unknown): string => JSON.stringify(value, (_key, candidate) => {
-  const binding = candidate?.$lighttableResult;
-  if (binding && Number.isInteger(binding.step) && typeof binding.path === 'string') {
-    return `$step${binding.step}.${binding.path}`;
-  }
-  const variable = candidate?.$lighttableVariable;
-  return variable && typeof variable.name === 'string' ? `$${variable.name}` : candidate;
-}, 2);
+type Selection = { readonly kind: 'set' | 'action' | 'step'; readonly id: string; readonly sequence?: number };
+type NameDialog = { readonly kind: 'new-set' | 'new-action' | 'rename-set' | 'rename-action';
+  readonly id?: string; readonly title: string; readonly value: string };
 
-export const ActionRecorderView: React.FC<ActionRecorderViewProps> = ({
-  recording,
-  playback,
-  library,
-  definitions = LIGHTTABLE_COMMAND_DEFINITIONS,
-  onStart,
-  onStop,
-  onClear,
-  onPlay,
-  onPlayAtomic,
-  onPlayStep,
-  onPlayFromStep,
-  onStopPlayback,
-  onCreateSet,
-  onRenameSet,
-  onSelectSet,
-  onDeleteSet,
-  onSave,
-  onLoad,
-  onDelete,
-  onCreateVariable, onUpdateVariable, onDeleteVariable, onBindVariable, onBindResult,
-  onRestoreLiteral,
-  onReplaceStepParameters,
-  onUpdateStepRationale
-}) => {
-  const [name, setName] = useState(recording.name);
-  useEffect(() => setName(recording.name), [recording.id, recording.name]);
-  const selectedSet = library.sets.find(({ id }) => id === library.selectedSetId) ?? library.sets[0];
-  const [actionSetName, setActionSetName] = useState(selectedSet?.name ?? '');
-  useEffect(() => setActionSetName(selectedSet?.name ?? ''), [selectedSet?.id, selectedSet?.name]);
+const activateTreeRow = (event: React.KeyboardEvent<HTMLElement>): void => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  event.currentTarget.click();
+};
+
+const PromptDialog: React.FC<{
+  readonly playback: ActionPlaybackSnapshot;
+  readonly onContinue: (parameters: Readonly<Record<string, unknown>>) => void;
+  readonly onCancel: () => void;
+}> = ({ playback, onContinue, onCancel }) => {
+  const prompt = playback.prompt;
+  const schema = prompt ? LIGHTTABLE_COMMAND_SCHEMAS[prompt.command as LightTableCommandId]?.input : undefined;
+  if (!prompt) return null;
+  return createPortal(<div className="modal-backdrop lighttable-dialog-backdrop lighttable-action-prompt" role="presentation">
+    <section className="lighttable-action-prompt__dialog" role="dialog" aria-modal="true"
+      aria-label={`Action step ${prompt.sequence}`}>
+      <header><strong>{prompt.command}</strong><span>Step {prompt.sequence}</span></header>
+      {schema ? <CommandParameterEditor schema={schema} initialParameters={prompt.parameters}
+        disabled={false} running={false} runLabel="Continue"
+        onRun={onContinue} /> : <p>This command has no editable parameters.</p>}
+      <ButtonBase type="button" onClick={onCancel}>Cancel</ButtonBase>
+    </section>
+  </div>, document.body);
+};
+
+export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => {
+  const { recording, playback, library, definitions = LIGHTTABLE_COMMAND_DEFINITIONS } = props;
   const labels = useMemo(() => new Map<string, string>(
     definitions.map(({ id, label }) => [id, label])
   ), [definitions]);
-  const replayableCount = recording.steps.filter(({ replayable }) => replayable).length;
-  const atomicEligibility = useMemo(() => atomicActionEligibility(recording), [recording]);
-  const setActions = library.actions.filter(({ setId }) => setId === library.selectedSetId);
+  const [expandedSets, setExpandedSets] = useState<ReadonlySet<string>>(
+    () => new Set(library.sets.map(({ id }) => id))
+  );
+  const [expandedActions, setExpandedActions] = useState<ReadonlySet<string>>(
+    () => new Set(recording.id ? [recording.id] : [])
+  );
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [dialog, setDialog] = useState<NameDialog | null>(null);
+  const [menu, setMenu] = useState<{ readonly x: number; readonly y: number;
+    readonly selection: Selection } | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   const busy = playback.status === 'running';
-  return <section className="lighttable-action-recorder" aria-labelledby="action-recorder-title">
-    <header className="lighttable-action-recorder__action-header">
-      <div>
-        <strong id="action-recorder-title">{recording.name}</strong>
-        <span>{recording.steps.length} steps</span>
+  const warning = editError ?? library.error
+    ?? (recording.limitReached ? 'Recording limit reached. Stop and save this Action before continuing.' : null)
+    ?? playback.results.at(-1)?.message;
+  const selectedStep = selection?.kind === 'step'
+    ? recording.steps.find((step) => step.sequence === selection.sequence) ?? null : null;
+
+  useEffect(() => {
+    if (library.selectedId && recording.id === library.selectedId) {
+      setExpandedActions((current) => new Set([...current, library.selectedId!]));
+    }
+  }, [library.selectedId, recording.id]);
+  useEffect(() => {
+    if (recording.id && !library.actions.some((action) => action.id === recording.id)) {
+      setExpandedActions((current) => new Set([...current, recording.id!]));
+      setSelection({ kind: 'action', id: recording.id });
+    }
+  }, [library.actions, recording.id]);
+
+  const edit = (result: ActionRecordingEditResult): void => setEditError(result.ok ? null : result.error);
+  const toggle = (values: ReadonlySet<string>, id: string): ReadonlySet<string> => {
+    const next = new Set(values);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  };
+  const chooseAction = (id: string): void => {
+    setSelection({ kind: 'action', id });
+    if (recording.id !== id) props.onLoad(id);
+  };
+  const actionRecording = (id: string, fallback: ActionRecordingSnapshot): ActionRecordingSnapshot => (
+    recording.id === id ? recording : fallback
+  );
+  const openMenu = (event: React.MouseEvent, next: Selection): void => {
+    event.preventDefault();
+    if (next.kind !== 'set' && recording.id !== next.id) props.onLoad(next.id);
+    setSelection(next);
+    setMenu({ x: event.clientX, y: event.clientY, selection: next });
+  };
+  const beginRename = (next: Selection): void => {
+    if (next.kind === 'set') {
+      const set = library.sets.find(({ id }) => id === next.id);
+      if (set) setDialog({ kind: 'rename-set', id: set.id, title: 'Rename Action Set', value: set.name });
+    } else if (next.kind === 'action') {
+      const action = library.actions.find(({ id }) => id === next.id);
+      if (action) setDialog({ kind: 'rename-action', id: action.id, title: 'Rename Action', value: action.name });
+    }
+    setMenu(null);
+  };
+  const submitDialog = (value: string): void => {
+    if (!dialog || !value.trim()) return;
+    if (dialog.kind === 'new-set') props.onCreateSet(value);
+    if (dialog.kind === 'new-action') { props.onClear(); props.onStart(value); }
+    if (dialog.kind === 'rename-set' && dialog.id) props.onRenameSet(dialog.id, value);
+    if (dialog.kind === 'rename-action' && dialog.id) props.onRename(dialog.id, value);
+    setDialog(null);
+  };
+  const contextMenuOptions: ContextMenuOption<string>[] = menu ? [
+    ...(menu.selection.kind !== 'step' ? [{ value: 'rename', label: 'Rename',
+      onClick: () => beginRename(menu.selection) }] : []),
+    ...(menu.selection.kind === 'action' ? [{ value: 'duplicate-action', label: 'Duplicate',
+      onClick: () => props.onDuplicate(menu.selection.id) }] : []),
+    ...(menu.selection.kind === 'step' && menu.selection.sequence ? [
+      { value: 'play-step', label: 'Play Step',
+        onClick: () => props.onPlayStep(menu.selection.sequence!) },
+      { value: 'play-from', label: 'Play From Here',
+        onClick: () => props.onPlayFromStep(menu.selection.sequence!) },
+      { value: 'duplicate-step', label: 'Duplicate',
+        onClick: () => edit(props.onDuplicateStep(menu.selection.sequence!)) }
+    ] : []),
+    { value: 'move-up', label: 'Move Up', separatorBefore: true, onClick: () => {
+      if (menu.selection.kind === 'set') props.onMoveSet(menu.selection.id, -1);
+      if (menu.selection.kind === 'action') props.onMove(menu.selection.id, -1);
+      if (menu.selection.kind === 'step' && menu.selection.sequence) {
+        edit(props.onMoveStep(menu.selection.sequence, -1));
+      }
+    } },
+    { value: 'move-down', label: 'Move Down', onClick: () => {
+      if (menu.selection.kind === 'set') props.onMoveSet(menu.selection.id, 1);
+      if (menu.selection.kind === 'action') props.onMove(menu.selection.id, 1);
+      if (menu.selection.kind === 'step' && menu.selection.sequence) {
+        edit(props.onMoveStep(menu.selection.sequence, 1));
+      }
+    } },
+    { value: 'delete', label: 'Delete', separatorBefore: true, onClick: () => {
+      if (menu.selection.kind === 'set') props.onDeleteSet(menu.selection.id);
+      if (menu.selection.kind === 'action') props.onDelete(menu.selection.id);
+      if (menu.selection.kind === 'step' && menu.selection.sequence) {
+        edit(props.onDeleteStep(menu.selection.sequence));
+      }
+    } }
+  ] : [];
+
+  return <section className="lighttable-action-recorder" aria-label="Actions"
+    onClick={() => setMenu(null)}>
+    <div className="lighttable-action-tree" role="tree" aria-label="Action Sets">
+      {library.sets.map((set) => {
+        const setOpen = expandedSets.has(set.id);
+        const savedActions = library.actions.filter((action) => action.setId === set.id);
+        const actions = recording.id && set.id === library.selectedSetId
+          && !library.actions.some((action) => action.id === recording.id)
+          ? [...savedActions, { id: recording.id, setId: set.id, name: recording.name,
+              createdAt: recording.startedAt ?? 0, updatedAt: recording.stoppedAt ?? Date.now(), recording }]
+          : savedActions;
+        return <div className="lighttable-action-tree__set" key={set.id}>
+          <div role="treeitem" aria-level={1} aria-expanded={setOpen} tabIndex={0}
+            className={`lighttable-action-tree__row is-set${selection?.kind === 'set'
+              && selection.id === set.id ? ' is-selected' : ''}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelection({ kind: 'set', id: set.id });
+              props.onSelectSet(set.id);
+              setExpandedSets((value) => toggle(value, set.id));
+            }}
+            onDoubleClick={() => beginRename({ kind: 'set', id: set.id })}
+            onKeyDown={activateTreeRow}
+            onContextMenu={(event) => openMenu(event, { kind: 'set', id: set.id })}>
+            <span className="lighttable-action-tree__check" onClick={(event) => event.stopPropagation()}>
+              <PanelCheckboxField label={`Enable ${set.name}`}
+                compact
+                checked={actions.length > 0 && actions.every((action) => action.recording.steps
+                  .every((step) => step.enabled !== false))}
+                disabled={busy || actions.length === 0
+                  || actions.some((action) => !library.actions.some((saved) => saved.id === action.id))}
+                onChange={(checked) => props.onSetActionSetEnabled(set.id, checked)} />
+            </span>
+            <span className="lighttable-action-tree__disclosure">{setOpen ? '⌄' : '›'}</span>
+            <span className="lighttable-action-tree__folder">▰</span><strong>{set.name}</strong>
+          </div>
+          {setOpen ? <div role="group">
+            {actions.map((action) => {
+              const actionOpen = expandedActions.has(action.id);
+              const shown = actionRecording(action.id, action.recording);
+              return <div key={action.id}>
+                <div role="treeitem" aria-level={2} aria-expanded={actionOpen} tabIndex={0}
+                  className={`lighttable-action-tree__row is-action${selection?.kind === 'action'
+                    && selection.id === action.id ? ' is-selected' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    chooseAction(action.id);
+                    setExpandedActions((value) => toggle(value, action.id));
+                  }}
+                  onDoubleClick={() => beginRename({ kind: 'action', id: action.id })}
+                  onKeyDown={activateTreeRow}
+                  onContextMenu={(event) => openMenu(event, { kind: 'action', id: action.id })}>
+                  <span className="lighttable-action-tree__check" onClick={(event) => event.stopPropagation()}>
+                    <PanelCheckboxField label={`Enable ${action.name}`}
+                      compact
+                      checked={shown.steps.length > 0 && shown.steps.every((step) => step.enabled !== false)}
+                      disabled={busy || shown.steps.length === 0
+                        || !library.actions.some((saved) => saved.id === action.id)}
+                      onChange={(checked) => props.onSetActionEnabled(action.id, checked)} />
+                  </span>
+                  <span className="lighttable-action-tree__disclosure">{actionOpen ? '⌄' : '›'}</span>
+                  <span className="lighttable-action-tree__play">▶</span><span>{action.name}</span>
+                </div>
+                {actionOpen ? <div role="group">
+                  {shown.steps.map((step) => {
+                    const selected = selection?.kind === 'step' && selection.id === action.id
+                      && selection.sequence === step.sequence;
+                    return <div className={`lighttable-action-tree__row is-step${selected ? ' is-selected' : ''}${playback.currentSequence === step.sequence
+                        && recording.id === action.id ? ' is-current' : ''}`}
+                      role="treeitem" key={`${step.sequence}-${step.requestId}`}
+                      aria-level={3} tabIndex={0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        chooseAction(action.id);
+                        setSelection({ kind: 'step', id: action.id, sequence: step.sequence });
+                      }}
+                      onDoubleClick={() => props.onPlayStep(step.sequence)}
+                      onKeyDown={activateTreeRow}
+                      onContextMenu={(event) => openMenu(event,
+                        { kind: 'step', id: action.id, sequence: step.sequence })}>
+                      <span className="lighttable-action-tree__check" onClick={(event) => event.stopPropagation()}>
+                        <PanelCheckboxField label={`Enable ${labels.get(step.command) ?? step.command}`}
+                          compact
+                          checked={step.enabled !== false}
+                          disabled={busy || shown.status === 'recording' || recording.id !== action.id}
+                          onChange={(checked) => edit(props.onSetStepEnabled(step.sequence, checked))} />
+                      </span>
+                      <SquareIconButton type="button" size="compact" appearance="quiet" icon="▣"
+                        className={`lighttable-action-tree__modal${step.interactive ? ' is-on' : ''}`}
+                        aria-label={`Toggle dialog for ${labels.get(step.command) ?? step.command}`}
+                        aria-pressed={step.interactive === true} disabled={busy || shown.status === 'recording'
+                          || recording.id !== action.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          edit(props.onSetStepInteractive(step.sequence, !step.interactive));
+                        }} />
+                      <span>{labels.get(step.command) ?? step.command}</span>
+                    </div>;
+                  })}
+                </div> : null}
+              </div>;
+            })}
+          </div> : null}
+        </div>;
+      })}
+      {recording.steps.length === 0
+        ? <p className="lighttable-action-recorder__empty">
+            {recording.status === 'recording'
+              ? `Recording “${recording.name}”… Use LightTable normally to add steps.`
+              : recording.id ? 'This Action has no steps.'
+                : 'Create an Action, press Record, then use LightTable normally.'}
+          </p> : null}
+    </div>
+
+    {selectedStep ? <details className="lighttable-action-inspector">
+      <summary>{labels.get(selectedStep.command) ?? selectedStep.command} options</summary>
+      <div className="lighttable-action-recorder__step-controls">
+        <ButtonBase type="button" onClick={() => props.onPlayStep(selectedStep.sequence)}
+          disabled={busy}>Play step</ButtonBase>
+        <ButtonBase type="button" onClick={() => props.onPlayFromStep(selectedStep.sequence)}
+          disabled={busy}>Play from here</ButtonBase>
       </div>
-      <span className={`lighttable-action-recorder__status is-${recording.status}`}>
-        {recording.status}
-      </span>
-    </header>
-    <div className="lighttable-action-recorder__controls" aria-label="Action controls">
-      {recording.status === 'recording'
-        ? <ButtonBase type="button" onClick={onStop} disabled={busy}>Stop</ButtonBase>
-        : <ButtonBase type="button" onClick={onStart} disabled={busy}>Record</ButtonBase>}
-      {busy
-        ? <ButtonBase type="button" onClick={onStopPlayback}>Stop playback</ButtonBase>
-        : <ButtonBase type="button" onClick={onPlay}
-            disabled={recording.status === 'recording' || replayableCount === 0}>Play</ButtonBase>}
-      {!busy ? <ButtonBase type="button" onClick={onPlayAtomic}
-        title={atomicEligibility.eligible ? 'Play the complete Action as one undoable transaction.'
-          : atomicEligibility.reason}
-        disabled={!atomicEligibility.eligible}>Play as one undo</ButtonBase> : null}
-      <ButtonBase type="button" onClick={onClear}
-        disabled={busy || recording.steps.length === 0}>Clear</ButtonBase>
-    </div>
-    <div className="lighttable-action-recorder__library" aria-label="Saved Actions">
-      <label>Set
-        <FormSelect aria-label="Action Set" value={library.selectedSetId}
-          onChange={(event) => onSelectSet(event.currentTarget.value)} disabled={busy}>
-          {library.sets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}
-        </FormSelect>
-      </label>
-      <span className="lighttable-action-recorder__set-actions">
-        <ButtonBase type="button" onClick={() => onCreateSet(actionSetName)}
-          disabled={busy || !actionSetName.trim()
-            || library.sets.length >= LIGHTTABLE_MAX_ACTION_SETS}>New set</ButtonBase>
-        <ButtonBase type="button" onClick={() => onRenameSet(library.selectedSetId, actionSetName)}
-          disabled={busy || !actionSetName.trim()}>Rename</ButtonBase>
-        <ButtonBase type="button" onClick={() => onDeleteSet(library.selectedSetId)}
-          disabled={busy || library.sets.length <= 1}>Delete set</ButtonBase>
-      </span>
-      <label>Set name
-        <input aria-label="Action Set name" value={actionSetName} maxLength={255}
-          onChange={(event) => setActionSetName(event.currentTarget.value)} disabled={busy} />
-      </label>
-      <span />
-      <label>Action name
-        <input aria-label="Action name" value={name} maxLength={255}
-          onChange={(event) => setName(event.currentTarget.value)} disabled={busy} />
-      </label>
-      <ButtonBase type="button" onClick={() => onSave(name)} disabled={busy
-        || recording.status !== 'stopped' || recording.steps.length === 0
-        || recording.steps.some(({ replayable }) => !replayable) || !name.trim()}>Save</ButtonBase>
-      <label>Saved
-        <FormSelect aria-label="Saved Actions" value={library.selectedId ?? ''}
-          onChange={(event) => event.currentTarget.value && onLoad(event.currentTarget.value)}>
-          <option value="">No saved Actions</option>
-          {setActions.map((action) => <option key={action.id} value={action.id}>
-            {action.name} ({action.recording.steps.length})
-          </option>)}
-        </FormSelect>
-      </label>
-      <ButtonBase type="button" onClick={() => library.selectedId && onLoad(library.selectedId)}
-        disabled={busy || !library.selectedId}>Load</ButtonBase>
-      <ButtonBase type="button" onClick={() => library.selectedId && onDelete(library.selectedId)}
-        disabled={busy || !library.selectedId}>Delete</ButtonBase>
-      {library.error ? <p className="lighttable-action-recorder__warning" role="alert">{library.error}</p> : null}
-    </div>
-    {playback.status !== 'idle'
-      ? <p className={`lighttable-action-recorder__playback is-${playback.status}`} role="status">
-          Playback: {playback.status}{playback.currentSequence ? ` at step ${playback.currentSequence}` : ''}
-          {playback.taskProgress === null ? '' : ` · ${Math.round(playback.taskProgress * 100)}%`}
-        </p>
-      : null}
-    {playback.results.at(-1)?.sequence === 0 && playback.results.at(-1)?.message
-      ? <p className="lighttable-action-recorder__warning" role="alert">
-          {playback.results.at(-1)!.message}
-        </p> : null}
-    {recording.limitReached
-      ? <p className="lighttable-action-recorder__warning" role="alert">Recorder limit reached; recording has paused.</p>
-      : null}
-    {recording.variables.length > 0 ? <section className="lighttable-action-recorder__variables"
-      aria-label="Action variables">
-      <h3>Variables</h3>
+      <ActionStepRationaleEditor rationale={selectedStep.rationale}
+        disabled={busy || recording.status !== 'stopped'}
+        onApply={(value) => props.onUpdateStepRationale(selectedStep.sequence, value)} />
+      <ActionStepParameterEditor step={selectedStep}
+        priorSteps={recording.steps.filter((step) => step.sequence < selectedStep.sequence)}
+        variables={recording.variables} disabled={busy || recording.status !== 'stopped'}
+        onApply={(value) => props.onReplaceStepParameters(selectedStep.sequence, value)} />
+      <ActionBindingEditor step={selectedStep}
+        priorSteps={recording.steps.filter((step) => step.sequence < selectedStep.sequence)}
+        variables={recording.variables} disabled={busy || recording.status !== 'stopped'}
+        onCreateVariable={(path, name) => props.onCreateVariable(selectedStep.sequence, path, name)}
+        onBindVariable={(path, name) => props.onBindVariable(selectedStep.sequence, path, name)}
+        onBindResult={(path, producer, resultPath) => props.onBindResult(
+          selectedStep.sequence, path, producer, resultPath
+        )}
+        onRestoreLiteral={(path) => props.onRestoreLiteral(selectedStep.sequence, path)} />
+    </details> : null}
+
+    {recording.variables.length ? <details className="lighttable-action-recorder__variables">
+      <summary>Variables</summary>
       {recording.variables.map((variable) => <ActionVariableRow key={variable.name}
         variable={variable} disabled={busy || recording.status !== 'stopped'}
-        onUpdate={(value) => onUpdateVariable(variable.name, value)}
-        onDelete={() => onDeleteVariable(variable.name)} />)}
-    </section> : null}
-    {recording.steps.length === 0
-      ? <p className="lighttable-action-recorder__empty">
-          Press Record, then use LightTable normally. Recorded command steps will appear here.
-        </p>
-      : <ol className="lighttable-action-recorder__steps">
-        {recording.steps.map((step) => {
-          const playbackResult = playback.results.find(({ sequence }) => sequence === step.sequence);
-          const displayStatus = playbackResult?.status
-            ?? (playback.status !== 'idle' && playback.status !== 'running' && !step.replayable
-              ? 'skipped'
-              : step.outcome);
-          return <li key={`${step.sequence}-${step.requestId}`}
-            className={playback.currentSequence === step.sequence ? 'is-current' : undefined}>
-            <details>
-              <summary>
-                <span className="lighttable-action-recorder__step-name">
-                  <b>{step.sequence}</b>
-                  <span><strong>{labels.get(step.command) ?? step.command}</strong><code>{step.command}</code></span>
-                </span>
-                <span className={`is-${displayStatus}`}>
-                  {displayStatus}
-                </span>
-              </summary>
-              <div className="lighttable-action-recorder__step-controls">
-                <ButtonBase type="button" onClick={() => onPlayStep(step.sequence)}
-                  disabled={busy || recording.status === 'recording' || !step.replayable}>Play step</ButtonBase>
-                <ButtonBase type="button" onClick={() => onPlayFromStep(step.sequence)}
-                  disabled={busy || recording.status === 'recording' || !step.replayable}>Play from here</ButtonBase>
-                <span>{step.durationMs} ms recorded</span>
-              </div>
-              <dl>
-                <div><dt>Document</dt><dd><code>{step.documentId ?? 'workspace'}</code></dd></div>
-                <div><dt>Origin</dt><dd>{step.origin}</dd></div>
-                <div><dt>Replayable</dt><dd>{step.replayable ? 'yes' : 'no'}</dd></div>
-              </dl>
-              {step.note ? <p>{step.note}</p> : null}
-              {step.rationale ? <p className="lighttable-action-recorder__rationale">
-                {step.rationale}
-              </p> : null}
-              {playbackResult?.message ? <p className="lighttable-action-recorder__warning">{playbackResult.message}</p> : null}
-              <ActionStepRationaleEditor rationale={step.rationale}
-                disabled={busy || recording.status !== 'stopped'}
-                onApply={(rationale) => onUpdateStepRationale(step.sequence, rationale)} />
-              <h4>Parameters</h4>
-              <pre>{formatted(step.parameters)}</pre>
-              <h4>Edit parameters</h4>
-              <ActionStepParameterEditor step={step}
-                priorSteps={recording.steps.filter((candidate) => candidate.sequence < step.sequence)}
-                variables={recording.variables} disabled={busy || recording.status !== 'stopped'}
-                onApply={(parameters) => onReplaceStepParameters(step.sequence, parameters)} />
-              <h4>Bindings</h4>
-              <ActionBindingEditor step={step}
-                priorSteps={recording.steps.filter((candidate) => candidate.sequence < step.sequence)}
-                variables={recording.variables} disabled={busy || recording.status !== 'stopped'}
-                onCreateVariable={(path, variableName) => onCreateVariable(step.sequence, path, variableName)}
-                onBindVariable={(path, variableName) => onBindVariable(step.sequence, path, variableName)}
-                onBindResult={(path, producer, resultPath) => onBindResult(
-                  step.sequence, path, producer, resultPath
-                )}
-                onRestoreLiteral={(path) => onRestoreLiteral(step.sequence, path)} />
-              <h4>Recorded result</h4>
-              <pre>{formatted(step.result)}</pre>
-            </details>
-          </li>;
-        })}
-      </ol>}
+        onUpdate={(value) => props.onUpdateVariable(variable.name, value)}
+        onDelete={() => props.onDeleteVariable(variable.name)} />)}
+    </details> : null}
+
+    {warning
+      ? <p className="lighttable-action-recorder__warning" role="alert">
+          {warning}
+        </p> : null}
+    {playback.status !== 'idle' ? <p
+      className={`lighttable-action-recorder__playback is-${playback.status}`}>
+      {playback.status}{playback.currentSequence ? ` · step ${playback.currentSequence}` : ''}
+      {playback.taskProgress === null ? '' : ` · ${Math.round(playback.taskProgress * 100)}%`}
+    </p> : null}
+
+    <footer className="lighttable-action-recorder__footer" aria-label="Action controls">
+      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="Stop" icon="■"
+        onClick={busy ? props.onStopPlayback : props.onStop}
+        disabled={!busy && recording.status !== 'recording'} />
+      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="Record"
+        icon={<span className="lighttable-action-recorder__record">●</span>}
+        onClick={() => props.onStart(undefined, selectedStep?.sequence)}
+        disabled={busy || recording.status === 'recording'} />
+      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="Play" icon="▶" onClick={props.onPlay}
+        disabled={busy || recording.status === 'recording'
+          || !recording.steps.some((step) => step.replayable && step.enabled !== false)} />
+      <span className="lighttable-action-recorder__footer-spacer" />
+      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="New Action Set" icon="▰+"
+        onClick={() => setDialog({ kind: 'new-set', title: 'New Action Set', value: 'New Set' })} />
+      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="New Action" icon="＋"
+        onClick={() => setDialog({ kind: 'new-action', title: 'New Action', value: 'New Action' })} />
+      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="Delete selected" icon="⌫" disabled={!selection}
+        onClick={() => {
+          if (selection?.kind === 'set') props.onDeleteSet(selection.id);
+          if (selection?.kind === 'action') props.onDelete(selection.id);
+          if (selection?.kind === 'step' && selection.sequence) edit(props.onDeleteStep(selection.sequence));
+        }} />
+    </footer>
+
+    <ContextMenu open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}
+      onClose={() => setMenu(null)} options={contextMenuOptions} width={180} />
+
+    <TextInputDialog open={dialog !== null} title={dialog?.title ?? ''}
+      initialValue={dialog?.value ?? ''} selectAllOnOpen compact
+      backdropClassName="lighttable-dialog-backdrop"
+      onCancel={() => setDialog(null)} onConfirm={submitDialog} />
+    <PromptDialog playback={playback} onContinue={props.onContinueInteractivePlayback}
+      onCancel={props.onCancelInteractivePlayback} />
   </section>;
 };

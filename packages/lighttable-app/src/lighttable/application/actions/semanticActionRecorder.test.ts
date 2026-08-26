@@ -147,4 +147,44 @@ describe('SemanticActionRecorder', () => {
     expect(recorder.updateRationale(1, '   ')).toEqual({ ok: true });
     expect(recorder.snapshot().steps[0]?.rationale).toBeNull();
   });
+
+  it('edits step playback controls while preserving result dependency order', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start('Layer setup');
+    recorder.record(request('layer.createRaster'),
+      completed('request-layer.createRaster', { created: true, layerId: 'layer-1' }), Date.now());
+    recorder.record(request('layer.rename', { layerId: 'layer-1', name: 'Title' }),
+      completed('request-layer.rename', { layerId: 'layer-1', name: 'Title' }), Date.now());
+    recorder.stop();
+
+    expect(recorder.setStepEnabled(2, false)).toEqual({ ok: true });
+    expect(recorder.setStepInteractive(2, true)).toEqual({ ok: true });
+    expect(recorder.duplicateStep(2)).toEqual({ ok: true });
+    expect(recorder.snapshot().steps.map(({ sequence }) => sequence)).toEqual([1, 2, 3]);
+    expect(recorder.moveStep(2, -1)).toMatchObject({ ok: false });
+    expect(recorder.deleteStep(1)).toMatchObject({ ok: false, error: expect.stringMatching(/binding/i) });
+  });
+
+  it('records after the selected step without binding to later results', () => {
+    const recorder = new SemanticActionRecorder();
+    recorder.start('Insert');
+    recorder.record(request('layer.createRaster'),
+      completed('request-layer.createRaster', { created: true, layerId: 'layer-1' }), Date.now());
+    recorder.record(request('layer.rename', { layerId: 'layer-1', name: 'Last' }),
+      completed('request-layer.rename', { layerId: 'layer-1', name: 'Last' }), Date.now());
+    recorder.stop();
+    recorder.start(undefined, 1);
+    recorder.record(request('layer.rename', { layerId: 'other-layer', name: 'Inserted' }),
+      completed('request-layer.rename-inserted', { layerId: 'other-layer', name: 'Inserted' }), Date.now());
+    recorder.stop();
+
+    expect(recorder.snapshot().steps.map(({ sequence, parameters }) => ({ sequence, parameters })))
+      .toEqual([
+        { sequence: 1, parameters: {} },
+        { sequence: 2, parameters: { layerId: 'other-layer', name: 'Inserted' } },
+        { sequence: 3, parameters: {
+          layerId: { $lighttableResult: { step: 1, path: 'layerId' } }, name: 'Last'
+        } }
+      ]);
+  });
 });

@@ -19,6 +19,17 @@ interface HistoryNode {
   readonly afterStateId: number;
 }
 
+export interface DocumentHistoryStateProjection {
+  readonly id: string;
+  readonly stateId: number;
+  readonly position: number;
+  readonly label: string;
+  readonly type: string;
+  readonly byteSize: number;
+  readonly current: boolean;
+  readonly future: boolean;
+}
+
 export interface DocumentCommandHistorySnapshot {
   readonly documentId: DocumentSessionId;
   readonly canUndo: boolean;
@@ -32,6 +43,7 @@ export interface DocumentCommandHistorySnapshot {
   readonly currentStateId: number;
   readonly savedStateId: number;
   readonly dirty: boolean;
+  readonly states: readonly DocumentHistoryStateProjection[];
 }
 
 export interface DocumentCommandHistoryOptions {
@@ -168,6 +180,28 @@ export class DocumentCommandHistory {
     }
   }
 
+  async goToPosition(position: number): Promise<boolean> {
+    const maximum = this.undoNodes.length + this.redoNodes.length;
+    if (!Number.isSafeInteger(position) || position < 0 || position > maximum || this.busy) return false;
+    while (this.undoNodes.length > position) {
+      if (!await this.undo()) return false;
+    }
+    while (this.undoNodes.length < position) {
+      if (!await this.redo()) return false;
+    }
+    return true;
+  }
+
+  async deleteFromPosition(position: number): Promise<boolean> {
+    const maximum = this.undoNodes.length + this.redoNodes.length;
+    if (!Number.isSafeInteger(position) || position < 1 || position > maximum || this.busy) return false;
+    if (!await this.goToPosition(position - 1)) return false;
+    this.disposeNodes(this.redoNodes);
+    this.redoNodes = [];
+    this.publish();
+    return true;
+  }
+
   markSaved(): void {
     this.savedStateId = this.currentStateId;
     this.publish();
@@ -240,6 +274,8 @@ export class DocumentCommandHistory {
   }
 
   private buildSnapshot(): DocumentCommandHistorySnapshot {
+    const chronological = [...this.undoNodes, ...[...this.redoNodes].reverse()];
+    const currentPosition = this.undoNodes.length;
     const estimatedBytes = [...this.undoNodes, ...this.redoNodes].reduce(
       (total, node) => total + (node.command.byteSize ?? 0),
       0
@@ -259,7 +295,26 @@ export class DocumentCommandHistory {
       estimatedBytes,
       currentStateId: this.currentStateId,
       savedStateId: this.savedStateId,
-      dirty: this.currentStateId !== this.savedStateId
+      dirty: this.currentStateId !== this.savedStateId,
+      states: [
+        {
+          id: `${this.documentId}:initial`,
+          stateId: chronological[0]?.beforeStateId ?? this.currentStateId,
+          position: 0,
+          label: 'Open', type: 'history.initial', byteSize: 0,
+          current: currentPosition === 0, future: false
+        },
+        ...chronological.map((node, index) => ({
+          id: node.command.id,
+          stateId: node.afterStateId,
+          position: index + 1,
+          label: node.command.label,
+          type: node.command.type,
+          byteSize: node.command.byteSize ?? 0,
+          current: currentPosition === index + 1,
+          future: index + 1 > currentPosition
+        }))
+      ]
     };
   }
 

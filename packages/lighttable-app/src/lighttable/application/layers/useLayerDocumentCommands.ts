@@ -63,6 +63,8 @@ export type FlattenRequest =
   | { kind: 'image' };
 
 export interface LayerCommandHistoryEntry {
+  label?: string;
+  type?: string;
   byteSize?: number;
   layerIds?: readonly LayerId[];
   undo(): void | Promise<void>;
@@ -129,7 +131,8 @@ export interface LayerDocumentCommandDependencies {
   getDocumentId(): string;
   getActiveChannel?(): PaintChannel;
   applyDocumentSnapshot(document: ImageDocument): void;
-  pushDocumentHistory(before: ImageDocument, after: ImageDocument): void;
+  pushDocumentHistory(before: ImageDocument, after: ImageDocument,
+    description?: { readonly label: string; readonly type: string }): void;
   pushHistoryEntry(entry: LayerCommandHistoryEntry): void;
   setActiveChannel(channel: PaintChannel): void;
   setSelectionClipboardAvailable(available: boolean): void;
@@ -265,7 +268,8 @@ export const createLayerDocumentCommands = (
 
     dependencies.applyDocumentSnapshot(withMask);
     if (!useSelection) {
-      dependencies.pushDocumentHistory(current, withMask);
+      dependencies.pushDocumentHistory(current, withMask,
+        { label: 'Add Layer Mask', type: 'layer.mask.add' });
       if (present) {
         dependencies.setActiveChannel('mask');
         dependencies.setError(null);
@@ -297,6 +301,8 @@ export const createLayerDocumentCommands = (
       );
       dependencies.applyDocumentSnapshot(next);
       dependencies.pushHistoryEntry({
+        label: 'Add Layer Mask',
+        type: 'layer.mask.add',
         byteSize: pixelEdit.byteSize,
         layerIds: [layerId],
         undo: () => {
@@ -352,7 +358,8 @@ export const createLayerDocumentCommands = (
         .getRenderer()
         ?.duplicateLayerPixels(sourceId, next.activeLayerId);
     }
-    dependenciesRef.current.pushDocumentHistory(current, next);
+    dependenciesRef.current.pushDocumentHistory(current, next,
+      { label: 'Duplicate Layer', type: 'layer.duplicate' });
     dependenciesRef.current.setActiveChannel('pixels');
     return next.activeLayerId;
   };
@@ -409,6 +416,8 @@ export const createLayerDocumentCommands = (
       const after = markLayerMaskPixelsChanged(prepared, targetId, fullDocumentBounds(before));
       dependencies.applyDocumentSnapshot(after);
       dependencies.pushHistoryEntry({
+        label: 'Remove Background',
+        type: 'layer.background-removal',
         byteSize: pixelEdit.byteSize,
         layerIds: [targetId],
         undo: () => {
@@ -485,7 +494,8 @@ export const createLayerDocumentCommands = (
         kind
       );
       dependencies.applyDocumentSnapshot(next);
-      dependencies.pushDocumentHistory(current, next);
+      dependencies.pushDocumentHistory(current, next,
+        { label: `New ${definition.name} Layer`, type: 'layer.adjustment.create' });
       dependencies.setActiveChannel('pixels');
       return true;
     }
@@ -529,6 +539,8 @@ export const createLayerDocumentCommands = (
     dependencies.applyDocumentSnapshot(next);
     dependencies.publishPanelAdjustments(source);
     dependencies.pushHistoryEntry({
+      label: `New ${definition.name} Layer`,
+      type: 'layer.adjustment.create',
       undo: () => {
         const latest = dependenciesRef.current;
         latest.publishDocumentAdjustments?.(previousDocumentGrade);
@@ -585,7 +597,8 @@ export const createLayerDocumentCommands = (
     if (next === current) return null;
     dependencies.applyDocumentSnapshot(next);
     dependencies.publishPanelAdjustments?.(source);
-    dependencies.pushDocumentHistory(current, next);
+    dependencies.pushDocumentHistory(current, next,
+      { label: `Add ${definition.name}`, type: 'layer.adjustment.attach' });
     dependencies.setActiveChannel('pixels');
     dependencies.setStatus(`Attached ${definition.name} to ${layer.name}`);
     dependencies.setError(null);
@@ -617,6 +630,8 @@ export const createLayerDocumentCommands = (
     }
     dependenciesRef.current.applyDocumentSnapshot(next);
     dependenciesRef.current.pushHistoryEntry({
+      label: 'Merge Layers',
+      type: 'layer.merge',
       byteSize: current.width * current.height * 8,
       layerIds: [...plan.layerIds, destination.id],
       undo: () => {
@@ -713,6 +728,8 @@ export const createLayerDocumentCommands = (
     }
     dependencies.applyDocumentSnapshot(next);
     dependencies.pushHistoryEntry({
+      label: request.kind === 'group' ? 'Flatten Group' : 'Flatten Image',
+      type: request.kind === 'group' ? 'layer.flatten-group' : 'document.flatten',
       byteSize: current.width * current.height * 8,
       layerIds: [...plan.layerIds, destination.id],
       undo: () => {
@@ -803,6 +820,8 @@ export const createLayerDocumentCommands = (
       const completedEdit = pixelEdit;
       dependencies.applyDocumentSnapshot(next);
       dependencies.pushHistoryEntry({
+        label: 'Rasterize Type',
+        type: 'layer.rasterize-type',
         byteSize: completedEdit.byteSize,
         layerIds: [source.id],
         undo: () => {
@@ -869,6 +888,8 @@ export const createLayerDocumentCommands = (
 
     dependencies.applyDocumentSnapshot(next);
     dependencies.pushHistoryEntry({
+      label: 'Rasterize Layer',
+      type: 'layer.rasterize',
       byteSize: current.width * current.height * 8,
       layerIds: [source.id, destination.id],
       undo: () => dependenciesRef.current.applyDocumentSnapshot(current),
@@ -961,6 +982,8 @@ export const createLayerDocumentCommands = (
         : markLayerPixelsChanged(current, layerId, fullDocumentBounds(current));
       dependenciesRef.current.applyDocumentSnapshot(next);
       dependenciesRef.current.pushHistoryEntry({
+        label: channel === 'mask' ? 'Invert Layer Mask' : 'Invert',
+        type: channel === 'mask' ? 'layer.mask.invert' : 'layer.invert',
         byteSize: pixelEdit.byteSize,
         layerIds: [layerId],
         undo: () => {
@@ -1108,6 +1131,8 @@ export const createLayerDocumentCommands = (
         const after = markLayerMaskPixelsChanged(before, targetId, placement);
         dependencies.applyDocumentSnapshot(after);
         dependencies.pushHistoryEntry({
+          label: 'Paste Into Layer Mask',
+          type: 'layer.mask.paste',
           byteSize: pixelEdit.byteSize,
           layerIds: [targetId],
           undo: () => {
@@ -1162,7 +1187,8 @@ export const createLayerDocumentCommands = (
     }
     after = markLayerPixelsChanged(after, pastedLayerId, dirtyBounds);
     dependencies.applyDocumentSnapshot(after);
-    dependencies.pushDocumentHistory(before, after);
+    dependencies.pushDocumentHistory(before, after,
+      { label: 'Paste', type: 'layer.paste' });
     dependencies.setActiveChannel('pixels');
     dependencies.setSelectionClipboardAvailable(true);
     dependencies.setStatus(fastPaste
@@ -1245,7 +1271,8 @@ export const createLayerDocumentCommands = (
       renderer.commitRasterDestination(layerId);
       preparedLayerId = null;
       dependencies.applyDocumentSnapshot(after);
-      dependencies.pushDocumentHistory(before, after);
+      dependencies.pushDocumentHistory(before, after,
+        { label: 'Place Embedded', type: 'layer.place' });
       dependencies.setActiveChannel('pixels');
       dependencies.setStatus(`Placed ${name}`);
       dependencies.setError(null);
@@ -1296,7 +1323,8 @@ export const createLayerDocumentCommands = (
     }
     after = markLayerPixelsChanged(after, copiedLayerId, dirtyBounds);
     dependenciesRef.current.applyDocumentSnapshot(after);
-    dependenciesRef.current.pushDocumentHistory(before, after);
+    dependenciesRef.current.pushDocumentHistory(before, after,
+      { label: 'Layer Via Copy', type: 'layer.via-copy' });
     dependenciesRef.current.setSelectionClipboardAvailable(true);
     dependenciesRef.current.setActiveChannel('pixels');
     dependenciesRef.current.setStatus('Selection copied to a new layer');

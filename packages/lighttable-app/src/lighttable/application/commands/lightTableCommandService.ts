@@ -557,7 +557,9 @@ export class LightTableCommandService {
   taskEventRevision = (): number => this.taskEvents.snapshot();
   actionRecordingSnapshot = (): ActionRecordingSnapshot => this.actions.recordingSnapshot();
   subscribeActionRecording = (listener: () => void) => this.actions.subscribeRecording(listener);
-  startActionRecording = (name?: string) => this.actions.startRecording(name);
+  startActionRecording = (name?: string, insertAfterSequence?: number) => (
+    this.actions.startRecording(name, insertAfterSequence)
+  );
   stopActionRecording = () => this.actions.stopRecording();
   clearActionRecording = () => this.actions.clearRecording();
   createActionVariable = (sequence: number, parameterPath: string, name: string) => (
@@ -583,15 +585,30 @@ export class LightTableCommandService {
   updateActionStepRationale = (sequence: number, rationale: string) => (
     this.actions.updateRationale(sequence, rationale)
   );
+  setActionStepEnabled = (sequence: number, enabled: boolean) => (
+    this.actions.setStepEnabled(sequence, enabled)
+  );
+  setActionStepInteractive = (sequence: number, interactive: boolean) => (
+    this.actions.setStepInteractive(sequence, interactive)
+  );
+  deleteActionStep = (sequence: number) => this.actions.deleteStep(sequence);
+  duplicateActionStep = (sequence: number) => this.actions.duplicateStep(sequence);
+  moveActionStep = (sequence: number, direction: -1 | 1) => this.actions.moveStep(sequence, direction);
   actionLibrarySnapshot = (): SemanticActionLibrarySnapshot => this.actions.librarySnapshot();
   subscribeActionLibrary = (listener: () => void) => this.actions.subscribeLibrary(listener);
   createActionSet = (name: string) => this.actions.createSet(name);
   renameActionSet = (id: string, name: string) => this.actions.renameSet(id, name);
   selectActionSet = (id: string) => this.actions.selectSet(id);
   deleteActionSet = (id: string) => this.actions.deleteSet(id);
+  moveActionSet = (id: string, direction: -1 | 1) => this.actions.moveSet(id, direction);
   saveActionRecording = (name: string) => this.actions.saveRecording(name);
   loadSavedAction = (id: string) => this.actions.loadSaved(id);
   deleteSavedAction = (id: string) => this.actions.deleteSaved(id);
+  renameSavedAction = (id: string, name: string) => this.actions.renameSaved(id, name);
+  duplicateSavedAction = (id: string) => this.actions.duplicateSaved(id);
+  moveSavedAction = (id: string, direction: -1 | 1) => this.actions.moveSaved(id, direction);
+  setSavedActionEnabled = (id: string, enabled: boolean) => this.actions.setSavedEnabled(id, enabled);
+  setActionSetEnabled = (id: string, enabled: boolean) => this.actions.setSetEnabled(id, enabled);
   playActionRecordingAtomically = (overrides?: Readonly<Record<string, unknown>>) => (
     this.actions.playAtomic(overrides)
   );
@@ -638,6 +655,10 @@ export class LightTableCommandService {
   playActionStep = (sequence: number) => this.actions.playStep(sequence);
   playActionFromStep = (sequence: number) => this.actions.playFrom(sequence);
   stopActionPlayback = (): void => this.actions.stopPlayback();
+  continueInteractiveActionPlayback = (parameters: Readonly<Record<string, unknown>>) => (
+    this.actions.continueInteractivePlayback(parameters)
+  );
+  cancelInteractiveActionPlayback = (): void => this.actions.cancelInteractivePlayback();
 
   queryRenderTelemetry(documentId: DocumentSessionId): RenderTelemetrySnapshot | null {
     return this.document(documentId)?.lifecycle === 'ready'
@@ -1784,7 +1805,12 @@ export class LightTableCommandService {
         }
         const result = await this.ports.executeSelectionCommand(request.documentId, command);
         if (!result) return { code: 'execution-failed', message: 'The selection could not be applied.' };
-        return { value: result, changed: false };
+        const value = command.kind === 'modify'
+          && (command.operation === 'feather' || command.operation === 'smooth'
+            || command.operation === 'expand' || command.operation === 'contract')
+          ? { ...result, applyAtCanvasBounds: command.applyAtCanvasBounds === true }
+          : result;
+        return { value, changed: false };
       }
       case 'grade.setBasic': {
         const command = parseSemanticBasicAdjustmentCommand(parameters);

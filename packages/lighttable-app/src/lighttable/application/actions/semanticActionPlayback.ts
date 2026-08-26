@@ -25,6 +25,11 @@ export interface ActionPlaybackSnapshot {
   readonly currentSequence: number | null;
   readonly results: readonly ActionPlaybackStepResult[];
   readonly taskProgress: number | null;
+  readonly prompt?: {
+    readonly sequence: number;
+    readonly command: string;
+    readonly parameters: Readonly<Record<string, unknown>>;
+  } | null;
 }
 
 export type ActionTaskWaitResult =
@@ -89,7 +94,8 @@ const dependencyAwareSteps = (
       pending.push(producer.sequence);
     }
   }
-  return recording.steps.filter(({ sequence, replayable }) => replayable && included.has(sequence));
+  return recording.steps.filter(({ sequence, replayable, enabled }) => replayable
+    && enabled !== false && included.has(sequence));
 };
 
 export class SemanticActionPlaybackController {
@@ -97,6 +103,7 @@ export class SemanticActionPlaybackController {
   private readonly listeners = new Set<() => void>();
   private stopRequested = false;
   private taskAbort: AbortController | null = null;
+  private promptResolver: ((parameters: Readonly<Record<string, unknown>> | null) => void) | null = null;
 
   constructor(private readonly execute: ExecuteCommand,
     private readonly tasks?: ActionTaskPlaybackPort) {}
@@ -109,7 +116,8 @@ export class SemanticActionPlaybackController {
 
   async play(recording: ActionRecordingSnapshot, targetDocumentId?: string,
     overrides: Readonly<Record<string, unknown>> = {}): Promise<ActionPlaybackSnapshot> {
-    return this.run(recording, recording.steps.filter(({ replayable }) => replayable), targetDocumentId, overrides);
+    return this.run(recording, recording.steps.filter(({ replayable, enabled }) => replayable && enabled !== false),
+      targetDocumentId, overrides);
   }
 
   async playAtomic(recording: ActionRecordingSnapshot, targetDocumentId?: string,
@@ -183,13 +191,14 @@ export class SemanticActionPlaybackController {
 
   async playStep(recording: ActionRecordingSnapshot, sequence: number,
     targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
-    const step = recording.steps.find((candidate) => candidate.sequence === sequence && candidate.replayable);
+    const step = recording.steps.find((candidate) => candidate.sequence === sequence
+      && candidate.replayable && candidate.enabled !== false);
     return this.run(recording, step ? dependencyAwareSteps(recording, [step]) : [], targetDocumentId);
   }
 
   async playFrom(recording: ActionRecordingSnapshot, sequence: number,
     targetDocumentId?: string): Promise<ActionPlaybackSnapshot> {
-    const steps = recording.steps.filter((candidate) => candidate.replayable
+    const steps = recording.steps.filter((candidate) => candidate.replayable && candidate.enabled !== false
       && candidate.sequence >= sequence);
     return this.run(recording, dependencyAwareSteps(recording, steps), targetDocumentId);
   }
@@ -198,8 +207,17 @@ export class SemanticActionPlaybackController {
     if (this.snapshotValue.status === 'running') {
       this.stopRequested = true;
       this.taskAbort?.abort();
+      this.promptResolver?.(null);
+      this.promptResolver = null;
     }
   }
+
+  continueInteractive(parameters: Readonly<Record<string, unknown>>): void {
+    this.promptResolver?.(structuredClone(parameters));
+    this.promptResolver = null;
+  }
+
+  cancelInteractive(): void { this.stop(); }
 
   clear(): void {
     if (this.snapshotValue.status !== 'running') this.publish(initialSnapshot());
@@ -224,7 +242,7 @@ export class SemanticActionPlaybackController {
     }
     const effectiveVariables = variables.map((variable) => nameIn(overrides, variable.name)
       ? { ...variable, defaultValue: overrides[variable.name] } : variable);
-    const contracts = checkActionCommandContracts(recording.steps, false, effectiveVariables);
+    const contracts = checkActionCommandContracts(steps, false, effectiveVariables);
     if (!contracts.ok) {
       this.publish({ status: 'failed', currentSequence: contracts.sequence, taskProgress: null,
         results: [{ sequence: contracts.sequence,
@@ -256,6 +274,21 @@ export class SemanticActionPlaybackController {
           results: [...this.snapshotValue.results, result], taskProgress: null });
         return this.snapshotValue;
       }
+      let executionParameters = parameters.value;
+      if (step.interactive && typeof executionParameters === 'object' && executionParameters !== null
+        && !Array.isArray(executionParameters)) {
+        this.publish({ ...this.snapshotValue, prompt: { sequence: step.sequence,
+          command: step.command, parameters: executionParameters as Readonly<Record<string, unknown>> } });
+        executionParameters = await new Promise<Readonly<Record<string, unknown>> | null>((resolve) => {
+          this.promptResolver = resolve;
+        });
+        if (!executionParameters || this.stopRequested) {
+          this.publish({ ...this.snapshotValue, status: 'stopped', currentSequence: null,
+            taskProgress: null, prompt: null });
+          return this.snapshotValue;
+        }
+        this.publish({ ...this.snapshotValue, prompt: null });
+      }
       const resolvedDocumentId = step.documentId
         ? replayDocumentIds.get(step.documentId) ?? targetDocumentId ?? step.documentId
         : undefined;
@@ -264,7 +297,7 @@ export class SemanticActionPlaybackController {
         requestId: `action-play-${recording.id ?? 'unsaved'}-${step.sequence}-${startedAt}`,
         command: step.command,
         ...(resolvedDocumentId ? { documentId: resolvedDocumentId } : {}),
-        parameters: parameters.value
+        parameters: executionParameters
       });
       const entry: ActionPlaybackStepResult = {
         sequence: step.sequence,

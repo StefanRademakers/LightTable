@@ -5013,6 +5013,8 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
     }
     applyDocumentSnapshot(next);
     pushHistoryEntry({
+      label: 'Apply Shape to Pixels',
+      type: 'vector.shape.rasterize',
       byteSize: transaction.beforeDocument.width * transaction.beforeDocument.height * 8,
       layerIds: [...layerIds, destination.id],
       undo: () => applyDocumentSnapshot(transaction.beforeDocument),
@@ -8227,12 +8229,17 @@ export const LightTableEditorOverlay: React.FC<LightTableEditorOverlayProps> = (
               agent: { events: agentEvents,
                 onCancel: (taskId) => { void executeRegisteredCommand('task.cancel', { taskId }); } },
               actions: {
-                capabilities: commandService?.queryCapabilities(workspaceDocumentId as DocumentSessionId) ?? null,
-                onExecute: executeRegisteredCommand,
                 recording: actionRecording,
                 playback: actionPlayback,
                 library: actionLibrary,
                 ...createActionsPanelCallbacks(commandService)
+              },
+              history: {
+                history: historySnapshot,
+                documentName: initialSourceName,
+                onNavigate: (position) => { void documentHistoryController.navigateTo(position); },
+                onDeleteFrom: (position) => { void documentHistoryController.deleteFrom(position); },
+                onClear: documentHistoryController.purge
               },
               genAi: {
                 interactionActive: active,

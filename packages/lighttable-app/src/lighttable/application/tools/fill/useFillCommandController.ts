@@ -9,6 +9,8 @@ import {
 } from './fillOperation';
 
 export interface FillHistoryEntry {
+  readonly label: string;
+  readonly type: string;
   byteSize: number;
   layerIds: readonly LayerId[];
   undo(): void;
@@ -72,6 +74,8 @@ export const createFillCommandController = (
 
     dependencies.applyDocumentSnapshot(result.document);
     dependencies.pushHistoryEntry({
+      label: result.channel === 'mask' ? 'Fill Layer Mask' : options.opacity === 0 ? 'Clear' : 'Fill',
+      type: result.channel === 'mask' ? 'raster.mask.fill' : 'raster.fill',
       byteSize: result.pixelEdit.byteSize,
       layerIds: [result.layerId],
       undo: () => {

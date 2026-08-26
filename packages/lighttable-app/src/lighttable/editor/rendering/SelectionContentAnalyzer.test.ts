@@ -46,7 +46,10 @@ describe('SelectionContentAnalyzer', () => {
     const bytesPerRow = 256;
     const coverage = new Uint8Array(bytesPerRow * 3);
     coverage[bytesPerRow + 2] = 255;
-    const source = {} as GPUTexture;
+    const source = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+    const coverageTexture = {
+      createView: vi.fn(() => ({})), destroy: vi.fn()
+    } as unknown as GPUTexture;
     const copyTextureToBuffer = vi.fn();
     const rasterRuntime = vi.fn();
     const maskTexture = vi.fn(() => source);
@@ -68,16 +71,19 @@ describe('SelectionContentAnalyzer', () => {
           copyTextureToBuffer,
           finish: vi.fn(() => ({}))
         })),
+        createBindGroup: vi.fn(() => ({})),
         queue: { submit: vi.fn() }
       } as unknown as GPUDevice,
       textures: {} as never,
       dimensions: () => ({ width: 4, height: 3 }),
       generation: () => 1,
-      pipelines: vi.fn() as never,
+      pipelines: vi.fn(() => ({
+        coverageToByte: { getBindGroupLayout: vi.fn(() => ({})) }
+      })) as never,
       ensureTargets: vi.fn(),
       rasterRuntime,
       maskTexture,
-      createCoverageTexture: vi.fn(),
+      createCoverageTexture: vi.fn(() => coverageTexture),
       drawFullscreen: vi.fn()
     });
 
@@ -87,7 +93,7 @@ describe('SelectionContentAnalyzer', () => {
     expect(maskTexture).toHaveBeenCalledWith(adjustment.id);
     expect(rasterRuntime).not.toHaveBeenCalled();
     expect(copyTextureToBuffer).toHaveBeenCalledWith(
-      { texture: source },
+      { texture: coverageTexture },
       expect.objectContaining({ bytesPerRow }),
       [4, 3]
     );
@@ -101,6 +107,9 @@ describe('SelectionContentAnalyzer', () => {
     coverage[bytesPerRow + 1] = 255;
     coverage[bytesPerRow + 2] = 64;
     const copyTextureToBuffer = vi.fn();
+    const coverageTexture = {
+      createView: vi.fn(() => ({})), destroy: vi.fn()
+    } as unknown as GPUTexture;
     const analyzer = new SelectionContentAnalyzer({
       device: {
         createBuffer: vi.fn(() => ({
@@ -114,16 +123,19 @@ describe('SelectionContentAnalyzer', () => {
           copyTextureToBuffer,
           finish: vi.fn(() => ({}))
         })),
+        createBindGroup: vi.fn(() => ({})),
         queue: { submit: vi.fn() }
       } as unknown as GPUDevice,
-      textures: { active: true, mask: {} } as never,
+      textures: { active: true, mask: { createView: vi.fn(() => ({})) } } as never,
       dimensions: () => ({ width: 4, height: 3 }),
       generation: () => 1,
-      pipelines: vi.fn() as never,
+      pipelines: vi.fn(() => ({
+        coverageToByte: { getBindGroupLayout: vi.fn(() => ({})) }
+      })) as never,
       ensureTargets: vi.fn(),
       rasterRuntime: vi.fn(),
       maskTexture: vi.fn(),
-      createCoverageTexture: vi.fn(),
+      createCoverageTexture: vi.fn(() => coverageTexture),
       drawFullscreen: vi.fn()
     });
 

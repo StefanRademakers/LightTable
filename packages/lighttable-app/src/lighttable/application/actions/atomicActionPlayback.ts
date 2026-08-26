@@ -64,7 +64,8 @@ export const compileAtomicAction = (
 ): AtomicActionCompileResult => {
   const eligibility = atomicActionEligibility(recording);
   if (!eligibility.eligible) return { ok: false, error: eligibility.reason };
-  const recordedDocumentIds = new Set(recording.steps.map(({ documentId }) => documentId));
+  const steps = recording.steps.filter(({ enabled }) => enabled !== false);
+  const recordedDocumentIds = new Set(steps.map(({ documentId }) => documentId));
   const actionName = recording.name.trim();
   const variables = recording.variables ?? [];
   const names = new Set(variables.map(({ name }) => name));
@@ -79,18 +80,18 @@ export const compileAtomicAction = (
   const effectiveVariables = variables.map((variable) => own(overrides, variable.name)
     ? { ...variable, defaultValue: overrides[variable.name] } : variable);
   const variableValues = new Map(effectiveVariables.map(({ name, defaultValue }) => [name, defaultValue]));
-  const operationIds = new Map(recording.steps.map(({ sequence }) => [sequence, `step-${sequence}`]));
+  const operationIds = new Map(steps.map(({ sequence }) => [sequence, `step-${sequence}`]));
   try {
     const batch: AtomicCommandBatch = {
       name: actionName,
       timeoutMs: 5_000,
-      operations: recording.steps.map((step) => ({
+      operations: steps.map((step) => ({
         operationId: operationIds.get(step.sequence)!,
         command: step.command as typeof ATOMIC_BATCH_COMMANDS[number],
         parameters: transformParameters(step.parameters, step.sequence, variableValues, operationIds)
       }))
     };
-    const contracts = checkActionCommandContracts(recording.steps, false, effectiveVariables);
+    const contracts = checkActionCommandContracts(steps, false, effectiveVariables);
     if (!contracts.ok) return { ok: false, error: contracts.message };
     const validation = validateJsonSchemaValue(LIGHTTABLE_COMMAND_SCHEMAS['command.batch']!.input, batch);
     if (!validation.valid) {
@@ -98,7 +99,7 @@ export const compileAtomicAction = (
         error: `Atomic playback preflight failed: ${formatSchemaValidationIssues(validation.issues)}.` };
     }
     return { ok: true, plan: { documentId: targetDocumentId ?? [...recordedDocumentIds][0]!,
-      batch, steps: recording.steps } };
+      batch, steps } };
   } catch (reason) {
     return { ok: false, error: reason instanceof Error ? reason.message : String(reason) };
   }

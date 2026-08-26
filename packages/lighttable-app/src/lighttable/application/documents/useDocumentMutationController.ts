@@ -8,6 +8,8 @@ import type { VectorElement, VectorPaint } from '@lighttable/vector-core';
 import { walkLayerTree, walkRasterLayers } from '../../editor/document/layerTree';
 
 export interface DocumentMutationHistoryEntry {
+  readonly label?: string;
+  readonly type?: string;
   readonly layerIds?: readonly LayerId[];
   readonly byteSize?: number;
   undo(): void;
@@ -25,12 +27,71 @@ export interface DocumentMutationController {
   begin(): boolean;
   end(): boolean;
   reset(): void;
-  record(before: ImageDocument, after: ImageDocument): boolean;
+  record(before: ImageDocument, after: ImageDocument, description?: DocumentMutationDescription): boolean;
   change(
     mutate: (current: ImageDocument) => ImageDocument,
     recordHistory?: boolean
   ): boolean;
 }
+
+export interface DocumentMutationDescription {
+  readonly label: string;
+  readonly type: string;
+}
+
+const inferDocumentMutationDescription = (
+  before: ImageDocument,
+  after: ImageDocument
+): DocumentMutationDescription => {
+  const previous = new Map(walkLayerTree(before.layers).map(({ node }) => [node.id, node]));
+  const next = new Map(walkLayerTree(after.layers).map(({ node }) => [node.id, node]));
+  const added = [...next.values()].find(({ id }) => !previous.has(id));
+  const removed = [...previous.values()].find(({ id }) => !next.has(id));
+  if (added) return {
+    label: added.type === 'text' ? 'New Type Layer'
+      : added.type === 'group' ? 'New Layer Group'
+        : added.type === 'adjustment' ? 'New Adjustment Layer' : 'New Layer',
+    type: `layer.create.${added.type}`
+  };
+  if (removed) return { label: 'Delete Layer', type: 'layer.delete' };
+  const previousOrder = [...previous.keys()].join('\u0000');
+  const nextOrder = [...next.keys()].join('\u0000');
+  if (previousOrder !== nextOrder) return { label: 'Move Layer', type: 'layer.move' };
+  for (const [id, previousNode] of previous) {
+    const nextNode = next.get(id);
+    if (!nextNode || previousNode === nextNode) continue;
+    if (previousNode.name !== nextNode.name) return { label: 'Rename Layer', type: 'layer.rename' };
+    if (previousNode.visible !== nextNode.visible) return {
+      label: nextNode.visible ? 'Show Layer' : 'Hide Layer', type: 'layer.visibility'
+    };
+    if (previousNode.opacity !== nextNode.opacity) return { label: 'Layer Opacity', type: 'layer.opacity' };
+    if (previousNode.fillOpacity !== nextNode.fillOpacity) return { label: 'Layer Fill', type: 'layer.fill-opacity' };
+    if (previousNode.blendMode !== nextNode.blendMode) return { label: 'Blending Change', type: 'layer.blend-mode' };
+    if (previousNode.clipping !== nextNode.clipping) return {
+      label: nextNode.clipping ? 'Create Clipping Mask' : 'Release Clipping Mask', type: 'layer.clipping'
+    };
+    if (previousNode.locks !== nextNode.locks) return { label: 'Lock Layers', type: 'layer.locks' };
+    if (previousNode.styleStack !== nextNode.styleStack) return { label: 'Layer Style', type: 'layer.style' };
+    if (previousNode.transform !== nextNode.transform) return { label: 'Free Transform', type: 'layer.transform' };
+    if (previousNode.mask !== nextNode.mask) return { label: 'Edit Layer Mask', type: 'layer.mask.edit' };
+    if (previousNode.type === 'text' && nextNode.type === 'text'
+      && previousNode.text !== nextNode.text) return { label: 'Edit Type', type: 'text.edit' };
+    if (previousNode.type === 'vector' && nextNode.type === 'vector'
+      && previousNode.elements !== nextNode.elements) return { label: 'Edit Shape', type: 'vector.edit' };
+    if (previousNode.type === 'raster' && nextNode.type === 'raster'
+      && (previousNode.adjustmentStack !== nextNode.adjustmentStack
+        || previousNode.attachedAdjustments !== nextNode.attachedAdjustments)) {
+      return { label: 'Edit Layer Adjustment', type: 'layer.adjustment.edit' };
+    }
+  }
+  if (before.guides !== after.guides) return {
+    label: after.guides.length < before.guides.length ? 'Clear Guides' : 'New Guide',
+    type: 'document.guides'
+  };
+  if (before.activeLayerId !== after.activeLayerId) return { label: 'Select Layer', type: 'layer.select' };
+  if (before.colorSettings !== after.colorSettings) return { label: 'Color Profile', type: 'document.color-profile' };
+  return { label: 'Document Change', type: 'document.change' };
+};
 
 interface ActiveDocumentTransaction {
   readonly documentId: ImageDocument['id'];
@@ -157,7 +218,8 @@ export const createDocumentMutationController = (
     dependencies.applySnapshot(snapshot);
   };
 
-  const record = (before: ImageDocument, after: ImageDocument): boolean => {
+  const record = (before: ImageDocument, after: ImageDocument,
+    description?: DocumentMutationDescription): boolean => {
     if (before === after) return false;
     if (before.id !== after.id) {
       throw new Error('A document mutation cannot replace the document identity.');
@@ -165,7 +227,10 @@ export const createDocumentMutationController = (
     const documentId = before.id;
     const retained = rasterResourceRetention(before, after);
     const vectorBytes = vectorSnapshotRetentionBytes(before, after);
+    const resolvedDescription = description ?? inferDocumentMutationDescription(before, after);
     resolveDependencies().pushHistoryEntry({
+      label: resolvedDescription.label,
+      type: resolvedDescription.type,
       layerIds: retained.layerIds,
       byteSize: retained.byteSize + vectorBytes,
       undo: () => applyForDocument(documentId, before),

@@ -165,9 +165,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 153,
+      "productionUsageCount": 145,
       "internalUsageCount": 0,
-      "contextCount": 42,
+      "contextCount": 44,
       "overrideCount": 0,
       "locations": [
         {
@@ -207,7 +207,7 @@
         },
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 14,
+          "count": 3,
           "kind": "product"
         },
         {
@@ -256,6 +256,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/panels/history/HistoryPanel.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/LensFxPanel.tsx",
           "count": 1,
           "kind": "product"
@@ -291,6 +296,11 @@
           "kind": "product"
         },
         {
+          "path": "lighttable/editor/ui/EditorToastViewport.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/ui/EditorToolbar.tsx",
           "count": 5,
           "kind": "product"
@@ -307,7 +317,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 22,
+          "count": 23,
           "kind": "product"
         },
         {
@@ -386,14 +396,24 @@
     {
       "id": "square-icon-button",
       "metadataDeclared": true,
-      "productionUsageCount": 7,
-      "internalUsageCount": 1,
-      "contextCount": 3,
+      "productionUsageCount": 16,
+      "internalUsageCount": 2,
+      "contextCount": 5,
       "overrideCount": 0,
       "locations": [
         {
+          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
+          "count": 7,
+          "kind": "product"
+        },
+        {
           "path": "lighttable/editor/panels/GradePanel.tsx",
           "count": 5,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/history/HistoryPanel.tsx",
+          "count": 2,
           "kind": "product"
         },
         {
@@ -408,7 +428,7 @@
         },
         {
           "path": "ui/ColorPicker.tsx",
-          "count": 1,
+          "count": 2,
           "kind": "internal"
         }
       ],
@@ -480,9 +500,9 @@
     {
       "id": "form-select",
       "metadataDeclared": true,
-      "productionUsageCount": 35,
+      "productionUsageCount": 33,
       "internalUsageCount": 1,
-      "contextCount": 17,
+      "contextCount": 16,
       "overrideCount": 1,
       "locations": [
         {
@@ -503,11 +523,6 @@
         {
           "path": "lighttable/editor/panels/actions/ActionBindingEditor.tsx",
           "count": 3,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 2,
           "kind": "product"
         },
         {
@@ -697,11 +712,16 @@
     {
       "id": "panel-checkbox",
       "metadataDeclared": true,
-      "productionUsageCount": 6,
+      "productionUsageCount": 9,
       "internalUsageCount": 0,
-      "contextCount": 1,
+      "contextCount": 2,
       "overrideCount": 0,
       "locations": [
+        {
+          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
+          "count": 3,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
           "count": 6,
@@ -739,9 +759,9 @@
     {
       "id": "segmented-control",
       "metadataDeclared": true,
-      "productionUsageCount": 14,
+      "productionUsageCount": 13,
       "internalUsageCount": 0,
-      "contextCount": 11,
+      "contextCount": 10,
       "overrideCount": 1,
       "locations": [
         {
@@ -756,11 +776,6 @@
         },
         {
           "path": "lighttable/CurvesEditor.tsx",
-          "count": 1,
-          "kind": "product"
-        },
-        {
-          "path": "lighttable/editor/panels/actions/ActionsPanel.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -1043,11 +1058,16 @@
     {
       "id": "color-picker",
       "metadataDeclared": true,
-      "productionUsageCount": 1,
+      "productionUsageCount": 2,
       "internalUsageCount": 1,
-      "contextCount": 1,
+      "contextCount": 2,
       "overrideCount": 1,
       "locations": [
+        {
+          "path": "lighttable/composition/workspace/createEditorWorkspacePanels.tsx",
+          "count": 1,
+          "kind": "product"
+        },
         {
           "path": "lighttable/editor/ui/VectorStyleToolOptions.tsx",
           "count": 1,
@@ -1136,9 +1156,9 @@
     {
       "id": "context-menu",
       "metadataDeclared": true,
-      "productionUsageCount": 6,
+      "productionUsageCount": 7,
       "internalUsageCount": 0,
-      "contextCount": 5,
+      "contextCount": 6,
       "overrideCount": 0,
       "locations": [
         {
@@ -1148,6 +1168,11 @@
         },
         {
           "path": "genai/ui/ProjectAssetBrowser.tsx",
+          "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
           "count": 1,
           "kind": "product"
         },
@@ -1172,14 +1197,14 @@
     {
       "id": "anchored-menu",
       "metadataDeclared": true,
-      "productionUsageCount": 1,
+      "productionUsageCount": 2,
       "internalUsageCount": 0,
       "contextCount": 1,
       "overrideCount": 0,
       "locations": [
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 1,
+          "count": 2,
           "kind": "product"
         }
       ],
@@ -1219,9 +1244,9 @@
     {
       "id": "text-input-dialog",
       "metadataDeclared": true,
-      "productionUsageCount": 2,
+      "productionUsageCount": 4,
       "internalUsageCount": 0,
-      "contextCount": 2,
+      "contextCount": 3,
       "overrideCount": 0,
       "locations": [
         {
@@ -1230,8 +1255,13 @@
           "kind": "product"
         },
         {
-          "path": "lighttable/editor/ui/EditorDialogs.tsx",
+          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
           "count": 1,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/EditorDialogs.tsx",
+          "count": 2,
           "kind": "product"
         }
       ],

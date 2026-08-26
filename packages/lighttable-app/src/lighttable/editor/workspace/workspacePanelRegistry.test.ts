@@ -14,6 +14,7 @@ describe('workspacePanelRegistry', () => {
       debug: 'debug',
       agent: 'agent',
       actions: 'actions',
+      history: 'history',
       genAi: 'genAi',
       aiHistory: 'aiHistory',
       color: 'color',
@@ -31,6 +32,7 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.actions,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.history,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.debug,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.color,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.videoControls
@@ -44,6 +46,7 @@ describe('workspacePanelRegistry', () => {
       content.genAi,
       content.agent,
       content.actions,
+      content.history,
       content.debug,
       content.color,
       content.videoControls
@@ -57,6 +60,7 @@ describe('workspacePanelRegistry', () => {
       'genAi',
       'agent',
       'actions',
+      'history',
       'debug',
       'color',
       'videoControls'
@@ -74,7 +78,9 @@ describe('workspacePanelRegistry', () => {
       LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.aiHistory,
       LIGHTTABLE_WORKSPACE_PANEL_IDS.genAi,
-      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.agent,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.actions,
+      LIGHTTABLE_WORKSPACE_PANEL_IDS.history
     ]);
   });
 
@@ -86,7 +92,8 @@ describe('workspacePanelRegistry', () => {
       channels: null,
       debug: null,
       agent: null,
-      actions: null,
+  actions: null,
+  history: null,
       genAi: null,
       aiHistory: null
     });
@@ -111,7 +118,8 @@ describe('workspacePanelRegistry', () => {
       channels: null,
       debug: null,
       agent: null,
-      actions: null,
+  actions: null,
+  history: null,
       genAi: null,
       aiHistory: null
     });
@@ -138,7 +146,8 @@ describe('workspacePanelRegistry', () => {
       channels: null,
       debug: null,
       agent: null,
-      actions: null,
+  actions: null,
+  history: null,
       genAi: null,
       aiHistory: null
     });

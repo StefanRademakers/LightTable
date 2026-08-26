@@ -34,6 +34,8 @@ import {
 } from './paintDabScheduler';
 
 export interface PaintHistoryEntry {
+  label: string;
+  type: string;
   byteSize: number;
   layerIds: readonly LayerId[];
   undo(): void;
@@ -301,6 +303,8 @@ export const createPaintSessionController = (
       renderer.setPaintInteractionActive(false);
       dependencies.applyDocumentSnapshot(after);
       dependencies.pushHistoryEntry({
+        label: finished.target.channel === 'mask' ? 'Brush Tool on Layer Mask' : 'Brush Tool',
+        type: finished.target.channel === 'mask' ? 'paint.mask.stroke' : 'paint.stroke',
         byteSize: pixelEdit.byteSize,
         layerIds: [finished.target.layerId],
         undo: () => {

@@ -32,27 +32,31 @@ const bindingError = (value: unknown, sequence: number,
 };
 
 export const atomicActionEligibility = (recording: ActionRecordingSnapshot): AtomicActionEligibility => {
+  const steps = recording.steps.filter(({ enabled }) => enabled !== false);
   if (recording.status !== 'stopped') {
     return { eligible: false, reason: 'Stop the Action before atomic playback.' };
   }
-  if (recording.steps.length < 1) return { eligible: false, reason: 'The Action has no steps to play.' };
-  if (recording.steps.length > 64) {
+  if (steps.length < 1) return { eligible: false, reason: 'The Action has no enabled steps to play.' };
+  if (steps.length > 64) {
     return { eligible: false, reason: 'Atomic playback supports at most 64 steps.' };
   }
-  const nonReplayable = recording.steps.find(({ replayable, outcome }) => !replayable || outcome !== 'completed');
+  const interactive = steps.find((step) => step.interactive);
+  if (interactive) return { eligible: false,
+    reason: `Step ${interactive.sequence} requests a dialog; use normal stepwise Play.` };
+  const nonReplayable = steps.find(({ replayable, outcome }) => !replayable || outcome !== 'completed');
   if (nonReplayable) return { eligible: false,
     reason: `Step ${nonReplayable.sequence} is diagnostic or asynchronous; use normal stepwise Play.` };
-  const unsupported = recording.steps.find(({ command }) => !atomicCommands.has(command));
+  const unsupported = steps.find(({ command }) => !atomicCommands.has(command));
   if (unsupported) return { eligible: false,
     reason: `${unsupported.command} cannot publish through one atomic document transaction.` };
-  const documentIds = new Set(recording.steps.map(({ documentId }) => documentId));
+  const documentIds = new Set(steps.map(({ documentId }) => documentId));
   if (documentIds.size !== 1 || documentIds.has(null)) return { eligible: false,
     reason: 'Atomic playback requires every step to target one recorded document.' };
   const name = recording.name.trim();
   if (!name || name.length > 128) return { eligible: false,
     reason: 'Atomic playback requires an Action name between 1 and 128 characters.' };
-  const sequences = new Set(recording.steps.map(({ sequence }) => sequence));
-  for (const step of recording.steps) {
+  const sequences = new Set(steps.map(({ sequence }) => sequence));
+  for (const step of steps) {
     const error = bindingError(step.parameters, step.sequence, sequences);
     if (error) return { eligible: false, reason: error };
   }

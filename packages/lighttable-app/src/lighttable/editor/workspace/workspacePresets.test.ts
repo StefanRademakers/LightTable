@@ -13,6 +13,7 @@ const panels = () => createDefaultLightTableWorkspacePanels({
   debug: null,
   agent: null,
   actions: null,
+  history: null,
   genAi: null,
   aiHistory: null
 });

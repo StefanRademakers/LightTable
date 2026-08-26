@@ -174,4 +174,28 @@ describe('DocumentCommandHistory', () => {
       'layer-b'
     ]);
   });
+
+  it('projects chronological states and navigates or removes a future branch', async () => {
+    const calls: string[] = [];
+    const history = new DocumentCommandHistory(documentId);
+    history.record(command('first', {
+      undo: () => { calls.push('undo-first'); }, redo: () => { calls.push('redo-first'); }
+    }));
+    history.record(command('second', {
+      undo: () => { calls.push('undo-second'); }, redo: () => { calls.push('redo-second'); }
+    }));
+
+    expect(history.getSnapshot().states.map(({ label, current, future }) => ({ label, current, future })))
+      .toEqual([
+        { label: 'Open', current: false, future: false },
+        { label: 'first', current: false, future: false },
+        { label: 'second', current: true, future: false }
+      ]);
+    expect(await history.goToPosition(1)).toBe(true);
+    expect(calls).toEqual(['undo-second']);
+    expect(history.getSnapshot().states[2]).toMatchObject({ current: false, future: true });
+    expect(await history.deleteFromPosition(2)).toBe(true);
+    expect(history.getSnapshot()).toMatchObject({ undoDepth: 1, redoDepth: 0 });
+    expect(history.getSnapshot().states.map(({ label }) => label)).toEqual(['Open', 'first']);
+  });
 });

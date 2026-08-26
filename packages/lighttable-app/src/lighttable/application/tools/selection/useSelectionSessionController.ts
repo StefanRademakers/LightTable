@@ -42,6 +42,8 @@ import {
 } from '../snapping/snapEngine';
 
 export interface SelectionHistoryEntry {
+  label: string;
+  type: string;
   documentMutation: false;
   undo(): void | Promise<void>;
   redo(): void | Promise<void>;
@@ -325,7 +327,19 @@ export const createSelectionSessionController = (
   ) => {
     const previous = cloneSelectionOperations(before);
     const next = cloneSelectionOperations(after);
+    const mode = next.at(-1)?.mode;
+    const label = next.length === 0 ? 'Deselect'
+      : mode === 'invert' ? 'Inverse'
+        : mode === 'feather' ? 'Feather Selection'
+          : mode === 'border' ? 'Border Selection'
+            : mode === 'smooth' ? 'Smooth Selection'
+              : mode === 'expand' ? 'Expand Selection'
+                : mode === 'contract' ? 'Contract Selection'
+                  : mode === 'transform' ? 'Transform Selection'
+                    : 'Make Selection';
     resolveDependencies().pushHistoryEntry({
+      label,
+      type: `selection.${mode ?? 'deselect'}`,
       documentMutation: false,
       undo: () => replaceSnapshot(previous, document.id),
       redo: () => replaceSnapshot(next, document.id)

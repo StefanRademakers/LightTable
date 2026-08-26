@@ -10,6 +10,7 @@
     { "id": "apply-auto-align", "classification": "command", "command": "layer.autoAlign" },
     { "id": "assign-profile-srgb", "classification": "command", "command": "document.assignProfile" },
     { "id": "auto-align", "classification": "presentation", "reason": "Starts transient GPU analysis and compositor preview; Apply commits layer.autoAlign." },
+    { "id": "border-selection", "classification": "command", "command": "selection.modify" },
     { "id": "cancel-auto-align", "classification": "presentation", "reason": "Cancels transient analysis/preview without mutating document state." },
     { "id": "canvas-size", "classification": "command", "command": "document.applyGeometry" },
     { "id": "clear-guides", "classification": "presentation", "reason": "Changes document-view guides, not image content." },
@@ -20,6 +21,7 @@
     { "id": "close-project", "classification": "host", "reason": "Changes host project lifecycle state." },
     { "id": "command-help", "classification": "presentation", "reason": "Opens command documentation." },
     { "id": "convert-text-to-shape", "classification": "command", "command": "text.convertToShape" },
+    { "id": "contract-selection", "classification": "command", "command": "selection.modify" },
     { "id": "copy-grade", "classification": "command", "command": "grade.copy" },
     { "id": "copy-merged-content", "classification": "command", "command": "selection.copyPixels" },
     { "id": "copy-selected-content", "classification": "command", "command": "selection.copyPixels" },
@@ -38,6 +40,7 @@
     { "id": "export-svg", "classification": "host", "reason": "Runs a local download flow; Actions and MCP use file.exportSvg with the same exact serializer." },
     { "id": "export-tiff", "classification": "host", "reason": "Runs the local save/download flow; Actions and MCP use file.exportBitmap with the same codec owner." },
     { "id": "export-webp", "classification": "host", "reason": "Runs the local save/download flow; Actions and MCP use file.exportBitmap with the same codec owner." },
+    { "id": "expand-selection", "classification": "command", "command": "selection.modify" },
     { "id": "extras", "classification": "presentation", "reason": "Toggles canvas overlays." },
     { "id": "feather-selection", "classification": "command", "command": "selection.modify" },
     { "id": "fit", "classification": "command", "command": "view.setZoom" },
@@ -74,6 +77,7 @@
     { "id": "remove-background", "classification": "command", "command": "layer.removeBackground" },
     { "id": "remove-mask", "classification": "command", "command": "layer.setMask" },
     { "id": "remove-object", "classification": "gap", "reason": "No semantic object-removal command exists." },
+    { "id": "reload-ui", "classification": "host", "reason": "Reloads the development renderer host without mutating a document." },
     { "id": "rename-layer", "classification": "command", "command": "layer.rename" },
     { "id": "reset-workspace-layout", "classification": "presentation", "reason": "Resets local panel layout." },
     { "id": "rulers", "classification": "presentation", "reason": "Toggles canvas rulers." },
@@ -89,6 +93,7 @@
     { "id": "show-grid", "classification": "presentation", "reason": "Toggles the canvas grid." },
     { "id": "show-guides", "classification": "presentation", "reason": "Toggles canvas guides." },
     { "id": "show-smart-guides", "classification": "presentation", "reason": "Toggles smart guides." },
+    { "id": "smooth-selection", "classification": "command", "command": "selection.modify" },
     { "id": "snap", "classification": "presentation", "reason": "Changes local snapping behavior." },
     { "id": "snap-all", "classification": "presentation", "reason": "Changes local snapping behavior." },
     { "id": "snap-document", "classification": "presentation", "reason": "Changes local snapping behavior." },
@@ -98,6 +103,7 @@
     { "id": "snap-none", "classification": "presentation", "reason": "Changes local snapping behavior." },
     { "id": "third-party-licenses", "classification": "presentation", "reason": "Opens legal information." },
     { "id": "toggle-lock", "classification": "command", "command": "layer.setLock" },
+    { "id": "toggle-developer-tools", "classification": "host", "reason": "Toggles the desktop host developer tools in development builds." },
     { "id": "toggle-mask", "classification": "command", "command": "layer.setMask" },
     { "id": "toggle-screen-mode", "classification": "presentation", "reason": "Changes application window presentation." },
     { "id": "toggle-visibility", "classification": "command", "command": "layer.setVisibility" },
@@ -109,14 +115,19 @@
     { "id": "ui-style-guide", "classification": "presentation", "reason": "Opens the developer UI style guide." },
     { "id": "workspace-ai-generation", "classification": "presentation", "reason": "Applies a local workspace layout preset." },
     { "id": "workspace-grading", "classification": "presentation", "reason": "Applies a local workspace layout preset." },
-    { "id": "workspace-photo-edit", "classification": "presentation", "reason": "Applies a local workspace layout preset." }
+    { "id": "workspace-photo-edit", "classification": "presentation", "reason": "Applies a local workspace layout preset." },
+    { "id": "workspace-video", "classification": "presentation", "reason": "Applies a local workspace layout preset." }
   ],
   "dynamicActions": [
     { "expression": "`filter-${definition.kind}`", "classification": "command", "command": "adjustment.create" },
     { "expression": "`filter-attach-${definition.kind}`", "classification": "command", "command": "adjustment.create" },
+    { "expression": "`layer-add-adjustment-${definition.id}`", "classification": "command", "command": "adjustment.create" },
+    { "expression": "`layer-attach-adjustment-${definition.id}`", "classification": "command", "command": "adjustment.create" },
+    { "expression": "`layer-add-effect-${kind}`", "classification": "command", "command": "adjustment.create" },
     { "expression": "`open-recent-${file.id}`", "classification": "host", "reason": "Opens a host-maintained local recent-file entry." },
     { "expression": "`open-recent-project-${project.recentId}`", "classification": "host", "reason": "Opens a host-maintained recent-project entry." },
     { "expression": "`image-adjustments-${definition.id}`", "classification": "command", "command": "adjustment.create" },
-    { "expression": "`blend-${mode.id}`", "classification": "command", "command": "layer.setBlendMode" }
+    { "expression": "`blend-${mode.id}`", "classification": "command", "command": "layer.setBlendMode" },
+    { "expression": "`workspace-panel-${panel.id}`", "classification": "presentation", "reason": "Shows or hides a registered workspace panel." }
   ]
 }

@@ -161,7 +161,7 @@ describe('LayerRuntimeStore', () => {
     };
     store.sync(document.layers);
 
-    expect(store.estimatedTextureBytes(10, 5)).toBe(10 * 5 * (8 + 1));
+    expect(store.estimatedTextureBytes(10, 5)).toBe(10 * 5 * (8 + 2));
   });
 
   it('allocates and estimates raster surfaces at layer-local dimensions', () => {

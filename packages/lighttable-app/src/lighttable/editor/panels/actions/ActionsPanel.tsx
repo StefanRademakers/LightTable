@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   LIGHTTABLE_COMMAND_DEFINITIONS,
   type LightTableCommandDefinition
@@ -7,20 +7,17 @@ import type { ActionRecordingSnapshot } from '../../../application/actions/seman
 import type { ActionRecordingEditResult } from '../../../application/actions/semanticActionRecorder';
 import type { ActionPlaybackSnapshot } from '../../../application/actions/semanticActionPlayback';
 import type { SemanticActionLibrarySnapshot } from '../../../application/actions/semanticActionLibrary';
-import { SegmentedControl } from '../../../../ui/SegmentedControl';
 import { ActionRecorderView } from './ActionRecorderView';
-import { CommandCatalogView, type CommandCatalogViewProps } from './CommandCatalogView';
 import './actionsPanel.css';
 
-export interface ActionsPanelProps extends Omit<CommandCatalogViewProps, 'definitions'> {
+export interface ActionsPanelProps {
   readonly recording: ActionRecordingSnapshot;
   readonly playback: ActionPlaybackSnapshot;
   readonly library: SemanticActionLibrarySnapshot;
-  readonly onStartRecording: () => void;
+  readonly onStartRecording: (name?: string, insertAfterSequence?: number) => void;
   readonly onStopRecording: () => void;
   readonly onClearRecording: () => void;
   readonly onPlay: () => void;
-  readonly onPlayAtomic?: () => void;
   readonly onPlayStep: (sequence: number) => void;
   readonly onPlayFromStep: (sequence: number) => void;
   readonly onStopPlayback: () => void;
@@ -28,9 +25,14 @@ export interface ActionsPanelProps extends Omit<CommandCatalogViewProps, 'defini
   readonly onRenameActionSet: (id: string, name: string) => void;
   readonly onSelectActionSet: (id: string) => void;
   readonly onDeleteActionSet: (id: string) => void;
-  readonly onSaveAction: (name: string) => void;
+  readonly onMoveActionSet?: (id: string, direction: -1 | 1) => void;
   readonly onLoadAction: (id: string) => void;
   readonly onDeleteAction: (id: string) => void;
+  readonly onRenameAction?: (id: string, name: string) => void;
+  readonly onDuplicateAction?: (id: string) => void;
+  readonly onMoveAction?: (id: string, direction: -1 | 1) => void;
+  readonly onSetActionEnabled?: (id: string, enabled: boolean) => void;
+  readonly onSetActionSetEnabled?: (id: string, enabled: boolean) => void;
   readonly onCreateVariable?: (sequence: number, parameterPath: string, name: string) => ActionRecordingEditResult;
   readonly onUpdateVariable?: (name: string, defaultValue: unknown) => ActionRecordingEditResult;
   readonly onDeleteVariable?: (name: string) => ActionRecordingEditResult;
@@ -41,12 +43,17 @@ export interface ActionsPanelProps extends Omit<CommandCatalogViewProps, 'defini
   readonly onReplaceStepParameters?: (sequence: number,
     parameters: Readonly<Record<string, unknown>>) => ActionRecordingEditResult;
   readonly onUpdateStepRationale?: (sequence: number, rationale: string) => ActionRecordingEditResult;
+  readonly onSetStepEnabled?: (sequence: number, enabled: boolean) => ActionRecordingEditResult;
+  readonly onSetStepInteractive?: (sequence: number, interactive: boolean) => ActionRecordingEditResult;
+  readonly onDeleteStep?: (sequence: number) => ActionRecordingEditResult;
+  readonly onDuplicateStep?: (sequence: number) => ActionRecordingEditResult;
+  readonly onMoveStep?: (sequence: number, direction: -1 | 1) => ActionRecordingEditResult;
+  readonly onContinueInteractivePlayback?: (parameters: Readonly<Record<string, unknown>>) => void;
+  readonly onCancelInteractivePlayback?: () => void;
   readonly definitions?: readonly LightTableCommandDefinition[];
 }
 
 export const ActionsPanel: React.FC<ActionsPanelProps> = ({
-  capabilities,
-  onExecute,
   recording,
   playback,
   library,
@@ -54,7 +61,6 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onStopRecording,
   onClearRecording,
   onPlay,
-  onPlayAtomic = () => undefined,
   onPlayStep,
   onPlayFromStep,
   onStopPlayback,
@@ -62,9 +68,14 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onRenameActionSet,
   onSelectActionSet,
   onDeleteActionSet,
-  onSaveAction,
+  onMoveActionSet = () => undefined,
   onLoadAction,
   onDeleteAction,
+  onRenameAction = () => undefined,
+  onDuplicateAction = () => undefined,
+  onMoveAction = () => undefined,
+  onSetActionEnabled = () => undefined,
+  onSetActionSetEnabled = () => undefined,
   onCreateVariable = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onUpdateVariable = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onDeleteVariable = () => ({ ok: false, error: 'Action editing is unavailable.' }),
@@ -73,33 +84,35 @@ export const ActionsPanel: React.FC<ActionsPanelProps> = ({
   onRestoreLiteral = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onReplaceStepParameters = () => ({ ok: false, error: 'Action editing is unavailable.' }),
   onUpdateStepRationale = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onSetStepEnabled = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onSetStepInteractive = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onDeleteStep = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onDuplicateStep = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onMoveStep = () => ({ ok: false, error: 'Action editing is unavailable.' }),
+  onContinueInteractivePlayback = () => undefined,
+  onCancelInteractivePlayback = () => undefined,
   definitions = LIGHTTABLE_COMMAND_DEFINITIONS
 }) => {
-  const [tab, setTab] = useState<'actions' | 'commands'>('actions');
   return <aside className="lighttable-panel lighttable-actions-panel" aria-label="Actions">
-    <header className="lighttable-actions-panel__header">
-      <strong>Actions</strong>
-      <SegmentedControl className="lighttable-actions-panel__tabs" ariaLabel="Actions panel views"
-        value={tab} onChange={setTab} options={[
-          { value: 'actions', label: 'Actions' },
-          { value: 'commands', label: 'Commands' }
-        ]} />
-    </header>
-    {tab === 'actions'
-      ? <ActionRecorderView recording={recording} playback={playback} library={library}
+    <ActionRecorderView recording={recording} playback={playback} library={library}
           definitions={definitions}
           onStart={onStartRecording} onStop={onStopRecording} onClear={onClearRecording}
-          onPlay={onPlay} onPlayAtomic={onPlayAtomic}
+          onPlay={onPlay}
           onPlayStep={onPlayStep} onPlayFromStep={onPlayFromStep}
           onStopPlayback={onStopPlayback}
           onCreateSet={onCreateActionSet} onRenameSet={onRenameActionSet}
-          onSelectSet={onSelectActionSet} onDeleteSet={onDeleteActionSet}
-          onSave={onSaveAction} onLoad={onLoadAction} onDelete={onDeleteAction}
+          onSelectSet={onSelectActionSet} onDeleteSet={onDeleteActionSet} onMoveSet={onMoveActionSet}
+          onLoad={onLoadAction} onDelete={onDeleteAction}
+          onRename={onRenameAction} onDuplicate={onDuplicateAction} onMove={onMoveAction}
+          onSetActionEnabled={onSetActionEnabled} onSetActionSetEnabled={onSetActionSetEnabled}
           onCreateVariable={onCreateVariable} onUpdateVariable={onUpdateVariable}
           onDeleteVariable={onDeleteVariable} onBindVariable={onBindVariable}
           onBindResult={onBindResult} onRestoreLiteral={onRestoreLiteral}
           onReplaceStepParameters={onReplaceStepParameters}
-          onUpdateStepRationale={onUpdateStepRationale} />
-      : <CommandCatalogView capabilities={capabilities} onExecute={onExecute} definitions={definitions} />}
+          onUpdateStepRationale={onUpdateStepRationale}
+          onSetStepEnabled={onSetStepEnabled} onSetStepInteractive={onSetStepInteractive}
+          onDeleteStep={onDeleteStep} onDuplicateStep={onDuplicateStep} onMoveStep={onMoveStep}
+          onContinueInteractivePlayback={onContinueInteractivePlayback}
+          onCancelInteractivePlayback={onCancelInteractivePlayback} />
   </aside>;
 };

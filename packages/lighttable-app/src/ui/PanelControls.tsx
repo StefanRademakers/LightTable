@@ -94,12 +94,15 @@ export const PanelFileField: React.FC<{
 export const PanelCheckboxField: React.FC<{
   label: string;
   checked: boolean;
+  disabled?: boolean;
+  compact?: boolean;
   onChange: (checked: boolean) => void;
-}> = ({ label, checked, onChange }) => (
-  <label className="lighttable-style-toggle" data-suite-control="panel-checkbox">
-    <input type="checkbox" checked={checked}
+}> = ({ label, checked, disabled = false, compact = false, onChange }) => (
+  <label className={`lighttable-style-toggle${compact ? ' lighttable-style-toggle--compact' : ''}`}
+    data-suite-control="panel-checkbox">
+    <input type="checkbox" checked={checked} disabled={disabled}
       onChange={(event) => onChange(event.currentTarget.checked)} />
-    <span>{label}</span>
+    <span className={compact ? 'lighttable-visually-hidden' : undefined}>{label}</span>
   </label>
 );
 

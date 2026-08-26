@@ -35,6 +35,8 @@ export interface RecordedActionStep {
   readonly replayable: boolean;
   readonly note: string | null;
   readonly rationale: string | null;
+  readonly enabled?: boolean;
+  readonly interactive?: boolean;
 }
 
 export interface ActionRecordingSnapshot {
@@ -113,6 +115,7 @@ export class SemanticActionRecorder {
   private snapshotValue = initialSnapshot();
   private readonly listeners = new Set<() => void>();
   private readonly completedTasks = new Map<string, unknown>();
+  private insertAfterSequence: number | null = null;
 
   snapshot = (): ActionRecordingSnapshot => this.snapshotValue;
   subscribe = (listener: () => void): (() => void) => {
@@ -120,11 +123,19 @@ export class SemanticActionRecorder {
     return () => this.listeners.delete(listener);
   };
 
-  start(name = 'Untitled Action'): ActionRecordingSnapshot {
+  start(name = 'Untitled Action', insertAfterSequence?: number): ActionRecordingSnapshot {
     this.completedTasks.clear();
     const startedAt = Date.now();
-    this.publish({ status: 'recording', id: `action-${startedAt}`, name: name.trim() || 'Untitled Action',
-      startedAt, stoppedAt: null, steps: [], variables: [], byteLength: 0, limitReached: false });
+    if (this.snapshotValue.status === 'stopped' && this.snapshotValue.id) {
+      this.insertAfterSequence = insertAfterSequence === undefined
+        ? this.snapshotValue.steps.length
+        : Math.max(0, Math.min(insertAfterSequence, this.snapshotValue.steps.length));
+      this.publish({ ...this.snapshotValue, status: 'recording', stoppedAt: null, limitReached: false });
+    } else {
+      this.insertAfterSequence = 0;
+      this.publish({ status: 'recording', id: `action-${startedAt}`, name: name.trim() || 'Untitled Action',
+        startedAt, stoppedAt: null, steps: [], variables: [], byteLength: 0, limitReached: false });
+    }
     return this.snapshotValue;
   }
 
@@ -137,11 +148,13 @@ export class SemanticActionRecorder {
 
   clear(): ActionRecordingSnapshot {
     this.completedTasks.clear();
+    this.insertAfterSequence = null;
     this.publish(initialSnapshot());
     return this.snapshotValue;
   }
 
   restore(snapshot: ActionRecordingSnapshot): ActionRecordingSnapshot {
+    this.insertAfterSequence = null;
     this.publish(structuredClone(snapshot));
     return this.snapshotValue;
   }
@@ -249,6 +262,80 @@ export class SemanticActionRecorder {
         ? { ...candidate, rationale: normalized || null } : candidate) });
   }
 
+  setStepEnabled(sequence: number, enabled: boolean): ActionRecordingEditResult {
+    return this.updateStep(sequence, (step) => ({ ...step, enabled }));
+  }
+
+  setStepInteractive(sequence: number, interactive: boolean): ActionRecordingEditResult {
+    return this.updateStep(sequence, (step) => ({ ...step, interactive }));
+  }
+
+  deleteStep(sequence: number): ActionRecordingEditResult {
+    const referenced = this.snapshotValue.steps.some((step) => step.sequence !== sequence
+      && this.referencesStep(step.parameters, sequence));
+    if (referenced) return { ok: false, error: `Step ${sequence} is used by a later result binding.` };
+    const remaining = this.snapshotValue.steps.filter((step) => step.sequence !== sequence);
+    if (remaining.length === this.snapshotValue.steps.length) {
+      return { ok: false, error: `Step ${sequence} does not exist.` };
+    }
+    return this.applySnapshot({ ...this.snapshotValue, steps: this.resequence(remaining) });
+  }
+
+  duplicateStep(sequence: number): ActionRecordingEditResult {
+    const index = this.snapshotValue.steps.findIndex((step) => step.sequence === sequence);
+    if (index < 0) return { ok: false, error: `Step ${sequence} does not exist.` };
+    const source = this.snapshotValue.steps[index]!;
+    const duplicate = structuredClone({ ...source,
+      sequence: this.snapshotValue.steps.length + 1,
+      requestId: `${source.requestId}-copy-${Date.now()}` });
+    const steps = [...this.snapshotValue.steps];
+    steps.splice(index + 1, 0, duplicate);
+    return this.applySnapshot({ ...this.snapshotValue, steps: this.resequence(steps) });
+  }
+
+  moveStep(sequence: number, direction: -1 | 1): ActionRecordingEditResult {
+    const index = this.snapshotValue.steps.findIndex((step) => step.sequence === sequence);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= this.snapshotValue.steps.length) {
+      return { ok: false, error: 'The step cannot move farther in that direction.' };
+    }
+    const steps = [...this.snapshotValue.steps];
+    [steps[index], steps[target]] = [steps[target]!, steps[index]!];
+    return this.applySnapshot({ ...this.snapshotValue, steps: this.resequence(steps) });
+  }
+
+  private updateStep(sequence: number,
+    update: (step: RecordedActionStep) => RecordedActionStep): ActionRecordingEditResult {
+    if (!this.snapshotValue.steps.some((step) => step.sequence === sequence)) {
+      return { ok: false, error: `Step ${sequence} does not exist.` };
+    }
+    return this.applySnapshot({ ...this.snapshotValue,
+      steps: this.snapshotValue.steps.map((step) => step.sequence === sequence ? update(step) : step) });
+  }
+
+  private referencesStep(value: unknown, sequence: number): boolean {
+    if (isActionResultReference(value)) return value.$lighttableResult.step === sequence;
+    if (Array.isArray(value)) return value.some((child) => this.referencesStep(child, sequence));
+    return typeof value === 'object' && value !== null
+      ? Object.values(value).some((child) => this.referencesStep(child, sequence)) : false;
+  }
+
+  private resequence(steps: readonly RecordedActionStep[]): RecordedActionStep[] {
+    const sequenceMap = new Map<number, number>();
+    steps.forEach((step, index) => sequenceMap.set(step.sequence, index + 1));
+    const remap = (value: unknown): unknown => {
+      if (isActionResultReference(value)) {
+        return { $lighttableResult: { ...value.$lighttableResult,
+          step: sequenceMap.get(value.$lighttableResult.step) ?? value.$lighttableResult.step } };
+      }
+      if (Array.isArray(value)) return value.map(remap);
+      if (typeof value !== 'object' || value === null) return value;
+      return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, remap(child)]));
+    };
+    return steps.map((step, index) => ({ ...step, sequence: index + 1,
+      parameters: remap(step.parameters) }));
+  }
+
   private applyEdit(variables: readonly ActionVariableDefinition[], sequence: number,
     parameterPath: string, replacement: unknown): ActionRecordingEditResult {
     const step = this.snapshotValue.steps.find((candidate) => candidate.sequence === sequence);
@@ -313,8 +400,11 @@ export class SemanticActionRecorder {
     if (!recordingId || this.snapshotValue.id !== recordingId
       || this.snapshotValue.status === 'idle' || this.snapshotValue.limitReached) return;
     const rawParameters = cloneBounded(request.parameters);
+    const priorSteps = this.insertAfterSequence === null
+      ? this.snapshotValue.steps
+      : this.snapshotValue.steps.slice(0, this.insertAfterSequence);
     const parameters = rawParameters.complete
-      ? cloneBounded(bindRecordedParameters(rawParameters.value, this.snapshotValue.steps))
+      ? cloneBounded(bindRecordedParameters(rawParameters.value, priorSteps))
       : rawParameters;
     const completedTask = result.status === 'accepted'
       ? this.completedTasks.get(result.taskId) : undefined;
@@ -351,9 +441,15 @@ export class SemanticActionRecorder {
       durationMs: Math.max(0, Date.now() - startedAt),
       replayable,
       note,
-      rationale: null
+      rationale: null,
+      enabled: true,
+      interactive: false
     };
-    this.publish({ ...this.snapshotValue, steps: [...this.snapshotValue.steps, step], byteLength: nextBytes });
+    const steps = [...this.snapshotValue.steps];
+    const insertionIndex = Math.max(0, Math.min(this.insertAfterSequence ?? steps.length, steps.length));
+    steps.splice(insertionIndex, 0, step);
+    this.insertAfterSequence = insertionIndex + 1;
+    this.publish({ ...this.snapshotValue, steps: this.resequence(steps), byteLength: nextBytes });
   }
 
   private publish(snapshot: ActionRecordingSnapshot): void {

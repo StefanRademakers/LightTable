@@ -32,7 +32,7 @@ describe('semantic selection command contract', () => {
         .toEqual({ kind: 'modify', operation });
     }
     expect(parseSemanticSelectionCommand({ kind: 'modify', operation: 'feather', radius: 12 }))
-      .toEqual({ kind: 'modify', operation: 'feather', radius: 12 });
+      .toEqual({ kind: 'modify', operation: 'feather', radius: 12, applyAtCanvasBounds: false });
     expect(parseSemanticSelectionCommand({ kind: 'modify', operation: 'feather', radius: 251 }))
       .toHaveProperty('message');
     expect(parseSemanticSelectionCommand({ kind: 'modify', operation: 'grow' }))

@@ -22,6 +22,8 @@ type AgentActivityPanelComponent =
   typeof import('../../editor/panels/AgentActivityPanel')['AgentActivityPanel'];
 type ActionsPanelComponent =
   typeof import('../../editor/panels/actions/ActionsPanel')['ActionsPanel'];
+type HistoryPanelComponent =
+  typeof import('../../editor/panels/history/HistoryPanel')['HistoryPanel'];
 type GenAiPanelComponent = typeof import('../../../genai/ui/GenAiPanel')['GenAiPanel'];
 type LensFxPanelComponent = typeof import('../../editor/panels/LensFxPanel')['LensFxPanel'];
 type TextPropertiesPanelComponent =
@@ -43,6 +45,9 @@ const AgentActivityPanel = React.lazy(async () => ({
 }));
 const ActionsPanel = React.lazy(async () => ({
   default: (await import('../../editor/panels/actions/ActionsPanel')).ActionsPanel
+}));
+const HistoryPanel = React.lazy(async () => ({
+  default: (await import('../../editor/panels/history/HistoryPanel')).HistoryPanel
 }));
 const GenAiPanel = React.lazy(async () => ({
   default: (await import('../../../genai/ui/GenAiPanel')).GenAiPanel
@@ -102,6 +107,7 @@ export interface EditorWorkspacePanelBindings {
   p0Filter: React.ComponentProps<P0FilterPropertiesPanelComponent> | null;
   agent: React.ComponentProps<AgentActivityPanelComponent>;
   actions: React.ComponentProps<ActionsPanelComponent>;
+  history: React.ComponentProps<HistoryPanelComponent>;
   genAi: React.ComponentProps<GenAiPanelComponent>;
   aiHistory: React.ComponentProps<typeof ProjectAssetBrowser>;
   color: {
@@ -132,6 +138,7 @@ export const createEditorWorkspacePanels = ({
   p0Filter,
   agent,
   actions,
+  history,
   genAi,
   aiHistory,
   color
@@ -182,6 +189,7 @@ export const createEditorWorkspacePanels = ({
     ) : <DocumentKindPanel title="Properties" kind={documentKind} detail="Playback is read-only. Use the controls on the document surface." />,
     agent: deferPanel(<AgentActivityPanel {...agent} />),
     actions: deferPanel(<ActionsPanel {...actions} />),
+    history: deferPanel(<HistoryPanel {...history} />),
     genAi: deferPanel(<GenAiPanel {...genAi} />),
     aiHistory: <ProjectAssetBrowser {...aiHistory} />,
     color: <aside className="lighttable-color-panel" aria-label="Color">

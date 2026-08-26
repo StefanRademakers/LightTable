@@ -2048,7 +2048,7 @@ describe('LightTableCommandService registry', () => {
     for (const [command, parameters] of invalid) {
       expect(await state.service.execute(request(command, state.session.id, parameters)))
         .toMatchObject({ status: 'rejected', code: 'invalid-parameters',
-          message: expect.stringContaining('schema v1') });
+          message: expect.stringContaining('command schema') });
     }
     expect(state.ports.renameLayer).not.toHaveBeenCalled();
     expect(state.ports.setLayerVisibility).not.toHaveBeenCalled();
@@ -2593,7 +2593,7 @@ describe('LightTableCommandService registry', () => {
     for (const [command, parameters] of invalid) {
       await expect(state.service.execute(request(command, state.session.id, parameters)))
         .resolves.toMatchObject({ status: 'rejected', code: 'invalid-parameters',
-          message: expect.stringContaining('schema v1') });
+          message: expect.stringContaining('command schema') });
     }
     expect(state.ports.setZoom).not.toHaveBeenCalled();
     expect(state.ports.undo).not.toHaveBeenCalled();

@@ -93,6 +93,8 @@ export const selectionOperationsSupportBounds = (
   const core = selectionOperationsBounds(operations, fallback);
   const support = operations.reduce((sum, operation) => {
     const amount = Math.max(0, operation.amount ?? 0);
+    if (operation.mode === 'replace' || operation.mode === 'add'
+      || operation.mode === 'subtract' || operation.mode === 'intersect') return sum + amount * 2;
     if (operation.mode === 'feather') return sum + amount * 2;
     if (operation.mode === 'expand' || operation.mode === 'smooth') return sum + amount;
     if (operation.mode === 'border') return sum + Math.ceil(amount / 2) + 2;

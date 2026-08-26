@@ -282,7 +282,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
         onChange={(event) => { const draft = event.currentTarget.value; setRgb((current) => current.map((item, i) => i === channel ? draft : item)); const number = Number(draft); if (!Number.isInteger(number) || number < 0 || number > 255) return; const channels = [value.r, value.g, value.b]; channels[channel] = number / 255; onChange({ r: channels[0], g: channels[1], b: channels[2], a: value.a }); }} /><span>{label}</span></label>)}
     </div>
     {loadDocumentPalette ? <section className="lighttable-color-picker-prototype__palette"
-      aria-label="Image palette">
+      aria-label="Image Palette">
       <SegmentedControl<PaletteView>
         className="lighttable-color-picker-prototype__palette-tabs"
         ariaLabel="Color collection"

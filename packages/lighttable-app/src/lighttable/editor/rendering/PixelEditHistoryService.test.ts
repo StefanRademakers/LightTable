@@ -100,7 +100,7 @@ describe('PixelEditHistoryService', () => {
     test.service.captureAll(id, 'mask');
     const history = test.service.finish()!;
 
-    expect(history.byteSize).toBe(20 * 10);
+    expect(history.byteSize).toBe(20 * 10 * 2);
     expect(test.created).toHaveLength(0);
     expect(test.createdMasks).toHaveLength(1);
     expect(history.undo()).toBe(true);

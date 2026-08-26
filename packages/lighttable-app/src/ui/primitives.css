@@ -2567,6 +2567,27 @@ button.paint-field__arrow:hover:not(:disabled) { background: var(--lt-accent-sel
   color: var(--lt-text-secondary);
   font-size: var(--lt-type-small);
 }
+.lighttable-style-toggle--compact {
+  width: 14px;
+  height: 18px;
+  justify-content: center;
+  gap: 0;
+}
+.lighttable-style-toggle--compact input[type='checkbox'] {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+}
+.lighttable-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .lighttable-style-field {
   width: 100%;
   display: grid;

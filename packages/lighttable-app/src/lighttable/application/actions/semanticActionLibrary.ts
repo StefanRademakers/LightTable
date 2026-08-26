@@ -64,10 +64,8 @@ const boundedString = (value: unknown, maximum: number): value is string => (
   typeof value === 'string' && value.length > 0 && value.length <= maximum
 );
 const jsonBytes = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).byteLength;
-const orderedSets = (sets: readonly SavedSemanticActionSet[]): SavedSemanticActionSet[] => [...sets]
-  .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id));
-const orderedActions = (actions: readonly SavedSemanticAction[]): SavedSemanticAction[] => [...actions]
-  .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id));
+const orderedSets = (sets: readonly SavedSemanticActionSet[]): SavedSemanticActionSet[] => [...sets];
+const orderedActions = (actions: readonly SavedSemanticAction[]): SavedSemanticAction[] => [...actions];
 const defaultSet = (): SavedSemanticActionSet => ({
   id: LIGHTTABLE_DEFAULT_ACTION_SET_ID,
   name: 'Default Set',
@@ -79,7 +77,8 @@ type StoredActionStep = Omit<RecordedActionStep, 'contract'> & { readonly contra
 
 const STEP_KEYS = new Set([
   'sequence', 'requestId', 'origin', 'command', 'contract', 'documentId', 'parameters',
-  'outcome', 'result', 'startedAt', 'durationMs', 'replayable', 'note', 'rationale'
+  'outcome', 'result', 'startedAt', 'durationMs', 'replayable', 'note', 'rationale',
+  'enabled', 'interactive'
 ]);
 
 const parseStep = (value: unknown, sequence: number,
@@ -95,7 +94,9 @@ const parseStep = (value: unknown, sequence: number,
     || (value.note !== null && (typeof value.note !== 'string' || value.note.length > 2_048))
     || (value.rationale === undefined ? !allowMissingRationale
       : value.rationale !== null && (typeof value.rationale !== 'string'
-        || value.rationale.trim() !== value.rationale || value.rationale.length > 280))) return null;
+        || value.rationale.trim() !== value.rationale || value.rationale.length > 280))
+    || (value.enabled !== undefined && typeof value.enabled !== 'boolean')
+    || (value.interactive !== undefined && typeof value.interactive !== 'boolean')) return null;
   try {
     if (jsonBytes(value.parameters) > 256 * 1024 || jsonBytes(value.result) > 256 * 1024) return null;
   } catch { return null; }
@@ -253,6 +254,16 @@ export class SemanticActionLibrary {
     return this.persist({ sets, selectedSetId, actions, selectedId, error: null });
   }
 
+  async moveSet(id: string, direction: -1 | 1): Promise<boolean> {
+    await this.readyValue;
+    const index = this.snapshotValue.sets.findIndex((set) => set.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= this.snapshotValue.sets.length) return false;
+    const sets = [...this.snapshotValue.sets];
+    [sets[index], sets[target]] = [sets[target]!, sets[index]!];
+    return this.persist({ ...this.snapshotValue, sets, error: null });
+  }
+
   async save(recording: ActionRecordingSnapshot, name: string): Promise<SavedSemanticAction | null> {
     await this.readyValue;
     const normalizedName = name.trim();
@@ -271,9 +282,10 @@ export class SemanticActionLibrary {
     false, false, false, undefined, this.contractEnvironment);
     if ('error' in parsed) return null;
     const action = parsed.action;
-    const actions = orderedActions([
-      ...this.snapshotValue.actions.filter((candidate) => candidate.id !== id), action
-    ]);
+    const existingIndex = this.snapshotValue.actions.findIndex((candidate) => candidate.id === id);
+    const actions = [...this.snapshotValue.actions];
+    if (existingIndex >= 0) actions[existingIndex] = action;
+    else actions.push(action);
     if (actions.length > MAX_ACTIONS) return null;
     return await this.persist({ ...this.snapshotValue, actions, selectedId: id, error: null }) ? action : null;
   }
@@ -295,6 +307,72 @@ export class SemanticActionLibrary {
         ? actions.find((action) => action.setId === this.snapshotValue.selectedSetId)?.id ?? null
         : this.snapshotValue.selectedId,
       error: null });
+  }
+
+  async rename(id: string, name: string): Promise<SavedSemanticAction | null> {
+    await this.readyValue;
+    const normalizedName = name.trim();
+    const existing = this.snapshotValue.actions.find((action) => action.id === id);
+    if (!existing || !normalizedName || normalizedName.length > 255) return null;
+    const renamed: SavedSemanticAction = { ...existing, name: normalizedName, updatedAt: Date.now(),
+      recording: { ...existing.recording, name: normalizedName } };
+    const actions = this.snapshotValue.actions.map((action) => action.id === id ? renamed : action);
+    return await this.persist({ ...this.snapshotValue, actions, error: null }) ? renamed : null;
+  }
+
+  async duplicate(id: string): Promise<SavedSemanticAction | null> {
+    await this.readyValue;
+    const existing = this.snapshotValue.actions.find((action) => action.id === id);
+    if (!existing || this.snapshotValue.actions.length >= MAX_ACTIONS) return null;
+    const now = Date.now();
+    const duplicateId = nextId('action', new Set(this.snapshotValue.actions.map((action) => action.id)));
+    const duplicate: SavedSemanticAction = { ...structuredClone(existing), id: duplicateId,
+      name: `${existing.name} copy`, createdAt: now, updatedAt: now,
+      recording: { ...structuredClone(existing.recording), id: duplicateId, name: `${existing.name} copy` } };
+    const index = this.snapshotValue.actions.findIndex((action) => action.id === id);
+    const actions = [...this.snapshotValue.actions];
+    actions.splice(index + 1, 0, duplicate);
+    return await this.persist({ ...this.snapshotValue, actions, selectedSetId: duplicate.setId,
+      selectedId: duplicate.id, error: null }) ? duplicate : null;
+  }
+
+  async move(id: string, direction: -1 | 1): Promise<boolean> {
+    await this.readyValue;
+    const action = this.snapshotValue.actions.find((candidate) => candidate.id === id);
+    if (!action) return false;
+    const setIndexes = this.snapshotValue.actions.map((candidate, index) => ({ candidate, index }))
+      .filter(({ candidate }) => candidate.setId === action.setId).map(({ index }) => index);
+    const localIndex = setIndexes.indexOf(this.snapshotValue.actions.indexOf(action));
+    const target = localIndex + direction;
+    if (localIndex < 0 || target < 0 || target >= setIndexes.length) return false;
+    const actions = [...this.snapshotValue.actions];
+    const targetIndex = setIndexes[target]!;
+    const sourceIndex = setIndexes[localIndex]!;
+    [actions[sourceIndex], actions[targetIndex]] = [actions[targetIndex]!, actions[sourceIndex]!];
+    return this.persist({ ...this.snapshotValue, actions, error: null });
+  }
+
+  async setEnabled(id: string, enabled: boolean): Promise<SavedSemanticAction | null> {
+    await this.readyValue;
+    const existing = this.snapshotValue.actions.find((action) => action.id === id);
+    if (!existing) return null;
+    const updated: SavedSemanticAction = { ...existing, updatedAt: Date.now(),
+      recording: { ...existing.recording,
+        steps: existing.recording.steps.map((step) => ({ ...step, enabled })) } };
+    const actions = this.snapshotValue.actions.map((action) => action.id === id ? updated : action);
+    return await this.persist({ ...this.snapshotValue, actions, error: null }) ? updated : null;
+  }
+
+  async setSetEnabled(setId: string, enabled: boolean): Promise<readonly SavedSemanticAction[] | null> {
+    await this.readyValue;
+    if (!this.snapshotValue.sets.some((set) => set.id === setId)) return null;
+    const now = Date.now();
+    const updated = this.snapshotValue.actions.map((action): SavedSemanticAction => action.setId === setId
+      ? { ...action, updatedAt: now, recording: { ...action.recording,
+          steps: action.recording.steps.map((step) => ({ ...step, enabled })) } }
+      : action);
+    return await this.persist({ ...this.snapshotValue, actions: updated, error: null })
+      ? updated.filter((action) => action.setId === setId) : null;
   }
 
   private restore(serialized: string | null): RestoredLibrary {

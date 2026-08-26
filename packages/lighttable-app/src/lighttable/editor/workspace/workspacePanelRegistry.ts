@@ -9,6 +9,7 @@ export const LIGHTTABLE_WORKSPACE_PANEL_IDS = {
   debug: 'lighttable.debug',
   agent: 'lighttable.agent-activity',
   actions: 'lighttable.actions',
+  history: 'lighttable.history',
   genAi: 'lighttable.genai',
   aiHistory: 'lighttable.ai-history',
   color: 'lighttable.color',
@@ -53,6 +54,7 @@ export interface DefaultLightTableWorkspacePanelContent {
   debug: ReactNode;
   agent: ReactNode;
   actions: ReactNode;
+  history: ReactNode;
   genAi: ReactNode;
   aiHistory: ReactNode;
   color?: ReactNode;
@@ -168,7 +170,20 @@ export const createDefaultLightTableWorkspacePanels = (
       referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
       direction: 'within'
     },
-    initiallyInactive: true
+    initiallyInactive: true,
+    requiredForSavedLayout: true
+  },
+  {
+    id: LIGHTTABLE_WORKSPACE_PANEL_IDS.history,
+    contentKey: 'history',
+    title: 'History',
+    content: content.history,
+    defaultPosition: {
+      referencePanelId: LIGHTTABLE_WORKSPACE_PANEL_IDS.properties,
+      direction: 'within'
+    },
+    initiallyInactive: true,
+    requiredForSavedLayout: true
   },
   {
     id: LIGHTTABLE_WORKSPACE_PANEL_IDS.debug,

@@ -58,6 +58,8 @@ export interface TransformEditorRendererPort extends TransformRendererPort {
 }
 
 export interface TransformHistoryEntry {
+  label: string;
+  type: string;
   byteSize: number;
   layerIds: readonly LayerId[];
   undo(): void;
@@ -194,6 +196,8 @@ export const useTransformSessionController = (
     } = result;
     current.applyDocumentAndSelection(afterDocument, afterSelection);
     current.pushHistoryEntry({
+      label: current.activeChannel === 'mask' ? 'Transform Layer Mask' : 'Free Transform',
+      type: current.activeChannel === 'mask' ? 'transform.mask' : 'transform.layer',
       byteSize: pixelEdit.byteSize,
       layerIds: [layerId],
       undo: () => {

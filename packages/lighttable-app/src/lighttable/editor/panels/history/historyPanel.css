@@ -1,0 +1,42 @@
+.lighttable-history-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lighttable-history-panel__states {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.lighttable-history-panel__state {
+  width: 100%;
+  min-height: 28px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--lt-border-subtle);
+  border-radius: 0;
+  background: transparent;
+  color: var(--lt-text-primary);
+  text-align: left;
+}
+
+.lighttable-history-panel__state:hover:not(:disabled) { background: var(--lt-hover-overlay); }
+.lighttable-history-panel__state.is-current { background: var(--lt-accent-selected); color: var(--lt-text-on-accent); }
+.lighttable-history-panel__state.is-future { color: var(--lt-text-disabled); }
+.lighttable-history-panel__state-marker { text-align: center; }
+
+.lighttable-history-panel__footer {
+  min-height: 32px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-top: 1px solid var(--lt-border);
+}

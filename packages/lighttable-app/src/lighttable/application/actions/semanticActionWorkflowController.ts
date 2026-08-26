@@ -41,9 +41,9 @@ export class SemanticActionWorkflowController {
 
   recordingSnapshot = (): ActionRecordingSnapshot => this.recorder.snapshot();
   subscribeRecording = (listener: () => void): (() => void) => this.recorder.subscribe(listener);
-  startRecording = (name?: string): ActionRecordingSnapshot => {
+  startRecording = (name?: string, insertAfterSequence?: number): ActionRecordingSnapshot => {
     this.playback.clear();
-    return this.recorder.start(name);
+    return this.recorder.start(name, insertAfterSequence);
   };
   stopRecording = (): ActionRecordingSnapshot => this.recorder.stop();
   clearRecording = (): ActionRecordingSnapshot => {
@@ -70,14 +70,64 @@ export class SemanticActionWorkflowController {
   updateRationale = (sequence: number, rationale: string) => (
     this.recorder.updateRationale(sequence, rationale)
   );
+  setStepEnabled = (sequence: number, enabled: boolean) => this.recorder.setStepEnabled(sequence, enabled);
+  setStepInteractive = (sequence: number, interactive: boolean) => (
+    this.recorder.setStepInteractive(sequence, interactive)
+  );
+  deleteStep = (sequence: number) => this.recorder.deleteStep(sequence);
+  duplicateStep = (sequence: number) => this.recorder.duplicateStep(sequence);
+  moveStep = (sequence: number, direction: -1 | 1) => this.recorder.moveStep(sequence, direction);
 
   librarySnapshot = (): SemanticActionLibrarySnapshot => this.library.snapshot();
   subscribeLibrary = (listener: () => void): (() => void) => this.library.subscribe(listener);
-  createSet = (name: string) => this.library.createSet(name);
+  async createSet(name: string) {
+    const created = await this.library.createSet(name);
+    if (created) this.recorder.clear();
+    return created;
+  }
   renameSet = (id: string, name: string) => this.library.renameSet(id, name);
-  selectSet = (id: string) => this.library.selectSet(id);
-  deleteSet = (id: string): Promise<boolean> => this.library.deleteSet(id);
-  deleteSaved = (id: string): Promise<boolean> => this.library.delete(id);
+  async selectSet(id: string) {
+    const selected = await this.library.selectSet(id);
+    if (!selected) return null;
+    const actionId = this.library.snapshot().selectedId;
+    const action = actionId
+      ? this.library.snapshot().actions.find((candidate) => candidate.id === actionId) : null;
+    if (action) this.recorder.restore(action.recording); else this.recorder.clear();
+    return selected;
+  }
+  async deleteSet(id: string): Promise<boolean> {
+    const deleted = await this.library.deleteSet(id);
+    if (deleted) this.restoreLibrarySelection();
+    return deleted;
+  }
+  moveSet = (id: string, direction: -1 | 1): Promise<boolean> => this.library.moveSet(id, direction);
+  async deleteSaved(id: string): Promise<boolean> {
+    const deleted = await this.library.delete(id);
+    if (deleted && this.recorder.snapshot().id === id) this.restoreLibrarySelection();
+    return deleted;
+  }
+  async renameSaved(id: string, name: string) {
+    const renamed = await this.library.rename(id, name);
+    if (renamed && this.recorder.snapshot().id === id) this.recorder.restore(renamed.recording);
+    return renamed;
+  }
+  async duplicateSaved(id: string) {
+    const duplicated = await this.library.duplicate(id);
+    if (duplicated) this.recorder.restore(duplicated.recording);
+    return duplicated;
+  }
+  moveSaved = (id: string, direction: -1 | 1) => this.library.move(id, direction);
+  async setSavedEnabled(id: string, enabled: boolean) {
+    const action = await this.library.setEnabled(id, enabled);
+    if (action && this.recorder.snapshot().id === id) this.recorder.restore(action.recording);
+    return action;
+  }
+  async setSetEnabled(id: string, enabled: boolean) {
+    const actions = await this.library.setSetEnabled(id, enabled);
+    const loaded = actions?.find((action) => action.id === this.recorder.snapshot().id);
+    if (loaded) this.recorder.restore(loaded.recording);
+    return actions;
+  }
 
   async saveRecording(name: string) {
     const saved = await this.library.save(this.recorder.snapshot(), name);
@@ -106,6 +156,10 @@ export class SemanticActionWorkflowController {
     this.recorder.snapshot(), sequence, this.ports.activeDocumentId()
   );
   stopPlayback = (): void => this.playback.stop();
+  continueInteractivePlayback = (parameters: Readonly<Record<string, unknown>>): void => (
+    this.playback.continueInteractive(parameters)
+  );
+  cancelInteractivePlayback = (): void => this.playback.cancelInteractive();
 
   record(request: LightTableCommandRequest, result: LightTableCommandResult,
     startedAt: number, recordingId: string | null,
@@ -115,5 +169,12 @@ export class SemanticActionWorkflowController {
 
   completeTask(taskId: string, value: unknown): boolean {
     return this.recorder.completeTask(taskId, value);
+  }
+
+  private restoreLibrarySelection(): void {
+    const snapshot = this.library.snapshot();
+    const selected = snapshot.selectedId
+      ? snapshot.actions.find((action) => action.id === snapshot.selectedId) : null;
+    if (selected) this.recorder.restore(selected.recording); else this.recorder.clear();
   }
 }
