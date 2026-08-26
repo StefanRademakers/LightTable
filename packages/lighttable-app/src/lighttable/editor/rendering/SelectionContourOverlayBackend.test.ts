@@ -24,6 +24,9 @@ describe('SelectionContourOverlayBackend', () => {
     );
 
     expect(SELECTION_CONTOUR_WGSL).toContain('phasePadding: vec4f');
+    expect(SELECTION_CONTOUR_WGSL).toContain('onePixelInnerContourCoverage');
+    expect(SELECTION_CONTOUR_WGSL).toContain('1.0 / max(view.rectWidth');
+    expect(SELECTION_CONTOUR_WGSL).not.toContain('let underlay');
     expect(device.createBuffer).toHaveBeenCalledWith(expect.objectContaining({ size: 16 }));
     backend.dispose();
     expect(destroy).toHaveBeenCalledOnce();
