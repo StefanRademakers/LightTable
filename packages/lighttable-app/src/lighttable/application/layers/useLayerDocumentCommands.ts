@@ -1161,25 +1161,54 @@ export const createLayerDocumentCommands = (
       }
     }
     const insertionTarget = before.activeLayerId ?? undefined;
-    let after = createRasterLayer(before, placement.name?.trim() || 'Pasted Selection', insertionTarget);
-    const pastedLayerId = after.activeLayerId;
-    if (!pastedLayerId) return null;
     // The retained full-document clipboard is an exact Paste in Place fast
     // path. Normal Paste carries an explicit target and must use the cropped
     // artifact so its newly resolved center is honored.
     const fastPaste = placement.target === undefined && Boolean(requestedFastPasteToken)
       && requestedFastPasteToken === fastClipboardToken
       && renderer.hasSelectionClipboard();
+    if (!fastPaste) {
+      const after = createPlacedRasterLayer(before, {
+        name: placement.name?.trim() || 'Pasted Selection',
+        width: placement.width,
+        height: placement.height,
+        x: placement.x,
+        y: placement.y
+      });
+      const pastedLayerId = after === before ? null : after.activeLayerId;
+      const pastedLayer = pastedLayerId ? findRasterLayer(after, pastedLayerId) : null;
+      if (!pastedLayerId || !pastedLayer || !renderer.prepareRasterDestination(pastedLayer)) {
+        dependencies.setError('The clipboard image dimensions could not be prepared.');
+        return null;
+      }
+      try {
+        await renderer.loadLayerAssets([{ layerId: pastedLayerId, pixels: file, mask: null }]);
+        renderer.commitRasterDestination(pastedLayerId);
+      } catch (reason) {
+        renderer.releaseRasterDestination(pastedLayerId);
+        dependencies.setError(
+          reason instanceof Error ? reason.message : 'The copied pixels could not be pasted into a new layer.'
+        );
+        return null;
+      }
+      dependencies.applyDocumentSnapshot(after);
+      dependencies.pushDocumentHistory(before, after,
+        { label: 'Paste', type: 'layer.paste' });
+      dependencies.setActiveChannel('pixels');
+      dependencies.setSelectionClipboardAvailable(true);
+      dependencies.setStatus('Pasted system clipboard image into a new layer');
+      dependencies.setError(null);
+      return { layerId: pastedLayerId, width: placement.width, height: placement.height };
+    }
+
+    let after = createRasterLayer(before, placement.name?.trim() || 'Pasted Selection', insertionTarget);
+    const pastedLayerId = after.activeLayerId;
+    if (!pastedLayerId) return null;
     const dirtyBounds = {
       x: placement.x, y: placement.y, width: placement.width, height: placement.height
     };
     dependencies.applyDocumentSnapshot(after);
-    const pasted = fastPaste
-      ? renderer.pasteSelectionClipboard(pastedLayerId)
-      : await renderer.pasteClipboardImage(pastedLayerId, file, {
-          x: placement.x,
-          y: placement.y
-        });
+    const pasted = renderer.pasteSelectionClipboard(pastedLayerId);
     if (!pasted) {
       dependencies.applyDocumentSnapshot(before);
       dependencies.setError('The copied pixels could not be pasted into a new layer.');
@@ -1191,9 +1220,7 @@ export const createLayerDocumentCommands = (
       { label: 'Paste', type: 'layer.paste' });
     dependencies.setActiveChannel('pixels');
     dependencies.setSelectionClipboardAvailable(true);
-    dependencies.setStatus(fastPaste
-      ? 'Pasted selection into a new layer'
-      : 'Pasted system clipboard image into a new layer');
+    dependencies.setStatus('Pasted selection into a new layer');
     dependencies.setError(null);
     return { layerId: pastedLayerId, width: placement.width, height: placement.height };
   };

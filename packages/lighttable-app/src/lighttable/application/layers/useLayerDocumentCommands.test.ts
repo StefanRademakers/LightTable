@@ -335,9 +335,14 @@ describe('useLayerDocumentCommands', () => {
     )).resolves.toMatchObject({ width: 16, height: 12 });
 
     expect(state.renderer.pasteSelectionClipboard).not.toHaveBeenCalled();
-    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
-      state.document().activeLayerId, copied!.file, { x: 3, y: 4 }
-    );
+    expect(state.renderer.pasteClipboardImage).not.toHaveBeenCalled();
+    expect(state.renderer.loadLayerAssets).toHaveBeenCalledWith([{
+      layerId: state.document().activeLayerId, pixels: copied!.file, mask: null
+    }]);
+    expect(state.document().layers.at(-1)).toMatchObject({
+      width: 16, height: 12,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 3, ty: 4 }
+    });
   });
 
   it('does not let the Paste in Place fast path override normal centered placement', async () => {
@@ -351,9 +356,11 @@ describe('useLayerDocumentCommands', () => {
     );
 
     expect(state.renderer.pasteSelectionClipboard).not.toHaveBeenCalled();
-    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
-      state.document().activeLayerId, copied!.file, { x: 8, y: 6 }
-    );
+    expect(state.renderer.pasteClipboardImage).not.toHaveBeenCalled();
+    expect(state.document().layers.at(-1)).toMatchObject({
+      width: 16, height: 12,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 8, ty: 6 }
+    });
   });
 
   it('pastes into the selected mask without creating a new layer and records GPU undo', async () => {
@@ -380,25 +387,30 @@ describe('useLayerDocumentCommands', () => {
     expect(state.dependencies.setActiveChannel).toHaveBeenCalledWith('mask');
   });
 
-  it('pastes an external clipboard image into a new layer', async () => {
+  it('retains an oversized external clipboard image outside the canvas', async () => {
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({
-      width: 10, height: 6, close: vi.fn()
+      width: 48, height: 36, close: vi.fn()
     })));
     const state = setup(createImageDocument('Test', 32, 24, 'asset'));
 
     await expect(state.commands.pasteSelectedContent([])).resolves.toBe(true);
 
-    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledOnce();
-    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
-      state.document().activeLayerId, expect.any(Blob), { x: 11, y: 9 }
-    );
+    expect(state.renderer.pasteClipboardImage).not.toHaveBeenCalled();
     expect(state.renderer.pasteSelectionClipboard).not.toHaveBeenCalled();
+    expect(state.renderer.prepareRasterDestination).toHaveBeenCalledWith(
+      expect.objectContaining({ width: 48, height: 36 })
+    );
+    expect(state.renderer.loadLayerAssets).toHaveBeenCalledWith([{
+      layerId: state.document().activeLayerId, pixels: expect.any(File), mask: null
+    }]);
     expect(state.document().layers).toHaveLength(2);
-    const snapshots = vi.mocked(state.dependencies.applyDocumentSnapshot).mock.calls;
-    const preparedLayer = snapshots[0]?.[0].layers.at(-1);
-    const committedLayer = snapshots[1]?.[0].layers.at(-1);
-    expect(preparedLayer?.type === 'raster' ? preparedLayer.pixelRevision : null).toBe(0);
-    expect(committedLayer?.type === 'raster' ? committedLayer.pixelRevision : null).toBe(1);
+    expect(state.document().layers.at(-1)).toMatchObject({
+      width: 48, height: 36,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: -8, ty: -6 }
+    });
+    expect(state.renderer.commitRasterDestination).toHaveBeenCalledWith(
+      state.document().activeLayerId
+    );
     vi.unstubAllGlobals();
   });
 
@@ -411,11 +423,11 @@ describe('useLayerDocumentCommands', () => {
 
     await expect(state.commands.pasteSelectedContent(selection)).resolves.toBe(true);
 
-    expect(state.renderer.pasteClipboardImage).toHaveBeenCalledWith(
-      state.document().activeLayerId,
-      expect.any(Blob),
-      { x: 3, y: 3 }
-    );
+    expect(state.renderer.pasteClipboardImage).not.toHaveBeenCalled();
+    expect(state.document().layers.at(-1)).toMatchObject({
+      width: 10, height: 6,
+      transform: { a: 1, b: 0, c: 0, d: 1, tx: 3, ty: 3 }
+    });
     vi.unstubAllGlobals();
   });
 
