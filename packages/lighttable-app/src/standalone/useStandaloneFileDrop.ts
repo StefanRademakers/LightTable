@@ -19,8 +19,16 @@ export const filterSupportedDroppedFiles = (
 
 export interface StandaloneFileDropState {
   readonly active: boolean;
+  readonly altKey: boolean;
   readonly error: string | null;
   clearError(): void;
+}
+
+export interface StandaloneFileDropModifiers {
+  readonly altKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly shiftKey: boolean;
 }
 
 /**
@@ -32,11 +40,16 @@ export interface StandaloneFileDropState {
  * separate document session instead of replacing the active document.
  */
 export const useStandaloneFileDrop = (
-  onOpen: (file: File, decodeMode?: StandaloneDecodeMode) => unknown,
+  onOpen: (
+    file: File,
+    decodeMode: StandaloneDecodeMode,
+    modifiers: StandaloneFileDropModifiers
+  ) => unknown,
   onAccepted?: (files: readonly File[]) => void,
   enabled = true
 ): StandaloneFileDropState => {
   const [active, setActive] = useState(false);
+  const [altKey, setAltKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const clearError = useCallback(() => setError(null), []);
@@ -51,18 +64,21 @@ export const useStandaloneFileDrop = (
     const reset = () => {
       depth = 0;
       setActive(false);
+      setAltKey(false);
     };
     const onDragEnter = (event: DragEvent) => {
       if (!hasFiles(event.dataTransfer)) return;
       event.preventDefault();
       depth += 1;
       setActive(true);
+      setAltKey(event.altKey);
     };
     const onDragOver = (event: DragEvent) => {
       if (!hasFiles(event.dataTransfer)) return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
       setActive(true);
+      setAltKey(event.altKey);
     };
     const onDragLeave = (event: DragEvent) => {
       if (!hasFiles(event.dataTransfer)) return;
@@ -73,6 +89,12 @@ export const useStandaloneFileDrop = (
       if (!hasFiles(event.dataTransfer)) return;
       event.preventDefault();
       const dropped = Array.from(event.dataTransfer?.files ?? []);
+      const modifiers: StandaloneFileDropModifiers = {
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey
+      };
       reset();
 
       const supported = filterSupportedDroppedFiles(dropped);
@@ -89,7 +111,7 @@ export const useStandaloneFileDrop = (
           : `Opened ${supported.length} supported file${supported.length === 1 ? '' : 's'}; `
             + `${dropped.length - supported.length} unsupported file${dropped.length - supported.length === 1 ? '' : 's'} skipped.`
       );
-      supported.forEach((file) => onOpen(file, 'automatic'));
+      supported.forEach((file) => onOpen(file, 'automatic', modifiers));
       onAccepted?.(supported);
     };
 
@@ -107,5 +129,5 @@ export const useStandaloneFileDrop = (
     };
   }, [enabled, onAccepted, onOpen]);
 
-  return { active, error, clearError };
+  return { active, altKey, error, clearError };
 };

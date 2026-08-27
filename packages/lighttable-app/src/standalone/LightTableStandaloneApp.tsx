@@ -25,7 +25,10 @@ import {
   type StandaloneDecodeMode,
   useStandaloneDocumentWorkspace
 } from './useStandaloneDocumentWorkspace';
-import { useStandaloneFileDrop } from './useStandaloneFileDrop';
+import {
+  useStandaloneFileDrop,
+  type StandaloneFileDropModifiers
+} from './useStandaloneFileDrop';
 import { requestWorkspaceDocumentClose } from './requestWorkspaceDocumentClose';
 import {
   imagePickerAccept,
@@ -99,6 +102,24 @@ type LauncherPage = 'new-document' | 'recent-files' | 'recent-projects' | 'recov
 const canUseSourceAsTabPreview = (file: File): boolean =>
   /^(image\/(?:avif|bmp|gif|jpeg|png|svg\+xml|webp))$/i.test(file.type)
   || /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(file.name);
+
+const normalizePlaceableDroppedImage = (file: File): File | null => {
+  const suppliedType = file.type.toLowerCase();
+  const inferredType = suppliedType && suppliedType !== 'application/octet-stream'
+    ? suppliedType
+    : /\.png$/i.test(file.name) ? 'image/png'
+      : /\.jpe?g$/i.test(file.name) ? 'image/jpeg'
+        : /\.webp$/i.test(file.name) ? 'image/webp'
+          : /\.svg$/i.test(file.name) ? 'image/svg+xml'
+            : '';
+  if (!['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].includes(inferredType)) {
+    return null;
+  }
+  return inferredType === file.type ? file : new File([file], file.name, {
+    type: inferredType,
+    lastModified: file.lastModified
+  });
+};
 
 const RECOVERY_ATTEMPT_PREFIX = 'lighttable:recovery-attempt:';
 const recoveryAttemptKey = (recoveryId: string) => `${RECOVERY_ATTEMPT_PREFIX}${recoveryId}`;
@@ -560,8 +581,34 @@ export function LightTableStandaloneApp({
     void host.rememberRecentFiles(files).then(refreshRecentFiles).catch(() => undefined);
   }, [host, refreshRecentFiles]);
   const projectHomeActive = Boolean(activeProject && snapshot.documentOrder.length === 0);
+  const placeArtifactFile = useCallback(async (documentId: DocumentSessionId, file: File) => {
+    const artifact = commandService.registerInputArtifact(file);
+    return commandService.execute({
+      protocolVersion: 1,
+      requestId: `ui-place-${crypto.randomUUID()}`,
+      command: 'layer.placeArtifact',
+      documentId,
+      parameters: { artifactId: artifact.id }
+    });
+  }, [commandService]);
+  const activePlaceTargetId = activeWorkspaceDocument?.kind === 'image'
+    && activeWorkspaceDocument.session.getSnapshot().lifecycle === 'ready'
+    ? activeWorkspaceDocument.id
+    : null;
+  const handleDroppedFile = useCallback((
+    file: File,
+    decodeMode: StandaloneDecodeMode,
+    modifiers: StandaloneFileDropModifiers
+  ) => {
+    const placeable = modifiers.altKey && activePlaceTargetId
+      ? normalizePlaceableDroppedImage(file)
+      : null;
+    return placeable && activePlaceTargetId
+      ? placeArtifactFile(activePlaceTargetId, placeable)
+      : openWorkspaceDocument(file, decodeMode);
+  }, [activePlaceTargetId, openWorkspaceDocument, placeArtifactFile]);
   const fileDrop = useStandaloneFileDrop(
-    openWorkspaceDocument,
+    handleDroppedFile,
     rememberDroppedFiles,
     !projectHomeActive
   );
@@ -823,15 +870,8 @@ export function LightTableStandaloneApp({
   const requestPlaceArtifact = useCallback(async (documentId: DocumentSessionId) => {
     const file = await (host.openFile?.() ?? pickBrowserPlacedImage());
     if (!file) return;
-    const artifact = commandService.registerInputArtifact(file);
-    await commandService.execute({
-      protocolVersion: 1,
-      requestId: `ui-place-${crypto.randomUUID()}`,
-      command: 'layer.placeArtifact',
-      documentId,
-      parameters: { artifactId: artifact.id }
-    });
-  }, [commandService, host]);
+    await placeArtifactFile(documentId, file);
+  }, [host, placeArtifactFile]);
 
   const openRecovery = useCallback(async (record: LightTableRecoveryRecord) => {
     if (!host.recovery) return null;
@@ -1114,7 +1154,9 @@ export function LightTableStandaloneApp({
       {fileDrop.active ? (
         <div className="lighttable-file-drop" aria-hidden="true">
           <div className="lighttable-file-drop__message">
-            Drop to open in a new document
+            {fileDrop.altKey && activePlaceTargetId
+              ? 'Drop to place in the active document'
+              : 'Drop to open in a new document'}
           </div>
         </div>
       ) : null}
