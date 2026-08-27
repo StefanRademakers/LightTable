@@ -1,5 +1,6 @@
 import { ButtonBase } from '../../../ui/ButtonBase';
 import React from 'react';
+import { PanelStackDisclosure, PanelStackFooter, PanelStackRow } from './PanelStackPrimitives';
 import { ContextMenu, type ContextMenuOption } from '../../../ui/ContextMenu';
 import { AnchoredViewportMenu } from '../../../ui/AnchoredViewportMenu';
 import { lightTableIcon } from '../../../assets/icons';
@@ -789,11 +790,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           );
           return (
           <React.Fragment key={layer.id}>
-          <div
+          <PanelStackRow
             data-layer-id={layer.id}
             draggable={!documentFx}
             {...layerTreeItemAccessibility(layer, depth, selectedLayerIds.has(layer.id), compositeLayerIsActive && document.activeLayerId === layer.id,
               layer.type === 'group' ? !collapsedGroups.has(layer.id) : undefined)}
+            selected={selectedLayerIds.has(layer.id)}
+            active={compositeLayerIsActive && document.activeLayerId === layer.id}
             className={[
               'lighttable-layer',
               compositeLayerIsActive && document.activeLayerId === layer.id ? 'lighttable-layer--active' : '',
@@ -950,11 +953,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               title={layer.visible ? 'Hide layer' : 'Show layer'}
             ><img src={lightTableIcon(layer.visible ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
             {layer.type === 'group' ? (
-              <ButtonBase
-                type="button"
-                className={`lighttable-layer__disclosure${
-                  collapsedGroups.has(layer.id) ? ' lighttable-layer__disclosure--collapsed' : ''
-                }`}
+              <PanelStackDisclosure
+                expanded={!collapsedGroups.has(layer.id)}
+                className="lighttable-layer__disclosure"
                 onClick={(event) => {
                   event.stopPropagation();
                   setCollapsedGroups((current) => {
@@ -964,14 +965,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     return next;
                   });
                 }}
-                aria-label={collapsedGroups.has(layer.id) ? `Expand ${layer.name}` : `Collapse ${layer.name}`}
-                title={collapsedGroups.has(layer.id) ? 'Expand group' : 'Collapse group'}
-              >
-                <img
-                  src={lightTableIcon('chevron_layer.png')}
-                  alt=""
-                />
-              </ButtonBase>
+                label={collapsedGroups.has(layer.id) ? `Expand ${layer.name}` : `Collapse ${layer.name}`}
+              />
             ) : null}
             {layer.clipping ? (
               <span
@@ -1278,7 +1273,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <img src={lightTableIcon('chevron_layer.png')} alt="" />
               </ButtonBase>
             ) : null}
-          </div>
+          </PanelStackRow>
           {childrenExpanded ? (
             <div
               className="lighttable-layer-effects"
@@ -1438,7 +1433,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           );
         })}
       </div>
-      <footer className="lighttable-layers__footer">
+      <PanelStackFooter className="lighttable-layers__footer">
         <ButtonBase
           ref={styleMenuTriggerRef}
           type="button"
@@ -1731,7 +1726,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
           title="Layers menu"
           aria-label="Layers menu"
         ><img src={lightTableIcon('more_menu.png')} alt="" aria-hidden="true" /></ButtonBase>
-      </footer>
+      </PanelStackFooter>
       <ContextMenu
         open={moreMenu.open}
         x={moreMenu.x}

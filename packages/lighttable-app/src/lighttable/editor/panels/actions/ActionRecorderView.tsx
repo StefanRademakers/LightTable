@@ -9,9 +9,13 @@ import {
 import { lightTableIcon } from '../../../../assets/icons';
 import { ButtonBase } from '../../../../ui/ButtonBase';
 import { ContextMenu, type ContextMenuOption } from '../../../../ui/ContextMenu';
-import { PanelCheckboxField } from '../../../../ui/PanelControls';
 import { SquareIconButton } from '../../../../ui/SquareIconButton';
 import { TextInputDialog } from '../../../../ui/TextInputDialog';
+import {
+  PanelStackDisclosure,
+  PanelStackFooter,
+  PanelStackRow
+} from '../../ui/PanelStackPrimitives';
 import type {
   ActionRecordingEditResult,
   ActionRecordingSnapshot
@@ -217,67 +221,88 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
               createdAt: recording.startedAt ?? 0, updatedAt: recording.stoppedAt ?? Date.now(), recording }]
           : savedActions;
         return <div className="lighttable-action-tree__set" key={set.id}>
-          <div role="treeitem" aria-level={1} aria-expanded={setOpen} tabIndex={0}
-            className={`lighttable-action-tree__row is-set${selection?.kind === 'set'
-              && selection.id === set.id ? ' is-selected' : ''}`}
+          <PanelStackRow role="treeitem" aria-level={1} aria-expanded={setOpen} tabIndex={0}
+            selected={selection?.kind === 'set' && selection.id === set.id}
+            active={selection?.kind === 'set' && selection.id === set.id}
+            className="lighttable-action-tree__row is-set"
             onClick={(event) => {
               event.stopPropagation();
               setSelection({ kind: 'set', id: set.id });
               props.onSelectSet(set.id);
-              setExpandedSets((value) => toggle(value, set.id));
             }}
             onDoubleClick={() => beginRename({ kind: 'set', id: set.id })}
             onKeyDown={activateTreeRow}
             onContextMenu={(event) => openMenu(event, { kind: 'set', id: set.id })}>
-            <span className="lighttable-action-tree__check" onClick={(event) => event.stopPropagation()}>
-              <PanelCheckboxField label={`Enable ${set.name}`}
-                compact
-                checked={actions.length > 0 && actions.every((action) => action.recording.steps
-                  .every((step) => step.enabled !== false))}
-                disabled={busy || actions.length === 0
-                  || actions.some((action) => !library.actions.some((saved) => saved.id === action.id))}
-                onChange={(checked) => props.onSetActionSetEnabled(set.id, checked)} />
-            </span>
-            <span className="lighttable-action-tree__disclosure"><img
-              src={lightTableIcon(setOpen ? 'collapse.png' : 'expand.png')} alt="" aria-hidden="true" /></span>
-            <span className="lighttable-action-tree__folder"><img
-              src={lightTableIcon('folder.png')} alt="" aria-hidden="true" /></span><strong>{set.name}</strong>
-          </div>
+            <ButtonBase type="button" className="lighttable-layer__visibility"
+              aria-label={`${actions.length > 0 && actions.every((action) => action.recording.steps
+                .every((step) => step.enabled !== false)) ? 'Disable' : 'Enable'} ${set.name}`}
+              disabled={busy || actions.length === 0
+                || actions.some((action) => !library.actions.some((saved) => saved.id === action.id))}
+              onClick={(event) => {
+                event.stopPropagation();
+                props.onSetActionSetEnabled(set.id, !actions.every((action) => action.recording.steps
+                  .every((step) => step.enabled !== false)));
+              }}><img src={lightTableIcon(actions.length > 0 && actions.every((action) => action.recording.steps
+                .every((step) => step.enabled !== false)) ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
+            <PanelStackDisclosure expanded={setOpen}
+              label={setOpen ? `Collapse ${set.name}` : `Expand ${set.name}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpandedSets((value) => toggle(value, set.id));
+              }} />
+            <span className="lighttable-layer__thumbnail-slot"><span
+              className="lighttable-layer__thumbnail lighttable-action-tree__thumbnail"><img
+                className="lighttable-layer__type-icon" src={lightTableIcon('layer_group.png')}
+                alt="" aria-hidden="true" /></span></span><strong>{set.name}</strong>
+          </PanelStackRow>
           {setOpen ? <div role="group">
             {actions.map((action) => {
               const actionOpen = expandedActions.has(action.id);
               const shown = actionRecording(action.id, action.recording);
               return <div key={action.id}>
-                <div role="treeitem" aria-level={2} aria-expanded={actionOpen} tabIndex={0}
-                  className={`lighttable-action-tree__row is-action${selection?.kind === 'action'
-                    && selection.id === action.id ? ' is-selected' : ''}`}
+                <PanelStackRow role="treeitem" aria-level={2} aria-expanded={actionOpen} tabIndex={0}
+                  selected={selection?.kind === 'action' && selection.id === action.id}
+                  active={selection?.kind === 'action' && selection.id === action.id}
+                  className="lighttable-action-tree__row is-action"
                   onClick={(event) => {
                     event.stopPropagation();
                     chooseAction(action.id);
-                    setExpandedActions((value) => toggle(value, action.id));
                   }}
                   onDoubleClick={() => beginRename({ kind: 'action', id: action.id })}
                   onKeyDown={activateTreeRow}
                   onContextMenu={(event) => openMenu(event, { kind: 'action', id: action.id })}>
-                  <span className="lighttable-action-tree__check" onClick={(event) => event.stopPropagation()}>
-                    <PanelCheckboxField label={`Enable ${action.name}`}
-                      compact
-                      checked={shown.steps.length > 0 && shown.steps.every((step) => step.enabled !== false)}
-                      disabled={busy || shown.steps.length === 0
-                        || !library.actions.some((saved) => saved.id === action.id)}
-                      onChange={(checked) => props.onSetActionEnabled(action.id, checked)} />
-                  </span>
-                  <span className="lighttable-action-tree__disclosure"><img
-                    src={lightTableIcon(actionOpen ? 'collapse.png' : 'expand.png')} alt="" aria-hidden="true" /></span>
-                  <span className="lighttable-action-tree__play"><img
-                    src={lightTableIcon('play.png')} alt="" aria-hidden="true" /></span><span>{action.name}</span>
-                </div>
+                  <ButtonBase type="button" className="lighttable-layer__visibility"
+                    aria-label={`${shown.steps.length > 0
+                      && shown.steps.every((step) => step.enabled !== false) ? 'Disable' : 'Enable'} ${action.name}`}
+                    disabled={busy || shown.steps.length === 0
+                      || !library.actions.some((saved) => saved.id === action.id)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      props.onSetActionEnabled(action.id,
+                        !shown.steps.every((step) => step.enabled !== false));
+                    }}><img src={lightTableIcon(shown.steps.length > 0
+                      && shown.steps.every((step) => step.enabled !== false)
+                      ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
+                  <PanelStackDisclosure expanded={actionOpen}
+                    label={actionOpen ? `Collapse ${action.name}` : `Expand ${action.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      chooseAction(action.id);
+                      setExpandedActions((value) => toggle(value, action.id));
+                    }} />
+                  <span className="lighttable-layer__thumbnail-slot"><span
+                    className="lighttable-layer__thumbnail lighttable-action-tree__thumbnail"><img
+                      className="lighttable-layer__type-icon" src={lightTableIcon('play.png')}
+                      alt="" aria-hidden="true" /></span></span><span>{action.name}</span>
+                </PanelStackRow>
                 {actionOpen ? <div role="group">
                   {shown.steps.map((step) => {
                     const selected = selection?.kind === 'step' && selection.id === action.id
                       && selection.sequence === step.sequence;
-                    return <div className={`lighttable-action-tree__row is-step${selected ? ' is-selected' : ''}${playback.currentSequence === step.sequence
+                    return <PanelStackRow className={`lighttable-action-tree__row is-step${playback.currentSequence === step.sequence
                         && recording.id === action.id ? ' is-current' : ''}`}
+                      selected={selected}
+                      active={selected}
                       role="treeitem" key={`${step.sequence}-${step.requestId}`}
                       data-command={step.command}
                       aria-level={3} tabIndex={0}
@@ -290,13 +315,13 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
                       onKeyDown={activateTreeRow}
                       onContextMenu={(event) => openMenu(event,
                         { kind: 'step', id: action.id, sequence: step.sequence })}>
-                      <span className="lighttable-action-tree__check" onClick={(event) => event.stopPropagation()}>
-                        <PanelCheckboxField label={`Enable ${labels.get(step.command) ?? step.command}`}
-                          compact
-                          checked={step.enabled !== false}
-                          disabled={busy || shown.status === 'recording' || recording.id !== action.id}
-                          onChange={(checked) => edit(props.onSetStepEnabled(step.sequence, checked))} />
-                      </span>
+                      <ButtonBase type="button" className="lighttable-layer__visibility"
+                        aria-label={`${step.enabled !== false ? 'Disable' : 'Enable'} ${labels.get(step.command) ?? step.command}`}
+                        disabled={busy || shown.status === 'recording' || recording.id !== action.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          edit(props.onSetStepEnabled(step.sequence, step.enabled === false));
+                        }}><img src={lightTableIcon(step.enabled !== false ? 'visible.png' : 'visible_off.png')} alt="" /></ButtonBase>
                       <SquareIconButton type="button" size="compact" appearance="quiet" icon="▣"
                         className={`lighttable-action-tree__modal${step.interactive ? ' is-on' : ''}`}
                         aria-label={`Toggle dialog for ${labels.get(step.command) ?? step.command}`}
@@ -307,7 +332,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
                           edit(props.onSetStepInteractive(step.sequence, !step.interactive));
                         }} />
                       <span>{labels.get(step.command) ?? step.command}</span>
-                    </div>;
+                    </PanelStackRow>;
                   })}
                 </div> : null}
               </div>;
@@ -315,13 +340,6 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
           </div> : null}
         </div>;
       })}
-      {recording.steps.length === 0
-        ? <p className="lighttable-action-recorder__empty">
-            {recording.status === 'recording'
-              ? `Recording “${recording.name}”… Use LightTable normally to add steps.`
-              : recording.id ? 'This Action has no steps.'
-                : 'Create an Action, press Record, then use LightTable normally.'}
-          </p> : null}
     </div>
 
     {selectedStep ? <details className="lighttable-action-inspector">
@@ -368,34 +386,31 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
       {playback.taskProgress === null ? '' : ` · ${Math.round(playback.taskProgress * 100)}%`}
     </p> : null}
 
-    <footer className="lighttable-action-recorder__footer" aria-label="Action controls">
-      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="Stop"
-        icon={<span className="lighttable-action-recorder__stop" />}
+    <PanelStackFooter className="lighttable-action-recorder__footer" ariaLabel="Action controls">
+      <ButtonBase type="button" aria-label="Stop"
         onClick={busy ? props.onStopPlayback : props.onStop}
-        disabled={!busy && recording.status !== 'recording'} />
-      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="Record"
-        icon={<span className="lighttable-action-recorder__record">●</span>}
+        disabled={!busy && recording.status !== 'recording'}><span className="lighttable-action-recorder__stop" /></ButtonBase>
+      <ButtonBase type="button" aria-label="Record" className="lighttable-action-recorder__record"
         onClick={() => props.onStart(undefined, selectedStep?.sequence)}
-        disabled={busy || recording.status === 'recording'} />
-      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="Play"
-        icon={<img src={lightTableIcon('play.png')} alt="" aria-hidden="true" />} onClick={props.onPlay}
+        disabled={busy || recording.status === 'recording'}><span>●</span></ButtonBase>
+      <ButtonBase type="button" aria-label="Play" onClick={props.onPlay}
         disabled={busy || recording.status === 'recording'
-          || !recording.steps.some((step) => step.replayable && step.enabled !== false)} />
+          || !recording.steps.some((step) => step.replayable && step.enabled !== false)}><img
+          src={lightTableIcon('play.png')} alt="" aria-hidden="true" /></ButtonBase>
       <span className="lighttable-action-recorder__footer-spacer" />
-      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="New Action Set"
-        icon={<img src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" />}
-        onClick={() => setDialog({ kind: 'new-set', title: 'New Action Set', value: 'New Set' })} />
-      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="New Action"
-        icon={<img src={lightTableIcon('add_layer.png')} alt="" aria-hidden="true" />}
-        onClick={() => setDialog({ kind: 'new-action', title: 'New Action', value: 'New Action' })} />
-      <SquareIconButton type="button" size="compact" appearance="quiet" aria-label="Delete selected"
-        icon={<img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" />} disabled={!selection}
+      <ButtonBase type="button" aria-label="New Action Set"
+        onClick={() => setDialog({ kind: 'new-set', title: 'New Action Set', value: 'New Set' })}><img
+          src={lightTableIcon('add_group.png')} alt="" aria-hidden="true" /></ButtonBase>
+      <ButtonBase type="button" aria-label="New Action"
+        onClick={() => setDialog({ kind: 'new-action', title: 'New Action', value: 'New Action' })}><img
+          src={lightTableIcon('add_layer.png')} alt="" aria-hidden="true" /></ButtonBase>
+      <ButtonBase type="button" aria-label="Delete selected" disabled={!selection}
         onClick={() => {
           if (selection?.kind === 'set') props.onDeleteSet(selection.id);
           if (selection?.kind === 'action') props.onDelete(selection.id);
           if (selection?.kind === 'step' && selection.sequence) edit(props.onDeleteStep(selection.sequence));
-        }} />
-    </footer>
+        }}><img src={lightTableIcon('layer_trash.png')} alt="" aria-hidden="true" /></ButtonBase>
+    </PanelStackFooter>
 
     <ContextMenu open={menu !== null} x={menu?.x ?? 0} y={menu?.y ?? 0}
       onClose={() => setMenu(null)} options={contextMenuOptions} width={180} />

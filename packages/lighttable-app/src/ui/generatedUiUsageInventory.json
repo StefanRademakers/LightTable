@@ -160,9 +160,9 @@
     {
       "id": "button-base",
       "metadataDeclared": true,
-      "productionUsageCount": 145,
+      "productionUsageCount": 154,
       "internalUsageCount": 0,
-      "contextCount": 44,
+      "contextCount": 45,
       "overrideCount": 0,
       "locations": [
         {
@@ -202,7 +202,7 @@
         },
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 3,
+          "count": 12,
           "kind": "product"
         },
         {
@@ -312,7 +312,7 @@
         },
         {
           "path": "lighttable/editor/ui/LayerPanel.tsx",
-          "count": 23,
+          "count": 22,
           "kind": "product"
         },
         {
@@ -328,6 +328,11 @@
         {
           "path": "lighttable/editor/ui/LocalProcessingTreeRows.tsx",
           "count": 4,
+          "kind": "product"
+        },
+        {
+          "path": "lighttable/editor/ui/PanelStackPrimitives.tsx",
+          "count": 1,
           "kind": "product"
         },
         {
@@ -391,14 +396,14 @@
     {
       "id": "square-icon-button",
       "metadataDeclared": true,
-      "productionUsageCount": 16,
+      "productionUsageCount": 10,
       "internalUsageCount": 2,
       "contextCount": 5,
       "overrideCount": 0,
       "locations": [
         {
           "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 7,
+          "count": 1,
           "kind": "product"
         },
         {
@@ -697,16 +702,11 @@
     {
       "id": "panel-checkbox",
       "metadataDeclared": true,
-      "productionUsageCount": 9,
+      "productionUsageCount": 6,
       "internalUsageCount": 0,
-      "contextCount": 2,
+      "contextCount": 1,
       "overrideCount": 0,
       "locations": [
-        {
-          "path": "lighttable/editor/panels/actions/ActionRecorderView.tsx",
-          "count": 3,
-          "kind": "product"
-        },
         {
           "path": "lighttable/editor/panels/PhotoshopAdjustmentPropertiesPanel.tsx",
           "count": 6,

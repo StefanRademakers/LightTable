@@ -74,7 +74,7 @@ try {
       actionFont: a.fontSize, layerFont: name.fontSize,
       actionRadius: a.borderRadius, layerRadius: l.borderRadius };
   });
-  if (!geometry || geometry.actionHeight > geometry.layerHeight
+  if (!geometry || Math.abs(geometry.actionHeight - geometry.layerHeight) > 0.5
     || geometry.actionFont !== geometry.layerFont || geometry.actionRadius !== geometry.layerRadius) {
     throw new Error(`Actions rows drift from the Layers UI geometry: ${JSON.stringify(geometry)}`);
   }
