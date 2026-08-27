@@ -155,7 +155,7 @@ export class SelectionRasterizer {
   private magicWandSettings: GPUBuffer | null = null;
   private magicWandReference: GPUBuffer | null = null;
   private selectSimilarColors: [GPUBuffer, GPUBuffer] | null = null;
-  private selectSimilarAlpha: [GPUBuffer, GPUBuffer] | null = null;
+  private selectSimilarSelectedPixelCount: GPUBuffer | null = null;
   private selectSimilarSettings: [GPUBuffer, GPUBuffer, GPUBuffer, GPUBuffer] | null = null;
 
   constructor(private readonly options: SelectionRasterizerOptions) {}
@@ -197,19 +197,17 @@ export class SelectionRasterizer {
     const storage = GPUBufferUsage.STORAGE;
     const uniform = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST;
     const colorBytes = SELECT_SIMILAR_GRID_SIZE ** 3 * Uint32Array.BYTES_PER_ELEMENT;
-    const alphaBytes = SELECT_SIMILAR_GRID_SIZE * Uint32Array.BYTES_PER_ELEMENT;
     if (!this.selectSimilarColors) this.selectSimilarColors = [0, 1].map((index) =>
       device.createBuffer({
         label: `LightTable Select Similar color grid ${index}`,
         size: colorBytes,
         usage: storage
       })) as [GPUBuffer, GPUBuffer];
-    if (!this.selectSimilarAlpha) this.selectSimilarAlpha = [0, 1].map((index) =>
-      device.createBuffer({
-        label: `LightTable Select Similar alpha grid ${index}`,
-        size: alphaBytes,
-        usage: storage
-      })) as [GPUBuffer, GPUBuffer];
+    if (!this.selectSimilarSelectedPixelCount) this.selectSimilarSelectedPixelCount = device.createBuffer({
+      label: 'LightTable Select Similar selected pixel count',
+      size: Uint32Array.BYTES_PER_ELEMENT,
+      usage: storage
+    });
     if (!this.selectSimilarSettings) this.selectSimilarSettings = [0, 1, 2, 3].map((index) =>
       device.createBuffer({
         label: `LightTable Select Similar settings ${index}`,
@@ -218,7 +216,7 @@ export class SelectionRasterizer {
       })) as [GPUBuffer, GPUBuffer, GPUBuffer, GPUBuffer];
     return {
       colors: this.selectSimilarColors,
-      alpha: this.selectSimilarAlpha,
+      selectedPixelCount: this.selectSimilarSelectedPixelCount,
       settings: this.selectSimilarSettings
     };
   }
@@ -388,7 +386,7 @@ export class SelectionRasterizer {
     const tolerance = Math.max(0, Math.min(255, similarOptions.tolerance));
     const radius = Math.min(
       SELECT_SIMILAR_GRID_SIZE - 1,
-      Math.ceil(tolerance / 255 * (SELECT_SIMILAR_GRID_SIZE - 1))
+      Math.round(tolerance / 255 * (SELECT_SIMILAR_GRID_SIZE - 1))
     );
     resources.settings.forEach((buffer, index) => {
       const data = new ArrayBuffer(48);
@@ -398,8 +396,8 @@ export class SelectionRasterizer {
         SELECT_SIMILAR_GRID_SIZE,
         Math.max(0, index - 1),
         radius,
-        radius,
         similarOptions.antiAlias ? 1 : 0,
+        0,
         0
       ]);
       new Float32Array(data)[8] = tolerance;
@@ -412,7 +410,7 @@ export class SelectionRasterizer {
       entries: [
         { binding: 0, resource: { buffer: resources.settings[0] } },
         { binding: 1, resource: { buffer: resources.colors[0] } },
-        { binding: 2, resource: { buffer: resources.alpha[0] } }
+        { binding: 2, resource: { buffer: resources.selectedPixelCount } }
       ]
     });
     const markBindings = device.createBindGroup({
@@ -423,7 +421,7 @@ export class SelectionRasterizer {
         { binding: 1, resource: textures.mask.createView() },
         { binding: 2, resource: { buffer: resources.settings[0] } },
         { binding: 3, resource: { buffer: resources.colors[0] } },
-        { binding: 4, resource: { buffer: resources.alpha[0] } }
+        { binding: 4, resource: { buffer: resources.selectedPixelCount } }
       ]
     });
     const dilationBindings = [0, 1, 2].map((axis) => {
@@ -435,9 +433,7 @@ export class SelectionRasterizer {
         entries: [
           { binding: 0, resource: { buffer: resources.settings[axis + 1] } },
           { binding: 1, resource: { buffer: resources.colors[input] } },
-          { binding: 2, resource: { buffer: resources.alpha[input] } },
-          { binding: 3, resource: { buffer: resources.colors[output] } },
-          { binding: 4, resource: { buffer: resources.alpha[output] } }
+          { binding: 2, resource: { buffer: resources.colors[output] } }
         ]
       });
     });
@@ -448,7 +444,7 @@ export class SelectionRasterizer {
         { binding: 0, resource: source.createView() },
         { binding: 1, resource: { buffer: resources.settings[0] } },
         { binding: 2, resource: { buffer: resources.colors[1] } },
-        { binding: 3, resource: { buffer: resources.alpha[1] } }
+        { binding: 3, resource: { buffer: resources.selectedPixelCount } }
       ]
     });
     const combineBuffer = device.createBuffer({
@@ -1078,13 +1074,13 @@ export class SelectionRasterizer {
     this.magicWandSettings?.destroy();
     this.magicWandReference?.destroy();
     this.selectSimilarColors?.forEach((buffer) => buffer.destroy());
-    this.selectSimilarAlpha?.forEach((buffer) => buffer.destroy());
+    this.selectSimilarSelectedPixelCount?.destroy();
     this.selectSimilarSettings?.forEach((buffer) => buffer.destroy());
     this.magicWandLabels = null;
     this.magicWandSettings = null;
     this.magicWandReference = null;
     this.selectSimilarColors = null;
-    this.selectSimilarAlpha = null;
+    this.selectSimilarSelectedPixelCount = null;
     this.selectSimilarSettings = null;
     this.magicWandLabelCapacity = 0;
   }
