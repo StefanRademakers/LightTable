@@ -48,7 +48,6 @@ try {
   await setDialog.getByRole('button', { name: 'OK' }).click();
   const smokeSet = panel.getByText('Smoke Set', { exact: true });
   await smokeSet.waitFor();
-  await smokeSet.click();
   const selectedSet = smokeSet.locator('..');
   if (!(await selectedSet.evaluate((element) => element.classList.contains('lighttable-panel-stack-row--active')))) {
     throw new Error('Clicking an Action Set did not make its row active.');
@@ -115,6 +114,22 @@ try {
   await window.waitForFunction(() => {
     const input = Array.from(document.querySelectorAll('label')).find((label) =>
       label.textContent?.includes('Enable Layer setup'))?.querySelector('input');
+    return input instanceof HTMLInputElement && input.checked;
+  });
+  const emptyEnabled = panel.getByRole('checkbox', { name: 'Enable Empty one' });
+  if (!(await emptyEnabled.isEnabled()) || !(await emptyEnabled.isChecked())) {
+    throw new Error('A saved empty Action is not enabled by default.');
+  }
+  await emptyEnabled.click();
+  await window.waitForFunction(() => {
+    const input = Array.from(document.querySelectorAll('label')).find((label) =>
+      label.textContent?.includes('Enable Empty one'))?.querySelector('input');
+    return input instanceof HTMLInputElement && !input.checked;
+  });
+  await emptyEnabled.click();
+  await window.waitForFunction(() => {
+    const input = Array.from(document.querySelectorAll('label')).find((label) =>
+      label.textContent?.includes('Enable Empty one'))?.querySelector('input');
     return input instanceof HTMLInputElement && input.checked;
   });
 

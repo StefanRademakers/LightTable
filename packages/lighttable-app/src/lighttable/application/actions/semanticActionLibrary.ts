@@ -31,6 +31,7 @@ export interface SavedSemanticAction {
   readonly name: string;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly enabled?: boolean;
   readonly recording: ActionRecordingSnapshot;
 }
 
@@ -79,7 +80,7 @@ const STEP_KEYS = new Set([
   'enabled', 'interactive'
 ]);
 const LIBRARY_KEYS = new Set(['format', 'selectedSetId', 'selectedId', 'sets', 'actions']);
-const ACTION_KEYS = new Set(['id', 'setId', 'name', 'createdAt', 'updatedAt', 'recording']);
+const ACTION_KEYS = new Set(['id', 'setId', 'name', 'createdAt', 'updatedAt', 'enabled', 'recording']);
 const RECORDING_KEYS = new Set([
   'status', 'id', 'name', 'startedAt', 'stoppedAt', 'steps', 'variables', 'byteLength', 'limitReached'
 ]);
@@ -116,6 +117,9 @@ const parseAction = (value: unknown): ParsedAction => {
   }
   const setId = value.setId;
   if (!boundedString(setId, 255)) return { error: 'Action Set identity is invalid.' };
+  if (value.enabled !== undefined && typeof value.enabled !== 'boolean') {
+    return { error: 'Action enabled state is invalid.' };
+  }
   const recording = value.recording;
   if (recording.status !== 'stopped' || recording.id !== value.id
     || Object.keys(recording).some((key) => !RECORDING_KEYS.has(key))
@@ -137,6 +141,7 @@ const parseAction = (value: unknown): ParsedAction => {
   const parsedRecording = recording as unknown as ActionRecordingSnapshot;
   const action: SavedSemanticAction = { id: value.id, setId, name: value.name,
     createdAt: value.createdAt, updatedAt: value.updatedAt,
+    enabled: value.enabled !== false,
     recording: { ...parsedRecording, variables: structuredClone(variables), steps: contracts.steps } };
   try {
     return jsonBytes(action) <= MAX_ACTION_BYTES
@@ -278,6 +283,7 @@ export class SemanticActionLibrary {
       ? nextId('action', new Set(this.snapshotValue.actions.map((action) => action.id))) : requestedId;
     const parsed = parseAction({ id, setId: this.snapshotValue.selectedSetId,
       name: normalizedName, createdAt: previous?.createdAt ?? now, updatedAt: now,
+      enabled: previous?.enabled !== false,
       recording: { ...recording, id, name: normalizedName, status: 'stopped', limitReached: false } });
     if ('error' in parsed) return null;
     const action = parsed.action;
@@ -355,7 +361,7 @@ export class SemanticActionLibrary {
     await this.readyValue;
     const existing = this.snapshotValue.actions.find((action) => action.id === id);
     if (!existing) return null;
-    const updated: SavedSemanticAction = { ...existing, updatedAt: Date.now(),
+    const updated: SavedSemanticAction = { ...existing, enabled, updatedAt: Date.now(),
       recording: { ...existing.recording,
         steps: existing.recording.steps.map((step) => ({ ...step, enabled })) } };
     const actions = this.snapshotValue.actions.map((action) => action.id === id ? updated : action);
@@ -367,7 +373,7 @@ export class SemanticActionLibrary {
     if (!this.snapshotValue.sets.some((set) => set.id === setId)) return null;
     const now = Date.now();
     const updated = this.snapshotValue.actions.map((action): SavedSemanticAction => action.setId === setId
-      ? { ...action, updatedAt: now, recording: { ...action.recording,
+      ? { ...action, enabled, updatedAt: now, recording: { ...action.recording,
           steps: action.recording.steps.map((step) => ({ ...step, enabled })) } }
       : action);
     return await this.persist({ ...this.snapshotValue, actions: updated, error: null })

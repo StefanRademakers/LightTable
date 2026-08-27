@@ -127,8 +127,13 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
   useEffect(() => {
     if (library.selectedSetId) {
       setExpandedSets((current) => new Set([...current, library.selectedSetId]));
+      setSelection((current) => current
+        && (current.kind === 'action' || current.kind === 'step')
+        && current.id === library.selectedId
+        ? current
+        : { kind: 'set', id: library.selectedSetId });
     }
-  }, [library.selectedSetId]);
+  }, [library.selectedId, library.selectedSetId]);
   useEffect(() => {
     if (library.selectedId && recording.id === library.selectedId) {
       setExpandedActions((current) => new Set([...current, library.selectedId!]));
@@ -241,8 +246,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
             onContextMenu={(event) => openMenu(event, { kind: 'set', id: set.id })}>
             <span className="lighttable-action-tree__enabled" onClick={(event) => event.stopPropagation()}>
               <PanelCheckboxField label={`Enable ${set.name}`} compact
-                checked={actions.length > 0 && actions.every((action) => action.recording.steps
-                  .every((step) => step.enabled !== false))}
+                checked={actions.length > 0 && actions.every((action) => action.enabled !== false)}
                 disabled={busy || actions.length === 0
                   || actions.some((action) => !library.actions.some((saved) => saved.id === action.id))}
                 onChange={(checked) => props.onSetActionSetEnabled(set.id, checked)} />
@@ -262,6 +266,7 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
             {actions.map((action) => {
               const actionOpen = expandedActions.has(action.id);
               const shown = actionRecording(action.id, action.recording);
+              const actionEnabled = action.enabled !== false;
               return <div key={action.id}>
                 <PanelStackRow role="treeitem" aria-level={2} aria-expanded={actionOpen} tabIndex={0}
                   selected={selection?.kind === 'action' && selection.id === action.id}
@@ -276,9 +281,8 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
                   onContextMenu={(event) => openMenu(event, { kind: 'action', id: action.id })}>
                   <span className="lighttable-action-tree__enabled" onClick={(event) => event.stopPropagation()}>
                     <PanelCheckboxField label={`Enable ${action.name}`} compact
-                      checked={shown.steps.length > 0 && shown.steps.every((step) => step.enabled !== false)}
-                      disabled={busy || shown.steps.length === 0
-                        || !library.actions.some((saved) => saved.id === action.id)}
+                      checked={actionEnabled}
+                      disabled={busy || !library.actions.some((saved) => saved.id === action.id)}
                       onChange={(checked) => props.onSetActionEnabled(action.id, checked)} />
                   </span>
                   <PanelStackDisclosure expanded={actionOpen}
