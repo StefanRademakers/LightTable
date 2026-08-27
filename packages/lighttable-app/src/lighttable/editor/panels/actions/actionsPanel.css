@@ -63,8 +63,7 @@
 }
 
 .lighttable-action-tree .lighttable-panel-stack-disclosure,
-.lighttable-action-tree__enabled,
-.lighttable-action-tree__row .lighttable-action-tree__modal {
+.lighttable-action-tree__enabled {
   width: var(--lt-action-tree-column);
   height: calc(var(--lt-control-height) - 2px);
   flex: 0 0 var(--lt-action-tree-column);
@@ -98,21 +97,6 @@
 }
 
 .lighttable-action-tree__row.is-set strong { font-weight: var(--lt-weight-semibold); }
-
-.lighttable-action-tree__modal.square-icon-button--compact {
-  min-width: var(--lt-action-tree-column);
-  padding: 0;
-  border-color: transparent;
-  border-radius: 1px;
-  color: var(--lt-text-muted);
-  background: transparent;
-  font-size: 9px;
-}
-
-.lighttable-action-tree__modal.is-on {
-  border-color: var(--lt-border-strong);
-  color: var(--lt-text-primary);
-}
 
 .lighttable-action-inspector,
 .lighttable-action-recorder__variables {

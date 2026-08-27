@@ -197,7 +197,7 @@ try {
         '.lighttable-layer__thumbnail-slot']),
       actionColumns: columns(action, ['.lighttable-action-tree__enabled', '.lighttable-panel-stack-disclosure',
         '.lighttable-layer__thumbnail-slot']),
-      stepColumns: columns(step, ['.lighttable-action-tree__enabled', '.lighttable-action-tree__modal']) };
+      stepColumns: columns(step, ['.lighttable-action-tree__enabled', ':scope > span:last-child']) };
   });
   if (!geometry || Math.abs(geometry.actionHeight - geometry.controlHeight) > 0.5
     || geometry.actionFont !== geometry.layerFont || geometry.actionRadius !== geometry.layerRadius) {
@@ -210,15 +210,15 @@ try {
   const close = (left, right) => Math.abs(left - right) <= 0.5;
   const [setCheckbox, setDisclosure, setIcon] = geometry.setColumns;
   const [actionCheckbox, actionDisclosure, actionIcon] = geometry.actionColumns;
-  const [stepCheckbox, stepModal] = geometry.stepColumns;
+  const [stepCheckbox, stepName] = geometry.stepColumns;
   if (![setCheckbox, setDisclosure, setIcon, actionCheckbox, actionDisclosure, actionIcon,
-    stepCheckbox, stepModal].every((column) => close(column[1], 18))
+    stepCheckbox].every((column) => close(column[1], 18))
     || !close(setDisclosure[0] - setCheckbox[0], 22)
     || !close(setIcon[0] - setDisclosure[0], 22)
     || !close(actionCheckbox[0], setDisclosure[0])
     || !close(actionDisclosure[0], setIcon[0])
     || !close(stepCheckbox[0], actionDisclosure[0])
-    || !close(stepModal[0], actionIcon[0])
+    || !close(stepName[0], actionIcon[0])
     || !geometry.setColumns.every((column) => close(column[2], geometry.setColumns[0][2]))
     || !geometry.actionColumns.every((column) => close(column[2], geometry.actionColumns[0][2]))) {
     throw new Error(`Actions tree columns are not aligned: ${JSON.stringify(geometry)}`);

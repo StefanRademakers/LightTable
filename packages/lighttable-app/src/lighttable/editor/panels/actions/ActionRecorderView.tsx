@@ -11,7 +11,6 @@ import { LayerNameRenameGestureController } from '../../../application/layers/la
 import { ButtonBase } from '../../../../ui/ButtonBase';
 import { ContextMenu, type ContextMenuOption } from '../../../../ui/ContextMenu';
 import { PanelCheckboxField } from '../../../../ui/PanelControls';
-import { SquareIconButton } from '../../../../ui/SquareIconButton';
 import { TextInputDialog } from '../../../../ui/TextInputDialog';
 import {
   PanelStackDisclosure,
@@ -371,15 +370,6 @@ export const ActionRecorderView: React.FC<ActionRecorderViewProps> = (props) => 
                           disabled={busy || shown.status === 'recording' || recording.id !== action.id}
                           onChange={(checked) => edit(props.onSetStepEnabled(step.sequence, checked))} />
                       </span>
-                      <SquareIconButton type="button" size="compact" appearance="quiet" icon="▣"
-                        className={`lighttable-action-tree__modal${step.interactive ? ' is-on' : ''}`}
-                        aria-label={`Toggle dialog for ${labels.get(step.command) ?? step.command}`}
-                        aria-pressed={step.interactive === true} disabled={busy || shown.status === 'recording'
-                          || recording.id !== action.id}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          edit(props.onSetStepInteractive(step.sequence, !step.interactive));
-                        }} />
                       <span>{labels.get(step.command) ?? step.command}</span>
                     </PanelStackRow>;
                   })}

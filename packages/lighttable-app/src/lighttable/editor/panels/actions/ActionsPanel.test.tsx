@@ -54,7 +54,7 @@ describe('ActionsPanel', () => {
     } });
     expect(markup).toContain('data-command="layer.createRaster"');
     expect(markup).toContain('New raster layer');
-    expect(markup).toContain('Toggle dialog for New raster layer');
+    expect(markup).not.toContain('Toggle dialog for New raster layer');
   });
 
   it('announces task-aware playback progress', () => {
